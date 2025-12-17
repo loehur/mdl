@@ -50,27 +50,23 @@ class I extends Controller
       $list_paket = $this->db(0)->get_where('member', $where2);
 
       foreach ($numbers as $id => $book) {
-         //OPERASI
+         //OPERASI - FIX: use db(0)
          $where = "id_cabang = " . $this->id_cabang_p . " AND id_penjualan = " . $id;
-         for ($y = $book; $y <= date('Y'); $y++) {
-            $ops = $this->db($y)->get_where('operasi', $where);
-            if (count($ops) > 0) {
-               foreach ($ops as $opsv) {
-                  array_push($operasi, $opsv);
-               }
+         $ops = $this->db(0)->get_where('operasi', $where);
+         if (count($ops) > 0) {
+            foreach ($ops as $opsv) {
+               array_push($operasi, $opsv);
             }
          }
       }
 
       foreach ($refs as $rf => $book) {
+         // FIX: use db(0)
          $where = "id_cabang = " . $this->id_cabang_p . "  AND jenis_transaksi = 1 AND ref_transaksi = '" . $rf . "'";
-         for ($y = $book; $y <= date('Y'); $y++) {
-            //KAS
-            $ks = $this->db($y)->get_where('kas', $where);
-            if (count($ks) > 0) {
-               foreach ($ks as $ksv) {
-                  array_push($kas, $ksv);
-               }
+         $ks = $this->db(0)->get_where('kas', $where);
+         if (count($ks) > 0) {
+            foreach ($ks as $ksv) {
+               array_push($kas, $ksv);
             }
          }
 
@@ -102,13 +98,12 @@ class I extends Controller
          $i = substr($yr_first, 0, 4);
 
          foreach ($numbersMember as $nm) {
+            // FIX: use db(0)
             $where = "id_cabang = " . $this->id_cabang_p . "  AND jenis_transaksi = 3 AND ref_transaksi = '" . $nm . "'";
-            for ($y = $i; $y <= date('Y'); $y++) {
-               $kasMd = $this->db($y)->get_where('kas', $where);
-               if (count($kasMd) > 0) {
-                  foreach ($kasMd as $ksmV) {
-                     array_push($kasM, $ksmV);
-                  }
+            $kasMd = $this->db(0)->get_where('kas', $where);
+            if (count($kasMd) > 0) {
+               foreach ($kasMd as $ksmV) {
+                  array_push($kasM, $ksmV);
                }
             }
          }
@@ -161,14 +156,20 @@ class I extends Controller
       });
 
       foreach ($finance_history as $key => $fh) {
-         $check_moota = $this->db(100)->get_where_row("wh_moota", "trx_id = '" . $fh['ref_finance'] . "'");
+         $check_moota = $this->db(0)->get_where_row("wh_moota", "trx_id = '" . $fh['ref_finance'] . "'");
          if(isset($check_moota['amount']) && $check_moota['amount'] > 0){
              $finance_history[$key]['total'] = $check_moota['amount'];
          }
       }
 
-      $saldoTunai = 0;
-      $saldoTunai = $this->helper('Saldo')->getSaldoTunai($pelanggan);
+      // FIX: calculate saldo directly with db(0)
+      $q_cr = "id_client = '$pelanggan' AND jenis_transaksi = 6 AND jenis_mutasi = 1 AND status_mutasi = 3";
+      $topup = $this->db(0)->sum_col_where('kas', 'jumlah', $q_cr) ?? 0;
+      $q_cr_out = "id_client = '$pelanggan' AND jenis_transaksi = 6 AND jenis_mutasi = 2 AND status_mutasi = 3";
+      $topup_out = $this->db(0)->sum_col_where('kas', 'jumlah', $q_cr_out) ?? 0;
+      $q_use = "id_client = '$pelanggan' AND metode_mutasi = 3 AND jenis_mutasi = 2";
+      $usage = $this->db(0)->sum_col_where('kas', 'jumlah', $q_use) ?? 0;
+      $saldoTunai = $topup - $topup_out - $usage;
 
       // Hardcoded fallback to prevent URL class access errors
       $nonTunaiGuide = [
@@ -209,14 +210,12 @@ class I extends Controller
       $data_main = [];
       $data_main2 = [];
 
-      for ($y = URL::FIRST_YEAR; $y <= date('Y'); $y++) {
-         $where = "id_pelanggan = " . $pelanggan . " AND id_harga = $id_harga AND bin = 0 AND member = 1 ORDER BY insertTime ASC";
-         $data_s = $this->db($y)->get_where('sale', $where);
-
-         if (count($data_s) > 0) {
-            foreach ($data_s as $ds) {
-               array_push($data_main, $ds);
-            }
+      // FIX: use db(0) directly
+      $where = "id_pelanggan = " . $pelanggan . " AND id_harga = $id_harga AND bin = 0 AND member = 1 ORDER BY insertTime ASC";
+      $data_s = $this->db(0)->get_where('sale', $where);
+      if (count($data_s) > 0) {
+         foreach ($data_s as $ds) {
+            array_push($data_main, $ds);
          }
       }
 
@@ -245,12 +244,11 @@ class I extends Controller
       $where = "id_client = " . $pelanggan . " AND status_mutasi = 3 AND ((jenis_transaksi = 1 AND metode_mutasi = 3) OR (jenis_transaksi = 3 AND metode_mutasi = 3) OR jenis_transaksi = 6)";
       $cols = "id_kas, id_client, jumlah, metode_mutasi, note, insertTime, jenis_mutasi, jenis_transaksi";
 
-      for ($y = URL::FIRST_YEAR; $y <= date('Y'); $y++) {
-         $kasMd = $this->db($y)->get_cols_where('kas', $cols, $where, 1);
-         if (count($kasMd) > 0) {
-            foreach ($kasMd as $ksmV) {
-               array_push($data, $ksmV);
-            }
+      // FIX: use db(0) directly
+      $kasMd = $this->db(0)->get_cols_where('kas', $cols, $where, 1);
+      if (count($kasMd) > 0) {
+         foreach ($kasMd as $ksmV) {
+            array_push($data, $ksmV);
          }
       }
 
@@ -345,7 +343,7 @@ class I extends Controller
    {
       // Check if transaction exists
       $where = "ref_finance = '" . $ref_finance . "'";
-      $kas = $this->db(date('Y'))->get_where_row('kas', $where);
+      $kas = $this->db(0)->get_where_row('kas', $where);
       
       if (!isset($kas['id_kas'])) {
          echo json_encode(['status' => 'error', 'msg' => 'Transaksi tidak ditemukan']);
@@ -359,20 +357,20 @@ class I extends Controller
       }
 
       // Delete from kas table
-      $deleteKas = $this->db(date('Y'))->delete('kas', "ref_finance = '$ref_finance'");
+      $deleteKas = $this->db(0)->delete('kas', "ref_finance = '$ref_finance'");
       if ($deleteKas['errno'] != 0) {
          echo json_encode(['status' => 'error', 'msg' => 'Gagal menghapus data kas: ' . $deleteKas['error']]);
          exit();
       }
 
-      // Delete from wh_tokopay (ignore if table doesn't exist)
-      try { $this->db(100)->delete('wh_tokopay', "ref_id = '$ref_finance'"); } catch (Exception $e) {}
+      // Delete from wh_tokopay (ignore if table doesn't exist) - FIX: use db(0)
+      try { $this->db(0)->delete('wh_tokopay', "ref_id = '$ref_finance'"); } catch (Exception $e) {}
       
-      // Delete from wh_midtrans (ignore if table doesn't exist)
-      try { $this->db(100)->delete('wh_midtrans', "ref_id = '$ref_finance'"); } catch (Exception $e) {}
+      // Delete from wh_midtrans (ignore if table doesn't exist) - FIX: use db(0)
+      try { $this->db(0)->delete('wh_midtrans', "ref_id = '$ref_finance'"); } catch (Exception $e) {}
       
-      // Delete from wh_moota (ignore if table doesn't exist)
-      try { $this->db(100)->delete('wh_moota', "trx_id = '$ref_finance'"); } catch (Exception $e) {}
+      // Delete from wh_moota (ignore if table doesn't exist) - FIX: use db(0)
+      try { $this->db(0)->delete('wh_moota', "trx_id = '$ref_finance'"); } catch (Exception $e) {}
 
       echo json_encode(['status' => 'success', 'msg' => 'Pembayaran berhasil dibatalkan']);
    }

@@ -22,7 +22,7 @@ class HapusDeposit extends Controller
          $min = min($numbers);
          $max = max($numbers);
          $where = $this->wCabang . " AND jenis_transaksi = 3 AND (ref_transaksi BETWEEN " . $min . " AND " . $max . ")";
-         $kas = $this->db($_SESSION[URL::SESSID]['user']['book'])->get_where('kas', $where);
+         $kas = $this->db(0)->get_where('kas', $where);
       }
       $this->view($viewData, ['data_main' => $data_main, 'data_manual' => $data_manual, 'kas' => $kas]);
    }

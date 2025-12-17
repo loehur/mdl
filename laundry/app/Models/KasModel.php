@@ -70,7 +70,15 @@ class KasModel extends Controller
             }
 
             if ($metode == 3) {
-                $sisaSaldo = $this->helper('Saldo')->getSaldoTunai($id_pelanggan);
+                // FIX: calculate saldo directly with db(0)
+                $q_cr = "id_client = '$id_pelanggan' AND jenis_transaksi = 6 AND jenis_mutasi = 1 AND status_mutasi = 3";
+                $topup = $this->db(0)->sum_col_where('kas', 'jumlah', $q_cr) ?? 0;
+                $q_cr_out = "id_client = '$id_pelanggan' AND jenis_transaksi = 6 AND jenis_mutasi = 2 AND status_mutasi = 3";
+                $topup_out = $this->db(0)->sum_col_where('kas', 'jumlah', $q_cr_out) ?? 0;
+                $q_use = "id_client = '$id_pelanggan' AND metode_mutasi = 3 AND jenis_mutasi = 2";
+                $usage = $this->db(0)->sum_col_where('kas', 'jumlah', $q_use) ?? 0;
+                $sisaSaldo = $topup - $topup_out - $usage;
+                
                 if ($sisaSaldo > 0) {
                     if ($jumlah > $sisaSaldo) {
                         $jumlah = $sisaSaldo;
@@ -95,7 +103,7 @@ class KasModel extends Controller
             $setOne = "ref_transaksi = '" . $ref . "' AND jumlah = " . $jumlah . " AND insertTime LIKE '%" . $minute . "%'";
             $wCabang = "id_cabang = " . $id_cabang;
             $where = $wCabang . " AND " . $setOne;
-            $data_main = $this->db(date('Y'))->count_where('kas', $where);
+            $data_main = $this->db(0)->count_where('kas', $where);
 
             if ($data_main < 1) {
                 $data = [
@@ -112,7 +120,7 @@ class KasModel extends Controller
                     'ref_finance' => $ref_f,
                     'insertTime' => $GLOBALS['now']
                 ];
-                $do = $this->db(date('Y'))->insert('kas', $data);
+                $do = $this->db(0)->insert('kas', $data);
                 if ($do['errno'] == 0) {
                     if ($use_bayar) {
                         $dibayar -= $jumlah;
@@ -134,17 +142,15 @@ class KasModel extends Controller
                  return 0; // Or handle error? existing logic just returns 0 on success/ignore
             }
 
-            //update kas dengan payment_gateway moota
+            //update kas dengan payment_gateway moota - FIX: use db(0)
             $set = [
                 'payment_gateway' => 'moota',
             ];
             $where = "ref_finance = '" . $ref_f . "'";
-            for ($year = 2021; $year <= date('Y'); $year++) {
-                $up = $this->db($year)->update('kas', $set, $where);
-                if ($up['errno'] <> 0) {
-                   $this->model('Log')->write("[KasModel::bayarMulti] Update Kas Error for year {$year}: " . $up['error']);
-                   return $up['error'];
-                }
+            $up = $this->db(0)->update('kas', $set, $where);
+            if ($up['errno'] <> 0) {
+               $this->model('Log')->write("[KasModel::bayarMulti] Update Kas Error: " . $up['error']);
+               return $up['error'];
             }
                         
             //insert into wh_moota
@@ -157,7 +163,7 @@ class KasModel extends Controller
                 'state' => 'pending'
             ];
             
-            $do = $this->db(100)->insert('wh_moota', $data_wh_moota);
+            $do = $this->db(0)->insert('wh_moota', $data_wh_moota);
             if ($do['errno'] != 0) {
                $this->model('Log')->write("[KasModel::bayarMulti] Insert Moota Error: " . $do['error']);
                return $do['error'];

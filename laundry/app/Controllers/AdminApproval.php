@@ -16,21 +16,21 @@ class AdminApproval extends Controller
       //SETORAN
       $setoran = array();
       $where = $this->wCabang . " AND jenis_mutasi = 2 AND status_mutasi = 2 AND metode_mutasi = 1 AND jenis_transaksi = 2 ORDER BY id_kas DESC LIMIT 20";
-      $setoran = $this->db($_SESSION[URL::SESSID]['user']['book'])->get_where('kas', $where);
+      $setoran = $this->db(0)->get_where('kas', $where);
 
       //PENGELUARAN
       $pengeluaran = array();
       $where = $this->wCabang . " AND jenis_mutasi = 2 AND status_mutasi = 2 AND metode_mutasi = 1 AND jenis_transaksi = 4 ORDER BY id_kas DESC LIMIT 20";
-      $pengeluaran = $this->db($_SESSION[URL::SESSID]['user']['book'])->get_where('kas', $where);
+      $pengeluaran = $this->db(0)->get_where('kas', $where);
 
       //NON TUNAI
       $nonTunai = array();
       $where = $this->wCabang . " AND metode_mutasi = 2 AND status_mutasi = 2 ORDER BY id_kas DESC LIMIT 20";
-      $nonTunai = $this->db($_SESSION[URL::SESSID]['user']['book'])->get_where('kas', $where);
+      $nonTunai = $this->db(0)->get_where('kas', $where);
 
       //HAPUS ORDER
       $where = $this->wCabang . " AND id_pelanggan <> 0 AND bin = 1 ORDER BY id_penjualan DESC LIMIT 20";
-      $hapusOrder = $this->db($_SESSION[URL::SESSID]['user']['book'])->get_where('sale', $where);
+      $hapusOrder = $this->db(0)->get_where('sale', $where);
 
       //DEPOSIT MEMBER HAPUS
       $depositHapus = array();

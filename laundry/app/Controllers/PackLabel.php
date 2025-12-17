@@ -80,9 +80,8 @@ class PackLabel extends Controller
       $pelangganWithPendingSales = [];
       $currentYear = (int) date('Y');
       
-      for ($year = 2021; $year <= $currentYear; $year++) {
-         // Query untuk mendapatkan pelanggan yang punya sale tuntas = 0 di cabang ini
-         $pendingSales = $this->db($year)->get_where(
+      
+         $pendingSales = $this->db(0)->get_where(
             'sale', 
             'tuntas = 0 AND id_cabang = ' . $cabang['id_cabang']
          );
@@ -92,8 +91,7 @@ class PackLabel extends Controller
                $pelangganWithPendingSales[$sale['id_pelanggan']] = true;
             }
          }
-      }
-
+      
       $result = [];
       foreach ($pelanggan as $p) {
          // Hanya tampilkan pelanggan yang memiliki sale tidak tuntas

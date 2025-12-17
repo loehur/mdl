@@ -177,7 +177,7 @@ trait Attributes
     {
         // Cek apakah ini transaksi Sales (jenis_transaksi = 7)
         // Ambil semua pembayaran untuk ref ini
-        $allPayments = $this->db(date('Y'))->get_where('kas', "ref_transaksi = '$ref_transaksi' AND jenis_transaksi = 7");
+        $allPayments = $this->db(0)->get_where('kas', "ref_transaksi = '$ref_transaksi' AND jenis_transaksi = 7");
         
         if (empty($allPayments)) return; // Bukan transaksi sales atau tidak ada data
 
@@ -326,7 +326,7 @@ trait Attributes
                }
                
                // Ambil ref_transaksi untuk update state sales
-               $kasInfo = $this->db(date('Y'))->get_where_row('kas', "ref_finance = '$ref_finance'");
+               $kasInfo = $this->db(0)->get_where_row('kas', "ref_finance = '$ref_finance'");
                if ($kasInfo) {
                    $this->updateSalesState($kasInfo['ref_transaksi']);
                }
@@ -414,7 +414,7 @@ trait Attributes
          $where = $this->wCabang . " AND " . $where;
       }
       
-      $kas = $this->db(date('Y'))->get_where_row('kas', $where);
+      $kas = $this->db(0)->get_where_row('kas', $where);
 
       if (!isset($kas['id_kas'])) {
          echo json_encode(['status' => 'ERROR', 'msg' => 'Transaction not found']);
@@ -452,7 +452,7 @@ trait Attributes
          }
 
          if ($isPaid) {
-            $update = $this->db(date('Y'))->update('kas', ['status_mutasi' => 3], "ref_finance = '$ref_finance'");
+            $update = $this->db(0)->update('kas', ['status_mutasi' => 3], "ref_finance = '$ref_finance'");
             if ($update['errno'] == 0) {
                $this->updateSalesState($kas['ref_transaksi']);
                echo json_encode(['status' => 'PAID']);
@@ -475,7 +475,7 @@ trait Attributes
          }
 
          if ($isPaid) {
-            $update = $this->db(date('Y'))->update('kas', ['status_mutasi' => 3], "ref_finance = '$ref_finance'");
+            $update = $this->db(0)->update('kas', ['status_mutasi' => 3], "ref_finance = '$ref_finance'");
             if ($update['errno'] == 0) {
                $this->updateSalesState($kas['ref_transaksi']);
                echo json_encode(['status' => 'PAID']);

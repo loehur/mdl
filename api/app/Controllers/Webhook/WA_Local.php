@@ -38,13 +38,10 @@ class WA_Local extends Controller
       $set = ['proses' => $status, 'state' => $state, 'status' => 2];
       $where = "id_api = '" . $id . "' OR id_api_2 = '" . $id . "'";
 
-      $y = date('Y') - 1;
-      while ($y <= (date('Y'))) {
-         $do = $this->db($y)->update('notif', $set, $where);
-         if ($do['errno'] <> 0) {
-            $this->model('Log')->write($do['error']);
-         }
-         $y++;
+      // FIX: use db(0) directly instead of year iteration
+      $do = $this->db(0)->update('notif', $set, $where);
+      if ($do['errno'] <> 0) {
+         $this->model('Log')->write($do['error']);
       }
    }
 

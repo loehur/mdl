@@ -21,13 +21,12 @@ class Kas extends Controller
       $where_debit = $this->wCabang . " AND jenis_mutasi = 2 AND metode_mutasi = 1 AND status_mutasi <> 4";
       $cols_debit = "SUM(jumlah) as jumlah";
 
-      for ($y = URL::FIRST_YEAR; $y <= date('Y'); $y++) {
-         $jumlah_kredit = isset($this->db($y)->get_cols_where('kas', $cols_kredit, $where_kredit, 0)['jumlah']) ? $this->db($y)->get_cols_where('kas', $cols_kredit, $where_kredit, 0)['jumlah'] : 0;
-         $kredit += $jumlah_kredit;
+      // FIX: use db(0) directly
+      $jumlah_kredit = isset($this->db(0)->get_cols_where('kas', $cols_kredit, $where_kredit, 0)['jumlah']) ? $this->db(0)->get_cols_where('kas', $cols_kredit, $where_kredit, 0)['jumlah'] : 0;
+      $kredit = $jumlah_kredit;
 
-         $jumlah_debit = isset($this->db($y)->get_cols_where('kas', $cols_debit, $where_debit, 0)['jumlah']) ? $this->db($y)->get_cols_where('kas', $cols_debit, $where_debit, 0)['jumlah'] : 0;
-         $debit += $jumlah_debit;
-      }
+      $jumlah_debit = isset($this->db(0)->get_cols_where('kas', $cols_debit, $where_debit, 0)['jumlah']) ? $this->db(0)->get_cols_where('kas', $cols_debit, $where_debit, 0)['jumlah'] : 0;
+      $debit = $jumlah_debit;
       $saldo = $kredit - $debit;
 
       $limit = 10;
@@ -35,11 +34,11 @@ class Kas extends Controller
          $limit = 25;
       }
       $where = $this->wCabang . " AND jenis_mutasi = 2 ORDER BY id_kas DESC LIMIT $limit";
-      $debit_list = $this->db($_SESSION[URL::SESSID]['user']['book'])->get_where('kas', $where);
+      $debit_list = $this->db(0)->get_where('kas', $where);
 
       //KASBON
       $where = $this->wCabang . " AND jenis_transaksi = 5 AND jenis_mutasi = 2 AND status_mutasi = 3 ORDER BY id_kas DESC LIMIT 25";
-      $kasbon = $this->db($_SESSION[URL::SESSID]['user']['book'])->get_where('kas', $where);
+      $kasbon = $this->db(0)->get_where('kas', $where);
 
       $dataPotong = array();
       foreach ($kasbon as $k) {
@@ -93,7 +92,7 @@ class Kas extends Controller
             'id_client' => 0,
             'note_primary' => 'Penarikan'
          ];
-         $do = $this->db(date('Y'))->insert('kas', $data);
+         $do = $this->db(0)->insert('kas', $data);
          if ($do['errno'] == 0) {
             echo 1;
          } else {
@@ -135,7 +134,7 @@ class Kas extends Controller
             'id_client' => 0,
             'ref_transaksi' => $id_jenis
          ];
-         $do = $this->db(date('Y'))->insert('kas', $data);
+         $do = $this->db(0)->insert('kas', $data);
          if ($do['errno'] <> 0) {
             $this->helper('Notif')->send_wa(URL::WA_PRIVATE[0], $do['error']);
          }

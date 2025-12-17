@@ -24,8 +24,8 @@ class SaldoTunai extends Controller
       }
 
       $cols = "id_client, SUM(jumlah) as saldo";
-      $data = $this->db($_SESSION[URL::SESSID]['user']['book'])->get_cols_where('kas', $cols, $where, 1);
-      $data3 = $this->db($_SESSION[URL::SESSID]['user']['book'])->get_cols_where('kas', $cols, $where2, 1);
+      $data = $this->db(0)->get_cols_where('kas', $cols, $where, 1);
+      $data3 = $this->db(0)->get_cols_where('kas', $cols, $where2, 1);
 
       $saldo = [];
       $pakai = [];
@@ -35,7 +35,7 @@ class SaldoTunai extends Controller
          $saldo[$idPelanggan] = $a['saldo'];
          $where = $this->wCabang . " AND id_client = " . $idPelanggan . " AND metode_mutasi = 3 AND jenis_mutasi = 2";
          $cols = "SUM(jumlah) as pakai";
-         $data2 = $this->db($_SESSION[URL::SESSID]['user']['book'])->get_cols_where('kas', $cols, $where, 0);
+         $data2 = $this->db(0)->get_cols_where('kas', $cols, $where, 0);
          if (isset($data2['pakai'])) {
             $saldoPengurangan = $data2['pakai'];
             $pakai[$idPelanggan] = $saldoPengurangan;
@@ -82,13 +82,12 @@ class SaldoTunai extends Controller
       $viewData = 'saldoTunai/viewData';
       $where = $this->wCabang . " AND id_client = " . $id_client . " AND jenis_transaksi = 6 ORDER BY id_kas DESC";
       $cols = "id_kas, jenis_mutasi, id_client, id_user, jumlah, metode_mutasi, status_mutasi, note, insertTime";
+      // FIX: use db(0) directly
       $data = [];
-      for ($y = URL::FIRST_YEAR; $y <= date('Y'); $y++) {
-         $data_ = $this->db($y)->get_cols_where('kas', $cols, $where, 1);
-         if (count($data_) > 0) {
-            foreach ($data_ as $dk) {
-               array_push($data, $dk);
-            }
+      $data_ = $this->db(0)->get_cols_where('kas', $cols, $where, 1);
+      if (count($data_) > 0) {
+         foreach ($data_ as $dk) {
+            array_push($data, $dk);
          }
       }
 
@@ -96,13 +95,9 @@ class SaldoTunai extends Controller
 
       foreach ($data as $dme) {
 
-         //NOTIF SALDO TUNAI
+         //NOTIF SALDO TUNAI - FIX: use db(0) only
          $where = $this->wCabang . " AND tipe = 4 AND no_ref = '" . $dme['id_kas'] . "'";
-         $nm = $this->db($_SESSION[URL::SESSID]['user']['book'])->get_where_row('notif', $where);
-         if (count($nm) > 0) {
-            array_push($notif, $nm);
-         }
-         $nm = $this->db($_SESSION[URL::SESSID]['user']['book'] + 1)->get_where_row('notif', $where);
+         $nm = $this->db(0)->get_where_row('notif', $where);
          if (count($nm) > 0) {
             array_push($notif, $nm);
          }
@@ -171,7 +166,7 @@ class SaldoTunai extends Controller
       $today = date('Y-m-d');
       $setOne = "id_client = '" . $id_pelanggan . "' AND jumlah = " . $jumlah . " AND jenis_transaksi = 6 AND insertTime LIKE '" . $today . "%'";
       $where = $this->wCabang . " AND " . $setOne;
-      $data_main = $this->db(date('Y'))->count_where('kas', $where);
+      $data_main = $this->db(0)->count_where('kas', $where);
 
       $ref_f = date('YmdHis') . rand(0, 9) . rand(0, 9) . rand(0, 9);
       if ($data_main < 1) {
@@ -187,7 +182,7 @@ class SaldoTunai extends Controller
             'id_client' => $id_pelanggan,
             'ref_finance' => $ref_f
          ];
-         $this->db(date('Y'))->insert('kas', $data);
+         $this->db(0)->insert('kas', $data);
       }
       $this->tambah($id_pelanggan);
    }
@@ -228,7 +223,7 @@ class SaldoTunai extends Controller
       $today = date('Y-m-d');
       $setOne = "id_client = '" . $id_pelanggan . "' AND jumlah = " . $jumlah . " AND jenis_transaksi = 6 AND insertTime LIKE '" . $today . "%'";
       $where = $this->wCabang . " AND " . $setOne;
-      $data_main = $this->db(date('Y'))->count_where('kas', $where);
+      $data_main = $this->db(0)->count_where('kas', $where);
 
       $ref_f = date('YmdHis') . rand(0, 9) . rand(0, 9) . rand(0, 9);
       if ($data_main < 1) {
@@ -244,7 +239,7 @@ class SaldoTunai extends Controller
             'id_client' => $id_pelanggan,
             'ref_finance' => $ref_f
          ];
-         $this->db(date('Y'))->insert('kas', $data);
+         $this->db(0)->insert('kas', $data);
       }
       $this->tambah($id_pelanggan);
    }
@@ -261,7 +256,7 @@ class SaldoTunai extends Controller
 
       $setOne = "no_ref = '" . $noref . "' AND tipe = 4";
       $where = $this->wCabang . " AND " . $setOne;
-      $data_main = $this->db(date('Y'))->count_where('notif', $where);
+      $data_main = $this->db(0)->count_where('notif', $where);
 
       if ($res['status']) {
          $status = $res['data']['status'];
@@ -290,7 +285,7 @@ class SaldoTunai extends Controller
       }
 
       if ($data_main < 1) {
-         $do = $this->db(date('Y'))->insert('notif', $vals);
+         $do = $this->db(0)->insert('notif', $vals);
          if ($do['errno'] <> 0) {
             echo $do['error'];
          } else {

@@ -66,7 +66,18 @@ class Reminder extends Controller
    {
       $hp = URL::WA_PRIVATE[1];
       $cabangs = $this->db(0)->get("cabang", "id_cabang");
-      $data = $this->helper('Saldo')->kasCabang();
+      
+      // FIX: use db(0) directly instead of helper
+      $data = [];
+      foreach ($cabangs as $a) {
+         $where_kredit = "id_cabang = " . $a['id_cabang'] . " AND jenis_mutasi = 1 AND metode_mutasi = 1 AND status_mutasi = 3";
+         $jumlah_kredit = $this->db(0)->get_cols_where('kas', 'SUM(jumlah) as jumlah', $where_kredit, 0)['jumlah'] ?? 0;
+         
+         $where_debit = "id_cabang = " . $a['id_cabang'] . " AND jenis_mutasi = 2 AND metode_mutasi = 1 AND status_mutasi <> 4";
+         $jumlah_debit = $this->db(0)->get_cols_where('kas', 'SUM(jumlah) as jumlah', $where_debit, 0)['jumlah'] ?? 0;
+         
+         $data[$a['id_cabang']] = $jumlah_kredit - $jumlah_debit;
+      }
       $text = "";
       foreach ($data as $key => $s) {
          if ($s >= 1000000) {

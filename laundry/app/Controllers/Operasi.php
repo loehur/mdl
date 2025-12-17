@@ -39,100 +39,48 @@ class Operasi extends Controller
       $pelanggan = $this->pelanggan[$id_pelanggan];
 
       if ($mode == 1) {
-         $where = $this->wCabang . " AND id_pelanggan = $id_pelanggan AND bin = 0 AND tuntas = " . $mode . " ORDER BY id_penjualan DESC";
+         $whereSale = $this->wCabang . " AND id_pelanggan = $id_pelanggan AND bin = 0 AND tuntas = " . $mode . " ORDER BY id_penjualan DESC";
          $modeView = 2;
       } else {
-         $where = $this->wCabang . " AND id_pelanggan = $id_pelanggan AND bin = 0 AND tuntas = 0 ORDER BY id_penjualan DESC";
+         $whereSale = $this->wCabang . " AND id_pelanggan = $id_pelanggan AND bin = 0 AND tuntas = 0 ORDER BY id_penjualan DESC";
       }
-      $data_main = [];
-      $data_main2 = [];
 
-      for ($y = date('Y'); $y >= URL::FIRST_YEAR; $y--) {
-         $data_s = $this->db($y)->get_where('sale', $where);
-         if (count($data_s) > 0) {
-            foreach ($data_s as $ds) {
-               array_push($data_main, $ds);
-            }
-         }
-         $data_s2 = $this->db($y)->get_where('sale', $where, 'no_ref', 1);
-         if (count($data_s2) > 0) {
-            foreach ($data_s2 as $key => $ds2) {
-               $data_main2[$key] = $ds2;
-            }
-         }
-      }
+      $data_main = $this->db(0)->get_where('sale', $whereSale);
+      $data_main2 = $this->db(0)->get_where('sale', $whereSale, 'no_ref', 1);
 
       $viewData = 'operasi/view_load';
 
-      $numbers = [];
-      $refs = [];
+      $sale_ids = [];
+      $sale_refs = [];
       foreach ($data_main as $dm) {
-         $year = substr($dm['insertTime'], 0, 4);
-         $numbers[$dm['id_penjualan']] = $year;
-         $refs[$dm['no_ref']] = $year;
+         $sale_ids[] = $dm['id_penjualan'];
+         $sale_refs[] = $dm['no_ref'];
       }
 
       $operasi = [];
-      $kas = [];
-      $surcas = [];
-      $notifBon = [];
-      $notifSelesai = [];
-
-      foreach ($numbers as $id => $book) {
-
-         $where_o = $this->wCabang . " AND id_penjualan = " . $id; //OPERASI
-         $where_n = $this->wCabang . " AND tipe = 2 AND no_ref = '" . $id . "'"; //NOTIF SELESAI
-
-         $i = $book;
-         while ($i <= date('Y')) {
-            //OPERASI
-            $ops = $this->db($i)->get_where('operasi', $where_o);
-            if (count($ops) > 0) {
-               foreach ($ops as $opsv) {
-                  array_push($operasi, $opsv);
-               }
-            }
-
-            //NOTIF SELESAI
-            $ns = $this->db($i)->get_where_row('notif', $where_n);
-            if (count($ns) > 0) {
-               array_push($notifSelesai, $ns);
-            }
-
-            $i++;
-         }
+      if (!empty($sale_ids)) {
+         $where_o = $this->wCabang . " AND id_penjualan IN (" . implode(',', $sale_ids) . ")";
+         $operasi = $this->db(0)->get_where('operasi', $where_o);
       }
 
-      foreach ($refs as $rf => $book) {
-         $where_kas = $this->wCabang . " AND jenis_transaksi = 1 AND ref_transaksi = '" . $rf . "'"; //KAS
-         $where_notif = $this->wCabang . " AND tipe = 1 AND no_ref = '" . $rf . "'"; //NOTIF BON
+      $notifSelesai = [];
+      if (!empty($sale_ids)) {
+         $where_n = $this->wCabang . " AND tipe = 2 AND no_ref IN ('" . implode("','", $sale_ids) . "')";
+         $notifSelesai = $this->db(0)->get_where('notif', $where_n);
+      }
 
-         $i = $book;
-         while ($i <= date('Y')) {
-            //KAS
-            $ks = $this->db($i)->get_where('kas', $where_kas);
-            if (count($ks) > 0) {
-               foreach ($ks as $ksv) {
-                  array_push($kas, $ksv);
-               }
-            }
-            //NOTIF NOTA
-            $nf = $this->db($i)->get_where_row('notif', $where_notif);
-            if (count($nf) > 0) {
-               array_push($notifBon, $nf);
-            }
-            $i++;
-         }
+      $kas = [];
+      $notifBon = [];
+      $surcas = [];
+      if (!empty($sale_refs)) {
+         $where_kas = $this->wCabang . " AND jenis_transaksi = 1 AND ref_transaksi IN ('" . implode("','", $sale_refs) . "')";
+         $kas = $this->db(0)->get_where('kas', $where_kas);
 
+         $where_notif = $this->wCabang . " AND tipe = 1 AND no_ref IN ('" . implode("','", $sale_refs) . "')";
+         $notifBon = $this->db(0)->get_where('notif', $where_notif);
 
-         //SURCAS
-         $where = $this->wCabang . " AND no_ref = '" . $rf . "'";
-         $sc = $this->db(0)->get_where('surcas', $where);
-         if (count($sc) > 0) {
-            foreach ($sc as $scv) {
-               array_push($surcas, $scv);
-            }
-         }
+         $where_surcas = $this->wCabang . " AND no_ref IN ('" . implode("','", $sale_refs) . "')";
+         $surcas = $this->db(0)->get_where('surcas', $where_surcas);
       }
 
       $finance_history = [];
@@ -163,16 +111,16 @@ class Operasi extends Controller
       });
 
       foreach ($finance_history as $key => $fh) {
-         $check_moota = $this->db(100)->get_where_row("wh_moota", "trx_id = '" . $fh['ref_finance'] . "'");
-         if(isset($check_moota['amount']) && $check_moota['amount'] > 0){
-             $finance_history[$key]['total'] = $check_moota['amount'];
+         $check_moota = $this->db(0)->get_where_row("wh_moota", "trx_id = '" . $fh['ref_finance'] . "'");
+         if (isset($check_moota['amount']) && $check_moota['amount'] > 0) {
+            $finance_history[$key]['total'] = $check_moota['amount'];
          }
       }
 
       //MEMBER
       $data_member = [];
-      $where = $this->wCabang . " AND bin = 0 AND id_pelanggan = " . $id_pelanggan . " AND lunas = 0";
-      $data_member = $this->db(0)->get_where('member', $where);
+      $whereMember = $this->wCabang . " AND bin = 0 AND id_pelanggan = " . $id_pelanggan . " AND lunas = 0";
+      $data_member = $this->db(0)->get_where('member', $whereMember);
 
       $notif_member = [];
       $kas_member = [];
@@ -181,29 +129,21 @@ class Operasi extends Controller
          $idm = $dme['id_member'];
          $historyBayar[$dme['id_member']] = [];
 
-         $i = substr($dme['insertTime'], 0, 4);
-         $where = $this->wCabang . " AND jenis_transaksi = 3 AND ref_transaksi = '" . $dme['id_member'] . "'";
-         $where_notif = $this->wCabang . " AND tipe = 3 AND no_ref = '" . $dme['id_member'] . "'";
-         while ($i <= date('Y')) {
-            //KAS MEMBER
-            $km = $this->db($i)->get_where('kas', $where);
-            if (count($km) > 0) {
-               if (!isset($kas_member[$idm])) {
-                  $kas_member[$idm] = [];
-               }
-
-               foreach ($km as $kmv) {
-                  array_push($kas_member[$idm], $kmv);
-               }
+         $whereKasMember = $this->wCabang . " AND jenis_transaksi = 3 AND ref_transaksi = '" . $dme['id_member'] . "'";
+         $km = $this->db(0)->get_where('kas', $whereKasMember);
+         if (count($km) > 0) {
+            if (!isset($kas_member[$idm])) {
+               $kas_member[$idm] = [];
             }
-
-            //NOTIF MEMBER
-            $nm = $this->db($i)->get_where_row('notif', $where_notif);
-            if (count($nm) > 0) {
-               array_push($notif_member, $nm);
+            foreach ($km as $kmv) {
+               array_push($kas_member[$idm], $kmv);
             }
+         }
 
-            $i += 1;
+         $whereNotifMember = $this->wCabang . " AND tipe = 3 AND no_ref = '" . $dme['id_member'] . "'";
+         $nm = $this->db(0)->get_where_row('notif', $whereNotifMember);
+         if (count($nm) > 0) {
+            array_push($notif_member, $nm);
          }
 
          if (isset($kas_member[$idm])) {
@@ -224,7 +164,20 @@ class Operasi extends Controller
       }
 
       //SALDO DEPOSIT
-      $sisaSaldo = $this->helper('Saldo')->getSaldoTunai($id_pelanggan);
+      //SALDO DEPOSIT
+      //$sisaSaldo = $this->helper('Saldo')->getSaldoTunai($id_pelanggan);
+      
+      // FIX: use db(0) directly
+      $q_cr = "id_client = '$id_pelanggan' AND jenis_transaksi = 6 AND jenis_mutasi = 1 AND status_mutasi = 3";
+      $topup = $this->db(0)->sum_col_where('kas', 'jumlah', $q_cr) ?? 0;
+
+      $q_cr_out = "id_client = '$id_pelanggan' AND jenis_transaksi = 6 AND jenis_mutasi = 2 AND status_mutasi = 3";
+      $topup_out = $this->db(0)->sum_col_where('kas', 'jumlah', $q_cr_out) ?? 0;
+
+      $q_use = "id_client = '$id_pelanggan' AND metode_mutasi = 3 AND jenis_mutasi = 2";
+      $usage = $this->db(0)->sum_col_where('kas', 'jumlah', $q_use) ?? 0;
+
+      $sisaSaldo = $topup - $topup_out - $usage;
 
       $users = $this->db(0)->get("user", "id_user");
       $this->view($viewData, [
@@ -261,9 +214,9 @@ class Operasi extends Controller
    {
       $rekap = isset($_POST['rekap']) ? $_POST['rekap'][0] : [];
       $dibayar = isset($_POST['dibayar']) ? $_POST['dibayar'] : 0;
-      
+
       $res = $this->model('KasModel')->bayarMulti($rekap, $dibayar, $idPelanggan, $this->id_cabang, $karyawan, $metode, $note);
-      
+
       echo $res;
    }
 
@@ -274,7 +227,7 @@ class Operasi extends Controller
 
       $set = ['id_user_operasi' => $karyawan];
       $where = $this->wCabang . " AND id_operasi = " . $id;
-      $in = $this->db($_SESSION[URL::SESSID]['user']['book'])->update('operasi', $set, $where);
+      $in = $this->db(0)->update('operasi', $set, $where); // Changed to db(0)
       if ($in['errno'] <> 0) {
          $this->model('Log')->write("[ganti_operasi] Update Operasi Error: " . $in['error']);
          echo $in['error'];
@@ -287,8 +240,8 @@ class Operasi extends Controller
    {
       // Check if transaction exists with cabang filter
       $where = $this->wCabang . " AND ref_finance = '" . $ref_finance . "'";
-      $kas = $this->db(date('Y'))->get_where_row('kas', $where);
-      
+      $kas = $this->db(0)->get_where_row('kas', $where); // Changed to db(0)
+
       if (!isset($kas['id_kas'])) {
          echo json_encode(['status' => 'error', 'msg' => 'Transaksi tidak ditemukan']);
          exit();
@@ -301,7 +254,7 @@ class Operasi extends Controller
       }
 
       // Delete from kas table
-      $deleteKas = $this->db(date('Y'))->delete('kas', $this->wCabang . " AND ref_finance = '$ref_finance'");
+      $deleteKas = $this->db(0)->delete('kas', $this->wCabang . " AND ref_finance = '$ref_finance'"); // Changed to db(0)
       if ($deleteKas['errno'] != 0) {
          $this->model('Log')->write("[cancel_payment] Delete Kas Error: " . $deleteKas['error']);
          echo json_encode(['status' => 'error', 'msg' => 'Gagal menghapus data kas: ' . $deleteKas['error']]);
@@ -309,13 +262,22 @@ class Operasi extends Controller
       }
 
       // Delete from wh_tokopay (ignore if table doesn't exist)
-      try { $this->db(100)->delete('wh_tokopay', "ref_id = '$ref_finance'"); } catch (Exception $e) {}
-      
+      try {
+         $this->db(0)->delete('wh_tokopay', "ref_id = '$ref_finance'");
+      } catch (Exception $e) {
+      } // Changed to db(0)
+
       // Delete from wh_midtrans (ignore if table doesn't exist)
-      try { $this->db(100)->delete('wh_midtrans', "ref_id = '$ref_finance'"); } catch (Exception $e) {}
-      
+      try {
+         $this->db(0)->delete('wh_midtrans', "ref_id = '$ref_finance'");
+      } catch (Exception $e) {
+      } // Changed to db(0)
+
       // Delete from wh_moota (ignore if table doesn't exist)
-      try { $this->db(100)->delete('wh_moota', "trx_id = '$ref_finance'"); } catch (Exception $e) {}
+      try {
+         $this->db(0)->delete('wh_moota', "trx_id = '$ref_finance'");
+      } catch (Exception $e) {
+      } // Changed to db(0)
 
       echo json_encode(['status' => 'success', 'msg' => 'Pembayaran berhasil dibatalkan']);
    }

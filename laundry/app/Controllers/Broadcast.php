@@ -91,7 +91,7 @@ class Broadcast extends Controller
          $data_operasi = ['title' => 'Broadcast List', 'vLaundry' => false];
          $cols = "insertTime, text, count(insertTime) as c";
          $where = $this->wCabang . " AND tipe = 5 GROUP BY insertTime, text";
-         $data = $this->db($_SESSION[URL::SESSID]['user']['book'])->get_cols_where('notif', $cols, $where, 1);
+         $data = $this->db(0)->get_cols_where('notif', $cols, $where, 1);
          $this->view('layout', ['data_operasi' => $data_operasi]);
          $this->view('broadcast/list', $data);
       }
@@ -150,7 +150,7 @@ class Broadcast extends Controller
             $vals = "'" . $time . "'," . $cab . ",'" . $v . "','" . $target . "','" . $text_ori . "',5,'" . $v . "','" . $status . "'";
             $setOne = "no_ref = '" . $v . "' AND tipe = 5";
             $where = $this->wCabang . " AND " . $setOne;
-            $data_main = $this->db(date('Y'))->count_where('notif', $where);
+            $data_main = $this->db(0)->count_where('notif', $where);
             if ($data_main < 1) {
                $data = [
                   'insertTime' => $time,
@@ -162,7 +162,7 @@ class Broadcast extends Controller
                   'id_api' => $v,
                   'proses' => $status
                ];
-               $this->db(date('Y'))->insert('notif', $data);
+               $this->db(0)->insert('notif', $data);
             }
          }
       }

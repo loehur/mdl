@@ -99,19 +99,14 @@ class Tokopay extends Controller
                 $target = $cek_target->target;
 
                 if ($target == "kas_laundry") {
-                    $i = 2021;
-                    while ($i <= $book) {
-                        $db_target_name = "1" . $i;
-                        $i++;
-                        Log::write("Upd Kas: $db_target_name", 'webhook', 'Tokopay');
+                    // FIX: use db(0) directly instead of year iteration
+                    Log::write("Upd Kas: db(0)", 'webhook', 'Tokopay');
 
-                        try {
-                            $db_update_instance = $this->db($db_target_name);
-                            if (!$db_update_instance) {
-                                Log::write("Err: DB $db_target_name", 'webhook', 'Tokopay');
-                                continue;
-                            }
-
+                    try {
+                        $db_update_instance = $this->db(0);
+                        if (!$db_update_instance) {
+                            Log::write("Err: DB 0", 'webhook', 'Tokopay');
+                        } else {
                             $update = $db_update_instance->update("kas", ["status_mutasi" => 3], ["ref_finance" => $reff_id]);
 
                             if (!$update) {
@@ -119,9 +114,9 @@ class Tokopay extends Controller
                             } else {
                                 Log::write("OK: Upd Kas $reff_id", 'webhook', 'Tokopay');
                             }
-                        } catch (Exception $e) {
-                            Log::write("Exc: Upd " . $e->getMessage(), 'webhook', 'Tokopay');
                         }
+                    } catch (Exception $e) {
+                        Log::write("Exc: Upd " . $e->getMessage(), 'webhook', 'Tokopay');
                     }
                 } else {
                     Log::write("Err: Trg !kas_laundry", 'webhook', 'Tokopay');

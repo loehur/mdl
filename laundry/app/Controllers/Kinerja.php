@@ -45,12 +45,12 @@ class Kinerja extends Controller
 
       //OPERASI
       $where = "insertTime LIKE '" . $date . "%'";
-      $ops_data = $this->db($_SESSION[URL::SESSID]['user']['book'])->get_where('operasi', $where, 'id_operasi');
+      $ops_data = $this->db(0)->get_where('operasi', $where, 'id_operasi');
 
       //OPERASI JOIN
       $join_where = "operasi.id_penjualan = sale.id_penjualan";
       $where = "sale.bin = 0 AND operasi.insertTime LIKE '" . $date . "%'";
-      $data_lain1 = $this->db($_SESSION[URL::SESSID]['user']['book'])->innerJoin1_where('operasi', 'sale', $join_where, $where);
+      $data_lain1 = $this->db(0)->innerJoin1_where('operasi', 'sale', $join_where, $where);
       foreach ($data_lain1 as $dl1) {
          unset($ops_data[$dl1['id_operasi']]);
          array_push($data_main, $dl1);
@@ -69,7 +69,7 @@ class Kinerja extends Controller
       //PENERIMAAN
       $cols = "id_user, id_cabang, COUNT(id_user) as terima";
       $where = "insertTime LIKE '" . $date . "%' GROUP BY id_user, id_cabang";
-      $data_lain2 = $this->db($_SESSION[URL::SESSID]['user']['book'])->get_cols_where('sale', $cols, $where, 1);
+      $data_lain2 = $this->db(0)->get_cols_where('sale', $cols, $where, 1);
       foreach ($data_lain2 as $dl2) {
          array_push($data_terima, $dl2);
       }
@@ -77,7 +77,7 @@ class Kinerja extends Controller
       //PENGAMBILAN
       $cols = "id_user_ambil, id_cabang, COUNT(id_user_ambil) as kembali";
       $where = "tgl_ambil LIKE '" . $date . "%' GROUP BY id_user_ambil, id_cabang";
-      $data_lain3 = $this->db($_SESSION[URL::SESSID]['user']['book'])->get_cols_where('sale', $cols, $where, 1);
+      $data_lain3 = $this->db(0)->get_cols_where('sale', $cols, $where, 1);
       foreach ($data_lain3 as $dl3) {
          array_push($data_kembali, $dl3);
       }

@@ -10,7 +10,7 @@ class Cron extends Controller
       $where = "proses = '' AND status <> 5 ORDER BY insertTime ASC";
       $data_pending = '';
 
-      $data = $this->db(date('Y'))->get_where('notif', $where);
+      $data = $this->db(0)->get_where('notif', $where);
       $pending += count($data);
       foreach ($data as $dm) {
          $id_notif = $dm['id_notif'];
@@ -36,19 +36,19 @@ class Cron extends Controller
                $status = $res['data']['status'];
                $set = ['status' => 1, 'proses' => $status, 'id_api' => $res['data']['id']];
                $where2 = "id_notif = '" . $id_notif . "'";
-               $this->db(date('Y'))->update('notif', $set, $where2);
+               $this->db(0)->update('notif', $set, $where2);
                $sent += 1;
             } else {
                $status = $res["data"]['status'];
                $set = ['status' => 4, 'proses' => $status];
                $where2 = "id_notif = '" . $id_notif . "'";
-               $this->db(date('Y'))->update('notif', $set, $where2);
+               $this->db(0)->update('notif', $set, $where2);
             }
          } else {
             $status = "expired";
             $set = ['status' => 7, 'proses' => $status];
             $where2 = "id_notif = '" . $id_notif . "'";
-            $this->db(date('Y'))->update('notif', $set, $where2);
+            $this->db(0)->update('notif', $set, $where2);
             $expire += 1;
          }
       }

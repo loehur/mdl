@@ -420,7 +420,7 @@ class Sales extends Controller
          'status_mutasi' => $status_mutasi //lunas
       ];
       
-      $insertKas = $this->db(date('Y'))->insert('kas', $dataKas);
+      $insertKas = $this->db(0)->insert('kas', $dataKas);
       
       if (isset($insertKas['errno']) && $insertKas['errno'] == 0) {
          // Cek apakah sudah lunas sepenuhnya (total bayar >= total tagihan DAN semua status_mutasi = 3)

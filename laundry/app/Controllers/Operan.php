@@ -72,7 +72,7 @@ class Operan extends Controller
 
       $id_penjualan = $idOperan;
       $where = "id_penjualan LIKE '%" . $id_penjualan . "' AND tuntas = 0 AND bin = 0 AND id_cabang = " . $idCabang;
-      $data_main = $this->db($_SESSION[URL::SESSID]['user']['book'])->get_where('sale', $where);
+      $data_main = $this->db(0)->get_where('sale', $where);
       $idOperan = $id_penjualan;
 
       if (count($data_main) == 0) {
@@ -93,7 +93,7 @@ class Operan extends Controller
 
          //OPERASI
          $where = "id_cabang = " . $idCabang . " AND id_penjualan = " . $id;
-         $ops = $this->db($_SESSION[URL::SESSID]['user']['book'])->get_where('operasi', $where);
+         $ops = $this->db(0)->get_where('operasi', $where);
          if (count($ops) > 0) {
             foreach ($ops as $opsv) {
                array_push($operasi, $opsv);
@@ -166,7 +166,7 @@ class Operan extends Controller
 
       $setOne = 'id_penjualan = ' . $penjualan . " AND jenis_operasi = " . $operasi;
       $where = "id_cabang = " . $idCabang . " AND " . $setOne;
-      $data_main = $this->db(date('Y'))->count_where('operasi', $where);
+      $data_main = $this->db(0)->count_where('operasi', $where);
 
       if ($data_main < 1) {
          // INSERT OPERASI
@@ -177,7 +177,7 @@ class Operan extends Controller
             'id_user_operasi' => $karyawan,
             'insertTime' => $GLOBALS['now']
          ];
-         $in = $this->db(date('Y'))->insert('operasi', $data);
+         $in = $this->db(0)->insert('operasi', $data);
          if ($in['errno'] <> 0) {
             $this->writeLog('operasiOperan', 'ERROR', 'Gagal insert ke tabel operasi', [
                'error_no' => $in['errno'],
@@ -196,7 +196,7 @@ class Operan extends Controller
             'hanger' => $hanger
          ];
          $where = "id_cabang = " . $idCabang . " AND id_penjualan = " . $penjualan;
-         $up = $this->db($_SESSION[URL::SESSID]['user']['book'])->update('sale', $set, $where);
+         $up = $this->db(0)->update('sale', $set, $where);
          if ($up['errno'] <> 0) {
             $this->writeLog('operasiOperan', 'ERROR', 'Gagal update tabel sale', [
                'error_no' => $up['errno'],
@@ -221,7 +221,7 @@ class Operan extends Controller
             'status' => 5,
             'tipe' => 2
          ];
-         $inNotif = $this->db(date('Y'))->insert('notif', $dataNotif);
+         $inNotif = $this->db(0)->insert('notif', $dataNotif);
          if ($inNotif['errno'] <> 0) {
             $this->writeLog('operasiOperan', 'ERROR', 'Gagal insert ke tabel notif', [
                'error_no' => $inNotif['errno'],

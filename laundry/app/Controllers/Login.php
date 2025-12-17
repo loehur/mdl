@@ -10,7 +10,7 @@ class Login extends Controller
       }
       if (isset($_SESSION[URL::SESSID]['login'])) {
          if ($_SESSION[URL::SESSID]['login'] == TRUE) {
-            header('Location: ' . URL::BASE_URL . "Penjualan");
+            header('Location: ' . URL::BASE_URL . "Antrian");
          } else {
             $this->view('login', $data);
          }
@@ -213,7 +213,7 @@ class Login extends Controller
                $text = $cek_deliver['text'];
                $res = $this->helper('Notif')->send_wa($hp, $text);
                if ($res['status']) {
-                  $up = $this->db(date('Y'))->update('notif', [
+                  $up = $this->db(0)->update('notif', [
                      'id_api_2' => $res['data']['id']
                   ], "id_notif = " . $cek_deliver['id_notif']);
                   if ($up['errno'] == 0) {

@@ -41,27 +41,30 @@ class Member extends Controller
       $kas = [];
 
       foreach ($data_manual as $dme) {
-
-         $year = substr($dme['insertTime'], 0, 4);
-         $where_kas = $this->wCabang . " AND jenis_transaksi = 3 AND ref_transaksi = '" . $dme['id_member'] . "'"; //KAS
-         $where_notif = $this->wCabang . " AND tipe = 3 AND no_ref = '" . $dme['id_member'] . "'"; //NOTIF BON
-         while ($year <= date('Y')) {
-            $ks = $this->db($year)->get_where('kas', $where_kas);
-            if (count($ks) > 0) {
-               foreach ($ks as $ksv) {
-                  array_push($kas, $ksv);
-               }
+         $where_kas = $this->wCabang . " AND jenis_transaksi = 3 AND ref_transaksi = '" . $dme['id_member'] . "'";
+         $where_notif = $this->wCabang . " AND tipe = 3 AND no_ref = '" . $dme['id_member'] . "'";
+         
+         // FIX: use db(0) directly
+         $ks = $this->db(0)->get_where('kas', $where_kas);
+         if (count($ks) > 0) {
+            foreach ($ks as $ksv) {
+               array_push($kas, $ksv);
             }
-            $nm = $this->db($year)->get_where_row("notif", $where_notif);
-            if (count($nm) > 0) {
-               array_push($notif, $nm);
-            }
-
-            $year += 1;
+         }
+         $nm = $this->db(0)->get_where_row("notif", $where_notif);
+         if (count($nm) > 0) {
+            array_push($notif, $nm);
          }
       }
 
-      $sisaSaldo = $this->helper('Saldo')->getSaldoTunai($pelanggan);
+      // FIX: calculate saldo directly with db(0)
+      $q_cr = "id_client = '$pelanggan' AND jenis_transaksi = 6 AND jenis_mutasi = 1 AND status_mutasi = 3";
+      $topup = $this->db(0)->sum_col_where('kas', 'jumlah', $q_cr) ?? 0;
+      $q_cr_out = "id_client = '$pelanggan' AND jenis_transaksi = 6 AND jenis_mutasi = 2 AND status_mutasi = 3";
+      $topup_out = $this->db(0)->sum_col_where('kas', 'jumlah', $q_cr_out) ?? 0;
+      $q_use = "id_client = '$pelanggan' AND metode_mutasi = 3 AND jenis_mutasi = 2";
+      $usage = $this->db(0)->sum_col_where('kas', 'jumlah', $q_use) ?? 0;
+      $sisaSaldo = $topup - $topup_out - $usage;
 
       $this->view($viewData, [
          'data_manual' => $data_manual,
@@ -89,12 +92,11 @@ class Member extends Controller
 
          $pakai[$idPelanggan . $idHarga] = 0;
 
+         // FIX: use db(0) directly
          $cols = "SUM(qty) as saldo";
-         for ($y = URL::FIRST_YEAR; $y <= date('Y'); $y++) {
-            $data2 = $this->db($y)->get_cols_where('sale', $cols, $where, 0);
-            if (isset($data2['saldo'])) {
-               $pakai[$idPelanggan . $idHarga] += $data2['saldo'];
-            }
+         $data2 = $this->db(0)->get_cols_where('sale', $cols, $where, 0);
+         if (isset($data2['saldo'])) {
+            $pakai[$idPelanggan . $idHarga] = $data2['saldo'];
          }
       }
 
@@ -115,10 +117,11 @@ class Member extends Controller
          $cols = "SUM(qty) as saldo";
 
          $pakai[$idPelanggan . $idHarga] = 0;
+         // FIX: use db(0) directly
          for ($y = URL::FIRST_YEAR; $y <= date('Y'); $y++) {
-            $data2 = $this->db($y)->get_cols_where('sale', $cols, $where, 0);
+            $data2 = $this->db(0)->get_cols_where('sale', $cols, $where, 0);
             if (isset($data2['saldo'])) {
-               $pakai[$idPelanggan . $idHarga] += $data2['saldo'];
+               $pakai[$idPelanggan . $idHarga] = $data2['saldo'];
             }
          }
       }
@@ -211,12 +214,11 @@ class Member extends Controller
          $where = $this->wCabang . " AND id_pelanggan = " . $idPelanggan . " AND bin = 0 AND id_harga = " . $idHarga . " AND member = 1";
          $cols = "SUM(qty) as saldo";
          $pakai[$idHarga] = 0;
-         for ($y = URL::FIRST_YEAR; $y <= date('Y'); $y++) {
-            $data2 = $this->db($y)->get_cols_where('sale', $cols, $where, 0);
-            if (isset($data2['saldo'])) {
-               $saldoPengurangan = $data2['saldo'];
-               $pakai[$idHarga] += $saldoPengurangan;
-            }
+         // FIX: use db(0) directly
+         $data2 = $this->db(0)->get_cols_where('sale', $cols, $where, 0);
+         if (isset($data2['saldo'])) {
+            $saldoPengurangan = $data2['saldo'];
+            $pakai[$idHarga] = $saldoPengurangan;
          }
       }
 
@@ -233,7 +235,14 @@ class Member extends Controller
       foreach ($data as $a) {
          $id_harga = $a['id_harga'];
 
-         $saldo_akhir = $this->helper('Saldo')->saldoMember($idPelanggan, $id_harga);
+         // FIX: use db(0) directly for saldoMember
+         $where_member = "bin = 0 AND id_pelanggan = $idPelanggan AND id_harga = $id_harga";
+         $saldoManual = $this->db(0)->get_cols_where('member', 'SUM(qty) as saldo', $where_member, 0)['saldo'] ?? 0;
+         
+         $where_sale = $this->wCabang . " AND id_pelanggan = $idPelanggan AND member = 1 AND bin = 0 AND id_harga = $id_harga";
+         $saldoPengurangan = $this->db(0)->get_cols_where('sale', 'SUM(qty) as saldo', $where_sale, 0)['saldo'] ?? 0;
+         
+         $saldo_akhir = $saldoManual - $saldoPengurangan;
          $unit = $this->helper('Saldo')->unit_by_idHarga($id_harga);
 
          if ($saldo_akhir > 0) {
@@ -302,7 +311,7 @@ class Member extends Controller
 
 
       $where = $this->wCabang . " AND jenis_transaksi = 3 AND ref_transaksi = '" . $id_member . "' AND status_mutasi = 3";
-      $totalBayar = $this->db($_SESSION[URL::SESSID]['user']['book'])->sum_col_where('kas', 'jumlah', $where);
+      $totalBayar = $this->db(0)->sum_col_where('kas', 'jumlah', $where);
       $text_bayar = "Bayar Rp" . number_format($totalBayar);
 
       if ($totalBayar >= $d['harga']) {
@@ -320,7 +329,7 @@ class Member extends Controller
 
       $setOne = "no_ref = '" . $noref . "' AND tipe = 3";
       $where = $this->wCabang . " AND " . $setOne;
-      $data_main = $this->db(date('Y'))->count_where("notif", $where);
+      $data_main = $this->db(0)->count_where("notif", $where);
 
       if ($res['status']) {
          $status = $res['data']['status'];
@@ -342,7 +351,7 @@ class Member extends Controller
             'proses' => $status,
             'tipe' => 3
          ];
-         $this->db(date('Y'))->insert('notif', $data);
+         $this->db(0)->insert('notif', $data);
       }
    }
 }

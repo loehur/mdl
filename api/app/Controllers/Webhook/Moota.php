@@ -296,36 +296,32 @@ class Moota extends Controller
             Log::write("Proc: $target, $book", 'webhook', 'Moota');
 
             if ($target == "kas_laundry") {
-                $i = 2021;
-                while ($i <= $book) {
-                    $db_target_name = "1" . $i;
-                    $i++;
-                    Log::write("Upd Kas: $db_target_name", 'webhook', 'Moota');
+                // FIX: use db(0) directly instead of year iteration
+                Log::write("Upd Kas: db(0)", 'webhook', 'Moota');
 
-                    try {
-                        $db_update_instance = $this->db($db_target_name);
-                        if (!$db_update_instance) {
-                            Log::write("Err: Max DB $db_target_name", 'webhook', 'Moota');
-                            continue;
-                        }
-
-                        // Status sukses = status_mutasi 3
-                        $update = $db_update_instance->update(
-                            "kas",
-                            ["status_mutasi" => 3],
-                            ["ref_finance" => $order_id]
-                        );
-
-                        if (!$update) {
-                            return false;
-                            Log::write("Err: Upd Kas $order_id", 'webhook', 'Moota');
-                        } else {
-                            Log::write("OK: Upd Kas $order_id", 'webhook', 'Moota');
-                        }
-                    } catch (Exception $e) {
+                try {
+                    $db_update_instance = $this->db(0);
+                    if (!$db_update_instance) {
+                        Log::write("Err: DB 0", 'webhook', 'Moota');
                         return false;
-                        Log::write("Exc: Kas " . $e->getMessage(), 'webhook', 'Moota');
                     }
+
+                    // Status sukses = status_mutasi 3
+                    $update = $db_update_instance->update(
+                        "kas",
+                        ["status_mutasi" => 3],
+                        ["ref_finance" => $order_id]
+                    );
+
+                    if (!$update) {
+                        Log::write("Err: Upd Kas $order_id", 'webhook', 'Moota');
+                        return false;
+                    } else {
+                        Log::write("OK: Upd Kas $order_id", 'webhook', 'Moota');
+                    }
+                } catch (Exception $e) {
+                    Log::write("Exc: Kas " . $e->getMessage(), 'webhook', 'Moota');
+                    return false;
                 }
             } else {
                 Log::write("No Logic: $target", 'webhook', 'Moota');

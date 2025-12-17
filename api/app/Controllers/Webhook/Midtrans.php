@@ -94,19 +94,14 @@ class Midtrans extends Controller
                 $target = $cek_target->target;
 
                 if ($target == "kas_laundry") {
-                    $i = 2021;
-                    while ($i <= $book) {
-                        $db_target_name = "1" . $i;
-                        $i++;
-                        Log::write("Upd Kas: " . $db_target_name, 'webhook', 'Midtrans');
+                    // FIX: use db(0) directly instead of year iteration
+                    Log::write("Upd Kas: db(0)", 'webhook', 'Midtrans');
 
-                        try {
-                            $db_update_instance = $this->db($db_target_name);
-                            if (!$db_update_instance) {
-                                Log::write("Err: DB $db_target_name", 'webhook', 'Midtrans');
-                                continue;
-                            }
-
+                    try {
+                        $db_update_instance = $this->db(0);
+                        if (!$db_update_instance) {
+                            Log::write("Err: DB 0", 'webhook', 'Midtrans');
+                        } else {
                             $update = $db_update_instance->update("kas", ["status_mutasi" => 3], ["ref_finance" => $order_id]);
 
                             if (!$update) {
@@ -114,9 +109,9 @@ class Midtrans extends Controller
                             } else {
                                 Log::write("OK: Upd Kas $order_id", 'webhook', 'Midtrans');
                             }
-                        } catch (Exception $e) {
-                            Log::write("Exc: Upd " . $e->getMessage(), 'webhook', 'Midtrans');
                         }
+                    } catch (Exception $e) {
+                        Log::write("Exc: Upd " . $e->getMessage(), 'webhook', 'Midtrans');
                     }
                 } else {
                     Log::write("Err: Trg !kas_laundry", 'webhook', 'Midtrans');
