@@ -150,7 +150,19 @@
               <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
             </div>
             <div>
-              <div class="font-semibold text-gray-900">{{ s.device_name }}</div>
+              <div class="font-semibold text-gray-900 flex items-center gap-2">
+                {{ s.device_name }}
+                <span v-if="s.main_notif == 1" class="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-green-700 bg-green-100 rounded-full border border-green-200">Main</span>
+                <button 
+                  v-else 
+                  @click="setAsMain(s)"
+                  class="text-xs text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
+                  title="Jadikan pengirim notifikasi utama"
+                >
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  Set Main
+                </button>
+              </div>
               <div class="text-xs text-gray-500 font-mono mt-0.5 flex items-center gap-1">
                 <span class="w-2 h-2 rounded-full bg-gray-300"></span>
                 ID: {{ s.auth }}
@@ -459,6 +471,25 @@ async function onConfirmDelete() {
     deletingAuth.value = "";
     showConfirm.value = false;
     confirmTarget.value = null;
+  }
+}
+
+async function setAsMain(s) {
+  const user = getUser();
+  if (!user) return;
+  
+  try {
+    const res = await fetch(apiUrl("/Admin/WhatsApp/set-main"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: user.id, auth: s.auth }),
+    });
+    const data = await res.json();
+    if (data.success) {
+        await fetchSaved();
+    }
+  } catch(e) {
+      console.error("Set main error", e);
   }
 }
 </script>

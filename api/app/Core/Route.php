@@ -1,5 +1,7 @@
 <?php
 
+namespace App\Core;
+
 /**
  * Route Handler
  * Supports nested controllers: Admin/Users, Salon/Product, etc.
@@ -83,7 +85,10 @@ class Route extends Controller
         $parts = explode('/', $path);
         $className = end($parts);
         
-        $this->controller = new $className();
+        // Build fully qualified class name with namespace
+        $fullClassName = 'App\\Controllers\\' . str_replace('/', '\\', $path);
+        
+        $this->controller = new $fullClassName();
 
         // Determine method and params from remaining URL parts
         if (!empty($remaining)) {

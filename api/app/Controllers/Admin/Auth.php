@@ -6,7 +6,7 @@
  */
 class Auth extends Controller
 {
-    private $db_index = 2000;
+    private $db_index = 0;
     
     // ==============================
     // CONFIGURATION

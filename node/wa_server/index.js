@@ -86,21 +86,13 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 const server = require("http").createServer(app);
+const sessions = new Map();
+
 ensureAuthBase();
 migrateAuthFolders();
 cleanEmptyAuthDirs();
 setInterval(cleanEmptyAuthDirs, 60 * 60 * 1000);
 restoreSessionsFromAuth();
-
-// ============================================================================
-// SESSION STORAGE
-// ============================================================================
-
-/**
- * Map untuk menyimpan semua active sessions
- * @type {Map<string, SessionData>}
- */
-const sessions = new Map();
 
 /**
  * @typedef {Object} SessionData
@@ -197,18 +189,22 @@ function restoreSessionsFromAuth() {
   try {
     fs.ensureDirSync(AUTH_DIR_BASE);
     const entries = fs.readdirSync(AUTH_DIR_BASE);
+    console.log(`[Restore] Found ${entries.length} potential sessions in ${AUTH_DIR_BASE}`);
     for (const name of entries) {
       const dir = path.join(AUTH_DIR_BASE, name);
       try {
         if (fs.lstatSync(dir).isDirectory()) {
           const creds = path.join(dir, "creds.json");
           if (fs.existsSync(creds) && !sessions.has(name)) {
-            connectToWhatsApp(name).catch(() => { });
+            console.log(`[Restore] Restoring session: ${name}`);
+            connectToWhatsApp(name).catch((err) => console.error(`[Restore] Failed to connect ${name}:`, err));
+          } else {
+            console.log(`[Restore] Skipping ${name}: creds exists=${fs.existsSync(creds)}, in_memory=${sessions.has(name)}`);
           }
         }
-      } catch { }
+      } catch (e) { console.error(`[Restore] Error processing ${name}:`, e); }
     }
-  } catch { }
+  } catch (e) { console.error("[Restore] Fatal error:", e); }
 }
 
 /**
@@ -271,6 +267,16 @@ async function sendToWebhook(data, sessionId) {
  * @returns {Promise<SessionData>} Session data yang telah dibuat
  */
 async function connectToWhatsApp(sessionId) {
+  // Cleanup existing session if any to prevent conflict loops
+  const existingSession = sessions.get(sessionId);
+  if (existingSession) {
+    console.log(`[${sessionId}] Closing existing session instance before reconnecting...`);
+    try {
+      if (existingSession.sock) existingSession.sock.end();
+    } catch { }
+    sessions.delete(sessionId);
+  }
+
   const authDir = getAuthDir(sessionId);
   const { state, saveCreds } = await useMultiFileAuthState(authDir);
   const { version } = await fetchLatestBaileysVersion();
@@ -330,8 +336,13 @@ async function connectToWhatsApp(sessionId) {
           break;
 
         case DisconnectReason.connectionReplaced:
-          console.log(`[${sessionId}] Connection Replaced, Reconnecting...`);
-          await connectToWhatsApp(sessionId);
+          console.log(`[${sessionId}] Connection Replaced. Terminating this session to avoid conflict.`);
+          // SYSTEM DO NOT RECONNECT HERE. 
+          // This implies another instance (or a zombie instance of this same code) has taken over.
+          if (currentSession) {
+            sessions.delete(sessionId);
+          }
+          sock.end();
           break;
 
         case DisconnectReason.loggedOut:
@@ -677,7 +688,23 @@ app.post("/send-message", async (req, res) => {
       });
     }
 
-    const session = getSession(sessionId);
+    let session = getSession(sessionId);
+
+    // Auto-recover session if it exists on disk but not in memory (e.g. after server restart)
+    if (!session) {
+      const dir = getAuthDir(sessionId);
+      if (fs.existsSync(path.join(dir, "creds.json"))) {
+        console.log(`[${sessionId}] Session found on disk, restoring...`);
+        try {
+          await connectToWhatsApp(sessionId);
+          // Wait for connection to establish
+          await new Promise((r) => setTimeout(r, 2000));
+          session = getSession(sessionId);
+        } catch (e) {
+          console.error(`[${sessionId}] Restore failed:`, e.message);
+        }
+      }
+    }
 
     if (!session) {
       return res.status(404).json({
@@ -687,6 +714,7 @@ app.post("/send-message", async (req, res) => {
     }
 
     if (!session.logged_in) {
+      // If we just restored, maybe it needs a bit more time or it's actually logged out
       return res.status(400).json({
         status: false,
         message: `Session "${sessionId}" is not logged in`,

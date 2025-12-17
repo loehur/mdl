@@ -6,7 +6,7 @@
  */
 class WhatsApp extends Controller
 {
-    private $db_index = 2000;
+    private $db_index = 0;
     private $wa_server = 'http://127.0.0.1:8033';
 
     public function __construct()
@@ -33,18 +33,25 @@ class WhatsApp extends Controller
             $this->error('User ID diperlukan', 400);
         }
 
-        // Generate unique session ID (timestamp only)
-        $session_id = (string) time();
+        // Generate unique session ID
+        $session_id = uniqid('wa_');
 
         try {
-            // Create session on WA server - WA server expects sessionId
+            // Create session on WA server
             $response = $this->waRequest('/create-session', [
                 'sessionId' => $session_id
             ]);
 
             if (!$response || !isset($response['status']) || $response['status'] !== true) {
-                $error_msg = $response['message'] ?? 'Gagal membuat session di server WA';
-                $this->error($error_msg, 500);
+                // If session already exists, we can use it or fail. 
+                // Let's assume conflict means we retry or just use it (if we use uniqid this is rare)
+                // But if we use uniqid, conflict is impossible unless collision.
+                
+                // If error is other than "already exists", throw.
+                if (isset($response['message']) && strpos($response['message'], 'already exists') === false) {
+                     $error_msg = $response['message'] ?? 'Gagal membuat session di server WA';
+                     $this->error($error_msg, 500);
+                }
             }
 
             // Save to database
@@ -86,45 +93,35 @@ class WhatsApp extends Controller
 
         try {
             // 1. Cek status session
+            $response = null;
             try {
                 $response = $this->waRequest('/cek-status', [
                     'sessionId' => $session_id
                 ]);
             } catch (Exception $e) {
-                // Jika error (misal 404), asumsi session mati/hilang di server
+                // Jika error 404/500, response null
                 $response = null;
             }
 
-            // 2. Jika session tidak ditemukan ATAU stuck (tidak login & tidak ada QR)
-            // Maka kita reset session agar generate QR baru
-            $is_stuck = false;
-            if ($response && 
-                (isset($response['status']) && $response['status'] === true) && 
-                empty($response['logged_in']) && 
-                empty($response['qr_ready'])
-            ) {
-                $is_stuck = true;
-            }
-
-            if (!$response || (isset($response['status']) && $response['status'] === false) || $is_stuck) {
+            // 2. Jika session tidak ditemukan di Node server (misal restart server), buat ulang
+            if (!$response || (isset($response['status']) && $response['status'] === false && strpos($response['message'] ?? '', 'not found') !== false)) {
                 try {
-                    // Gunakan /reset-session jika stuck, atau /create-session jika belum ada
-                    $endpoint = $is_stuck ? '/reset-session' : '/create-session';
-                    
-                    $this->waRequest($endpoint, [
+                    $this->waRequest('/create-session', [
                         'sessionId' => $session_id
                     ]);
-                    // Beri waktu sedikit untuk inisiasi
-                    usleep(1000000); // 1s wait
-                    
-                    // Cek status lagi setelah reset/create
+                    usleep(500000); // 0.5s wait
                     $response = $this->waRequest('/cek-status', [
                         'sessionId' => $session_id
                     ]);
                 } catch (Exception $e) {
-                    // Masih gagal, return default
+                    // Ignore
                 }
             }
+
+            // REMOVED: Aggressive auto-reset logic that kills session during "Connecting" state.
+            // When user scans QR, qr_ready becomes false while connecting. 
+            // Previous logic interpreted (logged_in=false && qr_ready=false) as STUCK, and reset it.
+            // This interrupted the login process.
 
             $logged_in = $response['logged_in'] ?? false;
             $qr_ready = $response['qr_ready'] ?? false;
@@ -133,6 +130,9 @@ class WhatsApp extends Controller
             // Update status in database
             if ($user_id) {
                 $status = $logged_in ? 'active' : 'pending';
+                // Only update if status changes to avoid unnecessary writes? 
+                // Or just update always to keep heartbeat if we add last_seen.
+                // For now keep simple.
                 $this->db($this->db_index)->update(
                     'wa_sessions',
                     ['wa_status' => $status],
@@ -263,6 +263,44 @@ class WhatsApp extends Controller
         $this->json([
             'success' => true,
             'message' => 'Session dihapus'
+        ]);
+    }
+
+    /**
+     * Set device as main notification sender
+     * POST /Admin/WhatsApp/set-main
+     */
+    public function set_main()
+    {
+        if (!$this->isPost()) {
+            $this->error('Method not allowed', 405);
+        }
+
+        $body = $this->getBody();
+        $auth = $body['auth'] ?? null;
+        $user_id = $body['user_id'] ?? null;
+
+        if (!$auth || !$user_id) {
+            $this->error('Auth dan User ID diperlukan', 400);
+        }
+
+        // 1. Reset all main_notif to 0 for this user
+        $this->db($this->db_index)->update(
+            'wa_sessions', 
+            ['main_notif' => 0], 
+            ['user_id' => $user_id]
+        );
+
+        // 2. Set selected auth as main_notif 1
+        $this->db($this->db_index)->update(
+            'wa_sessions', 
+            ['main_notif' => 1], 
+            ['auth' => $auth, 'user_id' => $user_id]
+        );
+
+        $this->json([
+            'success' => true,
+            'message' => 'Perangkat utama notifikasi berhasil diubah'
         ]);
     }
 

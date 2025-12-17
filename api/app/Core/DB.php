@@ -1,7 +1,9 @@
 <?php
-require_once 'app/Config/DBC.php';
+namespace App\Core;
 
-class DB extends DBC
+require_once __DIR__ . '/../Config/DBC.php';
+
+class DB extends \DBC
 {
     private static $_instance = [];
     private $mysqli;
@@ -16,11 +18,14 @@ class DB extends DBC
     public function __construct($db = 0)
     {
         // Simple singleton logic for connections could be here or handled by getInstance
-        $db_name = DBC::dbm[$db]['db'];
-        $db_user = DBC::dbm[$db]['user'];
-        $db_pass = DBC::dbm[$db]['pass'];
+        // Select DB config based on environment
+        $config = parent::dbm[\Env::MODE][$db];
+        
+        $db_name = $config['db'];
+        $db_user = $config['user'];
+        $db_pass = $config['pass'];
 
-        $this->mysqli = new mysqli(DBC::db_host, $db_user, $db_pass, $db_name);
+        $this->mysqli = new \mysqli(parent::db_host, $db_user, $db_pass, $db_name);
 
         if ($this->mysqli->connect_error) {
             die('Connect Error (' . $this->mysqli->connect_errno . ') ' . $this->mysqli->connect_error);

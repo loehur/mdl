@@ -50,11 +50,11 @@ export default defineConfig(({ command }) => ({
   server: {
     proxy: {
       "/Admin": {
-        target: "http://localhost/pribadi/mdl/api",
+        target: "http://localhost/mdl/api",
         changeOrigin: true,
       },
       "/api": {
-        target: "http://localhost/pribadi/mdl/backend/public",
+        target: "http://localhost/mdl/backend/public",
         changeOrigin: true,
       },
     },
