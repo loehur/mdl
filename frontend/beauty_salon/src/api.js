@@ -5,7 +5,7 @@
 const isProd = import.meta.env.PROD;
 
 export const API_BASE = isProd
-    ? '/pribadi/mdl/api'
+    ? 'https://api.nalju.com'
     : '';
 
 export function apiUrl(path) {

@@ -1,7 +1,17 @@
 import { createApp } from "vue";
-import { createRouter, createWebHistory } from "vue-router";
+import { createRouter, createWebHashHistory } from "vue-router";
 import App from "./App.vue";
 import "./styles.css";
+import { apiUrl } from './api';
+
+// Global fetch override for API calls
+const originalFetch = window.fetch;
+window.fetch = (url, options) => {
+  if (typeof url === 'string' && (url.startsWith('/api') || url.startsWith('/Admin'))) {
+    return originalFetch(apiUrl(url), options);
+  }
+  return originalFetch(url, options);
+};
 
 import Login from "./public_area/Login.vue";
 import UserLayout from "./user_area/UserLayout.vue";
@@ -11,7 +21,7 @@ import { registerSW } from "virtual:pwa-register";
 const appIcon = "/icons/beauty_salon.png";
 
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+  history: createWebHashHistory(),
   routes: [
     { path: "/", redirect: "/login" },
     { path: "/login", component: Login, meta: { area: "public" } },

@@ -76,27 +76,38 @@
         </div>
       </div>
 
-      <div class="border-b border-gray-100 px-6 py-4 flex items-center justify-between">
-        <h3 class="font-bold text-gray-800">Riwayat Pengeluaran</h3>
-        <button 
-          @click="showExpenseModal = true"
-          class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-lg flex items-center gap-2"
-        >
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-          </svg>
-          <span>Pengeluaran</span>
-        </button>
+      <div class="border-b border-gray-100 px-6 py-4 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+        <h3 class="font-bold text-gray-800">Riwayat Transaksi Kas</h3>
+        <div class="flex items-center gap-2">
+          <button 
+            @click="showTransferModal = true"
+            class="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-lg flex items-center justify-center gap-2"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>
+            </svg>
+            <span>Transfer Kas</span>
+          </button>
+          <button 
+            @click="showExpenseModal = true"
+            class="flex-1 sm:flex-none bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-lg flex items-center justify-center gap-2"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+            </svg>
+            <span>Pengeluaran</span>
+          </button>
+        </div>
       </div>
 
       <div class="overflow-x-auto">
         <table class="w-full text-left text-sm">
-          <thead class="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b">
-            <tr>
-              <th class="px-6 py-3">Tanggal</th>
-              <th class="px-6 py-3">Keterangan</th>
-                  <th class="px-6 py-3 text-right">Jumlah</th>
-                  <th class="px-6 py-3 text-center">Aksi</th>
+              <thead>
+                <tr class="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b">
+                  <th class="px-6 py-4">Status & Tanggal</th>
+                  <th class="px-6 py-4">Keterangan</th>
+                  <th class="px-6 py-4 text-right">Jumlah</th>
+                  <th class="px-6 py-4 text-center">Aksi</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-50">
@@ -119,35 +130,53 @@
                     Belum ada data pengeluaran
                   </td>
                 </tr>
-                <tr v-for="exp in filteredExpenses" :key="exp.id" class="hover:bg-gray-50 transition">
-                  <td class="px-6 py-3 whitespace-nowrap text-gray-600 font-mono text-xs">
-                    {{ formatDate(exp.transaction_date) }}
+                <tr v-for="tx in filteredExpenses" :key="tx.id" class="hover:bg-gray-50 transition border-b border-gray-50 last:border-0">
+                  <td class="px-6 py-4 whitespace-nowrap">
+                    <div class="flex items-center gap-3">
+                      <div v-if="tx.transaction_type === 'expense'" class="w-8 h-8 rounded-lg bg-red-100 text-red-600 flex items-center justify-center flex-shrink-0">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg>
+                      </div>
+                      <div v-else class="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
+                      </div>
+                      <div>
+                        <div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none mb-1">
+                          {{ tx.transaction_type === 'expense' ? 'Pengeluaran' : 'Transfer Keluar' }}
+                        </div>
+                        <div class="text-xs font-mono text-gray-600">{{ formatDate(tx.transaction_date) }}</div>
+                      </div>
+                    </div>
                   </td>
-                  <td class="px-6 py-3">
-                    <div class="font-medium text-gray-800">{{ exp.description }}</div>
-                    <div v-if="exp.notes" class="text-xs text-gray-500 mt-0.5">{{ exp.notes }}</div>
+                  <td class="px-6 py-4">
+                    <div class="font-bold text-gray-800 tracking-tight">{{ tx.description }}</div>
+                    <div v-if="tx.notes" class="text-xs text-gray-500 mt-1 italic">{{ tx.notes }}</div>
+                    <div v-if="tx.transaction_type === 'transfer'" class="text-[10px] text-blue-600 font-bold mt-1 uppercase tracking-wider bg-blue-50 inline-block px-2 py-0.5 rounded">
+                      Ke: {{ tx.transfer_to === 'main' ? 'Kas Besar' : tx.transfer_to }}
+                    </div>
                   </td>
-                  <td class="px-6 py-3 text-right font-bold text-red-600">
-                    - {{ formatCurrency(exp.amount) }}
+                  <td class="px-6 py-4 text-right">
+                    <span class="font-black text-sm" :class="tx.transaction_type === 'expense' ? 'text-rose-600' : 'text-blue-600'">
+                      - {{ formatCurrency(tx.amount) }}
+                    </span>
                   </td>
-                  <td class="px-6 py-3 text-center">
+                  <td class="px-6 py-4 text-center">
                     <button 
-                      v-if="isToday(exp.transaction_date)"
-                      @click="deleteExpense(exp.id)"
-                      class="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 rounded-lg transition"
+                      v-if="isToday(tx.transaction_date)"
+                      @click="deleteExpense(tx.id)"
+                      class="text-gray-400 hover:text-rose-600 hover:bg-rose-50 p-2 rounded-xl transition-all"
                       title="Hapus"
                     >
-                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
                       </svg>
                     </button>
                     <span 
                       v-else
-                      class="text-gray-300 p-2 inline-block cursor-not-allowed"
-                      title="Hanya bisa menghapus pengeluaran hari ini"
+                      class="text-gray-200 p-2 inline-block cursor-not-allowed"
+                      title="Hanya bisa menghapus transaksi hari ini"
                     >
-                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path>
+                      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
                       </svg>
                     </span>
                   </td>
@@ -345,6 +374,105 @@
         </div>
       </div>
     </Teleport>
+
+    <!-- Modal Transfer Kas -->
+    <Teleport to="body">
+      <div v-if="showTransferModal" class="fixed inset-0 z-[99] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" @click.self="showTransferModal = false">
+        <div class="bg-white rounded-3xl w-full max-w-lg shadow-2xl animate-fade-in-down overflow-hidden">
+          <div class="p-6 border-b flex justify-between items-center bg-gradient-to-r from-blue-50 to-indigo-50">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-200">
+                <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>
+                </svg>
+              </div>
+              <div>
+                <h3 class="font-black text-gray-800 text-xl tracking-tight leading-none mb-1">Transfer Kas</h3>
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-widest leading-none">Ke Kas Besar</p>
+              </div>
+            </div>
+            <button @click="showTransferModal = false" class="w-10 h-10 rounded-full hover:bg-white flex items-center justify-center text-gray-400 hover:text-gray-600 transition-all">&times;</button>
+          </div>
+          
+          <form @submit.prevent="submitTransfer" class="p-8 space-y-6">
+            <div class="bg-blue-50 rounded-2xl p-4 flex items-center gap-4 border border-blue-100 mb-2">
+              <div class="flex-1">
+                <p class="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-1">Dari Kasir</p>
+                <p class="font-black text-blue-900 leading-none">{{ formatCurrency(cashBalance) }}</p>
+              </div>
+              <div class="text-blue-300">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+                </svg>
+              </div>
+              <div class="flex-1 text-right">
+                <p class="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-1">Ke Kas Besar</p>
+                <p class="font-black text-blue-900 leading-none">Main Cash</p>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-6">
+              <div>
+                <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Keterangan Transfer *</label>
+                <input 
+                  v-model="transferForm.description" 
+                  type="text" 
+                  required
+                  placeholder="Contoh: Deposit Harian, Setoran Kasir, dll"
+                  class="w-full px-4 py-4 border border-gray-100 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all bg-gray-50/50 font-bold"
+                >
+              </div>
+
+              <div>
+                <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Jumlah Transfer (Rp) *</label>
+                <input 
+                  v-model.number="transferForm.amount" 
+                  type="number" 
+                  required
+                  :max="cashBalance"
+                  min="0"
+                  step="1000"
+                  placeholder="0"
+                  class="w-full px-4 py-4 border border-gray-100 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all bg-gray-50/50 font-black text-xl"
+                >
+                <p v-if="transferForm.amount > cashBalance" class="mt-2 text-[10px] font-black text-rose-500 uppercase tracking-wider ml-1 animate-pulse">
+                  ⚠️ Melebihi saldo kasir saat ini!
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Catatan Tambahan (Opsional)</label>
+              <textarea 
+                v-model="transferForm.notes" 
+                rows="2"
+                placeholder="Misal: No. Ref Setoran atau Nama Petugas..."
+                class="w-full px-4 py-3 border border-gray-100 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all bg-gray-50/50 font-medium text-sm"
+              ></textarea>
+            </div>
+          </form>
+
+          <div class="p-8 border-t bg-gray-50/50 flex gap-4">
+            <button 
+              @click="showTransferModal = false" 
+              type="button"
+              class="flex-1 bg-white border border-gray-200 text-gray-500 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-50 transition-all"
+            >
+              Batal
+            </button>
+            <button 
+              @click="submitTransfer"
+              :disabled="loading || transferForm.amount <= 0 || transferForm.amount > cashBalance"
+              type="submit"
+              class="flex-[1.5] bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all shadow-xl shadow-blue-200"
+            >
+              <span v-if="loading">Mengirim...</span>
+              <span v-else>Konfirmasi Transfer</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
     
     <!-- Toast Notification -->
     <div v-if="toast.show" class="fixed top-4 right-4 z-50 animate-fade-in-down">
@@ -381,6 +509,7 @@ const expenses = ref([]);
 const categories = ref([]);
 const totalIncome = ref(0); // Total pemasukan dari orders
 const showExpenseModal = ref(false); // Modal state
+const showTransferModal = ref(false); // Transfer modal state
 
 // Date filter
 const dateFilter = reactive({
@@ -418,6 +547,12 @@ const expenseForm = reactive({
   description: '',
   amount: 0,
   date: new Date().toISOString().split('T')[0],
+  notes: ''
+});
+
+const transferForm = reactive({
+  amount: 0,
+  description: 'Transfer ke Kas Besar',
   notes: ''
 });
 
@@ -497,9 +632,9 @@ const filteredExpenses = computed(() => {
   });
 });
 
-// Computed: Total pengeluaran (dari filtered)
+// Computed: Total pengeluaran & transfer out (dari filtered)
 const totalExpense = computed(() => {
-  return filteredExpenses.value.reduce((sum, exp) => sum + Number(exp.amount), 0);
+  return filteredExpenses.value.reduce((sum, tx) => sum + Number(tx.amount), 0);
 });
 
 // Computed: Saldo kas (income - expense)
@@ -542,11 +677,12 @@ async function fetchCategories() {
   }
 }
 
-// Fetch expenses (from CashManagement API)
+// Fetch expenses & transfers
 async function fetchExpenses() {
   loadingExpenses.value = true;
   try {
-    const url = '/api/Beauty_Salon/CashManagement/transactions?cash=cashier&type=expense';
+    // We don't specify type=expense to get both expense and transfer
+    const url = '/api/Beauty_Salon/CashManagement/transactions?cash=cashier';
     console.log('Fetching expenses from:', url);
     
     const res = await fetch(url);
@@ -562,6 +698,49 @@ async function fetchExpenses() {
     console.error('Error fetching expenses:', e);
   } finally {
     loadingExpenses.value = false;
+  }
+}
+
+// Submit transfer
+async function submitTransfer() {
+  if (transferForm.amount <= 0 || transferForm.amount > cashBalance.value) {
+    showToast('Jumlah transfer tidak valid', 'error');
+    return;
+  }
+
+  loading.value = true;
+  try {
+    const res = await fetch('/api/Beauty_Salon/CashManagement/transfer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: 'cashier',
+        to: 'main',
+        amount: transferForm.amount,
+        description: transferForm.description,
+        notes: transferForm.notes
+      })
+    });
+
+    const d = await res.json();
+    
+    if (d.success) {
+      showToast('✅ Transfer kas berhasil dilakukan!');
+      // Reset
+      transferForm.amount = 0;
+      transferForm.description = 'Transfer ke Kas Besar';
+      transferForm.notes = '';
+      showTransferModal.value = false;
+      // Refresh
+      await fetchExpenses();
+    } else {
+      showToast('Gagal: ' + (d.message || 'Error server'), 'error');
+    }
+  } catch(e) {
+    console.error('Transfer error:', e);
+    showToast('Terjadi kesalahan transfer', 'error');
+  } finally {
+    loading.value = false;
   }
 }
 

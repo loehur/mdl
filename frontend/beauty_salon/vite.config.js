@@ -41,7 +41,7 @@ export default defineConfig(({ command }) => ({
       },
     }),
   ],
-  base: command === "build" ? "/beauty_salon/" : "/",
+  base: "./",
   build: {
     outDir: "../../public/beauty_salon",
     assetsDir: "assets",
