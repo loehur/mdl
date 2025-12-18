@@ -249,11 +249,20 @@ async function sendToWebhook(data, sessionId) {
       }),
     });
 
+    // Log response status
+    console.log(`[${sessionId}] Webhook response status: ${response.status}`);
+
+    // Get response body
+    const responseBody = await response.text();
+    console.log(`[${sessionId}] Webhook response body:`, responseBody);
+
     if (!response.ok) {
-      console.error(`[${sessionId}] Webhook error: ${response.status}`);
+      console.error(`[${sessionId}] ❌ Webhook error: ${response.status}`);
+    } else {
+      console.log(`[${sessionId}] ✓ Webhook sent successfully`);
     }
   } catch (error) {
-    console.error(`[${sessionId}] Failed to send webhook:`, error.message);
+    console.error(`[${sessionId}] ❌ Failed to send webhook:`, error.message);
   }
 }
 
@@ -406,14 +415,36 @@ async function connectToWhatsApp(sessionId) {
 
       for (const update of updates) {
         console.log(`[${sessionId}] Message update:`, JSON.stringify(update));
+        console.log(`[${sessionId}] Webhook check - fromMe: ${update.key?.fromMe}, hasUpdate: ${!!update.update}`);
 
-        // Send to webhook jika message dari kita sendiri dan ada update
-        if (
-          update.key?.fromMe === true &&
-          update.update &&
-          Object.keys(update.update).length > 0
-        ) {
-          await sendToWebhook(update, sessionId);
+        // Send to webhook if fromMe=true (like index_old.js)
+        if (update.key?.fromMe === true && update.update) {
+          console.log(`[${sessionId}] ✓ Sending to webhook...`);
+          // Send raw update to webhook (like index_old.js)
+          try {
+            const response = await fetch(webhook, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(update), // Send raw update without modification
+            });
+
+            // Log response status
+            console.log(`[${sessionId}] Webhook response status: ${response.status}`);
+
+            // Get response body
+            const responseBody = await response.text();
+            console.log(`[${sessionId}] Webhook response body:`, responseBody);
+
+            if (!response.ok) {
+              console.error(`[${sessionId}] ❌ Webhook error: ${response.status}`);
+            } else {
+              console.log(`[${sessionId}] ✓ Webhook sent successfully`);
+            }
+          } catch (error) {
+            console.error(`[${sessionId}] ❌ Failed to send webhook:`, error.message);
+          }
         }
       }
     }
@@ -668,26 +699,27 @@ app.post("/send-message", async (req, res) => {
 
     // Validation
     if (!sessionId) {
-      return res.status(400).json({
+      return res.status(500).json({
         status: false,
-        message: "sessionId is required",
+        response: "sessionId is required",
       });
     }
 
     if (!number || typeof number !== "string") {
-      return res.status(400).json({
+      return res.status(500).json({
         status: false,
-        message: "number is required and must be a string",
+        response: "number is required and must be a string",
       });
     }
 
     if (!message || typeof message !== "string") {
-      return res.status(400).json({
+      return res.status(500).json({
         status: false,
-        message: "message is required and must be a string",
+        response: "message is required and must be a string",
       });
     }
 
+    console.log(`[send-message] Request: sessionId="${sessionId}", number="${number}"`);
     let session = getSession(sessionId);
 
     // Auto-recover session if it exists on disk but not in memory (e.g. after server restart)
@@ -707,36 +739,57 @@ app.post("/send-message", async (req, res) => {
     }
 
     if (!session) {
-      return res.status(404).json({
+      console.error(`[send-message] ❌ TOKEN INVALID: Session "${sessionId}" not found`);
+      console.log(`[send-message] Available sessions:`, Array.from(sessions.keys()));
+      return res.status(500).json({
         status: false,
-        message: `Session "${sessionId}" not found`,
+        response: `Session "${sessionId}" not found`,
       });
     }
 
     if (!session.logged_in) {
+      console.error(`[send-message] ❌ TOKEN NOT LOGGED IN: Session "${sessionId}" exists but not logged in`);
+      console.log(`[send-message] Session status:`, { logged_in: session.logged_in, qr_status: session.qr_status });
       // If we just restored, maybe it needs a bit more time or it's actually logged out
-      return res.status(400).json({
+      return res.status(500).json({
         status: false,
-        message: `Session "${sessionId}" is not logged in`,
+        response: `Whatsapp disconnected`,
       });
     }
 
+    console.log(`[send-message] ✓ Session "${sessionId}" validated, sending to ${number}...`);
     const cleanNumber = number.replace(/\D/g, "");
     const numberWA = `${cleanNumber}@s.whatsapp.net`;
 
-    // Kirim pesan
-    const result = await session.sock.sendMessage(numberWA, { text: message });
+    // Kirim pesan dengan timeout protection
+    try {
+      const sendPromise = session.sock.sendMessage(numberWA, { text: message });
 
-    res.status(200).json({
-      status: true,
-      message: "Message sent successfully",
-      response: result,
-    });
+      // Add timeout (30 seconds)
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Send timeout after 30s')), 30000)
+      );
+
+      const result = await Promise.race([sendPromise, timeoutPromise]);
+
+      res.status(200).json({
+        status: true,
+        response: result,
+      });
+    } catch (sendErr) {
+      console.error(`[${sessionId}] Send failed:`, sendErr.message);
+
+      // Return error with status 500 (matching index_old.js)
+      return res.status(500).json({
+        status: false,
+        response: sendErr.message
+      });
+    }
   } catch (err) {
     console.error("[send-message] Error:", err);
     res.status(500).json({
       status: false,
-      message: err.message || "Failed to send message",
+      response: err.message || "Failed to send message",
     });
   }
 });

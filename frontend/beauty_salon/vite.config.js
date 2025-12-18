@@ -50,9 +50,9 @@ export default defineConfig(({ command }) => ({
   server: {
     proxy: {
       "/api": {
-        target: "http://localhost/mdl/api",
+        target: "http://localhost/mdl",
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ""),
+        rewrite: (path) => path.replace(/^\/api/, "/api"),
       },
     },
   },

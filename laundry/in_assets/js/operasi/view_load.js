@@ -789,19 +789,27 @@
     $("input.idItem").val(window.idNya);
   });
 
-  $("a.sendNotif").on("click", function (e) {
-    klikNotif += 1;
-    if (klikNotif > 1) {
+  // Unbind to prevent duplicate handlers
+  $(document).off("click", "a.sendNotif");
+
+  $(document).on("click", "a.sendNotif", function (e) {
+    e.preventDefault();
+
+    var $btn = $(this);
+
+    // Prevent multiple clicks on the same button
+    if ($btn.hasClass('sending')) {
       return;
     }
-    $(this).fadeOut("slow");
-    e.preventDefault();
-    var urutRef = $(this).attr("data-urutRef");
-    var id_pelanggan_notif = $(this).attr("data-idPelanggan");
-    var id_harga = $(this).attr("data-id_harga");
-    var hpNya = $(this).attr("data-hp");
-    var refNya = $(this).attr("data-ref");
-    var timeNya = $(this).attr("data-time");
+
+    $btn.addClass('sending').fadeOut("slow");
+
+    var urutRef = $btn.attr("data-urutRef");
+    var id_pelanggan_notif = $btn.attr("data-idPelanggan");
+    var id_harga = $btn.attr("data-id_harga");
+    var hpNya = $btn.attr("data-hp");
+    var refNya = $btn.attr("data-ref");
+    var timeNya = $btn.attr("data-time");
     var textNya = $("span#" + urutRef).html();
     var countMember = $("span#member" + urutRef).html();
 
@@ -829,7 +837,11 @@
           loadDiv();
         } else {
           showAlert(res, "error");
+          $btn.removeClass('sending').fadeIn("fast");
         }
+      },
+      error: function () {
+        $btn.removeClass('sending').fadeIn("fast");
       },
       complete: function () {
         $(".loaderDiv").fadeOut("slow");

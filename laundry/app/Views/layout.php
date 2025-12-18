@@ -125,18 +125,14 @@ if ($log_mode == 1) {
 
                 <?php } ?>
                 <div class="col-auto ps-0 me-auto pe-1">
-                    <select id="selectBook" class="form-control bg-info">
-                        <?php for ($y = URL::FIRST_YEAR; $y <= date('Y'); $y++) { ?>
-                            <option class="font-weight-bold" value="<?= $y ?>" <?= ($_SESSION[URL::SESSID]['user']['book'] == $y) ? "selected" : '' ?>><?= $y ?></option>
-                        <?php } ?>
-                    </select>
+                    
                 </div>
-                <div class="col-auto ps-0 pe-1">
+                <div class="col-auto ps-0 pe-2">
                     <a class="refresh" href="#">
                         <span class="btn btn-outline-success"><i class="fas fa-sync"></i></span>
                     </a>
                 </div>
-                <div class="col-auto ps-0 pe-1">
+                <div class="col-auto ps-0 pe-2">
                     <a class="" href="<?= URL::BASE_URL ?>Login/logout" role="button">
                         <span class="btn btn-outline-dark"><i class="fas fa-sign-out-alt"></i></span>
                     </a>

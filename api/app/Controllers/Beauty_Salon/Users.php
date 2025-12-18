@@ -140,18 +140,129 @@ class Users extends Controller
 
     public function delete($id)
     {
-        if (!$this->isPost()) { // Using POST for delete for simplicity with standard fetch
-             // Or allow DELETE method if configured in Route
+        if (!$this->isPost()) {
+            $this->error('Method not allowed', 405);
         }
         
-        // Prevent deleting self? (Ideally check session user id)
+        try {
+            $salon_id = $_SESSION['salon_user_session']['user']['salon_id'] ?? null;
+            $current_user_id = $_SESSION['salon_user_session']['user']['id'] ?? null;
+            
+            if (!$salon_id || !$current_user_id) {
+                $this->error('Unauthorized', 401);
+            }
 
-        $deleted = $this->db($this->db_index)->delete('users', ['id' => $id]);
-        
-        if ($deleted) {
-            $this->json(['success' => true, 'message' => 'User dihapus']);
-        } else {
-            $this->error('Gagal menghapus user', 500);
+            // Prevent deleting self
+            if ($id == $current_user_id) {
+                $this->error('Tidak dapat menghapus akun sendiri', 400);
+            }
+
+            // Verify user belongs to salon
+            $user = $this->db($this->db_index)
+                ->get_where('users', ['id' => $id, 'salon_id' => $salon_id], 1)
+                ->row_array();
+
+            if (!$user) {
+                $this->error('User tidak ditemukan', 404);
+            }
+
+            // Check if user has created orders
+            $hasOrders = $this->db($this->db_index)
+                ->query("
+                    SELECT COUNT(*) as count 
+                    FROM orders 
+                    WHERE created_by_user_id = ?
+                ", [$id])
+                ->row_array();
+
+            if ($hasOrders && $hasOrders['count'] > 0) {
+                $this->error('User tidak dapat dihapus karena telah membuat ' . $hasOrders['count'] . ' order', 400);
+            }
+
+            // Check if user assigned as worker in orders
+            $assignedOrders = $this->db($this->db_index)
+                ->query("
+                    SELECT COUNT(*) as count 
+                    FROM order_workers 
+                    WHERE worker_id = ?
+                ", [$id])
+                ->row_array();
+
+            if ($assignedOrders && $assignedOrders['count'] > 0) {
+                $this->error('User tidak dapat dihapus karena sudah ditugaskan di ' . $assignedOrders['count'] . ' layanan', 400);
+            }
+
+            $deleted = $this->db($this->db_index)->delete('users', ['id' => $id]);
+            
+            if ($deleted) {
+                $this->json(['success' => true, 'message' => 'User berhasil dihapus']);
+            } else {
+                $this->error('Gagal menghapus user', 500);
+            }
+        } catch (\Exception $e) {
+            error_log("Users delete error: " . $e->getMessage());
+            $this->error('Terjadi kesalahan: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * POST - Change own password
+     */
+    public function changePassword()
+    {
+        if (!$this->isPost()) {
+            $this->error('Method not allowed', 405);
+        }
+
+        try {
+            $body = $this->getBody();
+            $this->validate($body, ['old_password', 'new_password']);
+
+            $user_id = $_SESSION['salon_user_session']['user']['id'] ?? null;
+            
+            if (!$user_id) {
+                $this->error('Unauthorized', 401);
+            }
+
+            // Get current user
+            $user = $this->db($this->db_index)
+                ->get_where('users', ['id' => $user_id], 1)
+                ->row_array();
+
+            if (!$user) {
+                $this->error('User tidak ditemukan', 404);
+            }
+
+            // Verify old password
+            if (!password_verify($body['old_password'], $user['password'])) {
+                $this->error('Password lama tidak sesuai', 400);
+            }
+
+            // Validate new password length
+            if (strlen($body['new_password']) < 6) {
+                $this->error('Password baru minimal 6 karakter', 400);
+            }
+
+            // Hash new password
+            $new_password_hash = password_hash($body['new_password'], PASSWORD_BCRYPT);
+
+            // Update password
+            $updated = $this->db($this->db_index)->update('users', 
+                ['password' => $new_password_hash, 'updated_at' => date('Y-m-d H:i:s')], 
+                ['id' => $user_id]
+            );
+
+            if ($updated) {
+                $this->json([
+                    'success' => true,
+                    'message' => 'Password berhasil diubah'
+                ]);
+            } else {
+                $this->error('Gagal mengubah password', 500);
+            }
+        } catch (\Exception $e) {
+            error_log("Change password error: " . $e->getMessage());
+            $this->error('Terjadi kesalahan: ' . $e->getMessage(), 500);
         }
     }
 }

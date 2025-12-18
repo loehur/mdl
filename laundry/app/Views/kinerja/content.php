@@ -206,7 +206,7 @@ foreach ($data['dKembali'] as $a) {
                 <label>Tahun</label>
                 <select name="Y" class="form-control form-control-sm">
                   <?php
-                  for ($x = URL::FIRST_YEAR; $x <= date('Y'); $x++) { ?>
+                  for ($x = 2021; $x <= date('Y'); $x++) { ?>
                     <option class="text-right" value="<?= $x ?>" <?php if ($currentYear == $x) {
                                                                     echo 'selected';
                                                                   } ?>><?= $x ?></option>

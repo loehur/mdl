@@ -52,10 +52,7 @@ export default defineConfig(({ command }) => ({
       "/Admin": {
         target: "http://localhost/mdl/api",
         changeOrigin: true,
-      },
-      "/api": {
-        target: "http://localhost/mdl/backend/public",
-        changeOrigin: true,
+        rewrite: (path) => path
       },
     },
   },

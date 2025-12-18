@@ -17,98 +17,65 @@
         </div>
         
         <nav class="flex-1 p-4 space-y-2 overflow-y-auto">
-          <router-link to="/order" @click="isOpen = false"
-            class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all"
-            active-class="bg-pink-600 text-white shadow-lg"
-            :class="$route.path === '/order' ? '' : 'text-slate-300 hover:bg-white/5'"
-          >
-             <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
-             Order
-          </router-link>
+          <!-- Main Menu Items (Dynamic) -->
+          <template v-for="item in menuItems" :key="item.path || item.label">
+            <!-- Regular Menu Link -->
+            <router-link 
+              v-if="!item.type"
+              :to="item.path" 
+              @click="isOpen = false"
+              class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all"
+              active-class="bg-pink-600 text-white shadow-lg"
+              :class="item.exactMatch ? ($route.path === item.path ? '' : 'text-slate-300 hover:bg-white/5') : ($route.path.includes(item.path) ? '' : 'text-slate-300 hover:bg-white/5')"
+            >
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" v-html="item.icon"></svg>
+              {{ item.label }}
+            </router-link>
 
-          <router-link to="/worksteps" @click="isOpen = false"
-            class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all"
-            active-class="bg-pink-600 text-white shadow-lg"
-            :class="$route.path.includes('/worksteps') ? '' : 'text-slate-300 hover:bg-white/5'"
-          >
-             <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
-             Langkah Kerja
-          </router-link>
+            <!-- Master Data Dropdown -->
+            <div v-else-if="item.type === 'dropdown'">
+              <button 
+                @click="showMasterDropdown = !showMasterDropdown"
+                class="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl transition-all"
+                :class="isMasterDataActive() ? 'bg-pink-600 text-white shadow-lg' : 'text-slate-300 hover:bg-white/5'"
+              >
+                <div class="flex items-center gap-3">
+                  <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" v-html="item.icon"></svg>
+                  <span>{{ item.label }}</span>
+                </div>
+                <svg class="w-4 h-4 transition-transform" :class="showMasterDropdown ? 'rotate-180' : ''" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"></path>
+                </svg>
+              </button>
+              
+              <div v-show="showMasterDropdown" class="ml-4 mt-1 space-y-1">
+                <router-link v-for="subItem in masterDataItems" :key="subItem.path" :to="subItem.path" @click="isOpen = false"
+                  class="flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all text-sm"
+                  active-class="bg-pink-500/20 text-pink-300 font-medium"
+                  :class="$route.path.includes(subItem.path) ? '' : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'"
+                >
+                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" v-html="subItem.icon"></svg>
+                  {{ subItem.label }}
+                </router-link>
+              </div>
+            </div>
+          </template>
 
-          <router-link to="/products" @click="isOpen = false"
-            class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all"
-            active-class="bg-pink-600 text-white shadow-lg"
-            :class="$route.path.includes('/products') ? '' : 'text-slate-300 hover:bg-white/5'"
-          >
-             <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
-             Produk
-          </router-link>
-
-          <router-link to="/customers" @click="isOpen = false"
-            class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all"
-            active-class="bg-pink-600 text-white shadow-lg"
-            :class="$route.path.includes('/customers') ? '' : 'text-slate-300 hover:bg-white/5'"
-          >
-             <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
-             Pelanggan
-          </router-link>
-
-          <router-link to="/therapists" @click="isOpen = false"
-            class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all"
-            active-class="bg-pink-600 text-white shadow-lg"
-            :class="$route.path.includes('/therapists') ? '' : 'text-slate-300 hover:bg-white/5'"
-          >
-             <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-             Terapis
-          </router-link>
-
-          <router-link to="/performance" @click="isOpen = false"
-            class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all"
-            active-class="bg-pink-600 text-white shadow-lg"
-            :class="$route.path.includes('/performance') ? '' : 'text-slate-300 hover:bg-white/5'"
-          >
-             <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 012-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
-             Kinerja
-          </router-link>
-
-          <router-link to="/cash-flow" @click="isOpen = false"
-            class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all"
-            active-class="bg-pink-600 text-white shadow-lg"
-            :class="$route.path.includes('/cash-flow') ? '' : 'text-slate-300 hover:bg-white/5'"
-          >
-             <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-             Laporan Kas
-          </router-link>
-
+          <!-- Arsip Section -->
           <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-2 mt-4 ml-2">Arsip</div>
 
-          <router-link to="/archive/orders" @click="isOpen = false"
-            class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all"
-            active-class="bg-pink-600 text-white shadow-lg"
-            :class="$route.path.includes('/archive/orders') ? '' : 'text-slate-300 hover:bg-white/5'"
-          >
-             <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>
-             Order Selesai
-          </router-link>
-          
-          <router-link v-if="isAdmin()" to="/users" @click="isOpen = false"
-            class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all"
-            active-class="bg-pink-600 text-white shadow-lg"
-            :class="$route.path.includes('/users') ? '' : 'text-slate-300 hover:bg-white/5'"
-          >
-             <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
-             Users
-          </router-link>
-
-          <router-link v-if="isAdmin()" to="/settings" @click="isOpen = false"
-            class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all"
-            active-class="bg-pink-600 text-white shadow-lg"
-            :class="$route.path.includes('/settings') ? '' : 'text-slate-300 hover:bg-white/5'"
-          >
-             <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-             Settings
-          </router-link>
-
+          <template v-for="item in archiveItems" :key="item.path">
+            <router-link 
+              :to="item.path" 
+              @click="isOpen = false"
+              class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all"
+              active-class="bg-pink-600 text-white shadow-lg"
+              :class="$route.path.includes(item.path) ? '' : 'text-slate-300 hover:bg-white/5'"
+            >
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" v-html="item.icon"></svg>
+              {{ item.label }}
+            </router-link>
+          </template>
 
         </nav>
       </aside>
@@ -125,132 +92,59 @@
       <nav class="flex-1 p-4 space-y-1 overflow-y-auto custom-scrollbar">
         <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-2">Menu</div>
         
-        <router-link
-          to="/order"
-          class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative overflow-hidden"
-          active-class="bg-pink-600 text-white shadow-lg shadow-pink-900/50 font-medium"
-          :class="$route.path === '/order' ? '' : 'text-slate-300 hover:bg-white/5 hover:text-white'"
-        >
-          <svg class="w-5 h-5 transition-transform group-hover:scale-110 duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-             <path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
-          </svg>
-          <span>Order</span>
-        </router-link>
+        <!-- Main Menu Items (Dynamic) -->
+        <template v-for="item in menuItems" :key="item.path || item.label">
+          <!-- Regular Menu Link -->
+          <router-link 
+            v-if="!item.type"
+            :to="item.path" 
+            class="nav-link group" 
+            active-class="nav-link-active" 
+            :class="item.exactMatch ? ($route.path === item.path ? '' : 'nav-link-inactive') : ($route.path.includes(item.path) ? '' : 'nav-link-inactive')"
+          >
+            <svg class="w-5 h-5 transition-transform group-hover:scale-110 duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" v-html="item.icon"></svg>
+            <span>{{ item.label }}</span>
+          </router-link>
 
-        <router-link
-          to="/worksteps"
-          class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative overflow-hidden"
-          active-class="bg-pink-600 text-white shadow-lg shadow-pink-900/50 font-medium"
-          :class="$route.path.includes('/worksteps') ? '' : 'text-slate-300 hover:bg-white/5 hover:text-white'"
-        >
-          <svg class="w-5 h-5 transition-transform group-hover:scale-110 duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-             <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
-          </svg>
-          <span>Langkah Kerja</span>
-        </router-link>
+          <!-- Master Data Dropdown Desktop -->
+          <div v-else-if="item.type === 'dropdown'">
+            <button @click="showMasterDropdown = !showMasterDropdown" class="nav-link w-full justify-between" :class="isMasterDataActive() ? 'nav-link-active' : 'nav-link-inactive'">
+              <div class="flex items-center gap-3">
+                <svg class="w-5 h-5 transition-transform group-hover:scale-110 duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" v-html="item.icon"></svg>
+                <span>{{ item.label }}</span>
+              </div>
+              <svg class="w-4 h-4 transition-transform" :class="showMasterDropdown ? 'rotate-180' : ''" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"></path>
+              </svg>
+            </button>
+            
+            <div v-show="showMasterDropdown" class="ml-4 mt-1 space-y-1">
+              <router-link v-for="subItem in masterDataItems" :key="subItem.path" :to="subItem.path" class="flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all text-sm group"
+                active-class="bg-pink-500/20 text-pink-300 font-medium"
+                :class="$route.path.includes(subItem.path) ? '' : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'"
+              >
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" v-html="subItem.icon"></svg>
+                {{ subItem.label }}
+              </router-link>
+            </div>
+          </div>
+        </template>
 
-        <router-link
-          to="/products"
-          class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative overflow-hidden"
-          active-class="bg-pink-600 text-white shadow-lg shadow-pink-900/50 font-medium"
-          :class="$route.path.includes('/products') ? '' : 'text-slate-300 hover:bg-white/5 hover:text-white'"
-        >
-          <svg class="w-5 h-5 transition-transform group-hover:scale-110 duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-             <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
-          </svg>
-          <span>Produk</span>
-        </router-link>
-
-        <router-link
-          to="/customers"
-          class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative overflow-hidden"
-          active-class="bg-pink-600 text-white shadow-lg shadow-pink-900/50 font-medium"
-          :class="$route.path.includes('/customers') ? '' : 'text-slate-300 hover:bg-white/5 hover:text-white'"
-        >
-          <svg class="w-5 h-5 transition-transform group-hover:scale-110 duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-             <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
-          </svg>
-          <span>Pelanggan</span>
-        </router-link>
-
-        <router-link
-          to="/therapists"
-          class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative overflow-hidden"
-          active-class="bg-pink-600 text-white shadow-lg shadow-pink-900/50 font-medium"
-          :class="$route.path.includes('/therapists') ? '' : 'text-slate-300 hover:bg-white/5 hover:text-white'"
-        >
-          <svg class="w-5 h-5 transition-transform group-hover:scale-110 duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-             <path stroke-linecap="round" stroke-linejoin="round" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-          </svg>
-          <span>Terapis</span>
-        </router-link>
-
-        <router-link
-          to="/performance"
-          class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative overflow-hidden"
-          active-class="bg-pink-600 text-white shadow-lg shadow-pink-900/50 font-medium"
-          :class="$route.path.includes('/performance') ? '' : 'text-slate-300 hover:bg-white/5 hover:text-white'"
-        >
-          <svg class="w-5 h-5 transition-transform group-hover:scale-110 duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-             <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 012-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
-          </svg>
-          <span>Kinerja</span>
-        </router-link>
-
-        <router-link
-          to="/cash-flow"
-          class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative overflow-hidden"
-          active-class="bg-pink-600 text-white shadow-lg shadow-pink-900/50 font-medium"
-          :class="$route.path.includes('/cash-flow') ? '' : 'text-slate-300 hover:bg-white/5 hover:text-white'"
-        >
-          <svg class="w-5 h-5 transition-transform group-hover:scale-110 duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-             <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-          </svg>
-          <span>Laporan Kas</span>
-        </router-link>
-
+        <!-- Archive Section -->
         <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-2 mt-6">Arsip</div>
 
-        <router-link
-          to="/archive/orders"
-          class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative overflow-hidden"
-          active-class="bg-pink-600 text-white shadow-lg shadow-pink-900/50 font-medium"
-          :class="$route.path.includes('/archive/orders') ? '' : 'text-slate-300 hover:bg-white/5 hover:text-white'"
-        >
-          <svg class="w-5 h-5 transition-transform group-hover:scale-110 duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-             <path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path>
-          </svg>
-          <span>Order Selesai</span>
-        </router-link>
-
-        <router-link
-          v-if="isAdmin()"
-          to="/users"
-          class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative overflow-hidden"
-          active-class="bg-pink-600 text-white shadow-lg shadow-pink-900/50 font-medium"
-          :class="$route.path.includes('/users') ? '' : 'text-slate-300 hover:bg-white/5 hover:text-white'"
-        >
-          <svg class="w-5 h-5 transition-transform group-hover:scale-110 duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-             <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
-          </svg>
-          <span>Users</span>
-        </router-link>
-
-        <router-link
-          v-if="isAdmin()"
-          to="/settings"
-          class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative overflow-hidden"
-          active-class="bg-pink-600 text-white shadow-lg shadow-pink-900/50 font-medium"
-          :class="$route.path.includes('/settings') ? '' : 'text-slate-300 hover:bg-white/5 hover:text-white'"
-        >
-          <svg class="w-5 h-5 transition-transform group-hover:scale-110 duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-             <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
-             <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-          </svg>
-          <span>Settings</span>
-        </router-link>
+        <template v-for="item in archiveItems" :key="item.path">
+          <router-link 
+            :to="item.path" 
+            class="nav-link group" 
+            active-class="nav-link-active" 
+            :class="$route.path.includes(item.path) ? '' : 'nav-link-inactive'"
+          >
+            <svg class="w-5 h-5 transition-transform group-hover:scale-110 duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" v-html="item.icon"></svg>
+            <span>{{ item.label }}</span>
+          </router-link>
+        </template>
       </nav>
-
 
     </aside>
 
@@ -261,9 +155,7 @@
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
         </button>
 
-        <h1 class="text-xl font-bold text-gray-800 hidden md:block">
-          {{ getPageTitle() }}
-        </h1>
+        <h1 class="text-xl font-bold text-gray-800 hidden md:block">{{ getPageTitle() }}</h1>
         <h1 class="text-lg font-bold text-gray-800 md:hidden">Salon</h1>
 
         <!-- User Dropdown -->
@@ -281,18 +173,20 @@
             <svg class="w-4 h-4 text-gray-400 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
           </button>
 
-          <!-- Dropdown Menu -->
           <Teleport to="body">
             <div v-if="showUserMenu" @click="showUserMenu = false" class="fixed inset-0 z-[9997]"></div>
             <div v-if="showUserMenu" class="fixed top-16 right-6 z-[9999] bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden w-56">
-              <!-- User Info -->
               <div class="px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-pink-50 to-fuchsia-50">
                 <p class="font-semibold text-gray-800">{{ userName }}</p>
                 <p class="text-xs text-gray-500 capitalize">{{ userRole }}</p>
               </div>
               
-              <!-- Menu Items -->
               <div class="py-2">
+               <router-link to="/user/profile" @click="showUserMenu = false" class="w-full px-4 py-2.5 text-left hover:bg-gray-50 transition flex items-center gap-3 text-gray-700">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                  <span>Profil</span>
+                </router-link>
+                
                 <button @click="logout" class="w-full px-4 py-2.5 text-left hover:bg-red-50 transition flex items-center gap-3 text-red-600 font-medium">
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
                   <span>Keluar</span>
@@ -321,17 +215,124 @@ import { useRoute, useRouter } from "vue-router";
 
 const isOpen = ref(false);
 const showUserMenu = ref(false);
+const showMasterDropdown = ref(false);
 const route = useRoute();
 const router = useRouter();
 const userName = ref("Guest");
 const userRole = ref("customer");
+
+// Main menu items (dinamis)
+const menuItems = computed(() => {
+  const items = [
+    {
+      path: '/order',
+      label: 'Order',
+      icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>',
+      exactMatch: true
+    },
+    {
+      path: '/performance',
+      label: 'Kinerja',
+      icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 012-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>'
+    },
+    {
+      path: '/cash-flow',
+      label: 'Riwayat Bayar',
+      icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>'
+    },
+    {
+      path: '/cashier-cash',
+      label: 'Kas Kasir',
+      icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>'
+    }
+  ];
+
+  // Admin only: Kas Besar
+  if (isAdmin()) {
+    items.push({
+      path: '/main-cash',
+      label: 'Kas Besar',
+      icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>',
+      adminOnly: true
+    });
+  }
+
+  // Master Data dropdown
+  items.push({
+    type: 'dropdown',
+    label: 'Master Data',
+    icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"></path>',
+    children: 'masterDataItems'
+  });
+
+  return items;
+});
+
+// Archive menu items
+const archiveItems = computed(() => {
+  const items = [
+    {
+      path: '/archive/orders',
+      label: 'Order Selesai',
+      icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path>'
+    }
+  ];
+  
+  if (isAdmin()) {
+    items.push({
+      path: '/settings',
+      label: 'Settings',
+      icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>'
+    });
+  }
+  
+  return items;
+});
+
+// Master data submenu items
+const masterDataItems = computed(() => {
+  const items = [
+    {
+      path: '/products',
+      label: 'Produk',
+      icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>'
+    },
+    {
+      path: '/worksteps',
+      label: 'Langkah Kerja',
+      icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>'
+    },
+    {
+      path: '/customers',
+      label: 'Pelanggan',
+      icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>'
+    },
+    {
+      path: '/therapists',
+      label: 'Terapis',
+      icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>'
+    }
+  ];
+
+  if (isAdmin()) {
+    items.push({
+      path: '/users',
+      label: 'Users',
+      icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>'
+    });
+  }
+
+  return items;
+});
 
 onMounted(() => {
   try {
     const raw = localStorage.getItem("salon_user");
     if (raw) {
       const u = JSON.parse(raw);
-      userName.value = u.name || "Guest";
+      // Extract first name only
+      const fullName = u.name || "Guest";
+      userName.value = fullName.split(' ')[0]; // Get first word only
       userRole.value = u.role || "customer";
     }
   } catch {}
@@ -355,18 +356,37 @@ function getPageTitle() {
   if (route.path.includes('/therapists')) return 'Data Terapis';
   if (route.path.includes('/performance')) return 'Kinerja Terapis';
   if (route.path.includes('/cash-flow')) return 'Laporan Kas';
+  if (route.path.includes('/cashier-cash')) return 'Kas Kasir';
+  if (route.path.includes('/main-cash')) return 'Kas Besar';
   if (route.path.includes('/archive/orders')) return 'Arsip Order Selesai';
   if (route.path.includes('/users')) return 'Manajemen Pengguna';
   if (route.path.includes('/settings')) return 'Pengaturan Salon';
+  if (route.path.includes('/user/profile')) return 'Profil Akun';
   return 'Salon Area';
 }
 
-// Check if user is admin (for RBAC)
+function isMasterDataActive() {
+  return route.path.includes('/products') ||
+         route.path.includes('/worksteps') || 
+         route.path.includes('/customers') || 
+         route.path.includes('/therapists') || 
+         route.path.includes('/users');
+}
+
 const isAdmin = () => userRole.value === 'admin';
 </script>
 
 <style>
-/* Custom Scrollbar Global for UserLayout area */
+.nav-link {
+  @apply flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 relative overflow-hidden;
+}
+.nav-link-active {
+  @apply bg-pink-600 text-white shadow-lg shadow-pink-900/50 font-medium;
+}
+.nav-link-inactive {
+  @apply text-slate-300 hover:bg-white/5 hover:text-white;
+}
+
 .custom-scrollbar::-webkit-scrollbar {
   width: 5px;
 }
@@ -381,7 +401,6 @@ const isAdmin = () => userRole.value === 'admin';
   background: #475569; 
 }
 
-/* Main content scrollbar */
 main::-webkit-scrollbar {
   width: 8px;
 }

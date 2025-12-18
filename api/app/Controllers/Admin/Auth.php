@@ -1,5 +1,9 @@
 <?php
 
+namespace App\Controllers\Admin;
+
+use App\Core\Controller;
+
 /**
  * Admin Auth Controller
  * Handle login dan OTP verification untuk Admin
@@ -15,7 +19,7 @@ class Auth extends Controller
 
     public function __construct()
     {
-        session_start();
+        // Session already started in init.php
         $this->handleCors();
     }
 
@@ -29,80 +33,99 @@ class Auth extends Controller
             $this->error('Method not allowed', 405);
         }
 
-        $body = $this->getBody();
-        $this->validate($body, ['phone_number', 'password']);
+        try {
+            $body = $this->getBody();
+            $this->validate($body, ['phone_number', 'password']);
 
-        $phone = $body['phone_number'];
-        $password = $body['password'];
+            $phone = $body['phone_number'];
+            $password = $body['password'];
 
-        // Try to find user with different phone formats
-        // Format 1: as entered (e.g., 08123456789)
-        $user = $this->db($this->db_index)
-            ->get_where('users', ['phone_number' => $phone], 1)
-            ->row_array();
+            // Log the attempt
+            \Log::write("Login attempt for: " . $phone, 'admin', 'Auth');
 
-        // Format 2: with 62 prefix (e.g., 6281234567890)
-        if (!$user) {
-            $phone62 = preg_replace('/^0/', '62', $phone);
-            $phone62 = preg_replace('/^\+/', '', $phone62);
+            // Try to find user with different phone formats
+            // Format 1: as entered (e.g., 08123456789)
             $user = $this->db($this->db_index)
-                ->get_where('users', ['phone_number' => $phone62], 1)
+                ->get_where('users', ['phone_number' => $phone], 1)
                 ->row_array();
+
+            \Log::write("User lookup result: " . (is_array($user) && $user ? "Found" : "Not found"), 'admin', 'Auth');
+
+            // Format 2: with 62 prefix (e.g., 6281234567890)
+            if (!$user) {
+                $phone62 = preg_replace('/^0/', '62', $phone);
+                $phone62 = preg_replace('/^\+/', '', $phone62);
+                $user = $this->db($this->db_index)
+                    ->get_where('users', ['phone_number' => $phone62], 1)
+                    ->row_array();
+            }
+
+            // Format 3: without 0 prefix (e.g., 81234567890)
+            if (!$user) {
+                $phoneNoZero = preg_replace('/^0/', '', $phone);
+                $user = $this->db($this->db_index)
+                    ->get_where('users', ['phone_number' => $phoneNoZero], 1)
+                    ->row_array();
+            }
+
+            if (!$user) {
+                $this->error('Nomor telepon tidak terdaftar', 401);
+            }
+
+            // Verify password
+            if (!password_verify($password, $user['password'])) {
+                \Log::write("Password verification failed for: " . $phone, 'admin', 'Auth');
+                $this->error('Kata sandi salah', 401);
+            }
+
+            \Log::write("Password verified successfully", 'admin', 'Auth');
+
+            // Check if user is admin
+            $role = $user['role'] ?? null;
+            \Log::write("Role check: User role = " . ($role ?? 'NULL'), 'admin', 'Auth');
+            
+            if ($role !== 'admin') {
+                \Log::write("Access denied - Role is not admin: " . ($role ?? 'NULL'), 'admin', 'Auth');
+                $this->error('Anda tidak memiliki akses admin', 403);
+            }
+            
+            \Log::write("Role check passed - generating OTP", 'admin', 'Auth');
+
+            // Generate OTP (6 digits)
+            $otp = sprintf('%06d', mt_rand(0, 999999));
+            $otp_expiry = date('Y-m-d H:i:s', strtotime('+5 minutes'));
+
+            // Store OTP in database
+            $this->db($this->db_index)->update(
+                'users',
+                [
+                    'otp' => $otp,
+                    'otp_expiry' => $otp_expiry
+                ],
+                ['id' => $user['id']]
+            );
+
+            // In development, return OTP directly (remove in production)
+            $response = [
+                'success' => true,
+                'message' => 'OTP telah dikirim ke nomor Anda',
+                'otp_required' => true,
+            ];
+
+            // DEV only - show OTP for testing
+            if (defined('DEV_MODE') && DEV_MODE === true) {
+                $response['dev_otp'] = $otp;
+            } else {
+                // For now, show OTP for development
+                $response['dev_otp'] = $otp;
+            }
+
+            \Log::write("Sending OTP response: " . json_encode($response), 'admin', 'Auth');
+            $this->json($response);
+        } catch (\Exception $e) {
+            \Log::write("Login error: " . $e->getMessage() . " | " . $e->getTraceAsString(), 'admin', 'Auth');
+            $this->error('Terjadi kesalahan: ' . $e->getMessage(), 500);
         }
-
-        // Format 3: without 0 prefix (e.g., 81234567890)
-        if (!$user) {
-            $phoneNoZero = preg_replace('/^0/', '', $phone);
-            $user = $this->db($this->db_index)
-                ->get_where('users', ['phone_number' => $phoneNoZero], 1)
-                ->row_array();
-        }
-
-        if (!$user) {
-            $this->error('Nomor telepon tidak terdaftar', 401);
-        }
-
-        // Verify password
-        if (!password_verify($password, $user['password'])) {
-            $this->error('Kata sandi salah', 401);
-        }
-
-        // Check if user is admin
-        $role = $user['role'] ?? null;
-        if ($role !== 'admin') {
-            $this->error('Anda tidak memiliki akses admin', 403);
-        }
-
-        // Generate OTP (6 digits)
-        $otp = sprintf('%06d', mt_rand(0, 999999));
-        $otp_expiry = date('Y-m-d H:i:s', strtotime('+5 minutes'));
-
-        // Store OTP in database
-        $this->db($this->db_index)->update(
-            'users',
-            [
-                'otp' => $otp,
-                'otp_expiry' => $otp_expiry
-            ],
-            ['id' => $user['id']]
-        );
-
-        // In development, return OTP directly (remove in production)
-        $response = [
-            'success' => true,
-            'message' => 'OTP telah dikirim ke nomor Anda',
-            'otp_required' => true,
-        ];
-
-        // DEV only - show OTP for testing
-        if (defined('DEV_MODE') && DEV_MODE === true) {
-            $response['dev_otp'] = $otp;
-        } else {
-            // For now, show OTP for development
-            $response['dev_otp'] = $otp;
-        }
-
-        $this->json($response);
     }
 
     /**

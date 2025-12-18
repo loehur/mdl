@@ -127,6 +127,19 @@ class Therapists extends Controller
                 $this->error('Terapis tidak ditemukan', 404);
             }
 
+            // Check if therapist is assigned to any order work steps
+            $usedInOrders = $this->db($this->db_index)
+                ->query("
+                    SELECT COUNT(*) as count 
+                    FROM order_workers 
+                    WHERE worker_id = ?
+                ", [$id])
+                ->row_array();
+
+            if ($usedInOrders && $usedInOrders['count'] > 0) {
+                $this->error('Terapis tidak dapat dihapus karena sudah ditugaskan pada ' . $usedInOrders['count'] . ' layanan', 400);
+            }
+
             $this->db($this->db_index)->delete('therapists', ['id' => $id]);
 
             $this->json([

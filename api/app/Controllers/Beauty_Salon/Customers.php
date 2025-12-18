@@ -149,6 +149,20 @@ class Customers extends Controller
                 $this->error('Pelanggan tidak ditemukan', 404);
             }
 
+            // Check if customer is used in any orders
+            $usedInOrders = $this->db($this->db_index)
+                ->query("
+                    SELECT COUNT(*) as count 
+                    FROM orders 
+                    WHERE salon_id = ? 
+                    AND customer_id = ?
+                ", [$salon_id, $id])
+                ->row_array();
+
+            if ($usedInOrders && $usedInOrders['count'] > 0) {
+                $this->error('Pelanggan tidak dapat dihapus karena sudah memiliki ' . $usedInOrders['count'] . ' order', 400);
+            }
+
             $this->db($this->db_index)->delete('customers', ['id' => $id]);
 
             $this->json([

@@ -137,7 +137,21 @@ async function onSubmit() {
         password: password.value,
       }),
     });
-    const data = await res.json().catch(() => ({ success: false }));
+    const rawText = await res.text();
+    console.log('[LOGIN] Raw response:', rawText);
+    
+    let data;
+    try {
+      data = JSON.parse(rawText);
+    } catch (parseError) {
+      console.error('[LOGIN] JSON parse error:', parseError);
+      data = { success: false, message: 'Invalid response format' };
+    }
+    
+    console.log('[LOGIN] Response status:', res.status);
+    console.log('[LOGIN] Response ok:', res.ok);
+    console.log('[LOGIN] Response data:', data);
+    
     if (!res.ok || !data.success) {
       message.value = data.message || "Login gagal";
       isError.value = true;
@@ -156,6 +170,7 @@ async function onSubmit() {
     isError.value = false;
     isLoading.value = false;
   } catch (e) {
+    console.error('[LOGIN] Exception:', e);
     message.value = "Network error";
     isError.value = true;
     isLoading.value = false;

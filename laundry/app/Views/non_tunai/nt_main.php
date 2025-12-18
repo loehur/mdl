@@ -1,9 +1,3 @@
-<?php
-$book = $_SESSION[URL::SESSID]['user']['book'];
-$selisih_book = date("Y") - URL::DB_START;
-$long_char = strlen($selisih_book);
-?>
-
 <!-- Kartu Saldo Tokopay -->
 <div class="mb-3">
   <div class="card border-0 shadow-sm" style="max-width: 300px;">

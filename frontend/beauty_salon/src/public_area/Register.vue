@@ -104,7 +104,7 @@
 
           <form class="space-y-4" @submit.prevent="verifyOtp">
             <div>
-              <input v-model="otp" class="w-full px-4 py-4 border border-gray-200 rounded-xl text-center text-2xl tracking-widest font-mono focus:ring-2 focus:ring-pink-200 focus:border-pink-400 outline-none transition bg-white/50" type="text" maxlength="6" placeholder="000000" required />
+              <input v-model="otp" autocomplete="one-time-code" class="w-full px-4 py-4 border border-gray-200 rounded-xl text-center text-2xl tracking-widest font-mono focus:ring-2 focus:ring-pink-200 focus:border-pink-400 outline-none transition bg-white/50" type="text" maxlength="6" placeholder="      " required />
             </div>
 
             <button class="w-full py-3 rounded-xl bg-gradient-to-r from-pink-500 to-fuchsia-600 hover:from-pink-600 hover:to-fuchsia-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2" type="submit" :disabled="isLoading">
@@ -174,6 +174,7 @@ async function onSubmit() {
       isLoading.value = false;
       return;
     }
+    otp.value = "";
     step.value = 2;
     message.value = data.message || "OTP dikirim ke WhatsApp Anda";
     isLoading.value = false;

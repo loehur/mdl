@@ -41,34 +41,34 @@ class DBC
         // PRODUCTION DATABASES (MODE = 'pro')
         'pro' => [
             0 => [
-                "db" => "u123456_main", 
-                "user" => "u123456_user",
-                "pass" => "password_prod"
+                "db" => "mdl_main", 
+                "user" => "mdl_main",
+                "pass" => ""
             ],
             1 => [
-                "db" => "u123456_laundry",
-                "user" => "u123456_user",
-                "pass" => "password_prod"
+                "db" => "mdl_laundry",
+                "user" => "mdl_laundry",
+                "pass" => ""
             ],
             2 => [
-                "db" => "u123456_sale",
-                "user" => "u123456_user",
-                "pass" => "password_prod"
+                "db" => "mdl_sale",
+                "user" => "mdl_sale",
+                "pass" => ""
             ],
             3 => [
-                "db" => "u123456_resto",
-                "user" => "u123456_user",
-                "pass" => "password_prod"
+                "db" => "mdl_resto",
+                "user" => "mdl_resto",
+                "pass" => ""
             ],
             4 => [
-                "db" => "u123456_depot",
-                "user" => "u123456_user",
-                "pass" => "password_prod"
+                "db" => "mdl_depot",
+                "user" => "mdl_depot",
+                "pass" => ""
             ],
             5 => [
-                "db" => "u123456_salon",
-                "user" => "u123456_user",
-                "pass" => "password_prod"
+                "db" => "mdl_salon",
+                "user" => "mdl_salon",
+                "pass" => ""
             ]
         ]
     ];

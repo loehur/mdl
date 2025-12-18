@@ -168,6 +168,20 @@ class Products extends Controller
                 $this->error('Produk tidak ditemukan', 404);
             }
 
+            // Check if product is used in any orders
+            $usedInOrders = $this->db($this->db_index)
+                ->query("
+                    SELECT COUNT(*) as count 
+                    FROM orders o
+                    WHERE o.salon_id = ? 
+                    AND JSON_CONTAINS(o.items, ?, '$.product_id')
+                ", [$salon_id, $id])
+                ->row_array();
+
+            if ($usedInOrders && $usedInOrders['count'] > 0) {
+                $this->error('Produk tidak dapat dihapus karena sudah digunakan di ' . $usedInOrders['count'] . ' order', 400);
+            }
+
             $this->db($this->db_index)->delete('products', ['id' => $id]);
 
             $this->json([

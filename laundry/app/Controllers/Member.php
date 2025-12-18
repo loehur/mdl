@@ -118,11 +118,9 @@ class Member extends Controller
 
          $pakai[$idPelanggan . $idHarga] = 0;
          // FIX: use db(0) directly
-         for ($y = URL::FIRST_YEAR; $y <= date('Y'); $y++) {
-            $data2 = $this->db(0)->get_cols_where('sale', $cols, $where, 0);
-            if (isset($data2['saldo'])) {
-               $pakai[$idPelanggan . $idHarga] = $data2['saldo'];
-            }
+         $data2 = $this->db(0)->get_cols_where('sale', $cols, $where, 0);
+         if (isset($data2['saldo'])) {
+            $pakai[$idPelanggan . $idHarga] = $data2['saldo'];
          }
       }
 

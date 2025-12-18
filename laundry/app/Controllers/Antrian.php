@@ -427,6 +427,11 @@ class Antrian extends Controller
          $text = $text . $textMember;
       }
 
+      // FIX: Close session before long-running WA operation to prevent blocking other requests
+      if (session_status() === PHP_SESSION_ACTIVE) {
+         session_write_close();
+      }
+
       $res = $this->helper("Notif")->send_wa($hp, $text, false);
 
       $this->writeLog('sendNotif', 'INFO', 'WA Manual Result', ['ref' => $noref, 'result' => $res]);

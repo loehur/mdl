@@ -59,57 +59,31 @@ class Auth extends Controller
                 $this->error('Kata sandi salah', 401);
             }
 
-            // Check if user is cashier - they can login directly without OTP
-            if ($user['role'] === 'cashier') {
-                error_log("Cashier login - bypassing OTP");
-                // Set active and create session directly
-                if ($user['is_active'] == 0) {
-                    $this->db($this->db_index)->update('users', [
-                        'is_active' => 1
-                    ], ['id' => $user['id']]);
-                    $user['is_active'] = 1;
-                }
-
-                // Create session
-                $_SESSION[$this->session_key] = [
-                    'user' => $user,
-                    'logged_in' => true
-                ];
-
-                // Remove sensitive data
-                unset($user['password']);
-                unset($user['otp']);
-
-                error_log("Cashier login successful for: " . $id_user);
-
-                $this->json([
-                    'success' => true,
-                    'message' => 'Login berhasil',
-                    'user' => $user,
-                    'redirect' => '/order'
-                ]);
+            // Create session directly for all users
+            if ($user['is_active'] == 0) {
+                $this->db($this->db_index)->update('users', [
+                    'is_active' => 1
+                ], ['id' => $user['id']]);
+                $user['is_active'] = 1;
             }
 
-            // For admin role: send OTP
-            error_log("Admin login - sending OTP");
-            // Generate OTP
-            $otp = sprintf('%06d', mt_rand(0, 999999));
-            $otp_expiry = date('Y-m-d H:i:s', strtotime('+5 minutes'));
+            // Create session
+            $_SESSION[$this->session_key] = [
+                'user' => $user,
+                'logged_in' => true
+            ];
 
-            // Update OTP to user
-            $this->db($this->db_index)->update('users', [
-                'otp' => $otp,
-                'otp_expiry' => $otp_expiry
-            ], ['id' => $user['id']]);
+            // Remove sensitive data
+            unset($user['password']);
+            unset($user['otp']);
 
-            // Send OTP
-            $this->sendOtpWa($user['phone_number'], $otp);
+            error_log("Login successful for: " . $id_user . " | Role: " . $user['role']);
 
             $this->json([
                 'success' => true,
-                'message' => 'Kode OTP login telah dikirim',
-                'otp_required' => true,
-                'phone_number' => $user['phone_number']
+                'message' => 'Login berhasil',
+                'user' => $user,
+                'redirect' => $user['role'] === 'cashier' ? '/order' : '/performance' // or dashboard? Performance is common for admin
             ]);
         } catch (\Exception $e) {
             error_log("Login error: " . $e->getMessage() . " | " . $e->getTraceAsString());
@@ -297,7 +271,102 @@ class Auth extends Controller
         ]);
     }
 
-    private function sendOtpWa($phone, $otp)
+    /**
+     * POST /Beauty_Salon/Auth/forgot_password
+     * Step 1: Send OTP for password reset
+     */
+    public function forgot_password()
+    {
+        if (!$this->isPost()) {
+            $this->error('Method not allowed', 405);
+        }
+
+        $body = $this->getBody();
+        $this->validate($body, ['phone_number']);
+        
+        $phone = $body['phone_number'];
+
+        $user = $this->db($this->db_index)
+            ->get_where('users', ['phone_number' => $phone], 1)
+            ->row_array();
+
+        if (!$user) {
+            $this->error('Nomor HP tidak terdaftar', 404);
+        }
+
+        // Generate OTP for reset
+        $otp = sprintf('%06d', mt_rand(0, 999999));
+        $otp_expiry = date('Y-m-d H:i:s', strtotime('+5 minutes'));
+
+        // Save OTP
+        $this->db($this->db_index)->update('users', [
+            'otp' => $otp,
+            'otp_expiry' => $otp_expiry
+        ], ['id' => $user['id']]);
+
+        // Send OTP via WA
+        $sent = $this->sendOtpWa($phone, $otp, "RESET PASSWORD");
+
+        $this->json([
+            'success' => true,
+            'message' => 'Kode OTP untuk reset password telah dikirim via WhatsApp',
+            'phone_number' => $phone
+        ]);
+    }
+
+    /**
+     * POST /Beauty_Salon/Auth/reset_password
+     * Step 2: Verify OTP and Set New Password
+     */
+    public function reset_password()
+    {
+        if (!$this->isPost()) {
+            $this->error('Method not allowed', 405);
+        }
+
+        $body = $this->getBody();
+        $this->validate($body, ['phone_number', 'otp', 'new_password']);
+        
+        $phone = $body['phone_number'];
+        $otp = $body['otp'];
+        $new_password = $body['new_password'];
+
+        if (strlen($new_password) < 6) {
+            $this->error('Password minimal 6 karakter', 400);
+        }
+
+        $user = $this->db($this->db_index)
+            ->get_where('users', ['phone_number' => $phone], 1)
+            ->row_array();
+
+        if (!$user) {
+            $this->error('User tidak ditemukan', 404);
+        }
+
+        if ($user['otp'] !== $otp) {
+            $this->error('Kode OTP salah', 400);
+        }
+
+        if (strtotime($user['otp_expiry']) < time()) {
+            $this->error('Kode OTP kadaluarsa', 400);
+        }
+
+        // Update password
+        $hashed = password_hash($new_password, PASSWORD_BCRYPT);
+        $this->db($this->db_index)->update('users', [
+            'password' => $hashed,
+            'otp' => null,
+            'otp_expiry' => null,
+            'is_active' => 1 // Ensure user is active after reset
+        ], ['id' => $user['id']]);
+
+        $this->json([
+            'success' => true,
+            'message' => 'Password berhasil diperbarui. Silakan login.'
+        ]);
+    }
+
+    private function sendOtpWa($phone, $otp, $type = "LOGIN")
     {
         // Find main session from mdl_main
         $session = $this->db($this->mdl_main_db)
@@ -310,9 +379,11 @@ class Auth extends Controller
         }
 
         $session_id = $session['auth'];
-        $message = "Salon OTP: *$otp*.\nJangan berikan kode ini kepada siapapun.";
+        $message = ($type === "RESET PASSWORD") 
+            ? "Beauty Salon Reset Password OTP: *$otp*.\nJangan berikan kode ini kepada siapapun."
+            : "Beauty Salon OTP: *$otp*.\nJangan berikan kode ini kepada siapapun.";
 
-        \Log::write("Sending OTP to $phone via Session $session_id...", 'salon', 'Auth');
+        \Log::write("Sending $type OTP to $phone via Session $session_id...", 'salon', 'Auth');
 
         try {
             $url = $this->wa_server . '/send-message';

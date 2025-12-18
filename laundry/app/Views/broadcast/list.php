@@ -12,7 +12,7 @@
             <div class="col">Time: <?= $time . ", Target: <b>" . $a['c'] . "</b><br>Message: <b>" . $text ?></b></div>
           </div>
           <?php
-          $res = $this->db(0)->get_where('notif', "insertTime = '" . $time . "'");
+          $res = $this->db($_SESSION[URL::SESSID]['user']['book'])->get_where('notif', "insertTime = '" . $time . "'");
           $rec = [];
           $st = [];
           foreach ($res as $r) {

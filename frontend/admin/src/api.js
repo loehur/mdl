@@ -5,7 +5,7 @@
 const isProd = import.meta.env.PROD;
 
 export const API_BASE = isProd
-    ? '/mdl/api'
+    ? 'http://localhost/mdl/api'
     : '';
 
 export function apiUrl(path) {

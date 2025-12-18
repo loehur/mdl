@@ -27,6 +27,12 @@ class WA_Local extends Controller
             return $res;
         }
 
+        // FIX: valid_number always returns 08xxx format
+        // Convert back to 628xxx for WhatsApp server
+        if (substr($target, 0, 1) === '0') {
+            $target = '62' . substr($target, 1);
+        }
+
         $curl = curl_init();
 
         $payload = json_encode([
@@ -40,7 +46,7 @@ class WA_Local extends Controller
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_ENCODING => '',
             CURLOPT_MAXREDIRS => 10,
-            CURLOPT_TIMEOUT => 0,
+            CURLOPT_TIMEOUT => 30, // 30 second timeout to prevent hanging
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
             CURLOPT_CUSTOMREQUEST => 'POST',

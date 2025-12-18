@@ -1,63 +1,122 @@
 <template>
   <div class="max-w-7xl mx-auto space-y-6">
     <!-- Header & Filter -->
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-4">
+      <!-- Title -->
       <div>
-        <h1 class="text-2xl font-bold text-gray-800">Kinerja Terapis</h1>
-        <p class="text-sm text-gray-500">Statistik pekerjaan dan layanan</p>
+        <h1 class="text-xl md:text-2xl font-bold text-gray-800">Kinerja Terapis</h1>
+        <p class="text-xs md:text-sm text-gray-500">Statistik pekerjaan dan layanan (Maksimal rentang 31 hari)</p>
       </div>
-      <div class="flex items-center gap-2">
-        <input type="date" v-model="filters.startDate" class="border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-pink-200">
-        <span class="text-gray-400">-</span>
-        <input type="date" v-model="filters.endDate" class="border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-pink-200">
-        <button @click="fetchData" class="bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-lg shadow-pink-200">
-          Filter
+      
+      <!-- Filter Section -->
+      <div class="flex flex-col sm:flex-row sm:items-center gap-2">
+        <input 
+          type="date" 
+          v-model="filters.startDate" 
+          class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-pink-200"
+        >
+        <span class="text-gray-400 hidden sm:inline">—</span>
+        <input 
+          type="date" 
+          v-model="filters.endDate" 
+          class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-pink-200"
+        >
+        <button 
+          @click="fetchData" 
+          class="bg-pink-600 hover:bg-pink-700 text-white px-6 py-2 rounded-lg text-sm font-medium transition shadow-lg flex items-center justify-center gap-2"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
+          </svg>
+          <span>Filter</span>
         </button>
       </div>
     </div>
 
     <!-- Table -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <!-- Table Header -->
-         <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse">
-                <thead>
-                    <tr class="bg-gray-50 border-b border-gray-100 text-xs uppercase text-gray-500 font-semibold tracking-wider">
-                        <th class="px-6 py-4">Nama Terapis</th>
-                        <th class="px-6 py-4 text-left">Layanan</th>
-                        <th class="px-6 py-4 text-center">Aksi</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-50">
-                    <tr v-if="loading" class="animate-pulse">
-                        <td colspan="3" class="px-6 py-8 text-center text-gray-400">Memuat data...</td>
-                    </tr>
-                    <tr v-else-if="stats.length === 0">
-                         <td colspan="3" class="px-6 py-8 text-center text-gray-400">Tidak ada data Kinerja pada periode ini</td>
-                    </tr>
-                    <tr v-for="stat in stats" :key="stat.workerId" class="hover:bg-gray-50 transition duration-150">
-                        <td class="px-6 py-4">
-                            <div class="flex items-center gap-3">
-                                <div class="w-8 h-8 rounded-full bg-pink-100 text-pink-600 flex items-center justify-center font-bold text-xs ring-2 ring-white shadow-sm">
-                                    {{ getInitials(stat.name) }}
-                                </div>
-                                <span class="font-medium text-gray-700">{{ stat.name }}</span>
-                            </div>
-                        </td>
-                        <td class="px-6 py-4 text-sm text-gray-500">
-                            <div class="flex flex-wrap gap-1.5">
-                                <span v-for="(count, name) in stat.statsByStep" :key="name" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-50 border border-gray-200 text-gray-600">
-                                    {{ name }} <span class="ml-1 font-bold text-gray-800">({{ count }})</span>
-                                </span>
-                            </div>
-                        </td>
-                         <td class="px-6 py-4 text-center">
-                            <button @click="viewDetails(stat)" class="text-pink-600 hover:text-pink-800 text-sm font-medium hover:underline">Detail</button>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-         </div>
+      <!-- Loading State -->
+      <div v-if="loading" class="px-6 py-12 text-center">
+        <div class="animate-pulse flex flex-col items-center gap-3">
+          <div class="w-16 h-16 bg-gray-200 rounded-full"></div>
+          <div class="h-4 bg-gray-200 rounded w-32"></div>
+          <div class="h-3 bg-gray-100 rounded w-48"></div>
+        </div>
+        <p class="text-gray-400 mt-4">Memuat data...</p>
+      </div>
+
+      <!-- Empty State -->
+      <div v-else-if="stats.length === 0" class="px-6 py-12 text-center text-gray-400">
+        <svg class="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+        </svg>
+        <p class="font-medium text-gray-600">Tidak ada data kinerja</p>
+        <p class="text-sm">Pada periode yang dipilih</p>
+      </div>
+
+      <!-- Mobile Card Layout (< md) -->
+      <div v-else class="divide-y divide-gray-100 md:hidden">
+        <div v-for="stat in stats" :key="stat.workerId" class="p-4 hover:bg-gray-50 transition">
+          <!-- Therapist Info -->
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-full bg-pink-100 text-pink-600 flex items-center justify-center font-bold text-sm ring-2 ring-white shadow-sm">
+                {{ getInitials(stat.name) }}
+              </div>
+              <div>
+                <p class="font-semibold text-gray-900">{{ stat.name }}</p>
+                <p class="text-xs text-gray-500">{{ stat.tasks.length }} layanan</p>
+              </div>
+            </div>
+            <button @click="viewDetails(stat)" class="px-3 py-1.5 bg-pink-50 text-pink-600 rounded-lg text-xs font-medium hover:bg-pink-100 transition">
+              Detail
+            </button>
+          </div>
+
+          <!-- Services Summary -->
+          <div class="flex flex-wrap gap-1.5">
+            <span v-for="(count, name) in stat.statsByStep" :key="name" class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-50 border border-gray-200 text-gray-700">
+              {{ name }}<span class="ml-1 font-bold text-pink-600">({{ count }})</span>
+            </span>
+            <span v-if="Object.keys(stat.statsByStep).length === 0" class="text-xs text-gray-400 italic">Belum ada layanan</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Desktop Table Layout (>= md) -->
+      <div class="hidden md:block overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-gray-50 border-b border-gray-100 text-xs uppercase text-gray-500 font-semibold tracking-wider">
+              <th class="px-6 py-4">Nama Terapis</th>
+              <th class="px-6 py-4 text-left">Layanan</th>
+              <th class="px-6 py-4 text-center">Aksi</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-50">
+            <tr v-for="stat in stats" :key="stat.workerId" class="hover:bg-gray-50 transition duration-150">
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-full bg-pink-100 text-pink-600 flex items-center justify-center font-bold text-xs ring-2 ring-white shadow-sm">
+                    {{ getInitials(stat.name) }}
+                  </div>
+                  <span class="font-medium text-gray-700">{{ stat.name }}</span>
+                </div>
+              </td>
+              <td class="px-6 py-4 text-sm text-gray-500">
+                <div class="flex flex-wrap gap-1.5">
+                  <span v-for="(count, name) in stat.statsByStep" :key="name" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-50 border border-gray-200 text-gray-600">
+                    {{ name }} <span class="ml-1 font-bold text-gray-800">({{ count }})</span>
+                  </span>
+                </div>
+              </td>
+              <td class="px-6 py-4 text-center">
+                <button @click="viewDetails(stat)" class="text-pink-600 hover:text-pink-800 text-sm font-medium hover:underline">Detail</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
     
     <!-- Detail Modal -->
@@ -142,6 +201,17 @@ async function fetchWorkers() {
 }
 
 async function fetchData() {
+    // Validate date range: max 31 days
+    const start = new Date(filters.startDate);
+    const end = new Date(filters.endDate);
+    const diffTime = Math.abs(end - start);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays > 31) {
+        alert('❌ Rentang tanggal maksimal 31 hari!\nSilakan pilih periode yang lebih pendek.');
+        return;
+    }
+    
     loading.value = true;
     try {
         const res = await fetch('/api/Beauty_Salon/Orders');

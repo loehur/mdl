@@ -29,14 +29,7 @@ class I extends Controller
          $where = "id_pelanggan = " . $pelanggan . " AND bin = 0 AND tuntas = 0 ORDER BY id_penjualan DESC";
       }
 
-      for ($y = URL::FIRST_YEAR; $y <= date('Y'); $y++) {
-         $data_s = $this->db($y)->get_where('sale', $where);
-         if (count($data_s) > 0) {
-            foreach ($data_s as $ds) {
-               array_push($data_main, $ds);
-            }
-         }
-      }
+      $data_main = $this->db(0)->get_where('sale', $where);
 
       $numbers = [];
       $refs = [];

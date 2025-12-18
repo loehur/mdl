@@ -16,6 +16,7 @@ const router = createRouter({
     { path: "/", redirect: "/login" },
     { path: "/login", component: Login, meta: { area: "public" } },
     { path: "/register", component: () => import("./public_area/Register.vue"), meta: { area: "public" } },
+    { path: "/forgot-password", component: () => import("./public_area/ForgotPassword.vue"), meta: { area: "public" } },
 
     // User Area Routes wrapped in Layout
     {
@@ -32,12 +33,16 @@ const router = createRouter({
         { path: "archive/orders", component: () => import("./user_area/ArchiveOrders.vue") },
         { path: "performance", component: () => import("./user_area/Performance.vue") },
         { path: "cash-flow", component: () => import("./user_area/CashFlow.vue") },
+        { path: "cashier-cash", component: () => import("./user_area/CashierCash.vue") },
+        { path: "main-cash", component: () => import("./user_area/MainCash.vue"), meta: { requiresAdmin: true } },
         { path: "users", component: () => import("./user_area/Users.vue") },
         { path: "settings", component: () => import("./user_area/Settings.vue") },
+        { path: "user/profile", component: () => import("./user_area/Profile.vue") },
       ]
     }
   ],
 });
+
 
 
 router.beforeEach((to) => {
@@ -46,6 +51,12 @@ router.beforeEach((to) => {
       const raw = localStorage.getItem("salon_user");
       const u = raw ? JSON.parse(raw) : null;
       if (!u) return "/login";
+
+      // Check if route requires admin
+      if (to.meta.requiresAdmin && u.role !== 'admin') {
+        alert('Halaman ini hanya bisa diakses oleh Admin');
+        return "/order";
+      }
     } catch {
       return "/login";
     }

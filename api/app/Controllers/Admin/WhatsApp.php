@@ -1,5 +1,9 @@
 <?php
 
+namespace App\Controllers\Admin;
+
+use App\Core\Controller;
+
 /**
  * Admin WhatsApp Controller
  * Handle WhatsApp session management
@@ -11,7 +15,7 @@ class WhatsApp extends Controller
 
     public function __construct()
     {
-        session_start();
+        // Session already started in init.php
         $this->handleCors();
     }
 
