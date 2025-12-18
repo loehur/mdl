@@ -20,6 +20,17 @@ if (Env::isDev()) {
     error_reporting(0);
 }
 
+// Global CORS Headers
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
+
+// Handle OPTIONS preflight request
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
+}
+
 spl_autoload_register(function ($class) {
     // PSR-4 autoloader for App namespace
     $prefix = 'App\\';

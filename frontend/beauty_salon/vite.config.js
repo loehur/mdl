@@ -17,19 +17,13 @@ export default defineConfig(({ command }) => ({
         theme_color: "#7c3aed",
         icons: [
           {
-            src: "/icons/beauty_salon.png",
-            sizes: "192x192",
-            type: "image/png",
-            purpose: "any",
-          },
-          {
-            src: "/icons/beauty_salon.png",
+            src: "./icons/beauty_salon.png",
             sizes: "512x512",
             type: "image/png",
             purpose: "any",
           },
           {
-            src: "/icons/beauty_salon.png",
+            src: "./icons/beauty_salon.png",
             sizes: "512x512",
             type: "image/png",
             purpose: "maskable",
