@@ -180,13 +180,16 @@ class CashManagement extends Controller
         }
 
         try {
-            // Only admin can transfer
-            if (!$this->isAdmin()) {
-                $this->error('Akses ditolak. Hanya admin yang bisa transfer kas', 403);
-            }
-
             $body = $this->getBody();
             $this->validate($body, ['from', 'to', 'amount', 'description']);
+
+            // Only admin can transfer between all cash
+            // Cashier can only transfer from cashier to main
+            if (!$this->isAdmin()) {
+                if ($body['from'] !== 'cashier' || $body['to'] !== 'main') {
+                    $this->error('Akses ditolak. Anda hanya diperbolehkan transfer dari Kas Kasir ke Kas Besar', 403);
+                }
+            }
 
             $salon_id = $_SESSION['salon_user_session']['user']['salon_id'] ?? null;
             $user_id = $_SESSION['salon_user_session']['user']['id'] ?? null;

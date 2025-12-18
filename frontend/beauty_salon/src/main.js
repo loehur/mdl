@@ -18,7 +18,7 @@ import UserLayout from "./user_area/UserLayout.vue";
 import Order from "./user_area/Order.vue";
 
 import { registerSW } from "virtual:pwa-register";
-const appIcon = "/icons/beauty_salon.png";
+const appIcon = "./icons/beauty_salon.png";
 
 const router = createRouter({
   history: createWebHashHistory(),

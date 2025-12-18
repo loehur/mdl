@@ -10,8 +10,8 @@ export default defineConfig(({ command }) => ({
       manifest: {
         name: "Beauty Salon",
         short_name: "Beauty",
-        start_url: "/beauty_salon/",
-        scope: "/beauty_salon/",
+        start_url: "./",
+        scope: "./",
         display: "standalone",
         background_color: "#ffffff",
         theme_color: "#7c3aed",
@@ -37,7 +37,7 @@ export default defineConfig(({ command }) => ({
         ],
       },
       workbox: {
-        navigateFallback: "/beauty_salon/index.html",
+        navigateFallback: "index.html",
       },
     }),
   ],

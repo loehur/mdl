@@ -2,6 +2,16 @@ import { createApp } from "vue";
 import { createRouter, createWebHashHistory } from "vue-router";
 import App from "./App.vue";
 import "./styles.css";
+import { apiUrl } from './api';
+
+// Global fetch override for API calls
+const originalFetch = window.fetch;
+window.fetch = (url, options) => {
+  if (typeof url === 'string' && (url.startsWith('/api') || url.startsWith('/Admin'))) {
+    return originalFetch(apiUrl(url), options);
+  }
+  return originalFetch(url, options);
+};
 
 import Login from "./public_area/Login.vue";
 import AdminLayout from "./admin_area/AdminLayout.vue";
