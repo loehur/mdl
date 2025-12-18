@@ -1,14 +1,7 @@
 <?php
 // Global CORS Headers - Handle this before anything else to ensure headers are sent
-$origin = isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '';
-$allowed_origins = ['https://admin.nalju.com'];
-
-if (in_array($origin, $allowed_origins)) {
-    header("Access-Control-Allow-Origin: $origin");
-} else {
-    header("Access-Control-Allow-Origin: https://nalju.com");
-}
-
+// Always allow admin.nalju.com
+header("Access-Control-Allow-Origin: https://admin.nalju.com");
 header('Access-Control-Allow-Credentials: true');
 header('Access-Control-Max-Age: 86400');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
@@ -16,18 +9,8 @@ header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-W
 
 // Handle OPTIONS preflight request
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    error_log("CORS Preflight (OPTIONS) received for: " . $_SERVER['REQUEST_URI']);
     http_response_code(200);
     exit;
-} else {
-    error_log("API Request (" . $_SERVER['REQUEST_METHOD'] . ") received for: " . $_SERVER['REQUEST_URI']);
-}
-
-// Temporary .htaccess fix - will run once and can be removed
-$htaccess_path = realpath(__DIR__ . '/../.htaccess');
-$htaccess_content = "Options -MultiViews -Indexes\nRewriteEngine On\n\nRewriteCond %{REQUEST_FILENAME} !-f\nRewriteCond %{REQUEST_FILENAME} !-d\nRewriteRule ^(.+)$ index.php?url=\$1 [L,QSA]";
-if (file_exists($htaccess_path)) {
-    file_put_contents($htaccess_path, $htaccess_content);
 }
 
 date_default_timezone_set("Asia/Jakarta");
