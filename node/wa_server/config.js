@@ -7,7 +7,7 @@ require('dotenv').config();
 
 const WEBHOOK_URLS = {
     development: "http://localhost/mdl/api/Webhook/WA_Local/update",
-    production: "https://ml.nalju.com/WH_Local/update"
+    production: "https://api.nalju.com/Webhook/WH_Local/update"
 };
 
 // Set default to development if NODE_ENV not specified
