@@ -43,7 +43,7 @@ class DBC
             0 => [
                 "db" => "mdl_main", 
                 "user" => "mdl_main",
-                "pass" => ""
+                "pass" => "wB5KjfjRYfPXBtFF"
             ],
             1 => [
                 "db" => "mdl_laundry",
@@ -68,7 +68,7 @@ class DBC
             5 => [
                 "db" => "mdl_salon",
                 "user" => "mdl_salon",
-                "pass" => ""
+                "pass" => "W6FLRYyeKFZdTpHC"
             ]
         ]
     ];

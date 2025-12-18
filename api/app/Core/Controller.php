@@ -21,9 +21,7 @@ class Controller
     {
         http_response_code($status);
         header('Content-Type: application/json');
-        header('Access-Control-Allow-Origin: *');
-        header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-        header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
+        $this->setCorsHeaders();
         
         // Prevent caching
         header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
@@ -97,12 +95,27 @@ class Controller
     protected function handleCors()
     {
         if ($this->method() === 'OPTIONS') {
-            header('Access-Control-Allow-Origin: *');
-            header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-            header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
+            $this->setCorsHeaders();
             http_response_code(200);
             exit;
         }
+    }
+
+    /**
+     * Set CORS Headers Consistently
+     */
+    protected function setCorsHeaders()
+    {
+        if (isset($_SERVER['HTTP_ORIGIN'])) {
+            header("Access-Control-Allow-Origin: {$_SERVER['HTTP_ORIGIN']}");
+            header('Access-Control-Allow-Credentials: true');
+            header('Access-Control-Max-Age: 86400');
+        } else {
+            header("Access-Control-Allow-Origin: *");
+        }
+        
+        header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+        header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Accept');
     }
 
     /**

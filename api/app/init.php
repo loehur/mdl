@@ -1,4 +1,24 @@
 <?php
+// Global CORS Headers - Handle this before anything else to ensure headers are sent
+if (isset($_SERVER['HTTP_ORIGIN'])) {
+    // List of allowed origins can be added here if needed for security
+    // For now, allow the origin that is making the request to support credentials if needed
+    header("Access-Control-Allow-Origin: {$_SERVER['HTTP_ORIGIN']}");
+    header('Access-Control-Allow-Credentials: true');
+    header('Access-Control-Max-Age: 86400');    // cache for 1 day
+} else {
+    header("Access-Control-Allow-Origin: *");
+}
+
+header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Accept');
+
+// Handle OPTIONS preflight request
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
+}
+
 date_default_timezone_set("Asia/Jakarta");
 $GLOBALS['now'] = date("Y-m-d H:i:s");
 
@@ -18,17 +38,6 @@ if (Env::isDev()) {
     ini_set('display_errors', 0);
     ini_set('display_startup_errors', 0);
     error_reporting(0);
-}
-
-// Global CORS Headers
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
-
-// Handle OPTIONS preflight request
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit;
 }
 
 spl_autoload_register(function ($class) {
