@@ -427,10 +427,6 @@ class Login extends Controller
          $resultArr = is_array($result) ? $result : [];
          $errorMsg = $resultArr['message'] ?? 'Failed to send WhatsApp message';
          
-         // LOG DEBUG RAW RESPONSE to file
-         $logMsg = date('Y-m-d H:i:s') . " [Login Failure] HTTP: $httpCode | Err: $errorMsg | RAW Response: " . substr($response, 0, 1000) . "\n";
-         @file_put_contents(__DIR__ . '/../../../api/logs/wa_debug_login.log', $logMsg, FILE_APPEND);
-         
          $this->model('Log')->write("[send_wa_ycloud] ERROR - Phone: {$phone}, HTTP Code: {$httpCode}, Error: {$errorMsg}, Full Response: " . json_encode($result));
          
          return [
