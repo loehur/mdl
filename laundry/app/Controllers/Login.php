@@ -380,9 +380,8 @@ class Login extends Controller
       }
       
       // Prepare data untuk API
-      // API server akan handle komunikasi dengan YCloud
+      // API server akan menggunakan nomor WA Business dari config-nya sendiri
       $apiData = [
-         'from' => '+6285175001914',  // Nomor WhatsApp Business pengirim
          'phone' => $phone,
          'message' => $message,
          'message_mode' => 'free',
