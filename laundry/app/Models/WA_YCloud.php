@@ -7,7 +7,8 @@ class WA_YCloud extends DB
     // Sesuaikan domain jika di hosting (misal https://laundry.com/api/WhatsApp/send)
     private $local_api_url = 'https://api.nalju.com/WhatsApp/send';
 
-    public function send($phone, $message, $token = null)
+    // Modifikasi: param ke-3 jadi lastMessageAt (biar bisa bypass lookup di API Server)
+    public function send($phone, $message, $lastMessageAt = null)
     {
         // 1. Normalisasi Nomor (Standard)
         $phone = preg_replace('/[^0-9]/', '', $phone);
@@ -18,12 +19,12 @@ class WA_YCloud extends DB
         }
         
         // 2. Kirim ke API LOCAL (Backend)
-        // Kita serahkan logic CSW check dan Save DB ke API Server
+        // Kirim last_message_at jika ada, agar API Server tidak perlu query DB (menghemat resource & menghindari error config DB)
         $data = [
             'phone' => $phone,
             'message' => $message,
-            'message_mode' => 'free' // Sesuai request, mode Free (Session)
-            // 'last_message_at' tidak dikirim, agar API Server cek sendiri ke DB
+            'message_mode' => 'free',
+            'last_message_at' => $lastMessageAt 
         ];
 
         $ch = curl_init($this->local_api_url);

@@ -313,7 +313,8 @@ class Login extends Controller
    private function send_wa_ycloud($phone, $message)
    {
       // Gunakan Model yang sudah kita buat untuk sentralisasi
-      $res = $this->model('WA_YCloud')->send($phone, $message);
+      // Kita kirim lastMessageAt agar API Server tidak perlu lookup ulang (bypass potensi error koneksi DB di API)
+      $res = $this->model('WA_YCloud')->send($phone, $message, $lastMessageAt);
       
       $result = [
          'status' => $res['status'],
