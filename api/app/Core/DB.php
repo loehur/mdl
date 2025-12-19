@@ -190,6 +190,12 @@ class DB extends \DBC
         }
 
         $sql = "UPDATE $table SET " . implode(", ", $set_clauses) . " WHERE " . implode(" AND ", $where_clauses);
+        
+        // DEBUG: Log SQL for WA debugging
+        if ($table === 'wa_messages_out') {
+             $log = date('Y-m-d H:i:s') . " DB DEBUG SQL: $sql | Params: " . json_encode($params) . "\n";
+             @file_put_contents(__DIR__ . '/../../logs/db_debug.log', $log, FILE_APPEND);
+        }
 
         $stmt = $this->mysqli->prepare($sql);
         if (!$stmt) return false;
