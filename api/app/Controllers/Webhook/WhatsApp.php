@@ -305,6 +305,7 @@ class WhatsApp extends Controller
     }
 
 
+
     /**
      * Handle message updated event (for read, delivered, sent status)
      * This is for OUTBOUND messages (yang kita kirim)
@@ -318,10 +319,11 @@ class WhatsApp extends Controller
         }
 
         $wamid = $message['wamid'] ?? null;
+        $messageId = $message['id'] ?? null; // Provider message ID
         $status = $message['status'] ?? null;
 
-        if (!$wamid) {
-            \Log::write("ERROR: No wamid in message.updated event", 'webhook', 'WhatsApp');
+        if (!$wamid && !$messageId) {
+            \Log::write("ERROR: No wamid or message_id in message.updated event", 'webhook', 'WhatsApp');
             return;
         }
 
@@ -329,6 +331,11 @@ class WhatsApp extends Controller
         $updateData = [
             'status' => $status
         ];
+
+        // Add wamid if we have it (might be first time getting wamid from webhook)
+        if ($wamid) {
+            $updateData['wamid'] = $wamid;
+        }
 
         // Add timestamps if available
         if (isset($message['sendTime'])) {
@@ -341,13 +348,21 @@ class WhatsApp extends Controller
             $updateData['read_at'] = $this->convertTime($message['readTime']);
         }
 
-        // Update message status in wa_messages_out (outbound messages)
-        $updated = $db->update('wa_messages_out', $updateData, ['wamid' => $wamid]);
+        // Try to update by wamid first (if record already has wamid)
+        $updated = false;
+        if ($wamid) {
+            $updated = $db->update('wa_messages_out', $updateData, ['wamid' => $wamid]);
+        }
+        
+        // If not found by wamid, try by message_id (initial send doesn't have wamid yet)
+        if (!$updated && $messageId) {
+            $updated = $db->update('wa_messages_out', $updateData, ['message_id' => $messageId]);
+        }
 
         if ($updated) {
-            \Log::write("✓ Outbound message updated: $wamid -> $status", 'webhook', 'WhatsApp');
+            \Log::write("✓ Outbound message updated: {$messageId} -> $status", 'webhook', 'WhatsApp');
         } else {
-            \Log::write("⚠ Outbound message not found for update: $wamid", 'webhook', 'WhatsApp');
+            \Log::write("⚠ Outbound message not found: wamid=$wamid, id=$messageId", 'webhook', 'WhatsApp');
         }
     }
 

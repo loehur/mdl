@@ -340,11 +340,12 @@ class WhatsAppService
             // Validate essential data first
             $waNumber = $payload['to'] ?? null;
             $messageType = $payload['type'] ?? 'text';
-            $wamid = $response['wamid'] ?? null;
-            $messageId = $response['id'] ?? null;
+            $messageId = $response['id'] ?? null; // Provider message ID
+            $wamid = $response['wamid'] ?? null; // May be NULL initially, updated by webhook
             
-            if (!$waNumber || !$wamid) {
-                return; // Can't save without essential data
+            // Essential: must have phone and message_id
+            if (!$waNumber || !$messageId) {
+                return; // Can't save without phone number and message ID
             }
             
             // Load DB class if not already loaded
