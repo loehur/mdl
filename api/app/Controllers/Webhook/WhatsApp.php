@@ -174,34 +174,36 @@ class WhatsApp extends Controller
                 break;
         }
 
-        // Step 4: Save message to wa_messages
+        // Step 4: Save message to wa_messages_in
         $messageData = [
             'conversation_id' => $conversationId,
             'customer_id' => $customerId,
-            'direction' => 'in',
-            'message_type' => $messageType,
+            'phone' => $waNumber,
+            'type' => $messageType,
             'text' => $textBody,
             'media_id' => $mediaId,
+            'media_url' => $mediaUrl,
             'media_mime_type' => $mediaMimeType,
             'media_caption' => $mediaCaption,
-            'provider_message_id' => $messageId,
+            'message_id' => $messageId,
             'wamid' => $wamid,
+            'contact_name' => $contactName,
             'status' => $status,
-            'created_at' => $sendTime
+            'received_at' => $sendTime
         ];
 
-        \Log::write("Attempting to insert message: Conv=$conversationId, Cust=$customerId, Type=$messageType", 'webhook', 'WhatsApp');
+        \Log::write("Attempting to insert inbound message: Conv=$conversationId, Cust=$customerId, Type=$messageType", 'webhook', 'WhatsApp');
         
-        $msgId = $db->insert('wa_messages', $messageData);
+        $msgId = $db->insert('wa_messages_in', $messageData);
 
         if ($msgId) {
-            \Log::write("✓ Message saved: ID=$msgId, Cust=$customerId, Conv=$conversationId, From=$waNumber", 'webhook', 'WhatsApp');
+            \Log::write("✓ Inbound message saved: ID=$msgId, Cust=$customerId, Conv=$conversationId, From=$waNumber", 'webhook', 'WhatsApp');
             
-            // Step 5: Update conversation last_message
-            $this->updateConversationLastMessage($db, $conversationId, $textBody ?? "[{$messageType}]", $sendTime);
+            // Step 5: Update conversation last_in_at
+            $db->update('wa_conversations', ['last_in_at' => $sendTime], ['id' => $conversationId]);
         } else {
             $error = $db->conn()->error;
-            \Log::write("✗ DB ERROR (insert message): $error", 'webhook', 'WhatsApp');
+            \Log::write("✗ DB ERROR (insert inbound message): $error", 'webhook', 'WhatsApp');
             \Log::write("Data attempted: " . json_encode($messageData), 'webhook', 'WhatsApp');
         }
     }
@@ -302,8 +304,10 @@ class WhatsApp extends Controller
         }
     }
 
+
     /**
      * Handle message updated event (for read, delivered, sent status)
+     * This is for OUTBOUND messages (yang kita kirim)
      */
     private function handleMessageUpdated($db, $data)
     {
@@ -336,17 +340,14 @@ class WhatsApp extends Controller
         if (isset($message['readTime'])) {
             $updateData['read_at'] = $this->convertTime($message['readTime']);
         }
-        if (isset($message['updateTime'])) {
-            $updateData['updated_at'] = $this->convertTime($message['updateTime']);
-        }
 
-        // Update message status in wa_messages
-        $updated = $db->update('wa_messages', $updateData, ['wamid' => $wamid]);
+        // Update message status in wa_messages_out (outbound messages)
+        $updated = $db->update('wa_messages_out', $updateData, ['wamid' => $wamid]);
 
         if ($updated) {
-            \Log::write("✓ Message updated: $wamid -> $status (event: message.updated)", 'webhook', 'WhatsApp');
+            \Log::write("✓ Outbound message updated: $wamid -> $status", 'webhook', 'WhatsApp');
         } else {
-            \Log::write("⚠ Message not found for update: $wamid (might be incoming message)", 'webhook', 'WhatsApp');
+            \Log::write("⚠ Outbound message not found for update: $wamid", 'webhook', 'WhatsApp');
         }
     }
 
@@ -382,19 +383,6 @@ class WhatsApp extends Controller
         ];
 
         return $db->insert('wa_conversations', $convData);
-    }
-
-    /**
-     * Update conversation's last message
-     */
-    private function updateConversationLastMessage($db, $conversationId, $messageText, $messageTime)
-    {
-        $updateData = [
-            'last_message' => substr($messageText, 0, 200), // limit to 200 chars
-            'last_message_at' => $messageTime
-        ];
-
-        $db->update('wa_conversations', $updateData, ['id' => $conversationId]);
     }
 
     /**

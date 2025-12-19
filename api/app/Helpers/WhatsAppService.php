@@ -307,8 +307,16 @@ class WhatsAppService
         $success = $httpCode >= 200 && $httpCode < 300;
         
         // Save outbound message to database if successful
+        // Wrapped in try-catch to absolutely prevent breaking the response
         if ($success && isset($responseData['id'])) {
-            $this->saveOutboundMessage($payload, $responseData);
+            try {
+                $this->saveOutboundMessage($payload, $responseData);
+            } catch (\Throwable $e) {
+                // Silently catch any error - don't let it affect the API response
+                if (function_exists('error_log')) {
+                    error_log("saveOutboundMessage exception: " . $e->getMessage());
+                }
+            }
         }
         
         return [
@@ -327,11 +335,9 @@ class WhatsAppService
      */
     private function saveOutboundMessage($payload, $response)
     {
+        // Wrap everything in try-catch to prevent breaking the main flow
         try {
-            // Load database (assuming using same DB structure as webhook)
-            require_once __DIR__ . '/../Core/DB.php';
-            $db = new \DB(0); // Main database
-            
+            // Validate essential data first
             $waNumber = $payload['to'] ?? null;
             $messageType = $payload['type'] ?? 'text';
             $wamid = $response['wamid'] ?? null;
@@ -341,10 +347,32 @@ class WhatsAppService
                 return; // Can't save without essential data
             }
             
+            // Load DB class if not already loaded
+            if (!class_exists('DB')) {
+                $dbPath = __DIR__ . '/../Core/DB.php';
+                if (!file_exists($dbPath)) {
+                    return; // DB class not found, skip silently
+                }
+                require_once $dbPath;
+                
+                // Double check if class loaded successfully
+                if (!class_exists('DB')) {
+                    return;
+                }
+            }
+            
+            $db = new \DB(0); // Main database
+            
+            // Verify database connection
+            if (!$db || !method_exists($db, 'get_where')) {
+                return;
+            }
+            
             // Get or create customer
+            $customerId = null;
             $customer = $db->get_where('wa_customers', ['wa_number' => $waNumber]);
             
-            if ($customer->num_rows() > 0) {
+            if ($customer && $customer->num_rows() > 0) {
                 $customerId = $customer->row()->id;
             } else {
                 // Create new customer
@@ -357,10 +385,15 @@ class WhatsAppService
                 ]);
             }
             
+            if (!$customerId) {
+                return; // Failed to get/create customer
+            }
+            
             // Get or create conversation
+            $conversationId = null;
             $conv = $db->get_where('wa_conversations', ['wa_number' => $waNumber]);
             
-            if ($conv->num_rows() > 0) {
+            if ($conv && $conv->num_rows() > 0) {
                 $conversationId = $conv->row()->id;
             } else {
                 // Create new conversation
@@ -372,35 +405,56 @@ class WhatsAppService
                 ]);
             }
             
-            // Extract message content
-            $textBody = null;
-            $mediaUrl = null;
-            
-            if ($messageType === 'text' && isset($payload['text']['body'])) {
-                $textBody = $payload['text']['body'];
-            } elseif (isset($payload[$messageType]['link'])) {
-                $mediaUrl = $payload[$messageType]['link'];
+            if (!$conversationId) {
+                return; // Failed to get/create conversation
             }
             
-            // Save outbound message
+            // Extract message content based on type
+            $content = null;
+            $templateParams = null;
+            
+            if ($messageType === 'text' && isset($payload['text']['body'])) {
+                $content = $payload['text']['body'];
+            } elseif ($messageType === 'template' && isset($payload['template']['name'])) {
+                $content = $payload['template']['name']; // Store template name in content
+                // Store template params if available
+                if (isset($payload['template']['components'])) {
+                    $templateParams = json_encode($payload['template']['components']);
+                }
+            } elseif (isset($payload[$messageType]['link'])) {
+                $mediaUrl = $payload[$messageType]['link'];
+                $content = $payload[$messageType]['caption'] ?? null;
+            }
+            
+            // Save outbound message to wa_messages_out
             $messageData = [
                 'conversation_id' => $conversationId,
-                'customer_id' => $customerId,
-                'direction' => 'out',
-                'message_type' => $messageType,
-                'text' => $textBody,
-                'media_url' => $mediaUrl,
-                'provider_message_id' => $messageId,
+                'phone' => $waNumber,
                 'wamid' => $wamid,
-                'status' => 'sent', // Initial status
+                'message_id' => $messageId,
+                'type' => $messageType,
+                'content' => $content,
+                'template_params' => $templateParams,
+                'media_url' => $mediaUrl,
+                'status' => 'accepted', // Initial status when API accepted
                 'created_at' => date('Y-m-d H:i:s')
             ];
             
-            $db->insert('wa_messages', $messageData);
+            $msgId = $db->insert('wa_messages_out', $messageData);
             
-        } catch (\Exception $e) {
-            // Silent fail - don't break the main flow
-            // Could log this error if needed
+            // Update conversation's last_out_at
+            if ($msgId) {
+                $db->update('wa_conversations', [
+                    'last_out_at' => date('Y-m-d H:i:s')
+                ], ['id' => $conversationId]);
+            }
+            
+        } catch (\Throwable $e) {
+            // Silent fail - absolutely don't break the main flow
+            // Log error if logging is available
+            if (function_exists('error_log')) {
+                error_log("WhatsApp saveOutboundMessage error: " . $e->getMessage());
+            }
         }
     }
     
