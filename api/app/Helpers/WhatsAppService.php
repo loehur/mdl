@@ -234,8 +234,9 @@ class WhatsAppService
             $phone = '+62' . $phone;
         }
         
-        // Add whatsapp: prefix for YCloud API
-        return 'whatsapp:' . $phone;
+        // Return E.164 format WITHOUT whatsapp: prefix
+        // The prefix is only for 'from' field, not 'to'
+        return $phone;
     }
     
     /**
