@@ -31,6 +31,7 @@ class WhatsAppService
     public function sendFreeText($to, $message)
     {
         $payload = [
+            'from' => 'whatsapp:' . $this->whatsappNumber,  // YCloud requires 'from' parameter
             'to' => $this->formatPhoneNumber($to),
             'type' => 'text',
             'text' => [
@@ -71,6 +72,7 @@ class WhatsAppService
         }
         
         $payload = [
+            'from' => 'whatsapp:' . $this->whatsappNumber,
             'to' => $this->formatPhoneNumber($to),
             'type' => 'template',
             'template' => [
@@ -110,6 +112,7 @@ class WhatsAppService
         }
         
         $payload = [
+            'from' => 'whatsapp:' . $this->whatsappNumber,
             'to' => $this->formatPhoneNumber($to),
             'type' => $type,
             $type => $mediaData
@@ -166,6 +169,7 @@ class WhatsAppService
         }
         
         $payload = [
+            'from' => 'whatsapp:' . $this->whatsappNumber,
             'to' => $this->formatPhoneNumber($to),
             'type' => 'interactive',
             'interactive' => $interactive
@@ -230,7 +234,8 @@ class WhatsAppService
             $phone = '+62' . $phone;
         }
         
-        return $phone;
+        // Add whatsapp: prefix for YCloud API
+        return 'whatsapp:' . $phone;
     }
     
     /**
