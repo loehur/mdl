@@ -90,6 +90,10 @@ class WhatsApp extends Controller
                     $this->handleStatusUpdate($db, $data);
                     break;
 
+                case 'whatsapp.message.updated':
+                    $this->handleMessageUpdated($db, $data);
+                    break;
+
                 default:
                     \Log::write("Unknown event: $eventType", 'webhook', 'WhatsApp');
             }
@@ -133,6 +137,7 @@ class WhatsApp extends Controller
         $messageType = $msg['type'] ?? 'text';
         $messageId = $msg['id'] ?? null;
         $wamid = $msg['wamid'] ?? null;
+        $status = $msg['status'] ?? 'received'; // Default status for inbound
         $sendTime = $this->convertTime($msg['sendTime'] ?? null);
 
         if (!$waNumber) {
@@ -181,6 +186,7 @@ class WhatsApp extends Controller
             'media_caption' => $mediaCaption,
             'provider_message_id' => $messageId,
             'wamid' => $wamid,
+            'status' => $status,
             'created_at' => $sendTime
         ];
 
@@ -293,6 +299,54 @@ class WhatsApp extends Controller
             \Log::write("✓ Status updated: $wamid -> $status", 'webhook', 'WhatsApp');
         } else {
             \Log::write("⚠ Message not found for status update: $wamid", 'webhook', 'WhatsApp');
+        }
+    }
+
+    /**
+     * Handle message updated event (for read, delivered, sent status)
+     */
+    private function handleMessageUpdated($db, $data)
+    {
+        $message = $data['whatsappMessage'] ?? [];
+        if (empty($message)) {
+            \Log::write("ERROR: No whatsappMessage in message.updated event", 'webhook', 'WhatsApp');
+            return;
+        }
+
+        $wamid = $message['wamid'] ?? null;
+        $status = $message['status'] ?? null;
+
+        if (!$wamid) {
+            \Log::write("ERROR: No wamid in message.updated event", 'webhook', 'WhatsApp');
+            return;
+        }
+
+        // Build update data based on available fields
+        $updateData = [
+            'status' => $status
+        ];
+
+        // Add timestamps if available
+        if (isset($message['sendTime'])) {
+            $updateData['sent_at'] = $this->convertTime($message['sendTime']);
+        }
+        if (isset($message['deliverTime'])) {
+            $updateData['delivered_at'] = $this->convertTime($message['deliverTime']);
+        }
+        if (isset($message['readTime'])) {
+            $updateData['read_at'] = $this->convertTime($message['readTime']);
+        }
+        if (isset($message['updateTime'])) {
+            $updateData['updated_at'] = $this->convertTime($message['updateTime']);
+        }
+
+        // Update message status in wa_messages
+        $updated = $db->update('wa_messages', $updateData, ['wamid' => $wamid]);
+
+        if ($updated) {
+            \Log::write("✓ Message updated: $wamid -> $status (event: message.updated)", 'webhook', 'WhatsApp');
+        } else {
+            \Log::write("⚠ Message not found for update: $wamid (might be incoming message)", 'webhook', 'WhatsApp');
         }
     }
 

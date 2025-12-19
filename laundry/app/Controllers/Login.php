@@ -219,31 +219,20 @@ class Login extends Controller
             $id_cabang = $cek['id_cabang'];
             if ($cek['otp_active'] == $today) {
                $cek_deliver = $this->helper('Notif')->cek_deliver($hp_input, $today, $id_cabang);
-               if (isset($cek_deliver['text'])) {
+               if (!isset($cek_deliver['text'])) {
                   $hp = $cek['no_user'];
                   $text = $cek_deliver['text'];
                   $res = $this->send_wa_ycloud($hp, $text);
                   if ($res['status']) {
-                     // id_api_2 field sudah dihapus dari database
-                     // Tidak perlu update lagi
                      $res_f = [
                         'code' => 1,
                         'msg' => "PERMINTAAN ULANG PIN BERHASIL, AKTIF 1 HARI"
                      ];
-                  } else {
-                     // Cek jika CSW expired
-                     if (isset($res['csw_expired']) && $res['csw_expired']) {
-                        $phone_sent = isset($res['phone_sent']) ? $res['phone_sent'] : 'unknown';
-                        $res_f = [
-                           'code' => 0,
-                           'msg' => "CSW Expired untuk nomor {$phone_sent}. Pastikan Anda sudah mengirim pesan ke nomor WhatsApp bisnis dalam 24 jam terakhir."
-                        ];
-                     } else {
-                        $res_f = [
-                           'code' => 0,
-                           'msg' => $res['error']
-                        ];
-                     }
+                  } else{
+                     $res_f = [
+                        'code' => 0,
+                        'msg' => $res['error']
+                     ];
                   }
                } else {
                   $res_f = [
