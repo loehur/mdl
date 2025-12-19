@@ -365,12 +365,19 @@ class Login extends Controller
       // Log untuk debugging
       $this->model('Log')->write("[send_wa_ycloud] Original: {$original_phone}, Normalized: {$phone}");
       
-      // Ambil last_message_at dari database notif
-      // Cari dengan format +628xxx dan juga 628xxx untuk backward compatibility
+      // Ambil last_message_at dari tabel wa_customers (bukan notif)
+      // Tabel wa_customers menyimpan informasi customer dan waktu pesan terakhir
       $phone_without_plus = str_replace('+', '', $phone);
-      $where = "(phone = '" . $phone . "' OR phone = '" . $phone_without_plus . "') AND state IN ('delivered','read') ORDER BY insertTime DESC LIMIT 1";
-      $lastNotif = $this->db(0)->get_where_row('notif', $where);
-      $lastMessageAt = isset($lastNotif['insertTime']) ? $lastNotif['insertTime'] : date('Y-m-d H:i:s');
+      $where = "wa_number = '" . $phone . "' OR wa_number = '" . $phone_without_plus . "'";
+      $customer = $this->db(0)->get_where_row('wa_customers', $where);
+      
+      if ($customer && isset($customer['last_message_at'])) {
+         $lastMessageAt = $customer['last_message_at'];
+         $this->model('Log')->write("[send_wa_ycloud] Found customer data - Last message: {$lastMessageAt}");
+      } else {
+         $lastMessageAt = date('Y-m-d H:i:s');
+         $this->model('Log')->write("[send_wa_ycloud] No customer data found, using current time: {$lastMessageAt}");
+      }
       
       // Prepare data untuk API
       $apiData = [
