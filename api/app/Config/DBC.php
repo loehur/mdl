@@ -48,7 +48,7 @@ class DBC
             1 => [
                 "db" => "mdl_laundry",
                 "user" => "mdl_laundry",
-                "pass" => ""
+                "pass" => "3p66WMjmPa6AmidN"
             ],
             2 => [
                 "db" => "mdl_sale",
