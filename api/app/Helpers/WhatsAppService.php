@@ -31,7 +31,7 @@ class WhatsAppService
     public function sendFreeText($to, $message)
     {
         $payload = [
-            'from' => 'whatsapp:' . $this->whatsappNumber,  // YCloud requires 'from' parameter
+            'from' => $this->formatPhoneNumber($this->whatsappNumber),
             'to' => $this->formatPhoneNumber($to),
             'type' => 'text',
             'text' => [
@@ -72,7 +72,7 @@ class WhatsAppService
         }
         
         $payload = [
-            'from' => 'whatsapp:' . $this->whatsappNumber,
+            'from' => $this->formatPhoneNumber($this->whatsappNumber),
             'to' => $this->formatPhoneNumber($to),
             'type' => 'template',
             'template' => [
@@ -112,7 +112,7 @@ class WhatsAppService
         }
         
         $payload = [
-            'from' => 'whatsapp:' . $this->whatsappNumber,
+            'from' => $this->formatPhoneNumber($this->whatsappNumber),
             'to' => $this->formatPhoneNumber($to),
             'type' => $type,
             $type => $mediaData
@@ -169,7 +169,7 @@ class WhatsAppService
         }
         
         $payload = [
-            'from' => 'whatsapp:' . $this->whatsappNumber,
+            'from' => $this->formatPhoneNumber($this->whatsappNumber),
             'to' => $this->formatPhoneNumber($to),
             'type' => 'interactive',
             'interactive' => $interactive
@@ -211,6 +211,30 @@ class WhatsAppService
         $cswDuration = WhatsAppConfig::getCswDuration();
         
         return $hoursDiff <= $cswDuration;
+    }
+    
+    
+    /**
+     * Format 'from' number for YCloud API
+     * Format: whatsapp:+62xxx
+     * 
+     * @param string $phone Phone number
+     * @return string Formatted whatsapp number with prefix
+     */
+    private function formatFromNumber($phone)
+    {
+        // Clean the phone number first
+        $phone = preg_replace('/[^0-9+]/', '', $phone);
+        
+        // Ensure it's in E.164 format (+62xxx)
+        if (substr($phone, 0, 1) === '0') {
+            $phone = '+62' . substr($phone, 1);
+        } elseif (substr($phone, 0, 1) !== '+') {
+            $phone = '+62' . $phone;
+        }
+        
+        // Add whatsapp: prefix
+        return 'whatsapp:' . $phone;
     }
     
     /**
