@@ -370,7 +370,7 @@ class WhatsAppService
             $log("✓ Validation passed");
             
             // Load DB class if not already loaded
-            if (!class_exists('DB')) {
+            if (!class_exists('\\App\\Core\\DB')) {
                 $dbPath = __DIR__ . '/../Core/DB.php';
                 $log("Loading DB from: $dbPath");
                 
@@ -381,7 +381,7 @@ class WhatsAppService
                 require_once $dbPath;
                 
                 // Double check if class loaded successfully
-                if (!class_exists('DB')) {
+                if (!class_exists('\\App\\Core\\DB')) {
                     $log("ERROR: DB class not loaded after require");
                     return;
                 }
@@ -389,7 +389,7 @@ class WhatsAppService
             
             $log("✓ DB class loaded");
             
-            $db = new \DB(0); // Main database
+            $db = new \App\Core\DB(0); // Main database with correct namespace
             
             // Verify database connection
             if (!$db || !method_exists($db, 'get_where')) {
