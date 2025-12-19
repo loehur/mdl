@@ -1,25 +1,33 @@
 <script setup>
 const services = [
-    { name: "Laundry Kiloan", desc: "Cuci bersih, kering, dan rapi dalam hitungan kilo." },
-    { name: "Cuci Setrika", desc: "Layanan lengkap cuci hingga setrika licin." },
-    { name: "Setrika Saja", desc: "Hanya butuh jasa setrika? Kami siap membantu." },
-    { name: "Laundry Bedcover", desc: "Perawatan khusus untuk selimut dan bedcover besar." },
-    { name: "Linen & Hotel Laundry", desc: "Solusi untuk bisnis penginapan dan hotel." },
-    { name: "Karpet & Boneka", desc: "Membersihkan debu dan kotoran mendalam." }
+    { name: "Laundry Kiloan", desc: "Cuci bersih, kering, dan rapi dalam hitungan kilo.", icon: "🧺" },
+    { name: "Cuci Setrika", desc: "Layanan lengkap cuci hingga setrika licin.", icon: "👔" },
+    { name: "Setrika Saja", desc: "Hanya butuh jasa setrika? Kami siap membantu.", icon: "💨" },
+    { name: "Laundry Bedcover", desc: "Perawatan khusus untuk selimut dan bedcover besar.", icon: "🛌" },
+    { name: "Linen & Hotel Laundry", desc: "Solusi untuk bisnis penginapan dan hotel.", icon: "🏨" },
+    { name: "Karpet & Boneka", desc: "Membersihkan debu dan kotoran mendalam.", icon: "🧸" }
 ]
 </script>
 
 <template>
-  <section class="services-section">
+  <section class="services-section" id="services">
     <div class="container">
-        <h2 class="section-title">Layanan Kami</h2>
-        <div class="services-list">
-            <div v-for="(service, index) in services" :key="index" class="service-item">
-                <div class="check-icon">✓</div>
-                <div class="service-info">
+        <div class="section-header">
+            <span class="section-badge">Layanan Terbaik</span>
+            <h2 class="section-title">Apa Yang Kami <span class="highlight">Tawarkan?</span></h2>
+            <p class="section-subtitle">Berbagai pilihan layanan perawatan pakaian yang disesuaikan dengan kebutuhan Anda.</p>
+        </div>
+        
+        <div class="services-grid">
+            <div v-for="(service, index) in services" :key="index" class="service-card">
+                <div class="service-icon-wrapper">
+                    <span class="service-icon">{{ service.icon }}</span>
+                </div>
+                <div class="service-content">
                     <h3>{{ service.name }}</h3>
                     <p>{{ service.desc }}</p>
                 </div>
+                <div class="card-arrow">→</div>
             </div>
         </div>
     </div>
@@ -28,50 +36,145 @@ const services = [
 
 <style scoped>
 .services-section {
-    padding: 100px 0;
-    background-color: var(--color-white);
+    padding: 120px 0;
+    background-color: var(--color-bg-light);
+    position: relative;
+    overflow: hidden;
 }
+
 .container {
-    max-width: 1000px;
+    max-width: 1200px;
     margin: 0 auto;
     padding: 0 20px;
 }
-.section-title {
+
+.section-header {
     text-align: center;
-    margin-bottom: 60px;
-    font-size: 2.2rem;
+    max-width: 700px;
+    margin: 0 auto 70px auto;
+}
+
+.section-badge {
+    background: rgba(22, 163, 74, 0.1);
     color: var(--color-primary);
+    padding: 6px 16px;
+    border-radius: 50px;
+    font-size: 0.9rem;
     font-weight: 700;
+    display: inline-block;
+    margin-bottom: 20px;
 }
-.services-list {
+
+.section-title {
+    font-size: 3rem;
+    color: #1f2937;
+    font-weight: 800;
+    margin-bottom: 20px;
+}
+
+.section-title .highlight {
+    color: var(--color-primary);
+}
+
+.section-subtitle {
+    color: #6b7280;
+    font-size: 1.1rem;
+    line-height: 1.6;
+}
+
+.services-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 40px;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 30px;
 }
-.service-item {
+
+.service-card {
+    background: var(--color-white);
+    padding: 40px;
+    border-radius: 24px;
     display: flex;
-    align-items: flex-start;
+    flex-direction: column;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    border: 1px solid #f3f4f6;
+    position: relative;
+    cursor: pointer;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
 }
-.check-icon {
-    background: var(--color-accent);
-    color: #fff;
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
+
+.service-card:hover {
+    transform: translateY(-10px) scale(1.02);
+    box-shadow: 0 20px 40px -10px rgba(22, 163, 74, 0.1);
+    border-color: var(--color-primary);
+}
+
+.service-icon-wrapper {
+    width: 70px;
+    height: 70px;
+    background: #f0fdf4;
+    border-radius: 20px;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-right: 20px;
-    font-weight: bold;
-    flex-shrink: 0;
+    margin-bottom: 25px;
+    transition: all 0.3s;
 }
-.service-info h3 {
-    margin-bottom: 8px;
-    font-size: 1.2rem;
-    color: #333;
+
+.service-card:hover .service-icon-wrapper {
+    background: var(--color-primary);
+    transform: rotate(10deg);
 }
-.service-info p {
-    color: #666;
-    font-size: 0.95rem;
+
+.service-icon {
+    font-size: 2.2rem;
+}
+
+.service-card:hover .service-icon {
+    filter: brightness(0) invert(1);
+    content: ""; /* If using SVG, but with emoji we just scale */
+    transform: scale(1.1);
+}
+
+.service-content h3 {
+    font-size: 1.5rem;
+    color: #111827;
+    margin-bottom: 12px;
+    font-weight: 700;
+}
+
+.service-content p {
+    color: #4b5563;
+    line-height: 1.6;
+    margin-bottom: 0;
+}
+
+.card-arrow {
+    position: absolute;
+    bottom: 30px;
+    right: 30px;
+    font-size: 1.5rem;
+    color: var(--color-primary);
+    opacity: 0;
+    transition: all 0.3s;
+    transform: translateX(-10px);
+}
+
+.service-card:hover .card-arrow {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+@media (max-width: 768px) {
+    .services-section {
+        padding: 80px 0;
+    }
+    .section-title {
+        font-size: 2.2rem;
+    }
+    .services-grid {
+        grid-template-columns: 1fr;
+    }
+    .service-card {
+        padding: 30px;
+    }
 }
 </style>

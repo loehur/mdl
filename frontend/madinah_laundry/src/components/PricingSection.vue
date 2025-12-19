@@ -3,22 +3,22 @@ import Button from './ui/Button.vue'
 
 const packages = [
     { 
-        name: "Basic", 
-        price: "Rp 6.000", 
+        name: "Reguler", 
+        price: "Rp 8.000", 
         unit: "/kg", 
         features: ["Cuci Kering", "Lipat Rapi", "Wangi Standar", "3 Hari Kerja"],
         recommended: false 
     },
     { 
-        name: "Standard", 
-        price: "Rp 8.000", 
+        name: "Express", 
+        price: "Rp 11.000", 
         unit: "/kg", 
         features: ["Cuci Kering", "Setrika Uap", "Wangi Premium", "2 Hari Kerja"],
         recommended: true 
     },
     { 
-        name: "Premium", 
-        price: "Rp 12.000", 
+        name: "Kilat", 
+        price: "Rp 16.000", 
         unit: "/kg", 
         features: ["Cuci Kering", "Setrika Uap Detil", "Anti Bakteri", "1 Hari / Express"],
         recommended: false 
@@ -47,7 +47,7 @@ const packages = [
                 <li v-for="(feature, fIndex) in pkg.features" :key="fIndex">{{ feature }}</li>
             </ul>
             <div class="action">
-                <Button :variant="pkg.recommended ? 'primary' : 'outline'" href="https://wa.me/628117686252">
+                <Button :variant="pkg.recommended ? 'primary' : 'outline'" href="https://wa.me/6281170706611">
                     Pilih Paket
                 </Button>
             </div>
@@ -74,6 +74,15 @@ const packages = [
     color: var(--color-text);
     font-weight: 700;
 }
+@media (max-width: 768px) {
+    .pricing-section {
+        padding: 60px 0;
+    }
+    .section-title {
+        font-size: 1.8rem;
+        margin-bottom: 40px;
+    }
+}
 .pricing-grid {
     display: flex;
     justify-content: center;
@@ -85,7 +94,8 @@ const packages = [
     background: #fff;
     border-radius: 20px;
     padding: 40px 30px;
-    width: 300px;
+    width: 320px;
+    max-width: 100%;
     text-align: center;
     box-shadow: 0 10px 30px rgba(0,0,0,0.05);
     position: relative;
@@ -105,6 +115,21 @@ const packages = [
 }
 .pricing-card.recommended:hover {
     transform: scale(1.05) translateY(-10px);
+}
+@media (max-width: 768px) {
+    .pricing-card {
+        width: 100%;
+        padding: 30px 20px;
+    }
+    .pricing-card.recommended {
+        transform: scale(1);
+    }
+    .pricing-card.recommended:hover {
+        transform: translateY(-10px);
+    }
+    .amount {
+        font-size: 2rem;
+    }
 }
 .badge {
     position: absolute;

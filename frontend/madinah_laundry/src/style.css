@@ -1,10 +1,15 @@
 :root {
-  --color-primary: #1E90FF;
+  --color-primary: #16A34A;
+  /* Hijau - warna utama dominan */
+  --color-secondary: #FACC15;
+  /* Kuning cerah */
+  --color-accent: #B91C1C;
+  /* Merah solid/padat */
   --color-white: #FFFFFF;
-  --color-accent: #4CAF50;
   --color-text: #333333;
-  --color-bg-light: #F5F9FF;
-  
+  --color-bg-light: #F0FDF4;
+  /* Background hijau muda */
+
   --font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
