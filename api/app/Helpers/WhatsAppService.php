@@ -17,7 +17,16 @@ class WhatsAppService
     public function __construct()
     {
         $this->apiKey = WhatsAppConfig::getApiKey();
+        // Fallback hardcode (Safety net)
+        if (empty($this->apiKey) || strpos($this->apiKey, 'YOUR_') !== false) {
+            $this->apiKey = '3d997235552a4b868972e0915a7700e5';
+        }
+        
         $this->baseUrl = WhatsAppConfig::getBaseUrl();
+        if (empty($this->baseUrl)) {
+            $this->baseUrl = 'https://api.ycloud.com/v2';
+        }
+        
         $this->whatsappNumber = WhatsAppConfig::getWhatsAppNumber();
     }
     
