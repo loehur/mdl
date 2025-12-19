@@ -5,34 +5,14 @@ class Notif extends Controller
 
     function send_wa($hp, $text, $private = true)
     {
-        if ($private == true) {
-            $res = $this->model(URL::WA_API[0])->send($hp, $text, URL::WA_TOKEN[0]);
-            $this->model('Log')->write("[send_wa] Private API[0] - HP: {$hp}, Status: " . ($res['status'] ? 'Success' : 'Failed') . ", Response: " . json_encode($res));
-            if ($res['forward']) {
-                $res = $this->model(URL::WA_API[1])->send($hp, $text, URL::WA_TOKEN[1]);
-                $this->model('Log')->write("[send_wa] Private API[1] (Forward) - HP: {$hp}, Status: " . ($res['status'] ? 'Success' : 'Failed') . ", Response: " . json_encode($res));
-            }
-        } else {
-            if (URL::WA_PUBLIC == true) {
-                $res = $this->model(URL::WA_API[0])->send($hp, $text, URL::WA_TOKEN[0]);
-                $this->model('Log')->write("[send_wa] Public API[0] - HP: {$hp}, Status: " . ($res['status'] ? 'Success' : 'Failed') . ", Response: " . json_encode($res));
-                if ($res['forward']) {
-                    $res = $this->model(URL::WA_API[1])->send($hp, $text, URL::WA_TOKEN[1]);
-                    $this->model('Log')->write("[send_wa] Public API[1] (Forward) - HP: {$hp}, Status: " . ($res['status'] ? 'Success' : 'Failed') . ", Response: " . json_encode($res));
-                }
-            } else {
-                $res = [
-                    'code' => 0,
-                    'status' => false,
-                    'forward' => false,
-                    'error' => 'No Error',
-                    'data' => [
-                        'status' => 'Disabled'
-                    ],
-                ];
-                $this->model('Log')->write("[send_wa] HP: {$hp}, Status: Disabled - WA_PUBLIC is turned off");
-            }
-        }
+        // FORCE CHANGE: User requested to remove all non-YCloud methods.
+        // We override the configuration and directly use the YCloud adapter.
+        // We do not pass parameters from URL::WA_TOKEN because they might contain legacy tokens.
+        
+        $res = $this->model('WA_YCloud')->send($hp, $text);
+        
+        $statusStr = $res['status'] ? 'Success' : 'Failed';
+        $this->model('Log')->write("[send_wa] YCloud (Forced) - HP: {$hp}, Status: {$statusStr}, Response: " . json_encode($res));
 
         return $res;
     }

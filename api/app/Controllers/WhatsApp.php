@@ -63,12 +63,17 @@ class WhatsApp extends Controller
         
         $body = $this->getBody();
         
-        // Validate required fields
-        $this->validate($body, ['phone', 'last_message_at', 'message_mode']);
+        // Validate required fields (last_message_at is now optional)
+        $this->validate($body, ['phone', 'message_mode']);
         
         $phone = $body['phone'];
-        $lastMessageAt = $body['last_message_at'];
         $messageMode = strtolower($body['message_mode']);
+
+        // Auto-lookup last_message_at if not provided
+        $lastMessageAt = $body['last_message_at'] ?? null;
+        if (empty($lastMessageAt)) {
+             $lastMessageAt = $this->whatsappService->getLastCustomerInteraction($phone);
+        }
         
         // Check CSW status
         $isWithinCsw = $this->whatsappService->isWithinCsw($lastMessageAt);

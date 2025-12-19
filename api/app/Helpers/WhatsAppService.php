@@ -208,9 +208,30 @@ class WhatsAppService
         
         $now = date('Y-m-d H:i:s');
         $hoursDiff = $this->diffHours($now, $lastMessageAt);
-        $cswDuration = WhatsAppConfig::getCswDuration();
         
-        return $hoursDiff <= $cswDuration;
+        return $hoursDiff < 24;
+    }
+
+    /**
+     * Get last customer interaction time from DB
+     * Helper to lookup DB if client doesn't provide timestamp
+     */
+    public function getLastCustomerInteraction($phone)
+    {
+        $phone = $this->formatPhoneNumber($phone);
+        
+        if (class_exists('\App\Core\DB')) {
+            $db = new \App\Core\DB(0);
+            
+            // Limit 1 query
+            $query = $db->query("SELECT last_in_at FROM wa_conversations WHERE wa_number = '$phone' LIMIT 1");
+            
+            if ($query && $query->num_rows() > 0) {
+                return $query->row()->last_in_at;
+            }
+        }
+        
+        return null; // Never interacted
     }
     
     
