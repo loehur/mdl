@@ -123,8 +123,6 @@ trait Attributes
         );
 
         $_SESSION[URL::SESSID]['mdl_setting'] = $this->db(0)->get_where_row('setting', 'id_cabang = ' . $_SESSION[URL::SESSID]['user']['id_cabang']);
-
-        $_SESSION[URL::SESSID]['user']['book'] = $_SESSION[URL::SESSID]['user']['book'] == "" ? date('Y') : $_SESSION[URL::SESSID]['user']['book'];
     }
 
     public function dataSynchrone($id_user)
