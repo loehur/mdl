@@ -335,6 +335,22 @@ class WhatsAppService
      */
     private function saveOutboundMessage($payload, $response)
     {
+        $logFile = __DIR__ . '/../../logs/wa_outbound_errors.log';
+        
+        // Ensure log directory exists
+        $logDir = dirname($logFile);
+        if (!is_dir($logDir)) {
+            @mkdir($logDir, 0755, true);
+        }
+        
+        // Helper function to log
+        $log = function($message) use ($logFile) {
+            $timestamp = date('Y-m-d H:i:s');
+            file_put_contents($logFile, "[$timestamp] $message\n", FILE_APPEND);
+        };
+        
+        $log("=== SAVE OUTBOUND MESSAGE START ===");
+        
         // Wrap everything in try-catch to prevent breaking the main flow
         try {
             // Validate essential data first
@@ -343,31 +359,45 @@ class WhatsAppService
             $messageId = $response['id'] ?? null; // Provider message ID
             $wamid = $response['wamid'] ?? null; // May be NULL initially, updated by webhook
             
+            $log("Data: phone=$waNumber, msg_id=$messageId, type=$messageType");
+            
             // Essential: must have phone and message_id
             if (!$waNumber || !$messageId) {
-                return; // Can't save without phone number and message ID
+                $log("ERROR: Validation failed - missing phone or message_id");
+                return;
             }
+            
+            $log("✓ Validation passed");
             
             // Load DB class if not already loaded
             if (!class_exists('DB')) {
                 $dbPath = __DIR__ . '/../Core/DB.php';
+                $log("Loading DB from: $dbPath");
+                
                 if (!file_exists($dbPath)) {
-                    return; // DB class not found, skip silently
+                    $log("ERROR: DB.php not found at $dbPath");
+                    return;
                 }
                 require_once $dbPath;
                 
                 // Double check if class loaded successfully
                 if (!class_exists('DB')) {
+                    $log("ERROR: DB class not loaded after require");
                     return;
                 }
             }
+            
+            $log("✓ DB class loaded");
             
             $db = new \DB(0); // Main database
             
             // Verify database connection
             if (!$db || !method_exists($db, 'get_where')) {
+                $log("ERROR: DB instance invalid or get_where not found");
                 return;
             }
+            
+            $log("✓ DB connected");
             
             // Get or create customer
             $customerId = null;
@@ -375,7 +405,9 @@ class WhatsAppService
             
             if ($customer && $customer->num_rows() > 0) {
                 $customerId = $customer->row()->id;
+                $log("✓ Customer found: ID=$customerId");
             } else {
+                $log("Creating new customer...");
                 // Create new customer
                 $customerId = $db->insert('wa_customers', [
                     'wa_number' => $waNumber,
@@ -384,10 +416,18 @@ class WhatsAppService
                     'is_active' => 1,
                     'created_at' => date('Y-m-d H:i:s')
                 ]);
+                
+                if ($customerId) {
+                    $log("✓ Customer created: ID=$customerId");
+                } else {
+                    $dbError = $db->conn()->error ?? 'unknown';
+                    $log("ERROR: Customer insert failed: $dbError");
+                }
             }
             
             if (!$customerId) {
-                return; // Failed to get/create customer
+                $log("ERROR: No customer ID - aborting");
+                return;
             }
             
             // Get or create conversation
@@ -396,7 +436,9 @@ class WhatsAppService
             
             if ($conv && $conv->num_rows() > 0) {
                 $conversationId = $conv->row()->id;
+                $log("✓ Conversation found: ID=$conversationId");
             } else {
+                $log("Creating new conversation...");
                 // Create new conversation
                 $conversationId = $db->insert('wa_conversations', [
                     'customer_id' => $customerId,
@@ -404,15 +446,24 @@ class WhatsAppService
                     'status' => 'open',
                     'created_at' => date('Y-m-d H:i:s')
                 ]);
+                
+                if ($conversationId) {
+                    $log("✓ Conversation created: ID=$conversationId");
+                } else {
+                    $dbError = $db->conn()->error ?? 'unknown';
+                    $log("ERROR: Conversation insert failed: $dbError");
+                }
             }
             
             if (!$conversationId) {
-                return; // Failed to get/create conversation
+                $log("ERROR: No conversation ID - aborting");
+                return;
             }
             
             // Extract message content based on type
             $content = null;
             $templateParams = null;
+            $mediaUrl = null;
             
             if ($messageType === 'text' && isset($payload['text']['body'])) {
                 $content = $payload['text']['body'];
@@ -426,6 +477,8 @@ class WhatsAppService
                 $mediaUrl = $payload[$messageType]['link'];
                 $content = $payload[$messageType]['caption'] ?? null;
             }
+            
+            $log("Content extracted: " . substr($content ?? 'NULL', 0, 50));
             
             // Save outbound message to wa_messages_out
             $messageData = [
@@ -441,18 +494,34 @@ class WhatsAppService
                 'created_at' => date('Y-m-d H:i:s')
             ];
             
+            $log("Inserting to wa_messages_out...");
             $msgId = $db->insert('wa_messages_out', $messageData);
             
-            // Update conversation's last_out_at
             if ($msgId) {
+                $log("✓✓✓ SUCCESS! Message saved: ID=$msgId");
+                
+                // Update conversation's last_out_at
                 $db->update('wa_conversations', [
                     'last_out_at' => date('Y-m-d H:i:s')
                 ], ['id' => $conversationId]);
+                
+                $log("✓ Conversation updated");
+            } else {
+                $dbError = $db->conn()->error ?? 'unknown';
+                $log("ERROR: Message insert FAILED!");
+                $log("DB Error: $dbError");
+                $log("Data: " . json_encode($messageData));
             }
             
+            $log("=== END ===\n");
+            
         } catch (\Throwable $e) {
-            // Silent fail - absolutely don't break the main flow
-            // Log error if logging is available
+            $log("EXCEPTION: " . $e->getMessage());
+            $log("File: " . $e->getFile() . " Line: " . $e->getLine());
+            $log("Trace: " . $e->getTraceAsString());
+            $log("=== END (with exception) ===\n");
+            
+            // Also log to PHP error log
             if (function_exists('error_log')) {
                 error_log("WhatsApp saveOutboundMessage error: " . $e->getMessage());
             }
