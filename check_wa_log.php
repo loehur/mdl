@@ -12,7 +12,8 @@ $logFiles = [
     'Outbound Logs' => 'wa_outbound_errors.log', // Shows success saves too
     'API Failures' => 'wa_debug_api.log',        // Errors from WhatsApp.php
     'Login Failures' => 'wa_debug_login.log',    // Errors from Login.php
-    'Webhook Access' => 'wa_webhook_access.log'  // Incoming Webhook Hits
+    'Webhook Access' => 'wa_webhook_access.log', // Incoming Webhook Hits
+    'Webhook Payload' => 'wa_webhook_debug.log'   // Full JSON Payload
 ];
 
 $refreshInterval = 5; // seconds
@@ -23,9 +24,9 @@ $refreshInterval = 5; // seconds
     <title>WhatsApp Integration Dashboard</title>
     <style>
         body { font-family: 'Segoe UI', monospace; background: #1e1e1e; color: #d4d4d4; padding: 20px; margin:0; }
-        .container { max-width: 1600px; margin: 0 auto; }
+        .container { max-width: 1800px; margin: 0 auto; }
         h1 { color: #4ec9b0; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px; }
-        .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
+        .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
         .card { background: #252526; border: 1px solid #3e3e42; border-radius: 5px; overflow: hidden; display: flex; flex-direction: column; height: 800px; }
         .card-header { background: #333333; padding: 10px 15px; font-weight: bold; border-bottom: 1px solid #3e3e42; display: flex; justify-content: space-between; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .card-body { padding: 0; overflow-y: auto; flex-grow: 1; font-size: 10px; }
@@ -84,7 +85,7 @@ $refreshInterval = 5; // seconds
                                 $class = '';
                                 if (stripos($line, 'ERROR') !== false || stripos($line, 'FAIL') !== false || stripos($line, 'EXCEPTION') !== false) $class = 'error';
                                 elseif (stripos($line, 'SUCCESS') !== false || stripos($line, '✓') !== false) $class = 'success';
-                                elseif (stripos($line, '===') !== false) $class = 'info';
+                                elseif (stripos($line, 'RAW_UPDATE') !== false || stripos($line, '===') !== false) $class = 'info';
                                 
                                 // Highlight timestamp
                                 $lineHtml = htmlspecialchars($line);

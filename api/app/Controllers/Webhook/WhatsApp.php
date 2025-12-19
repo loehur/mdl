@@ -316,8 +316,14 @@ class WhatsApp extends Controller
      */
     private function handleMessageUpdated($db, $data)
     {
+        // LOG FULL DEBUG to inspect payload structure
+        @file_put_contents(__DIR__ . '/../../../logs/wa_webhook_debug.log', 
+            date('Y-m-d H:i:s') . " RAW_UPDATE: " . json_encode($data) . "\n", FILE_APPEND);
+            
         $message = $data['whatsappMessage'] ?? [];
         if (empty($message)) {
+            $log = date('Y-m-d H:i:s') . " ERROR: No whatsappMessage\n";
+            @file_put_contents(__DIR__ . '/../../../logs/wa_webhook_debug.log', $log, FILE_APPEND);
             \Log::write("ERROR: No whatsappMessage in message.updated event", 'webhook', 'WhatsApp');
             return;
         }
