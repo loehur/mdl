@@ -187,44 +187,108 @@ class Login extends Controller
 
    function req_pin()
    {
-      $hp_input = $_POST["hp"];
-      $hp = (int) filter_var($hp_input, FILTER_SANITIZE_NUMBER_INT);
-      //cek
+      try {
+         // Validasi input POST
+         if (!isset($_POST["hp"])) {
+            $res_f = [
+               'code' => 0,
+               'msg' => "NOMOR WHATSAPP TIDAK DITEMUKAN"
+            ];
+            print_r(json_encode($res_f));
+            exit();
+         }
 
-      if (strlen($hp_input) < 10 || strlen($hp_input) > 13) {
-         $res_f = [
-            'code' => 0,
-            'msg' => "NOMOR WHATSAPP TIDAK VALID"
-         ];
-         print_r(json_encode($res_f));
-         exit();
-      }
+         $hp_input = $_POST["hp"];
+         $hp = (int) filter_var($hp_input, FILTER_SANITIZE_NUMBER_INT);
+         //cek
 
-      $username = $this->model("Enc")->username($hp);
-      $where = "username = '" . $username . "' AND en = 1";
-      $today = date("Ymd");
-      $cek = $this->db(0)->get_where_row('user', $where);
-      if (isset($cek['otp_active'])) {
-         $id_cabang = $cek['id_cabang'];
-         if ($cek['otp_active'] == $today) {
-            $cek_deliver = $this->helper('Notif')->cek_deliver($hp_input, $today, $id_cabang);
-            if (isset($cek_deliver['text'])) {
+         if (strlen($hp_input) < 10 || strlen($hp_input) > 13) {
+            $res_f = [
+               'code' => 0,
+               'msg' => "NOMOR WHATSAPP TIDAK VALID"
+            ];
+            print_r(json_encode($res_f));
+            exit();
+         }
+
+         $username = $this->model("Enc")->username($hp);
+         $where = "username = '" . $username . "' AND en = 1";
+         $today = date("Ymd");
+         $cek = $this->db(0)->get_where_row('user', $where);
+         if (isset($cek['otp_active'])) {
+            $id_cabang = $cek['id_cabang'];
+            if ($cek['otp_active'] == $today) {
+               $cek_deliver = $this->helper('Notif')->cek_deliver($hp_input, $today, $id_cabang);
+               if (isset($cek_deliver['text'])) {
+                  $hp = $cek['no_user'];
+                  $text = $cek_deliver['text'];
+                  $res = $this->send_wa_ycloud($hp, $text);
+                  if ($res['status']) {
+                     $up = $this->db(0)->update('notif', [
+                        'id_api_2' => $res['data']['message_id']
+                     ], "id_notif = " . $cek_deliver['id_notif']);
+                     if ($up['errno'] == 0) {
+                        $res_f = [
+                           'code' => 1,
+                           'msg' => "PERMINTAAN ULANG PIN BERHASIL, AKTIF 1 HARI"
+                        ];
+                     } else {
+                        $res_f = [
+                           'code' => 0,
+                           'msg' => $up['error']
+                        ];
+                     }
+                  } else {
+                     // Cek jika CSW expired
+                     if (isset($res['csw_expired']) && $res['csw_expired']) {
+                        $res_f = [
+                           'code' => 0,
+                           'msg' => "CSW Expired"
+                        ];
+                     } else {
+                        $res_f = [
+                           'code' => 0,
+                           'msg' => $res['error']
+                        ];
+                     }
+                  }
+               } else {
+                  $res_f = [
+                     'code' => 1,
+                     'msg' => "GUNAKAN PIN HARI INI"
+                  ];
+               }
+            } else {
+               $otp = rand(0, 9) . rand(0, 9) . rand(0, 9) . rand(0, 9);
+               $otp_enc = $this->model("Enc")->otp($otp);
+               $text = $otp . " (" . $cek['nama_user'] . ") - LAUNDRY";
                $hp = $cek['no_user'];
-               $text = $cek_deliver['text'];
+
                $res = $this->send_wa_ycloud($hp, $text);
+
                if ($res['status']) {
-                  $up = $this->db(0)->update('notif', [
-                     'id_api_2' => $res['data']['message_id']
-                  ], "id_notif = " . $cek_deliver['id_notif']);
-                  if ($up['errno'] == 0) {
-                     $res_f = [
-                        'code' => 1,
-                        'msg' => "PERMINTAAN ULANG PIN BERHASIL, AKTIF 1 HARI"
-                     ];
+                  $do = $this->helper('Notif')->insertOTP($res, $today, $hp_input, $text, $id_cabang);
+
+                  if ($do['errno'] == 0) {
+                     $up = $this->db(0)->update('user', [
+                        'otp' => $otp_enc,
+                        'otp_active' => $today
+                     ], $where);
+                     if ($up['errno'] == 0) {
+                        $res_f = [
+                           'code' => 1,
+                           'msg' => "PERMINTAAN PIN BERHASIL, AKTIF 1 HARI"
+                        ];
+                     } else {
+                        $res_f = [
+                           'code' => 0,
+                           'msg' => $up['error']
+                        ];
+                     }
                   } else {
                      $res_f = [
                         'code' => 0,
-                        'msg' => $up['error']
+                        'msg' => $do['error']
                      ];
                   }
                } else {
@@ -241,68 +305,32 @@ class Login extends Controller
                      ];
                   }
                }
-            } else {
-               $res_f = [
-                  'code' => 1,
-                  'msg' => "GUNAKAN PIN HARI INI"
-               ];
             }
          } else {
-            $otp = rand(0, 9) . rand(0, 9) . rand(0, 9) . rand(0, 9);
-            $otp_enc = $this->model("Enc")->otp($otp);
-            $text = $otp . " (" . $cek['nama_user'] . ") - LAUNDRY";
-            $hp = $cek['no_user'];
-
-            $res = $this->send_wa_ycloud($hp, $text);
-
-            if ($res['status']) {
-               $do = $this->helper('Notif')->insertOTP($res, $today, $hp_input, $text, $id_cabang);
-
-               if ($do['errno'] == 0) {
-                  $up = $this->db(0)->update('user', [
-                     'otp' => $otp_enc,
-                     'otp_active' => $today
-                  ], $where);
-                  if ($up['errno'] == 0) {
-                     $res_f = [
-                        'code' => 1,
-                        'msg' => "PERMINTAAN PIN BERHASIL, AKTIF 1 HARI"
-                     ];
-                  } else {
-                     $res_f = [
-                        'code' => 0,
-                        'msg' => $up['error']
-                     ];
-                  }
-               } else {
-                  $res_f = [
-                     'code' => 0,
-                     'msg' => $do['error']
-                  ];
-               }
-            } else {
-               // Cek jika CSW expired
-               if (isset($res['csw_expired']) && $res['csw_expired']) {
-                  $res_f = [
-                     'code' => 0,
-                     'msg' => "CSW Expired"
-                  ];
-               } else {
-                  $res_f = [
-                     'code' => 0,
-                     'msg' => $res['error']
-                  ];
-               }
+            $_SESSION['captcha'] = "HJFASD7FD89AS7FSDHFD68FHF7GYG7G47G7G7G674GRGVFTGB7G6R74GHG3Q789631765YGHJ7RGEYBF67";
+            $res_f = [
+               'code' => 10,
+               'msg' => "NOMOR WHATSAPP TIDAK TERDAFTAR"
+            ];
+         }
+         print_r(json_encode($res_f));
+      } catch (Exception $e) {
+         // Log the exception
+         if (method_exists($this, 'model')) {
+            try {
+               $this->model('Log')->write("[req_pin] Exception: " . $e->getMessage() . " - Trace: " . $e->getTraceAsString());
+            } catch (Exception $logEx) {
+               // Log gagal, tidak apa-apa
             }
          }
-      } else {
-         $_SESSION['captcha'] = "HJFASD7FD89AS7FSDHFD68FHF7GYG7G47G7G7G674GRGVFTGB7G6R74GHG3Q789631765YGHJ7RGEYBF67";
+         
+         // Return user-friendly error
          $res_f = [
-            'code' => 10,
-            'msg' => "NOMOR WHATSAPP TIDAK TERDAFTAR"
+            'code' => 0,
+            'msg' => "TERJADI KESALAHAN SISTEM, SILAHKAN COBA LAGI"
          ];
+         print_r(json_encode($res_f));
       }
-      print_r(json_encode($res_f));
    }
 
    /**
