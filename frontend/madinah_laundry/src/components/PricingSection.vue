@@ -110,7 +110,7 @@ const packages = [
 .pricing-card.recommended {
     border-color: var(--color-primary);
     transform: scale(1.05);
-    box-shadow: 0 15px 40px rgba(30, 144, 255, 0.15);
+    box-shadow: 0 15px 40px rgba(22, 163, 74, 0.15);
     z-index: 1;
 }
 .pricing-card.recommended:hover {

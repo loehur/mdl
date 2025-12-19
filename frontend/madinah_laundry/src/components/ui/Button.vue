@@ -39,25 +39,25 @@ defineProps({
 .btn-primary {
   background-color: var(--color-primary);
   color: var(--color-white);
-  box-shadow: 0 4px 15px rgba(30, 144, 255, 0.3);
+  box-shadow: 0 4px 15px rgba(22, 163, 74, 0.3);
 }
 
 .btn-primary:hover {
-  background-color: #187bcd;
+  background-color: #0d9488;
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(30, 144, 255, 0.4);
+  box-shadow: 0 6px 20px rgba(22, 163, 74, 0.4);
 }
 
 .btn-secondary {
-  background-color: var(--color-accent);
-  color: var(--color-white);
-  box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+  background-color: var(--color-secondary);
+  color: #333;
+  box-shadow: 0 4px 15px rgba(250, 204, 21, 0.3);
 }
 
 .btn-secondary:hover {
-  background-color: #43a047;
+  background-color: #eab308;
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+  box-shadow: 0 6px 20px rgba(250, 204, 21, 0.4);
 }
 
 .btn-outline {

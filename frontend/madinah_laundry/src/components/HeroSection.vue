@@ -349,7 +349,7 @@ import Button from './ui/Button.vue'
     border-radius: 15px;
     opacity: 0.8;
 }
-.c1 { background: #3b82f6; top: 20%; left: 30%; transform: rotate(45deg); }
+.c1 { background: #059669; top: 20%; left: 30%; transform: rotate(45deg); }
 .c2 { background: #ef4444; bottom: 20%; right: 30%; transform: rotate(-15deg); }
 .c3 { background: #facc15; top: 40%; right: 20%; transform: rotate(110deg); }
 
