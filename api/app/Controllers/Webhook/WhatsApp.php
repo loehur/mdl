@@ -19,6 +19,10 @@ class WhatsApp extends Controller
      */
     public function index()
     {
+        // LOG ACCESS
+        $logData = date('Y-m-d H:i:s') . " | IP: " . ($_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN') . " | Method: " . ($_SERVER['REQUEST_METHOD'] ?? 'UNKNOWN') . "\n";
+        @file_put_contents(__DIR__ . '/../../../logs/wa_webhook_access.log', $logData, FILE_APPEND);
+        
         $method = $_SERVER['REQUEST_METHOD'];
 
         if ($method === 'GET') {

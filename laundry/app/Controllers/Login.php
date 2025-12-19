@@ -397,7 +397,11 @@ class Login extends Controller
       
       // Check HTTP code dan response dari API server
       // API server mengembalikan 'status' bukan 'success'
-      if ($httpCode == 200 && isset($result['status']) && $result['status'] === true) {
+      // FIX: Check lebih robust (status OR message_id existence)
+      $status = $result['status'] ?? false;
+      $isSuccess = ($httpCode == 200) && ($status === true || $status === 'success' || isset($result['data']['message_id']));
+      
+      if ($isSuccess) {
          return [
             'status' => true,
             'data' => [
@@ -420,13 +424,19 @@ class Login extends Controller
          ];
       } else {
          // Error lainnya - Log detail lengkap
-         $errorMsg = $result['message'] ?? 'Failed to send WhatsApp message';
+         $resultArr = is_array($result) ? $result : [];
+         $errorMsg = $resultArr['message'] ?? 'Failed to send WhatsApp message';
+         
+         // LOG DEBUG RAW RESPONSE to file
+         $logMsg = date('Y-m-d H:i:s') . " [Login Failure] HTTP: $httpCode | Err: $errorMsg | RAW Response: " . substr($response, 0, 1000) . "\n";
+         @file_put_contents(__DIR__ . '/../../../api/logs/wa_debug_login.log', $logMsg, FILE_APPEND);
+         
          $this->model('Log')->write("[send_wa_ycloud] ERROR - Phone: {$phone}, HTTP Code: {$httpCode}, Error: {$errorMsg}, Full Response: " . json_encode($result));
          
          return [
             'status' => false,
             'error' => $errorMsg . " (HTTP {$httpCode})",
-            'data' => $result['data'] ?? [],
+            'data' => ($result['data'] ?? []),
             'csw_expired' => false,
             'http_code' => $httpCode,
             'full_response' => $result

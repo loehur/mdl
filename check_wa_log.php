@@ -11,7 +11,8 @@ $logDir = __DIR__ . '/api/logs/';
 $logFiles = [
     'Outbound Logs' => 'wa_outbound_errors.log', // Shows success saves too
     'API Failures' => 'wa_debug_api.log',        // Errors from WhatsApp.php
-    'Login Failures' => 'wa_debug_login.log'     // Errors from Login.php
+    'Login Failures' => 'wa_debug_login.log',    // Errors from Login.php
+    'Webhook Access' => 'wa_webhook_access.log'  // Incoming Webhook Hits
 ];
 
 $refreshInterval = 5; // seconds
@@ -22,13 +23,13 @@ $refreshInterval = 5; // seconds
     <title>WhatsApp Integration Dashboard</title>
     <style>
         body { font-family: 'Segoe UI', monospace; background: #1e1e1e; color: #d4d4d4; padding: 20px; margin:0; }
-        .container { max-width: 1400px; margin: 0 auto; }
+        .container { max-width: 1600px; margin: 0 auto; }
         h1 { color: #4ec9b0; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px; }
-        .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+        .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
         .card { background: #252526; border: 1px solid #3e3e42; border-radius: 5px; overflow: hidden; display: flex; flex-direction: column; height: 800px; }
-        .card-header { background: #333333; padding: 10px 15px; font-weight: bold; border-bottom: 1px solid #3e3e42; display: flex; justify-content: space-between; align-items: center; }
-        .card-body { padding: 0; overflow-y: auto; flex-grow: 1; font-size: 11px; }
-        .log-entry { padding: 4px 8px; border-bottom: 1px solid #2d2d2d; white-space: pre-wrap; word-break: break-all; }
+        .card-header { background: #333333; padding: 10px 15px; font-weight: bold; border-bottom: 1px solid #3e3e42; display: flex; justify-content: space-between; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .card-body { padding: 0; overflow-y: auto; flex-grow: 1; font-size: 10px; }
+        .log-entry { padding: 3px 6px; border-bottom: 1px solid #2d2d2d; white-space: pre-wrap; word-break: break-all; }
         .log-entry:hover { background: #2a2d2e; }
         .success { color: #4ec9b0; }
         .error { color: #f48771; font-weight: bold; }
@@ -70,12 +71,12 @@ $refreshInterval = 5; // seconds
             ?>
             <div class="card">
                 <div class="card-header">
-                    <span><?php echo $title; ?></span>
-                    <span class="badge"><?php echo $count; ?> lines</span>
+                    <span title="<?php echo $title; ?>"><?php echo $title; ?></span>
+                    <span class="badge"><?php echo $count; ?></span>
                 </div>
                 <div class="card-body">
                     <?php if (!$exists || empty($content)): ?>
-                        <div class="empty">Log file empty or not found<br><small><?php echo $filename; ?></small></div>
+                        <div class="empty">Log empty<br><small><?php echo $filename; ?></small></div>
                     <?php else: ?>
                         <?php foreach ($recent as $line): ?>
                             <?php 
@@ -87,7 +88,7 @@ $refreshInterval = 5; // seconds
                                 
                                 // Highlight timestamp
                                 $lineHtml = htmlspecialchars($line);
-                                $lineHtml = preg_replace('/^(\[.*?\])/', '<span class="timestamp">$1</span>', $lineHtml);
+                                $lineHtml = preg_replace('/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/', '<span class="timestamp">$1</span>', $lineHtml);
                             ?>
                             <div class="log-entry <?php echo $class; ?>"><?php echo $lineHtml; ?></div>
                         <?php endforeach; ?>
