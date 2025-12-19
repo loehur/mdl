@@ -157,9 +157,12 @@ class WhatsApp extends Controller
                 $templateLanguage,
                 $templateParams
             );
-            
-            if (!$result['success']) {
-                $this->error('Failed to send WhatsApp template', 500, $result);
+            // Check result
+            if (empty($result['id']) && empty($result['message_id'])) {
+                 // Extract clean error message if possible
+                 $yError = $result['error']['message'] ?? ($result['error'] ?? json_encode($result));
+                 // Return 502 (Bad Gateway) to indicate upstream error, not internal crash
+                 $this->error("YCloud Reject: $yError", 502, $result);
             }
             
             $this->success([
