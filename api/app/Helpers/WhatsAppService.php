@@ -218,20 +218,32 @@ class WhatsAppService
      */
     public function getLastCustomerInteraction($phone)
     {
-        $phone = $this->formatPhoneNumber($phone);
-        
-        if (class_exists('\App\Core\DB')) {
-            $db = new \App\Core\DB(0);
-            
-            // Limit 1 query
-            $query = $db->query("SELECT last_in_at FROM wa_conversations WHERE wa_number = '$phone' LIMIT 1");
-            
-            if ($query && $query->num_rows() > 0) {
-                return $query->row()->last_in_at;
+        try {
+            // Ensure formatPhoneNumber exists or handle it
+            if (method_exists($this, 'formatPhoneNumber')) {
+                $phone = $this->formatPhoneNumber($phone);
             }
+            
+            if (class_exists('\App\Core\DB')) {
+                $db = new \App\Core\DB(0);
+                
+                // Limit 1 query
+                $query = $db->query("SELECT last_in_at FROM wa_conversations WHERE wa_number = '$phone' LIMIT 1");
+                
+                if ($query && $db->num_rows() > 0) {
+                     return $db->row()->last_in_at;
+                } else if ($query && is_object($query) && property_exists($query, 'num_rows') && $query->num_rows > 0) {
+                     // Fallback for native mysqli result
+                     $row = $query->fetch_object();
+                     return $row->last_in_at;
+                }
+            }
+        } catch (\Throwable $e) {
+            // Silently fail to return null (CSW Expired will be triggered)
+            // error_log("getLastCustomerInteraction Error: " . $e->getMessage());
         }
         
-        return null; // Never interacted
+        return null; // Never interacted or error
     }
     
     
