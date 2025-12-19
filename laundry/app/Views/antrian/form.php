@@ -15,7 +15,6 @@
       <div class="col">
         <input id="searchInput" class="form-control border-top-0 border-bottom-1 border-end-0 border-start-0 p-1" type="text" placeholder="Pelanggan">
       </div>
-    <?php if ($_SESSION[URL::SESSID]['user']['book'] == date('Y')) { ?>
         <div class="col">
           <div class="d-flex align-items-start align-items-end pt-1">
             <div class="pl-0 pe-1">
@@ -41,7 +40,6 @@
             </div>
           </div>
         </div>
-    <?php } ?>
     </div>
 
     <div class="row ml-0 mt-1 mr-1 w-100">
