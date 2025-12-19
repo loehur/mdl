@@ -72,7 +72,21 @@ class WhatsApp extends Controller
         // Auto-lookup last_message_at if not provided
         $lastMessageAt = $body['last_message_at'] ?? null;
         if (empty($lastMessageAt)) {
-             $lastMessageAt = $this->whatsappService->getLastCustomerInteraction($phone);
+             // Logic manual lookup DB (Controller DB Access is safer)
+             // Normalisasi simple
+             $ph = preg_replace('/[^0-9]/', '', $phone);
+             if(substr($ph, 0, 2)=='08') $ph='628'.substr($ph, 2);
+             elseif(substr($ph, 0, 1)=='8') $ph='62'.$ph;
+             
+             $phone1 = $ph;       // 628...
+             $phone2 = '+' . $ph; // +628...
+             
+             $db = $this->db(0);
+             $q = $db->query("SELECT last_in_at FROM wa_conversations WHERE wa_number IN ('$phone1', '$phone2') ORDER BY last_in_at DESC LIMIT 1");
+             
+             if ($db->num_rows() > 0) {
+                 $lastMessageAt = $db->row()->last_in_at;
+             }
         }
         
         // Check CSW status
