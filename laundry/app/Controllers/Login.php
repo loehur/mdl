@@ -445,12 +445,17 @@ class Login extends Controller
             'phone_sent' => $phone  // Tambahkan nomor yang dikirim untuk debugging
          ];
       } else {
-         // Error lainnya
+         // Error lainnya - Log detail lengkap
+         $errorMsg = $result['message'] ?? 'Failed to send WhatsApp message';
+         $this->model('Log')->write("[send_wa_ycloud] ERROR - Phone: {$phone}, HTTP Code: {$httpCode}, Error: {$errorMsg}, Full Response: " . json_encode($result));
+         
          return [
             'status' => false,
-            'error' => $result['message'] ?? 'Failed to send WhatsApp message',
+            'error' => $errorMsg . " (HTTP {$httpCode})",
             'data' => $result['data'] ?? [],
-            'csw_expired' => false
+            'csw_expired' => false,
+            'http_code' => $httpCode,
+            'full_response' => $result
          ];
       }
    }
