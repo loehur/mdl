@@ -211,10 +211,10 @@ class Login extends Controller
             if (isset($cek_deliver['text'])) {
                $hp = $cek['no_user'];
                $text = $cek_deliver['text'];
-               $res = $this->helper('Notif')->send_wa($hp, $text);
+               $res = $this->send_wa_ycloud($hp, $text);
                if ($res['status']) {
                   $up = $this->db(0)->update('notif', [
-                     'id_api_2' => $res['data']['id']
+                     'id_api_2' => $res['data']['message_id']
                   ], "id_notif = " . $cek_deliver['id_notif']);
                   if ($up['errno'] == 0) {
                      $res_f = [
@@ -228,10 +228,18 @@ class Login extends Controller
                      ];
                   }
                } else {
-                  $res_f = [
-                     'code' => 0,
-                     'msg' => print_r($res)
-                  ];
+                  // Cek jika CSW expired
+                  if (isset($res['csw_expired']) && $res['csw_expired']) {
+                     $res_f = [
+                        'code' => 0,
+                        'msg' => "CSW Expired"
+                     ];
+                  } else {
+                     $res_f = [
+                        'code' => 0,
+                        'msg' => $res['error']
+                     ];
+                  }
                }
             } else {
                $res_f = [
@@ -245,7 +253,7 @@ class Login extends Controller
             $text = $otp . " (" . $cek['nama_user'] . ") - LAUNDRY";
             $hp = $cek['no_user'];
 
-            $res = $this->helper('Notif')->send_wa($hp, $text);
+            $res = $this->send_wa_ycloud($hp, $text);
 
             if ($res['status']) {
                $do = $this->helper('Notif')->insertOTP($res, $today, $hp_input, $text, $id_cabang);
@@ -273,10 +281,18 @@ class Login extends Controller
                   ];
                }
             } else {
-               $res_f = [
-                  'code' => 0,
-                  'msg' => $res['error']
-               ];
+               // Cek jika CSW expired
+               if (isset($res['csw_expired']) && $res['csw_expired']) {
+                  $res_f = [
+                     'code' => 0,
+                     'msg' => "CSW Expired"
+                  ];
+               } else {
+                  $res_f = [
+                     'code' => 0,
+                     'msg' => $res['error']
+                  ];
+               }
             }
          }
       } else {
@@ -287,6 +303,97 @@ class Login extends Controller
          ];
       }
       print_r(json_encode($res_f));
+   }
+
+   /**
+    * Kirim WhatsApp menggunakan YCloud API (message_mode free)
+    * @param string $phone Nomor telepon dengan format 628xxx
+    * @param string $message Pesan yang akan dikirim
+    * @return array Response dengan format ['status' => bool, 'data' => array, 'error' => string]
+    */
+   private function send_wa_ycloud($phone, $message)
+   {
+      // Format nomor telepon (pastikan format 628xxx)
+      $phone = preg_replace('/^0/', '62', $phone);
+      $phone = preg_replace('/[^0-9]/', '', $phone);
+      
+      // Ambil last_message_at dari database notif
+      $where = "phone = '" . $phone . "' AND state IN ('delivered','read') ORDER BY insertTime DESC LIMIT 1";
+      $lastNotif = $this->db(date('Y'))->get_where_row('notif', $where);
+      $lastMessageAt = isset($lastNotif['insertTime']) ? $lastNotif['insertTime'] : date('Y-m-d H:i:s');
+      
+      // Prepare data untuk API
+      $apiData = [
+         'phone' => $phone,
+         'message' => $message,
+         'message_mode' => 'free',
+         'last_message_at' => $lastMessageAt
+      ];
+      
+      // URL API endpoint
+      $apiUrl = 'https://api.nalju.com/WhatsApp/send';
+      
+      // Inisialisasi cURL
+      $ch = curl_init($apiUrl);
+      curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+      curl_setopt($ch, CURLOPT_POST, true);
+      curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($apiData));
+      curl_setopt($ch, CURLOPT_HTTPHEADER, [
+         'Content-Type: application/json'
+      ]);
+      curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+      
+      // Execute request
+      $response = curl_exec($ch);
+      $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+      $curlError = curl_error($ch);
+      curl_close($ch);
+      
+      // Log request dan response
+      $this->model('Log')->write("[send_wa_ycloud] Phone: {$phone}, Request: " . json_encode($apiData) . ", Response: {$response}, HTTP Code: {$httpCode}");
+      
+      // Handle error cURL
+      if ($curlError) {
+         return [
+            'status' => false,
+            'error' => 'cURL Error: ' . $curlError,
+            'data' => [],
+            'csw_expired' => false
+         ];
+      }
+      
+      // Parse response
+      $result = json_decode($response, true);
+      
+      // Check HTTP code dan response
+      if ($httpCode == 200 && isset($result['success']) && $result['success']) {
+         return [
+            'status' => true,
+            'data' => [
+               'id' => $result['data']['message_id'] ?? '',
+               'message_id' => $result['data']['message_id'] ?? '',
+               'status' => $result['data']['status'] ?? 'sent'
+            ],
+            'error' => '',
+            'csw_expired' => false
+         ];
+      } else if ($httpCode == 400 && isset($result['data']['csw_expired']) && $result['data']['csw_expired']) {
+         // CSW Expired
+         return [
+            'status' => false,
+            'error' => $result['message'] ?? 'CSW Expired',
+            'data' => $result['data'] ?? [],
+            'csw_expired' => true
+         ];
+      } else {
+         // Error lainnya
+         return [
+            'status' => false,
+            'error' => $result['message'] ?? 'Failed to send WhatsApp message',
+            'data' => $result['data'] ?? [],
+            'csw_expired' => false
+         ];
+      }
    }
 
    public function logout()

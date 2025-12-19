@@ -106,16 +106,47 @@ class Controller
      */
     protected function setCorsHeaders()
     {
+        $allowedOrigin = null;
+        
         if (isset($_SERVER['HTTP_ORIGIN'])) {
-            header("Access-Control-Allow-Origin: {$_SERVER['HTTP_ORIGIN']}");
-            header('Access-Control-Allow-Credentials: true');
-            header('Access-Control-Max-Age: 86400');
-        } else {
-            header("Access-Control-Allow-Origin: *");
+            $origin = $_SERVER['HTTP_ORIGIN'];
+            
+            // Validasi apakah origin adalah nalju.com atau subdomain *.nalju.com
+            if ($this->isAllowedOrigin($origin)) {
+                $allowedOrigin = $origin;
+            }
         }
         
-        header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-        header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Accept');
+        // Hanya set CORS header jika origin valid
+        if ($allowedOrigin) {
+            header("Access-Control-Allow-Origin: {$allowedOrigin}");
+            header('Access-Control-Allow-Credentials: true');
+            header('Access-Control-Max-Age: 86400');
+            header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+            header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Accept');
+        }
+    }
+    
+    /**
+     * Check if origin is allowed (nalju.com or *.nalju.com)
+     */
+    private function isAllowedOrigin($origin)
+    {
+        // Parse URL untuk mendapatkan host
+        $parsedUrl = parse_url($origin);
+        
+        if (!isset($parsedUrl['host'])) {
+            return false;
+        }
+        
+        $host = strtolower($parsedUrl['host']);
+        
+        // Izinkan nalju.com dan semua subdomain *.nalju.com
+        if ($host === 'nalju.com' || str_ends_with($host, '.nalju.com')) {
+            return true;
+        }
+        
+        return false;
     }
 
     /**
