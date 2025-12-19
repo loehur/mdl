@@ -252,22 +252,31 @@ class WhatsAppService
      */
     private function formatPhoneNumber($phone)
     {
-        // Remove spaces, dashes, parentheses
+        // Clean: keep only digits and plus
         $phone = preg_replace('/[^0-9+]/', '', $phone);
         
-        // If starts with 0, replace with +62
+        // Case: Starts with 0 (e.g. 0812...) -> +62812...
         if (substr($phone, 0, 1) === '0') {
-            $phone = '+62' . substr($phone, 1);
+            return '+62' . substr($phone, 1);
         }
         
-        // If doesn't start with +, add +62
-        if (substr($phone, 0, 1) !== '+') {
-            $phone = '+62' . $phone;
+        // Case: Starts with 62 (e.g. 62812...) -> +62812...
+        if (substr($phone, 0, 2) === '62') {
+            return '+' . $phone;
         }
         
-        // Return E.164 format WITHOUT whatsapp: prefix
-        // The prefix is only for 'from' field, not 'to'
-        return $phone;
+        // Case: Starts with 8 (e.g. 812...) -> +62812...
+        if (substr($phone, 0, 1) === '8') {
+            return '+62' . $phone;
+        }
+        
+        // Case: Already has + (e.g. +62812...)
+        if (substr($phone, 0, 1) === '+') {
+            return $phone;
+        }
+        
+        // Default to adding + if missing
+        return '+' . $phone;
     }
     
     /**
