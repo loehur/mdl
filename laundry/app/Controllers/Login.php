@@ -431,7 +431,8 @@ class Login extends Controller
       $result = json_decode($response, true);
       
       // Check HTTP code dan response dari API server
-      if ($httpCode == 200 && isset($result['success']) && $result['success']) {
+      // API server mengembalikan 'status' bukan 'success'
+      if ($httpCode == 200 && isset($result['status']) && $result['status'] === true) {
          return [
             'status' => true,
             'data' => [
