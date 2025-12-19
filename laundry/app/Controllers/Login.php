@@ -393,6 +393,7 @@ class Login extends Controller
       }
       
       // Parse response
+      $response = trim($response);
       $result = json_decode($response, true);
       
       // Check HTTP code dan response dari API server
@@ -427,7 +428,9 @@ class Login extends Controller
          $resultArr = is_array($result) ? $result : [];
          $errorMsg = $resultArr['message'] ?? 'Failed to send WhatsApp message';
          
-         $this->model('Log')->write("[send_wa_ycloud] ERROR - Phone: {$phone}, HTTP Code: {$httpCode}, Error: {$errorMsg}, Full Response: " . json_encode($result));
+         // Use raw response limited to 500 chars to avoid log overflow
+         $rawRes = substr($response, 0, 500);
+         $this->model('Log')->write("[send_wa_ycloud] ERROR - Phone: {$phone}, HTTP Code: {$httpCode}, Error: {$errorMsg}, RAW Response: " . $rawRes);
          
          return [
             'status' => false,
