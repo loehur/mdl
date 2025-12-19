@@ -268,7 +268,7 @@ class Login extends Controller
                $res = $this->send_wa_ycloud($hp, $text);
 
                if ($res['status']) {
-                  $do = $this->helper('Notif')->insertOTP($res, $today, $hp_input, $text, $id_cabang);
+                  $do = $this->helper('Notif')->insertOTP($res, $today, $hp_input, $otp, $id_cabang);
 
                   if ($do['errno'] == 0) {
                      $up = $this->db(0)->update('user', [
