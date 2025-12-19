@@ -344,29 +344,31 @@ class Login extends Controller
    private function send_wa_ycloud($phone, $message)
    {
       // Normalisasi nomor telepon - support berbagai format:
-      // 08xxx, 628xxx, +628xxx -> menjadi 628xxx
+      // 08xxx, 628xxx, +628xxx -> menjadi +628xxx
       $original_phone = $phone;
       
       // Hapus semua karakter non-digit terlebih dahulu
       $phone = preg_replace('/[^0-9]/', '', $phone);
       
-      // Konversi ke format 628xxx
+      // Konversi ke format +628xxx
       if (substr($phone, 0, 1) === '0') {
-         // 08xxx -> 628xxx
-         $phone = '62' . substr($phone, 1);
+         // 08xxx -> +628xxx
+         $phone = '+62' . substr($phone, 1);
       } elseif (substr($phone, 0, 2) === '62') {
-         // Sudah format 62xxx, tidak perlu diubah
-         $phone = $phone;
+         // 628xxx -> +628xxx
+         $phone = '+' . $phone;
       } else {
-         // Format lain, tambahkan 62 di depan
-         $phone = '62' . $phone;
+         // Format lain, tambahkan +62 di depan
+         $phone = '+62' . $phone;
       }
       
       // Log untuk debugging
       $this->model('Log')->write("[send_wa_ycloud] Original: {$original_phone}, Normalized: {$phone}");
       
       // Ambil last_message_at dari database notif
-      $where = "phone = '" . $phone . "' AND state IN ('delivered','read') ORDER BY insertTime DESC LIMIT 1";
+      // Cari dengan format +628xxx dan juga 628xxx untuk backward compatibility
+      $phone_without_plus = str_replace('+', '', $phone);
+      $where = "(phone = '" . $phone . "' OR phone = '" . $phone_without_plus . "') AND state IN ('delivered','read') ORDER BY insertTime DESC LIMIT 1";
       $lastNotif = $this->db(0)->get_where_row('notif', $where);
       $lastMessageAt = isset($lastNotif['insertTime']) ? $lastNotif['insertTime'] : date('Y-m-d H:i:s');
       
