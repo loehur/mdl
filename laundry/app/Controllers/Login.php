@@ -319,7 +319,7 @@ class Login extends Controller
       
       // Ambil last_message_at dari database notif
       $where = "phone = '" . $phone . "' AND state IN ('delivered','read') ORDER BY insertTime DESC LIMIT 1";
-      $lastNotif = $this->db(date('Y'))->get_where_row('notif', $where);
+      $lastNotif = $this->db(0)->get_where_row('notif', $where);
       $lastMessageAt = isset($lastNotif['insertTime']) ? $lastNotif['insertTime'] : date('Y-m-d H:i:s');
       
       // Prepare data untuk API

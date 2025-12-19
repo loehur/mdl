@@ -51,7 +51,7 @@ class Notif extends Controller
             'id_api' => $res['data']['id'],
             'proses' => $status
         ];
-        $do = $this->db(date('Y'))->insert('notif', $data);
+        $do = $this->db(0)->insert('notif', $data);
         return $do;
     }
 
@@ -59,7 +59,7 @@ class Notif extends Controller
     {
         $where = "phone = '" . $hp . "' AND no_ref = '" . $date . "' AND state NOT IN ('delivered','read') AND id_api_2 = ''";
 
-        $cek = $this->db(date('Y'))->get_where_row('notif', $where);
+        $cek = $this->db(0)->get_where_row('notif', $where);
         if (isset($cek['text'])) {
             return $cek;
         }
