@@ -87,8 +87,14 @@ class WhatsApp extends Controller
                 'raw_data'    => $json
             ];
             
-            $db->insert('wh_whatsapp', $insertData);
-            \Log::write("Saved Message (Type 1) from " . ($msg['from'] ?? 'unknown'), 'webhook', 'WhatsApp');
+            $inserted = $db->insert('wh_whatsapp', $insertData);
+            if ($inserted) {
+                \Log::write("SUCCESS: Saved Message (Type 1) from " . ($msg['from'] ?? 'unknown') . " (ID: $inserted)", 'webhook', 'WhatsApp');
+            } else {
+                $error = $db->conn()->error;
+                \Log::write("DATABASE ERROR (Type 1): " . $error, 'webhook', 'WhatsApp');
+                \Log::write("SQL Attempted: " . json_encode($insertData), 'webhook', 'WhatsApp');
+            }
         } 
         // 2. Handle standard Meta structure (messages)
         elseif (isset($data['entry'][0]['changes'][0]['value']['messages'])) {
@@ -107,8 +113,13 @@ class WhatsApp extends Controller
                     'raw_data'    => $json
                 ];
                 
-                $db->insert('wh_whatsapp', $insertData);
-                \Log::write("Saved Message (Type 2) from " . ($msg['from'] ?? 'unknown'), 'webhook', 'WhatsApp');
+                $inserted = $db->insert('wh_whatsapp', $insertData);
+                if ($inserted) {
+                    \Log::write("SUCCESS: Saved Message (Type 2) from " . ($msg['from'] ?? 'unknown') . " (ID: $inserted)", 'webhook', 'WhatsApp');
+                } else {
+                    $error = $db->conn()->error;
+                    \Log::write("DATABASE ERROR (Type 2): " . $error, 'webhook', 'WhatsApp');
+                }
             }
         }
 
@@ -125,8 +136,13 @@ class WhatsApp extends Controller
                 'raw_data'    => $json
             ];
             
-            $db->insert('wh_whatsapp', $insertData);
-            \Log::write("Saved Status (Type 1): " . ($status['status'] ?? 'unknown'), 'webhook', 'WhatsApp');
+            $inserted = $db->insert('wh_whatsapp', $insertData);
+            if ($inserted) {
+                \Log::write("SUCCESS: Saved Status (Type 1): " . ($status['status'] ?? 'unknown'), 'webhook', 'WhatsApp');
+            } else {
+                $error = $db->conn()->error;
+                \Log::write("DATABASE ERROR (Status Type 1): " . $error, 'webhook', 'WhatsApp');
+            }
         }
         // 4. Handle standard Meta structure (statuses)
         elseif (isset($data['entry'][0]['changes'][0]['value']['statuses'])) {
@@ -144,8 +160,13 @@ class WhatsApp extends Controller
                     'raw_data'    => $json
                 ];
                 
-                $db->insert('wh_whatsapp', $insertData);
-                \Log::write("Saved Status (Type 2): $wa_id -> $st", 'webhook', 'WhatsApp');
+                $inserted = $db->insert('wh_whatsapp', $insertData);
+                if ($inserted) {
+                    \Log::write("SUCCESS: Saved Status (Type 2): $wa_id -> $st", 'webhook', 'WhatsApp');
+                } else {
+                    $error = $db->conn()->error;
+                    \Log::write("DATABASE ERROR (Status Type 2): " . $error, 'webhook', 'WhatsApp');
+                }
             }
         }
 
