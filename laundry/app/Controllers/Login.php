@@ -306,141 +306,36 @@ class Login extends Controller
    }
 
    /**
-    * Kirim WhatsApp menggunakan YCloud API (message_mode free)
-    * @param string $phone Nomor telepon dengan format 628xxx
-    * @param string $message Pesan yang akan dikirim
-    * @return array Response dengan format ['status' => bool, 'data' => array, 'error' => string]
+    * Kirim WhatsApp menggunakan Model WA_YCloud (Centralized via API Server)
+    * @param string $phone Nomor telepon
+    * @param string $message Pesan
     */
    private function send_wa_ycloud($phone, $message)
    {
-      // Normalisasi nomor telepon - support berbagai format:
-      // 08xxx, 628xxx, +628xxx -> menjadi +628xxx
-      $original_phone = $phone;
+      // Gunakan Model yang sudah kita buat untuk sentralisasi
+      $res = $this->model('WA_YCloud')->send($phone, $message);
       
-      // Hapus semua karakter non-digit terlebih dahulu
-      $phone = preg_replace('/[^0-9]/', '', $phone);
-      
-      // Konversi ke format +628xxx
-      if (substr($phone, 0, 1) === '0') {
-         // 08xxx -> +628xxx
-         $phone = '+62' . substr($phone, 1);
-      } elseif (substr($phone, 0, 2) === '62') {
-         // 628xxx -> +628xxx
-         $phone = '+' . $phone;
-      } else {
-         // Format lain, tambahkan +62 di depan
-         $phone = '+62' . $phone;
-      }
-      
-      // Log untuk debugging
-      $this->model('Log')->write("[send_wa_ycloud] Original: {$original_phone}, Normalized: {$phone}");
-      
-      // Ambil last_message_at dari tabel wa_customers (bukan notif)
-      // Tabel wa_customers ada di database 100, bukan database 0
-      $phone_without_plus = str_replace('+', '', $phone);
-      $where = "wa_number = '" . $phone . "' OR wa_number = '" . $phone_without_plus . "'";
-      $customer = $this->db(100)->get_where_row('wa_customers', $where);
-      
-      if ($customer && isset($customer['last_message_at'])) {
-         $lastMessageAt = $customer['last_message_at'];
-         $this->model('Log')->write("[send_wa_ycloud] Found customer data - Last message: {$lastMessageAt}");
-      } else {
-         $lastMessageAt = date('Y-m-d H:i:s');
-         $this->model('Log')->write("[send_wa_ycloud] No customer data found, using current time: {$lastMessageAt}");
-      }
-      
-      // Prepare data untuk API
-      // API server akan menggunakan nomor WA Business dari config-nya sendiri
-      $apiData = [
-         'phone' => $phone,
-         'message' => $message,
-         'message_mode' => 'free',
-         'last_message_at' => $lastMessageAt
+      $result = [
+         'status' => $res['status'],
+         'data' => $res['data'] ?? [],
+         'error' => $res['error'],
+         'csw_expired' => false,
+         'http_code' => $res['code'] ?? 0
       ];
       
-      // URL API endpoint - API server lokal yang handle YCloud
-      $apiUrl = 'https://api.nalju.com/WhatsApp/send';
-      
-      //  Inisialisasi cURL
-      $ch = curl_init($apiUrl);
-      curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-      curl_setopt($ch, CURLOPT_POST, true);
-      curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($apiData));
-      curl_setopt($ch, CURLOPT_HTTPHEADER, [
-         'Content-Type: application/json'
-      ]);
-      curl_setopt($ch, CURLOPT_TIMEOUT, 20);  // Total timeout (increased)
-      curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);  // DNS + Connect timeout (increased)
-      curl_setopt($ch, CURLOPT_DNS_CACHE_TIMEOUT, 120);  // Cache DNS for 2 minutes
-      
-      // Execute request
-      $response = curl_exec($ch);
-      $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-      $curlError = curl_error($ch);
-      curl_close($ch);
-      
-      // Log request dan response
-      $this->model('Log')->write("[send_wa_ycloud] Phone: {$phone}, Request: " . json_encode($apiData) . ", Response: {$response}, HTTP Code: {$httpCode}");
-      
-      // Handle error cURL
-      if ($curlError) {
-         return [
-            'status' => false,
-            'error' => 'cURL Error: ' . $curlError,
-            'data' => [],
-            'csw_expired' => false
-         ];
+      // Deteksi CSW Expired dari error message atau code 400
+      if (!$res['status']) {
+         $errorMsg = $res['error'];
+         if (($res['code'] ?? 0) == 400 || stripos($errorMsg, 'CSW') !== false || stripos($errorMsg, 'expired') !== false) {
+            $result['csw_expired'] = true;
+            $result['phone_sent'] = $phone;
+         }
+         
+         // Log failure details
+         $this->model('Log')->write("[Login::send_wa_ycloud] Failed via WA_YCloud - Phone: $phone, Error: $errorMsg");
       }
       
-      // Parse response
-      $response = trim($response);
-      $result = json_decode($response, true);
-      
-      // Check HTTP code dan response dari API server
-      // API server mengembalikan 'status' bukan 'success'
-      // FIX: Check lebih robust (status OR message_id existence)
-      $status = $result['status'] ?? false;
-      $isSuccess = ($httpCode == 200) && ($status === true || $status === 'success' || isset($result['data']['message_id']));
-      
-      if ($isSuccess) {
-         return [
-            'status' => true,
-            'data' => [
-               'id' => $result['data']['message_id'] ?? '',
-               'message_id' => $result['data']['message_id'] ?? '',
-               'status' => $result['data']['status'] ?? 'sent'
-            ],
-            'error' => '',
-            'csw_expired' => false
-         ];
-      } else if ($httpCode == 400 && isset($result['data']['csw_expired']) && $result['data']['csw_expired']) {
-         // CSW Expired
-         $this->model('Log')->write("[send_wa_ycloud] CSW EXPIRED - Phone: {$phone}, Message: {$message}, Response: " . json_encode($result));
-         return [
-            'status' => false,
-            'error' => 'CSW Expired untuk nomor ' . $phone,
-            'data' => $result['data'] ?? [],
-            'csw_expired' => true,
-            'phone_sent' => $phone
-         ];
-      } else {
-         // Error lainnya - Log detail lengkap
-         $resultArr = is_array($result) ? $result : [];
-         $errorMsg = $resultArr['message'] ?? 'Failed to send WhatsApp message';
-         
-         // Use raw response limited to 500 chars to avoid log overflow
-         $rawRes = substr($response, 0, 500);
-         $this->model('Log')->write("[send_wa_ycloud] ERROR - Phone: {$phone}, HTTP Code: {$httpCode}, Error: {$errorMsg}, RAW Response: " . $rawRes);
-         
-         return [
-            'status' => false,
-            'error' => $errorMsg . " (HTTP {$httpCode})",
-            'data' => ($result['data'] ?? []),
-            'csw_expired' => false,
-            'http_code' => $httpCode,
-            'full_response' => $result
-         ];
-      }
+      return $result;
    }
 
    public function logout()
