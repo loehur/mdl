@@ -369,8 +369,9 @@ class Login extends Controller
       curl_setopt($ch, CURLOPT_HTTPHEADER, [
          'Content-Type: application/json'
       ]);
-      curl_setopt($ch, CURLOPT_TIMEOUT, 15);  // Reduce dari 30 ke 15 detik
-      curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);  // Timeout untuk connect
+      curl_setopt($ch, CURLOPT_TIMEOUT, 20);  // Total timeout (increased)
+      curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);  // DNS + Connect timeout (increased)
+      curl_setopt($ch, CURLOPT_DNS_CACHE_TIMEOUT, 120);  // Cache DNS for 2 minutes
       
       // Execute request
       $response = curl_exec($ch);
