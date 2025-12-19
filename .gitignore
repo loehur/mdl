@@ -5,3 +5,4 @@ logs/
 Env.php
 .env
 auth
+laundry/app/Config/DBC.php
