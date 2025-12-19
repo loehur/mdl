@@ -366,10 +366,10 @@ class Login extends Controller
       $this->model('Log')->write("[send_wa_ycloud] Original: {$original_phone}, Normalized: {$phone}");
       
       // Ambil last_message_at dari tabel wa_customers (bukan notif)
-      // Tabel wa_customers menyimpan informasi customer dan waktu pesan terakhir
+      // Tabel wa_customers ada di database 100, bukan database 0
       $phone_without_plus = str_replace('+', '', $phone);
       $where = "wa_number = '" . $phone . "' OR wa_number = '" . $phone_without_plus . "'";
-      $customer = $this->db(0)->get_where_row('wa_customers', $where);
+      $customer = $this->db(100)->get_where_row('wa_customers', $where);
       
       if ($customer && isset($customer['last_message_at'])) {
          $lastMessageAt = $customer['last_message_at'];
