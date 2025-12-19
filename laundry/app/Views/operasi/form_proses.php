@@ -34,8 +34,6 @@ if ($data['id_pelanggan'] > 0) {
         <a class="hrfsd" href="<?= URL::BASE_URL ?>SaldoTunai/tambah/<?= $id_pelanggan ?>"><span class="btn btn-outline-secondary form-control form-control-sm" style="height: 34px;">SD</span></a>
       </div>
     </div>
-
-    <?php if ($_SESSION[URL::SESSID]['user']['book'] == date('Y')) { ?>
       <div class="row mt-1 mr-1 w-100">
         <form id="main">
           <div class="d-flex align-items-start align-items-end pb-1">
@@ -57,7 +55,6 @@ if ($data['id_pelanggan'] > 0) {
           </div>
         </form>
       </div>
-    <?php } ?>
   </div>
 </div>
 
