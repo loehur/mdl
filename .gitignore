@@ -5,5 +5,5 @@ logs/
 Env.php
 .env
 auth
-laundry/app/Config/
+laundry/app/Config/*
 api/scripts/
