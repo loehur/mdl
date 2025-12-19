@@ -362,17 +362,27 @@ class WhatsApp extends Controller
         $updated = false;
         if ($wamid) {
             $updated = $db->update('wa_messages_out', $updateData, ['wamid' => $wamid]);
+            if ($updated) {
+                @file_put_contents(__DIR__ . '/../../../logs/wa_webhook_debug.log', date('Y-m-d H:i:s') . " MATCH: Found by WAMID $wamid\n", FILE_APPEND);
+            }
         }
         
         // If not found by wamid, try by message_id (initial send doesn't have wamid yet)
         if (!$updated && $messageId) {
+            @file_put_contents(__DIR__ . '/../../../logs/wa_webhook_debug.log', date('Y-m-d H:i:s') . " SEARCH: Trying by message_id = '$messageId'\n", FILE_APPEND);
+            
             $updated = $db->update('wa_messages_out', $updateData, ['message_id' => $messageId]);
+            
+            $res = $updated ? "SUCCESS" : "FAILED_OR_NO_CHANGE";
+            @file_put_contents(__DIR__ . '/../../../logs/wa_webhook_debug.log', date('Y-m-d H:i:s') . " UPDATE_RESULT: $res\n", FILE_APPEND);
         }
 
         if ($updated) {
             \Log::write("✓ Outbound message updated: {$messageId} -> $status", 'webhook', 'WhatsApp');
         } else {
             \Log::write("⚠ Outbound message not found: wamid=$wamid, id=$messageId", 'webhook', 'WhatsApp');
+            // Log failed search to file too
+            @file_put_contents(__DIR__ . '/../../../logs/wa_webhook_debug.log', date('Y-m-d H:i:s') . " FINAL_FAIL: Not found in DB\n", FILE_APPEND);
         }
     }
 
