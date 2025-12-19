@@ -218,31 +218,14 @@ class Login extends Controller
          if (isset($cek['otp_active'])) {
             $id_cabang = $cek['id_cabang'];
             if ($cek['otp_active'] == $today) {
-               $cek_deliver = $this->helper('Notif')->cek_deliver($hp_input, $today, $id_cabang);
-               if (!isset($cek_deliver['text'])) {
-                  $hp = $cek['no_user'];
-                  $text = $cek_deliver['text'];
-                  $res = $this->send_wa_ycloud($hp, $text);
-                  if ($res['status']) {
-                     $res_f = [
-                        'code' => 1,
-                        'msg' => "PERMINTAAN ULANG PIN BERHASIL, AKTIF 1 HARI"
-                     ];
-                  } else{
-                     $res_f = [
-                        'code' => 0,
-                        'msg' => $res['error']
-                     ];
-                  }
-               } else {
-                  $res_f = [
-                     'code' => 1,
-                     'msg' => "GUNAKAN PIN HARI INI"
-                  ];
-               }
+               $res_f = [
+                  'code' => 1,
+                  'msg' => "GUNAKAN PIN HARI INI"
+               ];
             } else {
                $otp = rand(0, 9) . rand(0, 9) . rand(0, 9) . rand(0, 9);
                $otp_enc = $this->model("Enc")->otp($otp);
+
                $text = $otp . " (" . $cek['nama_user'] . ") - LAUNDRY";
                $hp = $cek['no_user'];
 
