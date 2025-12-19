@@ -101,6 +101,10 @@ class WhatsApp extends Controller
             $result = $this->whatsappService->sendFreeText($phone, $body['message']);
             
             if (!$result['success']) {
+                // Log failure details
+                $logMsg = date('Y-m-d H:i:s') . " [API Failure] Phone: $phone | Result: " . json_encode($result) . "\n";
+                @file_put_contents(__DIR__ . '/../../logs/wa_debug_api.log', $logMsg, FILE_APPEND);
+                
                 $this->error('Failed to send WhatsApp message', 500, $result);
             }
             

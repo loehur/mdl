@@ -1,72 +1,109 @@
 <?php
 /**
- * Public Log Viewer
+ * Public Log Viewer Dashboard
  * Access: https://nalju.com/check_wa_log.php
  */
 
-$logFile = __DIR__ . '/api/logs/wa_outbound_errors.log';
+date_default_timezone_set('Asia/Jakarta');
+$logDir = __DIR__ . '/api/logs/';
 
-header('Content-Type: text/html; charset=utf-8');
+// Map readable names to filenames
+$logFiles = [
+    'Outbound Logs' => 'wa_outbound_errors.log', // Shows success saves too
+    'API Failures' => 'wa_debug_api.log',        // Errors from WhatsApp.php
+    'Login Failures' => 'wa_debug_login.log'     // Errors from Login.php
+];
+
+$refreshInterval = 5; // seconds
 ?>
 <!DOCTYPE html>
 <html>
 <head>
-    <title>WA Outbound Log</title>
+    <title>WhatsApp Integration Dashboard</title>
     <style>
-        body { font-family: monospace; background: #1e1e1e; color: #d4d4d4; padding: 20px; }
+        body { font-family: 'Segoe UI', monospace; background: #1e1e1e; color: #d4d4d4; padding: 20px; margin:0; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        h1 { color: #4ec9b0; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+        .card { background: #252526; border: 1px solid #3e3e42; border-radius: 5px; overflow: hidden; display: flex; flex-direction: column; height: 800px; }
+        .card-header { background: #333333; padding: 10px 15px; font-weight: bold; border-bottom: 1px solid #3e3e42; display: flex; justify-content: space-between; align-items: center; }
+        .card-body { padding: 0; overflow-y: auto; flex-grow: 1; font-size: 11px; }
+        .log-entry { padding: 4px 8px; border-bottom: 1px solid #2d2d2d; white-space: pre-wrap; word-break: break-all; }
+        .log-entry:hover { background: #2a2d2e; }
         .success { color: #4ec9b0; }
         .error { color: #f48771; font-weight: bold; }
         .info { color: #569cd6; }
-        pre { background: #252526; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        .timestamp { color: #808080; margin-right: 5px; }
+        .actions { margin-bottom: 20px; }
+        .button { background: #0e639c; color: white; border: none; padding: 8px 16px; border-radius: 3px; cursor: pointer; text-decoration: none; display: inline-block; font-family: sans-serif; }
+        .button:hover { background: #1177bb; }
+        .badge { background: #444; padding: 2px 6px; border-radius: 10px; font-size: 10px; }
+        .empty { padding: 20px; text-align: center; color: #666; font-style: italic; }
     </style>
+    <script>
+        // Auto-scroll to bottom on load
+        window.onload = function() {
+            document.querySelectorAll('.card-body').forEach(el => el.scrollTop = el.scrollHeight);
+        }
+    </script>
 </head>
 <body>
-    <h1>📝 WhatsApp Outbound Log</h1>
-    <p>File: <?php echo $logFile; ?></p>
-    <hr>
-    
-<?php
-if (file_exists($logFile)) {
-    $content = file_get_contents($logFile);
-    $lines = explode("\n", $content);
-    
-    // Show last 100 lines
-    $recentLines = array_slice($lines, -100);
-    
-    echo "<pre>";
-    foreach ($recentLines as $line) {
-        if (empty(trim($line))) continue;
-        
-        $class = '';
-        if (stripos($line, 'ERROR') !== false || stripos($line, 'EXCEPTION') !== false) {
-            $class = 'error';
-        } elseif (stripos($line, 'SUCCESS') !== false || stripos($line, '✓') !== false) {
-            $class = 'success';
-        } elseif (stripos($line, '===') !== false) {
-            $class = 'info';
-        }
-        
-        echo '<span class="' . $class . '">' . htmlspecialchars($line) . '</span>' . "\n";
-    }
-    echo "</pre>";
-    
-    echo "<hr>";
-    echo "<p>Total lines: " . count($lines) . "</p>";
-    echo "<p>File size: " . number_format(filesize($logFile)) . " bytes</p>";
-    echo "<p>Last modified: " . date('Y-m-d H:i:s', filemtime($logFile)) . "</p>";
-    
-} else {
-    echo "<pre class='error'>Log file not found: $logFile</pre>";
-    echo "<p>Make sure api/logs/ directory exists and is writable.</p>";
-}
-?>
+    <div class="container">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h1>📝 WhatsApp Logs Dashboard</h1>
+            <div class="actions">
+                <a href="?refresh=1" class="button">🔄 Refresh Data</a>
+                <span style="color:#666; font-size:12px; margin-left:10px;">Auto-refresh: <?php echo $refreshInterval; ?>s</span>
+            </div>
+        </div>
 
-    <hr>
-    <p><a href="?refresh=1">🔄 Refresh</a></p>
-    <p style="color: #808080;">Auto-refresh every 5 seconds...</p>
-    
+        <div class="grid">
+            <?php foreach ($logFiles as $title => $filename): ?>
+            <?php 
+                $path = $logDir . $filename;
+                $exists = file_exists($path);
+                $content = $exists ? file_get_contents($path) : '';
+                $lines = $content ? explode("\n", trim($content)) : [];
+                $count = count($lines);
+                // Get last 50 lines
+                $recent = array_slice($lines, -50);
+            ?>
+            <div class="card">
+                <div class="card-header">
+                    <span><?php echo $title; ?></span>
+                    <span class="badge"><?php echo $count; ?> lines</span>
+                </div>
+                <div class="card-body">
+                    <?php if (!$exists || empty($content)): ?>
+                        <div class="empty">Log file empty or not found<br><small><?php echo $filename; ?></small></div>
+                    <?php else: ?>
+                        <?php foreach ($recent as $line): ?>
+                            <?php 
+                                if (empty(trim($line))) continue;
+                                $class = '';
+                                if (stripos($line, 'ERROR') !== false || stripos($line, 'FAIL') !== false || stripos($line, 'EXCEPTION') !== false) $class = 'error';
+                                elseif (stripos($line, 'SUCCESS') !== false || stripos($line, '✓') !== false) $class = 'success';
+                                elseif (stripos($line, '===') !== false) $class = 'info';
+                                
+                                // Highlight timestamp
+                                $lineHtml = htmlspecialchars($line);
+                                $lineHtml = preg_replace('/^(\[.*?\])/', '<span class="timestamp">$1</span>', $lineHtml);
+                            ?>
+                            <div class="log-entry <?php echo $class; ?>"><?php echo $lineHtml; ?></div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+        
+        <div style="margin-top: 20px; color: #666; text-align: center; font-size: 12px;">
+            Server Time: <?php echo date('Y-m-d H:i:s P'); ?> | Log Dir: <?php echo htmlspecialchars($logDir); ?>
+        </div>
+    </div>
+
     <script>
-        setTimeout(() => window.location.reload(), 5000);
+        setTimeout(() => window.location.reload(), <?php echo $refreshInterval * 1000; ?>);
     </script>
 </body>
 </html>
