@@ -47,22 +47,33 @@ class WA_YCloud extends DB
         $msg = 'Failed';
         $decoded = json_decode($response, true);
         
-        if ($httpCode == 200) {
-            // Cek sukses standard framework kita
-            if (isset($decoded['status']) && $decoded['status'] === true) {
-                $status = true;
-                $msg = 'Success';
-            } else {
-                $msg = $decoded['message'] ?? ($decoded['error'] ?? 'API Error');
-            }
-        } else {
-            // Handle HTTP Error (misal 400 Bad Request karena CSW Expired)
-            $apiError = $decoded['message'] ?? ($decoded['error'] ?? '');
-            $msg = "HTTP $httpCode: " . ($apiError ? $apiError : ($error ? $error : 'Request Failed'));
+        // Cek apakah JSON valid
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            // JSON Error (kemungkinan ada output PHP Warning/Notice atau HTML Error page)
+            $rawBrief = substr(trim(strip_tags($response)), 0, 150);
+            $msg = "Invalid JSON Response: " . ($rawBrief ?: 'Empty Response');
             
-            // Highlight CSW Check result
-            if ($httpCode == 400 && (isset($decoded['data']['csw_expired']) || strpos($msg, 'CSW') !== false)) {
-                 $msg = "CSW EXPIRED: Pesan gagal dikirim karena pelanggan belum chat dalam 24 jam terakhir.";
+            // Log full response untuk debug
+            // $decoded dianggap null
+        } else {
+            // JSON Valid
+            if ($httpCode == 200) {
+                // Cek sukses standard framework kita
+                if (isset($decoded['status']) && ($decoded['status'] === true || $decoded['status'] === 'success')) {
+                    $status = true;
+                    $msg = 'Success';
+                } else {
+                    $msg = $decoded['message'] ?? ($decoded['error'] ?? 'API Error (No Message)');
+                }
+            } else {
+                // Handle HTTP Error
+                $apiError = $decoded['message'] ?? ($decoded['error'] ?? '');
+                $msg = "HTTP $httpCode: " . ($apiError ? $apiError : ($error ? $error : 'Request Failed'));
+                
+                // Highlight CSW Check result
+                if ($httpCode == 400 && (isset($decoded['data']['csw_expired']) || strpos($msg, 'CSW') !== false)) {
+                     $msg = "CSW EXPIRED: Pesan gagal dikirim karena pelanggan belum chat dalam 24 jam terakhir.";
+                }
             }
         }
         
