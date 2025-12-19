@@ -283,6 +283,10 @@ class WhatsAppService
             'X-API-Key: ' . $this->apiKey
         ]);
         
+        // Set timeout untuk menghindari waiting terlalu lama
+        curl_setopt($ch, CURLOPT_TIMEOUT, 10);         // Max 10 detik untuk total request
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);  // Max 5 detik untuk connect
+        
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $error = curl_error($ch);
