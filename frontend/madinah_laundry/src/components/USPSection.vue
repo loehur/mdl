@@ -2,7 +2,7 @@
 import Card from './ui/Card.vue'
 
 const usps = [
-  { title: "Free Pickup & Delivery", icon: "🚚", desc: "Layanan antar jemput gratis untuk area sekitar." },
+  { title: "Pickup & Delivery Service", icon: "🚚", desc: "Layanan antar jemput tersedia untuk area sekitar." },
   { title: "Wangi Tahan Lama", icon: "✨", desc: "Menggunakan pewangi premium yang awet berhari-hari." },
   { title: "Pengerjaan Cepat", icon: "⚡", desc: "Layanan ekspres tersedia untuk kebutuhan mendesak." },
   { title: "Harga Jujur", icon: "🏷️", desc: "Transparan, tanpa biaya tersembunyi. Murah & berkualitas." },
@@ -34,7 +34,7 @@ const usps = [
 .container {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 0 20px;
+    padding: 0 40px;
 }
 .section-title {
     text-align: center;

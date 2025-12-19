@@ -96,6 +96,12 @@
     padding-top: 80px;
 }
 
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 40px;
+}
+
 .relative { position: relative; }
 
 .cta-banner {
@@ -116,6 +122,8 @@
     align-items: center;
     position: relative;
     z-index: 2;
+    max-width: 1000px;
+    margin: 0 auto;
 }
 
 .cta-text h2 {
@@ -168,8 +176,8 @@
 
 .footer-grid {
     display: grid;
-    grid-template-columns: 1.5fr 1fr 1fr 1fr;
-    gap: 50px;
+    grid-template-columns: 1.5fr 1fr 1fr 1.2fr;
+    gap: 40px;
     margin-bottom: 80px;
 }
 

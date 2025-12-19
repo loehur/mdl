@@ -31,7 +31,7 @@
 .container {
   max-width: 900px;
   margin: 0 auto;
-  padding: 0 20px;
+  padding: 0 40px;
   text-align: center;
 }
 

@@ -125,7 +125,7 @@ import Button from './ui/Button.vue'
 .container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 20px;
+  padding: 0 40px;
   position: relative;
   z-index: 2;
 }

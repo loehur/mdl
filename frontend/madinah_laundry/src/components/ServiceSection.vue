@@ -45,7 +45,7 @@ const services = [
 .container {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 0 20px;
+    padding: 0 40px;
 }
 
 .section-header {
