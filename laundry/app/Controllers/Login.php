@@ -224,20 +224,12 @@ class Login extends Controller
                   $text = $cek_deliver['text'];
                   $res = $this->send_wa_ycloud($hp, $text);
                   if ($res['status']) {
-                     $up = $this->db(0)->update('notif', [
-                        'id_api_2' => $res['data']['message_id']
-                     ], "id_notif = " . $cek_deliver['id_notif']);
-                     if ($up['errno'] == 0) {
-                        $res_f = [
-                           'code' => 1,
-                           'msg' => "PERMINTAAN ULANG PIN BERHASIL, AKTIF 1 HARI"
-                        ];
-                     } else {
-                        $res_f = [
-                           'code' => 0,
-                           'msg' => $up['error']
-                        ];
-                     }
+                     // id_api_2 field sudah dihapus dari database
+                     // Tidak perlu update lagi
+                     $res_f = [
+                        'code' => 1,
+                        'msg' => "PERMINTAAN ULANG PIN BERHASIL, AKTIF 1 HARI"
+                     ];
                   } else {
                      // Cek jika CSW expired
                      if (isset($res['csw_expired']) && $res['csw_expired']) {

@@ -58,14 +58,19 @@ class Notif extends Controller
         return $do;
     }
 
-    function cek_deliver($hp, $date)
+    function cek_deliver($hp, $date, $id_cabang = null)
     {
-        $where = "phone = '" . $hp . "' AND no_ref = '" . $date . "' AND state NOT IN ('delivered','read') AND id_api_2 = ''";
+        // Simplified query - tidak cek state jika field tidak ada
+        $where = "phone = '" . $hp . "' AND no_ref = '" . $date . "' AND tipe = 6";
+        
+        // Tambahkan kondisi id_cabang jika ada
+        if ($id_cabang) {
+            $where .= " AND id_cabang = " . $id_cabang;
+        }
 
         $cek = $this->db(0)->get_where_row('notif', $where);
-        if (isset($cek['text'])) {
-            return $cek;
-        }
+        
+        // Return data jika ada, atau array kosong
         return $cek;
     }
 }

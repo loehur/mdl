@@ -171,16 +171,19 @@ class DB extends DBC
 
     public function get_where_row($table, $where)
     {
-        $reply = [];
         $query = "SELECT * FROM $table WHERE $where";
         $result = $this->mysqli->query($query);
+        
+        // Check if query succeeded BEFORE calling fetch_assoc
+        if ($result === false) {
+            // Log error untuk debugging
+            error_log("DB Error in get_where_row: " . $this->mysqli->error . " for query: " . $query);
+            return [];
+        }
+        
         $reply = $result->fetch_assoc();
-        if ($result) {
-            if (is_array($reply)) {
-                return $reply;
-            } else {
-                return [];
-            }
+        if (is_array($reply)) {
+            return $reply;
         } else {
             return [];
         }

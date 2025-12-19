@@ -20,12 +20,12 @@ class WH_Fonnte extends Controller
          $status = $data['status'];
          $state = $data['state'];
          $set = ['proses' => $status, 'state' => $state, 'id_state' => $stateid, 'status' => 2];
-         $where = "id_api = '" . $id . "' OR id_api_2 = '" . $id . "'";
+         $where = "id_api = '" . $id . "'";  // id_api_2 sudah dihapus
       } else if (isset($id) && !isset($stateid)) {
          $id = $data['id'];
          $status = $data['status'];
          $set = ['proses' => $status, 'status' => 2];
-         $where = "id_api = '" . $id . "' OR id_api_2 = '" . $id . "'";
+         $where = "id_api = '" . $id . "'";  // id_api_2 sudah dihapus
       } else {
          $stateid = $data['stateid'];
          $state = $data['state'];
