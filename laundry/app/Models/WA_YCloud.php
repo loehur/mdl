@@ -45,6 +45,14 @@ class WA_YCloud extends DB
         // 3. Parse Response
         $status = false;
         $msg = 'Failed';
+        
+        // Bersihkan response dari whitespace dan BOM (Byte Order Mark)
+        $response = trim($response);
+        // Remove UTF-8 BOM if present
+        if (substr($response, 0, 3) === "\xEF\xBB\xBF") {
+            $response = substr($response, 3);
+        }
+        
         $decoded = json_decode($response, true);
         
         // Cek apakah JSON valid
