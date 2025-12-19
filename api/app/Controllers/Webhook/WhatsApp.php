@@ -184,6 +184,8 @@ class WhatsApp extends Controller
             'created_at' => $sendTime
         ];
 
+        \Log::write("Attempting to insert message: Conv=$conversationId, Cust=$customerId, Type=$messageType", 'webhook', 'WhatsApp');
+        
         $msgId = $db->insert('wa_messages', $messageData);
 
         if ($msgId) {
@@ -193,7 +195,8 @@ class WhatsApp extends Controller
             $this->updateConversationLastMessage($db, $conversationId, $textBody ?? "[{$messageType}]", $sendTime);
         } else {
             $error = $db->conn()->error;
-            \Log::write("✗ DB ERROR: $error", 'webhook', 'WhatsApp');
+            \Log::write("✗ DB ERROR (insert message): $error", 'webhook', 'WhatsApp');
+            \Log::write("Data attempted: " . json_encode($messageData), 'webhook', 'WhatsApp');
         }
     }
 
@@ -203,6 +206,8 @@ class WhatsApp extends Controller
      */
     private function updateOrCreateCustomer($db, $waNumber, $contactName, $messageTime)
     {
+        \Log::write("updateOrCreateCustomer: Number=$waNumber, Name=$contactName", 'webhook', 'WhatsApp');
+        
         // Try to find existing customer
         $existing = $db->get_where('wa_customers', ['wa_number' => $waNumber]);
         
@@ -220,9 +225,14 @@ class WhatsApp extends Controller
                 $updateData['contact_name'] = $contactName;
             }
             
-            $db->update('wa_customers', $updateData, ['id' => $customer->id]);
+            $updated = $db->update('wa_customers', $updateData, ['id' => $customer->id]);
             
-            \Log::write("✓ Customer updated: ID={$customer->id}, Last message at: $messageTime", 'webhook', 'WhatsApp');
+            if ($updated) {
+                \Log::write("✓ Customer updated: ID={$customer->id}, Last message at: $messageTime", 'webhook', 'WhatsApp');
+            } else {
+                $error = $db->conn()->error;
+                \Log::write("✗ Customer update failed: $error", 'webhook', 'WhatsApp');
+            }
             
             return $customer->id;
         }
@@ -240,7 +250,13 @@ class WhatsApp extends Controller
 
         $customerId = $db->insert('wa_customers', $customerData);
         
-        \Log::write("✓ New customer created: ID=$customerId, Number=$waNumber", 'webhook', 'WhatsApp');
+        if ($customerId) {
+            \Log::write("✓ New customer created: ID=$customerId, Number=$waNumber", 'webhook', 'WhatsApp');
+        } else {
+            $error = $db->conn()->error;
+            \Log::write("✗ Customer insert failed: $error", 'webhook', 'WhatsApp');
+            \Log::write("Data: " . json_encode($customerData), 'webhook', 'WhatsApp');
+        }
         
         return $customerId;
     }
