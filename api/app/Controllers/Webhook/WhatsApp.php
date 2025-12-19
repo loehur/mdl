@@ -5,17 +5,16 @@ namespace App\Controllers\Webhook;
 use App\Core\Controller;
 
 /**
- * YCloud WhatsApp API Webhook Handler
- * Handles all webhook events from YCloud WhatsApp API
- * 
- * Supported Events:
- * - whatsapp.inbound_message.received (incoming messages)
- * - whatsapp.message.status.updated (message status updates)
+ * YCloud WhatsApp Webhook Handler
+ * Updated to use new 3-table structure:
+ * - wa_webhooks: raw webhook logs
+ * - wa_conversations: conversation tracking
+ * - wa_messages: individual messages
  */
 class WhatsApp extends Controller
 {
     /**
-     * Handle incoming webhook from YCloud WhatsApp API
+     * Handle incoming webhook
      * URL: /Webhook/WhatsApp
      */
     public function index()
@@ -43,67 +42,56 @@ class WhatsApp extends Controller
         $token = $_GET['hub_verify_token'] ?? null;
         $challenge = $_GET['hub_challenge'] ?? null;
 
-        \Log::write("YCloud Verification Attempt - Mode: $mode", 'webhook', 'WhatsApp');
+        \Log::write("YCloud Verification: mode=$mode", 'webhook', 'WhatsApp');
 
         $verifyToken = \Env::WA_VERIFY_TOKEN;
 
         if ($mode === 'subscribe' && $token === $verifyToken) {
-            \Log::write("YCloud Verification SUCCESS", 'webhook', 'WhatsApp');
+            \Log::write("✓ Verification SUCCESS", 'webhook', 'WhatsApp');
             header('Content-Type: text/plain');
             echo $challenge;
             exit;
         }
 
-        \Log::write("YCloud Verification FAILED", 'webhook', 'WhatsApp');
+        \Log::write("✗ Verification FAILED", 'webhook', 'WhatsApp');
         http_response_code(403);
-        echo "Verification failed";
         exit;
     }
 
     /**
-     * Receive and process webhook events from YCloud
+     * Receive and process webhook
      */
     private function receive()
     {
         $json = file_get_contents('php://input');
         $data = json_decode($json, true);
 
-        \Log::write("YCloud Webhook Received: " . substr($json, 0, 500), 'webhook', 'WhatsApp');
-
         if (!$data) {
             \Log::write("ERROR: Invalid JSON", 'webhook', 'WhatsApp');
             http_response_code(200);
-            echo json_encode(['status' => 'error', 'message' => 'Invalid JSON']);
             exit;
         }
 
         $db = $this->db(0);
-        $eventType = $data['type'] ?? null;
-        $eventId = $data['id'] ?? null;
+        $eventType = $data['type'] ?? 'unknown';
 
-        // Check if event already processed (avoid duplicates)
-        if ($eventId) {
-            $existing = $db->get_where('wh_whatsapp', ['event_id' => $eventId]);
-            if ($existing->num_rows() > 0) {
-                \Log::write("Event $eventId already processed - skipping", 'webhook', 'WhatsApp');
-                http_response_code(200);
-                echo json_encode(['status' => 'ok', 'message' => 'Already processed']);
-                exit;
-            }
-        }
+        // Step 1: Save raw webhook to wa_webhooks
+        $webhookId = $this->saveWebhookLog($db, $eventType, $json);
+        \Log::write("Webhook logged: ID=$webhookId, Type=$eventType", 'webhook', 'WhatsApp');
 
+        // Step 2: Process based on event type
         try {
             switch ($eventType) {
                 case 'whatsapp.inbound_message.received':
-                    $this->handleInboundMessage($data, $db);
+                    $this->handleInboundMessage($db, $data);
                     break;
 
                 case 'whatsapp.message.status.updated':
-                    $this->handleStatusUpdate($data, $db);
+                    $this->handleStatusUpdate($db, $data);
                     break;
 
                 default:
-                    \Log::write("Unknown event type: $eventType", 'webhook', 'WhatsApp');
+                    \Log::write("Unknown event: $eventType", 'webhook', 'WhatsApp');
             }
         } catch (\Exception $e) {
             \Log::write("EXCEPTION: " . $e->getMessage(), 'webhook', 'WhatsApp');
@@ -115,57 +103,89 @@ class WhatsApp extends Controller
     }
 
     /**
-     * Handle incoming message from customer
+     * Save raw webhook to wa_webhooks table
      */
-    private function handleInboundMessage($data, $db)
+    private function saveWebhookLog($db, $eventType, $json)
+    {
+        $data = [
+            'provider' => 'ycloud',
+            'event_type' => $eventType,
+            'payload' => $json,
+            'received_at' => date('Y-m-d H:i:s')
+        ];
+
+        return $db->insert('wa_webhooks', $data);
+    }
+
+    /**
+     * Handle inbound message from customer
+     */
+    private function handleInboundMessage($db, $data)
     {
         $msg = $data['whatsappInboundMessage'] ?? [];
-        
         if (empty($msg)) {
-            \Log::write("ERROR: No whatsappInboundMessage in data", 'webhook', 'WhatsApp');
+            \Log::write("ERROR: No whatsappInboundMessage", 'webhook', 'WhatsApp');
             return;
         }
 
-        $insertData = [
-            'event_id'      => $data['id'] ?? null,
-            'event_type'    => $data['type'] ?? null,
-            'api_version'   => $data['apiVersion'] ?? null,
-            'event_time'    => $this->convertTime($data['createTime'] ?? null),
-            
-            'message_id'    => $msg['id'] ?? null,
-            'wamid'         => $msg['wamid'] ?? null,
-            'waba_id'       => $msg['wabaId'] ?? null,
-            
-            'phone_from'    => $msg['from'] ?? null,
-            'phone_to'      => $msg['to'] ?? null,
-            'contact_name'  => $msg['customerProfile']['name'] ?? null,
-            
-            'message_type'  => $msg['type'] ?? null,
-            'send_time'     => $this->convertTime($msg['sendTime'] ?? null),
-            'raw_json'      => json_encode($data, JSON_UNESCAPED_UNICODE)
-        ];
+        $waNumber = $msg['from'] ?? null;
+        $contactName = $msg['customerProfile']['name'] ?? null;
+        $messageType = $msg['type'] ?? 'text';
+        $messageId = $msg['id'] ?? null;
+        $wamid = $msg['wamid'] ?? null;
 
-        // Extract message content based on type
-        switch ($msg['type'] ?? '') {
+        if (!$waNumber) {
+            \Log::write("ERROR: No 'from' number", 'webhook', 'WhatsApp');
+            return;
+        }
+
+        // Step 1: Get or create conversation
+        $conversationId = $this->getOrCreateConversation($db, $waNumber, $contactName);
+
+        // Step 2: Extract message content
+        $textBody = null;
+        $mediaId = null;
+        $mediaUrl = null;
+        $mediaMimeType = null;
+        $mediaCaption = null;
+
+        switch ($messageType) {
             case 'text':
-                $insertData['text_body'] = $msg['text']['body'] ?? null;
+                $textBody = $msg['text']['body'] ?? null;
                 break;
-            
+
             case 'image':
             case 'video':
             case 'audio':
             case 'document':
-                $mediaType = $msg['type'];
-                $insertData['media_id'] = $msg[$mediaType]['id'] ?? null;
-                $insertData['media_mime_type'] = $msg[$mediaType]['mimeType'] ?? null;
-                $insertData['media_caption'] = $msg[$mediaType]['caption'] ?? null;
+            case 'voice':
+                $mediaId = $msg[$messageType]['id'] ?? null;
+                $mediaMimeType = $msg[$messageType]['mimeType'] ?? null;
+                $mediaCaption = $msg[$messageType]['caption'] ?? null;
                 break;
         }
 
-        $inserted = $db->insert('wh_whatsapp', $insertData);
-        
-        if ($inserted) {
-            \Log::write("✓ Saved inbound message ID: $inserted from " . ($msg['from'] ?? 'unknown'), 'webhook', 'WhatsApp');
+        // Step 3: Save message to wa_messages
+        $messageData = [
+            'conversation_id' => $conversationId,
+            'direction' => 'in',
+            'message_type' => $messageType,
+            'text' => $textBody,
+            'media_id' => $mediaId,
+            'media_mime_type' => $mediaMimeType,
+            'media_caption' => $mediaCaption,
+            'provider_message_id' => $messageId,
+            'wamid' => $wamid,
+            'created_at' => $this->convertTime($msg['sendTime'] ?? null)
+        ];
+
+        $msgId = $db->insert('wa_messages', $messageData);
+
+        if ($msgId) {
+            \Log::write("✓ Message saved: ID=$msgId, Conv=$conversationId, From=$waNumber", 'webhook', 'WhatsApp');
+            
+            // Step 4: Update conversation last_message
+            $this->updateConversationLastMessage($db, $conversationId, $textBody ?? "[{$messageType}]");
         } else {
             $error = $db->conn()->error;
             \Log::write("✗ DB ERROR: $error", 'webhook', 'WhatsApp');
@@ -173,70 +193,98 @@ class WhatsApp extends Controller
     }
 
     /**
-     * Handle message status update (for outbound messages)
+     * Handle outbound message status update
      */
-    private function handleStatusUpdate($data, $db)
+    private function handleStatusUpdate($db, $data)
     {
         $statusUpdate = $data['whatsappMessageStatusUpdate'] ?? [];
-        
         if (empty($statusUpdate)) {
-            \Log::write("ERROR: No whatsappMessageStatusUpdate in data", 'webhook', 'WhatsApp');
+            \Log::write("ERROR: No whatsappMessageStatusUpdate", 'webhook', 'WhatsApp');
             return;
         }
 
         $wamid = $statusUpdate['wamid'] ?? null;
         $status = $statusUpdate['status'] ?? null;
+        $errorMessage = $statusUpdate['errorMessage'] ?? null;
 
-        // Try to update existing record first
+        if (!$wamid) {
+            \Log::write("ERROR: No wamid in status update", 'webhook', 'WhatsApp');
+            return;
+        }
+
+        // Update message status in wa_messages
         $updateData = [
             'status' => $status,
-            'error_code' => $statusUpdate['errorCode'] ?? null,
-            'error_message' => $statusUpdate['errorMessage'] ?? null
+            'error_message' => $errorMessage
         ];
 
-        $updated = $db->update('wh_whatsapp', $updateData, ['wamid' => $wamid]);
+        $updated = $db->update('wa_messages', $updateData, ['wamid' => $wamid]);
 
         if ($updated) {
-            \Log::write("✓ Updated message status: $wamid -> $status", 'webhook', 'WhatsApp');
+            \Log::write("✓ Status updated: $wamid -> $status", 'webhook', 'WhatsApp');
         } else {
-            // If no existing record, create new one
-            $insertData = [
-                'event_id'      => $data['id'] ?? null,
-                'event_type'    => $data['type'] ?? null,
-                'api_version'   => $data['apiVersion'] ?? null,
-                'event_time'    => $this->convertTime($data['createTime'] ?? null),
-                
-                'wamid'         => $wamid,
-                'phone_to'      => $statusUpdate['to'] ?? null,
-                'status'        => $status,
-                'error_code'    => $statusUpdate['errorCode'] ?? null,
-                'error_message' => $statusUpdate['errorMessage'] ?? null,
-                'raw_json'      => json_encode($data, JSON_UNESCAPED_UNICODE)
-            ];
-
-            $inserted = $db->insert('wh_whatsapp', $insertData);
-            
-            if ($inserted) {
-                \Log::write("✓ Created new status record: $wamid -> $status", 'webhook', 'WhatsApp');
-            } else {
-                $error = $db->conn()->error;
-                \Log::write("✗ DB ERROR: $error", 'webhook', 'WhatsApp');
-            }
+            \Log::write("⚠ Message not found for status update: $wamid", 'webhook', 'WhatsApp');
         }
     }
 
     /**
-     * Convert ISO 8601 timestamp to MySQL datetime
+     * Get existing conversation or create new one
+     */
+    private function getOrCreateConversation($db, $waNumber, $contactName = null)
+    {
+        // Try to find existing conversation
+        $existing = $db->get_where('wa_conversations', ['wa_number' => $waNumber]);
+        
+        if ($existing->num_rows() > 0) {
+            $conv = $existing->row();
+            
+            // Update contact name if provided and different
+            if ($contactName && $contactName !== $conv->contact_name) {
+                $db->update('wa_conversations', 
+                    ['contact_name' => $contactName], 
+                    ['id' => $conv->id]
+                );
+            }
+            
+            return $conv->id;
+        }
+
+        // Create new conversation
+        $convData = [
+            'wa_number' => $waNumber,
+            'contact_name' => $contactName,
+            'status' => 'open',
+            'created_at' => date('Y-m-d H:i:s')
+        ];
+
+        return $db->insert('wa_conversations', $convData);
+    }
+
+    /**
+     * Update conversation's last message
+     */
+    private function updateConversationLastMessage($db, $conversationId, $messageText)
+    {
+        $updateData = [
+            'last_message' => substr($messageText, 0, 200), // limit to 200 chars
+            'last_message_at' => date('Y-m-d H:i:s')
+        ];
+
+        $db->update('wa_conversations', $updateData, ['id' => $conversationId]);
+    }
+
+    /**
+     * Convert ISO 8601 to MySQL datetime
      */
     private function convertTime($isoTime)
     {
-        if (!$isoTime) return null;
+        if (!$isoTime) return date('Y-m-d H:i:s');
         
         try {
             $dt = new \DateTime($isoTime);
             return $dt->format('Y-m-d H:i:s');
         } catch (\Exception $e) {
-            return null;
+            return date('Y-m-d H:i:s');
         }
     }
 }
