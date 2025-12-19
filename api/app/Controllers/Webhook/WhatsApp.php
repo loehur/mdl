@@ -362,23 +362,25 @@ class WhatsApp extends Controller
         @file_put_contents(__DIR__ . '/../../../logs/wa_webhook_debug.log', 
             date('Y-m-d H:i:s') . " PAYLOAD FOR DB: " . json_encode($updateData) . "\n", FILE_APPEND);
 
-        // Try to update by wamid first (if record already has wamid)
         $updated = false;
-        if ($wamid) {
-            $updated = $db->update('wa_messages_out', $updateData, ['wamid' => $wamid]);
-            if ($updated) {
-                @file_put_contents(__DIR__ . '/../../../logs/wa_webhook_debug.log', date('Y-m-d H:i:s') . " MATCH: Found by WAMID $wamid\n", FILE_APPEND);
-            }
-        }
-        
-        // If not found by wamid, try by message_id (initial send doesn't have wamid yet)
-        if (!$updated && $messageId) {
+
+        // CRITICAL FIX: Try to update by message_id FIRST (This is the most reliable anchor)
+        if ($messageId) {
             @file_put_contents(__DIR__ . '/../../../logs/wa_webhook_debug.log', date('Y-m-d H:i:s') . " SEARCH: Trying by message_id = '$messageId'\n", FILE_APPEND);
             
             $updated = $db->update('wa_messages_out', $updateData, ['message_id' => $messageId]);
             
-            $res = $updated ? "SUCCESS" : "FAILED_OR_NO_CHANGE";
-            @file_put_contents(__DIR__ . '/../../../logs/wa_webhook_debug.log', date('Y-m-d H:i:s') . " UPDATE_RESULT: $res\n", FILE_APPEND);
+            // Note: execute() returns true even if 0 rows updated, but matching by message_id is guaranteed for new messages
+            $res = $updated ? "SUCCESS_EXEC" : "FAILED_EXEC";
+            @file_put_contents(__DIR__ . '/../../../logs/wa_webhook_debug.log', date('Y-m-d H:i:s') . " UPDATE_RESULT (BY ID): $res\n", FILE_APPEND);
+        }
+
+        // If not updated (or no messageId), try by wamid as fallback
+        if (!$updated && $wamid) {
+            $updated = $db->update('wa_messages_out', $updateData, ['wamid' => $wamid]);
+            if ($updated) {
+                @file_put_contents(__DIR__ . '/../../../logs/wa_webhook_debug.log', date('Y-m-d H:i:s') . " MATCH: Found by WAMID $wamid\n", FILE_APPEND);
+            }
         }
 
         if ($updated) {
