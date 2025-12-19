@@ -358,6 +358,10 @@ class WhatsApp extends Controller
             $updateData['read_at'] = $this->convertTime($message['readTime']);
         }
 
+        // DEBUG: Cek isi updateData sebelum update DB
+        @file_put_contents(__DIR__ . '/../../../logs/wa_webhook_debug.log', 
+            date('Y-m-d H:i:s') . " PAYLOAD FOR DB: " . json_encode($updateData) . "\n", FILE_APPEND);
+
         // Try to update by wamid first (if record already has wamid)
         $updated = false;
         if ($wamid) {
