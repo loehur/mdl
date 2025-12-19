@@ -241,9 +241,10 @@ class Login extends Controller
                   } else {
                      // Cek jika CSW expired
                      if (isset($res['csw_expired']) && $res['csw_expired']) {
+                        $phone_sent = isset($res['phone_sent']) ? $res['phone_sent'] : 'unknown';
                         $res_f = [
                            'code' => 0,
-                           'msg' => "CSW Expired"
+                           'msg' => "CSW Expired untuk nomor {$phone_sent}. Pastikan Anda sudah mengirim pesan ke nomor WhatsApp bisnis dalam 24 jam terakhir."
                         ];
                      } else {
                         $res_f = [
@@ -294,9 +295,10 @@ class Login extends Controller
                } else {
                   // Cek jika CSW expired
                   if (isset($res['csw_expired']) && $res['csw_expired']) {
+                     $phone_sent = isset($res['phone_sent']) ? $res['phone_sent'] : 'unknown';
                      $res_f = [
                         'code' => 0,
-                        'msg' => "CSW Expired"
+                        'msg' => "CSW Expired untuk nomor {$phone_sent}. Pastikan Anda sudah mengirim pesan ke nomor WhatsApp bisnis dalam 24 jam terakhir."
                      ];
                   } else {
                      $res_f = [
@@ -341,9 +343,27 @@ class Login extends Controller
     */
    private function send_wa_ycloud($phone, $message)
    {
-      // Format nomor telepon (pastikan format 628xxx)
-      $phone = preg_replace('/^0/', '62', $phone);
+      // Normalisasi nomor telepon - support berbagai format:
+      // 08xxx, 628xxx, +628xxx -> menjadi 628xxx
+      $original_phone = $phone;
+      
+      // Hapus semua karakter non-digit terlebih dahulu
       $phone = preg_replace('/[^0-9]/', '', $phone);
+      
+      // Konversi ke format 628xxx
+      if (substr($phone, 0, 1) === '0') {
+         // 08xxx -> 628xxx
+         $phone = '62' . substr($phone, 1);
+      } elseif (substr($phone, 0, 2) === '62') {
+         // Sudah format 62xxx, tidak perlu diubah
+         $phone = $phone;
+      } else {
+         // Format lain, tambahkan 62 di depan
+         $phone = '62' . $phone;
+      }
+      
+      // Log untuk debugging
+      $this->model('Log')->write("[send_wa_ycloud] Original: {$original_phone}, Normalized: {$phone}");
       
       // Ambil last_message_at dari database notif
       $where = "phone = '" . $phone . "' AND state IN ('delivered','read') ORDER BY insertTime DESC LIMIT 1";
@@ -406,12 +426,14 @@ class Login extends Controller
             'csw_expired' => false
          ];
       } else if ($httpCode == 400 && isset($result['data']['csw_expired']) && $result['data']['csw_expired']) {
-         // CSW Expired
+         // CSW Expired - Log detail untuk debugging
+         $this->model('Log')->write("[send_wa_ycloud] CSW EXPIRED - Phone: {$phone}, Message: {$message}, Response: " . json_encode($result));
          return [
             'status' => false,
-            'error' => $result['message'] ?? 'CSW Expired',
+            'error' => 'CSW Expired untuk nomor ' . $phone,
             'data' => $result['data'] ?? [],
-            'csw_expired' => true
+            'csw_expired' => true,
+            'phone_sent' => $phone  // Tambahkan nomor yang dikirim untuk debugging
          ];
       } else {
          // Error lainnya
