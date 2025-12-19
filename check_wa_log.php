@@ -9,12 +9,12 @@ $logDir = __DIR__ . '/api/logs/';
 
 // Map readable names to filenames
 $logFiles = [
-    'Outbound Logs' => 'wa_outbound_errors.log', // Shows success saves too
-    'API Failures' => 'wa_debug_api.log',        // Errors from WhatsApp.php
-    'Login Failures' => 'wa_debug_login.log',    // Errors from Login.php
-    'Webhook Access' => 'wa_webhook_access.log', // Incoming Webhook Hits
-    'Webhook Payload' => 'wa_webhook_debug.log', // Full JSON Payload
-    'DB Queries' => 'db_debug.log'               // SQL Debug
+    'Outbound Logs' => 'wa_outbound_errors.log', 
+    'SQL Debug (DATABASE)' => 'db_debug.log',     // <--- INI YG KITA CARI
+    'Webhook Payload' => 'wa_webhook_debug.log',
+    'Webhook Access' => 'wa_webhook_access.log',
+    'API Failures' => 'wa_debug_api.log',
+    'Login Failures' => 'wa_debug_login.log'
 ];
 
 $refreshInterval = 5; // seconds
@@ -25,27 +25,23 @@ $refreshInterval = 5; // seconds
     <title>WhatsApp Integration Dashboard</title>
     <style>
         body { font-family: 'Segoe UI', monospace; background: #1e1e1e; color: #d4d4d4; padding: 20px; margin:0; }
-        .container { max-width: 1900px; margin: 0 auto; }
+        .container { max-width: 100%; margin: 0 auto; }
         h1 { color: #4ec9b0; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px; }
-        .grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
-        .card { background: #252526; border: 1px solid #3e3e42; border-radius: 5px; overflow: hidden; display: flex; flex-direction: column; height: 800px; }
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; } 
+        .card { background: #252526; border: 1px solid #3e3e42; border-radius: 5px; overflow: hidden; display: flex; flex-direction: column; height: 600px; }
         .card-header { background: #333333; padding: 10px 15px; font-weight: bold; border-bottom: 1px solid #3e3e42; display: flex; justify-content: space-between; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .card-body { padding: 0; overflow-y: auto; flex-grow: 1; font-size: 10px; }
-        .log-entry { padding: 3px 6px; border-bottom: 1px solid #2d2d2d; white-space: pre-wrap; word-break: break-all; }
+        .card-body { padding: 0; overflow-y: auto; flex-grow: 1; font-size: 11px; }
+        .log-entry { padding: 4px 8px; border-bottom: 1px solid #2d2d2d; white-space: pre-wrap; word-break: break-all; }
         .log-entry:hover { background: #2a2d2e; }
         .success { color: #4ec9b0; }
         .error { color: #f48771; font-weight: bold; }
         .info { color: #569cd6; }
-        .sql { color: #dcdcaa; }
+        .sql { color: #ffd700; font-weight: bold; }
         .timestamp { color: #808080; margin-right: 5px; }
-        .actions { margin-bottom: 20px; }
-        .button { background: #0e639c; color: white; border: none; padding: 8px 16px; border-radius: 3px; cursor: pointer; text-decoration: none; display: inline-block; font-family: sans-serif; }
-        .button:hover { background: #1177bb; }
         .badge { background: #444; padding: 2px 6px; border-radius: 10px; font-size: 10px; }
         .empty { padding: 20px; text-align: center; color: #666; font-style: italic; }
     </style>
     <script>
-        // Auto-scroll to bottom on load
         window.onload = function() {
             document.querySelectorAll('.card-body').forEach(el => el.scrollTop = el.scrollHeight);
         }
@@ -55,9 +51,8 @@ $refreshInterval = 5; // seconds
     <div class="container">
         <div style="display:flex; justify-content:space-between; align-items:center;">
             <h1>📝 WhatsApp Logs Dashboard</h1>
-            <div class="actions">
-                <a href="?refresh=1" class="button">🔄 Refresh Data</a>
-                <span style="color:#666; font-size:12px; margin-left:10px;">Auto-refresh: <?php echo $refreshInterval; ?>s</span>
+            <div>
+                <a href="?refresh=1" style="background:#0e639c; color:white; padding:8px 15px; text-decoration:none; border-radius:3px;">🔄 Refresh</a>
             </div>
         </div>
 
@@ -72,7 +67,7 @@ $refreshInterval = 5; // seconds
                 // Get last 50 lines
                 $recent = array_slice($lines, -50);
             ?>
-            <div class="card">
+            <div class="card" style="<?php echo strpos($title, 'SQL')!==false ? 'border: 2px solid #ffd700;' : ''; ?>">
                 <div class="card-header">
                     <span title="<?php echo $title; ?>"><?php echo $title; ?></span>
                     <span class="badge"><?php echo $count; ?></span>
@@ -85,12 +80,10 @@ $refreshInterval = 5; // seconds
                             <?php 
                                 if (empty(trim($line))) continue;
                                 $class = '';
-                                if (stripos($line, 'ERROR') !== false || stripos($line, 'FAIL') !== false || stripos($line, 'EXCEPTION') !== false) $class = 'error';
-                                elseif (stripos($line, 'SUCCESS') !== false || stripos($line, '✓') !== false) $class = 'success';
-                                elseif (stripos($line, 'RAW_UPDATE') !== false || stripos($line, '===') !== false) $class = 'info';
+                                if (stripos($line, 'success') !== false) $class = 'success';
+                                elseif (stripos($line, 'error') !== false) $class = 'error';
                                 elseif (stripos($line, 'SQL') !== false) $class = 'sql';
                                 
-                                // Highlight timestamp
                                 $lineHtml = htmlspecialchars($line);
                                 $lineHtml = preg_replace('/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/', '<span class="timestamp">$1</span>', $lineHtml);
                             ?>
@@ -101,14 +94,8 @@ $refreshInterval = 5; // seconds
             </div>
             <?php endforeach; ?>
         </div>
-        
-        <div style="margin-top: 20px; color: #666; text-align: center; font-size: 12px;">
-            Server Time: <?php echo date('Y-m-d H:i:s P'); ?> | Log Dir: <?php echo htmlspecialchars($logDir); ?>
-        </div>
     </div>
-
-    <script>
-        setTimeout(() => window.location.reload(), <?php echo $refreshInterval * 1000; ?>);
-    </script>
+    
+    <script>setTimeout(() => window.location.reload(), <?php echo $refreshInterval * 1000; ?>);</script>
 </body>
 </html>
