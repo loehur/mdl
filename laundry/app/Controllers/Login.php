@@ -380,17 +380,19 @@ class Login extends Controller
       }
       
       // Prepare data untuk API
+      // API server akan handle komunikasi dengan YCloud
       $apiData = [
+         'from' => '+6285175001914',  // Nomor WhatsApp Business pengirim
          'phone' => $phone,
          'message' => $message,
          'message_mode' => 'free',
          'last_message_at' => $lastMessageAt
       ];
       
-      // URL API endpoint
+      // URL API endpoint - API server lokal yang handle YCloud
       $apiUrl = 'https://api.nalju.com/WhatsApp/send';
       
-      // Inisialisasi cURL
+      //  Inisialisasi cURL
       $ch = curl_init($apiUrl);
       curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
       curl_setopt($ch, CURLOPT_POST, true);
@@ -422,7 +424,7 @@ class Login extends Controller
       // Parse response
       $result = json_decode($response, true);
       
-      // Check HTTP code dan response
+      // Check HTTP code dan response dari API server
       if ($httpCode == 200 && isset($result['success']) && $result['success']) {
          return [
             'status' => true,
@@ -435,14 +437,14 @@ class Login extends Controller
             'csw_expired' => false
          ];
       } else if ($httpCode == 400 && isset($result['data']['csw_expired']) && $result['data']['csw_expired']) {
-         // CSW Expired - Log detail untuk debugging
+         // CSW Expired
          $this->model('Log')->write("[send_wa_ycloud] CSW EXPIRED - Phone: {$phone}, Message: {$message}, Response: " . json_encode($result));
          return [
             'status' => false,
             'error' => 'CSW Expired untuk nomor ' . $phone,
             'data' => $result['data'] ?? [],
             'csw_expired' => true,
-            'phone_sent' => $phone  // Tambahkan nomor yang dikirim untuk debugging
+            'phone_sent' => $phone
          ];
       } else {
          // Error lainnya - Log detail lengkap
