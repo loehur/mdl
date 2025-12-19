@@ -66,13 +66,32 @@ class WhatsApp extends Controller
         \Log::write("WhatsApp Hook Received: " . $json, 'webhook', 'WhatsApp');
 
         if (!$data) {
+            \Log::write("Error: Empty or invalid JSON received", 'webhook', 'WhatsApp');
             return;
         }
 
         $db = $this->db(0);
+        $type = $data['type'] ?? null;
 
-        // 1. Process Messages (Incoming from users)
-        if (isset($data['entry'][0]['changes'][0]['value']['messages'])) {
+        // 1. Handle structure from user's log (whatsapp.inbound_message.received)
+        if ($type === 'whatsapp.inbound_message.received' && isset($data['whatsappInboundMessage'])) {
+            $msg = $data['whatsappInboundMessage'];
+            $insertData = [
+                'wa_id'       => $msg['wamid'] ?? ($msg['id'] ?? null),
+                'phone'       => $msg['from'] ?? null,
+                'sender_name' => $msg['customerProfile']['name'] ?? null,
+                'type'        => 'message',
+                'body'        => $msg['text']['body'] ?? ($msg['type'] ?? 'other'),
+                'status'      => 'received',
+                'timestamp'   => $msg['sendTime'] ?? null,
+                'raw_data'    => $json
+            ];
+            
+            $db->insert('wh_whatsapp', $insertData);
+            \Log::write("Saved Message (Type 1) from " . ($msg['from'] ?? 'unknown'), 'webhook', 'WhatsApp');
+        } 
+        // 2. Handle standard Meta structure (messages)
+        elseif (isset($data['entry'][0]['changes'][0]['value']['messages'])) {
             $contacts = $data['entry'][0]['changes'][0]['value']['contacts'] ?? [];
             $contactName = $contacts[0]['profile']['name'] ?? null;
 
@@ -89,12 +108,28 @@ class WhatsApp extends Controller
                 ];
                 
                 $db->insert('wh_whatsapp', $insertData);
-                \Log::write("Saved Message from " . ($msg['from'] ?? 'unknown'), 'webhook', 'WhatsApp');
+                \Log::write("Saved Message (Type 2) from " . ($msg['from'] ?? 'unknown'), 'webhook', 'WhatsApp');
             }
         }
 
-        // 2. Process Status Updates (Sent, Delivered, Read)
-        if (isset($data['entry'][0]['changes'][0]['value']['statuses'])) {
+        // 3. Handle structure from user's log for status updates (assuming similar pattern)
+        if (strpos($type, 'status') !== false && isset($data['whatsappStatusUpdate'])) {
+            $status = $data['whatsappStatusUpdate'];
+            $insertData = [
+                'wa_id'       => $status['wamid'] ?? ($status['id'] ?? null),
+                'phone'       => $status['recipient_id'] ?? null,
+                'type'        => 'status',
+                'body'        => null,
+                'status'      => $status['status'] ?? null,
+                'timestamp'   => $status['timestamp'] ?? null,
+                'raw_data'    => $json
+            ];
+            
+            $db->insert('wh_whatsapp', $insertData);
+            \Log::write("Saved Status (Type 1): " . ($status['status'] ?? 'unknown'), 'webhook', 'WhatsApp');
+        }
+        // 4. Handle standard Meta structure (statuses)
+        elseif (isset($data['entry'][0]['changes'][0]['value']['statuses'])) {
             foreach ($data['entry'][0]['changes'][0]['value']['statuses'] as $status) {
                 $wa_id = $status['id'] ?? null;
                 $st = $status['status'] ?? null;
@@ -103,14 +138,14 @@ class WhatsApp extends Controller
                     'wa_id'       => $wa_id,
                     'phone'       => $status['recipient_id'] ?? null,
                     'type'        => 'status',
-                    'body'        => null, // body is empty for status updates
+                    'body'        => null,
                     'status'      => $st,
                     'timestamp'   => $status['timestamp'] ?? null,
                     'raw_data'    => $json
                 ];
                 
                 $db->insert('wh_whatsapp', $insertData);
-                \Log::write("Saved Status Update: $wa_id -> $st", 'webhook', 'WhatsApp');
+                \Log::write("Saved Status (Type 2): $wa_id -> $st", 'webhook', 'WhatsApp');
             }
         }
 
