@@ -304,13 +304,104 @@ class WhatsAppService
         }
         
         $responseData = json_decode($response, true);
+        $success = $httpCode >= 200 && $httpCode < 300;
+        
+        // Save outbound message to database if successful
+        if ($success && isset($responseData['id'])) {
+            $this->saveOutboundMessage($payload, $responseData);
+        }
         
         return [
-            'success' => $httpCode >= 200 && $httpCode < 300,
+            'success' => $success,
             'http_code' => $httpCode,
             'data' => $responseData,
             'raw_response' => $response
         ];
+    }
+    
+    /**
+     * Save outbound message to wa_messages table
+     * 
+     * @param array $payload Request payload sent to API
+     * @param array $response API response
+     */
+    private function saveOutboundMessage($payload, $response)
+    {
+        try {
+            // Load database (assuming using same DB structure as webhook)
+            require_once __DIR__ . '/../Core/DB.php';
+            $db = new \DB(0); // Main database
+            
+            $waNumber = $payload['to'] ?? null;
+            $messageType = $payload['type'] ?? 'text';
+            $wamid = $response['wamid'] ?? null;
+            $messageId = $response['id'] ?? null;
+            
+            if (!$waNumber || !$wamid) {
+                return; // Can't save without essential data
+            }
+            
+            // Get or create customer
+            $customer = $db->get_where('wa_customers', ['wa_number' => $waNumber]);
+            
+            if ($customer->num_rows() > 0) {
+                $customerId = $customer->row()->id;
+            } else {
+                // Create new customer
+                $customerId = $db->insert('wa_customers', [
+                    'wa_number' => $waNumber,
+                    'first_contact_at' => date('Y-m-d H:i:s'),
+                    'total_messages' => 0,
+                    'is_active' => 1,
+                    'created_at' => date('Y-m-d H:i:s')
+                ]);
+            }
+            
+            // Get or create conversation
+            $conv = $db->get_where('wa_conversations', ['wa_number' => $waNumber]);
+            
+            if ($conv->num_rows() > 0) {
+                $conversationId = $conv->row()->id;
+            } else {
+                // Create new conversation
+                $conversationId = $db->insert('wa_conversations', [
+                    'customer_id' => $customerId,
+                    'wa_number' => $waNumber,
+                    'status' => 'open',
+                    'created_at' => date('Y-m-d H:i:s')
+                ]);
+            }
+            
+            // Extract message content
+            $textBody = null;
+            $mediaUrl = null;
+            
+            if ($messageType === 'text' && isset($payload['text']['body'])) {
+                $textBody = $payload['text']['body'];
+            } elseif (isset($payload[$messageType]['link'])) {
+                $mediaUrl = $payload[$messageType]['link'];
+            }
+            
+            // Save outbound message
+            $messageData = [
+                'conversation_id' => $conversationId,
+                'customer_id' => $customerId,
+                'direction' => 'out',
+                'message_type' => $messageType,
+                'text' => $textBody,
+                'media_url' => $mediaUrl,
+                'provider_message_id' => $messageId,
+                'wamid' => $wamid,
+                'status' => 'sent', // Initial status
+                'created_at' => date('Y-m-d H:i:s')
+            ];
+            
+            $db->insert('wa_messages', $messageData);
+            
+        } catch (\Exception $e) {
+            // Silent fail - don't break the main flow
+            // Could log this error if needed
+        }
     }
     
     /**
