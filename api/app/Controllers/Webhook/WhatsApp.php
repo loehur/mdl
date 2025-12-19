@@ -39,7 +39,7 @@ class WhatsApp extends Controller
         \Log::write("WhatsApp Verification Attempt - Mode: $mode, Token: $token", 'webhook', 'WhatsApp');
 
         // Replace 'YOUR_VERIFY_TOKEN' with your actual token configured in Meta Developer Portal
-        $verifyToken = 'madinah_laundry_webhook_token';
+        $verifyToken = \Env::WA_VERIFY_TOKEN;
 
         if ($mode === 'subscribe' && $token === $verifyToken) {
             \Log::write("WhatsApp Verification SUCCESS", 'webhook', 'WhatsApp');
