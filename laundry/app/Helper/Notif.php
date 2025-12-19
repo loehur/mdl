@@ -39,7 +39,9 @@ class Notif extends Controller
 
     function insertOTP($res, $today, $hp, $otp, $id_cabang)
     {
-        $status = $res['data']['status'];
+        $status = $res['data']['status'] ?? 'sent';
+        $messageId = $res['data']['id'] ?? ($res['data']['message_id'] ?? '');
+        
         //SAVE DB NOTIF
         $data = [
             'insertTime' => date('Y-m-d H:i:s'),
@@ -48,8 +50,9 @@ class Notif extends Controller
             'phone' => $hp,
             'text' => $otp,
             'tipe' => 6,
-            'id_api' => $res['data']['id'],
-            'proses' => $status
+            'id_api' => $messageId,
+            'proses' => $status,
+            'state' => 'sent'  // Status pengiriman: sent, delivered, read, failed
         ];
         $do = $this->db(0)->insert('notif', $data);
         return $do;

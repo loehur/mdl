@@ -268,7 +268,13 @@ class Login extends Controller
                $res = $this->send_wa_ycloud($hp, $text);
 
                if ($res['status']) {
+                  // Log response untuk debugging
+                  $this->model('Log')->write("[req_pin] WA Response: " . json_encode($res));
+                  
                   $do = $this->helper('Notif')->insertOTP($res, $today, $hp_input, $otp, $id_cabang);
+                  
+                  // Log insert result
+                  $this->model('Log')->write("[req_pin] Insert OTP Result - errno: {$do['errno']}, error: " . ($do['error'] ?? 'none'));
 
                   if ($do['errno'] == 0) {
                      $up = $this->db(0)->update('user', [
