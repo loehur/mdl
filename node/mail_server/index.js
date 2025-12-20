@@ -43,6 +43,7 @@ const transporter = nodemailer.createTransport({
 });
 
 // Verify connection configuration
+console.log('Attempting to connect to SMTP server with user:', process.env.SMTP_USER);
 transporter.verify(function (error, success) {
     if (error) {
         console.log('Error verifying transporter:', error);
