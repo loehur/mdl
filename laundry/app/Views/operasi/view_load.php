@@ -109,7 +109,7 @@ $labeled = false;
           <?php
 
           foreach ($c_list as $a) {
-            $id = "'" . $a['id_penjualan'] . "'";
+            $id = $a['id_penjualan'];
             $id_cabang = $a['id_cabang'];
             $f10 = $a['id_penjualan_jenis'];
             $f3 = $a['id_item_group'];
