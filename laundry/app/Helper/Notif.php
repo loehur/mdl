@@ -19,8 +19,11 @@ class Notif extends Controller
 
     function insertOTP($res, $today, $hp, $otp, $id_cabang)
     {
-        $status = $res['data']['status'] ?? 'sent';
-        $messageId = $res['data']['id'] ?? ($res['data']['message_id'] ?? '');
+        // Fix: API returns nested data structure {status:true, data:{message_id:...}}
+        $apiData = $res['data']['data'] ?? $res['data'] ?? [];
+        
+        $status = $apiData['status'] ?? 'sent';
+        $messageId = $apiData['message_id'] ?? ($apiData['id'] ?? '');
         
         //SAVE DB NOTIF
         $data = [

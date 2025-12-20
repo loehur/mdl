@@ -232,7 +232,7 @@ class Login extends Controller
                $res = $this->send_wa_ycloud($hp, $text);
 
                if ($res['status']) {
-                  // Log response untuk debugging
+                  // PASTIKAN pengiriman WhatsApp BERHASIL (status=true) sebelum insert ke database
                   $this->model('Log')->write("[req_pin] WA Response: " . json_encode($res));
                   
                   $do = $this->helper('Notif')->insertOTP($res, $today, $hp_input, $otp, $id_cabang);
