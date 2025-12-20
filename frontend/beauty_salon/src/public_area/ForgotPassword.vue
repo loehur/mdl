@@ -118,7 +118,7 @@ async function requestOtp() {
     const res = await fetch("/api/Beauty_Salon/Auth/forgot_password", {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ phone_number: email.value }),
+      body: JSON.stringify({ email: email.value }),
     });
     
     const data = await res.json().catch(() => ({ success: false }));
@@ -151,7 +151,7 @@ async function resetPassword() {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({ 
-        phone_number: email.value, 
+        email: email.value, 
         otp: otp.value,
         new_password: newPassword.value 
       }),
