@@ -36,7 +36,6 @@ class Antrian extends Controller
 
    public function index($antrian = 1)
    {
-      $this->writeLog('i', 'INFO', 'Mengakses halaman antrian operasi', ['antrian' => $antrian]);
       $kas = [];
       $notif = [];
       $notifPenjualan = [];
@@ -82,7 +81,6 @@ class Antrian extends Controller
 
    public function p($antrian)
    {
-      $this->writeLog('p', 'INFO', 'Mengakses halaman antrian piutang', ['antrian' => $antrian]);
       $kas = array();
       $notif = array();
       $notifPenjualan = array();
@@ -113,7 +111,6 @@ class Antrian extends Controller
 
    public function loadList($antrian)
    {
-      $this->writeLog('loadList', 'INFO', 'Load Data Antrian', ['antrian' => $antrian]);
       $data_main = [];
       $viewData = 'antrian/view_content';
       switch ($antrian) {
@@ -170,7 +167,7 @@ class Antrian extends Controller
       if (count($numbers) > 0) {
          $no_list = "";
          foreach ($numbers as $r) {
-            $no_list .= $r . ",";
+            $no_list .= "'" . $r . "',";
          }
          $no_list = rtrim($no_list, ',');
 
