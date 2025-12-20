@@ -7,8 +7,8 @@ class Tokopay extends Controller
         // ==============================
         // CONFIGURATION
         // ==============================
-        $merchant_id = 'YOUR_TOKOPAY_MERCHANT'; // Ganti dengan Tokopay Merchant ID Anda
-        $secret      = 'YOUR_TOKOPAY_SECRET'; // Ganti dengan Tokopay Secret Key Anda
+        $merchant_id = 'M240926BMTGB612'; // Ganti dengan Tokopay Merchant ID Anda
+        $secret      = '4aea0ede516df65d88ccb773a443c61b3b3702fe1b9647deb9293cac07fd72bf'; // Ganti dengan Tokopay Secret Key Anda
 
         header('Content-Type: application/json; charset=utf-8');
 
@@ -22,9 +22,6 @@ class Tokopay extends Controller
             echo json_encode(['status' => false, 'message' => 'Invalid JSON']);
             return;
         }
-
-        $merchant_id = 'YOUR_TOKOPAY_MERCHANT'; // Ganti dengan Tokopay Merchant ID Anda
-        $secret = 'YOUR_TOKOPAY_SECRET'; // Ganti dengan Tokopay Secret Key Anda
 
         $reff_id = isset($data['reff_id']) ? $data['reff_id'] : '';
         $signature_provided = isset($data['signature']) ? $data['signature'] : '';

@@ -7,8 +7,8 @@ class Moota extends Controller
         // ==============================
         // CONFIGURATION
         // ==============================
-        $expected_moota_user = 'YOUR_MOOTA_USER'; // Ganti dengan Moota User ID Anda
-        $secret              = 'YOUR_MOOTA_SECRET'; // Ganti dengan Moota Secret Key Anda
+        $expected_moota_user = 'epokOBKvWaJ'; // Ganti dengan Moota User ID Anda
+        $secret              = 'rpNfmLhL'; // Ganti dengan Moota Secret Key Anda
 
         // Enable error logging
         ini_set('display_errors', 0);
@@ -32,8 +32,6 @@ class Moota extends Controller
         $moota_webhook = isset($headers['X-MOOTA-WEBHOOK']) ? $headers['X-MOOTA-WEBHOOK'] : '';
         $user_agent = isset($headers['User-Agent']) ? $headers['User-Agent'] : '';
         $signature_provided = isset($headers['Signature']) ? $headers['Signature'] : '';
-
-
 
 
         Log::write("Sign: $signature_provided", 'webhook', 'Moota');
