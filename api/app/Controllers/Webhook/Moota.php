@@ -110,7 +110,7 @@ class Moota extends Controller
             try {
                 $db_instance = $this->db(0);
                 if (!$db_instance) {
-                    Log::write("Err: DB 2000", 'webhook', 'Moota');
+                    Log::write("Err: DB 0", 'webhook', 'Moota');
                     $error_count++;
                     continue;
                 }

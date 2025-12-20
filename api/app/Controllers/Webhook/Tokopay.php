@@ -47,7 +47,7 @@ class Tokopay extends Controller
         if (isset($data['status'])) {
             $db_main = $this->db(0);
             if (!$db_main) {
-                Log::write("Err: DB 2000", 'webhook', 'Tokopay');
+                Log::write("Err: DB 0", 'webhook', 'Tokopay');
                 return;
             }
 
@@ -65,10 +65,10 @@ class Tokopay extends Controller
             try {
                 $db_instance = $this->db(0);
                 if (!$db_instance) {
-                    Log::write("Err: DB 2000", 'webhook', 'Tokopay');
+                    Log::write("Err: DB 0", 'webhook', 'Tokopay');
                     return;
                 }
-                LogHelper::write("DB Instance 2000 obtained.", 'tokopay');
+                LogHelper::write("DB Instance 0 obtained.", 'tokopay');
 
                 $update_wh = $db_instance->update("wh_tokopay", ["state" => $status], ["ref_id" => $reff_id]);
                 if (!$update_wh) {
