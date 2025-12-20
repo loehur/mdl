@@ -53,7 +53,7 @@ class Operasi extends Controller
       $sale_ids = [];
       $sale_refs = [];
       foreach ($data_main as $dm) {
-         $sale_ids[] = $dm['id_penjualan'];
+         $sale_ids[] = "'" . $dm['id_penjualan'] . "'";
          $sale_refs[] = $dm['no_ref'];
       }
 

@@ -44,7 +44,7 @@ $idOperan = $data['idOperan'];
         $enHapus = true;
         foreach ($data['data_main'] as $a) {
           $no++;
-          $id = $a['id_penjualan'];
+          $id = "'" . $a['id_penjualan'] . "'";
           $f10 = $a['id_penjualan_jenis'];
           $f3 = $a['id_item_group'];
           $f4 = $a['list_item'];
@@ -154,7 +154,7 @@ $idOperan = $data['idOperan'];
             foreach ($this->dLayanan as $c) {
               if ($c['id_layanan'] == $b) {
                 foreach ($data['operasi'] as $o) {
-                  if ($o['id_penjualan'] == $id && $o['jenis_operasi'] == $b) {
+                  if ($o['id_penjualan'] == "'" . $id . "'" && $o['jenis_operasi'] == $b) {
                     $user = "";
                     $check++;
                     foreach ($this->userMerge as $p) {

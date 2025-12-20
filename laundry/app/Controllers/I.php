@@ -35,7 +35,7 @@ class I extends Controller
       $refs = [];
       foreach ($data_main as $dm) {
          $i = substr($dm['insertTime'], 0, 4);
-         $numbers[$dm['id_penjualan']] = $i;
+         $numbers[$dm['id_penjualan']] = "'" . $i . "'";
          $refs[$dm['no_ref']] = $i;
       }
 

@@ -47,7 +47,7 @@
 
               <?php
               $no++;
-              $id = $a['id_penjualan'];
+              $id = "'" . $a['id_penjualan'] . "'";
               array_push($arrID, $id);
 
               $f10 = $a['id_penjualan_jenis'];
@@ -155,7 +155,7 @@
                 foreach ($this->dLayanan as $c) {
                   if ($c['id_layanan'] == $b) {
                     foreach ($data['operasi'] as $o) {
-                      if ($o['id_penjualan'] == $id && $o['jenis_operasi'] == $b) {
+                      if ($o['id_penjualan'] == "'" . $id . "'" && $o['jenis_operasi'] == $b) {
                         $user = "";
                         $check++;
                         foreach ($this->user as $p) {

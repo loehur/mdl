@@ -106,7 +106,7 @@ $labeled = false;
           <?php
 
           foreach ($c_list as $a) {
-            $id = $a['id_penjualan'];
+            $id = "'" . $a['id_penjualan'] . "'";
             $id_cabang = $a['id_cabang'];
             $f10 = $a['id_penjualan_jenis'];
             $f3 = $a['id_item_group'];
@@ -211,7 +211,7 @@ $labeled = false;
               foreach ($this->dLayanan as $c) {
                 if ($c['id_layanan'] == $b) {
                   foreach ($data['operasi'] as $o) {
-                    if ($o['id_penjualan'] == $id && $o['jenis_operasi'] == $b) {
+                    if ($o['id_penjualan'] == "'" . $id . "'" && $o['jenis_operasi'] == $b) {
                       $user = "";
                       $check++;
                       if ($b == $endLayanan) {

@@ -183,7 +183,7 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
         <?php } else {
         foreach ($data['data_main'] as $a) {
             $no++;
-            $id = $a['id_penjualan'];
+            $id = "'" . $a['id_penjualan'] . "'";
             $f10 = $a['id_penjualan_jenis'];
             $f3 = $a['id_item_group'];
             $f4 = $a['list_item'];
@@ -286,7 +286,7 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
                     if ($c['id_layanan'] == $b) {
                         foreach ($data['operasi'] as $o) {
                             if (
-                                $o['id_penjualan'] == $id &&
+                                $o['id_penjualan'] == "'" . $id . "'" &&
                                 $o['jenis_operasi'] == $b
                             ) {
                                 $check++;

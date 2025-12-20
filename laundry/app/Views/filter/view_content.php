@@ -80,7 +80,7 @@ $modeView = $data['modeView'];
       $deadlineSetrikaMiss = false;
 
       $no_urut += 1;
-      $id = $a['id_penjualan'];
+      $id = "'" . $a['id_penjualan'] . "'";
       $f10 = $a['id_penjualan_jenis'];
       $f3 = $a['id_item_group'];
       $f4 = $a['list_item'];
@@ -277,7 +277,7 @@ $modeView = $data['modeView'];
           if ($c['id_layanan'] == $b) {
             $check = 0;
             foreach ($data['operasi'] as $o) {
-              if ($o['id_penjualan'] == $id && $o['jenis_operasi'] == $b) {
+              if ($o['id_penjualan'] == "'" . $id . "'" && $o['jenis_operasi'] == $b) {
                 $check++;
                 foreach ($this->userMerge as $p) {
                   if ($p['id_user'] == $o['id_user_operasi']) {

@@ -90,7 +90,7 @@ class Penjualan extends Controller
       $do = $this->db(0)->insert('sale', $data);
       while ($do['errno'] == 1062) {
          $id_sale++;
-         $data['id_penjualan'] = $id_sale;
+         $data['id_penjualan'] = "'" . $id_sale . "'";
          $do = $this->db(0)->insert('sale', $data);
       }
 
@@ -139,7 +139,7 @@ class Penjualan extends Controller
       $saldo = 0;
       foreach ($data as $a) {
          $saldo = 0;
-         $id = $a['id_penjualan'];
+         $id = "'" . $a['id_penjualan'] . "'";
          $id_jenis = $a['id_penjualan_jenis'];
          $idHarga = $a['id_harga'];
          $qty = $a['qty'];
