@@ -85,29 +85,40 @@ class WhatsApp extends Controller
         
         $db = $this->db(0);
         
-        // CHECK 1: Cek di wa_customers (Source of Truth for CSW)
-        $qCust = $db->query("SELECT last_message_at FROM wa_customers WHERE wa_number IN ('$phone1', '$phone2') LIMIT 1");
-        if ($qCust->num_rows() > 0) {
-            $lastMessageAt = $qCust->row()->last_message_at;
-        } else {
-            // CHECK 2: Fallback ke wa_conversations (jika ada legacy data)
-            $qConv = $db->query("SELECT last_in_at FROM wa_conversations WHERE wa_number IN ('$phone1', '$phone2') ORDER BY last_in_at DESC LIMIT 1");
-            if ($qConv->num_rows() > 0) {
-                $lastMessageAt = $qConv->row()->last_in_at;
+        try {
+            // CHECK 1: Cek di wa_customers (Source of Truth for CSW)
+            $qCust = $db->query("SELECT last_message_at FROM wa_customers WHERE wa_number IN ('$phone1', '$phone2') LIMIT 1");
+            if ($qCust->num_rows() > 0) {
+                $lastMessageAt = $qCust->row()->last_message_at;
+            } else {
+                // CHECK 2: Fallback ke wa_conversations (jika ada legacy data)
+                $qConv = $db->query("SELECT last_in_at FROM wa_conversations WHERE wa_number IN ('$phone1', '$phone2') ORDER BY last_in_at DESC LIMIT 1");
+                if ($qConv->num_rows() > 0) {
+                    $lastMessageAt = $qConv->row()->last_in_at;
+                }
             }
+        } catch (\Exception $e) {
+            // Log warning but don't crash, assume no previous message
+            $lastMessageAt = null;
         }
         
         // Check CSW status
         $isWithinCsw = $this->whatsappService->isWithinCsw($lastMessageAt);
-        $hoursElapsed = $this->whatsappService->diffHours(date('Y-m-d H:i:s'), $lastMessageAt);
+        
+        // Safely calculate hours elapsed (default to very high if no message)
+        $hoursElapsed = 99999;
+        if ($lastMessageAt) {
+            $hoursElapsed = $this->whatsappService->diffHours(date('Y-m-d H:i:s'), $lastMessageAt);
+        }
         
         // Business Logic: Free text mode
         if ($messageMode === 'free') {
             // Check if CSW expired
             if (!$isWithinCsw) {
                 $this->error(
-                    'Customer Service Window (CSW) expired. Last message was ' . 
-                    round($hoursElapsed, 2) . ' hours ago. Please use template mode instead.',
+                    'Customer Service Window (CSW) expired. ' . 
+                    ($lastMessageAt ? 'Last message was ' . round($hoursElapsed, 2) . ' hours ago.' : 'No previous message found.') . 
+                    ' Please use template mode instead.',
                     400,
                     [
                         'csw_expired' => true,
