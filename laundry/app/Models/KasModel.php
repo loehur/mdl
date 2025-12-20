@@ -107,6 +107,7 @@ class KasModel extends Controller
 
             if ($data_main < 1) {
                 $data = [
+                    'id_kas' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
                     'id_cabang' => $id_cabang,
                     'jenis_mutasi' => $jenis_mutasi,
                     'jenis_transaksi' => $jt,

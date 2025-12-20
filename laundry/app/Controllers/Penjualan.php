@@ -108,7 +108,7 @@ class Penjualan extends Controller
 
    public function proses()
    {
-      $no_ref = (date('Y') - 2024) . date("mdHis") . rand(0, 9);
+      $no_ref = (date('Y') - 2024) . date("mdHis") . rand(0, 9). rand(0, 9);
 
       $pelanggan = $_POST['f1'];
       $id_penerima = $_POST['f2'];

@@ -81,6 +81,7 @@ class Kas extends Controller
 
       if ($data_main < 1) {
          $data = [
+            'id_kas' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
             'id_cabang' => $this->id_cabang,
             'jenis_mutasi' => 2,
             'jenis_transaksi' => 2,
@@ -122,6 +123,7 @@ class Kas extends Controller
 
       if ($data_main < 1) {
          $data = [
+            'id_kas' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
             'id_cabang' => $this->id_cabang,
             'jenis_mutasi' => 2,
             'jenis_transaksi' => 4,

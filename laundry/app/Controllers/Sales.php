@@ -398,6 +398,7 @@ class Sales extends Controller
       
       // Insert ke tabel kas
       $dataKas = [
+         'id_kas' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
          'id_cabang' => $id_cabang,
          'id_user' => $karyawan,
          'ref_transaksi' => $ref,
