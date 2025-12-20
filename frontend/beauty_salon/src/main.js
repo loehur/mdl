@@ -4,12 +4,20 @@ import App from "./App.vue";
 import "./styles.css";
 import { apiUrl } from './api';
 
-// Global fetch override for API calls
+// Global fetch override for API calls (Handle URL rewriting and Credentials)
 const originalFetch = window.fetch;
-window.fetch = (url, options) => {
+window.fetch = (url, options = {}) => {
+  // If URL targets our API, rewrite it and ensure credentials are sent
   if (typeof url === 'string' && (url.startsWith('/api') || url.startsWith('/Admin'))) {
-    return originalFetch(apiUrl(url), options);
+    url = apiUrl(url);
+
+    // Ensure credentials: 'include' is set for Cross-Origin cookies (salon.nalju.com <-> api.nalju.com)
+    options = {
+      ...options,
+      credentials: 'include' // This is CRITICAL for PHP Sessions across subdomains
+    };
   }
+
   return originalFetch(url, options);
 };
 
