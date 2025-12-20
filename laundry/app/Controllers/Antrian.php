@@ -389,14 +389,17 @@ class Antrian extends Controller
 
       $this->writeLog('notifReadySend', 'INFO', 'WA Send Result', ['id' => $idPenjualan, 'result' => $res]);
 
+      $apiData = $res['data']['data'] ?? $res['data'] ?? [];
+      $idApi = $apiData['id'] ?? ($apiData['message_id'] ?? '');
+      $statusProses = $apiData['status'] ?? 'sent';
+
       $where2 = $this->wCabang . " AND no_ref = '" . $idPenjualan . "' AND tipe = 2";
       if ($res['status']) {
-         $status = $res['data']['status'];
-         $set = ['status' => 1, 'proses' => $status, 'id_api' => $res['data']['id']];
+         $set = ['status' => 1, 'proses' => $statusProses, 'id_api' => $idApi];
          $this->db(0)->update('notif', $set, $where2);
       } else {
-         $status = $res['data']['status'];
-         $set = ['status' => 4, 'proses' => $status];
+         $errorProses = $res['error'] ?? 'failed';
+         $set = ['status' => 4, 'proses' => $errorProses];
          $this->db(0)->update('notif', $set, $where2);
       }
    }
@@ -439,6 +442,10 @@ class Antrian extends Controller
 
       $this->model('Log')->write("[sendNotif] Checking existing data - no_ref: {$noref}, tipe: 1, count: {$data_main}, res_status: " . ($res['status'] ? 'true' : 'false'));
 
+      $apiData = $res['data']['data'] ?? $res['data'] ?? [];
+      $idApi = $apiData['id'] ?? ($apiData['message_id'] ?? '');
+      $statusProses = $apiData['status'] ?? 'sent';
+
       if ($res['status']) {
          $vals = [
             'insertTime' => $time,
@@ -447,11 +454,11 @@ class Antrian extends Controller
             'phone' => $hp,
             'text' => $text,
             'tipe' => $tipe,
-            'id_api' => $res['data']['id'],
-            'proses' => $res['data']['status']
+            'id_api' => $idApi,
+            'proses' => $statusProses
          ];
       } else {
-         $status = $res['data']['status'];
+         $errorProses = $res['error'] ?? 'failed';
          $vals = [
             'insertTime' => $time,
             'id_cabang' => $this->id_cabang,
@@ -460,7 +467,7 @@ class Antrian extends Controller
             'text' => $text,
             'tipe' => $tipe,
             'id_api' => '',
-            'proses' => $status
+            'proses' => $errorProses
          ];
       }
 
