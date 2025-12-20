@@ -357,13 +357,13 @@ class I extends Controller
       }
 
       // Delete from wh_tokopay (ignore if table doesn't exist) - FIX: use db(0)
-      try { $this->db(0)->delete('wh_tokopay', "ref_id = '$ref_finance'"); } catch (Exception $e) {}
+      try { $this->db(100)->delete('wh_tokopay', "ref_id = '$ref_finance'"); } catch (Exception $e) {}
       
       // Delete from wh_midtrans (ignore if table doesn't exist) - FIX: use db(0)
-      try { $this->db(0)->delete('wh_midtrans', "ref_id = '$ref_finance'"); } catch (Exception $e) {}
+      try { $this->db(100)->delete('wh_midtrans', "ref_id = '$ref_finance'"); } catch (Exception $e) {}
       
       // Delete from wh_moota (ignore if table doesn't exist) - FIX: use db(0)
-      try { $this->db(0)->delete('wh_moota', "trx_id = '$ref_finance'"); } catch (Exception $e) {}
+      try { $this->db(100)->delete('wh_moota', "trx_id = '$ref_finance'"); } catch (Exception $e) {}
 
       echo json_encode(['status' => 'success', 'msg' => 'Pembayaran berhasil dibatalkan']);
    }

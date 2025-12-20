@@ -163,7 +163,7 @@ class KasModel extends Controller
                 'state' => 'pending'
             ];
             
-            $do = $this->db(0)->insert('wh_moota', $data_wh_moota);
+            $do = $this->db(100)->insert('wh_moota', $data_wh_moota);
             if ($do['errno'] != 0) {
                $this->model('Log')->write("[KasModel::bayarMulti] Insert Moota Error: " . $do['error']);
                return $do['error'];
