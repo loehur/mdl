@@ -2,7 +2,7 @@
 
 class Moota extends Controller
 {
-    public function update()
+    public function index()
     {
         // ==============================
         // CONFIGURATION
