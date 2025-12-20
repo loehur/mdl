@@ -136,7 +136,7 @@ class WhatsApp extends Controller
             return;
         }
 
-        $waNumber = $msg['from'] ?? null;
+        $waNumber = $this->normalizePhoneNumber($msg['from'] ?? null);
         $contactName = $msg['customerProfile']['name'] ?? null;
         $messageType = $msg['type'] ?? 'text';
         $messageId = $msg['id'] ?? null;
@@ -418,5 +418,39 @@ class WhatsApp extends Controller
         } catch (\Exception $e) {
             return date('Y-m-d H:i:s');
         }
+    }
+
+    /**
+     * Normalize phone number to +62 format
+     */
+    private function normalizePhoneNumber($phone)
+    {
+        if (!$phone) return null;
+        
+        // Remove non-numeric except +
+        $phone = preg_replace('/[^0-9+]/', '', $phone);
+        
+        // Handle 08... -> +628...
+        if (substr($phone, 0, 1) === '0') {
+            return '+62' . substr($phone, 1);
+        }
+        
+        // Handle 628... -> +628...
+        if (substr($phone, 0, 2) === '62') {
+            return '+' . $phone;
+        }
+        
+        // Handle 8... -> +628... (just in case)
+        if (substr($phone, 0, 1) === '8') {
+            return '+62' . $phone;
+        }
+
+        // If starts with +, return it
+        if (substr($phone, 0, 1) === '+') {
+            return $phone;
+        }
+
+        // Default: add +
+        return '+' . $phone;
     }
 }
