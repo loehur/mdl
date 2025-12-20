@@ -105,7 +105,7 @@ async function onSubmit() {
     const res = await fetch("/api/Beauty_Salon/Auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ id_user: id_user.value, password: password.value }),
+      body: JSON.stringify({ email: id_user.value, password: password.value }),
     });
     const data = await res.json().catch(() => ({ success: false }));
     if (!res.ok || !data.success) {
