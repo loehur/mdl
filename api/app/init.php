@@ -1,4 +1,6 @@
+<?php
 // Global CORS Headers
+
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 $allowed_origins = ['https://admin.nalju.com', 'https://salon.nalju.com'];
 
