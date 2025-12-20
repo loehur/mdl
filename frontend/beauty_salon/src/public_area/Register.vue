@@ -163,7 +163,7 @@ async function onSubmit() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: name.value,
-        phone_number: email.value, // Send email as phone_number for backend compatibility or use 'email' if backend is updated
+        email: email.value,
         password: password.value,
       }),
     });
@@ -195,7 +195,7 @@ async function verifyOtp() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        phone_number: email.value,
+        email: email.value,
         otp: otp.value,
       }),
     });

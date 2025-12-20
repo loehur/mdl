@@ -35,27 +35,27 @@ class Auth extends Controller
 
         try {
             $body = $this->getBody();
-            $this->validate($body, ['id_user', 'password']);
+            $this->validate($body, ['email', 'password']);
 
-            $id_user = $body['id_user'];
+            $email = $body['email'];
             $password = $body['password'];
 
             // Log the attempt
-            error_log("Login attempt for: " . $id_user);
+            error_log("Login attempt for: " . $email);
 
             $user = $this->db($this->db_index)
-                ->get_where('users', ['phone_number' => $id_user], 1)
+                ->get_where('users', ['email' => $email], 1)
                 ->row_array();
 
             if (!$user) {
-                error_log("User not found: " . $id_user);
-                $this->error('User tidak ditemukan dengan nomor HP: ' . $id_user, 401);
+                error_log("User not found: " . $email);
+                $this->error('User tidak ditemukan dengan Email: ' . $email, 401);
             }
 
             error_log("User found: " . $user['name'] . " | Role: " . $user['role']);
 
             if (!password_verify($password, $user['password'])) {
-                error_log("Password verification failed for: " . $id_user);
+                error_log("Password verification failed for: " . $email);
                 $this->error('Kata sandi salah', 401);
             }
 
@@ -77,7 +77,7 @@ class Auth extends Controller
             unset($user['password']);
             unset($user['otp']);
 
-            error_log("Login successful for: " . $id_user . " | Role: " . $user['role']);
+            error_log("Login successful for: " . $email . " | Role: " . $user['role']);
 
             $this->json([
                 'success' => true,
@@ -101,13 +101,13 @@ class Auth extends Controller
         }
 
         $body = $this->getBody();
-        $this->validate($body, ['phone_number', 'otp']);
+        $this->validate($body, ['email', 'otp']);
         
-        $phone = $body['phone_number'];
+        $email = $body['email'];
         $otp = $body['otp'];
 
         $user = $this->db($this->db_index)
-            ->get_where('users', ['phone_number' => $phone], 1)
+            ->get_where('users', ['email' => $email], 1)
             ->row_array();
 
         if (!$user) {
@@ -154,16 +154,16 @@ class Auth extends Controller
         }
 
         $body = $this->getBody();
-        $this->validate($body, ['name', 'phone_number', 'password']);
+        $this->validate($body, ['name', 'email', 'password']);
 
         $name = $body['name'];
-        $phone = $body['phone_number'];
+        $email = $body['email'];
         $password = $body['password'];
         $hashed = password_hash($password, PASSWORD_BCRYPT);
 
         // Check if exists
         $exists = $this->db($this->db_index)
-            ->get_where('users', ['phone_number' => $phone], 1)
+            ->get_where('users', ['email' => $email], 1)
             ->row_array();
 
         if ($exists) {
@@ -172,7 +172,7 @@ class Auth extends Controller
                 // Allows re-register or resend logic
                 $user_id = $exists['id'];
             } else {
-                $this->error('Nomor telepon sudah terdaftar', 400);
+                $this->error('Email sudah terdaftar', 400);
             }
         }
 
@@ -188,7 +188,7 @@ class Auth extends Controller
             $data = [
                 'salon_id' => $salon_id,
                 'name' => $name,
-                'phone_number' => $phone,
+                'email' => $email,
                 'password' => $hashed,
                 'role' => 'admin',
                 'otp' => $otp,
@@ -207,14 +207,14 @@ class Auth extends Controller
             ], ['id' => $user_id]);
         }
         
-        // Send OTP via WA using main_notif session
-        $this->sendOtpWa($phone, $otp);
+        // Send OTP via Email
+        $this->sendOtpEmail($email, $otp);
 
         $this->json([
             'success' => true, 
-            'message' => 'OTP telah dikirim via WhatsApp',
+            'message' => 'OTP telah dikirim via Email',
             'otp_required' => true,
-            'phone_number' => $phone
+            'email' => $email
         ]);
     }
 
@@ -229,13 +229,13 @@ class Auth extends Controller
         }
 
         $body = $this->getBody();
-        $this->validate($body, ['phone_number', 'otp']);
+        $this->validate($body, ['email', 'otp']);
         
-        $phone = $body['phone_number'];
+        $email = $body['email'];
         $otp = $body['otp'];
 
         $user = $this->db($this->db_index)
-            ->get_where('users', ['phone_number' => $phone], 1)
+            ->get_where('users', ['email' => $email], 1)
             ->row_array();
 
         if (!$user) {
@@ -282,16 +282,16 @@ class Auth extends Controller
         }
 
         $body = $this->getBody();
-        $this->validate($body, ['phone_number']);
+        $this->validate($body, ['email']);
         
-        $phone = $body['phone_number'];
+        $email = $body['email'];
 
         $user = $this->db($this->db_index)
-            ->get_where('users', ['phone_number' => $phone], 1)
+            ->get_where('users', ['email' => $email], 1)
             ->row_array();
 
         if (!$user) {
-            $this->error('Nomor HP tidak terdaftar', 404);
+            $this->error('Email tidak terdaftar', 404);
         }
 
         // Generate OTP for reset
@@ -304,13 +304,13 @@ class Auth extends Controller
             'otp_expiry' => $otp_expiry
         ], ['id' => $user['id']]);
 
-        // Send OTP via WA
-        $sent = $this->sendOtpWa($phone, $otp, "RESET PASSWORD");
+        // Send OTP via Email
+        $sent = $this->sendOtpEmail($email, $otp, "RESET PASSWORD");
 
         $this->json([
             'success' => true,
-            'message' => 'Kode OTP untuk reset password telah dikirim via WhatsApp',
-            'phone_number' => $phone
+            'message' => 'Kode OTP untuk reset password telah dikirim via Email',
+            'email' => $email
         ]);
     }
 
@@ -325,9 +325,9 @@ class Auth extends Controller
         }
 
         $body = $this->getBody();
-        $this->validate($body, ['phone_number', 'otp', 'new_password']);
+        $this->validate($body, ['email', 'otp', 'new_password']);
         
-        $phone = $body['phone_number'];
+        $email = $body['email'];
         $otp = $body['otp'];
         $new_password = $body['new_password'];
 
@@ -336,7 +336,7 @@ class Auth extends Controller
         }
 
         $user = $this->db($this->db_index)
-            ->get_where('users', ['phone_number' => $phone], 1)
+            ->get_where('users', ['email' => $email], 1)
             ->row_array();
 
         if (!$user) {
@@ -366,60 +366,35 @@ class Auth extends Controller
         ]);
     }
 
-    private function sendOtpWa($phone, $otp, $type = "LOGIN")
+    private function sendOtpEmail($email, $otp, $type = "LOGIN")
     {
-        // Find main session from mdl_main
-        $session = $this->db($this->mdl_main_db)
-            ->get_where('wa_sessions', ['main_notif' => 1, 'wa_status' => 'active'], 1)
-            ->row_array();
-
-        if (!$session) {
-            \Log::write("OTP Failed: No active main_notif session found.", 'salon', 'Auth');
+        $subject = ($type === "RESET PASSWORD") ? "Reset Password OTP" : "Verification OTP";
+        $message = ($type === "RESET PASSWORD") 
+            ? "Your OTP for password reset is: $otp. Jangan berikan kode ini kepada siapapun."
+            : "Your OTP for verification is: $otp. Jangan berikan kode ini kepada siapapun.";
+            
+        // Call mail server
+        $url = 'https://mailserver.nalju.com/send-email';
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+            'to' => $email,
+            'subject' => $subject,
+            'text' => $message,
+            'html' => "<h3>$subject</h3><p>$message</p>"
+        ]));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+        
+        $result = curl_exec($ch);
+        $error = curl_error($ch);
+        curl_close($ch);
+        
+        if ($error) {
+            \Log::write("Email OTP Error: $error", 'salon', 'Auth');
             return false;
         }
-
-        $session_id = $session['auth'];
-        $message = ($type === "RESET PASSWORD") 
-            ? "Beauty Salon Reset Password OTP: *$otp*.\nJangan berikan kode ini kepada siapapun."
-            : "Beauty Salon OTP: *$otp*.\nJangan berikan kode ini kepada siapapun.";
-
-        \Log::write("Sending $type OTP to $phone via Session $session_id...", 'salon', 'Auth');
-
-        try {
-            $url = $this->wa_server . '/send-message';
-            $ch = curl_init($url);
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            
-            // Format number: remove 0 or 62 prefix, add country code if needed or just send
-            // WA server expects clean number. Let's ensure it.
-            // If phone starts with 0, replace with 62
-            if (substr($phone, 0, 1) === '0') {
-               $phone = '62' . substr($phone, 1);
-            }
-
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
-                'sessionId' => $session_id,
-                'number' => $phone,
-                'message' => $message
-            ]));
-            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
-            
-            $result = curl_exec($ch);
-            $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $error = curl_error($ch);
-            curl_close($ch);
-
-            if ($error) {
-                \Log::write("OTP Curl Error: $error", 'salon', 'Auth');
-            } else {
-                \Log::write("OTP Sent Result ($httpcode): $result", 'salon', 'Auth');
-            }
-
-        } catch (Exception $e) {
-            \Log::write("OTP Exception: " . $e->getMessage(), 'salon', 'Auth');
-        }
+        return true;
     }
 
     /**
