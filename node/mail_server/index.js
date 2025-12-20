@@ -8,7 +8,22 @@ const app = express();
 const PORT = process.env.PORT || 3002;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+
+        // Regex to allow nalju.com and any subdomain (*.nalju.com)
+        // Matches http/https and any subdomain depth
+        const allowedOriginPattern = /^https?:\/\/(?:[a-zA-Z0-9-]+\.)*nalju\.com$/;
+
+        if (allowedOriginPattern.test(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    }
+}));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
