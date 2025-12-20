@@ -258,7 +258,7 @@ class Antrian extends Controller
             'no_ref' => $penjualan,
             'phone' => $hp,
             'text' => $text,
-            'status' => 5,
+            'state' => 'pending',
             'tipe' => 2
          ];
           $do = $this->db(0)->insert('notif', $data);
@@ -391,15 +391,13 @@ class Antrian extends Controller
 
       $apiData = $res['data']['data'] ?? $res['data'] ?? [];
       $idApi = $apiData['id'] ?? ($apiData['message_id'] ?? '');
-      $statusProses = $apiData['status'] ?? 'sent';
 
       $where2 = $this->wCabang . " AND no_ref = '" . $idPenjualan . "' AND tipe = 2";
       if ($res['status']) {
-         $set = ['status' => 1, 'proses' => $statusProses, 'id_api' => $idApi];
+         $set = ['state' => 'sent', 'id_api' => $idApi];
          $this->db(0)->update('notif', $set, $where2);
       } else {
-         $errorProses = $res['error'] ?? 'failed';
-         $set = ['status' => 4, 'proses' => $errorProses];
+         $set = ['state' => 'failed'];
          $this->db(0)->update('notif', $set, $where2);
       }
    }
@@ -444,7 +442,6 @@ class Antrian extends Controller
 
       $apiData = $res['data']['data'] ?? $res['data'] ?? [];
       $idApi = $apiData['id'] ?? ($apiData['message_id'] ?? '');
-      $statusProses = $apiData['status'] ?? 'sent';
 
       if ($res['status']) {
          $vals = [
@@ -455,7 +452,7 @@ class Antrian extends Controller
             'text' => $text,
             'tipe' => $tipe,
             'id_api' => $idApi,
-            'proses' => $statusProses
+            'state' => 'sent'
          ];
       } else {
          $errorProses = $res['error'] ?? 'failed';
@@ -467,7 +464,7 @@ class Antrian extends Controller
             'text' => $text,
             'tipe' => $tipe,
             'id_api' => '',
-            'proses' => $errorProses
+            'state' => 'failed'
          ];
       }
 

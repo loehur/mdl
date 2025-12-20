@@ -2,64 +2,6 @@
 
 class Cron extends Controller
 {
-   public function send()
-   {
-      $pending = 0;
-      $expire = 0;
-      $sent = 0;
-      $where = "proses = '' AND status <> 5 ORDER BY insertTime ASC";
-      $data_pending = '';
-
-      $data = $this->db(0)->get_where('notif', $where);
-      $pending += count($data);
-      foreach ($data as $dm) {
-         $id_notif = $dm['id_notif'];
-         $data_pending .= $data['id_cabang'] . "#" . $id_notif . ' ';
-
-         $expired_bol = false;
-
-         $t1 = strtotime($dm['insertTime']);
-         $t2 = strtotime(date("Y-m-d H:i:s"));
-         $diff = $t2 - $t1;
-         $hours = round($diff / (60 * 60), 1);
-
-         if ($hours > 24) {
-            $expired_bol = true;
-         }
-
-         if ($expired_bol == false) {
-            $hp = $dm['phone'];
-            $text = $dm['text'];
-            $res = $this->helper('Notif')->send_wa($hp, $text);
-
-            if ($res['status']) {
-               $status = $res['data']['status'];
-               $set = ['status' => 1, 'proses' => $status, 'id_api' => $res['data']['id']];
-               $where2 = "id_notif = '" . $id_notif . "'";
-               $this->db(0)->update('notif', $set, $where2);
-               $sent += 1;
-            } else {
-               $status = $res["data"]['status'];
-               $set = ['status' => 4, 'proses' => $status];
-               $where2 = "id_notif = '" . $id_notif . "'";
-               $this->db(0)->update('notif', $set, $where2);
-            }
-         } else {
-            $status = "expired";
-            $set = ['status' => 7, 'proses' => $status];
-            $where2 = "id_notif = '" . $id_notif . "'";
-            $this->db(0)->update('notif', $set, $where2);
-            $expire += 1;
-         }
-      }
-
-      echo "PENDING: " . $pending . " EXPIRED: " . $expire . " SENT: " . $sent . "\n";
-      if ($data_pending <> '') {
-         echo "PENDING (CabangID#NotifID): ";
-         echo $data_pending . "\n";
-      }
-   }
-
    function bayar_after_cek($ref_id, $dt, $a, $month)
    {
       $msg = "";

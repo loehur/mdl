@@ -58,11 +58,11 @@ $labeled = false;
       $buttonNotif_londri = "<a href='#' data-id_harga='" . $id_harga . "' data-idPelanggan = '" . $id_pelanggan . "' data-urutRef='" . $ref . "' data-hp='" . $no_pelanggan . "' data-ref='" . $ref . "' data-time='" . $timeRef . "' class='text-dark sendNotif bg-white rounded col px-1'> <i class='fab fa-whatsapp'></i><span id='notif" . $ref . "'></span></a>";
       foreach ($data['notif_bon'] as $notif) {
         if ($notif['no_ref'] == $ref) {
-          $statusWA = $notif['proses'];
+          $statusWA = $notif['state'];
           if ($statusWA == '') {
             $statusWA = 'Pending';
           }
-          $stNotif = "<b>" . ucwords(strtolower($statusWA)) . "</b> " . ucwords($notif['state']);
+          $stNotif = "<b>" . ucwords(strtolower($statusWA)) . "</b>";
           $buttonNotif_londri = "<span class='bg-white rounded px-1'><i class='fab fa-whatsapp'></i> " . $stNotif . "</span>";
         }
       }
@@ -234,7 +234,7 @@ $labeled = false;
                       if ($b == $endLayanan && $endLayananDone == true) {
                         foreach ($data['notif_selesai'] as $notif) {
                           if ($notif['no_ref'] == $id) {
-                            $stNotif = "<b>" . ucwords(strtolower($notif['proses'])) . "</b> " . ucwords($notif['state']);
+                            $stNotif = "<b>" . ucwords(strtolower($notif['state'])) . "</b>";
                             $buttonNotifSelesai = "<span><i class='fas fa-check-circle'></i> " . ucwords($stNotif) . "</span><br>";
                           }
                         }

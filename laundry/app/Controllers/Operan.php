@@ -204,7 +204,6 @@ class Operan extends Controller
                'set_data' => $set,
                'where_clause' => $where,
                'penjualan' => $penjualan,
-               'book' => $_SESSION[URL::SESSID]['user']['book']
             ]);
             echo $up['error'];
             exit();
@@ -218,7 +217,7 @@ class Operan extends Controller
             'no_ref' => $penjualan,
             'phone' => $hp,
             'text' => $text,
-            'status' => 5,
+            'state' => 'pending',
             'tipe' => 2
          ];
          $inNotif = $this->db(0)->insert('notif', $dataNotif);

@@ -285,6 +285,7 @@ class WhatsApp extends Controller
         }
 
         $wamid = $statusUpdate['wamid'] ?? null;
+        $messageId = $statusUpdate['id'] ?? null; // YCloud Message ID
         $status = $statusUpdate['status'] ?? null;
         $errorMessage = $statusUpdate['errorMessage'] ?? null;
 
@@ -303,6 +304,15 @@ class WhatsApp extends Controller
 
         if ($updated) {
             \Log::write("✓ Status updated: $wamid -> $status", 'webhook', 'WhatsApp');
+
+            // Update notif table in db(1)
+            // id_api is likely the YCloud Message ID, not wamid
+            $db1 = $this->db(1);
+            if ($messageId) {
+                $db1->update('notif', ['state' => $status], ['id_api' => $messageId]);
+            } elseif ($wamid) {
+                $db1->update('notif', ['state' => $status], ['id_api' => $wamid]);
+            }
         } else {
             \Log::write("⚠ Message not found for status update: $wamid", 'webhook', 'WhatsApp');
         }

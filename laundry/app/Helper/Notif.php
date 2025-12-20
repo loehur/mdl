@@ -34,7 +34,6 @@ class Notif extends Controller
             'text' => $otp,
             'tipe' => 6,
             'id_api' => $messageId,
-            'proses' => $status,
             'state' => 'sent'  // Status pengiriman: sent, delivered, read, failed
         ];
         $do = $this->db(0)->insert('notif', $data);
