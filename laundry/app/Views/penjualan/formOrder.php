@@ -1,7 +1,7 @@
 <?php
-$idPenjualan = "'" . $data[1] . "'";
+$idPenjualan = $data[1];
 foreach ($this->dPenjualan as $a) {
-  if ($a['id_penjualan_jenis'] == "'" . $idPenjualan . "'") {
+  if ($a['id_penjualan_jenis'] == $idPenjualan) {
     foreach ($this->dSatuan as $b) {
       if ($b['id_satuan'] == $a['id_satuan']) {
         $unit = $b['nama_satuan'];
