@@ -219,7 +219,7 @@ class Operan extends Controller
             'no_ref' => $penjualan,
             'phone' => $hp,
             'text' => $text,
-            'state' => 'pending',
+            'state' => 'queue',
             'tipe' => 2
          ];
          $inNotif = $this->db(0)->insert('notif', $dataNotif);

@@ -38,14 +38,14 @@
             </div>
 
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Nomor HP</label>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
               <div class="relative">
                 <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                   <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
                   </svg>
                 </div>
-                <input v-model="phone_number" class="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-pink-200 focus:border-pink-400 outline-none transition bg-white/50" type="text" inputmode="numeric" placeholder="08123456789" required />
+                <input v-model="email" class="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-pink-200 focus:border-pink-400 outline-none transition bg-white/50" type="email" placeholder="nama@email.com" required />
               </div>
             </div>
 
@@ -99,7 +99,7 @@
               </svg>
             </div>
             <h3 class="text-xl font-bold text-gray-800 mb-2">Verifikasi OTP</h3>
-            <p class="text-sm text-gray-600">Kode verifikasi dikirim ke<br><span class="font-semibold">{{ phone_number }}</span></p>
+            <p class="text-sm text-gray-600">Kode verifikasi dikirim ke<br><span class="font-semibold">{{ email }}</span></p>
           </div>
 
           <form class="space-y-4" @submit.prevent="verifyOtp">
@@ -137,7 +137,7 @@ import { useRouter } from "vue-router";
 const router = useRouter();
 
 const name = ref("");
-const phone_number = ref("");
+const email = ref("");
 const password = ref("");
 const confirm_password = ref("");
 const otp = ref("");
@@ -163,7 +163,7 @@ async function onSubmit() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: name.value,
-        phone_number: phone_number.value,
+        phone_number: email.value, // Send email as phone_number for backend compatibility or use 'email' if backend is updated
         password: password.value,
       }),
     });
@@ -176,7 +176,7 @@ async function onSubmit() {
     }
     otp.value = "";
     step.value = 2;
-    message.value = data.message || "OTP dikirim ke WhatsApp Anda";
+    message.value = data.message || "OTP dikirim ke Email Anda";
     isLoading.value = false;
   } catch (e) {
     message.value = "Network error";
@@ -195,7 +195,7 @@ async function verifyOtp() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        phone_number: phone_number.value,
+        phone_number: email.value,
         otp: otp.value,
       }),
     });

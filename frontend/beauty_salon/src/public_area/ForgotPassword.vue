@@ -23,17 +23,17 @@
         
         <!-- Step 1: Input Phone -->
         <div v-if="step === 1">
-          <h2 class="text-xl font-black text-gray-800 mb-6 tracking-tight">Cari Nomor HP</h2>
+          <h2 class="text-xl font-black text-gray-800 mb-6 tracking-tight">Cari Akun</h2>
           <form class="space-y-5" @submit.prevent="requestOtp">
             <div>
-              <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Nomor WhatsApp</label>
+              <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Email Address</label>
               <div class="relative group">
                 <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors group-focus-within:text-pink-500">
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
                   </svg>
                 </div>
-                <input v-model="phone" class="w-full pl-12 pr-4 py-4 border border-gray-100 rounded-2xl focus:ring-4 focus:ring-pink-500/10 focus:border-pink-500 outline-none transition-all bg-white/50 font-semibold" type="text" inputmode="numeric" placeholder="Contoh: 08123456789" required />
+                <input v-model="email" class="w-full pl-12 pr-4 py-4 border border-gray-100 rounded-2xl focus:ring-4 focus:ring-pink-500/10 focus:border-pink-500 outline-none transition-all bg-white/50 font-semibold" type="email" placeholder="contoh@email.com" required />
               </div>
             </div>
 
@@ -53,7 +53,7 @@
         <div v-if="step === 2">
           <div class="text-center mb-6">
             <h2 class="text-xl font-black text-gray-800 mb-2 tracking-tight">Verifikasi & Reset</h2>
-            <p class="text-xs text-gray-500 font-medium leading-relaxed">Masukkan kode OTP yang dikirim ke<br><span class="font-bold text-pink-600 tracking-wider">{{ phone }}</span></p>
+            <p class="text-xs text-gray-500 font-medium leading-relaxed">Masukkan kode OTP yang dikirim ke<br><span class="font-bold text-pink-600 tracking-wider">{{ email }}</span></p>
           </div>
 
           <form class="space-y-4" @submit.prevent="resetPassword">
@@ -76,7 +76,7 @@
               <span class="relative z-10 font-bold uppercase tracking-widest text-xs pt-0.5">{{ isLoading ? 'Memproses...' : 'Simpan & Masuk' }}</span>
             </button>
 
-            <button type="button" @click="step = 1" class="w-full text-xs font-bold text-gray-400 hover:text-pink-600 transition mt-4">Ganti Nomor HP</button>
+            <button type="button" @click="step = 1" class="w-full text-xs font-bold text-gray-400 hover:text-pink-600 transition mt-4">Ganti Email</button>
           </form>
         </div>
 
@@ -101,7 +101,7 @@ import { ref } from "vue";
 import { useRouter } from "vue-router";
 
 const router = useRouter();
-const phone = ref("");
+const email = ref("");
 const otp = ref("");
 const newPassword = ref("");
 const step = ref(1);
@@ -118,7 +118,7 @@ async function requestOtp() {
     const res = await fetch("/api/Beauty_Salon/Auth/forgot_password", {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ phone_number: phone.value }),
+      body: JSON.stringify({ phone_number: email.value }),
     });
     
     const data = await res.json().catch(() => ({ success: false }));
@@ -151,7 +151,7 @@ async function resetPassword() {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({ 
-        phone_number: phone.value, 
+        phone_number: email.value, 
         otp: otp.value,
         new_password: newPassword.value 
       }),

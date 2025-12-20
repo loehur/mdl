@@ -193,12 +193,12 @@ class Antrian extends Controller
    {
       if (isset($_POST['data'])) {
          $data = unserialize($_POST['data']);
-         $this->writeLog('clearTuntas', 'INFO', 'Clear Tuntas Batch', ['count' => count($data), 'data' => $data]);
+
          foreach ($data as $a) {
             $this->tuntasOrder($a);
          }
       } else {
-         $this->writeLog('clearTuntas', 'WARNING', 'No data to clear');
+
       }
    }
 
@@ -217,12 +217,7 @@ class Antrian extends Controller
       $penjualan = $_POST['f2'];
       $operasi = $_POST['f3'];
 
-      $this->writeLog('operasi', 'INFO', 'Proses Operasi', [
-         'karyawan_id' => $karyawan,
-         'penjualan_id' => $penjualan,
-         'jenis_operasi' => $operasi,
-         'hp' => $hp
-      ]);
+
 
       $setOne = "id_penjualan = '" . $penjualan . "' AND jenis_operasi = " . $operasi;
       $where = $this->wCabang . " AND " . $setOne;
@@ -280,12 +275,11 @@ class Antrian extends Controller
             $where = $this->wCabang . " AND id_penjualan = '" . $penjualan . "'";
             $this->db(0)->update('sale', $set, $where);
 
-            //CEK SUDAH TERKIRIM BELUM
-            $setOne = "no_ref = '" . $penjualan . "' AND proses <> '' AND tipe = 2";
+            //CEK DATA NOTIF
+            $setOne = "no_ref = '" . $penjualan . "' AND tipe = 2 AND (state = 'pending' || state = 'queue')";
             $where = $setOne;
             $data_main = $this->db(0)->count_where('notif', $where);
-             if ($data_main < 1) {
-                $this->writeLog('operasi', 'INFO', 'Sending Notif Ready', ['penjualan_id' => $penjualan]);
+             if ($data_main == 1) {
                 $this->notifReadySend($penjualan, $totalNotif);
              }
           }
@@ -301,12 +295,7 @@ class Antrian extends Controller
       $user = $_POST['user'];
       $id_transaksi = $_POST['no_ref'];
 
-      $this->writeLog('surcas', 'INFO', 'Proses Surcas', [
-        'jenis' => $jenis,
-        'jumlah' => $jumlah,
-        'user' => $user,
-        'no_ref' => $id_transaksi
-      ]);
+
 
       $setOne = "transaksi_jenis = 1 AND no_ref = " . $id_transaksi . " AND id_jenis_surcas = " . $jenis;
       $where = $this->wCabang . " AND " . $setOne;
@@ -338,11 +327,7 @@ class Antrian extends Controller
       $id = $_POST['id'];
       $totalNotif = $_POST['totalNotif'];
 
-      $this->writeLog('updateRak', 'INFO', 'Update Rak', [
-         'mode' => $mode,
-         'value' => $rak,
-         'id' => $id
-      ]);
+
 
       switch ($mode) {
          case 0:
@@ -362,17 +347,17 @@ class Antrian extends Controller
       $this->db(0)->update('sale', $set, $where);
 
       //CEK SUDAH TERKIRIM BELUM
-      $setOne = "no_ref = '" . $id . "' AND proses <> '' AND tipe = 2";
+      $setOne = "no_ref = '" . $id . "' AND state = 'queue'";
       $where = $setOne;
       $data_main = $this->db(0)->count_where('notif', $where);
-      if ($data_main < 1) {
+      if ($data_main == 1) {
          $this->notifReadySend($id, $totalNotif);
       }
    }
 
    public function tuntasOrder($ref)
    {
-      $this->writeLog('tuntasOrder', 'INFO', 'Set Tuntas Order', ['ref' => $ref]);
+
       $set = ['tuntas' => 1];
       $where = $this->wCabang . " AND no_ref = " . $ref;
       $this->db(0)->update('sale', $set, $where);
@@ -380,7 +365,7 @@ class Antrian extends Controller
 
    public function notifReadySend($idPenjualan, $totalNotif = "")
    {
-      $this->writeLog('notifReadySend', 'INFO', 'Sending WA Ready', ['id' => $idPenjualan]);
+
       $setOne = "no_ref = '" . $idPenjualan . "' AND tipe = 2";
       $where = $this->wCabang . " AND " . $setOne;
       $dm = $this->db(0)->get_where_row('notif', $where);
@@ -388,8 +373,6 @@ class Antrian extends Controller
       $text = $dm['text'];
       $text = str_replace("|TOTAL|", "\n" . $totalNotif, $text);
       $res = $this->helper('Notif')->send_wa($hp, $text, false);
-
-      $this->writeLog('notifReadySend', 'INFO', 'WA Send Result', ['id' => $idPenjualan, 'result' => $res]);
 
       $apiData = $res['data']['data'] ?? $res['data'] ?? [];
       $idApi = $apiData['id'] ?? ($apiData['message_id'] ?? '');
@@ -413,12 +396,6 @@ class Antrian extends Controller
       $text = $_POST['text'];
       $idPelanggan = $_POST['idPelanggan'];
 
-      $this->writeLog('sendNotif', 'INFO', 'Send Notif Manual', [
-         'tipe' => $tipe,
-         'hp' => $hp,
-         'ref' => $noref
-      ]);
-
       $text = str_replace("<sup>2</sup>", "²", $text);
       $text = str_replace("<sup>3</sup>", "³", $text);
 
@@ -434,13 +411,9 @@ class Antrian extends Controller
 
       $res = $this->helper("Notif")->send_wa($hp, $text, false);
 
-      $this->writeLog('sendNotif', 'INFO', 'WA Manual Result', ['ref' => $noref, 'result' => $res]);
-
       $setOne = "no_ref = '" . $noref . "' AND tipe = 1";
       $where = $this->wCabang . " AND " . $setOne;
       $data_main = $this->db(0)->count_where('notif', $where);
-
-      $this->model('Log')->write("[sendNotif] Checking existing data - no_ref: {$noref}, tipe: 1, count: {$data_main}, res_status: " . ($res['status'] ? 'true' : 'false'));
 
       $apiData = $res['data']['data'] ?? $res['data'] ?? [];
       $idApi = $apiData['id'] ?? ($apiData['message_id'] ?? '');
@@ -471,7 +444,7 @@ class Antrian extends Controller
       }
 
       if ($data_main < 1) {
-         $this->model('Log')->write("[sendNotif] Inserting to database - vals: " . json_encode($vals));
+
          $do = $this->db(0)->insert('notif', $vals);
           
           if ($do['errno'] <> 0) {
@@ -504,10 +477,7 @@ class Antrian extends Controller
       $karyawan = $_POST['f1'];
       $id = $_POST['f2'];
 
-      $this->writeLog('ambil', 'INFO', 'Proses Ambil Cucian', [
-         'karyawan' => $karyawan,
-         'id' => $id
-      ]);
+
 
       $dateNow = date('Y-m-d H:i:s');
       $set = ['tgl_ambil' => $dateNow, 'id_user_ambil' => $karyawan];
@@ -527,7 +497,7 @@ class Antrian extends Controller
    {
       $ref = $_POST['ref'];
       $note = $_POST['note'];
-      $this->writeLog('hapusRef', 'WARNING', 'Hapus Ref (BIN)', ['ref' => $ref, 'note' => $note]);
+
       $setOne = "no_ref = '" . $ref . "'";
       $where = $this->wCabang . " AND " . $setOne;
       $set = ['bin' => 1, 'bin_note' => $note];
@@ -537,7 +507,7 @@ class Antrian extends Controller
    public function restoreRef()
    {
       $ref = $_POST['ref'];
-      $this->writeLog('restoreRef', 'WARNING', 'Restore Ref (unBIN)', ['ref' => $ref]);
+
       $setOne = "no_ref = '" . $ref . "'";
       $where = $this->wCabang . " AND " . $setOne;
       $set = ['bin' => 0];
