@@ -88,7 +88,7 @@ $modeView = $data['modeView'];
 
           foreach ($data['data_notif'] as $notif) {
             if ($notif['no_ref'] == $ref) {
-              $stNotif = "<b>" . ucwords(strtolower($notif['proses'])) . "</b> " . ucwords($notif['state']);
+              $stNotif = "<b>" . ucwords(strtolower($notif['state'])) . "</b>";
             }
           }
           $buttonNotif = "<span>" . $buttonNotif .  " </span>" . $stNotif;
