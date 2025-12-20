@@ -57,7 +57,7 @@
                     <span class="font-medium text-gray-800">{{ user.name }}</span>
                   </div>
                 </td>
-                <td class="px-6 py-4 text-gray-600 font-mono text-sm">{{ user.phone_number }}</td>
+                <td class="px-6 py-4 text-gray-600 font-mono text-sm">{{ user.email }}</td>
                 <td class="px-6 py-4">
                     <span class="px-3 py-1.5 rounded-full text-xs font-semibold capitalize inline-flex items-center gap-1.5 bg-blue-100 text-blue-700">
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
@@ -117,7 +117,7 @@
               </div>
               <div class="flex-1 min-w-0">
                 <p class="text-xs text-gray-500 mb-0.5">Email</p>
-                <p class="font-medium text-gray-800 font-mono">{{ user.phone_number }}</p>
+                <p class="font-medium text-gray-800 font-mono">{{ user.email }}</p>
               </div>
             </div>
             
@@ -158,7 +158,7 @@
                 
                 <div>
                    <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                   <input v-model="form.phone_number" type="email" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-fuchsia-200 focus:border-fuchsia-400 outline-none transition" required placeholder="Contoh: user@email.com" />
+                   <input v-model="form.email" type="email" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-fuchsia-200 focus:border-fuchsia-400 outline-none transition" required placeholder="Contoh: user@email.com" />
                 </div>
 
                 <div>
@@ -253,7 +253,7 @@ const submitting = ref(false);
 
 const form = reactive({
     name: '',
-    phone_number: '',
+    email: '',
     role: 'cashier',
     password: ''
 });
@@ -307,7 +307,7 @@ async function createUser() {
             showModal.value = false;
             // Reset form
             form.name = '';
-            form.phone_number = '';
+            form.email = '';
             form.role = 'cashier';
             form.password = '';
             

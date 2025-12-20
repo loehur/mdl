@@ -76,10 +76,10 @@ class Users extends Controller
 
         try {
             $body = $this->getBody();
-            $this->validate($body, ['name', 'phone_number', 'password', 'role']);
+            $this->validate($body, ['name', 'email', 'password', 'role']);
 
             $name = $body['name'];
-            $phone = $body['phone_number'];
+            $email = $body['email'];
             $password = password_hash($body['password'], PASSWORD_BCRYPT);
             $role = $body['role']; // 'admin', 'cashier', 'customer'
 
@@ -102,17 +102,17 @@ class Users extends Controller
 
             // Check exists
             $exists = $this->db($this->db_index)
-                ->get_where('users', ['phone_number' => $phone], 1)
+                ->get_where('users', ['email' => $email], 1)
                 ->row_array();
 
             if ($exists) {
-                $this->error('Nomor HP sudah terdaftar', 400);
+                $this->error('Email sudah terdaftar', 400);
             }
 
             $data = [
                 'salon_id' => $salon_id, // Copy from admin
                 'name' => $name,
-                'phone_number' => $phone,
+                'email' => $email,
                 'password' => $password,
                 'role' => $role,
                 'is_active' => 1, // Created by admin, assume active
