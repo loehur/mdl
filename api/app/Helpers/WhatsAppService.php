@@ -423,22 +423,9 @@ class WhatsAppService
                 $customerId = $customer->row()->id;
                 $log("✓ Customer found: ID=$customerId");
             } else {
-                $log("Creating new customer...");
-                // Create new customer
-                $customerId = $db->insert('wa_customers', [
-                    'wa_number' => $waNumber,
-                    'first_contact_at' => date('Y-m-d H:i:s'),
-                    'total_messages' => 0,
-                    'is_active' => 1,
-                    'created_at' => date('Y-m-d H:i:s')
-                ]);
-                
-                if ($customerId) {
-                    $log("✓ Customer created: ID=$customerId");
-                } else {
-                    $dbError = $db->conn()->error ?? 'unknown';
-                    $log("ERROR: Customer insert failed: $dbError");
-                }
+                // STOP! Do not create customer on outbound. User rule: "Hanya saat inbound saja"
+                $log("Customer not found. Skipping log creation (Rule: Only save customer on inbound).");
+                return;
             }
             
             if (!$customerId) {
