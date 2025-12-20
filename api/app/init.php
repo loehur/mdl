@@ -1,7 +1,16 @@
-<?php
-// Global CORS Headers - Handle this before anything else to ensure headers are sent
-// Always allow admin.nalju.com
-header("Access-Control-Allow-Origin: https://admin.nalju.com");
+// Global CORS Headers
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+$allowed_origins = ['https://admin.nalju.com', 'https://salon.nalju.com'];
+
+// Initialize allowed origin
+$allowed_origin = 'https://admin.nalju.com'; // Default fallback
+
+// Allow any subdomain of nalju.com
+if (preg_match('/^https?:\/\/([a-z0-9-]+\.)*nalju\.com$/', $origin)) {
+    $allowed_origin = $origin;
+}
+
+header("Access-Control-Allow-Origin: $allowed_origin");
 header('Access-Control-Allow-Credentials: true');
 header('Access-Control-Max-Age: 86400');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
