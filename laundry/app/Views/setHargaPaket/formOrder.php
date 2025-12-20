@@ -1,7 +1,7 @@
 <?php
 $idPenjualan = $data;
 foreach ($this->dPenjualan as $a) {
-  if ($a['id_penjualan_jenis'] == $idPenjualan) {
+  if ($a['id_penjualan_jenis'] == "'" . $idPenjualan . "'") {
     foreach ($this->dSatuan as $b) {
       if ($b['id_satuan'] == $a['id_satuan']) {
         $unit = $b['nama_satuan'];
@@ -25,7 +25,7 @@ foreach ($this->dPenjualan as $a) {
             <font color='green'>
               <?php
               foreach ($this->diskon as $f) {
-                if ($f['id_penjualan_jenis'] == $idPenjualan) {
+                if ($f['id_penjualan_jenis'] == "'" . $idPenjualan . "'") {
                   if ($f['qty_disc'] > 0) {
                     echo "Laundry " . $f['qty_disc'] . $unit . " Diskon " . $f['disc_qty'] . "%";
                   }
@@ -39,7 +39,7 @@ foreach ($this->dPenjualan as $a) {
                 $kategori = "";
                 $layanan = "";
                 $durasi = "";
-                if ($a['id_penjualan_jenis'] == $idPenjualan) {
+                if ($a['id_penjualan_jenis'] == "'" . $idPenjualan . "'") {
                   foreach (unserialize($a['list_layanan']) as $b) {
                     foreach ($this->dLayanan as $c) {
                       if ($b == $c['id_layanan']) {
