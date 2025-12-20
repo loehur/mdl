@@ -11,7 +11,7 @@ class Moota extends Controller
         // CONFIGURATION
         // ==============================
         $expected_moota_user = 'epokOBKvWaJ'; // Ganti dengan Moota User ID Anda
-        $secret              = 'rpNfmLhL'; // Ganti dengan Moota Secret Key Anda
+        $secret              = 'zVTSalmH'; // Ganti dengan Moota Secret Key Anda
 
         // Enable error logging
         ini_set('display_errors', 0);
