@@ -53,7 +53,14 @@ class Route extends Controller
         }
         
         $url = filter_var(trim($_GET['url'], '/'), FILTER_SANITIZE_URL);
-        return explode('/', $url);
+        $urlSegments = explode('/', $url);
+        
+        // Remove 'api' prefix if present (e.g. from /api/Beauty_Salon/...)
+        if (isset($urlSegments[0]) && strtolower($urlSegments[0]) === 'api') {
+            array_shift($urlSegments);
+        }
+        
+        return $urlSegments;
     }
 
     private function controllerExists($path)
