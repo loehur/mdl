@@ -76,7 +76,6 @@ class PackLabel extends Controller
       // Get pelanggan berdasarkan id_cabang
       $pelanggan = $this->db(0)->get_where('pelanggan', 'id_cabang = ' . $cabang['id_cabang']);
 
-      // Kumpulkan id_pelanggan yang memiliki sale dengan tuntas = 0 dari tahun 2021 sampai sekarang
       $pelangganWithPendingSales = [];
       $currentYear = (int) date('Y');
       

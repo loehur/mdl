@@ -211,35 +211,31 @@ trait Attributes
       if (!$is_public && isset($this->wCabang) && !empty($this->wCabang)) {
          $where = $this->wCabang . " AND " . $where;
       }
-
-      $currentYear = date('Y');
-      for ($i = 2021; $i <= $currentYear; $i++) {
-         $kas = $this->db($i)->get_where_row('kas', $where);
-         if ($kas && $kas['status_mutasi'] == 3) {
-            echo json_encode(['status' => 'paid']);
+          
+      $kas = $this->db(0)->get_where_row('kas', $where);
+      if ($kas && $kas['status_mutasi'] == 3) {
+         echo json_encode(['status' => 'paid']);
+         exit();
+      } elseif ($kas && $kas['payment_gateway'] == $gateway) {
+         $cek_qr_string = $this->db(100)->get_where_row('wh_tokopay', "ref_id = '" . $ref_finance . "'");
+         if ($cek_qr_string && $cek_qr_string['qr_string']) {
+            echo json_encode([
+               'status' => $cek_qr_string['state'],
+               'qr_string' => $cek_qr_string['qr_string'],
+               'trx_id' => $ref_finance
+            ]);
             exit();
-         } elseif ($kas && $kas['payment_gateway'] == $gateway) {
-            $cek_qr_string = $this->db(100)->get_where_row('wh_tokopay', "ref_id = '" . $ref_finance . "'");
-            if ($cek_qr_string && $cek_qr_string['qr_string']) {
-               echo json_encode([
-                  'status' => $cek_qr_string['state'],
-                  'qr_string' => $cek_qr_string['qr_string'],
-                  'trx_id' => $ref_finance
-               ]);
-               exit();
-            }
-         } elseif ($kas && $kas['payment_gateway'] == 'midtrans') {
-            $cek_qr_string = $this->db(100)->get_where_row('wh_midtrans', "ref_id = '" . $ref_finance . "'");
-            if ($cek_qr_string && $cek_qr_string['qr_string']) {
-               echo json_encode([
-                  'status' => $cek_qr_string['state'],
-                  'qr_string' => $cek_qr_string['qr_string'],
-                  'trx_id' => $ref_finance
-               ]);
-               exit();
-            }
          }
-
+      } elseif ($kas && $kas['payment_gateway'] == 'midtrans') {
+         $cek_qr_string = $this->db(100)->get_where_row('wh_midtrans', "ref_id = '" . $ref_finance . "'");
+         if ($cek_qr_string && $cek_qr_string['qr_string']) {
+            echo json_encode([
+               'status' => $cek_qr_string['state'],
+               'qr_string' => $cek_qr_string['qr_string'],
+               'trx_id' => $ref_finance
+            ]);
+            exit();
+         }
       }
 
       $nominal = isset($_GET['nominal']) ? intval($_GET['nominal']) : 0;
@@ -280,13 +276,12 @@ trait Attributes
             }
 
             $error_update = 0;
-            for ($i = 2021; $i <= $currentYear; $i++) {
-               $up_kas = $this->db($i)->update('kas', ['payment_gateway' => $gateway], "ref_finance = '$ref_finance'");
-               if ($up_kas['errno'] <> 0) {
-                  $error_update++;
-                  $this->model('Log')->write('[payment_gateway_order] Update Payment Gateway Error ' . $i . ': ' . $up_kas['error']);
-               }
+            $up_kas = $this->db(0)->update('kas', ['payment_gateway' => $gateway], "ref_finance = '$ref_finance'");
+            if ($up_kas['errno'] <> 0) {
+               $error_update++;
+               $this->model('Log')->write('[payment_gateway_order] Update Payment Gateway Error ' . $i . ': ' . $up_kas['error']);
             }
+         
 
             if($error_update > 0) {
                exit();
@@ -309,14 +304,12 @@ trait Attributes
 
             if (isset($data['data']['status']) && (strtolower($data['data']['status']) == 'success' || strtolower($data['data']['status']) == 'paid')) {
                $error_update = 0;
-               for ($i = 2021; $i <= $currentYear; $i++) {
-                  $update = $this->db($i)->update('kas', ['status_mutasi' => 3], "ref_finance = '$ref_finance'");
-                  if ($update['errno'] <> 0) {
-                     $error_update++;
-                     if (!$is_public) $this->model('Log')->write('[payment_gateway_order] Update Kas Error ' . $i . ': ' . $update['error']);
-                  }
+             
+               $update = $this->db(0)->update('kas', ['status_mutasi' => 3], "ref_finance = '$ref_finance'");
+               if ($update['errno'] <> 0) {
+                  $error_update++;
+                  if (!$is_public) $this->model('Log')->write('[payment_gateway_order] Update Kas Error ' . $i . ': ' . $update['error']);
                }
-
 
                if ($error_update > 0) {
                    echo json_encode(['status' => 'error', 'msg' => 'DB Update Error']);
@@ -351,12 +344,10 @@ trait Attributes
          if (isset($data['transaction_id'])) {
 
             $error_update = 0;
-            for ($i = 2021; $i <= $currentYear; $i++) {
-               $up_kas = $this->db($i)->update('kas', ['payment_gateway' => $gateway], "ref_finance = '$ref_finance'");
-               if ($up_kas['errno'] <> 0) {
-                  $error_update++;
-                  $this->model('Log')->write('[payment_gateway_order] Update Payment Gateway Error ' . $i . ': ' . $up_kas['error']);
-               }
+            $up_kas = $this->db(0)->update('kas', ['payment_gateway' => $gateway], "ref_finance = '$ref_finance'");
+            if ($up_kas['errno'] <> 0) {
+               $error_update++;
+               $this->model('Log')->write('[payment_gateway_order] Update Payment Gateway Error: ' . $up_kas['error']);
             }
 
             if($error_update > 0) {
