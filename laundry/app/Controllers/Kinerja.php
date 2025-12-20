@@ -59,7 +59,7 @@ class Kinerja extends Controller
       if (count($ops_data) > 0) {
          //PENJUALAN TAHUN LALU
          foreach ($ops_data as $od) {
-            $where = "id_penjualan = " . $od['id_penjualan'];
+            $where = "id_penjualan = '" . $od['id_penjualan'] . "'";
             $data_lalu = $this->db($_SESSION[URL::SESSID]['user']['book'] - 1)->get_where_row('sale', $where);
             $new_data = array_merge($data_lalu, $od);
             array_push($data_main, $new_data);

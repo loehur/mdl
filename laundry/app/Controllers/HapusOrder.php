@@ -26,7 +26,7 @@ class HapusOrder extends Controller
       foreach ($numbers as $id) {
 
          //OPERASI
-         $where = $this->wCabang . " AND id_penjualan = " . $id;
+         $where = $this->wCabang . " AND id_penjualan = '" . $id . "'";
          $ops = $this->db(0)->get_where('operasi', $where);
          if (count($ops) > 0) {
             foreach ($ops as $opsv) {
@@ -92,7 +92,7 @@ class HapusOrder extends Controller
       if (isset($_POST['dataID']) && $transaksi <> 3) {
          $dataID = unserialize($_POST['dataID']);
          foreach ($dataID as $a) {
-            $where = $this->wCabang . " AND id_penjualan = " . $a;
+            $where = $this->wCabang . " AND id_penjualan = '" . $a . "'";
             $this->db(0)->delete('operasi', $where);
 
             //NOTIF

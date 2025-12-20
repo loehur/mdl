@@ -190,7 +190,7 @@ class Penjualan extends Controller
          $saldo = $saldoManual - $saldoPengurangan;
          if ($saldo >= $qty) {
             $set = "id_pelanggan = " . $pelanggan . ", no_ref = " . $no_ref . ", pelanggan = '" . $nama_pelanggan . "', member = 1, diskon_partner = " . $disc_p . ", total = " . $total . ", id_user = " . $id_penerima;
-            $whereSet = "id_penjualan = " . $id;
+            $whereSet = "id_penjualan = '" . $id . "'";
             $this->db(0)->update('sale', $set, $whereSet);
          }
 
@@ -204,7 +204,7 @@ class Penjualan extends Controller
                }
             }
          }
-         $where_update = "id_penjualan = " . $id;
+         $where_update = "id_penjualan = '" . $id . "'";
          $set = $reset_diskon . "id_pelanggan = " . $pelanggan . ", pelanggan = '" . $nama_pelanggan . "', diskon_partner = " . $disc_p . ", total = " . $total . ", no_ref = " . $no_ref . ", id_user = " . $id_penerima;
          $this->db(0)->update('sale', $set, $where_update);
       }
@@ -273,7 +273,7 @@ class Penjualan extends Controller
          $value = serialize($arrItemList);
       }
       $set = "list_item = '" . $value . "'";
-      $where = $this->wCabang . " AND id_penjualan = " . $id;
+      $where = $this->wCabang . " AND id_penjualan = '" . $id . "'";
       $this->db(0)->update('sale', $set, $where);
    }
 
@@ -286,7 +286,7 @@ class Penjualan extends Controller
       unset($arrItemList[$key]);
       $value = serialize($arrItemList);
       $set = "list_item = '" . $value . "'";
-      $where = $this->wCabang . " AND id_penjualan = " . $id;
+      $where = $this->wCabang . " AND id_penjualan = '" . $id . "'";
       $this->db(0)->update('sale', $set, $where);
    }
 

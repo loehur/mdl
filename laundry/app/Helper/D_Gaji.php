@@ -92,7 +92,7 @@ class D_Gaji extends Controller
             if (count($ops_data) > 0 && count($data_operasi) > 0) {
                 //PENJUALAN TAHUN LALU
                 foreach ($ops_data as $od) {
-                    $where = "id_penjualan = " . $od['id_penjualan'];
+                    $where = "id_penjualan = '" . $od['id_penjualan'] . "'";
                     $data_lalu = $this->db($book - 1)->get_where_row('sale', $where);
 
                     if (count($data_lalu) > 0) {
@@ -176,11 +176,11 @@ class D_Gaji extends Controller
             foreach ($r as $userID => $arrJenisJual) {
                 $totalGajiLaundry = 0;
                 foreach ($arrJenisJual as $jenisJualID => $arrLayanan) {
-                    $id_penjualan = 0;
+                    $id_penjualan = "0";
                     $penjualan = "Non";
                     foreach ($jenis_penjualan as $jp) {
                         if ($jp['id_penjualan_jenis'] == $jenisJualID) {
-                            $id_penjualan = $jp['id_penjualan_jenis'];
+                            $id_penjualan = "'".$jp['id_penjualan_jenis']."'";
                             $penjualan = $jp['penjualan_jenis'];
                         }
                     }

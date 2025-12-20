@@ -227,7 +227,7 @@ class Antrian extends Controller
          'hp' => $hp
       ]);
 
-      $setOne = 'id_penjualan = ' . $penjualan . " AND jenis_operasi =" . $operasi;
+      $setOne = "id_penjualan = '" . $penjualan . "' AND jenis_operasi = " . $operasi;
       $where = $this->wCabang . " AND " . $setOne;
 
       $data_main = $this->db(0)->count_where('operasi', $where);
@@ -278,7 +278,7 @@ class Antrian extends Controller
             $pack = $_POST['pack'];
             $hanger = $_POST['hanger'];
             $set = ['letak' => $rak, 'pack' => $pack, 'hanger' => $hanger];
-            $where = $this->wCabang . " AND id_penjualan = " . $penjualan;
+            $where = $this->wCabang . " AND id_penjualan = '" . $penjualan . "'";
             $this->db(0)->update('sale', $set, $where);
 
             //CEK SUDAH TERKIRIM BELUM
@@ -359,7 +359,7 @@ class Antrian extends Controller
             $set = ['letak' => $rak];
             break;
       }
-      $where = $this->wCabang . " AND id_penjualan = " . $id;
+      $where = $this->wCabang . " AND id_penjualan = '" . $id . "'";
       $this->db(0)->update('sale', $set, $where);
 
       //CEK SUDAH TERKIRIM BELUM

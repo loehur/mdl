@@ -44,7 +44,7 @@ class I extends Controller
 
       foreach ($numbers as $id => $book) {
          //OPERASI - FIX: use db(0)
-         $where = "id_cabang = " . $this->id_cabang_p . " AND id_penjualan = " . $id;
+         $where = "id_cabang = " . $this->id_cabang_p . " AND id_penjualan = '" . $id . "'";
          $ops = $this->db(0)->get_where('operasi', $where);
          if (count($ops) > 0) {
             foreach ($ops as $opsv) {

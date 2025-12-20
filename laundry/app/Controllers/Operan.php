@@ -70,7 +70,7 @@ class Operan extends Controller
          exit();
       }
 
-      $id_penjualan = $idOperan;
+      $id_penjualan = "'" . $idOperan . "'";
       $where = "id_penjualan LIKE '%" . $id_penjualan . "' AND tuntas = 0 AND bin = 0 AND id_cabang = " . $idCabang;
       $data_main = $this->db(0)->get_where('sale', $where);
       $idOperan = $id_penjualan;
@@ -92,7 +92,7 @@ class Operan extends Controller
       foreach ($numbers as $id) {
 
          //OPERASI
-         $where = "id_cabang = " . $idCabang . " AND id_penjualan = " . $id;
+         $where = "id_cabang = " . $idCabang . " AND id_penjualan = '" . $id . "'";
          $ops = $this->db(0)->get_where('operasi', $where);
          if (count($ops) > 0) {
             foreach ($ops as $opsv) {
@@ -164,7 +164,7 @@ class Operan extends Controller
          exit();
       };
 
-      $setOne = 'id_penjualan = ' . $penjualan . " AND jenis_operasi = " . $operasi;
+      $setOne = "id_penjualan = '" . $penjualan . "' AND jenis_operasi = " . $operasi;
       $where = "id_cabang = " . $idCabang . " AND " . $setOne;
       $data_main = $this->db(0)->count_where('operasi', $where);
 
@@ -195,7 +195,7 @@ class Operan extends Controller
             'pack' => $pack,
             'hanger' => $hanger
          ];
-         $where = "id_cabang = " . $idCabang . " AND id_penjualan = " . $penjualan;
+         $where = "id_cabang = " . $idCabang . " AND id_penjualan = '" . $penjualan . "'";
          $up = $this->db(0)->update('sale', $set, $where);
          if ($up['errno'] <> 0) {
             $this->writeLog('operasiOperan', 'ERROR', 'Gagal update tabel sale', [

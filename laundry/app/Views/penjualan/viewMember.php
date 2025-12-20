@@ -14,7 +14,7 @@
         if ($a['id_harga'] == $id) {
           foreach ($this->dPenjualan as $dp) {
             if ($dp['id_penjualan_jenis'] == $a['id_penjualan_jenis']) {
-              $id_penjualan = $a['id_penjualan_jenis'];
+              $id_penjualan = "'" . $a['id_penjualan_jenis'] . "'";
               $jenis = $dp['penjualan_jenis'];
               foreach ($this->dSatuan as $ds) {
                 if ($ds['id_satuan'] == $dp['id_satuan']) {
@@ -64,7 +64,7 @@
 <script>
   $("span#pakai").click(function() {
     var id_harga = $(this).attr("data-id_harga");
-    var id_penjualan = $(this).attr('data-id_penjualan');
+    var id_penjualan = "'" + $(this).attr('data-id_penjualan') + "'";
     var saldo = $(this).attr('data-saldo');
     $('div.orderPenjualanForm').load('<?= URL::BASE_URL ?>Penjualan/orderPenjualanForm/' + id_penjualan + '/' + id_harga + '/' + saldo);
 

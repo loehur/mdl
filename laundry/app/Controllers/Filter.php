@@ -81,7 +81,7 @@ class Filter extends Controller
 
          foreach ($numbers as $id) {
             //OPERASI
-            $where = $this->wCabang . " AND id_penjualan = " . $id;
+            $where = $this->wCabang . " AND id_penjualan = '" . $id . "'";
             $ops = $this->db(0)->get_where('operasi', $where);
             if (count($ops) > 0) {
                foreach ($ops as $opsv) {
@@ -165,7 +165,7 @@ class Filter extends Controller
       $set = [
          'letak' => $rak
       ];
-      $where = $this->wCabang . " AND id_penjualan = " . $id;
+      $where = $this->wCabang . " AND id_penjualan = '" . $id . "'";
       $this->db(0)->update('sale', $set, $where);
 
       //CEK SUDAH TERKIRIM BELUM
