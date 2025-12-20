@@ -152,6 +152,60 @@ class WhatsApp extends Controller
         // Step 1: Update or create customer (for 24h window tracking)
         $customerId = $this->updateOrCreateCustomer($db, $waNumber, $contactName, $sendTime);
 
+        // Logic: Check pending notifications in DB(1) (Resend Table)
+        // If pending notif exists within 24h for this phone, send it now (CSW Open)
+        // MOVED HERE: so CSW is valid before sending
+        try {
+            $db1 = $this->db(1);
+            $cleanPhone = preg_replace('/[^0-9]/', '', $waNumber); // 628...
+            $phone0 = '0' . substr($cleanPhone, 2); // 08...
+            $phonePlus = '+' . $cleanPhone; // +62...
+            $limitTime = date('Y-m-d H:i:s', strtotime('-24 hours'));
+            
+            $phones = ["'$cleanPhone'", "'$phone0'", "'$phonePlus'"];
+            $phoneIn = implode(',', $phones);
+            
+            // Get pending notifs
+            $sql = "SELECT * FROM notif 
+                    WHERE state = 'pending' 
+                    AND insertTime >= '$limitTime' 
+                    AND phone IN ($phoneIn)
+                    ORDER BY insertTime ASC";
+            
+            $pendingNotifs = $db1->query($sql)->result_array();
+            
+            if (!empty($pendingNotifs)) {
+                 \Log::write("Found " . count($pendingNotifs) . " pending notifs for $waNumber. Sending...", 'webhook', 'WhatsApp');
+                 
+                 // Instantiate service on the fly
+                 if (!class_exists('\\App\\Helpers\\WhatsAppService')) {
+                     require_once __DIR__ . '/../../Helpers/WhatsAppService.php';
+                 }
+                 $waService = new \App\Helpers\WhatsAppService();
+                 
+                 foreach ($pendingNotifs as $notif) {
+                     // Send message (Free text is allowed now since customer just messaged us)
+                     $res = $waService->sendFreeText($waNumber, $notif['text']);
+                     
+                     $status = ($res['success'] ?? false) ? 'sent' : 'failed';
+                     $msgId = $res['data']['id'] ?? ($res['data']['message_id'] ?? null);
+                     
+                     // Update state immediately
+                     $updateData = ['state' => $status];
+                     if ($msgId) {
+                         $updateData['id_api'] = $msgId;
+                     }
+                     
+                     $db1->update('notif', $updateData, ['id_notif' => $notif['id_notif']]);
+                     
+                     \Log::write("Resent Notif ID {$notif['id_notif']} -> $status", 'webhook', 'WhatsApp');
+                 }
+            }
+
+        } catch (\Exception $e) {
+            \Log::write("Error processing pending notifs: " . $e->getMessage(), 'webhook', 'WhatsApp');
+        }
+
         // Step 2: Get or create conversation
         $conversationId = $this->getOrCreateConversation($db, $customerId, $waNumber, $contactName);
 
