@@ -1,6 +1,3 @@
-<pre>
-  <?php print_r($data['operasi']); ?>
-</pre>
 <?php
 
 $kodeCabang = $this->dCabang['id_cabang'];
