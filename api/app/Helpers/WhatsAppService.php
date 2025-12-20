@@ -424,14 +424,14 @@ class WhatsAppService
                 $log("✓ Customer found: ID=$customerId");
             } else {
                 // STOP! Do not create customer on outbound. User rule: "Hanya saat inbound saja"
-                $log("Customer not found. Skipping log creation (Rule: Only save customer on inbound).");
-                return;
+                // BUT we still want to log the message in wa_messages_out.
+                // So we use a dummy ID (0) or try to find conversation by phone.
+                $log("Customer not found. Using ID=0 to allow message logging.");
+                $customerId = 0;
             }
             
-            if (!$customerId) {
-                $log("ERROR: No customer ID - aborting");
-                return;
-            }
+            // Allow proceeding even if customerId is 0.
+            // if (!$customerId) { ... } -> Removed check or modified.
             
             // Get or create conversation
             $conversationId = null;

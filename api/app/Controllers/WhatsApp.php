@@ -70,23 +70,31 @@ class WhatsApp extends Controller
         $messageMode = strtolower($body['message_mode']);
 
         // Auto-lookup last_message_at if not provided
-        $lastMessageAt = $body['last_message_at'] ?? null;
-        if (empty($lastMessageAt)) {
-             // Logic manual lookup DB (Controller DB Access is safer)
-             // Normalisasi simple
-             $ph = preg_replace('/[^0-9]/', '', $phone);
-             if(substr($ph, 0, 2)=='08') $ph='628'.substr($ph, 2);
-             elseif(substr($ph, 0, 1)=='8') $ph='62'.$ph;
-             
-             $phone1 = $ph;       // 628...
-             $phone2 = '+' . $ph; // +628...
-             
-             $db = $this->db(0);
-             $q = $db->query("SELECT last_in_at FROM wa_conversations WHERE wa_number IN ('$phone1', '$phone2') ORDER BY last_in_at DESC LIMIT 1");
-             
-             if ($db->num_rows() > 0) {
-                 $lastMessageAt = $db->row()->last_in_at;
-             }
+        // FORCE LOOKUP: Strict Verification against Database
+        // We do NOT trust the 'last_message_at' from the body for CSW checks anymore.
+        // We must query the database to see the REAL last customer interaction.
+        $lastMessageAt = null;
+        
+        // Normalisasi Phone
+        $ph = preg_replace('/[^0-9]/', '', $phone);
+        if(substr($ph, 0, 2)=='08') $ph='628'.substr($ph, 2);
+        elseif(substr($ph, 0, 1)=='8') $ph='62'.$ph;
+        
+        $phone1 = $ph;       // 628...
+        $phone2 = '+' . $ph; // +628...
+        
+        $db = $this->db(0);
+        
+        // CHECK 1: Cek di wa_customers (Source of Truth for CSW)
+        $qCust = $db->query("SELECT last_message_at FROM wa_customers WHERE wa_number IN ('$phone1', '$phone2') LIMIT 1");
+        if ($qCust->num_rows() > 0) {
+            $lastMessageAt = $qCust->row()->last_message_at;
+        } else {
+            // CHECK 2: Fallback ke wa_conversations (jika ada legacy data)
+            $qConv = $db->query("SELECT last_in_at FROM wa_conversations WHERE wa_number IN ('$phone1', '$phone2') ORDER BY last_in_at DESC LIMIT 1");
+            if ($qConv->num_rows() > 0) {
+                $lastMessageAt = $qConv->row()->last_in_at;
+            }
         }
         
         // Check CSW status
