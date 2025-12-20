@@ -40,17 +40,7 @@ class Sales extends Controller
       // Get payment history for each ref
       foreach ($grouped as $ref => &$group) {
          $payments = [];
-         $currentYear = (int)date('Y');
-         for ($year = 2025; $year <= $currentYear; $year++) {
-            $yearPayments = $this->db($year)->get_where('kas', "ref_transaksi = '$ref' AND jenis_transaksi = 7 ORDER BY id_kas DESC");
-            if ($yearPayments) {
-               $payments = array_merge($payments, $yearPayments);
-            }
-         }
-         // Re-sort payments by id_kas DESC if they came from multiple years
-         usort($payments, function($a, $b) {
-             return $b['id_kas'] <=> $a['id_kas'];
-         });
+         $payments = $this->db(1)->get_where('kas', "ref_transaksi = '$ref' AND jenis_transaksi = 7");
          $group['payments'] = $payments ?: [];
          
          // Calculate total paid
