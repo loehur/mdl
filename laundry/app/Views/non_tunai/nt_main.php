@@ -63,7 +63,7 @@ if (count($data['cek']) == 0) { ?>
 <div class="list-group mb-5">
   <?php foreach ($data['cek'] as $a) {
     $id = $a['ref_finance'];
-    $f1 = substr($a['ref_finance'], $long_char + 2, 2) . "-" . substr($a['ref_finance'], $long_char, 2);
+    $f1 = $a['ref_finance'];
     $f2 = $a['note'];
     $f3 = $a['id_user'];
     $f4 = $a['total'];

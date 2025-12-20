@@ -115,6 +115,7 @@ class Broadcast extends Controller
             $data_main = $this->db(0)->count_where('notif', $where);
             if ($data_main < 1) {
                $data = [
+                  'id_notif' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
                   'insertTime' => $time,
                   'id_cabang' => $cab,
                   'no_ref' => $v,

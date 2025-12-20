@@ -339,6 +339,7 @@ class Member extends Controller
 
       if ($data_main < 1) {
          $data = [
+            'id_notif' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
             'insertTime' => $time,
             'id_cabang' => $this->id_cabang,
             'no_ref' => $noref,

@@ -263,6 +263,7 @@ class SaldoTunai extends Controller
       if ($res['status']) {
          $status = $res['data']['status'];
          $vals = [
+            'id_notif' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
             'insertTime' => $time,
             'id_cabang' => $this->id_cabang,
             'no_ref' => $noref,
@@ -275,6 +276,7 @@ class SaldoTunai extends Controller
       } else {
          $status = $res['data']['status'];
          $vals = [
+            'id_notif' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
             'insertTime' => $time,
             'id_cabang' => $this->id_cabang,
             'no_ref' => $noref,

@@ -27,6 +27,7 @@ class Notif extends Controller
         
         //SAVE DB NOTIF
         $data = [
+            'id_notif' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
             'insertTime' => date('Y-m-d H:i:s'),
             'id_cabang' => $id_cabang,
             'no_ref' => $today,

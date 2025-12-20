@@ -231,6 +231,7 @@ class Antrian extends Controller
 
       if ($data_main < 1) {
          $data = [
+            'id_operasi' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
             'id_cabang' => $this->id_cabang,
             'id_penjualan' => $penjualan,
             'jenis_operasi' => $operasi,
@@ -253,6 +254,7 @@ class Antrian extends Controller
       $data_main = $this->db(0)->count_where('notif', $whereNotif);
       if ($data_main < 1) {
          $data = [
+            'id_notif' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
             'insertTime' => $time,
             'id_cabang' => $this->id_cabang,
             'no_ref' => $penjualan,
@@ -456,6 +458,7 @@ class Antrian extends Controller
          ];
       } else {
          $vals = [
+            'id_notif' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
             'insertTime' => $time,
             'id_cabang' => $this->id_cabang,
             'no_ref' => $noref,

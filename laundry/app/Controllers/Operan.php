@@ -171,6 +171,7 @@ class Operan extends Controller
       if ($data_main < 1) {
          // INSERT OPERASI
          $data = [
+            'id_operasi' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
             'id_cabang' => $idCabang,
             'id_penjualan' => $penjualan,
             'jenis_operasi' => $operasi,
@@ -212,6 +213,7 @@ class Operan extends Controller
          // INSERT NOTIF SELESAI TAPI NOT READY
          $time = date('Y-m-d H:i:s');
          $dataNotif = [
+            'id_notif' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
             'insertTime' => $time,
             'id_cabang' => $idCabang,
             'no_ref' => $penjualan,
