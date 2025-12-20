@@ -164,7 +164,7 @@
     });
 
     $("button.orderPenjualanForm").on("click", function(e) {
-      var id_penjualan = "'" + $(this).attr('data-id_penjualan') + "'";
+      var id_penjualan = $(this).attr('data-id_penjualan');
       var id_harga = 0;
       var saldo = 0;
       $('div.orderPenjualanForm').load('<?= URL::BASE_URL ?>Penjualan/orderPenjualanForm/' + id_penjualan + '/' + id_harga + '/' + saldo);

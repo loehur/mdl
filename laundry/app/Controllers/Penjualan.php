@@ -139,7 +139,7 @@ class Penjualan extends Controller
       $saldo = 0;
       foreach ($data as $a) {
          $saldo = 0;
-         $id = "'" . $a['id_penjualan'] . "'";
+         $id = $a['id_penjualan'];
          $id_jenis = $a['id_penjualan_jenis'];
          $idHarga = $a['id_harga'];
          $qty = $a['qty'];

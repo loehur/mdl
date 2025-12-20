@@ -33,7 +33,7 @@ if ($saldoNya_member > 0) {
               <font color='green'>
                 <?php
                 foreach ($this->diskon as $f) {
-                  if ($f['id_penjualan_jenis'] == "'" . $idPenjualan . "'") {
+                  if ($f['id_penjualan_jenis'] == $idPenjualan) {
                     if ($f['qty_disc'] > 0 && $f['disc_qty'] > 0) {
                       echo "Min. " . $f['qty_disc'] . $unit . " Diskon " . $f['disc_qty'] . "%";
                     }
@@ -47,7 +47,7 @@ if ($saldoNya_member > 0) {
                 $kategori = "";
                 $layanan = "";
                 $durasi = "";
-                if ($a['id_penjualan_jenis'] == "'" . $idPenjualan . "'") {
+                if ($a['id_penjualan_jenis'] == $idPenjualan) {
                   foreach (unserialize($a['list_layanan']) as $b) {
                     foreach ($this->dLayanan as $c) {
                       if ($b == $c['id_layanan']) {
