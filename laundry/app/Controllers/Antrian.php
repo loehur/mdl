@@ -397,7 +397,7 @@ class Antrian extends Controller
          $set = ['state' => 'sent', 'id_api' => $idApi];
          $this->db(0)->update('notif', $set, $where2);
       } else {
-         $set = ['state' => 'failed'];
+         $set = ['state' => 'pending'];
          $this->db(0)->update('notif', $set, $where2);
       }
    }
@@ -455,7 +455,6 @@ class Antrian extends Controller
             'state' => 'sent'
          ];
       } else {
-         $errorProses = $res['error'] ?? 'failed';
          $vals = [
             'insertTime' => $time,
             'id_cabang' => $this->id_cabang,
@@ -464,7 +463,7 @@ class Antrian extends Controller
             'text' => $text,
             'tipe' => $tipe,
             'id_api' => '',
-            'state' => 'failed'
+            'state' => 'pending'
          ];
       }
 
