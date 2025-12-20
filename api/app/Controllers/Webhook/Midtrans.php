@@ -1,4 +1,6 @@
 <?php
+namespace App\Controllers\Webhook;
+use App\Core\Controller;
 
 class Midtrans extends Controller
 {
