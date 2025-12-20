@@ -90,7 +90,7 @@ class Tokopay
     {
         $mid = $this->merchantId;
         $secret = $this->secretKey;
-        $signature = md5("$mid:$nominal:$secret");
+        $signature = md5("$mid:$secret:$nominal");
         
         $data = [
             'merchant_id' => $mid,
