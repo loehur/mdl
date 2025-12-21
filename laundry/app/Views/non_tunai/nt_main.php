@@ -62,7 +62,6 @@ if (count($data['cek']) == 0) { ?>
 
 <div class="list-group mb-5">
   <?php foreach ($data['cek'] as $a) {
-    $id = $a['id_kas'];
     $f1 = $a['ref_finance'];
     $f2 = $a['note'];
     $f3 = $a['id_user'];
@@ -90,7 +89,7 @@ if (count($data['cek']) == 0) { ?>
           <i class="fas fa-external-link-alt small text-muted ms-1"></i>
         </a>
         <div class="small text-muted">
-          <?= $id ?> • <?= strtoupper($f2) ?> • <?= $karyawan ?>
+          <?= $f1 ?> • <?= strtoupper($f2) ?> • <?= $karyawan ?>
         </div>
       </div>
       
