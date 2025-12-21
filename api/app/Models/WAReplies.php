@@ -128,8 +128,11 @@ class WAReplies
 
         // Find customer
         $where = "nomor_pelanggan IN ($phoneIn)";
-        $pelanggan = $db1->query("SELECT id_pelanggan FROM pelanggan WHERE $where")->result_array();
+        $pelanggan = $db1->query("SELECT id_pelanggan, nama_pelanggan FROM pelanggan WHERE $where")->result_array();
         $id_pelanggans = array_column($pelanggan, 'id_pelanggan');
+
+        $nama_pelanggans = array_column($pelanggan, 'nama_pelanggan');
+        $nama_pelanggan = strtoupper($nama_pelanggans[0]);
 
         if (!empty($id_pelanggans)) {
             $ids_in = implode(',', $id_pelanggans);
@@ -207,7 +210,7 @@ class WAReplies
                             }
                         }
                     }
-                }else{
+                } else {
                     //cek dulu jika pending kirimkan wa nya
                     $pending = $db1->query("SELECT * FROM notif WHERE tipe = 1 AND no_ref IN ($noRefsIn) AND state = 'pending'")->result_array();
                     if (!empty($pending)) {
@@ -226,14 +229,14 @@ class WAReplies
                             $db1->update('notif', $updateData, ['id_notif' => $p['id_notif']]);
                         }
                     }else{
-                        $waService->sendFreeText($waNumber, 'Maaf, semua nota/bon sudah kami kirimkan ke nomor Anda. Terima kasih');
+                        $waService->sendFreeText($waNumber, 'Maaf Pak/bu ' . $nama_pelanggan . ', semua nota/bon sudah kami kirimkan ke nomor Anda. Terima kasih');
                     }
                 }
             }else{
-                $waService->sendFreeText($waNumber, 'Maaf, semua transaksi Anda sudah selesai, atau pastikan gunakan nomor yang terdaftar untuk melakukan request nota/bon. Terima kasih');
+                $waService->sendFreeText($waNumber, 'Maaf Pak/bu ' . $nama_pelanggan . ', semua transaksi Anda sudah selesai, atau pastikan gunakan nomor yang terdaftar untuk melakukan request nota/bon. Terima kasih');
             }
         }else{
-            $waService->sendFreeText($waNumber, 'Maaf, nomor Anda belum terdaftar di Madinah Laundry. Terima kasih');
+            $waService->sendFreeText($waNumber, 'Maaf Pak/bu, nomor Anda belum terdaftar di Madinah Laundry. Terima kasih');
         }
     }
 }
