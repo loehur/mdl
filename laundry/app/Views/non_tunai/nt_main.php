@@ -62,7 +62,7 @@ if (count($data['cek']) == 0) { ?>
 
 <div class="list-group mb-5">
   <?php foreach ($data['cek'] as $a) {
-    $id = $a['ref_finance'];
+    $id = $a['id_kas'];
     $f1 = $a['ref_finance'];
     $f2 = $a['note'];
     $f3 = $a['id_user'];
@@ -79,25 +79,7 @@ if (count($data['cek']) == 0) { ?>
     }
 
     $pelanggan = $f17;
-    $jenis_bill = '';
-    switch ($jenisT) {
-      case 1:
-        $jenis_bill = "Laundry";
-        if(isset($this->pelanggan[$f17])) $pelanggan = $this->pelanggan[$f17]['nama_pelanggan'];
-        break;
-      case 3:
-        $jenis_bill = "Member";
-        if(isset($this->pelanggan[$f17])) $pelanggan = $this->pelanggan[$f17]['nama_pelanggan'];
-        break;
-      case 5:
-        $jenis_bill = "Kasbon";
-        if(isset($this->user[$f17])) $pelanggan = $this->user[$f17]['nama_user'];
-        break;
-      case 6:
-        $jenis_bill = "Deposit";
-        if(isset($this->pelanggan[$f17])) $pelanggan = $this->pelanggan[$f17]['nama_pelanggan'];
-        break;
-    }
+
   ?>
   <div class="list-group-item list-group-item-action px-3 py-2">
     <div class="d-flex justify-content-between align-items-center">
@@ -108,7 +90,7 @@ if (count($data['cek']) == 0) { ?>
           <i class="fas fa-external-link-alt small text-muted ms-1"></i>
         </a>
         <div class="small text-muted">
-          <?= $jenis_bill ?> • <?= strtoupper($f2) ?> • <?= $karyawan ?>
+          <?= $id ?> • <?= strtoupper($f2) ?> • <?= $karyawan ?>
         </div>
       </div>
       
