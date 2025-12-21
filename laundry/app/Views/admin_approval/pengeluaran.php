@@ -138,7 +138,7 @@
     $.ajax({
       url: $(this).attr("data-target"),
       data: {
-        id: $(this).attr('data-id'),
+        id: "'" + $(this).attr('data-id') + "'",
       },
       type: "POST",
       success: function(res) {

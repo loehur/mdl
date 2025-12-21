@@ -31,7 +31,7 @@ class Pengeluaran extends Controller
       if ($up['errno'] == 0) {
          echo "success";
       } else {
-         echo $where;
+         echo $up['error'];
       }
    }
 }
