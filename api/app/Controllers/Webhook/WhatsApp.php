@@ -455,9 +455,17 @@ class WhatsApp extends Controller
         }
     }
 
-    function getAssignedUserId($customerId)
+    function getAssignedUserId($phone0)
     {
         $db = $this->db(1);
+
+        // cek nomor di data pelanggan
+        $customer = $db->query("SELECT * FROM pelanggan WHERE nomor_pelanggan = '" . $phone0 . "'")->row();
+        if ($customer) {
+            $customerId = $customer->id_pelanggan;
+        }else{
+            return null;
+        }
 
         $last_sale = $db->query("SELECT * FROM sale WHERE id_pelanggan = " . $customerId . " ORDER BY insertTime DESC LIMIT 1")->row();
         if ($last_sale) {
