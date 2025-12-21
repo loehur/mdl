@@ -127,6 +127,9 @@ class WhatsApp extends Controller
     private function handleInboundMessage($db, $data)
     {
         $msg = $data['whatsappInboundMessage'] ?? [];
+        $textBodyToCheck = $msg['text']['body'] ?? '';
+        
+        \Log::write("handleInboundMessage: Number=" . $msg['from'] . ", Name=" . $msg['customerProfile']['name'] . ", Text=" . $textBodyToCheck, 'webhook', 'WhatsApp');
         if (empty($msg)) {
             \Log::write("ERROR: No whatsappInboundMessage", 'webhook', 'WhatsApp');
             return;
@@ -144,6 +147,7 @@ class WhatsApp extends Controller
             \Log::write("ERROR: No 'from' number", 'webhook', 'WhatsApp');
             return;
         }
+
         $customerId = $this->updateOrCreateCustomer($db, $waNumber, $contactName, $sendTime);
         $autoReply = false;
         try {
@@ -157,7 +161,7 @@ class WhatsApp extends Controller
             
             // get data pelanggan
             // Process Auto Replies (e.g. Nota)
-            $textBodyToCheck = $msg['text']['body'] ?? '';
+    
             // Ensure WAReplies class is available (simple autoload check or require if needed, but assuming namespace works)
             if (!class_exists('\\App\\Models\\WAReplies')) {
                  require_once __DIR__ . '/../../Models/WAReplies.php';

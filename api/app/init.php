@@ -1,14 +1,18 @@
 <?php
+ob_start();
 // Global CORS Headers
 
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
-$allowed_origins = ['https://admin.nalju.com', 'https://salon.nalju.com'];
 
 // Initialize allowed origin
-$allowed_origin = 'https://admin.nalju.com'; // Default fallback
+$allowed_origin = 'https://nalju.com'; // Default fallback
 
-// Allow any subdomain of nalju.com
-if (preg_match('/^https?:\/\/([a-z0-9-]+\.)*nalju\.com$/', $origin)) {
+// Parse origin to check host
+$parsed_origin = parse_url($origin);
+$origin_host = $parsed_origin['host'] ?? '';
+
+// Allow nalju.com and any subdomain *.nalju.com
+if ($origin_host === 'nalju.com' || str_ends_with(strtolower($origin_host), '.nalju.com')) {
     $allowed_origin = $origin;
 }
 
@@ -16,10 +20,12 @@ header("Access-Control-Allow-Origin: $allowed_origin");
 header('Access-Control-Allow-Credentials: true');
 header('Access-Control-Max-Age: 86400');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Accept, Origin');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Accept, Origin, User-Agent');
 
 // Handle OPTIONS preflight request
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    // Clear output buffer to ensure no whitespace is sent
+    ob_clean();
     http_response_code(200);
     exit;
 }
