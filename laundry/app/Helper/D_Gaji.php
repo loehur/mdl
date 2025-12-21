@@ -47,10 +47,10 @@ class D_Gaji extends Controller
         return $return;
     }
 
-    function data_olah($userID, $date, $book)
+    function data_olah($userID, $date)
     {
-        $data['kinerja'] = $this->data_kinerja($userID, $date, $book);
-        $data['kasbon'] = $this->data_kasbon($userID, $date, $book);
+        $data['kinerja'] = $this->data_kinerja($userID, $date);
+        $data['kasbon'] = $this->data_kasbon($userID, $date);
         $data['setup'] = $this->data_setup();
         $data['data'] = $this->db(0)->get_where('gaji_pengali_data', "tgl = '" . $date . "'");
         $data['fix'] = $this->db(0)->get_where('gaji_result', "tgl = '" . $date . "' AND id_karyawan = " . $userID . " ORDER BY tipe ASC ");
@@ -68,7 +68,7 @@ class D_Gaji extends Controller
         return $gaji;
     }
 
-    function data_kinerja($userID, $date, $book)
+    function data_kinerja($userID, $date)
     {
         $data_operasi = [];
         $data_terima = [];
@@ -76,36 +76,13 @@ class D_Gaji extends Controller
 
         //OPERASI
         if ($userID <> 0) {
-            $where = "insertTime LIKE '" . $date . "%' AND insertTime LIKE '" . $book . "%' AND id_user_operasi = " . $userID;
-            $ops_data = $this->db(0)->get_where('operasi', $where, 'id_operasi');
-
-            //OPERASI
-            $join_where = "operasi.id_penjualan = sale.id_penjualan";
-            $where = "sale.bin = 0 AND operasi.insertTime LIKE '" . $book . "%' AND operasi.id_user_operasi = " . $userID . " AND operasi.insertTime LIKE '" . $date . "%'";
-            $data_lain1 = $this->db(0)->innerJoin1_where('sale', 'operasi', $join_where, $where);
-
-            foreach ($data_lain1 as $key => $dl1) {
-                unset($ops_data[$dl1['id_operasi']]);
-                $data_operasi[$key] = $dl1;
-            }
-
-            if (count($ops_data) > 0 && count($data_operasi) > 0) {
-                //PENJUALAN TAHUN LALU
-                foreach ($ops_data as $od) {
-                    $where = "id_penjualan = '" . $od['id_penjualan'] . "' AND insertTime LIKE '" . $date . "%'";
-                    $data_lalu = $this->db($book - 1)->get_where_row('sale', $where);
-
-                    if (count($data_lalu) > 0) {
-                        $new_data = array_merge($data_lalu, $od);
-                        array_push($data_operasi, $new_data);
-                    }
-                }
-            }
+            $where = "insertTime LIKE '" . $date . "%' AND id_user_operasi = " . $userID;
+            $data_operasi = $this->db(0)->get_where('operasi', $where, 'id_operasi');
 
             //TERIMA
             $cols = "id_user, id_cabang, COUNT(id_user) as terima";
             $where = "id_user = " . $userID . " AND  insertTime LIKE '" . $date . "%' GROUP BY id_user, id_cabang";
-            $data_lain2 = $this->db($book)->get_cols_where('sale', $cols, $where, 1);
+            $data_lain2 = $this->db(0)->get_cols_where('sale', $cols, $where, 1);
             foreach ($data_lain2 as $dl2) {
                 array_push($data_terima, $dl2);
             }
@@ -113,7 +90,7 @@ class D_Gaji extends Controller
             //KEMBALI
             $cols = "id_user_ambil, id_cabang, COUNT(id_user_ambil) as kembali";
             $where = "id_user_ambil = " . $userID . " AND tgl_ambil LIKE '" . $date . "%' GROUP BY id_user_ambil, id_cabang";
-            $data_lain3 = $this->db($book)->get_cols_where('sale', $cols, $where, 1);
+            $data_lain3 = $this->db(0)->get_cols_where('sale', $cols, $where, 1);
             foreach ($data_lain3 as $dl3) {
                 array_push($data_kembali, $dl3);
             }
@@ -126,12 +103,12 @@ class D_Gaji extends Controller
         return $data;
     }
 
-    function data_kasbon($userID, $month, $book)
+    function data_kasbon($userID, $month)
     {
         //KASBON
         $cols = "id_kas, jumlah, insertTime";
         $where = "jenis_transaksi = 5 AND jenis_mutasi = 2 AND status_mutasi = 3 AND insertTime LIKE '" . $month . "%' AND id_client = " . $userID;
-        $data = $this->db($book)->get_cols_where('kas', $cols, $where, 1);
+        $data = $this->db(0)->get_cols_where('kas', $cols, $where, 1);
 
         foreach ($data as $key => $k) {
             $ref = $k['id_kas'];
