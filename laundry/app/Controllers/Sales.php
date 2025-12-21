@@ -337,164 +337,189 @@ class Sales extends Controller
    // Bayar - proses pembayaran
    public function bayar()
    {
+      // Clean previous buffer if any
+      if (ob_get_length()) ob_clean();
       ob_start();
       
-      $ref = $_POST['ref'] ?? '';
-      $karyawan = $_POST['karyawan'] ?? '';
-      $metode = $_POST['metode'] ?? 1;
-
-      $note = $_POST['note'] ?? '';
-      $dibayar = $_POST['dibayar'] ?? 0;
-
-      if($dibayar <= 0){
-         ob_end_clean();
-         header('Content-Type: application/json');
-         echo json_encode(['status' => 'error', 'message' => 'Jumlah pembayaran harus lebih dari 0']);
-         return;
-      }
-      
-      $target = $_POST['target'] ?? 'kas_laundry';
-
-      if($metode == 1){
-         $status_mutasi = 3;
-      }else{
-         if($note == ''){
-            ob_end_clean();
-            header('Content-Type: application/json');
-            echo json_encode(['status' => 'error', 'message' => 'Wajib Pilih Tujuan Bayar']);
-            return;
-         }
-         $status_mutasi = 2;
-      }
-      
-      if (empty($ref) || empty($karyawan) || empty($dibayar)) {
-         $this->model('Log')->write("[Sales::bayar] Data tidak lengkap. Ref: $ref, Karyawan: $karyawan, Bayar: $dibayar");
-         ob_end_clean();
-         header('Content-Type: application/json');
-         echo json_encode(['status' => 'error', 'message' => 'Data tidak lengkap']);
-         return;
-      }
-      
-      $id_cabang = $_SESSION[URL::SESSID]['user']['id_cabang'] ?? 0;
-      
-      // Get total dari barang_mutasi dengan ref ini
-      $items = $this->db(0)->get_where('barang_mutasi', "ref = '$ref' AND state = 0");
-      if (empty($items)) {
-         $this->model('Log')->write("[Sales::bayar] Data barang_mutasi tidak ditemukan atau sudah dibayar. Ref: $ref");
-         ob_end_clean();
-         header('Content-Type: application/json');
-         echo json_encode(['status' => 'error', 'message' => 'Data tidak ditemukan atau sudah dibayar']);
-         return;
-      }
-      
-      $total = 0;
-      foreach ($items as $item) {
-         $margin = $item['margin'] ?? 0;
-         $total += (($item['price'] + $margin) * $item['qty']);
-      }
-      
-      // Generate ref_finance untuk QRIS
-      $ref_finance = $ref;
-      
-      // Insert ke tabel kas
-      $dataKas = [
-         'id_kas' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
-         'id_cabang' => $id_cabang,
-         'id_user' => $karyawan,
-         'ref_transaksi' => $ref,
-         'ref_finance' => $ref_finance,
-         'jenis_mutasi' => 1,
-         'jenis_transaksi' => 7, //sales
-         'metode_mutasi' => $metode,
-         'note' => $note,
-         'jumlah' => $dibayar,
-         'status_mutasi' => $status_mutasi //lunas
-      ];
-      
-      $insertKas = $this->db(0)->insert('kas', $dataKas);
-      
-      if (isset($insertKas['errno']) && $insertKas['errno'] == 0) {
-         // Cek apakah sudah lunas sepenuhnya (total bayar >= total tagihan DAN semua status_mutasi = 3)
-         $allPayments = [];
-         $currentYear = (int) date('Y');
-         $startYear = 2025;
-
-         for ($year = $startYear; $year <= $currentYear; $year++) {
-            $payments = $this->db($year)->get_where('kas', "ref_transaksi = '$ref' AND jenis_transaksi = 7");
-            if (!empty($payments)) {
-               $allPayments = array_merge($allPayments, $payments);
-            }
-         }
-         
-         $totalBayar = 0;
-         $allPaid = true;
-         
-         foreach ($allPayments as $p) {
-            $totalBayar += $p['jumlah'];
-            if ($p['status_mutasi'] != 3) {
-               $allPaid = false;
-            }
-         }
-         
-         if ($totalBayar >= $total && $allPaid) {
-            $this->db(0)->update('barang_mutasi', ['state' => 1], "ref = '$ref'");
-         }
-         
-         // Jika QRIS, tidak perlu generate langsung, nanti saja saat klik tombol QR
-         if (strtoupper($note) == 'QRIS') {
-            ob_end_clean();
-            session_write_close();
-            header('Content-Type: application/json');
-            echo json_encode([
-               'status' => 'success',
-               'message' => 'Pembayaran QRIS dicatat! Silahkan klik tombol QR di riwayat untuk scan.',
-               'ref_finance' => $ref_finance
-            ]);
-         } elseif ($metode == 2 && strtoupper($note) != 'QRIS') {
-            // Transfer Bank - insert ke wh_moota
-            $bank_acc_id = isset(URL::MOOTA_BANK_ID[$note]) ? URL::MOOTA_BANK_ID[$note] : '';
-            
-            if (!empty($bank_acc_id)) {
-               // Update payment_gateway di kas
-               $book = $_SESSION[URL::SESSID]['user']['book'] ?? date('Y');
-               $this->db($book)->update('kas', ['payment_gateway' => 'moota'], "ref_finance = '$ref_finance'");
-               
-               // Insert ke wh_moota untuk tracking
-               $this->db(100)->insert('wh_moota', [
-                  'trx_id' => $ref_finance,
-                  'bank_id' => $bank_acc_id,
-                  'amount' => $dibayar,
-                  'target' => 'kas_laundry',
-                  'book' => date('Y'),
-                  'state' => 'pending'
-               ]);
-            }
-            
-            ob_end_clean();
-            session_write_close();
-            header('Content-Type: application/json');
-            echo json_encode([
-               'status' => 'success',
-               'message' => 'Pembayaran Transfer berhasil dicatat! Ref: #' . $ref
-            ]);
-         } else {
-            // Tunai atau lainnya  
-            ob_end_clean();
-            session_write_close();
-            header('Content-Type: application/json');
-            echo json_encode([
-               'status' => 'success',
-               'message' => 'Pembayaran berhasil! Ref: #' . $ref
-            ]);
-         }
-      } else {
-         $this->model('Log')->write("[Sales::bayar] Insert kas error: " . ($insertKas['error'] ?? 'Unknown') . " | Query: " . ($insertKas['query'] ?? 'N/A'));
-         ob_end_clean();
-         header('Content-Type: application/json');
-         echo json_encode([
-            'status' => 'error',
-            'message' => 'Gagal menyimpan pembayaran'
-         ]);
+      try {
+          $ref = $_POST['ref'] ?? '';
+          $karyawan = $_POST['karyawan'] ?? '';
+          $metode = $_POST['metode'] ?? 1;
+    
+          $note = $_POST['note'] ?? '';
+          $dibayar = $_POST['dibayar'] ?? 0;
+    
+          if($dibayar <= 0){
+             ob_end_clean();
+             header('Content-Type: application/json');
+             echo json_encode(['status' => 'error', 'message' => 'Jumlah pembayaran harus lebih dari 0']);
+             return;
+          }
+          
+          $target = $_POST['target'] ?? 'kas_laundry';
+    
+          if($metode == 1){
+             $status_mutasi = 3;
+          }else{
+             if($note == ''){
+                ob_end_clean();
+                header('Content-Type: application/json');
+                echo json_encode(['status' => 'error', 'message' => 'Wajib Pilih Tujuan Bayar']);
+                return;
+             }
+             $status_mutasi = 2;
+          }
+          
+          if (empty($ref) || empty($karyawan) || empty($dibayar)) {
+             $this->model('Log')->write("[Sales::bayar] Data tidak lengkap. Ref: $ref, Karyawan: $karyawan, Bayar: $dibayar");
+             ob_end_clean();
+             header('Content-Type: application/json');
+             echo json_encode(['status' => 'error', 'message' => 'Data tidak lengkap']);
+             return;
+          }
+          
+          $id_cabang = $_SESSION[URL::SESSID]['user']['id_cabang'] ?? 0;
+          
+          // Get total dari barang_mutasi dengan ref ini
+          $items = $this->db(0)->get_where('barang_mutasi', "ref = '$ref' AND state = 0");
+          if (empty($items)) {
+             $this->model('Log')->write("[Sales::bayar] Data barang_mutasi tidak ditemukan atau sudah dibayar. Ref: $ref");
+             ob_end_clean();
+             header('Content-Type: application/json');
+             echo json_encode(['status' => 'error', 'message' => 'Data tidak ditemukan atau sudah dibayar']);
+             return;
+          }
+          
+          $total = 0;
+          foreach ($items as $item) {
+             $margin = $item['margin'] ?? 0;
+             $total += (($item['price'] + $margin) * $item['qty']);
+          }
+          
+          // Generate ref_finance untuk QRIS
+          // Use unique Ref Finance for every payment transaction to allow multiple/partial payments
+          $ref_finance = (date('Y') - 2024) . date("mdHis") . rand(0, 9) . rand(0, 9);
+          
+          // Insert ke tabel kas
+          $dataKas = [
+             'id_kas' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
+             'id_cabang' => $id_cabang,
+             'id_user' => $karyawan,
+             'ref_transaksi' => $ref,
+             'ref_finance' => $ref_finance,
+             'jenis_mutasi' => 1,
+             'jenis_transaksi' => 7, //sales
+             'metode_mutasi' => $metode,
+             'note' => $note,
+             'jumlah' => $dibayar,
+             'status_mutasi' => $status_mutasi //lunas
+          ];
+          
+          $insertKas = $this->db(0)->insert('kas', $dataKas);
+          
+          if (isset($insertKas['errno']) && $insertKas['errno'] == 0) {
+             // Cek apakah sudah lunas sepenuhnya (total bayar >= total tagihan DAN semua status_mutasi = 3)
+             $allPayments = [];
+             $currentYear = (int) date('Y');
+             $startYear = 2025;
+    
+             for ($year = $startYear; $year <= $currentYear; $year++) {
+                $payments = $this->db($year)->get_where('kas', "ref_transaksi = '$ref' AND jenis_transaksi = 7");
+                if (!empty($payments)) {
+                   $allPayments = array_merge($allPayments, $payments);
+                }
+             }
+             
+             $totalBayar = 0;
+             $allPaid = true;
+             
+             foreach ($allPayments as $p) {
+                $totalBayar += $p['jumlah'];
+                if ($p['status_mutasi'] != 3) {
+                   $allPaid = false;
+                }
+             }
+             
+             if ($totalBayar >= $total && $allPaid) {
+                $this->db(0)->update('barang_mutasi', ['state' => 1], "ref = '$ref'");
+             }
+             
+             // Jika QRIS, tidak perlu generate langsung, nanti saja saat klik tombol QR
+             if (strtoupper($note) == 'QRIS') {
+                ob_end_clean();
+                session_write_close();
+                header('Content-Type: application/json');
+                echo json_encode([
+                   'status' => 'success',
+                   'message' => 'Pembayaran QRIS dicatat! Silahkan klik tombol QR di riwayat untuk scan.',
+                   'ref_finance' => $ref_finance
+                ]);
+             } elseif ($metode == 2 && strtoupper($note) != 'QRIS') {
+                // Transfer Bank - insert ke wh_moota
+                
+                // Safe checking for MOOTA_BANK_ID
+                $bank_acc_id = '';
+                if (defined('URL::MOOTA_BANK_ID')) {
+                    $moota_ids = constant('URL::MOOTA_BANK_ID');
+                    $bank_acc_id = isset($moota_ids[$note]) ? $moota_ids[$note] : '';
+                }
+                
+                if (!empty($bank_acc_id)) {
+                   // Update payment_gateway di kas
+                   $book = $_SESSION[URL::SESSID]['user']['book'] ?? date('Y');
+                   $this->db($book)->update('kas', ['payment_gateway' => 'moota'], "ref_finance = '$ref_finance'");
+                   
+                   // Insert ke wh_moota untuk tracking (Wrap in try catch)
+                   try {
+                       $this->db(100)->insert('wh_moota', [
+                          'trx_id' => $ref_finance,
+                          'bank_id' => $bank_acc_id,
+                          'amount' => $dibayar,
+                          'target' => 'kas_laundry',
+                          'book' => date('Y'),
+                          'state' => 'pending'
+                       ]);
+                   } catch (\Throwable $e) {
+                       $this->model('Log')->write("[Sales::bayar] Error insert wh_moota: " . $e->getMessage());
+                   }
+                }
+                
+                ob_end_clean();
+                session_write_close();
+                header('Content-Type: application/json');
+                echo json_encode([
+                   'status' => 'success',
+                   'message' => 'Pembayaran Transfer berhasil dicatat! Ref: #' . $ref
+                ]);
+             } else {
+                // Tunai atau lainnya  
+                ob_end_clean();
+                session_write_close();
+                header('Content-Type: application/json');
+                echo json_encode([
+                   'status' => 'success',
+                   'message' => 'Pembayaran berhasil! Ref: #' . $ref
+                ]);
+             }
+          } else {
+             $errorMsg = $insertKas['error'] ?? 'Unknown error';
+             $this->model('Log')->write("[Sales::bayar] Insert kas error: " . $errorMsg . " | Query: " . ($insertKas['query'] ?? 'N/A'));
+             ob_end_clean();
+             header('Content-Type: application/json');
+             echo json_encode([
+                'status' => 'error',
+                'message' => 'Gagal menyimpan pembayaran: ' . $errorMsg
+             ]);
+          }
+      } catch (\Throwable $t) {
+          $this->model('Log')->write("[Sales::bayar] Exception: " . $t->getMessage() . " File: " . $t->getFile() . ":" . $t->getLine());
+          ob_end_clean();
+          if (!headers_sent()) header('Content-Type: application/json');
+          
+          echo json_encode([
+             'status' => 'error', 
+             'message' => 'Terjadi kesalahan sistem: ' . $t->getMessage() . " (Line " . $t->getLine() . ")"
+          ]);
       }
    }
 
