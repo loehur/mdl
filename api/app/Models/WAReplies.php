@@ -18,11 +18,12 @@ class WAReplies
         
         $textBodyToCheck = strtolower($textBodyToCheck);
         
-        $cekBon = ['bon', 'struk', 'nota', 'bill', 'kirim', 'tagihan', 'resi',
-            'bon ', 'struk ', 'nota ', 'bill ', 'kirim ', 'tagihan ', 'resi '];
+        $cekBon = [
+            'ping', 'halo', 'atas nama', 'ats nama', 'atas nma',
+            'bon', 'struk', 'nota', 'bill', 'kirim', 'tagihan', 'resi'
+        ];
         $cekStatus = [
             'cek',
-            'cek ',
             'udh siap',
             'dh siap',
             'uda siap',
