@@ -257,9 +257,28 @@ class DB extends DBC
 
     public function delete($table, $where)
     {
+        // Check connection
+        if (!($this->mysqli instanceof mysqli) || $this->mysqli->connect_errno) {
+             // Re-connect
+             $this->__construct(array_search($this->db_name, array_column(DBC::dbm, 'db')));
+        }
+        try {
+            // Ping to ensure connection is alive
+            if (!$this->mysqli->ping()) {
+                $this->__construct(array_search($this->db_name, array_column(DBC::dbm, 'db')));
+            }
+        } catch (\Throwable $th) {
+            // Ignore ping error, try query anyway or fail gracefully
+        }
+
         $query = "DELETE FROM $table WHERE $where";
-        $this->mysqli->query($query);
-        return array('query' => $query, 'error' => $this->mysqli->error, 'errno' => $this->mysqli->errno);
+        
+        try {
+            $this->mysqli->query($query);
+            return array('query' => $query, 'error' => $this->mysqli->error, 'errno' => $this->mysqli->errno);
+        } catch (\Throwable $th) {
+            return array('query' => $query, 'error' => $th->getMessage(), 'errno' => 9999);
+        }
     }
 
     public function update($table, $set, $where)
