@@ -47,7 +47,7 @@
 
               <?php
               $no++;
-              $id = "'" . $a['id_penjualan'] . "'";
+              $id = $a['id_penjualan'];
               array_push($arrID, $id);
 
               $f10 = $a['id_penjualan_jenis'];
