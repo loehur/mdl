@@ -205,33 +205,6 @@ app.post('/incoming', (req, res) => {
 });
 
 /**
- * Endpoint to receive outgoing WA messages
- * Expects JSON body with message details AND target_id
- */
-app.post('/outgoing', (req, res) => {
-    const data = req.body;
-    const targetId = data.target_id;
-
-    if (!targetId) {
-        return res.status(400).json({ success: false, message: 'target_id is required' });
-    }
-
-    console.log(`WA Outgoing for ${targetId}:`, data);
-
-    const sent = sendToTarget(targetId, {
-        type: 'wa_keluar',
-        data: data,
-        timestamp: new Date().toISOString()
-    });
-
-    if (sent) {
-        res.json({ success: true, message: 'Message sent to client' });
-    } else {
-        res.status(404).json({ success: false, message: 'Target client not connected' });
-    }
-});
-
-/**
  * Universal Endpoint if needed
  */
 app.post('/webhook', (req, res) => {
