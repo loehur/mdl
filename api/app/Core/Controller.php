@@ -134,12 +134,7 @@ class Controller
     {
         // Parse URL untuk mendapatkan host
         $parsedUrl = parse_url($origin);
-        
-        if (!isset($parsedUrl['host'])) {
-            return false;
-        }
-        
-        $host = strtolower($parsedUrl['host']);
+        $host = isset($parsedUrl['host']) ? strtolower($parsedUrl['host']) : '';
         
         // Izinkan nalju.com dan semua subdomain *.nalju.com
         if ($host === 'nalju.com' || str_ends_with($host, '.nalju.com')) {

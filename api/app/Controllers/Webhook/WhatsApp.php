@@ -66,7 +66,6 @@ class WhatsApp extends Controller
         $json = file_get_contents('php://input');
         $data = json_decode($json, true);
 
-        \Log::write("Received webhook: " . $json, 'webhook', 'WhatsApp');
         if (!$data) {
             \Log::write("ERROR: Invalid JSON", 'webhook', 'WhatsApp');
             http_response_code(200);
@@ -130,7 +129,7 @@ class WhatsApp extends Controller
         $msg = $data['whatsappInboundMessage'] ?? [];
         $textBodyToCheck = $msg['text']['body'] ?? '';
         
-        \Log::write("handleInboundMessage: Number=" . $msg['from'] . ", Name=" . $msg['customerProfile']['name'] . ", Text=" . $textBodyToCheck, 'webhook', 'WhatsApp');
+        \Log::write("handleInboundMessage: Number=" . $msg['from'] . ", Text=" . $textBodyToCheck, 'webhook', 'WhatsApp');
         if (empty($msg)) {
             \Log::write("ERROR: No whatsappInboundMessage", 'webhook', 'WhatsApp');
             return;
@@ -167,9 +166,7 @@ class WhatsApp extends Controller
             if (!class_exists('\\App\\Models\\WAReplies')) {
                  require_once __DIR__ . '/../../Models/WAReplies.php';
             }
-            \Log::write("Processing potential auto-reply for text: '$textBodyToCheck'", 'webhook', 'WhatsApp');
             $autoReply = (new \App\Models\WAReplies())->process($phoneIn, $textBodyToCheck, $waNumber);
-            \Log::write("Auto reply result: " . ($autoReply ? 'TRUE' : 'FALSE'), 'webhook', 'WhatsApp');
         } catch (\Exception $e) {
             \Log::write("Error processing pending notifs: " . $e->getMessage(), 'webhook', 'WhatsApp');
         }
@@ -221,7 +218,6 @@ class WhatsApp extends Controller
         $msgId = $db->insert('wa_messages_in', $messageData);
 
         if ($msgId) {
-            \Log::write("✓ Inbound message saved: ID=$msgId, Cust=$customerId, Conv=$conversationId, From=$waNumber", 'webhook', 'WhatsApp'); 
             // Step 5: Update conversation last_in_at
             $db->update('wa_conversations', ['last_in_at' => $sendTime], ['id' => $conversationId]);
         } else {
@@ -237,10 +233,7 @@ class WhatsApp extends Controller
      */
     private function updateOrCreateCustomer($db, $waNumber, $contactName, $messageTime)
     {
-        \Log::write("updateOrCreateCustomer: Number=$waNumber, Name=$contactName", 'webhook', 'WhatsApp');
-        
-        // Try to find existing customer
-        $existing = $db->get_where('wa_customers', ['wa_number' => $waNumber]);
+       $existing = $db->get_where('wa_customers', ['wa_number' => $waNumber]);
         
         if ($existing->num_rows() > 0) {
             $customer = $existing->row();
@@ -258,9 +251,7 @@ class WhatsApp extends Controller
             
             $updated = $db->update('wa_customers', $updateData, ['id' => $customer->id]);
             
-            if ($updated) {
-                \Log::write("✓ Customer updated: ID={$customer->id}, Last message at: $messageTime", 'webhook', 'WhatsApp');
-            } else {
+            if (!$updated) {
                 $error = $db->conn()->error;
                 \Log::write("✗ Customer update failed: $error", 'webhook', 'WhatsApp');
             }
