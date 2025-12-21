@@ -155,7 +155,7 @@
                 foreach ($this->dLayanan as $c) {
                   if ($c['id_layanan'] == $b) {
                     foreach ($data['operasi'] as $o) {
-                      if ($o['id_penjualan'] == "'" . $id . "'" && $o['jenis_operasi'] == $b) {
+                      if ($o['id_penjualan'] == $id && $o['jenis_operasi'] == $b) {
                         $user = "";
                         $check++;
                         foreach ($this->user as $p) {
