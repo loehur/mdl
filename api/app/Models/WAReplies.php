@@ -159,7 +159,13 @@ class WAReplies
                                     
                                     $db1->update('notif', $updateData, ['id_notif' => $id_notif]);
                                 } else {
-                                    \Log::write("Insert Notif FAILED! Error: " . $db1->conn()->error, 'webhook', 'WhatsApp');
+                                    $conn = $db1->conn();
+                                    $errorMsg = $conn->error ?? 'No Error Msg';
+                                    if (empty($errorMsg) && !empty($conn->error_list)) {
+                                        $errorMsg = json_encode($conn->error_list);
+                                    }
+                                    
+                                    \Log::write("Insert Notif FAILED! Error: " . $errorMsg . " | ErrNo: " . ($conn->errno ?? 0), 'webhook', 'WhatsApp');
                                     \Log::write("Insert Data: " . json_encode($insertData), 'webhook', 'WhatsApp');
                                 }
                             }
