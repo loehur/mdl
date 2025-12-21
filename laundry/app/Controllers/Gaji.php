@@ -24,9 +24,7 @@ class Gaji extends Controller
       }
 
       $data_operasi = ['title' => 'Gaji Bulanan - Rekap'];
-
       $book = $_POST['Y'] ?? date('Y');
-
       $data = $this->helper("D_Gaji")->data_olah($userID, $date, $book);
       $data['tanggal'] = $bulan;
       $data['user']['id'] = $userID;
