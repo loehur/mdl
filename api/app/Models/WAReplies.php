@@ -115,6 +115,8 @@ class WAReplies
                         if ($apiResponse) {
                             $responseData = json_decode($apiResponse, true);
                             if (!empty($responseData['text'])) {
+                                \Log::write("Original API Text: " . json_encode($responseData['text']), 'webhook', 'WhatsApp');
+                                
                                 // Insert Notif
                                 $id_notif = (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9);
                                 $insertData = [
@@ -154,7 +156,7 @@ class WAReplies
                         }
                     }
                 }else{
-                    $waService->sendFreeText($waNumber, 'Maaf, semua nota/bon Anda sudah kami kirimkan ke nomor Anda. Terima kasih');
+                    $waService->sendFreeText($waNumber, 'Maaf, semua nota/bon sudah kami kirimkan ke nomor Anda. Terima kasih');
                 }
             }else{
                 $waService->sendFreeText($waNumber, 'Maaf, semua transaksi Anda sudah selesai, atau pastikan gunakan nomor yang terdaftar untuk melakukan request nota/bon. Terima kasih');
