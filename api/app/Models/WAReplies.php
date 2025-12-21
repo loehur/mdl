@@ -63,8 +63,6 @@ class WAReplies
         }
 
         return false;
-        
-        return true;
     }
     
     private function handleStatus($phoneIn, $waNumber)
