@@ -170,8 +170,8 @@ class WAReplies
                                     // Try to get last query if available in wrapper
                                     $lastQuery = method_exists($db1, 'last_query') ? $db1->last_query() : 'N/A';
                                     
-                                    \Log::write("Insert Notif FAILED! Error: " . $errorMsg . " | ErrNo: " . ($conn->errno ?? 0), 'webhook', 'WhatsApp');
-                                    \Log::write("Last Query: " . $lastQuery, 'webhook', 'WhatsApp');
+                                    \Log::write("Insert Notif FAILED! Return value: " . var_export($isInserted, true), 'webhook', 'WhatsApp');
+                                    \Log::write("Error: " . $errorMsg . " | ErrNo: " . ($conn->errno ?? 0), 'webhook', 'WhatsApp');
                                     \Log::write("Insert Data: " . json_encode($insertData), 'webhook', 'WhatsApp');
                                 }
                             }
