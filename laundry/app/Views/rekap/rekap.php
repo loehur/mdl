@@ -1,7 +1,8 @@
 <?php
-if (count($data['dataTanggal']) > 0) {
-  $currentMonth = $data['dataTanggal']['bulan'];
-  $currentYear = $data['dataTanggal']['tahun'];
+$dataTanggal = $data['dataTanggal'];
+if (count($dataTanggal) > 0) {
+  $currentMonth = $dataTanggal['bulan'];
+  $currentYear = $dataTanggal['tahun'];
 } else {
   $currentMonth = date('m');
   $currentYear = date('Y');
