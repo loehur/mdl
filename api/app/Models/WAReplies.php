@@ -104,9 +104,9 @@ class WAReplies
             $noRefs = array_column($sales, 'no_ref');
             
             if (!empty($noRefs)) {
-                // Remove refs that already have a notification of type 1
+                // Remove refs that already have a notification of tipe 1
                 $noRefsIn = "'" . implode("','", $noRefs) . "'";
-                $existingRefs = array_column($db1->query("SELECT no_ref FROM notif WHERE type = 1 AND no_ref IN ($noRefsIn)")->result_array(), 'no_ref');
+                $existingRefs = array_column($db1->query("SELECT no_ref FROM notif WHERE tipe = 1 AND no_ref IN ($noRefsIn)")->result_array(), 'no_ref');
                 $missingRefs = array_diff($noRefs, $existingRefs);
                 
                 if (count($missingRefs) > 0) {
