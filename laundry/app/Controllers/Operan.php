@@ -74,7 +74,7 @@ class Operan extends Controller
          exit();
       }
 
-      $id_penjualan = "'" . $idOperan . "'";
+      $id_penjualan = $idOperan;
       $where = "id_penjualan LIKE '%" . $id_penjualan . "' AND tuntas = 0 AND bin = 0 AND id_cabang = " . $idCabang;
       $data_main = $this->db(0)->get_where('sale', $where);
       $idOperan = $id_penjualan;
