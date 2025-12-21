@@ -142,7 +142,11 @@
       },
       type: "POST",
       success: function(res) {
-          location.reload(true);
+          if(res == 0){
+            location.reload(true);
+          }else{
+            console.log(res);
+          }
       },
     });
   });

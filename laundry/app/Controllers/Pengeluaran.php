@@ -26,7 +26,14 @@ class Pengeluaran extends Controller
       $set = [
          'status_mutasi' => $tipe
       ];
+
       $where = $this->wCabang . " AND id_kas = '" . $id . "'";
+      $count = $this->db(0)->count_where('kas', $where);
+      if ($count == 0) {
+         echo $id;
+         return;
+      }
+
       $up = $this->db(0)->update('kas', $set, $where);
       if ($up['errno'] == 0) {
          echo "success";
