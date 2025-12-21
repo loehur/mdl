@@ -111,7 +111,16 @@ class WAReplies
                 
                 if (count($missingRefs) > 0) {
                     foreach ($missingRefs as $ref) {
-                        $apiResponse = @file_get_contents("https://ml.nalju.com/Get/wa_nota/" . urlencode($ref));
+                        // Create context with User-Agent to avoid potential filtering
+                        $opts = [
+                            "http" => [
+                                "method" => "GET",
+                                "header" => "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36\r\n"
+                            ]
+                        ];
+                        $context = stream_context_create($opts);
+                        
+                        $apiResponse = @file_get_contents("https://ml.nalju.com/Get/wa_nota/" . urlencode($ref), false, $context);
                         if ($apiResponse) {
                             $responseData = json_decode($apiResponse, true);
                             if (!empty($responseData['text'])) {
