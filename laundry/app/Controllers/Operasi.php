@@ -73,7 +73,7 @@ class Operasi extends Controller
       $notifBon = [];
       $surcas = [];
       if (!empty($sale_refs)) {
-         $where_kas = $this->wCabang . " AND jenis_transaksi = 1 AND ref_transaksi IN ('" . implode("','", $sale_refs) . "')";
+         $where_kas = $this->wCabang . " AND (jenis_transaksi = 1 OR jenis_transaksi = 3) AND ref_transaksi IN ('" . implode("','", $sale_refs) . "')";
          $kas = $this->db(0)->get_where('kas', $where_kas);
 
          $where_notif = $this->wCabang . " AND tipe = 1 AND no_ref IN ('" . implode("','", $sale_refs) . "')";

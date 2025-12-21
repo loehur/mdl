@@ -91,7 +91,6 @@ class I extends Controller
          $i = substr($yr_first, 0, 4);
 
          foreach ($numbersMember as $nm) {
-            // FIX: use db(0)
             $where = "id_cabang = " . $this->id_cabang_p . "  AND jenis_transaksi = 3 AND ref_transaksi = '" . $nm . "'";
             $kasMd = $this->db(0)->get_where('kas', $where);
             if (count($kasMd) > 0) {

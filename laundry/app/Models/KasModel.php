@@ -70,7 +70,6 @@ class KasModel extends Controller
             }
 
             if ($metode == 3) {
-                // FIX: calculate saldo directly with db(0)
                 $q_cr = "id_client = '$id_pelanggan' AND jenis_transaksi = 6 AND jenis_mutasi = 1 AND status_mutasi = 3";
                 $topup = $this->db(0)->sum_col_where('kas', 'jumlah', $q_cr) ?? 0;
                 $q_cr_out = "id_client = '$id_pelanggan' AND jenis_transaksi = 6 AND jenis_mutasi = 2 AND status_mutasi = 3";
