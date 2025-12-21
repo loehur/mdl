@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WA Server WebSocket Test</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+        }
+
+        #log {
+            border: 1px solid #ccc;
+            height: 300px;
+            overflow-y: scroll;
+            padding: 10px;
+            background: #f9f9f9;
+            margin-top: 20px;
+        }
+
+        .mes {
+            margin-bottom: 5px;
+            padding: 5px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .incoming {
+            color: green;
+        }
+
+        .outgoing {
+            color: blue;
+        }
+
+        .status {
+            font-weight: bold;
+            margin-left: 10px;
+        }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>WA WebSocket Client Test</h2>
+
+    <div class="controls">
+        <label>Client ID:</label>
+        <input type="text" id="clientId" value="agent1">
+        <button onclick="connect()">Connect</button>
+        <button onclick="disconnect()">Disconnect</button>
+        <span id="status" class="status">Disconnected</span>
+    </div>
+
+    <div id="log"></div>
+
+    <script>
+        const log = document.getElementById('log');
+        const status = document.getElementById('status');
+        let ws = null;
+
+        function connect() {
+            const id = document.getElementById('clientId').value;
+            if (!id) return alert('Please enter Client ID');
+
+            if (ws) {
+                ws.close();
+            }
+
+            status.textContent = 'Connecting...';
+            ws = new WebSocket('ws://localhost:3003?id=' + encodeURIComponent(id));
+
+            ws.onopen = () => {
+                status.textContent = 'Connected as ' + id;
+                status.style.color = 'green';
+                appendLog('System', 'Connected to WebSocket Server');
+            };
+
+            ws.onclose = (e) => {
+                status.textContent = 'Disconnected (' + e.code + ')';
+                status.style.color = 'red';
+                appendLog('System', 'Disconnected: ' + e.reason);
+                ws = null;
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    console.log('Received:', data);
+
+                    let typeClass = '';
+                    if (data.type === 'wa_masuk') typeClass = 'incoming';
+                    else if (data.type === 'wa_keluar') typeClass = 'outgoing';
+
+                    // If data.data exists (like in webhook events), use it. 
+                    // Otherwise (like in connection success), describe the whole object.
+                    const content = data.data ? data.data : data;
+
+                    appendLog(data.type, JSON.stringify(content, null, 2), typeClass);
+                } catch (e) {
+                    appendLog('Raw', event.data);
+                }
+            };
+
+            ws.onerror = (err) => {
+                console.error(err);
+                appendLog('Error', 'WebSocket Error');
+            };
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+            }
+        }
+
+        function appendLog(type, msg, className = '') {
+            const div = document.createElement('div');
+            div.className = 'mes ' + className;
+            div.innerHTML = `<strong>${type}:</strong> <pre>${msg}</pre>`;
+            log.appendChild(div);
+            log.scrollTop = log.scrollHeight;
+        }
+    </script>
+</body>
+
+</html>

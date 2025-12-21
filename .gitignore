@@ -8,3 +8,4 @@ auth
 laundry/app/Config/*
 api/scripts/
 *.sql
+api/scripts/*
