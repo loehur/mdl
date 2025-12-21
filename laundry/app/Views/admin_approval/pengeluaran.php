@@ -142,11 +142,7 @@
       },
       type: "POST",
       success: function(res) {
-        if(res == "success") {
           location.reload(true);
-        }else{
-          console.log(res);
-        }
       },
     });
   });
