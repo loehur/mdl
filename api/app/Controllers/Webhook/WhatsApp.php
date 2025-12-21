@@ -165,6 +165,18 @@ class WhatsApp extends Controller
             $phones = ["'$cleanPhone'", "'$phone0'", "'$phonePlus'"];
             $phoneIn = implode(',', $phones);
             
+            // get data pelanggan
+            $where = "nomor_pelanggan IN ($phoneIn)";
+            $pelanggan = $db1->query("SELECT id_pelanggan FROM pelanggan WHERE $where")->result_array();
+            $id_pelanggans = array_column($pelanggan, 'id_pelanggan');
+
+            if (!empty($id_pelanggans)) {
+                $ids_in = implode(',', $id_pelanggans);
+                $sales = $db1->query("SELECT * FROM sale WHERE tuntas = 0 AND id_pelanggan IN ($ids_in) GROUP BY no_ref, tuntas, id_pelanggan")->result_array();
+
+                $noRefs = array_column($sales, 'no_ref');                
+            }
+
             // Get pending notifs
             $sql = "SELECT * FROM notif 
                     WHERE state = 'pending' 

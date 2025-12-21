@@ -420,6 +420,7 @@ class Antrian extends Controller
 
       if ($res['status']) {
          $vals = [
+            'id_notif' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
             'insertTime' => $time,
             'id_cabang' => $this->id_cabang,
             'no_ref' => $noref,

@@ -11,22 +11,23 @@ class Kas extends Controller
    public function index()
    {
       $view = 'kas/kas_main';
-      $data_operasi = ['title' => 'Kas'];
+      $data_operasi = ['title' => 'Kas'];    
 
+      //uang masuk
       $kredit = 0;
       $where_kredit = $this->wCabang . " AND jenis_mutasi = 1 AND metode_mutasi = 1 AND status_mutasi = 3";
       $cols_kredit = "SUM(jumlah) as jumlah";
-
-      $debit = 0;
-      $where_debit = $this->wCabang . " AND jenis_mutasi = 2 AND metode_mutasi = 1 AND status_mutasi <> 4";
-      $cols_debit = "SUM(jumlah) as jumlah";
-
-      // FIX: use db(0) directly
       $jumlah_kredit = isset($this->db(0)->get_cols_where('kas', $cols_kredit, $where_kredit, 0)['jumlah']) ? $this->db(0)->get_cols_where('kas', $cols_kredit, $where_kredit, 0)['jumlah'] : 0;
       $kredit = $jumlah_kredit;
 
+      //uang keluar
+      $debit = 0;
+      $where_debit = $this->wCabang . " AND jenis_mutasi = 2 AND metode_mutasi = 1 AND status_mutasi <> 4";
+      $cols_debit = "SUM(jumlah) as jumlah";
       $jumlah_debit = isset($this->db(0)->get_cols_where('kas', $cols_debit, $where_debit, 0)['jumlah']) ? $this->db(0)->get_cols_where('kas', $cols_debit, $where_debit, 0)['jumlah'] : 0;
       $debit = $jumlah_debit;
+      
+      //saldo
       $saldo = $kredit - $debit;
 
       $limit = 10;
