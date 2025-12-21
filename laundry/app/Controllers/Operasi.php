@@ -73,7 +73,7 @@ class Operasi extends Controller
       $notifBon = [];
       $surcas = [];
       if (!empty($sale_refs)) {
-         $where_kas = $this->wCabang . " AND (jenis_transaksi = 1 OR jenis_transaksi = 3) AND ref_transaksi IN ('" . implode("','", $sale_refs) . "')";
+         $where_kas = $this->wCabang . " AND jenis_transaksi = 1 AND ref_transaksi IN ('" . implode("','", $sale_refs) . "')";
          $kas = $this->db(0)->get_where('kas', $where_kas);
 
          $where_notif = $this->wCabang . " AND tipe = 1 AND no_ref IN ('" . implode("','", $sale_refs) . "')";
@@ -83,39 +83,7 @@ class Operasi extends Controller
          $surcas = $this->db(0)->get_where('surcas', $where_surcas);
       }
 
-      $finance_history = [];
-      foreach ($kas as $k) {
-         if (!isset($k['ref_finance']) || $k['ref_finance'] == '') continue;
-         $rf = $k['ref_finance'];
-         if (!isset($finance_history[$rf])) {
-            $finance_history[$rf] = [
-               'ref_finance' => $rf,
-               'total' => 0,
-               'status' => $k['status_mutasi'],
-               'metode' => $k['metode_mutasi'],
-               'note' => $k['note'],
-               'insertTime' => $k['insertTime']
-            ];
-         }
-         $finance_history[$rf]['total'] += intval($k['jumlah']);
-         if (isset($k['insertTime']) && $k['insertTime'] > $finance_history[$rf]['insertTime']) {
-            $finance_history[$rf]['insertTime'] = $k['insertTime'];
-            $finance_history[$rf]['status'] = $k['status_mutasi'];
-            $finance_history[$rf]['metode'] = $k['metode_mutasi'];
-            $finance_history[$rf]['note'] = $k['note'];
-         }
-      }
 
-      $finance_history = array_filter($finance_history, function ($item) {
-         return $item['status'] == 2;
-      });
-
-      foreach ($finance_history as $key => $fh) {
-         $check_moota = $this->db(0)->get_where_row("wh_moota", "trx_id = '" . $fh['ref_finance'] . "'");
-         if (isset($check_moota['amount']) && $check_moota['amount'] > 0) {
-            $finance_history[$key]['total'] = $check_moota['amount'];
-         }
-      }
 
       //MEMBER
       $data_member = [];
@@ -160,6 +128,51 @@ class Operasi extends Controller
                   }
                }
             }
+         }
+      }
+
+      $finance_history = [];
+      $kas_member_flat = [];
+      if(isset($kas_member) && count($kas_member) > 0){
+         foreach($kas_member as $key => $val){
+             foreach($val as $v){
+                 $kas_member_flat[] = $v;
+             }
+         }
+      }
+
+      $c_history = array_merge($kas, $kas_member_flat);
+
+      foreach ($c_history as $k) {
+         if (!isset($k['ref_finance']) || $k['ref_finance'] == '') continue;
+         $rf = $k['ref_finance'];
+         if (!isset($finance_history[$rf])) {
+            $finance_history[$rf] = [
+               'ref_finance' => $rf,
+               'total' => 0,
+               'status' => $k['status_mutasi'],
+               'metode' => $k['metode_mutasi'],
+               'note' => $k['note'],
+               'insertTime' => $k['insertTime']
+            ];
+         }
+         $finance_history[$rf]['total'] += intval($k['jumlah']);
+         if (isset($k['insertTime']) && $k['insertTime'] > $finance_history[$rf]['insertTime']) {
+            $finance_history[$rf]['insertTime'] = $k['insertTime'];
+            $finance_history[$rf]['status'] = $k['status_mutasi'];
+            $finance_history[$rf]['metode'] = $k['metode_mutasi'];
+            $finance_history[$rf]['note'] = $k['note'];
+         }
+      }
+
+      $finance_history = array_filter($finance_history, function ($item) {
+         return $item['status'] == 2;
+      });
+
+      foreach ($finance_history as $key => $fh) {
+         $check_moota = $this->db(0)->get_where_row("wh_moota", "trx_id = '" . $fh['ref_finance'] . "'");
+         if (isset($check_moota['amount']) && $check_moota['amount'] > 0) {
+            $finance_history[$key]['total'] = $check_moota['amount'];
          }
       }
 

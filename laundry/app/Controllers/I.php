@@ -73,8 +73,6 @@ class I extends Controller
          }
       }
 
-
-
       $data_member = array();
       $where = "id_cabang = " . $this->id_cabang_p . "  AND bin = 0 AND id_pelanggan = " . $pelanggan . " AND lunas = 0";
       $order = "id_member DESC";
