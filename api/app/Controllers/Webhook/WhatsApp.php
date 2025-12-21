@@ -66,6 +66,7 @@ class WhatsApp extends Controller
         $json = file_get_contents('php://input');
         $data = json_decode($json, true);
 
+        \Log::write("Received webhook: " . $json, 'webhook', 'WhatsApp');
         if (!$data) {
             \Log::write("ERROR: Invalid JSON", 'webhook', 'WhatsApp');
             http_response_code(200);
