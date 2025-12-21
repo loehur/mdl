@@ -92,7 +92,7 @@ class D_Gaji extends Controller
             if (count($ops_data) > 0 && count($data_operasi) > 0) {
                 //PENJUALAN TAHUN LALU
                 foreach ($ops_data as $od) {
-                    $where = "id_penjualan = '" . $od['id_penjualan'] . "'";
+                    $where = "id_penjualan = '" . $od['id_penjualan'] . "' AND insertTime LIKE '" . $date . "%'";
                     $data_lalu = $this->db($book - 1)->get_where_row('sale', $where);
 
                     if (count($data_lalu) > 0) {

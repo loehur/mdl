@@ -18,12 +18,40 @@ class WAReplies
         
         $textBodyToCheck = strtolower($textBodyToCheck);
         
+        $cekBon = ['bon', 'struk', 'nota', 'bill', 'kirim'];
+        $cekStatus = [
+            'cek',
+            'udh siap',
+            'uda siap',
+            'dah siap',
+            'udah siap',
+            'sudah siap',
+            'udh beres',
+            'uda beres',
+            'dah beres',
+            'udah beres',
+            'sudah beres',
+            'udh selesai',
+            'uda selesai',
+            'dah selesai',
+            'udah selesai',
+            'sudah selesai',
+            'bs diambil',
+            'bs di ambil',
+            'bisa diambil',
+            'bisa di ambil',
+            'bs dijemput',
+            'bisa dijemput',
+            'bs di jemput',
+            'bisa di jemput',
+        ];
+
         switch ($textBodyToCheck) {
-            case 'bon':
+            case in_array($textBodyToCheck, $cekBon):
                 $this->handleBon($phoneIn, $waNumber);
                 break;
-            case 'cek':
-                $this->handlePendingNotifs($phoneIn, $waNumber);
+            case in_array($textBodyToCheck, $cekStatus):
+                $this->handleStatus($phoneIn, $waNumber);
                 break;
             default:
                 return false;
@@ -33,7 +61,7 @@ class WAReplies
         return true;
     }
     
-    private function handlePendingNotifs($phoneIn, $waNumber)
+    private function handleStatus($phoneIn, $waNumber)
     {
         // Instantiate service early
         if (!class_exists('\\App\\Helpers\\WhatsAppService')) {
