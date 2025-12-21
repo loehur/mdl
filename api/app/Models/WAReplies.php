@@ -35,6 +35,12 @@ class WAReplies
     
     private function handlePendingNotifs($phoneIn, $waNumber)
     {
+        // Instantiate service early
+        if (!class_exists('\\App\\Helpers\\WhatsAppService')) {
+            require_once __DIR__ . '/../Helpers/WhatsAppService.php';
+        }
+        $waService = new \App\Helpers\WhatsAppService();
+        
         $db1 = DB::getInstance(1);
         $limitTime = date('Y-m-d H:i:s', strtotime('-24 hours'));
         
@@ -48,12 +54,6 @@ class WAReplies
         
         if (!empty($pendingNotifs)) {
              \Log::write("Found " . count($pendingNotifs) . " pending notifs for $waNumber. Sending...", 'webhook', 'WhatsApp');
-             
-             // Instantiate service on the fly
-             if (!class_exists('\\App\\Helpers\\WhatsAppService')) {
-                 require_once __DIR__ . '/../Helpers/WhatsAppService.php';
-             }
-             $waService = new \App\Helpers\WhatsAppService();
              
              foreach ($pendingNotifs as $notif) {
                  // Send message (Free text is allowed now since customer just messaged us)
@@ -77,6 +77,12 @@ class WAReplies
 
     private function handleBon($phoneIn, $waNumber)
     {
+        // Instantiate service early
+        if (!class_exists('\\App\\Helpers\\WhatsAppService')) {
+            require_once __DIR__ . '/../Helpers/WhatsAppService.php';
+        }
+        $waService = new \App\Helpers\WhatsAppService();
+
         // Use DB(1)
         $db1 = DB::getInstance(1);
 
@@ -125,11 +131,6 @@ class WAReplies
                                 
                                 // Check if insert successful
                                 if ($db1->conn()->affected_rows > 0) {
-                                    if (!class_exists('\\App\\Helpers\\WhatsAppService')) {
-                                        // Adjust path as we are in App\Models, so up one level to App, then Helpers
-                                        require_once __DIR__ . '/../Helpers/WhatsAppService.php';
-                                    }
-                                    $waService = new \App\Helpers\WhatsAppService();
                                     $res = $waService->sendFreeText($waNumber, $responseData['text']);
                                     
                                     $status = ($res['success'] ?? false) ? 'sent' : 'failed';

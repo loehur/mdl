@@ -172,8 +172,9 @@ class WhatsApp extends Controller
             if (!class_exists('\\App\\Models\\WAReplies')) {
                  require_once __DIR__ . '/../../Models/WAReplies.php';
             }
+            \Log::write("Processing potential auto-reply for text: '$textBodyToCheck'", 'webhook', 'WhatsApp');
             $autoReply = (new \App\Models\WAReplies())->process($phoneIn, $textBodyToCheck, $waNumber);
-            \Log::write("Auto reply: " . $autoReply, 'webhook', 'WhatsApp');
+            \Log::write("Auto reply result: " . ($autoReply ? 'TRUE' : 'FALSE'), 'webhook', 'WhatsApp');
         } catch (\Exception $e) {
             \Log::write("Error processing pending notifs: " . $e->getMessage(), 'webhook', 'WhatsApp');
         }
