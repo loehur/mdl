@@ -173,14 +173,13 @@ class WhatsApp extends Controller
                  require_once __DIR__ . '/../../Models/WAReplies.php';
             }
             $autoReply = (new \App\Models\WAReplies())->process($phoneIn, $textBodyToCheck, $waNumber);
-
+            \Log::write("Auto reply: " . $autoReply, 'webhook', 'WhatsApp');
         } catch (\Exception $e) {
             \Log::write("Error processing pending notifs: " . $e->getMessage(), 'webhook', 'WhatsApp');
         }
 
-        if ($autoReply === false) {
-            $conversationId = $this->getOrCreateConversation($db, $customerId, $waNumber, $contactName);
-        }
+        // Wajib ambil ID percakapan untuk menyimpan pesan ke database (walaupun itu auto-reply)
+        $conversationId = $this->getOrCreateConversation($db, $customerId, $waNumber, $contactName);
 
         $textBody = null;
         $mediaId = null;
