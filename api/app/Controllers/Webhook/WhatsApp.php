@@ -173,8 +173,7 @@ class WhatsApp extends Controller
 
         //cari assigned_user_id
         $assigned_user_id = $this->getAssignedUserId($phone0);
-        \Log::write("assigned_user_id: " . $assigned_user_id, 'webhook', 'WhatsApp');
-        
+              
         // Wajib ambil ID percakapan untuk menyimpan pesan ke database (walaupun itu auto-reply)
         $conversationId = $this->getOrCreateConversation($db, $customerId, $waNumber, $contactName, $assigned_user_id);
 
@@ -414,6 +413,8 @@ class WhatsApp extends Controller
             if ($contactName && $contactName !== $conv->contact_name) {
                 $db->update('wa_conversations', 
                     ['contact_name' => $contactName], 
+                    ['assigned_user_id' => $assigned_user_id], 
+                    ['last_in_at' => date('Y-m-d H:i:s')],
                     ['id' => $conv->id]
                 );
             }
