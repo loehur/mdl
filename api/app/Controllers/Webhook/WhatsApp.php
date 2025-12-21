@@ -217,10 +217,7 @@ class WhatsApp extends Controller
         ];        
         $msgId = $db->insert('wa_messages_in', $messageData);
 
-        if ($msgId) {
-            // Step 5: Update conversation last_in_at
-            $db->update('wa_conversations', ['last_in_at' => $sendTime], ['id' => $conversationId]);
-        } else {
+        if (!$msgId) {
             $error = $db->conn()->error;
             \Log::write("✗ DB ERROR (insert inbound message): $error", 'webhook', 'WhatsApp');
             \Log::write("Data attempted: " . json_encode($messageData), 'webhook', 'WhatsApp');
