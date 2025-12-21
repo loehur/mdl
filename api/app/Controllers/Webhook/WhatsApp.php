@@ -21,7 +21,11 @@ class WhatsApp extends Controller
     {
         // LOG ACCESS
         $logData = date('Y-m-d H:i:s') . " | IP: " . ($_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN') . " | Method: " . ($_SERVER['REQUEST_METHOD'] ?? 'UNKNOWN') . "\n";
-        @file_put_contents(__DIR__ . '/../../../logs/wa_webhook_access.log', $logData, FILE_APPEND);
+        $logPath = __DIR__ . '/../../../logs/webhook/' . date('Y/m');
+        if (!is_dir($logPath)) {
+            @mkdir($logPath, 0777, true);
+        }
+        @file_put_contents($logPath . '/wa_webhook_access_' . date('d') . '.log', $logData, FILE_APPEND);
         
         $method = $_SERVER['REQUEST_METHOD'];
 
@@ -149,14 +153,10 @@ class WhatsApp extends Controller
             return;
         }
 
-        // Step 1: Update or create customer (for 24h window tracking)
         $customerId = $this->updateOrCreateCustomer($db, $waNumber, $contactName, $sendTime);
-
-        // Logic: Check pending notifications in DB(1) (Resend Table)
-        // If pending notif exists within 24h for this phone, send it now (CSW Open)
-        // MOVED HERE: so CSW is valid before sending
+       
+        $autoReply = false;
         try {
-            $db1 = $this->db(1);
             $cleanPhone = preg_replace('/[^0-9]/', '', $waNumber); // 628...
             $phone0 = '0' . substr($cleanPhone, 2); // 08...
             $phonePlus = '+' . $cleanPhone; // +62...
@@ -166,62 +166,22 @@ class WhatsApp extends Controller
             $phoneIn = implode(',', $phones);
             
             // get data pelanggan
-            $where = "nomor_pelanggan IN ($phoneIn)";
-            $pelanggan = $db1->query("SELECT id_pelanggan FROM pelanggan WHERE $where")->result_array();
-            $id_pelanggans = array_column($pelanggan, 'id_pelanggan');
-
-            if (!empty($id_pelanggans)) {
-                $ids_in = implode(',', $id_pelanggans);
-                $sales = $db1->query("SELECT * FROM sale WHERE tuntas = 0 AND id_pelanggan IN ($ids_in) GROUP BY no_ref, tuntas, id_pelanggan")->result_array();
-
-                $noRefs = array_column($sales, 'no_ref');                
+            // Process Auto Replies (e.g. Nota)
+            $textBodyToCheck = $msg['text']['body'] ?? '';
+            // Ensure WAReplies class is available (simple autoload check or require if needed, but assuming namespace works)
+            if (!class_exists('\\App\\Models\\WAReplies')) {
+                 require_once __DIR__ . '/../../Models/WAReplies.php';
             }
-
-            // Get pending notifs
-            $sql = "SELECT * FROM notif 
-                    WHERE state = 'pending' 
-                    AND insertTime >= '$limitTime' 
-                    AND phone IN ($phoneIn)
-                    ORDER BY insertTime ASC";
-            
-            $pendingNotifs = $db1->query($sql)->result_array();
-            
-            if (!empty($pendingNotifs)) {
-                 \Log::write("Found " . count($pendingNotifs) . " pending notifs for $waNumber. Sending...", 'webhook', 'WhatsApp');
-                 
-                 // Instantiate service on the fly
-                 if (!class_exists('\\App\\Helpers\\WhatsAppService')) {
-                     require_once __DIR__ . '/../../Helpers/WhatsAppService.php';
-                 }
-                 $waService = new \App\Helpers\WhatsAppService();
-                 
-                 foreach ($pendingNotifs as $notif) {
-                     // Send message (Free text is allowed now since customer just messaged us)
-                     $res = $waService->sendFreeText($waNumber, $notif['text']);
-                     
-                     $status = ($res['success'] ?? false) ? 'sent' : 'failed';
-                     $msgId = $res['data']['id'] ?? ($res['data']['message_id'] ?? null);
-                     
-                     // Update state immediately
-                     $updateData = ['state' => $status];
-                     if ($msgId) {
-                         $updateData['id_api'] = $msgId;
-                     }
-                     
-                     $db1->update('notif', $updateData, ['id_notif' => $notif['id_notif']]);
-                     
-                     \Log::write("Resent Notif ID {$notif['id_notif']} -> $status", 'webhook', 'WhatsApp');
-                 }
-            }
+            $autoReply = (new \App\Models\WAReplies())->process($phoneIn, $textBodyToCheck, $waNumber);
 
         } catch (\Exception $e) {
             \Log::write("Error processing pending notifs: " . $e->getMessage(), 'webhook', 'WhatsApp');
         }
 
-        // Step 2: Get or create conversation
-        $conversationId = $this->getOrCreateConversation($db, $customerId, $waNumber, $contactName);
+        if ($autoReply === false) {
+            $conversationId = $this->getOrCreateConversation($db, $customerId, $waNumber, $contactName);
+        }
 
-        // Step 3: Extract message content
         $textBody = null;
         $mediaId = null;
         $mediaUrl = null;
@@ -260,15 +220,11 @@ class WhatsApp extends Controller
             'contact_name' => $contactName,
             'status' => $status,
             'received_at' => $sendTime
-        ];
-
-        \Log::write("Attempting to insert inbound message: Conv=$conversationId, Cust=$customerId, Type=$messageType", 'webhook', 'WhatsApp');
-        
+        ];        
         $msgId = $db->insert('wa_messages_in', $messageData);
 
         if ($msgId) {
-            \Log::write("✓ Inbound message saved: ID=$msgId, Cust=$customerId, Conv=$conversationId, From=$waNumber", 'webhook', 'WhatsApp');
-            
+            \Log::write("✓ Inbound message saved: ID=$msgId, Cust=$customerId, Conv=$conversationId, From=$waNumber", 'webhook', 'WhatsApp'); 
             // Step 5: Update conversation last_in_at
             $db->update('wa_conversations', ['last_in_at' => $sendTime], ['id' => $conversationId]);
         } else {
