@@ -180,8 +180,7 @@ class WhatsApp extends Controller
         }
 
         //cari assigned_user_id
-        $assigned_user_id = $this->getAssignedUserId($customerId);
-
+        $assigned_user_id = $this->getAssignedUserId($phone0);
         // Wajib ambil ID percakapan untuk menyimpan pesan ke database (walaupun itu auto-reply)
         $conversationId = $this->getOrCreateConversation($db, $customerId, $waNumber, $contactName, $assigned_user_id);
 
