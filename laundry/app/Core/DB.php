@@ -6,9 +6,11 @@ class DB extends DBC
     private static $_instance = [0 => null];
     private $mysqli;
     private $db_name, $db_user, $db_pass;
+    private $db_id; // Store DB Index for reconnection
 
     public function __construct($db = 0)
     {
+        $this->db_id = $db; // Save index
         $this->db_name = DBC::dbm[$db]['db'];
         $this->db_user = DBC::dbm[$db]['user'];
         $this->db_pass = DBC::dbm[$db]['pass'];
@@ -27,9 +29,25 @@ class DB extends DBC
 
         return self::$_instance[$db];
     }
+    
+    // Helper to ensure connection is alive
+    private function checkConnection() {
+        if (!($this->mysqli instanceof mysqli) || $this->mysqli->connect_errno) {
+             $this->__construct($this->db_id);
+             return;
+        }
+        try {
+            if (!$this->mysqli->ping()) {
+                $this->__construct($this->db_id);
+            }
+        } catch (\Throwable $th) {
+            $this->__construct($this->db_id);
+        }
+    }
 
     public function get($table, $index = "", $group = 0)
     {
+        $this->checkConnection();
         $reply = [];
         $query = "SELECT * FROM $table";
         $result = $this->mysqli->query($query);
@@ -54,6 +72,7 @@ class DB extends DBC
 
     public function get_where($table, $where, $index = "", $group = 0)
     {
+        $this->checkConnection();
         $reply = [];
         $query = "SELECT * FROM $table WHERE $where";
         $result = $this->mysqli->query($query);
@@ -78,6 +97,7 @@ class DB extends DBC
 
     public function get_cols($table, $cols, $row = 1, $index = "")
     {
+        $this->checkConnection();
         $reply = [];
         $query = "SELECT $cols FROM $table";
         $result = $this->mysqli->query($query);
@@ -106,6 +126,7 @@ class DB extends DBC
 
     public function get_cols_where($table, $cols, $where, $row = 1, $index = "")
     {
+        $this->checkConnection();
         $reply = [];
         $query = "SELECT $cols FROM $table WHERE $where";
         $result = $this->mysqli->query($query);
@@ -134,6 +155,7 @@ class DB extends DBC
 
     public function get_cols_groubBy($table, $cols, $groupBy)
     {
+        $this->checkConnection();
         $reply = [];
         $query = "SELECT $cols FROM $table GROUP BY $groupBy";
         $result = $this->mysqli->query($query);
@@ -146,6 +168,7 @@ class DB extends DBC
 
     public function get_order($table, $order)
     {
+        $this->checkConnection();
         $reply = [];
         $query = "SELECT * FROM $table ORDER BY $order";
         $result = $this->mysqli->query($query);
@@ -159,6 +182,7 @@ class DB extends DBC
 
     public function get_where_order($table, $where, $order)
     {
+        $this->checkConnection();
         $reply = [];
         $query = "SELECT * FROM $table WHERE $where ORDER BY $order";
         $result = $this->mysqli->query($query);
@@ -171,6 +195,7 @@ class DB extends DBC
 
     public function get_where_row($table, $where)
     {
+        $this->checkConnection();
         $query = "SELECT * FROM $table WHERE $where";
         $result = $this->mysqli->query($query);
         
@@ -191,6 +216,7 @@ class DB extends DBC
 
     public function insert($table, $data)
     {
+        $this->checkConnection();
         $columns = implode(', ', array_keys($data));
         $escapedValues = array_map(function ($value) {
             if (is_string($value)) {
@@ -213,6 +239,7 @@ class DB extends DBC
 
     public function insertIgnore($table, $data)
     {
+        $this->checkConnection();
         $columns = implode(', ', array_keys($data));
         $escapedValues = array_map(function ($value) {
             if (is_string($value)) {
@@ -235,6 +262,7 @@ class DB extends DBC
 
     public function insertReplace($table, $data)
     {
+        $this->checkConnection();
         $columns = implode(', ', array_keys($data));
         $escapedValues = array_map(function ($value) {
             if (is_string($value)) {
@@ -257,20 +285,7 @@ class DB extends DBC
 
     public function delete($table, $where)
     {
-        // Check connection
-        if (!($this->mysqli instanceof mysqli) || $this->mysqli->connect_errno) {
-             // Re-connect
-             $this->__construct(array_search($this->db_name, array_column(DBC::dbm, 'db')));
-        }
-        try {
-            // Ping to ensure connection is alive
-            if (!$this->mysqli->ping()) {
-                $this->__construct(array_search($this->db_name, array_column(DBC::dbm, 'db')));
-            }
-        } catch (\Throwable $th) {
-            // Ignore ping error, try query anyway or fail gracefully
-        }
-
+        $this->checkConnection();
         $query = "DELETE FROM $table WHERE $where";
         
         try {
