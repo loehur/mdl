@@ -174,7 +174,7 @@ class WhatsApp extends Controller
         //cari assigned_user_id
         $assigned_user_id = $this->getAssignedUserId($phone0);
         // Wajib ambil ID percakapan untuk menyimpan pesan ke database (walaupun itu auto-reply)
-        $conversationId = $this->getOrCreateConversation($db, $customerId, $waNumber, $contactName, $assigned_user_id);
+        $conversationId = $this->getOrCreateConversation($db, $customerId, $waNumber, $contactName, $assigned_user_id, $sendTime);
 
         $textBody = null;
         $mediaId = null;
@@ -391,7 +391,7 @@ class WhatsApp extends Controller
     /**
      * Get existing conversation or create new one
      */
-    private function getOrCreateConversation($db, $customerId, $waNumber, $contactName = null, $assigned_user_id = null)
+    private function getOrCreateConversation($db, $customerId, $waNumber, $contactName = null, $assigned_user_id = null, $sendTime = null)
     {
         // Try to find existing conversation
         $existing = $db->get_where('wa_conversations', ['wa_number' => $waNumber]);
@@ -401,7 +401,7 @@ class WhatsApp extends Controller
             $updateData = [
                 'contact_name' => $contactName,
                 'assigned_user_id' => $assigned_user_id,
-                'last_in_at' => date('Y-m-d H:i:s')
+                'last_in_at' => $sendTime,
             ];
             $db->update('wa_conversations', 
                 $updateData, 
