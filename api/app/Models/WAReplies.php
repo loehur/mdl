@@ -90,7 +90,22 @@ class WAReplies
                 if (empty($noRefs)) {
                     $waService->sendFreeText($waNumber, 'Maaf Pak/Bu *' . $nama_pelanggan . '*, tidak ada transaksi terbuka dengan nomor Anda. Terima kasih');
                 } else {
-                    $waService->sendFreeText($waNumber, 'Maaf Pak/Bu *' . $nama_pelanggan . '*, Laundry Anda belum selesai, atas kesedian Anda melakukan *CEK*, kami akan informasikan jika laundry sudah selesai. Terima kasih');
+                    $listIdPenjualan = [];
+                    foreach ($noRefs as $noRef) {
+                        $id_penjualans = array_column($db1->query("SELECT id_penjualan FROM sale WHERE id_user_ambil = 0 AND bin = 0 AND tuntas = 0 AND no_ref = '$noRef'")->result_array(), 'id_penjualan');
+                        $id_penjualans_in = implode(',', $id_penjualans);
+                        $noRefsNotif = !empty($id_penjualans) ? array_column($db1->query("SELECT * FROM notif WHERE tipe = 2 AND no_ref IN ($id_penjualans_in)")->result_array(), 'no_ref') : [];
+                        $sisaIDPenjualan = array_diff($id_penjualans, $noRefsNotif);
+                        if (count($sisaIDPenjualan) > 0) {
+                            array_push($listIdPenjualan, $sisaIDPenjualan);
+                        }
+                    }
+                    if (count($listIdPenjualan) > 0) {
+                        $listIdPenjualanIn = implode(',', $listIdPenjualan);
+                        $waService->sendFreeText($waNumber, 'Pak/Bu *' . $nama_pelanggan . '*, berikut list laundry yang belum selesai:\n*' . $listIdPenjualanIn . '*\n\nKarna sudah *CEK*, nanti akan dikabari jika sudah selesai. Terima kasih');
+                    } else {
+                        $waService->sendFreeText($waNumber, 'Pak/Bu *' . $nama_pelanggan . '*, semua laundry Anda sudah selesai. Terima kasih');
+                    }
                 }
             }
         }
