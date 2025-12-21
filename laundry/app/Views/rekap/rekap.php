@@ -165,6 +165,18 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
                                                         } ?>>12</option>
                 </select>
               </td>
+              <td>
+                <label>Tahun</label>
+                <select name="y" class="form-control form-control-sm">
+                  <?php $start_year = 2021;
+                    while($start_year <= date('Y')) {?>
+                      <option value="<?php echo $start_year; ?>"><?php echo $start_year; ?></option>
+                      <?php
+                      $start_year++;
+                    }
+                  ?>
+                </select>
+              </td>
               <td style="vertical-align: bottom;">
                 <button class="btn btn-sm btn-outline-success w-100">Cek</button>
               </td>
