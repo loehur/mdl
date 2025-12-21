@@ -133,6 +133,12 @@ class WAReplies
                                 if ($db1->conn()->affected_rows > 0) {
                                     $res = $waService->sendFreeText($waNumber, $responseData['text']);
                                     
+                                    if (!($res['success'] ?? false)) {
+                                        \Log::write("HandleBon Send Error: " . json_encode($res), 'webhook', 'WhatsApp');
+                                    } else {
+                                        \Log::write("HandleBon Sent: " . json_encode($res), 'webhook', 'WhatsApp');
+                                    }
+                                    
                                     $status = ($res['success'] ?? false) ? 'sent' : 'failed';
                                     $msgId = $res['data']['id'] ?? ($res['data']['message_id'] ?? null); 
                                     
