@@ -47,10 +47,10 @@ class D_Gaji extends Controller
         return $return;
     }
 
-    function data_olah($userID, $date, $book)
+    function data_olah($userID, $date)
     {
-        $data['kinerja'] = $this->data_kinerja($userID, $date, $book);
-        $data['kasbon'] = $this->data_kasbon($userID, $date, $book);
+        $data['kinerja'] = $this->data_kinerja($userID, $date);
+        $data['kasbon'] = $this->data_kasbon($userID, $date);
         $data['setup'] = $this->data_setup();
         $data['data'] = $this->db(0)->get_where('gaji_pengali_data', "tgl = '" . $date . "'");
         $data['fix'] = $this->db(0)->get_where('gaji_result', "tgl = '" . $date . "' AND id_karyawan = " . $userID . " ORDER BY tipe ASC ");

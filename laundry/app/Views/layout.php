@@ -151,7 +151,7 @@ if ($log_mode == 1) {
                             </tr>
                             <tr>
                                 <td class="w-25 text-end pe-2"><i class="fas fa-wifi"></i></td>
-                                <td class="w-50 text-start ps-2"><?= $_SESSION[URL::SESSID]['data']['cabang']['wifi_pass'] ?></td>
+                                <td class="w-50 text-start ps-2"><?= $_SESSION[URL::SESSID]['data']['cabang']['wifi_pass'] ?? '' ?></td>
                             </tr>
                         </table>
                     </div>
