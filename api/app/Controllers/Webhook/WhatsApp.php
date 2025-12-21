@@ -169,10 +169,10 @@ class WhatsApp extends Controller
             \Log::write("Error processing pending notifs: " . $e->getMessage(), 'webhook', 'WhatsApp');
         }
 
+        $customerId = $this->updateOrCreateCustomer($db, $waNumber, $contactName, $sendTime);
+
         //cari assigned_user_id
         $assigned_user_id = $this->getAssignedUserId($phone0);
-        $customerId = $this->updateOrCreateCustomer($db, $waNumber, $contactName, $sendTime, $assigned_user_id);
-              
         // Wajib ambil ID percakapan untuk menyimpan pesan ke database (walaupun itu auto-reply)
         $conversationId = $this->getOrCreateConversation($db, $customerId, $waNumber, $contactName, $assigned_user_id);
 
@@ -232,8 +232,10 @@ class WhatsApp extends Controller
      * Update or create customer record
      * This tracks last_message_at for 24h window rule
      */
-    private function updateOrCreateCustomer($db, $waNumber, $contactName, $messageTime, $assigned_user_id)
-    {        
+    private function updateOrCreateCustomer($db, $waNumber, $contactName, $messageTime)
+    {
+        \Log::write("updateOrCreateCustomer: Number=$waNumber, Name=$contactName", 'webhook', 'WhatsApp');
+        
         // Try to find existing customer
         $existing = $db->get_where('wa_customers', ['wa_number' => $waNumber]);
         
@@ -242,8 +244,8 @@ class WhatsApp extends Controller
             
             // Update existing customer
             $updateData = [
-                'last_in_at' => $messageTime,
-                'assigned_user_id' => $assigned_user_id
+                'last_message_at' => $messageTime,
+                'total_messages' => $customer->total_messages + 1,
             ];
             
             // Update contact name if changed
@@ -404,15 +406,16 @@ class WhatsApp extends Controller
         $existing = $db->get_where('wa_conversations', ['wa_number' => $waNumber]);
         
         if ($existing->num_rows() > 0) {
-            $conv = $existing->row();
-            
-            // Update contact name if provided and different
-            if ($contactName && $contactName !== $conv->contact_name) {
-                $db->update('wa_conversations', 
-                    ['contact_name' => $contactName], 
-                    ['id' => $conv->id]
-                );
-            }
+            $conv = $existing->row();           
+            $updateData = [
+                'contact_name' => $contactName,
+                'assigned_user_id' => $assigned_user_id,
+                'last_in_at' => date('Y-m-d H:i:s')
+            ];
+            $db->update('wa_conversations', 
+                $updateData, 
+                ['id' => $conv->id]
+            );
             
             return $conv->id;
         }
