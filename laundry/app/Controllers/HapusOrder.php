@@ -111,7 +111,7 @@ class HapusOrder extends Controller
             if (isset($_POST['dataID'])) {
                $dataID = unserialize($_POST['dataID']);
                foreach ($dataID as $a) {
-                  $where = $this->wCabang . " AND " . $kolomID . " = " . $a;
+                  $where = $this->wCabang . " AND " . $kolomID . " = '" . $a. "'";
                   $del = $this->db(0)->delete($table, $where);
                   if ($del['errno'] <> 0) {
                      echo $del['error'];
