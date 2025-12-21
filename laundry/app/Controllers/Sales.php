@@ -13,7 +13,7 @@ class Sales extends Controller
       $id_cabang = $_SESSION[URL::SESSID]['user']['id_cabang'] ?? 0;
       
       // Get checkout list (state = 0, type = 1) grouped by ref
-      $checkouts = $this->db(1)->get_where('barang_mutasi', "state = 0 AND type = 1 AND source_id = '$id_cabang' ORDER BY id DESC");
+      $checkouts = $this->db(0)->get_where('barang_mutasi', "state = 0 AND type = 1 AND source_id = '$id_cabang' ORDER BY id DESC");
       
       // Group by ref
       $grouped = [];
@@ -30,7 +30,7 @@ class Sales extends Controller
             ];
          }
          // Get barang name
-         $barang = $this->db(1)->get_where_row('barang_data', "id_barang = '{$item['id_barang']}'");
+         $barang = $this->db(0)->get_where_row('barang_data', "id_barang = '{$item['id_barang']}'");
          $item['nama_barang'] = $barang['nama'] ?? strtoupper(($barang['brand'] ?? '') . ' ' . ($barang['model'] ?? ''));
          $grouped[$ref]['items'][] = $item;
          $margin = $item['margin'] ?? 0;
@@ -40,7 +40,7 @@ class Sales extends Controller
       // Get payment history for each ref
       foreach ($grouped as $ref => &$group) {
          $payments = [];
-         $payments = $this->db(1)->get_where('kas', "ref_transaksi = '$ref' AND jenis_transaksi = 7");
+         $payments = $this->db(0)->get_where('kas', "ref_transaksi = '$ref' AND jenis_transaksi = 7");
          $group['payments'] = $payments ?: [];
          
          // Calculate total paid
@@ -61,7 +61,7 @@ class Sales extends Controller
    // Load form order untuk offcanvas
    public function form()
    {
-      $barang_data = $this->db(1)->get_where('barang_data','state = 1 ORDER BY sort DESC');
+      $barang_data = $this->db(0)->get_where('barang_data','state = 1 ORDER BY sort DESC');
       $this->view('sales/form', ['barang_data' => $barang_data]);
    }
 
@@ -69,15 +69,15 @@ class Sales extends Controller
    public function get_sub($id_barang)
    {
       $where = "id_barang = '$id_barang'";
-      $barang_sub = $this->db(1)->get_where('barang_sub', $where);
+      $barang_sub = $this->db(0)->get_where('barang_sub', $where);
       
       // Get parent barang info
-      $barang = $this->db(1)->get_where_row('barang_data', "id_barang = '$id_barang'");
+      $barang = $this->db(0)->get_where_row('barang_data', "id_barang = '$id_barang'");
       
       // Get unit name
       $unit_nama = '';
       if (isset($barang['unit'])) {
-          $unit = $this->db(1)->get_where_row('barang_unit', "id = '{$barang['unit']}'");
+          $unit = $this->db(0)->get_where_row('barang_unit', "id = '{$barang['unit']}'");
           $unit_nama = $unit['nama'] ?? '';
       }
       $barang['unit_nama'] = $unit_nama;
@@ -119,8 +119,8 @@ class Sales extends Controller
       
       // Get item info
       if ($id_sub > 0) {
-         $item = $this->db(1)->get_where_row('barang_sub', "id = '$id_sub'");
-         $barang = $this->db(1)->get_where_row('barang_data', "id_barang = '$id_barang'");
+         $item = $this->db(0)->get_where_row('barang_sub', "id = '$id_sub'");
+         $barang = $this->db(0)->get_where_row('barang_data', "id_barang = '$id_barang'");
          $barang_harga = floatval($barang['price'] ?? 0);         
          
          if (!$item || !$barang) {
@@ -141,7 +141,7 @@ class Sales extends Controller
          
          $cart_key = 'sub_' . $id_sub;
       } else {
-         $item = $this->db(1)->get_where_row('barang_data', "id_barang = '$id_barang'");
+         $item = $this->db(0)->get_where_row('barang_data', "id_barang = '$id_barang'");
          
          if (!$item) {
             ob_end_clean();
@@ -189,7 +189,7 @@ class Sales extends Controller
          $_SESSION['sales_cart'] = [];
       }
       
-      $item = $this->db(1)->get_where_row('barang_data', "id_barang = '$id_barang'");
+      $item = $this->db(0)->get_where_row('barang_data', "id_barang = '$id_barang'");
       
       if (!$item) {
          ob_end_clean();
@@ -295,7 +295,7 @@ class Sales extends Controller
             'id_user' => $id_user
          ];
          
-         $insert = $this->db(1)->insert('barang_mutasi', $data);
+         $insert = $this->db(0)->insert('barang_mutasi', $data);
          
          // insert() returns array with 'error' and 'errno'
          // errno = 0 means success
@@ -308,7 +308,7 @@ class Sales extends Controller
          }
          
          // Update sort popularity
-         $this->db(1)->query("UPDATE barang_data SET sort = sort + 1 WHERE id_barang = '{$item['id_barang']}'");
+         $this->db(0)->query("UPDATE barang_data SET sort = sort + 1 WHERE id_barang = '{$item['id_barang']}'");
       }
       
       if ($success_count > 0) {
@@ -378,7 +378,7 @@ class Sales extends Controller
       $id_cabang = $_SESSION[URL::SESSID]['user']['id_cabang'] ?? 0;
       
       // Get total dari barang_mutasi dengan ref ini
-      $items = $this->db(1)->get_where('barang_mutasi', "ref = '$ref' AND state = 0");
+      $items = $this->db(0)->get_where('barang_mutasi', "ref = '$ref' AND state = 0");
       if (empty($items)) {
          $this->model('Log')->write("[Sales::bayar] Data barang_mutasi tidak ditemukan atau sudah dibayar. Ref: $ref");
          ob_end_clean();
@@ -437,7 +437,7 @@ class Sales extends Controller
          }
          
          if ($totalBayar >= $total && $allPaid) {
-            $this->db(1)->update('barang_mutasi', ['state' => 1], "ref = '$ref'");
+            $this->db(0)->update('barang_mutasi', ['state' => 1], "ref = '$ref'");
          }
          
          // Jika QRIS, tidak perlu generate langsung, nanti saja saat klik tombol QR
@@ -570,7 +570,7 @@ class Sales extends Controller
       }
       
       // Hapus semua item di barang_mutasi dengan ref ini
-      $delete = $this->db(1)->delete('barang_mutasi', "ref = '$ref'");
+      $delete = $this->db(0)->delete('barang_mutasi', "ref = '$ref'");
       
       if (isset($delete['errno']) && $delete['errno'] == 0) {
          ob_end_clean();
