@@ -233,9 +233,7 @@ class WhatsApp extends Controller
      * This tracks last_message_at for 24h window rule
      */
     private function updateOrCreateCustomer($db, $waNumber, $contactName, $messageTime, $assigned_user_id)
-    {
-        \Log::write("updateOrCreateCustomer: Number=$waNumber, Name=$contactName", 'webhook', 'WhatsApp');
-        
+    {        
         // Try to find existing customer
         $existing = $db->get_where('wa_customers', ['wa_number' => $waNumber]);
         
@@ -244,8 +242,7 @@ class WhatsApp extends Controller
             
             // Update existing customer
             $updateData = [
-                'last_message_at' => $messageTime,
-                'total_messages' => $customer->total_messages + 1,
+                'last_in_at' => $messageTime,
                 'assigned_user_id' => $assigned_user_id
             ];
             
