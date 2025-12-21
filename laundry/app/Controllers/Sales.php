@@ -45,11 +45,21 @@ class Sales extends Controller
          
          // Calculate total paid
          $totalPaid = 0;
+         $allPaid = true;
          foreach ($group['payments'] as $payment) {
             $totalPaid += $payment['jumlah'];
+            if ($payment['status_mutasi'] != 3) {
+               $allPaid = false;
+            }
          }
          $group['total_paid'] = $totalPaid;
          $group['sisa'] = $group['total'] - $totalPaid;
+         
+         // Self-healing: Jika sudah lunas tapi masih muncul (state=0), update jadi state=1
+         if ($group['sisa'] <= 0 && $allPaid && count($group['payments']) > 0) {
+            $this->db(0)->update('barang_mutasi', ['state' => 1], "ref = '$ref'");
+            unset($grouped[$ref]);
+         }
       }
       unset($group);
       
@@ -524,13 +534,14 @@ class Sales extends Controller
    }
 
    // Hapus riwayat pembayaran
-   // Hapus riwayat pembayaran
    public function hapusPayment()
    {
       // Bersihkan output buffer sebelumnya jika ada (untuk mencegah HTML error masuk JSON)
       if (ob_get_length()) ob_clean();
       ob_start();
       
+      $response = ['status' => 'error', 'message' => 'Unknown error'];
+
       try {
           $id_kas = $_POST['id_kas'] ?? 0;
           $book = $_SESSION[URL::SESSID]['user']['book'] ?? date('Y');
@@ -557,62 +568,60 @@ class Sales extends Controller
           if (isset($delete['errno']) && $delete['errno'] == 0) {
              $response = ['status' => 'success', 'message' => 'Pembayaran berhasil dihapus'];
           } else {
-             $this->model('Log')->write("[Sales::hapusPayment] Delete error: " . ($delete['error'] ?? 'Unknown'));
-             throw new Exception('Gagal menghapus pembayaran (DB Error)');
+             $errorMsg = $delete['error'] ?? 'Unknown DB Error';
+             $this->model('Log')->write("[Sales::hapusPayment] Delete error: " . $errorMsg);
+             throw new Exception('Gagal menghapus pembayaran: ' . $errorMsg);
           }
-      } catch (Exception $e) {
+      } catch (\Throwable $e) {
+          $this->model('Log')->write("[Sales::hapusPayment] Error: " . $e->getMessage());
           $response = ['status' => 'error', 'message' => $e->getMessage()];
       }
       
       ob_end_clean();
-      header('Content-Type: application/json');
+      if (!headers_sent()) header('Content-Type: application/json');
       echo json_encode($response);
    }
 
    // Hapus nota (semua item dengan ref tertentu)
    public function hapusNota()
    {
+      if (ob_get_length()) ob_clean();
       ob_start();
       
-      $ref = $_POST['ref'] ?? '';
+      $response = ['status' => 'error', 'message' => 'Unknown error'];
       
-      if (empty($ref)) {
-         ob_end_clean();
-         header('Content-Type: application/json');
-         echo json_encode(['status' => 'error', 'message' => 'Ref tidak valid']);
-         return;
+      try {
+          $ref = $_POST['ref'] ?? '';
+          
+          if (empty($ref)) {
+             throw new Exception('Ref tidak valid');
+          }
+          
+          // Cek apakah ada pembayaran untuk ref ini
+          $book = $_SESSION[URL::SESSID]['user']['book'] ?? date('Y');
+          $payments = $this->db($book)->get_where('kas', "ref_transaksi = '$ref' AND jenis_transaksi = 7");
+          
+          if (!empty($payments)) {
+             throw new Exception('Tidak dapat menghapus nota yang sudah memiliki riwayat pembayaran');
+          }
+          
+          // Hapus semua item di barang_mutasi dengan ref ini
+          $delete = $this->db(0)->delete('barang_mutasi', "ref = '$ref'");
+          
+          if (isset($delete['errno']) && $delete['errno'] == 0) {
+             $response = ['status' => 'success', 'message' => 'Nota berhasil dihapus'];
+          } else {
+             $errorMsg = $delete['error'] ?? 'Unknown DB Error';
+             $this->model('Log')->write("[Sales::hapusNota] Delete error: " . $errorMsg);
+             throw new Exception('Gagal menghapus nota: ' . $errorMsg);
+          }
+      } catch (\Throwable $e) {
+          $this->model('Log')->write("[Sales::hapusNota] Error: " . $e->getMessage());
+          $response = ['status' => 'error', 'message' => $e->getMessage()];
       }
       
-      // Cek apakah ada pembayaran untuk ref ini
-      $book = $_SESSION[URL::SESSID]['user']['book'] ?? date('Y');
-      $payments = $this->db($book)->get_where('kas', "ref_transaksi = '$ref' AND jenis_transaksi = 7");
-      
-      if (!empty($payments)) {
-         ob_end_clean();
-         header('Content-Type: application/json');
-         echo json_encode(['status' => 'error', 'message' => 'Tidak dapat menghapus nota yang sudah memiliki riwayat pembayaran']);
-         return;
-      }
-      
-      // Hapus semua item di barang_mutasi dengan ref ini
-      $delete = $this->db(0)->delete('barang_mutasi', "ref = '$ref'");
-      
-      if (isset($delete['errno']) && $delete['errno'] == 0) {
-         ob_end_clean();
-         session_write_close();
-         header('Content-Type: application/json');
-         echo json_encode([
-            'status' => 'success',
-            'message' => 'Nota berhasil dihapus'
-         ]);
-      } else {
-         $this->model('Log')->write("[Sales::hapusNota] Delete error: " . ($delete['error'] ?? 'Unknown'));
-         ob_end_clean();
-         header('Content-Type: application/json');
-         echo json_encode([
-            'status' => 'error',
-            'message' => 'Gagal menghapus nota'
-         ]);
-      }
+      ob_end_clean();
+      if (!headers_sent()) header('Content-Type: application/json');
+      echo json_encode($response);
    }
 }
