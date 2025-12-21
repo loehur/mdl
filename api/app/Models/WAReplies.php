@@ -71,7 +71,28 @@ class WAReplies
                  $db1->update('notif', $updateData, ['id_notif' => $notif['id_notif']]);
              }
         }else{
-            $waService->sendFreeText($waNumber, 'Maaf tidak ada transaksi terbuka, pastikan nomor Anda terdaftar di Madinah Laundry. Terima kasih');
+            //cek dulu ada tidak nya nota terbuka
+            $cleanPhone = preg_replace('/[^0-9]/', '', $waNumber);
+            $phone0 = '0' . substr($cleanPhone, 2);
+
+            $where = "nomor_pelanggan IN ($phoneIn)";
+            $pelanggan = $db1->query("SELECT id_pelanggan, nama_pelanggan FROM pelanggan WHERE $where")->result_array();
+            $id_pelanggans = array_column($pelanggan, 'id_pelanggan');
+            $nama_pelanggans = array_column($pelanggan, 'nama_pelanggan');
+            $nama_pelanggan = strtoupper($nama_pelanggans[0]);
+
+            if (empty($id_pelanggans)) {
+                $waService->sendFreeText($waNumber, 'Maaf Pak/Bu, nomor Anda belum terdaftar di Madinah Laundry. Terima kasih');
+            } else {
+                $ids_in = implode(',', $id_pelanggans);
+                $sales = $db1->query("SELECT * FROM sale WHERE tuntas = 0 AND bin = 0 AND id_pelanggan IN ($ids_in) GROUP BY no_ref, tuntas, id_pelanggan")->result_array();
+                $noRefs = array_column($sales, 'no_ref');
+                if (empty($noRefs)) {
+                    $waService->sendFreeText($waNumber, 'Maaf Pak/Bu *' . $nama_pelanggan . '*, tidak ada transaksi terbuka dengan nomor Anda. Terima kasih');
+                } else {
+                    $waService->sendFreeText($waNumber, 'Maaf Pak/Bu *' . $nama_pelanggan . '*, Laundry Anda belum selesai, atas kesedian Anda melakukan *CEK*, kami akan informasikan jika laundry sudah selesai. Terima kasih');
+                }
+            }
         }
     }
 
@@ -197,7 +218,7 @@ class WAReplies
                 $waService->sendFreeText($waNumber, 'Maaf, semua transaksi Anda sudah selesai, atau pastikan gunakan nomor yang terdaftar untuk melakukan request nota/bon. Terima kasih');
             }
         }else{
-            $waService->sendFreeText($waNumber, 'Maaf, nomor Anda tidak terdaftar di Madinah Laundry. Terima kasih');
+            $waService->sendFreeText($waNumber, 'Maaf, nomor Anda belum terdaftar di Madinah Laundry. Terima kasih');
         }
     }
 }
