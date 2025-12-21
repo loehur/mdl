@@ -476,8 +476,7 @@ class Sales extends Controller
                 
                 if (!empty($bank_acc_id)) {
                    // Update payment_gateway di kas
-                   $book = $_SESSION[URL::SESSID]['user']['book'] ?? date('Y');
-                   $this->db($book)->update('kas', ['payment_gateway' => 'moota'], "ref_finance = '$ref_finance'");
+                   $this->db(0)->update('kas', ['payment_gateway' => 'moota'], "ref_finance = '$ref_finance'");
                    
                    // Insert ke wh_moota untuk tracking (Wrap in try catch)
                    try {
@@ -544,14 +543,13 @@ class Sales extends Controller
 
       try {
           $id_kas = $_POST['id_kas'] ?? 0;
-          $book = $_SESSION[URL::SESSID]['user']['book'] ?? date('Y');
           
           if (empty($id_kas)) {
              throw new Exception('ID Kas tidak valid');
           }
           
           // Cek apakah status_mutasi = 3 (tidak boleh dihapus)
-          $kas = $this->db($book)->get_where_row('kas', "id_kas = '$id_kas'");
+          $kas = $this->db(0)->get_where_row('kas', "id_kas = '$id_kas'");
           
           if (!$kas) {
              throw new Exception('Data tidak ditemukan');
@@ -563,7 +561,7 @@ class Sales extends Controller
           }
           
           // Hapus data
-          $delete = $this->db($book)->delete('kas', "id_kas = '$id_kas'");
+          $delete = $this->db(0)->delete('kas', "id_kas = '$id_kas'");
           
           if (isset($delete['errno']) && $delete['errno'] == 0) {
              $response = ['status' => 'success', 'message' => 'Pembayaran berhasil dihapus'];
@@ -598,8 +596,7 @@ class Sales extends Controller
           }
           
           // Cek apakah ada pembayaran untuk ref ini
-          $book = $_SESSION[URL::SESSID]['user']['book'] ?? date('Y');
-          $payments = $this->db($book)->get_where('kas', "ref_transaksi = '$ref' AND jenis_transaksi = 7");
+          $payments = $this->db(0)->get_where('kas', "ref_transaksi = '$ref' AND jenis_transaksi = 7");
           
           if (!empty($payments)) {
              throw new Exception('Tidak dapat menghapus nota yang sudah memiliki riwayat pembayaran');
