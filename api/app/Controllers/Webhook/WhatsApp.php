@@ -144,7 +144,7 @@ class WhatsApp extends Controller
             \Log::write("ERROR: No 'from' number", 'webhook', 'WhatsApp');
             return;
         }
-       
+        $customerId = $this->updateOrCreateCustomer($db, $waNumber, $contactName, $sendTime);
         $autoReply = false;
         try {
             $cleanPhone = preg_replace('/[^0-9]/', '', $waNumber); // 628...
@@ -168,8 +168,6 @@ class WhatsApp extends Controller
         } catch (\Exception $e) {
             \Log::write("Error processing pending notifs: " . $e->getMessage(), 'webhook', 'WhatsApp');
         }
-
-        $customerId = $this->updateOrCreateCustomer($db, $waNumber, $contactName, $sendTime);
 
         //cari assigned_user_id
         $assigned_user_id = $this->getAssignedUserId($phone0);
