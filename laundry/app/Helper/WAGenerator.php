@@ -17,6 +17,24 @@ class WAGenerator extends Controller
             return "Transaction not found";
         }
 
+        // AUTO-LOAD MASTER DATA IF MISSING (For API/Webhook context)
+        if (!isset($this->itemGroup) || empty($this->itemGroup)) {
+            $this->itemGroup = $this->db(0)->get('item_group');
+        }
+        if (!isset($this->dLayanan) || empty($this->dLayanan)) {
+            $this->dLayanan = $this->db(0)->get('layanan');
+        }
+        if (!isset($this->dDurasi) || empty($this->dDurasi)) {
+            $this->dDurasi = $this->db(0)->get('durasi');
+        }
+        if (!isset($this->dSatuan) || empty($this->dSatuan)) {
+            $this->dSatuan = $this->db(0)->get('satuan');
+        }
+        if (!isset($this->dPenjualan) || empty($this->dPenjualan)) {
+            // Join with satuan for convenience if needed, or just raw
+            $this->dPenjualan = $this->db(0)->get('penjualan_jenis');
+        }
+
         // 2. Get Customer & Head Info from first transaction
         $firstItem = $transactions[0];
         $id_pelanggan = $firstItem['id_pelanggan'];
