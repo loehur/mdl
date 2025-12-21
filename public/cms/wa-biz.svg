@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48px" height="48px">
+<!-- Bubble with white stroke -->
+<path fill="#6366f1" stroke="#ffffff" stroke-width="2.5" d="M24,4C12.95,4,4,12.95,4,24c0,4.38,1.42,8.44,3.87,11.75L4.44,43.56l8.03-3.35C15.86,41.93,19.82,43,24,43 c11.05,0,20-8.95,20-20S35.05,4,24,4z"/>
+<!-- Letter M centered and slightly raised -->
+<text x="50%" y="57%" font-family="Arial, sans-serif" font-size="22" font-weight="bold" fill="#ffffff" text-anchor="middle" dominant-baseline="middle">M</text>
+</svg>
