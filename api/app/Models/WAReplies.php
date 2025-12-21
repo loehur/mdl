@@ -71,7 +71,7 @@ class WAReplies
                  $db1->update('notif', $updateData, ['id_notif' => $notif['id_notif']]);
              }
         }else{
-            $waService->sendFreeText($waNumber, 'Maaf tidak ada transaksi terbuka, pastikan nomor Anda terdaftar di Madia kasiundry. Terima kasih');
+            $waService->sendFreeText($waNumber, 'Maaf tidak ada transaksi terbuka, pastikan nomor Anda terdaftar di Madinah Laundry. Terima kasih');
         }
     }
 
