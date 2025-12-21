@@ -286,7 +286,7 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
                     if ($c['id_layanan'] == $b) {
                         foreach ($data['operasi'] as $o) {
                             if (
-                                $o['id_penjualan'] == "'" . $id . "'" &&
+                                $o['id_penjualan'] == $id &&
                                 $o['jenis_operasi'] == $b
                             ) {
                                 $check++;
