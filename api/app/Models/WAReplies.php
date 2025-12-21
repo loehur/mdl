@@ -46,17 +46,23 @@ class WAReplies
             'bisa di jemput',
         ];
 
-        switch ($textBodyToCheck) {
-            case in_array($textBodyToCheck, $cekBon):
+        // Check for 'bon' related keywords (Substring check)
+        foreach ($cekBon as $keyword) {
+            if (stripos($textBodyToCheck, $keyword) !== false) {
                 $this->handleBon($phoneIn, $waNumber);
-                break;
-            case in_array($textBodyToCheck, $cekStatus):
-                $this->handleStatus($phoneIn, $waNumber);
-                break;
-            default:
-                return false;
-                break;
+                return true;
+            }
         }
+
+        // Check for 'status' related keywords (Substring check)
+        foreach ($cekStatus as $keyword) {
+            if (stripos($textBodyToCheck, $keyword) !== false) {
+                $this->handleStatus($phoneIn, $waNumber);
+                return true;
+            }
+        }
+
+        return false;
         
         return true;
     }
