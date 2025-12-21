@@ -18,15 +18,7 @@ class WhatsApp extends Controller
      * URL: /Webhook/WhatsApp
      */
     public function index()
-    {
-        // LOG ACCESS
-        $logData = date('Y-m-d H:i:s') . " | IP: " . ($_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN') . " | Method: " . ($_SERVER['REQUEST_METHOD'] ?? 'UNKNOWN') . "\n";
-        $logPath = __DIR__ . '/../../../logs/webhook/' . date('Y/m');
-        if (!is_dir($logPath)) {
-            @mkdir($logPath, 0777, true);
-        }
-        @file_put_contents($logPath . '/wa_webhook_access_' . date('d') . '.log', $logData, FILE_APPEND);
-        
+    {        
         $method = $_SERVER['REQUEST_METHOD'];
 
         if ($method === 'GET') {
@@ -85,7 +77,7 @@ class WhatsApp extends Controller
 
         // Step 1: Save raw webhook to wa_webhooks
         $webhookId = $this->saveWebhookLog($db, $eventType, $json);
-        \Log::write("Webhook logged: ID=$webhookId, Type=$eventType", 'webhook', 'WhatsApp');
+
 
         // Step 2: Process based on event type
         try {
@@ -401,7 +393,7 @@ class WhatsApp extends Controller
         }
 
         if ($updated) {
-            \Log::write("✓ Outbound message updated: {$messageId} -> $status", 'webhook', 'WhatsApp');
+
         } else {
             \Log::write("⚠ Outbound message not found: wamid=$wamid, id=$messageId", 'webhook', 'WhatsApp');
         }
