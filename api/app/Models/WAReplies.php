@@ -139,7 +139,9 @@ class WAReplies
                                 $isInserted = $db1->insert('notif', $insertData);
                                 
                                 // Check if insert successful
-                                if ($isInserted) {
+                                // DB::insert returns insert_id. Since we provide manual ID (varchar), insert_id might be 0.
+                                // 0 evaluates to false in loose comparison. Must use !== false.
+                                if ($isInserted !== false) {
                                     $res = $waService->sendFreeText($waNumber, $responseData['text']);
                                     
                                     if (!($res['success'] ?? false)) {
@@ -165,7 +167,11 @@ class WAReplies
                                         $errorMsg = json_encode($conn->error_list);
                                     }
                                     
+                                    // Try to get last query if available in wrapper
+                                    $lastQuery = method_exists($db1, 'last_query') ? $db1->last_query() : 'N/A';
+                                    
                                     \Log::write("Insert Notif FAILED! Error: " . $errorMsg . " | ErrNo: " . ($conn->errno ?? 0), 'webhook', 'WhatsApp');
+                                    \Log::write("Last Query: " . $lastQuery, 'webhook', 'WhatsApp');
                                     \Log::write("Insert Data: " . json_encode($insertData), 'webhook', 'WhatsApp');
                                 }
                             }
