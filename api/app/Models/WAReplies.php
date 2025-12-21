@@ -49,6 +49,10 @@ class WAReplies
             'bisa dijemput',
             'bs di jemput',
             'bisa di jemput',
+            'kpn siap',
+            'kapan siap',
+            'kpn selesai',
+            'kapan selesai'
         ];
 
         // Check for 'bon' related keywords (Substring check)
