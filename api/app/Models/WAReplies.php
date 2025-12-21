@@ -124,8 +124,6 @@ class WAReplies
                         if ($apiResponse) {
                             $responseData = json_decode($apiResponse, true);
                             if (!empty($responseData['text'])) {
-                                \Log::write("Original API Text: " . json_encode($responseData['text']), 'webhook', 'WhatsApp');
-                                
                                 // Insert Notif
                                 $id_notif = (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9);
                                 $insertData = [
@@ -160,6 +158,9 @@ class WAReplies
                                     }
                                     
                                     $db1->update('notif', $updateData, ['id_notif' => $id_notif]);
+                                } else {
+                                    \Log::write("Insert Notif FAILED! Error: " . $db1->conn()->error, 'webhook', 'WhatsApp');
+                                    \Log::write("Insert Data: " . json_encode($insertData), 'webhook', 'WhatsApp');
                                 }
                             }
                         }
