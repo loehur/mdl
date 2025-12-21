@@ -141,8 +141,12 @@
         id: $(this).attr('data-id'),
       },
       type: "POST",
-      success: function(response) {
-        location.reload(true);
+      success: function(res) {
+        if(res == "success") {
+          location.reload(true);
+        }else{
+          console.log(res);
+        }
       },
     });
   });
