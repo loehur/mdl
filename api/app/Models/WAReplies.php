@@ -127,10 +127,10 @@ class WAReplies
                                 'state'      => 'pending',
                                 ];
                             
-                                $db1->insert('notif', $insertData);
+                                $isInserted = $db1->insert('notif', $insertData);
                                 
                                 // Check if insert successful
-                                if ($db1->conn()->affected_rows > 0) {
+                                if ($isInserted) {
                                     $res = $waService->sendFreeText($waNumber, $responseData['text']);
                                     
                                     if (!($res['success'] ?? false)) {
