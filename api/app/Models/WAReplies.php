@@ -82,13 +82,13 @@ class WAReplies
             $nama_pelanggan = strtoupper($nama_pelanggans[0]);
 
             if (empty($id_pelanggans)) {
-                $waService->sendFreeText($waNumber, 'Maaf Pak/Bu, nomor Anda belum terdaftar di Madinah Laundry. Terima kasih');
+                $waService->sendFreeText($waNumber, 'Mohon Maaf, nomor Anda belum terdaftar di Madinah Laundry. Terima kasih');
             } else {
                 $ids_in = implode(',', $id_pelanggans);
                 $sales = $db1->query("SELECT * FROM sale WHERE tuntas = 0 AND bin = 0 AND id_pelanggan IN ($ids_in) GROUP BY no_ref, tuntas, id_pelanggan")->result_array();
                 $noRefs = array_column($sales, 'no_ref');
                 if (empty($noRefs)) {
-                    $waService->sendFreeText($waNumber, 'Maaf Pak/Bu *' . $nama_pelanggan . '*, tidak ada transaksi terbuka dengan nomor Anda. Terima kasih');
+                    $waService->sendFreeText($waNumber, 'Yth. *' . $nama_pelanggan . '*, tidak ada transaksi terbuka dengan nomor Anda. Terima kasih');
                 } else {
                     $listIdPenjualan = [];
                     foreach ($noRefs as $noRef) {
@@ -102,9 +102,9 @@ class WAReplies
                     }
                     if (count($listIdPenjualan) > 0) {
                         $listIdPenjualanIn = implode(',', $listIdPenjualan);
-                        $waService->sendFreeText($waNumber, 'Pak/Bu *' . $nama_pelanggan . '*, berikut list laundry yang belum selesai:\n*' . $listIdPenjualanIn . '*\n\nKarna sudah *CEK*, nanti akan dikabari jika sudah selesai. Terima kasih');
+                        $waService->sendFreeText($waNumber, 'Yth. *' . $nama_pelanggan . '*, List laundry dalam pengerjaan:\n*' . $listIdPenjualanIn . '*\n\nKarna sudah *CEK*, nanti akan dikabari jika sudah selesai. Terima kasih');
                     } else {
-                        $waService->sendFreeText($waNumber, 'Pak/Bu *' . $nama_pelanggan . '*, semua laundry Anda sudah selesai. Terima kasih');
+                        $waService->sendFreeText($waNumber, 'Yth. *' . $nama_pelanggan . '*, semua laundry Anda sudah selesai. Terima kasih');
                     }
                 }
             }
@@ -229,14 +229,14 @@ class WAReplies
                             $db1->update('notif', $updateData, ['id_notif' => $p['id_notif']]);
                         }
                     }else{
-                        $waService->sendFreeText($waNumber, 'Maaf Pak/bu ' . $nama_pelanggan . ', semua nota/bon sudah kami kirimkan ke nomor Anda. Terima kasih');
+                        $waService->sendFreeText($waNumber, 'Yth. *' . $nama_pelanggan . '*, semua nota/bon sudah kami kirimkan ke nomor Anda. Terima kasih');
                     }
                 }
             }else{
-                $waService->sendFreeText($waNumber, 'Maaf Pak/bu ' . $nama_pelanggan . ', semua transaksi Anda sudah selesai, atau pastikan gunakan nomor yang terdaftar untuk melakukan request nota/bon. Terima kasih');
+                $waService->sendFreeText($waNumber, 'Yth. *' . $nama_pelanggan . '*, semua transaksi Anda sudah selesai, atau pastikan gunakan nomor yang terdaftar untuk melakukan request nota/bon. Terima kasih');
             }
         }else{
-            $waService->sendFreeText($waNumber, 'Maaf Pak/bu, nomor Anda belum terdaftar di Madinah Laundry. Terima kasih');
+            $waService->sendFreeText($waNumber, 'Mohon Maaf, nomor Anda belum terdaftar di Madinah Laundry. Terima kasih');
         }
     }
 }
