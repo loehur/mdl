@@ -76,13 +76,13 @@ class D_Gaji extends Controller
 
         //OPERASI
         if ($userID <> 0) {
-            $where = "insertTime LIKE '" . $date . "%' AND id_user_operasi = " . $userID;
-            $ops_data = $this->db($book)->get_where('operasi', $where, 'id_operasi');
+            $where = "insertTime LIKE '" . $date . "%' AND insertTime LIKE '" . $book . "%' AND id_user_operasi = " . $userID;
+            $ops_data = $this->db(0)->get_where('operasi', $where, 'id_operasi');
 
             //OPERASI
             $join_where = "operasi.id_penjualan = sale.id_penjualan";
-            $where = "sale.bin = 0 AND operasi.id_user_operasi = " . $userID . " AND operasi.insertTime LIKE '" . $date . "%'";
-            $data_lain1 = $this->db($book)->innerJoin1_where('sale', 'operasi', $join_where, $where);
+            $where = "sale.bin = 0 AND operasi.insertTime LIKE '" . $book . "%' AND operasi.id_user_operasi = " . $userID . " AND operasi.insertTime LIKE '" . $date . "%'";
+            $data_lain1 = $this->db(0)->innerJoin1_where('sale', 'operasi', $join_where, $where);
 
             foreach ($data_lain1 as $key => $dl1) {
                 unset($ops_data[$dl1['id_operasi']]);
