@@ -47,6 +47,10 @@ class Operan extends Controller
 
    public function load($idOperan, $idCabang)
    {
+      $this->writeLog('load', 'INFO', 'Request pemuatan data operan', [
+         'idOperan' => $idOperan,
+         'idCabang' => $idCabang
+      ]);
 
       if ($idCabang == $_SESSION[URL::SESSID]['user']['id_cabang']) {
          $this->writeLog('load', 'ERROR', 'ID Outlet Operan sama dengan ID Outlet saat ini', [
