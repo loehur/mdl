@@ -120,7 +120,7 @@ class WAReplies
                                 $insertData = [
                                 'id_notif'   => $id_notif,
                                 'id_cabang'  => $sales[array_search($ref, $noRefs)]['id_cabang'],
-                                'type'       => 1,
+                                'tipe'       => 1,
                                 'no_ref'     => $ref,
                                 'text'       => $responseData['text'],
                                 'phone'      => $phone0,
