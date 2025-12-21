@@ -10,7 +10,7 @@ class Rekap extends Controller
 
    public function i($mode)
    {
-      $dataTanggal = [];
+      $dataTanggal = array('tanggal' => date('d'), 'bulan' => date('m'), 'tahun' => date('Y'));
       $data_main = [];
       $gaji = [];
       $whereCabang = "";
