@@ -170,7 +170,7 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
                 <select name="y" class="form-control form-control-sm">
                   <?php $start_year = 2021;
                     while($start_year <= date('Y')) {?>
-                      <option value="<?php echo $start_year; ?>"><?php echo $start_year; ?></option>
+                      <option value="<?php echo $start_year; ?>" <?= $start_year == $dataTanggal['tahun'] ? 'selected' : '' ?>><?php echo $start_year; ?></option>
                       <?php
                       $start_year++;
                     }
