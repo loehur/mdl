@@ -37,6 +37,16 @@ const chatContainer = ref(null);
 const socket = ref(null);
 const isConnected = ref(false);
 const showMobileChat = ref(false);
+const authId = ref('');
+const isConnecting = ref(false);
+const connectionError = ref('');
+
+const connect = () => {
+    if(!authId.value) return;
+    isConnecting.value = true;
+    connectionError.value = '';
+    connectWebSocket();
+}
 
 // --- Computed ---
 const activeConversation = computed(() => 
@@ -141,25 +151,19 @@ const handleIncomingMessage = (data) => {
 };
 
 const connectWebSocket = () => {
-  // Replace with actual WebSocket URL
-  const wsUrl = 'wss://waserver.nalju.com'; // Example public echo server for testing connection, though it will echo back. 
-  // Ideally this should be the user's backend. Since none provided, I'll use a placeholder or localhost.
-  // The user asked "gunakan koneksi websocket".
-  
-  // socket.value = new WebSocket('ws://localhost:8080/chat'); 
-  // preventing actual connection error in demo, I will mock it or try to connect but handle error gracefully.
-  
-  console.log("Connecting to WebSocket...");
-  // For demo purposes, we will treat it as a mock implementation if no URL is provided.
-  // But I will put the logic here.
+  if (!authId.value) return;
+
+  console.log("Connecting to WebSocket with ID:", authId.value);
   
   try {
-     const ws = new WebSocket('wss://waserver.nalju.com'); // Assumption
+     const ws = new WebSocket(`wss://waserver.nalju.com?id=${authId.value}`); 
      socket.value = ws;
      
      ws.onopen = () => {
        console.log('WebSocket connected');
        isConnected.value = true;
+       isConnecting.value = false;
+       connectionError.value = '';
      };
      
      ws.onmessage = (event) => {
@@ -172,15 +176,22 @@ const connectWebSocket = () => {
      };
      
      ws.onclose = () => {
-       isConnected.value = false;
-       console.log('WebSocket disconnected');
-       // Reconnect logic could go here
-       setTimeout(connectWebSocket, 5000);
+       if (isConnected.value) {
+            console.log('WebSocket disconnected');
+            isConnected.value = false;
+       } else {
+           // Connection failed during attempt
+           isConnecting.value = false;
+           connectionError.value = 'Connection failed. Please check ID and try again.';
+       }
+       // Reconnect logic logic removed for manual retry in modal
+       // or keep it if connected previously?
+       // For this requirement: "modal muncul ketika tidak ada koneksi", so if close, modal shows.
+       // setTimeout(connectWebSocket, 5000); 
      };
      
      ws.onerror = (err) => {
         // console.error('WS Error', err);
-        // Silently fail for demo if no server
      };
   } catch (e) {
     console.error(e);
@@ -189,6 +200,8 @@ const connectWebSocket = () => {
 
 // Mock incoming message for demonstration
 const mockIncomingMessage = () => {
+  if (conversations.value.length === 0) return; // Only mock if there are conversations or simplify logic
+  
   setTimeout(() => {
     handleIncomingMessage({
       conversationId: '1',
@@ -209,9 +222,16 @@ const mockIncomingMessage = () => {
 
 
 onMounted(() => {
-  connectWebSocket();
   scrollToBottom();
-  mockIncomingMessage(); // Remove this in production
+  
+  // Optional: Pre-fill ID from URL if still desired for convenience
+  const params = new URLSearchParams(window.location.search);
+  const id = params.get('id');
+  if (id) {
+      authId.value = id;
+      // Auto-connect if needed?
+      // connect();
+  }
 });
 
 watch(activeChatId, () => {
@@ -223,8 +243,58 @@ watch(activeChatId, () => {
 <template>
   <div class="flex h-screen w-full bg-[#0f172a] text-slate-200 overflow-hidden font-sans selection:bg-indigo-500 selection:text-white">
     
+    <!-- Login Modal (Overlay) -->
+    <div v-if="!isConnected" class="fixed inset-0 z-[60] bg-[#0f172a] flex items-center justify-center p-4">
+       <!-- Login Card -->
+       <div class="bg-[#1e293b] border border-slate-700 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
+          <!-- Header -->
+          <div class="p-6 bg-[#1e293b] border-b border-slate-700 text-center">
+             <div class="w-16 h-16 bg-slate-800 rounded-full mx-auto flex items-center justify-center mb-4 shadow-inner">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+             </div>
+             <h2 class="text-xl font-bold text-white">Connect to Chat Console</h2>
+             <p class="text-slate-400 text-sm mt-1">Enter your unique Connection ID to start.</p>
+          </div>
+          
+          <!-- Form -->
+          <div class="p-8">
+             <div class="space-y-4">
+                <div>
+                   <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Connection ID</label>
+                   <input 
+                      v-model="authId" 
+                      type="text" 
+                      placeholder="e.g. 12345"
+                      @keydown.enter="connect"
+                      class="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-4 py-3 text-slate-200 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
+                      :disabled="isConnecting"
+                   >
+                </div>
+                
+                <div v-if="connectionError" class="p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-2 text-red-400 text-sm animate-pulse">
+                   <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                   </svg>
+                   {{ connectionError }}
+                </div>
+                
+                <button 
+                   @click="connect" 
+                   class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 px-4 rounded-lg transition-all transform active:scale-[0.98] flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                   :disabled="isConnecting || !authId"
+                >
+                   <span v-if="isConnecting" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                   {{ isConnecting ? 'Connecting...' : 'Connect' }}
+                </button>
+             </div>
+          </div>
+       </div>
+    </div>
+
     <!-- Sidebar -->
-    <aside class="flex flex-col border-r border-slate-800 bg-[#1e293b] transition-all duration-300"
+    <aside v-if="isAuthenticated && isConnected" class="flex flex-col border-r border-slate-800 bg-[#1e293b] transition-all duration-300"
            :class="showMobileChat ? 'hidden md:flex md:w-80' : 'w-full md:w-80 flex'">
       <!-- Header -->
       <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-[#1e293b]/50 backdrop-blur-md">
@@ -235,8 +305,6 @@ watch(activeChatId, () => {
              <div class="w-3 h-3 rounded-full" :class="isConnected ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-red-500'"></div>
         </div>
       </div>
-      
-
       
       <!-- Conversation List -->
       <div class="flex-1 overflow-y-auto custom-scrollbar">
@@ -279,7 +347,7 @@ watch(activeChatId, () => {
     </aside>
     
     <!-- Main Chat Area -->
-    <main class="flex-col bg-[#0f172a] relative transition-all duration-300"
+    <main v-if="isAuthenticated && isConnected" class="flex-col bg-[#0f172a] relative transition-all duration-300"
         :class="showMobileChat ? 'flex w-full fixed inset-0 z-50 md:static md:w-auto md:flex-1' : 'hidden md:flex md:flex-1'">
        <!-- Background Pattern -->
        <div class="absolute inset-0 opacity-5 pointer-events-none" 
