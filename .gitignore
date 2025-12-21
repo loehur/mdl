@@ -7,3 +7,4 @@ Env.php
 auth
 laundry/app/Config/*
 api/scripts/
+*.sql
