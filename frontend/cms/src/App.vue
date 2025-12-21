@@ -1,0 +1,400 @@
+<script setup>
+import { ref, computed, onMounted, nextTick, watch } from 'vue';
+
+// --- State ---
+const conversations = ref([
+  {
+    id: '1',
+    name: 'Alice Smith',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alice',
+    status: 'online',
+    lastMessage: 'Hi, I have a question about my order.',
+    lastTime: '10:00 AM',
+    unread: 0,
+    messages: [
+      { id: 1, text: 'Hi, I have a question about my order.', sender: 'customer', time: '10:00 AM' },
+      { id: 2, text: 'Sure, what is your order number?', sender: 'me', time: '10:01 AM' }
+    ]
+  },
+  {
+    id: '2',
+    name: 'Bob Jones',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Bob',
+    status: 'offline',
+    lastMessage: 'Is this item in stock?',
+    lastTime: 'Yesterday',
+    unread: 2,
+    messages: [
+      { id: 3, text: 'Hello?', sender: 'customer', time: 'Yesterday' },
+      { id: 4, text: 'Is this item in stock?', sender: 'customer', time: 'Yesterday' }
+    ]
+  }
+]);
+
+const activeChatId = ref('1');
+const messageInput = ref('');
+const chatContainer = ref(null);
+const socket = ref(null);
+const isConnected = ref(false);
+const showMobileChat = ref(false);
+
+// --- Computed ---
+const activeConversation = computed(() => 
+  conversations.value.find(c => c.id === activeChatId.value)
+);
+
+// --- Methods ---
+
+const scrollToBottom = () => {
+  nextTick(() => {
+    if (chatContainer.value) {
+      chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
+    }
+  });
+};
+
+const selectChat = (id) => {
+  activeChatId.value = id;
+  const chat = conversations.value.find(c => c.id === id);
+  if (chat) chat.unread = 0;
+  showMobileChat.value = true;
+  scrollToBottom();
+};
+
+const backToMenu = () => {
+    showMobileChat.value = false;
+};
+
+const sendMessage = () => {
+  if (!messageInput.value.trim()) return;
+  
+  if (activeConversation.value) {
+    const newMsg = {
+      id: Date.now(),
+      text: messageInput.value,
+      sender: 'me',
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+    
+    activeConversation.value.messages.push(newMsg);
+    activeConversation.value.lastMessage = "You: " + newMsg.text;
+    activeConversation.value.lastTime = newMsg.time;
+    
+    // Simulate sending to WebSocket
+    if (socket.value && socket.value.readyState === WebSocket.OPEN) {
+      socket.value.send(JSON.stringify({
+        type: 'message',
+        conversationId: activeConversation.value.id,
+        text: messageInput.value
+      }));
+    }
+    
+    messageInput.value = '';
+    scrollToBottom();
+  }
+};
+
+const handleIncomingMessage = (data) => {
+  // Expected data structure: { conversationId, sender, text, name? }
+  const { conversationId, text, sender, name } = data;
+  
+  let conversation = conversations.value.find(c => c.id === conversationId);
+  
+  if (!conversation) {
+    // New conversation
+    conversation = {
+      id: conversationId,
+      name: name || 'Unknown User',
+      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${conversationId}`,
+      status: 'online',
+      messages: [],
+      unread: 0
+    };
+    conversations.value.unshift(conversation);
+  }
+  
+  const newMsg = {
+    id: Date.now(),
+    text: text,
+    sender: sender || 'customer',
+    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  };
+  
+  conversation.messages.push(newMsg);
+  conversation.lastMessage = newMsg.text;
+  conversation.lastTime = newMsg.time;
+  
+  if (activeChatId.value !== conversationId) {
+    conversation.unread++;
+  } else {
+    if (showMobileChat.value) {
+        scrollToBottom();
+    }
+  }
+  
+  // Move to top
+  const idx = conversations.value.findIndex(c => c.id === conversation.id);
+  if (idx > 0) {
+    conversations.value.splice(idx, 1);
+    conversations.value.unshift(conversation);
+  }
+};
+
+const connectWebSocket = () => {
+  // Replace with actual WebSocket URL
+  const wsUrl = 'wss://waserver.nalju.com'; // Example public echo server for testing connection, though it will echo back. 
+  // Ideally this should be the user's backend. Since none provided, I'll use a placeholder or localhost.
+  // The user asked "gunakan koneksi websocket".
+  
+  // socket.value = new WebSocket('ws://localhost:8080/chat'); 
+  // preventing actual connection error in demo, I will mock it or try to connect but handle error gracefully.
+  
+  console.log("Connecting to WebSocket...");
+  // For demo purposes, we will treat it as a mock implementation if no URL is provided.
+  // But I will put the logic here.
+  
+  try {
+     const ws = new WebSocket('wss://waserver.nalju.com'); // Assumption
+     socket.value = ws;
+     
+     ws.onopen = () => {
+       console.log('WebSocket connected');
+       isConnected.value = true;
+     };
+     
+     ws.onmessage = (event) => {
+       try {
+         const data = JSON.parse(event.data);
+         handleIncomingMessage(data);
+       } catch (e) {
+         console.error('Error parsing WS message', e);
+       }
+     };
+     
+     ws.onclose = () => {
+       isConnected.value = false;
+       console.log('WebSocket disconnected');
+       // Reconnect logic could go here
+       setTimeout(connectWebSocket, 5000);
+     };
+     
+     ws.onerror = (err) => {
+        // console.error('WS Error', err);
+        // Silently fail for demo if no server
+     };
+  } catch (e) {
+    console.error(e);
+  }
+};
+
+// Mock incoming message for demonstration
+const mockIncomingMessage = () => {
+  setTimeout(() => {
+    handleIncomingMessage({
+      conversationId: '1',
+      sender: 'customer',
+      text: 'Are you there? I really need help.',
+      name: 'Alice Smith'
+    });
+  }, 5000);
+    setTimeout(() => {
+    handleIncomingMessage({
+      conversationId: '3', // new user
+      sender: 'customer',
+      text: 'Hi, do you have opening hours?',
+      name: 'Charlie Brown'
+    });
+  }, 10000);
+};
+
+
+onMounted(() => {
+  connectWebSocket();
+  scrollToBottom();
+  mockIncomingMessage(); // Remove this in production
+});
+
+watch(activeChatId, () => {
+  scrollToBottom();
+});
+
+</script>
+
+<template>
+  <div class="flex h-screen w-full bg-[#0f172a] text-slate-200 overflow-hidden font-sans selection:bg-indigo-500 selection:text-white">
+    
+    <!-- Sidebar -->
+    <aside class="flex flex-col border-r border-slate-800 bg-[#1e293b] transition-all duration-300"
+           :class="showMobileChat ? 'hidden md:flex md:w-80' : 'w-full md:w-80 flex'">
+      <!-- Header -->
+      <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-[#1e293b]/50 backdrop-blur-md">
+        <h1 class="text-xl font-bold bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">
+          MDL WhatsApp
+        </h1>
+        <div class="relative">
+             <div class="w-3 h-3 rounded-full" :class="isConnected ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-red-500'"></div>
+        </div>
+      </div>
+      
+
+      
+      <!-- Conversation List -->
+      <div class="flex-1 overflow-y-auto custom-scrollbar">
+        <div 
+          v-for="chat in conversations" 
+          :key="chat.id"
+          @click="selectChat(chat.id)"
+          class="p-4 flex items-center gap-3 cursor-pointer transition-colors duration-200 border-b border-slate-800 hover:bg-slate-800/50"
+          :class="{'bg-[#334155]/60 border-l-4 border-l-indigo-500': activeChatId === chat.id, 'border-l-4 border-l-transparent': activeChatId !== chat.id}"
+        >
+          <div class="relative">
+            <img :src="chat.avatar" class="w-12 h-12 rounded-full bg-slate-700 object-cover border border-slate-600">
+            <span v-if="chat.status === 'online'" class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-[#1e293b] rounded-full"></span>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex justify-between items-baseline mb-0.5">
+              <h3 class="font-semibold text-sm truncate text-slate-100">{{ chat.name }}</h3>
+              <span class="text-xs text-slate-500">{{ chat.lastTime }}</span>
+            </div>
+            <div class="flex justify-between items-center">
+               <p class="text-xs text-slate-400 truncate w-32" :class="{'font-medium text-slate-200': chat.unread > 0}">{{ chat.lastMessage }}</p>
+               <span v-if="chat.unread > 0" class="bg-indigo-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shadow-sm">
+                 {{ chat.unread }}
+               </span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- User Profile (Self) -->
+      <div class="p-4 border-t border-slate-700 bg-[#1e293b]/80 flex items-center gap-3">
+        <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Admin" class="w-10 h-10 rounded-full bg-indigo-900 border border-slate-600">
+        <div>
+           <div class="text-sm font-medium text-slate-200">Support Agent</div>
+           <div class="text-xs text-green-400 flex items-center gap-1">
+             <span class="w-1.5 h-1.5 rounded-full bg-green-400"></span> Online
+           </div>
+        </div>
+      </div>
+    </aside>
+    
+    <!-- Main Chat Area -->
+    <main class="flex-col bg-[#0f172a] relative transition-all duration-300"
+        :class="showMobileChat ? 'flex w-full fixed inset-0 z-50 md:static md:w-auto md:flex-1' : 'hidden md:flex md:flex-1'">
+       <!-- Background Pattern -->
+       <div class="absolute inset-0 opacity-5 pointer-events-none" 
+            style="background-image: radial-gradient(#6366f1 1px, transparent 1px); background-size: 32px 32px;">
+       </div>
+
+      <template v-if="activeConversation">
+        <!-- Chat Header -->
+        <header class="h-16 border-b border-slate-800 bg-[#0f172a]/90 backdrop-blur-sm flex items-center justify-between px-4 md:px-6 z-10 sticky top-0">
+          <div class="flex items-center gap-3">
+             <!-- Back Button (Mobile Only) -->
+             <button @click="backToMenu" class="md:hidden p-1 -ml-2 text-slate-400 hover:text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                </svg>
+             </button>
+             
+             <img :src="activeConversation.avatar" class="w-10 h-10 rounded-full border border-slate-700">
+             <div>
+               <h2 class="font-bold text-slate-100 text-lg">{{ activeConversation.name }}</h2>
+               <div class="flex items-center gap-2 text-xs text-slate-400">
+                  <span class="w-2 h-2 rounded-full" :class="activeConversation.status === 'online' ? 'bg-green-500' : 'bg-slate-500'"></span>
+                  {{ activeConversation.status === 'online' ? 'Active now' : 'Offline' }}
+               </div>
+             </div>
+          </div>
+          <div class="flex items-center gap-4 text-slate-400">
+             <button class="hover:text-indigo-400 transition-colors p-2 rounded-full hover:bg-slate-800">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+             </button>
+             <button class="hover:text-indigo-400 transition-colors p-2 rounded-full hover:bg-slate-800">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg>
+             </button>
+          </div>
+        </header>
+        
+        <!-- Messages -->
+        <div class="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar scroll-smooth" ref="chatContainer">
+          <div v-for="(msg, index) in activeConversation.messages" :key="msg.id" class="flex flex-col">
+            
+             <!-- Date Separator (Optional Logic could go here) -->
+             
+             <!-- Customer Message -->
+             <div v-if="msg.sender !== 'me'" class="flex gap-3 max-w-[75%] items-end">
+                <img v-if="index === 0 || activeConversation.messages[index-1]?.sender === 'me'" :src="activeConversation.avatar" class="w-8 h-8 rounded-full mb-1">
+                <div v-else class="w-8"></div> <!-- Spacer -->
+                
+                <div class="bg-slate-800 text-slate-200 px-4 py-2.5 rounded-2xl rounded-bl-sm border border-slate-700/50 shadow-sm">
+                   <p class="leading-relaxed text-sm">{{ msg.text }}</p>
+                   <span class="text-[10px] text-slate-500 block mt-1 text-right">{{ msg.time }}</span>
+                </div>
+             </div>
+             
+             <!-- My Message -->
+             <div v-else class="flex gap-3 max-w-[75%] self-end items-end justify-end">
+                <div class="bg-indigo-600 text-white px-4 py-2.5 rounded-2xl rounded-br-sm shadow-md shadow-indigo-900/20">
+                   <p class="leading-relaxed text-sm">{{ msg.text }}</p>
+                     <span class="text-[10px] text-indigo-200 block mt-1 text-right">{{ msg.time }}</span>
+                </div>
+             </div>
+             
+          </div>
+        </div>
+        
+        <!-- Input Area -->
+        <div class="p-4 bg-[#0f172a] border-t border-slate-800 relative z-20">
+           <div class="flex gap-3 items-end bg-[#1e293b] p-2 rounded-xl border border-slate-700 focus-within:ring-2 focus-within:ring-indigo-500/50 focus-within:border-indigo-500 transition-all">
+              <button class="p-2 text-slate-400 hover:text-indigo-400 transition-colors">
+                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+              </button>
+              <textarea 
+                v-model="messageInput"
+                @keydown.enter.prevent="sendMessage"
+                placeholder="Type your message..." 
+                class="flex-1 bg-transparent text-slate-200 placeholder:text-slate-500 focus:outline-none resize-none py-2 max-h-32 text-sm"
+                rows="1"
+              ></textarea>
+              <button @click="sendMessage" class="p-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors shadow-lg shadow-indigo-600/30">
+                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 transform rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+              </button>
+           </div>
+           <div class="text-center mt-2">
+              <span class="text-[10px] text-slate-500">Press Enter to send</span>
+           </div>
+        </div>
+        
+      </template>
+      
+      <template v-else>
+         <div class="flex-1 flex flex-col items-center justify-center text-slate-500">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-24 w-24 mb-4 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+            <p class="text-lg">Select a conversation to start chatting</p>
+         </div>
+      </template>
+      
+    </main>
+  </div>
+</template>
+
+<style>
+/* Custom Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+</style>
