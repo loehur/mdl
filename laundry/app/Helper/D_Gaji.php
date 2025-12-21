@@ -75,9 +75,11 @@ class D_Gaji extends Controller
         $data_kembali = [];
 
         //OPERASI
-        if ($userID <> 0) {
-            $where = "insertTime LIKE '" . $date . "%' AND id_user_operasi = " . $userID;
-            $data_operasi = $this->db(0)->get_where('operasi', $where, 'id_operasi');
+        if ($userID <> 0) {       
+            $join_where = "operasi.id_penjualan = sale.id_penjualan";
+            $where = "sale.bin = 0 AND operasi.insertTime LIKE '" . $date . "%' AND operasi.id_user_operasi = " . $userID . " AND operasi.insertTime LIKE '" . $date . "%'";
+            $data_operasi = $this->db(0)->innerJoin1_where('sale', 'operasi', $join_where, $where);
+
 
             //TERIMA
             $cols = "id_user, id_cabang, COUNT(id_user) as terima";
