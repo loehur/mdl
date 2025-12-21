@@ -10,8 +10,8 @@ class WAGenerator extends Controller
     public function get_nota($ref)
     {
         // 1. Get Transaction Data
-        $where = "no_ref = '$ref' AND tuntas = '0'";
-        $transactions = $this->db(0)->get_where('penjualan', $where);
+        $where = "no_ref = '$ref' AND tuntas = 0";
+        $transactions = $this->db(0)->get_where('sale', $where);
 
         if (empty($transactions)) {
             return "Transaction not found";
