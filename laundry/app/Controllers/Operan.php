@@ -80,7 +80,6 @@ class Operan extends Controller
             'idOperan' => $idOperan,
             'idCabang' => $idCabang,
             'where_clause' => $where,
-            'book' => $_SESSION[URL::SESSID]['user']['book']
          ]);
          echo "Data tidak ditemukan";
          exit();

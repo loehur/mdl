@@ -179,8 +179,11 @@ class WhatsApp extends Controller
             \Log::write("Error processing pending notifs: " . $e->getMessage(), 'webhook', 'WhatsApp');
         }
 
+        //cari assigned_user_id
+        $assigned_user_id = $this->getAssignedUserId($customerId);
+
         // Wajib ambil ID percakapan untuk menyimpan pesan ke database (walaupun itu auto-reply)
-        $conversationId = $this->getOrCreateConversation($db, $customerId, $waNumber, $contactName);
+        $conversationId = $this->getOrCreateConversation($db, $customerId, $waNumber, $contactName, $assigned_user_id);
 
         $textBody = null;
         $mediaId = null;
@@ -406,7 +409,7 @@ class WhatsApp extends Controller
     /**
      * Get existing conversation or create new one
      */
-    private function getOrCreateConversation($db, $customerId, $waNumber, $contactName = null)
+    private function getOrCreateConversation($db, $customerId, $waNumber, $contactName = null, $assigned_user_id = null)
     {
         // Try to find existing conversation
         $existing = $db->get_where('wa_conversations', ['wa_number' => $waNumber]);
@@ -427,6 +430,7 @@ class WhatsApp extends Controller
 
         // Create new conversation
         $convData = [
+            'assigned_user_id' => $assigned_user_id,
             'customer_id' => $customerId,
             'wa_number' => $waNumber,
             'contact_name' => $contactName,
@@ -449,6 +453,18 @@ class WhatsApp extends Controller
             return $dt->format('Y-m-d H:i:s');
         } catch (\Exception $e) {
             return date('Y-m-d H:i:s');
+        }
+    }
+
+    function getAssignedUserId($customerId)
+    {
+        $db = $this->db(1);
+
+        $last_sale = $db->query("SELECT * FROM sale WHERE id_pelanggan = " . $customerId . " ORDER BY insertTime DESC LIMIT 1")->row();
+        if ($last_sale) {
+            return $last_sale->id_cabang;
+        }else{
+            return null;
         }
     }
 
