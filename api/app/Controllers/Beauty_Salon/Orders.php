@@ -266,6 +266,73 @@ class Orders extends Controller
     }
 
     /**
+     * POST - Update item price
+     */
+    public function updateItemPrice($id)
+    {
+        if (!$this->isPost()) {
+            $this->error('Method not allowed', 405);
+        }
+
+        try {
+            $body = $this->getBody();
+            $this->validate($body, ['item_index', 'price']);
+
+            $salon_id = $_SESSION['salon_user_session']['user']['salon_id'] ?? null;
+            
+            if (!$salon_id) {
+                $this->error('Salon ID tidak ditemukan', 401);
+            }
+
+            // Get order
+            $order = $this->db($this->db_index)
+                ->get_where('orders', ['id' => $id, 'salon_id' => $salon_id], 1)
+                ->row_array();
+
+            if (!$order) {
+                $this->error('Order tidak ditemukan', 404);
+            }
+            
+            if ($order['status'] === 'completed') {
+                $this->error('Tidak dapat mengubah harga pada order yang sudah selesai', 400);
+            }
+            if ($order['status'] === 'cancelled') {
+                 $this->error('Tidak dapat mengubah harga pada order yang sudah dibatalkan', 400);
+            }
+
+            $order_items = json_decode($order['order_items'], true);
+            
+            if (!isset($order_items[$body['item_index']])) {
+                 $this->error('Item tidak ditemukan', 404);
+            }
+
+            // Update price
+            $order_items[$body['item_index']]['price'] = (float)$body['price'];
+            
+            // Recalculate total_price
+            $total_price = 0;
+            foreach ($order_items as $item) {
+                $total_price += ($item['price'] ?? 0);
+            }
+
+            $this->db($this->db_index)->update('orders', [
+                'order_items' => json_encode($order_items),
+                'total_price' => $total_price,
+                'updated_at' => date('Y-m-d H:i:s')
+            ], ['id' => $id]);
+
+            $this->json([
+                'success' => true,
+                'message' => 'Harga item berhasil diperbarui',
+                'new_total' => $total_price
+            ]);
+        } catch (\Exception $e) {
+            error_log("Orders updateItemPrice error: " . $e->getMessage());
+            $this->error('Terjadi kesalahan: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
      * POST - Delete order
      */
     public function delete($id)

@@ -39,9 +39,33 @@
         <!-- Order Items & Progress -->
         <div class="p-5 space-y-4">
            <div v-for="(item, itemIndex) in order.order_items" :key="itemIndex" class="space-y-2">
-              <div class="font-medium text-gray-800 flex justify-between">
+              <div class="font-medium text-gray-800 flex justify-between items-center">
                 <span>{{ item.product_name }}</span>
-                <span class="text-pink-600 font-bold">Rp {{ formatNumber(item.price) }}</span>
+                
+                <!-- Price Edit -->
+                <div v-if="editingItem.orderId === order.id && editingItem.itemIndex === itemIndex" class="flex items-center gap-2">
+                    <input 
+                        type="number" 
+                        v-model.number="editingItem.price" 
+                        class="w-24 px-2 py-1 text-sm border border-pink-300 rounded focus:border-pink-500 outline-none text-right"
+                        @keyup.enter="savePrice"
+                        @keyup.esc="cancelEditPrice"
+                        autofocus
+                        @click.stop
+                    />
+                    <button @click.stop="savePrice" class="text-green-600 hover:text-green-700 p-1 hover:bg-green-50 rounded">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                    </button>
+                    <button @click.stop="cancelEditPrice" class="text-red-500 hover:text-red-600 p-1 hover:bg-red-50 rounded">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+                <div v-else class="flex items-center gap-2 group/price cursor-pointer relative" @click="startEditPrice(order, itemIndex, item.price)" title="Klik untuk ubah harga">
+                    <span class="text-pink-600 font-bold">Rp {{ formatNumber(item.price) }}</span>
+                     <div v-if="!['completed', 'cancelled'].includes(order.status)" class="opacity-0 group-hover/price:opacity-100 absolute -left-5 text-gray-400">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                    </div>
+                </div>
               </div>
               
               <!-- Work Steps Progress -->
@@ -724,51 +748,121 @@ async function processCancellation() {
         orderToCancel.value = null;
     }
 }
+// -- Update Price --
+const editingItem = reactive({
+  orderId: null,
+  itemIndex: null,
+  price: 0
+});
+
+function startEditPrice(order, index, price) {
+ if (['completed', 'cancelled'].includes(order.status)) return;
+ editingItem.orderId = order.id;
+ editingItem.itemIndex = index;
+ editingItem.price = price;
+}
+
+function cancelEditPrice() {
+ editingItem.orderId = null;
+ editingItem.itemIndex = null;
+}
+
+async function savePrice() {
+ const { orderId, itemIndex, price } = editingItem;
+ if (!orderId) return;
+ 
+ const order = orders.value.find(o => o.id === orderId);
+ if (!order) return;
+
+ try {
+     const res = await fetch(`/api/Beauty_Salon/Orders/updateItemPrice/${orderId}`, {
+         method: 'POST',
+         headers: {'Content-Type': 'application/json'},
+         body: JSON.stringify({
+             item_index: itemIndex,
+             price: price
+         })
+     });
+     const d = await res.json();
+     if (d.success) {
+         // Update local state
+         if (order.order_items[itemIndex]) {
+             order.order_items[itemIndex].price = price;
+         }
+         if (d.new_total !== undefined) {
+             order.total_price = d.new_total;
+         }
+         showToast('Harga berhasil diubah');
+         cancelEditPrice();
+     } else {
+         showToast(d.message || 'Gagal ubah harga', 'error');
+     }
+ } catch(e) {
+     console.error(e);
+     showToast('Terjadi kesalahan', 'error');
+ }
+}
+
 // -- Print Helper --
 // -- Print Helper (Direct Print) --
 function generateReceiptText(order) {
-    let txt = "";
-    // Helper formats
-    const center = (str) => {
-        const w = 32;
-        // Strip html tags for proper length calculation
-        const cleanStr = str.replace(/<[^>]*>/g, ''); 
-        const spaces = Math.max(0, Math.floor((w - cleanStr.length) / 2));
-        return " ".repeat(spaces) + str + "\n";
-    };
-    const line = () => "-".repeat(32) + "\n";
-    const kv = (k, v) => {
-        const w = 32;
-        const kLen = k.length;
-        const vLen = v.toString().length;
-        const spaces = Math.max(0, w - kLen - vLen);
-        return k + " ".repeat(spaces) + v + "\n";
-    };
+    let html = "";
+    
+    // Helper formats for Printer Server
+    // 1 Column = Center
+    const row1 = (str) => `<tr><td>${str}</td></tr>`;
+    // 2 Columns = Left - Right
+    const row2 = (left, right) => `<tr><td>${left}</td><td>${right}</td></tr>`;
+    const divider = () => `<tr><td>--------------------------------</td></tr>`;
 
-    // Header (Dynamic)
+    // Header
     const sName = (salonInfo.value.nama_salon || 'MDL BEAUTY SALON').toUpperCase();
     const sAddr = salonInfo.value.alamat_salon || 'Jakarta';
     
-    txt += center(`<b>${sName}</b>`); 
-    txt += center(sAddr); 
-    txt += line();
+    html += row1(`<b>${sName}</b>`);
+    html += row1(sAddr);
+    html += divider();
     
     // Info
-    txt += `No : #${order.id}\n`;
-    txt += `Tgl: ${new Date().toLocaleDateString('id-ID')} ${new Date().toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})}\n`;
-    txt += `Plg: ${order.customer_name}\n`;
-    txt += line();
+    // Note: If single TD is always center, and we want Left for info, we might need a trick or just accept center.
+    // However, usually receipt headers are centered, info is left. 
+    // If the user says "1 td = center", then for left alignment we might need to use row2('Text', '') or similar if supported.
+    // For now, I will use row1 for general lines, but for Key-Value pairs I use row2.
+    // Let's try to format the info section as Key-Value to ensure it looks neat or use row1 if acceptable.
+    // Based on standard receipt, "No: #123" is often left. 
+    // Let's try using row2 for info to force left alignment if we put empty string in column 2? 
+    // Or maybe the user implies this specific markup logic:
+    // "<td> jika ada 1 maka otomatis rata tengah" -> This implies strictly center.
+    // For strictly left text (like date), maybe we assume the user accepts center or we try `<tr><td style="text-align:left">`?
+    // User didn't mention styles. I will stick to the requested logic:
+    // Header -> Center (1 td)
+    // Items -> Left/Right (2 td)
+    
+    // Let's put Info in 2 columns for better layout
+    html += row2(`No Order`, `#${order.id}`);
+    html += row2(`Tanggal`, `${new Date().toLocaleDateString('id-ID')}`);
+    html += row2(`Jam`, `${new Date().toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})}`);
+    html += row2(`Pelanggan`, order.customer_name);
+    html += divider();
 
     // Items
     (order.order_items || []).forEach(item => {
-        txt += `${item.product_name}\n`;
-        txt += kv(`1 x ${formatNumber(item.price)}`, formatNumber(item.price));
+        // Product Name on its own line (Centered? Or maybe left?)
+        // If we want left, maybe we use row2(name, '')
+        // Let's use row1 for name (Centered is okay for name) or row2 for name + price.
+        // User pattern: "Product Name" ... "1x Price"
+        
+        // Let's try:
+        // Col1: Item Name (br) x Qty
+        // Col2: Price
+        // Since we don't have qty in data (it implies 1), we just do:
+        html += row2(item.product_name, formatNumber(item.price));
     });
 
-    txt += line();
+    html += divider();
     
     // Totals
-    txt += kv("TOTAL", formatNumber(order.total_price));
+    html += row2("<b>TOTAL</b>", `<b>${formatNumber(order.total_price)}</b>`);
     
     // Payment
     const methodStr = (order.payment_method || 'TUNAI').toUpperCase().replace('_', ' ');
@@ -776,17 +870,17 @@ function generateReceiptText(order) {
     const payNonCash = Number(order.pay_non_cash) || 0;
     const totalPaid = payCash + payNonCash;
     
-    txt += kv(methodStr, formatNumber(totalPaid));
+    html += row2(methodStr, formatNumber(totalPaid));
 
     if (order.payment_method === 'split') {
-        txt += kv(" (Tunai)", formatNumber(payCash));
-        txt += kv(" (Non)", formatNumber(payNonCash));
+        html += row2("Tunai", formatNumber(payCash));
+        html += row2("Non-Tunai", formatNumber(payNonCash));
     }
 
-    txt += line();
-    txt += center("Terima Kasih");
-    txt += "\n\n\n\n"; // Feed
-    return txt;
+    html += divider();
+    html += row1("Terima Kasih");
+    
+    return html;
 }
 
 async function printOrder(order) {
