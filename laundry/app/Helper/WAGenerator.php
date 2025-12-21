@@ -217,6 +217,6 @@ class WAGenerator extends Controller
         
         $output = strtoupper($nama_pelanggan) . " _#" . $kode_cabang . "-" . $cs_code . "_\n" . $listNotif . "\n" . $totalText . "\n" . URL::HOST_URL . "/I/i/" . $id_pelanggan;
 
-        return $output;
+        return json_encode(['output' => $output]);
     }
 }
