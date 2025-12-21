@@ -144,12 +144,6 @@ class WAReplies
                                 if ($isInserted !== false) {
                                     $res = $waService->sendFreeText($waNumber, $responseData['text']);
                                     
-                                    if (!($res['success'] ?? false)) {
-                                        \Log::write("HandleBon Send Error: " . json_encode($res), 'webhook', 'WhatsApp');
-                                    } else {
-                                        \Log::write("HandleBon Sent: " . json_encode($res), 'webhook', 'WhatsApp');
-                                    }
-                                    
                                     $status = ($res['success'] ?? false) ? 'sent' : 'failed';
                                     $msgId = $res['data']['id'] ?? ($res['data']['message_id'] ?? null); 
                                     
@@ -178,7 +172,26 @@ class WAReplies
                         }
                     }
                 }else{
-                    $waService->sendFreeText($waNumber, 'Maaf, semua nota/bon sudah kami kirimkan ke nomor Anda. Terima kasih');
+                    //cek dulu jika pending kirimkan wa nya
+                    $pending = $db1->query("SELECT * FROM notif WHERE tipe = 1 AND no_ref IN ($noRefsIn) AND state = 'pending'")->result_array();
+                    if (!empty($pending)) {
+                        foreach ($pending as $p) {
+                            $res = $waService->sendFreeText($waNumber, $p['text']);
+
+                            $status = ($res['success'] ?? false) ? 'sent' : 'failed';
+                            $msgId = $res['data']['id'] ?? ($res['data']['message_id'] ?? null); 
+                            
+                            // Update state immediately
+                            $updateData = ['state' => $status];
+                            if ($msgId) {
+                                $updateData['id_api'] = $msgId;
+                            }
+                            
+                            $db1->update('notif', $updateData, ['id_notif' => $p['id_notif']]);
+                        }
+                    }else{
+                        $waService->sendFreeText($waNumber, 'Maaf, semua nota/bon sudah kami kirimkan ke nomor Anda. Terima kasih');
+                    }
                 }
             }else{
                 $waService->sendFreeText($waNumber, 'Maaf, semua transaksi Anda sudah selesai, atau pastikan gunakan nomor yang terdaftar untuk melakukan request nota/bon. Terima kasih');
