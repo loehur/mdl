@@ -164,6 +164,11 @@ const connectWebSocket = () => {
        isConnected.value = true;
        isConnecting.value = false;
        connectionError.value = '';
+       
+       // Save session (3 days)
+       const expiry = new Date().getTime() + (3 * 24 * 60 * 60 * 1000);
+       localStorage.setItem('chat_connection_id', authId.value);
+       localStorage.setItem('chat_connection_expiry', expiry);
      };
      
      ws.onmessage = (event) => {
@@ -175,19 +180,30 @@ const connectWebSocket = () => {
        }
      };
      
-     ws.onclose = () => {
+     ws.onclose = (event) => {
        if (isConnected.value) {
             console.log('WebSocket disconnected');
             isConnected.value = false;
        } else {
            // Connection failed during attempt
            isConnecting.value = false;
-           connectionError.value = 'Connection failed. Please check ID and try again.';
+           // Clear invalid session if we failed to connect (e.g. ID revoked)
+           // But be careful not to clear on transient network errors? 
+           // Probably safe to let user try again or re-enter.
+           // For now, let's not clear automatically unless it's strictly Auth error (1008)
+           
+           let msg = 'Connection failed.';
+           if (event.code === 1008) {
+               msg = 'Access Denied: Invalid ID.';
+               localStorage.removeItem('chat_connection_id'); // Clear invalid ID
+               localStorage.removeItem('chat_connection_expiry');
+           } else if (event.code === 1006) {
+               msg = 'Connection terminated abnormally.';
+           } else if (event.reason) {
+               msg = `Error: ${event.reason}`;
+           }
+           connectionError.value = msg;
        }
-       // Reconnect logic logic removed for manual retry in modal
-       // or keep it if connected previously?
-       // For this requirement: "modal muncul ketika tidak ada koneksi", so if close, modal shows.
-       // setTimeout(connectWebSocket, 5000); 
      };
      
      ws.onerror = (err) => {
@@ -224,15 +240,42 @@ const mockIncomingMessage = () => {
 onMounted(() => {
   scrollToBottom();
   
-  // Optional: Pre-fill ID from URL if still desired for convenience
-  const params = new URLSearchParams(window.location.search);
-  const id = params.get('id');
-  if (id) {
-      authId.value = id;
-      // Auto-connect if needed?
-      // connect();
+  // Check Local Storage for Session
+  const storedId = localStorage.getItem('chat_connection_id');
+  const storedExpiry = localStorage.getItem('chat_connection_expiry');
+  const now = new Date().getTime();
+
+  if (storedId && storedExpiry && now < parseInt(storedExpiry)) {
+      console.log("Restoring session for ID:", storedId);
+      authId.value = storedId;
+      connect();
+  } else {
+      // Clean up if expired
+      localStorage.removeItem('chat_connection_id');
+      localStorage.removeItem('chat_connection_expiry');
+      
+      // Check URL param
+      const params = new URLSearchParams(window.location.search);
+      const id = params.get('id');
+      if (id) {
+          authId.value = id;
+      }
   }
 });
+
+const logout = () => {
+    if (socket.value) {
+        socket.value.close();
+        socket.value = null;
+    }
+    isConnected.value = false;
+    authId.value = ''; // Reset ID input
+    isConnecting.value = false; // Ensure loading state is off
+    
+    // Clear Session
+    localStorage.removeItem('chat_connection_id');
+    localStorage.removeItem('chat_connection_expiry');
+};
 
 watch(activeChatId, () => {
   scrollToBottom();
@@ -294,7 +337,7 @@ watch(activeChatId, () => {
     </div>
 
     <!-- Sidebar -->
-    <aside v-if="isAuthenticated && isConnected" class="flex flex-col border-r border-slate-800 bg-[#1e293b] transition-all duration-300"
+    <aside v-if="isConnected" class="flex flex-col border-r border-slate-800 bg-[#1e293b] transition-all duration-300"
            :class="showMobileChat ? 'hidden md:flex md:w-80' : 'w-full md:w-80 flex'">
       <!-- Header -->
       <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-[#1e293b]/50 backdrop-blur-md">
@@ -335,19 +378,31 @@ watch(activeChatId, () => {
       </div>
       
       <!-- User Profile (Self) -->
-      <div class="p-4 border-t border-slate-700 bg-[#1e293b]/80 flex items-center gap-3">
-        <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Admin" class="w-10 h-10 rounded-full bg-indigo-900 border border-slate-600">
-        <div>
-           <div class="text-sm font-medium text-slate-200">Support Agent</div>
-           <div class="text-xs text-green-400 flex items-center gap-1">
-             <span class="w-1.5 h-1.5 rounded-full bg-green-400"></span> Online
-           </div>
+      <div class="p-4 border-t border-slate-700 bg-[#1e293b]/80 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Admin" class="w-10 h-10 rounded-full bg-indigo-900 border border-slate-600">
+            <div>
+               <div class="text-sm font-medium text-slate-200">Support Agent</div>
+               <div class="text-xs text-green-400 flex items-center gap-1">
+                 <span class="w-1.5 h-1.5 rounded-full bg-green-400"></span> Online
+               </div>
+            </div>
         </div>
+        
+        <button 
+           @click="logout" 
+           title="Logout"
+           class="p-2 text-slate-400 hover:text-red-400 hover:bg-slate-700/50 rounded-lg transition-colors"
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+        </button>
       </div>
     </aside>
     
     <!-- Main Chat Area -->
-    <main v-if="isAuthenticated && isConnected" class="flex-col bg-[#0f172a] relative transition-all duration-300"
+    <main v-if="isConnected" class="flex-col bg-[#0f172a] relative transition-all duration-300"
         :class="showMobileChat ? 'flex w-full fixed inset-0 z-50 md:static md:w-auto md:flex-1' : 'hidden md:flex md:flex-1'">
        <!-- Background Pattern -->
        <div class="absolute inset-0 opacity-5 pointer-events-none" 
