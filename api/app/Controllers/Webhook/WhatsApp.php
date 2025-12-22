@@ -172,9 +172,10 @@ class WhatsApp extends Controller
         }
 
         //cari assigned_user_id
-        $assigned_user_id = $this->getAssignedUserId($phone0);
+        $assigned_user_id = $this->getAssignedUserId($phone0)->assigned_user_id ?? null;
+        $contact_name = $this->getAssignedUserId($phone0)->customer_name ?? $contactName;
         // Wajib ambil ID percakapan untuk menyimpan pesan ke database (walaupun itu auto-reply)
-        $conversationId = $this->getOrCreateConversation($db, $customerId, $waNumber, $contactName, $assigned_user_id, $sendTime);
+        $conversationId = $this->getOrCreateConversation($db, $customerId, $waNumber, $contact_name, $assigned_user_id, $sendTime);
 
         $textBody = null;
         $mediaId = null;
@@ -438,7 +439,7 @@ class WhatsApp extends Controller
             $updateData = [
                 'contact_name' => $contactName,
                 'assigned_user_id' => $assigned_user_id,
-                'last_in_at' => $sendTime,
+                'last_in_at' => date('Y-m-d H:i:s'),
             ];
             $db->update('wa_conversations', 
                 $updateData, 
@@ -479,21 +480,23 @@ class WhatsApp extends Controller
     function getAssignedUserId($phone0)
     {
         $db = $this->db(1);
-
-        // cek nomor di data pelanggan
-        $customer = $db->query("SELECT * FROM pelanggan WHERE nomor_pelanggan = '" . $phone0 . "'")->row();
+        $return = null;
+        // cek nomor di data pelanggan limit 1 order by updated_at desc
+        $customer = $db->query("SELECT * FROM pelanggan WHERE nomor_pelanggan = '" . $phone0 . "' ORDER BY updated_at DESC LIMIT 1")->row();
         if ($customer) {
-            $customerId = $customer->id_pelanggan;
+            $return['customer_name'] = $customer->nama_pelanggan;
         }else{
-            return null;
+            return $return;
         }
 
-        $last_sale = $db->query("SELECT * FROM sale WHERE id_pelanggan = " . $customerId . " ORDER BY insertTime DESC LIMIT 1")->row();
+        $last_sale = $db->query("SELECT * FROM sale WHERE id_pelanggan = " . $customer->id_pelanggan . " ORDER BY insertTime DESC LIMIT 1")->row();
         if ($last_sale) {
-            return $last_sale->id_cabang;
+            $return['assigned_user_id'] = $last_sale->id_cabang;
         }else{
-            return null;
+            $return = null;
         }
+
+        return $return;
     }
 
     /**

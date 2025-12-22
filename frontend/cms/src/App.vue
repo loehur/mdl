@@ -146,6 +146,7 @@ const selectChat = async (id) => {
 const backToMenu = () => {
     touchOffset.value = 0; // Reset
     showMobileChat.value = false;
+    activeChatId.value = null; // Deselect chat so unread counts increment
 };
 
 const sendMessage = async () => {
@@ -241,15 +242,14 @@ const handleIncomingMessage = (payload) => {
       conversation.lastMessage = newMsg.text;
       conversation.lastTime = newMsg.time;
       
-      if (activeChatId.value !== conversationId) {
-        conversation.unread++;
-      } else {
-        if (showMobileChat.value) {
-            scrollToBottom();
-            // Also mark read in backend if active?
-             markMessagesRead(conversationId);
-        }
-      }
+  // Check visibility: Active ID matches AND (Desktop OR Mobile Chat View Open)
+  const isChatVisible = activeChatId.value == conversationId && (windowWidth.value >= 768 || showMobileChat.value);
+
+  if (!isChatVisible) {
+    conversation.unread++;
+  } else {
+    scrollToBottom();
+  }
       
       // Move conversation to top
       const idx = conversations.value.findIndex(c => c.id === conversation.id);
@@ -625,10 +625,6 @@ watch(activeChatId, () => {
              <img :src="activeConversation.avatar" class="w-10 h-10 rounded-full border border-slate-700">
              <div>
                <h2 class="font-bold text-slate-100 text-lg">{{ activeConversation.name }}</h2>
-               <div class="flex items-center gap-2 text-xs text-slate-400">
-                  <span class="w-2 h-2 rounded-full" :class="activeConversation.status === 'online' ? 'bg-green-500' : 'bg-slate-500'"></span>
-                  {{ activeConversation.status === 'online' ? 'Active now' : 'Offline' }}
-               </div>
              </div>
           </div>
           <div class="flex items-center gap-4 text-slate-400">
