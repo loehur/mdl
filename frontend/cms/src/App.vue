@@ -670,8 +670,9 @@ watch(activeChatId, () => {
     
     <!-- Main Chat Area -->
     <!-- Mobile: Fixed on top (z-50) if active. Desktop: static flex-1. -->
-    <main v-if="isConnected" class="flex-col bg-[#0f172a] shadow-2xl md:shadow-none md:flex md:flex-1 h-full relative border-4 border-red-500"
-        :class="showMobileChat ? 'flex fixed inset-0 z-50 md:static md:w-full' : 'hidden md:flex'"
+    <main v-if="isConnected" v-show="windowWidth >= 768 || showMobileChat" 
+        class="flex-col bg-[#0f172a] shadow-2xl md:shadow-none flex md:flex-1 h-full w-full relative"
+        :class="showMobileChat && windowWidth < 768 ? 'fixed inset-0 z-50' : ''"
         :style="{ 
             transform: showMobileChat && windowWidth < 768 ? `translateX(${touchOffset}px)` : '',
             transition: isDragging ? 'none' : 'transform 0.3s ease-out'
@@ -685,7 +686,7 @@ watch(activeChatId, () => {
             style="background-image: radial-gradient(#6366f1 1px, transparent 1px); background-size: 32px 32px;">
        </div>
 
-      <div v-if="activeConversation" class="flex flex-col w-full h-full relative z-10 border-4 border-green-500">
+      <div v-if="activeConversation" class="flex flex-col w-full h-full relative z-10">
         <!-- Chat Header -->
         <header class="h-16 border-b border-slate-800 bg-[#0f172a]/90 backdrop-blur-sm flex items-center justify-between px-4 md:px-6 z-10 sticky top-0">
           <div class="flex items-center gap-3">
