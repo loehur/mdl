@@ -671,7 +671,7 @@ watch(activeChatId, () => {
     <!-- Main Chat Area -->
     <!-- Mobile: Fixed on top (z-50) if active. Desktop: static flex-1. -->
     <main v-if="isConnected" class="flex-col bg-[#0f172a] shadow-2xl md:shadow-none md:flex md:flex-1 h-full relative"
-        :class="showMobileChat ? 'flex fixed inset-0 z-50 md:static md:w-auto' : 'hidden md:flex'"
+        :class="showMobileChat ? 'flex fixed inset-0 z-50 md:static md:w-full' : 'hidden md:flex'"
         :style="{ 
             transform: showMobileChat && windowWidth < 768 ? `translateX(${touchOffset}px)` : '',
             transition: isDragging ? 'none' : 'transform 0.3s ease-out'
