@@ -200,19 +200,28 @@ const sendMessage = async () => {
   }
 };
 
-const handleIncomingMessage = (data) => {
-  // Expected data structure: { conversationId, sender, text, name? }
-  const { conversationId, text, sender, name } = data;
+const handleIncomingMessage = (payload) => {
+  // Payload structure from webhook:
+  // { conversation_id, customer_id, phone, contact_name, message: { id, text, type, time }, target_id }
   
+  // Or fallback if direct
+  const conversationId = payload.conversation_id || payload.conversationId;
+  const messageData = payload.message || payload; // if message is nested or flat
+  
+  const text = messageData.text;
+  const sender = messageData.sender || 'customer';
+  const name = payload.contact_name || payload.name;
+  
+  // Find or create conversation
   let conversation = conversations.value.find(c => c.id === conversationId);
   
   if (!conversation) {
     // New conversation
     conversation = {
       id: conversationId,
-      name: name || 'Unknown User',
+      name: name || payload.phone || 'Unknown User',
       avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${conversationId}`,
-      status: 'online',
+      status: 'online', // Assume online on new msg
       messages: [],
       unread: 0
     };
@@ -220,29 +229,34 @@ const handleIncomingMessage = (data) => {
   }
   
   const newMsg = {
-    id: Date.now(),
+    id: messageData.id || Date.now(),
     text: text,
-    sender: sender || 'customer',
-    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    sender: sender,
+    time: messageData.time ? new Date(messageData.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   };
   
-  conversation.messages.push(newMsg);
-  conversation.lastMessage = newMsg.text;
-  conversation.lastTime = newMsg.time;
-  
-  if (activeChatId.value !== conversationId) {
-    conversation.unread++;
-  } else {
-    if (showMobileChat.value) {
-        scrollToBottom();
-    }
-  }
-  
-  // Move to top
-  const idx = conversations.value.findIndex(c => c.id === conversation.id);
-  if (idx > 0) {
-    conversations.value.splice(idx, 1);
-    conversations.value.unshift(conversation);
+  // Avoid duplicate messages if already present
+  if (!conversation.messages.find(m => m.id === newMsg.id)) {
+      conversation.messages.push(newMsg);
+      conversation.lastMessage = newMsg.text;
+      conversation.lastTime = newMsg.time;
+      
+      if (activeChatId.value !== conversationId) {
+        conversation.unread++;
+      } else {
+        if (showMobileChat.value) {
+            scrollToBottom();
+            // Also mark read in backend if active?
+             markMessagesRead(conversationId);
+        }
+      }
+      
+      // Move conversation to top
+      const idx = conversations.value.findIndex(c => c.id === conversation.id);
+      if (idx > 0) {
+        conversations.value.splice(idx, 1);
+        conversations.value.unshift(conversation);
+      }
   }
 };
 
