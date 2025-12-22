@@ -14,7 +14,7 @@
         if ($a['id_harga'] == $id) {
           foreach ($this->dPenjualan as $dp) {
             if ($dp['id_penjualan_jenis'] == $a['id_penjualan_jenis']) {
-              $id_penjualan = "'" . $a['id_penjualan_jenis'] . "'";
+              $id_penjualan = $a['id_penjualan_jenis'];
               $jenis = $dp['penjualan_jenis'];
               foreach ($this->dSatuan as $ds) {
                 if ($ds['id_satuan'] == $dp['id_satuan']) {

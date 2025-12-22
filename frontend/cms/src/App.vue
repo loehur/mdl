@@ -820,7 +820,7 @@ window.addEventListener('focus', () => {
           </div>
            <div class="flex-1 min-w-0">
              <div class="flex justify-between items-baseline mb-1 gap-2">
-               <h3 class="font-semibold text-[15px] truncate text-slate-100 max-w-[180px]" :title="chat.name">
+               <h3 class="font-semibold text-[15px] truncate text-slate-100 uppercase max-w-[180px]" :title="chat.name">
                  <span v-if="chat.kode_cabang" class="font-mono text-xs mr-1" :class="chat.kode_cabang === '00' ? 'text-pink-500' : 'text-indigo-400'">[{{ chat.kode_cabang }}]</span>
                  {{ chat.name }}
                </h3>
@@ -988,9 +988,6 @@ window.addEventListener('focus', () => {
               <button @click="sendMessage" class="p-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors shadow-lg shadow-indigo-600/30">
                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 transform rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
               </button>
-           </div>
-           <div class="text-center mt-2">
-              <span class="text-[10px] text-slate-500">Press Enter to send</span>
            </div>
         </div>
         
