@@ -104,31 +104,36 @@ class Chat extends Controller
 
         // Fetch messages from both Inbound (wa_messages_in) and Outbound (wa_messages_out)
         // Wrapped in main query to sort global result
+        // Optimized: Get only last 50 messages
         $sql = "
             SELECT * FROM (
-                (SELECT 
-                    id, 
-                    text, 
-                    type, 
-                    'customer' as sender, 
-                    received_at as time, 
-                    status 
-                 FROM wa_messages_in 
-                 WHERE conversation_id = ? 
-                 AND status != 'deleted')
-                 
-                UNION ALL
-                
-                (SELECT 
-                    id, 
-                    content as text, 
-                    type, 
-                    'me' as sender, 
-                    created_at as time, 
-                    status 
-                 FROM wa_messages_out 
-                 WHERE conversation_id = ?)
-            ) AS combined_msgs
+                SELECT * FROM (
+                    (SELECT 
+                        id, 
+                        text, 
+                        type, 
+                        'customer' as sender, 
+                        created_at as time, 
+                        status 
+                     FROM wa_messages_in 
+                     WHERE conversation_id = ? 
+                     AND status != 'deleted')
+                     
+                    UNION ALL
+                    
+                    (SELECT 
+                        id, 
+                        content as text, 
+                        type, 
+                        'me' as sender, 
+                        created_at as time, 
+                        status 
+                     FROM wa_messages_out 
+                     WHERE conversation_id = ?)
+                ) AS combined_msgs
+                ORDER BY time DESC
+                LIMIT 50
+            ) AS latest_msgs
             ORDER BY time ASC
         ";
 

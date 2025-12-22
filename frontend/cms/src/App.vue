@@ -118,6 +118,7 @@ const markMessagesRead = async (conversationId) => {
 const scrollToBottom = () => {
   nextTick(() => {
     if (chatContainer.value) {
+      // Instant scroll without animation
       chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
     }
   });
