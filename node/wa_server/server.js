@@ -246,9 +246,18 @@ app.post('/incoming', (req, res) => {
     // BROADCAST TO ALL if target_id = '0'
     if (targetId === '0') {
         console.log('[BROADCAST] Sending to ALL connected clients');
+
+        // Extract sender_id to exclude from broadcast
+        const senderId = data.sender_id ? data.sender_id.toString() : null;
         let broadcastCount = 0;
 
         clients.forEach((userSockets, userId) => {
+            // Skip if this is the sender
+            if (senderId && userId === senderId) {
+                console.log(`[BROADCAST] Skipping sender: ${senderId}`);
+                return;
+            }
+
             userSockets.forEach(client => {
                 if (client.readyState === WebSocket.OPEN) {
                     client.send(JSON.stringify(data));
@@ -257,7 +266,7 @@ app.post('/incoming', (req, res) => {
             });
         });
 
-        console.log(`[BROADCAST] Sent to ${broadcastCount} client(s)`);
+        console.log(`[BROADCAST] Sent to ${broadcastCount} client(s), excluded sender: ${senderId || 'none'}`);
         return res.json({
             success: true,
             message: `Broadcast to ${broadcastCount} client(s)`,
