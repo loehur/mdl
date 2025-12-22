@@ -8,36 +8,10 @@ const updateWidth = () => windowWidth.value = window.innerWidth;
 window.addEventListener('resize', updateWidth);
 
 // --- State ---
-const conversations = ref([
-  {
-    id: '1',
-    name: 'Alice Smith',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alice',
-    status: 'online',
-    lastMessage: 'Hi, I have a question about my order.',
-    lastTime: '10:00 AM',
-    unread: 0,
-    messages: [
-      { id: 1, text: 'Hi, I have a question about my order.', sender: 'customer', time: '10:00 AM' },
-      { id: 2, text: 'Sure, what is your order number?', sender: 'me', time: '10:01 AM' }
-    ]
-  },
-  {
-    id: '2',
-    name: 'Bob Jones',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Bob',
-    status: 'offline',
-    lastMessage: 'Is this item in stock?',
-    lastTime: 'Yesterday',
-    unread: 2,
-    messages: [
-      { id: 3, text: 'Hello?', sender: 'customer', time: 'Yesterday' },
-      { id: 4, text: 'Is this item in stock?', sender: 'customer', time: 'Yesterday' }
-    ]
-  }
-]);
+// --- State ---
+const conversations = ref([]);
 
-const activeChatId = ref('1');
+const activeChatId = ref(null);
 const messageInput = ref('');
 const chatContainer = ref(null);
 const socket = ref(null);
@@ -59,11 +33,34 @@ const minSwipeDistance = 75; // px
 // Login Delay State
 const showLoginPrompt = ref(false);
 
+const fetchConversations = async () => {
+    try {
+        const response = await fetch('https://api.nalju.com/CMS/Chat/getConversations'); 
+        const result = await response.json();
+        
+        if (result.success && Array.isArray(result.data)) {
+            conversations.value = result.data.map(c => ({
+                id: c.id,
+                name: c.contact_name || c.wa_number,
+                avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${c.id}`,
+                status: 'offline', 
+                lastMessage: c.last_message_text || 'No messages yet',
+                lastTime: c.last_message_time ? new Date(c.last_message_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '',
+                unread: parseInt(c.unread_count) || 0,
+                messages: [] 
+            }));
+        }
+    } catch (e) {
+        console.error("Error fetching conversations:", e);
+    }
+};
+
 const connect = () => {
     if(!authId.value) return;
     isConnecting.value = true;
     connectionError.value = '';
     connectWebSocket();
+    fetchConversations();
 }
 
 // --- Computed ---
@@ -297,24 +294,7 @@ const handleTouchEnd = (e) => {
 
 // Mock incoming message for demonstration
 const mockIncomingMessage = () => {
-  if (conversations.value.length === 0) return; // Only mock if there are conversations or simplify logic
-  
-  setTimeout(() => {
-    handleIncomingMessage({
-      conversationId: '1',
-      sender: 'customer',
-      text: 'Are you there? I really need help.',
-      name: 'Alice Smith'
-    });
-  }, 5000);
-    setTimeout(() => {
-    handleIncomingMessage({
-      conversationId: '3', // new user
-      sender: 'customer',
-      text: 'Hi, do you have opening hours?',
-      name: 'Charlie Brown'
-    });
-  }, 10000);
+    // Mock disabled - using real API data
 };
 
 
@@ -329,7 +309,7 @@ onMounted(() => {
   if (storedId && storedExpiry && now < parseInt(storedExpiry)) {
       console.log("Restoring session for ID:", storedId);
       authId.value = storedId;
-      connect();
+      connect(); // connect already calls fetchConversations
   } else {
       // Clean up if expired
       localStorage.removeItem('chat_connection_id');

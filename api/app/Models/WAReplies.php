@@ -344,7 +344,7 @@ class WAReplies
             require_once __DIR__ . '/../Helpers/WhatsAppService.php';
         }
         $waService = new \App\Helpers\WhatsAppService();
-        $text = "Kami buka setiap hari, dari pukul 07.00 - 21.00. Silahkan tinggalkan pesan jika ada keperluan khusus.";
+        $text = "Madinah Laundry buka setiap hari, dari pukul 07.00 - 21.00. Silahkan tinggalkan pesan jika ada keperluan khusus.";
         $waService->sendFreeText($waNumber, $text);
     }
 }
