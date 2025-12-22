@@ -220,73 +220,15 @@ class Chat extends Controller
         $db->query("UPDATE wa_messages_in SET status = 'read' WHERE conversation_id = ?", [$conversationId]);
         $affected = $db->conn()->affected_rows;
         
-        // ALWAYS Push WS to sync status (Self-healing)
-        // if ($affected > 0) { 
-             // Get details for WS
-             $conv = $db->get_where('wa_conversations', ['id' => $conversationId])->row();
-             
-             // Broadcast to: 0 (System), 1000 (Super Admin), and Assigned User
-             // Broadcast to: 0 (System), 1000 (Super Admin)
-             $targets = ['0', '1000']; 
-             
-             // Add Assigned User of THIS conversation
-             if ($conv && $conv->assigned_user_id) {
-                 $targets[] = (string)$conv->assigned_user_id;
-             }
-             
-             // DYNAMIC BROADCAST: Fetch Connected Clients from WA Server
-             // This ensures we push to EVERYONE who is currently online (e.g. ID 11)
-             try {
-                 $chv = curl_init('https://waserver.nalju.com/');
-                 curl_setopt($chv, CURLOPT_RETURNTRANSFER, true);
-                 curl_setopt($chv, CURLOPT_TIMEOUT, 2); // Increased timeout
-                 curl_setopt($chv, CURLOPT_SSL_VERIFYPEER, false); // Ignore SSL errors
-                 curl_setopt($chv, CURLOPT_SSL_VERIFYHOST, 0);
-                 
-                  $jsonUsers = curl_exec($chv);
-                  
-                  if ($jsonUsers === false) {
-                       if (class_exists('\Log')) {
-                           \Log::write("WS Fetch FAIL: " . curl_error($chv), 'cms_ws');
-                       }
-                  } else {
-                      curl_close($chv);
-                      
-                      $onlineUsers = json_decode($jsonUsers, true);
-                      
-                      // Fix: Access 'connected_ids' array from the response object
-                      if (isset($onlineUsers['connected_ids']) && is_array($onlineUsers['connected_ids'])) {
-                          foreach ($onlineUsers['connected_ids'] as $uid) {
-                              $targets[] = (string)$uid;
-                          }
-                      }
-                      
-                      // Log online users for debug
-                      if (class_exists('\Log')) {
-                         \Log::write("WS Online Targets: " . json_encode($onlineUsers['connected_ids'] ?? []), 'cms_ws');
-                      }
-                  }
-              } catch (\Throwable $ex) {
-                  if (class_exists('\Log')) {
-                      \Log::write("WS Fetch Exception: " . $ex->getMessage(), 'cms_ws');
-                  }
-              }
-             
-             $targets = array_unique($targets);
-
-             foreach ($targets as $tid) {
-                 if (empty($tid)) continue;
-                 
-                 $payload = [
-                    'type' => 'conversation_read',
-                    'conversation_id' => $conversationId,
-                    'target_id' => $tid,
-                    'message' => ['id' => time(), 'text' => 'SYNC_READ'], 
-                    'unread_count' => 0
-                 ];
-                 
-                 $this->pushToWebSocket($payload);
-             }
+        // ALWAYS Push WS to sync status (Broadcast to ALL via target_id='0')
+        $payload = [
+            'type' => 'conversation_read',
+            'conversation_id' => $conversationId,
+            'target_id' => '0', // Node.js server will broadcast to ALL if target='0'
+            'unread_count' => 0
+        ];
+        
+        $this->pushToWebSocket($payload);
         
         if (empty($unreads)) {
             $this->success([], 'No unread messages (Local updated)');
