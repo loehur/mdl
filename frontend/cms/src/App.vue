@@ -896,9 +896,9 @@ window.addEventListener('focus', () => {
             style="background-image: radial-gradient(#6366f1 1px, transparent 1px); background-size: 32px 32px;">
        </div>
 
-      <div v-if="activeConversation" class="flex flex-col w-full h-full relative z-10">
-        <!-- Chat Header - FIXED -->
-        <header class="flex-shrink-0 h-16 border-b border-slate-800 bg-[#0f172a]/95 backdrop-blur-md flex items-center justify-between px-4 md:px-6 z-20 shadow-lg">
+      <div v-if="activeConversation" class="w-full h-full relative z-10">
+        <!-- Chat Header - ABSOLUTE TOP -->
+        <header class="absolute top-0 left-0 right-0 h-16 border-b border-slate-800 bg-[#0f172a]/95 backdrop-blur-md flex items-center justify-between px-4 md:px-6 z-30 shadow-lg">
           <div class="flex items-center gap-3 flex-1 min-w-0">
              <!-- Back Button (Mobile Only) -->
              <button @click="backToMenu" class="md:hidden p-1 -ml-2 text-slate-400 hover:text-white flex-shrink-0">
@@ -925,71 +925,73 @@ window.addEventListener('focus', () => {
           </div>
         </header>
         
-        <!-- Messages - Scrollable Area -->
-        <div class="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar" ref="chatContainer">
-          <div v-for="(msg, index) in activeConversation.messages" :key="msg.id" class="flex flex-col">
+        <!-- Messages - Scrollable Area with top and bottom padding -->
+        <div class="absolute inset-0 pt-16 pb-[88px] overflow-y-auto custom-scrollbar" ref="chatContainer">
+          <div class="p-4 space-y-2">
+            <div v-for="(msg, index) in activeConversation.messages" :key="msg.id" class="flex flex-col">
             
-             <!-- Date Separator (Optional Logic could go here) -->
-             
-             <!-- Customer Message -->
-             <div v-if="msg.sender !== 'me'" class="flex gap-3 max-w-[75%] items-end">
-                <img v-if="index === 0 || activeConversation.messages[index-1]?.sender === 'me'" :src="activeConversation.avatar" class="w-8 h-8 rounded-full mb-1">
-                <div v-else class="w-8"></div> <!-- Spacer -->
-                
-                <div class="bg-slate-800 text-slate-200 px-3 py-2 rounded-lg rounded-bl-sm border border-slate-700/50 shadow-sm max-w-full">
-                   <div v-if="msg.type === 'image'" class="mb-2">
-                        <img v-if="msg.media_url" :src="msg.media_url" class="rounded-lg max-w-[200px] cursor-pointer" onclick="window.open(this.src)">
-                        <img v-else-if="msg.media_id" :src="`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" class="rounded-lg max-w-[200px] cursor-pointer" onclick="window.open(this.src)">
-                        <div v-else class="p-2 bg-slate-900 rounded border border-slate-700/50 flex flex-col items-center justify-center w-[200px] h-[150px]">
-                           <span class="text-[10px] text-slate-500">Image (Protected)</span>
-                        </div>
-                   </div>
-                   <p v-if="msg.text" class="leading-relaxed text-[15px] break-words whitespace-pre-wrap" v-html="parseWhatsAppFormatting(msg.text)"></p>
-                   <span class="text-[11px] text-slate-500 block mt-1 text-right">{{ msg.time }}</span>
-                </div>
-             </div>
-             
-             <!-- My Message -->
-             <div v-else class="flex gap-3 max-w-[75%] self-end items-end justify-end">
-                <div class="bg-indigo-600 text-white px-4 py-2.5 rounded-2xl rounded-br-sm shadow-md shadow-indigo-900/20 max-w-full">
-                   <div v-if="msg.type === 'image'" class="mb-2">
-                        <img v-if="msg.media_url" :src="msg.media_url" class="rounded-lg max-w-[200px] bg-slate-800">
-                        <img v-else-if="msg.media_id" :src="`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" class="rounded-lg max-w-[200px] bg-slate-800" onclick="window.open(this.src)">
-                   </div>
-                   <p v-if="msg.text" class="leading-relaxed text-[15px] break-words whitespace-pre-wrap" v-html="parseWhatsAppFormatting(msg.text)"></p>
-                     <div class="flex items-center justify-end gap-1 mt-1">
-                        <span class="text-[10px] text-indigo-200">{{ msg.time }}</span>
-                        <!-- Status Indicators -->
-                        <span v-if="msg.status === 'pending'" class="text-indigo-300">
-                           <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        </span>
-                        <span v-else-if="msg.status === 'sent'" class="text-indigo-300">
-                           <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
-                        </span>
-                        <span v-else-if="msg.status === 'delivered'" class="text-indigo-300">
-                           <div class="flex -space-x-1">
-                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
-                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
-                           </div>
-                        </span>
-                        <span v-else-if="msg.status === 'read'" class="text-blue-300">
-                            <div class="flex -space-x-1">
-                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
-                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
-                           </div>
-                        </span>
-                         <span v-else-if="msg.status === 'failed'" class="text-red-300">
-                           <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        </span>
+               <!-- Date Separator (Optional Logic could go here) -->
+               
+               <!-- Customer Message -->
+               <div v-if="msg.sender !== 'me'" class="flex gap-3 max-w-[75%] items-end">
+                  <img v-if="index === 0 || activeConversation.messages[index-1]?.sender === 'me'" :src="activeConversation.avatar" class="w-8 h-8 rounded-full mb-1">
+                  <div v-else class="w-8"></div> <!-- Spacer -->
+                  
+                  <div class="bg-slate-800 text-slate-200 px-3 py-2 rounded-lg rounded-bl-sm border border-slate-700/50 shadow-sm max-w-full">
+                     <div v-if="msg.type === 'image'" class="mb-2">
+                          <img v-if="msg.media_url" :src="msg.media_url" class="rounded-lg max-w-[200px] cursor-pointer" onclick="window.open(this.src)">
+                          <img v-else-if="msg.media_id" :src="`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" class="rounded-lg max-w-[200px] cursor-pointer" onclick="window.open(this.src)">
+                          <div v-else class="p-2 bg-slate-900 rounded border border-slate-700/50 flex flex-col items-center justify-center w-[200px] h-[150px]">
+                             <span class="text-[10px] text-slate-500">Image (Protected)</span>
+                          </div>
                      </div>
-                </div>
+                     <p v-if="msg.text" class="leading-relaxed text-[15px] break-words whitespace-pre-wrap" v-html="parseWhatsAppFormatting(msg.text)"></p>
+                     <span class="text-[11px] text-slate-500 block mt-1 text-right">{{ msg.time }}</span>
+                  </div>
+               </div>
+               
+               <!-- My Message -->
+               <div v-else class="flex gap-3 max-w-[75%] self-end items-end justify-end">
+                  <div class="bg-indigo-600 text-white px-4 py-2.5 rounded-2xl rounded-br-sm shadow-md shadow-indigo-900/20 max-w-full">
+                     <div v-if="msg.type === 'image'" class="mb-2">
+                          <img v-if="msg.media_url" :src="msg.media_url" class="rounded-lg max-w-[200px] bg-slate-800">
+                          <img v-else-if="msg.media_id" :src="`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" class="rounded-lg max-w-[200px] bg-slate-800" onclick="window.open(this.src)">
+                     </div>
+                     <p v-if="msg.text" class="leading-relaxed text-[15px] break-words whitespace-pre-wrap" v-html="parseWhatsAppFormatting(msg.text)"></p>
+                       <div class="flex items-center justify-end gap-1 mt-1">
+                          <span class="text-[10px] text-indigo-200">{{ msg.time }}</span>
+                          <!-- Status Indicators -->
+                          <span v-if="msg.status === 'pending'" class="text-indigo-300">
+                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                          </span>
+                          <span v-else-if="msg.status === 'sent'" class="text-indigo-300">
+                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                          </span>
+                          <span v-else-if="msg.status === 'delivered'" class="text-indigo-300">
+                             <div class="flex -space-x-1">
+                               <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                               <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                             </div>
+                          </span>
+                          <span v-else-if="msg.status === 'read'" class="text-blue-300">
+                              <div class="flex -space-x-1">
+                               <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                               <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                             </div>
+                          </span>
+                           <span v-else-if="msg.status === 'failed'" class="text-red-300">
+                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                          </span>
+                       </div>
+                  </div>
+               </div>
+               
              </div>
-             
           </div>
         </div>
         
-        <!-- Input Area -->
-        <div class="p-4 bg-[#0f172a] border-t border-slate-800 relative z-20">
+        <!-- Input Area - ABSOLUTE BOTTOM -->
+        <div class="absolute bottom-0 left-0 right-0 p-4 bg-[#0f172a] border-t border-slate-800 z-30">
            <div class="flex gap-3 items-end bg-[#1e293b] p-2 rounded-xl border border-slate-700 focus-within:ring-2 focus-within:ring-indigo-500/50 focus-within:border-indigo-500 transition-all">
               <button class="p-2 text-slate-400 hover:text-indigo-400 transition-colors">
                  <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
