@@ -50,12 +50,22 @@ const ALLOWED_CLIENT_IDS = process.env.ALLOWED_CLIENT_IDS
     ? process.env.ALLOWED_CLIENT_IDS.split(',').map(id => id.trim())
     : ['agent1', 'agent2', 'admin', 'cs1', 'cs2']; // Fallback default
 
-// Always allow '0' (Super Admin)
-if (!ALLOWED_CLIENT_IDS.includes('0')) {
-    ALLOWED_CLIENT_IDS.push('0');
+// Always allow 1000-1010 (Admin Range with full access)
+for (let i = 1000; i <= 1010; i++) {
+    const adminId = i.toString();
+    if (!ALLOWED_CLIENT_IDS.includes(adminId)) {
+        ALLOWED_CLIENT_IDS.push(adminId);
+    }
 }
 
 const SOCKET_PASSWORD = process.env.SOCKET_PASSWORD;
+
+// Log allowed IDs for debugging
+console.log('='.repeat(50));
+console.log('WebSocket Server - Allowed Client IDs:');
+console.log('Admin Range:', '1000-1010');
+console.log('Regular Agents:', ALLOWED_CLIENT_IDS.filter(id => parseInt(id) < 1000 || parseInt(id) > 1010));
+console.log('='.repeat(50));
 
 // Store connected clients: Map<id, Set<WebSocket>> to support multiple connections per ID
 // Using Set to allow easy addition/removal
@@ -180,9 +190,14 @@ function sendToTarget(targetId, data) {
         });
     }
 
-    // 2. Also send to Monitor IDs (0 and 1000)
+    // 2. Also send to Monitor IDs (1000-1010 range untuk admin access)
     // Avoid double sending if targetId is the monitor itself
-    const monitorIds = ['1000'];
+    const monitorIds = [];
+
+    // Add range 1000-1010 as admin/monitor IDs
+    for (let i = 1000; i <= 1010; i++) {
+        monitorIds.push(i.toString());
+    }
 
     monitorIds.forEach(monitorId => {
         if (targetId !== monitorId && clients.has(monitorId)) {
