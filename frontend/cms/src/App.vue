@@ -56,6 +56,9 @@ const touchOffset = ref(0); // Current drag distance
 const isDragging = ref(false);
 const minSwipeDistance = 75; // px
 
+// Login Delay State
+const showLoginPrompt = ref(false);
+
 const connect = () => {
     if(!authId.value) return;
     isConnecting.value = true;
@@ -209,17 +212,22 @@ const connectWebSocket = () => {
            // For now, let's not clear automatically unless it's strictly Auth error (1008)
            
            let msg = 'Connection failed.';
-           if (event.code === 1008) {
-               msg = 'Access Denied: Invalid ID.';
-               localStorage.removeItem('chat_connection_id'); // Clear invalid ID
-               localStorage.removeItem('chat_connection_expiry');
-           } else if (event.code === 1006) {
-               msg = 'Connection terminated abnormally.';
-           } else if (event.reason) {
-               msg = `Error: ${event.reason}`;
-           }
-           connectionError.value = msg;
-       }
+            if (event.code === 1008) {
+                msg = 'Access Denied: Invalid ID.';
+                localStorage.removeItem('chat_connection_id'); // Clear invalid ID
+                localStorage.removeItem('chat_connection_expiry');
+                showLoginPrompt.value = true; // Show login immediately on auth error
+            } else if (event.code === 1006) {
+                msg = 'Connection terminated abnormally.';
+                // If pure network error, maybe wait or show modal? 
+                // Let's show modal if we are truly disconnected for clarity
+                showLoginPrompt.value = true;
+            } else if (event.reason) {
+                msg = `Error: ${event.reason}`;
+                 showLoginPrompt.value = true;
+            }
+            connectionError.value = msg;
+        }
      };
      
      ws.onerror = (err) => {
@@ -348,6 +356,13 @@ onMounted(() => {
         }, 2000);
     }
   });
+
+  // Login Modal Delay Logic
+  setTimeout(() => {
+      if (!isConnected.value && !isConnecting.value) {
+          showLoginPrompt.value = true;
+      }
+  }, 1500); // Wait 1.5s before showing modal if not connected
 });
 
 const logout = () => {
@@ -358,6 +373,7 @@ const logout = () => {
     isConnected.value = false;
     authId.value = ''; // Reset ID input
     isConnecting.value = false; // Ensure loading state is off
+    showLoginPrompt.value = true; // Show login immediately on logout
     
     // Clear Session
     localStorage.removeItem('chat_connection_id');
@@ -371,10 +387,11 @@ watch(activeChatId, () => {
 </script>
 
 <template>
-  <div class="flex h-screen w-full bg-[#0f172a] text-slate-200 overflow-hidden font-sans selection:bg-indigo-500 selection:text-white">
+  <!-- Use fixed inset-0 to prevent body scroll issues on mobile -->
+  <div class="fixed inset-0 w-full bg-[#0f172a] text-slate-200 overflow-hidden font-sans selection:bg-indigo-500 selection:text-white">
     
     <!-- Login Modal (Overlay) -->
-    <div v-if="!isConnected" class="fixed inset-0 z-[60] bg-[#0f172a] flex items-center justify-center p-4">
+    <div v-if="!isConnected && showLoginPrompt" class="fixed inset-0 z-[60] bg-[#0f172a] flex items-center justify-center p-4">
        <!-- Login Card -->
        <div class="bg-[#1e293b] border border-slate-700 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
           <!-- Header -->
