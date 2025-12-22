@@ -375,8 +375,45 @@ const connectWebSocket = () => {
                  conv.unread = 0;
              }
              return;
-         }
-         
+          }
+          
+          // Handle Agent Message Sent (from other devices)
+          if (payload.type === 'agent_message_sent') {
+              const conversationId = payload.conversation_id;
+              const messageData = payload.message;
+              
+              const conversation = conversations.value.find(c => c.id == conversationId);
+              if (conversation) {
+                  // Check if message already exists (avoid duplicates)
+                  const exists = conversation.messages.find(m => 
+                      m.id == messageData.id || m.wamid == messageData.wamid
+                  );
+                  
+                  if (!exists) {
+                      // Add the message sent by another agent
+                      const newMsg = {
+                          id: messageData.id,
+                          wamid: messageData.wamid,
+                          text: messageData.text,
+                          type: messageData.type || 'text',
+                          sender: 'me',
+                          time: new Date(messageData.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                          status: messageData.status || 'sent'
+                      };
+                      
+                      conversation.messages.push(newMsg);
+                      conversation.lastMessage = "You: " + messageData.text;
+                      conversation.lastTime = newMsg.time;
+                      
+                      // Auto-scroll if viewing this conversation
+                      if (activeChatId.value == conversationId) {
+                          scrollToBottom();
+                      }
+                  }
+              }
+              return;
+          }
+          
          if (payload.type === 'wa_masuk') {
              // Real incoming WA message
              handleIncomingMessage(payload.data);
@@ -734,14 +771,14 @@ window.addEventListener('focus', () => {
             <img :src="chat.avatar" class="w-12 h-12 rounded-full bg-slate-700 object-cover border border-slate-600">
             <span v-if="chat.status === 'online'" class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-[#1e293b] rounded-full"></span>
           </div>
-          <div class="flex-1 min-w-0">
-            <div class="flex justify-between items-baseline mb-0.5">
-              <h3 class="font-semibold text-sm truncate text-slate-100 uppercase">
-                <span v-if="chat.kode_cabang" class="font-mono text-xs mr-1" :class="chat.kode_cabang === '00' ? 'text-pink-500' : 'text-indigo-400'">[{{ chat.kode_cabang }}]</span>
-                {{ chat.name }}
-              </h3>
-              <span class="text-xs text-slate-500">{{ chat.lastTime }}</span>
-            </div>
+           <div class="flex-1 min-w-0">
+             <div class="flex justify-between items-baseline mb-0.5 gap-2">
+               <h3 class="font-semibold text-sm truncate text-slate-100 uppercase max-w-[180px]" :title="chat.name">
+                 <span v-if="chat.kode_cabang" class="font-mono text-xs mr-1" :class="chat.kode_cabang === '00' ? 'text-pink-500' : 'text-indigo-400'">[{{ chat.kode_cabang }}]</span>
+                 {{ chat.name }}
+               </h3>
+               <span class="text-xs text-slate-500 flex-shrink-0">{{ chat.lastTime }}</span>
+             </div>
             <div class="flex justify-between items-center">
                <p class="text-xs text-slate-400 truncate w-32" :class="{'font-medium text-slate-200': chat.unread > 0}">{{ chat.lastMessage }}</p>
                <span v-if="chat.unread > 0" class="bg-indigo-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shadow-sm">
@@ -809,12 +846,11 @@ window.addEventListener('focus', () => {
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
                 </svg>
              </button>
-             
-             <img :src="activeConversation.avatar" class="w-10 h-10 rounded-full border border-slate-700">
-             <div>
-               <h2 class="font-bold text-slate-100 text-lg uppercase">{{ activeConversation.name }}</h2>
-               <p v-if="activeConversation.kode_cabang" class="text-xs font-mono" :class="activeConversation.kode_cabang === '00' ? 'text-pink-500' : 'text-indigo-400'">{{ activeConversation.kode_cabang }}</p>
-             </div>
+                          <img :src="activeConversation.avatar" class="w-10 h-10 rounded-full border border-slate-700">
+              <div class="min-w-0 flex-1">
+                <h2 class="font-bold text-slate-100 text-base md:text-lg uppercase truncate max-w-[200px] md:max-w-[300px]" :title="activeConversation.name">{{ activeConversation.name }}</h2>
+                <p v-if="activeConversation.kode_cabang" class="text-xs font-mono" :class="activeConversation.kode_cabang === '00' ? 'text-pink-500' : 'text-indigo-400'">{{ activeConversation.kode_cabang }}</p>
+              </div>
           </div>
           <div class="flex items-center gap-4 text-slate-400">
              <button class="hover:text-indigo-400 transition-colors p-2 rounded-full hover:bg-slate-800">

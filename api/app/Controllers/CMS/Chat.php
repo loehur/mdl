@@ -194,6 +194,28 @@ class Chat extends Controller
 
             $data = $res['data'];
             $data['local_id'] = $res['local_id'] ?? null; // Attach local DB ID
+            
+            // *** BROADCAST TO ALL AGENTS via WebSocket ***
+            // This ensures all agents viewing the same conversation see the message in real-time
+            $broadcastPayload = [
+                'type' => 'agent_message_sent',
+                'conversation_id' => $conversationId,
+                'target_id' => '0', // Broadcast to ALL agents
+                'message' => [
+                    'id' => $data['local_id'] ?? time(),
+                    'wamid' => $data['id'] ?? $data['wamid'] ?? null,
+                    'text' => $message,
+                    'type' => 'text',
+                    'sender' => 'me',
+                    'time' => date('Y-m-d H:i:s'),
+                    'status' => 'sent'
+                ],
+                'contact_name' => $conv->contact_name ?? '',
+                'phone' => $conv->wa_number
+            ];
+            
+            $this->pushToWebSocket($broadcastPayload);
+            
             $this->success($data, 'Reply sent');
         } else {
             $this->error('Failed to send WhatsApp: ' . ($res['error'] ?? 'Unknown error'), 500);
