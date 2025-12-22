@@ -175,8 +175,10 @@ class WAReplies
                 } else {
                     $listIdPenjualan = [];
                     foreach ($noRefs as $noRef) {
-                        $id_penjualans = array_column($db1->query("SELECT id_penjualan FROM sale WHERE id_user_ambil = 0 AND bin = 0 AND tuntas = 0 AND no_ref = '$noRef'")->result_array(), 'id_penjualan');
-                        
+                        $get_penjualan = $db1->query("SELECT id_penjualan, id_pelanggan FROM sale WHERE id_user_ambil = 0 AND bin = 0 AND tuntas = 0 AND no_ref = '$noRef'")->result_array();
+                        $id_penjualans = array_column($get_penjualan, 'id_penjualan');
+                        $id_pelanggans = array_column($get_penjualan, 'id_pelanggan');
+
                         // Fix for VARCHAR IDs: Quote them
                         $quotedIds = array_map(function($id) { return "'$id'"; }, $id_penjualans);
                         $id_penjualans_in = implode(',', $quotedIds);
@@ -187,8 +189,13 @@ class WAReplies
                             array_push($listIdPenjualan, $sisaIDPenjualan);
                         }
                     }
+
+                    $list_link = "";
+                    foreach ($id_pelanggans as $id_pelanggan) {
+                        $list_link .= "https://ml.nalju.com/I/i/" . $id_pelanggan . "\n";
+                    }
+                    
                     if (count($listIdPenjualan) > 0) {
-                        
                         // Flattening for safe implode
                          $flatList = [];
                          foreach($listIdPenjualan as $subArr) {
@@ -200,15 +207,10 @@ class WAReplies
                          }
                         $listIdPenjualanIn = implode(',', $flatList);
 
-                        $list_link = "";
-                        foreach ($flatList as $idPenjualan) {
-                            $list_link .= "https://ml.nalju.com/I/i/" . $idPenjualan . "\n";
-                        }
-
-                        $text = "Yth. *" . $nama_pelanggan . "*, List laundry dalam pengerjaan:\n*" . $listIdPenjualanIn . "*\n\nKarena sudah *CEK*, nanti akan dikabari jika sudah selesai. Terima kasih\n" . $list_link;
+                        $text = "Yth. *" . $nama_pelanggan . "*,\nList dalam pengerjaan:\n*" . $listIdPenjualanIn . "*\n\nKarena sudah *CEK*, akan dikabari jika sudah selesai.\n" . $list_link;
                         $waService->sendFreeText($waNumber, $text);
                     } else {
-                        $waService->sendFreeText($waNumber, 'Yth. *' . $nama_pelanggan . '*, semua laundry Anda sudah selesai. Terima kasih');
+                        $waService->sendFreeText($waNumber, 'Yth. *' . $nama_pelanggan . '*, Laundry sudah selesai dan dapat dijemput. Terima kasih'. "\n" . $list_link);
                     }
                 }
             }
