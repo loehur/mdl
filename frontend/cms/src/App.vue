@@ -684,6 +684,13 @@ watch(activeChatId, () => {
             'hidden': !showMobileChat && windowWidth < 768,
             'fixed top-0 right-0 bottom-0 md:left-80 z-0 !w-auto': windowWidth >= 768
         }"
+        :style="{ 
+            transform: showMobileChat && windowWidth < 768 ? `translateX(${touchOffset}px)` : '',
+            transition: isDragging ? 'none' : 'transform 0.3s ease-out'
+        }"
+        @touchstart="handleTouchStart"
+        @touchmove="handleTouchMove"
+        @touchend="handleTouchEnd"
     >
 
        <!-- Background Pattern -->
