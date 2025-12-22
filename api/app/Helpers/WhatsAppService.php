@@ -175,6 +175,116 @@ class WhatsAppService
     }
     
     /**
+     * Download and save media to local storage
+     * @param string $mediaId
+     * @return string|null Public URL of saved file
+     */
+    public function downloadAndSaveMedia($mediaId)
+    {
+        $media = $this->retrieveMedia($mediaId);
+        if (!isset($media['data'])) return null;
+        
+        // Save Path: api/uploads/whatsapp/YYYY/MM/
+        $relativePath = '/uploads/whatsapp/' . date('Y/m');
+        $baseDir = __DIR__ . '/../../' . $relativePath;
+        
+        if (!is_dir($baseDir)) {
+            @mkdir($baseDir, 0755, true);
+        }
+        
+        $mime = $media['mime_type'];
+        $ext = $this->mime2ext($mime);
+        
+        // Default filename
+        $filename = $mediaId . '.' . $ext;
+        $savePath = $baseDir . '/' . $filename;
+        $saved = false;
+        
+        // COMPRESSION LOGIC: Only for Images
+        if (strpos($mime, 'image/') !== false) {
+             try {
+                 $im = @imagecreatefromstring($media['data']);
+                 if ($im) {
+                     // 1. Resize if too big (Max 1024px)
+                     $width = imagesx($im);
+                     $height = imagesy($im);
+                     $maxDim = 1024;
+                     
+                     if ($width > $maxDim || $height > $maxDim) {
+                         $ratio = $width / $height;
+                         if ($ratio > 1) { // Landscape
+                             $newWidth = $maxDim;
+                             $newHeight = $maxDim / $ratio;
+                         } else { // Portrait
+                             $newHeight = $maxDim;
+                             $newWidth = $maxDim * $ratio;
+                         }
+                         
+                         $newIm = imagecreatetruecolor($newWidth, $newHeight);
+                         
+                         // Handle Transparency (fill white)
+                         $white = imagecolorallocate($newIm, 255, 255, 255);
+                         imagefilledrectangle($newIm, 0, 0, $newWidth, $newHeight, $white);
+                         
+                         imagecopyresampled($newIm, $im, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height);
+                         imagedestroy($im);
+                         $im = $newIm;
+                     }
+                     
+                     // 2. Force convert to JPG & Compress (Quality 60 => ~50-100kb usually)
+                     $filename = $mediaId . '.jpg'; // Force extension
+                     $savePath = $baseDir . '/' . $filename;
+                     
+                     // If original was PNG, we filled transpareny with white above.
+                     imagejpeg($im, $savePath, 60);
+                     imagedestroy($im);
+                     $saved = true;
+                 }
+             } catch (\Throwable $e) {
+                 // Fallback to original if GD fails
+                 \Log::write("Image compression failed: " . $e->getMessage(), 'wa_media_error', 'error');
+             }
+        }
+        
+        if (!$saved) {
+            // Save original (Non-image or Compression Failed)
+            file_put_contents($savePath, $media['data']);
+        }
+        
+        // Get Base URL
+        $baseUrl = 'https://api.nalju.com';
+        if (class_exists('\App\Config\Env') && defined('\App\Config\Env::BASE_URL')) {
+             $baseUrl = rtrim(\App\Config\Env::BASE_URL, '/');
+        }
+        return $baseUrl . $relativePath . '/' . $filename;
+    }
+    
+    private function mime2ext($mime)
+    {
+        $map = [
+            'image/jpeg' => 'jpg',
+            'image/jpg' => 'jpg',
+            'image/png' => 'png',
+            'image/webp' => 'webp',
+            'image/gif' => 'gif',
+            'video/mp4' => 'mp4',
+            'video/3gpp' => '3gp',
+            'audio/ogg' => 'ogg',
+            'audio/mpeg' => 'mp3',
+            'audio/mp4' => 'm4a',
+            'audio/amr' => 'amr',
+            'application/pdf' => 'pdf',
+            'application/msword' => 'doc',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => 'docx',
+            'application/vnd.ms-excel' => 'xls',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => 'xlsx',
+        ];
+        // strip ; charset=... if present
+        $mime = explode(';', $mime)[0];
+        return $map[$mime] ?? 'bin';
+    }
+    
+    /**
      * Send media message (image, document, video, audio)
      * 
      * @param string $to Customer phone number

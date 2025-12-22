@@ -206,6 +206,18 @@ class WhatsApp extends Controller
                 $mediaId = $msg[$messageType]['id'] ?? null;
                 $mediaMimeType = $msg[$messageType]['mimeType'] ?? null;
                 $mediaCaption = $msg[$messageType]['caption'] ?? null;
+                
+                // Auto Download Media to Local Server
+                if ($mediaId) {
+                    if (!class_exists('\\App\\Helpers\\WhatsAppService')) {
+                        require_once __DIR__ . '/../../Helpers/WhatsAppService.php';
+                    }
+                    $waService = new \App\Helpers\WhatsAppService();
+                    $savedUrl = $waService->downloadAndSaveMedia($mediaId);
+                    if ($savedUrl) {
+                        $mediaUrl = $savedUrl;
+                    }
+                }
                 break;
         }
 
@@ -243,7 +255,9 @@ class WhatsApp extends Controller
                     'id' => $msgId, // local DB ID
                     'text' => $textBody,
                     'type' => $messageType,
-                     // Add other fields if needed by frontend
+                    'media_id' => $mediaId,
+                    'media_url' => $mediaUrl,
+                    'caption' => $mediaCaption,
                     'time' => $sendTime,
                 ],
                 'target_id' => $assigned_user_id ? (string)$assigned_user_id : '0' // Request-assigned user ID, fallback to 0
