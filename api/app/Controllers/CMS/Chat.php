@@ -259,11 +259,15 @@ class Chat extends Controller
         $this->success(['count' => count($unreads)], 'Marked as read');
 
        } catch (\Throwable $e) {
-            // Log error
-            if (class_exists('\Log')) {
-                \Log::write("markRead Error: " . $e->getMessage(), 'cms_error');
-            }
-            $this->error("Server Error: " . $e->getMessage(), 500);
+            // Manual fail safe response
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode([
+                'status' => false, 
+                'message' => "Server Error: " . $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            exit;
        }
     }
     
