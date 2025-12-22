@@ -218,24 +218,25 @@ const sendMessage = async () => {
 
 const handleIncomingMessage = (payload) => {
   // Check if this is a status update
+  // Check if this is a status update
   if (payload.type === 'status_update') {
-      console.log("WS Status Update:", payload);
       const { conversation_id, message } = payload;
+      // logDebug(`WS Status Upd: Conv=${conversation_id}, Status=${message.status}`);
+      
       const conversation = conversations.value.find(c => c.id == conversation_id);
       
       if (conversation) {
-          console.log("Conv found. Messages count:", conversation.messages.length);
           // Find message by ID (preferred) or WAMID
           const msgToUpdate = conversation.messages.find(m => m.id == message.id || m.wamid == message.wamid);
           
           if (msgToUpdate) {
-              console.log("Message found! Updating status to", message.status);
+              logDebug(`✓ Msg Status Updated -> ${message.status}`);
               msgToUpdate.status = message.status;
           } else {
-              console.warn("Message NOT found for update. ID:", message.id, "WAMID:", message.wamid);
+              logDebug(`✗ Msg Not Found. ID:${message.id} W:${message.wamid?.substring(0,10)}...`);
           }
       } else {
-         console.warn("Conv NOT found for ID:", conversation_id);
+         logDebug(`✗ Conv Not Found: ${conversation_id}`);
       }
       return;
   }
@@ -306,10 +307,16 @@ const handleIncomingMessage = (payload) => {
   }
 };
 
+const debugLogs = ref([]);
+const logDebug = (msg) => {
+    debugLogs.value.unshift(new Date().toLocaleTimeString() + ': ' + msg);
+    if(debugLogs.value.length > 50) debugLogs.value.pop();
+};
+
 const connectWebSocket = () => {
   if (!authId.value) return;
 
-  console.log("Connecting to WebSocket with ID:", authId.value);
+  logDebug(`Connecting WS ID: ${authId.value}`);
   
   try {
      const wsUrl = `wss://waserver.nalju.com?id=${authId.value.trim()}&password=${authPassword.value.trim()}`;
@@ -317,7 +324,7 @@ const connectWebSocket = () => {
      socket.value = ws;
      
      ws.onopen = () => {
-       console.log('WebSocket connected');
+       logDebug('WS Connected');
        isConnected.value = true;
        isConnecting.value = false;
        connectionError.value = '';
@@ -334,16 +341,24 @@ const connectWebSocket = () => {
      ws.onmessage = (event) => {
        try {
          const payload = JSON.parse(event.data);
+         logDebug('WS Msg: ' + JSON.stringify(payload).substring(0, 100) + '...');
          
          // Handle different message types
          if (payload.type === 'connection' || payload.type === 'pong') {
              // System messages, ignore for chat ui
-             console.log('WS System:', payload);
+             // console.log('WS System:', payload);
+             return;
+         }
+         
+         if (payload.type === 'status_update') {
+             logDebug('Status Update Event');
+             handleIncomingMessage(payload);
              return;
          }
          
          if (payload.type === 'wa_masuk') {
              // Real incoming WA message
+             logDebug('Msg Masuk Event');
              handleIncomingMessage(payload.data);
          } else if (payload.conversationId) {
              // Fallback for direct legacy format (if any)
@@ -351,6 +366,7 @@ const connectWebSocket = () => {
          }
        } catch (e) {
          console.error('Error parsing WS message', e);
+         logDebug('Error parsing WS msg');
        }
      };
      
@@ -558,11 +574,13 @@ watch(activeChatId, () => {
   <div class="fixed inset-0 w-full bg-[#0f172a] text-slate-200 overflow-hidden font-sans selection:bg-indigo-500 selection:text-white">
     
     <!-- Login Modal (Overlay) -->
-    <div v-if="!isConnected && showLoginPrompt" class="fixed inset-0 z-[60] bg-[#0f172a] flex items-center justify-center p-4">
+     <div v-if="!isConnected && showLoginPrompt" class="fixed inset-0 z-[60] bg-[#0f172a] flex items-center justify-center p-4">
        <!-- Login Card -->
+       <!-- ... existing login card ... -->
        <div class="bg-[#1e293b] border border-slate-700 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
-          <!-- Header -->
+        <!-- ... content ... -->
           <div class="p-6 bg-[#1e293b] border-b border-slate-700 text-center">
+             <!-- ... header ... -->
              <div class="w-16 h-16 bg-slate-800 rounded-full mx-auto flex items-center justify-center mb-4 shadow-inner">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
@@ -585,7 +603,7 @@ watch(activeChatId, () => {
                       class="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-4 py-3 text-slate-200 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
                       :disabled="isConnecting"
                    >                 </div>
-
+ 
                  <div>
                     <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Password</label>
                     <input 
@@ -597,7 +615,7 @@ watch(activeChatId, () => {
                        :disabled="isConnecting"
                     >
                  </div>
-
+ 
                  <div v-if="connectionError" class="p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-2 text-red-400 text-sm animate-pulse">
                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -616,6 +634,13 @@ watch(activeChatId, () => {
              </div>
           </div>
        </div>
+    </div>
+    
+    <!-- VISUAL DEBUGGER -->
+    <div class="fixed bottom-2 right-2 max-w-xs bg-black/90 p-2 text-[10px] text-green-400 font-mono z-[100] h-48 overflow-y-auto pointer-events-none opacity-80 rounded border border-green-800">
+        <div v-for="(log, i) in debugLogs" :key="i" class="mb-1 border-b border-white/10 pb-1">
+            {{ log }}
+        </div>
     </div>
 
     <!-- Sidebar -->
