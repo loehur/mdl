@@ -214,8 +214,9 @@ class Chat extends Controller
         $db = $this->db(0);
         
         // Find unread inbound messages
-        // Check wa_messages_in
-        $unreads = $db->query("SELECT id, wamid FROM wa_messages_in WHERE conversation_id = ? AND status != 'read' AND wamid IS NOT NULL", [$conversationId])->result_array();
+        // Find unread inbound messages
+        // Check wa_messages_in - include NULL status and NULL wamid
+        $unreads = $db->query("SELECT id, wamid FROM wa_messages_in WHERE conversation_id = ? AND (status != 'read' OR status IS NULL)", [$conversationId])->result_array();
         
         if (empty($unreads)) {
             // Just reset unread count anyway to be safe
@@ -229,11 +230,12 @@ class Chat extends Controller
         $wa = new \App\Helpers\WhatsAppService();
         
         foreach ($unreads as $msg) {
-            // Send to YCloud
-            // We ignore errors here, fire and forget
-            $wa->markAsRead($msg['wamid']);
+            // Send to YCloud only if wamid exists
+            if (!empty($msg['wamid'])) {
+                $wa->markAsRead($msg['wamid']);
+            }
             
-            // Update Local
+            // Update Local ALWAYS
             $db->update('wa_messages_in', ['status' => 'read'], ['id' => $msg['id']]);
         }
         
