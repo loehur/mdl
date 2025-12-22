@@ -64,7 +64,7 @@
 <script>
   $("span#pakai").click(function() {
     var id_harga = $(this).attr("data-id_harga");
-    var id_penjualan = "'" + $(this).attr('data-id_penjualan') + "'";
+    var id_penjualan = $(this).attr('data-id_penjualan');
     var saldo = $(this).attr('data-saldo');
     $('div.orderPenjualanForm').load('<?= URL::BASE_URL ?>Penjualan/orderPenjualanForm/' + id_penjualan + '/' + id_harga + '/' + saldo);
 
