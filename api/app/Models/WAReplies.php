@@ -64,6 +64,7 @@ class WAReplies
 
         // Check for 'status' related keywords (Substring check)
         if (in_array($textBodyToCheck, $cekStatus, true)) {
+            \Log::write("Found status keyword: $textBodyToCheck", 'webhook', 'WhatsApp');
             $this->handleStatus($phoneIn, $waNumber);
             return true;
         }
@@ -73,6 +74,7 @@ class WAReplies
     
     private function handleStatus($phoneIn, $waNumber)
     {
+        \Log::write("Handling status for phone: $phoneIn", 'webhook', 'WhatsApp');
         // Instantiate service early
         if (!class_exists('\\App\\Helpers\\WhatsAppService')) {
             require_once __DIR__ . '/../Helpers/WhatsAppService.php';
