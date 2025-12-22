@@ -225,6 +225,29 @@ app.post('/incoming', (req, res) => {
 
     console.log(`WA Incoming for ${targetId}:`, data);
 
+    // BROADCAST TO ALL if target_id = '0'
+    if (targetId === '0') {
+        console.log('[BROADCAST] Sending to ALL connected clients');
+        let broadcastCount = 0;
+
+        clients.forEach((userSockets, userId) => {
+            userSockets.forEach(client => {
+                if (client.readyState === WebSocket.OPEN) {
+                    client.send(JSON.stringify(data));
+                    broadcastCount++;
+                }
+            });
+        });
+
+        console.log(`[BROADCAST] Sent to ${broadcastCount} client(s)`);
+        return res.json({
+            success: true,
+            message: `Broadcast to ${broadcastCount} client(s)`,
+            broadcast: true
+        });
+    }
+
+    // Normal flow: Send to specific target
     const sent = sendToTarget(targetId, {
         type: 'wa_masuk',
         data: data,
