@@ -671,11 +671,11 @@ watch(activeChatId, () => {
     <!-- Main Chat Area -->
     <!-- Mobile: Fixed on top (z-50) if active. Desktop: static flex-1. -->
     <main 
-        class="flex flex-col bg-[#0f172a] h-full"
+        class="flex flex-col bg-[#0f172a] h-full overflow-x-hidden"
         :class="{
             'fixed inset-0 z-50 w-full': showMobileChat,
             'hidden': !showMobileChat && windowWidth < 768,
-            'fixed top-0 right-0 bottom-0 md:left-80 z-0 w-auto': windowWidth >= 768
+            'fixed top-0 right-0 bottom-0 md:left-80 z-0 !w-auto': windowWidth >= 768
         }"
     >
 
