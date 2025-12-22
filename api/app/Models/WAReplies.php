@@ -64,7 +64,6 @@ class WAReplies
 
         // Check for 'status' related keywords (Substring check)
         if (in_array($textBodyToCheck, $cekStatus, true)) {
-            \Log::write("Found status keyword: $textBodyToCheck", 'webhook', 'WhatsApp');
             $this->handleStatus($phoneIn, $waNumber);
             return true;
         }
@@ -88,16 +87,30 @@ class WAReplies
                 AND insertTime >= '$limitTime' 
                 AND phone IN ($phoneIn)
                 ORDER BY insertTime ASC";
+
+        // DEBUG: Log the query
+        \Log::write("Checking Pending Notifs Query: $sql", 'webhook', 'WhatsApp');
         
         $pendingNotifs = $db1->query($sql)->result_array();
+
+        // DEBUG: Log result count
+        \Log::write("Result Count: " . count($pendingNotifs), 'webhook', 'WhatsApp');
+
         
         if (!empty($pendingNotifs)) {
-             \Log::write("Found " . count($pendingNotifs) . " pending notifs for $waNumber. Sending...", 'webhook', 'WhatsApp');
+             \Log::write("Found " . count($pendingNotifs) . " pending notifs for $waNumber.", 'webhook', 'WhatsApp');
              
              foreach ($pendingNotifs as $notif) {
                  // Send message (Free text is allowed now since customer just messaged us)
+                 
+                 // DEBUG: Log sending attempt
+                 \Log::write("Sending Notif ID: " . $notif['id_notif'] . " to $waNumber", 'webhook', 'WhatsApp');
+
                  $res = $waService->sendFreeText($waNumber, $notif['text']);
                  
+                 // DEBUG: Log send result
+                 \Log::write("Send Result: " . json_encode($res), 'webhook', 'WhatsApp');
+
                  $status = ($res['success'] ?? false) ? 'sent' : 'failed';
                  $msgId = $res['data']['id'] ?? ($res['data']['message_id'] ?? null); // YCloud returns id or message_id
                  
@@ -107,7 +120,10 @@ class WAReplies
                      $updateData['id_api'] = $msgId;
                  }
                  
-                 $db1->update('notif', $updateData, ['id_notif' => $notif['id_notif']]);
+                 $updateRes = $db1->update('notif', $updateData, ['id_notif' => $notif['id_notif']]);
+                 
+                 // DEBUG: Log update result
+                 \Log::write("Update Database Result: " . var_export($updateRes, true), 'webhook', 'WhatsApp');
              }
         }else{
             //cek dulu ada tidak nya nota terbuka
@@ -118,7 +134,7 @@ class WAReplies
             $pelanggan = $db1->query("SELECT id_pelanggan, nama_pelanggan FROM pelanggan WHERE $where")->result_array();
             $id_pelanggans = array_column($pelanggan, 'id_pelanggan');
             $nama_pelanggans = array_column($pelanggan, 'nama_pelanggan');
-            $nama_pelanggan = strtoupper($nama_pelanggans[0]);
+            $nama_pelanggan = strtoupper($nama_pelanggans[0] ?? ''); // fix index 0 if empty
 
             if (empty($id_pelanggans)) {
                 $waService->sendFreeText($waNumber, 'Mohon Maaf, nomor Anda belum terdaftar di Madinah Laundry. Terima kasih');
