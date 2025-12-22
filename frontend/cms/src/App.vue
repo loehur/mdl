@@ -35,6 +35,11 @@ const minSwipeDistance = 75; // px
 // Login Delay State
 const showLoginPrompt = ref(false);
 
+// Title Blinking State
+const originalTitle = 'MDL Chat';
+const titleBlinkInterval = ref(null);
+const isTitleRed = ref(false);
+
 const fetchConversations = async () => {
     try {
         const userIdParam = authId.value ? `?user_id=${authId.value}` : '';
@@ -88,6 +93,11 @@ const connect = () => {
 const activeConversation = computed(() => { 
   if (!activeChatId.value) return null;
   return conversations.value.find(c => c.id === activeChatId.value) || null;
+});
+
+// Total Unread Messages
+const totalUnread = computed(() => {
+  return conversations.value.reduce((total, chat) => total + (chat.unread || 0), 0);
 });
 
 // --- Methods ---
@@ -484,6 +494,9 @@ const mockIncomingMessage = () => {
 onMounted(() => {
   scrollToBottom();
   
+  // Initialize title blinking
+  updateTitleBlinking();
+  
   // Check Local Storage for Session
   const storedId = localStorage.getItem('cms_chat_id');
   const storedPass = localStorage.getItem('cms_chat_password');
@@ -572,8 +585,55 @@ const logout = () => {
     localStorage.removeItem('cms_chat_expiry');
 };
 
+// Update Title Blinking
+const updateTitleBlinking = () => {
+  // Stop any existing interval
+  if (titleBlinkInterval.value) {
+    clearInterval(titleBlinkInterval.value);
+    titleBlinkInterval.value = null;
+    document.title = originalTitle;
+  }
+  
+  // If there are unread messages, start blinking
+  if (totalUnread.value > 0) {
+    let showAlert = true;
+    titleBlinkInterval.value = setInterval(() => {
+      if (showAlert) {
+        document.title = `🔴 (${totalUnread.value}) New Messages!`;
+        isTitleRed.value = true;
+      } else {
+        document.title = originalTitle;
+        isTitleRed.value = false;
+      }
+      showAlert = !showAlert;
+    }, 1000); // Blink every 1 second
+  }
+};
+
 watch(activeChatId, () => {
   scrollToBottom();
+});
+
+// Watch for unread count changes
+watch(totalUnread, () => {
+  updateTitleBlinking();
+});
+
+// Cleanup on unmount
+onUnmounted(() => {
+  if (titleBlinkInterval.value) {
+    clearInterval(titleBlinkInterval.value);
+    document.title = originalTitle;
+  }
+});
+
+// Stop blinking when window is focused
+window.addEventListener('focus', () => {
+  if (totalUnread.value === 0 && titleBlinkInterval.value) {
+    clearInterval(titleBlinkInterval.value);
+    titleBlinkInterval.value = null;
+    document.title = originalTitle;
+  }
 });
 
 </script>

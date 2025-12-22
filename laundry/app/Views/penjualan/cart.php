@@ -5,7 +5,7 @@
           $no = 0;
           foreach ($data['data_main'] as $a) {
             $no++;
-            $id = "'" . $a['id_penjualan'] . "'";
+            $id = $a['id_penjualan'];
             $f10 = $a['id_penjualan_jenis'];
             $f3 = $a['id_item_group'];
             $f4 = $a['list_item'];

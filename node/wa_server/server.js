@@ -60,7 +60,7 @@ const SOCKET_PASSWORD = process.env.SOCKET_PASSWORD;
 // Store connected clients: Map<id, Set<WebSocket>> to support multiple connections per ID
 // Using Set to allow easy addition/removal
 const clients = new Map();
-const MAX_CONNECTIONS_PER_ID = 2;
+const MAX_CONNECTIONS_PER_ID = 3;
 
 wss.on('connection', (ws, req) => {
     // Extract ID and Password from query params (e.g. ?id=123&password=pass)
