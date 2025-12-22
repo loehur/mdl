@@ -161,7 +161,9 @@ class WhatsApp extends Controller
             if (!class_exists('\\App\\Models\\WAReplies')) {
                 require_once __DIR__ . '/../../Models/WAReplies.php';
             }
-            $autoReply = (new \App\Models\WAReplies())->process($phoneIn, $textBodyToCheck, $waNumber);
+            // EMERGENCY STOP LOOP
+            // $autoReply = (new \App\Models\WAReplies())->process($phoneIn, $textBodyToCheck, $waNumber);
+            \Log::write("!! AUTO REPLY DISABLED FORCEFULLY TO STOP LOOP !!", 'webhook', 'WhatsApp');
         } catch (\Exception $e) {
             \Log::write("Error processing pending notifs: " . $e->getMessage(), 'webhook', 'WhatsApp');
         }
