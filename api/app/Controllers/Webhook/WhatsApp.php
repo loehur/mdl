@@ -247,7 +247,7 @@ class WhatsApp extends Controller
                      // Add other fields if needed by frontend
                     'time' => $sendTime,
                 ],
-                'target_id' => '0' // Broadcast to admin/CS (ID 0)
+                'target_id' => $assigned_user_id ? (string)$assigned_user_id : '0' // Request-assigned user ID, fallback to 0
             ]);
         }
     }
@@ -369,6 +369,10 @@ class WhatsApp extends Controller
             // Find conversation_id to push to frontend
             $msg = $db->query("SELECT conversation_id, id FROM wa_messages WHERE wamid = '$wamid'")->row();
             if ($msg) {
+                // Get assigned_user_id
+                $conv = $db->get_where('wa_conversations', ['id' => $msg->conversation_id])->row();
+                $targetId = $conv && $conv->assigned_user_id ? (string)$conv->assigned_user_id : '0';
+
                 $this->pushIncomingToWebSocket([
                     'type' => 'status_update',
                     'conversation_id' => $msg->conversation_id,
@@ -377,7 +381,7 @@ class WhatsApp extends Controller
                         'wamid' => $wamid,
                         'status' => $status
                     ],
-                    'target_id' => '0'
+                    'target_id' => $targetId
                 ]);
             }
             
@@ -467,6 +471,10 @@ class WhatsApp extends Controller
             $msg = $db->query($checkSql, $params)->row();
             
             if ($msg) {
+                // Get assigned_user_id
+                $conv = $db->get_where('wa_conversations', ['id' => $msg->conversation_id])->row();
+                $targetId = $conv && $conv->assigned_user_id ? (string)$conv->assigned_user_id : '0';
+
                 $this->pushIncomingToWebSocket([
                     'type' => 'status_update',
                     'conversation_id' => $msg->conversation_id,
@@ -474,7 +482,7 @@ class WhatsApp extends Controller
                         'id' => $msg->id, // Local DB ID
                         'status' => $status
                     ],
-                    'target_id' => '0'
+                    'target_id' => $targetId
                 ]);
             }
 
