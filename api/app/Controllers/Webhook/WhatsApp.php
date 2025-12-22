@@ -144,7 +144,7 @@ class WhatsApp extends Controller
                      $lastMessageSummary .= ' ' . $msg[$messageType]['caption'];
                  }
             }
-            // Wajib ambil ID percakapan untuk menyimpan pesan ke database (walaupun itu auto-reply)
+
             $conversationId = $this->getOrCreateConversation($db, $waNumber, $contact_name, $assigned_user_id, $code, $lastMessageSummary);
     
             $autoReply = false;

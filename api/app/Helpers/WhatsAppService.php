@@ -507,6 +507,13 @@ class WhatsAppService
     {
         $url = $this->baseUrl . $endpoint;
         
+        // LOG REQUEST START
+        if (class_exists('\Log')) {
+            $preview = json_encode($payload);
+            if (strlen($preview) > 200) $preview = substr($preview, 0, 200) . '...';
+            \Log::write("-> SENDING WA: $endpoint | To: " . ($payload['to'] ?? '?') . " | $preview", 'wa_debug', 'SendRequest');
+        }
+        
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
@@ -516,19 +523,27 @@ class WhatsAppService
             'X-API-Key: ' . $this->apiKey
         ]);
         
-        // Set timeout untuk menghindari waiting terlalu lama
-        curl_setopt($ch, CURLOPT_TIMEOUT, 10);         // Max 10 detik untuk total request
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);  // Max 5 detik untuk connect
+        // Set timeout
+        curl_setopt($ch, CURLOPT_TIMEOUT, 15);         
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);  
         
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $error = curl_error($ch);
         curl_close($ch);
         
-        // Log the request and response
+        // LOG RESPONSE
+        if (class_exists('\Log')) {
+            \Log::write("<- RESPONSE WA ($httpCode): " . ($error ?: strip_tags(substr($response, 0, 100))), 'wa_debug', 'SendRequest');
+        }
+        
+        // Log to internal file as well (legacy)
         $this->logMessage($endpoint, $payload, $response, $httpCode);
         
         if ($error) {
+            if (class_exists('\Log')) {
+                \Log::write("!! CURL ERROR: $error", 'wa_error', 'SendRequest');
+            }
             return [
                 'success' => false,
                 'error' => $error,
@@ -546,10 +561,17 @@ class WhatsAppService
             try {
                 $localId = $this->saveOutboundMessage($payload, $responseData);
             } catch (\Throwable $e) {
+                if (class_exists('\Log')) {
+                    \Log::write("!! EXCEPTION saving outbound: " . $e->getMessage(), 'wa_error', 'SaveOutbound');
+                }
                 // Silently catch any error - don't let it affect the API response
                 if (function_exists('error_log')) {
                     error_log("saveOutboundMessage exception: " . $e->getMessage());
                 }
+            }
+        } else {
+             if (class_exists('\Log')) {
+                \Log::write("!! API FAIL or NO ID: " . json_encode($responseData), 'wa_error', 'SendRequest');
             }
         }
         
@@ -580,6 +602,7 @@ class WhatsAppService
             
             // Essential: must have phone and message_id
             if (!$waNumber || !$messageId) {
+                \Log::write("!! SKIP SAVE: Missing phone or ID", 'wa_debug', 'SaveOutbound');
                 return;
             }
             
@@ -631,35 +654,33 @@ class WhatsAppService
                 return;
             }
             
-            // Get or create customer
-            $customerId = null;
-            $customer = $db->get_where('wa_customers', ['wa_number' => $waNumber]);
-            
-            if ($customer && $customer->num_rows() > 0) {
-                $customerId = $customer->row()->id;
-            } else {
-                // Customer not found. Using ID=0 to allow message logging.
-                $customerId = 0;
-            }
-            
-            // Get or create conversation
+            // Get or create conversation (NO CUSTOMER CREATION on Outbound)
             $conversationId = null;
+                      
+            // Try find customer
             $conv = $db->get_where('wa_conversations', ['wa_number' => $waNumber]);
             
             if ($conv && $conv->num_rows() > 0) {
                 $conversationId = $conv->row()->id;
+                // Update conversation
+                $db->update('wa_conversations', [
+                    'last_message' => $lastMessageText,
+                    'last_out_at' => date('Y-m-d H:i:s')
+                ], ['id' => $conversationId]);
             } else {
                 // Create new conversation
+                \Log::write("++ NEW CONV created for outbound: $waNumber", 'wa_debug', 'SaveOutbound');
                 $conversationId = $db->insert('wa_conversations', [
-                    'customer_id' => $customerId,
                     'wa_number' => $waNumber,
                     'status' => 'open',
                     'last_message' => $lastMessageText,
                     'last_out_at' => date('Y-m-d H:i:s'),
+                    'created_at' => date('Y-m-d H:i:s')
                 ]);
             }
             
             if (!$conversationId) {
+                \Log::write("!! FAILED to get/create Conversation ID", 'wa_error', 'SaveOutbound');
                 return;
             }
             
@@ -680,22 +701,18 @@ class WhatsAppService
             $msgId = $db->insert('wa_messages_out', $messageData);
             
             if ($msgId) {
-                // Update conversation's last_out_at
-                $db->update('wa_conversations', [
-                    'last_out_at' => date('Y-m-d H:i:s'),
-                    'last_message' => $lastMessageText,
-                ], ['id' => $conversationId]);
-                
+                \Log::write("v MESSAGE SAVED ID #$msgId (WA ID: $messageId)", 'wa_debug', 'SaveOutbound');
                 return $msgId; // Return the Local DB ID
+            } else {
+                \Log::write("!! INSERT MSG FAILED: " . ($db->conn()->error ?? 'Unknown'), 'wa_error', 'SaveOutbound');
             }
             
             return null;
             
         } catch (\Throwable $e) {
             // Also log to PHP error log
-            if (function_exists('error_log')) {
-                error_log("WhatsApp saveOutboundMessage error: " . $e->getMessage());
-            }
+            if (function_exists('error_log')) error_log("saveOutboundMessage error: " . $e->getMessage());
+            if (class_exists('\Log')) \Log::write("!! EXCEPTION: " . $e->getMessage(), 'wa_error', 'SaveOutbound');
         }
     }
     

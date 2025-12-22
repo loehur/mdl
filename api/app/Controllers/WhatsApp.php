@@ -86,10 +86,10 @@ class WhatsApp extends Controller
         $db = $this->db(0);
         
         try {
-            // CHECK 1: Cek di wa_customers (Source of Truth for CSW)
-            $qCust = $db->query("SELECT last_message_at FROM wa_customers WHERE wa_number IN ('$phone1', '$phone2') LIMIT 1");
+            // CHECK 1: Cek di wa_conversations (Source of Truth for CSW)
+            $qCust = $db->query("SELECT last_in_at FROM wa_conversations WHERE wa_number IN ('$phone1', '$phone2') LIMIT 1");
             if ($qCust->num_rows() > 0) {
-                $lastMessageAt = $qCust->row()->last_message_at;
+                $lastMessageAt = $qCust->row()->last_in_at;
             } else {
                 // CHECK 2: Fallback ke wa_conversations (jika ada legacy data)
                 $qConv = $db->query("SELECT last_in_at FROM wa_conversations WHERE wa_number IN ('$phone1', '$phone2') ORDER BY last_in_at DESC LIMIT 1");

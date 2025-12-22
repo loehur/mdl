@@ -308,12 +308,8 @@ const handleIncomingMessage = (payload) => {
       return;
   }
 
-  // Normal Message Handling
-  // Payload structure from webhook:
-  // { conversation_id, customer_id, phone, contact_name, message: { id, text, type, time }, target_id }
-  
   // Or fallback if direct
-  const conversationId = payload.conversation_id || payload.conversationId;
+  const conversationId = payload.conversation_id;
   const messageData = payload.message || payload; // if message is nested or flat
   
   const text = messageData.text;
