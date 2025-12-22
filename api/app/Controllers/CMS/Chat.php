@@ -60,7 +60,7 @@ class Chat extends Controller
                          LIMIT 1
                     ) as last_message_time,
                     c.assigned_user_id,
-                    (SELECT kode_cabang FROM mdl_laundry.cabang WHERE id_cabang = c.assigned_user_id LIMIT 1) as kode_cabang
+                    c.code as kode_cabang
                 FROM wa_conversations c
                 WHERE c.status != 'closed'
                 ORDER BY c.last_in_at DESC

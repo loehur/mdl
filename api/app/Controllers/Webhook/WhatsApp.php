@@ -175,9 +175,10 @@ class WhatsApp extends Controller
         $user_data = $this->getUserData($phone0);
         \Log::write("getUserData: " . json_encode($user_data), 'webhook', 'WhatsApp');
         $assigned_user_id = $user_data->assigned_user_id ?? null;
+        $code = $user_data->code ?? null;
         $contact_name = $user_data->customer_name ?? $contactName;
         // Wajib ambil ID percakapan untuk menyimpan pesan ke database (walaupun itu auto-reply)
-        $conversationId = $this->getOrCreateConversation($db, $customerId, $waNumber, $contact_name, $assigned_user_id, $sendTime);
+        $conversationId = $this->getOrCreateConversation($db, $customerId, $waNumber, $contact_name, $assigned_user_id, $code, $sendTime);
 
         $textBody = null;
         $mediaId = null;
@@ -477,7 +478,7 @@ class WhatsApp extends Controller
     /**
      * Get existing conversation or create new one
      */
-    private function getOrCreateConversation($db, $customerId, $waNumber, $contactName = null, $assigned_user_id = null, $sendTime = null)
+    private function getOrCreateConversation($db, $customerId, $waNumber, $contactName = null, $assigned_user_id = null, $code = null, $sendTime = null)
     {
         // Try to find existing conversation
         $existing = $db->get_where('wa_conversations', ['wa_number' => $waNumber]);
@@ -487,6 +488,7 @@ class WhatsApp extends Controller
             $updateData = [
                 'contact_name' => $contactName,
                 'assigned_user_id' => $assigned_user_id,
+                'code' => $code,
                 'last_in_at' => date('Y-m-d H:i:s'),
             ];
             $db->update('wa_conversations', 
@@ -503,6 +505,7 @@ class WhatsApp extends Controller
             'customer_id' => $customerId,
             'wa_number' => $waNumber,
             'contact_name' => $contactName,
+            'code' => $code,
             'status' => 'open',
             'created_at' => date('Y-m-d H:i:s')
         ];
@@ -542,6 +545,12 @@ class WhatsApp extends Controller
         $last_sale = $db->query("SELECT * FROM sale WHERE id_pelanggan = " . $customer->id_pelanggan . " ORDER BY insertTime DESC LIMIT 1")->row();
         if ($last_sale) {
             $return->assigned_user_id = $last_sale->id_cabang;
+            
+            // Get kode_cabang for this id_cabang
+            $cabang = $db->query("SELECT kode_cabang FROM cabang WHERE id_cabang = " . $last_sale->id_cabang)->row();
+            if ($cabang) {
+                $return->code = $cabang->kode_cabang;
+            }
         } else {
             return null;
         }
