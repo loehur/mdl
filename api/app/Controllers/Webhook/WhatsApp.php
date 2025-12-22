@@ -177,8 +177,16 @@ class WhatsApp extends Controller
         $assigned_user_id = $user_data->assigned_user_id ?? null;
         $code = $user_data->code ?? null;
         $contact_name = $user_data->customer_name ?? $contactName;
+        $lastMessageSummary = $textBodyToCheck;
+        if ($messageType !== 'text') {
+             $lastMessageSummary = "[$messageType]";
+             if (isset($msg[$messageType]['caption'])) {
+                 $lastMessageSummary .= ' ' . $msg[$messageType]['caption'];
+             }
+        }
+
         // Wajib ambil ID percakapan untuk menyimpan pesan ke database (walaupun itu auto-reply)
-        $conversationId = $this->getOrCreateConversation($db, $customerId, $waNumber, $contact_name, $assigned_user_id, $code, $sendTime);
+        $conversationId = $this->getOrCreateConversation($db, $customerId, $waNumber, $contact_name, $assigned_user_id, $code, $sendTime, $lastMessageSummary);
 
         $textBody = null;
         $mediaId = null;
@@ -478,7 +486,7 @@ class WhatsApp extends Controller
     /**
      * Get existing conversation or create new one
      */
-    private function getOrCreateConversation($db, $customerId, $waNumber, $contactName = null, $assigned_user_id = null, $code = null, $sendTime = null)
+    private function getOrCreateConversation($db, $customerId, $waNumber, $contactName = null, $assigned_user_id = null, $code = null, $sendTime = null, $lastMessage = null)
     {
         // Try to find existing conversation
         $existing = $db->get_where('wa_conversations', ['wa_number' => $waNumber]);
@@ -490,6 +498,8 @@ class WhatsApp extends Controller
                 'assigned_user_id' => $assigned_user_id,
                 'code' => $code,
                 'last_in_at' => date('Y-m-d H:i:s'),
+                'last_message' => $lastMessage,
+                'updated_at' => date('Y-m-d H:i:s')
             ];
             $db->update('wa_conversations', 
                 $updateData, 
@@ -507,7 +517,9 @@ class WhatsApp extends Controller
             'contact_name' => $contactName,
             'code' => $code,
             'status' => 'open',
-            'created_at' => date('Y-m-d H:i:s')
+            'created_at' => date('Y-m-d H:i:s'),
+            'last_message' => $lastMessage,
+            'updated_at' => date('Y-m-d H:i:s')
         ];
 
         return $db->insert('wa_conversations', $convData);

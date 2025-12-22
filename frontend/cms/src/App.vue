@@ -59,7 +59,7 @@ const fetchConversations = async () => {
                 kode_cabang: c.kode_cabang, // Add kode_cabang
                 avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${c.id}`,
                 status: c.status,  
-                lastMessage: c.last_message_text || 'No messages yet',
+                lastMessage: c.last_message || c.last_message_text || 'No messages yet',
                 lastTime: c.last_message_time ? new Date(c.last_message_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '',
                 unread: parseInt(c.unread_count) || 0,
                 messages: [] 
@@ -237,7 +237,14 @@ const handleIncomingMessage = (payload) => {
   const messageData = payload.message || payload; // if message is nested or flat
   
   const text = messageData.text;
+  const type = messageData.type || 'text';
   const sender = messageData.sender || 'customer';
+  
+  let displayText = text;
+  if (!displayText && type !== 'text') {
+      displayText = `[${type}]`;
+      if (messageData.media_caption) displayText += ' ' + messageData.media_caption; 
+  }
   const name = payload.contact_name || payload.name;
   
   // Find or create conversation
@@ -258,7 +265,7 @@ const handleIncomingMessage = (payload) => {
   
   const newMsg = {
     id: messageData.id || Date.now(),
-    text: text,
+    text: displayText, // Use the safe display text
     sender: sender,
     time: messageData.time ? new Date(messageData.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   };
@@ -266,7 +273,7 @@ const handleIncomingMessage = (payload) => {
   // Avoid duplicate messages if already present
   if (!conversation.messages.find(m => m.id === newMsg.id)) {
       conversation.messages.push(newMsg);
-      conversation.lastMessage = newMsg.text;
+      conversation.lastMessage = displayText;
       conversation.lastTime = newMsg.time;
       
   // Check visibility: Active ID matches AND (Desktop OR Mobile Chat View Open)

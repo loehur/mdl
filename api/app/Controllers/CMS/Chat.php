@@ -56,25 +56,13 @@ class Chat extends Controller
                         WHERE m.phone = c.wa_number 
                         AND m.status = 'received'
                     ) as unread_count,
-                     (
-                        SELECT text 
-                        FROM wa_messages_in m 
-                        WHERE m.phone = c.wa_number 
-                        ORDER BY m.created_at DESC 
-                        LIMIT 1
-                    ) as last_message_text,
-                    (
-                         SELECT created_at
-                         FROM wa_messages_in m
-                         WHERE m.phone = c.wa_number
-                         ORDER BY m.created_at DESC 
-                         LIMIT 1
-                    ) as last_message_time,
+                    c.last_message as last_message,
+                    c.updated_at as last_message_time,
                     c.assigned_user_id,
                     COALESCE(c.code, '00') as kode_cabang
                 FROM wa_conversations c
                 WHERE $whereClause
-                ORDER BY c.last_in_at DESC
+                ORDER BY c.updated_at DESC
             ";
     
             $query = $db->query($sql);
@@ -201,6 +189,12 @@ class Chat extends Controller
         $res = $wa->sendFreeText($conv->wa_number, $message);
 
         if ($res['success']) {
+            // Update conversation last_message
+            $db->update('wa_conversations', [
+                'last_message' => $message,
+                'updated_at' => date('Y-m-d H:i:s')
+            ], ['id' => $conversationId]);
+
             $data = $res['data'];
             $data['local_id'] = $res['local_id'] ?? null; // Attach local DB ID
             $this->success($data, 'Reply sent');
