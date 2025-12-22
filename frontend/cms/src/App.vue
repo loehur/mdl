@@ -671,7 +671,12 @@ watch(activeChatId, () => {
     <!-- Main Chat Area -->
     <!-- Mobile: Fixed on top (z-50) if active. Desktop: static flex-1. -->
     <main 
-        class="flex flex-col bg-[#0f172a] h-full relative flex-1 w-full z-0"
+        class="flex flex-col bg-[#0f172a] h-full"
+        :class="{
+            'fixed inset-0 z-50 w-full': showMobileChat,
+            'hidden': !showMobileChat && windowWidth < 768,
+            'fixed top-0 right-0 bottom-0 md:left-80 z-0 w-auto': windowWidth >= 768
+        }"
     >
     <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 9999; color: red; background: white; padding: 20px; text-align: center;" v-if="true">
        DEBUG INFO:<br>
