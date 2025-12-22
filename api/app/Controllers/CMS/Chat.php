@@ -239,8 +239,15 @@ class Chat extends Controller
              try {
                  $chv = curl_init('https://waserver.nalju.com/');
                  curl_setopt($chv, CURLOPT_RETURNTRANSFER, true);
-                 curl_setopt($chv, CURLOPT_TIMEOUT, 1);
+                 curl_setopt($chv, CURLOPT_TIMEOUT, 2); // Increased timeout
+                 curl_setopt($chv, CURLOPT_SSL_VERIFYPEER, false); // Ignore SSL errors
+                 curl_setopt($chv, CURLOPT_SSL_VERIFYHOST, 0);
+                 
                  $jsonUsers = curl_exec($chv);
+                 
+                 if ($jsonUsers === false && class_exists('\Log')) {
+                      \Log::write("WS Fetch Error: " . curl_error($chv), 'cms_ws_error');
+                 }
                  curl_close($chv);
                  
                  $onlineUsers = json_decode($jsonUsers, true);
@@ -376,6 +383,9 @@ class Chat extends Controller
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
         curl_setopt($ch, CURLOPT_TIMEOUT, 2); 
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+
         $result = curl_exec($ch);
         
         if (curl_errno($ch) && class_exists('\Log')) {
