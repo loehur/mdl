@@ -13,38 +13,63 @@ class Chat extends Controller
 
     public function getConversations()
     {
-        $db = $this->db(0);
-        
-        $sql = "
-            SELECT 
-                c.*,
-                (
-                    SELECT COUNT(*) 
-                    FROM wa_messages_in m 
-                    WHERE m.phone = c.wa_number 
-                    AND m.status = 'received'
-                ) as unread_count,
-                 (
-                    SELECT text 
-                    FROM wa_messages_in m 
-                    WHERE m.phone = c.wa_number 
-                    ORDER BY m.created_at DESC 
-                    LIMIT 1
-                ) as last_message_text,
-                (
-                     SELECT received_at
-                     FROM wa_messages_in m
-                     WHERE m.phone = c.wa_number
-                     ORDER BY m.created_at DESC
-                     LIMIT 1
-                ) as last_message_time
-            FROM wa_conversations c
-            ORDER BY c.updated_at DESC
-        ";
+        // DEBUG: Force show errors
+        ini_set('display_errors', 1);
+        ini_set('display_startup_errors', 1);
+        error_reporting(E_ALL);
 
-        $query = $db->query($sql);
-        $conversations = $query->result();
+        try {
+            $db = $this->db(0);
+            
+            $sql = "
+                SELECT 
+                    c.*,
+                    (
+                        SELECT COUNT(*) 
+                        FROM wa_messages_in m 
+                        WHERE m.phone = c.wa_number 
+                        AND m.status = 'received'
+                    ) as unread_count,
+                     (
+                        SELECT text 
+                        FROM wa_messages_in m 
+                        WHERE m.phone = c.wa_number 
+                        ORDER BY m.created_at DESC 
+                        LIMIT 1
+                    ) as last_message_text,
+                    (
+                         SELECT received_at
+                         FROM wa_messages_in m
+                         WHERE m.phone = c.wa_number
+                         ORDER BY m.created_at DESC
+                         LIMIT 1
+                    ) as last_message_time
+                FROM wa_conversations c
+                ORDER BY c.updated_at DESC
+            ";
+    
+            $query = $db->query($sql);
+            
+            if (!$query) {
+                // DB Error
+                throw new \Exception("Database Query Failed");
+            }
 
-        $this->success($conversations, 'Conversations retrieved successfully');
+            $conversations = $query->result();
+    
+            $this->success($conversations, 'Conversations retrieved successfully');
+
+        } catch (\Throwable $e) {
+            // Catch all errors including Fatal Errors
+            http_response_code(500);
+            echo json_encode([
+                'status' => false,
+                'message' => 'PHP Error in Chat Controller',
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
+            exit;
+        }
     }
 }
