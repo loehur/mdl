@@ -39,7 +39,7 @@ const fetchConversations = async () => {
         
         if (!response.ok) {
             const text = await response.text();
-            alert("API Error: " + text); 
+            console.error("API Error Response:", text); // Use console so user can copy
             return;
         }
 
@@ -54,14 +54,14 @@ const fetchConversations = async () => {
                 id: c.id,
                 name: c.contact_name || c.wa_number,
                 avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${c.id}`,
-                status: c.status,  // Show real status from DB for debugging
+                status: c.status,  
                 lastMessage: c.last_message_text || 'No messages yet',
                 lastTime: c.last_message_time ? new Date(c.last_message_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '',
                 unread: parseInt(c.unread_count) || 0,
                 messages: [] 
             }));
         } else {
-            alert("API format error: " + JSON.stringify(result));
+            console.error("API format error:", result);
         }
     } catch (e) {
         console.error("Error fetching conversations:", e);
