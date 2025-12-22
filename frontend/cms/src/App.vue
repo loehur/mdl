@@ -18,6 +18,7 @@ const socket = ref(null);
 const isConnected = ref(false);
 const showMobileChat = ref(false);
 const authId = ref('');
+const authPassword = ref(''); // Added
 const isConnecting = ref(false);
 const connectionError = ref('');
 const showExitToast = ref(false);
@@ -288,9 +289,8 @@ const connectWebSocket = () => {
   console.log("Connecting to WebSocket with ID:", authId.value);
   
   try {
-     // Hardcoded for CMS usage as per request
-     const wsPassword = 'mdlWaSecure2025'; 
-     const ws = new WebSocket(`wss://waserver.nalju.com?id=${authId.value}&password=${wsPassword}`); 
+     const wsUrl = `wss://waserver.nalju.com?id=${authId.value.trim()}&password=${authPassword.value.trim()}`;
+     const ws = new WebSocket(wsUrl); 
      socket.value = ws;
      
      ws.onopen = () => {
@@ -434,26 +434,36 @@ onMounted(() => {
   scrollToBottom();
   
   // Check Local Storage for Session
-  const storedId = localStorage.getItem('chat_connection_id');
-  const storedExpiry = localStorage.getItem('chat_connection_expiry');
-  const now = new Date().getTime();
-
-  if (storedId && storedExpiry && now < parseInt(storedExpiry)) {
+  const storedId = localStorage.getItem('cms_chat_id');
+  const storedPass = localStorage.getItem('cms_chat_password');
+  
+  if (storedId && storedPass) {
       console.log("Restoring session for ID:", storedId);
       authId.value = storedId;
-      connect(); // connect already calls fetchConversations
+      authPassword.value = storedPass;
+      connectWebSocket();
+      fetchConversations();
   } else {
-      // Clean up if expired
-      localStorage.removeItem('chat_connection_id');
-      localStorage.removeItem('chat_connection_expiry');
+      // Clean up if expired or invalid
+      localStorage.removeItem('cms_chat_id');
+      localStorage.removeItem('cms_chat_password');
       
-      // Check URL param
-      const params = new URLSearchParams(window.location.search);
-      const id = params.get('id');
-      if (id) {
-           authId.value = id;
+      // Check URL param?
+      const urlParams = new URLSearchParams(window.location.search);
+      const idParam = urlParams.get('id');
+      if (idParam) {
+          authId.value = idParam;
+          // Prompt for password
+          showLoginPrompt.value = true;
+          // Clean URL
+          window.history.replaceState({}, document.title, window.location.pathname);
+      } else {
+        // Show Login Prompt
+        setTimeout(() => { showLoginPrompt.value = true; }, 500);
       }
   }
+
+  });
 
   // Handle Android Back Button
   App.addListener('backButton', () => {
@@ -475,7 +485,6 @@ onMounted(() => {
           showLoginPrompt.value = true;
       }
   }, 1500); // Wait 1.5s before showing modal if not connected
-});
 
 const logout = () => {
     if (socket.value) {
