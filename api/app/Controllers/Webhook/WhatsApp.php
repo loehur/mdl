@@ -207,7 +207,8 @@ class WhatsApp extends Controller
             case 'document':
             case 'voice':
                 $mediaId = $msg[$messageType]['id'] ?? null;
-                $mediaMimeType = $msg[$messageType]['mimeType'] ?? null;
+                $mediaMimeType = $msg[$messageType]['mimeType'] ?? $msg[$messageType]['mime_type'] ?? null;
+                $mediaUrlDirect = $msg[$messageType]['link'] ?? null;
                 $mediaCaption = $msg[$messageType]['caption'] ?? null;
                 
                 // Auto Download Media to Local Server
@@ -216,7 +217,7 @@ class WhatsApp extends Controller
                         require_once __DIR__ . '/../../Helpers/WhatsAppService.php';
                     }
                     $waService = new \App\Helpers\WhatsAppService();
-                    $savedUrl = $waService->downloadAndSaveMedia($mediaId);
+                    $savedUrl = $waService->downloadAndSaveMedia($mediaId, $mediaUrlDirect, $mediaMimeType);
                     if ($savedUrl) {
                         $mediaUrl = $savedUrl;
                     }

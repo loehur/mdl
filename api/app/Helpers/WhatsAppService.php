@@ -177,12 +177,39 @@ class WhatsAppService
     /**
      * Download and save media to local storage
      * @param string $mediaId
+     * @param string|null $directUrl Optional direct download URL from webhook
+     * @param string|null $directMimeType Optional mime type from webhook
      * @return string|null Public URL of saved file
      */
-    public function downloadAndSaveMedia($mediaId)
+    public function downloadAndSaveMedia($mediaId, $directUrl = null, $directMimeType = null)
     {
-        $media = $this->retrieveMedia($mediaId);
-        if (!isset($media['data'])) return null;
+        $mediaData = null;
+        $mime = $directMimeType;
+        
+        // Scenario 1: Use Direct URL (Faster & Robust)
+        if ($directUrl) {
+            $mediaData = @file_get_contents($directUrl);
+            if (!$mediaData) {
+                // Fallback custom curl if file_get_contents blocked
+                $ch = curl_init($directUrl);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+                curl_setopt($ch, CURLOPT_USERAGENT, 'MdL-Backend/1.0');
+                $mediaData = curl_exec($ch);
+                curl_close($ch);
+            }
+        }
+        
+        // Scenario 2: Retrieve from API if no direct URL or download failed
+        if (!$mediaData) {
+            $media = $this->retrieveMedia($mediaId);
+            if (isset($media['data'])) {
+                $mediaData = $media['data'];
+                $mime = $media['mime_type']; // Use API mime if available
+            }
+        }
+        
+        if (!$mediaData) return null;
         
         // Save Path: api/uploads/whatsapp/YYYY/MM/
         $relativePath = '/uploads/whatsapp/' . date('Y/m');
@@ -192,7 +219,6 @@ class WhatsAppService
             @mkdir($baseDir, 0755, true);
         }
         
-        $mime = $media['mime_type'];
         $ext = $this->mime2ext($mime);
         
         // Default filename
@@ -201,15 +227,15 @@ class WhatsAppService
         
         // Log path for debugging
         if (class_exists('\Log')) {
-            \Log::write("Saving media to: $savePath", 'wa_media');
+            \Log::write("Saving media to: $savePath (Source: " . ($directUrl ? 'Direct' : 'API') . ")", 'wa_media');
         }
         
         $saved = false;
         
         // COMPRESSION LOGIC: Only for Images
-        if (strpos($mime, 'image/') !== false) {
+        if ($mime && strpos($mime, 'image/') !== false) {
              try {
-                 $im = @imagecreatefromstring($media['data']);
+                 $im = @imagecreatefromstring($mediaData);
                  if ($im) {
                      // 1. Resize if too big (Max 1024px)
                      $width = imagesx($im);
@@ -237,24 +263,21 @@ class WhatsAppService
                          $im = $newIm;
                      }
                      
-                     // 2. Force convert to JPG & Compress (Quality 60 => ~50-100kb usually)
+                     // 2. Force convert to JPG & Compress (Quality 60)
                      $filename = $mediaId . '.jpg'; // Force extension
                      $savePath = $baseDir . '/' . $filename;
                      
-                     // If original was PNG, we filled transpareny with white above.
                      imagejpeg($im, $savePath, 60);
                      imagedestroy($im);
                      $saved = true;
                  }
              } catch (\Throwable $e) {
-                 // Fallback to original if GD fails
                  \Log::write("Image compression failed: " . $e->getMessage(), 'wa_media_error', 'error');
              }
         }
         
         if (!$saved) {
-            // Save original (Non-image or Compression Failed)
-            file_put_contents($savePath, $media['data']);
+            file_put_contents($savePath, $mediaData);
         }
         
         // Get Base URL
