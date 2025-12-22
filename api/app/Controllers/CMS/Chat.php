@@ -264,10 +264,18 @@ class Chat extends Controller
         }
         
         http_response_code(404);
-        echo 'Media Error: ' . ($media['error'] ?? 'Unknown');
-        if (isset($media['raw'])) {
-            echo ' Raw: ' . json_encode($media['raw']);
+        $errMsg = $media['error'] ?? 'Unknown error';
+        
+        echo "Media Retrieval Failed.\n";
+        echo "Error: $errMsg\n";
+        
+        if (strpos($errMsg, '404') !== false) {
+            echo "\nPossible Causes:\n- Media ID expired (> 30 days)\n- API Key does not match the WhatsApp Account\n- Media deleted";
         }
-        echo 'Media not found';
+        
+        if (isset($media['raw'])) {
+            echo "\n\nDebug Raw Response:\n" . json_encode($media['raw'], JSON_PRETTY_PRINT);
+        }
     }
+
 }
