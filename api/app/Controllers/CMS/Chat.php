@@ -226,20 +226,35 @@ class Chat extends Controller
              $conv = $db->get_where('wa_conversations', ['id' => $conversationId])->row();
              
              // Broadcast to: 0 (System), 1000 (Super Admin), and Assigned User
+             // Broadcast to: 0 (System), 1000 (Super Admin)
              $targets = ['0', '1000']; 
+             
+             // Add Assigned User of THIS conversation
              if ($conv && $conv->assigned_user_id) {
                  $targets[] = (string)$conv->assigned_user_id;
              }
+             
+             // BROADCAST TO ALL RECENTLY ACTIVE AGENTS (Max 20)
+             // This ensures User ID 11, etc. receive updates
+             $activeAgents = $db->query("SELECT DISTINCT assigned_user_id FROM wa_conversations WHERE assigned_user_id IS NOT NULL ORDER BY updated_at DESC LIMIT 20")->result_array();
+             foreach ($activeAgents as $agent) {
+                 $targets[] = (string)$agent['assigned_user_id'];
+             }
+             
              $targets = array_unique($targets);
 
              foreach ($targets as $tid) {
-                 $this->pushToWebSocket([
+                 if (empty($tid)) continue;
+                 
+                 $payload = [
                     'type' => 'conversation_read',
                     'conversation_id' => $conversationId,
                     'target_id' => $tid,
                     'message' => ['id' => time(), 'text' => 'SYNC_READ'], 
                     'unread_count' => 0
-                 ]);
+                 ];
+                 
+                 $this->pushToWebSocket($payload);
              }
         }
         
