@@ -794,7 +794,7 @@ window.addEventListener('focus', () => {
         <div class="flex items-center gap-3">
             <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Admin" class="w-10 h-10 rounded-full bg-indigo-900 border border-slate-600">
             <div>
-               <div class="text-sm font-medium text-slate-200">Support Agent</div>
+               <div class="text-sm font-medium text-slate-200">MDL Agent</div>
                <div class="text-xs text-green-400 flex items-center gap-1">
                  <span class="w-1.5 h-1.5 rounded-full bg-green-400"></span> Online
                </div>
