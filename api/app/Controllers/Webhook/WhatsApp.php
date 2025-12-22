@@ -199,6 +199,9 @@ class WhatsApp extends Controller
                 break;
 
             case 'image':
+                if (class_exists('\Log')) {
+                    \Log::write("Webhook: Processing IMAGE media. ID=" . ($msg['image']['id'] ?? 'null'), 'wa_debug');
+                }
             case 'video':
             case 'audio':
             case 'document':
