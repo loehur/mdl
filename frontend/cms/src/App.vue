@@ -678,12 +678,7 @@ watch(activeChatId, () => {
             'fixed top-0 right-0 bottom-0 md:left-80 z-0 w-auto': windowWidth >= 768
         }"
     >
-    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 9999; color: red; background: white; padding: 20px; text-align: center;" v-if="true">
-       DEBUG INFO:<br>
-       Width: {{ windowWidth }}<br>
-       ActiveChat: {{ activeChatId || 'None' }}<br>
-       ShowMobile: {{ showMobileChat }}
-    </div>
+
        <!-- Background Pattern -->
        <div class="absolute inset-0 opacity-5 pointer-events-none" 
             style="background-image: radial-gradient(#6366f1 1px, transparent 1px); background-size: 32px 32px;">
@@ -727,16 +722,16 @@ watch(activeChatId, () => {
                 <img v-if="index === 0 || activeConversation.messages[index-1]?.sender === 'me'" :src="activeConversation.avatar" class="w-8 h-8 rounded-full mb-1">
                 <div v-else class="w-8"></div> <!-- Spacer -->
                 
-                <div class="bg-slate-800 text-slate-200 px-4 py-2.5 rounded-2xl rounded-bl-sm border border-slate-700/50 shadow-sm">
-                   <p class="leading-relaxed text-sm">{{ msg.text }}</p>
+                <div class="bg-slate-800 text-slate-200 px-4 py-2.5 rounded-2xl rounded-bl-sm border border-slate-700/50 shadow-sm max-w-full">
+                   <p class="leading-relaxed text-sm break-words whitespace-pre-wrap">{{ msg.text }}</p>
                    <span class="text-[10px] text-slate-500 block mt-1 text-right">{{ msg.time }}</span>
                 </div>
              </div>
              
              <!-- My Message -->
              <div v-else class="flex gap-3 max-w-[75%] self-end items-end justify-end">
-                <div class="bg-indigo-600 text-white px-4 py-2.5 rounded-2xl rounded-br-sm shadow-md shadow-indigo-900/20">
-                   <p class="leading-relaxed text-sm">{{ msg.text }}</p>
+                <div class="bg-indigo-600 text-white px-4 py-2.5 rounded-2xl rounded-br-sm shadow-md shadow-indigo-900/20 max-w-full">
+                   <p class="leading-relaxed text-sm break-words whitespace-pre-wrap">{{ msg.text }}</p>
                      <div class="flex items-center justify-end gap-1 mt-1">
                         <span class="text-[10px] text-indigo-200">{{ msg.time }}</span>
                         <!-- Status Indicators -->
