@@ -9,6 +9,7 @@ window.addEventListener('resize', updateWidth);
 
 // --- State ---
 // --- State ---
+const API_BASE = 'https://api.nalju.com';
 const conversations = ref([]);
 
 const activeChatId = ref(null);
