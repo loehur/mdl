@@ -222,8 +222,11 @@ class Chat extends Controller
         // Push WS if local status changed
         if ($affected > 0) {
              // Get details for WS
-             $conv = $db->get_where('wa_conversations', ['id' => $conversationId])->row();
-             $targetId = $conv && $conv->assigned_user_id ? (string)$conv->assigned_user_id : '0';
+             // $conv = $db->get_where('wa_conversations', ['id' => $conversationId])->row();
+             // $targetId = $conv && $conv->assigned_user_id ? (string)$conv->assigned_user_id : '0';
+             
+             // FORCE BROADCAST to '0' so all agents get the Read Update
+             $targetId = '0';
              
              // Notify WebSocket Server
              $this->pushToWebSocket([
