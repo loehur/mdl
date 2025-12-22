@@ -62,9 +62,7 @@ class WAReplies
             return true;
         }
 
-        // Check for 'status' related keywords (Substring check)
         if (in_array($textBodyToCheck, $cekStatus, true)) {
-            \Log::write("Found status keyword: $textBodyToCheck", 'webhook', 'WhatsApp');
             $this->handleStatus($phoneIn, $waNumber);
             return true;
         }
@@ -74,7 +72,6 @@ class WAReplies
     
     private function handleStatus($phoneIn, $waNumber)
     {
-        \Log::write("Handling status for phone: $phoneIn", 'webhook', 'WhatsApp');
         // Instantiate service early
         if (!class_exists('\\App\\Helpers\\WhatsAppService')) {
             require_once __DIR__ . '/../Helpers/WhatsAppService.php';
@@ -89,106 +86,54 @@ class WAReplies
                 AND insertTime >= '$limitTime' 
                 AND phone IN ($phoneIn)
                 ORDER BY insertTime ASC";
-
-        // DEBUG: Log the query
-        \Log::write("Checking Pending Notifs Query: $sql", 'webhook', 'WhatsApp');
         
         $pendingNotifs = $db1->query($sql)->result_array();
-
-        // DEBUG: Log result count
-        \Log::write("Result Count: " . count($pendingNotifs), 'webhook', 'WhatsApp');
-
         
         if (!empty($pendingNotifs)) {
-             \Log::write("Found " . count($pendingNotifs) . " pending notifs for $waNumber.", 'webhook', 'WhatsApp');
-             
              foreach ($pendingNotifs as $notif) {
                  // Send message (Free text is allowed now since customer just messaged us)
-                 
-                 // DEBUG: Log sending attempt
-                 \Log::write("Sending Notif ID: " . $notif['id_notif'] . " to $waNumber", 'webhook', 'WhatsApp');
-
                  $res = $waService->sendFreeText($waNumber, $notif['text']);
                  
-                 // DEBUG: Log send result
-                 \Log::write("Send Result: " . json_encode($res), 'webhook', 'WhatsApp');
-
                  $status = ($res['success'] ?? false) ? 'sent' : 'failed';
                  $msgId = $res['data']['id'] ?? ($res['data']['message_id'] ?? null); // YCloud returns id or message_id
                  
-                 // Update state immediately
                  $updateData = ['state' => $status];
                  if ($msgId) {
                      $updateData['id_api'] = $msgId;
                  }
                  
-                 $updateRes = $db1->update('notif', $updateData, ['id_notif' => $notif['id_notif']]);
-                 
-                 // DEBUG: Log update result
-                 \Log::write("Update Database Result: " . var_export($updateRes, true), 'webhook', 'WhatsApp');
+                 $db1->update('notif', $updateData, ['id_notif' => $notif['id_notif']]);
              }
         }else{
             //cek dulu ada tidak nya nota terbuka
             $cleanPhone = preg_replace('/[^0-9]/', '', $waNumber);
             $phone0 = '0' . substr($cleanPhone, 2);
 
-            // DEBUG: Log phone number processing
-            \Log::write("Checking Open Transactions. CleanPhone: $cleanPhone, Phone0: $phone0", 'webhook', 'WhatsApp');
-
             $where = "nomor_pelanggan IN ($phoneIn)";
             $pelanggan = $db1->query("SELECT id_pelanggan, nama_pelanggan FROM pelanggan WHERE $where")->result_array();
-            
-            // DEBUG: Log customer lookup
-            \Log::write("Customer Lookup Query: SELECT id_pelanggan, nama_pelanggan FROM pelanggan WHERE $where", 'webhook', 'WhatsApp');
-            \Log::write("Customer Found: " . count($pelanggan), 'webhook', 'WhatsApp');
-
             $id_pelanggans = array_column($pelanggan, 'id_pelanggan');
             $nama_pelanggans = array_column($pelanggan, 'nama_pelanggan');
             $nama_pelanggan = strtoupper($nama_pelanggans[0] ?? ''); // fix index 0 if empty
 
             if (empty($id_pelanggans)) {
-                // DEBUG: Customer not found
-                \Log::write("Customer Not Found for phone: $phone0", 'webhook', 'WhatsApp');
                 $waService->sendFreeText($waNumber, 'Mohon Maaf, nomor Anda belum terdaftar di Madinah Laundry. Terima kasih');
             } else {
                 $ids_in = implode(',', $id_pelanggans);
-                $sqlSales = "SELECT * FROM sale WHERE tuntas = 0 AND bin = 0 AND id_pelanggan IN ($ids_in) GROUP BY no_ref, tuntas, id_pelanggan";
-                
-                // DEBUG: Log sales lookup
-                \Log::write("Sales Lookup Query: $sqlSales", 'webhook', 'WhatsApp');
-
-                $sales = $db1->query($sqlSales)->result_array();
+                $sales = $db1->query("SELECT * FROM sale WHERE tuntas = 0 AND bin = 0 AND id_pelanggan IN ($ids_in) GROUP BY no_ref, tuntas, id_pelanggan")->result_array();
                 $noRefs = array_column($sales, 'no_ref');
-
-                // DEBUG: Log found refs
-                \Log::write("Open Refs Found: " . implode(',', $noRefs), 'webhook', 'WhatsApp');
-
                 if (empty($noRefs)) {
                     $waService->sendFreeText($waNumber, 'Yth. *' . $nama_pelanggan . '*, tidak ada transaksi terbuka dengan nomor Anda. Terima kasih');
                 } else {
                     $listIdPenjualan = [];
                     foreach ($noRefs as $noRef) {
                         $id_penjualans = array_column($db1->query("SELECT id_penjualan FROM sale WHERE id_user_ambil = 0 AND bin = 0 AND tuntas = 0 AND no_ref = '$noRef'")->result_array(), 'id_penjualan');
-                        
-                        // DEBUG: Log pending items for ref
-                        \Log::write("Checking Ref $noRef. Items: " . implode(',', $id_penjualans), 'webhook', 'WhatsApp');
-
                         $id_penjualans_in = implode(',', $id_penjualans);
                         $noRefsNotif = !empty($id_penjualans) ? array_column($db1->query("SELECT * FROM notif WHERE tipe = 2 AND no_ref IN ($id_penjualans_in)")->result_array(), 'no_ref') : [];
-                        
                         $sisaIDPenjualan = array_diff($id_penjualans, $noRefsNotif);
-                        
-                        // DEBUG: Diff count
-                        \Log::write("Unnotified Items for $noRef: " . count($sisaIDPenjualan), 'webhook', 'WhatsApp');
-
                         if (count($sisaIDPenjualan) > 0) {
                             array_push($listIdPenjualan, $sisaIDPenjualan);
                         }
                     }
-                    
-                    // DEBUG: Log status after loop
-                    \Log::write("Finished Sales Loop. List Count: " . count($listIdPenjualan), 'webhook', 'WhatsApp');
-
                     if (count($listIdPenjualan) > 0) {
                         
                         // Flattening for safe implode
@@ -202,17 +147,8 @@ class WAReplies
                          }
                         $listIdPenjualanIn = implode(',', $flatList);
 
-                        // DEBUG: Log the list string to be sent
-                        \Log::write("CheckList ID String: " . $listIdPenjualanIn, 'webhook', 'WhatsApp');
-                        
-                        $res = $waService->sendFreeText($waNumber, 'Yth. *' . $nama_pelanggan . '*, List laundry dalam pengerjaan:\n*' . $listIdPenjualanIn . '*\n\nKarna sudah *CEK*, nanti akan dikabari jika sudah selesai. Terima kasih');
-                        
-                        // DEBUG: Log the send result
-                        \Log::write("Send CheckList Result: " . json_encode($res), 'webhook', 'WhatsApp');
+                        $waService->sendFreeText($waNumber, "Yth. *" . $nama_pelanggan . "*, List laundry dalam pengerjaan:\n*" . $listIdPenjualanIn . "*\n\nKarna sudah *CEK*, nanti akan dikabari jika sudah selesai. Terima kasih");
                     } else {
-                        // DEBUG: Log list empty
-                        \Log::write("List is empty. Sending 'All Done' message.", 'webhook', 'WhatsApp');
-                        
                         $waService->sendFreeText($waNumber, 'Yth. *' . $nama_pelanggan . '*, semua laundry Anda sudah selesai. Terima kasih');
                     }
                 }
