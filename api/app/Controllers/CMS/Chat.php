@@ -37,8 +37,10 @@ class Chat extends Controller
             $userId = $_GET['user_id'] ?? null;
             $whereClause = "c.status != 'closed'";
             
-            // If user is NOT 1000 (Super Admin), filter by their ID
-            if ($userId && $userId != '1000') {
+            // If user is NOT in Admin Range (1000-1010), filter by their ID
+            $isAdmin = ($userId >= 1000 && $userId <= 1010);
+            
+            if ($userId && !$isAdmin) {
                // Use proper escaping if possible, or cast to int if numeric ID
                // Assuming int IDs
                $whereClause .= " AND c.assigned_user_id = " . intval($userId);
