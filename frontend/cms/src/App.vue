@@ -248,7 +248,7 @@ const handleIncomingMessage = (payload) => {
   const name = payload.contact_name || payload.name;
   
   // Find or create conversation
-  let conversation = conversations.value.find(c => c.id === conversationId);
+  let conversation = conversations.value.find(c => c.id == conversationId);
   
   if (!conversation) {
     // New conversation
@@ -286,7 +286,7 @@ const handleIncomingMessage = (payload) => {
   }
       
       // Move conversation to top
-      const idx = conversations.value.findIndex(c => c.id === conversation.id);
+      const idx = conversations.value.findIndex(c => c.id == conversation.id);
       if (idx > 0) {
         conversations.value.splice(idx, 1);
         conversations.value.unshift(conversation);
