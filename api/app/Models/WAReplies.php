@@ -22,7 +22,8 @@ class WAReplies
             'ping', 'halo', 'atas nama', 'ats nama', 'atas nma',
             'bon', 'struk', 'nota', 'bill', 'kirim', 'tagihan', 'resi',
             'total laundry', 'total londri', 'total laundri',
-            'totl laundry', 'totl londri', 'totl laundri'
+            'totl laundry', 'totl londri', 'totl laundri', 'berapa total',
+            'brp total', 'brp totl'
         ];
         $cekStatus = [
             'cek',
@@ -338,6 +339,11 @@ class WAReplies
     }
 
     function handleBuka($phoneIn, $waNumber){
+        // Instantiate service early
+        if (!class_exists('\\App\\Helpers\\WhatsAppService')) {
+            require_once __DIR__ . '/../Helpers/WhatsAppService.php';
+        }
+        $waService = new \App\Helpers\WhatsAppService();
         $text = "Kami buka setiap hari, dari pukul 07.00 - 21.00. Silahkan tinggalkan pesan jika ada keperluan khusus.";
         $waService->sendFreeText($waNumber, $text);
     }
