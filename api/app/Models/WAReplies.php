@@ -337,12 +337,13 @@ class WAReplies
                             }
                         }
                     } else {
+                        // All notifs already exist - they were sent before
                         $list_link = "";
                         foreach ($id_pelanggans_active as $id_pelanggan_active) {
                             $list_link .= "https://ml.nalju.com/I/i/" . $id_pelanggan_active . "\n";
                         }
 
-                        $text = "Yth. *" . $nama_pelanggan . "*,\nList dalam pengerjaan:\n*" . $listIdPenjualanIn . "*\n\nKarena sudah *CEK*, akan dikabari jika sudah selesai. Terimakasih\n" . $list_link;
+                        $text = "Yth. *" . $nama_pelanggan . "*,\nSemua nota/bon sudah kami kirimkan sebelumnya. Terima kasih\n\n" . $list_link;
                         $waService->sendFreeText($waNumber, $text);
                     }
                 } else {
