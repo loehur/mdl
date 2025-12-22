@@ -263,23 +263,26 @@ const handleTouchEnd = (e) => {
   if (!showMobileChat.value) return; 
   
   if (isDragging.value) {
+      // Enable transition for the snap/exit animation
+      isDragging.value = false;
+
       // If dragged more than 50% of screen width, close it
       const screenWidth = window.innerWidth;
       if (touchOffset.value > screenWidth * 0.5) {
-          // Animate out
+          // Animate out to the right
           touchOffset.value = screenWidth; 
+          
+          // Wait for transition (300ms) to finish before unmounting/hiding
           setTimeout(() => {
               backToMenu();
-              // Small delay to let animation finish before unmounting/hiding
+              // Reset offset after hidden
               setTimeout(() => {
                   touchOffset.value = 0;
-                  isDragging.value = false;
-              }, 300);
-          }, 50); // Small tick to ensure render
+              }, 50);
+          }, 300);
       } else {
-          // Snap back
+          // Snap back to 0
           touchOffset.value = 0;
-          isDragging.value = false;
       }
   }
 };
