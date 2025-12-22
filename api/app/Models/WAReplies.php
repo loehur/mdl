@@ -270,8 +270,7 @@ class WAReplies
                 $ids_in = implode(',', $id_pelanggans);
                 
                 // Find untutored sales
-                $sales = $db1->query("SELECT * FROM sale WHERE tuntas = 0 AND bin = 0 AND id_pelanggan IN ($ids_in) GROUP BY no_ref, tuntas, id_pelanggan ORDER BY insertTime DESC");
-                $sales = $sales->result_array();
+                $sales = $db1->query("SELECT * FROM sale WHERE tuntas = 0 AND bin = 0 AND id_pelanggan IN ($ids_in) GROUP BY no_ref, tuntas, id_pelanggan ORDER BY insertTime DESC")->result_array();
                 $id_pelanggans_active = array_column($sales, 'id_pelanggan');
                 $noRefs = array_column($sales, 'no_ref');
                 
