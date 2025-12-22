@@ -129,7 +129,6 @@ class WhatsApp extends Controller
         $msg = $data['whatsappInboundMessage'] ?? [];
         $textBodyToCheck = $msg['text']['body'] ?? '';
         
-        \Log::write("handleInboundMessage: Number=" . $msg['from'] . ", Text=" . $textBodyToCheck, 'webhook', 'WhatsApp');
         if (empty($msg)) {
             \Log::write("ERROR: No whatsappInboundMessage", 'webhook', 'WhatsApp');
             return;
@@ -141,51 +140,47 @@ class WhatsApp extends Controller
         $messageId = $msg['id'] ?? null;
         $wamid = $msg['wamid'] ?? null;
         $status = $msg['status'] ?? 'received'; // Default status for inbound
-        $sendTime = $this->convertTime($msg['sendTime'] ?? null);
+        $sendTime = date('Y-m-d H:i:s');
 
         if (!$waNumber) {
             \Log::write("ERROR: No 'from' number", 'webhook', 'WhatsApp');
             return;
         }
 
-        $customerId = $this->updateOrCreateCustomer($db, $waNumber, $contactName, $sendTime);
-        $autoReply = false;
         try {
             $cleanPhone = preg_replace('/[^0-9]/', '', $waNumber); // 628...
             $phone0 = '0' . substr($cleanPhone, 2); // 08...
             $phonePlus = '+' . $cleanPhone; // +62...
-            $limitTime = date('Y-m-d H:i:s', strtotime('-24 hours'));
             
             $phones = ["'$cleanPhone'", "'$phone0'", "'$phonePlus'"];
             $phoneIn = implode(',', $phones);
-            
-            // get data pelanggan
-            // Process Auto Replies (e.g. Nota)
+
+            //cari assigned_user_id
+            $user_data = $this->getUserData($phone0);
+            $assigned_user_id = $user_data->assigned_user_id ?? null;
+            $code = $user_data->code ?? null;
+            $contact_name = $user_data->customer_name ?? $contactName;
+            $lastMessageSummary = $textBodyToCheck;
+            if ($messageType !== 'text') {
+                 $lastMessageSummary = "[$messageType]";
+                 if (isset($msg[$messageType]['caption'])) {
+                     $lastMessageSummary .= ' ' . $msg[$messageType]['caption'];
+                 }
+            }
+
+            $customerId = $this->updateOrCreateCustomer($db, $waNumber, $contact_name);
+            // Wajib ambil ID percakapan untuk menyimpan pesan ke database (walaupun itu auto-reply)
+            $conversationId = $this->getOrCreateConversation($db, $customerId, $waNumber, $contact_name, $assigned_user_id, $code, $lastMessageSummary);
     
+            $autoReply = false;
             // Ensure WAReplies class is available (simple autoload check or require if needed, but assuming namespace works)
             if (!class_exists('\\App\\Models\\WAReplies')) {
-                 require_once __DIR__ . '/../../Models/WAReplies.php';
+                require_once __DIR__ . '/../../Models/WAReplies.php';
             }
             $autoReply = (new \App\Models\WAReplies())->process($phoneIn, $textBodyToCheck, $waNumber);
         } catch (\Exception $e) {
             \Log::write("Error processing pending notifs: " . $e->getMessage(), 'webhook', 'WhatsApp');
         }
-
-        //cari assigned_user_id
-        $user_data = $this->getUserData($phone0);
-        $assigned_user_id = $user_data->assigned_user_id ?? null;
-        $code = $user_data->code ?? null;
-        $contact_name = $user_data->customer_name ?? $contactName;
-        $lastMessageSummary = $textBodyToCheck;
-        if ($messageType !== 'text') {
-             $lastMessageSummary = "[$messageType]";
-             if (isset($msg[$messageType]['caption'])) {
-                 $lastMessageSummary .= ' ' . $msg[$messageType]['caption'];
-             }
-        }
-
-        // Wajib ambil ID percakapan untuk menyimpan pesan ke database (walaupun itu auto-reply)
-        $conversationId = $this->getOrCreateConversation($db, $customerId, $waNumber, $contact_name, $assigned_user_id, $code, $sendTime, $lastMessageSummary);
 
         $textBody = null;
         $mediaId = null;
@@ -298,9 +293,9 @@ class WhatsApp extends Controller
 
     /**
      * Update or create customer record
-     * This tracks last_message_at for 24h window rule
+     * This tracks last_message_at for 23h window rule
      */
-    private function updateOrCreateCustomer($db, $waNumber, $contactName, $messageTime)
+    private function updateOrCreateCustomer($db, $waNumber, $contactName)
     {
        $existing = $db->get_where('wa_customers', ['wa_number' => $waNumber]);
         
@@ -309,7 +304,7 @@ class WhatsApp extends Controller
             
             // Update existing customer
             $updateData = [
-                'last_message_at' => $messageTime,
+                'last_message_at' => date('Y-m-d H:i:s'),
                 'total_messages' => $customer->total_messages + 1,
             ];
             
@@ -332,20 +327,16 @@ class WhatsApp extends Controller
         $customerData = [
             'wa_number' => $waNumber,
             'contact_name' => $contactName,
-            'last_message_at' => $messageTime,
-            'first_contact_at' => $messageTime,
+            'last_message_at' => date('Y-m-d H:i:s'),
+            'first_contact_at' => date('Y-m-d H:i:s'),
             'total_messages' => 1,
-            'is_active' => 1,
             'created_at' => date('Y-m-d H:i:s')
         ];
 
         $customerId = $db->insert('wa_customers', $customerData);
         
-        if ($customerId) {
-            \Log::write("✓ New customer created: ID=$customerId, Number=$waNumber", 'webhook', 'WhatsApp');
-        } else {
-            $error = $db->conn()->error;
-            \Log::write("✗ Customer insert failed: $error", 'webhook', 'WhatsApp');
+        if (!$customerId) {
+            \Log::write("✗ Customer insert failed", 'webhook', 'WhatsApp');
             \Log::write("Data: " . json_encode($customerData), 'webhook', 'WhatsApp');
         }
         
@@ -454,17 +445,6 @@ class WhatsApp extends Controller
             $updateData['wamid'] = $wamid;
         }
 
-        // Add timestamps if available
-        if (isset($message['sendTime'])) {
-            $updateData['sent_at'] = $this->convertTime($message['sendTime']);
-        }
-        if (isset($message['deliverTime'])) {
-            $updateData['delivered_at'] = $this->convertTime($message['deliverTime']);
-        }
-        if (isset($message['readTime'])) {
-            $updateData['read_at'] = $this->convertTime($message['readTime']);
-        }
-
         $updated = false;
 
         // CRITICAL FIX: Try to update by message_id FIRST (This is the most reliable anchor)
@@ -517,7 +497,7 @@ class WhatsApp extends Controller
     /**
      * Get existing conversation or create new one
      */
-    private function getOrCreateConversation($db, $customerId, $waNumber, $contactName = null, $assigned_user_id = null, $code = null, $sendTime = null, $lastMessage = null)
+    private function getOrCreateConversation($db, $customerId, $waNumber, $contactName = null, $assigned_user_id = null, $code = null, $lastMessage = null)
     {
         // Try to find existing conversation
         $existing = $db->get_where('wa_conversations', ['wa_number' => $waNumber]);
@@ -530,7 +510,6 @@ class WhatsApp extends Controller
                 'code' => $code,
                 'last_in_at' => date('Y-m-d H:i:s'),
                 'last_message' => $lastMessage,
-                'updated_at' => date('Y-m-d H:i:s')
             ];
             $db->update('wa_conversations', 
                 $updateData, 
@@ -553,7 +532,6 @@ class WhatsApp extends Controller
             'status' => 'open',
             'created_at' => date('Y-m-d H:i:s'),
             'last_message' => $lastMessage,
-            'updated_at' => date('Y-m-d H:i:s')
         ];
 
         return $db->insert('wa_conversations', $convData);

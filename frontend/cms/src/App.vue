@@ -237,6 +237,7 @@ const sendMessage = async () => {
       text: text,
       sender: 'me',
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      timestamp: Date.now(), // Add timestamp for duplicate detection
       status: 'pending'
     };
     
@@ -431,13 +432,47 @@ const connectWebSocket = () => {
               
               const conversation = conversations.value.find(c => c.id == conversationId);
               if (conversation) {
-                  // Check if message already exists (avoid duplicates)
-                  const exists = conversation.messages.find(m => 
+                  // Enhanced duplicate check with optimistic UI handling
+                  let existingMessage = null;
+                  
+                  // Try to find by ID or wamid first
+                  existingMessage = conversation.messages.find(m => 
                       m.id == messageData.id || m.wamid == messageData.wamid
                   );
                   
-                  if (!exists) {
-                      // Add the message sent by another agent
+                  // If not found by ID, check for optimistic message (pending status + same text)
+                  // This handles the case where we sent the message and now receiving the broadcast
+                  if (!existingMessage) {
+                      existingMessage = conversation.messages.find(m => {
+                          // Must be sender 'me' and pending/sent status
+                          if (m.sender !== 'me' || !['pending', 'sent'].includes(m.status)) {
+                              return false;
+                          }
+                          
+                          // Must have same text
+                          if (m.text !== messageData.text) {
+                              return false;
+                          }
+                          
+                          // Check timestamp (within last 5 seconds)
+                          if (m.timestamp) {
+                              const timeDiff = Date.now() - m.timestamp;
+                              return timeDiff >= 0 && timeDiff < 5000;
+                          }
+                          
+                          // Fallback if no timestamp (shouldn't happen with new messages)
+                          return true;
+                      });
+                  }
+                  
+                  if (existingMessage) {
+                      // Update the existing optimistic message with real data
+                      existingMessage.id = messageData.id;
+                      existingMessage.wamid = messageData.wamid;
+                      existingMessage.status = messageData.status || 'sent';
+                      // Don't push as new message - just updated existing one
+                  } else {
+                      // Add new message (from another agent/device)
                       const newMsg = {
                           id: messageData.id,
                           wamid: messageData.wamid,

@@ -435,7 +435,7 @@ class WhatsAppService
         $now = date('Y-m-d H:i:s');
         $hoursDiff = $this->diffHours($now, $lastMessageAt);
         
-        return $hoursDiff < 24;
+        return $hoursDiff <= 23;
     }
 
     /**

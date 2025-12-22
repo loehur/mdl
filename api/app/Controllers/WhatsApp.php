@@ -123,7 +123,7 @@ class WhatsApp extends Controller
                     [
                         'csw_expired' => true,
                         'hours_elapsed' => round($hoursElapsed, 2),
-                        'csw_limit' => 22,
+                        'csw_limit' => 23,
                         'last_message_at' => $lastMessageAt,
                         'suggestion' => 'Change message_mode to "template"'
                     ]
@@ -435,7 +435,7 @@ class WhatsApp extends Controller
             'current_time' => $now,
             'hours_elapsed' => round($hoursElapsed, 2),
             'hours_remaining' => $isWithinCsw ? round($hoursRemaining, 2) : 0,
-            'csw_limit_hours' => 24,
+            'csw_limit_hours' => 23,
             'can_send_free_text' => $isWithinCsw,
             'must_use_template' => !$isWithinCsw,
             'expires_at' => date('Y-m-d H:i:s', strtotime($lastMessageAt . ' +24 hours'))
