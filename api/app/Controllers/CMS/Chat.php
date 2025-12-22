@@ -120,7 +120,10 @@ class Chat extends Controller
                         type, 
                         'customer' as sender, 
                         created_at as time, 
-                        status 
+                        status,
+                        media_id,
+                        media_url,
+                        media_caption as caption
                      FROM wa_messages_in 
                      WHERE conversation_id = ? 
                      AND status != 'deleted')
@@ -134,7 +137,10 @@ class Chat extends Controller
                         type, 
                         'me' as sender, 
                         created_at as time, 
-                        status 
+                        status,
+                        NULL as media_id,
+                        media_url,
+                        NULL as caption
                      FROM wa_messages_out 
                      WHERE conversation_id = ?)
                 ) AS combined_msgs
@@ -235,5 +241,29 @@ class Chat extends Controller
         $db->update('wa_conversations', ['unread' => 0], ['id' => $conversationId]);
         
         $this->success(['count' => count($unreads)], 'Marked as read');
+    }
+    
+    public function media()
+    {
+        $id = $this->query('id');
+        if (!$id) {
+             http_response_code(400); die('ID required');
+        }
+        
+        if (!class_exists('\App\Helpers\WhatsAppService')) {
+            require_once __DIR__ . '/../../Helpers/WhatsAppService.php';
+        }
+        $wa = new \App\Helpers\WhatsAppService();
+        $media = $wa->retrieveMedia($id);
+        
+        if ($media) {
+            header('Content-Type: ' . $media['mime_type']);
+            header('Cache-Control: public, max-age=86400'); // Cache 1 day
+            echo $media['data'];
+            exit;
+        }
+        
+        http_response_code(404);
+        echo 'Media not found';
     }
 }

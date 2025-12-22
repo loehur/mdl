@@ -184,7 +184,11 @@ class WAReplies
                     $listIdPenjualan = [];
                     foreach ($noRefs as $noRef) {
                         $id_penjualans = array_column($db1->query("SELECT id_penjualan FROM sale WHERE id_user_ambil = 0 AND bin = 0 AND tuntas = 0 AND no_ref = '$noRef'")->result_array(), 'id_penjualan');
-                        $id_penjualans_in = implode(',', $id_penjualans);
+                        
+                        // Fix for VARCHAR IDs: Quote them
+                        $quotedIds = array_map(function($id) { return "'$id'"; }, $id_penjualans);
+                        $id_penjualans_in = implode(',', $quotedIds);
+                        
                         $noRefsNotif = !empty($id_penjualans) ? array_column($db1->query("SELECT * FROM notif WHERE tipe = 2 AND no_ref IN ($id_penjualans_in)")->result_array(), 'no_ref') : [];
                         $sisaIDPenjualan = array_diff($id_penjualans, $noRefsNotif);
                         if (count($sisaIDPenjualan) > 0) {

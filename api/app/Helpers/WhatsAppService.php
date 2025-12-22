@@ -111,6 +111,42 @@ class WhatsAppService
         
         return $this->sendRequest('/whatsapp/messages/status', $payload);
     }
+
+    /**
+     * Retrieve Media from YCloud
+     * @param string $mediaId
+     * @return array|false [data, mime_type] or false
+     */
+    public function retrieveMedia($mediaId)
+    {
+        // 1. Get Media URL info
+        // GET /whatsapp/media/{mediaId}
+        $res = $this->sendRequest("/whatsapp/media/$mediaId", [], 'GET');
+        
+        if (!$res['success'] || !isset($res['data']['url'])) {
+            return false;
+        }
+        
+        $url = $res['data']['url'];
+        
+        // 2. Download Content
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Authorization: Bearer ' . $this->apiKey
+        ]);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        $data = curl_exec($ch);
+        $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+        curl_close($ch);
+        
+        if (!$data) return false;
+        
+        return [
+            'data' => $data,
+            'mime_type' => $contentType
+        ];
+    }
     
     /**
      * Send media message (image, document, video, audio)
