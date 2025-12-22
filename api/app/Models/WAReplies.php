@@ -20,7 +20,9 @@ class WAReplies
         
         $cekBon = [
             'ping', 'halo', 'atas nama', 'ats nama', 'atas nma',
-            'bon', 'struk', 'nota', 'bill', 'kirim', 'tagihan', 'resi'
+            'bon', 'struk', 'nota', 'bill', 'kirim', 'tagihan', 'resi',
+            'total laundry', 'total londri', 'total laundri',
+            'totl laundry', 'totl londri', 'totl laundri'
         ];
         $cekStatus = [
             'cek',
@@ -56,6 +58,43 @@ class WAReplies
             'kapan selesai'
         ];
 
+        $cekBuka = [
+            'jam brp tutup',
+            'jam berapa tutup',
+            'udah tutup',
+            'dh tutup',
+            'uda tutup',
+            'dah tutup',
+            'udah tutup',
+            'sudah tutup',
+            'udh tutup',
+            'dh tutup',
+            'uda tutup',
+            'dah tutup',
+            'udah tutup',
+            'sudah tutup',
+            'da tutup',
+            'jam brp buka',
+            'jam berapa buka',
+            'udah buka',
+            'dh buka',
+            'uda buka',
+            'dah buka',
+            'udah buka',
+            'sudah buka',
+            'udh buka',
+            'dh buka',
+            'uda buka',
+            'dah buka',
+            'udah buka',
+            'sudah buka',
+            'da buka',
+            'masih buka',
+            'msh buka',
+            'masih bukak',
+            'msh bukak'
+        ];
+
         // Check for 'bon' related keywords (Substring check)
         foreach ($cekBon as $keyword) {
             if (stripos($textBodyToCheck, $keyword) !== false) {
@@ -68,6 +107,14 @@ class WAReplies
         foreach ($cekStatus as $keyword) {
             if (stripos($textBodyToCheck, $keyword) !== false) {
                 $this->handleStatus($phoneIn, $waNumber);
+                return true;
+            }
+        }
+
+        // Check for 'buka' related keywords (Substring check)
+        foreach ($cekBuka as $keyword) {
+            if (stripos($textBodyToCheck, $keyword) !== false) {
+                $this->handleBuka($phoneIn, $waNumber);
                 return true;
             }
         }
@@ -288,5 +335,10 @@ class WAReplies
         }else{
             $waService->sendFreeText($waNumber, 'Mohon Maaf, nomor Anda belum terdaftar di Madinah Laundry. Terima kasih');
         }
+    }
+
+    function handleBuka($phoneIn, $waNumber){
+        $text = "Kami buka setiap hari, dari pukul 07.00 - 21.00. Silahkan tinggalkan pesan jika ada keperluan khusus.";
+        $waService->sendFreeText($waNumber, $text);
     }
 }
