@@ -356,7 +356,7 @@ class WhatsApp extends Controller
             'error_message' => $errorMessage
         ];
 
-        $updated = $db->update('wa_messages', $updateData, ['wamid' => $wamid]);
+        $updated = $db->update('wa_messages_out', $updateData, ['wamid' => $wamid]);
         
         // Also check if in wa_messages_out (sometimes stored there differently?) - actually handled in handleMessageUpdated for out
         // Wait, handleStatusUpdate is generally for OUTBOUND messages status from YCloud (sent, delivered, read)
@@ -367,7 +367,7 @@ class WhatsApp extends Controller
             \Log::write("✓ Status updated: $wamid -> $status", 'webhook', 'WhatsApp');
 
             // Find conversation_id to push to frontend
-            $msg = $db->query("SELECT conversation_id, id FROM wa_messages WHERE wamid = '$wamid'")->row();
+            $msg = $db->query("SELECT conversation_id, id FROM wa_messages_out WHERE wamid = '$wamid'")->row();
             if ($msg) {
                 // Get assigned_user_id
                 $conv = $db->get_where('wa_conversations', ['id' => $msg->conversation_id])->row();
