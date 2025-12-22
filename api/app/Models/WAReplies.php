@@ -207,10 +207,10 @@ class WAReplies
                          }
                         $listIdPenjualanIn = implode(',', $flatList);
 
-                        $text = "Yth. *" . $nama_pelanggan . "*,\nList dalam pengerjaan:\n*" . $listIdPenjualanIn . "*\n\nKarena sudah *CEK*, akan dikabari jika sudah selesai.\n" . $list_link;
+                        $text = "Yth. *" . $nama_pelanggan . "*,\nList dalam pengerjaan:\n*" . $listIdPenjualanIn . "*\n\nKarena sudah *CEK*, akan dikabari jika sudah selesai. Terimakasih\n" . $list_link;
                         $waService->sendFreeText($waNumber, $text);
                     } else {
-                        $waService->sendFreeText($waNumber, 'Yth. *' . $nama_pelanggan . '*, Laundry sudah selesai dan dapat dijemput. Terima kasih'. "\n" . $list_link);
+                        $waService->sendFreeText($waNumber, "Yth. *" . $nama_pelanggan . "*, Laundry sudah selesai dan dapat dijemput. Terima kasih\n" . $list_link);
                     }
                 }
             }
@@ -270,8 +270,9 @@ class WAReplies
                 $ids_in = implode(',', $id_pelanggans);
                 
                 // Find untutored sales
-                $sales = $db1->query("SELECT * FROM sale WHERE tuntas = 0 AND bin = 0 AND id_pelanggan IN ($ids_in) GROUP BY no_ref, tuntas, id_pelanggan")->result_array();
-
+                $sales = $db1->query("SELECT * FROM sale WHERE tuntas = 0 AND bin = 0 AND id_pelanggan IN ($ids_in) GROUP BY no_ref, tuntas, id_pelanggan ORDER BY insertTime DESC");
+                $sales = $sales->result_array();
+                $id_pelanggans_active = array_column($sales, 'id_pelanggan');
                 $noRefs = array_column($sales, 'no_ref');
                 
                 if (!empty($noRefs)) {
@@ -337,7 +338,7 @@ class WAReplies
                             }
                         }
                     } else {
-                        $waService->sendFreeText($waNumber, 'Yth. *' . $nama_pelanggan . '*, semua nota/bon sudah kami kirimkan ke nomor Anda. Terima kasih'. "\nhttps://ml.nalju.com/I/i/" . $id_pelanggan );
+                        $waService->sendFreeText($waNumber, "Yth. *" . $nama_pelanggan . "*, semua nota/bon sudah kami kirimkan sebelumnya. Terima kasih\nhttps://ml.nalju.com/I/i/" . $id_pelanggan_active );
                     }
                 } else {
                     $waService->sendFreeText($waNumber, 'Yth. *' . $nama_pelanggan . '*, semua transaksi Anda sudah selesai, atau pastikan gunakan nomor yang terdaftar untuk melakukan request nota/bon. Terima kasih');
