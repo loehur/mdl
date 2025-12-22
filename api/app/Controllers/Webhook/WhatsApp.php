@@ -124,6 +124,15 @@ class WhatsApp extends Controller
             return;
         }
 
+        // IDEMPOTENCY CHECK: Prevent duplicate processing of the same message
+        if ($messageId) {
+            $dupe = $db->get_where('wa_messages_in', ['message_id' => $messageId])->row();
+            if ($dupe) {
+                \Log::write(">> SKIP DUPLICATE Inbound: ID=$messageId", 'webhook', 'WhatsApp');
+                return;
+            }
+        }
+
         try {
             $cleanPhone = preg_replace('/[^0-9]/', '', $waNumber); // 628...
             $phone0 = '0' . substr($cleanPhone, 2); // 08...
