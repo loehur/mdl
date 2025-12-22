@@ -670,9 +670,13 @@ watch(activeChatId, () => {
     
     <!-- Main Chat Area -->
     <!-- Mobile: Fixed on top (z-50) if active. Desktop: static flex-1. -->
-    <main v-if="isConnected" v-show="windowWidth >= 768 || showMobileChat" 
-        class="flex-col bg-[#0f172a] shadow-2xl md:shadow-none flex md:flex-1 h-full w-full relative"
-        :class="showMobileChat && windowWidth < 768 ? 'fixed inset-0 z-50' : ''"
+    <main v-if="isConnected" 
+        class="flex flex-col bg-[#0f172a] shadow-2xl md:shadow-none h-full relative"
+        :class="{
+            'fixed inset-0 z-50 w-full': showMobileChat,
+            'hidden': !showMobileChat && windowWidth < 768,
+            'flex flex-1 w-full': windowWidth >= 768
+        }"
         :style="{ 
             transform: showMobileChat && windowWidth < 768 ? `translateX(${touchOffset}px)` : '',
             transition: isDragging ? 'none' : 'transform 0.3s ease-out'
@@ -681,6 +685,12 @@ watch(activeChatId, () => {
         @touchmove="handleTouchMove"
         @touchend="handleTouchEnd"
     >
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 9999; color: red; background: white; padding: 20px; text-align: center;" v-if="true">
+       DEBUG INFO:<br>
+       Width: {{ windowWidth }}<br>
+       ActiveChat: {{ activeChatId || 'None' }}<br>
+       ShowMobile: {{ showMobileChat }}
+    </div>
        <!-- Background Pattern -->
        <div class="absolute inset-0 opacity-5 pointer-events-none" 
             style="background-image: radial-gradient(#6366f1 1px, transparent 1px); background-size: 32px 32px;">
