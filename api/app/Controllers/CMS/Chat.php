@@ -34,14 +34,14 @@ class Chat extends Controller
                         SELECT text 
                         FROM wa_messages_in m 
                         WHERE m.phone = c.wa_number 
-                        ORDER BY m.created_at DESC 
+                        ORDER BY m.received_at DESC 
                         LIMIT 1
                     ) as last_message_text,
                     (
                          SELECT received_at
                          FROM wa_messages_in m
                          WHERE m.phone = c.wa_number
-                         ORDER BY m.created_at DESC
+                         ORDER BY m.received_at DESC
                          LIMIT 1
                     ) as last_message_time
                 FROM wa_conversations c
