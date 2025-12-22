@@ -123,8 +123,12 @@ class WhatsAppService
         // GET /whatsapp/media/{mediaId}
         $res = $this->sendRequest("/whatsapp/media/$mediaId", [], 'GET');
         
-        if (!$res['success'] || !isset($res['data']['url'])) {
-            return false;
+        if (!$res['success']) {
+            return ['error' => 'API Error: ' . ($res['error'] ?? 'Unknown'), 'raw' => $res];
+        }
+        
+        if (!isset($res['data']['url'])) {
+            return ['error' => 'No URL in response', 'raw' => $res];
         }
         
         $url = $res['data']['url'];
@@ -137,10 +141,14 @@ class WhatsAppService
         ]);
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
         $data = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+        $curlErr = curl_error($ch);
         curl_close($ch);
         
-        if (!$data) return false;
+        if ($httpCode !== 200 || !$data) {
+             return ['error' => "Download Failed ($httpCode): $curlErr"];
+        }
         
         return [
             'data' => $data,

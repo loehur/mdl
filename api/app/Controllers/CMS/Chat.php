@@ -256,7 +256,7 @@ class Chat extends Controller
         $wa = new \App\Helpers\WhatsAppService();
         $media = $wa->retrieveMedia($id);
         
-        if ($media) {
+        if (isset($media['data'])) {
             header('Content-Type: ' . $media['mime_type']);
             header('Cache-Control: public, max-age=86400'); // Cache 1 day
             echo $media['data'];
@@ -264,6 +264,10 @@ class Chat extends Controller
         }
         
         http_response_code(404);
+        echo 'Media Error: ' . ($media['error'] ?? 'Unknown');
+        if (isset($media['raw'])) {
+            echo ' Raw: ' . json_encode($media['raw']);
+        }
         echo 'Media not found';
     }
 }
