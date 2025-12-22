@@ -35,7 +35,8 @@ const showLoginPrompt = ref(false);
 
 const fetchConversations = async () => {
     try {
-        const response = await fetch('https://api.nalju.com/CMS/Chat/getConversations'); 
+        const userIdParam = authId.value ? `?user_id=${authId.value}` : '';
+        const response = await fetch(`https://api.nalju.com/CMS/Chat/getConversations${userIdParam}`); 
         
         if (!response.ok) {
             const text = await response.text();
@@ -287,7 +288,9 @@ const connectWebSocket = () => {
   console.log("Connecting to WebSocket with ID:", authId.value);
   
   try {
-     const ws = new WebSocket(`wss://waserver.nalju.com?id=${authId.value}`); 
+     // Hardcoded for CMS usage as per request
+     const wsPassword = 'mdlWaSecure2025'; 
+     const ws = new WebSocket(`wss://waserver.nalju.com?id=${authId.value}&password=${wsPassword}`); 
      socket.value = ws;
      
      ws.onopen = () => {
@@ -578,8 +581,8 @@ watch(activeChatId, () => {
           </div>
           <div class="flex-1 min-w-0">
             <div class="flex justify-between items-baseline mb-0.5">
-              <h3 class="font-semibold text-sm truncate text-slate-100">
-                <span v-if="chat.kode_cabang" class="font-mono text-xs text-indigo-400 mr-1">[{{ chat.kode_cabang }}]</span>
+              <h3 class="font-semibold text-sm truncate text-slate-100 uppercase">
+                <span v-if="chat.kode_cabang" class="font-mono text-xs mr-1" :class="chat.kode_cabang === '00' ? 'text-pink-500' : 'text-indigo-400'">[{{ chat.kode_cabang }}]</span>
                 {{ chat.name }}
               </h3>
               <span class="text-xs text-slate-500">{{ chat.lastTime }}</span>
@@ -648,8 +651,8 @@ watch(activeChatId, () => {
              
              <img :src="activeConversation.avatar" class="w-10 h-10 rounded-full border border-slate-700">
              <div>
-               <h2 class="font-bold text-slate-100 text-lg">{{ activeConversation.name }}</h2>
-               <p v-if="activeConversation.kode_cabang" class="text-xs text-indigo-400 font-mono">{{ activeConversation.kode_cabang }}</p>
+               <h2 class="font-bold text-slate-100 text-lg uppercase">{{ activeConversation.name }}</h2>
+               <p v-if="activeConversation.kode_cabang" class="text-xs font-mono" :class="activeConversation.kode_cabang === '00' ? 'text-pink-500' : 'text-indigo-400'">{{ activeConversation.kode_cabang }}</p>
              </div>
           </div>
           <div class="flex items-center gap-4 text-slate-400">

@@ -32,7 +32,18 @@ class Chat extends Controller
             // Fetch conversations
             // status can be 'open', 'closed', etc.
             // We want 'open' generally, or maybe all active
-            // Modified to include kode_cabang from database mdl_laundry
+            // Modified to include kode_cabang from database using local column 'code'
+            
+            $userId = $_GET['user_id'] ?? null;
+            $whereClause = "c.status != 'closed'";
+            
+            // If user is NOT 1000 (Super Admin), filter by their ID
+            if ($userId && $userId != '1000') {
+               // Use proper escaping if possible, or cast to int if numeric ID
+               // Assuming int IDs
+               $whereClause .= " AND c.assigned_user_id = " . intval($userId);
+            }
+            
             $sql = "
                 SELECT 
                     c.id, 
@@ -60,9 +71,9 @@ class Chat extends Controller
                          LIMIT 1
                     ) as last_message_time,
                     c.assigned_user_id,
-                    c.code as kode_cabang
+                    COALESCE(c.code, '00') as kode_cabang
                 FROM wa_conversations c
-                WHERE c.status != 'closed'
+                WHERE $whereClause
                 ORDER BY c.last_in_at DESC
             ";
     

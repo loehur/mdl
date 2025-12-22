@@ -41,9 +41,6 @@ const PORT = process.env.PORT || 3003;
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-// Store connected clients: Map<id, WebSocket>
-const clients = new Map();
-
 // ============================================
 // Security Configuration
 // ============================================
@@ -58,14 +55,29 @@ if (!ALLOWED_CLIENT_IDS.includes('0')) {
     ALLOWED_CLIENT_IDS.push('0');
 }
 
+const SOCKET_PASSWORD = process.env.SOCKET_PASSWORD;
+
+// Store connected clients: Map<id, Set<WebSocket>> to support multiple connections per ID
+// Using Set to allow easy addition/removal
+const clients = new Map();
+const MAX_CONNECTIONS_PER_ID = 2;
+
 wss.on('connection', (ws, req) => {
-    // Extract ID from query params (e.g. ?id=123)
+    // Extract ID and Password from query params (e.g. ?id=123&password=pass)
     const urlParams = new URLSearchParams(req.url.split('?')[1]);
     const id = urlParams.get('id');
+    const password = urlParams.get('password');
 
     if (!id) {
         console.log('Connection rejected: missing id');
         ws.close(1008, 'id required');
+        return;
+    }
+
+    // Check Password if set in ENV
+    if (SOCKET_PASSWORD && password !== SOCKET_PASSWORD) {
+        console.log(`Connection rejected for ID ${id}: Invalid Password`);
+        ws.close(1008, 'Invalid Password');
         return;
     }
 
@@ -78,18 +90,21 @@ wss.on('connection', (ws, req) => {
 
     console.log(`Client connected with ID: ${id}`);
 
-    // Check if ID is already connected, maybe close old one or allow overwrite?
-    // Overwriting is usually safer for reconnection logic
-    if (clients.has(id)) {
-        console.log(`Client ${id} reconnected, replacing old connection`);
-        const oldWs = clients.get(id);
-        if (oldWs.readyState === WebSocket.OPEN) {
-            oldWs.terminate();
-        }
-        clients.delete(id);
+    // Manage Connections (Max 2)
+    if (!clients.has(id)) {
+        clients.set(id, new Set());
     }
 
-    clients.set(id, ws);
+    const userSockets = clients.get(id);
+
+    // If limit reached, reject NEW connection
+    if (userSockets.size >= MAX_CONNECTIONS_PER_ID) {
+        console.log(`Connection rejected for ID ${id}: Max connections limit (${MAX_CONNECTIONS_PER_ID}) reached.`);
+        ws.close(1008, 'Connection Limit Reached');
+        return;
+    }
+
+    userSockets.add(ws);
 
     // Send welcome message
     ws.send(JSON.stringify({
@@ -112,13 +127,25 @@ wss.on('connection', (ws, req) => {
     });
 
     ws.on('close', () => {
-        console.log(`Client ${id} disconnected`);
-        clients.delete(id);
+        console.log(`Client disconnected: ${id}`);
+        if (clients.has(id)) {
+            const userSockets = clients.get(id);
+            userSockets.delete(ws);
+            if (userSockets.size === 0) {
+                clients.delete(id);
+            }
+        }
     });
 
     ws.on('error', (err) => {
         console.error(`Client ${id} error:`, err);
-        clients.delete(id);
+        if (clients.has(id)) {
+            const userSockets = clients.get(id);
+            userSockets.delete(ws);
+            if (userSockets.size === 0) {
+                clients.delete(id);
+            }
+        }
     });
 });
 
@@ -142,22 +169,27 @@ wss.on('close', () => {
 function sendToTarget(targetId, data) {
     let sent = false;
 
-    // 1. Send to the specific target_id
-    const client = clients.get(targetId);
-    if (client && client.readyState === WebSocket.OPEN) {
-        client.send(JSON.stringify(data));
-        sent = true;
+    // 1. Send to the specific target_id (all connected sockets for this ID)
+    if (clients.has(targetId)) {
+        const userSockets = clients.get(targetId);
+        userSockets.forEach(client => {
+            if (client.readyState === WebSocket.OPEN) {
+                client.send(JSON.stringify(data));
+                sent = true;
+            }
+        });
     }
 
     // 2. Also send to '0' (Super Admin / Monitor) if connected
     // But avoid double sending if targetId is already '0'
-    if (targetId !== '0') {
-        const monitor = clients.get('0');
-        if (monitor && monitor.readyState === WebSocket.OPEN) {
-            monitor.send(JSON.stringify(data));
-            // We don't change 'sent' status based on monitor, 
-            // the primary target status determines success/failure of the intent.
-        }
+    if (targetId !== '0' && clients.has('0')) {
+        const monitorSockets = clients.get('0');
+        monitorSockets.forEach(monitor => {
+            if (monitor.readyState === WebSocket.OPEN) {
+                monitor.send(JSON.stringify(data));
+                // We don't change 'sent' status based on monitor
+            }
+        });
     }
 
     return sent;
