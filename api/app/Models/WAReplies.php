@@ -130,33 +130,80 @@ class WAReplies
             $cleanPhone = preg_replace('/[^0-9]/', '', $waNumber);
             $phone0 = '0' . substr($cleanPhone, 2);
 
+            // DEBUG: Log phone number processing
+            \Log::write("Checking Open Transactions. CleanPhone: $cleanPhone, Phone0: $phone0", 'webhook', 'WhatsApp');
+
             $where = "nomor_pelanggan IN ($phoneIn)";
             $pelanggan = $db1->query("SELECT id_pelanggan, nama_pelanggan FROM pelanggan WHERE $where")->result_array();
+            
+            // DEBUG: Log customer lookup
+            \Log::write("Customer Lookup Query: SELECT id_pelanggan, nama_pelanggan FROM pelanggan WHERE $where", 'webhook', 'WhatsApp');
+            \Log::write("Customer Found: " . count($pelanggan), 'webhook', 'WhatsApp');
+
             $id_pelanggans = array_column($pelanggan, 'id_pelanggan');
             $nama_pelanggans = array_column($pelanggan, 'nama_pelanggan');
             $nama_pelanggan = strtoupper($nama_pelanggans[0] ?? ''); // fix index 0 if empty
 
             if (empty($id_pelanggans)) {
+                // DEBUG: Customer not found
+                \Log::write("Customer Not Found for phone: $phone0", 'webhook', 'WhatsApp');
                 $waService->sendFreeText($waNumber, 'Mohon Maaf, nomor Anda belum terdaftar di Madinah Laundry. Terima kasih');
             } else {
                 $ids_in = implode(',', $id_pelanggans);
-                $sales = $db1->query("SELECT * FROM sale WHERE tuntas = 0 AND bin = 0 AND id_pelanggan IN ($ids_in) GROUP BY no_ref, tuntas, id_pelanggan")->result_array();
+                $sqlSales = "SELECT * FROM sale WHERE tuntas = 0 AND bin = 0 AND id_pelanggan IN ($ids_in) GROUP BY no_ref, tuntas, id_pelanggan";
+                
+                // DEBUG: Log sales lookup
+                \Log::write("Sales Lookup Query: $sqlSales", 'webhook', 'WhatsApp');
+
+                $sales = $db1->query($sqlSales)->result_array();
                 $noRefs = array_column($sales, 'no_ref');
+
+                // DEBUG: Log found refs
+                \Log::write("Open Refs Found: " . implode(',', $noRefs), 'webhook', 'WhatsApp');
+
                 if (empty($noRefs)) {
                     $waService->sendFreeText($waNumber, 'Yth. *' . $nama_pelanggan . '*, tidak ada transaksi terbuka dengan nomor Anda. Terima kasih');
                 } else {
                     $listIdPenjualan = [];
                     foreach ($noRefs as $noRef) {
                         $id_penjualans = array_column($db1->query("SELECT id_penjualan FROM sale WHERE id_user_ambil = 0 AND bin = 0 AND tuntas = 0 AND no_ref = '$noRef'")->result_array(), 'id_penjualan');
+                        
+                        // DEBUG: Log pending items for ref
+                        \Log::write("Checking Ref $noRef. Items: " . implode(',', $id_penjualans), 'webhook', 'WhatsApp');
+
                         $id_penjualans_in = implode(',', $id_penjualans);
                         $noRefsNotif = !empty($id_penjualans) ? array_column($db1->query("SELECT * FROM notif WHERE tipe = 2 AND no_ref IN ($id_penjualans_in)")->result_array(), 'no_ref') : [];
+                        
                         $sisaIDPenjualan = array_diff($id_penjualans, $noRefsNotif);
+                        
+                        // DEBUG: Diff count
+                        \Log::write("Unnotified Items for $noRef: " . count($sisaIDPenjualan), 'webhook', 'WhatsApp');
+
                         if (count($sisaIDPenjualan) > 0) {
                             array_push($listIdPenjualan, $sisaIDPenjualan);
                         }
                     }
                     if (count($listIdPenjualan) > 0) {
-                        $listIdPenjualanIn = implode(',', $listIdPenjualan);
+                        $listIdPenjualanIn = implode(',', $listIdPenjualan); // Ini mungkin perlu dirapikan karena $listIdPenjualan bisa array of arrays atau array of IDs, depending on array_push usage.
+                        // Correction: array_push($listIdPenjualan, $sisaIDPenjualan) pushes an ARRAY. implode will fail or print "Array".
+                        // Assuming the original code wanted to flatten it. Let's stick to original logic structure but add logs.
+                        
+                        // Wait, looking at original code: array_push($listIdPenjualan, $sisaIDPenjualan). 
+                        // $sisaIDPenjualan is an array. So $listIdPenjualan becomes [[id1, id2], [id3]].
+                        // implode(',', $listIdPenjualan) would produce "Array,Array" warning.
+                        // Let's fix the logic slightly to be safe while logging.
+                        
+                        // Flattening for safe implode
+                         $flatList = [];
+                         foreach($listIdPenjualan as $subArr) {
+                             if(is_array($subArr)) {
+                                 foreach($subArr as $v) $flatList[] = $v;
+                             } else {
+                                 $flatList[] = $subArr;
+                             }
+                         }
+                        $listIdPenjualanIn = implode(',', $flatList);
+
                         $waService->sendFreeText($waNumber, 'Yth. *' . $nama_pelanggan . '*, List laundry dalam pengerjaan:\n*' . $listIdPenjualanIn . '*\n\nKarna sudah *CEK*, nanti akan dikabari jika sudah selesai. Terima kasih');
                     } else {
                         $waService->sendFreeText($waNumber, 'Yth. *' . $nama_pelanggan . '*, semua laundry Anda sudah selesai. Terima kasih');
