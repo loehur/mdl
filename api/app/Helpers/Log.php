@@ -10,17 +10,29 @@ class Log
      */
     public static function write($text = "", $app = 'undefined', $controller = "undefined")
     {
-        $assets_dir = "logs/" . strtolower($app) . "/" . strtolower($controller) . "/" . date('Y/') . date('m/');
-        $file_name = date('d') . ".log";
-        $data_to_write = date('H:i') . " " . $text . "\n";
-        $file_path = $assets_dir . $file_name;
+        try {
+            $assets_dir = "logs/" . strtolower($app) . "/" . strtolower($controller) . "/" . date('Y/') . date('m/');
+            $file_name = date('d') . ".log";
+            $data_to_write = date('H:i:s') . " " . $text . "\n";
+            $file_path = $assets_dir . $file_name;
 
-        if (!file_exists($assets_dir)) {
-            mkdir($assets_dir, 0777, TRUE);
+            if (!file_exists($assets_dir)) {
+                // Gunakan @ untuk suppress error jika permission denied
+                if (!@mkdir($assets_dir, 0755, TRUE)) {
+                    // Fallback ke error_log jika gagal buat folder
+                    error_log("[MDL LOG FAIL] Cannot create dir: $assets_dir | Msg: $text");
+                    return;
+                }
+            }
+
+            // Gunakan file_put_contents dengan flag append dan lock
+            if (@file_put_contents($file_path, $data_to_write, FILE_APPEND | LOCK_EX) === false) {
+                error_log("[MDL LOG FAIL] Cannot write to: $file_path | Msg: $text");
+            }
+            
+        } catch (Exception $e) {
+            // Fallback terakhir agar aplikasi TIDAK CRASH
+            error_log("[MDL LOG EXCEPTION] " . $e->getMessage() . " | Msg: $text");
         }
-
-        $file_handle = fopen($file_path, 'a');
-        fwrite($file_handle, $data_to_write);
-        fclose($file_handle);
     }
 }
