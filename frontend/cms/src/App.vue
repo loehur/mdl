@@ -190,7 +190,10 @@ const markMessagesRead = async (conversationId) => {
         await fetch(`${API_BASE}/CMS/Chat/markRead`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ conversation_id: conversationId })
+            body: JSON.stringify({ 
+                conversation_id: conversationId,
+                user_id: authId.value // Add sender ID
+            })
         });
         
         // Update local state if needed
@@ -256,7 +259,8 @@ const sendMessage = async () => {
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 conversation_id: activeConversation.value.id,
-                message: text
+                message: text,
+                user_id: authId.value // Add sender ID
             })
         });
         const res = await response.json();
@@ -893,22 +897,25 @@ window.addEventListener('focus', () => {
        </div>
 
       <div v-if="activeConversation" class="flex flex-col w-full h-full relative z-10">
-        <!-- Chat Header -->
-        <header class="h-16 border-b border-slate-800 bg-[#0f172a]/90 backdrop-blur-sm flex items-center justify-between px-4 md:px-6 z-10 sticky top-0">
-          <div class="flex items-center gap-3">
+        <!-- Chat Header - FIXED -->
+        <header class="flex-shrink-0 h-16 border-b border-slate-800 bg-[#0f172a]/95 backdrop-blur-md flex items-center justify-between px-4 md:px-6 z-20 shadow-lg">
+          <div class="flex items-center gap-3 flex-1 min-w-0">
              <!-- Back Button (Mobile Only) -->
-             <button @click="backToMenu" class="md:hidden p-1 -ml-2 text-slate-400 hover:text-white">
+             <button @click="backToMenu" class="md:hidden p-1 -ml-2 text-slate-400 hover:text-white flex-shrink-0">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
                 </svg>
              </button>
-                          <img :src="activeConversation.avatar" class="w-10 h-10 rounded-full border border-slate-700">
-              <div class="min-w-0 flex-1">
-                <h2 class="font-bold text-slate-100 text-base md:text-lg uppercase truncate max-w-[200px] md:max-w-[300px]" :title="activeConversation.name">{{ activeConversation.name }}</h2>
-                <p v-if="activeConversation.kode_cabang" class="text-xs font-mono" :class="activeConversation.kode_cabang === '00' ? 'text-pink-500' : 'text-indigo-400'">{{ activeConversation.kode_cabang }}</p>
-              </div>
+             
+             <img :src="activeConversation.avatar" class="w-10 h-10 rounded-full border border-slate-700 flex-shrink-0">
+             
+             <div class="min-w-0 flex-1">
+               <h2 class="font-bold text-slate-100 text-base md:text-lg uppercase truncate" :title="activeConversation.name">{{ activeConversation.name }}</h2>
+               <p v-if="activeConversation.kode_cabang" class="text-xs font-mono" :class="activeConversation.kode_cabang === '00' ? 'text-pink-500' : 'text-indigo-400'">{{ activeConversation.kode_cabang }}</p>
+             </div>
           </div>
-          <div class="flex items-center gap-4 text-slate-400">
+          
+          <div class="flex items-center gap-2 text-slate-400 flex-shrink-0">
              <button class="hover:text-indigo-400 transition-colors p-2 rounded-full hover:bg-slate-800">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
              </button>
@@ -918,7 +925,7 @@ window.addEventListener('focus', () => {
           </div>
         </header>
         
-        <!-- Messages -->
+        <!-- Messages - Scrollable Area -->
         <div class="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar" ref="chatContainer">
           <div v-for="(msg, index) in activeConversation.messages" :key="msg.id" class="flex flex-col">
             

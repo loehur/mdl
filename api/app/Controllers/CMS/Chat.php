@@ -199,10 +199,14 @@ class Chat extends Controller
             
             // *** BROADCAST TO ALL AGENTS via WebSocket ***
             // This ensures all agents viewing the same conversation see the message in real-time
+            // Include sender_id so wa_server won't broadcast back to the sender
+            $userId = $_SERVER['HTTP_USER_ID'] ?? $body['user_id'] ?? null;
+            
             $broadcastPayload = [
                 'type' => 'agent_message_sent',
                 'conversation_id' => $conversationId,
                 'target_id' => '0', // Broadcast to ALL agents
+                'sender_id' => $userId, // Add sender_id to prevent echo back
                 'message' => [
                     'id' => $data['local_id'] ?? time(),
                     'wamid' => $data['id'] ?? $data['wamid'] ?? null,
@@ -245,10 +249,13 @@ class Chat extends Controller
         $affected = $db->conn()->affected_rows;
         
         // ALWAYS Push WS to sync status (Broadcast to ALL via target_id='0')
+        $userId = $_SERVER['HTTP_USER_ID'] ?? $body['user_id'] ?? null;
+        
         $payload = [
             'type' => 'conversation_read',
             'conversation_id' => $conversationId,
             'target_id' => '0', // Node.js server will broadcast to ALL if target='0'
+            'sender_id' => $userId, // Exclude sender from broadcast
             'unread_count' => 0
         ];
         
