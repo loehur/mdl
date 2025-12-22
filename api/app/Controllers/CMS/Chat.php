@@ -201,6 +201,7 @@ class Chat extends Controller
     }
     public function markRead()
     {
+       try {
         $body = json_decode(file_get_contents('php://input'), true);
         $conversationId = $body['conversation_id'] ?? null;
         
@@ -236,7 +237,7 @@ class Chat extends Controller
                     'type' => 'conversation_read',
                     'conversation_id' => $conversationId,
                     'target_id' => $tid,
-                    'message' => ['id' => time(), 'text' => 'SYNC_READ'], // Dummy to prevent Node crash
+                    'message' => ['id' => time(), 'text' => 'SYNC_READ'], 
                     'unread_count' => 0
                  ]);
              }
@@ -256,6 +257,14 @@ class Chat extends Controller
         }
         
         $this->success(['count' => count($unreads)], 'Marked as read');
+
+       } catch (\Throwable $e) {
+            // Log error
+            if (class_exists('\Log')) {
+                \Log::write("markRead Error: " . $e->getMessage(), 'cms_error');
+            }
+            $this->error("Server Error: " . $e->getMessage(), 500);
+       }
     }
     
     public function media()
