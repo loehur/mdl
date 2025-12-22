@@ -50,37 +50,17 @@ class Kinerja extends Controller
       //OPERASI JOIN
       $join_where = "operasi.id_penjualan = sale.id_penjualan";
       $where = "sale.bin = 0 AND operasi.insertTime LIKE '" . $date . "%'";
-      $data_lain1 = $this->db(0)->innerJoin1_where('operasi', 'sale', $join_where, $where);
-      foreach ($data_lain1 as $dl1) {
-         unset($ops_data[$dl1['id_operasi']]);
-         array_push($data_main, $dl1);
-      }
-
-      if (count($ops_data) > 0) {
-         //PENJUALAN TAHUN LALU
-         foreach ($ops_data as $od) {
-            $where = "id_penjualan = '" . $od['id_penjualan'] . "'";
-            $data_lalu = $this->db($_SESSION[URL::SESSID]['user']['book'] - 1)->get_where_row('sale', $where);
-            $new_data = array_merge($data_lalu, $od);
-            array_push($data_main, $new_data);
-         }
-      }
+      $data_main = $this->db(0)->innerJoin1_where('operasi', 'sale', $join_where, $where);
 
       //PENERIMAAN
       $cols = "id_user, id_cabang, COUNT(id_user) as terima";
       $where = "insertTime LIKE '" . $date . "%' GROUP BY id_user, id_cabang";
-      $data_lain2 = $this->db(0)->get_cols_where('sale', $cols, $where, 1);
-      foreach ($data_lain2 as $dl2) {
-         array_push($data_terima, $dl2);
-      }
+      $data_terima = $this->db(0)->get_cols_where('sale', $cols, $where, 1);
 
       //PENGAMBILAN
       $cols = "id_user_ambil, id_cabang, COUNT(id_user_ambil) as kembali";
       $where = "tgl_ambil LIKE '" . $date . "%' GROUP BY id_user_ambil, id_cabang";
-      $data_lain3 = $this->db(0)->get_cols_where('sale', $cols, $where, 1);
-      foreach ($data_lain3 as $dl3) {
-         array_push($data_kembali, $dl3);
-      }
+      $data_kembali = $this->db(0)->get_cols_where('sale', $cols, $where, 1);
 
       $karyawan = $this->db(0)->get_where("user", "en = 1 AND id_cabang = " . $_SESSION[URL::SESSID]['user']['id_cabang']);
 
