@@ -64,6 +64,7 @@ class WAReplies
 
         // Check for 'status' related keywords (Substring check)
         if (in_array($textBodyToCheck, $cekStatus, true)) {
+            \Log::write("Found status keyword: $textBodyToCheck", 'webhook', 'WhatsApp');
             $this->handleStatus($phoneIn, $waNumber);
             return true;
         }
