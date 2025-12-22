@@ -102,6 +102,53 @@ const totalUnread = computed(() => {
 
 // --- Methods ---
 
+// Parse WhatsApp Formatting to HTML
+const parseWhatsAppFormatting = (text) => {
+  if (!text) return '';
+  
+  let formatted = text;
+  
+  // Escape HTML first to prevent XSS
+  formatted = formatted
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  
+  // Convert URLs to clickable links BEFORE other formatting
+  // This prevents URLs from being broken by formatting tags
+  // Pattern matches: http://, https://, www., or domain.com patterns
+  const urlPattern = /(https?:\/\/[^\s]+)|(www\.[^\s]+)|([a-zA-Z0-9][-a-zA-Z0-9]{0,62}\.(?:com|net|org|id|co\.id|ac\.id|io|dev|app|ai|me|info|biz|edu|gov|mil|xyz|online|store|tech|site|web|cloud|link|blog)[^\s]*)/gi;
+  
+  formatted = formatted.replace(urlPattern, (match) => {
+    let href = match;
+    
+    // Add protocol if missing
+    if (!href.match(/^https?:\/\//i)) {
+      href = 'http://' + href;
+    }
+    
+    // Truncate display text if too long (keep first 40 chars + ...)
+    const displayText = match.length > 50 ? match.substring(0, 47) + '...' : match;
+    
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:text-blue-300 underline">${displayText}</a>`;
+  });
+  
+  // Parse WhatsApp formatting patterns
+  // Bold: *text* → <strong>text</strong>
+  formatted = formatted.replace(/\*([^*]+)\*/g, '<strong>$1</strong>');
+  
+  // Italic: _text_ → <em>text</em>
+  formatted = formatted.replace(/_([^_]+)_/g, '<em>$1</em>');
+  
+  // Strikethrough: ~text~ → <del>text</del>
+  formatted = formatted.replace(/~([^~]+)~/g, '<del>$1</del>');
+  
+  // Monospace/Code: ```text``` → <code>text</code>
+  formatted = formatted.replace(/```([^`]+)```/g, '<code class="bg-slate-900/50 px-1.5 py-0.5 rounded text-xs font-mono">$1</code>');
+  
+  return formatted;
+};
+
 // --- Methods ---
 const fetchMessages = async (conversationId) => {
     try {
@@ -764,7 +811,7 @@ window.addEventListener('focus', () => {
           v-for="chat in conversations" 
           :key="chat.id"
           @click="selectChat(chat.id)"
-          class="p-4 flex items-center gap-3 cursor-pointer transition-colors duration-200 border-b border-slate-800 hover:bg-slate-800/50"
+          class="p-3 flex items-center gap-3 cursor-pointer transition-colors duration-200 border-b border-slate-800/50 hover:bg-slate-800/50"
           :class="{'bg-[#334155]/60 border-l-4 border-l-indigo-500': activeChatId === chat.id, 'border-l-4 border-l-transparent': activeChatId !== chat.id}"
         >
           <div class="relative">
@@ -772,15 +819,15 @@ window.addEventListener('focus', () => {
             <span v-if="chat.status === 'online'" class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-[#1e293b] rounded-full"></span>
           </div>
            <div class="flex-1 min-w-0">
-             <div class="flex justify-between items-baseline mb-0.5 gap-2">
-               <h3 class="font-semibold text-sm truncate text-slate-100 uppercase max-w-[180px]" :title="chat.name">
+             <div class="flex justify-between items-baseline mb-1 gap-2">
+               <h3 class="font-semibold text-[15px] truncate text-slate-100 max-w-[180px]" :title="chat.name">
                  <span v-if="chat.kode_cabang" class="font-mono text-xs mr-1" :class="chat.kode_cabang === '00' ? 'text-pink-500' : 'text-indigo-400'">[{{ chat.kode_cabang }}]</span>
                  {{ chat.name }}
                </h3>
                <span class="text-xs text-slate-500 flex-shrink-0">{{ chat.lastTime }}</span>
              </div>
             <div class="flex justify-between items-center">
-               <p class="text-xs text-slate-400 truncate w-32" :class="{'font-medium text-slate-200': chat.unread > 0}">{{ chat.lastMessage }}</p>
+               <p class="text-sm text-slate-400 truncate w-32" :class="{'font-medium text-slate-200': chat.unread > 0}">{{ chat.lastMessage }}</p>
                <span v-if="chat.unread > 0" class="bg-indigo-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shadow-sm">
                  {{ chat.unread }}
                </span>
@@ -863,7 +910,7 @@ window.addEventListener('focus', () => {
         </header>
         
         <!-- Messages -->
-        <div class="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar" ref="chatContainer">
+        <div class="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar" ref="chatContainer">
           <div v-for="(msg, index) in activeConversation.messages" :key="msg.id" class="flex flex-col">
             
              <!-- Date Separator (Optional Logic could go here) -->
@@ -873,7 +920,7 @@ window.addEventListener('focus', () => {
                 <img v-if="index === 0 || activeConversation.messages[index-1]?.sender === 'me'" :src="activeConversation.avatar" class="w-8 h-8 rounded-full mb-1">
                 <div v-else class="w-8"></div> <!-- Spacer -->
                 
-                <div class="bg-slate-800 text-slate-200 px-4 py-2.5 rounded-2xl rounded-bl-sm border border-slate-700/50 shadow-sm max-w-full">
+                <div class="bg-slate-800 text-slate-200 px-3 py-2 rounded-lg rounded-bl-sm border border-slate-700/50 shadow-sm max-w-full">
                    <div v-if="msg.type === 'image'" class="mb-2">
                         <img v-if="msg.media_url" :src="msg.media_url" class="rounded-lg max-w-[200px] cursor-pointer" onclick="window.open(this.src)">
                         <img v-else-if="msg.media_id" :src="`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" class="rounded-lg max-w-[200px] cursor-pointer" onclick="window.open(this.src)">
@@ -881,8 +928,8 @@ window.addEventListener('focus', () => {
                            <span class="text-[10px] text-slate-500">Image (Protected)</span>
                         </div>
                    </div>
-                   <p v-if="msg.text" class="leading-relaxed text-sm break-words whitespace-pre-wrap">{{ msg.text }}</p>
-                   <span class="text-[10px] text-slate-500 block mt-1 text-right">{{ msg.time }}</span>
+                   <p v-if="msg.text" class="leading-relaxed text-[15px] break-words whitespace-pre-wrap" v-html="parseWhatsAppFormatting(msg.text)"></p>
+                   <span class="text-[11px] text-slate-500 block mt-1 text-right">{{ msg.time }}</span>
                 </div>
              </div>
              
@@ -893,7 +940,7 @@ window.addEventListener('focus', () => {
                         <img v-if="msg.media_url" :src="msg.media_url" class="rounded-lg max-w-[200px] bg-slate-800">
                         <img v-else-if="msg.media_id" :src="`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" class="rounded-lg max-w-[200px] bg-slate-800" onclick="window.open(this.src)">
                    </div>
-                   <p v-if="msg.text" class="leading-relaxed text-sm break-words whitespace-pre-wrap">{{ msg.text }}</p>
+                   <p v-if="msg.text" class="leading-relaxed text-[15px] break-words whitespace-pre-wrap" v-html="parseWhatsAppFormatting(msg.text)"></p>
                      <div class="flex items-center justify-end gap-1 mt-1">
                         <span class="text-[10px] text-indigo-200">{{ msg.time }}</span>
                         <!-- Status Indicators -->
@@ -982,5 +1029,51 @@ window.addEventListener('focus', () => {
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #475569;
+}
+
+/* WhatsApp Formatting Styles */
+p strong {
+  font-weight: 700;
+  color: inherit;
+}
+
+p em {
+  font-style: italic;
+  color: inherit;
+}
+
+p del {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+p code {
+  font-family: 'Courier New', monospace;
+  background-color: rgba(15, 23, 42, 0.5);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.85em;
+}
+
+/* Link Styles */
+p a {
+  color: #22d3ee; /* cyan-400 for better contrast on dark background */
+  text-decoration: underline;
+  transition: color 0.2s ease;
+  word-break: break-all;
+}
+
+p a:hover {
+  color: #67e8f9; /* cyan-300 */
+  text-decoration: underline;
+}
+
+/* Links in indigo message bubble (my messages) need different color */
+.bg-indigo-600 p a {
+  color: #bfdbfe; /* blue-200 for contrast on indigo background */
+}
+
+.bg-indigo-600 p a:hover {
+  color: #ffffff;
 }
 </style>
