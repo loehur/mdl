@@ -353,6 +353,8 @@ class WhatsAppService
      */
     private function saveOutboundMessage($payload, $response)
     {       
+        $logFile = __DIR__ . '/../../logs/wa_outbound_errors.log';
+
         // Ensure log directory exists
         $logDir = dirname($logFile);
         if (!is_dir($logDir)) {
