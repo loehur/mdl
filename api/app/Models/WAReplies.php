@@ -57,19 +57,15 @@ class WAReplies
         ];
 
         // Check for 'bon' related keywords (Substring check)
-        foreach ($cekBon as $keyword) {
-            if (stripos($textBodyToCheck, $keyword) !== false) {
-                $this->handleBon($phoneIn, $waNumber);
-                return true;
-            }
+        if (in_array($textBodyToCheck, $cekBon, true)) {
+            $this->handleBon($phoneIn, $waNumber);
+            return true;
         }
 
         // Check for 'status' related keywords (Substring check)
-        foreach ($cekStatus as $keyword) {
-            if (stripos($textBodyToCheck, $keyword) !== false) {
-                $this->handleStatus($phoneIn, $waNumber);
-                return true;
-            }
+        if (in_array($textBodyToCheck, $cekStatus, true)) {
+            $this->handleStatus($phoneIn, $waNumber);
+            return true;
         }
 
         return false;
