@@ -185,15 +185,11 @@ class WAReplies
                             array_push($listIdPenjualan, $sisaIDPenjualan);
                         }
                     }
+                    
+                    // DEBUG: Log status after loop
+                    \Log::write("Finished Sales Loop. List Count: " . count($listIdPenjualan), 'webhook', 'WhatsApp');
+
                     if (count($listIdPenjualan) > 0) {
-                        $listIdPenjualanIn = implode(',', $listIdPenjualan); // Ini mungkin perlu dirapikan karena $listIdPenjualan bisa array of arrays atau array of IDs, depending on array_push usage.
-                        // Correction: array_push($listIdPenjualan, $sisaIDPenjualan) pushes an ARRAY. implode will fail or print "Array".
-                        // Assuming the original code wanted to flatten it. Let's stick to original logic structure but add logs.
-                        
-                        // Wait, looking at original code: array_push($listIdPenjualan, $sisaIDPenjualan). 
-                        // $sisaIDPenjualan is an array. So $listIdPenjualan becomes [[id1, id2], [id3]].
-                        // implode(',', $listIdPenjualan) would produce "Array,Array" warning.
-                        // Let's fix the logic slightly to be safe while logging.
                         
                         // Flattening for safe implode
                          $flatList = [];
@@ -214,6 +210,9 @@ class WAReplies
                         // DEBUG: Log the send result
                         \Log::write("Send CheckList Result: " . json_encode($res), 'webhook', 'WhatsApp');
                     } else {
+                        // DEBUG: Log list empty
+                        \Log::write("List is empty. Sending 'All Done' message.", 'webhook', 'WhatsApp');
+                        
                         $waService->sendFreeText($waNumber, 'Yth. *' . $nama_pelanggan . '*, semua laundry Anda sudah selesai. Terima kasih');
                     }
                 }
