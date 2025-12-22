@@ -29,6 +29,10 @@ class Chat extends Controller
                          AND last_in_at < (NOW() - INTERVAL 22 HOUR)";
             $db->query($sqlClose);
 
+            // Fetch conversations
+            // status can be 'open', 'closed', etc.
+            // We want 'open' generally, or maybe all active
+            // Modified to include kode_cabang from database mdl_laundry
             $sql = "
                 SELECT 
                     c.id, 
@@ -45,18 +49,20 @@ class Chat extends Controller
                         SELECT text 
                         FROM wa_messages_in m 
                         WHERE m.phone = c.wa_number 
-                        ORDER BY m.received_at DESC 
+                        ORDER BY m.created_at DESC 
                         LIMIT 1
                     ) as last_message_text,
                     (
-                         SELECT received_at
+                         SELECT created_at
                          FROM wa_messages_in m
                          WHERE m.phone = c.wa_number
-                         ORDER BY m.received_at DESC
+                         ORDER BY m.created_at DESC 
                          LIMIT 1
-                    ) as last_message_time
+                    ) as last_message_time,
+                    c.assigned_user_id,
+                    (SELECT kode_cabang FROM mdl_laundry.cabang WHERE id_cabang = c.assigned_user_id LIMIT 1) as kode_cabang
                 FROM wa_conversations c
-                WHERE c.status = 'open'
+                WHERE c.status != 'closed'
                 ORDER BY c.last_in_at DESC
             ";
     

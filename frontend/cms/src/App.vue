@@ -54,6 +54,7 @@ const fetchConversations = async () => {
             conversations.value = result.data.map(c => ({
                 id: c.id,
                 name: c.contact_name || c.wa_number,
+                kode_cabang: c.kode_cabang, // Add kode_cabang
                 avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${c.id}`,
                 status: c.status,  
                 lastMessage: c.last_message_text || 'No messages yet',
@@ -577,7 +578,10 @@ watch(activeChatId, () => {
           </div>
           <div class="flex-1 min-w-0">
             <div class="flex justify-between items-baseline mb-0.5">
-              <h3 class="font-semibold text-sm truncate text-slate-100">{{ chat.name }}</h3>
+              <h3 class="font-semibold text-sm truncate text-slate-100">
+                <span v-if="chat.kode_cabang" class="font-mono text-xs text-indigo-400 mr-1">[{{ chat.kode_cabang }}]</span>
+                {{ chat.name }}
+              </h3>
               <span class="text-xs text-slate-500">{{ chat.lastTime }}</span>
             </div>
             <div class="flex justify-between items-center">
@@ -645,6 +649,7 @@ watch(activeChatId, () => {
              <img :src="activeConversation.avatar" class="w-10 h-10 rounded-full border border-slate-700">
              <div>
                <h2 class="font-bold text-slate-100 text-lg">{{ activeConversation.name }}</h2>
+               <p v-if="activeConversation.kode_cabang" class="text-xs text-indigo-400 font-mono">{{ activeConversation.kode_cabang }}</p>
              </div>
           </div>
           <div class="flex items-center gap-4 text-slate-400">

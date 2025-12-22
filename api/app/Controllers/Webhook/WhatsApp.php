@@ -527,32 +527,22 @@ class WhatsApp extends Controller
 
     function getUserData($phone0)
     {
-        \Log::write("getUserData: Start search for $phone0", 'webhook', 'WhatsApp');
-        
         $db = $this->db(1);
-        $return = new \stdClass(); // Use object instead of array/null for consistency
+        $return = new \stdClass();
         
         // cek nomor di data pelanggan limit 1 order by updated_at desc
         $customer = $db->query("SELECT * FROM pelanggan WHERE nomor_pelanggan = '" . $phone0 . "' ORDER BY updated_at DESC LIMIT 1")->row();
         
         if ($customer) {
-            \Log::write("getUserData: Found customer ID=" . $customer->id_pelanggan . ", Name=" . $customer->nama_pelanggan, 'webhook', 'WhatsApp');
             $return->customer_name = $customer->nama_pelanggan;
         } else {
-            \Log::write("getUserData: Customer not found for $phone0", 'webhook', 'WhatsApp');
             return null;
         }
 
         $last_sale = $db->query("SELECT * FROM sale WHERE id_pelanggan = " . $customer->id_pelanggan . " ORDER BY insertTime DESC LIMIT 1")->row();
         if ($last_sale) {
-            \Log::write("getUserData: Found last sale branch ID=" . $last_sale->id_cabang, 'webhook', 'WhatsApp');
             $return->assigned_user_id = $last_sale->id_cabang;
         } else {
-             \Log::write("getUserData: No sale found for customer " . $customer->id_pelanggan, 'webhook', 'WhatsApp');
-            // Keep customer name even if no sale? 
-            // Previous logic said: return null if no sale (implied by `$return = null` in else).
-            // But let's follow the exact logic:
-            // if ($last_sale) ... else $return = null;
             return null;
         }
 
