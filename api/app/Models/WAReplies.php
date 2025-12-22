@@ -5,6 +5,59 @@ use App\Core\DB;
 
 class WAReplies
 {
+    private $waService = null;
+    
+    /**
+     * Get WhatsApp Service instance (lazy loading)
+     */
+    private function getWaService()
+    {
+        if ($this->waService === null) {
+            if (!class_exists('\\App\\Helpers\\WhatsAppService')) {
+                require_once __DIR__ . '/../Helpers/WhatsAppService.php';
+            }
+            $this->waService = new \App\Helpers\WhatsAppService();
+        }
+        return $this->waService;
+    }
+    /**
+     * Check if auto-reply should be sent (rate limiting / cooldown)
+     * @param string $waNumber Phone number
+     * @param string $handler Handler name (bon, status, buka, etc)
+     * @param int $cooldownMinutes Cooldown period in minutes (default: 10)
+     * @return bool True if can send reply
+     */
+    private function shouldReply($waNumber, $handler, $cooldownMinutes = 5)
+    {
+        $db = DB::getInstance(0);
+        
+        // Query last auto-reply for this number + handler
+        $sql = "SELECT created_at FROM wa_auto_reply_log 
+                WHERE phone = ? AND handler = ? 
+                ORDER BY created_at DESC LIMIT 1";
+        
+        $result = $db->query($sql, [$waNumber, $handler]);
+        
+        if ($result && $result->num_rows() > 0) {
+            $lastReply = $result->row()->created_at;
+            $cooldownEnd = date('Y-m-d H:i:s', strtotime($lastReply) + ($cooldownMinutes * 60));
+            
+            // Still in cooldown period
+            if (date('Y-m-d H:i:s') < $cooldownEnd) {
+                return false;
+            }
+        }
+        
+        // Can send reply - log it
+        $db->insert('wa_auto_reply_log', [
+            'phone' => $waNumber,
+            'handler' => $handler,
+            'created_at' => date('Y-m-d H:i:s')
+        ]);
+        
+        return true;
+    }
+    
     /**
      * Process inbound message text and perform actions
      * 
@@ -14,109 +67,38 @@ class WAReplies
      */
     public function process($phoneIn, $textBody, $waNumber)
     {
-        $textBodyToCheck = trim($textBody ?? '');
+        $textBodyToCheck = strtolower(trim($textBody ?? ''));
+        $messageLength = mb_strlen($textBodyToCheck); // Use mb_strlen for proper UTF-8 support
         
-        $textBodyToCheck = strtolower($textBodyToCheck);
+        // Load keyword configuration
+        $keywordConfig = require __DIR__ . '/../Config/AutoReplyKeywords.php';
         
-        $cekBon = [
-            'ping', 'halo', 'atas nama', 'ats nama', 'atas nma',
-            'bon', 'struk', 'nota', 'bill', 'kirim', 'tagihan', 'resi',
-            'total laundry', 'total londri', 'total laundri',
-            'totl laundry', 'totl londri', 'totl laundri', 'berapa total',
-            'brp total', 'brp totl'
-        ];
-        $cekStatus = [
-            'cek',
-            'udh siap',
-            'dh siap',
-            'uda siap',
-            'dah siap',
-            'udah siap',
-            'sudah siap',
-            'udh beres',
-            'dh beres',
-            'uda beres',
-            'dah beres',
-            'udah beres',
-            'sudah beres',
-            'udh selesai',
-            'dh selesai',
-            'uda selesai',
-            'dah selesai',
-            'udah selesai',
-            'sudah selesai',
-            'bs diambil',
-            'bs di ambil',
-            'bisa diambil',
-            'bisa di ambil',
-            'bs dijemput',
-            'bisa dijemput',
-            'bs di jemput',
-            'bisa di jemput',
-            'kpn siap',
-            'kapan siap',
-            'kpn selesai',
-            'kapan selesai'
-        ];
-
-        $cekBuka = [
-            'jam brp tutup',
-            'jam berapa tutup',
-            'udah tutup',
-            'dh tutup',
-            'uda tutup',
-            'dah tutup',
-            'udah tutup',
-            'sudah tutup',
-            'udh tutup',
-            'dh tutup',
-            'uda tutup',
-            'dah tutup',
-            'udah tutup',
-            'sudah tutup',
-            'da tutup',
-            'jam brp buka',
-            'jam berapa buka',
-            'udah buka',
-            'dh buka',
-            'uda buka',
-            'dah buka',
-            'udah buka',
-            'sudah buka',
-            'udh buka',
-            'dh buka',
-            'uda buka',
-            'dah buka',
-            'udah buka',
-            'sudah buka',
-            'da buka',
-            'masih buka',
-            'msh buka',
-            'masih bukak',
-            'msh bukak'
-        ];
-
-        // Check for 'bon' related keywords (Substring check)
-        foreach ($cekBon as $keyword) {
-            if (stripos($textBodyToCheck, $keyword) !== false) {
-                $this->handleBon($phoneIn, $waNumber);
-                return true;
+        // Check each handler's keywords
+        foreach ($keywordConfig as $handler => $config) {
+            $maxLength = $config['max_length'] ?? 0;
+            $keywords = $config['keywords'] ?? [];
+            
+            // Skip if message is longer than max_length (0 = unlimited)
+            if ($maxLength > 0 && $messageLength > $maxLength) {
+                continue;
             }
-        }
-
-        // Check for 'status' related keywords (Substring check)
-        foreach ($cekStatus as $keyword) {
-            if (stripos($textBodyToCheck, $keyword) !== false) {
-                $this->handleStatus($phoneIn, $waNumber);
-                return true;
-            }
-        }
-
-        // Check for 'buka' related keywords (Substring check)
-        foreach ($cekBuka as $keyword) {
-            if (stripos($textBodyToCheck, $keyword) !== false) {
-                $this->handleBuka($phoneIn, $waNumber);
-                return true;
+            
+            // Check keywords
+            foreach ($keywords as $keyword) {
+                if (stripos($textBodyToCheck, $keyword) !== false) {
+                    // RATE LIMITING: Check if can send reply (cooldown)
+                    if (!$this->shouldReply($waNumber, $handler)) {
+                        \Log::write("Rate limited: $waNumber for handler '$handler'", 'wa_replies', 'RateLimit');
+                        return false; // Exit to prevent other handlers from triggering
+                    }
+                    
+                    // Dynamically call handler method (e.g., handleBon, handleStatus, handleBuka)
+                    $methodName = 'handle' . ucfirst($handler);
+                    if (method_exists($this, $methodName)) {
+                        $this->$methodName($phoneIn, $waNumber);
+                        return true;
+                    }
+                }
             }
         }
 
@@ -125,11 +107,7 @@ class WAReplies
     
     private function handleStatus($phoneIn, $waNumber)
     {
-        // Instantiate service early
-        if (!class_exists('\\App\\Helpers\\WhatsAppService')) {
-            require_once __DIR__ . '/../Helpers/WhatsAppService.php';
-        }
-        $waService = new \App\Helpers\WhatsAppService();
+        $waService = $this->getWaService();
         
         $db1 = DB::getInstance(1);
         $limitTime = date('Y-m-d H:i:s', strtotime('-48 hours'));
@@ -219,11 +197,7 @@ class WAReplies
 
     private function handleBon($phoneIn, $waNumber)
     {
-        // Instantiate service early
-        if (!class_exists('\\App\\Helpers\\WhatsAppService')) {
-            require_once __DIR__ . '/../Helpers/WhatsAppService.php';
-        }
-        $waService = new \App\Helpers\WhatsAppService();
+        $waService = $this->getWaService();
 
         // Use DB(1)
         $db1 = DB::getInstance(1);
@@ -265,6 +239,7 @@ class WAReplies
             $where = "nomor_pelanggan IN ($phoneIn)";
             $pelanggan = $db1->query("SELECT id_pelanggan, nama_pelanggan FROM pelanggan WHERE $where")->result_array();
             $id_pelanggans = array_column($pelanggan, 'id_pelanggan');
+            $id_pelanggan = $id_pelanggans[0];
 
             $nama_pelanggans = array_column($pelanggan, 'nama_pelanggan');
             $nama_pelanggan = strtoupper($nama_pelanggans[0]);
@@ -312,9 +287,6 @@ class WAReplies
                                 
                                     $isInserted = $db1->insert('notif', $insertData);
                                     
-                                    // Check if insert successful
-                                    // DB::insert returns insert_id. Since we provide manual ID (varchar), insert_id might be 0.
-                                    // 0 evaluates to false in loose comparison. Must use !== false.
                                     if ($isInserted !== false) {
                                         $res = $waService->sendFreeText($waNumber, $responseData['text']);
                                         
@@ -337,35 +309,13 @@ class WAReplies
                                         
                                         // Try to get last query if available in wrapper
                                         $lastQuery = method_exists($db1, 'last_query') ? $db1->last_query() : 'N/A';
-                                        
-                                        \Log::write("Insert Notif FAILED! Return value: " . var_export($isInserted, true), 'webhook', 'WhatsApp');
-                                        \Log::write("Error: " . $errorMsg . " | ErrNo: " . ($conn->errno ?? 0), 'webhook', 'WhatsApp');
                                         \Log::write("Insert Data: " . json_encode($insertData), 'webhook', 'WhatsApp');
                                     }
                                 }
                             }
                         }
                     } else {
-                        //cek dulu jika pending kirimkan wa nya
-                        $pending = $db1->query("SELECT * FROM notif WHERE tipe = 1 AND no_ref IN ($noRefsIn) AND state = 'pending'")->result_array();
-                        if (!empty($pending)) {
-                            foreach ($pending as $p) {
-                                $res = $waService->sendFreeText($waNumber, $p['text']);
-
-                                $status = ($res['success'] ?? false) ? 'sent' : 'failed';
-                                $msgId = $res['data']['id'] ?? ($res['data']['message_id'] ?? null); 
-                                
-                                // Update state immediately
-                                $updateData = ['state' => $status];
-                                if ($msgId) {
-                                    $updateData['id_api'] = $msgId;
-                                }
-                                
-                                $db1->update('notif', $updateData, ['id_notif' => $p['id_notif']]);
-                            }
-                        } else {
-                            $waService->sendFreeText($waNumber, 'Yth. *' . $nama_pelanggan . '*, semua nota/bon sudah kami kirimkan ke nomor Anda. Terima kasih');
-                        }
+                        $waService->sendFreeText($waNumber, 'Yth. *' . $nama_pelanggan . '*, semua nota/bon sudah kami kirimkan ke nomor Anda. Terima kasih'. "\nhttps://ml.nalju.com/I/i/" . $id_pelanggan );
                     }
                 } else {
                     $waService->sendFreeText($waNumber, 'Yth. *' . $nama_pelanggan . '*, semua transaksi Anda sudah selesai, atau pastikan gunakan nomor yang terdaftar untuk melakukan request nota/bon. Terima kasih');
@@ -377,12 +327,86 @@ class WAReplies
     }
 
     function handleBuka($phoneIn, $waNumber){
-        // Instantiate service early
-        if (!class_exists('\\App\\Helpers\\WhatsAppService')) {
-            require_once __DIR__ . '/../Helpers/WhatsAppService.php';
-        }
-        $waService = new \App\Helpers\WhatsAppService();
-        $text = "Madinah Laundry buka setiap hari, dari pukul 07.00 - 21.00. Silahkan tinggalkan pesan jika ada keperluan khusus.";
+        $waService = $this->getWaService();
+        
+        $variations = [
+            "Madinah Laundry buka setiap hari, dari pukul 07.00 - 21.00. 🕐",
+            "Kami buka setiap hari pukul 07.00 - 21.00. ⏰",
+            "Jam operasional: 07.00 - 21.00 (setiap hari) 📍",
+            "Buka setiap hari jam 7 pagi sampai 9 malam ya! 😊",
+            "Kami buka dari jam 7 pagi sampai jam 9 malam 🕐",
+            "Operasional setiap hari pukul 07.00 - 21.00 😊",
+            "Buka setiap hari, jam 07.00 sampai 21.00 👍",
+            "Jam buka: 07.00 - 21.00 (7 hari seminggu) ⏰",
+            "Kami melayani setiap hari dari pukul 7 pagi - 9 malam 📍",
+            "Buka tiap hari ya kak, jam 07.00 - 21.00 😊",
+            "Madinah Laundry buka setiap hari jam 7 pagi sampai 9 malam 🕐",
+            "Operasional: 07.00 - 21.00 setiap hari 👌"
+        ];
+        
+        $text = $variations[array_rand($variations)];
+        $waService->sendFreeText($waNumber, $text);
+    }
+
+    function handleSapa($phoneIn, $waNumber){
+        $waService = $this->getWaService();
+        
+        $variations = [
+            "Iya, ada yang bisa saya bantu? 😊",
+            "Halo! Ada yang bisa dibantu? 👋",
+            "Hai! Silahkan, ada yang ditanyakan? 😊",
+            "Ya, ada yang bisa kami bantu? 🙏",
+            "Halo! Dengan Madinah Laundry, ada yang bisa dibantu? 😊",
+            "Hai! Ada yang bisa kami bantu? 👋",
+            "Iya, silahkan 😊",
+            "Halo, ada yang ditanyakan? 😊",
+            "Hai! Ada yang perlu dibantu? 👋",
+            "Ya, silahkan 🙏",
+            "Iya kak, ada yang bisa dibantu? 😊",
+            "Halo kak! Silahkan 👋",
+            "Hai, dengan Madinah Laundry 😊",
+            "Ya, ada yang perlu dibantu? 🙏",
+            "Selamat datang! Ada yang bisa dibantu? 😊",
+            "Dengan Madinah Laundry, silahkan 👋",
+            "Halo! Silahkan, ada yang bisa kami bantu? 😊",
+            "Iya kak, silahkan 🙏",
+            "Hai! Madinah Laundry siap membantu 😊",
+            "Ya kak, ada yang ditanyakan? 👋"
+        ];
+        
+        $text = $variations[array_rand($variations)];
+        $waService->sendFreeText($waNumber, $text);
+    }
+
+    function handlePenutup($phoneIn, $waNumber){
+        $waService = $this->getWaService();
+        
+        // Random variations untuk terlihat lebih natural
+        $variations = [
+            "Baik 👌",
+            "Siap! 😊",
+            "Oke 😊",
+            "Okee 😊",
+            "Sip! 👍",
+            "Siap 🙏",
+            "Ok siap 😊",
+            "Oke siap! 😊",
+            "Siapp 👍",
+            "Ok! 😊",
+            // Versi dengan terima kasih
+            "Baik, terima kasih! 🙏",
+            "Siap, terima kasih! 😊",
+            "Oke, terima kasih 😊",
+            "Okee, terima kasih 😊",
+            "Sip, terima kasih! 👍",
+            "Siap, terima kasih 🙏",
+            "Ok siap, terima kasih 😊",
+            "Oke siap, terima kasih! 😊",
+            "Siapp, terima kasih 👍",
+            "Ok, terima kasih! 😊"
+        ];
+        
+        $text = $variations[array_rand($variations)];
         $waService->sendFreeText($waNumber, $text);
     }
 }
