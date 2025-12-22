@@ -48,6 +48,7 @@ class Chat extends Controller
                          LIMIT 1
                     ) as last_message_time
                 FROM wa_conversations c
+                WHERE c.status = 'open'
                 ORDER BY c.last_in_at DESC
             ";
     

@@ -196,8 +196,22 @@ const connectWebSocket = () => {
      
      ws.onmessage = (event) => {
        try {
-         const data = JSON.parse(event.data);
-         handleIncomingMessage(data);
+         const payload = JSON.parse(event.data);
+         
+         // Handle different message types
+         if (payload.type === 'connection' || payload.type === 'pong') {
+             // System messages, ignore for chat ui
+             console.log('WS System:', payload);
+             return;
+         }
+         
+         if (payload.type === 'wa_masuk') {
+             // Real incoming WA message
+             handleIncomingMessage(payload.data);
+         } else if (payload.conversationId) {
+             // Fallback for direct legacy format (if any)
+             handleIncomingMessage(payload);
+         }
        } catch (e) {
          console.error('Error parsing WS message', e);
        }
