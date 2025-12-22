@@ -771,7 +771,7 @@ watch(activeChatId, () => {
                 <div class="bg-slate-800 text-slate-200 px-4 py-2.5 rounded-2xl rounded-bl-sm border border-slate-700/50 shadow-sm max-w-full">
                    <div v-if="msg.type === 'image'" class="mb-2">
                         <img v-if="msg.media_url" :src="msg.media_url" class="rounded-lg max-w-[200px] cursor-pointer" onclick="window.open(this.src)">
-                        <img v-else-if="msg.media_id" :src="`${API_BASE}/cms/chat/media?id=${msg.media_id}`" class="rounded-lg max-w-[200px] cursor-pointer" onclick="window.open(this.src)">
+                        <img v-else-if="msg.media_id" :src="`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" class="rounded-lg max-w-[200px] cursor-pointer" onclick="window.open(this.src)">
                         <div v-else class="p-2 bg-slate-900 rounded border border-slate-700/50 flex flex-col items-center justify-center w-[200px] h-[150px]">
                            <span class="text-[10px] text-slate-500">Image (Protected)</span>
                         </div>
@@ -786,7 +786,7 @@ watch(activeChatId, () => {
                 <div class="bg-indigo-600 text-white px-4 py-2.5 rounded-2xl rounded-br-sm shadow-md shadow-indigo-900/20 max-w-full">
                    <div v-if="msg.type === 'image'" class="mb-2">
                         <img v-if="msg.media_url" :src="msg.media_url" class="rounded-lg max-w-[200px] bg-slate-800">
-                        <img v-else-if="msg.media_id" :src="`${API_BASE}/cms/chat/media?id=${msg.media_id}`" class="rounded-lg max-w-[200px] bg-slate-800" onclick="window.open(this.src)">
+                        <img v-else-if="msg.media_id" :src="`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" class="rounded-lg max-w-[200px] bg-slate-800" onclick="window.open(this.src)">
                    </div>
                    <p v-if="msg.text" class="leading-relaxed text-sm break-words whitespace-pre-wrap">{{ msg.text }}</p>
                      <div class="flex items-center justify-end gap-1 mt-1">
