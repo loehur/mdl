@@ -84,6 +84,37 @@ const activeConversation = computed(() =>
 
 // --- Methods ---
 
+// --- Methods ---
+const fetchMessages = async (conversationId) => {
+    try {
+        const response = await fetch(`https://api.nalju.com/CMS/Chat/getMessages?id=${conversationId}`);
+        const result = await response.json();
+        
+        if (result.status && Array.isArray(result.data)) {
+            return result.data.map(m => ({
+                id: m.id,
+                text: m.text,
+                sender: m.sender, // 'me' or 'customer'
+                time: m.time ? new Date(m.time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '',
+                status: m.status
+            }));
+        }
+    } catch (e) {
+        console.error("Error loading messages:", e);
+    }
+    return [];
+};
+
+const markMessagesRead = async (conversationId) => {
+    try {
+        await fetch('https://api.nalju.com/CMS/Chat/markRead', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ conversation_id: conversationId })
+        });
+    } catch (e) { console.error(e); }
+};
+
 const scrollToBottom = () => {
   nextTick(() => {
     if (chatContainer.value) {
@@ -92,11 +123,22 @@ const scrollToBottom = () => {
   });
 };
 
-const selectChat = (id) => {
+const selectChat = async (id) => {
   activeChatId.value = id;
-  const chat = conversations.value.find(c => c.id === id);
-  if (chat) chat.unread = 0;
   showMobileChat.value = true;
+  
+  const chat = conversations.value.find(c => c.id === id);
+  if (chat) {
+      // Optimistic read status
+      chat.unread = 0;
+      
+      // Load messages
+      chat.messages = await fetchMessages(id);
+      
+      // Mark read in DB
+      markMessagesRead(id);
+  }
+  
   scrollToBottom();
 };
 
@@ -105,32 +147,55 @@ const backToMenu = () => {
     showMobileChat.value = false;
 };
 
-const sendMessage = () => {
-  if (!messageInput.value.trim()) return;
+const sendMessage = async () => {
+  const text = messageInput.value.trim();
+  if (!text) return;
   
   if (activeConversation.value) {
+    const tempId = Date.now();
     const newMsg = {
-      id: Date.now(),
-      text: messageInput.value,
+      id: tempId,
+      text: text,
       sender: 'me',
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      status: 'pending'
     };
     
+    // Optimistic UI
     activeConversation.value.messages.push(newMsg);
-    activeConversation.value.lastMessage = "You: " + newMsg.text;
+    activeConversation.value.lastMessage = "You: " + text;
     activeConversation.value.lastTime = newMsg.time;
-    
-    // Simulate sending to WebSocket
-    if (socket.value && socket.value.readyState === WebSocket.OPEN) {
-      socket.value.send(JSON.stringify({
-        type: 'message',
-        conversationId: activeConversation.value.id,
-        text: messageInput.value
-      }));
-    }
     
     messageInput.value = '';
     scrollToBottom();
+    
+    // API Call
+    try {
+        const response = await fetch('https://api.nalju.com/CMS/Chat/reply', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                conversation_id: activeConversation.value.id,
+                message: text
+            })
+        });
+        const res = await response.json();
+        
+        if (res.status) {
+            // Update status (not strictly needed if we reload, but good for UI)
+            const sentMsg = activeConversation.value.messages.find(m => m.id === tempId);
+            if(sentMsg) sentMsg.status = 'sent';
+        } else {
+             // Error state
+            const sentMsg = activeConversation.value.messages.find(m => m.id === tempId);
+            if(sentMsg) sentMsg.status = 'failed';
+            alert("Failed to send: " + (res.message || 'Unknown error'));
+        }
+    } catch (e) {
+        console.error("Reply error:", e);
+        const sentMsg = activeConversation.value.messages.find(m => m.id === tempId);
+        if(sentMsg) sentMsg.status = 'error';
+    }
   }
 };
 
