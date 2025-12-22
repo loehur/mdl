@@ -100,6 +100,7 @@ const fetchMessages = async (conversationId) => {
         if (result.status && Array.isArray(result.data)) {
             return result.data.map(m => ({
                 id: m.id,
+                wamid: m.wamid,
                 text: m.text,
                 sender: m.sender, // 'me' or 'customer'
                 time: m.time ? new Date(m.time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '',
@@ -197,6 +198,7 @@ const sendMessage = async () => {
                 sentMsg.status = 'sent';
                 if (res.data && res.data.local_id) {
                     sentMsg.id = res.data.local_id; // Swap temp ID with real DB ID
+                    if (res.data.wamid) sentMsg.wamid = res.data.wamid;
                 }
             }
         } else {

@@ -142,10 +142,23 @@ class WAReplies
         
         $pendingNotifs = $db1->query($sql)->result_array();
         
+        $count = count($pendingNotifs);
+        if ($count > 0) {
+            \Log::write("Found $count pending notifications for $waNumber. Processing...", 'wa_replies', 'PendingNotifs');
+        } else {
+            \Log::write("No pending notifications found for $waNumber in the last 24h.", 'wa_replies', 'PendingNotifs');
+        }
+
         if (!empty($pendingNotifs)) {
              foreach ($pendingNotifs as $notif) {
+                 $idNotif = $notif['id_notif'];
+                 \Log::write("-> Sending Notif #$idNotif: " . substr($notif['text'] ?? '', 0, 50) . "...", 'wa_replies', 'PendingNotifs');
+
                  // Send message (Free text is allowed now since customer just messaged us)
                  $res = $waService->sendFreeText($waNumber, $notif['text']);
+                 
+                 // Log response
+                 \Log::write("   Result Notif #$idNotif: " . json_encode($res), 'wa_replies', 'PendingNotifs');
                  
                  $status = ($res['success'] ?? false) ? 'sent' : 'failed';
                  $msgId = $res['data']['id'] ?? ($res['data']['message_id'] ?? null); // YCloud returns id or message_id
@@ -155,7 +168,12 @@ class WAReplies
                      $updateData['id_api'] = $msgId;
                  }
                  
-                 $db1->update('notif', $updateData, ['id_notif' => $notif['id_notif']]);
+                 $updated = $db1->update('notif', $updateData, ['id_notif' => $notif['id_notif']]);
+                 if ($updated) {
+                     \Log::write("   DB Updated Notif #$idNotif to '$status'", 'wa_replies', 'PendingNotifs');
+                 } else {
+                     \Log::write("   FAILED to update DB for Notif #$idNotif (Error: " . $db1->conn()->error . ")", 'wa_replies', 'PendingNotifs');
+                 }
              }
         }else{
             //cek dulu ada tidak nya nota terbuka

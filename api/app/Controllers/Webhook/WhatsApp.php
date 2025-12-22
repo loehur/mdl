@@ -173,7 +173,6 @@ class WhatsApp extends Controller
 
         //cari assigned_user_id
         $user_data = $this->getUserData($phone0);
-        \Log::write("getUserData: " . json_encode($user_data), 'webhook', 'WhatsApp');
         $assigned_user_id = $user_data->assigned_user_id ?? null;
         $code = $user_data->code ?? null;
         $contact_name = $user_data->customer_name ?? $contactName;
@@ -364,7 +363,7 @@ class WhatsApp extends Controller
         // Let's assume handleMessageUpdated is the main one for OUTBOUND.
         
         if ($updated) {
-            \Log::write("✓ Status updated: $wamid -> $status", 'webhook', 'WhatsApp');
+            // \Log::write("✓ Status updated: $wamid -> $status", 'webhook', 'WhatsApp');
 
             // Find conversation_id to push to frontend
             $msg = $db->query("SELECT conversation_id, id FROM wa_messages_out WHERE wamid = '$wamid'")->row();
@@ -455,7 +454,7 @@ class WhatsApp extends Controller
         }
 
         if ($updated) {
-            \Log::write("✓ Outbound message updated: wamid=$wamid, id=$messageId, status=$status", 'webhook', 'WhatsApp');
+            // \Log::write("✓ Outbound message updated: wamid=$wamid, id=$messageId, status=$status", 'webhook', 'WhatsApp');
             
             // Fetch conversation_id and local ID for WebSocket push
             $checkSql = "SELECT id, conversation_id FROM wa_messages_out WHERE ";

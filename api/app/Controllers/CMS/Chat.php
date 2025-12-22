@@ -115,6 +115,7 @@ class Chat extends Controller
                 SELECT * FROM (
                     (SELECT 
                         id, 
+                        wamid,
                         text, 
                         type, 
                         'customer' as sender, 
@@ -128,6 +129,7 @@ class Chat extends Controller
                     
                     (SELECT 
                         id, 
+                        wamid,
                         content as text, 
                         type, 
                         'me' as sender, 
