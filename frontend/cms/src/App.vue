@@ -670,20 +670,8 @@ watch(activeChatId, () => {
     
     <!-- Main Chat Area -->
     <!-- Mobile: Fixed on top (z-50) if active. Desktop: static flex-1. -->
-    <main v-if="isConnected" 
-        class="flex flex-col bg-[#0f172a] shadow-2xl md:shadow-none h-full relative"
-        :class="{
-            'fixed inset-0 z-50 w-full': showMobileChat,
-            'hidden': !showMobileChat && windowWidth < 768,
-            'flex flex-1 w-full': windowWidth >= 768
-        }"
-        :style="{ 
-            transform: showMobileChat && windowWidth < 768 ? `translateX(${touchOffset}px)` : '',
-            transition: isDragging ? 'none' : 'transform 0.3s ease-out'
-        }"
-        @touchstart="handleTouchStart"
-        @touchmove="handleTouchMove"
-        @touchend="handleTouchEnd"
+    <main 
+        class="flex flex-col bg-[#0f172a] h-full relative flex-1 w-full z-0"
     >
     <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 9999; color: red; background: white; padding: 20px; text-align: center;" v-if="true">
        DEBUG INFO:<br>
