@@ -221,7 +221,44 @@ class WhatsApp extends Controller
             $error = $db->conn()->error;
             \Log::write("✗ DB ERROR (insert inbound message): $error", 'webhook', 'WhatsApp');
             \Log::write("Data attempted: " . json_encode($messageData), 'webhook', 'WhatsApp');
+        } else {
+            // Success - Push to WebSocket Server
+            $this->pushIncomingToWebSocket([
+                'conversation_id' => $conversationId,
+                'customer_id' => $customerId,
+                'phone' => $waNumber,
+                'contact_name' => $contactName,
+                'message' => [
+                    'id' => $msgId, // local DB ID
+                    'text' => $textBody,
+                    'type' => $messageType,
+                     // Add other fields if needed by frontend
+                    'time' => $sendTime,
+                ],
+                'target_id' => '0' // Broadcast to admin/CS (ID 0)
+            ]);
         }
+    }
+
+    /**
+     * Push incoming message to Node.js WebSocket Server
+     */
+    private function pushIncomingToWebSocket($data)
+    {
+        $url = 'http://localhost:3003/incoming';
+        
+        // Use curl to post
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 2); // Fast timeout, don't block php
+        
+        $result = curl_exec($ch);
+        curl_close($ch);
+        
+        return $result;
     }
 
     /**
