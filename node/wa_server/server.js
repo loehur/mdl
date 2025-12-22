@@ -176,11 +176,12 @@ wss.on('close', () => {
 // Helper Functions
 // ============================================
 
-function sendToTarget(targetId, data) {
+function sendToTarget(targetId, data, excludeId = null) {
     let sent = false;
 
     // 1. Send to the specific target_id (all connected sockets for this ID)
-    if (clients.has(targetId)) {
+    // But NOT if target is the excluded sender
+    if (clients.has(targetId) && targetId !== excludeId) {
         const userSockets = clients.get(targetId);
         userSockets.forEach(client => {
             if (client.readyState === WebSocket.OPEN) {
@@ -192,6 +193,7 @@ function sendToTarget(targetId, data) {
 
     // 2. Also send to Monitor IDs (1000-1010 range untuk admin access)
     // Avoid double sending if targetId is the monitor itself
+    // AND avoid sending to the excludeId (sender)
     const monitorIds = [];
 
     // Add range 1000-1010 as admin/monitor IDs
@@ -200,7 +202,8 @@ function sendToTarget(targetId, data) {
     }
 
     monitorIds.forEach(monitorId => {
-        if (targetId !== monitorId && clients.has(monitorId)) {
+        // Don't send to: 1) the target itself, 2) the sender (excludeId)
+        if (targetId !== monitorId && monitorId !== excludeId && clients.has(monitorId)) {
             const monitorSockets = clients.get(monitorId);
             monitorSockets.forEach(monitor => {
                 if (monitor.readyState === WebSocket.OPEN) {
@@ -263,11 +266,13 @@ app.post('/incoming', (req, res) => {
     }
 
     // Normal flow: Send to specific target
+    // Exclude sender_id to prevent duplicate messages
+    const senderId = data.sender_id ? data.sender_id.toString() : null;
     const sent = sendToTarget(targetId, {
         type: 'wa_masuk',
         data: data,
         timestamp: new Date().toISOString()
-    });
+    }, senderId);
 
     if (sent) {
         res.json({ success: true, message: 'Message sent to client' });
@@ -292,11 +297,13 @@ app.post('/webhook', (req, res) => {
 
     console.log(`Webhook (${type}) for ${targetId}:`, data);
 
+    // Exclude sender_id to prevent duplicate messages
+    const senderId = data.sender_id ? data.sender_id.toString() : null;
     const sent = sendToTarget(targetId, {
         type: type,
         data: data,
         timestamp: new Date().toISOString()
-    });
+    }, senderId);
 
     if (sent) {
         res.json({ success: true, message: 'Event sent to client' });
