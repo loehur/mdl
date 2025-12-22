@@ -1,6 +1,11 @@
 <script setup>
-import { ref, computed, onMounted, nextTick, watch } from 'vue';
+import { ref, computed, onMounted, nextTick, watch, onUnmounted } from 'vue';
 import { App } from '@capacitor/app';
+
+// Window resize listener helper
+const windowWidth = ref(window.innerWidth);
+const updateWidth = () => windowWidth.value = window.innerWidth;
+window.addEventListener('resize', updateWidth);
 
 // --- State ---
 const conversations = ref([
@@ -47,6 +52,8 @@ let lastBackPress = 0;
 // Swipe Gesture State
 const touchStartX = ref(0);
 const touchStartY = ref(0);
+const touchOffset = ref(0); // Current drag distance
+const isDragging = ref(false);
 const minSwipeDistance = 75; // px
 
 const connect = () => {
@@ -80,6 +87,7 @@ const selectChat = (id) => {
 };
 
 const backToMenu = () => {
+    touchOffset.value = 0; // Reset
     showMobileChat.value = false;
 };
 
@@ -223,23 +231,56 @@ const connectWebSocket = () => {
 };
 
 const handleTouchStart = (e) => {
-  touchStartX.value = e.changedTouches[0].screenX;
-  touchStartY.value = e.changedTouches[0].screenY;
+  touchStartX.value = e.touches[0].screenX;
+  touchStartY.value = e.touches[0].screenY;
+  isDragging.value = false;
+};
+
+const handleTouchMove = (e) => {
+  if (!showMobileChat.value) return;
+  
+  const currentX = e.touches[0].screenX;
+  const currentY = e.touches[0].screenY;
+  
+  const diffX = currentX - touchStartX.value;
+  const diffY = currentY - touchStartY.value;
+  
+  // Only start dragging if substantially horizontal
+  if (!isDragging.value) {
+      if (diffX > 10 && Math.abs(diffX) > Math.abs(diffY)) {
+          isDragging.value = true;
+      }
+  }
+  
+  if (isDragging.value && diffX > 0) {
+      // Prevent default scrolling only if we are dragging horizontally
+      if (e.cancelable) e.preventDefault(); 
+      touchOffset.value = diffX;
+  }
 };
 
 const handleTouchEnd = (e) => {
-  if (!showMobileChat.value) return; // Only active in mobile mode
+  if (!showMobileChat.value) return; 
   
-  const touchEndX = e.changedTouches[0].screenX;
-  const touchEndY = e.changedTouches[0].screenY;
-  
-  const distanceX = touchEndX - touchStartX.value;
-  const distanceY = touchEndY - touchStartY.value;
-  
-  // Check for Swipe Right (Positive X)
-  // Ensure it's mostly horizontal (X distance > Y distance)
-  if (distanceX > minSwipeDistance && Math.abs(distanceX) > Math.abs(distanceY)) {
-      backToMenu();
+  if (isDragging.value) {
+      // If dragged more than 30% of screen width, close it
+      const screenWidth = window.innerWidth;
+      if (touchOffset.value > screenWidth * 0.3) {
+          // Animate out
+          touchOffset.value = screenWidth; 
+          setTimeout(() => {
+              backToMenu();
+              // Small delay to let animation finish before unmounting/hiding
+              setTimeout(() => {
+                  touchOffset.value = 0;
+                  isDragging.value = false;
+              }, 300);
+          }, 50); // Small tick to ensure render
+      } else {
+          // Snap back
+          touchOffset.value = 0;
+          isDragging.value = false;
+      }
   }
 };
 
@@ -380,8 +421,9 @@ watch(activeChatId, () => {
     </div>
 
     <!-- Sidebar -->
-    <aside v-if="isConnected" class="flex flex-col border-r border-slate-800 bg-[#1e293b] transition-all duration-300"
-           :class="showMobileChat ? 'hidden md:flex md:w-80' : 'w-full md:w-80 flex'">
+    <!-- On mobile, we keep it rendered but covered by chat when active. On desktop it's side-by-side. -->
+    <aside v-if="isConnected" class="flex flex-col border-r border-slate-800 bg-[#1e293b] transition-all duration-300 absolute md:static z-0 h-full w-full md:w-80"
+           :class="showMobileChat ? 'flex' : 'flex'">
       <!-- Header -->
       <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-[#1e293b]/50 backdrop-blur-md">
         <h1 class="text-xl font-bold bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">
@@ -445,9 +487,15 @@ watch(activeChatId, () => {
     </aside>
     
     <!-- Main Chat Area -->
-    <main v-if="isConnected" class="flex-col bg-[#0f172a] relative transition-all duration-300"
-        :class="showMobileChat ? 'flex w-full fixed inset-0 z-50 md:static md:w-auto md:flex-1' : 'hidden md:flex md:flex-1'"
+    <!-- Mobile: Fixed on top (z-50) if active. Desktop: static flex-1. -->
+    <main v-if="isConnected" class="flex-col bg-[#0f172a] shadow-2xl md:shadow-none"
+        :class="showMobileChat ? 'flex fixed inset-0 z-50 md:static md:w-auto md:flex-1' : 'hidden md:flex md:flex-1'"
+        :style="{ 
+            transform: showMobileChat && windowWidth < 768 ? `translateX(${touchOffset}px)` : '',
+            transition: isDragging ? 'none' : 'transform 0.3s ease-out'
+        }"
         @touchstart="handleTouchStart"
+        @touchmove="handleTouchMove"
         @touchend="handleTouchEnd"
     >
        <!-- Background Pattern -->
