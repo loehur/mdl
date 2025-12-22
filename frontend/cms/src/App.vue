@@ -535,7 +535,7 @@ watch(activeChatId, () => {
 
 <template>
   <!-- Use fixed inset-0 to prevent body scroll issues on mobile -->
-  <div class="fixed inset-0 w-full bg-[#0f172a] text-slate-200 overflow-hidden font-sans selection:bg-indigo-500 selection:text-white flex flex-col md:flex-row">
+  <div class="fixed inset-0 w-full bg-[#0f172a] text-slate-200 overflow-hidden font-sans selection:bg-indigo-500 selection:text-white">
     
     <!-- Login Modal (Overlay) -->
     <div v-if="!isConnected && showLoginPrompt" class="fixed inset-0 z-[60] bg-[#0f172a] flex items-center justify-center p-4">
@@ -669,9 +669,8 @@ watch(activeChatId, () => {
     
     <!-- Main Chat Area -->
     <!-- Mobile: Fixed on top (z-50) if active. Desktop: static flex-1. -->
-    <main v-if="isConnected" 
-        class="bg-[#0f172a] h-full relative flex-1 hidden md:flex min-w-0"
-        :class="{ 'fixed inset-0 z-50 flex': showMobileChat && windowWidth < 768 }"
+    <main v-if="isConnected" class="flex-col bg-[#0f172a] shadow-2xl md:shadow-none md:flex md:flex-1 h-full relative"
+        :class="showMobileChat ? 'flex fixed inset-0 z-50 md:static md:w-auto' : 'hidden md:flex'"
         :style="{ 
             transform: showMobileChat && windowWidth < 768 ? `translateX(${touchOffset}px)` : '',
             transition: isDragging ? 'none' : 'transform 0.3s ease-out'
@@ -685,7 +684,7 @@ watch(activeChatId, () => {
             style="background-image: radial-gradient(#6366f1 1px, transparent 1px); background-size: 32px 32px;">
        </div>
 
-       <template v-if="activeConversation">
+      <template v-if="activeConversation">
         <!-- Chat Header -->
         <header class="h-16 border-b border-slate-800 bg-[#0f172a]/90 backdrop-blur-sm flex items-center justify-between px-4 md:px-6 z-10 sticky top-0">
           <div class="flex items-center gap-3">
@@ -786,10 +785,18 @@ watch(activeChatId, () => {
            </div>
         </div>
         
-      </template><template v-else><div class="flex-1 flex flex-col items-center justify-center text-slate-500 w-full h-full relative z-10"><svg xmlns="http://www.w3.org/2000/svg" class="h-24 w-24 mb-4 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      </template>
+      
+      <template v-else>
+         <div class="flex-1 flex flex-col items-center justify-center text-slate-500 w-full h-full">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-24 w-24 mb-4 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
             </svg>
-            <p class="text-lg">Select a conversation to start chatting</p></div></template></main>
+            <p class="text-lg">Select a conversation to start chatting</p>
+         </div>
+      </template>
+      
+    </main>
     <!-- Exit Toast -->
     <div v-if="showExitToast" class="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-slate-800/90 backdrop-blur text-white px-6 py-3 rounded-full shadow-xl border border-slate-700/50 z-[100] transition-opacity duration-300 pointer-events-none">
         <span class="text-sm font-medium">Press back again to exit</span>
