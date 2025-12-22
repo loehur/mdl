@@ -53,8 +53,8 @@ class Chat extends Controller
                     (
                         SELECT COUNT(*) 
                         FROM wa_messages_in m 
-                        WHERE m.phone = c.wa_number 
-                        AND m.status = 'received'
+                        WHERE (m.conversation_id = c.id OR m.phone = c.wa_number) 
+                        AND (m.status != 'read' OR m.status IS NULL)
                     ) as unread_count,
                     c.last_message as last_message,
                     c.updated_at as last_message_time,
