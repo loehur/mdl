@@ -180,17 +180,20 @@ function sendToTarget(targetId, data) {
         });
     }
 
-    // 2. Also send to '0' (Super Admin / Monitor) if connected
-    // But avoid double sending if targetId is already '0'
-    if (targetId !== '0' && clients.has('0')) {
-        const monitorSockets = clients.get('0');
-        monitorSockets.forEach(monitor => {
-            if (monitor.readyState === WebSocket.OPEN) {
-                monitor.send(JSON.stringify(data));
-                // We don't change 'sent' status based on monitor
-            }
-        });
-    }
+    // 2. Also send to Monitor IDs (0 and 1000)
+    // Avoid double sending if targetId is the monitor itself
+    const monitorIds = ['1000'];
+
+    monitorIds.forEach(monitorId => {
+        if (targetId !== monitorId && clients.has(monitorId)) {
+            const monitorSockets = clients.get(monitorId);
+            monitorSockets.forEach(monitor => {
+                if (monitor.readyState === WebSocket.OPEN) {
+                    monitor.send(JSON.stringify(data));
+                }
+            });
+        }
+    });
 
     return sent;
 }
