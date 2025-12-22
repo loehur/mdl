@@ -36,6 +36,13 @@ const showLoginPrompt = ref(false);
 const fetchConversations = async () => {
     try {
         const response = await fetch('https://api.nalju.com/CMS/Chat/getConversations'); 
+        
+        if (!response.ok) {
+            const text = await response.text();
+            console.error("API Error Response:", text); // Debugging
+            return;
+        }
+
         const result = await response.json();
         
         if (result.success && Array.isArray(result.data)) {
