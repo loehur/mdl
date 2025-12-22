@@ -263,9 +263,9 @@ const handleTouchEnd = (e) => {
   if (!showMobileChat.value) return; 
   
   if (isDragging.value) {
-      // If dragged more than 30% of screen width, close it
+      // If dragged more than 50% of screen width, close it
       const screenWidth = window.innerWidth;
-      if (touchOffset.value > screenWidth * 0.3) {
+      if (touchOffset.value > screenWidth * 0.5) {
           // Animate out
           touchOffset.value = screenWidth; 
           setTimeout(() => {
