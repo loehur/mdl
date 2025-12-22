@@ -198,6 +198,12 @@ class WhatsAppService
         // Default filename
         $filename = $mediaId . '.' . $ext;
         $savePath = $baseDir . '/' . $filename;
+        
+        // Log path for debugging
+        if (class_exists('\Log')) {
+            \Log::write("Saving media to: $savePath", 'wa_media');
+        }
+        
         $saved = false;
         
         // COMPRESSION LOGIC: Only for Images
