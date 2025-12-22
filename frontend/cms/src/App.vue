@@ -445,6 +445,7 @@ onMounted(() => {
   const storedExpiry = localStorage.getItem('cms_chat_expiry');
   const now = new Date().getTime();
   
+  // Case 1: Complete valid session (ID + Password + Valid Expiry)
   if (storedId && storedPass && storedExpiry && now < parseInt(storedExpiry)) {
       console.log("Restoring session for ID:", storedId);
       authId.value = storedId;
@@ -456,8 +457,17 @@ onMounted(() => {
       
       connectWebSocket();
       fetchConversations();
-  } else {
-      // Clean up if expired or invalid
+  } 
+  // Case 2: Has ID but missing password (legacy session) - Keep ID, prompt for password
+  else if (storedId && !storedPass) {
+      console.log("Legacy session detected. ID found but password missing. Please re-enter password.");
+      authId.value = storedId; // Keep the ID
+      connectionError.value = 'Session incomplete. Please enter your password to continue.';
+      showLoginPrompt.value = true;
+  }
+  // Case 3: Expired or no session - Start fresh
+  else {
+      // Clean up any partial/expired data
       localStorage.removeItem('cms_chat_id');
       localStorage.removeItem('cms_chat_password');
       localStorage.removeItem('cms_chat_expiry');
@@ -659,7 +669,7 @@ watch(activeChatId, () => {
     
     <!-- Main Chat Area -->
     <!-- Mobile: Fixed on top (z-50) if active. Desktop: static flex-1. -->
-    <main v-if="isConnected" class="flex-col bg-[#0f172a] shadow-2xl md:shadow-none md:flex md:flex-1"
+    <main v-if="isConnected" class="flex-col bg-[#0f172a] shadow-2xl md:shadow-none md:flex md:flex-1 h-full relative"
         :class="showMobileChat ? 'flex fixed inset-0 z-50 md:static md:w-auto' : 'hidden md:flex'"
         :style="{ 
             transform: showMobileChat && windowWidth < 768 ? `translateX(${touchOffset}px)` : '',
@@ -778,7 +788,7 @@ watch(activeChatId, () => {
       </template>
       
       <template v-else>
-         <div class="flex-1 flex flex-col items-center justify-center text-slate-500">
+         <div class="flex-1 flex flex-col items-center justify-center text-slate-500 w-full h-full">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-24 w-24 mb-4 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
             </svg>
