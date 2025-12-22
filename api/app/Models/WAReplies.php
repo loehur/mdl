@@ -48,12 +48,26 @@ class WAReplies
             }
         }
         
-        // Can send reply - log it
-        $db->insert('wa_auto_reply_log', [
-            'phone' => $waNumber,
-            'handler' => $handler,
-            'created_at' => date('Y-m-d H:i:s')
-        ]);
+        // Update jika sudah ada, insert jika belum
+        $existing = $db->get_where('wa_auto_reply_log', [
+            'phone' => $waNumber, 
+            'handler' => $handler
+        ])->row();
+        
+        if ($existing) {
+            // Update created_at jika record sudah ada
+            $db->update('wa_auto_reply_log', 
+                ['created_at' => date('Y-m-d H:i:s')],
+                ['phone' => $waNumber, 'handler' => $handler]
+            );
+        } else {
+            // Insert baru jika belum ada
+            $db->insert('wa_auto_reply_log', [
+                'phone' => $waNumber,
+                'handler' => $handler,
+                'created_at' => date('Y-m-d H:i:s')
+            ]);
+        }
         
         return true;
     }
@@ -186,7 +200,13 @@ class WAReplies
                          }
                         $listIdPenjualanIn = implode(',', $flatList);
 
-                        $waService->sendFreeText($waNumber, "Yth. *" . $nama_pelanggan . "*, List laundry dalam pengerjaan:\n*" . $listIdPenjualanIn . "*\n\nKarna sudah *CEK*, nanti akan dikabari jika sudah selesai. Terima kasih");
+                        $list_link = "";
+                        foreach ($flatList as $idPenjualan) {
+                            $list_link .= "https://ml.nalju.com/I/i/" . $idPenjualan . "\n";
+                        }
+
+                        $text = "Yth. *" . $nama_pelanggan . "*, List laundry dalam pengerjaan:\n*" . $listIdPenjualanIn . "*\n\nKarena sudah *CEK*, nanti akan dikabari jika sudah selesai. Terima kasih\n" . $list_link;
+                        $waService->sendFreeText($waNumber, $text);
                     } else {
                         $waService->sendFreeText($waNumber, 'Yth. *' . $nama_pelanggan . '*, semua laundry Anda sudah selesai. Terima kasih');
                     }
