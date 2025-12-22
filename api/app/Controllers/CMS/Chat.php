@@ -48,20 +48,26 @@ class Chat extends Controller
                          LIMIT 1
                     ) as last_message_time
                 FROM wa_conversations c
-                WHERE c.status = 'open'
+                -- Temporarily removed for debugging: WHERE c.status = 'open'
                 ORDER BY c.last_in_at DESC
             ";
     
             $query = $db->query($sql);
             
             if (!$query) {
-                // DB Error
                 throw new \Exception("Database Query Failed");
             }
 
             $conversations = $query->result();
+            
+            // Debug: Check statuses
+            $statuses = [];
+            foreach($conversations as $c) {
+                $statuses[] = $c->status;
+            }
+            $statusCounts = array_count_values($statuses);
     
-            $this->success($conversations, 'Conversations retrieved successfully');
+            $this->success($conversations, 'Retrieved ' . count($conversations) . ' chats. Statuses found: ' . json_encode($statusCounts));
 
         } catch (\Throwable $e) {
             // Catch all errors including Fatal Errors
