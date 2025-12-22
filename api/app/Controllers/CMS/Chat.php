@@ -234,11 +234,28 @@ class Chat extends Controller
                  $targets[] = (string)$conv->assigned_user_id;
              }
              
-             // BROADCAST TO ALL RECENTLY ACTIVE AGENTS (Max 20)
-             // This ensures User ID 11, etc. receive updates
-             $activeAgents = $db->query("SELECT DISTINCT assigned_user_id FROM wa_conversations WHERE assigned_user_id IS NOT NULL ORDER BY updated_at DESC LIMIT 20")->result_array();
-             foreach ($activeAgents as $agent) {
-                 $targets[] = (string)$agent['assigned_user_id'];
+             // DYNAMIC BROADCAST: Fetch Connected Clients from WA Server
+             // This ensures we push to EVERYONE who is currently online (e.g. ID 11)
+             try {
+                 $chv = curl_init('https://waserver.nalju.com/');
+                 curl_setopt($chv, CURLOPT_RETURNTRANSFER, true);
+                 curl_setopt($chv, CURLOPT_TIMEOUT, 1);
+                 $jsonUsers = curl_exec($chv);
+                 curl_close($chv);
+                 
+                 $onlineUsers = json_decode($jsonUsers, true);
+                 if (is_array($onlineUsers)) {
+                     foreach ($onlineUsers as $uid) {
+                         $targets[] = (string)$uid;
+                     }
+                 }
+                 
+                 // Log online users for debug
+                 if (class_exists('\Log')) {
+                    \Log::write("WS Online Targets: " . json_encode($onlineUsers), 'cms_ws');
+                 }
+             } catch (\Throwable $ex) {
+                 // Ignore fetch error
              }
              
              $targets = array_unique($targets);
