@@ -307,6 +307,26 @@ class Chat extends Controller
         }
     }
 
+    public function testWS()
+    {
+        $convId = $this->query('id') ?? '123';
+        $target = $this->query('target') ?? '0';
+        
+        $payload = [
+            'type' => 'conversation_read',
+            'conversation_id' => $convId,
+            'target_id' => $target,
+            'message' => ['id' => time(), 'text' => 'TEST_WS_MANUAL'], 
+            'unread_count' => 0
+        ];
+        
+        $res = $this->pushToWebSocket($payload);
+        
+        header('Content-Type: application/json');
+        echo json_encode(['result' => $res, 'payload' => $payload]);
+        exit;
+    }
+
     private function pushToWebSocket($data)
     {
         $url = 'https://waserver.nalju.com/incoming';
