@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, nextTick, watch } from 'vue';
+import { App } from '@capacitor/app';
 
 // --- State ---
 const conversations = ref([
@@ -40,6 +41,13 @@ const showMobileChat = ref(false);
 const authId = ref('');
 const isConnecting = ref(false);
 const connectionError = ref('');
+const showExitToast = ref(false);
+let lastBackPress = 0;
+
+// Swipe Gesture State
+const touchStartX = ref(0);
+const touchStartY = ref(0);
+const minSwipeDistance = 75; // px
 
 const connect = () => {
     if(!authId.value) return;
@@ -214,6 +222,27 @@ const connectWebSocket = () => {
   }
 };
 
+const handleTouchStart = (e) => {
+  touchStartX.value = e.changedTouches[0].screenX;
+  touchStartY.value = e.changedTouches[0].screenY;
+};
+
+const handleTouchEnd = (e) => {
+  if (!showMobileChat.value) return; // Only active in mobile mode
+  
+  const touchEndX = e.changedTouches[0].screenX;
+  const touchEndY = e.changedTouches[0].screenY;
+  
+  const distanceX = touchEndX - touchStartX.value;
+  const distanceY = touchEndY - touchStartY.value;
+  
+  // Check for Swipe Right (Positive X)
+  // Ensure it's mostly horizontal (X distance > Y distance)
+  if (distanceX > minSwipeDistance && Math.abs(distanceX) > Math.abs(distanceY)) {
+      backToMenu();
+  }
+};
+
 // Mock incoming message for demonstration
 const mockIncomingMessage = () => {
   if (conversations.value.length === 0) return; // Only mock if there are conversations or simplify logic
@@ -258,9 +287,23 @@ onMounted(() => {
       const params = new URLSearchParams(window.location.search);
       const id = params.get('id');
       if (id) {
-          authId.value = id;
+           authId.value = id;
       }
   }
+
+  // Handle Android Back Button
+  App.addListener('backButton', () => {
+    const timeNow = Date.now();
+    if (timeNow - lastBackPress < 2000) {
+        App.exitApp();
+    } else {
+        lastBackPress = timeNow;
+        showExitToast.value = true;
+        setTimeout(() => {
+            showExitToast.value = false;
+        }, 2000);
+    }
+  });
 });
 
 const logout = () => {
@@ -403,7 +446,10 @@ watch(activeChatId, () => {
     
     <!-- Main Chat Area -->
     <main v-if="isConnected" class="flex-col bg-[#0f172a] relative transition-all duration-300"
-        :class="showMobileChat ? 'flex w-full fixed inset-0 z-50 md:static md:w-auto md:flex-1' : 'hidden md:flex md:flex-1'">
+        :class="showMobileChat ? 'flex w-full fixed inset-0 z-50 md:static md:w-auto md:flex-1' : 'hidden md:flex md:flex-1'"
+        @touchstart="handleTouchStart"
+        @touchend="handleTouchEnd"
+    >
        <!-- Background Pattern -->
        <div class="absolute inset-0 opacity-5 pointer-events-none" 
             style="background-image: radial-gradient(#6366f1 1px, transparent 1px); background-size: 32px 32px;">
@@ -501,6 +547,11 @@ watch(activeChatId, () => {
       </template>
       
     </main>
+    <!-- Exit Toast -->
+    <div v-if="showExitToast" class="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-slate-800/90 backdrop-blur text-white px-6 py-3 rounded-full shadow-xl border border-slate-700/50 z-[100] transition-opacity duration-300 pointer-events-none">
+        <span class="text-sm font-medium">Press back again to exit</span>
+    </div>
+
   </div>
 </template>
 
