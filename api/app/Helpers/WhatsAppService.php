@@ -139,7 +139,10 @@ class WhatsAppService
         $res = $this->sendRequest("/whatsapp/media/$mediaId", [], 'GET');
         
         if (!$res['success']) {
-            return ['error' => 'API Error: ' . ($res['error'] ?? 'Unknown'), 'raw' => $res];
+            // Extract YCloud Error Message
+            $errorMsg = $res['data']['error']['message'] ?? $res['data']['error']['code'] ?? 'Unknown API Error';
+            $httpCode = $res['http_code'] ?? 0;
+            return ['error' => "API Error: $errorMsg (Status: $httpCode)", 'raw' => $res];
         }
         
         if (!isset($res['data']['url'])) {
