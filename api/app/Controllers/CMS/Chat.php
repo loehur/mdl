@@ -236,6 +236,7 @@ class Chat extends Controller
                     'type' => 'conversation_read',
                     'conversation_id' => $conversationId,
                     'target_id' => $tid,
+                    'message' => ['id' => time(), 'text' => 'SYNC_READ'], // Dummy to prevent Node crash
                     'unread_count' => 0
                  ]);
              }
@@ -296,13 +297,24 @@ class Chat extends Controller
     private function pushToWebSocket($data)
     {
         $url = 'https://waserver.nalju.com/incoming';
+        
+        // Log payload for debugging
+        if (class_exists('\Log')) {
+            \Log::write("WS Push: " . json_encode($data), 'cms_ws');
+        }
+
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 1); 
+        curl_setopt($ch, CURLOPT_TIMEOUT, 2); 
         $result = curl_exec($ch);
+        
+        if (curl_errno($ch) && class_exists('\Log')) {
+             \Log::write("WS Curl Error: " . curl_error($ch), 'cms_ws_error');
+        }
+        
         curl_close($ch);
         return $result;   
     }
