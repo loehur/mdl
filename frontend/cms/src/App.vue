@@ -45,7 +45,8 @@ const fetchConversations = async () => {
 
         const result = await response.json();
         
-        if (result.success && Array.isArray(result.data)) {
+        // Backend returns "status": true, not "success"
+        if (result.status && Array.isArray(result.data)) {
             // Check if filtering was expected
             if (result.data.length === 0) {
                  console.log("API returned 0 conversations.");
