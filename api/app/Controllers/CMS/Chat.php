@@ -55,7 +55,11 @@ class Chat extends Controller
             $query = $db->query($sql);
             
             if (!$query) {
-                throw new \Exception("Database Query Failed");
+                 // DB Error in query preparing or something unknown
+                 // Since we use $db->query() which throws exception on prepare failure inside,
+                 // we might not reach here unless logic changes.
+                 // But let's be safe and check connection error
+                throw new \Exception("Database Query Failed: " . $db->conn()->error);
             }
 
             $conversations = $query->result();
