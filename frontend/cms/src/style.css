@@ -1,3 +1,9 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+html, body {
+  overscroll-behavior: none;
+  overflow: hidden; /* Prevent scrolling of root */
+  height: 100%;
+}
