@@ -301,8 +301,11 @@ const connectWebSocket = () => {
        
        // Save session (3 days)
        const expiry = new Date().getTime() + (3 * 24 * 60 * 60 * 1000);
-       localStorage.setItem('chat_connection_id', authId.value);
-       localStorage.setItem('chat_connection_expiry', expiry);
+       localStorage.setItem('cms_chat_id', authId.value);
+       localStorage.setItem('cms_chat_password', authPassword.value);
+       localStorage.setItem('cms_chat_expiry', expiry.toString());
+       
+       showLoginPrompt.value = false;
      };
      
      ws.onmessage = (event) => {
@@ -436,17 +439,25 @@ onMounted(() => {
   // Check Local Storage for Session
   const storedId = localStorage.getItem('cms_chat_id');
   const storedPass = localStorage.getItem('cms_chat_password');
+  const storedExpiry = localStorage.getItem('cms_chat_expiry');
+  const now = new Date().getTime();
   
-  if (storedId && storedPass) {
+  if (storedId && storedPass && storedExpiry && now < parseInt(storedExpiry)) {
       console.log("Restoring session for ID:", storedId);
       authId.value = storedId;
       authPassword.value = storedPass;
+      
+      // Renew expiry for another 3 days
+      const newExpiry = new Date().getTime() + (3 * 24 * 60 * 60 * 1000);
+      localStorage.setItem('cms_chat_expiry', newExpiry.toString());
+      
       connectWebSocket();
       fetchConversations();
   } else {
       // Clean up if expired or invalid
       localStorage.removeItem('cms_chat_id');
       localStorage.removeItem('cms_chat_password');
+      localStorage.removeItem('cms_chat_expiry');
       
       // Check URL param?
       const urlParams = new URLSearchParams(window.location.search);
@@ -492,13 +503,15 @@ const logout = () => {
         socket.value = null;
     }
     isConnected.value = false;
-    authId.value = ''; // Reset ID input
-    isConnecting.value = false; // Ensure loading state is off
-    showLoginPrompt.value = true; // Show login immediately on logout
+    authId.value = '';
+    authPassword.value = '';
+    isConnecting.value = false;
+    showLoginPrompt.value = true;
     
     // Clear Session
-    localStorage.removeItem('chat_connection_id');
-    localStorage.removeItem('chat_connection_expiry');
+    localStorage.removeItem('cms_chat_id');
+    localStorage.removeItem('cms_chat_password');
+    localStorage.removeItem('cms_chat_expiry');
 };
 
 watch(activeChatId, () => {
