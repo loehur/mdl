@@ -217,7 +217,7 @@ const handleIncomingMessage = (payload) => {
   // Check if this is a status update
   if (payload.type === 'status_update') {
       const { conversation_id, message } = payload;
-      const conversation = conversations.value.find(c => c.id === conversation_id);
+      const conversation = conversations.value.find(c => c.id == conversation_id);
       if (conversation) {
           // Find message by ID (preferred) or WAMID
           const msgToUpdate = conversation.messages.find(m => m.id == message.id || m.wamid == message.wamid);
