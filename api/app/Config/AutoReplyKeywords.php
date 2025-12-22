@@ -53,7 +53,7 @@ return [
     'penutup' => [
         'max_length' => 12,
         'keywords' => [
-            'makasih', 'makasi', 'trimakasih', 'terima kasih', 'terimakasih', 'trimaksih', 'trimaksh', 
+            'makasih', 'makasi', 'maksh', 'mksih', 'trimakasih', 'terima kasih', 'terimakasih', 'trimaksih', 'trimaksh', 
             'mksih', 'mksh', 'trmksh', 'tks', 'thx', 'thanks', 'thank you', 
             'tengkyu', 'thks', 'thnx', 'ok', 'oce', 'sip', 'siap', 'baik', 
         ]
