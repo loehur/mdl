@@ -337,7 +337,13 @@ class WAReplies
                             }
                         }
                     } else {
-                        $waService->sendFreeText($waNumber, "Yth. *" . $nama_pelanggan . "*, semua nota/bon sudah kami kirimkan sebelumnya. Terima kasih\nhttps://ml.nalju.com/I/i/" . $id_pelanggan_active );
+                        $list_link = "";
+                        foreach ($id_pelanggans_active as $id_pelanggan_active) {
+                            $list_link .= "https://ml.nalju.com/I/i/" . $id_pelanggan_active . "\n";
+                        }
+
+                        $text = "Yth. *" . $nama_pelanggan . "*,\nList dalam pengerjaan:\n*" . $listIdPenjualanIn . "*\n\nKarena sudah *CEK*, akan dikabari jika sudah selesai. Terimakasih\n" . $list_link;
+                        $waService->sendFreeText($waNumber, $text);
                     }
                 } else {
                     $waService->sendFreeText($waNumber, 'Yth. *' . $nama_pelanggan . '*, semua transaksi Anda sudah selesai, atau pastikan gunakan nomor yang terdaftar untuk melakukan request nota/bon. Terima kasih');
