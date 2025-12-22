@@ -531,6 +531,9 @@ class WhatsApp extends Controller
                 ['id' => $conv->id]
             );
             
+            // Mark all previous messages as read
+            $db->update('wa_messages_in', ['status' => 'read'], ['conversation_id' => $conv->id]);
+            
             return $conv->id;
         }
 
