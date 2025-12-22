@@ -243,29 +243,34 @@ class Chat extends Controller
                  curl_setopt($chv, CURLOPT_SSL_VERIFYPEER, false); // Ignore SSL errors
                  curl_setopt($chv, CURLOPT_SSL_VERIFYHOST, 0);
                  
-                 $jsonUsers = curl_exec($chv);
-                 
-                 if ($jsonUsers === false && class_exists('\Log')) {
-                      \Log::write("WS Fetch Error: " . curl_error($chv), 'cms_ws_error');
-                 }
-                 curl_close($chv);
-                 
-                 $onlineUsers = json_decode($jsonUsers, true);
-                 
-                 // Fix: Access 'connected_ids' array from the response object
-                 if (isset($onlineUsers['connected_ids']) && is_array($onlineUsers['connected_ids'])) {
-                     foreach ($onlineUsers['connected_ids'] as $uid) {
-                         $targets[] = (string)$uid;
-                     }
-                 }
-                 
-                 // Log online users for debug
-                 if (class_exists('\Log')) {
-                    \Log::write("WS Online Targets: " . json_encode($onlineUsers['connected_ids'] ?? []), 'cms_ws');
-                 }
-             } catch (\Throwable $ex) {
-                 // Ignore fetch error
-             }
+                  $jsonUsers = curl_exec($chv);
+                  
+                  if ($jsonUsers === false) {
+                       if (class_exists('\Log')) {
+                           \Log::write("WS Fetch FAIL: " . curl_error($chv), 'cms_ws');
+                       }
+                  } else {
+                      curl_close($chv);
+                      
+                      $onlineUsers = json_decode($jsonUsers, true);
+                      
+                      // Fix: Access 'connected_ids' array from the response object
+                      if (isset($onlineUsers['connected_ids']) && is_array($onlineUsers['connected_ids'])) {
+                          foreach ($onlineUsers['connected_ids'] as $uid) {
+                              $targets[] = (string)$uid;
+                          }
+                      }
+                      
+                      // Log online users for debug
+                      if (class_exists('\Log')) {
+                         \Log::write("WS Online Targets: " . json_encode($onlineUsers['connected_ids'] ?? []), 'cms_ws');
+                      }
+                  }
+              } catch (\Throwable $ex) {
+                  if (class_exists('\Log')) {
+                      \Log::write("WS Fetch Exception: " . $ex->getMessage(), 'cms_ws');
+                  }
+              }
              
              $targets = array_unique($targets);
 
