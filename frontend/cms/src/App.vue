@@ -221,8 +221,6 @@ const handleIncomingMessage = (payload) => {
   // Check if this is a status update
   if (payload.type === 'status_update') {
       const { conversation_id, message } = payload;
-      // logDebug(`WS Status Upd: Conv=${conversation_id}, Status=${message.status}`);
-      
       const conversation = conversations.value.find(c => c.id == conversation_id);
       
       if (conversation) {
@@ -230,13 +228,8 @@ const handleIncomingMessage = (payload) => {
           const msgToUpdate = conversation.messages.find(m => m.id == message.id || m.wamid == message.wamid);
           
           if (msgToUpdate) {
-              logDebug(`✓ Msg Status Updated -> ${message.status}`);
               msgToUpdate.status = message.status;
-          } else {
-              logDebug(`✗ Msg Not Found. ID:${message.id} W:${message.wamid?.substring(0,10)}...`);
           }
-      } else {
-         logDebug(`✗ Conv Not Found: ${conversation_id}`);
       }
       return;
   }
@@ -307,16 +300,12 @@ const handleIncomingMessage = (payload) => {
   }
 };
 
-const debugLogs = ref([]);
-const logDebug = (msg) => {
-    debugLogs.value.unshift(new Date().toLocaleTimeString() + ': ' + msg);
-    if(debugLogs.value.length > 50) debugLogs.value.pop();
-};
+
 
 const connectWebSocket = () => {
   if (!authId.value) return;
 
-  logDebug(`Connecting WS ID: ${authId.value}`);
+  console.log("Connecting to WebSocket with ID:", authId.value);
   
   try {
      const wsUrl = `wss://waserver.nalju.com?id=${authId.value.trim()}&password=${authPassword.value.trim()}`;
@@ -324,7 +313,7 @@ const connectWebSocket = () => {
      socket.value = ws;
      
      ws.onopen = () => {
-       logDebug('WS Connected');
+       console.log('WebSocket connected');
        isConnected.value = true;
        isConnecting.value = false;
        connectionError.value = '';
@@ -341,24 +330,20 @@ const connectWebSocket = () => {
      ws.onmessage = (event) => {
        try {
          const payload = JSON.parse(event.data);
-         logDebug('WS Msg: ' + JSON.stringify(payload).substring(0, 100) + '...');
          
          // Handle different message types
          if (payload.type === 'connection' || payload.type === 'pong') {
              // System messages, ignore for chat ui
-             // console.log('WS System:', payload);
              return;
          }
          
          if (payload.type === 'status_update') {
-             logDebug('Status Update Event');
              handleIncomingMessage(payload);
              return;
          }
          
          if (payload.type === 'wa_masuk') {
              // Real incoming WA message
-             logDebug('Msg Masuk Event');
              handleIncomingMessage(payload.data);
          } else if (payload.conversationId) {
              // Fallback for direct legacy format (if any)
@@ -366,7 +351,6 @@ const connectWebSocket = () => {
          }
        } catch (e) {
          console.error('Error parsing WS message', e);
-         logDebug('Error parsing WS msg');
        }
      };
      
@@ -636,12 +620,7 @@ watch(activeChatId, () => {
        </div>
     </div>
     
-    <!-- VISUAL DEBUGGER -->
-    <div class="fixed bottom-2 right-2 max-w-xs bg-black/90 p-2 text-[10px] text-green-400 font-mono z-[100] h-48 overflow-y-auto pointer-events-none opacity-80 rounded border border-green-800">
-        <div v-for="(log, i) in debugLogs" :key="i" class="mb-1 border-b border-white/10 pb-1">
-            {{ log }}
-        </div>
-    </div>
+
 
     <!-- Sidebar -->
     <!-- On mobile, we keep it rendered but covered by chat when active. On desktop it's side-by-side. -->
