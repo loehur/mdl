@@ -417,9 +417,9 @@ const handleTouchEnd = (e) => {
       // Enable transition for the snap/exit animation
       isDragging.value = false;
 
-      // If dragged more than 50% of screen width, close it
+      // If dragged more than 25% of screen width, close it
       const screenWidth = window.innerWidth;
-      if (touchOffset.value > screenWidth * 0.5) {
+      if (touchOffset.value > screenWidth * 0.25) {
           // Animate out to the right
           touchOffset.value = screenWidth; 
           
