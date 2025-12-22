@@ -206,7 +206,13 @@ class WAReplies
                          }
                         $listIdPenjualanIn = implode(',', $flatList);
 
-                        $waService->sendFreeText($waNumber, 'Yth. *' . $nama_pelanggan . '*, List laundry dalam pengerjaan:\n*' . $listIdPenjualanIn . '*\n\nKarna sudah *CEK*, nanti akan dikabari jika sudah selesai. Terima kasih');
+                        // DEBUG: Log the list string to be sent
+                        \Log::write("CheckList ID String: " . $listIdPenjualanIn, 'webhook', 'WhatsApp');
+                        
+                        $res = $waService->sendFreeText($waNumber, 'Yth. *' . $nama_pelanggan . '*, List laundry dalam pengerjaan:\n*' . $listIdPenjualanIn . '*\n\nKarna sudah *CEK*, nanti akan dikabari jika sudah selesai. Terima kasih');
+                        
+                        // DEBUG: Log the send result
+                        \Log::write("Send CheckList Result: " . json_encode($res), 'webhook', 'WhatsApp');
                     } else {
                         $waService->sendFreeText($waNumber, 'Yth. *' . $nama_pelanggan . '*, semua laundry Anda sudah selesai. Terima kasih');
                     }
