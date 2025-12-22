@@ -103,31 +103,32 @@ class Chat extends Controller
         $db = $this->db(0);
 
         // Fetch messages from both Inbound (wa_messages_in) and Outbound (wa_messages_out)
-        // Normalize columns: id, text, type, sender ('customer' vs 'me'), time, status
+        // Wrapped in main query to sort global result
         $sql = "
-            (SELECT 
-                id, 
-                text, 
-                type, 
-                'customer' as sender, 
-                received_at as time, 
-                status 
-             FROM wa_messages_in 
-             WHERE conversation_id = ? 
-             AND status != 'deleted')
-             
-            UNION ALL
-            
-            (SELECT 
-                id, 
-                content as text, 
-                type, 
-                'me' as sender, 
-                created_at as time, 
-                status 
-             FROM wa_messages_out 
-             WHERE conversation_id = ?)
-             
+            SELECT * FROM (
+                (SELECT 
+                    id, 
+                    text, 
+                    type, 
+                    'customer' as sender, 
+                    received_at as time, 
+                    status 
+                 FROM wa_messages_in 
+                 WHERE conversation_id = ? 
+                 AND status != 'deleted')
+                 
+                UNION ALL
+                
+                (SELECT 
+                    id, 
+                    content as text, 
+                    type, 
+                    'me' as sender, 
+                    created_at as time, 
+                    status 
+                 FROM wa_messages_out 
+                 WHERE conversation_id = ?)
+            ) AS combined_msgs
             ORDER BY time ASC
         ";
 

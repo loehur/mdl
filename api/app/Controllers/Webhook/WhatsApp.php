@@ -245,7 +245,7 @@ class WhatsApp extends Controller
      */
     private function pushIncomingToWebSocket($data)
     {
-        $url = 'http://localhost:3003/incoming';
+        $url = 'https://waserver.nalju.com/incoming';
         
         // Use curl to post
         $ch = curl_init($url);
