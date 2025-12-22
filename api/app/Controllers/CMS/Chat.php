@@ -214,14 +214,15 @@ class Chat extends Controller
         $db = $this->db(0);
         
         // Find unread inbound messages
-        // Find unread inbound messages
-        // Check wa_messages_in - include NULL status and NULL wamid
-        $unreads = $db->query("SELECT id, wamid FROM wa_messages_in WHERE conversation_id = ? AND (status != 'read' OR status IS NULL)", [$conversationId])->result_array();
+        // 1. Get WAMIDs for API Sync (Best Effort)
+        $unreads = $db->query("SELECT wamid FROM wa_messages_in WHERE conversation_id = ? AND (status != 'read' OR status IS NULL) AND wamid IS NOT NULL", [$conversationId])->result_array();
+        
+        // 2. Direct Query Update ALL messages in conversation to 'read' (Robust)
+        $updateSql = "UPDATE wa_messages_in SET status = 'read' WHERE conversation_id = ?";
+        $db->query($updateSql, [$conversationId]);
         
         if (empty($unreads)) {
-            // No unread messages
-            // $db->update('wa_conversations', ['unread' => 0], ['id' => $conversationId]);
-            $this->success([], 'No unread messages');
+            $this->success([], 'No unread messages (Local updated)');
         }
         
         if (!class_exists('\App\Helpers\WhatsAppService')) {
@@ -229,18 +230,10 @@ class Chat extends Controller
         }
         $wa = new \App\Helpers\WhatsAppService();
         
+        // 3. Sync API
         foreach ($unreads as $msg) {
-            // Send to YCloud only if wamid exists
-            if (!empty($msg['wamid'])) {
-                $wa->markAsRead($msg['wamid']);
-            }
-            
-            // Update Local ALWAYS
-            $db->update('wa_messages_in', ['status' => 'read'], ['id' => $msg['id']]);
+            $wa->markAsRead($msg['wamid']);
         }
-        
-        // Removed update to 'unread' column as it does not exist in DB and causes 500 Error
-        // $db->update('wa_conversations', ['unread' => 0], ['id' => $conversationId]);
         
         $this->success(['count' => count($unreads)], 'Marked as read');
     }
