@@ -205,7 +205,6 @@ class Chat extends Controller
         $conversationId = $body['conversation_id'] ?? null;
         
         if (!$conversationId) {
-             // Try query param
              $conversationId = $this->query('conversation_id');
         }
         
@@ -213,13 +212,27 @@ class Chat extends Controller
         
         $db = $this->db(0);
         
-        // Find unread inbound messages
-        // 1. Get WAMIDs for API Sync (Best Effort)
+        // 1. Get WAMIDs for API Sync
         $unreads = $db->query("SELECT wamid FROM wa_messages_in WHERE conversation_id = ? AND (status != 'read' OR status IS NULL) AND wamid IS NOT NULL", [$conversationId])->result_array();
         
-        // 2. Direct Query Update ALL messages in conversation to 'read' (Robust)
-        $updateSql = "UPDATE wa_messages_in SET status = 'read' WHERE conversation_id = ?";
-        $db->query($updateSql, [$conversationId]);
+        // 2. Direct Query Update ALL messages
+        $db->query("UPDATE wa_messages_in SET status = 'read' WHERE conversation_id = ?", [$conversationId]);
+        $affected = $db->affected_rows();
+        
+        // Push WS if local status changed
+        if ($affected > 0) {
+             // Get details for WS
+             $conv = $db->get_where('wa_conversations', ['id' => $conversationId])->row();
+             $targetId = $conv && $conv->assigned_user_id ? (string)$conv->assigned_user_id : '0';
+             
+             // Notify WebSocket Server
+             $this->pushToWebSocket([
+                'type' => 'conversation_read',
+                'conversation_id' => $conversationId,
+                'target_id' => $targetId,
+                'unread_count' => 0
+             ]);
+        }
         
         if (empty($unreads)) {
             $this->success([], 'No unread messages (Local updated)');
@@ -230,7 +243,6 @@ class Chat extends Controller
         }
         $wa = new \App\Helpers\WhatsAppService();
         
-        // 3. Sync API
         foreach ($unreads as $msg) {
             $wa->markAsRead($msg['wamid']);
         }
@@ -272,6 +284,20 @@ class Chat extends Controller
         if (isset($media['raw'])) {
             echo "\n\nDebug Raw Response:\n" . json_encode($media['raw'], JSON_PRETTY_PRINT);
         }
+    }
+
+    private function pushToWebSocket($data)
+    {
+        $url = 'https://waserver.nalju.com/incoming';
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 1); 
+        $result = curl_exec($ch);
+        curl_close($ch);
+        return $result;   
     }
 
 }

@@ -357,6 +357,15 @@ const connectWebSocket = () => {
              handleIncomingMessage(payload);
              return;
          }
+
+         // Handle Read Receipt Sync
+         if (payload.type === 'conversation_read') {
+             const conv = conversations.value.find(c => c.id == payload.conversation_id);
+             if (conv) {
+                 conv.unread = 0;
+             }
+             return;
+         }
          
          if (payload.type === 'wa_masuk') {
              // Real incoming WA message
