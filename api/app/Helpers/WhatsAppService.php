@@ -97,6 +97,22 @@ class WhatsAppService
     }
     
     /**
+     * Mark message as read
+     * 
+     * @param string $messageId WAMID to mark as read
+     * @return array API Response
+     */
+    public function markAsRead($messageId)
+    {
+        $payload = [
+            'status' => 'read',
+            'messageId' => $messageId
+        ];
+        
+        return $this->sendRequest('/whatsapp/messages/status', $payload);
+    }
+    
+    /**
      * Send media message (image, document, video, audio)
      * 
      * @param string $to Customer phone number

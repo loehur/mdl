@@ -153,18 +153,7 @@ class Chat extends Controller
         $this->success($messages);
     }
 
-    public function markRead()
-    {
-        $id = $this->getBody()['conversation_id'] ?? null;
-         if (!$id) $this->error('Conversation ID required');
 
-        $db = $this->db(0);
-        
-        // Update unread received messages to 'read'
-        $db->query("UPDATE wa_messages_in SET status = 'read' WHERE conversation_id = ? AND status = 'received'", [$id]);
-        
-        $this->success([], 'Messages marked as read');
-    }
 
     public function reply()
     {
@@ -203,5 +192,48 @@ class Chat extends Controller
         } else {
             $this->error('Failed to send WhatsApp: ' . ($res['error'] ?? 'Unknown error'), 500);
         }
+    }
+    public function markRead()
+    {
+        $body = json_decode(file_get_contents('php://input'), true);
+        $conversationId = $body['conversation_id'] ?? null;
+        
+        if (!$conversationId) {
+             // Try query param
+             $conversationId = $this->query('conversation_id');
+        }
+        
+        if(!$conversationId) $this->error('ID required');
+        
+        $db = $this->db(0);
+        
+        // Find unread inbound messages
+        // Check wa_messages_in
+        $unreads = $db->query("SELECT id, wamid FROM wa_messages_in WHERE conversation_id = ? AND status != 'read' AND wamid IS NOT NULL", [$conversationId])->result_array();
+        
+        if (empty($unreads)) {
+            // Just reset unread count anyway to be safe
+            $db->update('wa_conversations', ['unread' => 0], ['id' => $conversationId]);
+            $this->success([], 'No unread messages');
+        }
+        
+        if (!class_exists('\App\Helpers\WhatsAppService')) {
+            require_once __DIR__ . '/../../Helpers/WhatsAppService.php';
+        }
+        $wa = new \App\Helpers\WhatsAppService();
+        
+        foreach ($unreads as $msg) {
+            // Send to YCloud
+            // We ignore errors here, fire and forget
+            $wa->markAsRead($msg['wamid']);
+            
+            // Update Local
+            $db->update('wa_messages_in', ['status' => 'read'], ['id' => $msg['id']]);
+        }
+        
+        // Also update conversation unread count
+        $db->update('wa_conversations', ['unread' => 0], ['id' => $conversationId]);
+        
+        $this->success(['count' => count($unreads)], 'Marked as read');
     }
 }

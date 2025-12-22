@@ -132,6 +132,22 @@ const scrollToBottom = () => {
   });
 };
 
+const markMessagesRead = async (conversationId) => {
+    try {
+        await fetch(`${API_BASE}/cms/chat/markRead`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ conversation_id: conversationId })
+        });
+        
+        // Update local state if needed
+        const chat = conversations.value.find(c => c.id === conversationId);
+        if(chat) chat.unread = 0;
+    } catch (e) {
+        console.error("Failed to mark read", e);
+    }
+};
+
 const selectChat = async (id) => {
   activeChatId.value = id;
   showMobileChat.value = true;
@@ -289,6 +305,7 @@ const handleIncomingMessage = (payload) => {
     conversation.unread++;
   } else {
     scrollToBottom();
+    markMessagesRead(conversationId);
   }
       
       // Move conversation to top
