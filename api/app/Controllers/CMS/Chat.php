@@ -220,8 +220,8 @@ class Chat extends Controller
         $db->query("UPDATE wa_messages_in SET status = 'read' WHERE conversation_id = ?", [$conversationId]);
         $affected = $db->conn()->affected_rows;
         
-        // Push WS if local status changed
-        if ($affected > 0) {
+        // ALWAYS Push WS to sync status (Self-healing)
+        // if ($affected > 0) { 
              // Get details for WS
              $conv = $db->get_where('wa_conversations', ['id' => $conversationId])->row();
              
@@ -287,7 +287,6 @@ class Chat extends Controller
                  
                  $this->pushToWebSocket($payload);
              }
-        }
         
         if (empty($unreads)) {
             $this->success([], 'No unread messages (Local updated)');
