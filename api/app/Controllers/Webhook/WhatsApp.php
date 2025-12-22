@@ -161,9 +161,8 @@ class WhatsApp extends Controller
             if (!class_exists('\\App\\Models\\WAReplies')) {
                 require_once __DIR__ . '/../../Models/WAReplies.php';
             }
-            // EMERGENCY STOP LOOP
-            // $autoReply = (new \App\Models\WAReplies())->process($phoneIn, $textBodyToCheck, $waNumber);
-            \Log::write("!! AUTO REPLY DISABLED FORCEFULLY TO STOP LOOP !!", 'webhook', 'WhatsApp');
+            // Auto Reply Re-enabled with Idempotency Protection
+            $autoReply = (new \App\Models\WAReplies())->process($phoneIn, $textBodyToCheck, $waNumber);
         } catch (\Exception $e) {
             \Log::write("Error processing pending notifs: " . $e->getMessage(), 'webhook', 'WhatsApp');
         }
@@ -215,7 +214,7 @@ class WhatsApp extends Controller
         // Step 4: Save message to wa_messages_in
         $messageData = [
             'conversation_id' => $conversationId,
-            'customer_id' => $customerId,
+            // 'customer_id' => $customerId, // REMOVED: Table/Field deleted by user
             'phone' => $waNumber,
             'type' => $messageType,
             'text' => $textBody,
@@ -239,7 +238,7 @@ class WhatsApp extends Controller
             // Success - Push to WebSocket Server
             $this->pushIncomingToWebSocket([
                 'conversation_id' => $conversationId,
-                'customer_id' => $customerId,
+                // 'customer_id' => $customerId, // REMOVED
                 'phone' => $waNumber,
                 'contact_name' => $contactName,
                 'message' => [
