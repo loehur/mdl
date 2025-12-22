@@ -219,8 +219,8 @@ class Chat extends Controller
         $unreads = $db->query("SELECT id, wamid FROM wa_messages_in WHERE conversation_id = ? AND (status != 'read' OR status IS NULL)", [$conversationId])->result_array();
         
         if (empty($unreads)) {
-            // Just reset unread count anyway to be safe
-            $db->update('wa_conversations', ['unread' => 0], ['id' => $conversationId]);
+            // No unread messages
+            // $db->update('wa_conversations', ['unread' => 0], ['id' => $conversationId]);
             $this->success([], 'No unread messages');
         }
         
@@ -239,8 +239,8 @@ class Chat extends Controller
             $db->update('wa_messages_in', ['status' => 'read'], ['id' => $msg['id']]);
         }
         
-        // Also update conversation unread count
-        $db->update('wa_conversations', ['unread' => 0], ['id' => $conversationId]);
+        // Removed update to 'unread' column as it does not exist in DB and causes 500 Error
+        // $db->update('wa_conversations', ['unread' => 0], ['id' => $conversationId]);
         
         $this->success(['count' => count($unreads)], 'Marked as read');
     }
