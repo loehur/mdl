@@ -17,9 +17,19 @@ class WhatsAppService
     public function __construct()
     {
         $this->apiKey = WhatsAppConfig::getApiKey();
-        // Fallback hardcode (Safety net)
+        
+        // Use Env Config if available
         if (empty($this->apiKey) || strpos($this->apiKey, 'YOUR_') !== false) {
-            $this->apiKey = '3d997235552a4b868972e0915a7700e5';
+             if (!class_exists('\App\Config\Env')) {
+                 $envPath = __DIR__ . '/../Config/Env.php';
+                 if (file_exists($envPath)) {
+                     require_once $envPath;
+                 }
+             }
+             
+             if (class_exists('\App\Config\Env') && defined('\App\Config\Env::WA_API_KEY')) {
+                 $this->apiKey = \App\Config\Env::WA_API_KEY;
+             }
         }
         
         $this->baseUrl = WhatsAppConfig::getBaseUrl();
@@ -28,6 +38,11 @@ class WhatsAppService
         }
         
         $this->whatsappNumber = WhatsAppConfig::getWhatsAppNumber();
+    }
+    
+    public function getApiKeyPrefix()
+    {
+        return substr($this->apiKey, 0, 8) . '...';
     }
     
     /**

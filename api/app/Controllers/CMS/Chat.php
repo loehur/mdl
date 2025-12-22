@@ -270,7 +270,8 @@ class Chat extends Controller
         echo "Error: $errMsg\n";
         
         if (strpos($errMsg, '404') !== false) {
-            echo "\nPossible Causes:\n- Media ID expired (> 30 days)\n- API Key does not match the WhatsApp Account\n- Media deleted";
+            $prefix = $wa->getApiKeyPrefix();
+            echo "\nPossible Causes:\n- API Key ($prefix) does not match the WhatsApp Account that received the image.\n- Media ID expired (> 30 days)\n- Media deleted";
         }
         
         if (isset($media['raw'])) {
