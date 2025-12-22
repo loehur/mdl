@@ -33,9 +33,11 @@ return [
     'buka' => [
         'max_length' => 30,
         'keywords' => [
-            'jam brp tutup', 'jam berapa tutup',
+            // Tutup variations
+            'brp tutup', 'berapa tutup', 'jam tutup', 'kapan tutup', 'masih tutup',
             'udah tutup', 'dh tutup', 'uda tutup', 'dah tutup', 'sudah tutup', 'da tutup',
-            'jam brp buka', 'jam berapa buka',
+            // Buka variations
+            'jam buka', 'brp buka', 'berapa buka', 'kapan buka', 
             'udah buka', 'dh buka', 'uda buka', 'dah buka', 'sudah buka', 'da buka',
             'masih buka', 'msh buka', 'masih bukak', 'msh bukak'
         ]
@@ -44,7 +46,7 @@ return [
     'sapa' => [
         'max_length' => 12,
         'keywords' => [
-            'ping', 'halo', 'tes', 'alaikum', 'assalam', 'aslkm', 'salam', 'kak'
+            'ping', 'halo', 'tes', 'alaikum', 'assalam', 'aslkm', 'salam'
         ]
     ],
 
@@ -53,8 +55,7 @@ return [
         'keywords' => [
             'makasih', 'makasi', 'trimakasih', 'terima kasih', 'terimakasih', 'trimaksih', 'trimaksh', 
             'mksih', 'mksh', 'trmksh', 'tks', 'thx', 'thanks', 'thank you', 
-            'tengkyu', 'ty', 'tq', 'thks', 'thnx', 'ok', 'oke', 'okey', 'okay', 
-            'oce', 'okeh', 'sip', 'siap', 'baik'
+            'tengkyu', 'thks', 'thnx', 'ok', 'oce', 'sip', 'siap', 'baik', 
         ]
     ]
 ];
