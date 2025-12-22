@@ -767,7 +767,7 @@ watch(activeChatId, () => {
         </header>
         
         <!-- Messages -->
-        <div class="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar scroll-smooth" ref="chatContainer">
+        <div class="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar" ref="chatContainer">
           <div v-for="(msg, index) in activeConversation.messages" :key="msg.id" class="flex flex-col">
             
              <!-- Date Separator (Optional Logic could go here) -->
