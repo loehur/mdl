@@ -39,23 +39,29 @@ const fetchConversations = async () => {
         
         if (!response.ok) {
             const text = await response.text();
-            console.error("API Error Response:", text); // Debugging
+            alert("API Error: " + text); 
             return;
         }
 
         const result = await response.json();
         
         if (result.success && Array.isArray(result.data)) {
+            // Check if filtering was expected
+            if (result.data.length === 0) {
+                 console.log("API returned 0 conversations.");
+            }
             conversations.value = result.data.map(c => ({
                 id: c.id,
                 name: c.contact_name || c.wa_number,
                 avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${c.id}`,
-                status: 'offline', 
+                status: c.status,  // Show real status from DB for debugging
                 lastMessage: c.last_message_text || 'No messages yet',
                 lastTime: c.last_message_time ? new Date(c.last_message_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '',
                 unread: parseInt(c.unread_count) || 0,
                 messages: [] 
             }));
+        } else {
+            alert("API format error: " + JSON.stringify(result));
         }
     } catch (e) {
         console.error("Error fetching conversations:", e);

@@ -64,24 +64,24 @@ class Chat extends Controller
 
             $conversations = $query->result();
             
-            // Debug: Check statuses
-            $statuses = [];
-            foreach($conversations as $c) {
-                $statuses[] = $c->status;
+            // Check what we actually got
+            if (empty($conversations)) {
+                $this->success([], 'Query executed but returned 0 rows. Check if table wa_conversations is empty.');
             }
-            $statusCounts = array_count_values($statuses);
-    
-            $this->success($conversations, 'Retrieved ' . count($conversations) . ' chats. Statuses found: ' . json_encode($statusCounts));
+
+            // Return ALL data without filter to see what is happening using success method
+            // This will show up in your browser network tab -> Response
+            $this->success($conversations, 'OK');
 
         } catch (\Throwable $e) {
-            // Catch all errors including Fatal Errors
+            // Log to file using Helper
+            \Log::write("[Error] " . $e->getMessage(), 'cms', 'chat');
+
             http_response_code(500);
             echo json_encode([
                 'status' => false,
                 'message' => 'PHP Error in Chat Controller',
-                'error' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine()
+                'error' => $e->getMessage()
             ]);
             exit;
         }
