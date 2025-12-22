@@ -324,9 +324,10 @@ class WhatsAppService
         
         // Save outbound message to database if successful
         // Wrapped in try-catch to absolutely prevent breaking the response
+        $localId = null;
         if ($success && isset($responseData['id'])) {
             try {
-                $this->saveOutboundMessage($payload, $responseData);
+                $localId = $this->saveOutboundMessage($payload, $responseData);
             } catch (\Throwable $e) {
                 // Silently catch any error - don't let it affect the API response
                 if (function_exists('error_log')) {
@@ -339,6 +340,7 @@ class WhatsAppService
             'success' => $success,
             'http_code' => $httpCode,
             'data' => $responseData,
+            'local_id' => $localId, // Expose ID to controller
             'raw_response' => $response
         ];
     }
@@ -509,6 +511,9 @@ class WhatsAppService
                 ], ['id' => $conversationId]);
                 
                 $log("✓ Conversation updated");
+                
+                $log("=== END ===\n");
+                return $msgId; // Return the Local DB ID
             } else {
                 $dbError = $db->conn()->error ?? 'unknown';
                 $log("ERROR: Message insert FAILED!");
@@ -517,6 +522,7 @@ class WhatsAppService
             }
             
             $log("=== END ===\n");
+            return null;
             
         } catch (\Throwable $e) {
             $log("EXCEPTION: " . $e->getMessage());

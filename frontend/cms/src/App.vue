@@ -186,7 +186,12 @@ const sendMessage = async () => {
         if (res.status) {
             // Update status (not strictly needed if we reload, but good for UI)
             const sentMsg = activeConversation.value.messages.find(m => m.id === tempId);
-            if(sentMsg) sentMsg.status = 'sent';
+            if(sentMsg) {
+                sentMsg.status = 'sent';
+                if (res.data && res.data.local_id) {
+                    sentMsg.id = res.data.local_id; // Swap temp ID with real DB ID
+                }
+            }
         } else {
              // Error state
             const sentMsg = activeConversation.value.messages.find(m => m.id === tempId);
@@ -202,6 +207,21 @@ const sendMessage = async () => {
 };
 
 const handleIncomingMessage = (payload) => {
+  // Check if this is a status update
+  if (payload.type === 'status_update') {
+      const { conversation_id, message } = payload;
+      const conversation = conversations.value.find(c => c.id === conversation_id);
+      if (conversation) {
+          // Find message by ID (preferred) or WAMID
+          const msgToUpdate = conversation.messages.find(m => m.id == message.id || m.wamid == message.wamid);
+          if (msgToUpdate) {
+              msgToUpdate.status = message.status;
+          }
+      }
+      return;
+  }
+
+  // Normal Message Handling
   // Payload structure from webhook:
   // { conversation_id, customer_id, phone, contact_name, message: { id, text, type, time }, target_id }
   
@@ -658,7 +678,31 @@ watch(activeChatId, () => {
              <div v-else class="flex gap-3 max-w-[75%] self-end items-end justify-end">
                 <div class="bg-indigo-600 text-white px-4 py-2.5 rounded-2xl rounded-br-sm shadow-md shadow-indigo-900/20">
                    <p class="leading-relaxed text-sm">{{ msg.text }}</p>
-                     <span class="text-[10px] text-indigo-200 block mt-1 text-right">{{ msg.time }}</span>
+                     <div class="flex items-center justify-end gap-1 mt-1">
+                        <span class="text-[10px] text-indigo-200">{{ msg.time }}</span>
+                        <!-- Status Indicators -->
+                        <span v-if="msg.status === 'pending'" class="text-indigo-300">
+                           <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        </span>
+                        <span v-else-if="msg.status === 'sent'" class="text-indigo-300">
+                           <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                        </span>
+                        <span v-else-if="msg.status === 'delivered'" class="text-indigo-300">
+                           <div class="flex -space-x-1">
+                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                           </div>
+                        </span>
+                        <span v-else-if="msg.status === 'read'" class="text-blue-300">
+                            <div class="flex -space-x-1">
+                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                           </div>
+                        </span>
+                         <span v-else-if="msg.status === 'failed'" class="text-red-300">
+                           <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        </span>
+                     </div>
                 </div>
              </div>
              

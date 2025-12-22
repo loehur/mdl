@@ -184,7 +184,9 @@ class Chat extends Controller
         $res = $wa->sendFreeText($conv->wa_number, $message);
 
         if ($res['success']) {
-            $this->success($res['data'], 'Reply sent');
+            $data = $res['data'];
+            $data['local_id'] = $res['local_id'] ?? null; // Attach local DB ID
+            $this->success($data, 'Reply sent');
         } else {
             $this->error('Failed to send WhatsApp: ' . ($res['error'] ?? 'Unknown error'), 500);
         }

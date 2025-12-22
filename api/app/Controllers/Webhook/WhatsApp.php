@@ -172,8 +172,10 @@ class WhatsApp extends Controller
         }
 
         //cari assigned_user_id
-        $assigned_user_id = $this->getAssignedUserId($phone0)->assigned_user_id ?? null;
-        $contact_name = $this->getAssignedUserId($phone0)->customer_name ?? $contactName;
+        $user_data = $this->getUserData($phone0);
+        \Log::write("getUserData: " . json_encode($user_data), 'webhook', 'WhatsApp');
+        $assigned_user_id = $user_data->assigned_user_id ?? null;
+        $contact_name = $user_data->customer_name ?? $contactName;
         // Wajib ambil ID percakapan untuk menyimpan pesan ke database (walaupun itu auto-reply)
         $conversationId = $this->getOrCreateConversation($db, $customerId, $waNumber, $contact_name, $assigned_user_id, $sendTime);
 
@@ -346,11 +348,31 @@ class WhatsApp extends Controller
         ];
 
         $updated = $db->update('wa_messages', $updateData, ['wamid' => $wamid]);
-
+        
+        // Also check if in wa_messages_out (sometimes stored there differently?) - actually handled in handleMessageUpdated for out
+        // Wait, handleStatusUpdate is generally for OUTBOUND messages status from YCloud (sent, delivered, read)
+        // But wa_messages is legacy? Or unified?
+        // Let's assume handleMessageUpdated is the main one for OUTBOUND.
+        
         if ($updated) {
             \Log::write("✓ Status updated: $wamid -> $status", 'webhook', 'WhatsApp');
 
-            // Update notif table in db(1)
+            // Find conversation_id to push to frontend
+            $msg = $db->query("SELECT conversation_id, id FROM wa_messages WHERE wamid = '$wamid'")->row();
+            if ($msg) {
+                $this->pushIncomingToWebSocket([
+                    'type' => 'status_update',
+                    'conversation_id' => $msg->conversation_id,
+                    'message' => [
+                        'id' => $msg->id,
+                        'wamid' => $wamid,
+                        'status' => $status
+                    ],
+                    'target_id' => '0'
+                ]);
+            }
+            
+            // Update notif table logic...
             // id_api is likely the YCloud Message ID, not wamid
             $db1 = $this->db(1);
             if ($messageId) {
@@ -420,6 +442,32 @@ class WhatsApp extends Controller
         }
 
         if ($updated) {
+            \Log::write("✓ Outbound message updated: wamid=$wamid, id=$messageId, status=$status", 'webhook', 'WhatsApp');
+            
+            // Fetch conversation_id and local ID for WebSocket push
+            $checkSql = "SELECT id, conversation_id FROM wa_messages_out WHERE ";
+            $params = [];
+            if ($messageId) {
+                $checkSql .= "message_id = ?";
+                $params[] = $messageId;
+            } elseif ($wamid) {
+                $checkSql .= "wamid = ?";
+                $params[] = $wamid;
+            }
+            
+            $msg = $db->query($checkSql, $params)->row();
+            
+            if ($msg) {
+                $this->pushIncomingToWebSocket([
+                    'type' => 'status_update',
+                    'conversation_id' => $msg->conversation_id,
+                    'message' => [
+                        'id' => $msg->id, // Local DB ID
+                        'status' => $status
+                    ],
+                    'target_id' => '0'
+                ]);
+            }
 
         } else {
             \Log::write("⚠ Outbound message not found: wamid=$wamid, id=$messageId", 'webhook', 'WhatsApp');
@@ -477,7 +525,7 @@ class WhatsApp extends Controller
         }
     }
 
-    function getAssignedUserId($phone0)
+    function getUserData($phone0)
     {
         $db = $this->db(1);
         $return = null;
