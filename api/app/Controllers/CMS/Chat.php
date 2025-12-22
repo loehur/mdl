@@ -23,7 +23,10 @@ class Chat extends Controller
             
             $sql = "
                 SELECT 
-                    c.*,
+                    c.id, 
+                    c.wa_number, 
+                    c.contact_name, 
+                    c.status,
                     (
                         SELECT COUNT(*) 
                         FROM wa_messages_in m 
@@ -45,7 +48,7 @@ class Chat extends Controller
                          LIMIT 1
                     ) as last_message_time
                 FROM wa_conversations c
-                ORDER BY c.updated_at DESC
+                ORDER BY c.last_in_at DESC
             ";
     
             $query = $db->query($sql);
