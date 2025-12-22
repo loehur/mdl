@@ -95,7 +95,7 @@ const activeConversation = computed(() => {
 // --- Methods ---
 const fetchMessages = async (conversationId) => {
     try {
-        const response = await fetch(`https://api.nalju.com/CMS/Chat/getMessages?id=${conversationId}`);
+        const response = await fetch(`${API_BASE}/CMS/Chat/getMessages?id=${conversationId}`);
         const result = await response.json();
         
         if (result.status && Array.isArray(result.data)) {
@@ -130,7 +130,7 @@ const scrollToBottom = () => {
 
 const markMessagesRead = async (conversationId) => {
     try {
-        await fetch(`${API_BASE}/cms/chat/markRead`, {
+        await fetch(`${API_BASE}/CMS/Chat/markRead`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ conversation_id: conversationId })
@@ -193,7 +193,7 @@ const sendMessage = async () => {
     
     // API Call
     try {
-        const response = await fetch('https://api.nalju.com/CMS/Chat/reply', {
+        const response = await fetch(`${API_BASE}/CMS/Chat/reply`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
