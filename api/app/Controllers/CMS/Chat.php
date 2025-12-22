@@ -218,7 +218,7 @@ class Chat extends Controller
         
         // 2. Direct Query Update ALL messages
         $db->query("UPDATE wa_messages_in SET status = 'read' WHERE conversation_id = ?", [$conversationId]);
-        $affected = $db->affected_rows();
+        $affected = $db->conn()->affected_rows;
         
         // Push WS if local status changed
         if ($affected > 0) {
