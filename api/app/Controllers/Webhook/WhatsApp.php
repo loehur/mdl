@@ -191,7 +191,13 @@ class WhatsApp extends Controller
         $mediaId = null;
         $mediaUrl = null;
         $mediaMimeType = null;
+        $mediaUrlDirect = null;
         $mediaCaption = null;
+        
+        // Initialize Metadata
+        $messageId = $msg['id'] ?? null;
+        $wamid = $msg['wamid'] ?? null;
+        $status = 'unread'; // Default status for new messages
 
         switch ($messageType) {
             case 'text':
