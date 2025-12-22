@@ -199,6 +199,7 @@ const sendMessage = async () => {
                 if (res.data && res.data.local_id) {
                     sentMsg.id = res.data.local_id; // Swap temp ID with real DB ID
                     if (res.data.wamid) sentMsg.wamid = res.data.wamid;
+                    else if (res.data.id) sentMsg.wamid = res.data.id;
                 }
             }
         } else {
@@ -218,14 +219,23 @@ const sendMessage = async () => {
 const handleIncomingMessage = (payload) => {
   // Check if this is a status update
   if (payload.type === 'status_update') {
+      console.log("WS Status Update:", payload);
       const { conversation_id, message } = payload;
       const conversation = conversations.value.find(c => c.id == conversation_id);
+      
       if (conversation) {
+          console.log("Conv found. Messages count:", conversation.messages.length);
           // Find message by ID (preferred) or WAMID
           const msgToUpdate = conversation.messages.find(m => m.id == message.id || m.wamid == message.wamid);
+          
           if (msgToUpdate) {
+              console.log("Message found! Updating status to", message.status);
               msgToUpdate.status = message.status;
+          } else {
+              console.warn("Message NOT found for update. ID:", message.id, "WAMID:", message.wamid);
           }
+      } else {
+         console.warn("Conv NOT found for ID:", conversation_id);
       }
       return;
   }
