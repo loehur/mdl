@@ -7,7 +7,6 @@ use App\Core\Controller;
 /**
  * YCloud WhatsApp Webhook Handler
  * Updated to use new 3-table structure:
- * - wa_webhooks: raw webhook logs
  * - wa_conversations: conversation tracking
  * - wa_messages: individual messages
  */
@@ -41,13 +40,9 @@ class WhatsApp extends Controller
         $mode = $_GET['hub_mode'] ?? null;
         $token = $_GET['hub_verify_token'] ?? null;
         $challenge = $_GET['hub_challenge'] ?? null;
-
-        \Log::write("YCloud Verification: mode=$mode", 'webhook', 'WhatsApp');
-
         $verifyToken = \Env::WA_VERIFY_TOKEN;
 
         if ($mode === 'subscribe' && $token === $verifyToken) {
-            \Log::write("✓ Verification SUCCESS", 'webhook', 'WhatsApp');
             header('Content-Type: text/plain');
             echo $challenge;
             exit;
@@ -75,11 +70,8 @@ class WhatsApp extends Controller
         $db = $this->db(0);
         $eventType = $data['type'] ?? 'unknown';
 
-        // Step 1: Save raw webhook to wa_webhooks
-        $webhookId = $this->saveWebhookLog($db, $eventType, $json);
 
-
-        // Step 2: Process based on event type
+        // Process based on event type
         try {
             switch ($eventType) {
                 case 'whatsapp.inbound_message.received':
@@ -104,21 +96,6 @@ class WhatsApp extends Controller
         http_response_code(200);
         echo json_encode(['status' => 'ok']);
         exit;
-    }
-
-    /**
-     * Save raw webhook to wa_webhooks table
-     */
-    private function saveWebhookLog($db, $eventType, $json)
-    {
-        $data = [
-            'provider' => 'ycloud',
-            'event_type' => $eventType,
-            'payload' => $json,
-            'received_at' => date('Y-m-d H:i:s')
-        ];
-
-        return $db->insert('wa_webhooks', $data);
     }
 
     /**
@@ -167,10 +144,8 @@ class WhatsApp extends Controller
                      $lastMessageSummary .= ' ' . $msg[$messageType]['caption'];
                  }
             }
-
-            $customerId = $this->updateOrCreateCustomer($db, $waNumber, $contact_name);
             // Wajib ambil ID percakapan untuk menyimpan pesan ke database (walaupun itu auto-reply)
-            $conversationId = $this->getOrCreateConversation($db, $customerId, $waNumber, $contact_name, $assigned_user_id, $code, $lastMessageSummary);
+            $conversationId = $this->getOrCreateConversation($db, $waNumber, $contact_name, $assigned_user_id, $code, $lastMessageSummary);
     
             $autoReply = false;
             // Ensure WAReplies class is available (simple autoload check or require if needed, but assuming namespace works)
@@ -289,58 +264,6 @@ class WhatsApp extends Controller
         curl_close($ch);
         
         return $result;
-    }
-
-    /**
-     * Update or create customer record
-     * This tracks last_message_at for 23h window rule
-     */
-    private function updateOrCreateCustomer($db, $waNumber, $contactName)
-    {
-       $existing = $db->get_where('wa_customers', ['wa_number' => $waNumber]);
-        
-        if ($existing->num_rows() > 0) {
-            $customer = $existing->row();
-            
-            // Update existing customer
-            $updateData = [
-                'last_message_at' => date('Y-m-d H:i:s'),
-                'total_messages' => $customer->total_messages + 1,
-            ];
-            
-            // Update contact name if changed
-            if ($contactName && $contactName !== $customer->contact_name) {
-                $updateData['contact_name'] = $contactName;
-            }
-            
-            $updated = $db->update('wa_customers', $updateData, ['id' => $customer->id]);
-            
-            if (!$updated) {
-                $error = $db->conn()->error;
-                \Log::write("✗ Customer update failed: $error", 'webhook', 'WhatsApp');
-            }
-            
-            return $customer->id;
-        }
-
-        // Create new customer
-        $customerData = [
-            'wa_number' => $waNumber,
-            'contact_name' => $contactName,
-            'last_message_at' => date('Y-m-d H:i:s'),
-            'first_contact_at' => date('Y-m-d H:i:s'),
-            'total_messages' => 1,
-            'created_at' => date('Y-m-d H:i:s')
-        ];
-
-        $customerId = $db->insert('wa_customers', $customerData);
-        
-        if (!$customerId) {
-            \Log::write("✗ Customer insert failed", 'webhook', 'WhatsApp');
-            \Log::write("Data: " . json_encode($customerData), 'webhook', 'WhatsApp');
-        }
-        
-        return $customerId;
     }
 
     /**
@@ -497,7 +420,7 @@ class WhatsApp extends Controller
     /**
      * Get existing conversation or create new one
      */
-    private function getOrCreateConversation($db, $customerId, $waNumber, $contactName = null, $assigned_user_id = null, $code = null, $lastMessage = null)
+    private function getOrCreateConversation($db, $waNumber, $contactName = null, $assigned_user_id = null, $code = null, $lastMessage = null)
     {
         // Try to find existing conversation
         $existing = $db->get_where('wa_conversations', ['wa_number' => $waNumber]);
@@ -508,6 +431,7 @@ class WhatsApp extends Controller
                 'contact_name' => $contactName,
                 'assigned_user_id' => $assigned_user_id,
                 'code' => $code,
+                'status' => 'open',
                 'last_in_at' => date('Y-m-d H:i:s'),
                 'last_message' => $lastMessage,
             ];
@@ -525,7 +449,6 @@ class WhatsApp extends Controller
         // Create new conversation
         $convData = [
             'assigned_user_id' => $assigned_user_id,
-            'customer_id' => $customerId,
             'wa_number' => $waNumber,
             'contact_name' => $contactName,
             'code' => $code,
