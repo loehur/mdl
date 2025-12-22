@@ -73,7 +73,10 @@ const fetchConversations = async () => {
 };
 
 const connect = () => {
-    if(!authId.value) return;
+    if(!authId.value || !authPassword.value) {
+        connectionError.value = 'Please enter both ID and Password';
+        return;
+    }
     isConnecting.value = true;
     connectionError.value = '';
     connectWebSocket();
@@ -575,7 +578,7 @@ watch(activeChatId, () => {
                 <button 
                    @click="connect" 
                    class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 px-4 rounded-lg transition-all transform active:scale-[0.98] flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                   :disabled="isConnecting || !authId"
+                   :disabled="isConnecting || !authId || !authPassword"
                 >
                    <span v-if="isConnecting" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
                    {{ isConnecting ? 'Connecting...' : 'Connect' }}
@@ -656,8 +659,8 @@ watch(activeChatId, () => {
     
     <!-- Main Chat Area -->
     <!-- Mobile: Fixed on top (z-50) if active. Desktop: static flex-1. -->
-    <main v-if="isConnected" class="flex-col bg-[#0f172a] shadow-2xl md:shadow-none"
-        :class="showMobileChat ? 'flex fixed inset-0 z-50 md:static md:w-auto md:flex-1' : 'hidden md:flex md:flex-1'"
+    <main v-if="isConnected" class="flex-col bg-[#0f172a] shadow-2xl md:shadow-none md:flex md:flex-1"
+        :class="showMobileChat ? 'flex fixed inset-0 z-50 md:static md:w-auto' : 'hidden md:flex'"
         :style="{ 
             transform: showMobileChat && windowWidth < 768 ? `translateX(${touchOffset}px)` : '',
             transition: isDragging ? 'none' : 'transform 0.3s ease-out'
