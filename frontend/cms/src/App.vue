@@ -1017,7 +1017,7 @@ window.addEventListener('focus', () => {
               <div class="flex justify-between items-baseline mb-1 gap-2">
                 <h3 class="font-semibold text-[15px] truncate text-slate-100 uppercase max-w-[180px]" :title="chat.name">
                   <span v-if="chat.kode_cabang" class="font-mono text-xs mr-1" :class="chat.kode_cabang === '00' ? 'text-pink-500' : 'text-indigo-400'">[{{ chat.kode_cabang }}]</span>
-                  {{ chat.name }}
+                  {{ (chat.name || '').toUpperCase() }}
                 </h3>
                 <span class="text-xs text-slate-500 flex-shrink-0">{{ chat.lastTime }}</span>
               </div>
@@ -1092,7 +1092,7 @@ window.addEventListener('focus', () => {
              <img :src="activeConversation.avatar" class="w-10 h-10 rounded-full border border-slate-700 flex-shrink-0">
              
              <div class="min-w-0 flex-1">
-               <h2 class="font-bold text-slate-100 text-base md:text-lg uppercase truncate" :title="activeConversation.name">{{ activeConversation.name }}</h2>
+               <h2 class="font-bold text-slate-100 text-base md:text-lg uppercase truncate" :title="activeConversation.name">{{ (activeConversation.name || '').toUpperCase() }}</h2>
                <p v-if="activeConversation.kode_cabang" class="text-xs font-mono" :class="activeConversation.kode_cabang === '00' ? 'text-pink-500' : 'text-indigo-400'">{{ activeConversation.kode_cabang }}</p>
              </div>
           </div>
