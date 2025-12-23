@@ -53,11 +53,11 @@ const isTitleRed = ref(false);
 const fetchConversations = async () => {
     try {
         const userIdParam = authId.value ? `?user_id=${authId.value}` : '';
-        const response = await fetch(`https://api.nalju.com/CMS/Chat/getConversations${userIdParam}`); 
+        const response = await fetch(`${API_BASE}/CMS/Chat/getConversations${userIdParam}`); 
         
         if (!response.ok) {
             const text = await response.text();
-            console.error("API Error Response:", text); // Use console so user can copy
+            console.error("API Error Response:", text);
             return;
         }
 
@@ -65,21 +65,32 @@ const fetchConversations = async () => {
         
         // Backend returns "status": true, not "success"
         if (result.status && Array.isArray(result.data)) {
-            // Check if filtering was expected
             if (result.data.length === 0) {
                  console.log("API returned 0 conversations.");
             }
-            conversations.value = result.data.map(c => ({
-                id: c.id,
-                name: c.contact_name || c.wa_number,
-                kode_cabang: c.kode_cabang, // Add kode_cabang
-                avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${c.id}`,
-                status: c.status,  
-                lastMessage: c.last_message || c.last_message_text || 'No messages yet',
-                lastTime: c.last_message_time ? new Date(c.last_message_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '',
-                unread: parseInt(c.unread_count) || 0,
-                messages: [] 
-            }));
+            
+            // MERGE STRATEGY: Update existing conversations to preserve 'messages' cache
+            const merged = result.data.map(c => {
+                const existing = conversations.value.find(ex => ex.id === c.id);
+                
+                const newData = {
+                    id: c.id,
+                    name: c.contact_name || c.wa_number,
+                    kode_cabang: c.kode_cabang, 
+                    avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${c.id}`,
+                    status: c.status,  
+                    lastMessage: c.last_message || c.last_message_text || 'No messages yet',
+                    lastTime: c.last_message_time ? new Date(c.last_message_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '',
+                    unread: parseInt(c.unread_count) || 0,
+                    // Preserve existing messages or initialize empty
+                    messages: existing ? existing.messages : [] 
+                };
+                
+                return newData;
+            });
+            
+            conversations.value = merged;
+            
         } else {
             console.error("API format error:", result);
         }
@@ -224,7 +235,20 @@ const selectChat = async (id) => {
       chat.unread = 0;
       
       // Load messages
-      chat.messages = await fetchMessages(id);
+      // If we have cached messages, show them immediately and fetch in background
+      if (chat.messages && chat.messages.length > 0) {
+          scrollToBottom(); // Show cache immediately
+          // Background fetch to sync
+          fetchMessages(id).then(msgs => {
+              if (msgs.length > 0) {
+                  chat.messages = msgs;
+                  scrollToBottom();
+              }
+          });
+      } else {
+          // No cache, wait for fetch
+          chat.messages = await fetchMessages(id);
+      }
       
       // Mark read in DB
       markMessagesRead(id);
@@ -767,11 +791,32 @@ const mockIncomingMessage = () => {
 
 
 
+
+// --- Persistence ---
+watch(conversations, (newVal) => {
+    try {
+        localStorage.setItem('cms_conversations_cache', JSON.stringify(newVal));
+    } catch (e) {
+        console.error("Cache save failed", e);
+    }
+}, { deep: true });
+
 onMounted(() => {
   scrollToBottom();
   
   // Initialize title blinking
   updateTitleBlinking();
+  
+  // --- LOAD CACHE ---
+  const cached = localStorage.getItem('cms_conversations_cache');
+  if (cached) {
+      try {
+          conversations.value = JSON.parse(cached);
+          console.log("Restored cache with " + conversations.value.length + " conversations");
+      } catch(e) { 
+          console.error("Cache parse error", e); 
+      }
+  }
   
   // Check Local Storage for Session
   const storedId = localStorage.getItem('cms_chat_id');
