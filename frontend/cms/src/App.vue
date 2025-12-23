@@ -629,7 +629,20 @@ const handleIncomingMessage = (payload) => {
   
   // Avoid duplicate messages if already present
   if (!conversation.messages.find(m => m.id === newMsg.id)) {
-      conversation.messages.push(newMsg);
+      // Insert message in chronological order based on rawTime
+      const insertIndex = conversation.messages.findIndex(m => {
+          if (!m.rawTime || !newMsg.rawTime) return false;
+          return new Date(m.rawTime) > new Date(newMsg.rawTime);
+      });
+      
+      if (insertIndex === -1) {
+          // No later message found, append to end
+          conversation.messages.push(newMsg);
+      } else {
+          // Insert at correct chronological position
+          conversation.messages.splice(insertIndex, 0, newMsg);
+      }
+      
       conversation.lastMessage = displayText;
       conversation.lastTime = newMsg.time;
       
