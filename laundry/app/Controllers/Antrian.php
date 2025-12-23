@@ -407,7 +407,7 @@ class Antrian extends Controller
 
       // Send with template mode (will try free text first, fallback to template if CSW expired)
       // Pass jsonText (contains both 'text' and 'template_params')
-      $res = $this->helper("Notif")->send_wa($hp, $jsonText, 'template');
+      $res = $this->helper("Notif")->send_wa($hp, $jsonText, URL::MESSAGE_MODE);
       
       $setOne = "no_ref = '" . $noref . "' AND tipe = 1";
       $where = $this->wCabang . " AND " . $setOne;
