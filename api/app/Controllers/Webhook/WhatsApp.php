@@ -489,7 +489,7 @@ class WhatsApp extends Controller
         $return = new \stdClass();
         
         // cek nomor di data pelanggan limit 1 order by updated_at desc
-        $customer = $db->query("SELECT * FROM pelanggan WHERE nomor_pelanggan = '" . $phone0 . "' ORDER BY updated_at DESC LIMIT 1")->row();
+        $customer = $db->query("SELECT * FROM pelanggan WHERE nomor_pelanggan LIKE '%" . substr($phone0, 2) . "%' ORDER BY updated_at DESC LIMIT 1")->row();
         
         if ($customer) {
             $return->customer_name = $customer->nama_pelanggan;

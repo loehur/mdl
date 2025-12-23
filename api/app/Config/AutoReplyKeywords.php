@@ -6,6 +6,17 @@
  * Set 0 untuk unlimited (tidak ada batasan panjang)
  */
 return [    
+    'bon' => [
+        'max_length' => 50,
+        'keywords' => [
+            'atas nama', 'ats nama', 'atas nma',
+            'bon', 'struk', 'nota', 'bill', 'kirim', 'tagihan', 'resi',
+            'total laundry', 'total londri', 'total laundri',
+            'totl laundry', 'totl londri', 'totl laundri', 'berapa total',
+            'brp total', 'brp totl'
+        ]
+    ],
+
     'status' => [
         'max_length' => 50,
         'keywords' => [
@@ -16,17 +27,6 @@ return [
             'bs diambil', 'bs di ambil', 'bisa diambil', 'bisa di ambil',
             'bs dijemput', 'bisa dijemput', 'bs di jemput', 'bisa di jemput',
             'kpn siap', 'kapan siap', 'kpn selesai', 'kapan selesai'
-        ]
-    ],
-
-    'bon' => [
-        'max_length' => 50,
-        'keywords' => [
-            'atas nama', 'ats nama', 'atas nma',
-            'bon', 'struk', 'nota', 'bill', 'kirim', 'tagihan', 'resi',
-            'total laundry', 'total londri', 'total laundri',
-            'totl laundry', 'totl londri', 'totl laundri', 'berapa total',
-            'brp total', 'brp totl'
         ]
     ],
     
