@@ -240,10 +240,19 @@ class WAGenerator extends Controller
         $output = str_replace("<sup>3</sup>", "³", $output);
 
         // Prepare template parameters for WhatsApp template message (when CSW is not open)
+        // IMPORTANT: WhatsApp template params cannot have newlines, tabs, or >4 consecutive spaces
+        // Clean the parameters
+        $cleanOrderList = str_replace(["\n", "\r", "\t"], " | ", $listNotif); // Replace newlines with space
+        $cleanOrderList = preg_replace('/\s{2,}/', ' _ ', $cleanOrderList); // Replace multiple spaces with single space
+        $cleanOrderList = trim($cleanOrderList);
+        
+        $cleanTotalBill = str_replace(["\n", "\r", "\t", "*"], "", $totalText); // Remove formatting
+        $cleanTotalBill = trim($cleanTotalBill);
+        
         $templateParams = [
             'customer' => strtoupper($nama_pelanggan),
-            'order_list' => $listNotif,
-            'total_bill' => $totalText,
+            'order_list' => $cleanOrderList,
+            'total_bill' => $cleanTotalBill,
             'invoice_link' => URL::HOST_URL . "/I/i/" . $id_pelanggan
         ];
 

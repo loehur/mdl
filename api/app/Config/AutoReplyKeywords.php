@@ -23,7 +23,7 @@ return [
             'cek', 'status',
             'udh siap', 'dh siap', 'uda siap', 'dah siap', 'udah siap', 'sudah siap',
             'udh beres', 'dh beres', 'uda beres', 'dah beres', 'udah beres', 'sudah beres',
-            'udh selesai', 'dh selesai', 'uda selesai', 'dah selesai', 'udah selesai', 'sudah selesai',
+            'udh selesai', 'dh selesai', 'dh slsai', 'uda selesai', 'dah selesai', 'udah selesai', 'sudah selesai',
             'bs diambil', 'bs di ambil', 'bisa diambil', 'bisa di ambil',
             'bs dijemput', 'bisa dijemput', 'bs di jemput', 'bisa di jemput',
             'kpn siap', 'kapan siap', 'kpn selesai', 'kapan selesai'
