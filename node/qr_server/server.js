@@ -132,6 +132,13 @@ wss.on('connection', (ws, req) => {
     ws.on('message', (message) => {
         try {
             const data = JSON.parse(message);
+
+            // Handle App-Level Ping
+            if (data.type === 'ping') {
+                ws.send(JSON.stringify({ type: 'pong' }));
+                return;
+            }
+
             console.log(`Message from Kasir ${kasirId}:`, data);
         } catch (e) {
             console.log(`Raw message from Kasir ${kasirId}:`, message.toString());
