@@ -779,6 +779,10 @@ class WhatsAppService
      */
     public function sendImage($to, $imageUrl, $caption = '')
     {
+        if (class_exists('\Log')) {
+            \Log::write("sendImage START - to: $to, url: $imageUrl", 'wa_debug', 'SendImage');
+        }
+        
         $payload = [
             'to' => $to,
             'type' => 'image',
@@ -791,34 +795,62 @@ class WhatsAppService
             $payload['image']['caption'] = $caption;
         }
         
-        $response = $this->sendRequest('/messages', $payload);
-        
-        // Parse response
-        if ($response['httpCode'] == 200 || $response['httpCode'] == 201) {
-            $data = json_decode($response['body'], true);
-            
-            if (isset($data['id']) || isset($data['message_id'])) {
-                $responseData = [
-                    'id' => $data['id'] ?? $data['message_id'] ?? null,
-                    'wamid' => $data['wamid'] ?? null,
-                    'status' => $data['status'] ?? 'sent'
-                ];
-                
-                // Save to outbound log
-                $this->saveOutboundMessage($payload, $responseData);
-                
-                return [
-                    'success' => true,
-                    'data' => $responseData
-                ];
-            }
+        if (class_exists('\Log')) {
+            \Log::write("Calling sendRequest with payload: " . json_encode($payload), 'wa_debug', 'SendImage');
         }
         
-        // Error
-        return [
-            'success' => false,
-            'error' => $response['error'] ?? 'Failed to send image',
-            'httpCode' => $response['httpCode']
-        ];
+        try {
+            $response = $this->sendRequest('/messages', $payload);
+            
+            if (class_exists('\Log')) {
+                \Log::write("sendRequest response: " . json_encode($response), 'wa_debug', 'SendImage');
+            }
+            
+            // Parse response
+            if ($response['httpCode'] == 200 || $response['httpCode'] == 201) {
+                $data = json_decode($response['body'], true);
+                
+                if (isset($data['id']) || isset($data['message_id'])) {
+                    $responseData = [
+                        'id' => $data['id'] ?? $data['message_id'] ?? null,
+                        'wamid' => $data['wamid'] ?? null,
+                        'status' => $data['status'] ?? 'sent'
+                    ];
+                    
+                    // Save to outbound log
+                    $this->saveOutboundMessage($payload, $responseData);
+                    
+                    if (class_exists('\Log')) {
+                        \Log::write("sendImage SUCCESS", 'wa_debug', 'SendImage');
+                    }
+                    
+                    return [
+                        'success' => true,
+                        'data' => $responseData
+                    ];
+                }
+            }
+            
+            // Error
+            if (class_exists('\Log')) {
+                \Log::write("sendImage FAILED - httpCode: " . $response['httpCode'], 'wa_error', 'SendImage');
+            }
+            
+            return [
+                'success' => false,
+                'error' => $response['error'] ?? 'Failed to send image',
+                'httpCode' => $response['httpCode']
+            ];
+            
+        } catch (\Exception $e) {
+            if (class_exists('\Log')) {
+                \Log::write("sendImage EXCEPTION: " . $e->getMessage(), 'wa_error', 'SendImage');
+            }
+            
+            return [
+                'success' => false,
+                'error' => $e->getMessage()
+            ];
+        }
     }
 }
