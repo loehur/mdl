@@ -694,37 +694,40 @@ class WhatsAppService
                 return;
             }
             
+            // Fetch Customer Data from Laundry DB
+            $userData = $this->getUserData($waNumber);
+            $contactName = $userData['contact_name'] ?? null;
+            $code = $userData['code'] ?? null;
+            
             // Get or create conversation (NO CUSTOMER CREATION on Outbound)
-            $conversationId = null;
-                      
             // Try find customer
             $conv = $db->get_where('wa_conversations', ['wa_number' => $waNumber]);
             
             if ($conv && $conv->num_rows() > 0) {
-                $conversationId = $conv->row()->id;
-                
                 // Update conversation
-                $db->update('wa_conversations', [
+                $updateData = [
                     'last_message' => $lastMessageText,
                     'last_out_at' => date('Y-m-d H:i:s')
-                ], ['wa_number' => $waNumber]);
+                ];
+                if ($contactName) $updateData['contact_name'] = $contactName;
+                if ($code) $updateData['code'] = $code;
+                
+                $db->update('wa_conversations', $updateData, ['wa_number' => $waNumber]);
             } else {
                 // Create new conversation
-                $conversationId = $db->insert('wa_conversations', [
+                $convData = [
                     'wa_number' => $waNumber,
                     'status' => 'open',
                     'last_message' => $lastMessageText,
                     'last_out_at' => date('Y-m-d H:i:s'),
                     'created_at' => date('Y-m-d H:i:s')
-                ]);
+                ];
+                if ($contactName) $convData['contact_name'] = $contactName;
+                if ($code) $convData['code'] = $code;
+                
+                $db->insert('wa_conversations', $convData);
             }
-            
-            if (!$conversationId) {
-                if (class_exists('\Log')) {
-                    \Log::write("!! FAILED to get/create Conversation ID for $waNumber | Payload: " . json_encode($payload), 'wa_error', 'SaveOutbound');
-                }
-                return;
-            }
+            // Conversation ID check removed as we don't use ID anymore
             
             
             // Save outbound message to wa_messages_out
@@ -895,6 +898,49 @@ class WhatsAppService
                 'success' => false,
                 'error' => $e->getMessage()
             ];
+        }
+    }
+
+    /**
+     * Get user data (contact_name, code) from laundry database
+     */
+    private function getUserData($waNumber)
+    {
+        // Connect to Laundry DB (DB 1)
+        if (!class_exists('\App\Core\DB')) return null;
+        
+        try {
+            $db = new \App\Core\DB(1);
+            if (!$db) return null;
+            
+            $cleanPhone = preg_replace('/[^0-9]/', '', $waNumber); // 628...
+            $phone0 = '0' . substr($cleanPhone, 2); // 08...
+            
+            // Search Customer
+            $customer = $db->query("SELECT * FROM pelanggan WHERE nomor_pelanggan LIKE '%" . substr($phone0, 2) . "%' ORDER BY updated_at DESC LIMIT 1")->row();
+            
+            if (!$customer) return null;
+            
+            $result = [
+                'contact_name' => $customer->nama_pelanggan,
+                'assigned_user_id' => null,
+                'code' => null
+            ];
+            
+            $last_sale = $db->query("SELECT * FROM sale WHERE id_pelanggan = " . $customer->id_pelanggan . " ORDER BY insertTime DESC LIMIT 1")->row();
+            if ($last_sale) {
+                $result['assigned_user_id'] = $last_sale->id_cabang;
+                $cabang = $db->query("SELECT kode_cabang FROM cabang WHERE id_cabang = " . $last_sale->id_cabang)->row();
+                if ($cabang) $result['code'] = $cabang->kode_cabang;
+            }
+            
+            return $result;
+            
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                 \Log::write("getUserData Exception: " . $e->getMessage(), 'wa_error', 'Helper');
+            }
+            return null;
         }
     }
 }
