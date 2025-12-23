@@ -137,6 +137,49 @@ const totalUnread = computed(() => {
 
 // --- Methods ---
 
+// Helper Functions required by Template
+const formatTime = (timestamp) => {
+  if (!timestamp) return '';
+  // Check if timestamp is in seconds (PHP) or ms (JS)
+  // If undefined/null, return empty.
+  // Assuming typical PHP unix timestamp (seconds) or string
+  const date = new Date(timestamp * 1000); 
+  if (isNaN(date.getTime())) return timestamp; // Fallback if string
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
+const processMessageDate = (timestamp) => {
+  if (!timestamp) return 'Date';
+  // Use timestamp if available, else date fallback
+  const date = new Date(timestamp * 1000);
+   if (isNaN(date.getTime())) return timestamp;
+  return date.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'short' });
+};
+
+const shouldShowDateDivider = (msg, index) => {
+  if (index === 0) return true;
+  if (!activeConversation.value || !activeConversation.value.messages) return false;
+  
+  const prevMsg = activeConversation.value.messages[index - 1];
+  if (!prevMsg) return true;
+  
+  // Compare dates
+  // Convert timestamps to date strings
+  const d1 = new Date(msg.timestamp * 1000).toDateString();
+  const d2 = new Date(prevMsg.timestamp * 1000).toDateString();
+  
+  return d1 !== d2;
+};
+
+const openMedia = (url) => {
+  console.log('Opening media:', url);
+  if (url) window.open(url, '_blank');
+};
+
+const formatWhatsAppText = (text) => {
+    return parseWhatsAppFormatting(text);
+};
+
 // Parse WhatsApp Formatting to HTML
 const parseWhatsAppFormatting = (text) => {
   if (!text) return '';
@@ -1151,7 +1194,7 @@ window.addEventListener('focus', () => {
             <!-- Date Divider -->
             <div v-if="shouldShowDateDivider(msg, index)" class="flex justify-center my-4 sticky top-0 z-10">
               <span class="bg-slate-800/80 backdrop-blur text-slate-400 text-xs px-3 py-1 rounded-full shadow-sm border border-slate-700/50">
-                {{ processMessageDate(msg.top_timestamp) }}
+                {{ processMessageDate(msg.timestamp) }}
               </span>
             </div>
 
