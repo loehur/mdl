@@ -48,39 +48,30 @@ const originalTitle = 'MDL Chat';
 const titleBlinkInterval = ref(null);
 const isTitleRed = ref(false);
 
-// Scroll Glow Indicator State
+// Bounce Scroll State (CSS class-based)
 const conversationListRef = ref(null);
-const scrollGlow = ref({
-  conversationsTop: false,
-  conversationsBottom: true,
-  messagesTop: false,
-  messagesBottom: true
-});
 
-// Setup Scroll Glow Indicators
-const setupScrollGlow = (element, type) => {
+// Bounce Scroll Handler - CSS Class Based
+const setupBounceScroll = (element) => {
   if (!element) return;
   
-  const updateGlow = () => {
-    const scrollTop = element.scrollTop;
-    const scrollHeight = element.scrollHeight;
-    const clientHeight = element.clientHeight;
-    const scrollBottom = scrollHeight - scrollTop - clientHeight;
+  element.addEventListener('scroll', () => {
+    const isAtTop = element.scrollTop <= 5;
+    const isAtBottom = Math.abs(element.scrollHeight - element.scrollTop - element.clientHeight) <= 5;
     
-    // Show top glow if not at top (there's content above)
-    scrollGlow.value[`${type}Top`] = scrollTop > 10;
+    // Add bounce class when hitting boundaries
+    if (isAtTop && !element.classList.contains('bounce-top-active')) {
+      element.classList.add('bounce-top-active');
+      setTimeout(() => element.classList.remove('bounce-top-active'), 400);
+    }
     
-    // Show bottom glow if not at bottom (there's content below)
-    scrollGlow.value[`${type}Bottom`] = scrollBottom > 10;
-  };
+    if (isAtBottom && !element.classList.contains('bounce-bottom-active')) {
+      element.classList.add('bounce-bottom-active');
+      setTimeout(() => element.classList.remove('bounce-bottom-active'), 400);
+    }
+  });
   
-  // Update on scroll
-  element.addEventListener('scroll', updateGlow);
-  
-  // Initial check
-  setTimeout(updateGlow, 100);
-  
-  console.log(`✨ Scroll glow enabled for ${type}`);
+  console.log(`✅ Bounce scroll enabled for:`, element.className);
 };
 
 const fetchConversations = async () => {
@@ -801,10 +792,10 @@ const mockIncomingMessage = () => {
 onMounted(() => {
   scrollToBottom();
   
-  // Initialize scroll glow indicators
+  // Initialize bounce scroll
   nextTick(() => {
-    if (conversationListRef.value) setupScrollGlow(conversationListRef.value, 'conversations');
-    if (chatContainer.value) setupScrollGlow(chatContainer.value, 'messages');
+    if (conversationListRef.value) setupBounceScroll(conversationListRef.value);
+    if (chatContainer.value) setupBounceScroll(chatContainer.value);
   });
   
   // Initialize title blinking
@@ -1034,19 +1025,11 @@ window.addEventListener('focus', () => {
         </div>
       </div>
       
-      <!-- Conversation List with Scroll Glow -->
-      <div class="flex-1 relative overflow-hidden">
-        <!-- Top Glow Indicator -->
-        <div 
-          class="absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-indigo-500/20 to-transparent pointer-events-none transition-opacity duration-300 z-10"
-          :class="scrollGlow.conversationsTop ? 'opacity-100' : 'opacity-0'"
-        ></div>
-        
-        <!-- Scrollable List -->
-        <div 
-          ref="conversationListRef" 
-          class="h-full overflow-y-auto custom-scrollbar"
-        >
+      <!-- Conversation List -->
+      <div 
+        ref="conversationListRef" 
+        class="flex-1 overflow-y-auto custom-scrollbar"
+      >
         <div 
           v-for="chat in conversations" 
           :key="chat.id"
@@ -1087,13 +1070,6 @@ window.addEventListener('focus', () => {
                </div>
             </div>
         </div>
-        
-        <!-- Bottom Glow Indicator -->
-        <div 
-          class="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-indigo-500/20 to-transparent pointer-events-none transition-opacity duration-300 z-10"
-          :class="scrollGlow.conversationsBottom ? 'opacity-100' : 'opacity-0'"
-        ></div>
-      </div>
         
         <button 
            @click="logout" 
@@ -1158,12 +1134,6 @@ window.addEventListener('focus', () => {
              </button>
           </div>
         </header>
-        
-        <!-- Top Glow Indicator (below header) -->
-        <div 
-          class="absolute top-16 left-0 right-0 h-8 bg-gradient-to-b from-slate-900/60 to-transparent pointer-events-none transition-opacity duration-300 z-20"
-          :class="scrollGlow.messagesTop ? 'opacity-100' : 'opacity-0'"
-        ></div>
         
         <!-- Messages - Scrollable Area with top and bottom padding -->
         <div 
@@ -1277,12 +1247,6 @@ window.addEventListener('focus', () => {
           </div>
         </div>
         
-        <!-- Bottom Glow Indicator (above input area) -->
-        <div 
-          class="absolute bottom-[88px] left-0 right-0 h-8 bg-gradient-to-t from-slate-900/60 to-transparent pointer-events-none transition-opacity duration-300 z-20"
-          :class="scrollGlow.messagesBottom ? 'opacity-100' : 'opacity-0'"
-        ></div>
-        
         <!-- Input Area - ABSOLUTE BOTTOM -->
         <div class="absolute bottom-0 left-0 right-0 p-4 bg-[#0f172a] border-t border-slate-800 z-30">
            <!-- Image Preview Modal -->
@@ -1380,6 +1344,25 @@ window.addEventListener('focus', () => {
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #475569;
+}
+
+/* Bounce Animations */
+@keyframes bounce-top {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-20px); }
+}
+
+@keyframes bounce-bottom {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(20px); }
+}
+
+.bounce-top-active {
+  animation: bounce-top 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.bounce-bottom-active {
+  animation: bounce-bottom 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 /* WhatsApp Formatting Styles */
