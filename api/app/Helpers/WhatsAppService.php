@@ -686,13 +686,14 @@ class WhatsAppService
                 return;
             }
             
+            
             // Save outbound message to wa_messages_out
             $messageData = [
                 'conversation_id' => $conversationId,
                 'phone' => $waNumber,
                 'wamid' => $wamid,
                 'message_id' => $messageId,
-                'type' => $messageType,
+                'type' => $messageType, // Direct use - no mapping needed if column is VARCHAR
                 'content' => $content,
                 'template_params' => $templateParams,
                 'media_url' => $mediaUrl,
