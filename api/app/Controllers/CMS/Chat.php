@@ -429,10 +429,22 @@ class Chat extends Controller
             }
             
             \Log::write("Initializing WhatsAppService", 'cms_debug', 'Chat');
-            $waService = new \App\Helpers\WhatsAppService();
-            \Log::write("Sending image to: $waNumber, URL: $mediaUrl", 'cms_debug', 'Chat');
-            $result = $waService->sendImage($waNumber, $mediaUrl, $caption);
-            \Log::write("WA send result: " . json_encode($result), 'cms_debug', 'Chat');
+            
+            try {
+                $waService = new \App\Helpers\WhatsAppService();
+                \Log::write("WhatsAppService instance created successfully", 'cms_debug', 'Chat');
+                
+                \Log::write("Sending image to: $waNumber, URL: $mediaUrl", 'cms_debug', 'Chat');
+                $result = $waService->sendImage($waNumber, $mediaUrl, $caption);
+                \Log::write("WA send result: " . json_encode($result), 'cms_debug', 'Chat');
+                
+            } catch (\Throwable $e) {
+                \Log::write("CRITICAL ERROR calling sendImage: " . $e->getMessage(), 'cms_error', 'Chat');
+                \Log::write("Error file: " . $e->getFile() . " line " . $e->getLine(), 'cms_error', 'Chat');
+                \Log::write("Stack trace: " . $e->getTraceAsString(), 'cms_error', 'Chat');
+                
+                $this->error('WhatsApp API error: ' . $e->getMessage(), 500);
+            }
             
             if ($result['success']) {
                 // Save to database
