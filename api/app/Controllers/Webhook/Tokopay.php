@@ -109,6 +109,44 @@ class Tokopay extends Controller
 
                             if (!$update) {
                                 \Log::write("Err: Upd Kas $reff_id", 'webhook', 'Tokopay');
+                            } else {
+                                // Send Webhook to QR Server (Node.js) to notify frontend
+                                try {
+                                    // 1. Get QR String from wh_tokopay (already fetched in $cek_target)
+                                    $qrString = isset($cek_target->qr_string) ? $cek_target->qr_string : '';
+
+                                    // 2. Get Kasir ID (id_cabang) from kas table
+                                    $kasData = $db_update_instance->query("SELECT id_cabang FROM kas WHERE ref_finance = '$reff_id'")->row();
+                                    
+                                    if ($kasData && !empty($qrString)) {
+                                        $kasirId = $kasData->id_cabang; // Ensure this maps to your Node server Kasir IDs (3, 4, etc)
+                                        
+                                        $url = 'https://qrs.nalju.com/payment-success';
+                                        $postData = [
+                                            'kasir_id' => (string)$kasirId,
+                                            'qr_string' => $qrString,
+                                            'status' => true
+                                        ];
+                                        
+                                        $ch = curl_init($url);
+                                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                                        curl_setopt($ch, CURLOPT_POST, true);
+                                        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($postData));
+                                        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+                                        curl_setopt($ch, CURLOPT_TIMEOUT, 5); // Don't hang PHP
+                                        
+                                        $response = curl_exec($ch);
+                                        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                                        curl_close($ch);
+                                        
+                                        // Optional: Log success/fail of this push
+                                        if ($httpCode !== 200) {
+                                            \Log::write("Err: QRS Push $httpCode", 'webhook', 'Tokopay');
+                                        }
+                                    }
+                                } catch (\Exception $ex) {
+                                    \Log::write("Err: QRS Exc " . $ex->getMessage(), 'webhook', 'Tokopay');
+                                }
                             }
                             // Success - no log
                         }
