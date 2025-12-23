@@ -7,7 +7,7 @@
  */
 return [    
     'bon' => [
-        'max_length' => 50,
+        'max_length' => 100,
         'keywords' => [
             'atas nama', 'ats nama', 'atas nma', 'an.',
             'bon', 'struk', 'nota', 'bill', 'kirim', 'tagihan', 'resi',
@@ -18,7 +18,7 @@ return [
     ],
 
     'status' => [
-        'max_length' => 50,
+        'max_length' => 100,
         'keywords' => [
             'cek', 'status',
             'udh siap', 'dh siap', 'uda siap', 'dah siap', 'udah siap', 'sudah siap',
