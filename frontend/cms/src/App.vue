@@ -1061,20 +1061,22 @@ window.addEventListener('focus', () => {
       <!-- Conversation List with Low-Risk Glow -->
       <div class="flex-1 relative overflow-hidden flex flex-col">
          <!-- Top Glow -->
-         <div class="absolute top-0 left-0 right-0 h-6 bg-gradient-to-b from-indigo-500/15 to-transparent z-10 pointer-events-none transition-opacity duration-300"
+         <div class="absolute top-0 left-0 right-0 h-6 bg-gradient-to-b from-indigo-500/50 to-transparent z-10 pointer-events-none transition-opacity duration-300"
               :class="scrollGlow.conversationsTop ? 'opacity-100' : 'opacity-0'"></div>
          
          <div 
             ref="conversationListRef" 
             class="flex-1 overflow-y-auto custom-scrollbar"
          >
-         <div 
-           v-for="chat in conversations" 
-          :key="chat.id"
-          @click="selectChat(chat.id)"
-          class="p-3 flex items-center gap-3 cursor-pointer transition-colors duration-200 border-b border-slate-800/50 hover:bg-slate-800/50"
-          :class="{'bg-[#334155]/60 border-l-4 border-l-indigo-500': activeChatId === chat.id, 'border-l-4 border-l-transparent': activeChatId !== chat.id}"
-        >
+           <!-- Content Wrapper for ResizeObserver -->
+           <div>
+             <div 
+               v-for="chat in conversations" 
+               :key="chat.id"
+               @click="selectChat(chat.id)"
+               class="p-3 flex items-center gap-3 cursor-pointer transition-colors duration-200 border-b border-slate-800/50 hover:bg-slate-800/50"
+               :class="{'bg-[#334155]/60 border-l-4 border-l-indigo-500': activeChatId === chat.id, 'border-l-4 border-l-transparent': activeChatId !== chat.id}"
+             >
           <div class="relative">
             <img :src="chat.avatar" class="w-12 h-12 rounded-full bg-slate-700 object-cover border border-slate-600">
             <span v-if="chat.status === 'online'" class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-[#1e293b] rounded-full"></span>
@@ -1095,10 +1097,11 @@ window.addEventListener('focus', () => {
             </div>
           </div>
         </div>
+        </div> <!-- Close Wrapper -->
          </div>
          
          <!-- Bottom Glow -->
-         <div class="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-indigo-500/15 to-transparent z-10 pointer-events-none transition-opacity duration-300"
+         <div class="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-indigo-500/50 to-transparent z-10 pointer-events-none transition-opacity duration-300"
               :class="scrollGlow.conversationsBottom ? 'opacity-100' : 'opacity-0'"></div>
       </div>
       
@@ -1179,7 +1182,7 @@ window.addEventListener('focus', () => {
         </header>
 
         <!-- Top Glow (Messages) -->
-        <div class="absolute top-16 left-0 right-0 h-6 bg-gradient-to-b from-slate-900/30 to-transparent z-20 pointer-events-none transition-opacity duration-300"
+        <div class="absolute top-16 left-0 right-0 h-6 bg-gradient-to-b from-slate-900/50 to-transparent z-20 pointer-events-none transition-opacity duration-300"
              :class="scrollGlow.messagesTop ? 'opacity-100' : 'opacity-0'"></div>
         
         <!-- Messages - Scrollable Area with top and bottom padding -->
@@ -1295,7 +1298,7 @@ window.addEventListener('focus', () => {
         </div>
 
         <!-- Bottom Glow (Messages) -->
-        <div class="absolute bottom-[88px] left-0 right-0 h-8 bg-gradient-to-t from-slate-900/30 to-transparent z-20 pointer-events-none transition-opacity duration-300"
+        <div class="absolute bottom-[88px] left-0 right-0 h-8 bg-gradient-to-t from-slate-900/50 to-transparent z-20 pointer-events-none transition-opacity duration-300"
              :class="scrollGlow.messagesBottom ? 'opacity-100' : 'opacity-0'"></div>
         
         <!-- Input Area - ABSOLUTE BOTTOM -->
