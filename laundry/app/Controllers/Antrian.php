@@ -411,10 +411,13 @@ class Antrian extends Controller
       
       $setOne = "no_ref = '" . $noref . "' AND tipe = 1";
       $where = $this->wCabang . " AND " . $setOne;
-      $data_main = $this->db(0)->count_where('notif', $where);
 
       $apiData = $res['data']['data'] ?? $res['data'] ?? [];
       $idApi = $apiData['id'] ?? ($apiData['message_id'] ?? '');
+
+      // DEBUG LOG
+      @file_put_contents(__DIR__ . '/../../logs/notif_debug.log', date('H:i:s') . " Response status: " . ($res['status'] ? 'true' : 'false') . "\n", FILE_APPEND);
+      @file_put_contents(__DIR__ . '/../../logs/notif_debug.log', date('H:i:s') . " ID API extracted: $idApi\n", FILE_APPEND);
 
       if ($res['status']) {
          $vals = [
@@ -428,6 +431,9 @@ class Antrian extends Controller
             'id_api' => $idApi,
             'state' => 'sent'
          ];
+         
+         // DEBUG LOG
+         @file_put_contents(__DIR__ . '/../../logs/notif_debug.log', date('H:i:s') . " Inserting notif with id_api: $idApi\n", FILE_APPEND);
       } else {
          $vals = [
             'id_notif' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
@@ -442,10 +448,13 @@ class Antrian extends Controller
          ];
       }
 
+      $data_main = $this->db(0)->count_where('notif', $where);
       if ($data_main < 1) {
 
          $do = $this->db(0)->insert('notif', $vals);
           
+         // DEBUG LOG
+         @file_put_contents(__DIR__ . '/../../logs/notif_debug.log', date('H:i:s') . " Insert result: " . ($do ? 'success' : 'failed') . "\n", FILE_APPEND);
           if ($do['errno'] <> 0) {
              $this->writeLog('sendNotif', 'ERROR', 'Insert Notif Failed', ['error' => $do['error']]);
              $this->model('Log')->write("[sendNotif] Insert Notif Error: " . $do['error']);

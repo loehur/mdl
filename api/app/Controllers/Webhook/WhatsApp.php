@@ -183,6 +183,20 @@ class WhatsApp extends Controller
             case 'text':
                 $textBody = $msg['text']['body'] ?? null;
                 break;
+            
+            case 'button':
+                // Extract text from button response
+                $textBody = $msg['button']['text'] ?? ($msg['button']['payload'] ?? null);
+                break;
+            
+            case 'interactive':
+                // Handle interactive message (list reply, button reply)
+                if (isset($msg['interactive']['button_reply'])) {
+                    $textBody = $msg['interactive']['button_reply']['title'] ?? null;
+                } elseif (isset($msg['interactive']['list_reply'])) {
+                    $textBody = $msg['interactive']['list_reply']['title'] ?? null;
+                }
+                break;
 
             case 'image':
                 // Process image (no verbose log)

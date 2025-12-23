@@ -625,8 +625,28 @@ class WhatsAppService
             if ($messageType === 'text' && isset($payload['text']['body'])) {
                 $content = $payload['text']['body'];
             } elseif ($messageType === 'template' && isset($payload['template']['name'])) {
-                $content = $payload['template']['name']; // Store template name in content
-                // Store template params if available
+                // Extract text from template parameters
+                $templateText = '';
+                if (isset($payload['template']['components'])) {
+                    foreach ($payload['template']['components'] as $component) {
+                        if ($component['type'] === 'body' && isset($component['parameters'])) {
+                            $params = [];
+                            foreach ($component['parameters'] as $param) {
+                                if ($param['type'] === 'text') {
+                                    $params[] = $param['text'];
+                                }
+                            }
+                            // Build readable text from parameters
+                            // Format: "Customer: BUDI | Order: ... | Total: ... | Link: ..."
+                            $templateText = implode(' | ', $params);
+                        }
+                    }
+                }
+                
+                // Store readable text in content, not template name
+                $content = $templateText ?: $payload['template']['name']; // Fallback to template name if no text
+                
+                // Store template params for reference
                 if (isset($payload['template']['components'])) {
                     $templateParams = json_encode($payload['template']['components']);
                 }
