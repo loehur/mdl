@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Kasir</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Form Input Kasir ID -->
+        <div class="form-kasir" id="form-kasir">
+            <h2>Masukkan ID Kasir</h2>
+            <input type="text" id="kasir-id-input" placeholder="KASIR001" autofocus>
+            <input type="password" id="pin-input" placeholder="PIN" style="margin-top: 12px;">
+            <button onclick="saveKasirId()">Hubungkan</button>
+        </div>
+
+        <!-- QR Display -->
+        <div class="qr-display" id="qr-display">
+            <div class="status-box disconnected" id="status-box"></div>
+            <div id="qr-container"></div>
+            <div id="qr-text"></div>
+            <div class="kasir-id-label" id="kasir-id-label"></div>
+        </div>
+
+        <!-- Payment Success Overlay -->
+        <div class="payment-success-overlay" id="payment-success-overlay">
+            <div class="success-icon">✓</div>
+            <div class="success-text">Pembayaran Berhasil</div>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+
+</html>
