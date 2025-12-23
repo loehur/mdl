@@ -23,7 +23,7 @@ class Cron extends Controller
          $diff = $t2 - $t1;
          $hours = round($diff / (60 * 60), 1);
 
-         if ($hours > 48) {
+         if ($hours > 48) { // 48 hours atau 2 hari
             $expired_bol = true;
          }
 
@@ -41,10 +41,6 @@ class Cron extends Controller
                $where2 = "id_notif = '" . $id_notif . "'";
                $this->db(0)->update('notif', $set, $where2);
                $sent += 1;
-            } else {
-               $set = ['state' => 'pending'];
-               $where2 = "id_notif = '" . $id_notif . "'";
-               $this->db(0)->update('notif', $set, $where2);
             }
          } else {
             $set = ['state' => 'expired'];
