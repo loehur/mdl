@@ -110,7 +110,9 @@ class Chat extends Controller
         $db = $this->db(0);
 
         // Fetch messages from both Inbound (wa_messages_in) and Outbound (wa_messages_out)
-        // using phone number
+        // ✅ Fixed: Consistent filtering for both tables
+        // ✅ Increased limit to 100 messages for better coverage
+        // ✅ Added proper NULL handling for optional fields
         $sql = "
             SELECT * FROM (
                 SELECT * FROM (
@@ -127,14 +129,14 @@ class Chat extends Controller
                         media_caption as caption
                      FROM wa_messages_in 
                      WHERE phone = ? 
-                     AND status != 'deleted')
+                     AND (status IS NULL OR status != 'deleted'))
                      
                     UNION ALL
                     
                     (SELECT 
                         id, 
                         wamid,
-                        content as text, 
+                        COALESCE(content, '') as text, 
                         type, 
                         'me' as sender, 
                         created_at as time, 
@@ -143,10 +145,11 @@ class Chat extends Controller
                         media_url,
                         NULL as caption
                      FROM wa_messages_out 
-                     WHERE phone = ?)
+                     WHERE phone = ?
+                     AND (status IS NULL OR status NOT IN ('deleted', 'failed')))
                 ) AS combined_msgs
                 ORDER BY time DESC
-                LIMIT 50
+                LIMIT 100
             ) AS latest_msgs
             ORDER BY time ASC
         ";
