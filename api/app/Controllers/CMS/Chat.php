@@ -146,6 +146,7 @@ class Chat extends Controller
                      WHERE RIGHT(REPLACE(REPLACE(phone, '+', ''), '-', ''), 10) = ?)
                 ) AS combined_msgs
                 ORDER BY time DESC
+                LIMIT 50
             ) AS latest_msgs
             ORDER BY time ASC
         ";

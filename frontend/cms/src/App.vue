@@ -182,6 +182,44 @@ const parseWhatsAppFormatting = (text) => {
   return formatted;
 };
 
+// Format date for separator (Today, Yesterday, or date)
+const formatDateSeparator = (dateString) => {
+  const msgDate = new Date(dateString);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  
+  // Reset time to compare dates only
+  msgDate.setHours(0, 0, 0, 0);
+  today.setHours(0, 0, 0, 0);
+  yesterday.setHours(0, 0, 0, 0);
+  
+  if (msgDate.getTime() === today.getTime()) {
+    return 'Today';
+  } else if (msgDate.getTime() === yesterday.getTime()) {
+    return 'Yesterday';
+  } else {
+    return new Date(dateString).toLocaleDateString('id-ID', { 
+      day: 'numeric', 
+      month: 'long', 
+      year: 'numeric' 
+    });
+  }
+};
+
+// Check if date separator is needed between two messages
+const needsDateSeparator = (currentMsg, previousMsg) => {
+  if (!previousMsg || !currentMsg.rawTime || !previousMsg.rawTime) return false;
+  
+  const currentDate = new Date(currentMsg.rawTime);
+  const previousDate = new Date(previousMsg.rawTime);
+  
+  currentDate.setHours(0, 0, 0, 0);
+  previousDate.setHours(0, 0, 0, 0);
+  
+  return currentDate.getTime() !== previousDate.getTime();
+};
+
 // --- Methods ---
 const fetchMessages = async (phone) => {
     try {
@@ -198,6 +236,7 @@ const fetchMessages = async (phone) => {
                 media_url: m.media_url,
                 sender: m.sender, // 'me' or 'customer'
                 time: m.time ? new Date(m.time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '',
+                rawTime: m.time, // Keep raw timestamp for date separator
                 status: m.status
             }));
         }
@@ -584,7 +623,8 @@ const handleIncomingMessage = (payload) => {
     media_id: messageData.media_id,
     media_url: messageData.media_url,
     sender: sender,
-    time: messageData.time ? new Date(messageData.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    time: messageData.time ? new Date(messageData.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    rawTime: messageData.time || new Date().toISOString() // Keep raw timestamp for date separator
   };
   
   // Avoid duplicate messages if already present
@@ -1243,7 +1283,12 @@ window.addEventListener('focus', () => {
           <div class="p-4 space-y-2">
             <div v-for="(msg, index) in activeConversation.messages" :key="msg.id" class="flex flex-col">
             
-               <!-- Date Separator (Optional Logic could go here) -->
+               <!-- Date Separator -->
+               <div v-if="index === 0 || needsDateSeparator(msg, activeConversation.messages[index - 1])" class="flex items-center justify-center my-4">
+                  <div class="bg-slate-800/60 backdrop-blur-sm text-slate-300 text-xs font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-700/50">
+                     {{ formatDateSeparator(msg.rawTime) }}
+                  </div>
+               </div>
                
                <!-- Customer Message -->
                <div v-if="msg.sender !== 'me'" class="flex gap-3 max-w-[75%] items-end">

@@ -148,6 +148,7 @@ class WAReplies
         if (!empty($pendingNotifs)) {
              foreach ($pendingNotifs as $notif) {
                  $idNotif = $notif['id_notif'];
+                 
                  // Send message (Free text is allowed now since customer just messaged us)
                  $res = $waService->sendFreeText($waNumber, $notif['text']);
                  
@@ -165,9 +166,11 @@ class WAReplies
                      \Log::write("FAILED to update DB for Notif #$idNotif (Error: " . $db1->conn()->error . ")", 'wa_replies', 'PendingNotifs');
                  }
                  
-                 // Broadcast to WebSocket
+                 // Broadcast to WebSocket with future timestamp
                  if ($res['success']) {
-                     $payload = $this->buildWsPayload($waNumber, $notif['text'], $msgId, $wamid);
+                     // Add 1 second to ensure auto-reply appears after customer message
+                     $timestamp = date('Y-m-d H:i:s', strtotime('+1 second'));
+                     $payload = $this->buildWsPayload($waNumber, $notif['text'], $msgId, $wamid, $timestamp);
                      $this->pushToWebSocket($payload);
                  }
              }
@@ -554,8 +557,11 @@ class WAReplies
     /**
      * Build WebSocket payload for broadcasting auto-reply messages
      */
-    private function buildWsPayload($waNumber, $text, $msgId = null, $wamid = null)
+    private function buildWsPayload($waNumber, $text, $msgId = null, $wamid = null, $timestamp = null)
     {
+        // Use provided timestamp or current time
+        $time = $timestamp ?: date('Y-m-d H:i:s');
+        
         return [
             'type'           => 'agent_message_sent',
             'phone'          => $waNumber,
@@ -568,7 +574,7 @@ class WAReplies
                 'text'   => $text,
                 'type'   => 'text',
                 'sender' => 'me',
-                'time'   => date('Y-m-d H:i:s'),
+                'time'   => $time,
                 'status' => 'sent',
             ],
             'contact_name'   => '',
