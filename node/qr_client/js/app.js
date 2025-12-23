@@ -275,10 +275,10 @@ function showPaymentSuccess(status) {
         // Show success overlay
         overlay.classList.add('show');
 
-        // Auto hide after 5 seconds
+        // Auto hide after 1 minute (60000ms)
         setTimeout(() => {
             overlay.classList.remove('show');
-        }, 5000);
+        }, 60000);
 
         // Clear current QR string after success
         currentQrString = null;
