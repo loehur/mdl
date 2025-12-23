@@ -101,9 +101,10 @@ class Tokopay extends Controller
                     // Update kas (no verbose log)
 
                     try {
-                        $db_update_instance = $this->db(0);
+                        // db kas itu db 1
+                        $db_update_instance = $this->db(1);
                         if (!$db_update_instance) {
-                            \Log::write("Err: DB 0", 'webhook', 'Tokopay');
+                            \Log::write("Err: DB 1", 'webhook', 'Tokopay');
                         } else {
                             $update = $db_update_instance->update("kas", ["status_mutasi" => 3], ["ref_finance" => $reff_id]);
 
