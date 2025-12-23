@@ -1163,17 +1163,19 @@ window.addEventListener('focus', () => {
         <div class="absolute bottom-0 left-0 right-0 p-4 bg-[#0f172a] border-t border-slate-800 z-30">
            <!-- Image Preview Modal -->
            <div v-if="showImagePreview" class="absolute bottom-full left-0 right-0 mb-2 bg-[#1e293b] border border-slate-700 rounded-xl p-4 shadow-2xl">
-              <div class="flex items-start gap-3">
-                 <div class="relative flex-shrink-0">
-                    <img :src="imagePreview" alt="Preview" class="w-32 h-32 object-cover rounded-lg border border-slate-600">
-                    <button @click="cancelImage" class="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 shadow-lg">
+              <div class="flex flex-col gap-3">
+                 <!-- Image with close button -->
+                 <div class="relative mx-auto">
+                    <img :src="imagePreview" alt="Preview" class="w-48 h-48 object-cover rounded-lg border border-slate-600">
+                    <button @click="cancelImage" class="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1.5 shadow-lg">
                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                        </svg>
                     </button>
                  </div>
                  
-                 <div class="flex-1 flex flex-col gap-2">
+                 <!-- Caption and Send Button Below -->
+                 <div class="flex flex-col gap-2">
                     <input 
                        v-model="imageCaption" 
                        type="text" 
@@ -1183,7 +1185,7 @@ window.addEventListener('focus', () => {
                     <button 
                        @click="sendImage" 
                        :disabled="isUploadingImage"
-                       class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+                       class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-lg text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50"
                     >
                        <span v-if="isUploadingImage" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
                        {{ isUploadingImage ? 'Sending...' : 'Send Image' }}
