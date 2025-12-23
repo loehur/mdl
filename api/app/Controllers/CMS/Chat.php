@@ -385,8 +385,6 @@ class Chat extends Controller
             \Log::write("POST: " . json_encode($_POST), 'cms_debug', 'Chat');
         }
         
-        header('Content-Type: application/json');
-        
         try {
             // Validate file upload
             if (!isset($_FILES['image']) || $_FILES['image']['error'] !== UPLOAD_ERR_OK) {
@@ -403,8 +401,10 @@ class Chat extends Controller
                 $this->error('Missing conversation_id');
             }
             
+            \Log::write("Getting DB connection", 'cms_debug', 'Chat');
             $db = $this->db(0);
             
+            \Log::write("Fetching conversation ID: $conversationId", 'cms_debug', 'Chat');
             // Get conversation details
             $conversation = $db->get_where('wa_conversations', ['id' => $conversationId])->row();
             if (!$conversation) {
@@ -413,8 +413,10 @@ class Chat extends Controller
             
             $waNumber = $conversation->wa_number;
             
+            \Log::write("Starting image upload", 'cms_debug', 'Chat');
             // Upload image to server
             $uploaded = $this->uploadImageFile($_FILES['image']);
+            \Log::write("Upload result: " . json_encode($uploaded), 'cms_debug', 'Chat');
             if (!$uploaded['success']) {
                 $this->error($uploaded['error']);
             }
@@ -426,8 +428,11 @@ class Chat extends Controller
                 require_once __DIR__ . '/../../Helpers/WhatsAppService.php';
             }
             
+            \Log::write("Initializing WhatsAppService", 'cms_debug', 'Chat');
             $waService = new \App\Helpers\WhatsAppService();
+            \Log::write("Sending image to: $waNumber, URL: $mediaUrl", 'cms_debug', 'Chat');
             $result = $waService->sendImage($waNumber, $mediaUrl, $caption);
+            \Log::write("WA send result: " . json_encode($result), 'cms_debug', 'Chat');
             
             if ($result['success']) {
                 // Save to database
