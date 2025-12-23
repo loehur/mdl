@@ -145,7 +145,7 @@ class WhatsApp extends Controller
             $user_data = $this->getUserData($phone0);
             $assigned_user_id = $user_data->assigned_user_id ?? null;
             $code = $user_data->code ?? null;
-            $contact_name = $user_data->customer_name ?? $contactName;
+            $contact_name = $user_data->customer_name ?? $cleanPhone;
             $lastMessageSummary = $textBodyToCheck;
             if ($messageType !== 'text') {
                  $lastMessageSummary = "[$messageType]";
@@ -222,7 +222,7 @@ class WhatsApp extends Controller
             'media_caption' => $mediaCaption,
             'message_id' => $messageId,
             'wamid' => $wamid,
-            'contact_name' => $contactName,
+            'contact_name' => $contact_name,
             'status' => $status,
             'received_at' => $sendTime
         ];        
@@ -238,7 +238,7 @@ class WhatsApp extends Controller
                 'conversation_id' => $conversationId,
                 // 'customer_id' => $customerId, // REMOVED
                 'phone' => $waNumber,
-                'contact_name' => $contactName,
+                'contact_name' => $contact_name,
                 'message' => [
                     'id' => $msgId, // local DB ID
                     'text' => $textBody,
