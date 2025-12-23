@@ -48,53 +48,30 @@ const originalTitle = 'MDL Chat';
 const titleBlinkInterval = ref(null);
 const isTitleRed = ref(false);
 
-// Bounce Scroll State (WhatsApp-style elastic overscroll)
+// Bounce Scroll State (CSS class-based)
 const conversationListRef = ref(null);
-const bounceAmount = ref({ conversations: 0, messages: 0 });
-let bounceTimeouts = { conversations: null, messages: null };
 
-// Bounce Scroll Handler - Simplified
-const setupBounceScroll = (element, type) => {
+// Bounce Scroll Handler - CSS Class Based
+const setupBounceScroll = (element) => {
   if (!element) return;
   
-  let isAtTop = false;
-  let isAtBottom = false;
-  
-  const checkBoundaries = () => {
-    isAtTop = element.scrollTop <= 1;
-    isAtBottom = Math.abs(element.scrollHeight - element.scrollTop - element.clientHeight) <= 1;
-  };
-  
-  // Check on scroll
   element.addEventListener('scroll', () => {
-    checkBoundaries();
-  });
-  
-  // Bounce on wheel
-  element.addEventListener('wheel', (e) => {
-    checkBoundaries();
+    const isAtTop = element.scrollTop <= 5;
+    const isAtBottom = Math.abs(element.scrollHeight - element.scrollTop - element.clientHeight) <= 5;
     
-    const scrollingUp = e.deltaY < 0;
-    const scrollingDown = e.deltaY > 0;
+    // Add bounce class when hitting boundaries
+    if (isAtTop && !element.classList.contains('bounce-top-active')) {
+      element.classList.add('bounce-top-active');
+      setTimeout(() => element.classList.remove('bounce-top-active'), 400);
+    }
     
-    // Trigger bounce at boundaries
-    if ((isAtTop && scrollingUp) || (isAtBottom && scrollingDown)) {
-      const direction = isAtTop ? -25 : 25;
-      
-      // Clear previous timeout
-      if (bounceTimeouts[type]) clearTimeout(bounceTimeouts[type]);
-      
-      // Apply bounce
-      bounceAmount.value[type] = direction;
-      
-      // Reset after animation
-      bounceTimeouts[type] = setTimeout(() => {
-        bounceAmount.value[type] = 0;
-      }, 250);
+    if (isAtBottom && !element.classList.contains('bounce-bottom-active')) {
+      element.classList.add('bounce-bottom-active');
+      setTimeout(() => element.classList.remove('bounce-bottom-active'), 400);
     }
   });
   
-  console.log(`Bounce scroll setup for ${type}`); // Debug
+  console.log(`✅ Bounce scroll enabled for:`, element.className);
 };
 
 const fetchConversations = async () => {
@@ -817,8 +794,8 @@ onMounted(() => {
   
   // Initialize bounce scroll
   nextTick(() => {
-    if (conversationListRef.value) setupBounceScroll(conversationListRef.value, 'conversations');
-    if (chatContainer.value) setupBounceScroll(chatContainer.value, 'messages');
+    if (conversationListRef.value) setupBounceScroll(conversationListRef.value);
+    if (chatContainer.value) setupBounceScroll(chatContainer.value);
   });
   
   // Initialize title blinking
@@ -1052,8 +1029,6 @@ window.addEventListener('focus', () => {
       <div 
         ref="conversationListRef" 
         class="flex-1 overflow-y-auto custom-scrollbar"
-        style="transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); will-change: transform;"
-        :style="{ transform: `translateY(${bounceAmount.conversations}px)` }"
       >
         <div 
           v-for="chat in conversations" 
@@ -1164,8 +1139,6 @@ window.addEventListener('focus', () => {
         <div 
           ref="chatContainer"
           class="absolute inset-0 pt-16 pb-[88px] overflow-y-auto custom-scrollbar"
-          style="transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); will-change: transform;"
-          :style="{ transform: `translateY(${bounceAmount.messages}px)` }"
         >
           <div class="p-4 space-y-2">
             <div v-for="(msg, index) in activeConversation.messages" :key="msg.id" class="flex flex-col">
@@ -1371,6 +1344,25 @@ window.addEventListener('focus', () => {
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #475569;
+}
+
+/* Bounce Animations */
+@keyframes bounce-top {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-20px); }
+}
+
+@keyframes bounce-bottom {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(20px); }
+}
+
+.bounce-top-active {
+  animation: bounce-top 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.bounce-bottom-active {
+  animation: bounce-bottom 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 /* WhatsApp Formatting Styles */
