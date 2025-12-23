@@ -55,7 +55,7 @@ class Chat extends Controller
                     (
                         SELECT COUNT(*) 
                         FROM wa_messages_in m 
-                        WHERE (m.conversation_id = c.id OR m.phone = c.wa_number) 
+                        WHERE m.phone = c.wa_number 
                         AND (m.status != 'read' OR m.status IS NULL)
                     ) as unread_count,
                     c.last_message as last_message,
@@ -104,14 +104,13 @@ class Chat extends Controller
 
     public function getMessages()
     {
-        $id = $this->query('id'); // conversation_id
-        if (!$id) $this->error('Conversation ID required');
+        $phone = $this->query('phone');
+        if (!$phone) $this->error('Phone required');
 
         $db = $this->db(0);
 
         // Fetch messages from both Inbound (wa_messages_in) and Outbound (wa_messages_out)
-        // Wrapped in main query to sort global result
-        // Optimized: Get only last 50 messages
+        // using phone number
         $sql = "
             SELECT * FROM (
                 SELECT * FROM (
@@ -127,7 +126,7 @@ class Chat extends Controller
                         media_url,
                         media_caption as caption
                      FROM wa_messages_in 
-                     WHERE conversation_id = ? 
+                     WHERE phone = ? 
                      AND status != 'deleted')
                      
                     UNION ALL
@@ -144,19 +143,15 @@ class Chat extends Controller
                         media_url,
                         NULL as caption
                      FROM wa_messages_out 
-                     WHERE conversation_id = ?)
+                     WHERE phone = ?)
                 ) AS combined_msgs
                 ORDER BY time DESC
                 LIMIT 50
             ) AS latest_msgs
             ORDER BY time ASC
         ";
-
-        // Since we are using raw query with UNION, we can't easily use the builder params depending on implementation
-        // But let's try strict params if possible or just manual query
-        // The DB class `query` supports params
         
-        $messages = $db->query($sql, [$id, $id])->result();
+        $messages = $db->query($sql, [$phone, $phone])->result();
         
         $this->success($messages);
     }
@@ -166,47 +161,45 @@ class Chat extends Controller
     public function reply()
     {
         $body = $this->getBody();
-        $conversationId = $body['conversation_id'] ?? null;
+        $phone = $body['phone'] ?? null;
         $message = $body['message'] ?? null;
 
-        if (!$conversationId || !$message) $this->error('Missing required fields');
+        if (!$phone || !$message) $this->error('Missing required fields (phone, message)');
 
-        // 1. Get Phone Number
         $db = $this->db(0);
-        $conv = $db->get_where('wa_conversations', ['id' => $conversationId])->row();
         
-        if (!$conv) $this->error('Conversation not found');
+        // 1. Get Conversation Info (using phone)
+        $conv = $db->get_where('wa_conversations', ['wa_number' => $phone])->row();
+        // We do not strict check here if conv exists, as we are sending to phone directly. 
+        // But for broadcast 'contact_name', it is useful.
 
         // 2. Send Message using Helper
-        // Need to require if not autoloaded, but init.php handles autoloading Helpers?
-        // Let's assume PSR-4 or classmap works, otherwise require it.
         if (!class_exists('\App\Helpers\WhatsAppService')) {
             require_once __DIR__ . '/../../Helpers/WhatsAppService.php';
         }
         
         $wa = new \App\Helpers\WhatsAppService();
-        $res = $wa->sendFreeText($conv->wa_number, $message);
+        $res = $wa->sendFreeText($phone, $message); // Use phone directly
 
         if ($res['success']) {
-            // Update conversation last_message
+            // Update conversation last_message using wa_number
             $db->update('wa_conversations', [
                 'last_message' => $message,
                 'updated_at' => date('Y-m-d H:i:s')
-            ], ['id' => $conversationId]);
+            ], ['wa_number' => $phone]);
 
             $data = $res['data'];
             $data['local_id'] = $res['local_id'] ?? null; // Attach local DB ID
             
             // *** BROADCAST TO ALL AGENTS via WebSocket ***
-            // This ensures all agents viewing the same conversation see the message in real-time
-            // Include sender_id so wa_server won't broadcast back to the sender
             $userId = $_SERVER['HTTP_USER_ID'] ?? $body['user_id'] ?? null;
             
             $broadcastPayload = [
                 'type' => 'agent_message_sent',
-                'conversation_id' => $conversationId,
+                'phone' => $phone, // PRIMARY IDENTIFIER
+                'conversation_id' => $conv->id ?? 0, // Optional legacy
                 'target_id' => '0', // Broadcast to ALL agents
-                'sender_id' => $userId, // Add sender_id to prevent echo back
+                'sender_id' => $userId, 
                 'message' => [
                     'id' => $data['local_id'] ?? time(),
                     'wamid' => $data['id'] ?? $data['wamid'] ?? null,
@@ -217,7 +210,7 @@ class Chat extends Controller
                     'status' => 'sent'
                 ],
                 'contact_name' => $conv->contact_name ?? '',
-                'phone' => $conv->wa_number
+                'phone' => $phone
             ];
             
             $this->pushToWebSocket($broadcastPayload);
@@ -231,29 +224,28 @@ class Chat extends Controller
     {
        try {
         $body = json_decode(file_get_contents('php://input'), true);
-        $conversationId = $body['conversation_id'] ?? null;
+        $phone = $body['phone'] ?? null;
         
-        if (!$conversationId) {
-             $conversationId = $this->query('conversation_id');
+        if (!$phone) {
+             $phone = $this->query('phone');
         }
         
-        if(!$conversationId) $this->error('ID required');
+        if(!$phone) $this->error('Phone required');
         
         $db = $this->db(0);
         
         // 1. Get WAMIDs for API Sync
-        $unreads = $db->query("SELECT wamid FROM wa_messages_in WHERE conversation_id = ? AND (status != 'read' OR status IS NULL) AND wamid IS NOT NULL", [$conversationId])->result_array();
+        $unreads = $db->query("SELECT wamid FROM wa_messages_in WHERE phone = ? AND (status != 'read' OR status IS NULL) AND wamid IS NOT NULL", [$phone])->result_array();
         
         // 2. Direct Query Update ALL messages
-        $db->query("UPDATE wa_messages_in SET status = 'read' WHERE conversation_id = ?", [$conversationId]);
-        $affected = $db->conn()->affected_rows;
+        $db->query("UPDATE wa_messages_in SET status = 'read' WHERE phone = ?", [$phone]);
         
         // ALWAYS Push WS to sync status (Broadcast to ALL via target_id='0')
         $userId = $_SERVER['HTTP_USER_ID'] ?? $body['user_id'] ?? null;
         
         $payload = [
             'type' => 'conversation_read',
-            'conversation_id' => $conversationId,
+            'phone' => $phone,
             'target_id' => '0', // Node.js server will broadcast to ALL if target='0'
             'sender_id' => $userId, // Exclude sender from broadcast
             'unread_count' => 0
@@ -393,25 +385,25 @@ class Chat extends Controller
             }
             
             $body = $_POST;
-            $conversationId = $body['conversation_id'] ?? null;
+            $phone = $body['phone'] ?? null;
             $userId = $body['user_id'] ?? null;
             $caption = $body['caption'] ?? '';
             
-            if (!$conversationId) {
-                $this->error('Missing conversation_id');
+            if (!$phone) {
+                $this->error('Missing phone number');
             }
             
             \Log::write("Getting DB connection", 'cms_debug', 'Chat');
             $db = $this->db(0);
             
-            \Log::write("Fetching conversation ID: $conversationId", 'cms_debug', 'Chat');
+            \Log::write("Fetching conversation for phone: $phone", 'cms_debug', 'Chat');
             // Get conversation details
-            $conversation = $db->get_where('wa_conversations', ['id' => $conversationId])->row();
+            $conversation = $db->get_where('wa_conversations', ['wa_number' => $phone])->row();
             if (!$conversation) {
                 $this->error('Conversation not found');
             }
             
-            $waNumber = $conversation->wa_number;
+            $waNumber = $phone; // Alias
             
             \Log::write("Starting image upload", 'cms_debug', 'Chat');
             // Upload image to server
@@ -449,7 +441,6 @@ class Chat extends Controller
             if ($result['success']) {
                 // Save to database
                 $messageData = [
-                    'conversation_id' => $conversationId,
                     'phone' => $waNumber,
                     'type' => 'image',
                     'content' => $caption,
@@ -466,12 +457,13 @@ class Chat extends Controller
                 $db->update('wa_conversations', [
                     'last_message' => '📷 Image',
                     'updated_at' => date('Y-m-d H:i:s')
-                ], ['id' => $conversationId]);
+                ], ['wa_number' => $waNumber]);
                 
                 // Broadcast via WebSocket
                 $broadcastPayload = [
                     'type' => 'agent_message_sent',
-                    'conversation_id' => $conversationId,
+                    'phone' => $waNumber,
+                    'conversation_id' => $conversation->id ?? 0,
                     'target_id' => '0',
                     'sender_id' => $userId,
                     'message' => [

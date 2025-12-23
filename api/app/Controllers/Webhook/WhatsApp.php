@@ -250,7 +250,7 @@ class WhatsApp extends Controller
 
         // Step 4: Save message to wa_messages_in
         $messageData = [
-            'conversation_id' => $conversationId,
+            // 'conversation_id' => $conversationId, // REMOVED: Table/Field deleted by user
             // 'customer_id' => $customerId, // REMOVED: Table/Field deleted by user
             'phone' => $waNumber,
             'type' => $messageType,
@@ -351,16 +351,17 @@ class WhatsApp extends Controller
         if ($updated) {
             // \Log::write("✓ Status updated: $wamid -> $status", 'webhook', 'WhatsApp');
 
-            // Find conversation_id to push to frontend
-            $msg = $db->query("SELECT conversation_id, id FROM wa_messages_out WHERE wamid = '$wamid'")->row();
+            // Find phone logic for frontend
+            $msg = $db->query("SELECT phone, id FROM wa_messages_out WHERE wamid = '$wamid'")->row();
             if ($msg) {
                 // Get assigned_user_id
-                $conv = $db->get_where('wa_conversations', ['id' => $msg->conversation_id])->row();
+                $conv = $db->get_where('wa_conversations', ['wa_number' => $msg->phone])->row();
                 $targetId = $conv && $conv->assigned_user_id ? (string)$conv->assigned_user_id : '0';
 
                 $this->pushIncomingToWebSocket([
                     'type' => 'status_update',
-                    'conversation_id' => $msg->conversation_id,
+                    'phone' => $msg->phone,
+                    'conversation_id' => $conv->id ?? 0,
                     'message' => [
                         'id' => $msg->id,
                         'wamid' => $wamid,
@@ -431,8 +432,8 @@ class WhatsApp extends Controller
         if ($updated) {
             // \Log::write("✓ Outbound message updated: wamid=$wamid, id=$messageId, status=$status", 'webhook', 'WhatsApp');
             
-            // Fetch conversation_id and local ID for WebSocket push
-            $checkSql = "SELECT id, conversation_id FROM wa_messages_out WHERE ";
+            // Fetch phone and local ID for WebSocket push
+            $checkSql = "SELECT id, phone FROM wa_messages_out WHERE "; // Changed from conversation_id to phone
             $params = [];
             if ($messageId) {
                 $checkSql .= "message_id = ?";
@@ -446,18 +447,27 @@ class WhatsApp extends Controller
             
             if ($msg) {
                 // Get assigned_user_id
-                $conv = $db->get_where('wa_conversations', ['id' => $msg->conversation_id])->row();
+                $conv = $db->get_where('wa_conversations', ['wa_number' => $msg->phone])->row();
                 $targetId = $conv && $conv->assigned_user_id ? (string)$conv->assigned_user_id : '0';
 
                 $this->pushIncomingToWebSocket([
                     'type' => 'status_update',
-                    'conversation_id' => $msg->conversation_id,
+                    'phone' => $msg->phone,
+                    'conversation_id' => $conv->id ?? 0,
                     'message' => [
                         'id' => $msg->id, // Local DB ID
                         'status' => $status
                     ],
                     'target_id' => $targetId
                 ]);
+                
+                // Update notif table state
+                $db1 = $this->db(1);
+                if ($messageId) {
+                    $db1->update('notif', ['state' => $status], ['id_api' => $messageId]);
+                } elseif ($wamid) {
+                    $db1->update('notif', ['state' => $status], ['id_api' => $wamid]);
+                }
             }
 
         } else {

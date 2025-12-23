@@ -75,6 +75,7 @@ const fetchConversations = async () => {
                 
                 const newData = {
                     id: c.id,
+                    wa_number: c.wa_number, // Ensure wa_number is stored
                     name: c.contact_name || c.wa_number,
                     kode_cabang: c.kode_cabang, 
                     avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${c.id}`,
@@ -171,9 +172,9 @@ const parseWhatsAppFormatting = (text) => {
 };
 
 // --- Methods ---
-const fetchMessages = async (conversationId) => {
+const fetchMessages = async (phone) => {
     try {
-        const response = await fetch(`${API_BASE}/CMS/Chat/getMessages?id=${conversationId}`);
+        const response = await fetch(`${API_BASE}/CMS/Chat/getMessages?phone=${phone}`);
         const result = await response.json();
         
         if (result.status && Array.isArray(result.data)) {
@@ -206,13 +207,13 @@ const scrollToBottom = () => {
   });
 };
 
-const markMessagesRead = async (conversationId) => {
+const markMessagesRead = async (phone) => {
     try {
         await fetch(`${API_BASE}/CMS/Chat/markRead`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ 
-                conversation_id: conversationId,
+                phone: phone, // Send phone
                 user_id: authId.value // Add sender ID
             })
         });
@@ -239,7 +240,7 @@ const selectChat = async (id) => {
       if (chat.messages && chat.messages.length > 0) {
           scrollToBottom(); // Show cache immediately
           // Background fetch to sync
-          fetchMessages(id).then(msgs => {
+          fetchMessages(chat.wa_number).then(msgs => {
               if (msgs.length > 0) {
                   chat.messages = msgs;
                   scrollToBottom();
@@ -247,11 +248,11 @@ const selectChat = async (id) => {
           });
       } else {
           // No cache, wait for fetch
-          chat.messages = await fetchMessages(id);
+          chat.messages = await fetchMessages(chat.wa_number);
       }
       
       // Mark read in DB
-      markMessagesRead(id);
+      markMessagesRead(chat.wa_number);
   }
   
   scrollToBottom();
@@ -292,7 +293,7 @@ const sendMessage = async () => {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
-                conversation_id: activeConversation.value.id,
+                phone: activeConversation.value.wa_number, // Use wa_number
                 message: text,
                 user_id: authId.value // Add sender ID
             })
@@ -455,7 +456,7 @@ const sendImage = async () => {
   try {
     const formData = new FormData();
     formData.append('image', selectedImage.value);
-    formData.append('conversation_id', activeConversation.value.id);
+    formData.append('phone', activeConversation.value.wa_number); // Use wa_number
     formData.append('user_id', authId.value);
     if (caption) formData.append('caption', caption);
     
@@ -512,8 +513,8 @@ const handleIncomingMessage = (payload) => {
   // Check if this is a status update
   // Check if this is a status update
   if (payload.type === 'status_update') {
-      const { conversation_id, message } = payload;
-      const conversation = conversations.value.find(c => c.id == conversation_id);
+      const { conversation_id, message, phone } = payload;
+      const conversation = conversations.value.find(c => (conversation_id && c.id == conversation_id) || (phone && c.wa_number == phone));
       
       if (conversation) {
           // Find message by ID (preferred) or WAMID
@@ -528,6 +529,7 @@ const handleIncomingMessage = (payload) => {
 
   // Or fallback if direct
   const conversationId = payload.conversation_id;
+  const phone = payload.phone;
   const messageData = payload.message || payload; // if message is nested or flat
   
   const text = messageData.text;
@@ -542,7 +544,7 @@ const handleIncomingMessage = (payload) => {
   const name = payload.contact_name || payload.name;
   
   // Find or create conversation
-  let conversation = conversations.value.find(c => c.id == conversationId);
+  let conversation = conversations.value.find(c => (conversationId && c.id == conversationId) || (phone && c.wa_number == phone));
   
   if (!conversation) {
     // New conversation
@@ -642,7 +644,7 @@ const connectWebSocket = () => {
 
          // Handle Read Receipt Sync
          if (payload.type === 'conversation_read') {
-             const conv = conversations.value.find(c => c.id == payload.conversation_id);
+             const conv = conversations.value.find(c => (payload.conversation_id && c.id == payload.conversation_id) || (payload.phone && c.wa_number == payload.phone));
              if (conv) {
                  conv.unread = 0;
              }
@@ -661,7 +663,8 @@ const connectWebSocket = () => {
                    return;
                }
                
-               const conversation = conversations.value.find(c => c.id == conversationId);
+               
+               const conversation = conversations.value.find(c => (conversationId && c.id == conversationId) || (payload.phone && c.wa_number == payload.phone));
                if (conversation) {
                    // Enhanced duplicate check: ID, wamid, OR media_url for images
                    const existingMessage = conversation.messages.find(m => 
