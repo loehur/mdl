@@ -11,7 +11,7 @@
           <div class="col pt-1 pr-2 pl-0">
             <input type="text" id="search" name="f1" class="form-control form-control-sm" placeholder="Nama Pelanggan" required>
           </div>
-        </div>
+        </div>  
         <div class="row">
           <div class="col pt-1">
             <button type="submit" class="btn btn-sm btn-primary w-100">Tambah</button>
@@ -28,7 +28,6 @@
             $id = $a['id_pelanggan'];
             $f1 = $a['nama_pelanggan'];
             $f2 = $a['nomor_pelanggan'];
-            $f4 = $a['alamat'];
             $f5 = $a['disc'];
             $no++;
 
@@ -39,10 +38,7 @@
             if ($f2 == '') {
               $f2 = '08';
             }
-
-            if ($f4 == '') {
-              $f4 = '[ ]';
-            }
+            
             echo "<tr>";
             echo "<td><small>" . $id . "</small><br><span data-mode='1' data-id_value='" . $id . "' data-value='" . $f1 . "'>" . strtoupper($f1) . "</span></td>";
             echo "<td nowrap><span data-mode='2' data-id_value='" . $id . "' data-value='" . $f2 . "'>" . $f2 . "</span><br>";
