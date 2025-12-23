@@ -7,6 +7,16 @@ const windowWidth = ref(window.innerWidth);
 const updateWidth = () => windowWidth.value = window.innerWidth;
 window.addEventListener('resize', updateWidth);
 
+const getAvatarColor = (seed) => {
+  const colors = [
+    '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#ef4444', 
+    '#f59e0b', '#10b981', '#06b6d4', '#3b82f6', '#64748b'
+  ];
+  if (!seed) return colors[0];
+  const num = typeof seed === 'string' ? seed.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) : seed;
+  return colors[num % colors.length];
+};
+
 // --- State ---
 // --- State ---
 const API_BASE = 'https://api.nalju.com';
@@ -78,7 +88,8 @@ const fetchConversations = async () => {
                     wa_number: c.wa_number, // Ensure wa_number is stored
                     name: c.contact_name || c.wa_number,
                     kode_cabang: c.kode_cabang, 
-                    avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${c.id}`,
+                    initials: (c.contact_name || c.wa_number || '?').substring(0, 1).toUpperCase(),
+                    color: getAvatarColor(c.id),
                     status: c.status,  
                     lastMessage: c.last_message || c.last_message_text || 'No messages yet',
                     lastTime: c.last_message_time ? new Date(c.last_message_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '',
@@ -552,7 +563,8 @@ const handleIncomingMessage = (payload) => {
       id: conversationId,
       name: name || payload.phone || 'Unknown User',
       kode_cabang: payload.kode_cabang || '00', // Set from payload
-      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${conversationId}`,
+      initials: (name || payload.phone || '?').substring(0, 1).toUpperCase(),
+      color: getAvatarColor(conversationId),
       status: 'online', // Assume online on new msg
       messages: [],
       unread: 0
@@ -1112,7 +1124,12 @@ window.addEventListener('focus', () => {
           :class="{'bg-[#334155]/60 border-l-4 border-l-indigo-500': activeChatId === chat.id, 'border-l-4 border-l-transparent': activeChatId !== chat.id}"
         >
            <div class="relative">
-             <img :src="chat.avatar" class="w-12 h-12 rounded-full bg-slate-700 object-cover border border-slate-600">
+             <div 
+               class="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold border border-slate-600"
+               :style="{ backgroundColor: chat.color }"
+             >
+               {{ chat.initials }}
+             </div>
              <span v-if="chat.status === 'online'" class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-[#1e293b] rounded-full"></span>
            </div>
             <div class="flex-1 min-w-0">
@@ -1136,7 +1153,9 @@ window.addEventListener('focus', () => {
       <!-- User Profile (Self) -->
       <div class="p-4 border-t border-slate-700 bg-[#1e293b]/80 flex items-center justify-between gap-3">
         <div class="flex items-center gap-3">
-            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Admin" class="w-10 h-10 rounded-full bg-indigo-900 border border-slate-600">
+            <div class="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold border border-slate-600">
+               A
+            </div>
             <div>
                <div class="text-sm font-medium text-slate-200">MDL Agent <span class="text-indigo-400 font-mono">#{{ authId }}</span></div>
                <div class="text-xs text-green-400 flex items-center gap-1">
@@ -1191,7 +1210,12 @@ window.addEventListener('focus', () => {
                 </svg>
              </button>
              
-             <img :src="activeConversation.avatar" class="w-10 h-10 rounded-full border border-slate-700 flex-shrink-0">
+             <div 
+               class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold border border-slate-700 flex-shrink-0"
+               :style="{ backgroundColor: activeConversation.color }"
+             >
+               {{ activeConversation.initials }}
+             </div>
              
              <div class="min-w-0 flex-1">
                <h2 class="font-bold text-slate-100 text-base md:text-lg uppercase truncate" :title="activeConversation.name">{{ (activeConversation.name || '').toUpperCase() }}</h2>
@@ -1223,7 +1247,13 @@ window.addEventListener('focus', () => {
                
                <!-- Customer Message -->
                <div v-if="msg.sender !== 'me'" class="flex gap-3 max-w-[75%] items-end">
-                  <img v-if="index === 0 || activeConversation.messages[index-1]?.sender === 'me'" :src="activeConversation.avatar" class="w-8 h-8 rounded-full mb-1">
+                  <div 
+                    v-if="index === 0 || activeConversation.messages[index-1]?.sender === 'me'" 
+                    class="w-8 h-8 rounded-full flex items-center justify-center text-[10px] text-white font-bold mb-1 flex-shrink-0"
+                    :style="{ backgroundColor: activeConversation.color }"
+                  >
+                    {{ activeConversation.initials }}
+                  </div>
                   <div v-else class="w-8"></div> <!-- Spacer -->
                   
                   <!-- Image Message: Transparent style -->
