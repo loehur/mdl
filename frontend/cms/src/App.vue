@@ -638,8 +638,6 @@ const handleIncomingMessage = (payload) => {
   
   // Avoid duplicate messages if already present
   if (!conversation.messages.find(m => m.id === newMsg.id)) {
-      console.log('New message rawTime:', newMsg.rawTime, 'Text:', newMsg.text);
-      
       // Simply push to array
       conversation.messages.push(newMsg);
       
@@ -648,8 +646,6 @@ const handleIncomingMessage = (payload) => {
           if (!a.rawTime || !b.rawTime) return 0;
           return new Date(a.rawTime) - new Date(b.rawTime);
       });
-      
-      console.log('Messages sorted. Total:', conversation.messages.length);
       
       conversation.lastMessage = displayText;
       conversation.lastTime = newMsg.time;
