@@ -729,7 +729,7 @@ class WhatsAppService
             
             // Save outbound message to wa_messages_out
             $messageData = [
-                'conversation_id' => $conversationId,
+                // 'conversation_id' => $conversationId, // Removed as column deleted
                 'phone' => $waNumber,
                 'wamid' => $wamid,
                 'message_id' => $messageId,
