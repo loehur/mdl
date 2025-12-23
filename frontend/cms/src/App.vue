@@ -383,11 +383,13 @@ const sendImage = async () => {
     } else {
       const sentMsg = activeConversation.value.messages.find(m => m.id === tempId);
       if (sentMsg) sentMsg.status = 'failed';
-      alert('Failed to send image: ' + (res.message || 'Unknown error'));
+      alert('Failed to send image: ' + (res.message || res.error || 'Unknown error'));
     }
   } catch (e) {
     console.error('Send image error:', e);
-    alert('Failed to send image');
+    const sentMsg = activeConversation.value.messages.find(m => m.id === tempId);
+    if (sentMsg) sentMsg.status = 'failed';
+    alert('Error: ' + e.message);
   } finally {
     isUploadingImage.value = false;
   }

@@ -373,4 +373,157 @@ class Chat extends Controller
         return $result;   
     }
 
+    /**
+     * Send Image via WhatsApp
+     */
+    public function sendImage()
+    {
+        header('Content-Type: application/json');
+        
+        try {
+            // Validate file upload
+            if (!isset($_FILES['image']) || $_FILES['image']['error'] !== UPLOAD_ERR_OK) {
+                $this->error('No image uploaded or upload error');
+            }
+            
+            $body = $_POST;
+            $conversationId = $body['conversation_id'] ?? null;
+            $userId = $body['user_id'] ?? null;
+            $caption = $body['caption'] ?? '';
+            
+            if (!$conversationId) {
+                $this->error('Missing conversation_id');
+            }
+            
+            $db = $this->db(0);
+            
+            // Get conversation details
+            $conversation = $db->get_where('wa_conversations', ['id' => $conversationId])->row();
+            if (!$conversation) {
+                $this->error('Conversation not found');
+            }
+            
+            $waNumber = $conversation->wa_number;
+            
+            // Upload image to server
+            $uploaded = $this->uploadImageFile($_FILES['image']);
+            if (!$uploaded['success']) {
+                $this->error($uploaded['error']);
+            }
+            
+            $mediaUrl = $uploaded['url'];
+            
+            // Send via WhatsApp Service
+            if (!class_exists('\\App\\Helpers\\WhatsAppService')) {
+                require_once __DIR__ . '/../../Helpers/WhatsAppService.php';
+            }
+            
+            $waService = new \App\Helpers\WhatsAppService();
+            $result = $waService->sendImage($waNumber, $mediaUrl, $caption);
+            
+            if ($result['success']) {
+                // Save to database
+                $messageData = [
+                    'conversation_id' => $conversationId,
+                    'phone' => $waNumber,
+                    'type' => 'image',
+                    'content' => $caption,
+                    'media_url' => $mediaUrl,
+                    'message_id' => $result['data']['id'] ?? null,
+                    'wamid' => $result['data']['wamid'] ?? null,
+                    'status' => 'sent',
+                    'created_at' => date('Y-m-d H:i:s')
+                ];
+                
+                $msgId = $db->insert('wa_messages_out', $messageData);
+                
+                // Update conversation
+                $db->update('wa_conversations', [
+                    'last_message' => '📷 Image',
+                    'updated_at' => date('Y-m-d H:i:s')
+                ], ['id' => $conversationId]);
+                
+                // Broadcast via WebSocket
+                $broadcastPayload = [
+                    'type' => 'agent_message_sent',
+                    'conversation_id' => $conversationId,
+                    'target_id' => '0',
+                    'sender_id' => $userId,
+                    'message' => [
+                        'id' => $msgId,
+                        'wamid' => $result['data']['wamid'] ?? null,
+                        'text' => $caption,
+                        'type' => 'image',
+                        'media_url' => $mediaUrl,
+                        'sender' => 'me',
+                        'time' => date('Y-m-d H:i:s'),
+                        'status' => 'sent'
+                    ]
+                ];
+                
+                $this->pushToWebSocket($broadcastPayload);
+                
+                $this->success([
+                    'local_id' => $msgId,
+                    'media_url' => $mediaUrl,
+                    'wamid' => $result['data']['wamid'] ?? null
+                ], 'Image sent successfully');
+            } else {
+                $this->error($result['error'] ?? 'Failed to send image', 500);
+            }
+            
+        } catch (\Exception $e) {
+            \Log::write("sendImage ERROR: " . $e->getMessage(), 'cms_error', 'Chat');
+            $this->error('Server error: ' . $e->getMessage(), 500);
+        }
+    }
+    
+    /**
+     * Upload image file to server
+     */
+    private function uploadImageFile($file)
+    {
+        try {
+            // Validate size (max 5MB)
+            if ($file['size'] > 5 * 1024 * 1024) {
+                return ['success' => false, 'error' => 'File too large (max 5MB)'];
+            }
+            
+            // Validate type
+            $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+            if (!in_array($file['type'], $allowedTypes)) {
+                return ['success' => false, 'error' => 'Invalid file type'];
+            }
+            
+            // Create upload directory
+            $uploadDir = __DIR__ . '/../../../uploads/wa_media/' . date('Y/m/');
+            if (!file_exists($uploadDir)) {
+                mkdir($uploadDir, 0755, true);
+            }
+            
+            // Generate unique filename
+            $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
+            $filename = uniqid('img_') . '_' . time() . '.' . $ext;
+            $uploadPath = $uploadDir . $filename;
+            
+            // Move uploaded file
+            if (!move_uploaded_file($file['tmp_name'], $uploadPath)) {
+                return ['success' => false, 'error' => 'Failed to save file'];
+            }
+            
+            // Generate URL
+            $url = 'https://api.nalju.com/uploads/wa_media/' . date('Y/m/') . $filename;
+            
+            return [
+                'success' => true,
+                'path' => $uploadPath,
+                'url' => $url
+            ];
+            
+        } catch (\Exception $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+
 }
