@@ -233,7 +233,7 @@ class WAGenerator extends Controller
         // 7. Final Output
         // <span id="<?= $ref ? >"><?= strtoupper($nama_pelanggan) ? > _#<?= $this->dCabang['kode_cabang'] ? >-<?= $cs_code ? >_<?= "\n" . $listNotif . "\n" . $totalText . "\n" ? ><?= URL::HOST_URL ? >/I/i/<?= $id_pelanggan ? ></span>
         
-        $output = strtoupper($nama_pelanggan) . " _#" . $kode_cabang . "-" . $cs_code . "_\n" . $listNotif . "\n" . $totalText . "\n" . URL::HOST_URL . "/I/i/" . $id_pelanggan;
+        $output = "*" . strtoupper($nama_pelanggan) . "* _#" . $kode_cabang . "-" . $cs_code . "_\n" . $listNotif . "\n" . $totalText . "\n" . URL::HOST_URL . "/I/i/" . $id_pelanggan;
 
         return json_encode(['text' => $output]);
     }
