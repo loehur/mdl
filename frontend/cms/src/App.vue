@@ -51,48 +51,50 @@ const isTitleRed = ref(false);
 // Bounce Scroll State (WhatsApp-style elastic overscroll)
 const conversationListRef = ref(null);
 const bounceAmount = ref({ conversations: 0, messages: 0 });
+let bounceTimeouts = { conversations: null, messages: null };
 
-// Bounce Scroll Handler
-const handleBounceScroll = (element, type) => {
+// Bounce Scroll Handler - Simplified
+const setupBounceScroll = (element, type) => {
   if (!element) return;
   
-  const isAtTop = element.scrollTop <= 0;
-  const isAtBottom = element.scrollHeight - element.scrollTop <= element.clientHeight + 1;
+  let isAtTop = false;
+  let isAtBottom = false;
   
-  let lastScrollTop = element.scrollTop;
-  let isScrolling = false;
+  const checkBoundaries = () => {
+    isAtTop = element.scrollTop <= 1;
+    isAtBottom = Math.abs(element.scrollHeight - element.scrollTop - element.clientHeight) <= 1;
+  };
   
+  // Check on scroll
   element.addEventListener('scroll', () => {
-    const currentScrollTop = element.scrollTop;
-    const scrollingDown = currentScrollTop > lastScrollTop;
-    const scrollingUp = currentScrollTop < lastScrollTop;
-    
-    // Bounce at top
-    if (scrollingUp && currentScrollTop <= 5) {
-      if (!isScrolling) {
-        isScrolling = true;
-        bounceAmount.value[type] = -15;
-        setTimeout(() => {
-          bounceAmount.value[type] = 0;
-          isScrolling = false;
-        }, 300);
-      }
-    }
-    
-    // Bounce at bottom
-    if (scrollingDown && element.scrollHeight - currentScrollTop <= element.clientHeight + 5) {
-      if (!isScrolling) {
-        isScrolling = true;
-        bounceAmount.value[type] = 15;
-        setTimeout(() => {
-          bounceAmount.value[type] = 0;
-          isScrolling = false;
-        }, 300);
-      }
-    }
-    
-    lastScrollTop = currentScrollTop;
+    checkBoundaries();
   });
+  
+  // Bounce on wheel
+  element.addEventListener('wheel', (e) => {
+    checkBoundaries();
+    
+    const scrollingUp = e.deltaY < 0;
+    const scrollingDown = e.deltaY > 0;
+    
+    // Trigger bounce at boundaries
+    if ((isAtTop && scrollingUp) || (isAtBottom && scrollingDown)) {
+      const direction = isAtTop ? -25 : 25;
+      
+      // Clear previous timeout
+      if (bounceTimeouts[type]) clearTimeout(bounceTimeouts[type]);
+      
+      // Apply bounce
+      bounceAmount.value[type] = direction;
+      
+      // Reset after animation
+      bounceTimeouts[type] = setTimeout(() => {
+        bounceAmount.value[type] = 0;
+      }, 250);
+    }
+  });
+  
+  console.log(`Bounce scroll setup for ${type}`); // Debug
 };
 
 const fetchConversations = async () => {
@@ -815,8 +817,8 @@ onMounted(() => {
   
   // Initialize bounce scroll
   nextTick(() => {
-    if (conversationListRef.value) handleBounceScroll(conversationListRef.value, 'conversations');
-    if (chatContainer.value) handleBounceScroll(chatContainer.value, 'messages');
+    if (conversationListRef.value) setupBounceScroll(conversationListRef.value, 'conversations');
+    if (chatContainer.value) setupBounceScroll(chatContainer.value, 'messages');
   });
   
   // Initialize title blinking
@@ -1049,7 +1051,8 @@ window.addEventListener('focus', () => {
       <!-- Conversation List -->
       <div 
         ref="conversationListRef" 
-        class="flex-1 overflow-y-auto custom-scrollbar transition-transform duration-300 ease-out"
+        class="flex-1 overflow-y-auto custom-scrollbar"
+        style="transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); will-change: transform;"
         :style="{ transform: `translateY(${bounceAmount.conversations}px)` }"
       >
         <div 
@@ -1160,7 +1163,8 @@ window.addEventListener('focus', () => {
         <!-- Messages - Scrollable Area with top and bottom padding -->
         <div 
           ref="chatContainer"
-          class="absolute inset-0 pt-16 pb-[88px] overflow-y-auto custom-scrollbar transition-transform duration-300 ease-out" 
+          class="absolute inset-0 pt-16 pb-[88px] overflow-y-auto custom-scrollbar"
+          style="transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); will-change: transform;"
           :style="{ transform: `translateY(${bounceAmount.messages}px)` }"
         >
           <div class="p-4 space-y-2">
