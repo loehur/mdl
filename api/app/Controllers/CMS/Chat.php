@@ -378,11 +378,19 @@ class Chat extends Controller
      */
     public function sendImage()
     {
+        // Log entry point
+        if (class_exists('\Log')) {
+            \Log::write("sendImage called", 'cms_debug', 'Chat');
+            \Log::write("FILES: " . json_encode($_FILES), 'cms_debug', 'Chat');
+            \Log::write("POST: " . json_encode($_POST), 'cms_debug', 'Chat');
+        }
+        
         header('Content-Type: application/json');
         
         try {
             // Validate file upload
             if (!isset($_FILES['image']) || $_FILES['image']['error'] !== UPLOAD_ERR_OK) {
+                \Log::write("File upload validation failed", 'cms_error', 'Chat');
                 $this->error('No image uploaded or upload error');
             }
             

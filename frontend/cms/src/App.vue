@@ -299,7 +299,7 @@ const sendMessage = async () => {
 };
 
 // Handle Image Selection
-const selectImage = (event) => {
+const selectImage = async (event) => {
   const file = event.target.files[0];
   if (!file) return;
   
@@ -308,21 +308,89 @@ const selectImage = (event) => {
     return;
   }
   
-  if (file.size > 5 * 1024 * 1024) {
-    alert('Image size must be less than 5MB');
+  if (file.size > 10 * 1024 * 1024) {
+    alert('Image size must be less than 10MB');
     return;
   }
   
-  selectedImage.value = file;
-  
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    imagePreview.value = e.target.result;
-    showImagePreview.value = true;
-  };
-  reader.readAsDataURL(file);
+  try {
+    // Compress image to ~500KB
+    const compressedBlob = await compressImage(file, 500 * 1024); // 500KB target
+    
+    // Create new File from compressed blob
+    const compressedFile = new File([compressedBlob], file.name, {
+      type: file.type,
+      lastModified: Date.now()
+    });
+    
+    selectedImage.value = compressedFile;
+    
+    // Create preview
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      imagePreview.value = e.target.result;
+      showImagePreview.value = true;
+    };
+    reader.readAsDataURL(compressedFile);
+    
+  } catch (err) {
+    console.error('Compression error:', err);
+    alert('Failed to process image');
+  }
   
   event.target.value = '';
+};
+
+// Compress image to target size
+const compressImage = (file, targetSizeBytes) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (e) => {
+      const img = new Image();
+      img.src = e.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Calculate new dimensions (max 1920x1920)
+        let width = img.width;
+        let height = img.height;
+        const maxDim = 1920;
+        
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = (height / width) * maxDim;
+            width = maxDim;
+          } else {
+            width = (width / height) * maxDim;
+            height = maxDim;
+          }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Try different quality levels to hit target size
+        let quality = 0.9;
+        const tryCompress = (q) => {
+          canvas.toBlob((blob) => {
+            if (blob.size <= targetSizeBytes || q <= 0.1) {
+              resolve(blob);
+            } else {
+              // Reduce quality and try again
+              tryCompress(q - 0.1);
+            }
+          }, file.type, q);
+        };
+        
+        tryCompress(quality);
+      };
+      img.onerror = reject;
+    };
+    reader.onerror = reject;
+  });
 };
 
 const cancelImage = () => {
