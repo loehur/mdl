@@ -1162,7 +1162,7 @@ window.addEventListener('focus', () => {
         <!-- Input Area - ABSOLUTE BOTTOM -->
         <div class="absolute bottom-0 left-0 right-0 p-4 bg-[#0f172a] border-t border-slate-800 z-30">
            <!-- Image Preview Modal -->
-           <div v-if="showImagePreview" class="absolute bottom-full left-0 right-0 mb-2 bg-[#1e293b] border border-slate-700 rounded-xl p-4 shadow-2xl">
+           <div v-if="showImagePreview" class="absolute bottom-full left-4 right-4 mb-2 bg-[#1e293b] border border-slate-700 rounded-xl p-4 shadow-2xl">
               <div class="flex flex-col gap-3">
                  <!-- Image with close button -->
                  <div class="relative mx-auto">
