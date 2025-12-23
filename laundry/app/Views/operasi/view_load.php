@@ -655,7 +655,7 @@ $labeled = false;
       <!-- NOTIF NOTA -->
       <div class="d-none">
         <span id="textTotal<?= $ref ?>"><?= $totalText ?></span>
-        <span id="<?= $ref ?>"><?= strtoupper($nama_pelanggan) ?> _#<?= $this->dCabang['kode_cabang'] ?>-<?= $cs_code ?>_<?= "\n" . $listNotif . "\n" . $totalText . "\n" ?><?= URL::HOST_URL ?>/I/i/<?= $id_pelanggan ?></span>
+        <span id="<?= $ref ?>">*<?= strtoupper($nama_pelanggan) ?>* _#<?= $this->dCabang['kode_cabang'] ?>-<?= $cs_code ?>_<?= "\n" . $listNotif . "\n" . $totalText . "\n" ?><?= URL::HOST_URL ?>/I/i/<?= $id_pelanggan ?></span>
       </div>
 
       <!-- CETAK NOTA BESAR -->

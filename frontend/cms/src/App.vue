@@ -48,6 +48,31 @@ const originalTitle = 'MDL Chat';
 const titleBlinkInterval = ref(null);
 const isTitleRed = ref(false);
 
+// Scroll Shadow State (Simple & Direct)
+const showTopShadow = ref(false);
+const showBottomShadow = ref(false);
+
+const handleScroll = (e) => {
+  const el = e.target;
+  if (!el) return;
+  
+  // Show top shadow if scrolled down > 0
+  showTopShadow.value = el.scrollTop > 0;
+  
+  // Show bottom shadow if not at bottom (tolerance 1px)
+  showBottomShadow.value = Math.ceil(el.scrollTop + el.clientHeight) < el.scrollHeight - 1;
+};
+
+// Also trigger once on mount/update via watcher or manually call
+const checkScroll = () => {
+    if (chatContainer.value) {
+        handleScroll({ target: chatContainer.value });
+    }
+};
+
+watch(() => activeConversation.value?.messages, () => {
+   setTimeout(checkScroll, 100); // Wait for render
+}, { deep: true });
 
 
 const fetchConversations = async () => {
@@ -769,6 +794,7 @@ const mockIncomingMessage = () => {
 
 onMounted(() => {
   scrollToBottom();
+  setTimeout(checkScroll, 500); // Check initial scroll state
   
   // Initialize title blinking
   updateTitleBlinking();
@@ -1080,24 +1106,26 @@ window.addEventListener('focus', () => {
 
       <div v-if="activeConversation" class="w-full h-full relative z-10">
         <!-- Chat Header - ABSOLUTE TOP -->
-        <header class="absolute top-0 left-0 right-0 h-16 border-b border-slate-800 bg-[#0f172a]/95 backdrop-blur-md flex items-center justify-between px-4 md:px-6 z-30 shadow-lg shadow-black/40">
+        <header class="absolute top-0 left-0 right-0 h-16 border-b border-slate-800 bg-[#0f172a]/95 backdrop-blur-md flex items-center justify-between px-4 md:px-6 z-30">
           <div class="flex items-center gap-3 flex-1 min-w-0">
              <!-- Back Button (Mobile Only) -->
              <button @click="backToMenu" class="md:hidden p-1 -ml-2 text-slate-400 hover:text-white flex-shrink-0">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-                </svg>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
              </button>
-             
-             <img :src="activeConversation.avatar" class="w-10 h-10 rounded-full border border-slate-700 flex-shrink-0">
-             
-             <div class="min-w-0 flex-1">
-               <h2 class="font-bold text-slate-100 text-base md:text-lg uppercase truncate" :title="activeConversation.name">{{ activeConversation.name }}</h2>
-               <p v-if="activeConversation.kode_cabang" class="text-xs font-mono" :class="activeConversation.kode_cabang === '00' ? 'text-pink-500' : 'text-indigo-400'">{{ activeConversation.kode_cabang }}</p>
+             <div class="relative">
+                <img :src="activeConversation.avatar" class="w-10 h-10 rounded-full bg-slate-700 object-cover">
+                <span v-if="activeConversation.status === 'online'" class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-[#0f172a] rounded-full"></span>
+             </div>
+             <div class="flex-1 min-w-0">
+                <h3 class="font-semibold text-slate-100 truncate flex items-center gap-2">
+                   {{ activeConversation.name }}
+                   <span v-if="activeConversation.kode_cabang" class="px-1.5 py-0.5 rounded text-[10px] font-mono" :class="activeConversation.kode_cabang === '00' ? 'bg-pink-500/20 text-pink-400' : 'bg-indigo-500/20 text-indigo-400'">
+                      {{ activeConversation.kode_cabang }}
+                   </span>
+                </h3>
              </div>
           </div>
-          
-          <div class="flex items-center gap-2 text-slate-400 flex-shrink-0">
+          <div class="flex items-center gap-1">
              <button class="hover:text-indigo-400 transition-colors p-2 rounded-full hover:bg-slate-800">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
              </button>
@@ -1107,122 +1135,97 @@ window.addEventListener('focus', () => {
           </div>
         </header>
 
-
+        <!-- Dynamic Top Shadow -->
+        <div class="absolute top-16 left-0 right-0 h-6 bg-gradient-to-b from-black/20 to-transparent z-20 pointer-events-none transition-opacity duration-300"
+             :class="showTopShadow ? 'opacity-100' : 'opacity-0'"></div>
         
-        <!-- Messages - Scrollable Area with top and bottom padding -->
+        <!-- Messages - Scrollable Area -->
+        <!-- Messages - Scrollable Area -->
         <div 
           ref="chatContainer"
+          @scroll="handleScroll"
           class="absolute inset-0 pt-16 pb-[88px] overflow-y-auto custom-scrollbar"
         >
-          <div class="p-4 space-y-2">
-            <div v-for="(msg, index) in activeConversation.messages" :key="msg.id" class="flex flex-col">
+          <div v-for="(msg, index) in activeConversation.messages" :key="msg.id || index" class="mb-4">
             
-               <!-- Date Separator (Optional Logic could go here) -->
-               
-               <!-- Customer Message -->
-               <div v-if="msg.sender !== 'me'" class="flex gap-3 max-w-[75%] items-end">
-                  <img v-if="index === 0 || activeConversation.messages[index-1]?.sender === 'me'" :src="activeConversation.avatar" class="w-8 h-8 rounded-full mb-1">
-                  <div v-else class="w-8"></div> <!-- Spacer -->
-                  
-                  <!-- Image Message: Transparent style -->
-                  <div v-if="msg.type === 'image'" class="rounded-lg overflow-hidden shadow-md max-w-[240px] bg-slate-800/20 border border-slate-700/30">
-                     <div class="relative">
-                        <img v-if="msg.media_url" :src="msg.media_url" class="w-full cursor-pointer" onclick="window.open(this.src)">
-                        <img v-else-if="msg.media_id" :src="`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" class="w-full cursor-pointer" onclick="window.open(this.src)">
-                        <div v-else class="bg-slate-900/50 flex flex-col items-center justify-center w-full h-[150px]">
-                           <span class="text-[10px] text-slate-400">Image (Protected)</span>
-                        </div>
-                        <!-- Caption & Time Overlay -->
-                        <div v-if="msg.text || msg.time" class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
-                           <p v-if="msg.text" class="text-white text-[13px] leading-tight mb-1" v-html="parseWhatsAppFormatting(msg.text)"></p>
-                           <span class="text-[10px] text-white/80 block text-right">{{ msg.time }}</span>
-                        </div>
+            <!-- Date Divider -->
+            <div v-if="shouldShowDateDivider(msg, index)" class="flex justify-center my-4 sticky top-0 z-10">
+              <span class="bg-slate-800/80 backdrop-blur text-slate-400 text-xs px-3 py-1 rounded-full shadow-sm border border-slate-700/50">
+                {{ processMessageDate(msg.top_timestamp) }}
+              </span>
+            </div>
+
+            <!-- Customer Message -->
+            <div v-if="msg.from_me === 0 && msg.type !== 'image'" class="flex justify-start px-4 mb-2 group">
+               <div class="max-w-[85%] md:max-w-[70%] bg-slate-800 text-slate-100 rounded-tr-2xl rounded-br-2xl rounded-bl-2xl p-3 shadow-sm border border-slate-700/50 relative group-hover:shadow-md transition-shadow">
+                  <p class="text-[15px] leading-relaxed whitespace-pre-wrap break-words" v-html="formatWhatsAppText(msg.text_body)"></p>
+                  <span class="text-[10px] text-slate-400 mt-1 block text-right">{{ formatTime(msg.timestamp) }}</span>
+               </div>
+            </div>
+
+            <!-- Customer Image Message -->
+            <div v-if="msg.from_me === 0 && msg.type === 'image'" class="flex justify-start px-4 mb-2 group">
+               <div class="max-w-[85%] md:max-w-[70%] bg-slate-800/20 backdrop-blur-sm rounded-tr-2xl rounded-br-2xl rounded-bl-2xl overflow-hidden border border-slate-700/30 shadow-sm transition-all hover:bg-slate-800/30">
+                  <div class="relative cursor-pointer" @click="openMedia(msg.media_url)">
+                     <img :src="msg.media_url" class="w-full h-auto max-h-[300px] object-cover" loading="lazy">
+                     <!-- Caption Overlay -->
+                     <div v-if="msg.caption" class="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/80 to-transparent">
+                        <p class="text-white text-sm truncate">{{ msg.caption }}</p>
                      </div>
                   </div>
-                  
-                  <!-- Text Message: Normal style -->
-                  <div v-else class="bg-slate-800 text-slate-200 px-3 py-2 rounded-lg rounded-bl-sm border border-slate-700/50 shadow-sm max-w-full">
-                     <p v-if="msg.text" class="leading-relaxed text-[15px] break-words whitespace-pre-wrap" v-html="parseWhatsAppFormatting(msg.text)"></p>
-                     <span class="text-[11px] text-slate-500 block mt-1 text-right">{{ msg.time }}</span>
+                  <div class="px-2 py-1 flex justify-end bg-black/20">
+                     <span class="text-[10px] text-slate-300">{{ formatTime(msg.timestamp) }}</span>
                   </div>
                </div>
-               
-               <!-- My Message -->
-               <div v-else class="flex gap-3 max-w-[75%] self-end items-end justify-end">
-                  <!-- Image Message: Transparent style -->
-                  <div v-if="msg.type === 'image'" class="rounded-lg overflow-hidden shadow-md max-w-[240px] bg-indigo-600/10 border border-indigo-500/20">
-                     <div class="relative">
-                        <img v-if="msg.media_url" :src="msg.media_url" class="w-full cursor-pointer" onclick="window.open(this.src)">
-                        <img v-else-if="msg.media_id" :src="`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" class="w-full cursor-pointer" onclick="window.open(this.src)">
-                        <!-- Caption, Time & Status Overlay -->
-                        <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
-                           <p v-if="msg.text" class="text-white text-[13px] leading-tight mb-1" v-html="parseWhatsAppFormatting(msg.text)"></p>
-                           <div class="flex items-center justify-end gap-1">
-                              <span class="text-[10px] text-white/90">{{ msg.time }}</span>
-                              <!-- Status Icons -->
-                              <span v-if="msg.status === 'pending'" class="text-white/70">
-                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                              </span>
-                              <span v-else-if="msg.status === 'sent'" class="text-white/80">
-                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
-                              </span>
-                              <span v-else-if="msg.status === 'delivered'" class="text-white/80">
-                                 <div class="flex -space-x-1">
-                                   <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
-                                   <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
-                                 </div>
-                              </span>
-                              <span v-else-if="msg.status === 'read'" class="text-blue-300">
-                                 <div class="flex -space-x-1">
-                                   <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
-                                   <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
-                                 </div>
-                              </span>
-                              <span v-else-if="msg.status === 'failed'" class="text-red-300">
-                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                              </span>
-                           </div>
-                        </div>
+            </div>
+
+            <!-- My Message -->
+            <div v-if="msg.from_me === 1 && msg.type !== 'image'" class="flex justify-end px-4 mb-2 group">
+               <div class="max-w-[85%] md:max-w-[70%] bg-indigo-600 text-white rounded-tl-2xl rounded-bl-2xl rounded-tr-xl p-3 shadow-md relative group-hover:shadow-lg transition-shadow">
+                  <p class="text-[15px] leading-relaxed whitespace-pre-wrap break-words" v-html="formatWhatsAppText(msg.text_body)"></p>
+                  <div class="flex items-center justify-end gap-1 mt-1">
+                     <span class="text-[10px] text-indigo-100/80">{{ formatTime(msg.timestamp) }}</span>
+                     <!-- Status Icon -->
+                     <span v-if="msg.status === 'read'" class="text-blue-200">
+                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 16 16"><path d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"/></svg>
+                     </span>
+                     <span v-else-if="msg.status === 'delivered'" class="text-indigo-200">
+                         <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 16 16"><path d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"/><path d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"/></svg>
+                     </span>
+                     <span v-else class="text-indigo-300">
+                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                     </span>
+                  </div>
+               </div>
+            </div>
+
+             <!-- My Image Message -->
+            <div v-if="msg.from_me === 1 && msg.type === 'image'" class="flex justify-end px-4 mb-2 group">
+               <div class="max-w-[85%] md:max-w-[70%] bg-indigo-600/10 backdrop-blur-sm rounded-tl-2xl rounded-bl-2xl rounded-tr-xl overflow-hidden border border-indigo-500/20 shadow-sm transition-all hover:bg-indigo-600/20">
+                  <div class="relative cursor-pointer" @click="openMedia(msg.media_url)">
+                     <img :src="msg.media_url" class="w-full h-auto max-h-[300px] object-cover" loading="lazy">
+                      <!-- Caption Overlay -->
+                     <div v-if="msg.caption" class="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/80 to-transparent">
+                        <p class="text-white text-sm truncate">{{ msg.caption }}</p>
                      </div>
                   </div>
-                  
-                  <!-- Text Message: Normal style -->
-                  <div v-else class="bg-indigo-600 text-white px-4 py-2.5 rounded-2xl rounded-br-sm shadow-md shadow-indigo-900/20 max-w-full">
-                     <p v-if="msg.text" class="leading-relaxed text-[15px] break-words whitespace-pre-wrap" v-html="parseWhatsAppFormatting(msg.text)"></p>
-                       <div class="flex items-center justify-end gap-1 mt-1">
-                          <span class="text-[10px] text-indigo-200">{{ msg.time }}</span>
-                          <!-- Status Indicators -->
-                          <span v-if="msg.status === 'pending'" class="text-indigo-300">
-                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                          </span>
-                          <span v-else-if="msg.status === 'sent'" class="text-indigo-300">
-                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
-                          </span>
-                          <span v-else-if="msg.status === 'delivered'" class="text-indigo-300">
-                             <div class="flex -space-x-1">
-                               <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
-                               <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
-                             </div>
-                          </span>
-                          <span v-else-if="msg.status === 'read'" class="text-blue-300">
-                              <div class="flex -space-x-1">
-                               <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
-                               <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
-                             </div>
-                          </span>
-                           <span v-else-if="msg.status === 'failed'" class="text-red-300">
-                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                          </span>
-                       </div>
+                   <div class="px-2 py-1 flex justify-end gap-1 bg-black/20 items-center">
+                     <span class="text-[10px] text-indigo-200">{{ formatTime(msg.timestamp) }}</span>
+                     <!-- Status Icons (Simplified) -->
+                     <span v-if="msg.status === 'read'" class="text-blue-300"><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 16 16"><path d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"/></svg></span>
                   </div>
                </div>
-               
-             </div>
+            </div>
+
           </div>
         </div>
         
+        <!-- Dynamic Bottom Shadow -->
+        <div class="absolute bottom-[88px] left-0 right-0 h-6 bg-gradient-to-t from-black/20 to-transparent z-20 pointer-events-none transition-opacity duration-300"
+             :class="showBottomShadow ? 'opacity-100' : 'opacity-0'"></div>
+        
         <!-- Input Area - ABSOLUTE BOTTOM -->
-        <div class="absolute bottom-0 left-0 right-0 p-4 bg-[#0f172a] border-t border-slate-800 z-30 shadow-[0_-5px_20px_-5px_rgba(0,0,0,0.5)]">
+        <div class="absolute bottom-0 left-0 right-0 p-4 bg-[#0f172a] border-t border-slate-800 z-30">
            <!-- Image Preview Modal -->
            <div v-if="showImagePreview" class="absolute bottom-full left-4 right-4 mb-2 bg-[#1e293b] border border-slate-700 rounded-xl p-4 shadow-2xl">
               <div class="flex flex-col gap-3">
