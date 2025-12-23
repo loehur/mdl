@@ -109,52 +109,48 @@ class Chat extends Controller
 
         $db = $this->db(0);
 
-        // Fetch messages from both Inbound (wa_messages_in) and Outbound (wa_messages_out)
-        // ✅ Fixed: Consistent filtering for both tables
-        // ✅ Increased limit to 100 messages for better coverage
-        // ✅ Added proper NULL handling for optional fields
+        // Normalize input phone to digits only
+        $normPhone = preg_replace('/[^0-9]/', '', $phone);
+        // Use last 10 digits for matching (covers local and international formats)
+        $matchDigits = substr($normPhone, -10);
+
         $sql = "
             SELECT * FROM (
                 SELECT * FROM (
                     (SELECT 
-                        id, 
+                        id,
                         wamid,
-                        text, 
-                        type, 
-                        'customer' as sender, 
-                        created_at as time, 
+                        text,
+                        type,
+                        'customer' as sender,
+                        created_at as time,
                         status,
                         media_id,
                         media_url,
                         media_caption as caption
                      FROM wa_messages_in 
-                     WHERE phone = ? 
-                     AND (status IS NULL OR status != 'deleted'))
-                     
+                     WHERE RIGHT(REPLACE(REPLACE(phone, '+', ''), '-', ''), 10) = ?)
                     UNION ALL
-                    
                     (SELECT 
-                        id, 
+                        id,
                         wamid,
-                        COALESCE(content, '') as text, 
-                        type, 
-                        'me' as sender, 
-                        created_at as time, 
+                        COALESCE(content, '') as text,
+                        type,
+                        'me' as sender,
+                        created_at as time,
                         status,
                         NULL as media_id,
                         media_url,
                         NULL as caption
                      FROM wa_messages_out 
-                     WHERE phone = ?
-                     AND (status IS NULL OR status NOT IN ('deleted', 'failed')))
+                     WHERE RIGHT(REPLACE(REPLACE(phone, '+', ''), '-', ''), 10) = ?)
                 ) AS combined_msgs
                 ORDER BY time DESC
-                LIMIT 100
             ) AS latest_msgs
             ORDER BY time ASC
         ";
         
-        $messages = $db->query($sql, [$phone, $phone])->result();
+        $messages = $db->query($sql, [$matchDigits, $matchDigits])->result();
         
         $this->success($messages);
     }
