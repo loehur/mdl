@@ -7,7 +7,7 @@ class WA_YCloud extends DB
     // Sesuaikan domain jika di hosting (misal https://laundry.com/api/WhatsApp/send)
     private $local_api_url = 'https://api.nalju.com/WhatsApp/send';
 
-    // Modifikasi: param ke-3 jadi lastMessageAt (biar bisa bypass lookup di API Server)
+    // Modifikasi: param ke-3 jadi message_mode untuk support template
     public function send($phone, $message, $message_mode = 'free')
     {
         // 1. Normalisasi Nomor (Standard)
@@ -18,13 +18,29 @@ class WA_YCloud extends DB
             $phone = '62' . $phone;
         }
         
-        // 2. Kirim ke API LOCAL (Backend)
-        // Kirim last_message_at jika ada, agar API Server tidak perlu query DB (menghemat resource & menghindari error config DB)
+        // 2. Prepare data for API
         $data = [
             'phone' => $phone,
-            'message' => $message,
             'message_mode' => $message_mode,
         ];
+        
+        // 3. Handle template mode - extract params from JSON
+        if ($message_mode === 'template') {
+            $messageData = json_decode($message, true);
+            if ($messageData && isset($messageData['template_params'])) {
+                // Send both message text and template params
+                $data['message'] = $messageData['text'] ?? '';
+                $data['template_params'] = $messageData['template_params'];
+                $data['template_name'] = 'template_utility_20251222163105'; // Default template name
+            } else {
+                // Fallback: treat as free text if no template_params
+                $data['message'] = $message;
+                $data['message_mode'] = 'free';
+            }
+        } else {
+            // Free mode - just send message
+            $data['message'] = $message;
+        }
 
         $ch = curl_init($this->local_api_url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
