@@ -508,7 +508,7 @@ $labeled = false;
 
             // LIST ITEM LAUNDRY
             $listNotif = $listNotif . "\n" . $kategori . " " . $show_qty . "\n" . ltrim($list_layanan_print) . " " . ucwords(strtolower($durasi)) . "\n_R" . $id . "_ " . $show_total_notif . "\n";
-            echo "<span class='d-none selesai" . $id . "' data-hp='" . $no_pelanggan . "'>" . strtoupper($nama_pelanggan) . " _#" . $kodeCabang . "-|STAFF|_ \n#" . $id . " Selesai. |TOTAL| \n" . URL::HOST_URL . "/I/i/" . $id_pelanggan . "</span>";
+            echo "<span class='d-none selesai" . $id . "' data-hp='" . $no_pelanggan . "'>*" . strtoupper($nama_pelanggan) . "* _#" . $kodeCabang . "-|STAFF|_ \n#" . $id . " Selesai. |TOTAL| \n" . URL::HOST_URL . "/I/i/" . $id_pelanggan . "</span>";
             ?>
 
             <!-- CETAK NOTA KECIL -->

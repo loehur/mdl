@@ -48,62 +48,7 @@ const originalTitle = 'MDL Chat';
 const titleBlinkInterval = ref(null);
 const isTitleRed = ref(false);
 
-// Scroll Glow Indicator State
-const conversationListRef = ref(null);
-const scrollGlow = ref({
-  conversationsTop: false,
-  conversationsBottom: false, // Default to FALSE to prevent startup flash
-  messagesTop: false,
-  messagesBottom: false // Default to FALSE
-});
 
-
-
-// Setup Scroll Glow Indicators
-const setupScrollGlow = (element, type) => {
-  if (!element) return;
-  
-  const updateGlow = () => {
-    // Force recalculation
-    const scrollTop = element.scrollTop;
-    const scrollHeight = element.scrollHeight;
-    const clientHeight = element.clientHeight;
-    const scrollBottom = scrollHeight - scrollTop - clientHeight;
-    
-    // Debug log to verify numbers
-    // console.log(`${type}: top=${scrollTop}, height=${scrollHeight}, client=${clientHeight}, bottom=${scrollBottom}`);
-    
-    // Show top glow if > 1px (more sensitive)
-    scrollGlow.value[`${type}Top`] = scrollTop > 1;
-    
-    // Show bottom glow if > 1px (more sensitive)
-    scrollGlow.value[`${type}Bottom`] = scrollBottom > 1;
-  };
-  
-  // 1. Update on scroll
-  element.addEventListener('scroll', updateGlow);
-  
-  // 2. Update on resize (window change)
-  window.addEventListener('resize', updateGlow);
-
-  // 3. Update when content size changes (Robust!)
-  const observer = new ResizeObserver(() => {
-    updateGlow();
-  });
-  
-  // Observe the child element (content wrapper) if possible, or the element itself
-  // Ideally observe the first child which is the wrapper of list items
-  if (element.firstElementChild) {
-    observer.observe(element.firstElementChild);
-  } else {
-    observer.observe(element);
-  }
-  
-  // Store observer cleanup if needed (simplified here)
-  
-  // Initial check
-  setTimeout(updateGlow, 500);
-};
 
 const fetchConversations = async () => {
     try {
@@ -825,12 +770,6 @@ const mockIncomingMessage = () => {
 onMounted(() => {
   scrollToBottom();
   
-  // Initialize scroll glow indicators
-  nextTick(() => {
-    if (conversationListRef.value) setupScrollGlow(conversationListRef.value, 'conversations');
-    if (chatContainer.value) setupScrollGlow(chatContainer.value, 'messages');
-  });
-  
   // Initialize title blinking
   updateTitleBlinking();
   
@@ -1058,51 +997,38 @@ window.addEventListener('focus', () => {
         </div>
       </div>
       
-      <!-- Conversation List with Low-Risk Glow -->
-      <div class="flex-1 relative overflow-hidden flex flex-col">
-         <!-- Top Glow -->
-         <div class="absolute top-0 left-0 right-0 h-6 bg-gradient-to-b from-indigo-500/50 to-transparent z-10 pointer-events-none transition-opacity duration-300"
-              :class="scrollGlow.conversationsTop ? 'opacity-100' : 'opacity-0'"></div>
-         
-         <div 
-            ref="conversationListRef" 
-            class="flex-1 overflow-y-auto custom-scrollbar"
-         >
-           <!-- Content Wrapper for ResizeObserver -->
-           <div>
-             <div 
-               v-for="chat in conversations" 
-               :key="chat.id"
-               @click="selectChat(chat.id)"
-               class="p-3 flex items-center gap-3 cursor-pointer transition-colors duration-200 border-b border-slate-800/50 hover:bg-slate-800/50"
-               :class="{'bg-[#334155]/60 border-l-4 border-l-indigo-500': activeChatId === chat.id, 'border-l-4 border-l-transparent': activeChatId !== chat.id}"
-             >
-          <div class="relative">
-            <img :src="chat.avatar" class="w-12 h-12 rounded-full bg-slate-700 object-cover border border-slate-600">
-            <span v-if="chat.status === 'online'" class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-[#1e293b] rounded-full"></span>
-          </div>
-           <div class="flex-1 min-w-0">
-             <div class="flex justify-between items-baseline mb-1 gap-2">
-               <h3 class="font-semibold text-[15px] truncate text-slate-100 uppercase max-w-[180px]" :title="chat.name">
-                 <span v-if="chat.kode_cabang" class="font-mono text-xs mr-1" :class="chat.kode_cabang === '00' ? 'text-pink-500' : 'text-indigo-400'">[{{ chat.kode_cabang }}]</span>
-                 {{ chat.name }}
-               </h3>
-               <span class="text-xs text-slate-500 flex-shrink-0">{{ chat.lastTime }}</span>
+      <!-- Conversation List (Pure CSS Shadows) -->
+      <div 
+         ref="conversationListRef" 
+         class="flex-1 overflow-y-auto custom-scrollbar scroll-shadows"
+      >
+        <div 
+          v-for="chat in conversations" 
+          :key="chat.id"
+          @click="selectChat(chat.id)"
+          class="p-3 flex items-center gap-3 cursor-pointer transition-colors duration-200 border-b border-slate-800/50 hover:bg-slate-800/50"
+          :class="{'bg-[#334155]/60 border-l-4 border-l-indigo-500': activeChatId === chat.id, 'border-l-4 border-l-transparent': activeChatId !== chat.id}"
+        >
+           <div class="relative">
+             <img :src="chat.avatar" class="w-12 h-12 rounded-full bg-slate-700 object-cover border border-slate-600">
+             <span v-if="chat.status === 'online'" class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-[#1e293b] rounded-full"></span>
+           </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex justify-between items-baseline mb-1 gap-2">
+                <h3 class="font-semibold text-[15px] truncate text-slate-100 uppercase max-w-[180px]" :title="chat.name">
+                  <span v-if="chat.kode_cabang" class="font-mono text-xs mr-1" :class="chat.kode_cabang === '00' ? 'text-pink-500' : 'text-indigo-400'">[{{ chat.kode_cabang }}]</span>
+                  {{ chat.name }}
+                </h3>
+                <span class="text-xs text-slate-500 flex-shrink-0">{{ chat.lastTime }}</span>
+              </div>
+             <div class="flex justify-between items-center">
+                <p class="text-sm text-slate-400 truncate w-32" :class="{'font-medium text-slate-200': chat.unread > 0}">{{ chat.lastMessage }}</p>
+                <span v-if="chat.unread > 0" class="bg-indigo-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shadow-sm">
+                  {{ chat.unread }}
+                </span>
              </div>
-            <div class="flex justify-between items-center">
-               <p class="text-sm text-slate-400 truncate w-32" :class="{'font-medium text-slate-200': chat.unread > 0}">{{ chat.lastMessage }}</p>
-               <span v-if="chat.unread > 0" class="bg-indigo-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shadow-sm">
-                 {{ chat.unread }}
-               </span>
-            </div>
-          </div>
+           </div>
         </div>
-        </div> <!-- Close Wrapper -->
-         </div>
-         
-         <!-- Bottom Glow -->
-         <div class="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-indigo-500/50 to-transparent z-10 pointer-events-none transition-opacity duration-300"
-              :class="scrollGlow.conversationsBottom ? 'opacity-100' : 'opacity-0'"></div>
       </div>
       
       <!-- User Profile (Self) -->
@@ -1154,7 +1080,7 @@ window.addEventListener('focus', () => {
 
       <div v-if="activeConversation" class="w-full h-full relative z-10">
         <!-- Chat Header - ABSOLUTE TOP -->
-        <header class="absolute top-0 left-0 right-0 h-16 border-b border-slate-800 bg-[#0f172a]/95 backdrop-blur-md flex items-center justify-between px-4 md:px-6 z-30 shadow-lg">
+        <header class="absolute top-0 left-0 right-0 h-16 border-b border-slate-800 bg-[#0f172a]/95 backdrop-blur-md flex items-center justify-between px-4 md:px-6 z-30 shadow-lg shadow-black/40">
           <div class="flex items-center gap-3 flex-1 min-w-0">
              <!-- Back Button (Mobile Only) -->
              <button @click="backToMenu" class="md:hidden p-1 -ml-2 text-slate-400 hover:text-white flex-shrink-0">
@@ -1181,9 +1107,7 @@ window.addEventListener('focus', () => {
           </div>
         </header>
 
-        <!-- Top Glow (Messages) -->
-        <div class="absolute top-16 left-0 right-0 h-6 bg-gradient-to-b from-slate-900/50 to-transparent z-20 pointer-events-none transition-opacity duration-300"
-             :class="scrollGlow.messagesTop ? 'opacity-100' : 'opacity-0'"></div>
+
         
         <!-- Messages - Scrollable Area with top and bottom padding -->
         <div 
@@ -1296,13 +1220,9 @@ window.addEventListener('focus', () => {
              </div>
           </div>
         </div>
-
-        <!-- Bottom Glow (Messages) -->
-        <div class="absolute bottom-[88px] left-0 right-0 h-8 bg-gradient-to-t from-slate-900/50 to-transparent z-20 pointer-events-none transition-opacity duration-300"
-             :class="scrollGlow.messagesBottom ? 'opacity-100' : 'opacity-0'"></div>
         
         <!-- Input Area - ABSOLUTE BOTTOM -->
-        <div class="absolute bottom-0 left-0 right-0 p-4 bg-[#0f172a] border-t border-slate-800 z-30">
+        <div class="absolute bottom-0 left-0 right-0 p-4 bg-[#0f172a] border-t border-slate-800 z-30 shadow-[0_-5px_20px_-5px_rgba(0,0,0,0.5)]">
            <!-- Image Preview Modal -->
            <div v-if="showImagePreview" class="absolute bottom-full left-4 right-4 mb-2 bg-[#1e293b] border border-slate-700 rounded-xl p-4 shadow-2xl">
               <div class="flex flex-col gap-3">
@@ -1398,6 +1318,27 @@ window.addEventListener('focus', () => {
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #475569;
+}
+
+/* Pure CSS Scroll Shadows */
+.scroll-shadows {
+  background:
+    /* Shadow Cover TOP */
+    linear-gradient(#1e293b 30%, rgba(30,41,59,0)),
+    /* Shadow TOP */
+    linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0)) 0 0,
+    
+    /* Shadow Cover BOTTOM */
+    linear-gradient(rgba(30,41,59,0), #1e293b 70%) 0 100%,
+    /* Shadow BOTTOM */
+    linear-gradient(rgba(0,0,0,0), rgba(0,0,0,0.5)) 0 100%;
+  
+  background-repeat: no-repeat;
+  background-color: #1e293b;
+  background-size: 100% 40px, 100% 10px, 100% 40px, 100% 10px;
+  
+  /* The Magic: local moves with content, scroll stays fixed */
+  background-attachment: local, scroll, local, scroll;
 }
 
 /* WhatsApp Formatting Styles */
