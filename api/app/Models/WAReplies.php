@@ -256,102 +256,106 @@ class WAReplies
                      \Log::write("FAILED to update DB for Notif #$idNotif (Error: " . $db1->conn()->error . ")", 'wa_replies', 'PendingNotifs');
                  }
              }
-        } else {
-           // Find customer
+         } else {
+            // Find customer
             $where = "nomor_pelanggan IN ($phoneIn)";
             $pelanggan = $db1->query("SELECT id_pelanggan, nama_pelanggan FROM pelanggan WHERE $where")->result_array();
             $id_pelanggans = array_column($pelanggan, 'id_pelanggan');
+            
+            // FIX: Check if customer exists BEFORE accessing array
+            if (empty($id_pelanggans)) {
+                // Customer NOT registered - send message and exit
+                $waService->sendFreeText($waNumber, 'Mohon Maaf, nomor Anda belum terdaftar di Madinah Laundry. Terima kasih');
+                return;
+            }
+
+            // Customer exists - get first one
             $id_pelanggan = $id_pelanggans[0];
-
             $nama_pelanggans = array_column($pelanggan, 'nama_pelanggan');
-            $nama_pelanggan = strtoupper($nama_pelanggans[0]);
+            $nama_pelanggan = strtoupper($nama_pelanggans[0] ?? 'PELANGGAN');
 
-            if (!empty($id_pelanggans)) {
-                $ids_in = implode(',', $id_pelanggans);
+            $ids_in = implode(',', $id_pelanggans);
+            
+            // Find unfinished sales
+            $sales = $db1->query("SELECT * FROM sale WHERE tuntas = 0 AND bin = 0 AND id_pelanggan IN ($ids_in) GROUP BY no_ref, tuntas, id_pelanggan ORDER BY insertTime DESC")->result_array();
+            $id_pelanggans_active = array_column($sales, 'id_pelanggan');
+            $noRefs = array_column($sales, 'no_ref');
+            
+            if (!empty($noRefs)) {
+                // Remove refs that already have a notification of tipe 1
+                $noRefsIn = "'" . implode("','", $noRefs) . "'";
+                $existingRefs = array_column($db1->query("SELECT no_ref FROM notif WHERE tipe = 1 AND no_ref IN ($noRefsIn)")->result_array(), 'no_ref');
+                $missingRefs = array_diff($noRefs, $existingRefs);
                 
-                // Find untutored sales
-                $sales = $db1->query("SELECT * FROM sale WHERE tuntas = 0 AND bin = 0 AND id_pelanggan IN ($ids_in) GROUP BY no_ref, tuntas, id_pelanggan ORDER BY insertTime DESC")->result_array();
-                $id_pelanggans_active = array_column($sales, 'id_pelanggan');
-                $noRefs = array_column($sales, 'no_ref');
-                
-                if (!empty($noRefs)) {
-                    // Remove refs that already have a notification of tipe 1
-                    $noRefsIn = "'" . implode("','", $noRefs) . "'";
-                    $existingRefs = array_column($db1->query("SELECT no_ref FROM notif WHERE tipe = 1 AND no_ref IN ($noRefsIn)")->result_array(), 'no_ref');
-                    $missingRefs = array_diff($noRefs, $existingRefs);
-                    
-                    if (count($missingRefs) > 0) {
-                        foreach ($missingRefs as $ref) {
-                            // Create context with User-Agent to avoid potential filtering
-                            $opts = [
-                                "http" => [
-                                    "method" => "GET",
-                                    "header" => "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36\r\n"
-                                ]
-                            ];
-                            $context = stream_context_create($opts);
+                if (count($missingRefs) > 0) {
+                    foreach ($missingRefs as $ref) {
+                        // Create context with User-Agent to avoid potential filtering
+                        $opts = [
+                            "http" => [
+                                "method" => "GET",
+                                "header" => "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36\r\n"
+                            ]
+                        ];
+                        $context = stream_context_create($opts);
+                        
+                        $apiResponse = @file_get_contents("https://ml.nalju.com/Get/wa_nota/" . urlencode($ref), false, $context);
+                        if ($apiResponse) {
+                            $responseData = json_decode($apiResponse, true);
+                            if (!empty($responseData['text'])) {
+                                // Insert Notif
+                                $id_notif = (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9);
+                                $insertData = [
+                                'id_notif'   => $id_notif,
+                                'id_cabang'  => $sales[array_search($ref, $noRefs)]['id_cabang'],
+                                'tipe'       => 1,
+                                'no_ref'     => $ref,
+                                'text'       => $responseData['text'],
+                                'phone'      => $phone0,
+                                'state'      => 'pending',
+                                ];
                             
-                            $apiResponse = @file_get_contents("https://ml.nalju.com/Get/wa_nota/" . urlencode($ref), false, $context);
-                            if ($apiResponse) {
-                                $responseData = json_decode($apiResponse, true);
-                                if (!empty($responseData['text'])) {
-                                    // Insert Notif
-                                    $id_notif = (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9);
-                                    $insertData = [
-                                    'id_notif'   => $id_notif,
-                                    'id_cabang'  => $sales[array_search($ref, $noRefs)]['id_cabang'],
-                                    'tipe'       => 1,
-                                    'no_ref'     => $ref,
-                                    'text'       => $responseData['text'],
-                                    'phone'      => $phone0,
-                                    'state'      => 'pending',
-                                    ];
+                                $isInserted = $db1->insert('notif', $insertData);
                                 
-                                    $isInserted = $db1->insert('notif', $insertData);
+                                if ($isInserted !== false) {
+                                    $res = $waService->sendFreeText($waNumber, $responseData['text']);
                                     
-                                    if ($isInserted !== false) {
-                                        $res = $waService->sendFreeText($waNumber, $responseData['text']);
-                                        
-                                        $status = ($res['success'] ?? false) ? 'sent' : 'failed';
-                                        $msgId = $res['data']['id'] ?? ($res['data']['message_id'] ?? null); 
-                                        
-                                        // Update state immediately
-                                        $updateData = ['state' => $status];
-                                        if ($msgId) {
-                                            $updateData['id_api'] = $msgId;
-                                        }
-                                        
-                                        $db1->update('notif', $updateData, ['id_notif' => $id_notif]);
-                                    } else {
-                                        $conn = $db1->conn();
-                                        $errorMsg = $conn->error ?? 'No Error Msg';
-                                        if (empty($errorMsg) && !empty($conn->error_list)) {
-                                            $errorMsg = json_encode($conn->error_list);
-                                        }
-                                        
-                                        // Try to get last query if available in wrapper
-                                        $lastQuery = method_exists($db1, 'last_query') ? $db1->last_query() : 'N/A';
-                                        \Log::write("Insert Data: " . json_encode($insertData), 'webhook', 'WhatsApp');
+                                    $status = ($res['success'] ?? false) ? 'sent' : 'failed';
+                                    $msgId = $res['data']['id'] ?? ($res['data']['message_id'] ?? null); 
+                                    
+                                    // Update state immediately
+                                    $updateData = ['state' => $status];
+                                    if ($msgId) {
+                                        $updateData['id_api'] = $msgId;
                                     }
+                                    
+                                    $db1->update('notif', $updateData, ['id_notif' => $id_notif]);
+                                } else {
+                                    $conn = $db1->conn();
+                                    $errorMsg = $conn->error ?? 'No Error Msg';
+                                    if (empty($errorMsg) && !empty($conn->error_list)) {
+                                        $errorMsg = json_encode($conn->error_list);
+                                    }
+                                    
+                                    // Try to get last query if available in wrapper
+                                    $lastQuery = method_exists($db1, 'last_query') ? $db1->last_query() : 'N/A';
+                                    \Log::write("Insert Data: " . json_encode($insertData), 'webhook', 'WhatsApp');
                                 }
                             }
                         }
-                    } else {
-                        // All notifs already exist - they were sent before
-                        $list_link = "";
-                        foreach ($id_pelanggans_active as $id_pelanggan_active) {
-                            $list_link .= "https://ml.nalju.com/I/i/" . $id_pelanggan_active . "\n";
-                        }
-
-                        $text = "Yth. *" . $nama_pelanggan . "*,\nSemua nota/bon sudah kami kirimkan sebelumnya. Terima kasih\n\n" . $list_link;
-                        $waService->sendFreeText($waNumber, $text);
                     }
                 } else {
-                    $waService->sendFreeText($waNumber, 'Yth. *' . $nama_pelanggan . '*, semua transaksi Anda sudah selesai, atau pastikan gunakan nomor yang terdaftar untuk melakukan request nota/bon. Terima kasih');
+                    // All notifs already exist - they were sent before
+                    $list_link = "";
+                    foreach ($id_pelanggans_active as $id_pelanggan_active) {
+                        $list_link .= "https://ml.nalju.com/I/i/" . $id_pelanggan_active . "\n";
+                    }
+
+                    $text = "Yth. *" . $nama_pelanggan . "*,\nSemua nota/bon sudah kami kirimkan sebelumnya. Terima kasih\n\n" . $list_link;
+                    $waService->sendFreeText($waNumber, $text);
                 }
             } else {
-                $waService->sendFreeText($waNumber, 'Mohon Maaf, nomor Anda belum terdaftar di Madinah Laundry. Terima kasih');
-            } 
+                $waService->sendFreeText($waNumber, 'Yth. *' . $nama_pelanggan . '*, semua transaksi Anda sudah selesai, atau pastikan gunakan nomor yang terdaftar untuk melakukan request nota/bon. Terima kasih');
+            }
         }        
     }
 
