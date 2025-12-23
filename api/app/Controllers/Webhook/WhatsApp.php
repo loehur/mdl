@@ -196,14 +196,24 @@ class WhatsApp extends Controller
                 $mediaCaption = $msg[$messageType]['caption'] ?? null;
                 
                 // Auto Download Media to Local Server
-                if ($mediaId) {
-                    if (!class_exists('\\App\\Helpers\\WhatsAppService')) {
-                        require_once __DIR__ . '/../../Helpers/WhatsAppService.php';
-                    }
-                    $waService = new \App\Helpers\WhatsAppService();
-                    $savedUrl = $waService->downloadAndSaveMedia($mediaId, $mediaUrlDirect, $mediaMimeType);
-                    if ($savedUrl) {
-                        $mediaUrl = $savedUrl;
+                if ($mediaId || $mediaUrlDirect) {
+                    try {
+                        if (!class_exists('\\App\\Helpers\\WhatsAppService')) {
+                            require_once __DIR__ . '/../../Helpers/WhatsAppService.php';
+                        }
+                        $waService = new \App\Helpers\WhatsAppService();
+                        $savedUrl = $waService->downloadAndSaveMedia($mediaId, $mediaUrlDirect, $mediaMimeType);
+                        if ($savedUrl) {
+                            $mediaUrl = $savedUrl;
+                        } else {
+                            // Download failed but don't block message save
+                            \Log::write("Media download failed for ID: $mediaId, using direct URL fallback", 'webhook', 'WhatsApp');
+                            $mediaUrl = $mediaUrlDirect; // Use direct URL as fallback
+                        }
+                    } catch (\Throwable $e) {
+                        // Catch ANY error (including PHP 8 errors) and continue
+                        \Log::write("Media download exception: " . $e->getMessage(), 'webhook', 'WhatsApp');
+                        $mediaUrl = $mediaUrlDirect; // Use direct URL as fallback
                     }
                 }
                 break;

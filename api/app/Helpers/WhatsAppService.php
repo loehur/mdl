@@ -249,6 +249,10 @@ class WhatsAppService
                              $newWidth = $maxDim * $ratio;
                          }
                          
+                         // Cast to int to prevent "Implicit conversion from float to int" error
+                         $newWidth = (int) round($newWidth);
+                         $newHeight = (int) round($newHeight);
+                         
                          $newIm = imagecreatetruecolor($newWidth, $newHeight);
                          
                          // Handle Transparency (fill white)
