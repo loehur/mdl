@@ -825,6 +825,29 @@ onMounted(() => {
   }
   
   // Check Local Storage for Session
+  
+  // --- VISIBILITY CHANGE HANDLER ---
+  // Fix for blank screen/disconnect after long backgrounding
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      console.log('App resumed, checking connection...');
+      
+      // Check if socket is dead
+      if (!socket.value || socket.value.readyState !== WebSocket.OPEN) {
+          console.log('Socket disconnected, reconnecting...');
+          connectWebSocket();
+      }
+      
+      // Refresh data to ensure sync
+      fetchConversations();
+      
+      // Hard refresh if really stale (optional, but requested solution for "blank")
+      // We rely on the view reactivation. 
+      // If the WebView completely killed the renderer but kept the process, a reload might be needed.
+      // But usually "blank" means the Vue app crashed or memory loss. 
+      // We can try to force update a key ref to trigger re-render if needed.
+    }
+  });
   const storedId = localStorage.getItem('cms_chat_id');
   const storedPass = localStorage.getItem('cms_chat_password');
   const storedExpiry = localStorage.getItem('cms_chat_expiry');
