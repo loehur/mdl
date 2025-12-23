@@ -192,6 +192,13 @@ class WhatsApp extends Controller
             $templateLanguage = $body['template_language'] ?? 'id';
             $templateParams = $body['template_params'];
             $templateName = $body['template_name'];
+            
+            // Convert associative array to indexed array (WhatsApp template needs values only)
+            // Expected order: customer, order_list, total_bill, invoice_link
+            if (is_array($templateParams) && !isset($templateParams[0])) {
+                // It's an associative array, convert to indexed
+                $templateParams = array_values($templateParams);
+            }
 
             // Send template
             $result = $this->whatsappService->sendTemplate(

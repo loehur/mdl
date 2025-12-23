@@ -427,14 +427,27 @@ const cancelImage = () => {
 };
 
 const sendImage = async () => {
-  // ❌ GUARD: Prevent multiple simultaneous sends
-  if (isUploadingImage.value) return;
+  // ❌ GUARD: Prevent multiple simultaneous sends - CHECK FIRST!
+  if (isUploadingImage.value) {
+    console.warn('Image upload already in progress, ignoring duplicate call');
+    return;
+  }
+  
+  // Validate required data
+  if (!selectedImage.value) {
+    console.error('No image selected');
+    return;
+  }
+  
+  if (!activeConversation.value) {
+    console.error('No active conversation');
+    return;
+  }
+  
+  // Set guard IMMEDIATELY before any async operations
+  isUploadingImage.value = true;
   
   const caption = imageCaption.value.trim();
-  
-  if (!selectedImage.value || !activeConversation.value) return;
-  
-  isUploadingImage.value = true;
   
   // ✨ Hide modal immediately for snappy UX
   showImagePreview.value = false;
@@ -636,50 +649,62 @@ const connectWebSocket = () => {
              return;
           }
           
-          // Handle Agent Message Sent (from other devices)
-          if (payload.type === 'agent_message_sent') {
-              const conversationId = payload.conversation_id;
-              const messageData = payload.message;
-              
-              const conversation = conversations.value.find(c => c.id == conversationId);
-              if (conversation) {
-                  // Simple duplicate check: ONLY by ID or wamid
-                  // This prevents false positives when multiple devices send same text
-                  const existingMessage = conversation.messages.find(m => 
-                      m.id == messageData.id || 
-                      (m.wamid && messageData.wamid && m.wamid == messageData.wamid)
-                  );
-                  
-                  if (existingMessage) {
-                      // Update existing message (from optimistic UI after API response)
-                      existingMessage.id = messageData.id;
-                      existingMessage.wamid = messageData.wamid;
-                      existingMessage.status = messageData.status || 'sent';
-                      // Don't add as new - already exists
-                  } else {
-                      // Add new message (from another agent/device)
-                      const newMsg = {
-                          id: messageData.id,
-                          wamid: messageData.wamid,
-                          text: messageData.text,
-                          type: messageData.type || 'text',
-                          sender: 'me',
-                          time: new Date(messageData.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                          status: messageData.status || 'sent'
-                      };
-                      
-                      conversation.messages.push(newMsg);
-                      conversation.lastMessage = "You: " + messageData.text;
-                      conversation.lastTime = newMsg.time;
-                      
-                      // Auto-scroll if viewing this conversation
-                      if (activeChatId.value == conversationId) {
-                          scrollToBottom();
-                      }
-                  }
-              }
-              return;
-          }
+           // Handle Agent Message Sent (from other devices)
+           if (payload.type === 'agent_message_sent') {
+               const conversationId = payload.conversation_id;
+               const messageData = payload.message;
+               const senderId = payload.sender_id;
+               
+               // Skip if this message was sent by current user (already in optimistic UI)
+               if (senderId == authId.value) {
+                   console.log('Ignoring self-broadcast (already in optimistic UI)');
+                   return;
+               }
+               
+               const conversation = conversations.value.find(c => c.id == conversationId);
+               if (conversation) {
+                   // Enhanced duplicate check: ID, wamid, OR media_url for images
+                   const existingMessage = conversation.messages.find(m => 
+                       m.id == messageData.id || 
+                       (m.wamid && messageData.wamid && m.wamid == messageData.wamid) ||
+                       (messageData.type === 'image' && m.media_url && messageData.media_url && m.media_url == messageData.media_url)
+                   );
+                   
+                   if (existingMessage) {
+                       // Update existing message (from optimistic UI after API response)
+                       existingMessage.id = messageData.id;
+                       existingMessage.wamid = messageData.wamid;
+                       existingMessage.status = messageData.status || 'sent';
+                       if (messageData.media_url) existingMessage.media_url = messageData.media_url;
+                       console.log('Updated existing message:', existingMessage.id);
+                       // Don't add as new - already exists
+                   } else {
+                       // Add new message (from another agent/device)
+                       const newMsg = {
+                           id: messageData.id,
+                           wamid: messageData.wamid,
+                           text: messageData.text,
+                           type: messageData.type || 'text',
+                           media_url: messageData.media_url,
+                           sender: 'me',
+                           time: new Date(messageData.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                           status: messageData.status || 'sent'
+                       };
+                       
+                       conversation.messages.push(newMsg);
+                       conversation.lastMessage = messageData.type === 'image' ? "You: 📷 Image" : "You: " + messageData.text;
+                       conversation.lastTime = newMsg.time;
+                       
+                       console.log('Added new message from other device:', newMsg.id);
+                       
+                       // Auto-scroll if viewing this conversation
+                       if (activeChatId.value == conversationId) {
+                           scrollToBottom();
+                       }
+                   }
+               }
+               return;
+           }
           
          if (payload.type === 'wa_masuk') {
              // Real incoming WA message
