@@ -401,6 +401,9 @@ const cancelImage = () => {
 };
 
 const sendImage = async () => {
+  // ❌ GUARD: Prevent multiple simultaneous sends
+  if (isUploadingImage.value) return;
+  
   const caption = imageCaption.value.trim();
   
   if (!selectedImage.value || !activeConversation.value) return;
