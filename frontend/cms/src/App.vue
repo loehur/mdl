@@ -25,6 +25,12 @@ const connectionError = ref('');
 const showExitToast = ref(false);
 let lastBackPress = 0;
 
+// Image Upload State
+const selectedImage = ref(null);
+const imagePreview = ref('');
+const showImagePreview = ref(false);
+const isUploadingImage = ref(false);
+
 // Swipe Gesture State
 const touchStartX = ref(0);
 const touchStartY = ref(0);

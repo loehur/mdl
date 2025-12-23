@@ -210,7 +210,7 @@ class WAReplies
                         $text = "Yth. *" . $nama_pelanggan . "*,\nList dalam pengerjaan:\n*" . $listIdPenjualanIn . "*\n\nKarena sudah *CEK*, akan dikabari jika sudah selesai. Terima kasih\n" . $list_link;
                         $waService->sendFreeText($waNumber, $text);
                     } else {
-                        $waService->sendFreeText($waNumber, "Yth. *" . $nama_pelanggan . "*, Laundry sudah selesai dan dapat dijemput. Terima kasih\n" . $list_link);
+                        $waService->sendFreeText($waNumber, "Yth. *" . $nama_pelanggan . "*, Laundry sudah selesai. Terima kasih\n" . $list_link);
                     }
                 }
             }
