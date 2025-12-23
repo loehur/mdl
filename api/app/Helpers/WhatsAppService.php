@@ -77,12 +77,12 @@ class WhatsAppService
      */
     public function sendTemplate($to, $templateName, $language = 'id', $parameters = [])
     {
-        // DEBUG LOG: Input parameters
-        \Log::write("=== TEMPLATE MESSAGE DEBUG ===", 'wa_template', 'WhatsAppService');
-        \Log::write("To: $to", 'wa_template', 'WhatsAppService');
-        \Log::write("Template Name: $templateName", 'wa_template', 'WhatsAppService');
-        \Log::write("Language: $language", 'wa_template', 'WhatsAppService');
-        \Log::write("Parameters (raw): " . json_encode($parameters), 'wa_template', 'WhatsAppService');
+    // DEBUG LOG: Input parameters
+    \Log::write("=== TEMPLATE MESSAGE DEBUG ===", 'wa_debug', 'template');
+    \Log::write("To: $to", 'wa_debug', 'template');
+    \Log::write("Template Name: $templateName", 'wa_debug', 'template');
+    \Log::write("Language: $language", 'wa_debug', 'template');
+    \Log::write("Parameters (raw): " . json_encode($parameters), 'wa_debug', 'template');
         
         $components = [];
         
@@ -116,13 +116,13 @@ class WhatsAppService
         ];
         
         // DEBUG LOG: Final payload
-        \Log::write("Payload to yCloud: " . json_encode($payload, JSON_PRETTY_PRINT), 'wa_template', 'WhatsAppService');
+        \Log::write("Payload to yCloud: " . json_encode($payload, JSON_PRETTY_PRINT), 'wa_debug', 'template');
         
         $result = $this->sendRequest('/whatsapp/messages', $payload);
         
         // DEBUG LOG: Response from yCloud
-        \Log::write("Response from yCloud: " . json_encode($result, JSON_PRETTY_PRINT), 'wa_template', 'WhatsAppService');
-        \Log::write("=== END TEMPLATE DEBUG ===", 'wa_template', 'WhatsAppService');
+        \Log::write("Response from yCloud: " . json_encode($result, JSON_PRETTY_PRINT), 'wa_debug', 'template');
+        \Log::write("=== END TEMPLATE DEBUG ===", 'wa_debug', 'template');
         
         return $result;
     }
