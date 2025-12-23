@@ -146,12 +146,27 @@ class WhatsApp extends Controller
             $assigned_user_id = $user_data->assigned_user_id ?? null;
             $code = $user_data->code ?? null;
             $contact_name = $user_data->customer_name ?? $cleanPhone;
-            $lastMessageSummary = $textBodyToCheck;
-            if ($messageType !== 'text') {
+            
+            // Extract message text EARLY for lastMessageSummary
+            $messageText = '';
+            if ($messageType === 'text') {
+                $messageText = $msg['text']['body'] ?? '';
+            } elseif ($messageType === 'button') {
+                $messageText = $msg['button']['text'] ?? ($msg['button']['payload'] ?? '');
+            } elseif ($messageType === 'interactive') {
+                if (isset($msg['interactive']['button_reply'])) {
+                    $messageText = $msg['interactive']['button_reply']['title'] ?? '';
+                } elseif (isset($msg['interactive']['list_reply'])) {
+                    $messageText = $msg['interactive']['list_reply']['title'] ?? '';
+                }
+            } elseif (isset($msg[$messageType]['caption'])) {
+                $messageText = $msg[$messageType]['caption'];
+            }
+            
+            // Build lastMessageSummary
+            $lastMessageSummary = $messageText;
+            if (empty($lastMessageSummary) && $messageType !== 'text') {
                  $lastMessageSummary = "[$messageType]";
-                 if (isset($msg[$messageType]['caption'])) {
-                     $lastMessageSummary .= ' ' . $msg[$messageType]['caption'];
-                 }
             }
 
             $conversationId = $this->getOrCreateConversation($db, $waNumber, $contact_name, $assigned_user_id, $code, $lastMessageSummary);
@@ -161,8 +176,8 @@ class WhatsApp extends Controller
             if (!class_exists('\\App\\Models\\WAReplies')) {
                 require_once __DIR__ . '/../../Models/WAReplies.php';
             }
-            // Auto Reply Re-enabled with Idempotency Protection
-            $autoReply = (new \App\Models\WAReplies())->process($phoneIn, $textBodyToCheck, $waNumber);
+            // Auto Reply Re-enabled with Idempotency Protection - use extracted messageText
+            $autoReply = (new \App\Models\WAReplies())->process($phoneIn, $messageText, $waNumber);
         } catch (\Exception $e) {
             \Log::write("Error processing pending notifs: " . $e->getMessage(), 'webhook', 'WhatsApp');
         }
