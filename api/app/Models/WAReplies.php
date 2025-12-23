@@ -152,7 +152,8 @@ class WAReplies
                  $res = $waService->sendFreeText($waNumber, $notif['text']);
                  
                  $status = ($res['success'] ?? false) ? 'sent' : 'failed';
-                 $msgId = $res['data']['id'] ?? ($res['data']['message_id'] ?? null); // YCloud returns id or message_id
+                 $msgId = $res['data']['id'] ?? ($res['data']['message_id'] ?? null);
+                 $wamid = $res['data']['wamid'] ?? null;
                  
                  $updateData = ['state' => $status];
                  if ($msgId) {
@@ -163,8 +164,14 @@ class WAReplies
                  if (!$updated) {
                      \Log::write("FAILED to update DB for Notif #$idNotif (Error: " . $db1->conn()->error . ")", 'wa_replies', 'PendingNotifs');
                  }
+                 
+                 // Broadcast to WebSocket
+                 if ($res['success']) {
+                     $payload = $this->buildWsPayload($waNumber, $notif['text'], $msgId, $wamid);
+                     $this->pushToWebSocket($payload);
+                 }
              }
-        }else{
+         }else{
             //cek dulu ada tidak nya nota terbuka
             $cleanPhone = preg_replace('/[^0-9]/', '', $waNumber);
             $phone0 = '0' . substr($cleanPhone, 2);
@@ -176,13 +183,20 @@ class WAReplies
             $nama_pelanggan = strtoupper($nama_pelanggans[0] ?? ''); // fix index 0 if empty
 
             if (empty($id_pelanggans)) {
-                $waService->sendFreeText($waNumber, $this->noRegisterText);
+                $res = $waService->sendFreeText($waNumber, $this->noRegisterText);
+                if ($res['success']) {
+                    $this->pushToWebSocket($this->buildWsPayload($waNumber, $this->noRegisterText, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+                }
             } else {
                 $ids_in = implode(',', $id_pelanggans);
                 $sales = $db1->query("SELECT * FROM sale WHERE tuntas = 0 AND bin = 0 AND id_pelanggan IN ($ids_in) GROUP BY no_ref, tuntas, id_pelanggan")->result_array();
                 $noRefs = array_column($sales, 'no_ref');
                 if (empty($noRefs)) {
-                    $waService->sendFreeText($waNumber, 'Yth. *' . $nama_pelanggan . '*, belum ada transaksi terbuka. Terima kasih');
+                    $text = 'Yth. *' . $nama_pelanggan . '*, belum ada transaksi terbuka. Terima kasih';
+                    $res = $waService->sendFreeText($waNumber, $text);
+                    if ($res['success']) {
+                        $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+                    }
                 } else {
                     $listIdPenjualan = []; // Items still in progress (belum ada notif selesai)
                     $listIdSelesai = [];   // Items already completed (sudah ada notif selesai)
@@ -260,9 +274,16 @@ class WAReplies
                             $text = "Yth. *" . $nama_pelanggan . "*,\nStatus Laundry:\n" . $statusText . "\n\n" . $completedMsg . ". Terima kasih.\n" . $list_link;
                         }
                         
-                        $waService->sendFreeText($waNumber, $text);
+                        $res = $waService->sendFreeText($waNumber, $text);
+                        if ($res['success']) {
+                            $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+                        }
                     } else {
-                        $waService->sendFreeText($waNumber, "Yth. *" . $nama_pelanggan . "*, Status Laundry sudah selesai. Terima kasih\n" . $list_link);
+                        $text = "Yth. *" . $nama_pelanggan . "*, Status Laundry sudah selesai. Terima kasih\n" . $list_link;
+                        $res = $waService->sendFreeText($waNumber, $text);
+                        if ($res['success']) {
+                            $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+                        }
                     }
                 }
             }
@@ -296,7 +317,8 @@ class WAReplies
                  $res = $waService->sendFreeText($waNumber, $notif['text']);
                  
                  $status = ($res['success'] ?? false) ? 'sent' : 'failed';
-                 $msgId = $res['data']['id'] ?? ($res['data']['message_id'] ?? null); // YCloud returns id or message_id
+                 $msgId = $res['data']['id'] ?? ($res['data']['message_id'] ?? null);
+                 $wamid = $res['data']['wamid'] ?? null;
                  
                  $updateData = ['state' => $status];
                  if ($msgId) {
@@ -306,6 +328,12 @@ class WAReplies
                  $updated = $db1->update('notif', $updateData, ['id_notif' => $notif['id_notif']]);
                  if (!$updated) {
                      \Log::write("FAILED to update DB for Notif #$idNotif (Error: " . $db1->conn()->error . ")", 'wa_replies', 'PendingNotifs');
+                 }
+                 
+                 // Broadcast to WebSocket
+                 if ($res['success']) {
+                     $payload = $this->buildWsPayload($waNumber, $notif['text'], $msgId, $wamid);
+                     $this->pushToWebSocket($payload);
                  }
              }
          } else {
@@ -317,7 +345,10 @@ class WAReplies
             // FIX: Check if customer exists BEFORE accessing array
             if (empty($id_pelanggans)) {
                 // Customer NOT registered - send message and exit
-                $waService->sendFreeText($waNumber, $this->noRegisterText);
+                $res = $waService->sendFreeText($waNumber, $this->noRegisterText);
+                if ($res['success']) {
+                    $this->pushToWebSocket($this->buildWsPayload($waNumber, $this->noRegisterText, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+                }
                 return;
             }
 
@@ -372,7 +403,8 @@ class WAReplies
                                     $res = $waService->sendFreeText($waNumber, $responseData['text']);
                                     
                                     $status = ($res['success'] ?? false) ? 'sent' : 'failed';
-                                    $msgId = $res['data']['id'] ?? ($res['data']['message_id'] ?? null); 
+                                    $msgId = $res['data']['id'] ?? ($res['data']['message_id'] ?? null);
+                                    $wamid = $res['data']['wamid'] ?? null;
                                     
                                     // Update state immediately
                                     $updateData = ['state' => $status];
@@ -381,6 +413,12 @@ class WAReplies
                                     }
                                     
                                     $db1->update('notif', $updateData, ['id_notif' => $id_notif]);
+                                    
+                                    // Broadcast to WebSocket
+                                    if ($res['success']) {
+                                        $payload = $this->buildWsPayload($waNumber, $responseData['text'], $msgId, $wamid);
+                                        $this->pushToWebSocket($payload);
+                                    }
                                 } else {
                                     $conn = $db1->conn();
                                     $errorMsg = $conn->error ?? 'No Error Msg';
@@ -405,10 +443,17 @@ class WAReplies
                     }
 
                     $text = "Yth. *" . $nama_pelanggan . "*,\nSemua nota/bon sudah kami kirimkan sebelumnya. Terima kasih\n\n" . $list_link;
-                    $waService->sendFreeText($waNumber, $text);
+                    $res = $waService->sendFreeText($waNumber, $text);
+                    if ($res['success']) {
+                        $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+                    }
                 }
             } else {
-                $waService->sendFreeText($waNumber, 'Yth. *' . $nama_pelanggan . '*, semua transaksi Anda sudah selesai, atau pastikan gunakan nomor yang terdaftar untuk melakukan request nota/bon. Terima kasih');
+                $text = 'Yth. *' . $nama_pelanggan . '*, semua transaksi Anda sudah selesai, atau pastikan gunakan nomor yang terdaftar untuk melakukan request nota/bon. Terima kasih';
+                $res = $waService->sendFreeText($waNumber, $text);
+                if ($res['success']) {
+                    $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+                }
             }
         }        
     }
@@ -432,7 +477,10 @@ class WAReplies
         ];
         
         $text = $variations[array_rand($variations)];
-        $waService->sendFreeText($waNumber, $text);
+        $res = $waService->sendFreeText($waNumber, $text);
+        if ($res['success']) {
+            $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+        }
     }
 
     function handleSapa($phoneIn, $waNumber){
@@ -462,7 +510,10 @@ class WAReplies
         ];
         
         $text = $variations[array_rand($variations)];
-        $waService->sendFreeText($waNumber, $text);
+        $res = $waService->sendFreeText($waNumber, $text);
+        if ($res['success']) {
+            $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+        }
     }
 
     function handlePenutup($phoneIn, $waNumber){
@@ -494,6 +545,64 @@ class WAReplies
         ];
         
         $text = $variations[array_rand($variations)];
-        $waService->sendFreeText($waNumber, $text);
+        $res = $waService->sendFreeText($waNumber, $text);
+        if ($res['success']) {
+            $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+        }
+    }
+    
+    /**
+     * Build WebSocket payload for broadcasting auto-reply messages
+     */
+    private function buildWsPayload($waNumber, $text, $msgId = null, $wamid = null)
+    {
+        return [
+            'type'           => 'agent_message_sent',
+            'phone'          => $waNumber,
+            'conversation_id'=> 0,
+            'target_id'      => '0',
+            'sender_id'      => 0,
+            'message' => [
+                'id'     => $msgId,
+                'wamid'  => $wamid,
+                'text'   => $text,
+                'type'   => 'text',
+                'sender' => 'me',
+                'time'   => date('Y-m-d H:i:s'),
+                'status' => 'sent',
+            ],
+            'contact_name'   => '',
+            'phone'          => $waNumber,
+        ];
+    }
+    
+    /**
+     * Push message to WebSocket server for real-time notifications
+     */
+    private function pushToWebSocket($data)
+    {
+        $url = 'https://waserver.nalju.com/incoming';
+        
+        if (class_exists('\\Log')) {
+            \Log::write('WS Push (WAReplies): ' . json_encode($data), 'cms_ws');
+        }
+
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 2);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+
+        $result = curl_exec($ch);
+        
+        if (curl_errno($ch) && class_exists('\\Log')) {
+            \Log::write('WS Curl Error (WAReplies): ' . curl_error($ch), 'cms_ws_error');
+        }
+        
+        curl_close($ch);
+        return $result;
     }
 }
