@@ -407,7 +407,9 @@ class Antrian extends Controller
          session_write_close();
       }
 
-      $res = $this->helper("Notif")->send_wa($hp, $text, 'template');
+      // Send with template mode (will try free text first, fallback to template if CSW expired)
+      // Pass jsonText (contains both 'text' and 'template_params')
+      $res = $this->helper("Notif")->send_wa($hp, $jsonText, 'template');
       
       $setOne = "no_ref = '" . $noref . "' AND tipe = 1";
       $where = $this->wCabang . " AND " . $setOne;
