@@ -57,18 +57,6 @@ const scrollGlow = ref({
   messagesBottom: false // Default to FALSE
 });
 
-// Watch triggers to recalculate glow when data changes
-watch(conversations, () => {
-  nextTick(() => {
-    if (conversationListRef.value) conversationListRef.value.dispatchEvent(new Event('scroll'));
-  });
-}, { deep: true });
-
-watch(() => activeConversation.value?.messages, () => {
-  nextTick(() => {
-    if (chatContainer.value) chatContainer.value.dispatchEvent(new Event('scroll'));
-  });
-}, { deep: true });
 
 
 // Setup Scroll Glow Indicators
@@ -810,6 +798,19 @@ const mockIncomingMessage = () => {
     // Mock disabled - using real API data
 };
 
+
+// Watch triggers to recalculate glow when data changes
+watch(conversations, () => {
+  nextTick(() => {
+    if (conversationListRef.value) conversationListRef.value.dispatchEvent(new Event('scroll'));
+  });
+}, { deep: true });
+
+watch(() => activeConversation.value?.messages, () => {
+  nextTick(() => {
+    if (chatContainer.value) chatContainer.value.dispatchEvent(new Event('scroll'));
+  });
+}, { deep: true });
 
 onMounted(() => {
   scrollToBottom();
