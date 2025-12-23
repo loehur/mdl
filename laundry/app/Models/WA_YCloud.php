@@ -8,7 +8,7 @@ class WA_YCloud extends DB
     private $local_api_url = 'https://api.nalju.com/WhatsApp/send';
 
     // Modifikasi: param ke-3 jadi lastMessageAt (biar bisa bypass lookup di API Server)
-    public function send($phone, $message, $lastMessageAt = null)
+    public function send($phone, $message, $message_mode = 'free')
     {
         // 1. Normalisasi Nomor (Standard)
         $phone = preg_replace('/[^0-9]/', '', $phone);
@@ -23,8 +23,7 @@ class WA_YCloud extends DB
         $data = [
             'phone' => $phone,
             'message' => $message,
-            'message_mode' => 'free',
-            'last_message_at' => $lastMessageAt 
+            'message_mode' => $message_mode,
         ];
 
         $ch = curl_init($this->local_api_url);

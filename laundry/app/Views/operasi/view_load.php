@@ -33,8 +33,6 @@ $labeled = false;
     $countMember[$ref] = 0;
 
     $adaBayar = false;
-    $listNotif = "";
-
     $lunas[$ref] = false;
     $totalBayar = 0;
     $dibayar = 0;
@@ -48,14 +46,13 @@ $labeled = false;
     foreach ($c_list as $a) {
       $f18 = $a['id_user'];
       $f1 = $a['insertTime'];
-      $id_harga = $a['id_harga'];
       $timeRef = $f1;
 
       $cs_penerima = $data['users'][$f18]['nama_user'];
       $cs_code = strtoupper(substr($cs_penerima, 0, 2)) . substr($f18, -1);
       $tgl_terima = date('d/m H:i', strtotime($f1));
 
-      $buttonNotif_londri = "<a href='#' data-id_harga='" . $id_harga . "' data-idPelanggan = '" . $id_pelanggan . "' data-urutRef='" . $ref . "' data-hp='" . $no_pelanggan . "' data-ref='" . $ref . "' data-time='" . $timeRef . "' class='text-dark sendNotif bg-white rounded col px-1'> <i class='fab fa-whatsapp'></i><span id='notif" . $ref . "'></span></a>";
+      $buttonNotif_londri = "<a href='#' data-urutRef='" . $ref . "' data-hp='" . $no_pelanggan . "' data-ref='" . $ref . "' data-time='" . $timeRef . "' class='text-dark sendNotif bg-white rounded col px-1'> <i class='fab fa-whatsapp'></i><span id='notif" . $ref . "'></span></a>";
       foreach ($data['notif_bon'] as $notif) {
         if ($notif['no_ref'] == $ref) {
           $statusWA = $notif['state'];
@@ -505,10 +502,6 @@ $labeled = false;
             <tr id='dashRow'><td></td></tr>";
 
             $listPrint = $listPrint . $spkPrint;
-
-            // LIST ITEM LAUNDRY
-            $listNotif = $listNotif . "\n" . $kategori . " " . $show_qty . "\n" . ltrim($list_layanan_print) . " " . ucwords(strtolower($durasi)) . "\n_R" . $id . "_ " . $show_total_notif . "\n";
-            echo "<span class='d-none selesai" . $id . "' data-hp='" . $no_pelanggan . "'>*" . strtoupper($nama_pelanggan) . "* _#" . $kodeCabang . "-|STAFF|_ \n#" . $id . " Selesai. |TOTAL| \n" . URL::HOST_URL . "/I/i/" . $id_pelanggan . "</span>";
             ?>
 
             <!-- CETAK NOTA KECIL -->
@@ -584,8 +577,6 @@ $labeled = false;
               <td></td>
             </tr>";
               $listPrint = $listPrint . $spkPrint;
-              // LIST SURCAS
-              $listNotif = $listNotif . "\n#S" . $id_surcas . " " . $surcasNya . " " . number_format($jumlahCas) . "\n";
             }
           }
 
@@ -652,10 +643,8 @@ $labeled = false;
       }
       ?>
 
-      <!-- NOTIF NOTA -->
-      <div class="d-none">
-        <span id="textTotal<?= $ref ?>"><?= $totalText ?></span>
-        <span id="<?= $ref ?>">*<?= strtoupper($nama_pelanggan) ?>* _#<?= $this->dCabang['kode_cabang'] ?>-<?= $cs_code ?>_<?= "\n" . $listNotif . "\n" . $totalText . "\n" ?><?= URL::HOST_URL ?>/I/i/<?= $id_pelanggan ?></span>
+      <!-- TOTAL TEXT FOR NOTIFICATION (used by JavaScript to send to controller) -->
+      <span id="textTotal<?= $ref ?>"><?= $totalText ?></span>
       </div>
 
       <!-- CETAK NOTA BESAR -->

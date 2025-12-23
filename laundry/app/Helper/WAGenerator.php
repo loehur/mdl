@@ -235,6 +235,52 @@ class WAGenerator extends Controller
         
         $output = "*" . strtoupper($nama_pelanggan) . "* _#" . $kode_cabang . "-" . $cs_code . "_\n" . $listNotif . "\n" . $totalText . "\n" . URL::HOST_URL . "/I/i/" . $id_pelanggan;
 
+        // Post-processing
+        $output = str_replace("<sup>2</sup>", "²", $output);
+        $output = str_replace("<sup>3</sup>", "³", $output);
+
+        // Prepare template parameters for WhatsApp template message (when CSW is not open)
+        $templateParams = [
+            'customer' => strtoupper($nama_pelanggan),
+            'order_list' => $listNotif,
+            'total_bill' => $totalText,
+            'invoice_link' => URL::HOST_URL . "/I/i/" . $id_pelanggan
+        ];
+
+        return json_encode([
+            'text' => $output,
+            'template_params' => $templateParams
+        ]);
+    }
+
+    public function get_selesai_text($id_penjualan, $karyawan, $totalNotif)
+    {
+        // Get sale data
+        $sale = $this->db(0)->get_where_row('sale', "id_penjualan = '$id_penjualan'");
+        
+        if (empty($sale)) {
+            return json_encode(['text' => 'Data not found']);
+        }
+
+        $id_pelanggan = $sale['id_pelanggan'];
+        $id_cabang = $sale['id_cabang'];
+
+        // Get customer
+        $pelanggan = $this->db(0)->get_where_row('pelanggan', "id_pelanggan = '$id_pelanggan'");
+        $nama_pelanggan = $pelanggan ? $pelanggan['nama_pelanggan'] : 'Unknown';
+
+        // Get staff who completed the task (karyawan parameter)
+        $user = $this->db(0)->get_where_row('user', "id_user = '$karyawan'");
+        $nama_user = $user ? $user['nama_user'] : 'Unknown';
+        $karyawan_code = strtoupper(substr($nama_user, 0, 2)) . substr($karyawan, -1);
+
+        // Get branch
+        $cabang = $this->db(0)->get_where_row('cabang', "id_cabang = '$id_cabang'");
+        $kode_cabang = $cabang ? $cabang['kode_cabang'] : '00';
+
+        // Build text with actual values (no placeholders)
+        $output = "*" . strtoupper($nama_pelanggan) . "* _#" . $kode_cabang . "-" . $karyawan_code . "_ \n#" . $id_penjualan . " Selesai. \n" . $totalNotif . " \n" . URL::HOST_URL . "/I/i/" . $id_pelanggan;
+
         return json_encode(['text' => $output]);
     }
 }

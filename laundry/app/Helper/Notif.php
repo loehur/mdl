@@ -3,13 +3,13 @@
 class Notif extends Controller
 {
 
-    function send_wa($hp, $text, $private = true)
+    function send_wa($hp, $text, $message_mode = 'free')
     {
         // FORCE CHANGE: User requested to remove all non-YCloud methods.
         // We override the configuration and directly use the YCloud adapter.
         // We do not pass parameters from URL::WA_TOKEN because they might contain legacy tokens.
         
-        $res = $this->model('WA_YCloud')->send($hp, $text);
+        $res = $this->model('WA_YCloud')->send($hp, $text, $message_mode);
         
         // Only log errors (not success)
         if (!$res['status']) {

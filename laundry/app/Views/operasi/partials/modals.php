@@ -77,9 +77,7 @@
               </div>
               <input type="hidden" class="idItem" name="f2" value="" required>
               <input type="hidden" class="valueItem" name="f3" value="" required>
-              <input type="hidden" class="textNotif" name="text" value="" required>
               <input type="hidden" name="inTotalNotif" value="" required>
-              <input type="hidden" class="hpNotif" name="hp" value="" required>
             </div>
             <div class="form-group letakRAK">
               <div class="row">

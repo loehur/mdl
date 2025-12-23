@@ -6,6 +6,7 @@ use App\Core\DB;
 class WAReplies
 {
     private $waService = null;
+    private $noRegisterText = 'Mohon Maaf, nomor Anda belum terdaftar di Madinah Laundry. Terima kasih';
     
     /**
      * Get WhatsApp Service instance (lazy loading)
@@ -165,15 +166,16 @@ class WAReplies
             $nama_pelanggan = strtoupper($nama_pelanggans[0] ?? ''); // fix index 0 if empty
 
             if (empty($id_pelanggans)) {
-                $waService->sendFreeText($waNumber, 'Mohon Maaf, nomor Anda belum terdaftar di Madinah Laundry. Terima kasih');
+                $waService->sendFreeText($waNumber, $this->noRegisterText);
             } else {
                 $ids_in = implode(',', $id_pelanggans);
                 $sales = $db1->query("SELECT * FROM sale WHERE tuntas = 0 AND bin = 0 AND id_pelanggan IN ($ids_in) GROUP BY no_ref, tuntas, id_pelanggan")->result_array();
                 $noRefs = array_column($sales, 'no_ref');
                 if (empty($noRefs)) {
-                    $waService->sendFreeText($waNumber, 'Yth. *' . $nama_pelanggan . '*, tidak ada transaksi terbuka dengan nomor Anda. Terima kasih');
+                    $waService->sendFreeText($waNumber, 'Yth. *' . $nama_pelanggan . '*, belum ada transaksi terbuka. Terima kasih');
                 } else {
-                    $listIdPenjualan = [];
+                    $listIdPenjualan = []; // Items still in progress (belum ada notif selesai)
+                    $listIdSelesai = [];   // Items already completed (sudah ada notif selesai)
                     foreach ($noRefs as $noRef) {
                         $get_penjualan = $db1->query("SELECT id_penjualan, id_pelanggan FROM sale WHERE id_user_ambil = 0 AND bin = 0 AND tuntas = 0 AND no_ref = '$noRef'")->result_array();
                         $id_penjualans = array_column($get_penjualan, 'id_penjualan');
@@ -183,10 +185,17 @@ class WAReplies
                         $quotedIds = array_map(function($id) { return "'$id'"; }, $id_penjualans);
                         $id_penjualans_in = implode(',', $quotedIds);
                         
-                        $noRefsNotif = !empty($id_penjualans) ? array_column($db1->query("SELECT * FROM notif WHERE tipe = 2 AND no_ref IN ($id_penjualans_in)")->result_array(), 'no_ref') : [];
-                        $sisaIDPenjualan = array_diff($id_penjualans, $noRefsNotif);
+                        // Get id_penjualan that already have notif tipe 2
+                        $existingNotifIds = !empty($id_penjualans) ? array_column($db1->query("SELECT no_ref FROM notif WHERE tipe = 2 AND no_ref IN ($id_penjualans_in)")->result_array(), 'no_ref') : [];
+                        // Items still in progress (belum ada notif)
+                        $sisaIDPenjualan = array_diff($id_penjualans, $existingNotifIds);
                         if (count($sisaIDPenjualan) > 0) {
                             array_push($listIdPenjualan, $sisaIDPenjualan);
+                        }
+                        
+                        // Items already completed (sudah ada notif)
+                        if (count($existingNotifIds) > 0) {
+                            array_push($listIdSelesai, $existingNotifIds);
                         }
                     }
 
@@ -194,23 +203,54 @@ class WAReplies
                     foreach ($id_pelanggans as $id_pelanggan) {
                         $list_link .= "https://ml.nalju.com/I/i/" . $id_pelanggan . "\n";
                     }
-                    
-                    if (count($listIdPenjualan) > 0) {
-                        // Flattening for safe implode
-                         $flatList = [];
-                         foreach($listIdPenjualan as $subArr) {
-                             if(is_array($subArr)) {
-                                 foreach($subArr as $v) $flatList[] = $v;
-                             } else {
-                                 $flatList[] = $subArr;
-                             }
-                         }
-                        $listIdPenjualanIn = implode(',', $flatList);
-
-                        $text = "Yth. *" . $nama_pelanggan . "*,\nList dalam pengerjaan:\n*" . $listIdPenjualanIn . "*\n\nKarena sudah *CEK*, akan dikabari jika sudah selesai. Terima kasih\n" . $list_link;
+                                       
+                    if (count($listIdPenjualan) > 0 || count($listIdSelesai) > 0) {
+                        // Build formatted status list
+                        $statusList = [];
+                        
+                        // Flatten in-progress items
+                        $flatInProgress = [];
+                        foreach($listIdPenjualan as $subArr) {
+                            if(is_array($subArr)) {
+                                foreach($subArr as $v) $flatInProgress[] = $v;
+                            } else {
+                                $flatInProgress[] = $subArr;
+                            }
+                        }
+                        
+                        // Flatten completed items
+                        $flatCompleted = [];
+                        foreach($listIdSelesai as $subArr) {
+                            if(is_array($subArr)) {
+                                foreach($subArr as $v) $flatCompleted[] = $v;
+                            } else {
+                                $flatCompleted[] = $subArr;
+                            }
+                        }
+                        
+                        // Add in-progress items to status list
+                        foreach($flatInProgress as $id) {
+                            $statusList[] = "#" . $id . " - Dalam Pengerjaan";
+                        }
+                        
+                        // Add completed items to status list
+                        foreach($flatCompleted as $id) {
+                            $statusList[] = "#" . $id . " - Selesai";
+                        }
+                        
+                        $statusText = implode("\n", $statusList);
+                        
+                        if (count($flatInProgress) > 0) {
+                            $text = "Yth. *" . $nama_pelanggan . "*,\nStatus Laundry:\n" . $statusText . "\n\nTerima kasih sudah *CEK*.\n" . $list_link;
+                        } else {
+                            // Adjust message based on number of items
+                            $completedMsg = count($flatCompleted) > 1 ? "Semua sudah selesai" : "Laundry sudah selesai";
+                            $text = "Yth. *" . $nama_pelanggan . "*,\nStatus Laundry:\n" . $statusText . "\n\n" . $completedMsg . ". Terima kasih.\n" . $list_link;
+                        }
+                        
                         $waService->sendFreeText($waNumber, $text);
                     } else {
-                        $waService->sendFreeText($waNumber, "Yth. *" . $nama_pelanggan . "*, Laundry sudah selesai. Terima kasih\n" . $list_link);
+                        $waService->sendFreeText($waNumber, "Yth. *" . $nama_pelanggan . "*, Status Laundry sudah selesai. Terima kasih\n" . $list_link);
                     }
                 }
             }
@@ -265,7 +305,7 @@ class WAReplies
             // FIX: Check if customer exists BEFORE accessing array
             if (empty($id_pelanggans)) {
                 // Customer NOT registered - send message and exit
-                $waService->sendFreeText($waNumber, 'Mohon Maaf, nomor Anda belum terdaftar di Madinah Laundry. Terima kasih');
+                $waService->sendFreeText($waNumber, $this->noRegisterText);
                 return;
             }
 

@@ -205,19 +205,25 @@ class Antrian extends Controller
    public function operasi()
    {
       $karyawan = $_POST['f1'];
-      $users = $this->db(0)->get_where_row("user", "id_user = " . $karyawan);
-      $nm_karyawan = $users['nama_user'];
-      $karyawan_code = strtoupper(substr($nm_karyawan, 0, 2)) . substr($karyawan, -1);
-      $hp = $_POST['hp'];
-      $text = $_POST['text'];
       $totalNotif = $_POST['inTotalNotif'];
-      $text = str_replace("|STAFF|", $karyawan_code, $text);
-      $text = str_replace("|TOTAL|", "\n" . $totalNotif, $text);
 
       $penjualan = $_POST['f2'];
       $operasi = $_POST['f3'];
 
+      // Get sale data to retrieve customer phone
+      $sale = $this->db(0)->get_where_row('sale', "id_penjualan = '$penjualan'");
+      $id_pelanggan = $sale['id_pelanggan'];
+      
+      // Get customer phone
+      $pelanggan = $this->db(0)->get_where_row('pelanggan', "id_pelanggan = '$id_pelanggan'");
+      $hp = $pelanggan['nomor_pelanggan'];
 
+      // Generate text using WAGenerator (text sudah final, tidak perlu replace lagi)
+      require_once APPPATH . 'Helper/WAGenerator.php';
+      $waGen = new WAGenerator();
+      $jsonText = $waGen->get_selesai_text($penjualan, $karyawan, $totalNotif);
+      $objText = json_decode($jsonText, true);
+      $text = $objText['text'] ?? "";
 
       $setOne = "id_penjualan = '" . $penjualan . "' AND jenis_operasi = " . $operasi;
       $where = $this->wCabang . " AND " . $setOne;
@@ -280,7 +286,7 @@ class Antrian extends Controller
             $where = $setOne;
             $data_main = $this->db(0)->count_where('notif', $where);
              if ($data_main == 1) {
-                $this->notifReadySend($penjualan, $totalNotif);
+                $this->notifReadySend($penjualan);
              }
           }
        }
@@ -326,9 +332,7 @@ class Antrian extends Controller
       $rak = $_POST['value'];
       $id = $_POST['id'];
       $totalNotif = $_POST['totalNotif'];
-
-
-
+      
       switch ($mode) {
          case 0:
             $set = ['letak' => $rak];
@@ -351,7 +355,7 @@ class Antrian extends Controller
       $where = $setOne;
       $data_main = $this->db(0)->count_where('notif', $where);
       if ($data_main == 1) {
-         $this->notifReadySend($id, $totalNotif);
+         $this->notifReadySend($id);
       }
    }
 
@@ -363,15 +367,14 @@ class Antrian extends Controller
       $this->db(0)->update('sale', $set, $where);
    }
 
-   public function notifReadySend($idPenjualan, $totalNotif = "")
+   public function notifReadySend($idPenjualan)
    {
-
       $setOne = "no_ref = '" . $idPenjualan . "' AND tipe = 2";
       $where = $this->wCabang . " AND " . $setOne;
       $dm = $this->db(0)->get_where_row('notif', $where);
       $hp = $dm['phone'];
       $text = $dm['text'];
-      $text = str_replace("|TOTAL|", "\n" . $totalNotif, $text);
+      // Text sudah final dari WAGenerator, tidak perlu replace lagi
       $res = $this->helper('Notif')->send_wa($hp, $text, false);
 
       $apiData = $res['data']['data'] ?? $res['data'] ?? [];
@@ -389,28 +392,23 @@ class Antrian extends Controller
 
    public function sendNotif($countMember, $tipe)
    {
-      $id_harga = $_POST['id_harga'];
       $hp = $_POST['hp'];
       $noref = $_POST['ref'];
       $time =  $_POST['time'];
-      $text = $_POST['text'];
-      $idPelanggan = $_POST['idPelanggan'];
 
-      $text = str_replace("<sup>2</sup>", "²", $text);
-      $text = str_replace("<sup>3</sup>", "³", $text);
-
-      if ($countMember > 0) {
-         $textMember = $this->textSaldoNotif($idPelanggan, $id_harga);
-         $text = $text . $textMember;
-      }
+      require_once APPPATH . 'Helper/WAGenerator.php';
+      $waGen = new WAGenerator();
+      $jsonText = $waGen->get_nota($noref);
+      $objText = json_decode($jsonText, true);
+      $text = $objText['text'] ?? "";
 
       // FIX: Close session before long-running WA operation to prevent blocking other requests
       if (session_status() === PHP_SESSION_ACTIVE) {
          session_write_close();
       }
 
-      $res = $this->helper("Notif")->send_wa($hp, $text, false);
-
+      $res = $this->helper("Notif")->send_wa($hp, $text, 'template');
+      
       $setOne = "no_ref = '" . $noref . "' AND tipe = 1";
       $where = $this->wCabang . " AND " . $setOne;
       $data_main = $this->db(0)->count_where('notif', $where);
@@ -458,20 +456,7 @@ class Antrian extends Controller
       }
    }
 
-   public function textSaldoNotif($idPelanggan, $id_harga)
-   {
-      // FIX: use db(0) directly for saldoMember
-      $where_member = "bin = 0 AND id_pelanggan = $idPelanggan AND id_harga = $id_harga";
-      $saldoManual = $this->db(0)->get_cols_where('member', 'SUM(qty) as saldo', $where_member, 0)['saldo'] ?? 0;
-      
-      $where_sale = $this->wCabang . " AND id_pelanggan = $idPelanggan AND member = 1 AND bin = 0 AND id_harga = $id_harga";
-      $saldoPengurangan = $this->db(0)->get_cols_where('sale', 'SUM(qty) as saldo', $where_sale, 0)['saldo'] ?? 0;
-      
-      $saldo_akhir = $saldoManual - $saldoPengurangan;
-      $unit = $this->helper('Saldo')->unit_by_idHarga($id_harga);
-      $textSaldo = "\nM" . $id_harga . " " . number_format($saldo_akhir, 2) . $unit;
-      return $textSaldo;
-   }
+
 
    public function ambil()
    {

@@ -46,7 +46,7 @@ class WhatsAppService
     }
     
     /**
-     * Send free-form text message (within 24-hour CSW)
+     * Send free-form text message (within 23-hour CSW)
      * 
      * @param string $to Customer phone number (format: +628xxx)
      * @param string $message Text message content
@@ -67,7 +67,7 @@ class WhatsAppService
     }
     
     /**
-     * Send template message (can be sent anytime, even outside 24-hour CSW)
+     * Send template message (can be sent anytime, even outside 23-hour CSW)
      * 
      * @param string $to Customer phone number
      * @param string $templateName Template name registered in WhatsApp Business
@@ -418,7 +418,7 @@ class WhatsAppService
     
     /**
      * Check if customer is within Customer Service Window (CSW)
-     * CSW = 24 hours from last customer message
+     * CSW = 23 hours from last customer message
      * 
      * @param string $lastMessageAt Datetime of last customer message
      * @return bool True if within CSW, false if expired

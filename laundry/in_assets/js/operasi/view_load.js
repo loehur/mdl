@@ -666,11 +666,6 @@
     var ref_ini = $(this).attr("data-ref");
     var totalNotif = $("span#textTotal" + ref_ini).html();
     $("input[name=inTotalNotif]").val(totalNotif);
-
-    var textNya = $("span.selesai" + window.idNya).html();
-    var hpNya = $("span.selesai" + window.idNya).attr("data-hp");
-    $("input.textNotif").val(textNya);
-    $("input.hpNotif").val(hpNya);
   });
 
   $("span.gantiOperasi").on("click", function (e) {
@@ -694,11 +689,6 @@
     $("input.valueItem").val(valueNya);
     $("b.operasi").html(layanan);
     window.idtargetOperasi = $(this).attr("id");
-
-    var textNya = $("span.selesai" + window.idNya).html();
-    var hpNya = $("span.selesai" + window.idNya).attr("data-hp");
-    $("input.textNotif").val(textNya);
-    $("input.hpNotif").val(hpNya);
 
     var ref_ini = $(this).attr("data-ref");
     var totalNotif = $("span#textTotal" + ref_ini).html();
@@ -805,13 +795,9 @@
     $btn.addClass('sending').fadeOut("slow");
 
     var urutRef = $btn.attr("data-urutRef");
-    var id_pelanggan_notif = $btn.attr("data-idPelanggan");
-    var id_harga = $btn.attr("data-id_harga");
     var hpNya = $btn.attr("data-hp");
     var refNya = $btn.attr("data-ref");
     var timeNya = $btn.attr("data-time");
-    var textNya = $("span#" + urutRef).html();
-    var countMember = $("span#member" + urutRef).html();
 
     // Fallback: jika refNya kosong atau undefined, gunakan urutRef
     if (!refNya || refNya == '' || refNya == '0' || refNya == 'undefined') {
@@ -819,14 +805,11 @@
     }
 
     $.ajax({
-      url: BASE_URL + "Antrian/sendNotif/" + countMember + "/1",
+      url: BASE_URL + "Antrian/sendNotif/0/1",
       data: {
         hp: hpNya,
-        text: textNya,
-        id_harga: id_harga,
         ref: refNya,
         time: timeNya,
-        idPelanggan: id_pelanggan_notif,
       },
       type: "POST",
       beforeSend: function () {

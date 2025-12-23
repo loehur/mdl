@@ -6,4 +6,9 @@ class Get extends Controller
    {
       echo $this->helper('WAGenerator')->get_nota($ref);
    }
+
+   public function wa_selesai($penjualan)
+   {
+      echo $this->helper('WAGenerator')->get_selesai($penjualan);
+   }
 }

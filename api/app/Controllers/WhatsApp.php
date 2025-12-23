@@ -111,7 +111,7 @@ class WhatsApp extends Controller
             $hoursElapsed = $this->whatsappService->diffHours(date('Y-m-d H:i:s'), $lastMessageAt);
         }
         
-        // Business Logic: Free text mode
+        // Business Logic: Free text mode (strict - must have CSW)
         if ($messageMode === 'free') {
             // Check if CSW expired
             if (!$isWithinCsw) {
@@ -158,17 +158,41 @@ class WhatsApp extends Controller
             ], 'WhatsApp free text sent successfully');
         }
         
-        // Business Logic: Template mode
+        // Business Logic: Template mode (smart - try free first, fallback to template)
         if ($messageMode === 'template') {
-            // Validate template name
-            if (empty($body['template_name'])) {
-                $this->error('Template name is required for template mode', 400);
+            // Try to send as free text first if CSW is open
+            if ($isWithinCsw && !empty($body['message'])) {
+                // CSW is open, try free text
+                $result = $this->whatsappService->sendFreeText($phone, $body['message']);
+                
+                if ($result['success']) {
+                    // Free text succeeded - return immediately
+                    $this->success([
+                        'message_id' => $result['data']['id'] ?? null,
+                        'status' => $result['data']['status'] ?? 'sent',
+                        'mode' => 'free_text',
+                        'to' => $phone,
+                        'csw_status' => [
+                            'within_csw' => true,
+                            'hours_elapsed' => round($hoursElapsed, 2),
+                            'note' => 'Sent as free text because CSW is open'
+                        ]
+                    ], 'WhatsApp free text sent successfully (CSW open)');
+                    return; // Explicit return (though success() already calls exit)
+                }
+                // If free text failed, continue to template fallback below
             }
             
-            $templateName = $body['template_name'];
+            // CSW expired or free text failed - use template
+            // Validate template params
+            if (empty($body['template_params']) || empty($body['template_name'])) {
+                $this->error('Template params and template name are required when CSW is closed', 400);
+            }
+
             $templateLanguage = $body['template_language'] ?? 'id';
-            $templateParams = $body['template_params'] ?? [];
-            
+            $templateParams = $body['template_params'];
+            $templateName = $body['template_name'];
+
             // Send template
             $result = $this->whatsappService->sendTemplate(
                 $phone,
@@ -176,6 +200,7 @@ class WhatsApp extends Controller
                 $templateLanguage,
                 $templateParams
             );
+            
             // Check result
             if (empty($result['id']) && empty($result['message_id'])) {
                  // Extract clean error message if possible
@@ -193,7 +218,7 @@ class WhatsApp extends Controller
                 'csw_status' => [
                     'within_csw' => $isWithinCsw,
                     'hours_elapsed' => round($hoursElapsed, 2),
-                    'note' => 'Template can be sent anytime regardless of CSW'
+                    'note' => 'Template used because CSW expired or free text unavailable'
                 ]
             ], 'WhatsApp template sent successfully');
         }
@@ -201,18 +226,6 @@ class WhatsApp extends Controller
         $this->error('Invalid message_mode. Use "free" or "template"', 400);
     }
     
-    /**
-     * Send free-form text message (must be within 24-hour CSW)
-     * 
-     * POST /WhatsApp/send-text
-     * Body:
-     * {
-     *   "phone": "081234567890",
-     *   "message": "Hello, this is a custom message",
-     *   "last_message_at": "2024-12-19 18:00:00",
-     *   "skip_csw_check": false // Optional: skip CSW validation (not recommended)
-     * }
-     */
     public function send_text()
     {
         if (!$this->isPost()) {
@@ -427,7 +440,7 @@ class WhatsApp extends Controller
         
         $isWithinCsw = $this->whatsappService->isWithinCsw($lastMessageAt);
         $hoursElapsed = $this->whatsappService->diffHours($now, $lastMessageAt);
-        $hoursRemaining = 24 - $hoursElapsed;
+        $hoursRemaining = 23 - $hoursElapsed;
         
         $this->success([
             'within_csw' => $isWithinCsw,
@@ -438,7 +451,7 @@ class WhatsApp extends Controller
             'csw_limit_hours' => 23,
             'can_send_free_text' => $isWithinCsw,
             'must_use_template' => !$isWithinCsw,
-            'expires_at' => date('Y-m-d H:i:s', strtotime($lastMessageAt . ' +24 hours'))
+            'expires_at' => date('Y-m-d H:i:s', strtotime($lastMessageAt . ' +23 hours'))
         ], 'CSW status retrieved');
     }
 }
