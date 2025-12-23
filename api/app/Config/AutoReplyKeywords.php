@@ -9,7 +9,7 @@ return [
     'bon' => [
         'max_length' => 50,
         'keywords' => [
-            'atas nama', 'ats nama', 'atas nma',
+            'atas nama', 'ats nama', 'atas nma', 'an.',
             'bon', 'struk', 'nota', 'bill', 'kirim', 'tagihan', 'resi',
             'total laundry', 'total londri', 'total laundri',
             'totl laundry', 'totl londri', 'totl laundri', 'berapa total',

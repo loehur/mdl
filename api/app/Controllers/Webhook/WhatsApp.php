@@ -248,7 +248,8 @@ class WhatsApp extends Controller
                     'caption' => $mediaCaption,
                     'time' => $sendTime,
                 ],
-                'target_id' => $assigned_user_id ? (string)$assigned_user_id : '0' // Request-assigned user ID, fallback to 0
+                'target_id' => $assigned_user_id ? (string)$assigned_user_id : '0', // Request-assigned user ID, fallback to 0
+                'kode_cabang' => $code // Add kode_cabang for frontend display
             ]);
         }
     }

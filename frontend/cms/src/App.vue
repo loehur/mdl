@@ -536,12 +536,18 @@ const handleIncomingMessage = (payload) => {
     conversation = {
       id: conversationId,
       name: name || payload.phone || 'Unknown User',
+      kode_cabang: payload.kode_cabang || '00', // Set from payload
       avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${conversationId}`,
       status: 'online', // Assume online on new msg
       messages: [],
       unread: 0
     };
     conversations.value.unshift(conversation);
+  } else {
+    // Update existing conversation details if available
+     if (payload.kode_cabang) {
+         conversation.kode_cabang = payload.kode_cabang;
+     }
   }
   
   const newMsg = {
