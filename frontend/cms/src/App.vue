@@ -638,29 +638,18 @@ const handleIncomingMessage = (payload) => {
   
   // Avoid duplicate messages if already present
   if (!conversation.messages.find(m => m.id === newMsg.id)) {
-      // Insert message in chronological order based on rawTime
       console.log('New message rawTime:', newMsg.rawTime, 'Text:', newMsg.text);
       
-      const insertIndex = conversation.messages.findIndex(m => {
-          if (!m.rawTime || !newMsg.rawTime) return false;
-          const comparison = new Date(m.rawTime) > new Date(newMsg.rawTime);
-          if (comparison) {
-              console.log('Found insertion point before:', m.text, 'at index');
-          }
-          return comparison;
+      // Simply push to array
+      conversation.messages.push(newMsg);
+      
+      // Sort entire array by rawTime to ensure chronological order
+      conversation.messages.sort((a, b) => {
+          if (!a.rawTime || !b.rawTime) return 0;
+          return new Date(a.rawTime) - new Date(b.rawTime);
       });
       
-      console.log('Insert index:', insertIndex);
-      
-      if (insertIndex === -1) {
-          // No later message found, append to end
-          conversation.messages.push(newMsg);
-          console.log('Appended to end');
-      } else {
-          // Insert at correct chronological position
-          conversation.messages.splice(insertIndex, 0, newMsg);
-          console.log('Inserted at position', insertIndex);
-      }
+      console.log('Messages sorted. Total:', conversation.messages.length);
       
       conversation.lastMessage = displayText;
       conversation.lastTime = newMsg.time;
@@ -775,10 +764,18 @@ const connectWebSocket = () => {
                            media_url: messageData.media_url,
                            sender: 'me',
                            time: new Date(messageData.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                           rawTime: messageData.time,
                            status: messageData.status || 'sent'
                        };
                        
                        conversation.messages.push(newMsg);
+                       
+                       // Sort messages by rawTime to ensure chronological order
+                       conversation.messages.sort((a, b) => {
+                           if (!a.rawTime || !b.rawTime) return 0;
+                           return new Date(a.rawTime) - new Date(b.rawTime);
+                       });
+                       
                        conversation.lastMessage = messageData.type === 'image' ? "You: 📷 Image" : "You: " + messageData.text;
                        conversation.lastTime = newMsg.time;
                        
