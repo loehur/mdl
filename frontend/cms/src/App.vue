@@ -1000,7 +1000,7 @@ window.addEventListener('focus', () => {
       <!-- Conversation List (Pure CSS Shadows) -->
       <div 
          ref="conversationListRef" 
-         class="flex-1 overflow-y-auto custom-scrollbar scroll-shadows"
+         class="flex-1 overflow-y-auto custom-scrollbar"
       >
         <div 
           v-for="chat in conversations" 
@@ -1080,7 +1080,7 @@ window.addEventListener('focus', () => {
 
       <div v-if="activeConversation" class="w-full h-full relative z-10">
         <!-- Chat Header - ABSOLUTE TOP -->
-        <header class="absolute top-0 left-0 right-0 h-16 border-b border-slate-800 bg-[#0f172a]/95 backdrop-blur-md flex items-center justify-between px-4 md:px-6 z-30 shadow-lg shadow-black/40">
+        <header class="absolute top-0 left-0 right-0 h-16 border-b border-slate-800 bg-[#0f172a]/95 backdrop-blur-md flex items-center justify-between px-4 md:px-6 z-30">
           <div class="flex items-center gap-3 flex-1 min-w-0">
              <!-- Back Button (Mobile Only) -->
              <button @click="backToMenu" class="md:hidden p-1 -ml-2 text-slate-400 hover:text-white flex-shrink-0">
@@ -1222,7 +1222,7 @@ window.addEventListener('focus', () => {
         </div>
         
         <!-- Input Area - ABSOLUTE BOTTOM -->
-        <div class="absolute bottom-0 left-0 right-0 p-4 bg-[#0f172a] border-t border-slate-800 z-30 shadow-[0_-5px_20px_-5px_rgba(0,0,0,0.5)]">
+        <div class="absolute bottom-0 left-0 right-0 p-4 bg-[#0f172a] border-t border-slate-800 z-30">
            <!-- Image Preview Modal -->
            <div v-if="showImagePreview" class="absolute bottom-full left-4 right-4 mb-2 bg-[#1e293b] border border-slate-700 rounded-xl p-4 shadow-2xl">
               <div class="flex flex-col gap-3">
@@ -1318,27 +1318,6 @@ window.addEventListener('focus', () => {
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #475569;
-}
-
-/* Pure CSS Scroll Shadows */
-.scroll-shadows {
-  background:
-    /* Shadow Cover TOP */
-    linear-gradient(#1e293b 30%, rgba(30,41,59,0)),
-    /* Shadow TOP */
-    linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0)) 0 0,
-    
-    /* Shadow Cover BOTTOM */
-    linear-gradient(rgba(30,41,59,0), #1e293b 70%) 0 100%,
-    /* Shadow BOTTOM */
-    linear-gradient(rgba(0,0,0,0), rgba(0,0,0,0.5)) 0 100%;
-  
-  background-repeat: no-repeat;
-  background-color: #1e293b;
-  background-size: 100% 40px, 100% 10px, 100% 40px, 100% 10px;
-  
-  /* The Magic: local moves with content, scroll stays fixed */
-  background-attachment: local, scroll, local, scroll;
 }
 
 /* WhatsApp Formatting Styles */
