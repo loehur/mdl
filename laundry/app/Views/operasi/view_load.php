@@ -644,7 +644,7 @@ $labeled = false;
       ?>
 
       <!-- TOTAL TEXT FOR NOTIFICATION (used by JavaScript to send to controller) -->
-      <span id="textTotal<?= $ref ?>"><?= $totalText ?></span>
+      <span class="d-none" id="textTotal<?= $ref ?>"><?= $totalText ?></span>
       </div>
 
       <!-- CETAK NOTA BESAR -->
