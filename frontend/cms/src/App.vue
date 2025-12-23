@@ -630,17 +630,27 @@ const handleIncomingMessage = (payload) => {
   // Avoid duplicate messages if already present
   if (!conversation.messages.find(m => m.id === newMsg.id)) {
       // Insert message in chronological order based on rawTime
+      console.log('New message rawTime:', newMsg.rawTime, 'Text:', newMsg.text);
+      
       const insertIndex = conversation.messages.findIndex(m => {
           if (!m.rawTime || !newMsg.rawTime) return false;
-          return new Date(m.rawTime) > new Date(newMsg.rawTime);
+          const comparison = new Date(m.rawTime) > new Date(newMsg.rawTime);
+          if (comparison) {
+              console.log('Found insertion point before:', m.text, 'at index');
+          }
+          return comparison;
       });
+      
+      console.log('Insert index:', insertIndex);
       
       if (insertIndex === -1) {
           // No later message found, append to end
           conversation.messages.push(newMsg);
+          console.log('Appended to end');
       } else {
           // Insert at correct chronological position
           conversation.messages.splice(insertIndex, 0, newMsg);
+          console.log('Inserted at position', insertIndex);
       }
       
       conversation.lastMessage = displayText;
