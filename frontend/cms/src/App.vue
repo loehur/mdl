@@ -410,6 +410,9 @@ const sendImage = async () => {
   
   isUploadingImage.value = true;
   
+  // ✨ Hide modal immediately for snappy UX
+  showImagePreview.value = false;
+  
   try {
     const formData = new FormData();
     formData.append('image', selectedImage.value);
@@ -420,7 +423,7 @@ const sendImage = async () => {
     const tempId = Date.now();
     const newMsg = {
       id: tempId,
-      text: caption || '[Image]',
+      text: caption || '', // ✅ Empty string if no caption (not "[Image]")
       type: 'image',
       media_url: imagePreview.value,
       sender: 'me',
