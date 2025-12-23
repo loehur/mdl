@@ -18,8 +18,7 @@ class Tokopay extends Controller
         $json = file_get_contents('php://input');
         $data = json_decode($json, true);
 
-        // Logging
-        \Log::write("Req: " . $json, 'webhook', 'Tokopay');
+        // Removed verbose request logging
 
         if (!$data) {
             echo json_encode(['status' => false, 'message' => 'Invalid JSON']);
@@ -62,7 +61,7 @@ class Tokopay extends Controller
         }
 
         if ($status == 'Success' || $status == 'Completed') {
-            \Log::write("Ref: $reff_id", 'webhook', 'Tokopay');
+            // Processing success (no verbose log)
 
             // Debugging DB connection and query
             try {
@@ -71,14 +70,13 @@ class Tokopay extends Controller
                     \Log::write("Err: DB 0", 'webhook', 'Tokopay');
                     return;
                 }
-                \LogHelper::write("DB Instance 0 obtained.", 'tokopay');
+                // DB instance obtained (no log)
 
                 $update_wh = $db_instance->update("wh_tokopay", ["state" => $status], ["ref_id" => $reff_id]);
                 if (!$update_wh) {
                     \Log::write("Err: Upd WH $reff_id", 'webhook', 'Tokopay');
-                } else {
-                    \Log::write("OK: Upd WH $reff_id", 'webhook', 'Tokopay');
                 }
+                // Success - no log
 
                 $cek_target_query = $db_instance->get_where("wh_tokopay", ["ref_id" => $reff_id]);
                 if (!$cek_target_query) {
@@ -93,14 +91,14 @@ class Tokopay extends Controller
             }
 
             if ($cek_target) {
-                \Log::write("Fnd: B: $cek_target->book, T: $cek_target->target", 'webhook', 'Tokopay');
+            // Target found (no log)
 
                 $book = $cek_target->book;
                 $target = $cek_target->target;
 
                 if ($target == "kas_laundry") {
                     // FIX: use db(0) directly instead of year iteration
-                    \Log::write("Upd Kas: db(0)", 'webhook', 'Tokopay');
+                    // Update kas (no verbose log)
 
                     try {
                         $db_update_instance = $this->db(0);
@@ -111,9 +109,8 @@ class Tokopay extends Controller
 
                             if (!$update) {
                                 \Log::write("Err: Upd Kas $reff_id", 'webhook', 'Tokopay');
-                            } else {
-                                \Log::write("OK: Upd Kas $reff_id", 'webhook', 'Tokopay');
                             }
+                            // Success - no log
                         }
                     } catch (\Exception $e) {
                         \Log::write("Exc: Upd " . $e->getMessage(), 'webhook', 'Tokopay');
@@ -128,7 +125,7 @@ class Tokopay extends Controller
             \Log::write("Err: Sts $status", 'webhook', 'Tokopay');
         }
 
-        \Log::write("End: $status", 'webhook', 'Tokopay');
+        // Webhook processed (no log)
         echo json_encode(['status' => true, 'message' => 'Success']);
     }
 }

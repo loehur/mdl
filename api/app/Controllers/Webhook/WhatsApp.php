@@ -128,7 +128,7 @@ class WhatsApp extends Controller
         if ($messageId) {
             $dupe = $db->get_where('wa_messages_in', ['message_id' => $messageId])->row();
             if ($dupe) {
-                \Log::write(">> SKIP DUPLICATE Inbound: ID=$messageId", 'webhook', 'WhatsApp');
+                // Skip silently (no verbose log)
                 return;
             }
         }
@@ -185,9 +185,7 @@ class WhatsApp extends Controller
                 break;
 
             case 'image':
-                if (class_exists('\Log')) {
-                    \Log::write("Webhook: Processing IMAGE media. ID=" . ($msg['image']['id'] ?? 'null'), 'wa_debug');
-                }
+                // Process image (no verbose log)
             case 'video':
             case 'audio':
             case 'document':
@@ -341,7 +339,7 @@ class WhatsApp extends Controller
                 $db1->update('notif', ['state' => $status], ['id_api' => $wamid]);
             }
         } else {
-            \Log::write("⚠ Message not found for status update: $wamid", 'webhook', 'WhatsApp');
+            // Message not found (no log - this can happen normally)
         }
     }
 
@@ -423,7 +421,7 @@ class WhatsApp extends Controller
             }
 
         } else {
-            \Log::write("⚠ Outbound message not found: wamid=$wamid, id=$messageId", 'webhook', 'WhatsApp');
+            // Outbound message not found (no log - this can happen normally)
         }
     }
 

@@ -225,10 +225,7 @@ class WhatsAppService
         $filename = $mediaId . '.' . $ext;
         $savePath = $baseDir . '/' . $filename;
         
-        // Log path for debugging
-        if (class_exists('\Log')) {
-            \Log::write("Saving media to: $savePath (Source: " . ($directUrl ? 'Direct' : 'API') . ")", 'wa_media');
-        }
+        // Media path (no verbose logging)
         
         $saved = false;
         
@@ -507,12 +504,7 @@ class WhatsAppService
     {
         $url = $this->baseUrl . $endpoint;
         
-        // LOG REQUEST START
-        if (class_exists('\Log')) {
-            $preview = json_encode($payload);
-            if (strlen($preview) > 200) $preview = substr($preview, 0, 200) . '...';
-            \Log::write("-> SENDING WA: $endpoint | To: " . ($payload['to'] ?? '?') . " | $preview", 'wa_debug', 'SendRequest');
-        }
+        // Removed verbose request logging
         
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -532,10 +524,7 @@ class WhatsAppService
         $error = curl_error($ch);
         curl_close($ch);
         
-        // LOG RESPONSE
-        if (class_exists('\Log')) {
-            \Log::write("<- RESPONSE WA ($httpCode): " . ($error ?: strip_tags(substr($response, 0, 100))), 'wa_debug', 'SendRequest');
-        }
+        // Removed verbose response logging
         
         // Log to internal file as well (legacy)
         $this->logMessage($endpoint, $payload, $response, $httpCode);
@@ -592,16 +581,6 @@ class WhatsAppService
      */
     private function saveOutboundMessage($payload, $response)
     {       
-        // === START OUTBOUND LOGGING ===
-        $logPrefix = "[OUTBOUND_SAVE]";
-        
-        // Log the method call
-        if (class_exists('\Log')) {
-            \Log::write("$logPrefix ======== START SAVE OUTBOUND MESSAGE ========", 'outbound_log', 'SaveOutbound');
-            \Log::write("$logPrefix Payload: " . json_encode($payload), 'outbound_log', 'SaveOutbound');
-            \Log::write("$logPrefix Response: " . json_encode($response), 'outbound_log', 'SaveOutbound');
-        }
-        
         // Wrap everything in try-catch to prevent breaking the main flow
         try {
             // Validate essential data first
@@ -610,22 +589,12 @@ class WhatsAppService
             $messageId = $response['id'] ?? null; // Provider message ID
             $wamid = $response['wamid'] ?? null; // May be NULL initially, updated by webhook
             
-            // Log extracted data
-            if (class_exists('\Log')) {
-                \Log::write("$logPrefix Extracted Data - Phone: $waNumber, Type: $messageType, MsgID: $messageId, WAMID: $wamid", 'outbound_log', 'SaveOutbound');
-            }
-            
             // Essential: must have phone and message_id
             if (!$waNumber || !$messageId) {
                 if (class_exists('\Log')) {
-                    \Log::write("$logPrefix !! VALIDATION FAILED - Phone: " . ($waNumber ?: 'EMPTY') . ", MessageID: " . ($messageId ?: 'EMPTY'), 'outbound_log', 'SaveOutbound');
+                    \Log::write("!! VALIDATION FAILED - Phone: " . ($waNumber ?: 'EMPTY') . ", MessageID: " . ($messageId ?: 'EMPTY') . " | Payload: " . json_encode($payload), 'wa_error', 'SaveOutbound');
                 }
-                \Log::write("!! SKIP SAVE: Missing phone or ID", 'wa_debug', 'SaveOutbound');
                 return;
-            }
-            
-            if (class_exists('\Log')) {
-                \Log::write("$logPrefix ✓ Validation passed", 'outbound_log', 'SaveOutbound');
             }
             
             // Extract message content based on type EARLY so we can use it for last_message
@@ -635,24 +604,15 @@ class WhatsAppService
             
             if ($messageType === 'text' && isset($payload['text']['body'])) {
                 $content = $payload['text']['body'];
-                if (class_exists('\Log')) {
-                    \Log::write("$logPrefix Content Type: TEXT - Content: $content", 'outbound_log', 'SaveOutbound');
-                }
             } elseif ($messageType === 'template' && isset($payload['template']['name'])) {
                 $content = $payload['template']['name']; // Store template name in content
                 // Store template params if available
                 if (isset($payload['template']['components'])) {
                     $templateParams = json_encode($payload['template']['components']);
                 }
-                if (class_exists('\Log')) {
-                    \Log::write("$logPrefix Content Type: TEMPLATE - Name: $content, Params: " . ($templateParams ?: 'N/A'), 'outbound_log', 'SaveOutbound');
-                }
             } elseif (isset($payload[$messageType]['link'])) {
                 $mediaUrl = $payload[$messageType]['link'];
                 $content = $payload[$messageType]['caption'] ?? null;
-                if (class_exists('\Log')) {
-                    \Log::write("$logPrefix Content Type: MEDIA ($messageType) - URL: $mediaUrl, Caption: " . ($content ?: 'N/A'), 'outbound_log', 'SaveOutbound');
-                }
             }
             
             // Determine text for last_message
@@ -662,26 +622,14 @@ class WhatsAppService
                     ? "Template: " . ($payload['template']['name'] ?? '') 
                     : "Media: $messageType";
             }
-            
-            if (class_exists('\Log')) {
-                \Log::write("$logPrefix Last Message Text: $lastMessageText", 'outbound_log', 'SaveOutbound');
-            }
 
             // Load DB class if not already loaded
-            if (class_exists('\Log')) {
-                \Log::write("$logPrefix Checking DB class...", 'outbound_log', 'SaveOutbound');
-            }
-            
             if (!class_exists('\\App\\Core\\DB')) {
                 $dbPath = __DIR__ . '/../Core/DB.php';
                 
-                if (class_exists('\Log')) {
-                    \Log::write("$logPrefix DB class not loaded, path: $dbPath", 'outbound_log', 'SaveOutbound');
-                }
-                
                 if (!file_exists($dbPath)) {
                     if (class_exists('\Log')) {
-                        \Log::write("$logPrefix !! DB.php NOT FOUND at $dbPath", 'outbound_log', 'SaveOutbound');
+                        \Log::write("!! DB.php NOT FOUND at $dbPath", 'wa_error', 'SaveOutbound');
                     }
                     return;
                 }
@@ -690,22 +638,10 @@ class WhatsAppService
                 // Double check if class loaded successfully
                 if (!class_exists('\\App\\Core\\DB')) {
                     if (class_exists('\Log')) {
-                        \Log::write("$logPrefix !! DB class FAILED to load after require", 'outbound_log', 'SaveOutbound');
+                        \Log::write("!! DB class FAILED to load after require", 'wa_error', 'SaveOutbound');
                     }
                     return;
                 }
-                
-                if (class_exists('\Log')) {
-                    \Log::write("$logPrefix ✓ DB class loaded successfully", 'outbound_log', 'SaveOutbound');
-                }
-            } else {
-                if (class_exists('\Log')) {
-                    \Log::write("$logPrefix ✓ DB class already available", 'outbound_log', 'SaveOutbound');
-                }
-            }
-            
-            if (class_exists('\Log')) {
-                \Log::write("$logPrefix Creating DB instance...", 'outbound_log', 'SaveOutbound');
             }
             
             $db = new \App\Core\DB(0); // Main database with correct namespace
@@ -713,83 +649,41 @@ class WhatsAppService
             // Verify database connection
             if (!$db || !method_exists($db, 'get_where')) {
                 if (class_exists('\Log')) {
-                    \Log::write("$logPrefix !! DB instance creation FAILED or missing get_where method", 'outbound_log', 'SaveOutbound');
+                    \Log::write("!! DB instance creation FAILED or missing get_where method", 'wa_error', 'SaveOutbound');
                 }
                 return;
             }
             
-            if (class_exists('\Log')) {
-                \Log::write("$logPrefix ✓ DB instance created successfully", 'outbound_log', 'SaveOutbound');
-            }
-            
             // Get or create conversation (NO CUSTOMER CREATION on Outbound)
             $conversationId = null;
-            
-            if (class_exists('\Log')) {
-                \Log::write("$logPrefix Looking for conversation with wa_number: $waNumber", 'outbound_log', 'SaveOutbound');
-            }
                       
             // Try find customer
             $conv = $db->get_where('wa_conversations', ['wa_number' => $waNumber]);
             
-            if (class_exists('\Log')) {
-                \Log::write("$logPrefix Conversation query result: " . ($conv ? "Found " . $conv->num_rows() . " rows" : "NULL"), 'outbound_log', 'SaveOutbound');
-            }
-            
             if ($conv && $conv->num_rows() > 0) {
                 $conversationId = $conv->row()->id;
                 
-                if (class_exists('\Log')) {
-                    \Log::write("$logPrefix ✓ Found existing conversation ID: $conversationId", 'outbound_log', 'SaveOutbound');
-                }
-                
                 // Update conversation
-                $updateData = [
+                $db->update('wa_conversations', [
                     'last_message' => $lastMessageText,
                     'last_out_at' => date('Y-m-d H:i:s')
-                ];
-                
-                if (class_exists('\Log')) {
-                    \Log::write("$logPrefix Updating conversation with: " . json_encode($updateData), 'outbound_log', 'SaveOutbound');
-                }
-                
-                $db->update('wa_conversations', $updateData, ['id' => $conversationId]);
-                
-                if (class_exists('\Log')) {
-                    \Log::write("$logPrefix ✓ Conversation updated", 'outbound_log', 'SaveOutbound');
-                }
+                ], ['id' => $conversationId]);
             } else {
                 // Create new conversation
-                $insertData = [
+                $conversationId = $db->insert('wa_conversations', [
                     'wa_number' => $waNumber,
                     'status' => 'open',
                     'last_message' => $lastMessageText,
                     'last_out_at' => date('Y-m-d H:i:s'),
                     'created_at' => date('Y-m-d H:i:s')
-                ];
-                
-                if (class_exists('\Log')) {
-                    \Log::write("$logPrefix Creating NEW conversation with data: " . json_encode($insertData), 'outbound_log', 'SaveOutbound');
-                }
-                
-                \Log::write("++ NEW CONV created for outbound: $waNumber", 'wa_debug', 'SaveOutbound');
-                $conversationId = $db->insert('wa_conversations', $insertData);
-                
-                if (class_exists('\Log')) {
-                    \Log::write("$logPrefix ✓ New conversation created with ID: " . ($conversationId ?: 'FAILED'), 'outbound_log', 'SaveOutbound');
-                }
+                ]);
             }
             
             if (!$conversationId) {
                 if (class_exists('\Log')) {
-                    \Log::write("$logPrefix !! CRITICAL: conversationId is NULL or 0", 'outbound_log', 'SaveOutbound');
+                    \Log::write("!! FAILED to get/create Conversation ID for $waNumber | Payload: " . json_encode($payload), 'wa_error', 'SaveOutbound');
                 }
-                \Log::write("!! FAILED to get/create Conversation ID", 'wa_error', 'SaveOutbound');
                 return;
-            }
-            
-            if (class_exists('\Log')) {
-                \Log::write("$logPrefix ✓ Conversation ID confirmed: $conversationId", 'outbound_log', 'SaveOutbound');
             }
             
             // Save outbound message to wa_messages_out
@@ -806,45 +700,16 @@ class WhatsAppService
                 'created_at' => date('Y-m-d H:i:s')
             ];
             
-            if (class_exists('\Log')) {
-                \Log::write("$logPrefix Preparing to insert message to wa_messages_out", 'outbound_log', 'SaveOutbound');
-                \Log::write("$logPrefix Message Data: " . json_encode($messageData), 'outbound_log', 'SaveOutbound');
-            }
-            
             $msgId = $db->insert('wa_messages_out', $messageData);
             
-            if (class_exists('\Log')) {
-                \Log::write("$logPrefix Insert result: " . ($msgId ? "SUCCESS - ID: $msgId" : "FAILED"), 'outbound_log', 'SaveOutbound');
-            }
-            
-            if ($msgId) {
-                if (class_exists('\Log')) {
-                    \Log::write("$logPrefix ✓✓✓ MESSAGE SUCCESSFULLY SAVED TO DATABASE ✓✓✓", 'outbound_log', 'SaveOutbound');
-                    \Log::write("$logPrefix Local ID: $msgId, Message ID: $messageId, Phone: $waNumber", 'outbound_log', 'SaveOutbound');
-                }
-                \Log::write("v MESSAGE SAVED ID #$msgId (WA ID: $messageId)", 'wa_debug', 'SaveOutbound');
-                
-                if (class_exists('\Log')) {
-                    \Log::write("$logPrefix ======== END SAVE OUTBOUND MESSAGE (SUCCESS) ========", 'outbound_log', 'SaveOutbound');
-                }
-                
-                return $msgId; // Return the Local DB ID
-            } else {
+            if (!$msgId) {
                 $dbError = $db->conn()->error ?? 'Unknown';
-                
                 if (class_exists('\Log')) {
-                    \Log::write("$logPrefix !! INSERT TO wa_messages_out FAILED", 'outbound_log', 'SaveOutbound');
-                    \Log::write("$logPrefix Database Error: $dbError", 'outbound_log', 'SaveOutbound');
-                }
-                
-                \Log::write("!! INSERT MSG FAILED: $dbError", 'wa_error', 'SaveOutbound');
-                
-                if (class_exists('\Log')) {
-                    \Log::write("$logPrefix ======== END SAVE OUTBOUND MESSAGE (FAILED) ========", 'outbound_log', 'SaveOutbound');
+                    \Log::write("!! INSERT FAILED to wa_messages_out | Phone: $waNumber, MsgID: $messageId | DB Error: $dbError | Data: " . json_encode($messageData), 'wa_error', 'SaveOutbound');
                 }
             }
             
-            return null;
+            return $msgId; // Return the Local DB ID (or null if failed)
             
         } catch (\Throwable $e) {
             // Detailed exception logging
@@ -854,20 +719,14 @@ class WhatsAppService
             $errorTrace = $e->getTraceAsString();
             
             if (class_exists('\Log')) {
-                \Log::write("$logPrefix !! EXCEPTION CAUGHT IN SAVE OUTBOUND", 'outbound_log', 'SaveOutbound');
-                \Log::write("$logPrefix Exception Message: $errorMsg", 'outbound_log', 'SaveOutbound');
-                \Log::write("$logPrefix Exception File: $errorFile", 'outbound_log', 'SaveOutbound');
-                \Log::write("$logPrefix Exception Line: $errorLine", 'outbound_log', 'SaveOutbound');
-                \Log::write("$logPrefix Stack Trace: $errorTrace", 'outbound_log', 'SaveOutbound');
-                \Log::write("$logPrefix ======== END SAVE OUTBOUND MESSAGE (EXCEPTION) ========", 'outbound_log', 'SaveOutbound');
+                \Log::write("!! EXCEPTION in saveOutboundMessage: $errorMsg at $errorFile:$errorLine", 'wa_error', 'SaveOutbound');
+                \Log::write("!! Stack Trace: $errorTrace", 'wa_error', 'SaveOutbound');
+                \Log::write("!! Payload was: " . json_encode($payload ?? []), 'wa_error', 'SaveOutbound');
             }
             
             // Also log to PHP error log
             if (function_exists('error_log')) {
                 error_log("saveOutboundMessage error: $errorMsg at $errorFile:$errorLine");
-            }
-            if (class_exists('\Log')) {
-                \Log::write("!! EXCEPTION: $errorMsg", 'wa_error', 'SaveOutbound');
             }
         }
     }

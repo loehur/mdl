@@ -11,14 +11,10 @@ class Notif extends Controller
         
         $res = $this->model('WA_YCloud')->send($hp, $text);
         
-        $statusStr = $res['status'] ? 'Success' : 'Failed';
-        
-        // Filter log untuk CSW EXPIRED agar tidak spam
-        $jsonRes = json_encode($res);
-        $isCSWError = (strpos($jsonRes, 'CSW EXPIRED') !== false) || (strpos($jsonRes, 'Customer Service Window') !== false);
-        
-        if (!$isCSWError) {
-             $this->model('Log')->write("[send_wa] YCloud (Forced) - HP: {$hp}, Status: {$statusStr}, Response: " . $jsonRes);
+        // Only log errors (not success)
+        if (!$res['status']) {
+            $jsonRes = json_encode($res);
+            $this->model('Log')->write("[send_wa] FAILED - HP: {$hp}, Response: " . $jsonRes);
         }
 
         return $res;

@@ -29,6 +29,11 @@ class Log
      */
     function apiLog($endpoint, $request = null, $response = null, $status = 'info')
     {
+        // Only log errors, skip info/success logs
+        if ($status !== 'error') {
+            return;
+        }
+        
         $uploads_dir = "logs/api/" . date('Y/') . date('m/');
         $file_name = date('d') . ".log";
         $file_path = $uploads_dir . $file_name;
