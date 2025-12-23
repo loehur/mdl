@@ -784,7 +784,8 @@ class WhatsAppService
         }
         
         $payload = [
-            'to' => $to,
+            'from' => $this->formatPhoneNumber($this->whatsappNumber),
+            'to' => $this->formatPhoneNumber($to),
             'type' => 'image',
             'image' => [
                 'link' => $imageUrl
@@ -800,7 +801,8 @@ class WhatsAppService
         }
         
         try {
-            $response = $this->sendRequest('/messages', $payload);
+            // Use correct YCloud endpoint: /whatsapp/messages
+            $response = $this->sendRequest('/whatsapp/messages', $payload);
             
             if (class_exists('\Log')) {
                 \Log::write("sendRequest response: " . json_encode($response), 'wa_debug', 'SendImage');
