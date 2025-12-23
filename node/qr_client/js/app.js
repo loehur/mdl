@@ -119,11 +119,21 @@ function connectWebSocket(kasirId, pin) {
     ws.onopen = function () {
         console.log('WebSocket connected!');
         document.getElementById('status-box').className = 'status-box connected';
+
+        // Keep-alive: Send ping every 30 seconds
+        if (ws.pingInterval) clearInterval(ws.pingInterval);
+        ws.pingInterval = setInterval(() => {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'ping' }));
+            }
+        }, 30000);
     };
 
     ws.onclose = function (e) {
         console.log('WebSocket closed:', e.code, e.reason);
         document.getElementById('status-box').className = 'status-box disconnected';
+
+        if (ws.pingInterval) clearInterval(ws.pingInterval);
 
         // Don't reconnect for authentication/authorization errors
         // 4001: kasir_id is required
