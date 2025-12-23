@@ -219,7 +219,7 @@ const markMessagesRead = async (phone) => {
         });
         
         // Update local state if needed
-        const chat = conversations.value.find(c => c.id === conversationId);
+        const chat = conversations.value.find(c => c.wa_number === phone);
         if(chat) chat.unread = 0;
     } catch (e) {
         console.error("Failed to mark read", e);
