@@ -578,6 +578,7 @@ class WAReplies
     
     /**
      * Push message to WebSocket server for real-time notifications
+     * Made non-blocking to prevent delays in auto-reply execution
      */
     private function pushToWebSocket($data)
     {
@@ -592,12 +593,15 @@ class WAReplies
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 2);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 5); // Increased from 2 to 5 seconds
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3); // DNS resolution timeout
+        curl_setopt($ch, CURLOPT_NOSIGNAL, 1); // Prevent signals causing timeouts
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
 
         $result = curl_exec($ch);
         
+        // Log errors but don't block auto-reply execution
         if (curl_errno($ch) && class_exists('\\Log')) {
             \Log::write('WS Curl Error (WAReplies): ' . curl_error($ch), 'cms_ws_error');
         }

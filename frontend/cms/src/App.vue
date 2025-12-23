@@ -600,7 +600,7 @@ const handleIncomingMessage = (payload) => {
     conversation.unread++;
   } else {
     scrollToBottom();
-    markMessagesRead(conversationId);
+    markMessagesRead(conversation.wa_number); // Use phone number, not conversation ID
   }
       
       // Move conversation to top
