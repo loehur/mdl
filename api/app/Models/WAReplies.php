@@ -559,8 +559,8 @@ class WAReplies
      */
     private function buildWsPayload($waNumber, $text, $msgId = null, $wamid = null, $timestamp = null)
     {
-        // Use provided timestamp or current time
-        $time = $timestamp ?: date('Y-m-d H:i:s');
+        // Use provided timestamp or add 1 second to current time to ensure auto-reply appears AFTER customer message
+        $time = $timestamp ?: date('Y-m-d H:i:s', strtotime('+1 second'));
         
         return [
             'type'           => 'agent_message_sent',
