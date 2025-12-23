@@ -219,8 +219,7 @@ class Antrian extends Controller
       $hp = $pelanggan['nomor_pelanggan'];
 
       // Generate text using WAGenerator (text sudah final, tidak perlu replace lagi)
-      require_once APPPATH . 'Helper/WAGenerator.php';
-      $waGen = new WAGenerator();
+      $waGen = $this->helper('WAGenerator');
       $jsonText = $waGen->get_selesai_text($penjualan, $karyawan, $totalNotif);
       $objText = json_decode($jsonText, true);
       $text = $objText['text'] ?? "";
@@ -396,8 +395,7 @@ class Antrian extends Controller
       $noref = $_POST['ref'];
       $time =  $_POST['time'];
 
-      require_once APPPATH . 'Helper/WAGenerator.php';
-      $waGen = new WAGenerator();
+      $waGen = $this->helper('WAGenerator');
       $jsonText = $waGen->get_nota($noref);
       $objText = json_decode($jsonText, true);
       $text = $objText['text'] ?? "";
