@@ -707,7 +707,7 @@ class WhatsAppService
                 $db->update('wa_conversations', [
                     'last_message' => $lastMessageText,
                     'last_out_at' => date('Y-m-d H:i:s')
-                ], ['id' => $conversationId]);
+                ], ['wa_number' => $waNumber]);
             } else {
                 // Create new conversation
                 $conversationId = $db->insert('wa_conversations', [

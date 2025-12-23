@@ -495,13 +495,13 @@ class WhatsApp extends Controller
             ];
             $db->update('wa_conversations', 
                 $updateData, 
-                ['id' => $conv->id]
+                ['wa_number' => $waNumber] // Link by wa_number
             );
             
-            // Mark all previous messages as read
-            $db->update('wa_messages_in', ['status' => 'read'], ['conversation_id' => $conv->id]);
+            // Mark all previous messages as read using phone
+            $db->update('wa_messages_in', ['status' => 'read'], ['phone' => $waNumber]);
             
-            return $conv->id;
+            return $conv->id ?? 0;
         }
 
         // Create new conversation
@@ -515,7 +515,10 @@ class WhatsApp extends Controller
             'last_message' => $lastMessage,
         ];
 
-        return $db->insert('wa_conversations', $convData);
+        if($db->insert('wa_conversations', $convData)) {
+             return $db->insert_id();
+        }
+        return 0;
     }
 
     /**
