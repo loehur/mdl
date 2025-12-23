@@ -289,10 +289,19 @@ const selectChat = async (id) => {
       // If we have cached messages, show them immediately and fetch in background
       if (chat.messages && chat.messages.length > 0) {
           scrollToBottom(); // Show cache immediately
-          // Background fetch to sync
+          // Background fetch to sync and merge
           fetchMessages(chat.wa_number).then(msgs => {
               if (msgs.length > 0) {
-                  chat.messages = msgs;
+                  // Merge with existing messages (from WebSocket)
+                  const existingIds = new Set(chat.messages.map(m => m.id));
+                  const newMessages = msgs.filter(m => !existingIds.has(m.id));
+                  
+                  // Combine and sort by rawTime
+                  chat.messages = [...chat.messages, ...newMessages].sort((a, b) => {
+                      if (!a.rawTime || !b.rawTime) return 0;
+                      return new Date(a.rawTime) - new Date(b.rawTime);
+                  });
+                  
                   scrollToBottom();
               }
           });
