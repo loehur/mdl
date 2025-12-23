@@ -864,16 +864,17 @@ class WhatsAppService
                         'status' => $data['status'] ?? 'sent'
                     ];
                     
-                    // Save to outbound log
-                    $this->saveOutboundMessage($payload, $responseData);
+                    // Outbound message already saved by sendRequest
+                    $localId = $response['local_id'] ?? null;
                     
                     if (class_exists('\Log')) {
-                        \Log::write("sendImage SUCCESS", 'wa_debug', 'SendImage');
+                        \Log::write("sendImage SUCCESS. LocalID: " . $localId, 'wa_debug', 'SendImage');
                     }
                     
                     return [
                         'success' => true,
-                        'data' => $responseData
+                        'data' => $responseData,
+                        'local_id' => $localId
                     ];
                 }
             }

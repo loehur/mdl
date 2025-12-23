@@ -454,7 +454,15 @@ class Chat extends Controller
                     'created_at' => date('Y-m-d H:i:s')
                 ];
                 
-                $msgId = $db->insert('wa_messages_out', $messageData);
+                // FIX: Use local_id from Service if available to avoid duplicate insert
+                $msgId = $result['local_id'] ?? null;
+                
+                if (!$msgId) {
+                    $msgId = $db->insert('wa_messages_out', $messageData);
+                } else {
+                     // Ensure status is 'sent' (Service sets 'accepted')
+                     $db->update('wa_messages_out', ['status' => 'sent'], ['id' => $msgId]);
+                }
                 
                 // Update conversation
                 $db->update('wa_conversations', [
