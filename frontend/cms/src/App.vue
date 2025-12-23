@@ -64,24 +64,45 @@ const setupScrollGlow = (element, type) => {
   if (!element) return;
   
   const updateGlow = () => {
+    // Force recalculation
     const scrollTop = element.scrollTop;
     const scrollHeight = element.scrollHeight;
     const clientHeight = element.clientHeight;
-    // Calculate distance from bottom
     const scrollBottom = scrollHeight - scrollTop - clientHeight;
     
-    // Show top glow if not at top (threshold 5px)
-    scrollGlow.value[`${type}Top`] = scrollTop > 5;
+    // Debug log to verify numbers
+    // console.log(`${type}: top=${scrollTop}, height=${scrollHeight}, client=${clientHeight}, bottom=${scrollBottom}`);
     
-    // Show bottom glow if not at bottom (threshold 5px)
-    scrollGlow.value[`${type}Bottom`] = scrollBottom > 5;
+    // Show top glow if > 1px (more sensitive)
+    scrollGlow.value[`${type}Top`] = scrollTop > 1;
+    
+    // Show bottom glow if > 1px (more sensitive)
+    scrollGlow.value[`${type}Bottom`] = scrollBottom > 1;
   };
   
-  // Update on scroll
+  // 1. Update on scroll
   element.addEventListener('scroll', updateGlow);
   
+  // 2. Update on resize (window change)
+  window.addEventListener('resize', updateGlow);
+
+  // 3. Update when content size changes (Robust!)
+  const observer = new ResizeObserver(() => {
+    updateGlow();
+  });
+  
+  // Observe the child element (content wrapper) if possible, or the element itself
+  // Ideally observe the first child which is the wrapper of list items
+  if (element.firstElementChild) {
+    observer.observe(element.firstElementChild);
+  } else {
+    observer.observe(element);
+  }
+  
+  // Store observer cleanup if needed (simplified here)
+  
   // Initial check
-  setTimeout(updateGlow, 100);
+  setTimeout(updateGlow, 500);
 };
 
 const fetchConversations = async () => {
@@ -799,18 +820,7 @@ const mockIncomingMessage = () => {
 };
 
 
-// Watch triggers to recalculate glow when data changes
-watch(conversations, () => {
-  nextTick(() => {
-    if (conversationListRef.value) conversationListRef.value.dispatchEvent(new Event('scroll'));
-  });
-}, { deep: true });
 
-watch(() => activeConversation.value?.messages, () => {
-  nextTick(() => {
-    if (chatContainer.value) chatContainer.value.dispatchEvent(new Event('scroll'));
-  });
-}, { deep: true });
 
 onMounted(() => {
   scrollToBottom();
