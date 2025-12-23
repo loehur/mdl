@@ -48,6 +48,53 @@ const originalTitle = 'MDL Chat';
 const titleBlinkInterval = ref(null);
 const isTitleRed = ref(false);
 
+// Bounce Scroll State (WhatsApp-style elastic overscroll)
+const conversationListRef = ref(null);
+const bounceAmount = ref({ conversations: 0, messages: 0 });
+
+// Bounce Scroll Handler
+const handleBounceScroll = (element, type) => {
+  if (!element) return;
+  
+  const isAtTop = element.scrollTop <= 0;
+  const isAtBottom = element.scrollHeight - element.scrollTop <= element.clientHeight + 1;
+  
+  let lastScrollTop = element.scrollTop;
+  let isScrolling = false;
+  
+  element.addEventListener('scroll', () => {
+    const currentScrollTop = element.scrollTop;
+    const scrollingDown = currentScrollTop > lastScrollTop;
+    const scrollingUp = currentScrollTop < lastScrollTop;
+    
+    // Bounce at top
+    if (scrollingUp && currentScrollTop <= 5) {
+      if (!isScrolling) {
+        isScrolling = true;
+        bounceAmount.value[type] = -15;
+        setTimeout(() => {
+          bounceAmount.value[type] = 0;
+          isScrolling = false;
+        }, 300);
+      }
+    }
+    
+    // Bounce at bottom
+    if (scrollingDown && element.scrollHeight - currentScrollTop <= element.clientHeight + 5) {
+      if (!isScrolling) {
+        isScrolling = true;
+        bounceAmount.value[type] = 15;
+        setTimeout(() => {
+          bounceAmount.value[type] = 0;
+          isScrolling = false;
+        }, 300);
+      }
+    }
+    
+    lastScrollTop = currentScrollTop;
+  });
+};
+
 const fetchConversations = async () => {
     try {
         const userIdParam = authId.value ? `?user_id=${authId.value}` : '';
@@ -766,6 +813,12 @@ const mockIncomingMessage = () => {
 onMounted(() => {
   scrollToBottom();
   
+  // Initialize bounce scroll
+  nextTick(() => {
+    if (conversationListRef.value) handleBounceScroll(conversationListRef.value, 'conversations');
+    if (chatContainer.value) handleBounceScroll(chatContainer.value, 'messages');
+  });
+  
   // Initialize title blinking
   updateTitleBlinking();
   
@@ -994,7 +1047,11 @@ window.addEventListener('focus', () => {
       </div>
       
       <!-- Conversation List -->
-      <div class="flex-1 overflow-y-auto custom-scrollbar">
+      <div 
+        ref="conversationListRef" 
+        class="flex-1 overflow-y-auto custom-scrollbar transition-transform duration-300 ease-out"
+        :style="{ transform: `translateY(${bounceAmount.conversations}px)` }"
+      >
         <div 
           v-for="chat in conversations" 
           :key="chat.id"
@@ -1101,7 +1158,11 @@ window.addEventListener('focus', () => {
         </header>
         
         <!-- Messages - Scrollable Area with top and bottom padding -->
-        <div class="absolute inset-0 pt-16 pb-[88px] overflow-y-auto custom-scrollbar" ref="chatContainer">
+        <div 
+          ref="chatContainer"
+          class="absolute inset-0 pt-16 pb-[88px] overflow-y-auto custom-scrollbar transition-transform duration-300 ease-out" 
+          :style="{ transform: `translateY(${bounceAmount.messages}px)` }"
+        >
           <div class="p-4 space-y-2">
             <div v-for="(msg, index) in activeConversation.messages" :key="msg.id" class="flex flex-col">
             
