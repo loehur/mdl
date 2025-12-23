@@ -46,7 +46,7 @@ return [
     'sapa' => [
         'max_length' => 12,
         'keywords' => [
-            'ping', 'halo', 'tes', 'alaikum', 'assalam', 'aslkm', 'salam'
+            'ping', 'halo', 'hallo', 'hello', 'tes', 'alaikum', 'assalam', 'aslkm', 'salam'
         ]
     ],
 

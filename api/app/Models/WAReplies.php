@@ -31,7 +31,7 @@ class WAReplies
     private function shouldReply($waNumber, $handler, $cooldownMinutes = 5)
     {
         $db = DB::getInstance(0);
-        
+
         // Query last auto-reply for this number + handler
         $sql = "SELECT created_at FROM wa_auto_reply_log 
                 WHERE phone = ? AND handler = ? 
@@ -88,6 +88,15 @@ class WAReplies
         // Load keyword configuration
         $keywordConfig = require __DIR__ . '/../Config/AutoReplyKeywords.php';
         
+        // Special case: Single character message (e.g., "p", ".", "?") -> treat as sapa (greeting)
+        if ($messageLength === 1) {
+            if ($this->shouldReply($waNumber, 'sapa')) {
+                $this->handleSapa($phoneIn, $waNumber);
+                return true;
+            }
+            return false; // Rate limited
+        }
+        
         // Check each handler's keywords
         foreach ($keywordConfig as $handler => $config) {
             $maxLength = $config['max_length'] ?? 0;
@@ -98,12 +107,13 @@ class WAReplies
                 continue;
             }
             
+            $cek;
+
             // Check keywords
             foreach ($keywords as $keyword) {
                 if (stripos($textBodyToCheck, $keyword) !== false) {
                     // RATE LIMITING: Check if can send reply (cooldown)
                     if (!$this->shouldReply($waNumber, $handler)) {
-                        \Log::write("Rate limited: $waNumber for handler '$handler'", 'wa_replies', 'RateLimit');
                         return false; // Exit to prevent other handlers from triggering
                     }
                     
