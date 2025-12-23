@@ -210,7 +210,9 @@ class WAReplies
                     }
 
                     $list_link = "";
-                    foreach ($id_pelanggans as $id_pelanggan) {
+                    // Remove duplicates - same customer may have multiple transactions
+                    $unique_pelanggans = array_unique($id_pelanggans);
+                    foreach ($unique_pelanggans as $id_pelanggan) {
                         $list_link .= "https://ml.nalju.com/I/i/" . $id_pelanggan . "\n";
                     }
                                        
@@ -396,7 +398,9 @@ class WAReplies
                 } else {
                     // All notifs already exist - they were sent before
                     $list_link = "";
-                    foreach ($id_pelanggans_active as $id_pelanggan_active) {
+                    // Remove duplicates - same customer may have multiple transactions
+                    $unique_pelanggans_active = array_unique($id_pelanggans_active);
+                    foreach ($unique_pelanggans_active as $id_pelanggan_active) {
                         $list_link .= "https://ml.nalju.com/I/i/" . $id_pelanggan_active . "\n";
                     }
 
