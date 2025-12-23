@@ -808,9 +808,10 @@ class WhatsAppService
                 \Log::write("sendRequest response: " . json_encode($response), 'wa_debug', 'SendImage');
             }
             
-            // Parse response
-            if ($response['httpCode'] == 200 || $response['httpCode'] == 201) {
-                $data = json_decode($response['body'], true);
+            // Parse response - check http_code (underscore, not camelCase!)
+            if ($response['success'] && ($response['http_code'] == 200 || $response['http_code'] == 201)) {
+                // Response already parsed by sendRequest, use 'data' directly
+                $data = $response['data'];
                 
                 if (isset($data['id']) || isset($data['message_id'])) {
                     $responseData = [
@@ -835,13 +836,13 @@ class WhatsAppService
             
             // Error
             if (class_exists('\Log')) {
-                \Log::write("sendImage FAILED - httpCode: " . $response['httpCode'], 'wa_error', 'SendImage');
+                \Log::write("sendImage FAILED - response: " . json_encode($response), 'wa_error', 'SendImage');
             }
             
             return [
                 'success' => false,
                 'error' => $response['error'] ?? 'Failed to send image',
-                'httpCode' => $response['httpCode']
+                'httpCode' => $response['http_code'] ?? 500
             ];
             
         } catch (\Exception $e) {
