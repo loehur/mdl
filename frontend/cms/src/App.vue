@@ -52,10 +52,24 @@ const isTitleRed = ref(false);
 const conversationListRef = ref(null);
 const scrollGlow = ref({
   conversationsTop: false,
-  conversationsBottom: true,
+  conversationsBottom: false, // Default to FALSE to prevent startup flash
   messagesTop: false,
-  messagesBottom: true
+  messagesBottom: false // Default to FALSE
 });
+
+// Watch triggers to recalculate glow when data changes
+watch(conversations, () => {
+  nextTick(() => {
+    if (conversationListRef.value) conversationListRef.value.dispatchEvent(new Event('scroll'));
+  });
+}, { deep: true });
+
+watch(() => activeConversation.value?.messages, () => {
+  nextTick(() => {
+    if (chatContainer.value) chatContainer.value.dispatchEvent(new Event('scroll'));
+  });
+}, { deep: true });
+
 
 // Setup Scroll Glow Indicators
 const setupScrollGlow = (element, type) => {
@@ -1036,7 +1050,7 @@ window.addEventListener('focus', () => {
       <!-- Conversation List with Low-Risk Glow -->
       <div class="flex-1 relative overflow-hidden flex flex-col">
          <!-- Top Glow -->
-         <div class="absolute top-0 left-0 right-0 h-6 bg-gradient-to-b from-indigo-500/20 to-transparent z-10 pointer-events-none transition-opacity duration-300"
+         <div class="absolute top-0 left-0 right-0 h-6 bg-gradient-to-b from-indigo-500/15 to-transparent z-10 pointer-events-none transition-opacity duration-300"
               :class="scrollGlow.conversationsTop ? 'opacity-100' : 'opacity-0'"></div>
          
          <div 
@@ -1073,7 +1087,7 @@ window.addEventListener('focus', () => {
          </div>
          
          <!-- Bottom Glow -->
-         <div class="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-indigo-500/20 to-transparent z-10 pointer-events-none transition-opacity duration-300"
+         <div class="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-indigo-500/15 to-transparent z-10 pointer-events-none transition-opacity duration-300"
               :class="scrollGlow.conversationsBottom ? 'opacity-100' : 'opacity-0'"></div>
       </div>
       
@@ -1154,7 +1168,7 @@ window.addEventListener('focus', () => {
         </header>
 
         <!-- Top Glow (Messages) -->
-        <div class="absolute top-16 left-0 right-0 h-6 bg-gradient-to-b from-slate-900/40 to-transparent z-20 pointer-events-none transition-opacity duration-300"
+        <div class="absolute top-16 left-0 right-0 h-6 bg-gradient-to-b from-slate-900/30 to-transparent z-20 pointer-events-none transition-opacity duration-300"
              :class="scrollGlow.messagesTop ? 'opacity-100' : 'opacity-0'"></div>
         
         <!-- Messages - Scrollable Area with top and bottom padding -->
@@ -1270,7 +1284,7 @@ window.addEventListener('focus', () => {
         </div>
 
         <!-- Bottom Glow (Messages) -->
-        <div class="absolute bottom-[88px] left-0 right-0 h-8 bg-gradient-to-t from-slate-900/40 to-transparent z-20 pointer-events-none transition-opacity duration-300"
+        <div class="absolute bottom-[88px] left-0 right-0 h-8 bg-gradient-to-t from-slate-900/30 to-transparent z-20 pointer-events-none transition-opacity duration-300"
              :class="scrollGlow.messagesBottom ? 'opacity-100' : 'opacity-0'"></div>
         
         <!-- Input Area - ABSOLUTE BOTTOM -->
