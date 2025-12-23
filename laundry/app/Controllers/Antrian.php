@@ -415,9 +415,13 @@ class Antrian extends Controller
       $apiData = $res['data']['data'] ?? $res['data'] ?? [];
       $idApi = $apiData['id'] ?? ($apiData['message_id'] ?? '');
 
-      // DEBUG LOG
+      // DEBUG LOG - Full response structure
+      @file_put_contents(__DIR__ . '/../../logs/notif_debug.log', date('H:i:s') . " === FULL RESPONSE ===\n", FILE_APPEND);
+      @file_put_contents(__DIR__ . '/../../logs/notif_debug.log', json_encode($res, JSON_PRETTY_PRINT) . "\n", FILE_APPEND);
       @file_put_contents(__DIR__ . '/../../logs/notif_debug.log', date('H:i:s') . " Response status: " . ($res['status'] ? 'true' : 'false') . "\n", FILE_APPEND);
-      @file_put_contents(__DIR__ . '/../../logs/notif_debug.log', date('H:i:s') . " ID API extracted: $idApi\n", FILE_APPEND);
+      @file_put_contents(__DIR__ . '/../../logs/notif_debug.log', date('H:i:s') . " apiData: " . json_encode($apiData) . "\n", FILE_APPEND);
+      @file_put_contents(__DIR__ . '/../../logs/notif_debug.log', date('H:i:s') . " ID API extracted: '$idApi'\n", FILE_APPEND);
+      @file_put_contents(__DIR__ . '/../../logs/notif_debug.log', date('H:i:s') . " === END ===\n\n", FILE_APPEND);
 
       if ($res['status']) {
          $vals = [

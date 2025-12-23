@@ -213,15 +213,17 @@ class WhatsApp extends Controller
                 $templateParams
             );
             
-            // Check result
-            if (empty($result['id']) && empty($result['message_id'])) {
+            
+            // Check result - template returns nested structure
+            if (!$result['success'] || empty($result['data']['id'])) {
                  // Extract clean error message if possible
-                 $yError = $result['error']['message'] ?? ($result['error'] ?? json_encode($result));
+                 $yError = $result['error']['message'] ?? ($result['error'] ?? 'Template send failed');
                  // Return 502 (Bad Gateway) to indicate upstream error, not internal crash
                  $this->error("YCloud Reject: $yError", 502, $result);
             }
             
             $this->success([
+                'id' => $result['data']['id'] ?? null,  // Add id field for Antrian.php
                 'message_id' => $result['data']['id'] ?? null,
                 'status' => $result['data']['status'] ?? 'sent',
                 'mode' => 'template',
