@@ -1112,14 +1112,24 @@ window.addEventListener('focus', () => {
                   <img v-if="index === 0 || activeConversation.messages[index-1]?.sender === 'me'" :src="activeConversation.avatar" class="w-8 h-8 rounded-full mb-1">
                   <div v-else class="w-8"></div> <!-- Spacer -->
                   
-                  <div class="bg-slate-800 text-slate-200 px-3 py-2 rounded-lg rounded-bl-sm border border-slate-700/50 shadow-sm max-w-full">
-                     <div v-if="msg.type === 'image'" class="mb-2">
-                          <img v-if="msg.media_url" :src="msg.media_url" class="rounded-lg max-w-[200px] cursor-pointer" onclick="window.open(this.src)">
-                          <img v-else-if="msg.media_id" :src="`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" class="rounded-lg max-w-[200px] cursor-pointer" onclick="window.open(this.src)">
-                          <div v-else class="p-2 bg-slate-900 rounded border border-slate-700/50 flex flex-col items-center justify-center w-[200px] h-[150px]">
-                             <span class="text-[10px] text-slate-500">Image (Protected)</span>
-                          </div>
+                  <!-- Image Message: Transparent style -->
+                  <div v-if="msg.type === 'image'" class="rounded-lg overflow-hidden shadow-md max-w-[240px] bg-slate-800/20 border border-slate-700/30">
+                     <div class="relative">
+                        <img v-if="msg.media_url" :src="msg.media_url" class="w-full cursor-pointer" onclick="window.open(this.src)">
+                        <img v-else-if="msg.media_id" :src="`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" class="w-full cursor-pointer" onclick="window.open(this.src)">
+                        <div v-else class="bg-slate-900/50 flex flex-col items-center justify-center w-full h-[150px]">
+                           <span class="text-[10px] text-slate-400">Image (Protected)</span>
+                        </div>
+                        <!-- Caption & Time Overlay -->
+                        <div v-if="msg.text || msg.time" class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
+                           <p v-if="msg.text" class="text-white text-[13px] leading-tight mb-1" v-html="parseWhatsAppFormatting(msg.text)"></p>
+                           <span class="text-[10px] text-white/80 block text-right">{{ msg.time }}</span>
+                        </div>
                      </div>
+                  </div>
+                  
+                  <!-- Text Message: Normal style -->
+                  <div v-else class="bg-slate-800 text-slate-200 px-3 py-2 rounded-lg rounded-bl-sm border border-slate-700/50 shadow-sm max-w-full">
                      <p v-if="msg.text" class="leading-relaxed text-[15px] break-words whitespace-pre-wrap" v-html="parseWhatsAppFormatting(msg.text)"></p>
                      <span class="text-[11px] text-slate-500 block mt-1 text-right">{{ msg.time }}</span>
                   </div>
@@ -1127,11 +1137,45 @@ window.addEventListener('focus', () => {
                
                <!-- My Message -->
                <div v-else class="flex gap-3 max-w-[75%] self-end items-end justify-end">
-                  <div class="bg-indigo-600 text-white px-4 py-2.5 rounded-2xl rounded-br-sm shadow-md shadow-indigo-900/20 max-w-full">
-                     <div v-if="msg.type === 'image'" class="mb-2">
-                          <img v-if="msg.media_url" :src="msg.media_url" class="rounded-lg max-w-[200px] bg-slate-800">
-                          <img v-else-if="msg.media_id" :src="`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" class="rounded-lg max-w-[200px] bg-slate-800" onclick="window.open(this.src)">
+                  <!-- Image Message: Transparent style -->
+                  <div v-if="msg.type === 'image'" class="rounded-lg overflow-hidden shadow-md max-w-[240px] bg-indigo-600/10 border border-indigo-500/20">
+                     <div class="relative">
+                        <img v-if="msg.media_url" :src="msg.media_url" class="w-full cursor-pointer" onclick="window.open(this.src)">
+                        <img v-else-if="msg.media_id" :src="`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" class="w-full cursor-pointer" onclick="window.open(this.src)">
+                        <!-- Caption, Time & Status Overlay -->
+                        <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
+                           <p v-if="msg.text" class="text-white text-[13px] leading-tight mb-1" v-html="parseWhatsAppFormatting(msg.text)"></p>
+                           <div class="flex items-center justify-end gap-1">
+                              <span class="text-[10px] text-white/90">{{ msg.time }}</span>
+                              <!-- Status Icons -->
+                              <span v-if="msg.status === 'pending'" class="text-white/70">
+                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                              </span>
+                              <span v-else-if="msg.status === 'sent'" class="text-white/80">
+                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                              </span>
+                              <span v-else-if="msg.status === 'delivered'" class="text-white/80">
+                                 <div class="flex -space-x-1">
+                                   <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                                   <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                                 </div>
+                              </span>
+                              <span v-else-if="msg.status === 'read'" class="text-blue-300">
+                                 <div class="flex -space-x-1">
+                                   <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                                   <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                                 </div>
+                              </span>
+                              <span v-else-if="msg.status === 'failed'" class="text-red-300">
+                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                              </span>
+                           </div>
+                        </div>
                      </div>
+                  </div>
+                  
+                  <!-- Text Message: Normal style -->
+                  <div v-else class="bg-indigo-600 text-white px-4 py-2.5 rounded-2xl rounded-br-sm shadow-md shadow-indigo-900/20 max-w-full">
                      <p v-if="msg.text" class="leading-relaxed text-[15px] break-words whitespace-pre-wrap" v-html="parseWhatsAppFormatting(msg.text)"></p>
                        <div class="flex items-center justify-end gap-1 mt-1">
                           <span class="text-[10px] text-indigo-200">{{ msg.time }}</span>
