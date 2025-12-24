@@ -179,30 +179,9 @@ const connect = () => {
     connectionError.value = '';
     connectWebSocket();
     fetchConversations();
-    
-    // ✅ SUPER RELIABLE SYNC (3 Seconds)
-    // SSE is tricky with PHP buffering, so we use high-frequency polling.
-    // 3 seconds is fast enough to feel "real-time" but safe for server.
-    if (refreshInterval.value) {
-        clearInterval(refreshInterval.value);
-    }
-    
-    refreshInterval.value = setInterval(() => {
-        // Only poll if connected and tab is visible (save resources)
-        if (isConnected.value && !document.hidden) {
-            fetchConversations();
-        }
-    }, 3000); // ⚡ 3 Seconds Sync
 }
 
-// SSE Removed for reliability
-const connectSSE = () => {
-    // Disabled
-};
-
-const disconnectSSE = () => {
-   // Disabled
-};
+// --- Computed ---
 
 // --- Computed ---
 const activeConversation = computed(() => { 
@@ -897,8 +876,8 @@ const handleIncomingMessage = (payload) => {
       return;
   }
 
-  // Handle priority update
-  if (payload.type === 'priority_updated') {
+  // Handle priority update (or Hijacked new_message)
+  if (payload.type === 'priority_updated' || (payload.type === 'new_message' && payload.is_priority_update)) {
       const { phone, priority } = payload;
       console.log('[WebSocket] Received priority_updated:', { phone, priority });
       

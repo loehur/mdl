@@ -305,21 +305,17 @@ class Chat extends Controller
                 $userId = $_SERVER['HTTP_USER_ID'] ?? $body['user_id'] ?? null;
                 
                 $payload = [
-                    'type' => 'priority_updated',
+                    'type' => 'new_message', // ⚡ TRICK: Use standard type to ensure broadcast
+                    'is_priority_update' => true, // Flag for frontend to detect
                     'phone' => $phone,
                     'priority' => 0,
                     'target_id' => '0', // Broadcast to all
                     'sender_id' => $userId
                 ];
                 
+                
                 \Log::write("Pushing priority update to WebSocket: " . json_encode($payload), 'cms_ws', 'Chat');
                 $this->pushToWebSocket($payload);
-                
-                // ✅ Also broadcast via SSE for real-time updates
-                $this->broadcastSSE('priority_updated', [
-                    'phone' => $phone,
-                    'priority' => 0
-                ], $userId);
                 
                 $this->success(['priority' => 0], 'Conversation marked as done');
             } else {
@@ -334,165 +330,6 @@ class Chat extends Controller
                 'message' => "Server Error: " . $e->getMessage()
             ]);
             exit;
-        }
-    }
-    
-    public function stream()
-    {
-        // 🔒 CRITICAL: Close session to prevent locking other requests
-        if (session_status() === PHP_SESSION_ACTIVE) {
-            session_write_close();
-        }
-        
-        // Prevent timeout
-        set_time_limit(0);
-
-        // SSE Headers
-        header('Content-Type: text/event-stream');
-        header('Cache-Control: no-cache');
-        header('Connection: keep-alive');
-        header('X-Accel-Buffering: no'); // For Nginx
-        header('Access-Control-Allow-Origin: *'); // CORS
-        
-        // Disable output buffering
-        while (ob_get_level() > 0) {
-            ob_end_flush();
-        }
-        ini_set('implicit_flush', 1);
-        
-        // Disable Apache output buffering
-        if (function_exists('apache_setenv')) {
-            apache_setenv('no-gzip', '1');
-        }
-        
-        // Get user ID
-        $userId = $_GET['user_id'] ?? $_SERVER['HTTP_USER_ID'] ?? null;
-        
-        // Event file path (shared across PHP processes)
-        $eventFile = __DIR__ . '/../../../storage/sse_events.json';
-        $lastCheck = time();
-        $lastEventId = $_GET['lastEventId'] ?? 0;
-        
-        // Keep-alive loop
-        $startTime = time();
-        $maxDuration = 300; // 5 minutes max, then client reconnects
-        
-        while (time() - $startTime < $maxDuration) {
-            // Check connection
-            if (connection_aborted()) {
-                break;
-            }
-            
-            // Clear file status cache to ensure we see updates immediately
-            clearstatcache(false, $eventFile);
-            
-            // Read events from file
-            if (file_exists($eventFile)) {
-                $content = file_get_contents($eventFile);
-                $events = $content ? json_decode($content, true) : [];
-                if (!is_array($events)) $events = [];
-                
-                // Collect NEW events
-                $newEvents = [];
-                foreach ($events as $event) {
-                    if ($event['id'] > $lastEventId) {
-                        // Don't send to the originator
-                        if (isset($event['sender_id']) && $event['sender_id'] == $userId) {
-                            // Still update ID to skip connection re-send loops
-                        }
-                        $newEvents[] = $event;
-                    }
-                }
-                
-                // SORT by ID ASCENDING (Oldest -> Newest)
-                usort($newEvents, function($a, $b) {
-                    return $a['id'] - $b['id'];
-                });
-
-                // Send sorted events
-                foreach ($newEvents as $event) {
-                    $shouldSend = true;
-                    if (isset($event['sender_id']) && $event['sender_id'] == $userId) {
-                        $shouldSend = false;
-                    }
-
-                    if ($shouldSend) {
-                        echo "id: {$event['id']}\n";
-                        echo "event: {$event['type']}\n";
-                        echo "data: " . json_encode($event['data']) . "\n\n";
-                        
-                        // 🚀 PADDING TO FORCE FLUSH (1KB)
-                        echo ":" . str_repeat(" ", 1024) . "\n\n";
-                        
-                        // flush() handled by implicit_flush=1
-                        flush();
-                    }
-                    
-                    // Always update last ID after processing
-                    $lastEventId = $event['id'];
-                }
-            }
-            
-            // Send heartbeat every 10 seconds (reduced from 15)
-            if (time() - $lastCheck >= 10) {
-                echo ": heartbeat\n";
-                // Heartbeat also gets padding to keep connection healthy
-                echo ":" . str_repeat(" ", 1024) . "\n\n";
-                ob_flush();
-                flush();
-                $lastCheck = time();
-            }
-            
-            // Sleep to reduce CPU usage (200ms)
-            usleep(200000); 
-        }
-        
-        // Connection closed
-        exit;
-    }
-    
-    // Helper to broadcast SSE event
-    private function broadcastSSE($type, $data, $senderId = null)
-    {
-        try {
-            $storageDir = __DIR__ . '/../../../storage';
-            $eventFile = $storageDir . '/sse_events.json';
-            
-            // Create storage directory if not exists
-            if (!is_dir($storageDir)) {
-                mkdir($storageDir, 0755, true);
-            }
-            
-            // Read existing events
-            $events = [];
-            if (file_exists($eventFile)) {
-                $content = file_get_contents($eventFile);
-                $events = $content ? json_decode($content, true) : [];
-                if (!is_array($events)) $events = [];
-            }
-            
-            // Add new event
-            $eventId = isset($events[0]) ? $events[0]['id'] + 1 : 1;
-            array_unshift($events, [
-                'id' => $eventId,
-                'type' => $type,
-                'data' => $data,
-                'sender_id' => $senderId,
-                'timestamp' => time()
-            ]);
-            
-            // Keep only last 50 events
-            $events = array_slice($events, 0, 50);
-            
-            // Write back
-            file_put_contents($eventFile, json_encode($events));
-            
-            \Log::write("✓ SSE event broadcasted: $type", 'sse', 'Chat');
-            
-            return $eventId;
-        } catch (\Exception $e) {
-            \Log::write("✗ SSE broadcast error: " . $e->getMessage(), 'sse_error', 'Chat');
-            return false;
         }
     }
     
