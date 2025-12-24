@@ -312,24 +312,9 @@ class Login extends Controller
     */
    private function send_wa_ycloud($phone, $message)
    {
-      // Lookup last_message_at data (DB 100) agar API Server tidak crash
-      $lastMessageAt = null;
-      
-      // Normalisasi sederhana utk query
-      $p = preg_replace('/[^0-9]/', '', $phone);
-      if(substr($p, 0, 2)=='08') $p='628'.substr($p, 2);
-      elseif(substr($p, 0, 1)=='8') $p='62'.$p;
-      
-      $chk = $this->db(100)->get_where_row('wa_customers', "wa_number IN ('$p', '+$p')");
-      if($chk && !empty($chk['last_message_at'])) {
-          $lastMessageAt = $chk['last_message_at'];
-      } else {
-          // Tidak ketemu -> Asumsi user baru mulai sesi (Current Time)
-          $lastMessageAt = date('Y-m-d H:i:s');
-      }
-   
       // Gunakan Model yang sudah kita buat untuk sentralisasi
-      $res = $this->model('WA_YCloud')->send($phone, $message, $lastMessageAt);
+      // Mode 'free' agar API Server melakukan pengecekan CSW secara otomatis via Database
+      $res = $this->model('WA_YCloud')->send($phone, $message, 'free');
       
       $result = [
          'status' => $res['status'],
