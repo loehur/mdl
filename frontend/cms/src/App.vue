@@ -1369,7 +1369,7 @@ window.addEventListener('focus', () => {
                   <span v-if="chat.kode_cabang" class="font-mono text-xs mr-1" :class="chat.kode_cabang === '00' ? 'text-pink-500' : 'text-indigo-400'">[{{ chat.kode_cabang }}]</span>
                   {{ (chat.name || '').toUpperCase() }}
                 </h3>
-                <span class="text-xs flex-shrink-0" :class="chat.isToday ? 'text-green-400 font-medium' : 'text-slate-500'">{{ chat.lastTime }}</span>
+                <span class="text-xs flex-shrink-0" :class="chat.isToday ? 'text-green-500' : 'text-slate-500'">{{ chat.lastTime }}</span>
               </div>
              <div class="flex justify-between items-center">
                 <p class="text-sm text-slate-400 truncate w-64" :class="{'font-medium text-slate-200': chat.unread > 0}">{{ chat.lastMessage }}</p>
