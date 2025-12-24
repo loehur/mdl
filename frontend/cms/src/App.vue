@@ -856,11 +856,19 @@ const handleIncomingMessage = (payload) => {
   // Handle priority update
   if (payload.type === 'priority_updated') {
       const { phone, priority } = payload;
+      console.log('[WebSocket] Received priority_updated:', { phone, priority });
+      
       const conversation = conversations.value.find(c => c.wa_number === phone);
       
       if (conversation) {
-          conversation.priority = priority;
+          conversation.priority = parseInt(priority) || 0;
           console.log(`✓ Priority updated for ${phone}: ${priority}`);
+          
+          // Force re-sort by creating new array reference
+          // This triggers Vue reactivity for computed filteredConversations
+          conversations.value = [...conversations.value];
+      } else {
+          console.warn(`⚠ Conversation not found for phone: ${phone}`);
       }
       return;
   }
@@ -1337,6 +1345,15 @@ onMounted(() => {
       // We can try to force update a key ref to trigger re-render if needed.
     }
   });
+  
+  // --- CLICK OUTSIDE HANDLER ---
+  // Close menu when clicking anywhere
+  window.addEventListener('click', handleClickOutside);
+  
+  // --- PASTE HANDLER ---
+  // Handle pasted images
+  window.addEventListener('paste', handlePaste);
+  
   const storedId = localStorage.getItem('cms_chat_id');
   const storedPass = localStorage.getItem('cms_chat_password');
   const storedExpiry = localStorage.getItem('cms_chat_expiry');
@@ -1705,7 +1722,7 @@ window.addEventListener('focus', () => {
              <!-- Three Dots Menu Button - ACTIVE -->
              <div class="relative">
                <button 
-                 @click="showChatMenu = !showChatMenu" 
+                 @click.stop="showChatMenu = !showChatMenu" 
                  class="hover:text-indigo-400 transition-colors p-2 rounded-full hover:bg-slate-800"
                  :class="{'bg-slate-800 text-indigo-400': showChatMenu}"
                >
