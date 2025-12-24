@@ -1181,8 +1181,47 @@ onMounted(() => {
       try {
           const parsed = JSON.parse(cached);
           if (Array.isArray(parsed) && parsed.length > 0) {
+              // 🛡️ SANITIZE CACHE ON LOAD
+              // Remove exact duplicates and fuzzy duplicates from the persisted data
+              parsed.forEach(c => {
+                  if (c.messages && c.messages.length > 0) {
+                       const unique = [];
+                       const seenIds = new Set();
+                       // Sort first
+                       c.messages.sort((a, b) => new Date(a.rawTime || a.time) - new Date(b.rawTime || b.time));
+                       
+                       for (let i = 0; i < c.messages.length; i++) {
+                           const msg = c.messages[i];
+                           const idKey = String(msg.id);
+                           const contentKey = msg.sender + '_' + (msg.text || '').trim();
+                           
+                           // 1. ID Check
+                           if (seenIds.has(idKey)) continue; 
+                           
+                           // 2. Adjacent Content Check (Fuzzy)
+                           // If this message looks exactly like the previous one and is within 3s, skip it
+                           let isFuzzyDupe = false;
+                           if (unique.length > 0) {
+                               const prev = unique[unique.length - 1];
+                               const timeDiff = Math.abs(new Date(msg.rawTime || msg.time) - new Date(prev.rawTime || prev.time));
+                               if (prev.sender === msg.sender && 
+                                   (prev.text || '').trim() === (msg.text || '').trim() &&
+                                   timeDiff < 3000) {
+                                   isFuzzyDupe = true;
+                               }
+                           }
+                           
+                           if (!isFuzzyDupe) {
+                               unique.push(msg);
+                               seenIds.add(idKey);
+                           }
+                       }
+                       c.messages = unique;
+                  }
+              });
+
               conversations.value = parsed;
-              console.log("⚡ Restored " + parsed.length + " conversations from cache");
+              console.log("⚡ Restored & Sanitized " + parsed.length + " conversations from cache");
           }
       } catch(e) { 
           console.error("Cache parse error", e); 
