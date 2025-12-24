@@ -58,6 +58,19 @@ const originalTitle = 'MDL Chat';
 const titleBlinkInterval = ref(null);
 const isTitleRed = ref(false);
 
+const searchQuery = ref('');
+
+const filteredConversations = computed(() => {
+  if (!searchQuery.value) return conversations.value;
+  
+  const query = searchQuery.value.toLowerCase();
+  return conversations.value.filter(c => 
+    (c.name && c.name.toLowerCase().includes(query)) ||
+    (c.wa_number && c.wa_number.includes(query)) ||
+    (c.lastMessage && c.lastMessage.toLowerCase().includes(query))
+  );
+});
+
 
 
 const fetchConversations = async () => {
@@ -1305,15 +1318,27 @@ window.addEventListener('focus', () => {
     <!-- On mobile, we keep it rendered but covered by chat when active. On desktop it's side-by-side. -->
     <aside v-if="authId" class="flex flex-col border-r border-slate-800 bg-[#1e293b] transition-all duration-300 absolute md:static z-0 h-full w-full md:w-96"
            :class="showMobileChat ? 'flex' : 'flex'">
-      <!-- Header -->
-      <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-[#1e293b]/50 backdrop-blur-md">
-        <h1 class="text-xl font-bold bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">
-          MDL WhatsApp
-        </h1>
-        <div class="relative">
-             <div class="w-3 h-3 rounded-full" :class="isConnected ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-red-500'"></div>
-        </div>
-      </div>
+      <!-- Search Header -->
+       <div class="p-4 border-b border-slate-700 bg-[#1e293b]/90 backdrop-blur-md sticky top-0 z-10 transition-colors duration-300">
+          <div class="relative group">
+              <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-500 group-focus-within:text-indigo-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+              </div>
+              <input 
+                  v-model="searchQuery"
+                  type="text" 
+                  placeholder="Search chat..." 
+                  class="block w-full pl-10 pr-10 py-2.5 border border-slate-700 rounded-xl leading-5 bg-slate-800/50 text-slate-200 placeholder-slate-500 focus:outline-none focus:bg-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 sm:text-sm transition-all shadow-sm"
+              >
+              <div v-if="searchQuery" class="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer" @click="searchQuery = ''">
+                   <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500 hover:text-slate-300 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                   </svg>
+              </div>
+          </div>
+       </div>
       
       <!-- Conversation List (Pure CSS Shadows) -->
       <div 
@@ -1321,7 +1346,7 @@ window.addEventListener('focus', () => {
          class="flex-1 overflow-y-auto custom-scrollbar"
       >
         <div 
-          v-for="chat in conversations" 
+          v-for="chat in filteredConversations"  
           :key="chat.id"
           @click="selectChat(chat.id)"
           class="p-3 flex items-center gap-3 cursor-pointer transition-colors duration-200 border-b border-slate-800/50 hover:bg-slate-800/50"
