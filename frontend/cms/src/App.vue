@@ -260,10 +260,16 @@ const needsDateSeparator = (currentMsg, previousMsg) => {
 const sanitizeMessages = (messages) => {
     if (!Array.isArray(messages)) return [];
     
-    // 1. Sort by Time
+    // 1. Sort by Time (Robust)
     messages.sort((a, b) => {
-        const ta = new Date(a.rawTime || a.time).getTime();
-        const tb = new Date(b.rawTime || b.time).getTime();
+        let ta = new Date(a.rawTime || a.time).getTime();
+        let tb = new Date(b.rawTime || b.time).getTime();
+        
+        // Fallback for "10:30 PM" format if Date parse fails
+        if (isNaN(ta) && a.time) ta = new Date('1970/01/01 ' + a.time).getTime();
+        if (isNaN(tb) && b.time) tb = new Date('1970/01/01 ' + b.time).getTime();
+        
+        // Final fallback: keep original order (0)
         return (isNaN(ta) ? 0 : ta) - (isNaN(tb) ? 0 : tb);
     });
     
@@ -349,7 +355,8 @@ const sanitizeMessages = (messages) => {
 // --- Methods ---
 const fetchMessages = async (phone) => {
     try {
-        const response = await fetch(`${API_BASE}/CMS/Chat/getMessages?phone=${phone}`);
+        // Add cache buster
+        const response = await fetch(`${API_BASE}/CMS/Chat/getMessages?phone=${phone}&_t=${Date.now()}`);
         const result = await response.json();
         
         if (result.status && Array.isArray(result.data)) {
@@ -459,7 +466,7 @@ const sendMessage = async () => {
       sender: 'me',
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       rawTime: new Date().toISOString(), // Fixed: Add rawTime for proper sorting
-      timestamp: Date.now(),
+      timestamp: Date.now(), // Add timestamp for duplicate detection
       status: 'pending'
     };
     
