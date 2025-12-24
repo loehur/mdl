@@ -343,6 +343,9 @@ class Chat extends Controller
         if (session_status() === PHP_SESSION_ACTIVE) {
             session_write_close();
         }
+        
+        // Prevent timeout
+        set_time_limit(0);
 
         // SSE Headers
         header('Content-Type: text/event-stream');
@@ -351,12 +354,16 @@ class Chat extends Controller
         header('X-Accel-Buffering: no'); // For Nginx
         header('Access-Control-Allow-Origin: *'); // CORS
         
+        // Disable output buffering
+        while (ob_get_level() > 0) {
+            ob_end_flush();
+        }
+        ini_set('implicit_flush', 1);
+        
         // Disable Apache output buffering
         if (function_exists('apache_setenv')) {
             apache_setenv('no-gzip', '1');
         }
-        ini_set('output_buffering', 'off');
-        ini_set('zlib.output_compression', false);
         
         // Get user ID
         $userId = $_GET['user_id'] ?? $_SERVER['HTTP_USER_ID'] ?? null;
@@ -414,11 +421,10 @@ class Chat extends Controller
                         echo "event: {$event['type']}\n";
                         echo "data: " . json_encode($event['data']) . "\n\n";
                         
-                        // 🚀 PADDING TO FORCE FLUSH (>4KB)
-                        // Many servers buffer 4KB before sending. We force it locally.
-                        echo ":" . str_repeat(" ", 4096) . "\n\n";
+                        // 🚀 PADDING TO FORCE FLUSH (1KB)
+                        echo ":" . str_repeat(" ", 1024) . "\n\n";
                         
-                        ob_flush();
+                        // flush() handled by implicit_flush=1
                         flush();
                     }
                     
