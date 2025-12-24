@@ -1285,7 +1285,7 @@ window.addEventListener('focus', () => {
                 <span class="text-xs text-slate-500 flex-shrink-0">{{ chat.lastTime }}</span>
               </div>
              <div class="flex justify-between items-center">
-                <p class="text-sm text-slate-400 truncate w-48" :class="{'font-medium text-slate-200': chat.unread > 0}">{{ chat.lastMessage }}</p>
+                <p class="text-sm text-slate-400 truncate w-64" :class="{'font-medium text-slate-200': chat.unread > 0}">{{ chat.lastMessage }}</p>
                 <span v-if="chat.unread > 0" class="bg-indigo-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shadow-sm">
                   {{ chat.unread }}
                 </span>
