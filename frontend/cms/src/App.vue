@@ -751,24 +751,38 @@ const connectWebSocket = () => {
                        console.log('Updated existing message:', existingMessage.id);
                        // Don't add as new - already exists
                    } else {
-                       // NEW DEFENSE: Fuzzy match last sent message
-                       // This handles cases where API beat WS (so status is 'sent') BUT IDs still don't match
-                       const lastMsg = conversation.messages[conversation.messages.length - 1];
+                       // NEW DEFENSE: Robust Fuzzy Match
+                       // Search backwards for the most recent message from 'me' with same text
+                       // This handles race conditions where the order might be slightly off or not the very last item
+                       let pendingMatch = null;
+                       const cleanIncomingText = (messageData.text || '').trim();
                        
-                       if (lastMsg && 
-                           lastMsg.sender === 'me' && 
-                           lastMsg.text === messageData.text &&
-                           (lastMsg.status === 'pending' || lastMsg.status === 'sent')
-                       ) {
-                            // Check time proximity (optional but safer) - safely handle different time formats
-                            // But since text is identical and it's the LAST message, it's 99% safe to merge.
-                           console.log('Matched duplicate via fuzzy content check (Last Message):', lastMsg.id);
+                       // Scan last 5 messages
+                       for (let i = conversation.messages.length - 1; i >= 0; i--) {
+                           if (conversation.messages.length - i > 5) break; 
+                           
+                           const m = conversation.messages[i];
+                           const cleanLocalText = (m.text || '').trim();
+                           
+                           // Check match: Sender is me AND text matches
+                           if (m.sender === 'me' && cleanLocalText === cleanIncomingText) {
+                                // If it's already "read", we probably shouldn't merge (it's old)
+                                // But if it's pending, sent, or delivered, it's a candidate
+                                if (m.status !== 'read') {
+                                    pendingMatch = m;
+                                    break;
+                                }
+                           }
+                       }
+                       
+                       if (pendingMatch) {
+                           console.log('Matched duplicate (Fuzzy Refined):', pendingMatch.id);
                            
                            // Update IDs to server values
-                           lastMsg.id = messageData.id; 
-                           if (messageData.wamid) lastMsg.wamid = messageData.wamid;
-                           lastMsg.status = messageData.status || 'sent';
-                           if (messageData.media_url) lastMsg.media_url = messageData.media_url;
+                           pendingMatch.id = messageData.id; 
+                           if (messageData.wamid) pendingMatch.wamid = messageData.wamid;
+                           pendingMatch.status = messageData.status || 'sent';
+                           if (messageData.media_url) pendingMatch.media_url = messageData.media_url;
                            return; // Stop, don't add new
                        }
 
