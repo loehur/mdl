@@ -103,11 +103,15 @@ class WhatsApp extends Controller
      */
     private function handleInboundMessage($db, $data)
     {
+        // DEBUG: Log RAW webhook data for button messages
+        \Log::write("=== INBOUND WEBHOOK START ===", 'wa_inbound', 'debug');
+        \Log::write("Full webhook data: " . json_encode($data), 'wa_inbound', 'debug');
+        
         $msg = $data['whatsappInboundMessage'] ?? [];
         $textBodyToCheck = $msg['text']['body'] ?? '';
         
         if (empty($msg)) {
-            \Log::write("ERROR: No whatsappInboundMessage", 'webhook', 'WhatsApp');
+            \Log::write("ERROR: No whatsappInboundMessage", 'wa_inbound', 'error');
             return;
         }
 
@@ -118,9 +122,15 @@ class WhatsApp extends Controller
         $wamid = $msg['wamid'] ?? null;
         $status = $msg['status'] ?? 'received'; // Default status for inbound
         $sendTime = date('Y-m-d H:i:s');
+        
+        // DEBUG: Log message metadata
+        \Log::write("Message Type: $messageType | From: $waNumber | ID: $messageId", 'wa_inbound', 'debug');
+        if ($messageType === 'button') {
+            \Log::write("BUTTON MESSAGE DETECTED | Full button data: " . json_encode($msg['button'] ?? []), 'wa_inbound', 'debug');
+        }
 
         if (!$waNumber) {
-            \Log::write("ERROR: No 'from' number", 'webhook', 'WhatsApp');
+            \Log::write("ERROR: No 'from' number", 'wa_inbound', 'error');
             return;
         }
 
@@ -128,6 +138,7 @@ class WhatsApp extends Controller
         if ($messageId) {
             $dupe = $db->get_where('wa_messages_in', ['message_id' => $messageId])->row();
             if ($dupe) {
+                \Log::write("SKIP: Duplicate message $messageId", 'wa_inbound', 'debug');
                 // Skip silently (no verbose log)
                 return;
             }
@@ -264,7 +275,14 @@ class WhatsApp extends Controller
             'contact_name' => $contact_name,
             'status' => $status,
             'received_at' => $sendTime
-        ];        
+        ];
+        
+        // DEBUG: Log data before insert
+        \Log::write("Preparing to INSERT: Type=$messageType | Text=" . ($textBody ?? 'NULL') . " | MessageID=$messageId", 'wa_inbound', 'debug');
+        if ($messageType === 'button') {
+            \Log::write("BUTTON data to be saved: " . json_encode(['text' => $textBody, 'type' => $messageType]), 'wa_inbound', 'debug');
+        }
+        
         $msgId = $db->insert('wa_messages_in', $messageData);
 
         if (!$msgId) {
