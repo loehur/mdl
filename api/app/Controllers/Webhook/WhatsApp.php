@@ -103,10 +103,6 @@ class WhatsApp extends Controller
      */
     private function handleInboundMessage($db, $data)
     {
-        // DEBUG: Log RAW webhook data for button messages
-        \Log::write("=== INBOUND WEBHOOK START ===", 'wa_inbound', 'debug');
-        \Log::write("Full webhook data: " . json_encode($data), 'wa_inbound', 'debug');
-        
         $msg = $data['whatsappInboundMessage'] ?? [];
         $textBodyToCheck = $msg['text']['body'] ?? '';
         
@@ -123,10 +119,12 @@ class WhatsApp extends Controller
         $status = $msg['status'] ?? 'received'; // Default status for inbound
         $sendTime = date('Y-m-d H:i:s');
         
-        // DEBUG: Log message metadata
-        \Log::write("Message Type: $messageType | From: $waNumber | ID: $messageId", 'wa_inbound', 'debug');
+        // DEBUG: Log ONLY for button messages
         if ($messageType === 'button') {
-            \Log::write("BUTTON MESSAGE DETECTED | Full button data: " . json_encode($msg['button'] ?? []), 'wa_inbound', 'debug');
+            \Log::write("=== BUTTON MESSAGE WEBHOOK ===", 'wa_inbound', 'debug');
+            \Log::write("Full webhook data: " . json_encode($data), 'wa_inbound', 'debug');
+            \Log::write("Message Type: $messageType | From: $waNumber | ID: $messageId", 'wa_inbound', 'debug');
+            \Log::write("BUTTON data: " . json_encode($msg['button'] ?? []), 'wa_inbound', 'debug');
         }
 
         if (!$waNumber) {
@@ -138,8 +136,9 @@ class WhatsApp extends Controller
         if ($messageId) {
             $dupe = $db->get_where('wa_messages_in', ['message_id' => $messageId])->row();
             if ($dupe) {
-                \Log::write("SKIP: Duplicate message $messageId", 'wa_inbound', 'debug');
-                // Skip silently (no verbose log)
+                if ($messageType === 'button') {
+                    \Log::write("SKIP: Duplicate button message $messageId", 'wa_inbound', 'debug');
+                }
                 return;
             }
         }
