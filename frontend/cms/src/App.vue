@@ -105,8 +105,7 @@ const fetchConversations = async () => {
                     color: getAvatarColor(c.id),
                     status: c.status,  
                     lastMessage: c.last_message || c.last_message_text || 'No messages yet',
-                    lastTime: c.last_message_time ? new Date(c.last_message_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '',
-                    isToday: c.last_message_time ? new Date(c.last_message_time).toDateString() === new Date().toDateString() : false,
+                    lastTime: formatLastTime(c.last_message_time),
                     unread: parseInt(c.unread_count) || 0,
                     // Preserve existing messages or initialize empty
                     messages: existing ? existing.messages : [] 
@@ -194,6 +193,27 @@ const parseWhatsAppFormatting = (text) => {
   formatted = formatted.replace(/```([^`]+)```/g, '<code class="bg-slate-900/50 px-1.5 py-0.5 rounded text-xs font-mono">$1</code>');
   
   return formatted;
+};
+
+// Format Last Time for Conversation List (WhatsApp Style)
+const formatLastTime = (dateString) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  const now = new Date();
+  
+  // Reset time part for accurate date comparison
+  const d = new Date(date); d.setHours(0,0,0,0);
+  const n = new Date(now); n.setHours(0,0,0,0);
+  const y = new Date(n); y.setDate(y.getDate() - 1);
+  
+  if (d.getTime() === n.getTime()) {
+    return date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+  } else if (d.getTime() === y.getTime()) {
+    return 'Yesterday';
+  } else {
+    // DD/MM/YY
+    return date.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: '2-digit' });
+  }
 };
 
 // Format date for separator (Today, Yesterday, or date)
@@ -755,8 +775,7 @@ const handleIncomingMessage = (payload) => {
       });
       
       conversation.lastMessage = displayText;
-      conversation.lastTime = newMsg.time;
-      conversation.isToday = true;
+      conversation.lastTime = formatLastTime(newMsg.rawTime);
       
   // Check visibility: Active ID matches AND (Desktop OR Mobile Chat View Open)
   const isChatVisible = activeChatId.value == conversationId && (windowWidth.value >= 768 || showMobileChat.value);
@@ -1369,7 +1388,7 @@ window.addEventListener('focus', () => {
                   <span v-if="chat.kode_cabang" class="font-mono text-xs mr-1" :class="chat.kode_cabang === '00' ? 'text-pink-500' : 'text-indigo-400'">[{{ chat.kode_cabang }}]</span>
                   {{ (chat.name || '').toUpperCase() }}
                 </h3>
-                <span class="text-xs flex-shrink-0" :class="chat.isToday ? 'text-green-500' : 'text-slate-500'">{{ chat.lastTime }}</span>
+                <span class="text-xs text-slate-500 flex-shrink-0">{{ chat.lastTime }}</span>
               </div>
              <div class="flex justify-between items-center">
                 <p class="text-sm text-slate-400 truncate w-64" :class="{'font-medium text-slate-200': chat.unread > 0}">{{ chat.lastMessage }}</p>
