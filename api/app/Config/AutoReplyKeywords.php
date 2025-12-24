@@ -21,9 +21,9 @@ return [
         'max_length' => 100,
         'keywords' => [
             'cek', 'status',
-            'udh siap', 'dh siap', 'uda siap', 'dah siap', 'udah siap', 'sudah siap',
-            'udh beres', 'dh beres', 'uda beres', 'dah beres', 'udah beres', 'sudah beres',
-            'udh selesai', 'dh selesai', 'dh slsai', 'uda selesai', 'dah selesai', 'udah selesai', 'sudah selesai',
+            'dh siap', 'da siap', 'dah siap', 'dh selsesai', 'da selsesai', 'dah selsesai',
+            'dh beres', 'da beres', 'dah beres',
+            'dh selesai', 'da selesai', 'dah selesai',
             'bs diambil', 'bs di ambil', 'bisa diambil', 'bisa di ambil',
             'bs dijemput', 'bisa dijemput', 'bs di jemput', 'bisa di jemput',
             'kpn siap', 'kapan siap', 'kpn selesai', 'kapan selesai'
@@ -46,7 +46,7 @@ return [
     'sapa' => [
         'max_length' => 12,
         'keywords' => [
-            'ping', 'halo', 'hallo', 'hello', 'tes', 'alaikum', 'assalam', 'aslkm', 'salam'
+            'ping', 'halo', 'hallo', 'hello', 'tes', 'alaikum', 'assalam', 'aslkm', 'salam', 'pagi', 'sore', 'malam', 'mlm', 'malm', 'mlam'
         ]
     ],
 

@@ -261,7 +261,7 @@ const fetchMessages = async (phone) => {
         const result = await response.json();
         
         if (result.status && Array.isArray(result.data)) {
-            return result.data.map(m => ({
+            const mappedMessages = result.data.map(m => ({
                 id: m.id,
                 wamid: m.wamid,
                 text: m.text || m.caption, // Use caption if text is empty
@@ -273,6 +273,34 @@ const fetchMessages = async (phone) => {
                 rawTime: m.time, // Keep raw timestamp for date separator
                 status: m.status
             }));
+
+            // Deduplicate logic (Handle backend echoing duplicates)
+            const uniqueMessages = [];
+            const normalize = (str) => String(str || '').replace(/\s+/g, ' ').trim();
+
+            mappedMessages.forEach(msg => {
+                const isDuplicate = uniqueMessages.some(existing => {
+                    // 1. Exact ID match
+                    if (String(existing.id) === String(msg.id)) return true;
+                    // 2. WAMID match
+                    if (existing.wamid && msg.wamid && String(existing.wamid) === String(msg.wamid)) return true;
+                    
+                    // 3. Fuzzy match (Sender + Text + Time < 5s)
+                    if (existing.sender === msg.sender && normalize(existing.text) === normalize(msg.text)) {
+                        const t1 = new Date(existing.rawTime).getTime();
+                        const t2 = new Date(msg.rawTime).getTime();
+                        // 5 second tolerance for echo/delays
+                        if (!isNaN(t1) && !isNaN(t2) && Math.abs(t1 - t2) < 5000) return true;
+                    }
+                    return false;
+                });
+                
+                if (!isDuplicate) {
+                    uniqueMessages.push(msg);
+                }
+            });
+
+            return uniqueMessages;
         }
     } catch (e) {
         console.error("Error loading messages:", e);
@@ -748,13 +776,15 @@ const handleIncomingMessage = (payload) => {
       // Wamid match
       if (m.wamid && newMsg.wamid && String(m.wamid) === String(newMsg.wamid)) return true;
       
-      // Fuzzy match: same sender + same text + close timestamp
-      if (m.sender === newMsg.sender && m.text === newMsg.text) {
-          // Check if timestamps are within 2 seconds of each other
+      // Fuzzy match: same sender + same NORMALIZED text + close timestamp
+      const normalize = (str) => String(str || '').replace(/\s+/g, ' ').trim();
+      
+      if (m.sender === newMsg.sender && normalize(m.text) === normalize(newMsg.text)) {
+          // Check if timestamps are within 5 seconds of each other
           const time1 = new Date(m.rawTime || m.time).getTime();
           const time2 = new Date(newMsg.rawTime || newMsg.time).getTime();
           
-          if (!isNaN(time1) && !isNaN(time2) && Math.abs(time1 - time2) < 2000) {
+          if (!isNaN(time1) && !isNaN(time2) && Math.abs(time1 - time2) < 5000) {
               console.log('⚠️ Duplicate detected (fuzzy match):', newMsg.id, 'matches existing:', m.id);
               return true;
           }
