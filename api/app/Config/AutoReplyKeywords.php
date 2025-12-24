@@ -13,7 +13,7 @@ return [
             'bon', 'struk', 'nota', 'bill', 'kirim', 'tagihan', 'resi',
             'total laundry', 'total londri', 'total laundri',
             'totl laundry', 'totl londri', 'totl laundri', 'berapa total',
-            'brp total', 'brp totl'
+            'brp total', 'brp totl', 'brpa total'
         ]
     ],
 
