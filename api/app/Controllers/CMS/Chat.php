@@ -403,8 +403,8 @@ class Chat extends Controller
                 $lastCheck = time();
             }
             
-            // Sleep to reduce CPU usage
-            sleep(1);
+            // Sleep to reduce CPU usage (200ms for faster response)
+            usleep(200000); // 0.2 seconds
         }
         
         // Connection closed

@@ -254,6 +254,11 @@ const totalUnread = computed(() => {
   return conversations.value.reduce((total, chat) => total + (chat.unread || 0), 0);
 });
 
+// Total Priority Conversations
+const totalPriority = computed(() => {
+  return conversations.value.filter(chat => chat.priority && chat.priority > 0).length;
+});
+
 // --- Methods ---
 
 // Parse WhatsApp Formatting to HTML
@@ -1492,21 +1497,32 @@ const logout = () => {
 };
 
 // Update Title Blinking
+// Update Title Blinking
 const updateTitleBlinking = () => {
   // Stop any existing interval
   if (titleBlinkInterval.value) {
     clearInterval(titleBlinkInterval.value);
     titleBlinkInterval.value = null;
     document.title = originalTitle;
+    isTitleRed.value = false;
   }
   
-  // If there are unread messages, start blinking
-  if (totalUnread.value > 0) {
+  const priorityCount = totalPriority.value;
+  const unreadCount = totalUnread.value;
+  
+  // High Priority or Unread Messages Blink
+  if (priorityCount > 0 || unreadCount > 0) {
     let showAlert = true;
     titleBlinkInterval.value = setInterval(() => {
       if (showAlert) {
-        document.title = `🔴 (${totalUnread.value}) New Messages!`;
-        isTitleRed.value = true;
+        if (priorityCount > 0) {
+            // Priority takes precedence
+            document.title = `🔴 (${priorityCount}) PRIORITY AC!`;
+            isTitleRed.value = true;
+        } else {
+            document.title = `🔴 (${unreadCount}) New Messages!`;
+            isTitleRed.value = true;
+        }
       } else {
         document.title = originalTitle;
         isTitleRed.value = false;
@@ -1520,8 +1536,8 @@ watch(activeChatId, () => {
   scrollToBottom();
 });
 
-// Watch for unread count changes
-watch(totalUnread, () => {
+// Watch for unread count OR priority changes
+watch([totalUnread, totalPriority], () => {
   updateTitleBlinking();
 });
 
@@ -1535,11 +1551,17 @@ onUnmounted(() => {
 
 // Stop blinking when window is focused
 window.addEventListener('focus', () => {
-  if (totalUnread.value === 0 && titleBlinkInterval.value) {
+  if (titleBlinkInterval.value) {
     clearInterval(titleBlinkInterval.value);
     titleBlinkInterval.value = null;
     document.title = originalTitle;
+    isTitleRed.value = false;
   }
+});
+
+// Restart blinking when window blurs (if needed)
+window.addEventListener('blur', () => {
+  updateTitleBlinking();
 });
 
 </script>
