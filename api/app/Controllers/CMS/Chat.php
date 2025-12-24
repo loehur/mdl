@@ -339,6 +339,11 @@ class Chat extends Controller
     
     public function stream()
     {
+        // 🔒 CRITICAL: Close session to prevent locking other requests
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
+
         // SSE Headers
         header('Content-Type: text/event-stream');
         header('Cache-Control: no-cache');
@@ -373,25 +378,47 @@ class Chat extends Controller
             
             // Read events from file
             if (file_exists($eventFile)) {
-                $events = json_decode(file_get_contents($eventFile), true) ?: [];
+                $content = file_get_contents($eventFile);
+                $events = $content ? json_decode($content, true) : [];
+                if (!is_array($events)) $events = [];
                 
-                // Send new events
+                // Collect NEW events
+                $newEvents = [];
                 foreach ($events as $event) {
                     if ($event['id'] > $lastEventId) {
-                        // Don't send to the originator (optional)
+                        // Don't send to the originator
                         if (isset($event['sender_id']) && $event['sender_id'] == $userId) {
-                            continue; // Skip events from self
+                            // Still update ID to skip connection re-send loops
+                            // But for stream, we can just skip sending.
+                            // BUT wait, if we skip sending, we must ensure lastEventId updates correctly eventually.
+                            // Let's add it to processing list but mark as skip
                         }
-                        
+                        $newEvents[] = $event;
+                    }
+                }
+                
+                // SORT by ID ASCENDING (Oldest -> Newest) to prevent skipping
+                usort($newEvents, function($a, $b) {
+                    return $a['id'] - $b['id'];
+                });
+
+                // Send sorted events
+                foreach ($newEvents as $event) {
+                    $shouldSend = true;
+                    if (isset($event['sender_id']) && $event['sender_id'] == $userId) {
+                        $shouldSend = false;
+                    }
+
+                    if ($shouldSend) {
                         echo "id: {$event['id']}\n";
                         echo "event: {$event['type']}\n";
                         echo "data: " . json_encode($event['data']) . "\n\n";
-                        
-                        $lastEventId = $event['id'];
-                        
                         ob_flush();
                         flush();
                     }
+                    
+                    // Always update last ID after processing
+                    $lastEventId = $event['id'];
                 }
             }
             
@@ -403,8 +430,8 @@ class Chat extends Controller
                 $lastCheck = time();
             }
             
-            // Sleep to reduce CPU usage (200ms for faster response)
-            usleep(200000); // 0.2 seconds
+            // Sleep to reduce CPU usage (200ms)
+            usleep(200000); 
         }
         
         // Connection closed
