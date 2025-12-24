@@ -179,6 +179,21 @@ const connect = () => {
     connectionError.value = '';
     connectWebSocket();
     fetchConversations();
+    
+    // ✅ FINAL RELIABLE SOLUTION: 3-Second Polling
+    // WebSocket broadcast is blocked by server. SSE is buffered.
+    // Short polling is the ONLY robust way to sync agents without Node.js access.
+    if (refreshInterval.value) {
+        clearInterval(refreshInterval.value);
+    }
+    
+    refreshInterval.value = setInterval(() => {
+        // Only poll if connected and tab is visible (save resources)
+        if (isConnected.value && !document.hidden) {
+            fetchConversations();
+            // console.log('⚡ Background Sync'); // Uncomment for debugging
+        }
+    }, 3000); // 3 Seconds = Fast enough for UX, light server load.
 }
 
 // --- Computed ---
@@ -877,29 +892,16 @@ const handleIncomingMessage = (payload) => {
       return;
   }
 
-  // Handle priority update (or Hijacked new_message)
-  // Check 'is_priority_update' at root OR inside 'message' object
-  const isPriority = payload.type === 'priority_updated' || 
-                    (payload.type === 'new_message' && (payload.is_priority_update || payload.message?.is_priority_update));
-
-  if (isPriority) {
-      // If flat or nested
-      const phone = payload.phone || payload.message?.phone;
-      const priority = payload.priority ?? 0; // default to 0 if missing (mark as done)
-
+  // Handle priority update (Standard)
+  if (payload.type === 'priority_updated') {
+      const { phone, priority } = payload;
       console.log('[WebSocket] Received priority_updated:', { phone, priority });
       
       const conversation = conversations.value.find(c => c.wa_number === phone);
       
       if (conversation) {
           conversation.priority = parseInt(priority) || 0;
-          console.log(`✓ Priority updated for ${phone}: ${priority}`);
-          
-          // Force re-sort by creating new array reference
-          // This triggers Vue reactivity for computed filteredConversations
           conversations.value = [...conversations.value];
-      } else {
-          console.warn(`⚠ Conversation not found for phone: ${phone}`);
       }
       return;
   }
