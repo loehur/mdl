@@ -299,8 +299,27 @@ const fetchMessages = async (phone) => {
                     uniqueMessages.push(msg);
                 }
             });
+            
+            // FINAL SAFEGUARD: Sort by time and remove any adjacent duplicates that slipped through
+            uniqueMessages.sort((a, b) => new Date(a.rawTime) - new Date(b.rawTime));
+            const finalUnique = [];
+            for (let i = 0; i < uniqueMessages.length; i++) {
+                const current = uniqueMessages[i];
+                if (i > 0) {
+                    const prev = uniqueMessages[i-1];
+                    const normalize = (str) => String(str || '').replace(/\s+/g, ' ').trim();
+                    
+                    // Super strict adjacent check
+                    const isSame = prev.sender === current.sender && 
+                                   normalize(prev.text) === normalize(current.text) && 
+                                   Math.abs(new Date(prev.rawTime) - new Date(current.rawTime)) < 2000;
+                                   
+                    if (isSame) continue; // Skip duplicate
+                }
+                finalUnique.push(current);
+            }
 
-            return uniqueMessages;
+            return finalUnique;
         }
     } catch (e) {
         console.error("Error loading messages:", e);
@@ -352,19 +371,52 @@ const selectChat = async (id) => {
       if (chat.messages && chat.messages.length > 0) {
           scrollToBottom(); // Show cache immediately
           // Background fetch to sync and merge
+          // Background fetch to sync and merge
           fetchMessages(chat.wa_number).then(msgs => {
               if (msgs.length > 0) {
                   // Merge with existing messages (from WebSocket)
                   const existingIds = new Set(chat.messages.map(m => String(m.id)));
-                  const newMessages = msgs.filter(m => !existingIds.has(String(m.id)));
+                  const newMessages = [];
+                  const normalize = (str) => String(str || '').replace(/\s+/g, ' ').trim();
                   
-                  // Combine and sort by rawTime
-                  chat.messages = [...chat.messages, ...newMessages].sort((a, b) => {
-                      if (!a.rawTime || !b.rawTime) return 0;
-                      return new Date(a.rawTime) - new Date(b.rawTime);
+                  // 1. Process incoming API messages
+                  msgs.forEach(apiMsg => {
+                      // Check exact match
+                      if (existingIds.has(String(apiMsg.id))) return;
+                      
+                      // Check Fuzzy Match against existing cache
+                      // This "HEALS" the local cache by updating phantom/local IDs to real Server IDs
+                      const fuzzyMatch = chat.messages.find(localMsg => {
+                          if (localMsg.sender !== apiMsg.sender) return false;
+                          if (normalize(localMsg.text) !== normalize(apiMsg.text)) return false;
+                          
+                          // Time check (< 5 seconds)
+                          const t1 = new Date(localMsg.rawTime || localMsg.time).getTime();
+                          const t2 = new Date(apiMsg.rawTime).getTime();
+                          return !isNaN(t1) && !isNaN(t2) && Math.abs(t1 - t2) < 5000;
+                      });
+                      
+                      if (fuzzyMatch) {
+                          console.log('🩹 Healing local message:', fuzzyMatch.id, '->', apiMsg.id);
+                          // Update the local message with canonical data
+                          fuzzyMatch.id = apiMsg.id;
+                          fuzzyMatch.wamid = apiMsg.wamid;
+                          fuzzyMatch.status = apiMsg.status; // Sync status
+                          // Don't push to newMessages, we updated in place
+                      } else {
+                          // Truly new
+                          newMessages.push(apiMsg);
+                      }
                   });
                   
-                  scrollToBottom();
+                  // Combine and sort by rawTime
+                  if (newMessages.length > 0) {
+                      chat.messages = [...chat.messages, ...newMessages].sort((a, b) => {
+                          if (!a.rawTime || !b.rawTime) return 0;
+                          return new Date(a.rawTime) - new Date(b.rawTime);
+                      });
+                      scrollToBottom();
+                  }
               }
           });
       } else {
