@@ -403,79 +403,28 @@ class Antrian extends Controller
          session_write_close();
       }
 
-      // Cek wa_conversations, jika ada maka ubah jadi free
-      $cleanHp = $hp;
-      if (substr($hp, 0, 1) == '0') {
-         $cleanHp = substr($hp, 1);
-      } elseif (substr($hp, 0, 2) == '62') {
-         $cleanHp = substr($hp, 2);
-      } elseif (substr($hp, 0, 3) == '+62') {
-         $cleanHp = substr($hp, 3);
-      }
-
-      $hpVariations = ["'0" . $cleanHp . "'", "'62" . $cleanHp . "'", "'+62" . $cleanHp . "'"];
-      $hpList = implode(",", $hpVariations);
-
-      $message_mode = 'template';
-      $cekConv = $this->db(100)->count_where('wa_conversations', "wa_number IN ($hpList)");
-      if ($cekConv > 0) {
-         $message_mode = 'free';
-      }
-
-      $res = $this->helper("Notif")->send_wa($hp, $jsonText, $message_mode);
+      //paksa kirim template
+      $res = $this->helper("Notif")->send_wa($hp, $jsonText, 'template');
       
       $setOne = "no_ref = '" . $noref . "' AND tipe = 1";
       $where = $this->wCabang . " AND " . $setOne;
 
-      $apiData = $res['data']['data'] ?? $res['data'] ?? [];
-      $idApi = $apiData['id'] ?? ($apiData['message_id'] ?? '');
-
-      // DEBUG LOG - Full response structure
-      @file_put_contents(__DIR__ . '/../../logs/notif_debug.log', date('H:i:s') . " === FULL RESPONSE ===\n", FILE_APPEND);
-      @file_put_contents(__DIR__ . '/../../logs/notif_debug.log', json_encode($res, JSON_PRETTY_PRINT) . "\n", FILE_APPEND);
-      @file_put_contents(__DIR__ . '/../../logs/notif_debug.log', date('H:i:s') . " Response status: " . ($res['status'] ? 'true' : 'false') . "\n", FILE_APPEND);
-      @file_put_contents(__DIR__ . '/../../logs/notif_debug.log', date('H:i:s') . " apiData: " . json_encode($apiData) . "\n", FILE_APPEND);
-      @file_put_contents(__DIR__ . '/../../logs/notif_debug.log', date('H:i:s') . " ID API extracted: '$idApi'\n", FILE_APPEND);
-      @file_put_contents(__DIR__ . '/../../logs/notif_debug.log', date('H:i:s') . " === END ===\n\n", FILE_APPEND);
-
-      if ($res['status']) {
-         $vals = [
-            'id_notif' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
-            'insertTime' => $time,
-            'id_cabang' => $this->id_cabang,
-            'no_ref' => $noref,
-            'phone' => $hp,
-            'text' => $text,
-            'tipe' => $tipe,
-            'id_api' => $idApi,
-            'state' => 'sent'
-         ];
-         
-         // DEBUG LOG
-         @file_put_contents(__DIR__ . '/../../logs/notif_debug.log', date('H:i:s') . " Inserting notif with id_api: $idApi\n", FILE_APPEND);
-      } else {
-         $vals = [
-            'id_notif' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
-            'insertTime' => $time,
-            'id_cabang' => $this->id_cabang,
-            'no_ref' => $noref,
-            'phone' => $hp,
-            'text' => $text,
-            'tipe' => $tipe,
-            'id_api' => '',
-            'state' => 'pending'
-         ];
-      }
+      $vals = [
+         'id_notif' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
+         'insertTime' => $time,
+         'id_cabang' => $this->id_cabang,
+         'no_ref' => $noref,
+         'phone' => $hp,
+         'text' => $text,
+         'tipe' => $tipe,
+         'id_api' => '',
+         'state' => 'pending'
+      ];
 
       $data_main = $this->db(0)->count_where('notif', $where);
       if ($data_main < 1) {
-
-         $do = $this->db(0)->insert('notif', $vals);
-          
-         // DEBUG LOG
-         @file_put_contents(__DIR__ . '/../../logs/notif_debug.log', date('H:i:s') . " Insert result: " . ($do ? 'success' : 'failed') . "\n", FILE_APPEND);
-          if ($do['errno'] <> 0) {
-             $this->writeLog('sendNotif', 'ERROR', 'Insert Notif Failed', ['error' => $do['error']]);
+         $do = $this->db(0)->insert('notif', $vals);         
+         if ($do['errno'] <> 0) {
              $this->model('Log')->write("[sendNotif] Insert Notif Error: " . $do['error']);
              echo $do['error'];
           } else {
@@ -490,8 +439,6 @@ class Antrian extends Controller
    {
       $karyawan = $_POST['f1'];
       $id = $_POST['f2'];
-
-
 
       $dateNow = date('Y-m-d H:i:s');
       $set = ['tgl_ambil' => $dateNow, 'id_user_ambil' => $karyawan];

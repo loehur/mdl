@@ -118,14 +118,6 @@ class WhatsApp extends Controller
         $wamid = $msg['wamid'] ?? null;
         $status = $msg['status'] ?? 'received'; // Default status for inbound
         $sendTime = date('Y-m-d H:i:s');
-        
-        // DEBUG: Log ONLY for button messages
-        if ($messageType === 'button') {
-            \Log::write("=== BUTTON MESSAGE WEBHOOK ===", 'wa_inbound', 'debug');
-            \Log::write("Full webhook data: " . json_encode($data), 'wa_inbound', 'debug');
-            \Log::write("Message Type: $messageType | From: $waNumber | ID: $messageId", 'wa_inbound', 'debug');
-            \Log::write("BUTTON data: " . json_encode($msg['button'] ?? []), 'wa_inbound', 'debug');
-        }
 
         if (!$waNumber) {
             \Log::write("ERROR: No 'from' number", 'wa_inbound', 'error');
@@ -266,12 +258,6 @@ class WhatsApp extends Controller
             'contact_name' => $contact_name,
             'status' => $status,
         ];
-        
-        // DEBUG: Log data before insert
-        \Log::write("Preparing to INSERT: Type=$messageType | Text=" . ($textBody ?? 'NULL') . " | MessageID=$messageId", 'wa_inbound', 'debug');
-        if ($messageType === 'button') {
-            \Log::write("BUTTON data to be saved: " . json_encode(['text' => $textBody, 'type' => $messageType]), 'wa_inbound', 'debug');
-        }
         
         $msgId = $db->insert('wa_messages_in', $messageData);
 

@@ -252,8 +252,8 @@ class WAGenerator extends Controller
         $templateParams = [
             'customer' => strtoupper($nama_pelanggan),
             'order_list' => $cleanOrderList,
-            'total_bill' => $cleanTotalBill,
-            'invoice_link' => URL::HOST_URL . "/I/i/" . $id_pelanggan
+            //'total_bill' => $cleanTotalBill,
+            //'invoice_link' => URL::HOST_URL . "/I/i/" . $id_pelanggan
         ];
 
         return json_encode([
