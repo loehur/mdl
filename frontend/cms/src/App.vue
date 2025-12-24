@@ -293,8 +293,8 @@ const selectChat = async (id) => {
           fetchMessages(chat.wa_number).then(msgs => {
               if (msgs.length > 0) {
                   // Merge with existing messages (from WebSocket)
-                  const existingIds = new Set(chat.messages.map(m => m.id));
-                  const newMessages = msgs.filter(m => !existingIds.has(m.id));
+                  const existingIds = new Set(chat.messages.map(m => String(m.id)));
+                  const newMessages = msgs.filter(m => !existingIds.has(String(m.id)));
                   
                   // Combine and sort by rawTime
                   chat.messages = [...chat.messages, ...newMessages].sort((a, b) => {
@@ -637,7 +637,7 @@ const handleIncomingMessage = (payload) => {
   };
   
   // Avoid duplicate messages if already present
-  if (!conversation.messages.find(m => m.id === newMsg.id)) {
+  if (!conversation.messages.find(m => m.id == newMsg.id || (m.wamid && newMsg.wamid && m.wamid == newMsg.wamid))) {
       // Simply push to array
       conversation.messages.push(newMsg);
       
