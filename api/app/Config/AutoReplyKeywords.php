@@ -34,7 +34,7 @@ return [
         'max_length' => 30,
         'keywords' => [
             // Tutup variations
-            'brp tutup', 'berapa tutup', 'jam tutup', 'kapan tutup', 'masih tutup',
+            'brp tutup', 'berapa tutup', 'jam tutup', 'kapan tutup', 'kpn buka', 'masih tutup',
             'udah tutup', 'dh tutup', 'uda tutup', 'dah tutup', 'sudah tutup', 'da tutup',
             // Buka variations
             'jam buka', 'brp buka', 'berapa buka', 'kapan buka', 

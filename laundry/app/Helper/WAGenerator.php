@@ -246,7 +246,7 @@ class WAGenerator extends Controller
         $cleanOrderList = preg_replace('/\s{2,}/', ' _ ', $cleanOrderList); // Replace multiple spaces with single space
         $cleanOrderList = trim($cleanOrderList);
         
-        $cleanTotalBill = str_replace(["\n", "\r", "\t", "*"], "", $totalText); // Remove formatting
+        $cleanTotalBill = str_replace(["\n", "\r", "\t", "*", "Total/Sisa "], "", $totalText); // Remove formatting and prefix
         $cleanTotalBill = trim($cleanTotalBill);
         
         $templateParams = [

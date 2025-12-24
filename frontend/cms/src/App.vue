@@ -1018,7 +1018,8 @@ onMounted(() => {
 
   // Login Modal Delay Logic
   setTimeout(() => {
-      if (!isConnected.value && !isConnecting.value) {
+      // Only show login prompt if we are not connected, not connecting, AND don't have a saved ID
+      if (!isConnected.value && !isConnecting.value && !authId.value) {
           showLoginPrompt.value = true;
       }
   }, 1500); // Wait 1.5s before showing modal if not connected
@@ -1164,7 +1165,7 @@ window.addEventListener('focus', () => {
 
     <!-- Sidebar -->
     <!-- On mobile, we keep it rendered but covered by chat when active. On desktop it's side-by-side. -->
-    <aside v-if="isConnected" class="flex flex-col border-r border-slate-800 bg-[#1e293b] transition-all duration-300 absolute md:static z-0 h-full w-full md:w-80"
+    <aside v-if="authId" class="flex flex-col border-r border-slate-800 bg-[#1e293b] transition-all duration-300 absolute md:static z-0 h-full w-full md:w-80"
            :class="showMobileChat ? 'flex' : 'flex'">
       <!-- Header -->
       <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-[#1e293b]/50 backdrop-blur-md">
