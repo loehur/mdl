@@ -1619,7 +1619,11 @@ window.addEventListener('focus', () => {
           class="absolute inset-0 pt-16 pb-[88px] overflow-y-auto custom-scrollbar"
         >
           <div class="p-4 space-y-2">
-            <div v-for="(msg, index) in activeConversation.messages" :key="msg.id" :id="'msg-' + msg.id" class="flex flex-col">
+            <div v-for="(msg, index) in activeConversation.messages" :key="msg.id" :id="'msg-' + msg.id" class="flex flex-col group relative">
+                <!-- DEBUG ID DISPLAY -->
+                <div class="text-[8px] text-slate-500 text-center mb-1 opacity-50 select-text font-mono">
+                    ID: {{ msg.id }} | WAMID: {{ msg.wamid ? '...' + msg.wamid.substr(-5) : 'null' }}
+                </div>
             
                <!-- Date Separator -->
                <div v-if="index === 0 || needsDateSeparator(msg, activeConversation.messages[index - 1])" class="flex items-center justify-center my-4">
