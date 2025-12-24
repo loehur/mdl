@@ -749,9 +749,19 @@ const connectWebSocket = () => {
                const messageData = payload.message;
                const senderId = payload.sender_id;
                
-               // Skip if this message was sent by current user (already in optimistic UI)
+               // DEBUG: Log all agent messages for troubleshooting
+               console.log('[WS] agent_message_sent:', {
+                   conversation: conversationId,
+                   sender: senderId,
+                   myId: authId.value,
+                   text: messageData.text,
+                   match: senderId == authId.value
+               });
+               
+               // Skip if this message was sent by current user (use == for type safety)
+               // This prevents the duplicate when server echoes our own message back
                if (senderId == authId.value) {
-                   console.log('Ignoring self-broadcast (already in optimistic UI)');
+                   console.log('✓ Ignoring self-broadcast (already in optimistic UI)');
                    return;
                }
                
