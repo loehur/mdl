@@ -751,21 +751,24 @@ const connectWebSocket = () => {
                        console.log('Updated existing message:', existingMessage.id);
                        // Don't add as new - already exists
                    } else {
-                       // NEW DEFENSE: Check for matching 'pending' message (Race Condition / ID Mismatch Handler)
-                       // If we have a pending message with the same text, it's likely the one we just sent
-                       // but the sender_id check failed or it's a race condition.
-                       const pendingMatch = conversation.messages.find(m => 
-                           m.status === 'pending' && 
-                           m.sender === 'me' &&
-                           m.text === messageData.text
-                       );
-
-                       if (pendingMatch) {
-                           console.log('Matched pending message via content (Race condition handled):', pendingMatch.id);
-                           pendingMatch.id = messageData.id; // Swap temp ID with real ID
-                           pendingMatch.wamid = messageData.wamid;
-                           pendingMatch.status = messageData.status || 'sent';
-                           if (messageData.media_url) pendingMatch.media_url = messageData.media_url;
+                       // NEW DEFENSE: Fuzzy match last sent message
+                       // This handles cases where API beat WS (so status is 'sent') BUT IDs still don't match
+                       const lastMsg = conversation.messages[conversation.messages.length - 1];
+                       
+                       if (lastMsg && 
+                           lastMsg.sender === 'me' && 
+                           lastMsg.text === messageData.text &&
+                           (lastMsg.status === 'pending' || lastMsg.status === 'sent')
+                       ) {
+                            // Check time proximity (optional but safer) - safely handle different time formats
+                            // But since text is identical and it's the LAST message, it's 99% safe to merge.
+                           console.log('Matched duplicate via fuzzy content check (Last Message):', lastMsg.id);
+                           
+                           // Update IDs to server values
+                           lastMsg.id = messageData.id; 
+                           if (messageData.wamid) lastMsg.wamid = messageData.wamid;
+                           lastMsg.status = messageData.status || 'sent';
+                           if (messageData.media_url) lastMsg.media_url = messageData.media_url;
                            return; // Stop, don't add new
                        }
 
