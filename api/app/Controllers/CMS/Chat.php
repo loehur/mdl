@@ -312,6 +312,7 @@ class Chat extends Controller
                     'sender_id' => $userId
                 ];
                 
+                \Log::write("Pushing priority update to WebSocket: " . json_encode($payload), 'cms_ws', 'Chat');
                 $this->pushToWebSocket($payload);
                 
                 $this->success(['priority' => 0], 'Conversation marked as done');

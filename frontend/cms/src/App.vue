@@ -32,6 +32,7 @@ const authId = ref('');
 const authPassword = ref(''); // Added
 const isConnecting = ref(false);
 const connectionError = ref('');
+const isLoadingConversations = ref(false); // For skeleton loading
 const showExitToast = ref(false);
 let lastBackPress = 0;
 
@@ -92,6 +93,8 @@ const filteredConversations = computed(() => {
 
 const fetchConversations = async () => {
     try {
+        isLoadingConversations.value = true; // Start loading
+        
         const userIdParam = authId.value ? `?user_id=${authId.value}` : '';
         // Add cache buster to conversations fetch
         const response = await fetch(`${API_BASE}/CMS/Chat/getConversations${userIdParam}&_t=${Date.now()}`); 
@@ -159,6 +162,8 @@ const fetchConversations = async () => {
         }
     } catch (e) {
         console.error("Error fetching conversations:", e);
+    } finally {
+        isLoadingConversations.value = false; // End loading
     }
 };
 
@@ -1279,16 +1284,9 @@ const mockIncomingMessage = () => {
 
 
 
-// --- Persistence ---
-// --- Persistence ---
-watch(conversations, (newVal) => {
-    try {
-        // Save to local storage for instant load on next open
-        localStorage.setItem('cms_conversations_cache', JSON.stringify(newVal));
-    } catch (e) {
-        console.error("Cache save failed", e);
-    }
-}, { deep: true });
+// --- Persistence DISABLED ---
+// localStorage cache removed to ensure 100% accurate data from server
+// Data will always be fresh from API
 
 onMounted(() => {
   // Add Paste Listener
@@ -1299,29 +1297,8 @@ onMounted(() => {
   // Initialize title blinking
   updateTitleBlinking();
   
-  // --- LOAD CACHE (Instant UI) ---
-  const cached = localStorage.getItem('cms_conversations_cache');
-  if (cached) {
-      try {
-          const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-              // 🛡️ SANITIZE CACHE ON LOAD
-              // Use the centralized sanitizer
-              parsed.forEach(c => {
-                  if (c.messages && c.messages.length > 0) {
-                       c.messages = sanitizeMessages(c.messages);
-                  }
-              });
-
-              conversations.value = parsed;
-              console.log("⚡ Restored & Sanitized " + parsed.length + " conversations from cache");
-          }
-      } catch(e) { 
-          console.error("Cache parse error", e); 
-      }
-  }
-  
-  // Check Local Storage for Session
+  // --- NO CACHE LOADING ---
+  // Always fetch fresh data from server for 100% accuracy
   
   // --- VISIBILITY CHANGE HANDLER ---
   // Fix for blank screen/disconnect after long backgrounding
@@ -1440,7 +1417,7 @@ const logout = () => {
     localStorage.removeItem('cms_chat_id');
     localStorage.removeItem('cms_chat_password');
     localStorage.removeItem('cms_chat_expiry');
-    localStorage.removeItem('cms_conversations_cache'); // Clear data
+    // Note: conversations cache removed - data always from server
 };
 
 // Update Title Blinking
@@ -1596,6 +1573,24 @@ window.addEventListener('focus', () => {
          ref="conversationListRef" 
          class="flex-1 overflow-y-auto custom-scrollbar"
       >
+        <!-- Skeleton Loading -->
+        <div v-if="isLoadingConversations && conversations.length === 0" class="space-y-0">
+          <div v-for="n in 8" :key="'skeleton-' + n" class="p-3 flex items-center gap-3 border-b border-slate-800/50 animate-pulse">
+            <!-- Avatar Skeleton -->
+            <div class="w-12 h-12 rounded-full bg-slate-700/50"></div>
+            
+            <!-- Content Skeleton -->
+            <div class="flex-1 space-y-2">
+              <div class="flex justify-between items-center">
+                <div class="h-4 bg-slate-700/50 rounded w-32"></div>
+                <div class="h-3 bg-slate-700/50 rounded w-12"></div>
+              </div>
+              <div class="h-3 bg-slate-700/50 rounded w-48"></div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Actual Conversations -->
         <div 
           v-for="chat in filteredConversations"  
           :key="chat.id"
