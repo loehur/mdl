@@ -266,25 +266,8 @@ class WhatsApp extends Controller
             \Log::write("✗ DB ERROR (insert inbound message): $error", 'webhook', 'WhatsApp');
             \Log::write("Data attempted: " . json_encode($messageData), 'webhook', 'WhatsApp');
         } else {
-            // Success - Push to WebSocket Server
-            $this->pushIncomingToWebSocket([
-                'conversation_id' => $conversationId,
-                'phone' => $waNumber,
-                'contact_name' => $contact_name,
-                'message' => [
-                    'id' => $msgId, // local DB ID
-                    'text' => $textBody,
-                    'type' => $messageType,
-                    'media_id' => $mediaId,
-                    'media_url' => $mediaUrl,
-                    'caption' => $mediaCaption,
-                    'time' => date('Y-m-d H:i:s'),
-                ],
-                'target_id' => $assigned_user_id ? (string)$assigned_user_id : '0', // Request-assigned user ID, fallback to 0
-                'kode_cabang' => $code // Add kode_cabang for frontend display
-            ]);
-
             // Auto Reply Processed Here (After DB Save)
+            $currentPriority = 0; // Default priority
             try {
                 if (!class_exists('\\App\\Models\\WAReplies')) {
                     require_once __DIR__ . '/../../Models/WAReplies.php';
@@ -297,16 +280,38 @@ class WhatsApp extends Controller
                         ['status' => 'read'], 
                         ['id' => $msgId]
                     );
+                    $currentPriority = 0; // Auto-replied, normal priority
                 } else {
-                    // No keyword match - needs CS attention, set priority to 1
+                    // No keyword match - needs CS attention, set priority to 4
                     $db->update('wa_conversations', 
-                        ['priority' => 1], 
+                        ['priority' => 4], 
                         ['wa_number' => $waNumber]
                     );
+                    $currentPriority = 4; // High priority, needs CS
+                    \Log::write("Conversation priority set to 4 (needs CS): $waNumber", 'wa_auto_reply', 'priority_update');
                 }
             } catch (\Exception $e) {
                 \Log::write("Error processing auto-reply: " . $e->getMessage(), 'webhook', 'WhatsApp');
             }
+            
+            // Push to WebSocket Server AFTER priority is determined
+            $this->pushIncomingToWebSocket([
+                'conversation_id' => $conversationId,
+                'phone' => $waNumber,
+                'contact_name' => $contact_name,
+                'priority' => $currentPriority, // ✅ Include priority!
+                'message' => [
+                    'id' => $msgId, // local DB ID
+                    'text' => $textBody,
+                    'type' => $messageType,
+                    'media_id' => $mediaId,
+                    'media_url' => $mediaUrl,
+                    'caption' => $mediaCaption,
+                    'time' => date('Y-m-d H:i:s'),
+                ],
+                'target_id' => $assigned_user_id ? (string)$assigned_user_id : '0',
+                'kode_cabang' => $code
+            ]);
         }
     }
 

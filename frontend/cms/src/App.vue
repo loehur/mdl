@@ -888,8 +888,10 @@ const handleIncomingMessage = (payload) => {
     // New conversation
     conversation = {
       id: conversationId,
+      wa_number: phone, // ✅ Add wa_number
       name: name || payload.phone || 'Unknown User',
       kode_cabang: payload.kode_cabang || '00', // Set from payload
+      priority: parseInt(payload.priority) || 0, // ✅ Set priority from payload!
       initials: (name || payload.phone || '?').substring(0, 1).toUpperCase(),
       color: getAvatarColor(conversationId),
       status: 'online', // Assume online on new msg
@@ -901,6 +903,10 @@ const handleIncomingMessage = (payload) => {
     // Update existing conversation details if available
      if (payload.kode_cabang) {
          conversation.kode_cabang = payload.kode_cabang;
+     }
+     // ✅ Update priority if provided!
+     if (payload.priority !== undefined) {
+         conversation.priority = parseInt(payload.priority) || 0;
      }
   }
   
@@ -1577,7 +1583,7 @@ window.addEventListener('focus', () => {
           v-for="chat in filteredConversations"  
           :key="chat.id"
           @click="selectChat(chat.id)"
-          class="p-3 flex items-center gap-3 cursor-pointer transition-colors duration-200 border-b border-slate-800/50 hover:bg-slate-800/50"
+          class="p-3 flex items-center gap-3 cursor-pointer transition-colors duration-200 border-b border-slate-800/50"
           :class="{
             'bg-[#334155]/60 border-l-4 border-l-indigo-500': activeChatId === chat.id && !chat.priority,
             'bg-pink-900/40 border-l-4 border-l-pink-400 shadow-lg shadow-pink-900/20': activeChatId === chat.id && chat.priority,
@@ -1663,7 +1669,13 @@ window.addEventListener('focus', () => {
 
       <div v-if="activeConversation" class="w-full h-full relative z-10">
         <!-- Chat Header - ABSOLUTE TOP -->
-        <header class="absolute top-0 left-0 right-0 h-16 border-b border-slate-800 bg-[#0f172a]/95 backdrop-blur-md flex items-center justify-between px-4 md:px-6 z-30">
+        <header 
+          class="absolute top-0 left-0 right-0 h-16 border-b flex items-center justify-between px-4 md:px-6 z-30 backdrop-blur-md"
+          :class="{
+            'border-slate-800 bg-[#0f172a]/95': !activeConversation.priority,
+            'border-pink-600 bg-gradient-to-r from-pink-950/40 to-pink-900/30': activeConversation.priority
+          }"
+        >
           <div class="flex items-center gap-3 flex-1 min-w-0">
              <!-- Back Button (Mobile Only) -->
              <button @click="backToMenu" class="md:hidden p-1 -ml-2 text-slate-400 hover:text-white flex-shrink-0">
