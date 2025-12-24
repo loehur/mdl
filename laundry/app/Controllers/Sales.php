@@ -863,10 +863,10 @@ class Sales extends Controller
       $startDate = $_GET['start'] ?? date('Y-m-d', strtotime('-7 days'));
       $endDate = $_GET['end'] ?? date('Y-m-d');
       
-      // Validasi rentang maksimal 1 bulan (31 hari)
+      // Validasi rentang maksimal 1 minggu (7 hari)
       $diffDays = (strtotime($endDate) - strtotime($startDate)) / (60 * 60 * 24);
-      if ($diffDays > 31) {
-         $endDate = date('Y-m-d', strtotime($startDate . ' +31 days'));
+      if ($diffDays > 7) {
+         $endDate = date('Y-m-d', strtotime($startDate . ' +7 days'));
       }
       
       // Get data barang yang sudah dipakai (type = 3)
@@ -924,10 +924,10 @@ class Sales extends Controller
       $startDate = $_GET['start'] ?? date('Y-m-d', strtotime('-7 days'));
       $endDate = $_GET['end'] ?? date('Y-m-d');
       
-      // Validasi rentang maksimal 1 bulan (31 hari)
+      // Validasi rentang maksimal 1 minggu (7 hari)
       $diffDays = (strtotime($endDate) - strtotime($startDate)) / (60 * 60 * 24);
-      if ($diffDays > 31) {
-         $endDate = date('Y-m-d', strtotime($startDate . ' +31 days'));
+      if ($diffDays > 7) {
+         $endDate = date('Y-m-d', strtotime($startDate . ' +7 days'));
       }
       
       // Get data barang transfer (type = 2)
@@ -1040,6 +1040,59 @@ class Sales extends Controller
       $this->view('layout', ['data_operasi' => $data_operasi]);
       $this->view('sales/operasi_piutang', [
          'grouped' => $grouped
+      ]);
+   }
+
+   public function operasi_tuntas()
+   {
+      $id_cabang = $_SESSION[URL::SESSID]['user']['id_cabang'] ?? 0;
+      
+      // Get tanggal dari filter
+      $startDate = $_GET['start'] ?? date('Y-m-d', strtotime('-6 days')); // Default 7 hari terakhir (termasuk hari ini)
+      $endDate = $_GET['end'] ?? date('Y-m-d');
+      
+      // Validasi rentang maksimal 1 minggu (7 hari)
+      $diffDays = (strtotime($endDate) - strtotime($startDate)) / (60 * 60 * 24);
+      if ($diffDays > 7) {
+         $endDate = date('Y-m-d', strtotime($startDate . ' +7 days'));
+      }
+      
+      // Get data penjualan tuntas (type = 1, state = 1)
+      $items = $this->db(0)->get_where('barang_mutasi', 
+         "state = 1 AND type = 1 AND source_id = '$id_cabang' AND DATE(created_at) >= '$startDate' AND DATE(created_at) <= '$endDate' ORDER BY created_at DESC");
+      
+      if (!is_array($items)) { $items = []; }
+
+      // Group by ref
+      $grouped = [];
+      foreach ($items as $item) {
+         if (!isset($item['ref']) || empty($item['ref'])) continue;
+
+         $ref = $item['ref'];
+         if (!isset($grouped[$ref])) {
+            $grouped[$ref] = [
+               'ref' => $ref,
+               'date' => $item['created_at'] ?? '-',
+               'items' => [],
+               'total' => 0
+            ];
+         }
+         
+         // Get barang name
+         $barang = $this->db(0)->get_where_row('barang_data', "id_barang = '{$item['id_barang']}'");
+         $item['nama_barang'] = $barang['nama'] ?? strtoupper(($barang['brand'] ?? '') . ' ' . ($barang['model'] ?? ''));
+         $grouped[$ref]['items'][] = $item;
+         
+         $margin = $item['margin'] ?? 0;
+         $grouped[$ref]['total'] += (($item['price'] + $margin) * $item['qty']);
+      }
+      
+      $data_operasi = ['title' => 'Order Selesai'];
+      $this->view('layout', ['data_operasi' => $data_operasi]);
+      $this->view('sales/operasi_tuntas', [
+         'grouped' => $grouped,
+         'startDate' => $startDate,
+         'endDate' => $endDate
       ]);
    }
 }

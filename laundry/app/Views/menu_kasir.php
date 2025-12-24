@@ -58,6 +58,11 @@ $menu[0] = [
                 'title' => 'Daftar Piutang',
                 'txt' => 'Piutang',
             ],
+            [
+                'c' => 'Sales/operasi_tuntas',
+                'title' => 'Order Selesai',
+                'txt' => 'Tuntas',
+            ],
         ]
     ],
     [

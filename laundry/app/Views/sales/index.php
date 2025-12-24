@@ -242,6 +242,14 @@
                         </a>
                       </li>
                       <?php } ?>
+                      
+                      <li><hr class="dropdown-divider"></li>
+                      <li>
+                        <!-- Use data-print-ref compatible with view_load.js -->
+                        <a class="dropdown-item" href="#" data-print-ref="<?= $ref ?>" data-print-pelanggan="">
+                          <i class="fas fa-print me-2"></i>Cetak Nota
+                        </a>
+                      </li>
                     </ul>
                   </div>
                   <!-- Tombol Bayar (Primary Action) -->
@@ -252,6 +260,74 @@
                   <?php } ?>
                 </div>
               <?php } ?>
+            </div>
+            
+            <!-- Hidden Print Template for view_load.js -->
+            <!-- ID MUST be print + REF for view_load.js to find it -->
+            <div id="print<?= $ref ?>" class="d-none">
+                <table style="width: 100%;">
+                    <!-- Header Toko -->
+                    <tr>
+                        <td colspan="2" style="text-align: center;">
+                            <b><?= $this->dCabang['nama'] ?? 'LAUNDRY' ?> - <?= $this->dCabang['kode_cabang'] ?? '' ?></b><br>
+                            <?= $this->dCabang['alamat'] ?? '' ?><br>
+                            <?= $this->dCabang['phone_number'] ?? '' ?>
+                        </td>
+                    </tr>
+                    <tr id="dashRow"><td></td></tr>
+                    
+                    <!-- Info Ref -->
+                    <tr>
+                        <td>
+                            <b>#<?= $ref ?></b><br>
+                            <?= date('d/m/y H:i', strtotime($group['date'])) ?>
+                        </td>
+                        <td style="text-align: right;"></td>
+                    </tr>
+                    <tr id="dashRow"><td></td></tr>
+                    
+                    <!-- Items -->
+                    <?php foreach ($group['items'] as $item) { 
+                        $margin = $item['margin'] ?? 0;
+                        $price = $item['price'] + $margin;
+                        $subtotal = $price * $item['qty'];
+                    ?>
+                    <tr>
+                        <!-- Split to 2 columns, use Zero Width Space to prevent empty trim -->
+                        <td><?= $item['nama_barang'] ?></td>
+                        <td>&#8203;</td>
+                    </tr>
+                    <tr>
+                        <td>
+                             <?= $item['qty'] ?> x <?= number_format($price) ?>
+                        </td>
+                        <td style="text-align: right;"><?= number_format($subtotal) ?></td>
+                    </tr>
+                    <?php } ?>
+                    
+                    <tr id="dashRow"><td></td></tr>
+                    
+                    <!-- Totals -->
+                    <tr>
+                        <td><b>TOTAL</b></td>
+                        <td style="text-align: right;"><b><?= number_format($group['total']) ?></b></td>
+                    </tr>
+                    <?php if ($group['total_paid'] > 0) { ?>
+                    <tr>
+                        <td>Bayar</td>
+                        <td style="text-align: right;"><?= number_format($group['total_paid']) ?></td>
+                    </tr>
+                    <tr>
+                        <td>Sisa</td>
+                        <td style="text-align: right;"><?= number_format($group['sisa']) ?></td>
+                    </tr>
+                    <?php } ?>
+                    
+                    <tr id="dashRow"><td></td></tr>
+                    <tr>
+                         <td colspan="2" style="text-align: center;">Terima Kasih</td>
+                    </tr>
+                </table>
             </div>
           </div>
         <?php } ?>
@@ -1231,6 +1307,18 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
 <script>
+  // Configuration for view_load.js logic
+  window.ViewLoadConfig = {
+    baseUrl: '<?= URL::BASE_URL ?>',
+    kodeCabang: '<?= $this->dCabang['id_cabang'] ?? '' ?>',
+    marginTop: <?= $this->mdl_setting["margin_printer_top"] ?? 0 ?>,
+    feedLines: <?= $this->mdl_setting["margin_printer_bottom"] ?? 0 ?>
+  };
+</script>
+<script src="<?= URL::IN_ASSETS ?>js/operasi/view_load.js?v=<?= time() ?>"></script>
+
+<script>
+
 $(document).ready(function() {
     // Manual Dropdown Handler untuk mengatasi conflict Bootstrap
     $(document).on('click', '.manual-dropdown-toggle', function(e) {

@@ -36,7 +36,7 @@ $isEmpty = empty($grouped);
       
       <div class="alert alert-info mt-3 mb-0 py-2">
         <i class="fas fa-info-circle me-2"></i>
-        <small>Maksimal rentang tanggal: 1 bulan (31 hari)</small>
+        <small>Maksimal rentang tanggal: 1 minggu (7 hari)</small>
       </div>
     </div>
   </div>
