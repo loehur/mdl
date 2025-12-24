@@ -600,9 +600,7 @@ const handlePaste = async (event) => {
   }
 };
 
-onMounted(() => {
-    window.addEventListener('paste', handlePaste);
-});
+
 
 onUnmounted(() => {
     window.removeEventListener('paste', handlePaste);
@@ -1106,8 +1104,10 @@ const mockIncomingMessage = () => {
 
 
 // --- Persistence ---
+// --- Persistence ---
 watch(conversations, (newVal) => {
     try {
+        // Save to local storage for instant load on next open
         localStorage.setItem('cms_conversations_cache', JSON.stringify(newVal));
     } catch (e) {
         console.error("Cache save failed", e);
@@ -1115,17 +1115,23 @@ watch(conversations, (newVal) => {
 }, { deep: true });
 
 onMounted(() => {
+  // Add Paste Listener
+  window.addEventListener('paste', handlePaste);
+  
   scrollToBottom();
   
   // Initialize title blinking
   updateTitleBlinking();
   
-  // --- LOAD CACHE ---
+  // --- LOAD CACHE (Instant UI) ---
   const cached = localStorage.getItem('cms_conversations_cache');
   if (cached) {
       try {
-          conversations.value = JSON.parse(cached);
-          console.log("Restored cache with " + conversations.value.length + " conversations");
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+              conversations.value = parsed;
+              console.log("⚡ Restored " + parsed.length + " conversations from cache");
+          }
       } catch(e) { 
           console.error("Cache parse error", e); 
       }
@@ -1241,6 +1247,7 @@ const logout = () => {
     localStorage.removeItem('cms_chat_id');
     localStorage.removeItem('cms_chat_password');
     localStorage.removeItem('cms_chat_expiry');
+    localStorage.removeItem('cms_conversations_cache'); // Clear data
 };
 
 // Update Title Blinking
