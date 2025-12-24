@@ -637,7 +637,30 @@ const handleIncomingMessage = (payload) => {
   };
   
   // Avoid duplicate messages if already present
-  if (!conversation.messages.find(m => m.id == newMsg.id || (m.wamid && newMsg.wamid && m.wamid == newMsg.wamid))) {
+  // Enhanced check: ID match OR (same sender + same text + within 2 seconds)
+  const isDuplicate = conversation.messages.find(m => {
+      // Exact ID match (string comparison for safety)
+      if (String(m.id) === String(newMsg.id)) return true;
+      
+      // Wamid match
+      if (m.wamid && newMsg.wamid && String(m.wamid) === String(newMsg.wamid)) return true;
+      
+      // Fuzzy match: same sender + same text + close timestamp
+      if (m.sender === newMsg.sender && m.text === newMsg.text) {
+          // Check if timestamps are within 2 seconds of each other
+          const time1 = new Date(m.rawTime || m.time).getTime();
+          const time2 = new Date(newMsg.rawTime || newMsg.time).getTime();
+          
+          if (!isNaN(time1) && !isNaN(time2) && Math.abs(time1 - time2) < 2000) {
+              console.log('Duplicate detected (fuzzy match):', newMsg.id);
+              return true;
+          }
+      }
+      
+      return false;
+  });
+  
+  if (!isDuplicate) {
       // Simply push to array
       conversation.messages.push(newMsg);
       
