@@ -376,6 +376,9 @@ class Chat extends Controller
                 break;
             }
             
+            // Clear file status cache to ensure we see updates immediately
+            clearstatcache(false, $eventFile);
+            
             // Read events from file
             if (file_exists($eventFile)) {
                 $content = file_get_contents($eventFile);
@@ -389,15 +392,12 @@ class Chat extends Controller
                         // Don't send to the originator
                         if (isset($event['sender_id']) && $event['sender_id'] == $userId) {
                             // Still update ID to skip connection re-send loops
-                            // But for stream, we can just skip sending.
-                            // BUT wait, if we skip sending, we must ensure lastEventId updates correctly eventually.
-                            // Let's add it to processing list but mark as skip
                         }
                         $newEvents[] = $event;
                     }
                 }
                 
-                // SORT by ID ASCENDING (Oldest -> Newest) to prevent skipping
+                // SORT by ID ASCENDING (Oldest -> Newest)
                 usort($newEvents, function($a, $b) {
                     return $a['id'] - $b['id'];
                 });
@@ -413,6 +413,11 @@ class Chat extends Controller
                         echo "id: {$event['id']}\n";
                         echo "event: {$event['type']}\n";
                         echo "data: " . json_encode($event['data']) . "\n\n";
+                        
+                        // 🚀 PADDING TO FORCE FLUSH (>4KB)
+                        // Many servers buffer 4KB before sending. We force it locally.
+                        echo ":" . str_repeat(" ", 4096) . "\n\n";
+                        
                         ob_flush();
                         flush();
                     }
@@ -422,9 +427,11 @@ class Chat extends Controller
                 }
             }
             
-            // Send heartbeat every 15 seconds
-            if (time() - $lastCheck >= 15) {
-                echo ": heartbeat\n\n";
+            // Send heartbeat every 10 seconds (reduced from 15)
+            if (time() - $lastCheck >= 10) {
+                echo ": heartbeat\n";
+                // Heartbeat also gets padding to keep connection healthy
+                echo ":" . str_repeat(" ", 1024) . "\n\n";
                 ob_flush();
                 flush();
                 $lastCheck = time();
