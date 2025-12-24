@@ -76,7 +76,8 @@ const filteredConversations = computed(() => {
 const fetchConversations = async () => {
     try {
         const userIdParam = authId.value ? `?user_id=${authId.value}` : '';
-        const response = await fetch(`${API_BASE}/CMS/Chat/getConversations${userIdParam}`); 
+        // Add cache buster to conversations fetch
+        const response = await fetch(`${API_BASE}/CMS/Chat/getConversations${userIdParam}&_t=${Date.now()}`); 
         
         if (!response.ok) {
             const text = await response.text();
@@ -92,29 +93,47 @@ const fetchConversations = async () => {
                  console.log("API returned 0 conversations.");
             }
             
-            // MERGE STRATEGY: Update existing conversations to preserve 'messages' cache
-            const merged = result.data.map(c => {
-                const existing = conversations.value.find(ex => ex.id === c.id);
+            // SMART MERGE STRATEGY
+            // 1. Create Map of existing convos
+            const existingMap = new Map(conversations.value.map(c => [c.id, c]));
+            const newOrder = [];
+
+            result.data.forEach(c => {
+                let convo = existingMap.get(c.id);
                 
-                const newData = {
-                    id: c.id,
-                    wa_number: c.wa_number, // Ensure wa_number is stored
-                    name: c.contact_name || c.wa_number,
-                    kode_cabang: c.kode_cabang, 
-                    initials: (c.contact_name || c.wa_number || '?').substring(0, 1).toUpperCase(),
-                    color: getAvatarColor(c.id),
-                    status: c.status,  
-                    lastMessage: c.last_message || c.last_message_text || 'No messages yet',
-                    lastTime: formatLastTime(c.last_message_time),
-                    unread: parseInt(c.unread_count) || 0,
-                    // Preserve existing messages or initialize empty
-                    messages: existing ? existing.messages : [] 
-                };
-                
-                return newData;
+                if (convo) {
+                    // Update existing
+                    convo.wa_number = c.wa_number;
+                    convo.name = c.contact_name || c.wa_number;
+                    convo.kode_cabang = c.kode_cabang;
+                    convo.initials = (c.contact_name || c.wa_number || '?').substring(0, 1).toUpperCase();
+                    convo.color = getAvatarColor(c.id);
+                    convo.status = c.status;
+                    convo.lastMessage = c.last_message || c.last_message_text || 'No messages yet';
+                    convo.lastTime = formatLastTime(c.last_message_time);
+                    convo.unread = parseInt(c.unread_count) || 0;
+                    // MESSAGES PRESERVED AUTOMATICALLY as we are modifying the object ref
+                } else {
+                    // Create new
+                    convo = {
+                        id: c.id,
+                        wa_number: c.wa_number,
+                        name: c.contact_name || c.wa_number,
+                        kode_cabang: c.kode_cabang, 
+                        initials: (c.contact_name || c.wa_number || '?').substring(0, 1).toUpperCase(),
+                        color: getAvatarColor(c.id),
+                        status: c.status,  
+                        lastMessage: c.last_message || c.last_message_text || 'No messages yet',
+                        lastTime: formatLastTime(c.last_message_time),
+                        unread: parseInt(c.unread_count) || 0,
+                        messages: []
+                    };
+                }
+                newOrder.push(convo);
             });
             
-            conversations.value = merged;
+            // Re-assign to update list order/membership
+            conversations.value = newOrder;
             
         } else {
             console.error("API format error:", result);
