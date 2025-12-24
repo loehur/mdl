@@ -636,6 +636,15 @@ const handleIncomingMessage = (payload) => {
     rawTime: messageData.time || new Date().toISOString() // Keep raw timestamp for date separator
   };
   
+  // DEBUG: Log every incoming message attempt
+  console.log('[handleIncomingMessage] Processing:', {
+      conversation: conversationId || phone,
+      sender: sender,
+      text: displayText,
+      id: newMsg.id,
+      source: 'handleIncomingMessage'
+  });
+  
   // Avoid duplicate messages if already present
   // Enhanced check: ID match OR (same sender + same text + within 2 seconds)
   const isDuplicate = conversation.messages.find(m => {
@@ -652,7 +661,7 @@ const handleIncomingMessage = (payload) => {
           const time2 = new Date(newMsg.rawTime || newMsg.time).getTime();
           
           if (!isNaN(time1) && !isNaN(time2) && Math.abs(time1 - time2) < 2000) {
-              console.log('Duplicate detected (fuzzy match):', newMsg.id);
+              console.log('⚠️ Duplicate detected (fuzzy match):', newMsg.id, 'matches existing:', m.id);
               return true;
           }
       }
@@ -661,6 +670,7 @@ const handleIncomingMessage = (payload) => {
   });
   
   if (!isDuplicate) {
+      console.log('✓ Adding message to conversation:', newMsg.id);
       // Simply push to array
       conversation.messages.push(newMsg);
       
