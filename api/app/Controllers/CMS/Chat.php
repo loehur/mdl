@@ -304,13 +304,23 @@ class Chat extends Controller
                 // Push WebSocket to update all clients
                 $userId = $_SERVER['HTTP_USER_ID'] ?? $body['user_id'] ?? null;
                 
+                // ⚡ TRICK: Payload must look like a REAL message to pass stricter WebSocket server validation
+                // We wrap the data inside a 'message' object
                 $payload = [
-                    'type' => 'new_message', // ⚡ TRICK: Use standard type to ensure broadcast
-                    'is_priority_update' => true, // Flag for frontend to detect
+                    'type' => 'new_message',
+                    'is_priority_update' => true, // Flag for frontend
                     'phone' => $phone,
                     'priority' => 0,
-                    'target_id' => '0', // Broadcast to all
-                    'sender_id' => $userId
+                    'target_id' => '0',
+                    'sender_id' => $userId,
+                    // Fake message structure to satisfy server validators
+                    'message' => [
+                        'id' => uniqid('sys_'),
+                        'text' => "PRIORITY_UPDATE:$phone:0", // Visible text if leak happens
+                        'type' => 'system',
+                        'sender' => 'system',
+                        'timestamp' => time()
+                    ]
                 ];
                 
                 

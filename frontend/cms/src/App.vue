@@ -859,16 +859,17 @@ const sendImage = async () => {
 };
 
 const handleIncomingMessage = (payload) => {
-  // Check if this is a status update
+  // DEBUG: Log ALL incoming messages to see what we really get
+  console.log('📡 WS Payload:', payload);
+
   // Check if this is a status update
   if (payload.type === 'status_update') {
+      // ... existing status logic ...
       const { conversation_id, message, phone } = payload;
       const conversation = conversations.value.find(c => (conversation_id && c.id == conversation_id) || (phone && c.wa_number == phone));
       
       if (conversation) {
-          // Find message by ID (preferred) or WAMID
           const msgToUpdate = conversation.messages.find(m => m.id == message.id || m.wamid == message.wamid);
-          
           if (msgToUpdate) {
               msgToUpdate.status = message.status;
           }
@@ -877,8 +878,15 @@ const handleIncomingMessage = (payload) => {
   }
 
   // Handle priority update (or Hijacked new_message)
-  if (payload.type === 'priority_updated' || (payload.type === 'new_message' && payload.is_priority_update)) {
-      const { phone, priority } = payload;
+  // Check 'is_priority_update' at root OR inside 'message' object
+  const isPriority = payload.type === 'priority_updated' || 
+                    (payload.type === 'new_message' && (payload.is_priority_update || payload.message?.is_priority_update));
+
+  if (isPriority) {
+      // If flat or nested
+      const phone = payload.phone || payload.message?.phone;
+      const priority = payload.priority ?? 0; // default to 0 if missing (mark as done)
+
       console.log('[WebSocket] Received priority_updated:', { phone, priority });
       
       const conversation = conversations.value.find(c => c.wa_number === phone);
