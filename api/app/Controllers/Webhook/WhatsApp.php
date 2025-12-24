@@ -180,14 +180,6 @@ class WhatsApp extends Controller
             }
 
             $conversationId = $this->getOrCreateConversation($db, $waNumber, $contact_name, $assigned_user_id, $code, $lastMessageSummary);
-    
-            $autoReply = false;
-            // Ensure WAReplies class is available (simple autoload check or require if needed, but assuming namespace works)
-            if (!class_exists('\\App\\Models\\WAReplies')) {
-                require_once __DIR__ . '/../../Models/WAReplies.php';
-            }
-            // Auto Reply Re-enabled with Idempotency Protection - use extracted messageText
-            $autoReply = (new \App\Models\WAReplies())->process($phoneIn, $messageText, $waNumber);
         } catch (\Exception $e) {
             \Log::write("Error processing pending notifs: " . $e->getMessage(), 'webhook', 'WhatsApp');
         }
@@ -273,7 +265,6 @@ class WhatsApp extends Controller
             'wamid' => $wamid,
             'contact_name' => $contact_name,
             'status' => $status,
-            'received_at' => $sendTime
         ];
         
         // DEBUG: Log data before insert
@@ -301,11 +292,21 @@ class WhatsApp extends Controller
                     'media_id' => $mediaId,
                     'media_url' => $mediaUrl,
                     'caption' => $mediaCaption,
-                    'time' => $sendTime,
+                    'time' => date('Y-m-d H:i:s'),
                 ],
                 'target_id' => $assigned_user_id ? (string)$assigned_user_id : '0', // Request-assigned user ID, fallback to 0
                 'kode_cabang' => $code // Add kode_cabang for frontend display
             ]);
+
+            // Auto Reply Processed Here (After DB Save)
+            try {
+                if (!class_exists('\\App\\Models\\WAReplies')) {
+                    require_once __DIR__ . '/../../Models/WAReplies.php';
+                }
+                (new \App\Models\WAReplies())->process($phoneIn, $messageText, $waNumber);
+            } catch (\Exception $e) {
+                \Log::write("Error processing auto-reply: " . $e->getMessage(), 'webhook', 'WhatsApp');
+            }
         }
     }
 
