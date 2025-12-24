@@ -180,67 +180,28 @@ const connect = () => {
     connectWebSocket();
     fetchConversations();
     
-    // ✅ Connect to SSE stream for real-time updates
-    connectSSE();
-}
-
-// SSE Connection Management
-const connectSSE = () => {
-    // Close existing connection
-    if (eventSource.value) {
-        eventSource.value.close();
+    // ✅ SUPER RELIABLE SYNC (3 Seconds)
+    // SSE is tricky with PHP buffering, so we use high-frequency polling.
+    // 3 seconds is fast enough to feel "real-time" but safe for server.
+    if (refreshInterval.value) {
+        clearInterval(refreshInterval.value);
     }
     
-    const sseUrl = `${API_BASE}/CMS/Chat/stream?user_id=${authId.value}`;
-    console.log('🔌 Connecting to SSE:', sseUrl);
-    
-    eventSource.value = new EventSource(sseUrl);
-    
-    // Handle priority updates
-    eventSource.value.addEventListener('priority_updated', (event) => {
-        try {
-            const data = JSON.parse(event.data);
-            const { phone, priority } = data;
-            
-            console.log('✨ SSE: Priority updated!', phone, priority);
-            
-            const conversation = conversations.value.find(c => c.wa_number === phone);
-            if (conversation) {
-                conversation.priority = parseInt(priority) || 0;
-                // Force reactivity
-                conversations.value = [...conversations.value];
-                console.log(`✓ Updated priority for ${phone} to ${priority}`);
-            }
-        } catch (e) {
-            console.error('SSE event parse error:', e);
+    refreshInterval.value = setInterval(() => {
+        // Only poll if connected and tab is visible (save resources)
+        if (isConnected.value && !document.hidden) {
+            fetchConversations();
         }
-    });
-    
-    // Connection opened
-    eventSource.value.onopen = () => {
-        console.log('✅ SSE Connected!');
-    };
-    
-    // Error handling & auto-reconnect
-    eventSource.value.onerror = (error) => {
-        console.warn('⚠️ SSE Error, reconnecting in 3s...', error);
-        eventSource.value.close();
-        
-        // Reconnect after 3 seconds
-        setTimeout(() => {
-            if (isConnected.value) {
-                connectSSE();
-            }
-        }, 3000);
-    };
+    }, 3000); // ⚡ 3 Seconds Sync
+}
+
+// SSE Removed for reliability
+const connectSSE = () => {
+    // Disabled
 };
 
 const disconnectSSE = () => {
-    if (eventSource.value) {
-        eventSource.value.close();
-        eventSource.value = null;
-        console.log('🔌 SSE Disconnected');
-    }
+   // Disabled
 };
 
 // --- Computed ---
@@ -828,8 +789,10 @@ onUnmounted(() => {
     window.removeEventListener('paste', handlePaste);
     window.removeEventListener('click', handleClickOutside);
     
-    // Disconnect SSE
-    disconnectSSE();
+    // Clear polling interval
+    if (refreshInterval.value) {
+        clearInterval(refreshInterval.value);
+    }
 });
 
 const sendImage = async () => {
