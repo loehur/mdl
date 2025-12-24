@@ -728,6 +728,7 @@ const sendImage = async () => {
     formData.append('user_id', authId.value);
     if (caption) formData.append('caption', caption);
     
+
     const tempId = Date.now();
     const newMsg = {
       id: tempId,
@@ -736,6 +737,7 @@ const sendImage = async () => {
       media_url: imagePreview.value,
       sender: 'me',
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      rawTime: new Date().toISOString(), // FIXED: Add rawTime for proper sorting and date separator
       status: 'pending'
     };
     

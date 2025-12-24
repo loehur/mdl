@@ -240,12 +240,14 @@ class WhatsApp extends Controller
                 \Log::write("Template Params (after conversion to indexed): " . json_encode($templateParams), 'wa_debug', 'template');
             }
 
-            // Send template
+            // Send template (pass the original message text for database storage)
+            $messageText = $body['message'] ?? ''; // The rendered text from WAGenerator
             $result = $this->whatsappService->sendTemplate(
                 $phone,
                 $templateName,
                 $templateLanguage,
-                $templateParams
+                $templateParams,
+                $messageText
             );
             
             

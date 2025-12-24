@@ -73,9 +73,10 @@ class WhatsAppService
      * @param string $templateName Template name registered in WhatsApp Business
      * @param string $language Language code (e.g., 'id', 'en')
      * @param array $parameters Template parameters/variables
+     * @param string $messageText Optional pre-rendered message text for database storage
      * @return array Response from yCloud API
      */
-    public function sendTemplate($to, $templateName, $language = 'id', $parameters = [])
+    public function sendTemplate($to, $templateName, $language = 'id', $parameters = [], $messageText = null)
     {
     // DEBUG LOG: Input parameters
     \Log::write("=== TEMPLATE MESSAGE DEBUG ===", 'wa_debug', 'template');
@@ -118,7 +119,8 @@ class WhatsAppService
         // DEBUG LOG: Final payload
         \Log::write("Payload to yCloud: " . json_encode($payload, JSON_PRETTY_PRINT), 'wa_debug', 'template');
         
-        $result = $this->sendRequest('/whatsapp/messages', $payload);
+        // Pass messageText as metadata (not sent to API, but used for DB storage)
+        $result = $this->sendRequest('/whatsapp/messages', $payload, 'POST', $messageText);
         
         // DEBUG LOG: Response from yCloud
         \Log::write("Response from yCloud: " . json_encode($result, JSON_PRETTY_PRINT), 'wa_debug', 'template');
@@ -518,9 +520,11 @@ class WhatsAppService
      * 
      * @param string $endpoint API endpoint
      * @param array $payload Request payload
+     * @param string $method HTTP method (default: POST)
+     * @param string|null $messageText Optional pre-rendered message text for database storage
      * @return array API response
      */
-    private function sendRequest($endpoint, $payload)
+    private function sendRequest($endpoint, $payload, $method = 'POST', $messageText = null)
     {
         $url = $this->baseUrl . $endpoint;
         
@@ -568,7 +572,7 @@ class WhatsAppService
         $localId = null;
         if ($success && isset($responseData['id'])) {
             try {
-                $localId = $this->saveOutboundMessage($payload, $responseData);
+                $localId = $this->saveOutboundMessage($payload, $responseData, $messageText);
             } catch (\Throwable $e) {
                 if (class_exists('\Log')) {
                     \Log::write("!! EXCEPTION saving outbound: " . $e->getMessage(), 'wa_error', 'SaveOutbound');
@@ -598,8 +602,9 @@ class WhatsAppService
      * 
      * @param array $payload Request payload sent to API
      * @param array $response API response
+     * @param string|null $messageText Optional pre-rendered message text (for templates)
      */
-    private function saveOutboundMessage($payload, $response)
+    private function saveOutboundMessage($payload, $response, $messageText = null)
     {       
         // Wrap everything in try-catch to prevent breaking the main flow
         try {
@@ -625,26 +630,31 @@ class WhatsAppService
             if ($messageType === 'text' && isset($payload['text']['body'])) {
                 $content = $payload['text']['body'];
             } elseif ($messageType === 'template' && isset($payload['template']['name'])) {
-                // Extract text from template parameters
-                $templateText = '';
-                if (isset($payload['template']['components'])) {
-                    foreach ($payload['template']['components'] as $component) {
-                        if ($component['type'] === 'body' && isset($component['parameters'])) {
-                            $params = [];
-                            foreach ($component['parameters'] as $param) {
-                                if ($param['type'] === 'text') {
-                                    $params[] = $param['text'];
+                // PRIORITY 1: Use pre-rendered messageText if provided (from WAGenerator)
+                if (!empty($messageText)) {
+                    $content = $messageText;
+                } else {
+                    // FALLBACK: Extract text from template parameters
+                    $templateText = '';
+                    if (isset($payload['template']['components'])) {
+                        foreach ($payload['template']['components'] as $component) {
+                            if ($component['type'] === 'body' && isset($component['parameters'])) {
+                                $params = [];
+                                foreach ($component['parameters'] as $param) {
+                                    if ($param['type'] === 'text') {
+                                        $params[] = $param['text'];
+                                    }
                                 }
+                                // Build readable text from parameters
+                                // Format: "Customer: BUDI | Order: ... | Total: ... | Link: ..."
+                                $templateText = implode(' | ', $params);
                             }
-                            // Build readable text from parameters
-                            // Format: "Customer: BUDI | Order: ... | Total: ... | Link: ..."
-                            $templateText = implode(' | ', $params);
                         }
                     }
+                    
+                    // Store readable text in content, not template name
+                    $content = $templateText ?: $payload['template']['name']; // Fallback to template name if no text
                 }
-                
-                // Store readable text in content, not template name
-                $content = $templateText ?: $payload['template']['name']; // Fallback to template name if no text
                 
                 // Store template params for reference
                 if (isset($payload['template']['components'])) {
