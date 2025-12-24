@@ -91,8 +91,6 @@ class Moota extends Controller
 
             if (isset($mutation['amount']) && isset($mutation['type']) && isset($mutation['bank_id']) && isset($mutation['mutation_id'])) {
                 \Log::write("Amt: " . $mutation['amount'] . ", Typ: " . $mutation['type'] . ", Bank: " . $mutation['bank_id'], 'webhook', 'Moota');
-
-
             } else {
                 \Log::write("Err: Field Miss", 'webhook', 'Moota');
                 $error_count++;

@@ -95,11 +95,10 @@ class DB extends \DBC
         if (!empty($where)) {
             $clauses = [];
             foreach ($where as $key => $val) {
-                // Determine operator
-                $op = "=";
-                // Basic support for "key !=" => val syntax could be added, but keeping simple for now: "key" => val
+                // Parse key to extract column and operator
+                list($column, $operator) = $this->parseWhereKey($key);
 
-                $clauses[] = "$key = ?";
+                $clauses[] = "$column $operator ?";
                 $params[] = $val;
 
                 if (is_int($val)) $types .= "i";
@@ -182,7 +181,10 @@ class DB extends \DBC
         // Where clauses
         $where_clauses = [];
         foreach ($where as $key => $val) {
-            $where_clauses[] = "$key = ?";
+            // Parse key to extract column and operator
+            list($column, $operator) = $this->parseWhereKey($key);
+            
+            $where_clauses[] = "$column $operator ?";
             $params[] = $val;
             if (is_int($val)) $types .= "i";
             elseif (is_float($val)) $types .= "d";
@@ -220,7 +222,10 @@ class DB extends \DBC
         // Where clauses
         $where_clauses = [];
         foreach ($where as $key => $val) {
-            $where_clauses[] = "$key = ?";
+            // Parse key to extract column and operator
+            list($column, $operator) = $this->parseWhereKey($key);
+            
+            $where_clauses[] = "$column $operator ?";
             $params[] = $val;
             if (is_int($val)) $types .= "i";
             elseif (is_float($val)) $types .= "d";
@@ -252,7 +257,10 @@ class DB extends \DBC
         $types = "";
 
         foreach ($where as $key => $val) {
-            $where_clauses[] = "$key = ?";
+            // Parse key to extract column and operator
+            list($column, $operator) = $this->parseWhereKey($key);
+            
+            $where_clauses[] = "$column $operator ?";
             $params[] = $val;
             if (is_int($val)) $types .= "i";
             elseif (is_float($val)) $types .= "d";
@@ -280,7 +288,10 @@ class DB extends \DBC
         $types = "";
 
         foreach ($where as $key => $val) {
-            $where_clauses[] = "$key = ?";
+            // Parse key to extract column and operator
+            list($column, $operator) = $this->parseWhereKey($key);
+            
+            $where_clauses[] = "$column $operator ?";
             $params[] = $val;
             if (is_int($val)) $types .= "i";
             elseif (is_float($val)) $types .= "d";
@@ -357,6 +368,29 @@ class DB extends \DBC
         $this->qb_params = [];
         $this->qb_types = "";
         $this->query_result = null;
+    }
+
+    /**
+     * Parse WHERE key to extract column name and operator
+     * Supports: "column", "column !=", "column >", "column <", "column >=", "column <=", "column LIKE"
+     * Usage: parseWhereKey("state !=") returns ["state", "!="]
+     *        parseWhereKey("id") returns ["id", "="]
+     */
+    private function parseWhereKey($key)
+    {
+        $key = trim($key);
+        $supported_operators = ['!=', '>=', '<=', '>', '<', 'LIKE', 'like'];
+        
+        foreach ($supported_operators as $op) {
+            // Check if key ends with operator
+            if (substr($key, -strlen($op)) === $op) {
+                $column = trim(substr($key, 0, -strlen($op)));
+                return [$column, strtoupper($op)];
+            }
+        }
+        
+        // Default operator is =
+        return [$key, '='];
     }
 
     // Helper to get raw connection if needed
