@@ -458,7 +458,8 @@ const sendMessage = async () => {
       text: text,
       sender: 'me',
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      timestamp: Date.now(), // Add timestamp for duplicate detection
+      rawTime: new Date().toISOString(), // Fixed: Add rawTime for proper sorting
+      timestamp: Date.now(),
       status: 'pending'
     };
     
