@@ -405,9 +405,26 @@ class Antrian extends Controller
          session_write_close();
       }
 
-      // Send with template mode (will try free text first, fallback to template if CSW expired)
-      // Pass jsonText (contains both 'text' and 'template_params')
-      $res = $this->helper("Notif")->send_wa($hp, $jsonText, URL::MESSAGE_MODE);
+      // Cek wa_conversations, jika ada maka ubah jadi free
+      $cleanHp = $hp;
+      if (substr($hp, 0, 1) == '0') {
+         $cleanHp = substr($hp, 1);
+      } elseif (substr($hp, 0, 2) == '62') {
+         $cleanHp = substr($hp, 2);
+      } elseif (substr($hp, 0, 3) == '+62') {
+         $cleanHp = substr($hp, 3);
+      }
+
+      $hpVariations = ["'0" . $cleanHp . "'", "'62" . $cleanHp . "'", "'+62" . $cleanHp . "'"];
+      $hpList = implode(",", $hpVariations);
+
+      $message_mode = 'template';
+      $cekConv = $this->db(100)->count_where('wa_conversations', "wa_number IN ($hpList)");
+      if ($cekConv > 0) {
+         $message_mode = 'free';
+      }
+
+      $res = $this->helper("Notif")->send_wa($hp, $jsonText, $message_mode);
       
       $setOne = "no_ref = '" . $noref . "' AND tipe = 1";
       $where = $this->wCabang . " AND " . $setOne;
