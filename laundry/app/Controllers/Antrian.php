@@ -205,8 +205,6 @@ class Antrian extends Controller
    public function operasi()
    {
       $karyawan = $_POST['f1'];
-      $totalNotif = $_POST['inTotalNotif'];
-
       $penjualan = $_POST['f2'];
       $operasi = $_POST['f3'];
 
@@ -220,7 +218,7 @@ class Antrian extends Controller
 
       // Generate text using WAGenerator (text sudah final, tidak perlu replace lagi)
       $waGen = $this->helper('WAGenerator');
-      $jsonText = $waGen->get_selesai_text($penjualan, $karyawan, $totalNotif);
+      $jsonText = $waGen->get_selesai_text($penjualan, $karyawan);
       $objText = json_decode($jsonText, true);
       $text = $objText['text'] ?? "";
 

@@ -663,9 +663,7 @@
     $("b.operasi").html(layanan);
     window.idtargetOperasi = $(this).attr("id");
 
-    var ref_ini = $(this).attr("data-ref");
-    var totalNotif = $("span#textTotal" + ref_ini).html();
-    $("input[name=inTotalNotif]").val(totalNotif);
+
   });
 
   $("span.gantiOperasi").on("click", function (e) {
@@ -690,9 +688,7 @@
     $("b.operasi").html(layanan);
     window.idtargetOperasi = $(this).attr("id");
 
-    var ref_ini = $(this).attr("data-ref");
-    var totalNotif = $("span#textTotal" + ref_ini).html();
-    $("input[name=inTotalNotif]").val(totalNotif);
+
   });
 
   $(".tambahCas").click(function () {

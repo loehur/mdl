@@ -214,7 +214,7 @@ class WAGenerator extends Controller
         $kas = $this->db(0)->get_where('kas', "ref_transaksi = '$ref'");
         $dibayar = 0;
         foreach ($kas as $k) {
-             if ($k['status_mutasi'] != 4) { // 4 is rejected/cancelled?
+             if ($k['status_mutasi'] == 3) { // 3 paid
                   $dibayar += $k['jumlah'];
              }
         }
@@ -262,7 +262,7 @@ class WAGenerator extends Controller
         ]);
     }
 
-    public function get_selesai_text($id_penjualan, $karyawan, $totalNotif)
+    public function get_selesai_text($id_penjualan, $karyawan)
     {
         // Get sale data
         $sale = $this->db(0)->get_where_row('sale', "id_penjualan = '$id_penjualan'");
@@ -286,6 +286,61 @@ class WAGenerator extends Controller
         // Get branch
         $cabang = $this->db(0)->get_where_row('cabang', "id_cabang = '$id_cabang'");
         $kode_cabang = $cabang ? $cabang['kode_cabang'] : '00';
+
+        // Logic Total Notif (Same as get_nota)
+        // 1. Calculate Transaction Total
+        // We need all items for this Ref? Or just this single item finished?
+        // Usually 'Selesai' notification is per item or per transaction?
+        // In Antrian controller, it seems to call this per item status update.
+        // But if we want "Total/Sisa", we need the whole transaction (Ref).
+        
+        $ref = $sale['no_ref'];
+        
+        // Fetch all items in this transaction to calc total bill
+        $all_items = $this->db(0)->get_where('sale', "no_ref = '$ref'");
+        $subTotal = 0;
+        
+        foreach ($all_items as $a) {
+             // Basic Total calc
+             $qty = ($a['qty'] < $a['min_order']) ? $a['min_order'] : $a['qty'];
+             $price = $a['harga'];
+             $total = $qty * $price;
+             
+             // Discounts
+             if ($a['member'] == 0) {
+                 if ($a['diskon_qty'] > 0) $total -= ($total * ($a['diskon_qty']/100));
+                 if ($a['diskon_partner'] > 0) $total -= ($total * ($a['diskon_partner']/100));
+             } else {
+                 $total = 0; // Member logic
+             }
+             $subTotal += $total;
+        }
+        
+        // Surcas
+        $surcas = $this->db(0)->get_where('surcas', "no_ref = '$ref'");
+        if (!empty($surcas)) {
+            foreach ($surcas as $sc) {
+                $subTotal += $sc['jumlah'];
+            }
+        }
+        
+        // Payments
+        $kas = $this->db(0)->get_where('kas', "ref_transaksi = '$ref'");
+        $dibayar = 0;
+        foreach ($kas as $k) {
+             if ($k['status_mutasi'] == 3) { // 3 paid
+                  $dibayar += $k['jumlah'];
+             }
+        }
+        
+        // Final Text
+        $sisa = $subTotal - $dibayar;
+        $totalNotif = "";
+        if ($sisa <= 0) {
+            $totalNotif = "*Total/Sisa 0. LUNAS*";
+        } else {
+            $totalNotif = "*Total/Sisa " . number_format($sisa) . "*";
+        }
 
         // Build text with actual values (no placeholders)
         $output = "*" . strtoupper($nama_pelanggan) . "* _#" . $kode_cabang . "-" . $karyawan_code . "_ \n#" . $id_penjualan . " Selesai. \n" . $totalNotif . " \n" . URL::HOST_URL . "/I/i/" . $id_pelanggan;
