@@ -289,7 +289,21 @@ class WhatsApp extends Controller
                 if (!class_exists('\\App\\Models\\WAReplies')) {
                     require_once __DIR__ . '/../../Models/WAReplies.php';
                 }
-                (new \App\Models\WAReplies())->process($phoneIn, $messageText, $waNumber);
+                $autoReplyTriggered = (new \App\Models\WAReplies())->process($phoneIn, $messageText, $waNumber);
+                
+                if ($autoReplyTriggered) {                    
+                    // Update message status to 'read' since it was processed by auto-reply
+                    $updated = $db->update('wa_messages_in', 
+                        ['status' => 'read'], 
+                        ['id' => $msgId]
+                    );
+                } else {
+                    // No keyword match - needs CS attention, set priority to 4 (high)
+                    $db->update('wa_conversations', 
+                        ['priority' => 4], 
+                        ['wa_number' => $waNumber]
+                    );
+                }
             } catch (\Exception $e) {
                 \Log::write("Error processing auto-reply: " . $e->getMessage(), 'webhook', 'WhatsApp');
             }

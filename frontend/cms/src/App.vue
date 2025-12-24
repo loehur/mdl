@@ -61,14 +61,28 @@ const isTitleRed = ref(false);
 const searchQuery = ref('');
 
 const filteredConversations = computed(() => {
-  if (!searchQuery.value) return conversations.value;
+  let list = conversations.value;
   
-  const query = searchQuery.value.toLowerCase();
-  return conversations.value.filter(c => 
-    (c.name && c.name.toLowerCase().includes(query)) ||
-    (c.wa_number && c.wa_number.includes(query)) ||
-    (c.lastMessage && c.lastMessage.toLowerCase().includes(query))
-  );
+  // Apply search filter if query exists
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase();
+    list = list.filter(c => 
+      (c.name && c.name.toLowerCase().includes(query)) ||
+      (c.wa_number && c.wa_number.includes(query)) ||
+      (c.lastMessage && c.lastMessage.toLowerCase().includes(query))
+    );
+  }
+  
+  // Sort by priority (DESC) then by latest activity
+  // Priority 4 = Urgent (top), Priority 0 = Normal (bottom)
+  return list.sort((a, b) => {
+    // Sort by priority first (higher priority = higher in list)
+    if ((a.priority || 0) !== (b.priority || 0)) {
+      return (b.priority || 0) - (a.priority || 0);
+    }
+    // If same priority, sort by most recent (already sorted from API, but just in case)
+    return 0;
+  });
 });
 
 
@@ -106,6 +120,7 @@ const fetchConversations = async () => {
                     convo.wa_number = c.wa_number;
                     convo.name = c.contact_name || c.wa_number;
                     convo.kode_cabang = c.kode_cabang;
+                    convo.priority = parseInt(c.priority) || 0;
                     convo.initials = (c.contact_name || c.wa_number || '?').substring(0, 1).toUpperCase();
                     convo.color = getAvatarColor(c.id);
                     convo.status = c.status;
@@ -119,7 +134,8 @@ const fetchConversations = async () => {
                         id: c.id,
                         wa_number: c.wa_number,
                         name: c.contact_name || c.wa_number,
-                        kode_cabang: c.kode_cabang, 
+                        kode_cabang: c.kode_cabang,
+                        priority: parseInt(c.priority) || 0,
                         initials: (c.contact_name || c.wa_number || '?').substring(0, 1).toUpperCase(),
                         color: getAvatarColor(c.id),
                         status: c.status,  
@@ -1510,7 +1526,12 @@ window.addEventListener('focus', () => {
           :key="chat.id"
           @click="selectChat(chat.id)"
           class="p-3 flex items-center gap-3 cursor-pointer transition-colors duration-200 border-b border-slate-800/50 hover:bg-slate-800/50"
-          :class="{'bg-[#334155]/60 border-l-4 border-l-indigo-500': activeChatId === chat.id, 'border-l-4 border-l-transparent': activeChatId !== chat.id}"
+          :class="{
+            'bg-[#334155]/60 border-l-4 border-l-indigo-500': activeChatId === chat.id && !chat.priority,
+            'bg-amber-900/20 border-l-4 border-l-amber-500': activeChatId === chat.id && chat.priority,
+            'border-l-4 border-l-transparent': activeChatId !== chat.id && !chat.priority,
+            'border-l-4 border-l-amber-600 bg-amber-950/30': activeChatId !== chat.id && chat.priority
+          }"
         >
            <div class="relative">
              <div 

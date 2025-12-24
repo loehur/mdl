@@ -107,8 +107,6 @@ class WAReplies
                 continue;
             }
             
-            $cek;
-
             // Check keywords
             foreach ($keywords as $keyword) {
                 if (stripos($textBodyToCheck, $keyword) !== false) {

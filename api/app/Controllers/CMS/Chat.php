@@ -24,7 +24,7 @@ class Chat extends Controller
             // Auto-close expired conversations (CSW timeout > 22 hours)
             // Rule: If last message was > 22 hours ago, close the session
             $sqlClose = "UPDATE wa_conversations 
-                         SET status = 'closed' 
+                         SET status = 'closed', priority = 0
                          WHERE status = 'open' 
                          AND last_in_at < (NOW() - INTERVAL 22 HOUR)";
             $db->query($sqlClose);
@@ -52,6 +52,7 @@ class Chat extends Controller
                     c.wa_number, 
                     c.contact_name, 
                     c.status,
+                    c.priority,
                     (
                         SELECT COUNT(*) 
                         FROM wa_messages_in m 
@@ -64,7 +65,7 @@ class Chat extends Controller
                     COALESCE(c.code, '00') as kode_cabang
                 FROM wa_conversations c
                 WHERE $whereClause
-                ORDER BY c.updated_at DESC
+                ORDER BY c.priority DESC, c.updated_at DESC
             ";
     
             $query = $db->query($sql);
