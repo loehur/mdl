@@ -1528,9 +1528,9 @@ window.addEventListener('focus', () => {
           class="p-3 flex items-center gap-3 cursor-pointer transition-colors duration-200 border-b border-slate-800/50 hover:bg-slate-800/50"
           :class="{
             'bg-[#334155]/60 border-l-4 border-l-indigo-500': activeChatId === chat.id && !chat.priority,
-            'bg-orange-900/20 border-l-4 border-l-orange-500': activeChatId === chat.id && chat.priority,
+            'bg-pink-900/20 border-l-4 border-l-pink-500': activeChatId === chat.id && chat.priority,
             'border-l-4 border-l-transparent': activeChatId !== chat.id && !chat.priority,
-            'border-l-4 border-l-orange-600 bg-orange-950/30': activeChatId !== chat.id && chat.priority
+            'border-l-4 border-l-pink-600 bg-pink-950/30': activeChatId !== chat.id && chat.priority
           }"
         >
            <div class="relative">
