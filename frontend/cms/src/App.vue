@@ -486,6 +486,66 @@ const cancelImage = () => {
   imageCaption.value = '';
 };
 
+// Handle Paste Event (Windows Screenshot / Clipboard)
+const handlePaste = async (event) => {
+  // Only allow paste if a chat is active
+  if (!activeChatId.value && !showMobileChat.value) return;
+
+  const items = (event.clipboardData || event.originalEvent.clipboardData).items;
+  let file = null;
+
+  for (const item of items) {
+    if (item.type.indexOf('image') !== -1) {
+      file = item.getAsFile();
+      break;
+    }
+  }
+
+  if (!file) return;
+
+  // Prevent default paste behavior
+  event.preventDefault();
+
+  if (file.size > 10 * 1024 * 1024) {
+    alert('Image size must be less than 10MB');
+    return;
+  }
+
+  try {
+    // Compress image to ~500KB using existing compressImage function
+    const compressedBlob = await compressImage(file, 500 * 1024);
+    
+    // Create new File from compressed blob
+    const compressedFile = new File([compressedBlob], "pasted_image_" + Date.now() + ".jpg", {
+      type: file.type || 'image/jpeg',
+      lastModified: Date.now()
+    });
+    
+    selectedImage.value = compressedFile;
+    
+    // Create preview
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      imagePreview.value = e.target.result;
+      showImagePreview.value = true;
+      // Focus caption input if available (optional)
+    };
+    reader.readAsDataURL(compressedFile);
+    
+  } catch (err) {
+    console.error('Paste processing error:', err);
+    alert('Failed to process pasted image');
+  }
+};
+
+onMounted(() => {
+    window.addEventListener('paste', handlePaste);
+});
+
+onUnmounted(() => {
+    window.removeEventListener('paste', handlePaste);
+});
+
 const sendImage = async () => {
   // ❌ GUARD: Prevent multiple simultaneous sends - CHECK FIRST!
   if (isUploadingImage.value) {
