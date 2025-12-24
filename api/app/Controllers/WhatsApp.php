@@ -14,11 +14,42 @@ class WhatsApp extends Controller
 {
     private $whatsappService;
     
+    
     public function __construct()
     {
         $this->handleCors();
         $this->whatsappService = new WhatsAppService();
     }
+    
+    /**
+     * Validate IP Whitelist
+     * Only allow requests from specific IP address
+     */
+    private function validateIpWhitelist()
+    {
+        $allowedIps = ['194.233.94.47']; // IP server yang diizinkan
+        
+        // Get client IP (consider proxy headers)
+        $clientIp = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['HTTP_X_REAL_IP'] ?? $_SERVER['REMOTE_ADDR'] ?? '';
+        
+        // If multiple IPs in X-Forwarded-For, get the first one
+        if (strpos($clientIp, ',') !== false) {
+            $clientIp = trim(explode(',', $clientIp)[0]);
+        }
+        
+        // Check if IP is in whitelist
+        if (!in_array($clientIp, $allowedIps)) {
+            $this->error(
+                'Access denied. Your IP address is not authorized to access this endpoint.',
+                403,
+                [
+                    'client_ip' => $clientIp,
+                    'timestamp' => date('Y-m-d H:i:s')
+                ]
+            );
+        }
+    }
+    
     
     /**
      * Default endpoint - return API info
@@ -184,6 +215,10 @@ class WhatsApp extends Controller
             }
             
             // CSW expired or free text failed - use template
+
+            //tambahkan keamanan pastikan dikirim hanya menerima domain ip server ip 194.233.94.47
+            $this->validateIpWhitelist();
+
             // Validate template params
             if (empty($body['template_params']) || empty($body['template_name'])) {
                 $this->error('Template params and template name are required when CSW is closed', 400);

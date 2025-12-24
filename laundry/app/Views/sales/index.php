@@ -3,7 +3,19 @@
     border-radius: 15px;
     overflow: hidden
   }
+  
+  /* Modal adjustments untuk dropdown */
+  #modalTransfer .modal-body {
+    overflow: visible !important;
+  }
+  
+  #modalTransfer .modal-content {
+    overflow: visible !important;
+  }
 </style>
+
+<!-- Selectize CSS removed (404) -->
+
 
 <div class="px-1 mt-2">
   <div class="row">
@@ -23,9 +35,31 @@
             <!-- Header Nota -->
             <div class="card-header bg-dark text-white py-1 px-2">
               <div class="d-flex justify-content-between align-items-center">
-                <div>
+                <div class="d-flex align-items-center gap-2">
                   <span class="text-white-50 small">Ref:</span> 
                   <span class="fw-bold">#<?= $ref ?></span>
+                  <?php 
+                  // Indicator jika nota diterima dari cabang lain (target)
+                  $currentCabang = $this->dCabang['id_cabang'] ?? 0;
+                  $sourceId = $group['items'][0]['source_id'] ?? 0;
+                  $targetId = $group['items'][0]['target_id'] ?? 0;
+                  $state = $group['items'][0]['state'] ?? 0;
+                  
+                  if ($targetId == $currentCabang && $sourceId != $currentCabang) {
+                    // Nota diterima dari transfer
+                  ?>
+                    <span class="badge bg-info" style="font-size: 0.7rem;">
+                      <i class="fas fa-download me-1"></i>Terima Transfer
+                    </span>
+                  <?php } ?>
+                  
+                  <?php if ($state == 3) { 
+                    // Nota piutang
+                  ?>
+                    <span class="badge bg-warning text-dark" style="font-size: 0.7rem;">
+                      <i class="fas fa-file-invoice-dollar me-1"></i>Piutang
+                    </span>
+                  <?php } ?>
                 </div>
                 <div class="text-end">
                   <span class="text-white-50 small"><?= date('d/m/y H:i', strtotime($group['date'])) ?></span>
@@ -116,33 +150,108 @@
             
             <!-- Action Buttons -->
             <div class="card-footer bg-light py-2 px-3">
-              <div class="d-flex gap-1 justify-content-end">
-                <?php $hasPayment = !empty($group['payments']); ?>
-                <?php if (!$hasPayment) { ?>
-                <button type="button" class="btn btn-sm btn-outline-danger btnBatalNota" data-ref="<?= $ref ?>" title="Hapus Nota">
-                  <i class="fas fa-times"></i>
-                </button>
-                <?php } ?>
+              <?php 
+              $type = $group['type'] ?? 1;
+              $currentCabang = $this->dCabang['id_cabang'] ?? 0;
+              $sourceId = $group['items'][0]['source_id'] ?? 0;
+              $targetId = $group['items'][0]['target_id'] ?? 0;
+              $isTarget = ($targetId == $currentCabang && $sourceId != $currentCabang);
+              
+              // Jika type = 2 (Transfer)
+              if ($type == 2) {
+                if ($isTarget) {
+                  // CABANG TARGET: Tombol terima barang
+                  // Get kode cabang pengirim
+                  $sourceCabang = $this->db(0)->get_where_row('cabang', "id_cabang = '$sourceId'");
+                  $kodeCabangSource = $sourceCabang['kode_cabang'] ?? 'N/A';
+              ?>
+                <div class="d-grid">
+                  <button type="button" class="btn btn-success btnTerimaBarang" data-ref="<?= $ref ?>" data-source="<?= $kodeCabangSource ?>">
+                    <i class="fas fa-check-circle me-2"></i>Terima barang dari <strong><?= $kodeCabangSource ?></strong>
+                  </button>
+                </div>
+              <?php 
+                } else {
+                  // CABANG SOURCE: Alert peninjauan + tombol hapus
+              ?>
+                <div class="d-flex align-items-center justify-content-between">
+                  <div class="alert alert-info mb-0 py-2 px-3 flex-grow-1" role="alert">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Transfer barang dalam peninjauan</strong>
+                  </div>
+                  <button type="button" class="btn btn-sm btn-outline-danger btnBatalNota ms-2" data-ref="<?= $ref ?>" title="Hapus Nota">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+              <?php 
+                }
+              } elseif ($type == 3) {
+                // Type 3 (Pakai), sembunyikan semua tombol
+              ?>
+                <div class="alert alert-success mb-0 py-2 px-3" role="alert">
+                  <i class="fas fa-check-circle me-2"></i>
+                  <strong>Barang sudah dipakai</strong>
+                </div>
+              <?php 
+              } else { 
+                // Type 1 (Normal), tampilkan tombol
+                $hasPayment = !empty($group['payments']);
+                $state = $group['items'][0]['state'] ?? 0;
+                $isPiutang = ($state == 3);
+              ?>
+                <div class="d-flex gap-1 justify-content-end align-items-center">
+                  <!-- Dropdown Opsi -->
+                  <div class="dropdown">
+                    <!-- Manual Javascript Dropdown -->
+                    <button class="btn btn-sm btn-secondary dropdown-toggle manual-dropdown-toggle" type="button" aria-expanded="false">
+                      Optional
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end shadow">
+                      <?php 
+                      // Opsi Piutang
+                      if (($group['sisa'] ?? $group['total']) > 0 && !$isPiutang) { 
+                      ?>
+                      <li>
+                        <a class="dropdown-item btnPiutang" href="#" data-ref="<?= $ref ?>" data-total="<?= $group['total'] ?>">
+                          <i class="fas fa-file-invoice-dollar text-warning me-2"></i>Jadikan Piutang
+                        </a>
+                      </li>
+                      <?php } ?>
 
-                <?php if (($group['sisa'] ?? $group['total']) > 0) { ?>
-                <button type="button" class="btn btn-sm btn-outline-info btnPiutang" data-ref="<?= $ref ?>" data-total="<?= $group['total'] ?>" title="Piutang">
-                  <i class="fas fa-file-invoice-dollar"></i>
-                </button>
-                <?php } ?>
-                <?php if (!$hasPayment) { ?>
-                <button type="button" class="btn btn-sm btn-outline-primary btnTransfer" data-ref="<?= $ref ?>" title="Transfer">
-                  <i class="fas fa-exchange-alt"></i>
-                </button>
-                <button type="button" class="btn btn-sm btn-outline-success btnPakai" data-ref="<?= $ref ?>" title="Pakai">
-                  <i class="fas fa-box-open"></i>
-                </button>
-                <?php } ?>
-                <?php if (($group['sisa'] ?? $group['total']) > 0) { ?>
-                <button type="button" class="btn btn-sm btn-success btnBayar" data-ref="<?= $ref ?>" data-total="<?= $group['sisa'] ?? $group['total'] ?>" title="Bayar">
-                  <i class="fas fa-wallet me-1"></i>Bayar
-                </button>
-                <?php } ?>
-              </div>
+                      <?php 
+                      // Opsi Transfer & Pakai
+                      if (!$hasPayment && !$isPiutang) { 
+                      ?>
+                      <li>
+                        <a class="dropdown-item btnTransfer" href="#" data-ref="<?= $ref ?>">
+                          <i class="fas fa-exchange-alt text-primary me-2"></i>Transfer Barang
+                        </a>
+                      </li>
+                      <li>
+                        <a class="dropdown-item btnPakai" href="#" data-ref="<?= $ref ?>">
+                          <i class="fas fa-box-open text-success me-2"></i>Barang Dipakai
+                        </a>
+                      </li>
+                      <?php } ?>
+
+                      <?php if (!$hasPayment) { ?>
+                      <li><hr class="dropdown-divider"></li>
+                      <li>
+                        <a class="dropdown-item text-danger btnBatalNota" href="#" data-ref="<?= $ref ?>">
+                          <i class="fas fa-trash-alt me-2"></i>Hapus Nota
+                        </a>
+                      </li>
+                      <?php } ?>
+                    </ul>
+                  </div>
+                  <!-- Tombol Bayar (Primary Action) -->
+                  <?php if (($group['sisa'] ?? $group['total']) > 0) { ?>
+                  <button type="button" class="btn btn-sm btn-success btnBayar" data-ref="<?= $ref ?>" data-total="<?= $group['sisa'] ?? $group['total'] ?>" title="Bayar">
+                    <i class="fas fa-wallet me-1"></i>Bayar
+                  </button>
+                  <?php } ?>
+                </div>
+              <?php } ?>
             </div>
           </div>
         <?php } ?>
@@ -175,6 +284,9 @@
 
 <script src="<?= URL::EX_ASSETS ?>js/jquery-3.6.0.min.js"></script>
 <script src="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/js/bootstrap.bundle.min.js"></script>
+
+<!-- Selectize JS -->
+<script src="<?= URL::EX_ASSETS ?>js/selectize.min.js"></script>
 
 <script>
   var kodeCabang = '<?= $this->dCabang['id_cabang'] ?? '' ?>';
@@ -575,6 +687,231 @@
       }
     });
   });
+  
+  // ========== PAKAI (UBAH TYPE = 3, STATE = 0) ==========
+  var pakaiNotaRef = '';
+  
+  // Open modal konfirmasi pakai
+  $(document).on('click', '.btnPakai', function() {
+    pakaiNotaRef = $(this).data('ref');
+    
+    $('#pakaiNotaRef').text('#' + pakaiNotaRef);
+    
+    var modalEl = document.getElementById('modalPakai');
+    var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+  });
+  
+  // Konfirmasi pakai
+  $(document).on('click', '#btnKonfirmasiPakai', function() {
+    var btn = $(this);
+    var originalHtml = btn.html();
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Memproses...');
+    
+    $.ajax({
+      url: '<?= URL::BASE_URL ?>Sales/pakai',
+      type: 'POST',
+      dataType: 'json',
+      data: {
+        ref: pakaiNotaRef
+      },
+      success: function(res) {
+        // Close modal
+        var modalEl = document.getElementById('modalPakai');
+        var modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+        
+        if (res.status === 'success') {
+          showSalesAlert(res.message || 'Berhasil diubah ke Pakai', 'success');
+          setTimeout(function() {
+            location.reload();
+          }, 1500);
+        } else {
+          showSalesAlert(res.message || 'Gagal memproses', 'error');
+          btn.prop('disabled', false).html(originalHtml);
+        }
+      },
+      error: function(xhr, status, error) {
+        showSalesAlert('Error: ' + error, 'error');
+        btn.prop('disabled', false).html(originalHtml);
+      }
+    });
+  });
+  
+  // ========== TRANSFER (UBAH TARGET_ID = ID_CABANG TUJUAN) ==========
+  var transferNotaRef = '';
+  var transferSelectize;
+  
+  // Inisialisasi Selectize - Simple seperti di Operasi
+  $(document).ready(function() {
+    transferSelectize = $('#transferCabang').selectize()[0].selectize;
+    console.log('Selectize initialized:', transferSelectize);
+  });
+  
+  // Open modal transfer
+  $(document).on('click', '.btnTransfer', function() {
+    transferNotaRef = $(this).data('ref');
+    
+    $('#transferNotaRef').text('#' + transferNotaRef);
+    
+    // Reset Selectize dropdown
+    if (transferSelectize) {
+      transferSelectize.clear();
+    }
+    
+    var modalEl = document.getElementById('modalTransfer');
+    var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+  });
+  
+  // Konfirmasi transfer
+  $(document).on('click', '#btnKonfirmasiTransfer', function() {
+    var btn = $(this);
+    var originalHtml = btn.html();
+    var targetCabang = $('#transferCabang').val();
+    
+    if (!targetCabang) {
+      showSalesAlert('Pilih cabang tujuan terlebih dahulu', 'error');
+      return;
+    }
+    
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Memproses...');
+   
+    $.ajax({
+      url: '<?= URL::BASE_URL ?>Sales/transfer',
+      type: 'POST',
+      dataType: 'json',
+      data: {
+        ref: transferNotaRef,
+        target_id: targetCabang
+      },
+      success: function(res) {
+        // Close modal
+        var modalEl = document.getElementById('modalTransfer');
+        var modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+        
+        if (res.status === 'success') {
+          showSalesAlert(res.message || 'Berhasil transfer ke cabang tujuan', 'success');
+          setTimeout(function() {
+            location.reload();
+          }, 1500);
+        } else {
+          showSalesAlert(res.message || 'Gagal memproses', 'error');
+          btn.prop('disabled', false).html(originalHtml);
+        }
+      },
+      error: function(xhr, status, error) {
+        showSalesAlert('Error: ' + error, 'error');
+        btn.prop('disabled', false).html(originalHtml);
+      }
+    });
+  });
+  
+  // ========== TERIMA BARANG (UBAH STATE = 1) ==========
+  var terimaBarangNotaRef = '';
+  
+  // Open modal terima barang
+  $(document).on('click', '.btnTerimaBarang', function() {
+    terimaBarangNotaRef = $(this).data('ref');
+    var sourceCabang = $(this).data('source');
+    
+    $('#terimaBarangRef').text('#' + terimaBarangNotaRef);
+    $('#terimaBarangSource').text(sourceCabang);
+    
+    var modalEl = document.getElementById('modalTerimaBarang');
+    var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+  });
+  
+  // Konfirmasi terima barang
+  $(document).on('click', '#btnKonfirmasiTerimaBarang', function() {
+    var btn = $(this);
+    var originalHtml = btn.html();
+    
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Memproses...');
+   
+    $.ajax({
+      url: '<?= URL::BASE_URL ?>Sales/terimaBarang',
+      type: 'POST',
+      dataType: 'json',
+      data: {
+        ref: terimaBarangNotaRef
+      },
+      success: function(res) {
+        var modalEl = document.getElementById('modalTerimaBarang');
+        var modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+        
+        if (res.status === 'success') {
+          showSalesAlert(res.message || 'Barang berhasil diterima', 'success');
+          setTimeout(function() {
+            location.reload();
+          }, 1500);
+        } else {
+          showSalesAlert(res.message || 'Gagal memproses', 'error');
+          btn.prop('disabled', false).html(originalHtml);
+        }
+      },
+      error: function(xhr, status, error) {
+        showSalesAlert('Error: ' + error, 'error');
+        btn.prop('disabled', false).html(originalHtml);
+      }
+    });
+  });
+  
+  // ========== PIUTANG (UBAH STATE = 3) ==========
+  var piutangNotaRef = '';
+  var piutangTotal = 0;
+  
+  // Open modal piutang
+  $(document).on('click', '.btnPiutang', function() {
+    piutangNotaRef = $(this).data('ref');
+    piutangTotal = $(this).data('total');
+    
+    $('#piutangNotaRef').text('#' + piutangNotaRef);
+    $('#piutangTotal').text('Rp' + new Intl.NumberFormat('id-ID').format(piutangTotal));
+    
+    var modalEl = document.getElementById('modalPiutang');
+    var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+  });
+  
+  // Konfirmasi piutang
+  $(document).on('click', '#btnKonfirmasiPiutang', function() {
+    var btn = $(this);
+    var originalHtml = btn.html();
+    
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Memproses...');
+   
+    $.ajax({
+      url: '<?= URL::BASE_URL ?>Sales/piutang',
+      type: 'POST',
+      dataType: 'json',
+      data: {
+        ref: piutangNotaRef
+      },
+      success: function(res) {
+        var modalEl = document.getElementById('modalPiutang');
+        var modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+        
+        if (res.status === 'success') {
+          showSalesAlert(res.message || 'Berhasil dicatat sebagai piutang', 'success');
+          setTimeout(function() {
+            location.reload();
+          }, 1500);
+        } else {
+          showSalesAlert(res.message || 'Gagal memproses', 'error');
+          btn.prop('disabled', false).html(originalHtml);
+        }
+      },
+      error: function(xhr, status, error) {
+        showSalesAlert('Error: ' + error, 'error');
+        btn.prop('disabled', false).html(originalHtml);
+      }
+    });
+  });
 </script>
 
 <!-- Modal Bayar Sales -->
@@ -754,5 +1091,164 @@
   </div>
 </div>
 
+<!-- Modal Konfirmasi Pakai -->
+<div class="modal fade" id="modalPakai" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-success text-white py-2">
+        <h6 class="modal-title"><i class="fas fa-box-open me-2"></i>Pakai</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center py-4">
+        <i class="fas fa-box-open text-success fa-3x mb-3"></i>
+        <p class="mb-2">Yakin ingin mengubah nota ini ke status Pakai?</p>
+        <p class="fw-bold mb-0" id="pakaiNotaRef"></p>
+        <p class="text-muted small mt-2 mb-0"><i class="fas fa-info-circle me-1"></i>Type akan diubah ke 3 dan State ke 0</p>
+      </div>
+      <div class="modal-footer justify-content-center py-2">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+        <button type="button" class="btn btn-success" id="btnKonfirmasiPakai">
+          <i class="fas fa-check me-1"></i>Ya, Pakai
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Transfer -->
+<div class="modal fade" id="modalTransfer" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-primary text-white py-2">
+        <h6 class="modal-title"><i class="fas fa-exchange-alt me-2"></i>Transfer Nota</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body py-4">
+        <div class="bg-light rounded p-2 mb-3 text-center">
+          <small class="text-muted">No. Ref</small><br>
+          <strong id="transferNotaRef"></strong>
+        </div>
+        
+        <div class="mb-3">
+          <label for="transferCabang" class="form-label fw-bold">Pilih Cabang Tujuan</label>
+          <select id="transferCabang" required>
+            <option value=""></option>
+            <?php 
+            if (isset($data['listCabang']) && is_array($data['listCabang'])) {
+              foreach ($data['listCabang'] as $cabang) { 
+                // Skip cabang saat ini
+                if ($cabang['id_cabang'] == $this->dCabang['id_cabang']) continue;
+            ?>
+              <option value="<?= $cabang['id_cabang'] ?>">
+                <?= $cabang['kode_cabang'] ?> - <?= $cabang['nama'] ?>
+              </option>
+            <?php 
+              }
+            }
+            ?>
+          </select>
+        </div>
+        
+        <p class="text-muted small mb-0">
+          <i class="fas fa-info-circle me-1"></i>
+          Target_id akan diubah sesuai cabang tujuan yang dipilih
+        </p>
+      </div>
+      <div class="modal-footer justify-content-center py-2">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+        <button type="button" class="btn btn-primary" id="btnKonfirmasiTransfer">
+          <i class="fas fa-exchange-alt me-1"></i>Transfer
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Terima Barang -->
+<div class="modal fade" id="modalTerimaBarang" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-success text-white py-2">
+        <h6 class="modal-title"><i class="fas fa-check-circle me-2"></i>Terima Barang</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center py-4">
+        <i class="fas fa-box-open text-success fa-3x mb-3"></i>
+        <p class="mb-2">Konfirmasi penerimaan barang dari:</p>
+        <p class="fw-bold fs-5 mb-2" id="terimaBarangSource"></p>
+        <div class="bg-light rounded p-2 mb-3">
+          <small class="text-muted">No. Ref</small><br>
+          <strong id="terimaBarangRef"></strong>
+        </div>
+        <p class="text-success small mt-2 mb-0">
+          <i class="fas fa-info-circle me-1"></i>Barang akan masuk ke stok cabang ini
+        </p>
+      </div>
+      <div class="modal-footer justify-content-center py-2">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+        <button type="button" class="btn btn-success" id="btnKonfirmasiTerimaBarang">
+          <i class="fas fa-check me-1"></i>Terima Barang
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Piutang -->
+<div class="modal fade" id="modalPiutang" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-warning py-2">
+        <h6 class="modal-title"><i class="fas fa-file-invoice-dollar me-2"></i>Catat Piutang</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center py-4">
+        <i class="fas fa-hand-holding-usd text-warning fa-3x mb-3"></i>
+        <p class="mb-2">Catat sebagai piutang:</p>
+        <div class="bg-light rounded p-2 mb-3">
+          <small class="text-muted">No. Ref</small><br>
+          <strong id="piutangNotaRef"></strong>
+        </div>
+        <div class="bg-warning bg-opacity-10 rounded p-2 mb-3">
+          <small class="text-muted">Total Piutang</small><br>
+          <strong class="fs-5 text-danger" id="piutangTotal"></strong>
+        </div>
+        <p class="text-warning small mt-2 mb-0">
+          <i class="fas fa-info-circle me-1"></i>Nota akan masuk ke daftar piutang
+        </p>
+      </div>
+      <div class="modal-footer justify-content-center py-2">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+        <button type="button" class="btn btn-warning" id="btnKonfirmasiPiutang">
+          <i class="fas fa-check me-1"></i>Catat Piutang
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- QRCode Library -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    // Manual Dropdown Handler untuk mengatasi conflict Bootstrap
+    $(document).on('click', '.manual-dropdown-toggle', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Close other dropdowns
+        $('.dropdown-menu').not($(this).next('.dropdown-menu')).removeClass('show');
+        
+        // Toggle current
+        $(this).next('.dropdown-menu').toggleClass('show');
+    });
+
+    // Close when clicking outside
+    $(document).on('click', function(e) {
+        if (!$(e.target).closest('.dropdown').length) {
+            $('.dropdown-menu').removeClass('show');
+        }
+    });
+});
+</script>

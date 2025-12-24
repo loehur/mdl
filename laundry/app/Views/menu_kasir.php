@@ -36,6 +36,30 @@ $menu[0] = [
             ],
         ]
     ],
+     [
+        'c' => '',
+        'title' => 'Sales Operasi',
+        'icon' => 'fas fa-file-invoice',
+        'txt' => 'Sales Operasi',
+        'submenu' =>
+        [
+            [
+                'c' => 'Sales/operasi_pakai',
+                'title' => 'Barang Dipakai',
+                'txt' => 'Pakai',
+            ],
+            [
+                'c' => 'Sales/operasi_transfer',
+                'title' => 'Transfer Barang',
+                'txt' => 'Transfer',
+            ],
+            [
+                'c' => 'Sales/operasi_piutang',
+                'title' => 'Daftar Piutang',
+                'txt' => 'Piutang',
+            ],
+        ]
+    ],
     [
         'c' => '',
         'title' => 'Deposit',

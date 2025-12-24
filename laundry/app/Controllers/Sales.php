@@ -12,8 +12,15 @@ class Sales extends Controller
    {
       $id_cabang = $_SESSION[URL::SESSID]['user']['id_cabang'] ?? 0;
       
-      // Get checkout list (state = 0, type = 1) grouped by ref
-      $checkouts = $this->db(0)->get_where('barang_mutasi', "state = 0 AND type = 1 AND source_id = '$id_cabang' ORDER BY id DESC");
+      // Get checkout list 
+      // Filter: 
+      // - Hide Piutang (state = 3) -> Sudah ada di Sales Operasi > Piutang
+      // - Hide Pemakaian (type = 3) -> Sudah ada di Sales Operasi > Pakai
+      // - Tampilkan: 
+      //   1. Sales/Penjualan (type=1) yang belum bayar/progress (state=0)
+      //   2. Transfer (type=2) yang belum selesai (state=0)
+      $checkouts = $this->db(0)->get_where('barang_mutasi', 
+         "state = 0 AND type IN (1,2) AND (source_id = '$id_cabang' OR target_id = '$id_cabang') ORDER BY id DESC");
       
       // Group by ref
       $grouped = [];
@@ -23,6 +30,7 @@ class Sales extends Controller
             $grouped[$ref] = [
                'ref' => $ref,
                'date' => $item['created_at'] ?? date('Y-m-d H:i:s'),
+               'type' => $item['type'], // Simpan type
                'items' => [],
                'total' => 0,
                'payments' => [],
@@ -63,9 +71,16 @@ class Sales extends Controller
       }
       unset($group);
       
+      // Get list cabang untuk modal transfer
+      $listCabang = $this->db(0)->get('cabang');
+      
       $data_operasi = ['title' => 'Sales Order'];
       $this->view('layout', ['data_operasi' => $data_operasi]);
-      $this->view('sales/index', ['data_operasi' => $data_operasi, 'checkouts' => $grouped]);
+      $this->view('sales/index', [
+         'data_operasi' => $data_operasi, 
+         'checkouts' => $grouped,
+         'listCabang' => $listCabang
+      ]);
    }
 
    // Load form order untuk offcanvas
@@ -391,7 +406,8 @@ class Sales extends Controller
           $id_cabang = $_SESSION[URL::SESSID]['user']['id_cabang'] ?? 0;
           
           // Get total dari barang_mutasi dengan ref ini
-          $items = $this->db(0)->get_where('barang_mutasi', "ref = '$ref' AND state = 0");
+          // Allow state 0 (belum bayar) dan state 3 (piutang)
+          $items = $this->db(0)->get_where('barang_mutasi', "ref = '$ref' AND state IN (0,3)");
           if (empty($items)) {
              $this->model('Log')->write("[Sales::bayar] Data barang_mutasi tidak ditemukan atau sudah dibayar. Ref: $ref");
              ob_end_clean();
@@ -429,16 +445,8 @@ class Sales extends Controller
           
           if (isset($insertKas['errno']) && $insertKas['errno'] == 0) {
              // Cek apakah sudah lunas sepenuhnya (total bayar >= total tagihan DAN semua status_mutasi = 3)
-             $allPayments = [];
-             $currentYear = (int) date('Y');
-             $startYear = 2025;
-    
-             for ($year = $startYear; $year <= $currentYear; $year++) {
-                $payments = $this->db($year)->get_where('kas', "ref_transaksi = '$ref' AND jenis_transaksi = 7");
-                if (!empty($payments)) {
-                   $allPayments = array_merge($allPayments, $payments);
-                }
-             }
+             // Hanya cek database tahun ini (0) untuk menghindari access denied
+             $allPayments = $this->db(0)->get_where('kas', "ref_transaksi = '$ref' AND jenis_transaksi = 7");
              
              $totalBayar = 0;
              $allPaid = true;
@@ -620,5 +628,418 @@ class Sales extends Controller
       ob_end_clean();
       if (!headers_sent()) header('Content-Type: application/json');
       echo json_encode($response);
+   }
+
+   // Pakai - ubah type = 3, state = 0
+   public function pakai()
+   {
+      if (ob_get_length()) ob_clean();
+      ob_start();
+      
+      $response = ['status' => 'error', 'message' => 'Unknown error'];
+      
+      try {
+          $ref = $_POST['ref'] ?? '';
+          
+          if (empty($ref)) {
+             throw new Exception('Ref tidak valid');
+          }
+          
+          // Cek apakah ada pembayaran untuk ref ini
+          $payments = $this->db(0)->get_where('kas', "ref_transaksi = '$ref' AND jenis_transaksi = 7");
+          
+          if (!empty($payments)) {
+             throw new Exception('Tidak dapat mengubah nota yang sudah memiliki riwayat pembayaran');
+          }
+          
+          // Cek apakah ref ada di barang_mutasi
+          $items = $this->db(0)->get_where('barang_mutasi', "ref = '$ref'");
+          
+          if (empty($items)) {
+             throw new Exception('Data nota tidak ditemukan');
+          }
+          
+          // Update type = 3, state = 0
+          $update = $this->db(0)->update('barang_mutasi', ['type' => 3, 'state' => 0], "ref = '$ref'");
+          
+          if (isset($update['errno']) && $update['errno'] == 0) {
+             $response = ['status' => 'success', 'message' => 'Nota berhasil diubah ke status Pakai (Type=3, State=0)'];
+          } else {
+             $errorMsg = $update['error'] ?? 'Unknown DB Error';
+             $this->model('Log')->write("[Sales::pakai] Update error: " . $errorMsg);
+             throw new Exception('Gagal mengubah nota: ' . $errorMsg);
+          }
+      } catch (\Throwable $e) {
+          $this->model('Log')->write("[Sales::pakai] Error: " . $e->getMessage());
+          $response = ['status' => 'error', 'message' => $e->getMessage()];
+      }
+      
+      ob_end_clean();
+      if (!headers_sent()) header('Content-Type: application/json');
+      echo json_encode($response);
+   }
+
+   // Transfer - ubah target_id = id_cabang tujuan
+   public function transfer()
+   {
+      if (ob_get_length()) ob_clean();
+      ob_start();
+      
+      $response = ['status' => 'error', 'message' => 'Unknown error'];
+      
+      try {
+          $ref = $_POST['ref'] ?? '';
+          $target_id = $_POST['target_id'] ?? 0;
+          
+          if (empty($ref)) {
+             throw new Exception('Ref tidak valid');
+          }
+          
+          if (empty($target_id)) {
+             throw new Exception('Cabang tujuan tidak valid');
+          }
+          
+          // Cek apakah ada pembayaran untuk ref ini
+          $payments = $this->db(0)->get_where('kas', "ref_transaksi = '$ref' AND jenis_transaksi = 7");
+          
+          if (!empty($payments)) {
+             throw new Exception('Tidak dapat transfer nota yang sudah memiliki riwayat pembayaran');
+          }
+          
+          // Cek apakah ref ada di barang_mutasi
+          $items = $this->db(0)->get_where('barang_mutasi', "ref = '$ref'");
+          
+          if (empty($items)) {
+             throw new Exception('Data nota tidak ditemukan');
+          }
+          
+          // Cek apakah cabang tujuan valid
+          $cabang = $this->db(0)->get_where_row('cabang', "id_cabang = '$target_id'");
+          
+          if (!$cabang) {
+             throw new Exception('Cabang tujuan tidak ditemukan');
+          }
+          
+          // Update target_id
+          $update1 = $this->db(0)->update('barang_mutasi', ['target_id' => $target_id], "ref = '$ref'");
+          
+          // Update type = 2 (transfer/peninjauan) - dengan raw query sebagai backup
+          $update2 = $this->db(0)->update('barang_mutasi', ['type' => 2], "ref = '$ref'");
+          
+          // Jika update method gagal, coba dengan raw query
+          if (!isset($update2['errno']) || $update2['errno'] != 0) {
+             $this->db(0)->query("UPDATE barang_mutasi SET type = 2 WHERE ref = '$ref'");
+          }
+          
+          // Verifikasi update berhasil
+          $verify = $this->db(0)->get_where_row('barang_mutasi', "ref = '$ref'");
+          
+          // Log untuk debugging
+          $this->model('Log')->write("[Sales::transfer] Ref: $ref, Target: $target_id, Type setelah update: " . ($verify['type'] ?? 'null') . ", Target_id: " . ($verify['target_id'] ?? 'null'));
+          
+          if ($verify && $verify['type'] == 2 && $verify['target_id'] == $target_id) {
+             $cabangNama = $cabang['kode_cabang'] . ' - ' . $cabang['nama'];
+             $response = ['status' => 'success', 'message' => 'Nota berhasil ditransfer ke ' . $cabangNama];
+          } else {
+             $errorMsg = ($update1['error'] ?? '') . ' | ' . ($update2['error'] ?? 'Unknown DB Error');
+             $this->model('Log')->write("[Sales::transfer] Update error: " . $errorMsg);
+             throw new Exception('Gagal transfer nota: ' . $errorMsg);
+          }
+      } catch (\Throwable $e) {
+          $this->model('Log')->write("[Sales::transfer] Error: " . $e->getMessage());
+          $response = ['status' => 'error', 'message' => $e->getMessage()];
+      }
+      
+      ob_end_clean();
+      if (!headers_sent()) header('Content-Type: application/json');
+      echo json_encode($response);
+   }
+   
+   // Terima Barang - ubah state = 1 (diterima)
+   public function terimaBarang()
+   {
+      if (ob_get_length()) ob_clean();
+      ob_start();
+      
+      $response = ['status' => 'error', 'message' => 'Unknown error'];
+      
+      try {
+          $ref = $_POST['ref'] ?? '';
+          
+          if (empty($ref)) {
+             throw new Exception('Ref tidak valid');
+          }
+          
+          // Cek apakah ref ada di barang_mutasi
+          $items = $this->db(0)->get_where('barang_mutasi', "ref = '$ref'");
+          
+          if (empty($items)) {
+             throw new Exception('Data nota tidak ditemukan');
+          }
+          
+          // Cek apakah type = 2 (transfer)
+          if ($items[0]['type'] != 2) {
+             throw new Exception('Nota ini bukan transfer barang');
+          }
+          
+          // Update state = 1 (diterima/selesai) dengan raw query
+          $update = $this->db(0)->query("UPDATE barang_mutasi SET state = 1 WHERE ref = '$ref'");
+          
+          // Verifikasi update berhasil
+          $verify = $this->db(0)->get_where_row('barang_mutasi', "ref = '$ref'");
+          
+          // Log untuk debugging
+          $this->model('Log')->write("[Sales::terimaBarang] Ref: $ref, State setelah update: " . ($verify['state'] ?? 'null'));
+          
+          if ($verify && $verify['state'] == 1) {
+             $response = ['status' => 'success', 'message' => 'Barang berhasil diterima'];
+          } else {
+             $this->model('Log')->write("[Sales::terimaBarang] Update state gagal");
+             throw new Exception('Gagal menerima barang');
+          }
+      } catch (\Throwable $e) {
+          $this->model('Log')->write("[Sales::terimaBarang] Error: " . $e->getMessage());
+          $response = ['status' => 'error', 'message' => $e->getMessage()];
+      }
+      
+      ob_end_clean();
+      if (!headers_sent()) header('Content-Type: application/json');
+      echo json_encode($response);
+   }
+   
+   // Piutang - ubah state = 3 (piutang)
+   public function piutang()
+   {
+      if (ob_get_length()) ob_clean();
+      ob_start();
+      
+      $response = ['status' => 'error', 'message' => 'Unknown error'];
+      
+      try {
+          $ref = $_POST['ref'] ?? '';
+          
+          if (empty($ref)) {
+             throw new Exception('Ref tidak valid');
+          }
+          
+          // Cek apakah ref ada di barang_mutasi
+          $items = $this->db(0)->get_where('barang_mutasi', "ref = '$ref'");
+          
+          if (empty($items)) {
+             throw new Exception('Data nota tidak ditemukan');
+          }
+          
+          // Update state = 3 (piutang) dengan raw query
+          $update = $this->db(0)->query("UPDATE barang_mutasi SET state = 3 WHERE ref = '$ref'");
+          
+          // Verifikasi update berhasil
+          $verify = $this->db(0)->get_where_row('barang_mutasi', "ref = '$ref'");
+          
+          // Log untuk debugging
+          $this->model('Log')->write("[Sales::piutang] Ref: $ref, State setelah update: " . ($verify['state'] ?? 'null'));
+          
+          if ($verify && $verify['state'] == 3) {
+             $response = ['status' => 'success', 'message' => 'Berhasil dicatat sebagai piutang'];
+          } else {
+             $this->model('Log')->write("[Sales::piutang] Update state gagal");
+             throw new Exception('Gagal mencatat piutang');
+          }
+      } catch (\Throwable $e) {
+          $this->model('Log')->write("[Sales::piutang] Error: " . $e->getMessage());
+          $response = ['status' => 'error', 'message' => $e->getMessage()];
+      }
+      
+      ob_end_clean();
+      if (!headers_sent()) header('Content-Type: application/json');
+      echo json_encode($response);
+   }
+   
+   // ========== SALES OPERASI - PAKAI ==========
+   public function operasi_pakai()
+   {
+      $id_cabang = $_SESSION[URL::SESSID]['user']['id_cabang'] ?? 0;
+      
+      // Get tanggal dari filter
+      $startDate = $_GET['start'] ?? date('Y-m-d', strtotime('-7 days'));
+      $endDate = $_GET['end'] ?? date('Y-m-d');
+      
+      // Validasi rentang maksimal 1 bulan (31 hari)
+      $diffDays = (strtotime($endDate) - strtotime($startDate)) / (60 * 60 * 24);
+      if ($diffDays > 31) {
+         $endDate = date('Y-m-d', strtotime($startDate . ' +31 days'));
+      }
+      
+      // Get data barang yang sudah dipakai (type = 3)
+      $items = $this->db(0)->get_where('barang_mutasi', 
+         "type = 3 AND source_id = '$id_cabang' AND DATE(created_at) >= '$startDate' AND DATE(created_at) <= '$endDate' ORDER BY created_at DESC");
+      
+      // Pastikan $items adalah array
+      if (!is_array($items)) {
+         $items = [];
+      }
+      
+      // Group by ref
+      $grouped = [];
+      foreach ($items as $item) {
+         // Skip jika item tidak valid atau tidak punya ref
+         if (!isset($item['ref']) || empty($item['ref'])) {
+            continue;
+         }
+         
+         $ref = $item['ref'];
+         if (!isset($grouped[$ref])) {
+            $grouped[$ref] = [
+               'ref' => $ref,
+               'date' => $item['created_at'] ?? date('Y-m-d H:i:s'),
+               'state' => $item['state'] ?? 0,
+               'items' => [],
+               'total' => 0
+            ];
+         }
+         
+         // Get barang name
+         $barang = $this->db(0)->get_where_row('barang_data', "id_barang = '{$item['id_barang']}'");
+         $item['nama_barang'] = $barang['nama'] ?? strtoupper(($barang['brand'] ?? '') . ' ' . ($barang['model'] ?? ''));
+         $grouped[$ref]['items'][] = $item;
+         
+         $margin = $item['margin'] ?? 0;
+         $grouped[$ref]['total'] += (($item['price'] + $margin) * $item['qty']);
+      }
+      
+      $data_operasi = ['title' => 'Barang Dipakai'];
+      $this->view('layout', ['data_operasi' => $data_operasi]);
+      $this->view('sales/operasi_pakai', [
+         'grouped' => $grouped,
+         'startDate' => $startDate,
+         'endDate' => $endDate
+      ]);
+   }
+   
+   // ========== SALES OPERASI - TRANSFER ==========
+   public function operasi_transfer()
+   {
+      $id_cabang = $_SESSION[URL::SESSID]['user']['id_cabang'] ?? 0;
+      
+      // Get tanggal dari filter
+      $startDate = $_GET['start'] ?? date('Y-m-d', strtotime('-7 days'));
+      $endDate = $_GET['end'] ?? date('Y-m-d');
+      
+      // Validasi rentang maksimal 1 bulan (31 hari)
+      $diffDays = (strtotime($endDate) - strtotime($startDate)) / (60 * 60 * 24);
+      if ($diffDays > 31) {
+         $endDate = date('Y-m-d', strtotime($startDate . ' +31 days'));
+      }
+      
+      // Get data barang transfer (type = 2)
+      // Tampilkan yang dikirim (source) dan diterima (target)
+      $items = $this->db(0)->get_where('barang_mutasi', 
+         "type = 2 AND (source_id = '$id_cabang' OR target_id = '$id_cabang') AND DATE(created_at) >= '$startDate' AND DATE(created_at) <= '$endDate' ORDER BY created_at DESC");
+      
+      if (!is_array($items)) { $items = []; }
+
+      // Group by ref
+      $grouped = [];
+      foreach ($items as $item) {
+         if (!isset($item['ref']) || empty($item['ref'])) continue;
+
+         $ref = $item['ref'];
+         if (!isset($grouped[$ref])) {
+            $grouped[$ref] = [
+               'ref' => $ref,
+               'date' => $item['created_at'] ?? '-',
+               'state' => $item['state'] ?? 0,
+               'source_id' => $item['source_id'] ?? 0,
+               'target_id' => $item['target_id'] ?? 0,
+               'items' => [],
+               'total' => 0
+            ];
+         }
+         
+         // Get barang name
+         $barang = $this->db(0)->get_where_row('barang_data', "id_barang = '{$item['id_barang']}'");
+         $item['nama_barang'] = $barang['nama'] ?? strtoupper(($barang['brand'] ?? '') . ' ' . ($barang['model'] ?? ''));
+         $grouped[$ref]['items'][] = $item;
+         
+         $margin = $item['margin'] ?? 0;
+         $grouped[$ref]['total'] += (($item['price'] + $margin) * $item['qty']);
+      }
+      
+      // Get nama cabang untuk display
+      $cabangList = $this->db(0)->get('cabang');
+      $cabangMap = [];
+      if (is_array($cabangList)) {
+         foreach ($cabangList as $cb) {
+            $cabangMap[$cb['id_cabang']] = $cb['kode_cabang'];
+         }
+      }
+      
+      $data_operasi = ['title' => 'Transfer Barang'];
+      $this->view('layout', ['data_operasi' => $data_operasi]);
+      $this->view('sales/operasi_transfer', [
+         'grouped' => $grouped,
+         'cabangMap' => $cabangMap,
+         'startDate' => $startDate,
+         'endDate' => $endDate
+      ]);
+   }
+   
+   // ========== SALES OPERASI - PIUTANG ==========
+   public function operasi_piutang()
+   {
+      $id_cabang = $_SESSION[URL::SESSID]['user']['id_cabang'] ?? 0;
+      
+      // Get data piutang (state = 3)
+      // Tidak perlu filter tanggal, tampilkan semua piutang aktif
+      $items = $this->db(0)->get_where('barang_mutasi', 
+         "state = 3 AND source_id = '$id_cabang' ORDER BY created_at DESC");
+      
+      if (!is_array($items)) { $items = []; }
+
+      // Group by ref
+      $grouped = [];
+      foreach ($items as $item) {
+         if (!isset($item['ref']) || empty($item['ref'])) continue;
+
+         $ref = $item['ref'];
+         if (!isset($grouped[$ref])) {
+            $grouped[$ref] = [
+               'ref' => $ref,
+               'date' => $item['created_at'] ?? '-',
+               'type' => $item['type'] ?? 0,
+               'items' => [],
+               'total' => 0,
+               'total_paid' => 0
+            ];
+         }
+         
+         // Get barang name
+         $barang = $this->db(0)->get_where_row('barang_data', "id_barang = '{$item['id_barang']}'");
+         $item['nama_barang'] = $barang['nama'] ?? strtoupper(($barang['brand'] ?? '') . ' ' . ($barang['model'] ?? ''));
+         $grouped[$ref]['items'][] = $item;
+         
+         $margin = $item['margin'] ?? 0;
+         $grouped[$ref]['total'] += (($item['price'] + $margin) * $item['qty']);
+      }
+      
+      // Get payment history untuk setiap ref
+      foreach ($grouped as $ref => &$group) {
+         $payments = $this->db(0)->get_where('kas', "ref_transaksi = '$ref' AND jenis_transaksi = 7");
+         // Safety check for payments
+         if (!is_array($payments)) { $payments = []; }
+         
+         $totalPaid = 0;
+         foreach ($payments as $payment) {
+            $totalPaid += ($payment['jumlah'] ?? 0);
+         }
+         $group['total_paid'] = $totalPaid;
+         $group['sisa'] = $group['total'] - $totalPaid;
+      }
+      unset($group);
+      
+      $data_operasi = ['title' => 'Daftar Piutang'];
+      $this->view('layout', ['data_operasi' => $data_operasi]);
+      $this->view('sales/operasi_piutang', [
+         'grouped' => $grouped
+      ]);
    }
 }
