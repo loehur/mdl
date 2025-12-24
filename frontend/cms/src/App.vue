@@ -1243,7 +1243,7 @@ window.addEventListener('focus', () => {
 
     <!-- Sidebar -->
     <!-- On mobile, we keep it rendered but covered by chat when active. On desktop it's side-by-side. -->
-    <aside v-if="authId" class="flex flex-col border-r border-slate-800 bg-[#1e293b] transition-all duration-300 absolute md:static z-0 h-full w-full md:w-80"
+    <aside v-if="authId" class="flex flex-col border-r border-slate-800 bg-[#1e293b] transition-all duration-300 absolute md:static z-0 h-full w-full md:w-96"
            :class="showMobileChat ? 'flex' : 'flex'">
       <!-- Header -->
       <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-[#1e293b]/50 backdrop-blur-md">
@@ -1278,14 +1278,14 @@ window.addEventListener('focus', () => {
            </div>
             <div class="flex-1 min-w-0">
               <div class="flex justify-between items-baseline mb-1 gap-2">
-                <h3 class="font-semibold text-[15px] truncate text-slate-100 uppercase max-w-[180px]" :title="chat.name">
+                <h3 class="font-semibold text-[15px] truncate text-slate-100 uppercase max-w-[240px]" :title="chat.name">
                   <span v-if="chat.kode_cabang" class="font-mono text-xs mr-1" :class="chat.kode_cabang === '00' ? 'text-pink-500' : 'text-indigo-400'">[{{ chat.kode_cabang }}]</span>
                   {{ (chat.name || '').toUpperCase() }}
                 </h3>
                 <span class="text-xs text-slate-500 flex-shrink-0">{{ chat.lastTime }}</span>
               </div>
              <div class="flex justify-between items-center">
-                <p class="text-sm text-slate-400 truncate w-32" :class="{'font-medium text-slate-200': chat.unread > 0}">{{ chat.lastMessage }}</p>
+                <p class="text-sm text-slate-400 truncate w-48" :class="{'font-medium text-slate-200': chat.unread > 0}">{{ chat.lastMessage }}</p>
                 <span v-if="chat.unread > 0" class="bg-indigo-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shadow-sm">
                   {{ chat.unread }}
                 </span>
@@ -1327,7 +1327,7 @@ window.addEventListener('focus', () => {
         :class="{
             'fixed inset-0 z-50 w-full': showMobileChat,
             'hidden': !showMobileChat && windowWidth < 768,
-            'fixed top-0 right-0 bottom-0 md:left-80 z-0 !w-auto': windowWidth >= 768
+            'fixed top-0 right-0 bottom-0 md:left-96 z-0 !w-auto': windowWidth >= 768
         }"
         :style="{ 
             transform: showMobileChat && windowWidth < 768 ? `translateX(${touchOffset}px)` : '',
