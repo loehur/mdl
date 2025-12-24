@@ -44,14 +44,14 @@ return [
     ],
 
     'sapa' => [
-        'max_length' => 12,
+        'max_length' => 20,
         'keywords' => [
             'ping', 'halo', 'hallo', 'hello', 'tes', 'alaikum', 'assalam', 'aslkm', 'salam', 'pagi', 'sore', 'malam', 'mlm', 'malm', 'mlam'
         ]
     ],
 
     'penutup' => [
-        'max_length' => 12,
+        'max_length' => 20,
         'keywords' => [
             'makasih', 'makasi', 'maksh', 'mksih', 'trimakasih', 'terima kasih', 'terimakasih', 'trimaksih', 'trimaksh', 
             'mksih', 'mksh', 'trmksh', 'tks', 'thx', 'thanks', 'thank you', 
