@@ -741,7 +741,7 @@ class WhatsAppService
                 'template_params' => $templateParams,
                 'media_url' => $mediaUrl,
                 'status' => 'accepted', // Initial status when API accepted
-                'created_at' => date('Y-m-d H:i:s', strtotime('+1 seconds'))
+                'created_at' => date('Y-m-d H:i:s')
             ];
             
             $msgId = $db->insert('wa_messages_out', $messageData);
