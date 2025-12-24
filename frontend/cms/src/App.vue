@@ -98,9 +98,11 @@ const fetchConversations = async () => {
     try {
         isLoadingConversations.value = true; // Start loading
         
-        const userIdParam = authId.value ? `?user_id=${authId.value}` : '';
-        // Add cache buster to conversations fetch
-        const response = await fetch(`${API_BASE}/CMS/Chat/getConversations${userIdParam}&_t=${Date.now()}`); 
+        const userIdParam = authId.value ? `user_id=${authId.value}` : '';
+        const separator = userIdParam ? '&' : '?';
+        const query = userIdParam ? `?${userIdParam}${separator}_t=${Date.now()}` : `?_t=${Date.now()}`;
+        
+        const response = await fetch(`${API_BASE}/CMS/Chat/getConversations${query}`); 
         
         if (!response.ok) {
             const text = await response.text();
@@ -188,10 +190,10 @@ const connect = () => {
     }
     
     refreshInterval.value = setInterval(() => {
-        // Only poll if connected and tab is visible (save resources)
-        if (isConnected.value && !document.hidden) {
+        // ALWAYS poll even if hidden, to ensure multi-monitor setups see updates instanty
+        if (isConnected.value) {
             fetchConversations();
-            // console.log('⚡ Background Sync'); // Uncomment for debugging
+            // console.log('⚡ Polling (3s)...'); 
         }
     }, 3000); // 3 Seconds = Fast enough for UX, light server load.
 }
