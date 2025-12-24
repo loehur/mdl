@@ -751,6 +751,61 @@ class WhatsAppService
                 if (class_exists('\Log')) {
                     \Log::write("!! INSERT FAILED to wa_messages_out | Phone: $waNumber, MsgID: $messageId | DB Error: $dbError | Data: " . json_encode($messageData), 'wa_error', 'SaveOutbound');
                 }
+            } else {
+                // ====== WEBSOCKET PUSH (CENTRALIZED) ======
+                // Push to WebSocket for real-time UI update
+                // This is the SINGLE SOURCE for all outbound messages (autoreply + manual)
+                try {
+                    // Get conversation data for WebSocket payload
+                    $conv = $db->get_where('wa_conversations', ['wa_number' => $waNumber]);
+                    $conversation_id = 0;
+                    $kode_cabang = $code ?? '00';
+                    
+                    if ($conv && $conv->num_rows() > 0) {
+                        $convRow = $conv->row();
+                        $conversation_id = $convRow->id ?? 0;
+                    }
+                    
+                    $wsPayload = [
+                        'type' => 'agent_message_sent',
+                        'conversation_id' => $conversation_id,
+                        'phone' => $waNumber,
+                        'contact_name' => $contactName,
+                        'kode_cabang' => $kode_cabang,
+                        'sender_id' => 0, // System/Auto = 0, or can be passed as parameter
+                        'message' => [
+                            'id' => $msgId, // Use local DB ID
+                            'wamid' => $wamid,
+                            'text' => $content,
+                            'type' => $messageType,
+                            'media_url' => $mediaUrl,
+                            'time' => date('Y-m-d H:i:s'),
+                            'status' => 'sent'
+                        ]
+                    ];
+                    
+                    // Send to WebSocket
+                    $wsUrl = 'https://waserver.nalju.com/incoming';
+                    $ch = curl_init($wsUrl);
+                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($ch, CURLOPT_POST, true);
+                    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($wsPayload));
+                    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+                    curl_setopt($ch, CURLOPT_TIMEOUT, 2);
+                    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 1);
+                    curl_setopt($ch, CURLOPT_NOSIGNAL, 1);
+                    curl_exec($ch);
+                    curl_close($ch);
+                    
+                    if (class_exists('\Log')) {
+                        \Log::write("🔔 WebSocket broadcast sent for msgId: $msgId", 'wa_ws', 'Outbound');
+                    }
+                } catch (\Throwable $wsError) {
+                    // Silently fail - don't break main flow
+                    if (class_exists('\Log')) {
+                        \Log::write("!! WebSocket push failed: " . $wsError->getMessage(), 'wa_error', 'WebSocket');
+                    }
+                }
             }
             
             return $msgId; // Return the Local DB ID (or null if failed)
