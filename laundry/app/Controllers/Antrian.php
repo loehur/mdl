@@ -409,17 +409,34 @@ class Antrian extends Controller
       $setOne = "no_ref = '" . $noref . "' AND tipe = 1";
       $where = $this->wCabang . " AND " . $setOne;
 
-      $vals = [
-         'id_notif' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
-         'insertTime' => $time,
-         'id_cabang' => $this->id_cabang,
-         'no_ref' => $noref,
-         'phone' => $hp,
-         'text' => $text,
-         'tipe' => $tipe,
-         'id_api' => '',
-         'state' => 'pending'
-      ];
+      $apiData = $res['data']['data'] ?? $res['data'] ?? [];
+      $idApi = $apiData['id'] ?? ($apiData['message_id'] ?? '');
+
+      if ($res['status']) {
+         $vals = [
+            'id_notif' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
+            'insertTime' => $time,
+            'id_cabang' => $this->id_cabang,
+            'no_ref' => $noref,
+            'phone' => $hp,
+            'text' => $text,
+            'tipe' => $tipe,
+            'id_api' => $idApi,
+            'state' => 'sent'
+         ];
+      } else {
+         $vals = [
+            'id_notif' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
+            'insertTime' => $time,
+            'id_cabang' => $this->id_cabang,
+            'no_ref' => $noref,
+            'phone' => $hp,
+            'text' => $text,
+            'tipe' => $tipe,
+            'id_api' => '',
+            'state' => 'pending'
+         ];
+      }
 
       $data_main = $this->db(0)->count_where('notif', $where);
       if ($data_main < 1) {
@@ -432,8 +449,6 @@ class Antrian extends Controller
           }
       }
    }
-
-
 
    public function ambil()
    {
