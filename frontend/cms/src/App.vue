@@ -255,6 +255,98 @@ const needsDateSeparator = (currentMsg, previousMsg) => {
 };
 
 // --- Methods ---
+// --- Helper: Centralized Message Sanitizer ---
+// Aggressively cleans duplicates based on ID, WAMID, and Fuzzy Content/Time
+const sanitizeMessages = (messages) => {
+    if (!Array.isArray(messages)) return [];
+    
+    // 1. Sort by Time
+    messages.sort((a, b) => {
+        const ta = new Date(a.rawTime || a.time).getTime();
+        const tb = new Date(b.rawTime || b.time).getTime();
+        return (isNaN(ta) ? 0 : ta) - (isNaN(tb) ? 0 : tb);
+    });
+    
+    const uniqueMap = new Map();
+    const result = [];
+    
+    messages.forEach(msg => {
+        // Create multiple keys to check for duplicates
+        const idKey = String(msg.id);
+        const wamidKey = msg.wamid ? String(msg.wamid) : null;
+        
+        // Check for existing by ID
+        let existing = uniqueMap.get(idKey);
+        
+        // Check for existing by WAMID
+        if (!existing && wamidKey) {
+             // Find any message that shares this wamid
+             for (const m of uniqueMap.values()) {
+                 if (m.wamid === wamidKey) {
+                     existing = m;
+                     break;
+                 }
+             }
+        }
+        
+        // Fuzzy Check (The "Healer")
+        if (!existing) {
+             const normalize = (str) => String(str || '').replace(/\s+/g, ' ').trim();
+             const msgTime = new Date(msg.rawTime || msg.time).getTime();
+             const msgText = normalize(msg.text);
+             
+             // Look backwards for a fuzzy match (optimisation: only check last 10 messages)
+             // We iterate result array which contains 'kept' messages
+             for (let i = result.length - 1; i >= 0 && i >= result.length - 10; i--) {
+                 const cand = result[i];
+                 if (cand.sender === msg.sender && normalize(cand.text) === msgText) {
+                     const candTime = new Date(cand.rawTime || cand.time).getTime();
+                     if (Math.abs(candTime - msgTime) < 5000) { // 5s window
+                         existing = cand; // Found a fuzzy match!
+                         break;
+                     }
+                 }
+             }
+        }
+        
+        if (existing) {
+             // MERGE STRATEGY: Keep the "Better" version
+             // Prefer Integer IDs over Long Strings (Hex/UUID)
+             // Prefer Existing WAMID over Null
+             
+             const existingIdIsInt = /^\d+$/.test(String(existing.id));
+             const msgIdIsInt = /^\d+$/.test(String(msg.id));
+             
+             // If incoming is "better" (e.g. Real ID vs Hex ID), update the existing object
+             if (msgIdIsInt && !existingIdIsInt) {
+                 existing.id = msg.id; // Upgrade ID
+             }
+             
+             if (msg.wamid && !existing.wamid) {
+                 existing.wamid = msg.wamid; // Upgrade WAMID
+             }
+             
+             if (msg.status && msg.status !== 'read' && existing.status !== msg.status) {
+                 existing.status = msg.status; // Update status
+             }
+             
+             // Don't add 'msg' to result, we merged it into 'existing'
+             // Update map keys to point to the merged object
+             uniqueMap.set(String(existing.id), existing);
+             if (existing.wamid) uniqueMap.set(existing.wamid, existing);
+             
+        } else {
+            // New message
+            result.push(msg);
+            uniqueMap.set(idKey, msg);
+            if (wamidKey) uniqueMap.set(wamidKey, msg);
+        }
+    });
+    
+    return result;
+};
+
+// --- Methods ---
 const fetchMessages = async (phone) => {
     try {
         const response = await fetch(`${API_BASE}/CMS/Chat/getMessages?phone=${phone}`);
@@ -264,62 +356,18 @@ const fetchMessages = async (phone) => {
             const mappedMessages = result.data.map(m => ({
                 id: m.id,
                 wamid: m.wamid,
-                text: m.text || m.caption, // Use caption if text is empty
+                text: m.text || m.caption, 
                 type: m.type,
                 media_id: m.media_id,
                 media_url: m.media_url,
-                sender: m.sender, // 'me' or 'customer'
+                sender: m.sender, 
                 time: m.time ? new Date(m.time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '',
-                rawTime: m.time, // Keep raw timestamp for date separator
+                rawTime: m.time, 
                 status: m.status
             }));
 
-            // Deduplicate logic (Handle backend echoing duplicates)
-            const uniqueMessages = [];
-            const normalize = (str) => String(str || '').replace(/\s+/g, ' ').trim();
-
-            mappedMessages.forEach(msg => {
-                const isDuplicate = uniqueMessages.some(existing => {
-                    // 1. Exact ID match
-                    if (String(existing.id) === String(msg.id)) return true;
-                    // 2. WAMID match
-                    if (existing.wamid && msg.wamid && String(existing.wamid) === String(msg.wamid)) return true;
-                    
-                    // 3. Fuzzy match (Sender + Text + Time < 5s)
-                    if (existing.sender === msg.sender && normalize(existing.text) === normalize(msg.text)) {
-                        const t1 = new Date(existing.rawTime).getTime();
-                        const t2 = new Date(msg.rawTime).getTime();
-                        // 5 second tolerance for echo/delays
-                        if (!isNaN(t1) && !isNaN(t2) && Math.abs(t1 - t2) < 5000) return true;
-                    }
-                    return false;
-                });
-                
-                if (!isDuplicate) {
-                    uniqueMessages.push(msg);
-                }
-            });
-            
-            // FINAL SAFEGUARD: Sort by time and remove any adjacent duplicates that slipped through
-            uniqueMessages.sort((a, b) => new Date(a.rawTime) - new Date(b.rawTime));
-            const finalUnique = [];
-            for (let i = 0; i < uniqueMessages.length; i++) {
-                const current = uniqueMessages[i];
-                if (i > 0) {
-                    const prev = uniqueMessages[i-1];
-                    const normalize = (str) => String(str || '').replace(/\s+/g, ' ').trim();
-                    
-                    // Super strict adjacent check
-                    const isSame = prev.sender === current.sender && 
-                                   normalize(prev.text) === normalize(current.text) && 
-                                   Math.abs(new Date(prev.rawTime) - new Date(current.rawTime)) < 2000;
-                                   
-                    if (isSame) continue; // Skip duplicate
-                }
-                finalUnique.push(current);
-            }
-
-            return finalUnique;
+            // Use Centralized Sanitizer
+            return sanitizeMessages(mappedMessages);
         }
     } catch (e) {
         console.error("Error loading messages:", e);
@@ -374,49 +422,11 @@ const selectChat = async (id) => {
           // Background fetch to sync and merge
           fetchMessages(chat.wa_number).then(msgs => {
               if (msgs.length > 0) {
-                  // Merge with existing messages (from WebSocket)
-                  const existingIds = new Set(chat.messages.map(m => String(m.id)));
-                  const newMessages = [];
-                  const normalize = (str) => String(str || '').replace(/\s+/g, ' ').trim();
-                  
-                  // 1. Process incoming API messages
-                  msgs.forEach(apiMsg => {
-                      // Check exact match
-                      if (existingIds.has(String(apiMsg.id))) return;
-                      
-                      // Check Fuzzy Match against existing cache
-                      // This "HEALS" the local cache by updating phantom/local IDs to real Server IDs
-                      const fuzzyMatch = chat.messages.find(localMsg => {
-                          if (localMsg.sender !== apiMsg.sender) return false;
-                          if (normalize(localMsg.text) !== normalize(apiMsg.text)) return false;
-                          
-                          // Time check (< 5 seconds)
-                          const t1 = new Date(localMsg.rawTime || localMsg.time).getTime();
-                          const t2 = new Date(apiMsg.rawTime).getTime();
-                          return !isNaN(t1) && !isNaN(t2) && Math.abs(t1 - t2) < 5000;
-                      });
-                      
-                      if (fuzzyMatch) {
-                          console.log('🩹 Healing local message:', fuzzyMatch.id, '->', apiMsg.id);
-                          // Update the local message with canonical data
-                          fuzzyMatch.id = apiMsg.id;
-                          fuzzyMatch.wamid = apiMsg.wamid;
-                          fuzzyMatch.status = apiMsg.status; // Sync status
-                          // Don't push to newMessages, we updated in place
-                      } else {
-                          // Truly new
-                          newMessages.push(apiMsg);
-                      }
-                  });
-                  
-                  // Combine and sort by rawTime
-                  if (newMessages.length > 0) {
-                      chat.messages = [...chat.messages, ...newMessages].sort((a, b) => {
-                          if (!a.rawTime || !b.rawTime) return 0;
-                          return new Date(a.rawTime) - new Date(b.rawTime);
-                      });
-                      scrollToBottom();
-                  }
+                  // Merge simply by combining and then Sanitizing
+                  // This allows the Healer to work its magic on the combined set
+                  const combined = [...chat.messages, ...msgs];
+                  chat.messages = sanitizeMessages(combined);
+                  scrollToBottom();
               }
           });
       } else {
@@ -854,8 +864,11 @@ const handleIncomingMessage = (payload) => {
           return new Date(a.rawTime) - new Date(b.rawTime);
       });
       
-      conversation.lastMessage = displayText;
-      conversation.lastTime = formatLastTime(newMsg.rawTime);
+       // Re-sanitize entire conversation to be sure
+       conversation.messages = sanitizeMessages(conversation.messages);
+       
+       conversation.lastMessage = displayText;
+       conversation.lastTime = formatLastTime(newMsg.rawTime);
       
   // Check visibility: Active ID matches AND (Desktop OR Mobile Chat View Open)
   const isChatVisible = activeChatId.value == conversationId && (windowWidth.value >= 768 || showMobileChat.value);
@@ -1182,41 +1195,10 @@ onMounted(() => {
           const parsed = JSON.parse(cached);
           if (Array.isArray(parsed) && parsed.length > 0) {
               // 🛡️ SANITIZE CACHE ON LOAD
-              // Remove exact duplicates and fuzzy duplicates from the persisted data
+              // Use the centralized sanitizer
               parsed.forEach(c => {
                   if (c.messages && c.messages.length > 0) {
-                       const unique = [];
-                       const seenIds = new Set();
-                       // Sort first
-                       c.messages.sort((a, b) => new Date(a.rawTime || a.time) - new Date(b.rawTime || b.time));
-                       
-                       for (let i = 0; i < c.messages.length; i++) {
-                           const msg = c.messages[i];
-                           const idKey = String(msg.id);
-                           const contentKey = msg.sender + '_' + (msg.text || '').trim();
-                           
-                           // 1. ID Check
-                           if (seenIds.has(idKey)) continue; 
-                           
-                           // 2. Adjacent Content Check (Fuzzy)
-                           // If this message looks exactly like the previous one and is within 3s, skip it
-                           let isFuzzyDupe = false;
-                           if (unique.length > 0) {
-                               const prev = unique[unique.length - 1];
-                               const timeDiff = Math.abs(new Date(msg.rawTime || msg.time) - new Date(prev.rawTime || prev.time));
-                               if (prev.sender === msg.sender && 
-                                   (prev.text || '').trim() === (msg.text || '').trim() &&
-                                   timeDiff < 3000) {
-                                   isFuzzyDupe = true;
-                               }
-                           }
-                           
-                           if (!isFuzzyDupe) {
-                               unique.push(msg);
-                               seenIds.add(idKey);
-                           }
-                       }
-                       c.messages = unique;
+                       c.messages = sanitizeMessages(c.messages);
                   }
               });
 
