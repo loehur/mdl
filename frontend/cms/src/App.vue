@@ -751,6 +751,24 @@ const connectWebSocket = () => {
                        console.log('Updated existing message:', existingMessage.id);
                        // Don't add as new - already exists
                    } else {
+                       // NEW DEFENSE: Check for matching 'pending' message (Race Condition / ID Mismatch Handler)
+                       // If we have a pending message with the same text, it's likely the one we just sent
+                       // but the sender_id check failed or it's a race condition.
+                       const pendingMatch = conversation.messages.find(m => 
+                           m.status === 'pending' && 
+                           m.sender === 'me' &&
+                           m.text === messageData.text
+                       );
+
+                       if (pendingMatch) {
+                           console.log('Matched pending message via content (Race condition handled):', pendingMatch.id);
+                           pendingMatch.id = messageData.id; // Swap temp ID with real ID
+                           pendingMatch.wamid = messageData.wamid;
+                           pendingMatch.status = messageData.status || 'sent';
+                           if (messageData.media_url) pendingMatch.media_url = messageData.media_url;
+                           return; // Stop, don't add new
+                       }
+
                        // Add new message (from another agent/device)
                        const newMsg = {
                            id: messageData.id,
