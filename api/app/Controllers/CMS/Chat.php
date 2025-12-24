@@ -414,31 +414,46 @@ class Chat extends Controller
     // Helper to broadcast SSE event
     private function broadcastSSE($type, $data, $senderId = null)
     {
-        $eventFile = __DIR__ . '/../../../storage/sse_events.json';
-        
-        // Read existing events
-        $events = [];
-        if (file_exists($eventFile)) {
-            $events = json_decode(file_get_contents($eventFile), true) ?: [];
+        try {
+            $storageDir = __DIR__ . '/../../../storage';
+            $eventFile = $storageDir . '/sse_events.json';
+            
+            // Create storage directory if not exists
+            if (!is_dir($storageDir)) {
+                mkdir($storageDir, 0755, true);
+            }
+            
+            // Read existing events
+            $events = [];
+            if (file_exists($eventFile)) {
+                $content = file_get_contents($eventFile);
+                $events = $content ? json_decode($content, true) : [];
+                if (!is_array($events)) $events = [];
+            }
+            
+            // Add new event
+            $eventId = isset($events[0]) ? $events[0]['id'] + 1 : 1;
+            array_unshift($events, [
+                'id' => $eventId,
+                'type' => $type,
+                'data' => $data,
+                'sender_id' => $senderId,
+                'timestamp' => time()
+            ]);
+            
+            // Keep only last 50 events
+            $events = array_slice($events, 0, 50);
+            
+            // Write back
+            file_put_contents($eventFile, json_encode($events));
+            
+            \Log::write("✓ SSE event broadcasted: $type", 'sse', 'Chat');
+            
+            return $eventId;
+        } catch (\Exception $e) {
+            \Log::write("✗ SSE broadcast error: " . $e->getMessage(), 'sse_error', 'Chat');
+            return false;
         }
-        
-        // Add new event
-        $eventId = isset($events[0]) ? $events[0]['id'] + 1 : 1;
-        array_unshift($events, [
-            'id' => $eventId,
-            'type' => $type,
-            'data' => $data,
-            'sender_id' => $senderId,
-            'timestamp' => time()
-        ]);
-        
-        // Keep only last 50 events
-        $events = array_slice($events, 0, 50);
-        
-        // Write back
-        file_put_contents($eventFile, json_encode($events));
-        
-        return $eventId;
     }
     
     public function media()
