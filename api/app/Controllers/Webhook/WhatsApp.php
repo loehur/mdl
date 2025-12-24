@@ -292,7 +292,6 @@ class WhatsApp extends Controller
             // Success - Push to WebSocket Server
             $this->pushIncomingToWebSocket([
                 'conversation_id' => $conversationId,
-                // 'customer_id' => $customerId, // REMOVED
                 'phone' => $waNumber,
                 'contact_name' => $contact_name,
                 'message' => [
