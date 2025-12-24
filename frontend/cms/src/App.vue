@@ -62,6 +62,9 @@ const isTitleRed = ref(false);
 // Chat Menu State
 const showChatMenu = ref(false);
 
+// Polling interval for data sync (fallback when WebSocket fails)
+const refreshInterval = ref(null);
+
 const searchQuery = ref('');
 
 const filteredConversations = computed(() => {
@@ -176,6 +179,18 @@ const connect = () => {
     connectionError.value = '';
     connectWebSocket();
     fetchConversations();
+    
+    // ✅ Start periodic refresh (fallback for WebSocket issues)
+    // Refresh every 30 seconds to keep data in sync
+    if (refreshInterval.value) {
+        clearInterval(refreshInterval.value);
+    }
+    refreshInterval.value = setInterval(() => {
+        if (isConnected.value) {
+            fetchConversations();
+            console.log('🔄 Auto-refresh (30s interval)');
+        }
+    }, 30000); // 30 seconds
 }
 
 // --- Computed ---
@@ -476,6 +491,13 @@ const markAsDone = async () => {
             // Update local priority
             activeConversation.value.priority = 0;
             console.log('✓ Conversation marked as done');
+            
+            // ✅ WORKAROUND: Refresh data to sync with other clients
+            // Since WebSocket broadcast may not work, we fetch fresh data
+            setTimeout(() => {
+                fetchConversations();
+                console.log('🔄 Auto-refreshed conversations to sync priority changes');
+            }, 500); // Small delay to let DB update propagate
         } else {
             console.error('Failed to mark as done:', res.message);
         }
@@ -754,6 +776,11 @@ const handleClickOutside = (event) => {
 onUnmounted(() => {
     window.removeEventListener('paste', handlePaste);
     window.removeEventListener('click', handleClickOutside);
+    
+    // Clear refresh interval
+    if (refreshInterval.value) {
+        clearInterval(refreshInterval.value);
+    }
 });
 
 const sendImage = async () => {
