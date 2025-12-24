@@ -1619,7 +1619,7 @@ window.addEventListener('focus', () => {
           class="absolute inset-0 pt-16 pb-[88px] overflow-y-auto custom-scrollbar"
         >
           <div class="p-4 space-y-2">
-            <div v-for="(msg, index) in activeConversation.messages" :key="msg.id" class="flex flex-col">
+            <div v-for="(msg, index) in activeConversation.messages" :key="msg.id" :id="'msg-' + msg.id" class="flex flex-col">
             
                <!-- Date Separator -->
                <div v-if="index === 0 || needsDateSeparator(msg, activeConversation.messages[index - 1])" class="flex items-center justify-center my-4">
