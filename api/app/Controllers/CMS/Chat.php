@@ -282,6 +282,54 @@ class Chat extends Controller
        }
     }
     
+    public function markAsDone()
+    {
+        try {
+            $body = json_decode(file_get_contents('php://input'), true);
+            $phone = $body['phone'] ?? null;
+            
+            if (!$phone) {
+                $this->error('Phone required');
+            }
+            
+            $db = $this->db(0);
+            
+            // Update priority to 0 (done/resolved)
+            $updated = $db->update('wa_conversations', 
+                ['priority' => 0], 
+                ['wa_number' => $phone]
+            );
+            
+            if ($updated) {
+                // Push WebSocket to update all clients
+                $userId = $_SERVER['HTTP_USER_ID'] ?? $body['user_id'] ?? null;
+                
+                $payload = [
+                    'type' => 'priority_updated',
+                    'phone' => $phone,
+                    'priority' => 0,
+                    'target_id' => '0', // Broadcast to all
+                    'sender_id' => $userId
+                ];
+                
+                $this->pushToWebSocket($payload);
+                
+                $this->success(['priority' => 0], 'Conversation marked as done');
+            } else {
+                $this->error('Failed to update priority');
+            }
+            
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode([
+                'status' => false, 
+                'message' => "Server Error: " . $e->getMessage()
+            ]);
+            exit;
+        }
+    }
+    
     public function media()
     {
         $id = $this->query('id');

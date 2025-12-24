@@ -58,6 +58,9 @@ const originalTitle = 'MDL Chat';
 const titleBlinkInterval = ref(null);
 const isTitleRed = ref(false);
 
+// Chat Menu State
+const showChatMenu = ref(false);
+
 const searchQuery = ref('');
 
 const filteredConversations = computed(() => {
@@ -447,6 +450,35 @@ const markMessagesRead = async (phone) => {
     }
 };
 
+const markAsDone = async () => {
+    if (!activeConversation.value) return;
+    
+    try {
+        showChatMenu.value = false; // Close menu
+        
+        const response = await fetch(`${API_BASE}/CMS/Chat/markAsDone`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ 
+                phone: activeConversation.value.wa_number,
+                user_id: authId.value
+            })
+        });
+        
+        const res = await response.json();
+        
+        if (res.status) {
+            // Update local priority
+            activeConversation.value.priority = 0;
+            console.log('✓ Conversation marked as done');
+        } else {
+            console.error('Failed to mark as done:', res.message);
+        }
+    } catch (e) {
+        console.error("Error marking as done:", e);
+    }
+};
+
 const selectChat = async (id) => {
   activeChatId.value = id;
   showMobileChat.value = true;
@@ -707,8 +739,16 @@ const handlePaste = async (event) => {
 
 
 
+// Close menu when clicking outside
+const handleClickOutside = (event) => {
+  if (showChatMenu.value) {
+    showChatMenu.value = false;
+  }
+};
+
 onUnmounted(() => {
     window.removeEventListener('paste', handlePaste);
+    window.removeEventListener('click', handleClickOutside);
 });
 
 const sendImage = async () => {
@@ -809,6 +849,18 @@ const handleIncomingMessage = (payload) => {
           if (msgToUpdate) {
               msgToUpdate.status = message.status;
           }
+      }
+      return;
+  }
+
+  // Handle priority update
+  if (payload.type === 'priority_updated') {
+      const { phone, priority } = payload;
+      const conversation = conversations.value.find(c => c.wa_number === phone);
+      
+      if (conversation) {
+          conversation.priority = priority;
+          console.log(`✓ Priority updated for ${phone}: ${priority}`);
       }
       return;
   }
@@ -1528,7 +1580,7 @@ window.addEventListener('focus', () => {
           class="p-3 flex items-center gap-3 cursor-pointer transition-colors duration-200 border-b border-slate-800/50 hover:bg-slate-800/50"
           :class="{
             'bg-[#334155]/60 border-l-4 border-l-indigo-500': activeChatId === chat.id && !chat.priority,
-            'bg-pink-900/20 border-l-4 border-l-pink-500': activeChatId === chat.id && chat.priority,
+            'bg-pink-900/40 border-l-4 border-l-pink-400 shadow-lg shadow-pink-900/20': activeChatId === chat.id && chat.priority,
             'border-l-4 border-l-transparent': activeChatId !== chat.id && !chat.priority,
             'border-l-4 border-l-pink-600 bg-pink-950/30': activeChatId !== chat.id && chat.priority
           }"
@@ -1633,13 +1685,48 @@ window.addEventListener('focus', () => {
              </div>
           </div>
           
-          <div class="flex items-center gap-2 text-slate-400 flex-shrink-0">
+          <div class="flex items-center gap-2 text-slate-400 flex-shrink-0 relative">
              <button class="hover:text-indigo-400 transition-colors p-2 rounded-full hover:bg-slate-800">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
              </button>
-             <button class="hover:text-indigo-400 transition-colors p-2 rounded-full hover:bg-slate-800">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg>
-             </button>
+             
+             <!-- Three Dots Menu Button - ACTIVE -->
+             <div class="relative">
+               <button 
+                 @click="showChatMenu = !showChatMenu" 
+                 class="hover:text-indigo-400 transition-colors p-2 rounded-full hover:bg-slate-800"
+                 :class="{'bg-slate-800 text-indigo-400': showChatMenu}"
+               >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg>
+               </button>
+               
+               <!-- Dropdown Menu -->
+               <div 
+                 v-if="showChatMenu" 
+                 @click.stop
+                 class="absolute right-0 top-full mt-2 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-xl overflow-hidden z-50"
+               >
+                 <!-- Selesai Option -->
+                 <button 
+                   v-if="activeConversation.priority > 0"
+                   @click="markAsDone"
+                   class="w-full px-4 py-3 text-left hover:bg-slate-700 transition-colors flex items-center gap-3 text-sm text-slate-200 hover:text-green-400"
+                 >
+                   <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                   </svg>
+                   <span>Selesai (Reset Priority)</span>
+                 </button>
+                 
+                 <!-- Info if already priority 0 -->
+                 <div 
+                   v-else
+                   class="px-4 py-3 text-sm text-slate-400 italic"
+                 >
+                   Conversation already normal priority
+                 </div>
+               </div>
+             </div>
           </div>
         </header>
 

@@ -298,9 +298,9 @@ class WhatsApp extends Controller
                         ['id' => $msgId]
                     );
                 } else {
-                    // No keyword match - needs CS attention, set priority to 4 (high)
+                    // No keyword match - needs CS attention, set priority to 1
                     $db->update('wa_conversations', 
-                        ['priority' => 4], 
+                        ['priority' => 1], 
                         ['wa_number' => $waNumber]
                     );
                 }
