@@ -315,6 +315,12 @@ class Chat extends Controller
                 \Log::write("Pushing priority update to WebSocket: " . json_encode($payload), 'cms_ws', 'Chat');
                 $this->pushToWebSocket($payload);
                 
+                // ✅ Also broadcast via SSE for real-time updates
+                $this->broadcastSSE('priority_updated', [
+                    'phone' => $phone,
+                    'priority' => 0
+                ], $userId);
+                
                 $this->success(['priority' => 0], 'Conversation marked as done');
             } else {
                 $this->error('Failed to update priority');
@@ -329,6 +335,110 @@ class Chat extends Controller
             ]);
             exit;
         }
+    }
+    
+    public function stream()
+    {
+        // SSE Headers
+        header('Content-Type: text/event-stream');
+        header('Cache-Control: no-cache');
+        header('Connection: keep-alive');
+        header('X-Accel-Buffering: no'); // For Nginx
+        header('Access-Control-Allow-Origin: *'); // CORS
+        
+        // Disable Apache output buffering
+        if (function_exists('apache_setenv')) {
+            apache_setenv('no-gzip', '1');
+        }
+        ini_set('output_buffering', 'off');
+        ini_set('zlib.output_compression', false);
+        
+        // Get user ID
+        $userId = $_GET['user_id'] ?? $_SERVER['HTTP_USER_ID'] ?? null;
+        
+        // Event file path (shared across PHP processes)
+        $eventFile = __DIR__ . '/../../../storage/sse_events.json';
+        $lastCheck = time();
+        $lastEventId = $_GET['lastEventId'] ?? 0;
+        
+        // Keep-alive loop
+        $startTime = time();
+        $maxDuration = 300; // 5 minutes max, then client reconnects
+        
+        while (time() - $startTime < $maxDuration) {
+            // Check connection
+            if (connection_aborted()) {
+                break;
+            }
+            
+            // Read events from file
+            if (file_exists($eventFile)) {
+                $events = json_decode(file_get_contents($eventFile), true) ?: [];
+                
+                // Send new events
+                foreach ($events as $event) {
+                    if ($event['id'] > $lastEventId) {
+                        // Don't send to the originator (optional)
+                        if (isset($event['sender_id']) && $event['sender_id'] == $userId) {
+                            continue; // Skip events from self
+                        }
+                        
+                        echo "id: {$event['id']}\n";
+                        echo "event: {$event['type']}\n";
+                        echo "data: " . json_encode($event['data']) . "\n\n";
+                        
+                        $lastEventId = $event['id'];
+                        
+                        ob_flush();
+                        flush();
+                    }
+                }
+            }
+            
+            // Send heartbeat every 15 seconds
+            if (time() - $lastCheck >= 15) {
+                echo ": heartbeat\n\n";
+                ob_flush();
+                flush();
+                $lastCheck = time();
+            }
+            
+            // Sleep to reduce CPU usage
+            sleep(1);
+        }
+        
+        // Connection closed
+        exit;
+    }
+    
+    // Helper to broadcast SSE event
+    private function broadcastSSE($type, $data, $senderId = null)
+    {
+        $eventFile = __DIR__ . '/../../../storage/sse_events.json';
+        
+        // Read existing events
+        $events = [];
+        if (file_exists($eventFile)) {
+            $events = json_decode(file_get_contents($eventFile), true) ?: [];
+        }
+        
+        // Add new event
+        $eventId = isset($events[0]) ? $events[0]['id'] + 1 : 1;
+        array_unshift($events, [
+            'id' => $eventId,
+            'type' => $type,
+            'data' => $data,
+            'sender_id' => $senderId,
+            'timestamp' => time()
+        ]);
+        
+        // Keep only last 50 events
+        $events = array_slice($events, 0, 50);
+        
+        // Write back
+        file_put_contents($eventFile, json_encode($events));
+        
+        return $eventId;
     }
     
     public function media()

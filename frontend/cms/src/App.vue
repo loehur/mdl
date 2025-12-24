@@ -62,8 +62,8 @@ const isTitleRed = ref(false);
 // Chat Menu State
 const showChatMenu = ref(false);
 
-// Polling interval for data sync (fallback when WebSocket fails)
-const refreshInterval = ref(null);
+// SSE (Server-Sent Events) for real-time updates
+const eventSource = ref(null);
 
 const searchQuery = ref('');
 
@@ -180,18 +180,68 @@ const connect = () => {
     connectWebSocket();
     fetchConversations();
     
-    // ✅ Start periodic refresh (fallback for WebSocket issues)
-    // Refresh every 30 seconds to keep data in sync
-    if (refreshInterval.value) {
-        clearInterval(refreshInterval.value);
-    }
-    refreshInterval.value = setInterval(() => {
-        if (isConnected.value) {
-            fetchConversations();
-            console.log('🔄 Auto-refresh (30s interval)');
-        }
-    }, 30000); // 30 seconds
+    // ✅ Connect to SSE stream for real-time updates
+    connectSSE();
 }
+
+// SSE Connection Management
+const connectSSE = () => {
+    // Close existing connection
+    if (eventSource.value) {
+        eventSource.value.close();
+    }
+    
+    const sseUrl = `${API_BASE}/CMS/Chat/stream?user_id=${authId.value}`;
+    console.log('🔌 Connecting to SSE:', sseUrl);
+    
+    eventSource.value = new EventSource(sseUrl);
+    
+    // Handle priority updates
+    eventSource.value.addEventListener('priority_updated', (event) => {
+        try {
+            const data = JSON.parse(event.data);
+            const { phone, priority } = data;
+            
+            console.log('✨ SSE: Priority updated!', phone, priority);
+            
+            const conversation = conversations.value.find(c => c.wa_number === phone);
+            if (conversation) {
+                conversation.priority = parseInt(priority) || 0;
+                // Force reactivity
+                conversations.value = [...conversations.value];
+                console.log(`✓ Updated priority for ${phone} to ${priority}`);
+            }
+        } catch (e) {
+            console.error('SSE event parse error:', e);
+        }
+    });
+    
+    // Connection opened
+    eventSource.value.onopen = () => {
+        console.log('✅ SSE Connected!');
+    };
+    
+    // Error handling & auto-reconnect
+    eventSource.value.onerror = (error) => {
+        console.warn('⚠️ SSE Error, reconnecting in 3s...', error);
+        eventSource.value.close();
+        
+        // Reconnect after 3 seconds
+        setTimeout(() => {
+            if (isConnected.value) {
+                connectSSE();
+            }
+        }, 3000);
+    };
+};
+
+const disconnectSSE = () => {
+    if (eventSource.value) {
+        eventSource.value.close();
+        eventSource.value = null;
+        console.log('🔌 SSE Disconnected');
+    }
+};
 
 // --- Computed ---
 const activeConversation = computed(() => { 
@@ -492,12 +542,8 @@ const markAsDone = async () => {
             activeConversation.value.priority = 0;
             console.log('✓ Conversation marked as done');
             
-            // ✅ WORKAROUND: Refresh data to sync with other clients
-            // Since WebSocket broadcast may not work, we fetch fresh data
-            setTimeout(() => {
-                fetchConversations();
-                console.log('🔄 Auto-refreshed conversations to sync priority changes');
-            }, 500); // Small delay to let DB update propagate
+            // ℹ️ SSE will broadcast update to all other clients automatically!
+            // No manual refresh needed - real-time magic! ✨
         } else {
             console.error('Failed to mark as done:', res.message);
         }
@@ -777,10 +823,8 @@ onUnmounted(() => {
     window.removeEventListener('paste', handlePaste);
     window.removeEventListener('click', handleClickOutside);
     
-    // Clear refresh interval
-    if (refreshInterval.value) {
-        clearInterval(refreshInterval.value);
-    }
+    // Disconnect SSE
+    disconnectSSE();
 });
 
 const sendImage = async () => {
