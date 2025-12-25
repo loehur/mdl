@@ -220,7 +220,11 @@ const totalPriority = computed(() => {
 
 // Should Title Blink (only priority 4 with unread)
 const shouldBlinkTitle = computed(() => {
-  return conversations.value.some(chat => chat.priority === 4 && chat.unread > 0);
+  const urgentUnread = conversations.value.filter(chat => chat.priority === 4 && chat.unread > 0);
+  if (urgentUnread.length > 0) {
+    console.log('🔴 Title should blink - Urgent unread conversations:', urgentUnread.map(c => ({name: c.name, priority: c.priority, unread: c.unread})));
+  }
+  return urgentUnread.length > 0;
 });
 
 // Watch for title blinking
