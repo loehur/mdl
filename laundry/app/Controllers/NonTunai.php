@@ -22,10 +22,6 @@ class NonTunai extends Controller
    public function operasi($tipe)
    {
       $id = $_POST['id'];
-      
-      // Debug: log awal fungsi
-      $this->model('Log')->write("[NonTunai::operasi] START - tipe=$tipe, id=$id");
-      
       $set = [
          'status_mutasi' => $tipe
       ];
@@ -35,24 +31,15 @@ class NonTunai extends Controller
          $this->model('Log')->write('[NonTunai::operasi] Update Kas Error: ' . $up['error']);
          return $up['error'];
       }else{
-         // Debug: log setelah update berhasil
-         $this->model('Log')->write("[NonTunai::operasi] Update Kas SUCCESS - ref_finance=$id");
-         
          // Update wa_conversations priority = 0 jika priority = 2 (payment confirmed)
          try {
-            $this->model('Log')->write("[NonTunai::operasi] Start WA conversation update");
-            
             // Get nomor_pelanggan from kas table using ref_finance
             $kasData = $this->db(0)->get_where_row('kas', "ref_finance = '$id'");
             
             if ($kasData && isset($kasData['id_client'])) {
-               $this->model('Log')->write("[NonTunai::operasi] Found kasData, id_client={$kasData['id_client']}");
-               
                $pelanggan = $this->db(0)->get_where_row('pelanggan', "id_pelanggan = '{$kasData['id_client']}'");
                
                if ($pelanggan && !empty($pelanggan['nomor_pelanggan'])) {
-                  $this->model('Log')->write("[NonTunai::operasi] Found pelanggan, phone={$pelanggan['nomor_pelanggan']}");
-                  
                   // Format nomor dengan berbagai variasi (+62, 62, 08)
                   $cleanPhone = preg_replace('/[^0-9]/', '', $pelanggan['nomor_pelanggan']);
                   $phone08 = '0' . substr($cleanPhone, -10);
@@ -66,7 +53,6 @@ class NonTunai extends Controller
                   $this->db(100)->query(
                      "UPDATE wa_conversations SET priority = 0 WHERE priority = 2 AND wa_number IN ($phoneIn)"
                   );
-                  $this->model('Log')->write("[NonTunai::operasi] Payment confirmed for $phonePlus62, priority reset to 0");
                      
                   // Broadcast WebSocket ke semua agent
                   $payload = [
@@ -78,14 +64,8 @@ class NonTunai extends Controller
                   ];
                   
                   // Push to WebSocket server
-                  $this->model('Log')->write("[NonTunai::operasi] Sending WebSocket notification");
                   $this->pushToWebSocket($payload);
-                  $this->model('Log')->write("[NonTunai::operasi] WebSocket sent successfully");
-               } else {
-                  $this->model('Log')->write("[NonTunai::operasi] Pelanggan not found or no phone number");
                }
-            } else {
-               $this->model('Log')->write("[NonTunai::operasi] KasData not found");
             }
          } catch (\Exception $e) {
             $this->model('Log')->write("[NonTunai::operasi] WA conversation error: " . $e->getMessage());
@@ -93,30 +73,17 @@ class NonTunai extends Controller
             $this->model('Log')->write("[NonTunai::operasi] WA conversation fatal error: " . $e->getMessage());
          }
          
-         // Debug: log setelah WA conversation block selesai
-         $this->model('Log')->write("[NonTunai::operasi] WA conversation block completed");
-         
          //delete tracker webhooks
-         // Debug: cek apakah record ada sebelum delete
          $check = $this->db(100)->get_where('wh_moota', ['trx_id' => $id]);
-         $count = $check->num_rows();
-         $this->model('Log')->write("[NonTunai::operasi] Check wh_moota trx_id='$id', found: $count rows");
-         
-         if ($count > 0) {
+         if (count($check) > 0) {
             $delete = $this->db(100)->delete('wh_moota', ['trx_id' => $id]);
-            $this->model('Log')->write("[NonTunai::operasi] Delete result: errno={$delete['errno']}, affected={$delete['affected_rows']}");
             
             if($delete['errno'] <> 0){
                $this->model('Log')->write('[NonTunai::operasi] Delete Wh Moota Error: ' . $delete['error']);
                return $delete['error'];
             }
-         } else {
-            $this->model('Log')->write("[NonTunai::operasi] No wh_moota record found with trx_id='$id'");
          }
       }
-      
-      // Debug: log akhir fungsi
-      $this->model('Log')->write("[NonTunai::operasi] END SUCCESS - ref_finance=$id");
       return 0;
    }
 
