@@ -96,6 +96,9 @@ class NonTunai extends Controller
             $this->model('Log')->write("[NonTunai::operasi] No wh_moota record found with trx_id='$id'");
          }
       }
+      
+      // Debug: log akhir fungsi
+      $this->model('Log')->write("[NonTunai::operasi] END SUCCESS - ref_finance=$id");
       return 0;
    }
 
