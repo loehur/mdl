@@ -107,6 +107,8 @@ wss.on('connection', (ws, req) => {
 
     const userSockets = clients.get(id);
 
+    console.log(`[DEBUG] ID ${id}: Current connections = ${userSockets.size}, Max = ${MAX_CONNECTIONS_PER_ID}`);
+
     // If limit reached, reject NEW connection
     if (userSockets.size >= MAX_CONNECTIONS_PER_ID) {
         console.log(`Connection rejected for ID ${id}: Max connections limit (${MAX_CONNECTIONS_PER_ID}) reached.`);
@@ -115,6 +117,7 @@ wss.on('connection', (ws, req) => {
     }
 
     userSockets.add(ws);
+    console.log(`[DEBUG] ID ${id}: Connection accepted, total connections now = ${userSockets.size}`);
 
     // Send welcome message
     ws.send(JSON.stringify({
