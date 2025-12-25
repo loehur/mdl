@@ -257,6 +257,14 @@ watch(activeChatId, () => {
 
 // --- Methods ---
 
+// Handle Duplicate Connection - Clear session and reload
+const handleDuplicateConnection = () => {
+  localStorage.removeItem('cms_chat_id');
+  localStorage.removeItem('cms_chat_password');
+  localStorage.removeItem('cms_chat_expiry');
+  window.location.reload();
+};
+
 // Parse WhatsApp Formatting to HTML
 const parseWhatsAppFormatting = (text) => {
   if (!text) return '';
@@ -2167,12 +2175,7 @@ window.addEventListener('focus', () => {
         
         <!-- Action -->
         <button 
-          @click="() => { 
-            localStorage.removeItem('cms_chat_id'); 
-            localStorage.removeItem('cms_chat_password'); 
-            localStorage.removeItem('cms_chat_expiry');
-            location.reload(); 
-          }" 
+          @click="handleDuplicateConnection" 
           class="w-full bg-red-600 hover:bg-red-500 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
         >
           Logout & Reload
