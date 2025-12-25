@@ -50,21 +50,29 @@ const ALLOWED_CLIENT_IDS = process.env.ALLOWED_CLIENT_IDS
     ? process.env.ALLOWED_CLIENT_IDS.split(',').map(id => id.trim())
     : ['agent1', 'agent2', 'admin', 'cs1', 'cs2']; // Fallback default
 
-// Always allow 1000-1010 (Admin Range with full access)
-for (let i = 1000; i <= 1010; i++) {
-    const adminId = i.toString();
+// Admin IDs with full access (easier to remember than numbers)
+const ADMIN_IDS = [
+    'DEV',      // Developer
+    'AYAH',
+    'IBU',
+    'TABLET',   // Tablet
+];
+
+// Add admin IDs to allowed list
+ADMIN_IDS.forEach(adminId => {
     if (!ALLOWED_CLIENT_IDS.includes(adminId)) {
         ALLOWED_CLIENT_IDS.push(adminId);
     }
-}
+});
 
 const SOCKET_PASSWORD = process.env.SOCKET_PASSWORD;
 
 // Log allowed IDs for debugging
 console.log('='.repeat(50));
 console.log('WebSocket Server - Allowed Client IDs:');
-console.log('Admin Range:', '1000-1010');
-console.log('Regular Agents:', ALLOWED_CLIENT_IDS.filter(id => parseInt(id) < 1000 || parseInt(id) > 1010));
+console.log('Admin IDs:', ADMIN_IDS.join(', '));
+console.log('Regular Agents:', ALLOWED_CLIENT_IDS.filter(id => !ADMIN_IDS.includes(id)).join(', '));
+console.log('Total Allowed IDs:', ALLOWED_CLIENT_IDS.length);
 console.log('='.repeat(50));
 
 // Store connected clients: Map<id, Set<WebSocket>> to support multiple connections per ID
@@ -194,23 +202,16 @@ function sendToTarget(targetId, data, excludeId = null) {
         });
     }
 
-    // 2. Also send to Monitor IDs (1000-1010 range untuk admin access)
-    // Avoid double sending if targetId is the monitor itself
+    // 2. Also send to Admin IDs (for monitoring purposes)
+    // Avoid double sending if targetId is the admin itself
     // AND avoid sending to the excludeId (sender)
-    const monitorIds = [];
-
-    // Add range 1000-1010 as admin/monitor IDs
-    for (let i = 1000; i <= 1010; i++) {
-        monitorIds.push(i.toString());
-    }
-
-    monitorIds.forEach(monitorId => {
+    ADMIN_IDS.forEach(adminId => {
         // Don't send to: 1) the target itself, 2) the sender (excludeId)
-        if (targetId !== monitorId && monitorId !== excludeId && clients.has(monitorId)) {
-            const monitorSockets = clients.get(monitorId);
-            monitorSockets.forEach(monitor => {
-                if (monitor.readyState === WebSocket.OPEN) {
-                    monitor.send(JSON.stringify(data));
+        if (targetId !== adminId && adminId !== excludeId && clients.has(adminId)) {
+            const adminSockets = clients.get(adminId);
+            adminSockets.forEach(adminSocket => {
+                if (adminSocket.readyState === WebSocket.OPEN) {
+                    adminSocket.send(JSON.stringify(data));
                 }
             });
         }
