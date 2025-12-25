@@ -714,7 +714,7 @@ class WhatsAppService
                 // Create new conversation
                 $convData = [
                     'wa_number' => $waNumber,
-                    'status' => 'open',
+                    'status' => 'closed',
                     'last_message' => $lastMessageText,
                     'last_out_at' => date('Y-m-d H:i:s'),
                     'created_at' => date('Y-m-d H:i:s')
