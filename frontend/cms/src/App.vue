@@ -1166,18 +1166,28 @@ const connectWebSocket = () => {
              return;
           }
 
-          // Handle Priority Update (Mark as Done)
-          if (payload.type === 'priority_updated') {
-              console.log('[WS] priority_updated received:', payload);
-              const conv = conversations.value.find(c => c.wa_number == payload.phone);
-              if (conv) {
-                  console.log('✓ Updating priority for conversation:', conv.name, 'from', conv.priority, 'to', payload.priority);
-                  conv.priority = payload.priority;
-              } else {
-                  console.warn('⚠️ Conversation not found for priority update:', payload.phone);
-              }
-              return;
-          }
+           // Handle Priority Update (Mark as Done)
+           if (payload.type === 'priority_updated') {
+               console.log('[WS] priority_updated received:', payload);
+               
+               // Normalize phone number for matching (remove +, spaces, etc)
+               const normalizePhone = (phone) => {
+                 if (!phone) return '';
+                 return phone.toString().replace(/\D/g, ''); // Remove all non-digits
+               };
+               
+               const targetPhone = normalizePhone(payload.phone);
+               const conv = conversations.value.find(c => normalizePhone(c.wa_number) === targetPhone);
+               
+               if (conv) {
+                   console.log('✓ Updating priority for conversation:', conv.name, 'from', conv.priority, 'to', payload.priority);
+                   conv.priority = payload.priority;
+               } else {
+                   console.warn('⚠️ Conversation not found for priority update:', payload.phone);
+                   console.warn('Available conversations:', conversations.value.map(c => ({name: c.name, phone: c.wa_number})));
+               }
+               return;
+           }
 
           
           // Handle Agent Message Sent (from other devices)
