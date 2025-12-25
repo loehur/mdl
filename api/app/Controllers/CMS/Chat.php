@@ -26,7 +26,7 @@ class Chat extends Controller
             $sqlClose = "UPDATE wa_conversations 
                          SET status = 'closed', priority = 0
                          WHERE status = 'open' 
-                         AND last_in_at < (NOW() - INTERVAL 22 HOUR)";
+                         AND last_in_at < (NOW() - INTERVAL 23 HOUR)";
             $db->query($sqlClose);
 
             // Fetch conversations
@@ -35,7 +35,7 @@ class Chat extends Controller
             // Modified to include kode_cabang from database using local column 'code'
             
             $userId = $_GET['user_id'] ?? null;
-            $whereClause = "c.status != 'closed'";
+            $whereClause = "c.updated_at >= (NOW() - INTERVAL 3 DAY)";
             
             // If user is NOT in Admin Range (1000-1010), filter by their ID
             $isAdmin = ($userId >= 1000 && $userId <= 1010);
