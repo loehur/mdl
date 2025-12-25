@@ -93,6 +93,9 @@ class NonTunai extends Controller
             $this->model('Log')->write("[NonTunai::operasi] WA conversation fatal error: " . $e->getMessage());
          }
          
+         // Debug: log setelah WA conversation block selesai
+         $this->model('Log')->write("[NonTunai::operasi] WA conversation block completed");
+         
          //delete tracker webhooks
          // Debug: cek apakah record ada sebelum delete
          $check = $this->db(100)->get_where('wh_moota', ['trx_id' => $id]);
