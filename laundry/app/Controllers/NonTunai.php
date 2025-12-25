@@ -75,7 +75,7 @@ class NonTunai extends Controller
          
          //delete tracker webhooks
          $this->model('Log')->write("[NonTunai::operasi] Start delete wh_moota for trx_id='$id'");
-         $check = $this->db(100)->get_where('wh_moota', ['trx_id' => $id]);
+         $check = $this->db(100)->get_where('wh_moota', "trx_id = '$id'");  // WHERE as STRING!
          $this->model('Log')->write("[NonTunai::operasi] Found " . count($check) . " record(s) in wh_moota");
          
          if (count($check) > 0) {
