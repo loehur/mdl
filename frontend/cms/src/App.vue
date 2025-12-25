@@ -2167,10 +2167,15 @@ window.addEventListener('focus', () => {
         
         <!-- Action -->
         <button 
-          @click="location.reload()" 
+          @click="() => { 
+            localStorage.removeItem('cms_chat_id'); 
+            localStorage.removeItem('cms_chat_password'); 
+            localStorage.removeItem('cms_chat_expiry');
+            location.reload(); 
+          }" 
           class="w-full bg-red-600 hover:bg-red-500 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
         >
-          Reload Halaman
+          Logout & Reload
         </button>
       </div>
     </div>
