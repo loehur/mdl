@@ -282,13 +282,17 @@ class WhatsApp extends Controller
                     );
                     $currentPriority = 0; // Auto-replied, normal priority
                 } else {
-                    // No keyword match - needs CS attention, set priority to 4
-                    $db->update('wa_conversations', 
-                        ['priority' => 4], 
-                        ['wa_number' => $waNumber]
-                    );
-                    $currentPriority = 4; // High priority, needs CS
-                    \Log::write("Conversation priority set to 4 (needs CS): $waNumber", 'wa_auto_reply', 'priority_update');
+                    // No keyword match - needs CS attention, but only if customer is identified
+                    if (!empty($code)) {
+                        $currentPriority = 4; // High priority, needs CS
+                        $db->update('wa_conversations', 
+                            ['priority' => 4], 
+                            ['wa_number' => $waNumber]
+                        );
+                        \Log::write("Conversation priority set to 4 (needs CS): $waNumber", 'wa_auto_reply', 'priority_update');
+                    } else {
+                         $currentPriority = 0; 
+                    }
                 }
             } catch (\Exception $e) {
                 \Log::write("Error processing auto-reply: " . $e->getMessage(), 'webhook', 'WhatsApp');

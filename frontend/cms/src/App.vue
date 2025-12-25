@@ -61,6 +61,8 @@ const isTitleRed = ref(false);
 
 // Chat Menu State
 const showChatMenu = ref(false);
+const isMarkingAsDone = ref(false);
+const isCheckingPayment = ref(false);
 
 // SSE (Server-Sent Events) for real-time updates
 const eventSource = ref(null);
@@ -483,9 +485,10 @@ const markMessagesRead = async (phone) => {
 };
 
 const markAsDone = async () => {
-    if (!activeConversation.value) return;
+    if (!activeConversation.value || isMarkingAsDone.value) return;
     
     try {
+        isMarkingAsDone.value = true;
         showChatMenu.value = false; // Close menu
         
         const response = await fetch(`${API_BASE}/CMS/Chat/markAsDone`, {
@@ -509,8 +512,50 @@ const markAsDone = async () => {
         } else {
             console.error('Failed to mark as done:', res.message);
         }
+        
+        // Keep loading for 3 seconds
+        setTimeout(() => {
+            isMarkingAsDone.value = false;
+        }, 3000);
     } catch (e) {
         console.error("Error marking as done:", e);
+        isMarkingAsDone.value = false;
+    }
+};
+
+const checkPayment = async () => {
+    if (!activeConversation.value || isCheckingPayment.value) return;
+    
+    try {
+        isCheckingPayment.value = true;
+        showChatMenu.value = false; // Close menu
+        
+        const response = await fetch(`${API_BASE}/CMS/Chat/checkPayment`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ 
+                phone: activeConversation.value.wa_number,
+                user_id: authId.value
+            })
+        });
+        
+        const res = await response.json();
+        
+        if (res.status) {
+            // Update local priority
+            activeConversation.value.priority = 2;
+            console.log('✓ Conversation marked for payment check');
+        } else {
+            console.error('Failed to mark for payment check:', res.message);
+        }
+        
+        // Keep loading for 3 seconds
+        setTimeout(() => {
+            isCheckingPayment.value = false;
+        }, 3000);
+    } catch (e) {
+        console.error("Error marking for payment check:", e);
+        isCheckingPayment.value = false;
     }
 };
 
@@ -1659,9 +1704,11 @@ window.addEventListener('blur', () => {
           class="p-3 flex items-center gap-3 cursor-pointer transition-colors duration-200 border-b border-slate-800/50"
           :class="{
             'bg-[#334155]/60 border-l-4 border-l-indigo-500': activeChatId === chat.id && !chat.priority,
-            'bg-pink-900/40 border-l-4 border-l-pink-400 shadow-lg shadow-pink-900/20': activeChatId === chat.id && chat.priority,
+            'bg-green-900/40 border-l-4 border-l-green-400 shadow-lg shadow-green-900/20': activeChatId === chat.id && chat.priority === 2,
+            'bg-pink-900/40 border-l-4 border-l-pink-400 shadow-lg shadow-pink-900/20': activeChatId === chat.id && chat.priority && chat.priority !== 2,
             'border-l-4 border-l-transparent': activeChatId !== chat.id && !chat.priority,
-            'border-l-4 border-l-pink-600 bg-pink-950/30': activeChatId !== chat.id && chat.priority
+            'border-l-4 border-l-green-600 bg-green-950/30': activeChatId !== chat.id && chat.priority === 2,
+            'border-l-4 border-l-pink-600 bg-pink-950/30': activeChatId !== chat.id && chat.priority && chat.priority !== 2
           }"
         >
            <div class="relative">
@@ -1746,7 +1793,8 @@ window.addEventListener('blur', () => {
           class="absolute top-0 left-0 right-0 h-16 border-b flex items-center justify-between px-4 md:px-6 z-30 backdrop-blur-md"
           :class="{
             'border-slate-800 bg-[#0f172a]/95': !activeConversation.priority,
-            'border-pink-600 bg-gradient-to-r from-pink-950/40 to-pink-900/30': activeConversation.priority
+            'border-green-600 bg-gradient-to-r from-green-950/40 to-green-900/30': activeConversation.priority === 2,
+            'border-pink-600 bg-gradient-to-r from-pink-950/40 to-pink-900/30': activeConversation.priority && activeConversation.priority !== 2
           }"
         >
           <div class="flex items-center gap-3 flex-1 min-w-0">
