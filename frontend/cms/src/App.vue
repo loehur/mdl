@@ -63,6 +63,7 @@ const isTitleRed = ref(false);
 const showChatMenu = ref(false);
 const isMarkingAsDone = ref(false);
 const isCheckingPayment = ref(false);
+const isReopeningConversation = ref(false);
 
 // SSE (Server-Sent Events) for real-time updates
 const eventSource = ref(null);
@@ -591,6 +592,42 @@ const checkPayment = async () => {
     } catch (e) {
         console.error("Error marking for payment check:", e);
         isCheckingPayment.value = false;
+    }
+};
+
+const reopenConversation = async () => {
+    if (!activeConversation.value || isReopeningConversation.value) return;
+    
+    try {
+        isReopeningConversation.value = true;
+        showChatMenu.value = false; // Close menu
+        
+        const response = await fetch(`${API_BASE}/CMS/Chat/reopenConversation`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ 
+                phone: activeConversation.value.wa_number,
+                user_id: authId.value
+            })
+        });
+        
+        const res = await response.json();
+        
+        if (res.status) {
+            // Update local priority
+            activeConversation.value.priority = 4;
+            console.log('✓ Conversation reopened - needs attention');
+        } else {
+            console.error('Failed to reopen conversation:', res.message);
+        }
+        
+        // Keep loading for 3 seconds
+        setTimeout(() => {
+            isReopeningConversation.value = false;
+        }, 3000);
+    } catch (e) {
+        console.error("Error reopening conversation:", e);
+        isReopeningConversation.value = false;
     }
 };
 
@@ -1861,13 +1898,19 @@ window.addEventListener('focus', () => {
                    <span>{{ isMarkingAsDone ? 'Memproses...' : 'Selesai' }}</span>
                  </button>
                  
-                 <!-- Info if already priority 0 -->
-                 <div 
-                   v-else
-                   class="px-4 py-3 text-sm text-slate-400 italic"
-                 >
-                   Conversation already normal priority
-                 </div>
+                  <!-- Reopen Option (if priority = 0) -->
+                  <button 
+                    v-else
+                    @click="reopenConversation"
+                    :disabled="isReopeningConversation"
+                    class="w-full px-4 py-3 text-left hover:bg-slate-700 transition-colors flex items-center gap-3 text-sm text-slate-200 hover:text-orange-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <svg v-if="!isReopeningConversation" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <span v-if="isReopeningConversation" class="w-5 h-5 border-2 border-slate-400 border-t-white rounded-full animate-spin"></span>
+                    <span>{{ isReopeningConversation ? 'Memproses...' : 'Follow Up' }}</span>
+                  </button>
                </div>
              </div>
           </div>

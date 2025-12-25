@@ -18,8 +18,6 @@ class KasModel extends Controller
             $use_bayar = false;
         }
 
-        $minute = date('Y-m-d H:');
-
         if (count($data_rekap) == 0) {
             return false;
         }
@@ -99,7 +97,7 @@ class KasModel extends Controller
             }
 
             $jt = $tipe == "M" ? 3 : 1;
-            $setOne = "ref_transaksi = '" . $ref . "' AND jumlah = " . $jumlah . " AND insertTime LIKE '%" . $minute . "%'";
+            $setOne = "ref_transaksi = '" . $ref . "' AND jumlah = " . $jumlah;
             $wCabang = "id_cabang = " . $id_cabang;
             $where = $wCabang . " AND " . $setOne;
             $data_main = $this->db(0)->count_where('kas', $where);
@@ -131,8 +129,6 @@ class KasModel extends Controller
                     $this->model('Log')->write("[KasModel::bayarMulti] Insert Kas Error: " . $do['error']);
                     return $do['error'];
                 }
-            } else {
-                return "Pembayaran dengan jumlah yang sama terkunci, lakukan di jam berikutnya.";
             }
         }
 

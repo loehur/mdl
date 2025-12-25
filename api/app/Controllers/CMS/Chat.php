@@ -381,6 +381,55 @@ class Chat extends Controller
         }
     }
     
+    public function reopenConversation()
+    {
+        try {
+            $body = json_decode(file_get_contents('php://input'), true);
+            $phone = $body['phone'] ?? null;
+            
+            if (!$phone) {
+                $this->error('Phone required');
+            }
+            
+            $db = $this->db(0);
+            
+            // Update priority to 4 (urgent - needs attention)
+            $updated = $db->update('wa_conversations', 
+                ['priority' => 4], 
+                ['wa_number' => $phone]
+            );
+            
+            if ($updated) {
+                // Push WebSocket to update all clients
+                $userId = $_SERVER['HTTP_USER_ID'] ?? $body['user_id'] ?? null;
+                
+                $payload = [
+                    'type' => 'priority_updated',
+                    'phone' => $phone,
+                    'priority' => 4,
+                    'target_id' => '0', // Broadcast to all
+                    'sender_id' => $userId
+                ];
+                
+                \Log::write("Pushing priority update to WebSocket: " . json_encode($payload), 'cms_ws', 'Chat');
+                $this->pushToWebSocket($payload);
+                
+                $this->success(['priority' => 4], 'Conversation reopened - needs attention');
+            } else {
+                $this->error('Failed to update priority');
+            }
+            
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode([
+                'status' => false, 
+                'message' => "Server Error: " . $e->getMessage()
+            ]);
+            exit;
+        }
+    }
+    
     public function media()
     {
         $id = $this->query('id');

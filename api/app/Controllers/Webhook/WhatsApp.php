@@ -281,15 +281,18 @@ class WhatsApp extends Controller
                         ['id' => $msgId]
                     );
                     $currentPriority = 0; // Auto-replied, normal priority
+                    $db->update('wa_conversations', 
+                        ['priority' => $currentPriority], 
+                        ['wa_number' => $waNumber]
+                    );
                 } else {
                     // No keyword match - needs CS attention, but only if customer is identified
                     if (!empty($code)) {
                         $currentPriority = 4; // High priority, needs CS
                         $db->update('wa_conversations', 
-                            ['priority' => 4], 
+                            ['priority' => $currentPriority], 
                             ['wa_number' => $waNumber]
                         );
-                        \Log::write("Conversation priority set to 4 (needs CS): $waNumber", 'wa_auto_reply', 'priority_update');
                     } else {
                          $currentPriority = 0; 
                     }
