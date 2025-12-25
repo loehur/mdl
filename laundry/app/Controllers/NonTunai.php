@@ -78,7 +78,9 @@ class NonTunai extends Controller
                   ];
                   
                   // Push to WebSocket server
+                  $this->model('Log')->write("[NonTunai::operasi] Sending WebSocket notification");
                   $this->pushToWebSocket($payload);
+                  $this->model('Log')->write("[NonTunai::operasi] WebSocket sent successfully");
                } else {
                   $this->model('Log')->write("[NonTunai::operasi] Pelanggan not found or no phone number");
                }
