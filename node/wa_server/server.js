@@ -260,8 +260,10 @@ app.post('/incoming', (req, res) => {
 
             userSockets.forEach(client => {
                 if (client.readyState === WebSocket.OPEN) {
+                    // Send data as-is (already in correct format from PHP)
                     client.send(JSON.stringify(data));
                     broadcastCount++;
+                    console.log(`[BROADCAST] Sent to client: ${userId}`);
                 }
             });
         });
