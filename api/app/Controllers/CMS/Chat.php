@@ -419,21 +419,27 @@ class Chat extends Controller
 
     public function testWS()
     {
-        $convId = $this->query('id') ?? '123';
-        $target = $this->query('target') ?? '0';
+        $phone = $this->query('phone') ?? '+6281234567890';
+        $priority = $this->query('priority') ?? '2';
         
         $payload = [
-            'type' => 'conversation_read',
-            'conversation_id' => $convId,
-            'target_id' => $target,
-            'message' => ['id' => time(), 'text' => 'TEST_WS_MANUAL'], 
-            'unread_count' => 0
+            'type' => 'priority_updated',
+            'phone' => $phone,
+            'priority' => (int)$priority,
+            'target_id' => '0', // Broadcast to all
+            'sender_id' => '9999' // Test sender
         ];
         
+        \Log::write("TEST WS: Sending priority_updated - " . json_encode($payload), 'cms_ws_test');
         $res = $this->pushToWebSocket($payload);
         
         header('Content-Type: application/json');
-        echo json_encode(['result' => $res, 'payload' => $payload]);
+        echo json_encode([
+            'status' => 'sent',
+            'result' => $res, 
+            'payload' => $payload,
+            'note' => 'Check browser console for [WS] priority_updated received message'
+        ]);
         exit;
     }
 
