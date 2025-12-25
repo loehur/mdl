@@ -253,7 +253,7 @@ class WAGenerator extends Controller
             'customer' => strtoupper($nama_pelanggan),
             'order_list' => $cleanOrderList,
             //'total_bill' => $cleanTotalBill,
-            //'invoice_link' => URL::HOST_URL . "/I/i/" . $id_pelanggan
+            'invoice_link' => URL::HOST_URL . "/I/i/" . $id_pelanggan
         ];
 
         return json_encode([

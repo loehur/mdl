@@ -32,7 +32,7 @@ class WA_YCloud extends DB
                 // This text will be used for free text sending if CSW is open
                 $data['message'] = $messageData['text'] ?? '';
                 $data['template_params'] = $messageData['template_params'];
-                $data['template_name'] = 'template_utility_20251225004400'; // Default template name
+                $data['template_name'] = 'template_utility_20251225082933'; // Default template name
             } else {
                 // Fallback: treat as free text if no template_params
                 $data['message'] = $message;
