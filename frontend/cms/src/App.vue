@@ -1350,13 +1350,21 @@ const connectWebSocket = () => {
        }
      };
      
-     ws.onclose = (event) => {
-       if (isConnected.value) {
-            console.log('WebSocket disconnected');
-            isConnected.value = false;
-       } else {
-           // Connection failed during attempt
-           isConnecting.value = false;
+      ws.onclose = (event) => {
+        if (isConnected.value) {
+             console.log('WebSocket disconnected, code:', event.code, 'reason:', event.reason);
+             isConnected.value = false;
+             
+             // Check if disconnected due to connection limit (code 1008)
+             if (event.code === 1008) {
+                 connectionError.value = '⚠️ Koneksi ditutup: ID ini sudah terkoneksi di tab/device lain';
+                 console.warn('Connection closed: Another connection with same ID exists');
+             } else {
+                 connectionError.value = '⚠️ WebSocket terputus. Polling backup aktif (update setiap 3 detik)';
+             }
+        } else {
+            // Connection failed during attempt
+            isConnecting.value = false;
            // Clear invalid session if we failed to connect (e.g. ID revoked)
            // But be careful not to clear on transient network errors? 
            // Probably safe to let user try again or re-enter.
