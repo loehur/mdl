@@ -53,6 +53,7 @@ const minSwipeDistance = 75; // px
 
 // Login Delay State
 const showLoginPrompt = ref(false);
+const showDuplicateConnectionModal = ref(false);
 
 // Title Blinking State
 const originalTitle = 'MDL Chat';
@@ -1359,6 +1360,8 @@ const connectWebSocket = () => {
              if (event.code === 1008) {
                  connectionError.value = '⚠️ Koneksi ditutup: ID ini sudah terkoneksi di tab/device lain';
                  console.warn('Connection closed: Another connection with same ID exists');
+                 // Show blocking modal
+                 showDuplicateConnectionModal.value = true;
              } else {
                  connectionError.value = '⚠️ WebSocket terputus. Polling backup aktif (update setiap 3 detik)';
              }
@@ -2139,6 +2142,37 @@ window.addEventListener('focus', () => {
     <!-- Exit Toast -->
     <div v-if="showExitToast" class="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-slate-800/90 backdrop-blur text-white px-6 py-3 rounded-full shadow-xl border border-slate-700/50 z-[100] transition-opacity duration-300 pointer-events-none">
         <span class="text-sm font-medium">Press back again to exit</span>
+    </div>
+
+    <!-- Duplicate Connection Modal (Blocking) -->
+    <div v-if="showDuplicateConnectionModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[999] flex items-center justify-center p-4">
+      <div class="bg-gradient-to-br from-red-950/90 to-red-900/80 border-2 border-red-600 rounded-2xl shadow-2xl max-w-md w-full p-8 text-center animate-bounce-in">
+        <!-- Alert Icon -->
+        <div class="mx-auto w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mb-6 animate-pulse">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+        
+        <!-- Title -->
+        <h2 class="text-2xl font-bold text-white mb-3">Koneksi Duplikat Terdeteksi</h2>
+        
+        <!-- Message -->
+        <p class="text-red-200 mb-2 leading-relaxed">
+          ID Anda (<strong>{{ authId }}</strong>) sudah terkoneksi di tab atau device lain.
+        </p>
+        <p class="text-red-300/80 text-sm mb-6">
+          Hanya 1 koneksi aktif per ID yang diizinkan. Silakan logout dari device lain atau reload tab ini.
+        </p>
+        
+        <!-- Action -->
+        <button 
+          @click="location.reload()" 
+          class="w-full bg-red-600 hover:bg-red-500 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+        >
+          Reload Halaman
+        </button>
+      </div>
     </div>
 
   </div>

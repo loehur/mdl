@@ -31,6 +31,46 @@ class NonTunai extends Controller
          $this->model('Log')->write('[NonTunai::operasi] Update Kas Error: ' . $up['error']);
          return $up['error'];
       }else{
+         // Update wa_conversations priority = 0 jika priority = 2 (payment confirmed)
+         // Get nomor_pelanggan from kas table using ref_finance
+         $kasData = $this->db(0)->query("SELECT id_client FROM kas WHERE ref_finance = '$id' LIMIT 1")->row();
+         
+         if ($kasData && $kasData->id_client) {
+            $pelanggan = $this->db(1)->get_where('pelanggan', ['id_pelanggan' => $kasData->id_client])->row();
+            
+            if ($pelanggan && !empty($pelanggan->nomor_pelanggan)) {
+               // Format nomor dengan berbagai variasi (+62, 62, 08)
+               $cleanPhone = preg_replace('/[^0-9]/', '', $pelanggan->nomor_pelanggan);
+               $phone08 = '0' . substr($cleanPhone, -10);
+               $phone62 = '62' . substr($cleanPhone, -10);
+               $phonePlus62 = '+62' . substr($cleanPhone, -10);
+               
+               $phones = ["'$phone08'", "'$phone62'", "'$phonePlus62'"];
+               $phoneIn = implode(',', $phones);
+               
+               // Update priority dari 2 (payment check) menjadi 0 (done)
+               $updatePriority = $this->db(100)->query(
+                  "UPDATE wa_conversations SET priority = 0 WHERE priority = 2 AND wa_number IN ($phoneIn)"
+               );
+               
+               if ($updatePriority) {
+                  $this->model('Log')->write("[NonTunai::operasi] Payment confirmed for $phonePlus62, priority reset to 0");
+                  
+                  // Broadcast WebSocket ke semua agent
+                  $payload = [
+                     'type' => 'priority_updated',
+                     'phone' => $phonePlus62,
+                     'priority' => 0,
+                     'target_id' => '0', // Broadcast to all
+                     'sender_id' => 'system'
+                  ];
+                  
+                  // Push to WebSocket server
+                  $this->pushToWebSocket($payload);
+               }
+            }
+         }
+         
          //delete tracker webhooks
          $delete = $this->db(100)->delete('wh_moota', "trx_id = '" . $id . "'");
          if($delete['errno'] <> 0){
@@ -92,5 +132,28 @@ class NonTunai extends Controller
          $this->model('Log')->apiLog('Tokopay/v1/tarik-saldo', ['nominal' => $nominal], $errorResponse, 'error');
          echo json_encode($errorResponse);
       }
+   }
+   
+   private function pushToWebSocket($data)
+   {
+      $url = 'https://waserver.nalju.com/incoming';
+      
+      $ch = curl_init($url);
+      curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+      curl_setopt($ch, CURLOPT_POST, true);
+      curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+      curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+      curl_setopt($ch, CURLOPT_TIMEOUT, 3);
+      curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+      curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+      
+      $result = curl_exec($ch);
+      
+      if (curl_errno($ch)) {
+         $this->model('Log')->write('[NonTunai::pushToWebSocket] cURL Error: ' . curl_error($ch));
+      }
+      
+      curl_close($ch);
+      return $result;
    }
 }
