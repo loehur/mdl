@@ -228,10 +228,6 @@ class WhatsApp extends Controller
             $templateParams = $body['template_params'];
             $templateName = $body['template_name'];
             
-            // DEBUG LOG: Before conversion
-            \Log::write("=== CONTROLLER TEMPLATE DEBUG ===", 'wa_debug', 'template');
-            \Log::write("Template Params (before conversion): " . json_encode($templateParams), 'wa_debug', 'template');
-            
             // Convert associative array to indexed array (WhatsApp template needs values only)
             // Expected order: customer, order_list, total_bill, invoice_link
             if (is_array($templateParams) && !isset($templateParams[0])) {

@@ -77,14 +77,7 @@ class WhatsAppService
      * @return array Response from yCloud API
      */
     public function sendTemplate($to, $templateName, $language = 'id', $parameters = [], $messageText = null)
-    {
-    // DEBUG LOG: Input parameters
-    \Log::write("=== TEMPLATE MESSAGE DEBUG ===", 'wa_debug', 'template');
-    \Log::write("To: $to", 'wa_debug', 'template');
-    \Log::write("Template Name: $templateName", 'wa_debug', 'template');
-    \Log::write("Language: $language", 'wa_debug', 'template');
-    \Log::write("Parameters (raw): " . json_encode($parameters), 'wa_debug', 'template');
-        
+    {        
         $components = [];
         
         // Add body parameters if provided
@@ -124,7 +117,6 @@ class WhatsAppService
         
         // DEBUG LOG: Response from yCloud
         \Log::write("Response from yCloud: " . json_encode($result, JSON_PRETTY_PRINT), 'wa_debug', 'template');
-        \Log::write("=== END TEMPLATE DEBUG ===", 'wa_debug', 'template');
         
         return $result;
     }
@@ -630,31 +622,26 @@ class WhatsAppService
             if ($messageType === 'text' && isset($payload['text']['body'])) {
                 $content = $payload['text']['body'];
             } elseif ($messageType === 'template' && isset($payload['template']['name'])) {
-                // PRIORITY 1: Use pre-rendered messageText if provided (from WAGenerator)
-                if (!empty($messageText)) {
-                    $content = $messageText;
-                } else {
-                    // FALLBACK: Extract text from template parameters
-                    $templateText = '';
-                    if (isset($payload['template']['components'])) {
-                        foreach ($payload['template']['components'] as $component) {
-                            if ($component['type'] === 'body' && isset($component['parameters'])) {
-                                $params = [];
-                                foreach ($component['parameters'] as $param) {
-                                    if ($param['type'] === 'text') {
-                                        $params[] = $param['text'];
-                                    }
+                // FALLBACK: Extract text from template parameters
+                $templateText = '';
+                if (isset($payload['template']['components'])) {
+                    foreach ($payload['template']['components'] as $component) {
+                        if ($component['type'] === 'body' && isset($component['parameters'])) {
+                            $params = [];
+                            foreach ($component['parameters'] as $param) {
+                                if ($param['type'] === 'text') {
+                                    $params[] = $param['text'];
                                 }
-                                // Build readable text from parameters
-                                // Format: "Customer: BUDI | Order: ... | Total: ... | Link: ..."
-                                $templateText = implode(' | ', $params);
                             }
+                            // Build readable text from parameters
+                            // Format: "Customer: BUDI | Order: ... | Total: ... | Link: ..."
+                            $templateText = implode(' | ', $params);
                         }
                     }
-                    
-                    // Store readable text in content, not template name
-                    $content = $templateText ?: $payload['template']['name']; // Fallback to template name if no text
                 }
+                
+                // Store readable text in content, not template name
+                $content = $templateText ?: $payload['template']['name']; // Fallback to template name if no text
                 
                 // Store template params for reference
                 if (isset($payload['template']['components'])) {
