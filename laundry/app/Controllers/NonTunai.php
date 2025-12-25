@@ -48,7 +48,7 @@ class NonTunai extends Controller
             if ($kasData && isset($kasData['id_client'])) {
                $this->model('Log')->write("[NonTunai::operasi] Found kasData, id_client={$kasData['id_client']}");
                
-               $pelanggan = $this->db(1)->get_where_row('pelanggan', "id_pelanggan = '{$kasData['id_client']}'");
+               $pelanggan = $this->db(0)->get_where_row('pelanggan', "id_pelanggan = '{$kasData['id_client']}'");
                
                if ($pelanggan && !empty($pelanggan['nomor_pelanggan'])) {
                   $this->model('Log')->write("[NonTunai::operasi] Found pelanggan, phone={$pelanggan['nomor_pelanggan']}");
