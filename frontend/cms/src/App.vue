@@ -218,6 +218,32 @@ const totalPriority = computed(() => {
   return conversations.value.filter(chat => chat.priority && chat.priority > 0).length;
 });
 
+// Should Title Blink (only priority 4 with unread)
+const shouldBlinkTitle = computed(() => {
+  return conversations.value.some(chat => chat.priority === 4 && chat.unread > 0);
+});
+
+// Watch for title blinking
+watch(shouldBlinkTitle, (shouldBlink) => {
+  if (shouldBlink) {
+    // Start blinking
+    if (!titleBlinkInterval.value) {
+      titleBlinkInterval.value = setInterval(() => {
+        isTitleRed.value = !isTitleRed.value;
+        document.title = isTitleRed.value ? '🔴 URGENT!' : originalTitle;
+      }, 1000); // Blink every 1 second
+    }
+  } else {
+    // Stop blinking
+    if (titleBlinkInterval.value) {
+      clearInterval(titleBlinkInterval.value);
+      titleBlinkInterval.value = null;
+      isTitleRed.value = false;
+      document.title = originalTitle;
+    }
+  }
+});
+
 // --- Methods ---
 
 // Parse WhatsApp Formatting to HTML
