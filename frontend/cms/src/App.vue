@@ -248,6 +248,11 @@ watch(shouldBlinkTitle, (shouldBlink) => {
   }
 });
 
+// Scroll when active chat changes
+watch(activeChatId, () => {
+  scrollToBottom();
+});
+
 // --- Methods ---
 
 // Parse WhatsApp Formatting to HTML
@@ -1413,9 +1418,6 @@ onMounted(() => {
   
   scrollToBottom();
   
-  // Initialize title blinking
-  updateTitleBlinking();
-  
   // --- NO CACHE LOADING ---
   // Always fetch fresh data from server for 100% accuracy
   
@@ -1539,50 +1541,6 @@ const logout = () => {
     // Note: conversations cache removed - data always from server
 };
 
-// Update Title Blinking
-// Update Title Blinking
-const updateTitleBlinking = () => {
-  // Stop any existing interval
-  if (titleBlinkInterval.value) {
-    clearInterval(titleBlinkInterval.value);
-    titleBlinkInterval.value = null;
-    document.title = originalTitle;
-    isTitleRed.value = false;
-  }
-  
-  const priorityCount = totalPriority.value;
-  const unreadCount = totalUnread.value;
-  
-  // High Priority or Unread Messages Blink
-  if (priorityCount > 0 || unreadCount > 0) {
-    let showAlert = true;
-    titleBlinkInterval.value = setInterval(() => {
-      if (showAlert) {
-        if (priorityCount > 0) {
-            // Priority takes precedence
-            document.title = `🔴 (${priorityCount}) PRIORITY AC!`;
-            isTitleRed.value = true;
-        } else {
-            document.title = `🔴 (${unreadCount}) New Messages!`;
-            isTitleRed.value = true;
-        }
-      } else {
-        document.title = originalTitle;
-        isTitleRed.value = false;
-      }
-      showAlert = !showAlert;
-    }, 1000); // Blink every 1 second
-  }
-};
-
-watch(activeChatId, () => {
-  scrollToBottom();
-});
-
-// Watch for unread count OR priority changes
-watch([totalUnread, totalPriority], () => {
-  updateTitleBlinking();
-});
 
 // Cleanup on unmount
 onUnmounted(() => {
@@ -1600,11 +1558,6 @@ window.addEventListener('focus', () => {
     document.title = originalTitle;
     isTitleRed.value = false;
   }
-});
-
-// Restart blinking when window blurs (if needed)
-window.addEventListener('blur', () => {
-  updateTitleBlinking();
 });
 
 </script>
