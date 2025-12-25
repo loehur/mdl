@@ -11,10 +11,9 @@ class Log
     public static function write($text = "", $app = 'undefined', $controller = "undefined")
     {
         try {
-            $assets_dir = "logs/" . date('Y/') . date('m/') ."/";
-            $file_name = date('d') . ".log";
+            $assets_dir = "logs/" . date('Y/') . date('m/') ."/". date('d') . "/";
             $data_to_write = date('H:i:s') . " " . $text . "\n";
-            $file_path = $assets_dir . strtolower($app) . "_" . strtolower($controller) . "_" . $file_name;
+            $file_path = $assets_dir . strtolower($app) . "_" . strtolower($controller) . ".log";
 
             if (!file_exists($assets_dir)) {
                 // Gunakan @ untuk suppress error jika permission denied
