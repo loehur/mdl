@@ -24,6 +24,7 @@ return [
             'dh siap', 'da siap', 'dah siap', 'dh selsesai', 'da selsesai', 'dah selsesai',
             'dh beres', 'da beres', 'dah beres',
             'dh selesai', 'da selesai', 'dah selesai',
+            'da selesai', 'da selsai',
             'bs diambil', 'bs di ambil', 'bisa diambil', 'bisa di ambil',
             'bs dijemput', 'bisa dijemput', 'bs di jemput', 'bisa di jemput',
             'kpn siap', 'kapan siap', 'kpn selesai', 'kapan selesai'
