@@ -1842,7 +1842,7 @@ window.addEventListener('blur', () => {
                  <!-- Selesai Option -->
                  <!-- Check Payment Option -->
                  <button 
-                   v-if="activeConversation.priority > 0 && activeConversation.priority !== 2"
+                   v-if="activeConversation.priority !== 2"
                    @click="checkPayment"
                    :disabled="isCheckingPayment"
                    class="w-full px-4 py-3 text-left hover:bg-slate-700 transition-colors flex items-center gap-3 text-sm text-slate-200 hover:text-blue-400 disabled:opacity-50 disabled:cursor-not-allowed border-b border-slate-700/50"
