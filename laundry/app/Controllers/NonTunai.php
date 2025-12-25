@@ -22,6 +22,10 @@ class NonTunai extends Controller
    public function operasi($tipe)
    {
       $id = $_POST['id'];
+      
+      // Debug: log awal fungsi
+      $this->model('Log')->write("[NonTunai::operasi] START - tipe=$tipe, id=$id");
+      
       $set = [
          'status_mutasi' => $tipe
       ];
@@ -31,6 +35,9 @@ class NonTunai extends Controller
          $this->model('Log')->write('[NonTunai::operasi] Update Kas Error: ' . $up['error']);
          return $up['error'];
       }else{
+         // Debug: log setelah update berhasil
+         $this->model('Log')->write("[NonTunai::operasi] Update Kas SUCCESS - ref_finance=$id");
+         
          // Update wa_conversations priority = 0 jika priority = 2 (payment confirmed)
          // Get nomor_pelanggan from kas table using ref_finance
          $kasData = $this->db(0)->query("SELECT id_client FROM kas WHERE ref_finance = '$id' LIMIT 1")->row();
