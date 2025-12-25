@@ -280,11 +280,6 @@ class WhatsApp extends Controller
                         ['status' => 'read'], 
                         ['id' => $msgId]
                     );
-                    $currentPriority = 0; // Auto-replied, normal priority
-                    $db->update('wa_conversations', 
-                        ['priority' => $currentPriority], 
-                        ['wa_number' => $waNumber]
-                    );
                 } else {
                     // No keyword match - needs CS attention, but only if customer is identified
                     if (!empty($code)) {
