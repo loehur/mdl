@@ -1085,37 +1085,51 @@ const connectWebSocket = () => {
              }
              return;
           }
+
+          // Handle Priority Update (Mark as Done)
+          if (payload.type === 'priority_updated') {
+              console.log('[WS] priority_updated received:', payload);
+              const conv = conversations.value.find(c => c.wa_number == payload.phone);
+              if (conv) {
+                  console.log('✓ Updating priority for conversation:', conv.name, 'from', conv.priority, 'to', payload.priority);
+                  conv.priority = payload.priority;
+              } else {
+                  console.warn('⚠️ Conversation not found for priority update:', payload.phone);
+              }
+              return;
+          }
+
           
-           // Handle Agent Message Sent (from other devices)
-           if (payload.type === 'agent_message_sent') {
-               const conversationId = payload.conversation_id;
-               const messageData = payload.message;
-               const senderId = payload.sender_id;
+          // Handle Agent Message Sent (from other devices)
+          if (payload.type === 'agent_message_sent') {
+              const conversationId = payload.conversation_id;
+              const messageData = payload.message;
+              const senderId = payload.sender_id;
                
-               // DEBUG: Log all agent messages for troubleshooting
-               console.log('[WS] agent_message_sent:', {
-                   conversation: conversationId,
-                   sender: senderId,
-                   myId: authId.value,
-                   text: messageData.text,
-                   match: senderId == authId.value
-               });
+              // DEBUG: Log all agent messages for troubleshooting
+              console.log('[WS] agent_message_sent:', {
+                  conversation: conversationId,
+                  sender: senderId,
+                  myId: authId.value,
+                  text: messageData.text,
+                  match: senderId == authId.value
+              });
                
-               // Skip if this message was sent by current user (use == for type safety)
-               // This prevents the duplicate when server echoes our own message back
-               if (senderId == authId.value) {
-                   console.log('✓ Ignoring self-broadcast (already in optimistic UI)');
-                   return;
-               }
+              // Skip if this message was sent by current user (use == for type safety)
+              // This prevents the duplicate when server echoes our own message back
+              if (senderId == authId.value) {
+                  console.log('✓ Ignoring self-broadcast (already in optimistic UI)');
+                  return;
+              }
                
                
-               const conversation = conversations.value.find(c => (conversationId && c.id == conversationId) || (payload.phone && c.wa_number == payload.phone));
-               if (conversation) {
+              const conversation = conversations.value.find(c => (conversationId && c.id == conversationId) || (payload.phone && c.wa_number == payload.phone));
+              if (conversation) {
                    // Enhanced duplicate check: ID, wamid, OR media_url for images
                    const existingMessage = conversation.messages.find(m => 
-                       m.id == messageData.id || 
-                       (m.wamid && messageData.wamid && m.wamid == messageData.wamid) ||
-                       (messageData.type === 'image' && m.media_url && messageData.media_url && m.media_url == messageData.media_url)
+                      m.id == messageData.id || 
+                      (m.wamid && messageData.wamid && m.wamid == messageData.wamid) ||
+                      (messageData.type === 'image' && m.media_url && messageData.media_url && m.media_url == messageData.media_url)
                    );
                    
                    if (existingMessage) {
