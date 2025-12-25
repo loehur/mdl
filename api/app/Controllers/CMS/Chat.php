@@ -37,13 +37,19 @@ class Chat extends Controller
             $userId = $_GET['user_id'] ?? null;
             $whereClause = "c.updated_at >= (NOW() - INTERVAL 3 DAY)";
             
-            // If user is NOT in Admin Range (1000-1010), filter by their ID
-            $isAdmin = ($userId >= 1000 && $userId <= 1010);
+            // List of admin IDs with full access
+            $adminIds = ['DEV', 'AYAH', 'IBU', 'TABLET'];
+            $isAdmin = in_array($userId, $adminIds, true);
             
             if ($userId && !$isAdmin) {
-               // Use proper escaping if possible, or cast to int if numeric ID
-               // Assuming int IDs
-               $whereClause .= " AND c.assigned_user_id = " . intval($userId);
+               // Regular user - filter by assigned_user_id
+               // For numeric IDs, use intval for safety
+               if (is_numeric($userId)) {
+                   $whereClause .= " AND c.assigned_user_id = " . intval($userId);
+               } else {
+                   // For string IDs, use proper escaping
+                   $whereClause .= " AND c.assigned_user_id = '" . $db->escape($userId) . "'";
+               }
             }
             
             $sql = "
