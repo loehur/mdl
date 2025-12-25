@@ -1840,15 +1840,32 @@ window.addEventListener('blur', () => {
                  class="absolute right-0 top-full mt-2 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-xl overflow-hidden z-50"
                >
                  <!-- Selesai Option -->
+                 <!-- Check Payment Option -->
                  <button 
+                   v-if="activeConversation.priority > 0 && activeConversation.priority !== 2"
+                   @click="checkPayment"
+                   :disabled="isCheckingPayment"
+                   class="w-full px-4 py-3 text-left hover:bg-slate-700 transition-colors flex items-center gap-3 text-sm text-slate-200 hover:text-blue-400 disabled:opacity-50 disabled:cursor-not-allowed border-b border-slate-700/50"
+                 >
+                   <svg v-if="!isCheckingPayment" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                   </svg>
+                   <span v-if="isCheckingPayment" class="w-5 h-5 border-2 border-slate-400 border-t-white rounded-full animate-spin"></span>
+                   <span>{{ isCheckingPayment ? 'Memproses...' : 'Check Payment' }}</span>
+                 </button>
+                 
+                 <!-- Selesai Option -->
+                 <button id="btn-selesai" 
                    v-if="activeConversation.priority > 0"
                    @click="markAsDone"
-                   class="w-full px-4 py-3 text-left hover:bg-slate-700 transition-colors flex items-center gap-3 text-sm text-slate-200 hover:text-green-400"
+                   :disabled="isMarkingAsDone"
+                   class="w-full px-4 py-3 text-left hover:bg-slate-700 transition-colors flex items-center gap-3 text-sm text-slate-200 hover:text-green-400 disabled:opacity-50 disabled:cursor-not-allowed"
                  >
-                   <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                   <svg v-if="!isMarkingAsDone" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                    </svg>
-                   <span>Selesai</span>
+                   <span v-if="isMarkingAsDone" class="w-5 h-5 border-2 border-slate-400 border-t-white rounded-full animate-spin"></span>
+                   <span>{{ isMarkingAsDone ? 'Memproses...' : 'Selesai' }}</span>
                  </button>
                  
                  <!-- Info if already priority 0 -->
