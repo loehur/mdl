@@ -135,7 +135,6 @@ class KasModel extends Controller
         if ($total_dibayar > 0 && $metode == 2 && $note <> "QRIS") {
             $bank_acc_id = isset(URL::MOOTA_BANK_ID[$note]) ? URL::MOOTA_BANK_ID[$note] : '';
             if(empty($bank_acc_id)){
-                 $this->model('Log')->write("[KasModel::bayarMulti] Moota Error: Bank ID not found in URL::MOOTA_BANK_ID for note: $note");
                  return 0; // Or handle error? existing logic just returns 0 on success/ignore
             }
 

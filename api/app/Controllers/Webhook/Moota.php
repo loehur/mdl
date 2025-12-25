@@ -102,6 +102,13 @@ class Moota extends Controller
             $bank_id = $mutation['bank_id'];
             $mutation_id = $mutation['mutation_id'];
 
+            // Debug: log tipe data amount
+            \Log::write("DEBUG: amount type=" . gettype($amount) . ", value=" . var_export($amount, true), 'webhook', 'Moota');
+
+            // Konversi sesuai tipe data di database: amount=int(11), bank_id=varchar(100)
+            $amount = (int)$amount;  // amount adalah INTEGER di database
+            $bank_id = trim((string)$bank_id);  // bank_id adalah VARCHAR
+
             if ($type !== 'CR') {
                 \Log::write("Skip: !CR", 'webhook', 'Moota');
                 continue;
@@ -141,11 +148,17 @@ class Moota extends Controller
 
             //cek wh_moota dengan bank_id, amount, state != paid
             try {
-                $cek_pending_query = $db_instance->get_where("wh_moota", [
-                    "bank_id" => $bank_id,
-                    "amount" => $amount,
-                    "state !=" => 'paid',
-                ]);
+                // Debug: log query parameters
+                \Log::write("DEBUG: Query params - bank_id='{$bank_id}', amount='{$amount}'", 'webhook', 'Moota');
+                
+                // Query dengan where() untuk lebih eksplisit
+                $db_instance->where('bank_id', $bank_id);
+                $db_instance->where('amount', $amount);
+                $db_instance->where('state !=', 'paid');
+                $cek_pending_query = $db_instance->get('wh_moota');
+
+                // Debug: log last query
+                \Log::write("DEBUG: Last Query - " . $db_instance->last_query(), 'webhook', 'Moota');
 
                 // \Log::write("Qry OK", 'moota');
 
@@ -156,6 +169,9 @@ class Moota extends Controller
                 }
 
                 $pending_count = $cek_pending_query->num_rows();
+                
+                // Debug: log result count
+                \Log::write("DEBUG: Found rows = {$pending_count}", 'webhook', 'Moota');
 
                 if ($pending_count == 1) {
                     \Log::write("Fnd: $bank_id, $amount", 'webhook', 'Moota');
