@@ -72,10 +72,21 @@ class NonTunai extends Controller
          }
          
          //delete tracker webhooks
-         $delete = $this->db(100)->delete('wh_moota', "trx_id = '" . $id . "'");
-         if($delete['errno'] <> 0){
-            $this->model('Log')->write('[NonTunai::operasi] Delete Wh Moota Error: ' . $delete['error']);
-            return $delete['error'];
+         // Debug: cek apakah record ada sebelum delete
+         $check = $this->db(100)->get_where('wh_moota', ['trx_id' => $id]);
+         $count = $check->num_rows();
+         $this->model('Log')->write("[NonTunai::operasi] Check wh_moota trx_id='$id', found: $count rows");
+         
+         if ($count > 0) {
+            $delete = $this->db(100)->delete('wh_moota', ['trx_id' => $id]);
+            $this->model('Log')->write("[NonTunai::operasi] Delete result: errno={$delete['errno']}, affected={$delete['affected_rows']}");
+            
+            if($delete['errno'] <> 0){
+               $this->model('Log')->write('[NonTunai::operasi] Delete Wh Moota Error: ' . $delete['error']);
+               return $delete['error'];
+            }
+         } else {
+            $this->model('Log')->write("[NonTunai::operasi] No wh_moota record found with trx_id='$id'");
          }
       }
       return 0;

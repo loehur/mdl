@@ -151,11 +151,12 @@ class Moota extends Controller
                 // Debug: log query parameters
                 \Log::write("DEBUG: Query params - bank_id='{$bank_id}', amount='{$amount}'", 'webhook', 'Moota');
                 
-                // Query dengan where() untuk lebih eksplisit
-                $db_instance->where('bank_id', $bank_id);
-                $db_instance->where('amount', $amount);
-                $db_instance->where('state !=', 'paid');
-                $cek_pending_query = $db_instance->get('wh_moota');
+                // Query menggunakan get_where (amount sudah di-cast ke integer di line 109)
+                $cek_pending_query = $db_instance->get_where("wh_moota", [
+                    "bank_id" => $bank_id,
+                    "amount" => $amount,
+                    "state !=" => 'paid',
+                ]);
 
                 // Debug: log last query
                 \Log::write("DEBUG: Last Query - " . $db_instance->last_query(), 'webhook', 'Moota');
