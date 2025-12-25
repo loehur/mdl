@@ -43,18 +43,18 @@ class NonTunai extends Controller
             $this->model('Log')->write("[NonTunai::operasi] Start WA conversation update");
             
             // Get nomor_pelanggan from kas table using ref_finance
-            $kasData = $this->db(0)->query("SELECT id_client FROM kas WHERE ref_finance = '$id' LIMIT 1")->row();
+            $kasData = $this->db(0)->get_where_row('kas', "ref_finance = '$id'");
             
-            if ($kasData && $kasData->id_client) {
-               $this->model('Log')->write("[NonTunai::operasi] Found kasData, id_client={$kasData->id_client}");
+            if ($kasData && isset($kasData['id_client'])) {
+               $this->model('Log')->write("[NonTunai::operasi] Found kasData, id_client={$kasData['id_client']}");
                
-               $pelanggan = $this->db(1)->get_where('pelanggan', ['id_pelanggan' => $kasData->id_client])->row();
+               $pelanggan = $this->db(1)->get_where_row('pelanggan', "id_pelanggan = '{$kasData['id_client']}'");
                
-               if ($pelanggan && !empty($pelanggan->nomor_pelanggan)) {
-                  $this->model('Log')->write("[NonTunai::operasi] Found pelanggan, phone={$pelanggan->nomor_pelanggan}");
+               if ($pelanggan && !empty($pelanggan['nomor_pelanggan'])) {
+                  $this->model('Log')->write("[NonTunai::operasi] Found pelanggan, phone={$pelanggan['nomor_pelanggan']}");
                   
                   // Format nomor dengan berbagai variasi (+62, 62, 08)
-                  $cleanPhone = preg_replace('/[^0-9]/', '', $pelanggan->nomor_pelanggan);
+                  $cleanPhone = preg_replace('/[^0-9]/', '', $pelanggan['nomor_pelanggan']);
                   $phone08 = '0' . substr($cleanPhone, -10);
                   $phone62 = '62' . substr($cleanPhone, -10);
                   $phonePlus62 = '+62' . substr($cleanPhone, -10);
@@ -63,25 +63,22 @@ class NonTunai extends Controller
                   $phoneIn = implode(',', $phones);
                   
                   // Update priority dari 2 (payment check) menjadi 0 (done)
-                  $updatePriority = $this->db(100)->query(
+                  $this->db(100)->query(
                      "UPDATE wa_conversations SET priority = 0 WHERE priority = 2 AND wa_number IN ($phoneIn)"
                   );
+                  $this->model('Log')->write("[NonTunai::operasi] Payment confirmed for $phonePlus62, priority reset to 0");
+                     
+                  // Broadcast WebSocket ke semua agent
+                  $payload = [
+                     'type' => 'priority_updated',
+                     'phone' => $phonePlus62,
+                     'priority' => 0,
+                     'target_id' => '0', // Broadcast to all
+                     'sender_id' => 'system'
+                  ];
                   
-                  if ($updatePriority) {
-                     $this->model('Log')->write("[NonTunai::operasi] Payment confirmed for $phonePlus62, priority reset to 0");
-                     
-                     // Broadcast WebSocket ke semua agent
-                     $payload = [
-                        'type' => 'priority_updated',
-                        'phone' => $phonePlus62,
-                        'priority' => 0,
-                        'target_id' => '0', // Broadcast to all
-                        'sender_id' => 'system'
-                     ];
-                     
-                     // Push to WebSocket server
-                     $this->pushToWebSocket($payload);
-                  }
+                  // Push to WebSocket server
+                  $this->pushToWebSocket($payload);
                } else {
                   $this->model('Log')->write("[NonTunai::operasi] Pelanggan not found or no phone number");
                }
