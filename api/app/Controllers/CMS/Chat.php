@@ -350,7 +350,56 @@ class Chat extends Controller
             
             $db = $this->db(0);
             
-            // Update priority to 2 (check payment)
+            // Update priority to 1 (check payment - GREEN)
+            $updated = $db->update('wa_conversations', 
+                ['priority' => 1], 
+                ['wa_number' => $phone]
+            );
+            
+            if ($updated) {
+                // Push WebSocket to update all clients
+                $userId = $_SERVER['HTTP_USER_ID'] ?? $body['user_id'] ?? null;
+                
+                $payload = [
+                    'type' => 'priority_updated',
+                    'phone' => $phone,
+                    'priority' => 1,
+                    'target_id' => '0', // Broadcast to all
+                    'sender_id' => $userId
+                ];
+                
+                \Log::write("Pushing priority update to WebSocket: " . json_encode($payload), 'cms_ws', 'Chat');
+                $this->pushToWebSocket($payload);
+                
+                $this->success(['priority' => 1], 'Conversation marked for payment check');
+            } else {
+                $this->error('Failed to update priority');
+            }
+            
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode([
+                'status' => false, 
+                'message' => "Server Error: " . $e->getMessage()
+            ]);
+            exit;
+        }
+    }
+    
+    public function pickupDelivery()
+    {
+        try {
+            $body = json_decode(file_get_contents('php://input'), true);
+            $phone = $body['phone'] ?? null;
+            
+            if (!$phone) {
+                $this->error('Phone required');
+            }
+            
+            $db = $this->db(0);
+            
+            // Update priority to 2 (pickup/delivery - YELLOW)
             $updated = $db->update('wa_conversations', 
                 ['priority' => 2], 
                 ['wa_number' => $phone]
@@ -371,7 +420,56 @@ class Chat extends Controller
                 \Log::write("Pushing priority update to WebSocket: " . json_encode($payload), 'cms_ws', 'Chat');
                 $this->pushToWebSocket($payload);
                 
-                $this->success(['priority' => 2], 'Conversation marked for payment check');
+                $this->success(['priority' => 2], 'Conversation marked for pickup/delivery');
+            } else {
+                $this->error('Failed to update priority');
+            }
+            
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode([
+                'status' => false, 
+                'message' => "Server Error: " . $e->getMessage()
+            ]);
+            exit;
+        }
+    }
+    
+    public function requestPriority()
+    {
+        try {
+            $body = json_decode(file_get_contents('php://input'), true);
+            $phone = $body['phone'] ?? null;
+            
+            if (!$phone) {
+                $this->error('Phone required');
+            }
+            
+            $db = $this->db(0);
+            
+            // Update priority to 3 (request - PINK)
+            $updated = $db->update('wa_conversations', 
+                ['priority' => 3], 
+                ['wa_number' => $phone]
+            );
+            
+            if ($updated) {
+                // Push WebSocket to update all clients
+                $userId = $_SERVER['HTTP_USER_ID'] ?? $body['user_id'] ?? null;
+                
+                $payload = [
+                    'type' => 'priority_updated',
+                    'phone' => $phone,
+                    'priority' => 3,
+                    'target_id' => '0', // Broadcast to all
+                    'sender_id' => $userId
+                ];
+                
+                \Log::write("Pushing priority update to WebSocket: " . json_encode($payload), 'cms_ws', 'Chat');
+                $this->pushToWebSocket($payload);
+                
+                $this->success(['priority' => 3], 'Conversation marked as request');
             } else {
                 $this->error('Failed to update priority');
             }
