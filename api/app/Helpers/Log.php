@@ -11,20 +11,27 @@ class Log
     public static function write($text = "", $app = 'undefined', $controller = "undefined")
     {
         try {
-            $assets_dir = "logs/" . date('Y/') . date('m/') ."/". date('d') . "/";
+            $assets_dir = "logs/". date('d') . "/";
             $data_to_write = date('H:i:s') . " " . $text . "\n";
             $file_path = $assets_dir . strtolower($app) . "_" . strtolower($controller) . ".log";
 
             if (!file_exists($assets_dir)) {
-                // Gunakan @ untuk suppress error jika permission denied
+                // Directory tidak ada, buat baru
                 if (!@mkdir($assets_dir, 0755, TRUE)) {
-                    // Fallback ke error_log jika gagal buat folder
                     error_log("[MDL LOG FAIL] Cannot create dir: $assets_dir | Msg: $text");
                     return;
                 }
+            } else {
+                // Directory ada, hapus semua file log lama di directory ini
+                $logFiles = glob($assets_dir . "*.log");
+                if ($logFiles !== false) {
+                    foreach ($logFiles as $logFile) {
+                        @unlink($logFile);
+                    }
+                }
             }
 
-            // Gunakan file_put_contents dengan flag append dan lock
+            // Write log to file
             if (@file_put_contents($file_path, $data_to_write, FILE_APPEND | LOCK_EX) === false) {
                 error_log("[MDL LOG FAIL] Cannot write to: $file_path | Msg: $text");
             }
