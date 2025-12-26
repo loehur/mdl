@@ -635,16 +635,46 @@ class WAReplies
             \Log::write("AI handler called for message: '{$textBody}'", 'auto_reply', 'ai');
         }
         
-        // Check if AI is enabled
-        if (!class_exists('\\App\\Config\\AI')) {
-            require_once __DIR__ . '/../Config/AI.php';
-        }
-        
-        if (!\App\Config\AI::isEnabled()) {
-            if (class_exists('\\Log')) {
-                \Log::write("❌ AI is DISABLED (check Config/AI.php -> \$aiEnabled)", 'auto_reply', 'ai');
+        try {
+            // Check if AI Config class exists
+            if (!class_exists('\\App\\Config\\AI')) {
+                if (class_exists('\\Log')) {
+                    \Log::write("Loading AI Config from: " . __DIR__ . '/../Config/AI.php', 'auto_reply', 'ai');
+                }
+                
+                $configFile = __DIR__ . '/../Config/AI.php';
+                if (!file_exists($configFile)) {
+                    if (class_exists('\\Log')) {
+                        \Log::write("❌ AI Config file NOT FOUND: {$configFile}", 'auto_reply', 'ai');
+                    }
+                    return false;
+                }
+                
+                require_once $configFile;
+                
+                if (class_exists('\\Log')) {
+                    \Log::write("✅ AI Config loaded successfully", 'auto_reply', 'ai');
+                }
             }
-            return false; // AI disabled or API key not set
+            
+            // Check if AI is enabled
+            if (class_exists('\\Log')) {
+                \Log::write("Checking if AI is enabled...", 'auto_reply', 'ai');
+            }
+            
+            if (!\App\Config\AI::isEnabled()) {
+                if (class_exists('\\Log')) {
+                    \Log::write("❌ AI is DISABLED (check Config/AI.php -> \$aiEnabled)", 'auto_reply', 'ai');
+                }
+                return false; // AI disabled or API key not set
+            }
+            
+        } catch (\Exception $e) {
+            if (class_exists('\\Log')) {
+                \Log::write("❌ Exception during AI config check: " . $e->getMessage(), 'auto_reply', 'ai');
+                \Log::write("Stack trace: " . $e->getTraceAsString(), 'auto_reply', 'ai');
+            }
+            return false;
         }
         
         // LOG: AI enabled
@@ -748,10 +778,14 @@ class WAReplies
             require_once __DIR__ . '/../Config/AI.php';
         }
         
-        $url = \App\Config\AI::getGeminiApiUrl();
+        $apiKey = \App\Config\AI::getApiKey();
+        $model = \App\Config\AI::getModel();
         $temperature = \App\Config\AI::getTemperature();
         $maxTokens = \App\Config\AI::getMaxTokens();
         $timeout = \App\Config\AI::getTimeout();
+        
+        // Build URL WITHOUT API key (akan di-pass via header sesuai dokumentasi resmi)
+        $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . $model . ':generateContent';
         
         // Prepare request body untuk Gemini API
         $data = [
@@ -770,13 +804,14 @@ class WAReplies
             ]
         ];
         
-        // cURL request
+        // cURL request - menggunakan x-goog-api-key header sesuai dokumentasi resmi
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json'
+            'Content-Type: application/json',
+            'x-goog-api-key: ' . $apiKey  // API key via header (official method)
         ]);
         curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);

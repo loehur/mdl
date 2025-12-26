@@ -242,6 +242,7 @@ class WAGenerator extends Controller
         // Prepare template parameters for WhatsApp template message (when CSW is not open)
         // IMPORTANT: WhatsApp template params cannot have newlines, tabs, or >4 consecutive spaces
         // Clean the parameters
+        $cleanOrderList = $listNotif;
         // Step 1: Replace single newlines with pipes
         $cleanOrderList = str_replace(["\n", "\r", "\t"], " | ", $cleanOrderList);
         // Step 2: Clean multiple spaces

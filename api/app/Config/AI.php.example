@@ -1,0 +1,106 @@
+<?php
+
+/**
+ * AI Configuration for Auto-Reply System
+ * 
+ * This file configures the AI-powered intent detection fallback
+ * for the WhatsApp auto-reply system.
+ */
+
+namespace App\Config;
+
+class AI
+{
+    /**
+     * Enable/Disable AI-powered fallback
+     * @var bool
+     */
+    private static $aiEnabled = false; // Set to true to enable AI
+    
+    /**
+     * Google Gemini API Key
+     * Get your API key from: https://aistudio.google.com/api-keys
+     * @var string
+     */
+    private static $geminiApiKey = 'YOUR_GEMINI_API_KEY_HERE';
+    
+    /**
+     * Gemini Model to use
+     * Options: gemini-2.5-flash (recommended), gemini-1.5-flash, gemini-1.5-pro, gemini-pro
+     * @var string
+     */
+    private static $geminiModel = 'gemini-2.5-flash';
+    
+    /**
+     * AI Temperature (0.0 - 1.0)
+     * Lower = more deterministic, Higher = more creative
+     * @var float
+     */
+    private static $temperature = 0.3;
+    
+    /**
+     * Maximum output tokens
+     * @var int
+     */
+    private static $maxTokens = 50;
+    
+    /**
+     * API timeout in seconds
+     * @var int
+     */
+    private static $timeout = 10;
+    
+    /**
+     * Check if AI is enabled and configured
+     * @return bool
+     */
+    public static function isEnabled()
+    {
+        return self::$aiEnabled && !empty(self::$geminiApiKey) && self::$geminiApiKey !== 'YOUR_GEMINI_API_KEY_HERE';
+    }
+    
+    /**
+     * Get API Key
+     * @return string
+     */
+    public static function getApiKey()
+    {
+        return self::$geminiApiKey;
+    }
+    
+    /**
+     * Get Model name
+     * @return string
+     */
+    public static function getModel()
+    {
+        return self::$geminiModel;
+    }
+    
+    /**
+     * Get temperature setting
+     * @return float
+     */
+    public static function getTemperature()
+    {
+        return self::$temperature;
+    }
+    
+    /**
+     * Get max tokens setting
+     * @return int
+     */
+    public static function getMaxTokens()
+    {
+        return self::$maxTokens;
+    }
+    
+    /**
+     * Get timeout setting
+     * @return int
+     */
+    public static function getTimeout()
+    {
+        return self::$timeout;
+    }
+}
