@@ -53,7 +53,7 @@ return [
             '/\bma*ka*(s|c)(i|e)*h\b/i',
             '/\bte*ri*ma*ka*si*h\b/i',
             '/\btha*nks\b/i',
-            '/\b(thx|tq|ty)\b/i',
+            '/\b(thx|tq|ty|ok)\b/i',
         ]
     ]
 ];

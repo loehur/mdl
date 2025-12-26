@@ -696,13 +696,13 @@ class WAReplies
             $prompt .= "Pesan: \"{$textBody}\"\n\n";
             $prompt .= "JAWAB HANYA DENGAN NAMA KATEGORI (huruf kapital). Contoh: NOTA";
             
-            // LOG: Calling Gemini API
+            // LOG: Calling OpenAI API
             if (class_exists('\\Log')) {
-                \Log::write("Calling Gemini API...", 'auto_reply', 'ai');
+                \Log::write("Calling OpenAI API...", 'auto_reply', 'ai');
             }
             
-            // 2. Call Gemini API
-            $response = $this->callGemini($prompt);
+            // 2. Call OpenAI API
+            $response = $this->callOpenAI($prompt);
             $intent = trim(strtoupper($response));
             
             // LOG: AI response
@@ -766,86 +766,53 @@ class WAReplies
     }
     
     /**
-     * Call Google Gemini API (Wrapper with Fallback)
+     * Call OpenAI API (ChatGPT)
      * 
      * @param string $prompt The prompt to send
      * @return string AI response (intent classification)
      * @throws \Exception On API error
      */
-    private function callGemini($prompt)
+    private function callOpenAI($prompt)
     {
         // Load AI config
         if (!class_exists('\\App\\Config\\AI')) {
             require_once __DIR__ . '/../Config/AI.php';
         }
         
-        $primaryModel = \App\Config\AI::getGeminiModel();
+        $model = 'gpt-4o-mini'; 
         
         try {
-            return $this->executeGeminiRequest($prompt, $primaryModel);
+            return $this->executeOpenAIRequest($prompt, $model);
         } catch (\Exception $e) {
-            $msg = $e->getMessage();
-            // Retry on 429 (Quota), 503 (Service Unavailable)
-            $shouldRetry = strpos($msg, '429') !== false || strpos($msg, 'Quota') !== false || strpos($msg, '503') !== false;
-            
-            if ($shouldRetry) {
-                // List of fallback models to try in order
-                $fallbackModels = ['gemini-1.5-flash-001', 'gemini-1.5-pro-001'];
-                
-                foreach ($fallbackModels as $fallbackModel) {
-                    // Skip if primary was already this fallback
-                    if ($primaryModel === $fallbackModel) continue;
-                    
-                    if (class_exists('\\Log')) {
-                        \Log::write("⚠️ API Error ($msg) on model '$primaryModel'. Retrying with fallback: '$fallbackModel'", 'auto_reply', 'ai');
-                    }
-                    
-                    try {
-                        return $this->executeGeminiRequest($prompt, $fallbackModel);
-                    } catch (\Exception $fallbackErr) {
-                         $fallbackMsg = $fallbackErr->getMessage();
-                         // Log failed fallback attempt and continue to next model
-                         if (class_exists('\\Log')) {
-                            \Log::write("❌ Fallback model '$fallbackModel' failed: $fallbackMsg", 'auto_reply', 'ai');
-                        }
-                        // Update primary log message for next iteration context
-                        $msg = $fallbackMsg;
-                        continue;
-                    }
-                }
-            }
             throw $e;
         }
     }
 
     /**
-     * Execute the actual request to Gemini API
+     * Execute the actual request to OpenAI API
      */
-    private function executeGeminiRequest($prompt, $model)
+    private function executeOpenAIRequest($prompt, $model)
     {
-        $apiKey = (method_exists('\\App\\Config\\AI', 'getApiKey')) ? \App\Config\AI::getApiKey() : \App\Config\AI::getGeminiApiKey();
+        // Prioritize getOpenAIApiKey if exists, otherwise fallback to getApiKey
+        $apiKey = (method_exists('\\App\\Config\\AI', 'getOpenAIApiKey')) ? \App\Config\AI::getOpenAIApiKey() : ((method_exists('\\App\\Config\\AI', 'getApiKey')) ? \App\Config\AI::getApiKey() : '');
+        
         $temperature = \App\Config\AI::getTemperature();
-        $maxTokens = \App\Config\AI::getMaxTokens();
         $timeout = \App\Config\AI::getTimeout();
         
-        // Build URL
-        $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . $model . ':generateContent';
+        // OpenAI API URL
+        $url = 'https://api.openai.com/v1/chat/completions';
         
-        // Prepare request body
+        // Prepare request body for OpenAI
         $data = [
-            'contents' => [
+            'model' => $model,
+            'messages' => [
                 [
-                    'parts' => [
-                        ['text' => $prompt]
-                    ]
+                    'role' => 'user',
+                    'content' => $prompt
                 ]
             ],
-            'generationConfig' => [
-                'temperature' => $temperature,
-                'maxOutputTokens' => $maxTokens,
-                'topP' => 0.95,
-                'topK' => 40
-            ]
+            'temperature' => $temperature,
+            'max_completion_tokens' => 50, // Limit output for efficiency
         ];
         
         // cURL request
@@ -855,7 +822,7 @@ class WAReplies
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
             'Content-Type: application/json',
-            'x-goog-api-key: ' . $apiKey
+            'Authorization: Bearer ' . $apiKey
         ]);
         curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
@@ -888,14 +855,14 @@ class WAReplies
         // Check for cURL errors
         if ($result === false) {
             if (class_exists('\\Log')) {
-                \Log::write("❌ Gemini API cURL error: {$curlError}", 'auto_reply', 'ai');
+                \Log::write("❌ OpenAI API cURL error: {$curlError}", 'auto_reply', 'ai');
             }
-            throw new \Exception("Gemini API cURL error: {$curlError}");
+            throw new \Exception("OpenAI API cURL error: {$curlError}");
         }
         
         // Check HTTP status
         if ($httpCode !== 200) {
-            $errorMsg = "Gemini API error: HTTP {$httpCode}";
+            $errorMsg = "OpenAI API error: HTTP {$httpCode}";
             if ($result) {
                 $errorData = json_decode($result, true);
                 if (isset($errorData['error']['message'])) {
@@ -920,9 +887,9 @@ class WAReplies
             }
         }
         
-        // Extract text from Gemini response structure
-        if (isset($response['candidates'][0]['content']['parts'][0]['text'])) {
-            $extractedText = trim($response['candidates'][0]['content']['parts'][0]['text']);
+        // Extract text from OpenAI response structure
+        if (isset($response['choices'][0]['message']['content'])) {
+            $extractedText = trim($response['choices'][0]['message']['content']);
             if (class_exists('\\Log')) {
                 \Log::write("✅ Extracted text from response: '{$extractedText}'", 'auto_reply', 'ai');
             }
@@ -931,9 +898,9 @@ class WAReplies
         
         // LOG: Invalid structure
         if (class_exists('\\Log')) {
-            \Log::write("❌ Gemini API: Invalid response structure - Response: " . json_encode($response), 'auto_reply', 'ai');
+            \Log::write("❌ OpenAI API: Invalid response structure - Response: " . json_encode($response), 'auto_reply', 'ai');
         }
         
-        throw new \Exception("Gemini API: Invalid response structure");
+        throw new \Exception("OpenAI API: Invalid response structure");
     }
 }
