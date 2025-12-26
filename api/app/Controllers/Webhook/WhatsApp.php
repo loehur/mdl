@@ -302,25 +302,39 @@ class WhatsApp extends Controller
             // Push to WebSocket Server AFTER priority is determined
             $targetId = $assigned_user_id ? (string)$assigned_user_id : '0';
             
+            // Push to WebSocket Server AFTER priority is determined
+            $targetId = $assigned_user_id ? (string)$assigned_user_id : '0';
+            
             $this->pushIncomingToWebSocket([
                 'type' => 'wa_masuk',
                 'target_id' => $targetId,
                 'kode_cabang' => $code,
                 'conversation_id' => $conversationId,
                 'phone' => $waNumber,
-                'wa_number' => $waNumber, // Alias for frontend robustness
+                'wa_number' => $waNumber, // Alias
                 'contact_name' => $contact_name,
-                'name' => $contact_name,  // Alias for frontend robustness
+                'name' => $contact_name,  // Alias
                 'priority' => $currentPriority,
                 
                 // Flat Message Data
                 'msg_id' => $msgId, 
-                'text' => $textBody, // Direct text access
-                'type_msg' => $messageType, // Renamed to avoid conflict with event type
+                'text' => $textBody, 
+                'type_msg' => $messageType,
                 'media_id' => $mediaId,
                 'media_url' => $mediaUrl,
                 'caption' => $mediaCaption,
                 'time' => date('Y-m-d H:i:s'),
+                
+                // Nested Message Data (Legacy Support / Fail-safe)
+                'message' => [
+                    'id' => $msgId,
+                    'text' => $textBody,
+                    'type' => $messageType,
+                    'media_id' => $mediaId,
+                    'media_url' => $mediaUrl,
+                    'caption' => $mediaCaption,
+                    'time' => date('Y-m-d H:i:s'),
+                ]
             ]);
         }
     }
