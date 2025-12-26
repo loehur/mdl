@@ -301,6 +301,17 @@ class WhatsApp extends Controller
             // This fixes the "Not Real Time" issue where message was routed only to assigned user
             $targetId = '0'; 
             
+            $payloadDebug = [
+                'type' => 'wa_masuk',
+                'target_id' => $targetId,
+                'kode_cabang' => $code,
+                'conversation_id' => $conversationId,
+                'phone' => $waNumber,
+                'priority' => $currentPriority
+            ];
+            
+            \Log::write("🚀 WS Debug: Attempting pushIncomingToWebSocket. Payload: " . json_encode($payloadDebug), 'webhook', 'WhatsApp');
+
             $this->pushIncomingToWebSocket([
                 'type' => 'wa_masuk',
                 'target_id' => $targetId,
