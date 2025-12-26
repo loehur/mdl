@@ -11,7 +11,7 @@ class Log
     public static function write($text = "", $app = 'undefined', $controller = "undefined")
     {
         try {
-            $assets_dir = "logs/". date('d') . "/";
+            $assets_dir = "logs/". date('Y-m-d') . "/";
             $data_to_write = date('H:i:s') . " " . $text . "\n";
             $file_path = $assets_dir . strtolower($app) . "_" . strtolower($controller) . ".log";
 
@@ -21,13 +21,16 @@ class Log
                     error_log("[MDL LOG FAIL] Cannot create dir: $assets_dir | Msg: $text");
                     return;
                 }
-            } else {
-                // Directory ada, hapus semua file log lama di directory ini
-                $logFiles = glob($assets_dir . "*.log");
-                if ($logFiles !== false) {
-                    foreach ($logFiles as $logFile) {
-                        @unlink($logFile);
+            }
+
+            // Hapus log yang sudah lebih dari 3 hari
+            $limit_date = date('Y-m-d', strtotime('-3 days'));
+            foreach (glob("logs/*", GLOB_ONLYDIR) as $old_dir) {
+                if (basename($old_dir) < $limit_date) {
+                    foreach (glob("$old_dir/*") as $old_file) {
+                        @unlink($old_file);
                     }
+                    @rmdir($old_dir);
                 }
             }
 
