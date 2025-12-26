@@ -864,17 +864,6 @@ class WAReplies
                 \Log::write("AI Response: " . $response, 'ai', 'intent_detection');
             }
             
-
-            
-            // Validate intent
-            $validIntents = ['NOTA', 'STATUS', 'CEK_BUKA', 'MINTA_JEMPUT_ANTAR', 'PEMBUKA', 'PENUTUP'];
-            if (!in_array($intent, $validIntents)) {
-                if (class_exists('\Log')) {
-                    \Log::write("AI Intent Invalid: '{$intent}' not in allowed list", 'ai', 'intent_detection');
-                }
-                return false;
-            }
-            
             // Check rate limiting
             if (!$this->shouldReply($waNumber, $intent)) {
                 if (class_exists('\Log')) {

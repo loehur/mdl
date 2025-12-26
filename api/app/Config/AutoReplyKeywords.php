@@ -62,7 +62,8 @@ return [
             '/\bte*ri*ma*ka*si*h\b/i',
             '/\btha*nks\b/i',
             '/\b(thx|tq|ty|ok)\b/i',
-            '/((i|oh*|oke*)\s*ya+|ya+)\s*(s*u*da*h)|((i|oh*|oke*)\s*(la+h))/i',
+            '/((hm+|ok(e*)?|sip)\s*)*(y(a*)?\s*)?(u*da*h|s*u*da*h|la+h)/i',
+            '/(oh*)\s*(gi*tu+)/i',
         ]
     ]
 ];
