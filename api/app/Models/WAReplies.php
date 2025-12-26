@@ -85,16 +85,41 @@ class WAReplies
         $textBodyToCheck = strtolower(trim($textBody ?? ''));
         $messageLength = mb_strlen($textBodyToCheck); // Use mb_strlen for proper UTF-8 support
         
+        // LOG: Pesan masuk
+        if (class_exists('\\Log')) {
+            \Log::write("========== AUTO-REPLY START ==========", 'auto_reply', 'process');
+            \Log::write("Phone: {$waNumber}", 'auto_reply', 'process');
+            \Log::write("Message: '{$textBody}'", 'auto_reply', 'process');
+            \Log::write("Message (lowercase): '{$textBodyToCheck}'", 'auto_reply', 'process');
+            \Log::write("Message Length: {$messageLength}", 'auto_reply', 'process');
+        }
+        
         // Load keyword configuration
         $keywordConfig = require __DIR__ . '/../Config/AutoReplyKeywords.php';
         
         // Special case: Single character message (e.g., "p", ".", "?") -> treat as PEMBUKA (greeting)
         if ($messageLength === 1) {
+            if (class_exists('\\Log')) {
+                \Log::write("Single character message detected -> PEMBUKA handler", 'auto_reply', 'process');
+            }
+            
             if ($this->shouldReply($waNumber, 'PEMBUKA')) {
+                if (class_exists('\\Log')) {
+                    \Log::write("✅ PEMBUKA handler called (single char)", 'auto_reply', 'success');
+                }
                 $this->handlePembuka($phoneIn, $waNumber);
                 return true;
+            } else {
+                if (class_exists('\\Log')) {
+                    \Log::write("❌ PEMBUKA handler in cooldown", 'auto_reply', 'cooldown');
+                }
+                return false;
             }
-            return false; // Rate limited
+        }
+        
+        // LOG: Total handlers
+        if (class_exists('\\Log')) {
+            \Log::write("Total handlers to check: " . count($keywordConfig), 'auto_reply', 'process');
         }
         
         // Check each handler's patterns
@@ -102,17 +127,46 @@ class WAReplies
             $maxLength = $config['max_length'] ?? 0;
             $patterns = $config['patterns'] ?? [];
             
+            // LOG: Handler being checked
+            if (class_exists('\\Log')) {
+                \Log::write("--- Checking handler: {$handler} ---", 'auto_reply', 'pattern_check');
+                \Log::write("Max length: {$maxLength} | Patterns count: " . count($patterns), 'auto_reply', 'pattern_check');
+            }
+            
             // Skip if message is longer than max_length (0 = unlimited)
             if ($maxLength > 0 && $messageLength > $maxLength) {
+                if (class_exists('\\Log')) {
+                    \Log::write("⏭️ Skipped {$handler}: Message too long ({$messageLength} > {$maxLength})", 'auto_reply', 'skip');
+                }
                 continue;
             }
             
             // Check regex patterns
-            foreach ($patterns as $pattern) {
+            foreach ($patterns as $patternIndex => $pattern) {
+                // LOG: Pattern being tested
+                if (class_exists('\\Log')) {
+                    \Log::write("Testing pattern #{$patternIndex}: {$pattern}", 'auto_reply', 'pattern_check');
+                }
+                
                 if (preg_match($pattern, $textBodyToCheck)) {
+                    // LOG: Pattern matched!
+                    if (class_exists('\\Log')) {
+                        \Log::write("✅ PATTERN MATCHED!", 'auto_reply', 'match');
+                        \Log::write("Handler: {$handler}", 'auto_reply', 'match');
+                        \Log::write("Pattern: {$pattern}", 'auto_reply', 'match');
+                    }
+                    
                     // RATE LIMITING: Check if can send reply (cooldown)
                     if (!$this->shouldReply($waNumber, $handler)) {
+                        if (class_exists('\\Log')) {
+                            \Log::write("❌ Handler {$handler} in COOLDOWN - skipping", 'auto_reply', 'cooldown');
+                        }
                         continue 2; // Skip to next handler (this handler is in cooldown)
+                    }
+                    
+                    // LOG: Rate limit passed
+                    if (class_exists('\\Log')) {
+                        \Log::write("✅ Rate limit OK - proceeding to call handler", 'auto_reply', 'process');
                     }
                     
                     // Dynamically call handler method (e.g., handleNota, handleStatus, handleJam_buka)
@@ -120,12 +174,37 @@ class WAReplies
                     $handlerName = ucwords(strtolower($handler), '_');
                     $methodName = 'handle' . $handlerName;
                     
+                    // LOG: Method to be called
+                    if (class_exists('\\Log')) {
+                        \Log::write("Calling method: {$methodName}", 'auto_reply', 'process');
+                    }
+                    
                     if (method_exists($this, $methodName)) {
+                        if (class_exists('\\Log')) {
+                            \Log::write("✅ Handler executed: {$methodName}", 'auto_reply', 'success');
+                            \Log::write("========== AUTO-REPLY END (SUCCESS) ==========", 'auto_reply', 'process');
+                        }
                         $this->$methodName($phoneIn, $waNumber);
                         return true;
+                    } else {
+                        // LOG: Method not found!
+                        if (class_exists('\\Log')) {
+                            \Log::write("❌ ERROR: Method {$methodName} does NOT exist!", 'auto_reply', 'error');
+                        }
+                    }
+                } else {
+                    // LOG: Pattern not matched
+                    if (class_exists('\\Log')) {
+                        \Log::write("❌ Pattern NOT matched", 'auto_reply', 'pattern_check');
                     }
                 }
             }
+        }
+
+        // LOG: No regex match, trying AI fallback
+        if (class_exists('\\Log')) {
+            \Log::write("--- No regex pattern matched ---", 'auto_reply', 'process');
+            \Log::write("Trying AI fallback...", 'auto_reply', 'ai');
         }
 
         // ============================================================
@@ -134,7 +213,19 @@ class WAReplies
         // Jika tidak ada pattern regex yang match, gunakan AI untuk klasifikasi intent
         // AI akan mencoba memahami maksud pesan user secara natural language
         
-        return $this->handleWithAI($phoneIn, $textBody, $waNumber);
+        $aiResult = $this->handleWithAI($phoneIn, $textBody, $waNumber);
+        
+        if (class_exists('\\Log')) {
+            if ($aiResult) {
+                \Log::write("✅ AI fallback SUCCESS", 'auto_reply', 'ai');
+                \Log::write("========== AUTO-REPLY END (AI SUCCESS) ==========", 'auto_reply', 'process');
+            } else {
+                \Log::write("❌ AI fallback FAILED or disabled", 'auto_reply', 'ai');
+                \Log::write("========== AUTO-REPLY END (NO MATCH) ==========", 'auto_reply', 'process');
+            }
+        }
+        
+        return $aiResult;
     }
     
     private function handleStatus($phoneIn, $waNumber)
