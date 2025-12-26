@@ -298,27 +298,28 @@ class WhatsApp extends Controller
                             ['wa_number' => $waNumber]
                         );
                      }
-                     $this->pushIncomingToWebSocket([
-                        'conversation_id' => $conversationId,
-                        'phone' => $waNumber,
-                        'contact_name' => $contact_name,
-                        'priority' => $currentPriority, 
-                        'message' => [
-                            'id' => $msgId, // local DB ID
-                            'text' => $textBody,
-                            'type' => $messageType,
-                            'media_id' => $mediaId,
-                            'media_url' => $mediaUrl,
-                            'caption' => $mediaCaption,
-                            'time' => date('Y-m-d H:i:s'),
-                        ],
-                        // Target ID logic: if assigned, send to agent. Else '0' (Broadcast)? 
-                        // Using '0' guarantees it pops up for everyone (Realtime solution)
-                        // But let's stick to original logic: if assigned, target specific.
-                        'target_id' => $assigned_user_id ? (string)$assigned_user_id : '0',
-                        'kode_cabang' => $code
-                    ]);
                 }
+
+                $this->pushIncomingToWebSocket([
+                    'conversation_id' => $conversationId,
+                    'phone' => $waNumber,
+                    'contact_name' => $contact_name,
+                    'priority' => $currentPriority, 
+                    'message' => [
+                        'id' => $msgId, // local DB ID
+                        'text' => $textBody,
+                        'type' => $messageType,
+                        'media_id' => $mediaId,
+                        'media_url' => $mediaUrl,
+                        'caption' => $mediaCaption,
+                        'time' => date('Y-m-d H:i:s'),
+                    ],
+                    // Target ID logic: if assigned, send to agent. Else '0' (Broadcast)? 
+                    // Using '0' guarantees it pops up for everyone (Realtime solution)
+                    // But let's stick to original logic: if assigned, target specific.
+                    'target_id' => $assigned_user_id ? (string)$assigned_user_id : '0',
+                    'kode_cabang' => $code
+                ]);
             } catch (\Exception $e) {
                 \Log::write("Error processing auto-reply: " . $e->getMessage(), 'webhook', 'WhatsApp');
             }
