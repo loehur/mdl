@@ -160,14 +160,10 @@ class WhatsApp extends Controller
                 $this->error('Message content is required for free text mode', 400);
             }
             
-            // Send free text
             $result = $this->whatsappService->sendFreeText($phone, $body['message']);
             
             if (!$result['success']) {
-                // Log failure details
-                $logMsg = date('Y-m-d H:i:s') . " [API Failure] Phone: $phone | Result: " . json_encode($result) . "\n";
-                @file_put_contents(__DIR__ . '/../../logs/wa_debug_api.log', $logMsg, FILE_APPEND);
-                
+                \Log::write('Failed to send free text: ' . json_encode($result), 'whatsapp', 'api');
                 $this->error('Failed to send WhatsApp message', 500, $result);
             }
             
@@ -222,12 +218,9 @@ class WhatsApp extends Controller
             $templateParams = $body['template_params'];
             $templateName = $body['template_name'];
             
-            // Convert associative array to indexed array (WhatsApp template needs values only)
-            // Expected order: customer, order_list, total_bill, invoice_link
+            // Convert associative array to indexed array
             if (is_array($templateParams) && !isset($templateParams[0])) {
-                // It's an associative array, convert to indexed
                 $templateParams = array_values($templateParams);
-                \Log::write("Template Params (after conversion to indexed): " . json_encode($templateParams), 'wa_debug', 'template');
             }
 
             // Send template (pass the original message text for database storage)
@@ -241,11 +234,9 @@ class WhatsApp extends Controller
             );
             
             
-            // Check result - template returns nested structure
             if (!$result['success'] || empty($result['data']['id'])) {
-                 // Extract clean error message if possible
                  $yError = $result['error']['message'] ?? ($result['error'] ?? 'Template send failed');
-                 // Return 502 (Bad Gateway) to indicate upstream error, not internal crash
+                 \Log::write("YCloud Reject: $yError | " . json_encode($result), 'whatsapp', 'api');
                  $this->error("YCloud Reject: $yError", 502, $result);
             }
             
