@@ -42,6 +42,7 @@ return [
         'patterns' => [
             '/^\s*(je*m*pu*t|anta*r)\s*$/i',
             '/(bi*sa*|bo*le*h|to*lo*ng)\s*\b(je*m*pu*t|anta*r)/i',
+            '/(je*m*pu*t|anta*r)\s*(la*o*u*ndry*i*|ba*ju)/i',
         ]
     ],
 
