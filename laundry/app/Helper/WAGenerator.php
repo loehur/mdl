@@ -242,22 +242,13 @@ class WAGenerator extends Controller
         // Prepare template parameters for WhatsApp template message (when CSW is not open)
         // IMPORTANT: WhatsApp template params cannot have newlines, tabs, or >4 consecutive spaces
         // Clean the parameters
-        // Step 1: Mark double newlines (item separators) with placeholder
-        $cleanOrderList = str_replace("\n\n", "###ITEM_SEP###", $listNotif);
-        // Step 2: Replace single newlines with pipes
+        // Step 1: Replace single newlines with pipes
         $cleanOrderList = str_replace(["\n", "\r", "\t"], " | ", $cleanOrderList);
-        // Step 3: Replace item separator placeholder with | _ |
-        $cleanOrderList = str_replace("###ITEM_SEP###", " | _ | ", $cleanOrderList);
-        // Step 4: Clean multiple spaces
+        // Step 2: Clean multiple spaces
         $cleanOrderList = preg_replace('/\s{2,}/', ' ', $cleanOrderList);
-        // Step 5: Clean up empty pipe patterns
-        $cleanOrderList = str_replace("| |", "| _ |", $cleanOrderList);
-        $cleanOrderList = str_replace("|  |", "| _ |", $cleanOrderList);
-        // Step 6: Trim all whitespace
-        $cleanOrderList = trim($cleanOrderList);
-        // Step 7: Remove leading/trailing pipes
+        // Step 3: Remove leading/trailing pipes
         $cleanOrderList = trim($cleanOrderList, ' |');
-        // Step 8: Final trim
+        // Step 4: Final trim
         $cleanOrderList = trim($cleanOrderList);
         
         $cleanTotalBill = str_replace(["\n", "\r", "\t", "*", "Total/Sisa "], "", $totalText); // Remove formatting and prefix
