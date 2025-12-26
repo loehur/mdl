@@ -766,13 +766,6 @@ class WAReplies
     }
     
     /**
-     * Call Google Gemini API
-     * 
-     * @param string $prompt The prompt to send
-     * @return string AI response (intent classification)
-     * @throws \Exception On API error
-     */
-    /**
      * Call Google Gemini API (Wrapper with Fallback)
      * 
      * @param string $prompt The prompt to send
@@ -791,18 +784,34 @@ class WAReplies
         try {
             return $this->executeGeminiRequest($prompt, $primaryModel);
         } catch (\Exception $e) {
-            // Check for 429 (Quota Exceeded) or 503 (Service Unavailable)
             $msg = $e->getMessage();
-            if (strpos($msg, '429') !== false || strpos($msg, 'Quota') !== false || strpos($msg, '503') !== false) {
-                // Fallback to gemini-1.5-flash if the primary model fails
-                $fallbackModel = 'gemini-1.5-flash';
+            // Retry on 429 (Quota), 503 (Service Unavailable)
+            $shouldRetry = strpos($msg, '429') !== false || strpos($msg, 'Quota') !== false || strpos($msg, '503') !== false;
+            
+            if ($shouldRetry) {
+                // List of fallback models to try in order
+                $fallbackModels = ['gemini-1.5-flash-001', 'gemini-1.5-pro-001'];
                 
-                // Only retry if the primary model wasn't already the fallback
-                if ($primaryModel !== $fallbackModel) {
-                     if (class_exists('\\Log')) {
+                foreach ($fallbackModels as $fallbackModel) {
+                    // Skip if primary was already this fallback
+                    if ($primaryModel === $fallbackModel) continue;
+                    
+                    if (class_exists('\\Log')) {
                         \Log::write("⚠️ API Error ($msg) on model '$primaryModel'. Retrying with fallback: '$fallbackModel'", 'auto_reply', 'ai');
                     }
-                    return $this->executeGeminiRequest($prompt, $fallbackModel);
+                    
+                    try {
+                        return $this->executeGeminiRequest($prompt, $fallbackModel);
+                    } catch (\Exception $fallbackErr) {
+                         $fallbackMsg = $fallbackErr->getMessage();
+                         // Log failed fallback attempt and continue to next model
+                         if (class_exists('\\Log')) {
+                            \Log::write("❌ Fallback model '$fallbackModel' failed: $fallbackMsg", 'auto_reply', 'ai');
+                        }
+                        // Update primary log message for next iteration context
+                        $msg = $fallbackMsg;
+                        continue;
+                    }
                 }
             }
             throw $e;
