@@ -1442,7 +1442,7 @@ const connectWebSocket = () => {
           // Handle Real Incoming Message
           if (payload.type === 'wa_masuk') {
               console.log('✅ TYPE IS wa_masuk > Processing data');
-              handleIncomingMessage(payload.data);
+              handleIncomingMessage(payload); // ✅ Pass payload directly (Flat structure)
           } else if (payload.conversationId || (payload.message && payload.phone)) {
               console.log('✅ Legacy/Direct format detected');
               handleIncomingMessage(payload);

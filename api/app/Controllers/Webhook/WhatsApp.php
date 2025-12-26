@@ -301,24 +301,20 @@ class WhatsApp extends Controller
             
             $this->pushIncomingToWebSocket([
                 'type' => 'wa_masuk',
-                'target_id' => $targetId, // ✅ Moved to root for WS Server Routing
-                'kode_cabang' => $code,   // ✅ Moved to root for WS Server Routing
-                'data' => [
-                    'conversation_id' => $conversationId,
-                    'phone' => $waNumber,
-                    'contact_name' => $contact_name,
-                    'priority' => $currentPriority,
-                    'message' => [
-                        'id' => $msgId, // local DB ID
-                        'text' => $textBody,
-                        'type' => $messageType,
-                        'media_id' => $mediaId,
-                        'media_url' => $mediaUrl,
-                        'caption' => $mediaCaption,
-                        'time' => date('Y-m-d H:i:s'),
-                    ],
-                    'target_id' => $targetId,
-                    'kode_cabang' => $code
+                'target_id' => $targetId,
+                'kode_cabang' => $code,
+                'conversation_id' => $conversationId,
+                'phone' => $waNumber,
+                'contact_name' => $contact_name,
+                'priority' => $currentPriority,
+                'message' => [
+                    'id' => $msgId, // local DB ID
+                    'text' => $textBody,
+                    'type' => $messageType,
+                    'media_id' => $mediaId,
+                    'media_url' => $mediaUrl,
+                    'caption' => $mediaCaption,
+                    'time' => date('Y-m-d H:i:s'),
                 ]
             ]);
         }
