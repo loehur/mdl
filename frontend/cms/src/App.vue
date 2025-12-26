@@ -116,9 +116,9 @@ const filteredConversations = computed(() => {
 
 
 
-const fetchConversations = async (silent = false) => {
+const fetchConversations = async () => {
     try {
-        if (!silent) isLoadingConversations.value = true; // Start loading only if not silent
+        isLoadingConversations.value = true; // Start loading
         
         const userIdParam = authId.value ? `user_id=${authId.value}` : '';
         const separator = userIdParam ? '&' : '?';
@@ -1124,87 +1124,60 @@ const handleIncomingMessage = (payload) => {
       return;
   }
 
-  // DEBUG (Robust): Log whatever we get
-  console.log('📡 handleIncomingMessage Payload:', payload);
-
-  // ROBUST UNWRAPPING: 
-  // If payload has a 'data' property that holds the actual content (Node server wrapper), use it.
-  const source = (payload.data && typeof payload.data === 'object') ? payload.data : payload;
-
-  const conversationId = source.conversation_id || source.conversationId || payload.conversation_id; // Try source then root
-  const phone = source.phone || source.wa_number || payload.phone; // Try source then root
+  // Or fallback if direct
+  const conversationId = payload.conversation_id;
+  const phone = payload.phone;
+  const messageData = payload.message || payload; // if message is nested or flat
   
-  // SUPPORT FLAT PAYLOAD (Priority)
-  let text = source.text;
-  let type = source.type_msg || source.type; 
-  let msgId = source.msg_id || source.id;
-  let mediaUrl = source.media_url;
-  
-  // If not flat, try nested 'message' object (Legacy/Fallback)
-  if (source.message) {
-      const m = source.message;
-      if (!text) text = m.text;
-      if (!type || type === 'wa_masuk') type = m.type || 'text';
-      if (!msgId) msgId = m.id;
-      if (!mediaUrl) mediaUrl = m.media_url;
-  }
-  
-  // Fix type conflict
-  if (type === 'wa_masuk') {
-      type = mediaUrl ? 'image' : 'text';
-  }
-  
-  const sender = source.sender || 'customer';
+  const text = messageData.text;
+  const type = messageData.type || 'text';
+  const sender = messageData.sender || 'customer';
   
   let displayText = text;
   if (!displayText && type !== 'text') {
       displayText = `[${type}]`;
-      if (source.caption || (source.message && source.message.caption)) {
-          displayText += ' ' + (source.caption || source.message.caption); 
-      }
+      if (messageData.media_caption) displayText += ' ' + messageData.media_caption; 
   }
-  const name = source.contact_name || source.name || payload.contact_name; // Try source then root
+  const name = payload.contact_name || payload.name;
   
   // Find or create conversation
   let conversation = conversations.value.find(c => (conversationId && c.id == conversationId) || (phone && c.wa_number == phone));
   
   if (!conversation) {
-    console.log('🆕 Creating NEW conversation locally for:', phone); // DEBUGLOG
-    // New conversation - Create temporary entry
+    // New conversation
     conversation = {
       id: conversationId,
       wa_number: phone, // ✅ Add wa_number
-      name: name || source.phone || 'Unknown User',
-      kode_cabang: source.kode_cabang || '00', 
-      priority: parseInt(source.priority) || 0, 
-      initials: (name || source.phone || '?').substring(0, 1).toUpperCase(),
+      name: name || payload.phone || 'Unknown User',
+      kode_cabang: payload.kode_cabang || '00', // Set from payload
+      priority: parseInt(payload.priority) || 0, // ✅ Set priority from payload!
+      initials: (name || payload.phone || '?').substring(0, 1).toUpperCase(),
       color: getAvatarColor(conversationId),
       status: 'online', // Assume online on new msg
       messages: [],
       unread: 0
     };
     conversations.value.unshift(conversation);
-    console.log('✅ Conversation added to list. Total:', conversations.value.length); // DEBUGLOG
   } else {
     // Update existing conversation details if available
-     if (source.kode_cabang) {
-         conversation.kode_cabang = source.kode_cabang;
+     if (payload.kode_cabang) {
+         conversation.kode_cabang = payload.kode_cabang;
      }
      // ✅ Update priority if provided!
-     if (source.priority !== undefined) {
-         conversation.priority = parseInt(source.priority) || 0;
+     if (payload.priority !== undefined) {
+         conversation.priority = parseInt(payload.priority) || 0;
      }
   }
   
   const newMsg = {
-    id: msgId || Date.now(),
+    id: messageData.id || Date.now(),
     text: displayText, // Use the safe display text
     type: type,
-    media_id: source.media_id || (source.message && source.message.media_id),
-    media_url: mediaUrl,
+    media_id: messageData.media_id,
+    media_url: messageData.media_url,
     sender: sender,
-    time: source.time ? new Date(source.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    rawTime: source.time || new Date().toISOString() // Keep raw timestamp for date separator
+    time: messageData.time ? new Date(messageData.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    rawTime: messageData.time || new Date().toISOString() // Keep raw timestamp for date separator
   };
   
   // DEBUG: Log every incoming message attempt
@@ -1266,13 +1239,7 @@ const handleIncomingMessage = (payload) => {
     conversation.unread++;
   } else {
     scrollToBottom();
-    if (conversation.wa_number) {
-        try {
-            markMessagesRead(conversation.wa_number); 
-        } catch (e) {
-            console.error('Non-blocking error marking read:', e);
-        }
-    }
+    markMessagesRead(conversation.wa_number); // Use phone number, not conversation ID
   }
       
       // Move conversation to top
@@ -1281,10 +1248,6 @@ const handleIncomingMessage = (payload) => {
         conversations.value.splice(idx, 1);
         conversations.value.unshift(conversation);
       }
-      
-      // SYNC: Silent refresh to ensure list is perfect
-      console.log('🔄 Triggering silent sync of conversation list...');
-      fetchConversations(true);
   }
 };
 
@@ -1473,22 +1436,18 @@ const connectWebSocket = () => {
                }
                return;
            }
-
-          // Handle Real Incoming Message
-          if (payload.type === 'wa_masuk') {
-              console.log('✅ TYPE IS wa_masuk > Processing data');
-              handleIncomingMessage(payload); // ✅ Pass payload directly (Flat structure)
-          } else if (payload.conversationId || (payload.message && payload.phone)) {
-              console.log('✅ Legacy/Direct format detected');
-              handleIncomingMessage(payload);
-          }
-
-        } catch (e) {
-          console.error('Error parsing WS message', e);
-        }
-      };
           
-
+         if (payload.type === 'wa_masuk') {
+             // Real incoming WA message
+             handleIncomingMessage(payload.data);
+         } else if (payload.conversationId) {
+             // Fallback for direct legacy format (if any)
+             handleIncomingMessage(payload);
+         }
+       } catch (e) {
+         console.error('Error parsing WS message', e);
+       }
+     };
      
       ws.onclose = (event) => {
         if (isConnected.value) {

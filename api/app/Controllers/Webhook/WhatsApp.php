@@ -18,9 +18,6 @@ class WhatsApp extends Controller
      */
     public function index()
     {        
-        // DEBUG EXTREME: Cek apakah endpoint ini dipukul
-        file_put_contents('debug_wa_hit.txt', date('H:i:s') . " - HIT REQUEST \n", FILE_APPEND);
-
         $method = $_SERVER['REQUEST_METHOD'];
 
         if ($method === 'GET') {
@@ -63,9 +60,6 @@ class WhatsApp extends Controller
     {
         $json = file_get_contents('php://input');
         $data = json_decode($json, true);
-        
-        // DEBUG: Cek isi paket yang datang
-        file_put_contents('debug_wa_receive.txt', date('H:i:s') . " - TYPE: " . ($data['type'] ?? 'NULL') . "\n RAW: " . $json . "\n", FILE_APPEND);
 
         if (!$data) {
             \Log::write("ERROR: Invalid JSON", 'webhook', 'WhatsApp');
@@ -109,57 +103,149 @@ class WhatsApp extends Controller
      */
     private function handleInboundMessage($db, $data)
     {
-        file_put_contents('debug_wa_trace.txt', date('H:i:s') . " - [1] START HANDLE \n", FILE_APPEND);
-        
         $msg = $data['whatsappInboundMessage'] ?? [];
         $textBodyToCheck = $msg['text']['body'] ?? '';
         
         if (empty($msg)) {
-            file_put_contents('debug_wa_trace.txt', date('H:i:s') . " - [X] EMPTY MSG \n", FILE_APPEND);
+            \Log::write("ERROR: No whatsappInboundMessage", 'wa_inbound', 'error');
             return;
         }
 
         $waNumber = $this->normalizePhoneNumber($msg['from'] ?? null);
-        // ... vars ...
+        $contactName = $msg['customerProfile']['name'] ?? null;
+        $messageType = $msg['type'] ?? 'text';
         $messageId = $msg['id'] ?? null;
-        
+        $wamid = $msg['wamid'] ?? null;
+        $status = $msg['status'] ?? 'received'; // Default status for inbound
+        $sendTime = date('Y-m-d H:i:s');
+
         if (!$waNumber) {
-            file_put_contents('debug_wa_trace.txt', date('H:i:s') . " - [X] NO WA NUMBER \n", FILE_APPEND);
+            \Log::write("ERROR: No 'from' number", 'wa_inbound', 'error');
             return;
         }
-        
-        file_put_contents('debug_wa_trace.txt', date('H:i:s') . " - [2] PHONE OK: $waNumber | ID: $messageId \n", FILE_APPEND);
 
-        // IDEMPOTENCY CHECK
+        // IDEMPOTENCY CHECK: Prevent duplicate processing of the same message
         if ($messageId) {
             $dupe = $db->get_where('wa_messages_in', ['message_id' => $messageId])->row();
             if ($dupe) {
-                file_put_contents('debug_wa_trace.txt', date('H:i:s') . " - [X] DUPLICATE \n", FILE_APPEND);
-                // ... log/return ...
+                if ($messageType === 'button') {
+                    \Log::write("SKIP: Duplicate button message $messageId", 'wa_inbound', 'debug');
+                }
                 return;
             }
         }
-        
-        file_put_contents('debug_wa_trace.txt', date('H:i:s') . " - [3] NOT DUPLICATE \n", FILE_APPEND);
 
         try {
-            // ... (existing try logic) ...
-            $cleanPhone = preg_replace('/[^0-9]/', '', $waNumber); 
-            // ...
-            $conversationId = $this->getOrCreateConversation($db, $waNumber, $contact_name, $assigned_user_id, $code, $lastMessageSummary);
+            $cleanPhone = preg_replace('/[^0-9]/', '', $waNumber); // 628...
+            $phone0 = '0' . substr($cleanPhone, 2); // 08...
+            $phonePlus = '+' . $cleanPhone; // +62...
             
-            file_put_contents('debug_wa_trace.txt', date('H:i:s') . " - [4] TRY BLOCK SUCCESS. ConvID: $conversationId \n", FILE_APPEND);
+            $phones = ["'$cleanPhone'", "'$phone0'", "'$phonePlus'"];
+            $phoneIn = implode(',', $phones);
 
+            //cari assigned_user_id
+            $user_data = $this->getUserData($phone0);
+            $assigned_user_id = $user_data->assigned_user_id ?? null;
+            $code = $user_data->code ?? null;
+            $contact_name = $user_data->customer_name ?? $cleanPhone;
+            
+            // Extract message text EARLY for lastMessageSummary
+            $messageText = '';
+            if ($messageType === 'text') {
+                $messageText = $msg['text']['body'] ?? '';
+            } elseif ($messageType === 'button') {
+                $messageText = $msg['button']['text'] ?? ($msg['button']['payload'] ?? '');
+            } elseif ($messageType === 'interactive') {
+                if (isset($msg['interactive']['button_reply'])) {
+                    $messageText = $msg['interactive']['button_reply']['title'] ?? '';
+                } elseif (isset($msg['interactive']['list_reply'])) {
+                    $messageText = $msg['interactive']['list_reply']['title'] ?? '';
+                }
+            } elseif (isset($msg[$messageType]['caption'])) {
+                $messageText = $msg[$messageType]['caption'];
+            }
+            
+            // Build lastMessageSummary
+            $lastMessageSummary = $messageText;
+            if (empty($lastMessageSummary) && $messageType !== 'text') {
+                 $lastMessageSummary = "[$messageType]";
+            }
+
+            $conversationId = $this->getOrCreateConversation($db, $waNumber, $contact_name, $assigned_user_id, $code, $lastMessageSummary);
         } catch (\Exception $e) {
-            file_put_contents('debug_wa_trace.txt', date('H:i:s') . " - [!] TRY BLOCK ERROR: " . $e->getMessage() . "\n", FILE_APPEND);
+            \Log::write("Error processing pending notifs: " . $e->getMessage(), 'webhook', 'WhatsApp');
         }
 
-        // ... data prep ...
+        $textBody = null;
+        $mediaId = null;
+        $mediaUrl = null;
+        $mediaMimeType = null;
+        $mediaUrlDirect = null;
+        $mediaCaption = null;
+        
+        // Initialize Metadata
+        $messageId = $msg['id'] ?? null;
+        $wamid = $msg['wamid'] ?? null;
+        $status = 'unread'; // Default status for new messages
+
+        switch ($messageType) {
+            case 'text':
+                $textBody = $msg['text']['body'] ?? null;
+                break;
+            
+            case 'button':
+                // Extract text from button response
+                $textBody = $msg['button']['text'] ?? ($msg['button']['payload'] ?? null);
+                break;
+            
+            case 'interactive':
+                // Handle interactive message (list reply, button reply)
+                if (isset($msg['interactive']['button_reply'])) {
+                    $textBody = $msg['interactive']['button_reply']['title'] ?? null;
+                } elseif (isset($msg['interactive']['list_reply'])) {
+                    $textBody = $msg['interactive']['list_reply']['title'] ?? null;
+                }
+                break;
+
+            case 'image':
+                // Process image (no verbose log)
+            case 'video':
+            case 'audio':
+            case 'document':
+            case 'voice':
+                $mediaId = $msg[$messageType]['id'] ?? null;
+                $mediaMimeType = $msg[$messageType]['mimeType'] ?? $msg[$messageType]['mime_type'] ?? null;
+                $mediaUrlDirect = $msg[$messageType]['link'] ?? null;
+                $mediaCaption = $msg[$messageType]['caption'] ?? null;
+                
+                // Auto Download Media to Local Server
+                if ($mediaId || $mediaUrlDirect) {
+                    try {
+                        if (!class_exists('\\App\\Helpers\\WhatsAppService')) {
+                            require_once __DIR__ . '/../../Helpers/WhatsAppService.php';
+                        }
+                        $waService = new \App\Helpers\WhatsAppService();
+                        $savedUrl = $waService->downloadAndSaveMedia($mediaId, $mediaUrlDirect, $mediaMimeType);
+                        if ($savedUrl) {
+                            $mediaUrl = $savedUrl;
+                        } else {
+                            // Download failed but don't block message save
+                            \Log::write("Media download failed for ID: $mediaId, using direct URL fallback", 'webhook', 'WhatsApp');
+                            $mediaUrl = $mediaUrlDirect; // Use direct URL as fallback
+                        }
+                    } catch (\Throwable $e) {
+                        // Catch ANY error (including PHP 8 errors) and continue
+                        \Log::write("Media download exception: " . $e->getMessage(), 'webhook', 'WhatsApp');
+                        $mediaUrl = $mediaUrlDirect; // Use direct URL as fallback
+                    }
+                }
+                break;
+        }
 
         // Step 4: Save message to wa_messages_in
         $messageData = [
-            // 'conversation_id' => $conversationId, 
-            // 'customer_id' => $customerId, 
+            // 'conversation_id' => $conversationId, // REMOVED: Table/Field deleted by user
+            // 'customer_id' => $customerId, // REMOVED: Table/Field deleted by user
             'phone' => $waNumber,
             'type' => $messageType,
             'text' => $textBody,
@@ -169,26 +255,19 @@ class WhatsApp extends Controller
             'media_caption' => $mediaCaption,
             'message_id' => $messageId,
             'wamid' => $wamid,
-            'contact_name' => $contact_name, // <-- contact_name might be undefined if TRY fail? check scope
+            'contact_name' => $contact_name,
             'status' => $status,
         ];
-        
-        // Define contact_name fallback just in case
-        if (!isset($contact_name)) $contact_name = null;
-        $messageData['contact_name'] = $contact_name;
-
-        // DEBUG PRE-INSERT
-        file_put_contents('debug_wa_insert.txt', date('H:i:s') . " - ATTEMPT INSERT: " . json_encode($messageData) . "\n", FILE_APPEND);
         
         $msgId = $db->insert('wa_messages_in', $messageData);
 
         if (!$msgId) {
             $error = $db->conn()->error;
-            file_put_contents('debug_wa_db_fail.txt', date('H:i:s') . " - DB ERROR: $error \n", FILE_APPEND);
             \Log::write("✗ DB ERROR (insert inbound message): $error", 'webhook', 'WhatsApp');
             \Log::write("Data attempted: " . json_encode($messageData), 'webhook', 'WhatsApp');
         } else {
-             // ... Auto reply log ...
+            // Auto Reply Processed Here (After DB Save)
+            $currentPriority = 0; // Default priority
             try {
                 if (!class_exists('\\App\\Models\\WAReplies')) {
                     require_once __DIR__ . '/../../Models/WAReplies.php';
@@ -218,54 +297,22 @@ class WhatsApp extends Controller
             }
             
             // Push to WebSocket Server AFTER priority is determined
-            // WARNING: Force broadcast to '0' so ALL agents see the incoming message immediately
-            // This fixes the "Not Real Time" issue where message was routed only to assigned user
-            $targetId = '0'; 
-            
-            $payloadDebug = [
-                'type' => 'wa_masuk',
-                'target_id' => $targetId,
-                'kode_cabang' => $code,
+            $this->pushIncomingToWebSocket([
                 'conversation_id' => $conversationId,
                 'phone' => $waNumber,
-                'priority' => $currentPriority
-            ];
-            
-            // Native Debug Log
-            file_put_contents('debug_wa_ws.txt', date('H:i:s') . " - PREPARE WS: " . json_encode($payloadDebug) . "\n", FILE_APPEND);
-            
-            \Log::write("🚀 WS Debug: Attempting pushIncomingToWebSocket. Payload: " . json_encode($payloadDebug), 'webhook', 'WhatsApp');
-
-            $res = $this->pushIncomingToWebSocket([
-                'type' => 'wa_masuk',
-                'target_id' => $targetId,
-                'kode_cabang' => $code,
-                'conversation_id' => $conversationId,
-                'phone' => $waNumber,
-                'wa_number' => $waNumber, // Alias
                 'contact_name' => $contact_name,
-                'name' => $contact_name,  // Alias
-                'priority' => $currentPriority,
-                
-                // Flat Message Data
-                'msg_id' => $msgId, 
-                'text' => $textBody, 
-                'type_msg' => $messageType,
-                'media_id' => $mediaId,
-                'media_url' => $mediaUrl,
-                'caption' => $mediaCaption,
-                'time' => date('Y-m-d H:i:s'),
-                
-                // Nested Message Data (Legacy Support / Fail-safe)
+                'priority' => $currentPriority, // ✅ Include priority!
                 'message' => [
-                    'id' => $msgId,
+                    'id' => $msgId, // local DB ID
                     'text' => $textBody,
                     'type' => $messageType,
                     'media_id' => $mediaId,
                     'media_url' => $mediaUrl,
                     'caption' => $mediaCaption,
                     'time' => date('Y-m-d H:i:s'),
-                ]
+                ],
+                'target_id' => $assigned_user_id ? (string)$assigned_user_id : '0',
+                'kode_cabang' => $code
             ]);
         }
     }
@@ -287,8 +334,6 @@ class WhatsApp extends Controller
         
         $result = curl_exec($ch);
         curl_close($ch);
-        
-        file_put_contents('debug_wa_curl.txt', date('H:i:s') . " - CURL RES: " . ($result ?: 'FALSE/EMPTY') . "\n", FILE_APPEND);
         
         return $result;
     }
@@ -469,6 +514,7 @@ class WhatsApp extends Controller
                 'assigned_user_id' => $assigned_user_id,
                 'code' => $code,
                 'status' => 'open',
+                'last_in_at' => date('Y-m-d H:i:s'),
                 'last_message_at' => date('Y-m-d H:i:s'),
                 'last_message' => $lastMessage,
             ];

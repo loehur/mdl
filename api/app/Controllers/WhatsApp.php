@@ -78,7 +78,6 @@ class WhatsApp extends Controller
      * Body:
      * {
      *   "phone": "081234567890",
-     *   "last_message_at": "2024-12-19 18:00:00",
      *   "message_mode": "free|template",
      *   "message": "Hello customer", // For free text
      *   "template_name": "greeting_template", // For template
@@ -94,16 +93,11 @@ class WhatsApp extends Controller
         
         $body = $this->getBody();
         
-        // Validate required fields (last_message_at is now optional)
         $this->validate($body, ['phone', 'message_mode']);
         
         $phone = $body['phone'];
         $messageMode = strtolower($body['message_mode']);
 
-        // Auto-lookup last_message_at if not provided
-        // FORCE LOOKUP: Strict Verification against Database
-        // We do NOT trust the 'last_message_at' from the body for CSW checks anymore.
-        // We must query the database to see the REAL last customer interaction.
         $lastMessageAt = null;
         
         // Normalisasi Phone
