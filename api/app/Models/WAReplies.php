@@ -869,11 +869,17 @@ class WAReplies
             // Validate intent
             $validIntents = ['NOTA', 'STATUS', 'CEK_BUKA', 'MINTA_JEMPUT_ANTAR', 'PEMBUKA', 'PENUTUP'];
             if (!in_array($intent, $validIntents)) {
+                if (class_exists('\Log')) {
+                    \Log::write("AI Intent Invalid: '{$intent}' not in allowed list", 'ai', 'intent_detection');
+                }
                 return false;
             }
             
             // Check rate limiting
             if (!$this->shouldReply($waNumber, $intent)) {
+                if (class_exists('\Log')) {
+                    \Log::write("AI Rate Limited: Handler '{$intent}' for {$waNumber}", 'ai', 'intent_detection');
+                }
                 return false;
             }
             
@@ -889,6 +895,10 @@ class WAReplies
             return false;
             
         } catch (\Exception $e) {
+            // Log the exception so we know why AI failed
+            if (class_exists('\Log')) {
+                \Log::write("AI Error: " . $e->getMessage(), 'ai', 'intent_detection');
+            }
             return false;
         }
     }
