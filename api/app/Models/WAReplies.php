@@ -824,8 +824,21 @@ class WAReplies
         $curlError = curl_error($ch);
         curl_close($ch);
         
+        // LOG: cURL execution result
+        if (class_exists('\\Log')) {
+            \Log::write("cURL executed - HTTP Code: {$httpCode}, Error: " . ($curlError ?: 'None'), 'auto_reply', 'ai');
+            if ($result) {
+                \Log::write("API Response (first 500 chars): " . substr($result, 0, 500), 'auto_reply', 'ai');
+            } else {
+                \Log::write("❌ API Response is EMPTY/FALSE", 'auto_reply', 'ai');
+            }
+        }
+        
         // Check for cURL errors
         if ($result === false) {
+            if (class_exists('\\Log')) {
+                \Log::write("❌ Gemini API cURL error: {$curlError}", 'auto_reply', 'ai');
+            }
             throw new \Exception("Gemini API cURL error: {$curlError}");
         }
         
@@ -838,15 +851,36 @@ class WAReplies
                     $errorMsg .= " - " . $errorData['error']['message'];
                 }
             }
+            if (class_exists('\\Log')) {
+                \Log::write("❌ {$errorMsg}", 'auto_reply', 'ai');
+            }
             throw new \Exception($errorMsg);
         }
         
         // Parse response
         $response = json_decode($result, true);
         
+        // LOG: JSON decode result
+        if (class_exists('\\Log')) {
+            if ($response === null) {
+                \Log::write("❌ JSON decode failed - Invalid JSON response", 'auto_reply', 'ai');
+            } else {
+                \Log::write("✅ JSON decoded successfully", 'auto_reply', 'ai');
+            }
+        }
+        
         // Extract text from Gemini response structure
         if (isset($response['candidates'][0]['content']['parts'][0]['text'])) {
-            return trim($response['candidates'][0]['content']['parts'][0]['text']);
+            $extractedText = trim($response['candidates'][0]['content']['parts'][0]['text']);
+            if (class_exists('\\Log')) {
+                \Log::write("✅ Extracted text from response: '{$extractedText}'", 'auto_reply', 'ai');
+            }
+            return $extractedText;
+        }
+        
+        // LOG: Invalid structure
+        if (class_exists('\\Log')) {
+            \Log::write("❌ Gemini API: Invalid response structure - Response: " . json_encode($response), 'auto_reply', 'ai');
         }
         
         throw new \Exception("Gemini API: Invalid response structure");
