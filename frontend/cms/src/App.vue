@@ -68,6 +68,10 @@ const isPickupDelivery = ref(false);
 const isRequest = ref(false);
 const isReopeningConversation = ref(false);
 
+// Auto-Open Chat on Incoming Message
+const autoOpenChatOnIncoming = ref(true); // Set false if you want manual open only
+
+
 // SSE (Server-Sent Events) for real-time updates
 const eventSource = ref(null);
 
@@ -1237,6 +1241,12 @@ const handleIncomingMessage = (payload) => {
 
   if (!isChatVisible) {
     conversation.unread++;
+    
+    // 🆕 AUTO-OPEN FEATURE: Open conversation automatically for incoming customer messages
+    if (autoOpenChatOnIncoming.value && sender === 'customer' && windowWidth.value >= 768) {
+      console.log('🔔 Auto-opening conversation:', conversation.name);
+      selectChat(conversation.id);
+    }
   } else {
     scrollToBottom();
     markMessagesRead(conversation.wa_number); // Use phone number, not conversation ID
