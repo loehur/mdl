@@ -691,6 +691,7 @@ class WAReplies
             $prompt .= "- JAM_BUKA: User tanya jam buka/tutup operasional\n";
             $prompt .= "- PEMBUKA: Salam pembuka (halo, hai, ping, pagi, siang, malam)\n";
             $prompt .= "- PENUTUP: Ucapan terima kasih atau penutup percakapan\n";
+            $prompt .= "- PENUTUP: Hanya memberitahu kalau sudah dibayar, sudah lunas, ataupun sudah diambil\n";
             $prompt .= "- UNKNOWN: Tidak termasuk kategori di atas\n\n";
             $prompt .= "Pesan: \"{$textBody}\"\n\n";
             $prompt .= "JAWAB HANYA DENGAN NAMA KATEGORI (huruf kapital). Contoh: NOTA";
