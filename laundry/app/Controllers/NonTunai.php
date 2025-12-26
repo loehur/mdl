@@ -63,8 +63,14 @@ class NonTunai extends Controller
                      'sender_id' => 'system'
                   ];
                   
+                  // Log payload sebelum push
+                  $this->model('Log')->write('[NonTunai::operasi] Attempting WebSocket push. Payload: ' . json_encode($payload) . ' | Phone: ' . $phonePlus62);
+                  
                   // Push to WebSocket server
-                  $this->pushToWebSocket($payload);
+                  $wsResult = $this->pushToWebSocket($payload);
+                  
+                  // Log hasil push
+                  $this->model('Log')->write('[NonTunai::operasi] WebSocket push result: ' . ($wsResult ? $wsResult : 'NULL/EMPTY'));
                }
             }
          } catch (\Exception $e) {
@@ -144,6 +150,9 @@ class NonTunai extends Controller
    {
       $url = 'https://waserver.nalju.com/incoming';
       
+      // Log request details
+      $this->model('Log')->write('[NonTunai::pushToWebSocket] Starting request to: ' . $url . ' | Data: ' . json_encode($data));
+      
       $ch = curl_init($url);
       curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
       curl_setopt($ch, CURLOPT_POST, true);
@@ -154,9 +163,14 @@ class NonTunai extends Controller
       curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
       
       $result = curl_exec($ch);
+      $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+      $curlError = curl_error($ch);
       
+      // Log response details
       if (curl_errno($ch)) {
-         $this->model('Log')->write('[NonTunai::pushToWebSocket] cURL Error: ' . curl_error($ch));
+         $this->model('Log')->write('[NonTunai::pushToWebSocket] cURL Error [' . curl_errno($ch) . ']: ' . $curlError);
+      } else {
+         $this->model('Log')->write('[NonTunai::pushToWebSocket] Success - HTTP Code: ' . $httpCode . ' | Response: ' . ($result ? $result : 'EMPTY'));
       }
       
       curl_close($ch);
