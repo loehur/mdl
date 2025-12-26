@@ -1144,6 +1144,7 @@ const handleIncomingMessage = (payload) => {
   let conversation = conversations.value.find(c => (conversationId && c.id == conversationId) || (phone && c.wa_number == phone));
   
   if (!conversation) {
+    console.log('🆕 Creating NEW conversation locally for:', phone); // DEBUGLOG
     // New conversation - Create temporary entry
     conversation = {
       id: conversationId,
@@ -1158,6 +1159,7 @@ const handleIncomingMessage = (payload) => {
       unread: 0
     };
     conversations.value.unshift(conversation);
+    console.log('✅ Conversation added to list. Total:', conversations.value.length); // DEBUGLOG
   } else {
     // Update existing conversation details if available
      if (payload.kode_cabang) {
@@ -1436,18 +1438,22 @@ const connectWebSocket = () => {
                }
                return;
            }
+
+          // Handle Real Incoming Message
+          if (payload.type === 'wa_masuk') {
+              console.log('✅ TYPE IS wa_masuk > Processing data');
+              handleIncomingMessage(payload.data);
+          } else if (payload.conversationId || (payload.message && payload.phone)) {
+              console.log('✅ Legacy/Direct format detected');
+              handleIncomingMessage(payload);
+          }
+
+        } catch (e) {
+          console.error('Error parsing WS message', e);
+        }
+      };
           
-         if (payload.type === 'wa_masuk') {
-             // Real incoming WA message
-             handleIncomingMessage(payload.data);
-         } else if (payload.conversationId) {
-             // Fallback for direct legacy format (if any)
-             handleIncomingMessage(payload);
-         }
-       } catch (e) {
-         console.error('Error parsing WS message', e);
-       }
-     };
+
      
       ws.onclose = (event) => {
         if (isConnected.value) {
