@@ -135,13 +135,15 @@ class WhatsApp extends Controller
             $dupe = $db->get_where('wa_messages_in', ['message_id' => $messageId])->row();
             if ($dupe) {
                 if ($messageType === 'button') {
-                    \Log::write("SKIP: Duplicate button message $messageId", 'wa_inbound', 'debug');
+                    // \Log::write("SKIP: Duplicate button message $messageId", 'wa_inbound', 'debug');
                 }
+                file_put_contents('debug_wa_dupe.txt', date('H:i:s') . " - DUPLICATE $messageId found. Stopping. \n", FILE_APPEND);
                 return;
             }
         }
 
         try {
+            // ... (existing try block content) ...
             $cleanPhone = preg_replace('/[^0-9]/', '', $waNumber); // 628...
             $phone0 = '0' . substr($cleanPhone, 2); // 08...
             $phonePlus = '+' . $cleanPhone; // +62...
@@ -151,17 +153,20 @@ class WhatsApp extends Controller
 
             //cari assigned_user_id
             $user_data = $this->getUserData($phone0);
+            // ... variables setup ...
             $assigned_user_id = $user_data->assigned_user_id ?? null;
             $code = $user_data->code ?? null;
             $contact_name = $user_data->customer_name ?? $cleanPhone;
-            
-            // Extract message text EARLY for lastMessageSummary
+
+             // Extract message text EARLY for lastMessageSummary
             $messageText = '';
+            // ... logic text ...
             if ($messageType === 'text') {
                 $messageText = $msg['text']['body'] ?? '';
             } elseif ($messageType === 'button') {
                 $messageText = $msg['button']['text'] ?? ($msg['button']['payload'] ?? '');
             } elseif ($messageType === 'interactive') {
+                // ...
                 if (isset($msg['interactive']['button_reply'])) {
                     $messageText = $msg['interactive']['button_reply']['title'] ?? '';
                 } elseif (isset($msg['interactive']['list_reply'])) {
@@ -170,7 +175,7 @@ class WhatsApp extends Controller
             } elseif (isset($msg[$messageType]['caption'])) {
                 $messageText = $msg[$messageType]['caption'];
             }
-            
+
             // Build lastMessageSummary
             $lastMessageSummary = $messageText;
             if (empty($lastMessageSummary) && $messageType !== 'text') {
@@ -178,80 +183,18 @@ class WhatsApp extends Controller
             }
 
             $conversationId = $this->getOrCreateConversation($db, $waNumber, $contact_name, $assigned_user_id, $code, $lastMessageSummary);
+
         } catch (\Exception $e) {
+            file_put_contents('debug_wa_error_try.txt', date('H:i:s') . " - TRY ERROR: " . $e->getMessage() . "\n", FILE_APPEND);
             \Log::write("Error processing pending notifs: " . $e->getMessage(), 'webhook', 'WhatsApp');
         }
 
-        $textBody = null;
-        $mediaId = null;
-        $mediaUrl = null;
-        $mediaMimeType = null;
-        $mediaUrlDirect = null;
-        $mediaCaption = null;
-        
-        // Initialize Metadata
-        $messageId = $msg['id'] ?? null;
-        $wamid = $msg['wamid'] ?? null;
-        $status = 'unread'; // Default status for new messages
-
-        switch ($messageType) {
-            case 'text':
-                $textBody = $msg['text']['body'] ?? null;
-                break;
-            
-            case 'button':
-                // Extract text from button response
-                $textBody = $msg['button']['text'] ?? ($msg['button']['payload'] ?? null);
-                break;
-            
-            case 'interactive':
-                // Handle interactive message (list reply, button reply)
-                if (isset($msg['interactive']['button_reply'])) {
-                    $textBody = $msg['interactive']['button_reply']['title'] ?? null;
-                } elseif (isset($msg['interactive']['list_reply'])) {
-                    $textBody = $msg['interactive']['list_reply']['title'] ?? null;
-                }
-                break;
-
-            case 'image':
-                // Process image (no verbose log)
-            case 'video':
-            case 'audio':
-            case 'document':
-            case 'voice':
-                $mediaId = $msg[$messageType]['id'] ?? null;
-                $mediaMimeType = $msg[$messageType]['mimeType'] ?? $msg[$messageType]['mime_type'] ?? null;
-                $mediaUrlDirect = $msg[$messageType]['link'] ?? null;
-                $mediaCaption = $msg[$messageType]['caption'] ?? null;
-                
-                // Auto Download Media to Local Server
-                if ($mediaId || $mediaUrlDirect) {
-                    try {
-                        if (!class_exists('\\App\\Helpers\\WhatsAppService')) {
-                            require_once __DIR__ . '/../../Helpers/WhatsAppService.php';
-                        }
-                        $waService = new \App\Helpers\WhatsAppService();
-                        $savedUrl = $waService->downloadAndSaveMedia($mediaId, $mediaUrlDirect, $mediaMimeType);
-                        if ($savedUrl) {
-                            $mediaUrl = $savedUrl;
-                        } else {
-                            // Download failed but don't block message save
-                            \Log::write("Media download failed for ID: $mediaId, using direct URL fallback", 'webhook', 'WhatsApp');
-                            $mediaUrl = $mediaUrlDirect; // Use direct URL as fallback
-                        }
-                    } catch (\Throwable $e) {
-                        // Catch ANY error (including PHP 8 errors) and continue
-                        \Log::write("Media download exception: " . $e->getMessage(), 'webhook', 'WhatsApp');
-                        $mediaUrl = $mediaUrlDirect; // Use direct URL as fallback
-                    }
-                }
-                break;
-        }
+        // ... data prep ...
 
         // Step 4: Save message to wa_messages_in
         $messageData = [
-            // 'conversation_id' => $conversationId, // REMOVED: Table/Field deleted by user
-            // 'customer_id' => $customerId, // REMOVED: Table/Field deleted by user
+            // 'conversation_id' => $conversationId, 
+            // 'customer_id' => $customerId, 
             'phone' => $waNumber,
             'type' => $messageType,
             'text' => $textBody,
@@ -261,19 +204,26 @@ class WhatsApp extends Controller
             'media_caption' => $mediaCaption,
             'message_id' => $messageId,
             'wamid' => $wamid,
-            'contact_name' => $contact_name,
+            'contact_name' => $contact_name, // <-- contact_name might be undefined if TRY fail? check scope
             'status' => $status,
         ];
+        
+        // Define contact_name fallback just in case
+        if (!isset($contact_name)) $contact_name = null;
+        $messageData['contact_name'] = $contact_name;
+
+        // DEBUG PRE-INSERT
+        file_put_contents('debug_wa_insert.txt', date('H:i:s') . " - ATTEMPT INSERT: " . json_encode($messageData) . "\n", FILE_APPEND);
         
         $msgId = $db->insert('wa_messages_in', $messageData);
 
         if (!$msgId) {
             $error = $db->conn()->error;
+            file_put_contents('debug_wa_db_fail.txt', date('H:i:s') . " - DB ERROR: $error \n", FILE_APPEND);
             \Log::write("✗ DB ERROR (insert inbound message): $error", 'webhook', 'WhatsApp');
             \Log::write("Data attempted: " . json_encode($messageData), 'webhook', 'WhatsApp');
         } else {
-            // Auto Reply Processed Here (After DB Save)
-            $currentPriority = 0; // Default priority
+             // ... Auto reply log ...
             try {
                 if (!class_exists('\\App\\Models\\WAReplies')) {
                     require_once __DIR__ . '/../../Models/WAReplies.php';
