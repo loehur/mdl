@@ -31,8 +31,10 @@ return [
         'max_length' => 100,
         'patterns' => [
             '/^\s*(cek|sta*tu*s)\s*$/i',
-            '/(s*u*da*h*|u*da*h*|da*h*)\s*\b(si+a+p|be*re*s|se*ls*e*s*a*i*|re*a*dy*i*)/i',
+            '/(s*u*da*h*|u*da*h*|da*h*|ka*pa*n)\s*\b(si+a+p|be*re*s|se*ls*e*s*a*i*|re*a*dy*i*)/i',
+            '/(si+a+p|be*re*s|se*ls*e*s*a*i*|re*a*dy*i*)\s*\b(ka*pa*n|be*lu*m)/i',
             '/(s*u*da*h*|u*da*h*|da*h*)\s*\b(bi*sa*|bo*le*h|da*pa*t)\s*\b(di*(ambi*l|je*mpu*t))/i',
+            '/(ka*pa*n)\s*\b(bi*sa*|bo*le*h|da*pa*t)\s*\b(di*(ambi*l|je*mpu*t))/i',
             '/(ka*pa*n)\s*\b(bi*sa*|bo*le*h|da*pa*t)\s*\b(di*(ambi*l|je*mpu*t))/i',
         ]
     ],
