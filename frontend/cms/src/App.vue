@@ -116,9 +116,9 @@ const filteredConversations = computed(() => {
 
 
 
-const fetchConversations = async () => {
+const fetchConversations = async (silent = false) => {
     try {
-        isLoadingConversations.value = true; // Start loading
+        if (!silent) isLoadingConversations.value = true; // Start loading only if not silent
         
         const userIdParam = authId.value ? `user_id=${authId.value}` : '';
         const separator = userIdParam ? '&' : '?';
@@ -1275,6 +1275,10 @@ const handleIncomingMessage = (payload) => {
         conversations.value.splice(idx, 1);
         conversations.value.unshift(conversation);
       }
+      
+      // SYNC: Silent refresh to ensure list is perfect
+      console.log('🔄 Triggering silent sync of conversation list...');
+      fetchConversations(true);
   }
 };
 
