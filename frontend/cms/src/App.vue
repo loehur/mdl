@@ -1127,41 +1127,43 @@ const handleIncomingMessage = (payload) => {
   // DEBUG (Robust): Log whatever we get
   console.log('📡 handleIncomingMessage Payload:', payload);
 
-  // Or fallback if direct
-  const conversationId = payload.conversation_id || payload.conversationId;
-  const phone = payload.phone || payload.wa_number;
+  // ROBUST UNWRAPPING: 
+  // If payload has a 'data' property that holds the actual content (Node server wrapper), use it.
+  const source = (payload.data && typeof payload.data === 'object') ? payload.data : payload;
+
+  const conversationId = source.conversation_id || source.conversationId || payload.conversation_id; // Try source then root
+  const phone = source.phone || source.wa_number || payload.phone; // Try source then root
   
   // SUPPORT FLAT PAYLOAD (Priority)
-  // Check if properties exist directly on payload
-  let text = payload.text;
-  let type = payload.type_msg || payload.type; // Use type_msg from backend if available
-  let msgId = payload.msg_id || payload.id;
-  let mediaUrl = payload.media_url;
+  let text = source.text;
+  let type = source.type_msg || source.type; 
+  let msgId = source.msg_id || source.id;
+  let mediaUrl = source.media_url;
   
   // If not flat, try nested 'message' object (Legacy/Fallback)
-  if (payload.message) {
-      const m = payload.message;
+  if (source.message) {
+      const m = source.message;
       if (!text) text = m.text;
       if (!type || type === 'wa_masuk') type = m.type || 'text';
       if (!msgId) msgId = m.id;
       if (!mediaUrl) mediaUrl = m.media_url;
   }
   
-  // Fix type conflict: if type is still 'wa_masuk', force it to 'text' or 'image' based on data
+  // Fix type conflict
   if (type === 'wa_masuk') {
       type = mediaUrl ? 'image' : 'text';
   }
   
-  const sender = payload.sender || 'customer';
+  const sender = source.sender || 'customer';
   
   let displayText = text;
   if (!displayText && type !== 'text') {
       displayText = `[${type}]`;
-      if (payload.caption || (payload.message && payload.message.caption)) {
-          displayText += ' ' + (payload.caption || payload.message.caption); 
+      if (source.caption || (source.message && source.message.caption)) {
+          displayText += ' ' + (source.caption || source.message.caption); 
       }
   }
-  const name = payload.contact_name || payload.name;
+  const name = source.contact_name || source.name || payload.contact_name; // Try source then root
   
   // Find or create conversation
   let conversation = conversations.value.find(c => (conversationId && c.id == conversationId) || (phone && c.wa_number == phone));
@@ -1172,10 +1174,10 @@ const handleIncomingMessage = (payload) => {
     conversation = {
       id: conversationId,
       wa_number: phone, // ✅ Add wa_number
-      name: name || payload.phone || 'Unknown User',
-      kode_cabang: payload.kode_cabang || '00', // Set from payload
-      priority: parseInt(payload.priority) || 0, // ✅ Set priority from payload!
-      initials: (name || payload.phone || '?').substring(0, 1).toUpperCase(),
+      name: name || source.phone || 'Unknown User',
+      kode_cabang: source.kode_cabang || '00', 
+      priority: parseInt(source.priority) || 0, 
+      initials: (name || source.phone || '?').substring(0, 1).toUpperCase(),
       color: getAvatarColor(conversationId),
       status: 'online', // Assume online on new msg
       messages: [],
@@ -1185,12 +1187,12 @@ const handleIncomingMessage = (payload) => {
     console.log('✅ Conversation added to list. Total:', conversations.value.length); // DEBUGLOG
   } else {
     // Update existing conversation details if available
-     if (payload.kode_cabang) {
-         conversation.kode_cabang = payload.kode_cabang;
+     if (source.kode_cabang) {
+         conversation.kode_cabang = source.kode_cabang;
      }
      // ✅ Update priority if provided!
-     if (payload.priority !== undefined) {
-         conversation.priority = parseInt(payload.priority) || 0;
+     if (source.priority !== undefined) {
+         conversation.priority = parseInt(source.priority) || 0;
      }
   }
   
@@ -1198,11 +1200,11 @@ const handleIncomingMessage = (payload) => {
     id: msgId || Date.now(),
     text: displayText, // Use the safe display text
     type: type,
-    media_id: payload.media_id || (payload.message && payload.message.media_id),
+    media_id: source.media_id || (source.message && source.message.media_id),
     media_url: mediaUrl,
     sender: sender,
-    time: payload.time ? new Date(payload.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    rawTime: payload.time || new Date().toISOString() // Keep raw timestamp for date separator
+    time: source.time ? new Date(source.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    rawTime: source.time || new Date().toISOString() // Keep raw timestamp for date separator
   };
   
   // DEBUG: Log every incoming message attempt
