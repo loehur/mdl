@@ -252,6 +252,7 @@ class WAGenerator extends Controller
         $cleanOrderList = preg_replace('/\s{2,}/', ' ', $cleanOrderList);
         // Step 5: Clean up empty pipe patterns
         $cleanOrderList = str_replace("| |", "| _ |", $cleanOrderList);
+        $cleanOrderList = str_replace("|  |", "| _ |", $cleanOrderList);
         // Step 6: Trim all whitespace
         $cleanOrderList = trim($cleanOrderList);
         // Step 7: Remove leading/trailing pipes
