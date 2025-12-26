@@ -850,9 +850,19 @@ class WAReplies
             $prompt .= "Pesan: \"{$textBody}\"\\n\\n";
             $prompt .= "JAWAB HANYA DENGAN NAMA KATEGORI (huruf kapital). Contoh: NOTA";
             
+            // Log AI checking input
+            if (class_exists('\Log')) {
+                \Log::write("AI Checking: " . $textBody, 'ai', 'intent_detection');
+            }
+            
             // Call OpenAI API
             $response = $this->callOpenAI($prompt);
             $intent = trim(strtoupper($response));
+            
+            // Log AI response
+            if (class_exists('\Log')) {
+                \Log::write("AI Response: " . $response . " (Intent: " . $intent . ")", 'ai', 'intent_detection');
+            }
             
 
             
