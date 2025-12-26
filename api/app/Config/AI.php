@@ -1,4 +1,6 @@
 <?php
+namespace App\Config;
+
 /**
  * AI Configuration
  * 
@@ -15,8 +17,6 @@
  * 
  * Lihat template di bawah untuk cara setup di Env.php
  */
-
-namespace App\Config;
 
 class AI
 {

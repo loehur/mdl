@@ -16,7 +16,7 @@ class WhatsApp
             'verify_token' => \Env::WA_VERIFY_TOKEN ?? '', // For webhook verification
             
             // Customer Service Window (CSW) duration in hours
-            'csw_duration' => 22,
+            'csw_duration' => 23,
             
             // Logging
             'log_messages' => true,
