@@ -109,84 +109,49 @@ class WhatsApp extends Controller
      */
     private function handleInboundMessage($db, $data)
     {
+        file_put_contents('debug_wa_trace.txt', date('H:i:s') . " - [1] START HANDLE \n", FILE_APPEND);
+        
         $msg = $data['whatsappInboundMessage'] ?? [];
         $textBodyToCheck = $msg['text']['body'] ?? '';
         
         if (empty($msg)) {
-            \Log::write("ERROR: No whatsappInboundMessage", 'wa_inbound', 'error');
+            file_put_contents('debug_wa_trace.txt', date('H:i:s') . " - [X] EMPTY MSG \n", FILE_APPEND);
             return;
         }
 
         $waNumber = $this->normalizePhoneNumber($msg['from'] ?? null);
-        $contactName = $msg['customerProfile']['name'] ?? null;
-        $messageType = $msg['type'] ?? 'text';
+        // ... vars ...
         $messageId = $msg['id'] ?? null;
-        $wamid = $msg['wamid'] ?? null;
-        $status = $msg['status'] ?? 'received'; // Default status for inbound
-        $sendTime = date('Y-m-d H:i:s');
-
+        
         if (!$waNumber) {
-            \Log::write("ERROR: No 'from' number", 'wa_inbound', 'error');
+            file_put_contents('debug_wa_trace.txt', date('H:i:s') . " - [X] NO WA NUMBER \n", FILE_APPEND);
             return;
         }
+        
+        file_put_contents('debug_wa_trace.txt', date('H:i:s') . " - [2] PHONE OK: $waNumber | ID: $messageId \n", FILE_APPEND);
 
-        // IDEMPOTENCY CHECK: Prevent duplicate processing of the same message
+        // IDEMPOTENCY CHECK
         if ($messageId) {
             $dupe = $db->get_where('wa_messages_in', ['message_id' => $messageId])->row();
             if ($dupe) {
-                if ($messageType === 'button') {
-                    // \Log::write("SKIP: Duplicate button message $messageId", 'wa_inbound', 'debug');
-                }
-                file_put_contents('debug_wa_dupe.txt', date('H:i:s') . " - DUPLICATE $messageId found. Stopping. \n", FILE_APPEND);
+                file_put_contents('debug_wa_trace.txt', date('H:i:s') . " - [X] DUPLICATE \n", FILE_APPEND);
+                // ... log/return ...
                 return;
             }
         }
+        
+        file_put_contents('debug_wa_trace.txt', date('H:i:s') . " - [3] NOT DUPLICATE \n", FILE_APPEND);
 
         try {
-            // ... (existing try block content) ...
-            $cleanPhone = preg_replace('/[^0-9]/', '', $waNumber); // 628...
-            $phone0 = '0' . substr($cleanPhone, 2); // 08...
-            $phonePlus = '+' . $cleanPhone; // +62...
-            
-            $phones = ["'$cleanPhone'", "'$phone0'", "'$phonePlus'"];
-            $phoneIn = implode(',', $phones);
-
-            //cari assigned_user_id
-            $user_data = $this->getUserData($phone0);
-            // ... variables setup ...
-            $assigned_user_id = $user_data->assigned_user_id ?? null;
-            $code = $user_data->code ?? null;
-            $contact_name = $user_data->customer_name ?? $cleanPhone;
-
-             // Extract message text EARLY for lastMessageSummary
-            $messageText = '';
-            // ... logic text ...
-            if ($messageType === 'text') {
-                $messageText = $msg['text']['body'] ?? '';
-            } elseif ($messageType === 'button') {
-                $messageText = $msg['button']['text'] ?? ($msg['button']['payload'] ?? '');
-            } elseif ($messageType === 'interactive') {
-                // ...
-                if (isset($msg['interactive']['button_reply'])) {
-                    $messageText = $msg['interactive']['button_reply']['title'] ?? '';
-                } elseif (isset($msg['interactive']['list_reply'])) {
-                    $messageText = $msg['interactive']['list_reply']['title'] ?? '';
-                }
-            } elseif (isset($msg[$messageType]['caption'])) {
-                $messageText = $msg[$messageType]['caption'];
-            }
-
-            // Build lastMessageSummary
-            $lastMessageSummary = $messageText;
-            if (empty($lastMessageSummary) && $messageType !== 'text') {
-                 $lastMessageSummary = "[$messageType]";
-            }
-
+            // ... (existing try logic) ...
+            $cleanPhone = preg_replace('/[^0-9]/', '', $waNumber); 
+            // ...
             $conversationId = $this->getOrCreateConversation($db, $waNumber, $contact_name, $assigned_user_id, $code, $lastMessageSummary);
+            
+            file_put_contents('debug_wa_trace.txt', date('H:i:s') . " - [4] TRY BLOCK SUCCESS. ConvID: $conversationId \n", FILE_APPEND);
 
         } catch (\Exception $e) {
-            file_put_contents('debug_wa_error_try.txt', date('H:i:s') . " - TRY ERROR: " . $e->getMessage() . "\n", FILE_APPEND);
-            \Log::write("Error processing pending notifs: " . $e->getMessage(), 'webhook', 'WhatsApp');
+            file_put_contents('debug_wa_trace.txt', date('H:i:s') . " - [!] TRY BLOCK ERROR: " . $e->getMessage() . "\n", FILE_APPEND);
         }
 
         // ... data prep ...
