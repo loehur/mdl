@@ -772,6 +772,13 @@ class WAReplies
      * @return string AI response (intent classification)
      * @throws \Exception On API error
      */
+    /**
+     * Call Google Gemini API (Wrapper with Fallback)
+     * 
+     * @param string $prompt The prompt to send
+     * @return string AI response (intent classification)
+     * @throws \Exception On API error
+     */
     private function callGemini($prompt)
     {
         // Load AI config
@@ -779,16 +786,43 @@ class WAReplies
             require_once __DIR__ . '/../Config/AI.php';
         }
         
+        $primaryModel = \App\Config\AI::getGeminiModel();
+        
+        try {
+            return $this->executeGeminiRequest($prompt, $primaryModel);
+        } catch (\Exception $e) {
+            // Check for 429 (Quota Exceeded) or 503 (Service Unavailable)
+            $msg = $e->getMessage();
+            if (strpos($msg, '429') !== false || strpos($msg, 'Quota') !== false || strpos($msg, '503') !== false) {
+                // Fallback to gemini-1.5-flash if the primary model fails
+                $fallbackModel = 'gemini-1.5-flash';
+                
+                // Only retry if the primary model wasn't already the fallback
+                if ($primaryModel !== $fallbackModel) {
+                     if (class_exists('\\Log')) {
+                        \Log::write("⚠️ API Error ($msg) on model '$primaryModel'. Retrying with fallback: '$fallbackModel'", 'auto_reply', 'ai');
+                    }
+                    return $this->executeGeminiRequest($prompt, $fallbackModel);
+                }
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Execute the actual request to Gemini API
+     */
+    private function executeGeminiRequest($prompt, $model)
+    {
         $apiKey = (method_exists('\\App\\Config\\AI', 'getApiKey')) ? \App\Config\AI::getApiKey() : \App\Config\AI::getGeminiApiKey();
-        $model = \App\Config\AI::getGeminiModel();
         $temperature = \App\Config\AI::getTemperature();
         $maxTokens = \App\Config\AI::getMaxTokens();
         $timeout = \App\Config\AI::getTimeout();
         
-        // Build URL WITHOUT API key (akan di-pass via header sesuai dokumentasi resmi)
+        // Build URL
         $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . $model . ':generateContent';
         
-        // Prepare request body untuk Gemini API
+        // Prepare request body
         $data = [
             'contents' => [
                 [
@@ -805,14 +839,14 @@ class WAReplies
             ]
         ];
         
-        // cURL request - menggunakan x-goog-api-key header sesuai dokumentasi resmi
+        // cURL request
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
             'Content-Type: application/json',
-            'x-goog-api-key: ' . $apiKey  // API key via header (official method)
+            'x-goog-api-key: ' . $apiKey
         ]);
         curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
@@ -835,6 +869,7 @@ class WAReplies
         if (class_exists('\\Log')) {
             \Log::write("cURL executed - HTTP Code: {$httpCode}, Error: " . ($curlError ?: 'None'), 'auto_reply', 'ai');
             if ($result) {
+                // Log shorter preview
                 \Log::write("API Response (first 500 chars): " . substr($result, 0, 500), 'auto_reply', 'ai');
             } else {
                 \Log::write("❌ API Response is EMPTY/FALSE", 'auto_reply', 'ai');

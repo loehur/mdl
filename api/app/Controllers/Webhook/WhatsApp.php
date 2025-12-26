@@ -272,32 +272,6 @@ class WhatsApp extends Controller
             \Log::write("✗ DB ERROR (insert inbound message): $error", 'webhook', 'WhatsApp');
             \Log::write("Data attempted: " . json_encode($messageData), 'webhook', 'WhatsApp');
         } else {
-            // Priority Check (Default)
-            // No keyword match - needs CS attention, but only if customer is identified
-            $currentPriority = 0; // Default logic
-            
-            // PUSH TO WS IMMEDIATELY (Realtime)
-            $this->pushIncomingToWebSocket([
-                'conversation_id' => $conversationId,
-                'phone' => $waNumber,
-                'contact_name' => $contact_name,
-                'priority' => $currentPriority, 
-                'message' => [
-                    'id' => $msgId, // local DB ID
-                    'text' => $textBody,
-                    'type' => $messageType,
-                    'media_id' => $mediaId,
-                    'media_url' => $mediaUrl,
-                    'caption' => $mediaCaption,
-                    'time' => date('Y-m-d H:i:s'),
-                ],
-                // Target ID logic: if assigned, send to agent. Else '0' (Broadcast)? 
-                // Using '0' guarantees it pops up for everyone (Realtime solution)
-                // But let's stick to original logic: if assigned, target specific.
-                'target_id' => $assigned_user_id ? (string)$assigned_user_id : '0',
-                'kode_cabang' => $code
-            ]);
-
             // Auto Reply Processed Here (Async-ish)
             try {
                 if (!class_exists('\\App\\Models\\WAReplies')) {
