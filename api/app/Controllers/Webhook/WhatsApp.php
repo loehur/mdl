@@ -18,6 +18,9 @@ class WhatsApp extends Controller
      */
     public function index()
     {        
+        // DEBUG EXTREME: Cek apakah endpoint ini dipukul
+        file_put_contents('debug_wa_hit.txt', date('H:i:s') . " - HIT REQUEST \n", FILE_APPEND);
+
         $method = $_SERVER['REQUEST_METHOD'];
 
         if ($method === 'GET') {
@@ -310,9 +313,12 @@ class WhatsApp extends Controller
                 'priority' => $currentPriority
             ];
             
+            // Native Debug Log
+            file_put_contents('debug_wa_ws.txt', date('H:i:s') . " - PREPARE WS: " . json_encode($payloadDebug) . "\n", FILE_APPEND);
+            
             \Log::write("🚀 WS Debug: Attempting pushIncomingToWebSocket. Payload: " . json_encode($payloadDebug), 'webhook', 'WhatsApp');
 
-            $this->pushIncomingToWebSocket([
+            $res = $this->pushIncomingToWebSocket([
                 'type' => 'wa_masuk',
                 'target_id' => $targetId,
                 'kode_cabang' => $code,
@@ -363,6 +369,8 @@ class WhatsApp extends Controller
         
         $result = curl_exec($ch);
         curl_close($ch);
+        
+        file_put_contents('debug_wa_curl.txt', date('H:i:s') . " - CURL RES: " . ($result ?: 'FALSE/EMPTY') . "\n", FILE_APPEND);
         
         return $result;
     }
