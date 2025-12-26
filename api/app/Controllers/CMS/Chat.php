@@ -66,7 +66,7 @@ class Chat extends Controller
                         AND (m.status != 'read' OR m.status IS NULL)
                     ) as unread_count,
                     c.last_message as last_message,
-                    c.updated_at as last_message_time,
+                    c.last_message_at as last_message_time,
                     c.assigned_user_id,
                     COALESCE(c.code, '00') as kode_cabang
                 FROM wa_conversations c
