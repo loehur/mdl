@@ -134,7 +134,7 @@ class Tokopay extends Controller
                                         curl_setopt($ch, CURLOPT_POST, true);
                                         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($postData));
                                         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-                                        curl_setopt($ch, CURLOPT_TIMEOUT, 5); // Don't hang PHP
+                                        curl_setopt($ch, CURLOPT_TIMEOUT, 3); // Don't hang PHP
                                         
                                         $response = curl_exec($ch);
                                         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);

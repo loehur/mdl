@@ -292,9 +292,8 @@ class Moota extends Controller
         // Jika ada field target, proses sesuai target
         if (isset($record->target) && isset($record->book)) {
             $target = $record->target;
-            $book = $record->book;
 
-            \Log::write("Proc: $target, $book", 'webhook', 'Moota');
+            \Log::write("Proc: $target", 'webhook', 'Moota');
 
             if ($target == "kas_laundry") {
                 // FIX: use db(0) directly instead of year iteration

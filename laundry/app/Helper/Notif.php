@@ -14,7 +14,6 @@ class Notif extends Controller
         // Only log errors (not success)
         if (!$res['status']) {
             $jsonRes = json_encode($res);
-            $this->model('Log')->write("[send_wa] FAILED - HP: {$hp}, Response: " . $jsonRes);
         }
 
         return $res;
