@@ -104,6 +104,12 @@ class WhatsApp extends Controller
     private function handleInboundMessage($db, $data)
     {
         $msg = $data['whatsappInboundMessage'] ?? [];
+        
+        // DEBUG LOG: Inbound Message Start
+        if (class_exists('\Log')) {
+             \Log::write("INBOUND MSG: " . json_encode($msg), 'wa_inbound_debug', 'start');
+        }
+
         $textBodyToCheck = $msg['text']['body'] ?? '';
         
         if (empty($msg)) {
@@ -324,6 +330,11 @@ class WhatsApp extends Controller
     {
         $url = 'https://waserver.nalju.com/incoming';
         
+        // DEBUG LOG: WS Push Start
+        if (class_exists('\Log')) {
+             \Log::write("WS PUSH START: " . json_encode($data), 'wa_ws_debug', 'push');
+        }
+        
         // Use curl to post
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -333,6 +344,16 @@ class WhatsApp extends Controller
         curl_setopt($ch, CURLOPT_TIMEOUT, 2); // Fast timeout, don't block php
         
         $result = curl_exec($ch);
+        
+        // DEBUG LOG: WS Push Result
+        if (class_exists('\Log')) {
+             if (curl_errno($ch)) {
+                  \Log::write("WS PUSH ERROR: " . curl_error($ch), 'wa_ws_debug', 'error');
+             } else {
+                  \Log::write("WS PUSH RESULT: " . $result, 'wa_ws_debug', 'result');
+             }
+        }
+        
         curl_close($ch);
         
         return $result;
