@@ -42,7 +42,7 @@ return [
     'JAM_BUKA' => [
         'max_length' => 30,
         'patterns' => [
-            '/(ka*pa*n)\s*\b(bu*ka*|tu*tu*p)/i',
+            '/(ka*pa*n|ma*si*h)\s*\b(bu*ka*|tu*tu*p)/i',
             '/(ja*m)\s*\b(be*ra*pa*)\s*\b(bu*ka*|tu*tu*p)/i',
         ]
     ],

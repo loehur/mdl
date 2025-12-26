@@ -298,21 +298,24 @@ class WhatsApp extends Controller
             
             // Push to WebSocket Server AFTER priority is determined
             $this->pushIncomingToWebSocket([
-                'conversation_id' => $conversationId,
-                'phone' => $waNumber,
-                'contact_name' => $contact_name,
-                'priority' => $currentPriority, // ✅ Include priority!
-                'message' => [
-                    'id' => $msgId, // local DB ID
-                    'text' => $textBody,
-                    'type' => $messageType,
-                    'media_id' => $mediaId,
-                    'media_url' => $mediaUrl,
-                    'caption' => $mediaCaption,
-                    'time' => date('Y-m-d H:i:s'),
-                ],
-                'target_id' => $assigned_user_id ? (string)$assigned_user_id : '0',
-                'kode_cabang' => $code
+                'type' => 'wa_masuk',
+                'data' => [
+                    'conversation_id' => $conversationId,
+                    'phone' => $waNumber,
+                    'contact_name' => $contact_name,
+                    'priority' => $currentPriority, // ✅ Include priority!
+                    'message' => [
+                        'id' => $msgId, // local DB ID
+                        'text' => $textBody,
+                        'type' => $messageType,
+                        'media_id' => $mediaId,
+                        'media_url' => $mediaUrl,
+                        'caption' => $mediaCaption,
+                        'time' => date('Y-m-d H:i:s'),
+                    ],
+                    'target_id' => $assigned_user_id ? (string)$assigned_user_id : '0',
+                    'kode_cabang' => $code
+                ]
             ]);
         }
     }
@@ -515,6 +518,7 @@ class WhatsApp extends Controller
                 'code' => $code,
                 'status' => 'open',
                 'last_in_at' => date('Y-m-d H:i:s'),
+                'last_message_at' => date('Y-m-d H:i:s'),
                 'last_message' => $lastMessage,
             ];
             $db->update('wa_conversations', 
@@ -536,6 +540,7 @@ class WhatsApp extends Controller
             'code' => $code,
             'status' => 'open',
             'created_at' => date('Y-m-d H:i:s'),
+            'last_message_at' => date('Y-m-d H:i:s'),
             'last_message' => $lastMessage,
         ];
 

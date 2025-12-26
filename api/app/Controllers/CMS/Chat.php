@@ -35,7 +35,8 @@ class Chat extends Controller
             // Modified to include kode_cabang from database using local column 'code'
             
             $userId = $_GET['user_id'] ?? null;
-            $whereClause = "c.updated_at >= (NOW() - INTERVAL 3 DAY)";
+            // Use last_message_at for filtering active conversations
+            $whereClause = "c.last_message_at >= (NOW() - INTERVAL 3 DAY)";
             
             // List of admin IDs with full access
             $adminIds = ['DEV', 'AYAH', 'IBU', 'TABLET'];
@@ -66,12 +67,12 @@ class Chat extends Controller
                         AND (m.status != 'read' OR m.status IS NULL)
                     ) as unread_count,
                     c.last_message as last_message,
-                    c.updated_at as last_message_time,
+                    c.last_message_at as last_message_time,
                     c.assigned_user_id,
                     COALESCE(c.code, '00') as kode_cabang
                 FROM wa_conversations c
                 WHERE $whereClause
-                ORDER BY c.priority DESC, c.updated_at DESC
+                ORDER BY c.priority DESC, c.last_message_at DESC
             ";
     
             $query = $db->query($sql);
