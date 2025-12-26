@@ -563,13 +563,13 @@ class WAReplies
         }
         
         $variations = [
-            "Madinah Laundry buka {$daysStr}, dari pukul {$openTime} - {$closeTime}. 🕐",
-            "Kami buka {$daysStr} pukul {$openTime} - {$closeTime}. ⏰",
-            "Jam operasional: {$openTime} - {$closeTime} ({$daysStr}) 📍",
-            "Buka {$daysStr} jam {$openTime} sampai {$closeTime} ya! 😊",
-            "Kami melayani dari jam {$openTime} sampai {$closeTime} 🕐",
-            "Operasional {$daysStr} pukul {$openTime} - {$closeTime} 😊",
-            "Buka {$daysStr}, jam {$openTime} sampai {$closeTime} 👍"
+            "Madinah Laundry buka {$daysStr}, dari pukul {$openTime} - {$closeTime}. 🕐\n\nAda yang bisa kami bantu? 😊",
+            "Kami buka {$daysStr} pukul {$openTime} - {$closeTime}. ⏰\n\nAda yang ingin ditanyakan? 🙏",
+            "Jam operasional: {$openTime} - {$closeTime} ({$daysStr}) 📍\n\nAda yang bisa dibantu? 😊",
+            "Buka {$daysStr} jam {$openTime} sampai {$closeTime} ya! 😊\n\nSilakan, ada yang perlu dibantu? 🙏",
+            "Kami melayani dari jam {$openTime} sampai {$closeTime} 🕐\n\nAda yang bisa kami bantu hari ini? 😊",
+            "Operasional {$daysStr} pukul {$openTime} - {$closeTime} 😊\n\nSilakan, ada yang ditanyakan? 👋",
+            "Buka {$daysStr}, jam {$openTime} sampai {$closeTime} 👍\n\nAda yang bisa dibantu? 😊"
         ];
         
         $text = $holidayPrefix . $variations[array_rand($variations)];
@@ -695,11 +695,31 @@ class WAReplies
     function handleJam_tutup($phoneIn, $waNumber){
         $waService = $this->getWaService();
         
+        // Load operating hours config untuk dynamic response
+        $config = require __DIR__ . '/../Config/OperatingHours.php';
+        $openHour = str_pad($config['open_hour'], 2, '0', STR_PAD_LEFT);
+        $openMin = str_pad($config['open_minute'], 2, '0', STR_PAD_LEFT);
+        $closeHour = str_pad($config['close_hour'], 2, '0', STR_PAD_LEFT);
+        $closeMin = str_pad($config['close_minute'], 2, '0', STR_PAD_LEFT);
+        
+        $openTime = "{$openHour}.{$openMin}";
+        $closeTime = "{$closeHour}.{$closeMin}";
+        
+        // Working days string
+        $workingDays = $config['working_days'];
+        if (count($workingDays) == 7) {
+            $daysStr = "setiap hari";
+        } elseif (count($workingDays) == 6 && !in_array(7, $workingDays)) {
+            $daysStr = "Senin-Sabtu";
+        } else {
+            $daysStr = "setiap hari";
+        }
+        
         $variations = [
-            "Mohon maaf, kami sedang tutup. Kami buka Senin-Sabtu pukul 08:00-17:00. Pesan Anda akan kami balas saat jam kerja. Terima kasih 🙏",
-            "Maaf ya, di luar jam operasional kami nih. Kami buka Senin-Sabtu jam 08:00-17:00. Chat Anda nanti kami respon saat buka ya 😊",
-            "Halo! Saat ini kami sudah tutup. Jam buka kami: Senin-Sabtu 08:00-17:00. Kami akan membalas pesan Anda besok. Terima kasih 🙏",
-            "Mohon maaf, kami di luar jam operasional. Buka lagi: Senin-Sabtu pukul 08:00-17:00. Pesan akan dibalas saat jam kerja. Terima kasih 😊"
+            "Mohon maaf, kami sedang tutup. Kami buka {$daysStr} pukul {$openTime}-{$closeTime}. Silakan tinggalkan pesan, nanti akan kami balas saat jam kerja. Terima kasih 🙏",
+            "Maaf ya, sedang di luar jam operasional. Kami buka {$daysStr} jam {$openTime}-{$closeTime}. Tinggalkan pesan saja ya, nanti kami respon saat buka 😊",
+            "Halo! Saat ini kami sudah tutup. Jam buka kami: {$daysStr} {$openTime}-{$closeTime}. Silakan tinggalkan pesan, kami akan membalas saat jam kerja. Terima kasih 🙏",
+            "Mohon maaf, kami di luar jam operasional. Buka lagi: {$daysStr} pukul {$openTime}-{$closeTime}. Silakan tinggalkan pesan Anda, nanti akan kami balas saat jam kerja. Terima kasih 😊"
         ];
         
         $text = $variations[array_rand($variations)];
