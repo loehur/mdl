@@ -517,7 +517,6 @@ class WhatsApp extends Controller
                 'assigned_user_id' => $assigned_user_id,
                 'code' => $code,
                 'status' => 'open',
-                'last_in_at' => date('Y-m-d H:i:s'),
                 'last_message_at' => date('Y-m-d H:i:s'),
                 'last_message' => $lastMessage,
             ];
