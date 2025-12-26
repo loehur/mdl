@@ -31,8 +31,8 @@ return [
         'patterns' => [
             '/^\s*(cek|sta*tu*s)\s*$/i',
             '/(s*u*da*h*|u*da*h*|da*h*)\s*\b(si+a+p|be*re*s|se*ls*e*s*a*i*|re*a*dy*i*)/i',
-            '/(s*u*da*h*|u*da*h*|da*h*)\s*\b(bi*sa*|bo*le*h|da*pa*t)\s*\b(di*(ambi*l|je*mpu*t)/i',
-            '/(ka*pa*n)\s*\b(bi*sa*|bo*le*h|da*pa*t)\s*\b(di*(ambi*l|je*mpu*t)/i',
+            '/(s*u*da*h*|u*da*h*|da*h*)\s*\b(bi*sa*|bo*le*h|da*pa*t)\s*\b(di*(ambi*l|je*mpu*t))/i',
+            '/(ka*pa*n)\s*\b(bi*sa*|bo*le*h|da*pa*t)\s*\b(di*(ambi*l|je*mpu*t))/i',
         ]
     ],
 
