@@ -30,6 +30,10 @@ class WAReplies
      */
     private function shouldReply($waNumber, $handler, $cooldownMinutes = 5)
     {
+        if (class_exists('\Log')) {
+            \Log::write("Checking cooldown: $handler (cooldown: {$cooldownMinutes}m)", 'auto_reply', 'cooldown');
+        }
+        
         $db = DB::getInstance(0);
 
         // Query last auto-reply for this number + handler
@@ -45,6 +49,9 @@ class WAReplies
             
             // Still in cooldown period
             if (date('Y-m-d H:i:s') < $cooldownEnd) {
+                if (class_exists('\Log')) {
+                    \Log::write("✗ Still in cooldown until: $cooldownEnd", 'auto_reply', 'cooldown');
+                }
                 return false;
             }
         }
@@ -70,6 +77,10 @@ class WAReplies
             ]);
         }
         
+        if (class_exists('\Log')) {
+            \Log::write("✓ Cooldown OK, can send reply", 'auto_reply', 'cooldown');
+        }
+        
         return true;
     }
     
@@ -83,6 +94,12 @@ class WAReplies
  */
     public function process($phoneIn, $textBody, $waNumber)
     {
+        // Log entry point
+        if (class_exists('\Log')) {
+            \Log::write("=== AUTO REPLY PROCESS START ===", 'auto_reply', 'process');
+            \Log::write("Phone: $waNumber | Message: $textBody", 'auto_reply', 'process');
+        }
+        
         $textBodyToCheck = strtolower(trim($textBody ?? ''));
         $messageLength = mb_strlen($textBodyToCheck);
         
@@ -102,8 +119,14 @@ class WAReplies
             // Check regex patterns
             foreach ($patterns as $patternIndex => $pattern) {
                 if (preg_match($pattern, $textBodyToCheck)) {
+                    if (class_exists('\Log')) {
+                        \Log::write("✓ Pattern matched: $handler", 'auto_reply', 'process');
+                    }
                     // RATE LIMITING: Check if can send reply (cooldown)
                     if (!$this->shouldReply($waNumber, $handler)) {
+                        if (class_exists('\Log')) {
+                            \Log::write("✗ Handler $handler in cooldown, skipped", 'auto_reply', 'process');
+                        }
                         continue 2; // Skip to next handler (this handler is in cooldown)
                     }
                     
@@ -112,6 +135,9 @@ class WAReplies
                     $methodName = 'handle' . $handlerName;
                     
                     if (method_exists($this, $methodName)) {
+                        if (class_exists('\Log')) {
+                            \Log::write("→ Calling handler: $methodName", 'auto_reply', 'process');
+                        }
                         $this->$methodName($phoneIn, $waNumber);
                         
                         // Get priority from config, default to 0 if not set
@@ -144,7 +170,13 @@ class WAReplies
         // ============================================================
         
         // Rate limiting: Prevent AI from being called too frequently
+        if (class_exists('\Log')) {
+            \Log::write("No keyword match, checking AI fallback", 'auto_reply', 'process');
+        }
         if (!$this->shouldReply($waNumber, 'AI_FALLBACK')) {
+            if (class_exists('\Log')) {
+                \Log::write("✗ AI_FALLBACK in cooldown", 'auto_reply', 'process');
+            }
             // AI is in cooldown, skip - don't update priority
             return (object) [
                 'status' => null,
@@ -153,7 +185,14 @@ class WAReplies
             ];
         }
         
+        if (class_exists('\Log')) {
+            \Log::write("→ Calling AI handler", 'auto_reply', 'process');
+        }
         $aiResult = $this->handleWithAI($phoneIn, $textBody, $waNumber);
+        
+        if (class_exists('\Log')) {
+            \Log::write("AI result: " . ($aiResult === false ? 'FALSE' : $aiResult), 'auto_reply', 'process');
+        }
         
         // Check if AI successfully detected a valid intent (not FALSE)
         if ($aiResult !== false && strtoupper($aiResult) !== 'FALSE') {

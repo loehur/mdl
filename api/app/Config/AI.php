@@ -23,8 +23,8 @@ class AI
     /**
      * OpenAI Configuration (loaded from Env.php)
      */
-    private static $openAiApiKey = OPENAI_API_KEY ?? '';
-    private static $openAiModel = OPENAI_MODEL ?? 'gpt-4o-mini';
+    private static $openAiApiKey = \Env::OPENAI_API_KEY ?? '';
+    private static $openAiModel = \Env::OPENAI_MODEL ?? 'gpt-4o-mini';
 
     /**
      * AI Settings
