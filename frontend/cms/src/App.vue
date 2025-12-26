@@ -2080,12 +2080,11 @@ window.addEventListener('focus', () => {
         <div class="absolute bottom-0 left-0 right-0 p-4 bg-[#0f172a] border-t border-slate-800 z-30">
            
            <!-- Case 1: Conversation Closed -->
-           <div v-if="activeConversation.status === 'closed'" class="flex flex-col items-center justify-center p-4 bg-[#1e293b]/50 rounded-xl border border-slate-700/50 text-center">
-               <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+           <div v-if="activeConversation.status === 'closed'" class="flex items-center justify-center gap-2 p-2 bg-[#1e293b]/50 rounded-lg border border-slate-700/50">
+               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                </svg>
-               <h3 class="text-slate-300 font-medium text-sm">Percakapan Ditutup</h3>
-               <p class="text-slate-500 text-xs mt-1">Pelanggan belum membuka percakapan, akses CSW masih tertutup.</p>
+               <span class="text-slate-400 text-xs font-medium">CSW Closed</span>
            </div>
 
            <!-- Case 2: Active Chat Input -->
