@@ -297,13 +297,9 @@ class WhatsApp extends Controller
             }
             
             // Push to WebSocket Server AFTER priority is determined
-            $targetId = $assigned_user_id ? (string)$assigned_user_id : '0';
-            
-            // Push to WebSocket Server AFTER priority is determined
-            $targetId = $assigned_user_id ? (string)$assigned_user_id : '0';
-            
-            // Push to WebSocket Server AFTER priority is determined
-            $targetId = $assigned_user_id ? (string)$assigned_user_id : '0';
+            // WARNING: Force broadcast to '0' so ALL agents see the incoming message immediately
+            // This fixes the "Not Real Time" issue where message was routed only to assigned user
+            $targetId = '0'; 
             
             $this->pushIncomingToWebSocket([
                 'type' => 'wa_masuk',
