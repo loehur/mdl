@@ -403,8 +403,13 @@ class Antrian extends Controller
          session_write_close();
       }
 
-      //paksa kirim template
-      $res = $this->helper("Notif")->send_wa($hp, $jsonText, 'template');
+      // Cek apakah no HP ada di tabel user
+      $whereUser = "no_user = '" . $hp . "'";
+      $userExists = $this->db(0)->count_where('user', $whereUser);
+      
+      // Jika HP terdaftar di user, kirim tanpa template. Jika tidak, paksa kirim template
+      $useTemplate = ($userExists > 0) ? 'free' : 'template';
+      $res = $this->helper("Notif")->send_wa($hp, $jsonText, $useTemplate);
       
       $setOne = "no_ref = '" . $noref . "' AND tipe = 1";
       $where = $this->wCabang . " AND " . $setOne;
