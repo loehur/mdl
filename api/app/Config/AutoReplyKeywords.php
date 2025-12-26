@@ -1,13 +1,8 @@
 <?php 
-/**
- * Auto Reply Keywords Configuration
- * Format: [handler_name => ['max_length' => int, 'keywords' => [...]]]
- * max_length: Maksimal panjang pesan (dalam karakter) untuk trigger handler ini
- * Set 0 untuk unlimited (tidak ada batasan panjang)
- */
 return [  
     'PEMBUKA' => [
     'max_length' => 20,
+    'priority' => 0,
         'patterns' => [
             '/^\s*(ping|ka*k|ba*n*g|b*a*pa*k|i*bu*k*|a*de*k|he*a*l+o|as+a*l+a*mu*a*l+a*i*ku*m|tes)\s*$/i',
             '/(pa*gi|so*re|si*a*ng|ma*la*m|ha*e*l+o+)\s*\b(ba*n*g|ka*k|pa*k|i*bu*k*|a*de*k*|a*na*k)/i',
@@ -16,6 +11,7 @@ return [
 
     'NOTA' => [
         'max_length' => 100,
+        'priority' => 0,
         'patterns' => [
             '/^\s*(bon|nota+|stru*k|bil+|ta*gi*ha*n|re*si)\s*$/i',
             '/ata*s\s*na*ma*/i',
@@ -29,6 +25,7 @@ return [
 
     'STATUS' => [
         'max_length' => 100,
+        'priority' => 0,
         'patterns' => [
             '/^\s*(cek|sta*tu*s)\s*$/i',
             '/(s*u*da*h*|u*da*h*|da*h*|ka*pa*n)\s*\b(si+a+p|be*re*s|ke*la*r|se*ls*e*s*a*i*|re*a*dy*i*|j*adi*)/i',
@@ -39,8 +36,18 @@ return [
         ]
     ],
 
+    'MINTA_JEMPUT_ANTAR' => [
+        'max_length' => 100,
+        'priority' => 2,
+        'patterns' => [
+            '/^\s*(je*m*pu*t|anta*r)\s*$/i',
+            '/(bi*sa*|bo*le*h|to*lo*ng)\s*\b(je*m*pu*t|anta*r)/i',
+        ]
+    ],
+
     'JAM_BUKA' => [
         'max_length' => 30,
+        'priority' => 0,
         'patterns' => [
             '/(ka*pa*n|ma*si*h)\s*\b(bu*ka*|tu*tu*p)/i',
             '/(ja*m)\s*\b(be*ra*pa*)\s*\b(bu*ka*|tu*tu*p)/i',
@@ -49,6 +56,7 @@ return [
 
     'PENUTUP' => [
         'max_length' => 20,
+        'priority' => 0,
         'patterns' => [
             '/\bma*ka*(s|c)(i|e)*h\b/i',
             '/\bte*ri*ma*ka*si*h\b/i',

@@ -298,12 +298,11 @@ class Antrian extends Controller
       $user = $_POST['user'];
       $id_transaksi = $_POST['no_ref'];
 
-
-
       $setOne = "transaksi_jenis = 1 AND no_ref = " . $id_transaksi . " AND id_jenis_surcas = " . $jenis;
       $where = $this->wCabang . " AND " . $setOne;
       $data_main = $this->db(0)->count_where('surcas', $where);
 
+      
       if ($data_main < 1) {
          $data = [
             'id_cabang' => $this->id_cabang,
@@ -369,8 +368,33 @@ class Antrian extends Controller
       $setOne = "no_ref = '" . $idPenjualan . "' AND tipe = 2";
       $where = $this->wCabang . " AND " . $setOne;
       $dm = $this->db(0)->get_where_row('notif', $where);
+      
+      if (!$dm) {
+         $this->writeLog('notifReadySend', 'WARNING', 'Notif tidak ditemukan', ['id_penjualan' => $idPenjualan]);
+         return;
+      }
+      
+      // Check state to prevent duplicate sends
+      $currentState = $dm['state'] ?? '';
+      
+      // Skip if already sent or currently processing
+      if (in_array($currentState, ['sent', 'processing'])) {
+         $this->writeLog('notifReadySend', 'WARNING', 'Notif sudah terkirim atau sedang diproses', ['id_penjualan' => $idPenjualan, 'state' => $currentState]);
+         return;
+      }
+      
+      // Set state to 'processing' as a lock before sending
+      $lockSet = ['state' => 'processing'];
+      $lockResult = $this->db(0)->update('notif', $lockSet, $where);
+      
+      if ($lockResult['errno'] <> 0) {
+         $this->writeLog('notifReadySend', 'ERROR', 'Gagal lock notif', ['id_penjualan' => $idPenjualan, 'error' => $lockResult['error']]);
+         return;
+      }
+      
       $hp = $dm['phone'];
       $text = $dm['text'];
+      
       // Text sudah final dari WAGenerator, tidak perlu replace lagi
       $res = $this->helper('Notif')->send_wa($hp, $text, false);
 
@@ -431,51 +455,63 @@ class Antrian extends Controller
       $whereUser = "no_user IN (" . implode(', ', $hpVariations) . ")";
       $userExists = $this->db(0)->count_where('user', $whereUser);
       
-      // Jika HP terdaftar di user, kirim tanpa template. Jika tidak, paksa kirim template
+      // Check if notification already exists to prevent duplicate sends
+      $setOne = "no_ref = '" . $noref . "' AND tipe = 1";
+      $where = $this->wCabang . " AND " . $setOne;
+      $existingNotif = $this->db(0)->count_where('notif', $where);
+      
+      if ($existingNotif === 0) {
+         // Notification already sent, skip sending again
+         $this->writeLog('sendNotif', 'WARNING', 'Notif already exists, skipped sending', ['no_ref' => $noref, 'hp' => $hp]);
+         echo json_encode(['status' => 'exists', 'message' => 'Notifikasi sudah pernah dikirim']);
+         return;
+      }
+      
+      // INSERT PENDING RECORD FIRST as distributed lock to prevent race condition
+      // This ensures that if another request comes in before WA is sent, it will see this record
+      $id_notif = (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9);
+      $pendingVals = [
+         'id_notif' => $id_notif,
+         'insertTime' => $time,
+         'id_cabang' => $this->id_cabang,
+         'no_ref' => $noref,
+         'phone' => $hp,
+         'text' => $text,
+         'tipe' => $tipe,
+         'id_api' => '',
+         'state' => 'pending'
+      ];
+      
+      $insertResult = $this->db(0)->insert('notif', $pendingVals);
+      if ($insertResult['errno'] <> 0) {
+         // Insert failed (might be duplicate key if another request just inserted)
+         $this->writeLog('sendNotif', 'WARNING', 'Insert pending failed - likely duplicate', ['no_ref' => $noref, 'error' => $insertResult['error']]);
+         echo json_encode(['status' => 'exists', 'message' => 'Notifikasi sedang diproses']);
+         return;
+      }
+      
+      // NOW send WA (protected by the record we just inserted)
       $useTemplate = ($userExists > 0) ? 'free' : 'template';
       $res = $this->helper("Notif")->send_wa($hp, $jsonText, $useTemplate);
       
-      $setOne = "no_ref = '" . $noref . "' AND tipe = 1";
-      $where = $this->wCabang . " AND " . $setOne;
-
       $apiData = $res['data']['data'] ?? $res['data'] ?? [];
       $idApi = $apiData['id'] ?? ($apiData['message_id'] ?? '');
 
+      // Update the record with WA API result
       if ($res['status']) {
-         $vals = [
-            'id_notif' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
-            'insertTime' => $time,
-            'id_cabang' => $this->id_cabang,
-            'no_ref' => $noref,
-            'phone' => $hp,
-            'text' => $text,
-            'tipe' => $tipe,
+         $updateVals = [
             'id_api' => $idApi,
             'state' => 'sent'
          ];
+         $this->db(0)->update('notif', $updateVals, $where);
+         echo 0;
       } else {
-         $vals = [
-            'id_notif' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
-            'insertTime' => $time,
-            'id_cabang' => $this->id_cabang,
-            'no_ref' => $noref,
-            'phone' => $hp,
-            'text' => $text,
-            'tipe' => $tipe,
-            'id_api' => '',
+         // WA send failed, update state to pending for retry
+         $updateVals = [
             'state' => 'pending'
          ];
-      }
-
-      $data_main = $this->db(0)->count_where('notif', $where);
-      if ($data_main < 1) {
-         $do = $this->db(0)->insert('notif', $vals);         
-         if ($do['errno'] <> 0) {
-             $this->model('Log')->write("[sendNotif] Insert Notif Error: " . $do['error']);
-             echo $do['error'];
-          } else {
-              echo 0;
-          }
+         $this->db(0)->update('notif', $updateVals, $where);
+         echo json_encode(['status' => 'failed', 'message' => 'Gagal mengirim WA']);
       }
    }
 

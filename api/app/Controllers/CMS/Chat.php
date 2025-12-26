@@ -24,8 +24,7 @@ class Chat extends Controller
             // Auto-close expired conversations (CSW timeout > 22 hours)
             // Rule: If last message was > 22 hours ago, close the session
             $sqlClose = "UPDATE wa_conversations 
-                         SET status = 'closed', priority = 0
-                         WHERE status = 'open' 
+                         SET status = 'closed' WHERE status = 'open' 
                          AND last_in_at < (NOW() - INTERVAL 23 HOUR)";
             $db->query($sqlClose);
 

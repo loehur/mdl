@@ -155,6 +155,7 @@ class WhatsApp extends Controller
             $code = $user_data->code ?? null;
             $contact_name = $user_data->customer_name ?? $cleanPhone;
             
+
             // Extract message text EARLY for lastMessageSummary
             $messageText = '';
             if ($messageType === 'text') {
@@ -177,9 +178,8 @@ class WhatsApp extends Controller
                  $lastMessageSummary = "[$messageType]";
             }
 
-            $conversationId = $this->getOrCreateConversation($db, $waNumber, $contact_name, $assigned_user_id, $code, $lastMessageSummary);
         } catch (\Exception $e) {
-            \Log::write("Error processing pending notifs: " . $e->getMessage(), 'webhook', 'WhatsApp');
+            \Log::write("Error processing user data: " . $e->getMessage(), 'webhook', 'WhatsApp');
         }
 
         $textBody = null;
@@ -250,8 +250,6 @@ class WhatsApp extends Controller
 
         // Step 4: Save message to wa_messages_in
         $messageData = [
-            // 'conversation_id' => $conversationId, // REMOVED: Table/Field deleted by user
-            // 'customer_id' => $customerId, // REMOVED: Table/Field deleted by user
             'phone' => $waNumber,
             'type' => $messageType,
             'text' => $textBody,
@@ -277,28 +275,30 @@ class WhatsApp extends Controller
                 if (!class_exists('\\App\\Models\\WAReplies')) {
                     require_once __DIR__ . '/../../Models/WAReplies.php';
                 }
-                $autoReplyTriggered = (new \App\Models\WAReplies())->process($phoneIn, $messageText, $waNumber);
+                $autoReplyResult = (new \App\Models\WAReplies())->process($phoneIn, $messageText, $waNumber);
                 
-                $currentPriority = 0;
-                if ($autoReplyTriggered) {           
-                    // Update message status to 'read' since it was processed by auto-reply
+                // Extract values from result object
+                $currentPriority = $autoReplyResult->priority;
+                $messageStatus = $autoReplyResult->status ?? null;
+                
+                // Update message status if status is set
+                if ($messageStatus === 'read') {
                     $db->update('wa_messages_in', 
                         ['status' => 'read'], 
                         ['id' => $msgId]
                     );
-                    
-                    // Optional: Push status update to 'read' if strict accuracy needed?
-                    // For now, instant notification is more important.
-                } else {
-                    $currentPriority = 4;
-                     // Update Priority in DB if needed (already set default in WS payload)
-                     if (!empty($code)) {
-                        $db->update('wa_conversations', 
-                            ['priority' => 4], 
-                            ['wa_number' => $waNumber]
-                        );
-                     }
                 }
+                
+                // Get or create conversation with all updates in one call
+                $conversationId = $this->getOrCreateConversationWithPriority(
+                    $db, 
+                    $waNumber, 
+                    $contact_name, 
+                    $assigned_user_id, 
+                    $code, 
+                    $lastMessageSummary,
+                    $currentPriority
+                );
 
                 $this->pushIncomingToWebSocket([
                     'conversation_id' => $conversationId,
@@ -524,9 +524,10 @@ class WhatsApp extends Controller
     }
 
     /**
-     * Get existing conversation or create new one
+     * Get existing conversation or create new one with priority update
+     * This combines conversation creation/update with priority in one DB operation
      */
-    private function getOrCreateConversation($db, $waNumber, $contactName = null, $assigned_user_id = null, $code = null, $lastMessage = null)
+    private function getOrCreateConversationWithPriority($db, $waNumber, $contactName = null, $assigned_user_id = null, $code = null, $lastMessage = null, $priority = null)
     {
         // Try to find existing conversation
         $existing = $db->get_where('wa_conversations', ['wa_number' => $waNumber]);
@@ -542,9 +543,15 @@ class WhatsApp extends Controller
                 'last_message_at' => date('Y-m-d H:i:s'),
                 'last_message' => $lastMessage,
             ];
+            
+            // Only update priority if not null
+            if ($priority !== null) {
+                $updateData['priority'] = $priority;
+            }
+            
             $db->update('wa_conversations', 
                 $updateData, 
-                ['wa_number' => $waNumber] // Link by wa_number
+                ['wa_number' => $waNumber]
             );
             
             // Mark all previous messages as read using phone
@@ -565,6 +572,11 @@ class WhatsApp extends Controller
             'updated_at' => date('Y-m-d H:i:s'),
             'last_message' => $lastMessage,
         ];
+        
+        // Only set priority if not null
+        if ($priority !== null) {
+            $convData['priority'] = $priority;
+        }
 
         if($db->insert('wa_conversations', $convData)) {
              return $db->insert_id();

@@ -74,12 +74,13 @@ class WAReplies
     }
     
     /**
-     * Process inbound message text and perform actions
-     * 
-     * @param string $phoneIn CSV string of phone numbers properly quoted for SQL IN clause
-     * @param string $textBody The text body of the message
-     * @param string $waNumber The sender's WhatsApp number (e.g. +62...)
-     */
+ * Process inbound message text and perform actions
+ * 
+ * @param string $phoneIn CSV string of phone numbers properly quoted for SQL IN clause
+ * @param string $textBody The text body of the message
+ * @param string $waNumber The sender's WhatsApp number (e.g. +62...)
+ * @return object { ai: bool, priority: int }
+ */
     public function process($phoneIn, $textBody, $waNumber)
     {
         $textBodyToCheck = strtolower(trim($textBody ?? ''));
@@ -87,15 +88,6 @@ class WAReplies
         
         // Load keyword configuration
         $keywordConfig = require __DIR__ . '/../Config/AutoReplyKeywords.php';
-        
-        // Special case: Single character message -> PEMBUKA
-        if ($messageLength === 1) {
-            if ($this->shouldReply($waNumber, 'PEMBUKA')) {
-                $this->handlePembuka($phoneIn, $waNumber);
-                return true;
-            }
-            return false;
-        }
         
         // Check each handler's patterns
         foreach ($keywordConfig as $handler => $config) {
@@ -121,17 +113,67 @@ class WAReplies
                     
                     if (method_exists($this, $methodName)) {
                         $this->$methodName($phoneIn, $waNumber);
-                        return true;
+                        
+                        // Get priority from config, default to 0 if not set
+                        $priority = $config['priority'] ?? 0;
+                        
+                        return (object) [
+                            'status' => 'read',
+                            'ai' => false,
+                            'priority' => $priority
+                        ];
                     }
                 }
             }
         }
 
+        // ambiguous -> PEMBUKA
+        if ($messageLength <= 8) {
+            if ($this->shouldReply($waNumber, 'PEMBUKA')) {
+                $this->handlePembuka($phoneIn, $waNumber);
+            }
+            return (object) [
+                'status' => 'read',
+                'ai' => false,
+                'priority' => 0
+            ];
+        }
+
         // ============================================================
         // FALLBACK: AI-Powered Intent Detection
         // ============================================================
+        
+        // Rate limiting: Prevent AI from being called too frequently
+        if (!$this->shouldReply($waNumber, 'AI_FALLBACK')) {
+            // AI is in cooldown, skip - don't update priority
+            return (object) [
+                'status' => null,
+                'ai' => false,
+                'priority' => null  // null = don't update priority
+            ];
+        }
+        
         $aiResult = $this->handleWithAI($phoneIn, $textBody, $waNumber);
-        return $aiResult;
+        
+        // Check if AI successfully detected a valid intent (not FALSE)
+        if ($aiResult !== false && strtoupper($aiResult) !== 'FALSE') {
+            // AI successfully detected intent, get priority from config
+            $aiIntent = strtoupper($aiResult);
+            $aiPriority = isset($keywordConfig[$aiIntent]) ? ($keywordConfig[$aiIntent]['priority'] ?? 4) : 4;
+            
+            return (object) [
+                'status' => 'read',
+                'ai' => true,
+                'priority' => $aiPriority
+            ];
+        }
+
+        // AI failed or returned FALSE (unknown intent) - needs manual attention
+        return (object) [
+            'status' => null,
+            'ai' => true,
+            'priority' => 4
+        ];
     }
     
     private function handleStatus($phoneIn, $waNumber)
@@ -538,6 +580,7 @@ class WAReplies
             "Oke siap! 😊",
             "Siapp 👍",
             "Ok! 😊",
+
             // Versi dengan terima kasih
             "Baik, terima kasih! 🙏",
             "Siap, terima kasih! 😊",
@@ -548,7 +591,41 @@ class WAReplies
             "Ok siap, terima kasih 😊",
             "Oke siap, terima kasih! 😊",
             "Siapp, terima kasih 👍",
-            "Ok, terima kasih! 😊"
+            "Ok, terima kasih! 😊",
+        ];
+        
+        $text = $variations[array_rand($variations)];
+        $res = $waService->sendFreeText($waNumber, $text);
+        if ($res['success']) {
+            $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+        }
+    }
+
+    function handleMinta_jemput_antar($phoneIn, $waNumber){
+        $waService = $this->getWaService();
+        
+        // Random variations untuk konfirmasi request jemput/antar
+        $variations = [
+            "Baik, kami konfirmasi ke abang driver dulu ya. Ditunggu.. 🚗",
+            "Siap! kami cek schedule bg driver dulu ya, tunggu sebentar. 😊",
+            "Oke, kami hubungi driver dulu ya. Mohon ditunggu sebentar 🙏",
+            "Baik, kami cek jadwal abang driver dulu. Ditunggu ya 😊",
+            "Siap, kami konfirmasi ke team driver dulu. Tunggu sebentar ya 🚗",
+            "Oke, kami cek ketersediaan driver dulu ya. Mohon ditunggu 👍",
+            "Baik, kami koordinasi dengan driver dulu. Sebentar ya 😊",
+            "Siap! kami tanyakan ke abang driver dulu. Ditunggu 🚗",
+            "Oke, kami cek schedule abang driver dulu ya. Tunggu sebentar 🙏",
+            "Baik, kami konfirmasi ketersediaan driver dulu. Mohon ditunggu ya 😊",
+            "Siap! kami hubungi team driver dulu. Sebentar ya 🚗",
+            "Oke, kami cek jadwal driver terdekat dulu. Ditunggu 👍",
+            "Baik, kami tanyakan ke driver dulu ya. Tunggu sebentar 😊",
+            "Siap! kami koordinasi sama abang driver dulu. Mohon ditunggu 🚗",
+            "Oke, kami cek driver yang available dulu ya. Sebentar 🙏",
+            "Baik, kami konfirmasi sama driver dulu. Ditunggu ya 😊",
+            "Siap! kami hubungi abang driver terdekat dulu. Tunggu ya 🚗",
+            "Oke, kami cek schedule team driver dulu. Mohon ditunggu 👍",
+            "Baik, kami tanya ke driver area sana dulu ya. Sebentar 😊",
+            "Siap! kami koordinasi ke driver dulu. Ditunggu ya 🚗"
         ];
         
         $text = $variations[array_rand($variations)];
@@ -621,146 +698,86 @@ class WAReplies
     }
     
     /**
-     * AI-Powered Intent Detection (Future Implementation)
+     * AI-Powered Intent Detection
      * 
      * @param string $phoneIn CSV string of phone numbers
      * @param string $textBody Original message text
      * @param string $waNumber Sender's WhatsApp number
-     * @return bool True if handled, false otherwise
+     * @return string|false Intent name if handled successfully, false otherwise
      */
     private function handleWithAI($phoneIn, $textBody, $waNumber)
     {
-        // LOG: AI handler called
-        if (class_exists('\\Log')) {
-            \Log::write("AI handler called for message: '{$textBody}'", 'auto_reply', 'ai');
-        }
-        
         try {
             // Check if AI Config class exists
             if (!class_exists('\\App\\Config\\AI')) {
-                if (class_exists('\\Log')) {
-                    \Log::write("Loading AI Config from: " . __DIR__ . '/../Config/AI.php', 'auto_reply', 'ai');
-                }
-                
                 $configFile = __DIR__ . '/../Config/AI.php';
                 if (!file_exists($configFile)) {
-                    if (class_exists('\\Log')) {
-                        \Log::write("❌ AI Config file NOT FOUND: {$configFile}", 'auto_reply', 'ai');
-                    }
                     return false;
                 }
-                
                 require_once $configFile;
-                
-                if (class_exists('\\Log')) {
-                    \Log::write("✅ AI Config loaded successfully", 'auto_reply', 'ai');
-                }
             }
             
             // Check if AI is enabled
-            if (class_exists('\\Log')) {
-                \Log::write("Checking if AI is enabled...", 'auto_reply', 'ai');
-            }
-            
             if (!\App\Config\AI::isEnabled()) {
-                if (class_exists('\\Log')) {
-                    \Log::write("❌ AI is DISABLED (check Config/AI.php -> \$aiEnabled)", 'auto_reply', 'ai');
-                }
-                return false; // AI disabled or API key not set
+                return false;
             }
             
         } catch (\Exception $e) {
-            if (class_exists('\\Log')) {
-                \Log::write("❌ Exception during AI config check: " . $e->getMessage(), 'auto_reply', 'ai');
-                \Log::write("Stack trace: " . $e->getTraceAsString(), 'auto_reply', 'ai');
-            }
             return false;
         }
         
-        // LOG: AI enabled
-        if (class_exists('\\Log')) {
-            \Log::write("✅ AI is enabled, preparing prompt...", 'auto_reply', 'ai');
-        }
-        
         try {
-            // 1. Prepare AI prompt for intent classification
-            $prompt = "Kamu adalah AI classifier untuk WhatsApp bot laundry. Klasifikasikan pesan berikut ke dalam SATU kategori saja:\n\n";
-            $prompt .= "Kategori:\n";
-            $prompt .= "- NOTA: User minta bon/struk/nota/tagihan/bukti pembayaran\n";
-            $prompt .= "- STATUS: User cek status/progress laundry (sudah selesai? bisa diambil?)\n";
-            $prompt .= "- JAM_BUKA: User tanya jam buka/tutup operasional\n";
-            $prompt .= "- PEMBUKA: Salam pembuka (halo, hai, ping, pagi, siang, malam)\n";
-            $prompt .= "- PENUTUP: Ucapan terima kasih atau penutup percakapan\n";
-            $prompt .= "- PENUTUP: Hanya memberitahu kalau sudah dibayar, sudah lunas, ataupun sudah diambil\n";
-            $prompt .= "- UNKNOWN: Tidak termasuk kategori di atas\n\n";
-            $prompt .= "Pesan: \"{$textBody}\"\n\n";
-            $prompt .= "JAWAB HANYA DENGAN NAMA KATEGORI (huruf kapital). Contoh: NOTA";
-            
-            // LOG: Calling OpenAI API
-            if (class_exists('\\Log')) {
-                \Log::write("Calling OpenAI API...", 'auto_reply', 'ai');
+            // LOG: AI checking
+            if (class_exists('\Log')) {
+                \Log::write("AI checking: {$textBody}", 'auto_reply', 'ai');
             }
             
-            // 2. Call OpenAI API
+            // Prepare AI prompt for intent classification
+            $prompt = "Kamu adalah AI classifier untuk WhatsApp bot laundry. Klasifikasikan pesan berikut ke dalam SATU kategori saja:\\n\\n";
+            $prompt .= "Kategori:\\n";
+            $prompt .= "- NOTA: User minta bon/struk/nota/tagihan/bukti pembayaran\\n";
+            $prompt .= "- STATUS: User cek status/progress laundry (sudah selesai? bisa diambil?)\\n";
+            $prompt .= "- JAM_BUKA: User tanya jam buka/tutup operasional\\n";
+            $prompt .= "- MINTA_JEMPUT_ANTAR: User minta jemput/antar laundry\\n";
+            $prompt .= "- PEMBUKA: Salam pembuka (halo, hai, ping, pagi, siang, malam, sore)\\n";
+            $prompt .= "- PENUTUP: Ucapan terima kasih atau penutup percakapan\\n";
+            $prompt .= "- PENUTUP: Hanya memberitahu kalau sudah dibayar, sudah lunas, atau sudah diambil\\n";
+            $prompt .= "- FALSE: Tidak termasuk kategori di atas\\n\\n";
+            $prompt .= "Pesan: \"{$textBody}\"\\n\\n";
+            $prompt .= "JAWAB HANYA DENGAN NAMA KATEGORI (huruf kapital). Contoh: NOTA";
+            
+            // Call OpenAI API
             $response = $this->callOpenAI($prompt);
             $intent = trim(strtoupper($response));
             
             // LOG: AI response
-            if (class_exists('\\Log')) {
-                \Log::write("AI Response: '{$response}' (Intent: '{$intent}')", 'auto_reply', 'ai');
+            if (class_exists('\Log')) {
+                \Log::write("AI response: {$intent}", 'auto_reply', 'ai');
             }
             
-            // 3. Validate intent
-            $validIntents = ['NOTA', 'STATUS', 'JAM_BUKA', 'PEMBUKA', 'PENUTUP'];
+            // Validate intent
+            $validIntents = ['NOTA', 'STATUS', 'JAM_BUKA', 'MINTA_JEMPUT_ANTAR', 'PEMBUKA', 'PENUTUP'];
             if (!in_array($intent, $validIntents)) {
-                if (class_exists('\\Log')) {
-                    \Log::write("❌ AI returned invalid intent: '{$intent}' for message: '{$textBody}'", 'auto_reply', 'ai');
-                }
                 return false;
             }
             
-            // LOG: Valid intent
-            if (class_exists('\\Log')) {
-                \Log::write("✅ Valid intent detected: {$intent}", 'auto_reply', 'ai');
-            }
-            
-            // 4. Check rate limiting
+            // Check rate limiting
             if (!$this->shouldReply($waNumber, $intent)) {
-                if (class_exists('\\Log')) {
-                    \Log::write("❌ Handler {$intent} in COOLDOWN", 'auto_reply', 'ai');
-                }
-                return false; // Handler in cooldown
+                return false;
             }
             
-            // LOG: Calling handler
-            if (class_exists('\\Log')) {
-                \Log::write("✅ Cooldown OK, calling handler...", 'auto_reply', 'ai');
-            }
-            
-            // 5. Call appropriate handler
+            // Call appropriate handler
             $handlerName = ucwords(strtolower($intent), '_');
             $methodName = 'handle' . $handlerName;
             
             if (method_exists($this, $methodName)) {
-                if (class_exists('\\Log')) {
-                    \Log::write("✅ AI SUCCESS: Executing {$methodName}", 'auto_reply', 'ai');
-                }
                 $this->$methodName($phoneIn, $waNumber);
-                return true;
-            } else {
-                if (class_exists('\\Log')) {
-                    \Log::write("❌ ERROR: Method {$methodName} not found!", 'auto_reply', 'ai');
-                }
+                return $intent;
             }
             
             return false;
             
         } catch (\Exception $e) {
-            // Log error but don't crash
-            if (class_exists('\\Log')) {
-                \Log::write('❌ AI Exception: ' . $e->getMessage(), 'auto_reply', 'ai');
-                \Log::write('Stack trace: ' . $e->getTraceAsString(), 'auto_reply', 'ai');
-            }
             return false;
         }
     }
