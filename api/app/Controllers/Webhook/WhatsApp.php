@@ -272,42 +272,16 @@ class WhatsApp extends Controller
             \Log::write("✗ DB ERROR (insert inbound message): $error", 'webhook', 'WhatsApp');
             \Log::write("Data attempted: " . json_encode($messageData), 'webhook', 'WhatsApp');
         } else {
-            // Auto Reply Processed Here (After DB Save)
-            $currentPriority = 0; // Default priority
-            try {
-                if (!class_exists('\\App\\Models\\WAReplies')) {
-                    require_once __DIR__ . '/../../Models/WAReplies.php';
-                }
-                $autoReplyTriggered = (new \App\Models\WAReplies())->process($phoneIn, $messageText, $waNumber);
-                
-                if ($autoReplyTriggered) {                    
-                    // Update message status to 'read' since it was processed by auto-reply
-                    $updated = $db->update('wa_messages_in', 
-                        ['status' => 'read'], 
-                        ['id' => $msgId]
-                    );
-                } else {
-                    // No keyword match - needs CS attention, but only if customer is identified
-                    if (!empty($code)) {
-                        $currentPriority = 4; // High priority, needs CS
-                        $db->update('wa_conversations', 
-                            ['priority' => $currentPriority], 
-                            ['wa_number' => $waNumber]
-                        );
-                    } else {
-                         $currentPriority = 0; 
-                    }
-                }
-            } catch (\Exception $e) {
-                \Log::write("Error processing auto-reply: " . $e->getMessage(), 'webhook', 'WhatsApp');
-            }
+            // Priority Check (Default)
+            // No keyword match - needs CS attention, but only if customer is identified
+            $currentPriority = (!empty($code)) ? 4 : 0; // Default logic
             
-            // Push to WebSocket Server AFTER priority is determined
+            // PUSH TO WS IMMEDIATELY (Realtime)
             $this->pushIncomingToWebSocket([
                 'conversation_id' => $conversationId,
                 'phone' => $waNumber,
                 'contact_name' => $contact_name,
-                'priority' => $currentPriority, // ✅ Include priority!
+                'priority' => $currentPriority, 
                 'message' => [
                     'id' => $msgId, // local DB ID
                     'text' => $textBody,
@@ -317,9 +291,41 @@ class WhatsApp extends Controller
                     'caption' => $mediaCaption,
                     'time' => date('Y-m-d H:i:s'),
                 ],
+                // Target ID logic: if assigned, send to agent. Else '0' (Broadcast)? 
+                // Using '0' guarantees it pops up for everyone (Realtime solution)
+                // But let's stick to original logic: if assigned, target specific.
                 'target_id' => $assigned_user_id ? (string)$assigned_user_id : '0',
                 'kode_cabang' => $code
             ]);
+
+            // Auto Reply Processed Here (Async-ish)
+            try {
+                if (!class_exists('\\App\\Models\\WAReplies')) {
+                    require_once __DIR__ . '/../../Models/WAReplies.php';
+                }
+                $autoReplyTriggered = (new \App\Models\WAReplies())->process($phoneIn, $messageText, $waNumber);
+                
+                if ($autoReplyTriggered) {                    
+                    // Update message status to 'read' since it was processed by auto-reply
+                    $db->update('wa_messages_in', 
+                        ['status' => 'read'], 
+                        ['id' => $msgId]
+                    );
+                    
+                    // Optional: Push status update to 'read' if strict accuracy needed?
+                    // For now, instant notification is more important.
+                } else {
+                     // Update Priority in DB if needed (already set default in WS payload)
+                     if (!empty($code)) {
+                        $db->update('wa_conversations', 
+                            ['priority' => 4], 
+                            ['wa_number' => $waNumber]
+                        );
+                     }
+                }
+            } catch (\Exception $e) {
+                \Log::write("Error processing auto-reply: " . $e->getMessage(), 'webhook', 'WhatsApp');
+            }
         }
     }
 
