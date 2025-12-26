@@ -491,14 +491,14 @@ class WAReplies
                         $list_link .= "https://ml.nalju.com/I/i/" . $id_pelanggan_active . "\n";
                     }
 
-                    $text = "Yth. *" . $nama_pelanggan . "*,\nSemua nota/bon sudah kami kirimkan sebelumnya. Terima kasih\n\n" . $list_link;
+                    $text = "Yth. *" . $nama_pelanggan . "*,\nNota/Bon sudah kami kirimkan sebelumnya. Terima kasih 😊\n\n" . $list_link;
                     $res = $waService->sendFreeText($waNumber, $text);
                     if ($res['success']) {
                         $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
                     }
                 }
             } else {
-                $text = 'Yth. *' . $nama_pelanggan . '*, semua transaksi Anda sudah selesai, atau pastikan gunakan nomor yang terdaftar untuk melakukan request nota/bon. Terima kasih';
+                $text = "Yth. *" . $nama_pelanggan . "*, belum ada Nota/Bon. Terima kasih 😊";
                 $res = $waService->sendFreeText($waNumber, $text);
                 if ($res['success']) {
                     $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
