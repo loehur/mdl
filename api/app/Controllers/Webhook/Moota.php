@@ -22,22 +22,14 @@ class Moota extends Controller
 
         $json = file_get_contents('php://input');
 
-        // Logging incoming request
-        \Log::write("=== NEW ===", 'webhook', 'Moota');
-        \Log::write("Req: " . $json, 'webhook', 'Moota');
-
         // Get headers
         $headers = $this->getRequestHeaders();
-        \Log::write("Head: " . json_encode($headers), 'webhook', 'Moota');
 
         // Validate required headers
         $moota_user = isset($headers['X-MOOTA-USER']) ? $headers['X-MOOTA-USER'] : '';
         $moota_webhook = isset($headers['X-MOOTA-WEBHOOK']) ? $headers['X-MOOTA-WEBHOOK'] : '';
         $user_agent = isset($headers['User-Agent']) ? $headers['User-Agent'] : '';
         $signature_provided = isset($headers['Signature']) ? $headers['Signature'] : '';
-
-
-        \Log::write("Sign: $signature_provided", 'webhook', 'Moota');
 
         // Validate User-Agent (harus MootaBot)
         if (strpos($user_agent, 'MootaBot') === false) {
@@ -62,8 +54,6 @@ class Moota extends Controller
             return;
         }
 
-        \Log::write("Sign OK", 'webhook', 'Moota');
-
         $data = json_decode($json, true);
 
         if (!$data) {
@@ -87,12 +77,8 @@ class Moota extends Controller
         foreach ($data as $index => $mutation) {
             $processed_count++;
 
-            \Log::write("--- Idx: $index ---", 'webhook', 'Moota');
-
-            if (isset($mutation['amount']) && isset($mutation['type']) && isset($mutation['bank_id']) && isset($mutation['mutation_id'])) {
-                \Log::write("Amt: " . $mutation['amount'] . ", Typ: " . $mutation['type'] . ", Bank: " . $mutation['bank_id'], 'webhook', 'Moota');
-            } else {
-                \Log::write("Err: Field Miss", 'webhook', 'Moota');
+            if (!isset($mutation['amount']) || !isset($mutation['type']) || !isset($mutation['bank_id']) || !isset($mutation['mutation_id'])) {
+                \Log::write("Err: Field Miss (Idx: $index)", 'webhook', 'Moota');
                 $error_count++;
                 continue;
             }
@@ -107,7 +93,6 @@ class Moota extends Controller
             $bank_id = trim((string)$bank_id);  // bank_id adalah VARCHAR
 
             if ($type !== 'CR') {
-                \Log::write("Skip: !CR", 'webhook', 'Moota');
                 continue;
             }
 
@@ -127,18 +112,14 @@ class Moota extends Controller
                 $existing_count = $cek_existing_query->num_rows();
 
                 if ($existing_count > 0) {
-                    \Log::write("Skip: Proc ID $mutation_id", 'webhook', 'Moota');
                     continue;
                 }
-                // \Log::write("New ID: $mutation_id", 'moota');
             } catch (\Exception $e) {
-                \Log::write("Exc: Check " . $e->getMessage(), 'webhook', 'Moota');
-
+                \Log::write("Err: Check Mutation " . $e->getMessage(), 'webhook', 'Moota');
                 $error_count++;
                 continue;
             } catch (\Error $e) {
-                \Log::write("Err: Check " . $e->getMessage(), 'webhook', 'Moota');
-
+                \Log::write("Err: Check Mutation " . $e->getMessage(), 'webhook', 'Moota');
                 $error_count++;
                 continue;
             }
@@ -160,7 +141,6 @@ class Moota extends Controller
                 $pending_count = $cek_pending_query->num_rows();
 
                 if ($pending_count == 1) {
-                    \Log::write("Fnd: $bank_id, $amount", 'webhook', 'Moota');
                     //udpate state jadi paid
                     $update = $db_instance->update(
                         "wh_moota",
@@ -176,7 +156,6 @@ class Moota extends Controller
                     );
 
                     if ($update) {
-                        \Log::write("Upd: Paid $bank_id, $amount", 'webhook', 'Moota');
                         //UPDATE KAS JADI STATUS_MUTASI 3 DENGAN REF_FINANCE DARI wh_moota
                         $pending_record = $cek_pending_query->row();
                         $this->processTarget($pending_record, $pending_record->trx_id);
@@ -186,8 +165,6 @@ class Moota extends Controller
                         continue;
                     }
                 } elseif ($pending_count > 1) {
-                    \Log::write("Skip: >1 Rec $bank_id, $amount", 'webhook', 'Moota');
-
                     $update_conflict = $db_instance->update_limit(
                         "wh_moota",
                         [
@@ -202,10 +179,8 @@ class Moota extends Controller
                         1
                     );
 
-                    if ($update_conflict) {
-                        \Log::write("Cflct: $bank_id, $amount", 'webhook', 'Moota');
-                    } else {
-                        \Log::write("Err: Calc Flag $bank_id", 'webhook', 'Moota');
+                    if (!$update_conflict) {
+                        \Log::write("Err: Conflict Flag $bank_id", 'webhook', 'Moota');
                         $error_count++;
                     }
 
@@ -217,7 +192,6 @@ class Moota extends Controller
                     ]);
                     $remaining_count = $remaining_query->num_rows();
                     if ($remaining_count == 0) {
-                        \Log::write("Res: All Cflct $bank_id", 'webhook', 'Moota');
                         // update semua kas dengan trx id yang paid_waiting jadi status_mutasi 3
                         $conflict_records = $db_instance->get_where("wh_moota", [
                             "bank_id" => $bank_id,
@@ -237,17 +211,13 @@ class Moota extends Controller
                                         "id" => $conflict_record->id,
                                     ]
                                 );
-                                if ($update_final) {
-                                    \Log::write("Fin: $conflict_record->id", 'webhook', 'Moota');
-                                } else {
-                                    \Log::write("Err: Fin $conflict_record->id", 'webhook', 'Moota');
+                                if (!$update_final) {
+                                    \Log::write("Err: Finalize $conflict_record->id", 'webhook', 'Moota');
                                 }
                             } else {
-                                \Log::write("Err: Trg $conflict_record->id", 'webhook', 'Moota');
+                                \Log::write("Err: Process Target $conflict_record->id", 'webhook', 'Moota');
                             }
                         }
-                    } else {
-                        \Log::write("Rem: $remaining_count $bank_id", 'webhook', 'Moota');
                     }
 
 
@@ -258,13 +228,11 @@ class Moota extends Controller
                 }
                 // \Log::write("Chk OK", 'moota');
             } catch (\Exception $e) {
-                \Log::write("Exc: Pend " . $e->getMessage(), 'webhook', 'Moota');
-
+                \Log::write("Err: Pending Check " . $e->getMessage(), 'webhook', 'Moota');
                 $error_count++;
                 continue;
             } catch (\Error $e) {
-                \Log::write("Err: Pend " . $e->getMessage(), 'webhook', 'Moota');
-
+                \Log::write("Err: Pending Check " . $e->getMessage(), 'webhook', 'Moota');
                 $error_count++;
                 continue;
             }
@@ -272,8 +240,9 @@ class Moota extends Controller
             $success_count++;
         }
 
-        \Log::write("=== END ===", 'webhook', 'Moota');
-        \Log::write("Proc: $processed_count, OK: $success_count, Err: $error_count", 'webhook', 'Moota');
+        if ($error_count > 0) {
+            \Log::write("Summary - Proc: $processed_count, OK: $success_count, Err: $error_count", 'webhook', 'Moota');
+        }
 
         echo json_encode([
             'status' => true,
@@ -293,16 +262,12 @@ class Moota extends Controller
         if (isset($record->target) && isset($record->book)) {
             $target = $record->target;
 
-            \Log::write("Proc: $target", 'webhook', 'Moota');
-
             if ($target == "kas_laundry") {
-                // FIX: use db(0) directly instead of year iteration
-                \Log::write("Upd Kas: db(0)", 'webhook', 'Moota');
 
                 try {
-                    $db_update_instance = $this->db(0);
+                    $db_update_instance = $this->db(1);
                     if (!$db_update_instance) {
-                        \Log::write("Err: DB 0", 'webhook', 'Moota');
+                        \Log::write("Err: DB 1", 'webhook', 'Moota');
                         return false;
                     }
 
@@ -314,20 +279,18 @@ class Moota extends Controller
                     );
 
                     if (!$update) {
-                        \Log::write("Err: Upd Kas $order_id", 'webhook', 'Moota');
+                        \Log::write("Err: Update Kas $order_id", 'webhook', 'Moota');
                         return false;
-                    } else {
-                        \Log::write("OK: Upd Kas $order_id", 'webhook', 'Moota');
                     }
                 } catch (\Exception $e) {
-                    \Log::write("Exc: Kas " . $e->getMessage(), 'webhook', 'Moota');
+                    \Log::write("Err: Kas Update " . $e->getMessage(), 'webhook', 'Moota');
                     return false;
                 }
             } else {
-                \Log::write("No Logic: $target", 'webhook', 'Moota');
+                \Log::write("Err: No Logic for $target", 'webhook', 'Moota');
             }
         } else {
-            \Log::write("Skip: No trg/bk", 'webhook', 'Moota');
+            \Log::write("Err: No target/book", 'webhook', 'Moota');
             return false;
         }
     }
