@@ -783,9 +783,7 @@ class WAReplies
     {
         $url = 'https://waserver.nalju.com/incoming';
         
-        if (class_exists('\\Log')) {
-            \Log::write('WS Push (WAReplies): ' . json_encode($data), 'cms_ws');
-        }
+
 
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -800,10 +798,7 @@ class WAReplies
 
         $result = curl_exec($ch);
         
-        // Log errors but don't block auto-reply execution
-        if (curl_errno($ch) && class_exists('\\Log')) {
-            \Log::write('WS Curl Error (WAReplies): ' . curl_error($ch), 'cms_ws_error');
-        }
+        // Ignore errors silently to prevent blocking auto-reply
         
         curl_close($ch);
         return $result;
@@ -839,10 +834,7 @@ class WAReplies
         }
         
         try {
-            // LOG: AI checking
-            if (class_exists('\Log')) {
-                \Log::write("AI checking: {$textBody}", 'auto_reply', 'ai');
-            }
+
             
             // Prepare AI prompt for intent classification
             $prompt = "Kamu adalah AI classifier untuk WhatsApp bot laundry. Klasifikasikan pesan berikut ke dalam SATU kategori saja:\\n\\n";
@@ -862,10 +854,7 @@ class WAReplies
             $response = $this->callOpenAI($prompt);
             $intent = trim(strtoupper($response));
             
-            // LOG: AI response
-            if (class_exists('\Log')) {
-                \Log::write("AI response: {$intent}", 'auto_reply', 'ai');
-            }
+
             
             // Validate intent
             $validIntents = ['NOTA', 'STATUS', 'CEK_BUKA', 'MINTA_JEMPUT_ANTAR', 'PEMBUKA', 'PENUTUP'];

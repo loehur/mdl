@@ -249,6 +249,7 @@ class WhatsApp extends Controller
         }
 
         // Step 4: Save message to wa_messages_in
+
         $messageData = [
             'phone' => $waNumber,
             'type' => $messageType,
@@ -263,15 +264,19 @@ class WhatsApp extends Controller
             'status' => $status,
         ];
         
+
         $msgId = $db->insert('wa_messages_in', $messageData);
 
         if (!$msgId) {
             $error = $db->conn()->error;
-            \Log::write("✗ DB ERROR (insert inbound message): $error", 'webhook', 'WhatsApp');
-            \Log::write("Data attempted: " . json_encode($messageData), 'webhook', 'WhatsApp');
+            $errno = $db->conn()->errno;
+            \Log::write("✗ DB INSERT FAILED - Error ($errno): $error", 'webhook', 'inbound_error');
+            \Log::write("Failed data: " . json_encode($messageData), 'webhook', 'inbound_error');
+            \Log::write("Table: wa_messages_in", 'webhook', 'inbound_error');
         } else {
             // Auto Reply Processed Here (Async-ish)
             try {
+
                 if (!class_exists('\\App\\Models\\WAReplies')) {
                     require_once __DIR__ . '/../../Models/WAReplies.php';
                 }
@@ -281,15 +286,18 @@ class WhatsApp extends Controller
                 $currentPriority = $autoReplyResult->priority;
                 $messageStatus = $autoReplyResult->status ?? null;
                 
+
                 // Update message status if status is set
                 if ($messageStatus === 'read') {
                     $db->update('wa_messages_in', 
                         ['status' => 'read'], 
                         ['id' => $msgId]
                     );
+
                 }
                 
                 // Get or create conversation with all updates in one call
+
                 $conversationId = $this->getOrCreateConversationWithPriority(
                     $db, 
                     $waNumber, 
@@ -299,6 +307,7 @@ class WhatsApp extends Controller
                     $lastMessageSummary,
                     $currentPriority
                 );
+
 
                 $this->pushIncomingToWebSocket([
                     'conversation_id' => $conversationId,
@@ -320,8 +329,11 @@ class WhatsApp extends Controller
                     'target_id' => $assigned_user_id ? (string)$assigned_user_id : '0',
                     'kode_cabang' => $code
                 ]);
+                
+
             } catch (\Exception $e) {
-                \Log::write("Error processing auto-reply: " . $e->getMessage(), 'webhook', 'WhatsApp');
+                \Log::write("✗ Error in auto-reply/conversation: " . $e->getMessage(), 'webhook', 'error');
+                \Log::write("Stack trace: " . $e->getTraceAsString(), 'webhook', 'error');
             }
         }
     }
