@@ -80,16 +80,16 @@ class Data_List extends Controller
             $data_operasi = ['title' => 'Master Barang'];
             $table = 'barang_data';
             $order = 'id_barang DESC';
-            $data_main = $this->db(1)->get_order($table, $order);
-            $z['data_satuan'] = $this->db(1)->get('barang_unit');
+            $data_main = $this->db(0)->get_order($table, $order);
+            $z['data_satuan'] = $this->db(0)->get('barang_unit');
             break;
          case "barang_sub":
             $view = 'data_list/' . $page;
             $data_operasi = ['title' => 'Sub Barang'];
             $table = 'barang_sub';
             $order = 'id DESC';
-            $data_main = $this->db(1)->get_order($table, $order);
-            $z['data_master'] = $this->db(1)->get('barang_data'); 
+            $data_main = $this->db(0)->get_order($table, $order);
+            $z['data_master'] = $this->db(0)->get('barang_data'); 
             break;
       }
       $this->view('layout', ['data_operasi' => $data_operasi]);
@@ -214,7 +214,7 @@ class Data_List extends Controller
                'sort' => 0,
                'state' => 1
             ];
-            $this->db(1)->insert($table, $data);
+            $this->db(0)->insert($table, $data);
             break;
          case "barang_sub":
             $this->session_cek(1);
@@ -225,7 +225,7 @@ class Data_List extends Controller
                 'qty' => $_POST['f_qty'],
                 'price' => $_POST['f_price']
             ];
-            $this->db(1)->insert($table, $data);
+            $this->db(0)->insert($table, $data);
             break;
       }
    }
@@ -338,7 +338,7 @@ class Data_List extends Controller
             $set = [
                $col => $value
             ];
-            $up = $this->db(1)->update($table, $set, $where);
+            $up = $this->db(0)->update($table, $set, $where);
             echo $up['errno'] == 0 ? 0 : $up['error'];
             exit();
             break;
@@ -354,7 +354,7 @@ class Data_List extends Controller
             }
             $where = "id = $id";
             $set = [ $col => $value ];
-            $up = $this->db(1)->update($table, $set, $where);
+            $up = $this->db(0)->update($table, $set, $where);
             echo $up['errno'] == 0 ? 0 : $up['error'];
             exit();
             break;
@@ -404,10 +404,10 @@ class Data_List extends Controller
       $id = $_POST['id'];
       if ($page == 'barang') {
          $where = "id_barang = $id";
-         $this->db(1)->delete('barang_data', $where);
+         $this->db(0)->delete('barang_data', $where);
       } else if ($page == 'barang_sub') {
          $where = "id = $id";
-         $this->db(1)->delete('barang_sub', $where);
+         $this->db(0)->delete('barang_sub', $where);
       }
    }
 }
