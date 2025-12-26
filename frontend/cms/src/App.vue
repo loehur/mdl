@@ -84,14 +84,30 @@ const filteredConversations = computed(() => {
     );
   }
   
-  // Sort by priority (DESC) then by latest activity
-  // Priority 4 = Urgent (top), Priority 0 = Normal (bottom)
+  // **NEW SORTING LOGIC**:
+  // 1. Priority > 0: Top of list, sorted by priority DESC
+  // 2. Priority = 0: Below, sorted by updated_at (most recent first)
   return list.sort((a, b) => {
-    // Sort by priority first (higher priority = higher in list)
-    if ((a.priority || 0) !== (b.priority || 0)) {
-      return (b.priority || 0) - (a.priority || 0);
+    const aPriority = a.priority || 0;
+    const bPriority = b.priority || 0;
+    
+    // Case 1: Both have priority > 0 → sort by priority DESC
+    if (aPriority > 0 && bPriority > 0) {
+      return bPriority - aPriority;
     }
-    // If same priority, sort by most recent (already sorted from API, but just in case)
+    
+    // Case 2: Only A has priority > 0 → A comes first
+    if (aPriority > 0 && bPriority === 0) {
+      return -1;
+    }
+    
+    // Case 3: Only B has priority > 0 → B comes first
+    if (aPriority === 0 && bPriority > 0) {
+      return 1;
+    }
+    
+    // Case 4: Both have priority = 0 → sort by updated_at (already sorted from API)
+    // Keep original order from API (which is sorted by updated_at DESC)
     return 0;
   });
 });
