@@ -17,10 +17,6 @@ class WhatsApp
             
             // Customer Service Window (CSW) duration in hours
             'csw_duration' => 23,
-            
-            // Logging
-            'log_messages' => true,
-            'log_path' => __DIR__ . '/../../logs/whatsapp',
         ];
     }
     

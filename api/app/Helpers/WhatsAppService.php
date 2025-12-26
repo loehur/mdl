@@ -109,14 +109,9 @@ class WhatsAppService
             ]
         ];
         
-        // DEBUG LOG: Final payload
-        \Log::write("Payload to yCloud: " . json_encode($payload, JSON_PRETTY_PRINT), 'wa_debug', 'template');
         
         // Pass messageText as metadata (not sent to API, but used for DB storage)
         $result = $this->sendRequest('/whatsapp/messages', $payload, 'POST', $messageText);
-        
-        // DEBUG LOG: Response from yCloud
-        \Log::write("Response from yCloud: " . json_encode($result, JSON_PRETTY_PRINT), 'wa_debug', 'template');
         
         return $result;
     }
@@ -540,10 +535,7 @@ class WhatsAppService
         $error = curl_error($ch);
         curl_close($ch);
         
-        // Removed verbose response logging
-        
-        // Log to internal file as well (legacy)
-        $this->logMessage($endpoint, $payload, $response, $httpCode);
+        // Log only errors to reduce verbosity
         
         if ($error) {
             if (class_exists('\Log')) {
@@ -794,10 +786,6 @@ class WhatsAppService
                     curl_setopt($ch, CURLOPT_NOSIGNAL, 1);
                     curl_exec($ch);
                     curl_close($ch);
-                    
-                    if (class_exists('\Log')) {
-                        \Log::write("🔔 WebSocket broadcast sent for msgId: $msgId", 'wa_ws', 'Outbound');
-                    }
                 } catch (\Throwable $wsError) {
                     // Silently fail - don't break main flow
                     if (class_exists('\Log')) {
@@ -828,43 +816,7 @@ class WhatsAppService
         }
     }
     
-    /**
-     * Log WhatsApp message
-     * 
-     * @param string $endpoint API endpoint
-     * @param array $payload Request payload
-     * @param string $response API response
-     * @param int $httpCode HTTP status code
-     */
-    private function logMessage($endpoint, $payload, $response, $httpCode)
-    {
-        $config = WhatsAppConfig::getConfig();
-        
-        if (!$config['log_messages']) {
-            return;
-        }
-        
-        $logDir = $config['log_path'];
-        if (!is_dir($logDir)) {
-            mkdir($logDir, 0755, true);
-        }
-        
-        $logFile = $logDir . '/messages_' . date('Y-m-d') . '.log';
-        
-        $logEntry = [
-            'timestamp' => date('Y-m-d H:i:s'),
-            'endpoint' => $endpoint,
-            'payload' => $payload,
-            'response' => $response,
-            'http_code' => $httpCode
-        ];
-        
-        file_put_contents(
-            $logFile,
-            json_encode($logEntry, JSON_PRETTY_PRINT) . "\n---\n",
-            FILE_APPEND
-        );
-    }
+
     
     /**
      * Send Image via WhatsApp
@@ -876,9 +828,7 @@ class WhatsAppService
      */
     public function sendImage($to, $imageUrl, $caption = '')
     {
-        if (class_exists('\Log')) {
-            \Log::write("sendImage START - to: $to, url: $imageUrl", 'wa_debug', 'SendImage');
-        }
+
         
         $payload = [
             'from' => $this->formatPhoneNumber($this->whatsappNumber),
@@ -893,17 +843,9 @@ class WhatsAppService
             $payload['image']['caption'] = $caption;
         }
         
-        if (class_exists('\Log')) {
-            \Log::write("Calling sendRequest with payload: " . json_encode($payload), 'wa_debug', 'SendImage');
-        }
-        
         try {
             // Use correct YCloud endpoint: /whatsapp/messages
             $response = $this->sendRequest('/whatsapp/messages', $payload);
-            
-            if (class_exists('\Log')) {
-                \Log::write("sendRequest response: " . json_encode($response), 'wa_debug', 'SendImage');
-            }
             
             // Parse response - check http_code (underscore, not camelCase!)
             if ($response['success'] && ($response['http_code'] == 200 || $response['http_code'] == 201)) {
@@ -919,10 +861,6 @@ class WhatsAppService
                     
                     // Outbound message already saved by sendRequest
                     $localId = $response['local_id'] ?? null;
-                    
-                    if (class_exists('\Log')) {
-                        \Log::write("sendImage SUCCESS. LocalID: " . $localId, 'wa_debug', 'SendImage');
-                    }
                     
                     return [
                         'success' => true,
