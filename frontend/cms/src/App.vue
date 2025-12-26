@@ -1124,19 +1124,42 @@ const handleIncomingMessage = (payload) => {
       return;
   }
 
+  // DEBUG (Robust): Log whatever we get
+  console.log('📡 handleIncomingMessage Payload:', payload);
+
   // Or fallback if direct
-  const conversationId = payload.conversation_id;
-  const phone = payload.phone;
-  const messageData = payload.message || payload; // if message is nested or flat
+  const conversationId = payload.conversation_id || payload.conversationId;
+  const phone = payload.phone || payload.wa_number;
   
-  const text = messageData.text;
-  const type = messageData.type || 'text';
-  const sender = messageData.sender || 'customer';
+  // SUPPORT FLAT PAYLOAD (Priority)
+  // Check if properties exist directly on payload
+  let text = payload.text;
+  let type = payload.type_msg || payload.type; // Use type_msg from backend if available
+  let msgId = payload.msg_id || payload.id;
+  let mediaUrl = payload.media_url;
+  
+  // If not flat, try nested 'message' object (Legacy/Fallback)
+  if (payload.message) {
+      const m = payload.message;
+      if (!text) text = m.text;
+      if (!type || type === 'wa_masuk') type = m.type || 'text';
+      if (!msgId) msgId = m.id;
+      if (!mediaUrl) mediaUrl = m.media_url;
+  }
+  
+  // Fix type conflict: if type is still 'wa_masuk', force it to 'text' or 'image' based on data
+  if (type === 'wa_masuk') {
+      type = mediaUrl ? 'image' : 'text';
+  }
+  
+  const sender = payload.sender || 'customer';
   
   let displayText = text;
   if (!displayText && type !== 'text') {
       displayText = `[${type}]`;
-      if (messageData.media_caption) displayText += ' ' + messageData.media_caption; 
+      if (payload.caption || (payload.message && payload.message.caption)) {
+          displayText += ' ' + (payload.caption || payload.message.caption); 
+      }
   }
   const name = payload.contact_name || payload.name;
   
