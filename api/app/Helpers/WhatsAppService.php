@@ -704,7 +704,8 @@ class WhatsAppService
                 // Update conversation
                 $updateData = [
                     'last_message' => $lastMessageText,
-                    'last_message_at' => date('Y-m-d H:i:s')
+                    'last_message_at' => date('Y-m-d H:i:s'),
+                    'updated_at' => date('Y-m-d H:i:s')
                 ];
                 if ($contactName) $updateData['contact_name'] = $contactName;
                 if ($code) $updateData['code'] = $code;
