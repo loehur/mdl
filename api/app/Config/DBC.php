@@ -1,7 +1,5 @@
 ﻿<?php
 
-namespace App\Config;
-
 class DBC
 {
     const db_host = \Env::DB_HOST ?? 'localhost';
