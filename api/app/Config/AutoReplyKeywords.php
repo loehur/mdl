@@ -45,7 +45,7 @@ return [
         ]
     ],
 
-    'JAM_BUKA' => [
+    'CEK_BUKA' => [
         'max_length' => 30,
         'priority' => 0,
         'patterns' => [

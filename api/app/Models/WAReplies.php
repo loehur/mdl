@@ -171,7 +171,7 @@ class WAReplies
         // AI failed or returned FALSE (unknown intent) - needs manual attention
         return (object) [
             'status' => null,
-            'ai' => true,
+            'ai' => false,
             'priority' => 4
         ];
     }
@@ -507,25 +507,72 @@ class WAReplies
         }        
     }
 
+    /**
+     * Handler untuk pertanyaan jam buka/tutup
+     * Smart handler: cek jam operasional lalu kasih response yang sesuai
+     */
+    function handleCek_buka($phoneIn, $waNumber){
+        // Cek apakah sedang buka atau tutup
+        if ($this->isOperatingHours()) {
+            // Sedang buka, kasih tahu jam operasional
+            $this->handleJam_buka($phoneIn, $waNumber);
+        } else {
+            // Sedang tutup, kasih tahu bahwa sudah tutup
+            $this->handleJam_tutup($phoneIn, $waNumber);
+        }
+    }
+
+    /**
+     * Handler untuk kasih tahu jam operasional (dipanggil saat buka)
+     */
     function handleJam_buka($phoneIn, $waNumber){
         $waService = $this->getWaService();
         
+        // Load operating hours config untuk dynamic response
+        $config = require __DIR__ . '/../Config/OperatingHours.php';
+        $openHour = str_pad($config['open_hour'], 2, '0', STR_PAD_LEFT);
+        $openMin = str_pad($config['open_minute'], 2, '0', STR_PAD_LEFT);
+        $closeHour = str_pad($config['close_hour'], 2, '0', STR_PAD_LEFT);
+        $closeMin = str_pad($config['close_minute'], 2, '0', STR_PAD_LEFT);
+        
+        $openTime = "{$openHour}.{$openMin}";
+        $closeTime = "{$closeHour}.{$closeMin}";
+        
+        // Working days string
+        $workingDays = $config['working_days'];
+        if (count($workingDays) == 7) {
+            $daysStr = "setiap hari";
+        } elseif (count($workingDays) == 6 && !in_array(7, $workingDays)) {
+            $daysStr = "Senin-Sabtu";
+        } else {
+            $daysStr = "setiap hari";
+        }
+        
+        // Check if today is a holiday
+        $now = new \DateTime('now', new \DateTimeZone($config['timezone']));
+        $currentDate = $now->format('Y-m-d');
+        $isHoliday = in_array($currentDate, $config['holidays']);
+        
+        // Prefix untuk holiday
+        $holidayPrefix = "";
+        if ($isHoliday) {
+            $holidayPrefixes = [
+                "Mohon maaf, hari ini kami libur. ",
+            ];
+            $holidayPrefix = $holidayPrefixes[array_rand($holidayPrefixes)];
+        }
+        
         $variations = [
-            "Madinah Laundry buka setiap hari, dari pukul 07.00 - 21.00. 🕐",
-            "Kami buka setiap hari pukul 07.00 - 21.00. ⏰",
-            "Jam operasional: 07.00 - 21.00 (setiap hari) 📍",
-            "Buka setiap hari jam 7 pagi sampai 9 malam ya! 😊",
-            "Kami buka dari jam 7 pagi sampai jam 9 malam 🕐",
-            "Operasional setiap hari pukul 07.00 - 21.00 😊",
-            "Buka setiap hari, jam 07.00 sampai 21.00 👍",
-            "Jam buka: 07.00 - 21.00 (7 hari seminggu) ⏰",
-            "Kami melayani setiap hari dari pukul 7 pagi - 9 malam 📍",
-            "Buka tiap hari ya kak, jam 07.00 - 21.00 😊",
-            "Madinah Laundry buka setiap hari jam 7 pagi sampai 9 malam 🕐",
-            "Operasional: 07.00 - 21.00 setiap hari 👌"
+            "Madinah Laundry buka {$daysStr}, dari pukul {$openTime} - {$closeTime}. 🕐",
+            "Kami buka {$daysStr} pukul {$openTime} - {$closeTime}. ⏰",
+            "Jam operasional: {$openTime} - {$closeTime} ({$daysStr}) 📍",
+            "Buka {$daysStr} jam {$openTime} sampai {$closeTime} ya! 😊",
+            "Kami melayani dari jam {$openTime} sampai {$closeTime} 🕐",
+            "Operasional {$daysStr} pukul {$openTime} - {$closeTime} 😊",
+            "Buka {$daysStr}, jam {$openTime} sampai {$closeTime} 👍"
         ];
         
-        $text = $variations[array_rand($variations)];
+        $text = $holidayPrefix . $variations[array_rand($variations)];
         $res = $waService->sendFreeText($waNumber, $text);
         if ($res['success']) {
             $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
@@ -604,6 +651,13 @@ class WAReplies
     function handleMinta_jemput_antar($phoneIn, $waNumber){
         $waService = $this->getWaService();
         
+        // Cek jam operasional - layanan jemput/antar hanya saat jam kerja
+        if (!$this->isOperatingHours()) {
+            // Diluar jam kerja, kasih tahu tutup dan tidak bisa jemput/antar
+            $this->handleJam_tutup($phoneIn, $waNumber);
+            return;
+        }
+        
         // Random variations untuk konfirmasi request jemput/antar
         $variations = [
             "Baik, kami konfirmasi ke abang driver dulu ya. Ditunggu.. 🚗",
@@ -633,6 +687,64 @@ class WAReplies
         if ($res['success']) {
             $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
         }
+    }
+
+    /**
+     * Handler untuk auto-reply diluar jam kerja
+     */
+    function handleJam_tutup($phoneIn, $waNumber){
+        $waService = $this->getWaService();
+        
+        $variations = [
+            "Mohon maaf, kami sedang tutup. Kami buka Senin-Sabtu pukul 08:00-17:00. Pesan Anda akan kami balas saat jam kerja. Terima kasih 🙏",
+            "Maaf ya, di luar jam operasional kami nih. Kami buka Senin-Sabtu jam 08:00-17:00. Chat Anda nanti kami respon saat buka ya 😊",
+            "Halo! Saat ini kami sudah tutup. Jam buka kami: Senin-Sabtu 08:00-17:00. Kami akan membalas pesan Anda besok. Terima kasih 🙏",
+            "Mohon maaf, kami di luar jam operasional. Buka lagi: Senin-Sabtu pukul 08:00-17:00. Pesan akan dibalas saat jam kerja. Terima kasih 😊"
+        ];
+        
+        $text = $variations[array_rand($variations)];
+        $res = $waService->sendFreeText($waNumber, $text);
+        if ($res['success']) {
+            $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+        }
+    }
+
+    /**
+     * Check if current time is within operating hours
+     * Operating hours configurable in Config/OperatingHours.php
+     * @return bool
+     */
+    private function isOperatingHours()
+    {
+        // Load operating hours config
+        $config = require __DIR__ . '/../Config/OperatingHours.php';
+        
+        $now = new \DateTime('now', new \DateTimeZone($config['timezone']));
+        $dayOfWeek = (int)$now->format('N'); // 1 (Monday) to 7 (Sunday)
+        $currentDate = $now->format('Y-m-d');
+        $hour = (int)$now->format('G'); // 0-23
+        $minute = (int)$now->format('i'); // 0-59
+        
+        // Check if today is a holiday
+        if (in_array($currentDate, $config['holidays'])) {
+            return false; // Holiday - closed
+        }
+        
+        // Check if today is a working day
+        if (!in_array($dayOfWeek, $config['working_days'])) {
+            return false; // Not a working day (e.g., Sunday)
+        }
+        
+        // Check time
+        $currentTimeInMinutes = ($hour * 60) + $minute;
+        $openTime = ($config['open_hour'] * 60) + $config['open_minute'];
+        $closeTime = ($config['close_hour'] * 60) + $config['close_minute'];
+        
+        if ($currentTimeInMinutes < $openTime || $currentTimeInMinutes >= $closeTime) {
+            return false; // Outside operating hours
+        }
+        
+        return true; // Within operating hours
     }
     
     /**
@@ -737,7 +849,7 @@ class WAReplies
             $prompt .= "Kategori:\\n";
             $prompt .= "- NOTA: User minta bon/struk/nota/tagihan/bukti pembayaran\\n";
             $prompt .= "- STATUS: User cek status/progress laundry (sudah selesai? bisa diambil?)\\n";
-            $prompt .= "- JAM_BUKA: User tanya jam buka/tutup operasional\\n";
+            $prompt .= "- CEK_BUKA: User tanya jam buka/tutup operasional\\n";
             $prompt .= "- MINTA_JEMPUT_ANTAR: User minta jemput/antar laundry\\n";
             $prompt .= "- PEMBUKA: Salam pembuka (halo, hai, ping, pagi, siang, malam, sore)\\n";
             $prompt .= "- PENUTUP: Ucapan terima kasih atau penutup percakapan\\n";
@@ -756,7 +868,7 @@ class WAReplies
             }
             
             // Validate intent
-            $validIntents = ['NOTA', 'STATUS', 'JAM_BUKA', 'MINTA_JEMPUT_ANTAR', 'PEMBUKA', 'PENUTUP'];
+            $validIntents = ['NOTA', 'STATUS', 'CEK_BUKA', 'MINTA_JEMPUT_ANTAR', 'PEMBUKA', 'PENUTUP'];
             if (!in_array($intent, $validIntents)) {
                 return false;
             }

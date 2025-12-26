@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">MDL Chat</string>
-    <string name="title_activity_main">MDL Chat</string>
-    <string name="package_name">com.mdl.cms</string>
-    <string name="custom_url_scheme">com.mdl.cms</string>
-</resources>

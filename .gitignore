@@ -3,11 +3,9 @@ node_modules/
 .htaccess
 logs/
 Env.php
-AI.php
 .env
 auth
 laundry/app/Config/*
 api/scripts/
 *.sql
 api/scripts/*
-frontend/cms/android/*
