@@ -403,8 +403,32 @@ class Antrian extends Controller
          session_write_close();
       }
 
-      // Cek apakah no HP ada di tabel user
-      $whereUser = "no_user = '" . $hp . "'";
+      // Cek apakah no HP ada di tabel user dengan berbagai kemungkinan format
+      $hpVariations = [];
+      $hpClean = preg_replace('/[^0-9]/', '', $hp); // Hapus karakter non-angka
+      
+      // Buat variasi nomor: +628xxx, 628xxx, 08xxx, 8xxx
+      if (substr($hpClean, 0, 2) === '62') {
+         // Jika dimulai dengan 62
+         $hpVariations[] = "'+62" . substr($hpClean, 2) . "'";
+         $hpVariations[] = "'" . $hpClean . "'";
+         $hpVariations[] = "'0" . substr($hpClean, 2) . "'";
+         $hpVariations[] = "'" . substr($hpClean, 2) . "'";
+      } elseif (substr($hpClean, 0, 1) === '0') {
+         // Jika dimulai dengan 0
+         $hpVariations[] = "'+62" . substr($hpClean, 1) . "'";
+         $hpVariations[] = "'62" . substr($hpClean, 1) . "'";
+         $hpVariations[] = "'" . $hpClean . "'";
+         $hpVariations[] = "'" . substr($hpClean, 1) . "'";
+      } else {
+         // Jika dimulai dengan 8
+         $hpVariations[] = "'+62" . $hpClean . "'";
+         $hpVariations[] = "'62" . $hpClean . "'";
+         $hpVariations[] = "'0" . $hpClean . "'";
+         $hpVariations[] = "'" . $hpClean . "'";
+      }
+      
+      $whereUser = "no_user IN (" . implode(', ', $hpVariations) . ")";
       $userExists = $this->db(0)->count_where('user', $whereUser);
       
       // Jika HP terdaftar di user, kirim tanpa template. Jika tidak, paksa kirim template
