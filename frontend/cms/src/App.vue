@@ -1266,7 +1266,13 @@ const handleIncomingMessage = (payload) => {
     conversation.unread++;
   } else {
     scrollToBottom();
-    markMessagesRead(conversation.wa_number); // Use phone number, not conversation ID
+    if (conversation.wa_number) {
+        try {
+            markMessagesRead(conversation.wa_number); 
+        } catch (e) {
+            console.error('Non-blocking error marking read:', e);
+        }
+    }
   }
       
       // Move conversation to top
