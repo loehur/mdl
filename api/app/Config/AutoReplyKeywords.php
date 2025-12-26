@@ -5,58 +5,52 @@
  * max_length: Maksimal panjang pesan (dalam karakter) untuk trigger handler ini
  * Set 0 untuk unlimited (tidak ada batasan panjang)
  */
-return [    
-    'bon' => [
-        'max_length' => 100,
-        'keywords' => [
-            'atas nama', 'ats nama', 'atas nma', 'an.',
-            'bon', 'struk', 'nota', 'bill', 'kirim', 'tagihan', 'resi',
-            'total laundry', 'total londri', 'total laundri',
-            'totl laundry', 'totl londri', 'totl laundri', 'berapa total',
-            'brp total', 'brp totl', 'brpa total'
+return [  
+    'PEMBUKA' => [
+    'max_length' => 20,
+        'patterns' => [
+            '/^\s*(ping|ka*k|ba*n*g|b*a*pa*k|i*bu*k*|a*de*k|he*a*l+o|as+a*l+a*mu*a*l+a*i*ku*m|tes)\s*$/i',
+            '/(pa*gi|so*re|si*a*ng|ma*la*m)\s*\b(ba*n*g|ka*k|pa*k|i*bu*k*|a*de*k*|a*na*k)/i',
         ]
     ],
 
-    'status' => [
+    'NOTA' => [
         'max_length' => 100,
-        'keywords' => [
-            'cek', 'status',
-            'dh siap', 'da siap', 'dah siap', 'dh selsesai', 'da selsesai', 'dah selsesai',
-            'dh beres', 'da beres', 'dah beres',
-            'dh selesai', 'da selesai', 'dah selesai',
-            'da selesai', 'da selsai',
-            'bs diambil', 'bs di ambil', 'bisa diambil', 'bisa di ambil',
-            'bs dijemput', 'bisa dijemput', 'bs di jemput', 'bisa di jemput',
-            'kpn siap', 'kapan siap', 'kpn selesai', 'kapan selesai'
+        'patterns' => [
+            '/^\s*(bon|nota+|stru*k|bil+|ta*gi*ha*n|re*si)\s*$/i',
+            '/ata*s\s*na*ma*/i',
+            '/(mi*nta*|ki*ri*m|ba*gi*|cek|ma*na*)\s*\b(stru*k|nota+|bil|bon|ta*gi*ha*n|re*si|bu*kti*)/i',
+            '/(be*lu*m)\s*\b(di*(te*ri*ma*|ki*ri*m)/i',
+            '/(be*ra*pa*|ki*ri*m|cek)?\s*\b(to*ta*l|ju*mla*h)/i',
+            '/(to*ta*l|ju*mla*h)\s*\b(la*o*u*ndry*i*)/i',
         ]
     ],
-    
-    'buka' => [
+
+    'STATUS' => [
+        'max_length' => 100,
+        'patterns' => [
+            '/^\s*(cek|sta*tu*s)\s*$/i',
+            '/(s*u*da*h*)\s*\b(si+a+p|be*re*s|se*ls*e*s*a*i*|re*a*dy*i*)/i',
+            '/(s*u*da*h*)\s*\b(bi*sa*|bo*le*h|da*pa*t)\s*\b(di*(ambi*l|je*mpu*t)/i',
+            '/(ka*pa*n)\s*\b(bi*sa*|bo*le*h|da*pa*t)\s*\b(di*(ambi*l|je*mpu*t)/i',
+        ]
+    ],
+
+    'JAM_BUKA' => [
         'max_length' => 30,
-        'keywords' => [
-            // Tutup variations
-            'brp tutup', 'berapa tutup', 'jam tutup', 'kapan tutup', 'kpn buka', 'masih tutup',
-            'udah tutup', 'dh tutup', 'uda tutup', 'dah tutup', 'sudah tutup', 'da tutup',
-            // Buka variations
-            'jam buka', 'brp buka', 'berapa buka', 'kapan buka', 
-            'udah buka', 'dh buka', 'uda buka', 'dah buka', 'sudah buka', 'da buka',
-            'masih buka', 'msh buka', 'masih bukak', 'msh bukak'
+        'patterns' => [
+            '/(ka*pa*n)\s*\b(bu*ka*|tu*tu*p)/i',
+            '/(ja*m)\s*\b(be*ra*pa*)\s*\b(bu*ka*|tu*tu*p)/i',
         ]
     ],
 
-    'sapa' => [
+    'PENUTUP' => [
         'max_length' => 20,
-        'keywords' => [
-            'ping', 'halo', 'hallo', 'hello', 'tes', 'alaikum', 'assalam', 'aslkm', 'salam', 'pagi', 'sore', 'malam', 'mlm', 'malm', 'mlam'
-        ]
-    ],
-
-    'penutup' => [
-        'max_length' => 20,
-        'keywords' => [
-            'makasih', 'makasi', 'maksh', 'mksih', 'trimakasih', 'terima kasih', 'terimakasih', 'trimaksih', 'trimaksh', 
-            'mksih', 'mksh', 'trmksh', 'tks', 'thx', 'thanks', 'thank you', 
-            'tengkyu', 'thks', 'thnx', 'ok', 'oce', 'sip', 'siap', 'baik', 
+        'patterns' => [
+            '/\bma*ka*(s|c)(i|e)*h\b/i',
+            '/\bte*ri*ma*ka*si*h\b/i',
+            '/\btha*nks\b/i',
+            '/\b(thx|tq|ty)\b/i',
         ]
     ]
 ];

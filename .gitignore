@@ -3,6 +3,7 @@ node_modules/
 .htaccess
 logs/
 Env.php
+AI.php
 .env
 auth
 laundry/app/Config/*

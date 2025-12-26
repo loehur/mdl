@@ -88,35 +88,38 @@ class WAReplies
         // Load keyword configuration
         $keywordConfig = require __DIR__ . '/../Config/AutoReplyKeywords.php';
         
-        // Special case: Single character message (e.g., "p", ".", "?") -> treat as sapa (greeting)
+        // Special case: Single character message (e.g., "p", ".", "?") -> treat as PEMBUKA (greeting)
         if ($messageLength === 1) {
-            if ($this->shouldReply($waNumber, 'sapa')) {
-                $this->handleSapa($phoneIn, $waNumber);
+            if ($this->shouldReply($waNumber, 'PEMBUKA')) {
+                $this->handlePembuka($phoneIn, $waNumber);
                 return true;
             }
             return false; // Rate limited
         }
         
-        // Check each handler's keywords
+        // Check each handler's patterns
         foreach ($keywordConfig as $handler => $config) {
             $maxLength = $config['max_length'] ?? 0;
-            $keywords = $config['keywords'] ?? [];
+            $patterns = $config['patterns'] ?? [];
             
             // Skip if message is longer than max_length (0 = unlimited)
             if ($maxLength > 0 && $messageLength > $maxLength) {
                 continue;
             }
             
-            // Check keywords
-            foreach ($keywords as $keyword) {
-                if (stripos($textBodyToCheck, $keyword) !== false) {
+            // Check regex patterns
+            foreach ($patterns as $pattern) {
+                if (preg_match($pattern, $textBodyToCheck)) {
                     // RATE LIMITING: Check if can send reply (cooldown)
                     if (!$this->shouldReply($waNumber, $handler)) {
-                        return false; // Exit to prevent other handlers from triggering
+                        continue 2; // Skip to next handler (this handler is in cooldown)
                     }
                     
-                    // Dynamically call handler method (e.g., handleBon, handleStatus, handleBuka)
-                    $methodName = 'handle' . ucfirst($handler);
+                    // Dynamically call handler method (e.g., handleNota, handleStatus, handleJam_buka)
+                    // Convert UPPERCASE_KEY to Ucfirst_case: NOTA -> Nota, JAM_BUKA -> Jam_buka
+                    $handlerName = ucwords(strtolower($handler), '_');
+                    $methodName = 'handle' . $handlerName;
+                    
                     if (method_exists($this, $methodName)) {
                         $this->$methodName($phoneIn, $waNumber);
                         return true;
@@ -125,7 +128,13 @@ class WAReplies
             }
         }
 
-        return false;
+        // ============================================================
+        // FALLBACK: AI-Powered Intent Detection
+        // ============================================================
+        // Jika tidak ada pattern regex yang match, gunakan AI untuk klasifikasi intent
+        // AI akan mencoba memahami maksud pesan user secara natural language
+        
+        return $this->handleWithAI($phoneIn, $textBody, $waNumber);
     }
     
     private function handleStatus($phoneIn, $waNumber)
@@ -291,7 +300,7 @@ class WAReplies
         }
     }
 
-    private function handleBon($phoneIn, $waNumber)
+    private function handleNota($phoneIn, $waNumber)
     {
         $waService = $this->getWaService();
 
@@ -459,7 +468,7 @@ class WAReplies
         }        
     }
 
-    function handleBuka($phoneIn, $waNumber){
+    function handleJam_buka($phoneIn, $waNumber){
         $waService = $this->getWaService();
         
         $variations = [
@@ -484,7 +493,7 @@ class WAReplies
         }
     }
 
-    function handleSapa($phoneIn, $waNumber){
+    function handlePembuka($phoneIn, $waNumber){
         $waService = $this->getWaService();
         
         $variations = [
@@ -612,5 +621,163 @@ class WAReplies
         
         curl_close($ch);
         return $result;
+    }
+    
+    /**
+     * AI-Powered Intent Detection (Future Implementation)
+     * 
+     * @param string $phoneIn CSV string of phone numbers
+     * @param string $textBody Original message text
+     * @param string $waNumber Sender's WhatsApp number
+     * @return bool True if handled, false otherwise
+     */
+    private function handleWithAI($phoneIn, $textBody, $waNumber)
+    {
+        // Check if AI is enabled
+        if (!class_exists('\\App\\Config\\AI')) {
+            require_once __DIR__ . '/../Config/AI.php';
+        }
+        
+        if (!\App\Config\AI::isEnabled()) {
+            return false; // AI disabled or API key not set
+        }
+        
+        try {
+            // 1. Prepare AI prompt for intent classification
+            $prompt = "Kamu adalah AI classifier untuk WhatsApp bot laundry. Klasifikasikan pesan berikut ke dalam SATU kategori saja:\n\n";
+            $prompt .= "Kategori:\n";
+            $prompt .= "- NOTA: User minta bon/struk/nota/tagihan/bukti pembayaran\n";
+            $prompt .= "- STATUS: User cek status/progress laundry (sudah selesai? bisa diambil?)\n";
+            $prompt .= "- JAM_BUKA: User tanya jam buka/tutup operasional\n";
+            $prompt .= "- PEMBUKA: Salam pembuka (halo, hai, ping, pagi, siang, malam)\n";
+            $prompt .= "- PENUTUP: Ucapan terima kasih atau penutup percakapan\n";
+            $prompt .= "- UNKNOWN: Tidak termasuk kategori di atas\n\n";
+            $prompt .= "Pesan: \"{$textBody}\"\n\n";
+            $prompt .= "JAWAB HANYA DENGAN NAMA KATEGORI (huruf kapital). Contoh: NOTA";
+            
+            // 2. Call Gemini API
+            $response = $this->callGemini($prompt);
+            $intent = trim(strtoupper($response));
+            
+            // 3. Validate intent
+            $validIntents = ['NOTA', 'STATUS', 'JAM_BUKA', 'PEMBUKA', 'PENUTUP'];
+            if (!in_array($intent, $validIntents)) {
+                if (class_exists('\\Log')) {
+                    \Log::write("AI returned invalid intent: '{$intent}' for message: '{$textBody}'", 'wa_ai', 'invalid_intent');
+                }
+                return false;
+            }
+            
+            // 4. Check rate limiting
+            if (!$this->shouldReply($waNumber, $intent)) {
+                if (class_exists('\\Log')) {
+                    \Log::write("AI detected intent '{$intent}' but handler is in cooldown", 'wa_ai', 'cooldown');
+                }
+                return false; // Handler in cooldown
+            }
+            
+            // 5. Call appropriate handler
+            $handlerName = ucwords(strtolower($intent), '_');
+            $methodName = 'handle' . $handlerName;
+            
+            if (method_exists($this, $methodName)) {
+                if (class_exists('\\Log')) {
+                    \Log::write("AI SUCCESS: Intent='{$intent}' | Message='{$textBody}'", 'wa_ai', 'success');
+                }
+                $this->$methodName($phoneIn, $waNumber);
+                return true;
+            }
+            
+            return false;
+            
+        } catch (\Exception $e) {
+            // Log error but don't crash
+            if (class_exists('\\Log')) {
+                \Log::write('AI Intent Detection Error: ' . $e->getMessage(), 'wa_ai', 'error');
+            }
+            return false;
+        }
+    }
+    
+    /**
+     * Call Google Gemini API
+     * 
+     * @param string $prompt The prompt to send
+     * @return string AI response (intent classification)
+     * @throws \Exception On API error
+     */
+    private function callGemini($prompt)
+    {
+        // Load AI config
+        if (!class_exists('\\App\\Config\\AI')) {
+            require_once __DIR__ . '/../Config/AI.php';
+        }
+        
+        $url = \App\Config\AI::getGeminiApiUrl();
+        $temperature = \App\Config\AI::getTemperature();
+        $maxTokens = \App\Config\AI::getMaxTokens();
+        $timeout = \App\Config\AI::getTimeout();
+        
+        // Prepare request body untuk Gemini API
+        $data = [
+            'contents' => [
+                [
+                    'parts' => [
+                        ['text' => $prompt]
+                    ]
+                ]
+            ],
+            'generationConfig' => [
+                'temperature' => $temperature,
+                'maxOutputTokens' => $maxTokens,
+                'topP' => 0.95,
+                'topK' => 40
+            ]
+        ];
+        
+        // cURL request
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json'
+        ]);
+        curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+        
+        $result = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+        
+        // Check for cURL errors
+        if ($result === false) {
+            throw new \Exception("Gemini API cURL error: {$curlError}");
+        }
+        
+        // Check HTTP status
+        if ($httpCode !== 200) {
+            $errorMsg = "Gemini API error: HTTP {$httpCode}";
+            if ($result) {
+                $errorData = json_decode($result, true);
+                if (isset($errorData['error']['message'])) {
+                    $errorMsg .= " - " . $errorData['error']['message'];
+                }
+            }
+            throw new \Exception($errorMsg);
+        }
+        
+        // Parse response
+        $response = json_decode($result, true);
+        
+        // Extract text from Gemini response structure
+        if (isset($response['candidates'][0]['content']['parts'][0]['text'])) {
+            return trim($response['candidates'][0]['content']['parts'][0]['text']);
+        }
+        
+        throw new \Exception("Gemini API: Invalid response structure");
     }
 }
