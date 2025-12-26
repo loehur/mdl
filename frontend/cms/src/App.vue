@@ -1195,14 +1195,14 @@ const handleIncomingMessage = (payload) => {
   }
   
   const newMsg = {
-    id: messageData.id || Date.now(),
+    id: msgId || Date.now(),
     text: displayText, // Use the safe display text
     type: type,
-    media_id: messageData.media_id,
-    media_url: messageData.media_url,
+    media_id: payload.media_id || (payload.message && payload.message.media_id),
+    media_url: mediaUrl,
     sender: sender,
-    time: messageData.time ? new Date(messageData.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    rawTime: messageData.time || new Date().toISOString() // Keep raw timestamp for date separator
+    time: payload.time ? new Date(payload.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    rawTime: payload.time || new Date().toISOString() // Keep raw timestamp for date separator
   };
   
   // DEBUG: Log every incoming message attempt
