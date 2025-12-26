@@ -1144,7 +1144,7 @@ const handleIncomingMessage = (payload) => {
   let conversation = conversations.value.find(c => (conversationId && c.id == conversationId) || (phone && c.wa_number == phone));
   
   if (!conversation) {
-    // New conversation
+    // New conversation - Create temporary entry
     conversation = {
       id: conversationId,
       wa_number: phone, // ✅ Add wa_number
@@ -1158,6 +1158,11 @@ const handleIncomingMessage = (payload) => {
       unread: 0
     };
     conversations.value.unshift(conversation);
+    
+    // ✅ CRITICAL FIX: Immediately fetch full conversation list from server
+    // This ensures the conversation has complete details (assigned_user_id, etc.)
+    console.log('🔄 New conversation detected - fetching from server...');
+    fetchConversations();
   } else {
     // Update existing conversation details if available
      if (payload.kode_cabang) {
