@@ -724,13 +724,26 @@ class WAReplies
      */
     private function handleWithAI($phoneIn, $textBody, $waNumber)
     {
+        // LOG: AI handler called
+        if (class_exists('\\Log')) {
+            \Log::write("AI handler called for message: '{$textBody}'", 'auto_reply', 'ai');
+        }
+        
         // Check if AI is enabled
         if (!class_exists('\\App\\Config\\AI')) {
             require_once __DIR__ . '/../Config/AI.php';
         }
         
         if (!\App\Config\AI::isEnabled()) {
+            if (class_exists('\\Log')) {
+                \Log::write("❌ AI is DISABLED (check Config/AI.php -> \$aiEnabled)", 'auto_reply', 'ai');
+            }
             return false; // AI disabled or API key not set
+        }
+        
+        // LOG: AI enabled
+        if (class_exists('\\Log')) {
+            \Log::write("✅ AI is enabled, preparing prompt...", 'auto_reply', 'ai');
         }
         
         try {
@@ -746,25 +759,45 @@ class WAReplies
             $prompt .= "Pesan: \"{$textBody}\"\n\n";
             $prompt .= "JAWAB HANYA DENGAN NAMA KATEGORI (huruf kapital). Contoh: NOTA";
             
+            // LOG: Calling Gemini API
+            if (class_exists('\\Log')) {
+                \Log::write("Calling Gemini API...", 'auto_reply', 'ai');
+            }
+            
             // 2. Call Gemini API
             $response = $this->callGemini($prompt);
             $intent = trim(strtoupper($response));
+            
+            // LOG: AI response
+            if (class_exists('\\Log')) {
+                \Log::write("AI Response: '{$response}' (Intent: '{$intent}')", 'auto_reply', 'ai');
+            }
             
             // 3. Validate intent
             $validIntents = ['NOTA', 'STATUS', 'JAM_BUKA', 'PEMBUKA', 'PENUTUP'];
             if (!in_array($intent, $validIntents)) {
                 if (class_exists('\\Log')) {
-                    \Log::write("AI returned invalid intent: '{$intent}' for message: '{$textBody}'", 'wa_ai', 'invalid_intent');
+                    \Log::write("❌ AI returned invalid intent: '{$intent}' for message: '{$textBody}'", 'auto_reply', 'ai');
                 }
                 return false;
+            }
+            
+            // LOG: Valid intent
+            if (class_exists('\\Log')) {
+                \Log::write("✅ Valid intent detected: {$intent}", 'auto_reply', 'ai');
             }
             
             // 4. Check rate limiting
             if (!$this->shouldReply($waNumber, $intent)) {
                 if (class_exists('\\Log')) {
-                    \Log::write("AI detected intent '{$intent}' but handler is in cooldown", 'wa_ai', 'cooldown');
+                    \Log::write("❌ Handler {$intent} in COOLDOWN", 'auto_reply', 'ai');
                 }
                 return false; // Handler in cooldown
+            }
+            
+            // LOG: Calling handler
+            if (class_exists('\\Log')) {
+                \Log::write("✅ Cooldown OK, calling handler...", 'auto_reply', 'ai');
             }
             
             // 5. Call appropriate handler
@@ -773,10 +806,14 @@ class WAReplies
             
             if (method_exists($this, $methodName)) {
                 if (class_exists('\\Log')) {
-                    \Log::write("AI SUCCESS: Intent='{$intent}' | Message='{$textBody}'", 'wa_ai', 'success');
+                    \Log::write("✅ AI SUCCESS: Executing {$methodName}", 'auto_reply', 'ai');
                 }
                 $this->$methodName($phoneIn, $waNumber);
                 return true;
+            } else {
+                if (class_exists('\\Log')) {
+                    \Log::write("❌ ERROR: Method {$methodName} not found!", 'auto_reply', 'ai');
+                }
             }
             
             return false;
@@ -784,7 +821,8 @@ class WAReplies
         } catch (\Exception $e) {
             // Log error but don't crash
             if (class_exists('\\Log')) {
-                \Log::write('AI Intent Detection Error: ' . $e->getMessage(), 'wa_ai', 'error');
+                \Log::write('❌ AI Exception: ' . $e->getMessage(), 'auto_reply', 'ai');
+                \Log::write('Stack trace: ' . $e->getTraceAsString(), 'auto_reply', 'ai');
             }
             return false;
         }
