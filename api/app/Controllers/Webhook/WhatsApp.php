@@ -297,13 +297,17 @@ class WhatsApp extends Controller
             }
             
             // Push to WebSocket Server AFTER priority is determined
+            $targetId = $assigned_user_id ? (string)$assigned_user_id : '0';
+            
             $this->pushIncomingToWebSocket([
                 'type' => 'wa_masuk',
+                'target_id' => $targetId, // ✅ Moved to root for WS Server Routing
+                'kode_cabang' => $code,   // ✅ Moved to root for WS Server Routing
                 'data' => [
                     'conversation_id' => $conversationId,
                     'phone' => $waNumber,
                     'contact_name' => $contact_name,
-                    'priority' => $currentPriority, // ✅ Include priority!
+                    'priority' => $currentPriority,
                     'message' => [
                         'id' => $msgId, // local DB ID
                         'text' => $textBody,
@@ -313,7 +317,7 @@ class WhatsApp extends Controller
                         'caption' => $mediaCaption,
                         'time' => date('Y-m-d H:i:s'),
                     ],
-                    'target_id' => $assigned_user_id ? (string)$assigned_user_id : '0',
+                    'target_id' => $targetId,
                     'kode_cabang' => $code
                 ]
             ]);
