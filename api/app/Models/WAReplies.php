@@ -779,8 +779,8 @@ class WAReplies
             require_once __DIR__ . '/../Config/AI.php';
         }
         
-        $apiKey = \App\Config\AI::getApiKey();
-        $model = \App\Config\AI::getModel();
+        $apiKey = (method_exists('\\App\\Config\\AI', 'getApiKey')) ? \App\Config\AI::getApiKey() : \App\Config\AI::getGeminiApiKey();
+        $model = \App\Config\AI::getGeminiModel();
         $temperature = \App\Config\AI::getTemperature();
         $maxTokens = \App\Config\AI::getMaxTokens();
         $timeout = \App\Config\AI::getTimeout();
@@ -818,6 +818,13 @@ class WAReplies
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+
+        // DEBUG: Internal Log
+        if (class_exists('\\Log')) {
+             \Log::write("Target URL: $url", 'auto_reply', 'ai');
+             \Log::write("Model: $model | Timeout: $timeout", 'auto_reply', 'ai');
+             \Log::write("cURL Executing...", 'auto_reply', 'ai');
+        }
         
         $result = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
