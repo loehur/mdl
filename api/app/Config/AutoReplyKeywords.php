@@ -22,6 +22,7 @@ return [
             '/(mi*nta*|ki*ri*m|ba*gi*|cek|ma*na*)\s*\b(stru*k|nota+|bil|bon|ta*gi*ha*n|re*si|bu*kti*)/i',
             '/(be*lu*m)\s*\b(di*(te*ri*ma*|ki*ri*m))/i',
             '/(be*ra*pa*|ki*ri*m|cek)?\s*\b(to*ta*l|ju*mla*h)/i',
+            '/(be*ra*pa*|cek)?\s*\b(to*ta*l|ju*mla*h|kg|be*ra*t|ti*mba*nga*n*)/i',
             '/(to*ta*l|ju*mla*h)\s*\b(la*o*u*ndry*i*)/i',
         ]
     ],
