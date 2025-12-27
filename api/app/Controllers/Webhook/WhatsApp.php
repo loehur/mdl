@@ -262,6 +262,7 @@ class WhatsApp extends Controller
             'wamid' => $wamid,
             'contact_name' => $contact_name,
             'status' => $status,
+            'created_at' => date('Y-m-d H:i:s'),
         ];
         
 
@@ -559,6 +560,7 @@ class WhatsApp extends Controller
                 'status' => 'open',
                 'last_in_at' => date('Y-m-d H:i:s'),
                 'last_message_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
                 'last_message' => $lastMessage,
             ];
             
@@ -586,6 +588,7 @@ class WhatsApp extends Controller
             'code' => $code,
             'status' => 'open',
             'created_at' => date('Y-m-d H:i:s'),
+            'last_in_at' => date('Y-m-d H:i:s'),
             'last_message_at' => date('Y-m-d H:i:s'),
             'updated_at' => date('Y-m-d H:i:s'),
             'last_message' => $lastMessage,
