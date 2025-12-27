@@ -34,6 +34,7 @@ return [
             '/((s*u*)?da*h*|ka*pa*n).*(bi*sa*|bo*le*h|da*pa*t).*(di*(ambi*l|je*mpu*t))/i',
             '/(ka*pa*n).*(bi*sa*|bo*le*h|da*pa*t).*(di*(ambi*l|je*mpu*t))/i',
             '/(ka*pa*n).*(bi*sa*|bo*le*h|da*pa*t).*(di*(ambi*l|je*mpu*t))/i',
+            '/(ja*m).*(be*ra*pa*).*(siap|se*le*sa*i*|ke*la*r|be*re*s)/i',
         ]
     ],
 
