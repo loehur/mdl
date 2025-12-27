@@ -16,7 +16,7 @@ return [
             '/^\s*(bon|nota+|stru*k|bil+|ta*gi*ha*n|re*si)\s*$/i',
             '/ata*s.*na*ma*/i',
             '/(be*lu*m).*(di*(te*ri*ma*|ki*ri*m))/i',
-            '/(be*ra*pa*|ki*ri*m|cek).*(to*ta*l|ju*mla*h)/i',
+            '/(be*ra*pa*|ki*ri*m|cek).*(to*ta*l|ju*mla*h|bon|stru*k|bil+|ta*gi*ha*n|re*si)/i',
             '/(be*ra*pa*|cek).*(to*ta*l|ju*mla*h|kg|be*ra*t|ti*mba*nga*n*)/i',
             '/(to*ta*l|ju*mla*h).*(la*o*u*ndry*i*)/i',
             '/(bon|nota*|bil+|ta*gi*ha*n|re*si|bu*kti*).*(ke*tik|mi*nta|ki*ri*m|ba*gi*|cek|ma*na*|a*da*|pe*rlu|bu*tu*h)/i',

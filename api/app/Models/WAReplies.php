@@ -932,10 +932,10 @@ class WAReplies
             $prompt .= "- NOTA: User minta bon/struk/nota/tagihan/bukti pembayaran\\n";
             $prompt .= "- STATUS: User cek status/progress laundry (sudah selesai? bisa diambil? kapan siap?)\\n";
             $prompt .= "- CEK_BUKA: User tanya jam buka/tutup, masih kah buka atau sudah kah tutup laundry/operasional\\n";
-            $prompt .= "- MINTA_JEMPUT_ANTAR: User minta jemput/antar laundry\\n";
+            $prompt .= "- MINTA_JEMPUT_ANTAR: User melakukan permintaan jemput/antar laundry (harus ada kata2 permintaan, seperti minta, tolong, bisa, dll)\\n";
             $prompt .= "- PEMBUKA: Salam pembuka (halo, hai, ping, pagi, siang, malam, sore)\\n";
             $prompt .= "- PENUTUP: Penutup percakapan (terima kasih, oke lah, sip lah, iya lah, dll)\\n";
-            $prompt .= "- PENUTUP: Hanya memberitahu kalau sudah dibayar, sudah lunas, atau sudah diambil\\n";
+            $prompt .= "- PENUTUP: Hanya memberitahu kalau sudah dibayar, sudah lunas, atau sudah diambil, akan menjemput, akan mengantarkan\\n";
             $prompt .= "- EMOTE: cuma emote dan candaan tawa seperti hehe haha wkwk\\n";
             $prompt .= "- FALSE: Tidak termasuk kategori di atas\\n\\n";
             $prompt .= "Pesan: \"{$textBody}\"\\n\\n";
