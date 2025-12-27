@@ -119,7 +119,7 @@ class WAReplies
                         $priority = $config['priority'] ?? 0;
                         
                         return (object) [
-                            'status' => null
+                            'status' => null,
                             'ai' => false,
                             'priority' => $priority
                         ];
