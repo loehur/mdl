@@ -88,7 +88,7 @@ class WAReplies
         
         // Load keyword configuration
         $keywordConfig = require __DIR__ . '/../Config/AutoReplyKeywords.php';
-        
+        $matchPatterns = [];
         // Check each handler's patterns
         foreach ($keywordConfig as $handler => $config) {
             $maxLength = $config['max_length'] ?? 0;
@@ -104,6 +104,7 @@ class WAReplies
                 if (preg_match($pattern, $textBodyToCheck)) {
                     // RATE LIMITING: Check if can send reply (cooldown)
                     if (!$this->shouldReply($waNumber, $handler)) {
+                        $matchPatterns[] = $handler;
                         continue 2; // Skip to next handler (this handler is in cooldown)
                     }
                     
@@ -141,9 +142,19 @@ class WAReplies
             
             // Use AI to determine if it's PEMBUKA, PENUTUP, or EMOTE
             $aiIntent = $this->classifyAmbiguous($phoneIn, $textBody, $waNumber);
-            
+            if (in_array($aiIntent, $matchPatterns)) {
+                return (object) [
+                    'status' => 'read',
+                    'ai' => false,
+                    'priority' => 0
+                ];
+            }
+
             if ($aiIntent === 'PEMBUKA' || $aiIntent === 'PENUTUP' || $aiIntent === 'EMOTE') {
                 // Get priority from config
+
+                $matchPatterns[] = $aiIntent;
+
                 $priority = isset($keywordConfig[$aiIntent]['priority']) 
                     ? $keywordConfig[$aiIntent]['priority'] 
                     : null;
@@ -179,7 +190,15 @@ class WAReplies
         $aiResult = $this->handleWithAI($phoneIn, $textBody, $waNumber);
         
         // Check if AI successfully detected a valid intent (not FALSE)
-        if ($aiResult !== false && strtoupper($aiResult) !== 'FALSE') {
+        if (strtoupper($aiResult) !== 'FALSE') {
+
+            if (in_array($aiResult, $matchPatterns)) {
+                return (object) [
+                    'status' => 'read',
+                    'ai' => false,
+                    'priority' => 0
+                ];
+            }
             // AI successfully detected intent, get priority from config
             $aiIntent = strtoupper($aiResult);
             // Get priority from config, respecting null values (null = don't update priority)

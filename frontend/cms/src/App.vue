@@ -147,6 +147,36 @@ const filteredConversations = computed(() => {
   });
 });
 
+// Total unread messages count
+const totalUnreadCount = computed(() => {
+  return conversations.value.reduce((sum, conv) => sum + (conv.unread || 0), 0);
+});
+
+// Watch for unread count changes to trigger title blinking
+watch(totalUnreadCount, (newCount) => {
+  if (newCount > 0) {
+    // Start blinking if not already blinking
+    if (!titleBlinkInterval.value) {
+      titleBlinkInterval.value = setInterval(() => {
+        isTitleRed.value = !isTitleRed.value;
+        document.title = isTitleRed.value ? `🔴 (${newCount}) New Messages` : originalTitle;
+      }, 1000);
+    } else {
+      // Update count if already blinking
+      if (isTitleRed.value) {
+        document.title = `🔴 (${newCount}) New Messages`;
+      }
+    }
+  } else {
+    // Stop blinking when no unread messages
+    if (titleBlinkInterval.value) {
+      clearInterval(titleBlinkInterval.value);
+      titleBlinkInterval.value = null;
+    }
+    isTitleRed.value = false;
+    document.title = originalTitle;
+  }
+});
 
 
 const fetchConversations = async () => {

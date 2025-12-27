@@ -8,32 +8,6 @@ class Antrian extends Controller
       $this->operating_data();
    }
 
-   /**
-    * Helper untuk write log dengan format konsisten
-    * @param string $method Nama method yang memanggil
-    * @param string $type Tipe log: INFO, WARNING, ERROR, DEBUG
-    * @param string $message Pesan
-    * @param array $context Data konteks tambahan (optional)
-    */
-   private function writeLog($method, $type, $message, $context = [])
-   {
-      $userId = $_SESSION[URL::SESSID]['user']['id_user'] ?? 'Guest';
-      $userName = $_SESSION[URL::SESSID]['user']['nama_user'] ?? 'Guest';
-      $idCabang = $_SESSION[URL::SESSID]['user']['id_cabang'] ?? 'N/A';
-
-      $logText = "[ANTRIAN::{$method}] [{$type}] ";
-      $logText .= "User: {$userId} ({$userName}) | Cabang: {$idCabang} | ";
-      $logText .= "Message: {$message}";
-
-      if (!empty($context)) {
-         // Menyembunyikan data sensitif jika ada
-         if (isset($context['password'])) $context['password'] = '***';
-         $logText .= " | Context: " . json_encode($context, JSON_UNESCAPED_UNICODE);
-      }
-
-      $this->model('Log')->write($logText);
-   }
-
    public function index($antrian = 1)
    {
       $kas = [];
@@ -210,17 +184,39 @@ class Antrian extends Controller
 
       // Get sale data to retrieve customer phone
       $sale = $this->db(0)->get_where_row('sale', "id_penjualan = '$penjualan'");
+      if (!$sale) {
+         $this->model('Log')->write("[operasi] ERROR: Sale data not found - ID: " . $penjualan);
+         echo "Error: Sale data tidak ditemukan";
+         exit();
+      }
       $id_pelanggan = $sale['id_pelanggan'];
       
       // Get customer phone
       $pelanggan = $this->db(0)->get_where_row('pelanggan', "id_pelanggan = '$id_pelanggan'");
+      if (!$pelanggan) {
+         $this->model('Log')->write("[operasi] ERROR: Customer data not found - ID Pelanggan: " . $id_pelanggan);
+         echo "Error: Data pelanggan tidak ditemukan";
+         exit();
+      }
       $hp = $pelanggan['nomor_pelanggan'];
+      
+      if (empty($hp)) {
+         $this->model('Log')->write("[operasi] ERROR: Customer phone empty - ID Pelanggan: " . $id_pelanggan);
+         echo "Error: Nomor HP pelanggan kosong";
+         exit();
+      }
 
       // Generate text using WAGenerator (text sudah final, tidak perlu replace lagi)
       $waGen = $this->helper('WAGenerator');
       $jsonText = $waGen->get_selesai_text($penjualan, $karyawan);
       $objText = json_decode($jsonText, true);
       $text = $objText['text'] ?? "";
+      
+      if (empty($text)) {
+         $this->model('Log')->write("[operasi] ERROR: Generated text empty - ID Penjualan: " . $penjualan . " | Karyawan: " . $karyawan . " | JSON: " . $jsonText);
+         echo "Error: Text notifikasi kosong";
+         exit();
+      }
 
       $setOne = "id_penjualan = '" . $penjualan . "' AND jenis_operasi = " . $operasi;
       $where = $this->wCabang . " AND " . $setOne;
@@ -238,11 +234,12 @@ class Antrian extends Controller
          ];
          $in = $this->db(0)->insert('operasi', $data);
          if ($in['errno'] <> 0) {
-            $this->writeLog('operasi', 'ERROR', 'Insert Operasi Failed', ['error' => $in['error']]);
             $this->model('Log')->write("[operasi] Insert Operasi Error: " . $in['error']);
             echo $in['error'];
             exit();
          }
+      } else {
+         $this->model('Log')->write("[operasi] Operasi already exists: " . $penjualan . " - " . $operasi);
       }
 
       //INSERT NOTIF SELESAI TAPI NOT READY
@@ -250,8 +247,11 @@ class Antrian extends Controller
 
       $whereNotif = $this->wCabang . " AND no_ref = '" . $penjualan . "' AND tipe = 2";
       $data_main = $this->db(0)->count_where('notif', $whereNotif);
+      
+      $this->model('Log')->write("[operasi] Check existing notif - Where: " . $whereNotif . " | Count: " . $data_main);
+      
       if ($data_main < 1) {
-         $data = [
+         $notifData = [
             'id_notif' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
             'insertTime' => $time,
             'id_cabang' => $this->id_cabang,
@@ -261,12 +261,18 @@ class Antrian extends Controller
             'state' => 'pending',
             'tipe' => 2
          ];
-          $do = $this->db(0)->insert('notif', $data);
+         
+         $this->model('Log')->write("[operasi] Attempting insert notif - Phone: " . $hp . " | Ref: " . $penjualan);
+         
+          $do = $this->db(0)->insert('notif', $notifData);
           if ($do['errno'] <> 0) {
-             $this->writeLog('operasi', 'ERROR', 'Insert Notif Failed', ['error' => $do['error']]);
-             $this->model('Log')->write("[operasi] Insert Notif Error: " . $do['error']);
+             $this->model('Log')->write("[operasi] Insert Notif Error: " . $do['error'] . " | Phone: " . $hp);
              $this->helper('Notif')->send_wa(URL::WA_PRIVATE[0], $do['error']);
+          } else {
+             $this->model('Log')->write("[operasi] Insert Notif Success - ID: " . $notifData['id_notif'] . " | Phone: " . $hp . " | State: pending");
           }
+      } else {
+         $this->model('Log')->write("[operasi] WARNING: Notif already exists - skipped insert for: " . $penjualan);
       }
 
       if (isset($_POST['rak'])) {
@@ -276,16 +282,32 @@ class Antrian extends Controller
             $hanger = $_POST['hanger'];
             $set = ['letak' => $rak, 'pack' => $pack, 'hanger' => $hanger];
             $where = $this->wCabang . " AND id_penjualan = '" . $penjualan . "'";
-            $this->db(0)->update('sale', $set, $where);
+            $upResult = $this->db(0)->update('sale', $set, $where);
+            
+            if ($upResult['errno'] <> 0) {
+               $this->model('Log')->write("[operasi] ERROR: Update rak failed - " . $upResult['error']);
+            } else {
+               $this->model('Log')->write("[operasi] Update rak success - Rak: " . $rak . " | Pack: " . $pack . " | Hanger: " . $hanger);
+            }
 
             //CEK DATA NOTIF
             $setOne = "no_ref = '" . $penjualan . "' AND tipe = 2 AND (state = 'pending' || state = 'queue')";
             $where = $setOne;
             $data_main = $this->db(0)->count_where('notif', $where);
+            
+            $this->model('Log')->write("[operasi] Check notif ready to send - Count: " . $data_main . " | Expected: 1");
+            
              if ($data_main == 1) {
+                $this->model('Log')->write("[operasi] Calling notifReadySend for: " . $penjualan);
                 $this->notifReadySend($penjualan);
+             } else {
+                $this->model('Log')->write("[operasi] WARNING: Notif not ready or not found - Count: " . $data_main);
              }
+          } else {
+             $this->model('Log')->write("[operasi] WARNING: Rak kosong, skip notifReadySend for: " . $penjualan);
           }
+       } else {
+          $this->model('Log')->write("[operasi] WARNING: Rak not set in POST, skip notifReadySend for: " . $penjualan);
        }
 
        echo 0;
@@ -314,7 +336,6 @@ class Antrian extends Controller
          ];
              $in = $this->db(0)->insert('surcas', $data);
              if ($in['errno'] <> 0) {
-                $this->writeLog('surcas', 'ERROR', 'Insert Surcas Failed', ['error' => $in['error']]);
                 $this->model('Log')->write("[surcas] Insert Surcas Error: " . $in['error']);
                 echo $in['error'];
                 exit();
@@ -370,7 +391,7 @@ class Antrian extends Controller
       $dm = $this->db(0)->get_where_row('notif', $where);
       
       if (!$dm) {
-         $this->writeLog('notifReadySend', 'WARNING', 'Notif tidak ditemukan', ['id_penjualan' => $idPenjualan]);
+         $this->model('Log')->write("[notifReadySend] WARNING: Notif tidak ditemukan - ID: " . $idPenjualan);
          return;
       }
       
@@ -379,7 +400,7 @@ class Antrian extends Controller
       
       // Skip if already sent or currently processing
       if (in_array($currentState, ['sent', 'processing'])) {
-         $this->writeLog('notifReadySend', 'WARNING', 'Notif sudah terkirim atau sedang diproses', ['id_penjualan' => $idPenjualan, 'state' => $currentState]);
+         $this->model('Log')->write("[notifReadySend] WARNING: Notif sudah terkirim atau sedang diproses - ID: " . $idPenjualan . " | State: " . $currentState);
          return;
       }
       
@@ -388,12 +409,29 @@ class Antrian extends Controller
       $lockResult = $this->db(0)->update('notif', $lockSet, $where);
       
       if ($lockResult['errno'] <> 0) {
-         $this->writeLog('notifReadySend', 'ERROR', 'Gagal lock notif', ['id_penjualan' => $idPenjualan, 'error' => $lockResult['error']]);
+         $this->model('Log')->write("[notifReadySend] ERROR: Gagal lock notif - ID: " . $idPenjualan . " | Error: " . $lockResult['error']);
          return;
       }
       
       $hp = $dm['phone'];
       $text = $dm['text'];
+      
+      // Validate phone and text
+      if (empty($hp)) {
+         $this->model('Log')->write("[notifReadySend] ERROR: Phone number empty - ID: " . $idPenjualan);
+         // Set back to pending
+         $this->db(0)->update('notif', ['state' => 'pending'], $where);
+         return;
+      }
+      
+      if (empty($text)) {
+         $this->model('Log')->write("[notifReadySend] ERROR: Text empty - ID: " . $idPenjualan);
+         // Set back to pending
+         $this->db(0)->update('notif', ['state' => 'pending'], $where);
+         return;
+      }
+      
+      $this->model('Log')->write("[notifReadySend] Sending WA - ID: " . $idPenjualan . " | Phone: " . $hp);
       
       // Text sudah final dari WAGenerator, tidak perlu replace lagi
       $res = $this->helper('Notif')->send_wa($hp, $text, false);
@@ -404,10 +442,23 @@ class Antrian extends Controller
       $where2 = $this->wCabang . " AND no_ref = '" . $idPenjualan . "' AND tipe = 2";
       if ($res['status']) {
          $set = ['state' => 'sent', 'id_api' => $idApi];
-         $this->db(0)->update('notif', $set, $where2);
+         $updateResult = $this->db(0)->update('notif', $set, $where2);
+         
+         if ($updateResult['errno'] <> 0) {
+            $this->model('Log')->write("[notifReadySend] ERROR: Update notif to sent failed - ID: " . $idPenjualan . " | Error: " . $updateResult['error']);
+         } else {
+            $this->model('Log')->write("[notifReadySend] SUCCESS: WA sent - ID: " . $idPenjualan . " | API ID: " . $idApi . " | Phone: " . $hp);
+         }
       } else {
+         $errorMsg = $res['message'] ?? $res['error'] ?? 'Unknown error';
+         $this->model('Log')->write("[notifReadySend] ERROR: WA send failed - ID: " . $idPenjualan . " | Phone: " . $hp . " | Error: " . $errorMsg);
+         
          $set = ['state' => 'pending'];
-         $this->db(0)->update('notif', $set, $where2);
+         $updateResult = $this->db(0)->update('notif', $set, $where2);
+         
+         if ($updateResult['errno'] <> 0) {
+            $this->model('Log')->write("[notifReadySend] ERROR: Update notif back to pending failed - ID: " . $idPenjualan . " | Error: " . $updateResult['error']);
+         }
       }
    }
 
@@ -462,7 +513,7 @@ class Antrian extends Controller
       
       if ($existingNotif === 0) {
          // Notification already sent, skip sending again
-         $this->writeLog('sendNotif', 'WARNING', 'Notif already exists, skipped sending', ['no_ref' => $noref, 'hp' => $hp]);
+         $this->model('Log')->write("[sendNotif] WARNING: Notif already exists, skipped sending - Ref: " . $noref . " | HP: " . $hp);
          echo json_encode(['status' => 'exists', 'message' => 'Notifikasi sudah pernah dikirim']);
          return;
       }
@@ -485,7 +536,7 @@ class Antrian extends Controller
       $insertResult = $this->db(0)->insert('notif', $pendingVals);
       if ($insertResult['errno'] <> 0) {
          // Insert failed (might be duplicate key if another request just inserted)
-         $this->writeLog('sendNotif', 'WARNING', 'Insert pending failed - likely duplicate', ['no_ref' => $noref, 'error' => $insertResult['error']]);
+         $this->model('Log')->write("[sendNotif] WARNING: Insert pending failed - likely duplicate - Ref: " . $noref . " | Error: " . $insertResult['error']);
          echo json_encode(['status' => 'exists', 'message' => 'Notifikasi sedang diproses']);
          return;
       }
@@ -526,7 +577,6 @@ class Antrian extends Controller
       $where = $this->wCabang . " AND " . $setOne;
        $up = $this->db(0)->update('sale', $set, $where);
        if ($up['errno'] <> 0) {
-          $this->writeLog('ambil', 'ERROR', 'Update Sales Failed', ['error' => $up['error']]);
           $this->model('Log')->write("[ambil] Update Sale (Ambil) Error: " . $up['error']);
           echo $up['error'];
       } else {
