@@ -1875,7 +1875,7 @@ window.addEventListener('focus', () => {
            </div>
             <div class="flex-1 min-w-0">
               <div class="flex justify-between items-baseline mb-1 gap-2">
-                <h3 class="font-normal text-[16px] truncate text-[var(--wa-text-primary)] max-w-[240px]" :title="chat.name">
+                <h3 class="font-normal text-[16px] truncate text-[var(--wa-text-primary)] max-w-[240px] uppercase" :title="chat.name">
                   <span v-if="chat.kode_cabang" class="font-mono text-xs mr-1" :class="chat.kode_cabang === '00' ? 'text-pink-400' : 'text-[var(--wa-accent-blue)]'">[{{ chat.kode_cabang }}]</span>
                   {{ chat.name }}
                 </h3>
@@ -1946,10 +1946,10 @@ window.addEventListener('focus', () => {
           class="absolute top-0 left-0 right-0 h-16 border-b flex items-center justify-between px-4 md:px-6 z-30"
           :class="{
             'border-[var(--wa-border)] bg-[var(--wa-bg-panel)]': !activeConversation.priority,
-            'border-green-600 bg-gradient-to-r from-green-950/40 to-green-900/30': activeConversation.priority === 1,
-            'border-yellow-600 bg-gradient-to-r from-yellow-950/40 to-yellow-900/30': activeConversation.priority === 2,
-            'border-red-600 bg-gradient-to-r from-red-950/40 to-red-900/30': activeConversation.priority === 3,
-            'border-purple-600 bg-gradient-to-r from-purple-950/40 to-purple-900/30': activeConversation.priority === 4
+            'border-green-600 bg-green-950': activeConversation.priority === 1,
+            'border-yellow-600 bg-yellow-950': activeConversation.priority === 2,
+            'border-red-600 bg-red-950': activeConversation.priority === 3,
+            'border-purple-600 bg-purple-950': activeConversation.priority === 4
           }"
         >
           <div class="flex items-center gap-3 flex-1 min-w-0">
@@ -1968,7 +1968,7 @@ window.addEventListener('focus', () => {
              </div>
              
              <div class="min-w-0 flex-1">
-               <h2 class="font-medium text-[var(--wa-text-primary)] text-base md:text-lg truncate" :title="activeConversation.name">{{ activeConversation.name }}</h2>
+               <h2 class="font-medium text-[var(--wa-text-primary)] text-base md:text-lg truncate uppercase" :title="activeConversation.name">{{ activeConversation.name }}</h2>
                <p v-if="activeConversation.kode_cabang" class="text-xs font-mono text-[var(--wa-text-secondary)]">{{ activeConversation.kode_cabang }}</p>
              </div>
           </div>
