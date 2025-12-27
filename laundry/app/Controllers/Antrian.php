@@ -434,7 +434,7 @@ class Antrian extends Controller
       $this->model('Log')->write("[notifReadySend] Sending WA - ID: " . $idPenjualan . " | Phone: " . $hp);
       
       // Text sudah final dari WAGenerator, tidak perlu replace lagi
-      $res = $this->helper('Notif')->send_wa($hp, $text, false);
+      $res = $this->helper('Notif')->send_wa($hp, $text, 'free');
 
       $apiData = $res['data']['data'] ?? $res['data'] ?? [];
       $idApi = $apiData['id'] ?? ($apiData['message_id'] ?? '');
