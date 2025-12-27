@@ -77,6 +77,35 @@ const eventSource = ref(null);
 
 const searchQuery = ref('');
 
+// Settings State
+const showSettingsModal = ref(false);
+const fontSize = ref('medium'); // 'medium', 'large'
+
+// Load font size from localStorage on mount
+const loadFontSize = () => {
+  const saved = localStorage.getItem('cms_font_size');
+  if (saved && ['medium', 'large'].includes(saved)) {
+    fontSize.value = saved;
+  }
+};
+
+// Save font size to localStorage
+const setFontSize = (size) => {
+  fontSize.value = size;
+  localStorage.setItem('cms_font_size', size);
+  showSettingsModal.value = false;
+};
+
+// Computed font sizes for messages
+const messageFontSize = computed(() => {
+  const sizes = {
+    medium: '14.2px',
+    large: '16px'
+  };
+  return sizes[fontSize.value] || sizes.medium;
+});
+
+
 const filteredConversations = computed(() => {
   let list = conversations.value;
   
@@ -1618,6 +1647,9 @@ onMounted(() => {
   // Handle pasted images
   window.addEventListener('paste', handlePaste);
   
+  // Load font size preference
+  loadFontSize();
+  
   const storedId = localStorage.getItem('cms_chat_id');
   const storedPass = localStorage.getItem('cms_chat_password');
   const storedExpiry = localStorage.getItem('cms_chat_expiry');
@@ -1803,23 +1835,37 @@ window.addEventListener('focus', () => {
            :class="showMobileChat ? 'flex' : 'flex'">
       <!-- Search Header -->
        <div class="p-4 border-b border-[var(--wa-border)] bg-[var(--wa-bg-panel)] backdrop-blur-md sticky top-0 z-10 transition-colors duration-300">
-          <div class="relative group">
-              <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[var(--wa-icon-default)] group-focus-within:text-[var(--wa-accent-green)] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
+          <div class="flex items-center gap-2">
+              <div class="relative group flex-1">
+                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[var(--wa-icon-default)] group-focus-within:text-[var(--wa-accent-green)] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                  </div>
+                  <input 
+                      v-model="searchQuery"
+                      type="text" 
+                      placeholder="Search or start new chat" 
+                      class="block w-full pl-10 pr-10 py-2.5 border border-[var(--wa-border)] rounded-lg leading-5 bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)] placeholder-[var(--wa-text-tertiary)] focus:outline-none focus:bg-[var(--wa-bg-tertiary)] focus:border-[var(--wa-accent-green)] focus:ring-0 sm:text-sm transition-all"
+                  >
+                  <div v-if="searchQuery" class="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer" @click="searchQuery = ''">
+                       <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500 hover:text-slate-300 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                       </svg>
+                  </div>
               </div>
-              <input 
-                  v-model="searchQuery"
-                  type="text" 
-                  placeholder="Search or start new chat" 
-                  class="block w-full pl-10 pr-10 py-2.5 border border-[var(--wa-border)] rounded-lg leading-5 bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)] placeholder-[var(--wa-text-tertiary)] focus:outline-none focus:bg-[var(--wa-bg-tertiary)] focus:border-[var(--wa-accent-green)] focus:ring-0 sm:text-sm transition-all"
+              
+              <!-- Settings Button -->
+              <button 
+                  @click="showSettingsModal = !showSettingsModal"
+                  class="p-2.5 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)] hover:bg-[var(--wa-hover)] rounded-lg transition-colors"
+                  title="Settings"
               >
-              <div v-if="searchQuery" class="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer" @click="searchQuery = ''">
-                   <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500 hover:text-slate-300 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                   </svg>
-              </div>
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+              </button>
           </div>
        </div>
       
@@ -2130,7 +2176,7 @@ window.addEventListener('focus', () => {
                   
                   <!-- Text Message: Normal style -->
                   <div v-else class="bg-[var(--wa-bubble-incoming)] text-[var(--wa-text-primary)] px-3 py-2 rounded-lg rounded-tl-none shadow-sm max-w-full">
-                     <p v-if="msg.text" class="leading-relaxed text-[14.2px] break-words whitespace-pre-wrap" v-html="parseWhatsAppFormatting(msg.text)"></p>
+                     <p v-if="msg.text" class="leading-relaxed break-words whitespace-pre-wrap" v-html="parseWhatsAppFormatting(msg.text)" :style="{ fontSize: messageFontSize }"></p>
                      <span class="text-[11px] text-[var(--wa-text-tertiary)] block mt-1 text-right">{{ msg.time }}</span>
                   </div>
                </div>
@@ -2192,7 +2238,7 @@ window.addEventListener('focus', () => {
                   
                   <!-- Text Message: Normal style -->
                   <div v-else class="bg-[var(--wa-bubble-outgoing)] text-white px-3 py-2 rounded-lg rounded-tr-none shadow-sm max-w-full">
-                     <p v-if="msg.text" class="leading-relaxed text-[14.2px] break-words whitespace-pre-wrap" v-html="parseWhatsAppFormatting(msg.text)"></p>
+                     <p v-if="msg.text" class="leading-relaxed break-words whitespace-pre-wrap" v-html="parseWhatsAppFormatting(msg.text)" :style="{ fontSize: messageFontSize }"></p>
                        <div class="flex items-center justify-end gap-1 mt-1">
                           <span class="text-[11px] text-white/70">{{ msg.time }}</span>
                           <!-- Status Indicators -->
@@ -2308,6 +2354,53 @@ window.addEventListener('focus', () => {
             </svg>
             <p class="text-lg text-[var(--wa-text-secondary)]">Select a conversation to start chatting</p>
          </div>
+      </div>
+      
+      <!-- Settings Modal -->
+      <div v-if="showSettingsModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" @click="showSettingsModal = false">
+        <div class="bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-2xl shadow-2xl max-w-md w-full p-6" @click.stop>
+          <!-- Header -->
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="text-xl font-semibold text-[var(--wa-text-primary)]">Settings</h2>
+            <button @click="showSettingsModal = false" class="p-2 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)] hover:bg-[var(--wa-hover)] rounded-lg transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          
+          <!-- Font Size Setting -->
+          <div class="space-y-4">
+            <div>
+              <h3 class="text-sm font-medium text-[var(--wa-text-secondary)] mb-3">Font Size</h3>
+              <div class="space-y-2">
+                <!-- Medium Option (Default) -->
+                <button 
+                  @click="setFontSize('medium')"
+                  class="w-full flex items-center justify-between p-3 rounded-lg border transition-all"
+                  :class="fontSize === 'medium' ? 'border-[var(--wa-accent-green)] bg-[var(--wa-accent-green)]/10' : 'border-[var(--wa-border)] hover:bg-[var(--wa-hover)]'"
+                >
+                  <span class="text-[var(--wa-text-primary)]" style="font-size: 14.2px;">Medium (Default)</span>
+                  <svg v-if="fontSize === 'medium'" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[var(--wa-accent-green)]" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                  </svg>
+                </button>
+                
+                <!-- Large Option -->
+                <button 
+                  @click="setFontSize('large')"
+                  class="w-full flex items-center justify-between p-3 rounded-lg border transition-all"
+                  :class="fontSize === 'large' ? 'border-[var(--wa-accent-green)] bg-[var(--wa-accent-green)]/10' : 'border-[var(--wa-border)] hover:bg-[var(--wa-hover)]'"
+                >
+                  <span class="text-[var(--wa-text-primary)]" style="font-size: 16px;">Large</span>
+                  <svg v-if="fontSize === 'large'" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[var(--wa-accent-green)]" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
       
     </main>

@@ -245,11 +245,13 @@ class WAGenerator extends Controller
         $cleanOrderList = $listNotif;
         // Step 1: Replace single newlines with pipes
         $cleanOrderList = str_replace(["\n", "\r", "\t"], " | ", $cleanOrderList);
-        // Step 2: Clean multiple spaces
+        // Step 2: Add total text
+        $cleanOrderList .= " | " . $totalText . " | ";
+        // Step 3: Clean multiple spaces
         $cleanOrderList = preg_replace('/\s{2,}/', ' ', $cleanOrderList);
-        // Step 3: Remove leading/trailing pipes
+        // Step 4: Remove leading/trailing pipes
         $cleanOrderList = trim($cleanOrderList, ' |');
-        // Step 4: Final trim
+        // Step 5: Final trim
         $cleanOrderList = trim($cleanOrderList);
         
         $cleanTotalBill = str_replace(["\n", "\r", "\t", "*", "Total/Sisa "], "", $totalText); // Remove formatting and prefix

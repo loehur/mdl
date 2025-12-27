@@ -157,6 +157,14 @@ class WAReplies
             
             // AI ambiguous failed, fall through to AI_FALLBACK below for comprehensive intent detection
         }
+
+        if ($messageLength == 0) {
+            return (object) [
+                'status' => null,
+                'ai' => false,
+                'priority' => 1
+            ];
+        }
         
         // Rate limiting: Prevent AI from being called too frequently
         if (!$this->shouldReply($waNumber, 'AI_FALLBACK')) {
