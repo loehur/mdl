@@ -119,7 +119,7 @@ class WAReplies
                         $priority = $config['priority'] ?? 0;
                         
                         return (object) [
-                            'status' => 'read',
+                            'status' => null
                             'ai' => false,
                             'priority' => $priority
                         ];
@@ -146,7 +146,7 @@ class WAReplies
                 // Get priority from config
                 if (in_array($aiIntent, $matchPatterns)) {
                     return (object) [
-                        'status' => 'read',
+                        'status' => null
                         'ai' => false,
                         'priority' => null
                     ];
@@ -159,7 +159,7 @@ class WAReplies
                     : null;
                 
                 return (object) [
-                    'status' => 'read',
+                    'status' => null
                     'ai' => true,
                     'priority' => $priority
                 ];
@@ -190,7 +190,7 @@ class WAReplies
         if (strtoupper($aiResult) !== 'FALSE') {
             if (in_array($aiResult, $matchPatterns)) {
                 return (object) [
-                    'status' => 'read',
+                    'status' => null
                     'ai' => false,
                     'priority' => null
                 ];
@@ -203,7 +203,7 @@ class WAReplies
                 : 4;  // Default if intent not in config
             
             return (object) [
-                'status' => 'read',
+                'status' => null
                 'ai' => true,
                 'priority' => $aiPriority
             ];
