@@ -909,6 +909,7 @@ class WAReplies
             $prompt .= "- PEMBUKA: Salam pembuka (halo, hai, ping, pagi, siang, malam, sore)\\n";
             $prompt .= "- PENUTUP: Penutup percakapan (terima kasih, oke lah, sip lah, iya lah, dll)\\n";
             $prompt .= "- PENUTUP: Hanya memberitahu kalau sudah dibayar, sudah lunas, atau sudah diambil\\n";
+            $prompt .= "- EMOTE: cuma emote dan candaan tawa seperti hehe haha wkwk\\n";
             $prompt .= "- FALSE: Tidak termasuk kategori di atas\\n\\n";
             $prompt .= "Pesan: \"{$textBody}\"\\n\\n";
             $prompt .= "JAWAB HANYA DENGAN NAMA KATEGORI (huruf kapital). Contoh: NOTA";
@@ -990,7 +991,7 @@ class WAReplies
             $prompt .= "Kategori:\\n";
             $prompt .= "- PEMBUKA: Salam pembuka, sapaan awal (contoh: halo, hai, ping, pagi, siang, malam, sore, ka, bang, pak, bu)\\n";
             $prompt .= "- PENUTUP: Penutup percakapan, konfirmasi, terima kasih (contoh: ok, oke, sip, siap, makasih, terima kasih, thanks, sudah, lah, iya, thx)\\n\\n";
-            $prompt .= "- EMOTE: cuma emote\\n\\n";
+            $prompt .= "- EMOTE: cuma emote dan candaan seperti hehe haha wkwk\\n\\n";
             $prompt .= "Pesan: \\\"{$textBody}\\\"\\n\\n";
             $prompt .= "WAJIB JAWAB HANYA SALAH SATU: PEMBUKA, PENUTUP, atau EMOTE (huruf kapital).";
             
