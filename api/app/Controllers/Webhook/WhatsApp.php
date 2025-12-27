@@ -168,6 +168,10 @@ class WhatsApp extends Controller
                 } elseif (isset($msg['interactive']['list_reply'])) {
                     $messageText = $msg['interactive']['list_reply']['title'] ?? '';
                 }
+            } elseif ($messageType === 'reaction') {
+                // Extract reaction emoji
+                $reactionEmoji = $msg['reaction']['emoji'] ?? null;
+                $messageText = $reactionEmoji ? "Reacted $reactionEmoji" : "Removed reaction";
             } elseif (isset($msg[$messageType]['caption'])) {
                 $messageText = $msg[$messageType]['caption'];
             }
@@ -175,7 +179,16 @@ class WhatsApp extends Controller
             // Build lastMessageSummary
             $lastMessageSummary = $messageText;
             if (empty($lastMessageSummary) && $messageType !== 'text') {
-                 $lastMessageSummary = "[$messageType]";
+                // Use emoji for better UX
+                $typeLabels = [
+                    'image' => '📷 Image',
+                    'video' => '🎥 Video',
+                    'audio' => '🎵 Audio',
+                    'voice' => '🎤 Voice',
+                    'document' => '📄 Document',
+                    'sticker' => '🎨 Sticker',
+                ];
+                 $lastMessageSummary = $typeLabels[$messageType] ?? "[$messageType]";
             }
 
         } catch (\Exception $e) {
@@ -212,6 +225,21 @@ class WhatsApp extends Controller
                     $textBody = $msg['interactive']['list_reply']['title'] ?? null;
                 }
                 break;
+            
+            case 'reaction':
+                // Handle reaction (emoji react to a message)
+                $reactionEmoji = $msg['reaction']['emoji'] ?? null;
+                $reactionMessageId = $msg['reaction']['message_id'] ?? null;
+                
+                if ($reactionEmoji) {
+                    $textBody = "Reacted: $reactionEmoji";
+                } else {
+                    $textBody = "Removed reaction"; // Unreact
+                }
+                
+                // Store reaction metadata in media fields (creative reuse)
+                $mediaCaption = $reactionMessageId; // Store which message was reacted to
+                break;
 
             case 'image':
                 // Process image (no verbose log)
@@ -219,6 +247,7 @@ class WhatsApp extends Controller
             case 'audio':
             case 'document':
             case 'voice':
+            case 'sticker':
                 $mediaId = $msg[$messageType]['id'] ?? null;
                 $mediaMimeType = $msg[$messageType]['mimeType'] ?? $msg[$messageType]['mime_type'] ?? null;
                 $mediaUrlDirect = $msg[$messageType]['link'] ?? null;

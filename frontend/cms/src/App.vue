@@ -2112,6 +2112,22 @@ window.addEventListener('focus', () => {
                      </div>
                   </div>
                   
+                  <!-- Sticker Message -->
+                  <div v-else-if="msg.type === 'sticker'" class="rounded-lg overflow-hidden max-w-[150px]">
+                     <img v-if="msg.media_url" :src="msg.media_url" class="w-full cursor-pointer" onclick="window.open(this.src)" style="background: transparent;">
+                     <img v-else-if="msg.media_id" :src="`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" class="w-full cursor-pointer" onclick="window.open(this.src)" style="background: transparent;">
+                     <div v-else class="bg-[var(--wa-bubble-incoming)] px-3 py-2 rounded-lg">
+                        <span class="text-2xl">🎨</span>
+                        <span class="text-[11px] text-[var(--wa-text-tertiary)] block mt-1">{{ msg.time }}</span>
+                     </div>
+                  </div>
+                  
+                  <!-- Reaction Message -->
+                  <div v-else-if="msg.type === 'reaction'" class="bg-[var(--wa-bubble-incoming)]/50 px-3 py-2 rounded-full shadow-sm flex items-center gap-2">
+                     <span class="text-xl">{{ msg.text.replace('Reacted: ', '').replace('Removed reaction', '👎') }}</span>
+                     <span class="text-[10px] text-[var(--wa-text-tertiary)]">{{ msg.time }}</span>
+                  </div>
+                  
                   <!-- Text Message: Normal style -->
                   <div v-else class="bg-[var(--wa-bubble-incoming)] text-[var(--wa-text-primary)] px-3 py-2 rounded-lg rounded-tl-none shadow-sm max-w-full">
                      <p v-if="msg.text" class="leading-relaxed text-[14.2px] break-words whitespace-pre-wrap" v-html="parseWhatsAppFormatting(msg.text)"></p>
@@ -2156,6 +2172,22 @@ window.addEventListener('focus', () => {
                            </div>
                         </div>
                      </div>
+                  </div>
+                  
+                  <!-- Sticker Message -->
+                  <div v-else-if="msg.type === 'sticker'" class="rounded-lg overflow-hidden max-w-[150px]">
+                     <img v-if="msg.media_url" :src="msg.media_url" class="w-full cursor-pointer" onclick="window.open(this.src)" style="background: transparent;">
+                     <img v-else-if="msg.media_id" :src="`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" class="w-full cursor-pointer" onclick="window.open(this.src)" style="background: transparent;">
+                     <div v-else class="bg-[var(--wa-bubble-outgoing)] px-3 py-2 rounded-lg">
+                        <span class="text-2xl">🎨</span>
+                        <span class="text-[11px] text-white/70 block mt-1">{{ msg.time }}</span>
+                     </div>
+                  </div>
+                  
+                  <!-- Reaction Message (rarely sent by agents, but supported) -->
+                  <div v-else-if="msg.type === 'reaction'" class="bg-[var(--wa-bubble-outgoing)]/50 px-3 py-2 rounded-full shadow-sm flex items-center gap-2">
+                     <span class="text-xl">{{ msg.text.replace('Reacted: ', '').replace('Removed reaction', '👎') }}</span>
+                     <span class="text-[10px] text-white/70">{{ msg.time }}</span>
                   </div>
                   
                   <!-- Text Message: Normal style -->
