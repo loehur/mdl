@@ -771,7 +771,7 @@ class WAReplies
         
         $variations = [
             "Mohon maaf, kami sedang tutup. Kami buka {$daysStr} pukul {$openTime}-{$closeTime}. Silakan tinggalkan pesan, nanti akan kami balas saat jam kerja. Terima kasih 🙏",
-            "Maaf ya, sedang di luar jam operasional. Kami buka {$daysStr} jam {$openTime}-{$closeTime}. Tinggalkan pesan saja ya, nanti kami respon saat buka 😊",
+            "Mohon Maaf, kami sedang di luar jam operasional. Kami buka {$daysStr} jam {$openTime}-{$closeTime}. Tinggalkan pesan saja ya, nanti kami respon saat buka 😊",
             "Halo! Saat ini kami sudah tutup. Jam buka kami: {$daysStr} {$openTime}-{$closeTime}. Silakan tinggalkan pesan, kami akan membalas saat jam kerja. Terima kasih 🙏",
             "Mohon maaf, kami di luar jam operasional. Buka lagi: {$daysStr} pukul {$openTime}-{$closeTime}. Silakan tinggalkan pesan Anda, nanti akan kami balas saat jam kerja. Terima kasih 😊"
         ];
@@ -879,93 +879,94 @@ class WAReplies
     }
     
     /**
-     * AI-Powered Intent Detection
-     * 
-     * @param string $phoneIn CSV string of phone numbers
-     * @param string $textBody Original message text
-     * @param string $waNumber Sender's WhatsApp number
-     * @return string|false Intent name if handled successfully, false otherwise
-     */
-    private function handleWithAI($phoneIn, $textBody, $waNumber)
-    {
-        try {
-            // Check if AI Config class exists
-            if (!class_exists('\\App\\Config\\AI')) {
-                $configFile = __DIR__ . '/../Config/AI.php';
-                if (!file_exists($configFile)) {
-                    return false;
-                }
-                require_once $configFile;
-            }
-            
-            // Check if AI is enabled
-            if (!\App\Config\AI::isEnabled()) {
+ * AI-Powered Intent Detection
+ * 
+ * @param string $phoneIn CSV string of phone numbers
+ * @param string $textBody Original message text
+ * @param string $waNumber Sender's WhatsApp number
+ * @return string|false Intent name if handled successfully, false otherwise
+ */
+private function handleWithAI($phoneIn, $textBody, $waNumber)
+{
+    try {
+        // Check if AI Config class exists
+        if (!class_exists('\\App\\Config\\AI')) {
+            $configFile = __DIR__ . '/../Config/AI.php';
+            if (!file_exists($configFile)) {
                 return false;
             }
-            
-        } catch (\Exception $e) {
+            require_once $configFile;
+        }
+        
+        // Check if AI is enabled
+        if (!\App\Config\AI::isEnabled()) {
             return false;
         }
         
-        try {
-
-            
-            // Prepare AI prompt for intent classification
-            $prompt = "Kamu adalah AI classifier untuk WhatsApp bot laundry. Klasifikasikan pesan berikut ke dalam SATU kategori saja:\\n\\n";
-            $prompt .= "Kategori:\\n";
-            $prompt .= "- NOTA: User minta bon/struk/nota/tagihan/bukti pembayaran\\n";
-            $prompt .= "- STATUS: User cek status/progress laundry (sudah selesai? bisa diambil? kapan siap?)\\n";
-            $prompt .= "- CEK_BUKA: User tanya jam buka/tutup, masih kah buka atau sudah kah tutup laundry/operasional\\n";
-            $prompt .= "- MINTA_JEMPUT_ANTAR: User melakukan permintaan jemput/antar laundry (harus ada kata2 permintaan, seperti minta, tolong, bisa, dll)\\n";
-            $prompt .= "- PEMBUKA: Salam pembuka (halo, hai, ping, pagi, siang, malam, sore)\\n";
-            $prompt .= "- PENUTUP: Penutup percakapan (terima kasih, oke lah, sip lah, iya lah, dll)\\n";
-            $prompt .= "- PENUTUP: Hanya memberitahu kalau sudah dibayar, sudah lunas, atau sudah diambil, akan menjemput, akan mengantarkan\\n";
-            $prompt .= "- EMOTE: cuma emote dan candaan tawa seperti hehe haha wkwk\\n";
-            $prompt .= "- FALSE: Tidak termasuk kategori di atas\\n\\n";
-            $prompt .= "Pesan: \"{$textBody}\"\\n\\n";
-            $prompt .= "JAWAB HANYA DENGAN NAMA KATEGORI (huruf kapital). Contoh: NOTA";
-            
-            // Log AI checking input
+    } catch (\Exception $e) {
+        return false;
+    }
+    
+    try {
+        // Load keyword configuration to get ai_prompt for each category
+        $keywordConfig = require __DIR__ . '/../Config/AutoReplyKeywords.php';
+        
+        // Prepare AI prompt for intent classification
+        $prompt = "Kamu adalah AI classifier untuk WhatsApp bot laundry. Klasifikasikan pesan berikut ke dalam SATU kategori saja:\n\n";
+        $prompt .= "Kategori:\n";
+        
+        // Build categories dynamically from config
+        foreach ($keywordConfig as $category => $config) {
+            if (isset($config['ai_prompt'])) {
+                $prompt .= "- {$category}: {$config['ai_prompt']}\n";
+            }
+        }
+        
+        $prompt .= "- FALSE: Tidak termasuk kategori di atas\n\n";
+        $prompt .= "Pesan: \"{$textBody}\"\n\n";
+        $prompt .= "JAWAB HANYA DENGAN NAMA KATEGORI (huruf kapital). Contoh: NOTA";
+        
+        // Log AI checking input
+        if (class_exists('\Log')) {
+            \Log::write("AI Checking: " . $textBody, 'ai', 'intent_detection');
+        }
+        
+        // Call OpenAI API
+        $response = $this->callOpenAI($prompt);
+        $intent = trim(strtoupper($response));
+        
+        // Log AI response
+        if (class_exists('\Log')) {
+            \Log::write("AI Response: " . $response, 'ai', 'intent_detection');
+        }
+        
+        // Check rate limiting
+        if (!$this->shouldReply($waNumber, $intent)) {
             if (class_exists('\Log')) {
-                \Log::write("AI Checking: " . $textBody, 'ai', 'intent_detection');
-            }
-            
-            // Call OpenAI API
-            $response = $this->callOpenAI($prompt);
-            $intent = trim(strtoupper($response));
-            
-            // Log AI response
-            if (class_exists('\Log')) {
-                \Log::write("AI Response: " . $response, 'ai', 'intent_detection');
-            }
-            
-            // Check rate limiting
-            if (!$this->shouldReply($waNumber, $intent)) {
-                if (class_exists('\Log')) {
-                    \Log::write("AI Rate Limited: Handler '{$intent}' for {$waNumber}", 'ai', 'intent_detection');
-                }
-                return false;
-            }
-            
-            // Call appropriate handler
-            $handlerName = ucwords(strtolower($intent), '_');
-            $methodName = 'handle' . $handlerName;
-            
-            if (method_exists($this, $methodName)) {
-                $this->$methodName($phoneIn, $waNumber);
-                return $intent;
-            }
-            
-            return false;
-            
-        } catch (\Exception $e) {
-            // Log the exception so we know why AI failed
-            if (class_exists('\Log')) {
-                \Log::write("AI Error: " . $e->getMessage(), 'ai', 'intent_detection');
+                \Log::write("AI Rate Limited: Handler '{$intent}' for {$waNumber}", 'ai', 'intent_detection');
             }
             return false;
         }
+        
+        // Call appropriate handler
+        $handlerName = ucwords(strtolower($intent), '_');
+        $methodName = 'handle' . $handlerName;
+        
+        if (method_exists($this, $methodName)) {
+            $this->$methodName($phoneIn, $waNumber);
+            return $intent;
+        }
+        
+        return false;
+        
+    } catch (\Exception $e) {
+        // Log the exception so we know why AI failed
+        if (class_exists('\Log')) {
+            \Log::write("AI Error: " . $e->getMessage(), 'ai', 'intent_detection');
+        }
+        return false;
     }
+}
     
     /**
      * AI-Powered Classification for Ambiguous Short Messages
@@ -997,14 +998,23 @@ class WAReplies
         }
         
         try {
-            // Prepare specialized AI prompt for PEMBUKA vs PENUTUP classification
-            $prompt = "Kamu adalah AI classifier untuk WhatsApp bot laundry. Klasifikasikan pesan pendek berikut apakah PEMBUKA (greeting/salam awal) atau PENUTUP (closing/penutup percakapan).\\n\\n";
-            $prompt .= "Kategori:\\n";
-            $prompt .= "- PEMBUKA: Salam pembuka, sapaan awal (contoh: halo, hai, ping, pagi, siang, malam, sore, ka, bang, pak, bu)\\n";
-            $prompt .= "- PENUTUP: Penutup percakapan, konfirmasi, terima kasih (contoh: ok, oke, sip, siap, makasih, terima kasih, thanks, sudah, lah, iya, thx)\\n\\n";
-            $prompt .= "- EMOTE: cuma emote dan candaan seperti hehe haha wkwk\\n\\n";
-            $prompt .= "- FALSE: belum jelas atau tidak termasuk kategori di atas\\n\\n";
-            $prompt .= "Pesan: \\\"{$textBody}\\\"\\n\\n";
+            // Load keyword configuration to get ai_prompt
+            $keywordConfig = require __DIR__ . '/../Config/AutoReplyKeywords.php';
+            
+            // Prepare specialized AI prompt for PEMBUKA vs PENUTUP vs EMOTE classification
+            $prompt = "Kamu adalah AI classifier untuk WhatsApp bot laundry. Klasifikasikan pesan pendek berikut apakah PEMBUKA (greeting/salam awal), PENUTUP (closing/penutup percakapan), atau EMOTE (emote/candaan).\n\n";
+            $prompt .= "Kategori:\n";
+            
+            // Only include PEMBUKA, PENUTUP, and EMOTE for ambiguous classification
+            $ambiguousCategories = ['PEMBUKA', 'PENUTUP', 'EMOTE'];
+            foreach ($ambiguousCategories as $category) {
+                if (isset($keywordConfig[$category]['ai_prompt'])) {
+                    $prompt .= "- {$category}: {$keywordConfig[$category]['ai_prompt']}\n";
+                }
+            }
+            
+            $prompt .= "- FALSE: belum jelas atau tidak termasuk kategori di atas\n\n";
+            $prompt .= "Pesan: \"{$textBody}\"\n\n";
             $prompt .= "WAJIB JAWAB HANYA SALAH SATU: PEMBUKA, PENUTUP, EMOTE, atau FALSE (huruf kapital).";
             
             // Log AI checking input
