@@ -2,18 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
-/* WhatsApp Dark Mode Color Scheme - Extra Dark */
+/* WhatsApp Dark Mode Color Scheme - Ultra Dark */
 :root {
-  /* Main Background Colors - Much Darker */
+  /* Main Background Colors - Pure Black */
   --wa-bg-primary: #000000;
-  --wa-bg-secondary: #0a0f13;
-  --wa-bg-tertiary: #111b21;
-  --wa-bg-panel: #111b21;
-  --wa-bg-chat: #0a0f13;
+  --wa-bg-secondary: #000000;
+  --wa-bg-tertiary: #0a0f13;
+  --wa-bg-panel: #0a0f13;
+  --wa-bg-chat: #000000;
 
-  /* Message Bubble Colors */
-  --wa-bubble-outgoing: #005c4b;
-  --wa-bubble-incoming: #1c2730;
+  /* Message Bubble Colors - Darker */
+  --wa-bubble-outgoing: #004d40;
+  --wa-bubble-incoming: #0f1419;
 
   /* Text Colors - Higher Contrast */
   --wa-text-primary: #e9edef;
@@ -24,17 +24,17 @@
   --wa-accent-green: #00a884;
   --wa-accent-blue: #53bdeb;
 
-  /* Border/Divider Colors - Darker */
-  --wa-border: #1f2c34;
-  --wa-divider: #0f1419;
+  /* Border/Divider Colors - Almost Invisible */
+  --wa-border: #0f1419;
+  --wa-divider: #050709;
 
   /* Icon Colors */
   --wa-icon-default: #8696a0;
   --wa-icon-active: #00a884;
 
-  /* Hover/Active States - Darker */
-  --wa-hover: #0f1419;
-  --wa-active: #1c2730;
+  /* Hover/Active States - Very Dark */
+  --wa-hover: #0a0f13;
+  --wa-active: #0f1419;
 }
 
 html,
