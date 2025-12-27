@@ -1799,21 +1799,21 @@ window.addEventListener('focus', () => {
 
     <!-- Sidebar -->
     <!-- On mobile, we keep it rendered but covered by chat when active. On desktop it's side-by-side. -->
-    <aside v-if="authId" class="flex flex-col border-r border-slate-800 bg-[#1e293b] transition-all duration-300 absolute md:static z-0 h-full w-full md:w-96"
+    <aside v-if="authId" class="flex flex-col border-r border-[var(--wa-border)] bg-[var(--wa-bg-panel)] transition-all duration-300 absolute md:static z-0 h-full w-full md:w-96"
            :class="showMobileChat ? 'flex' : 'flex'">
       <!-- Search Header -->
-       <div class="p-4 border-b border-slate-700 bg-[#1e293b]/90 backdrop-blur-md sticky top-0 z-10 transition-colors duration-300">
+       <div class="p-4 border-b border-[var(--wa-border)] bg-[var(--wa-bg-panel)] backdrop-blur-md sticky top-0 z-10 transition-colors duration-300">
           <div class="relative group">
               <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-500 group-focus-within:text-indigo-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[var(--wa-icon-default)] group-focus-within:text-[var(--wa-accent-green)] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
               </div>
               <input 
                   v-model="searchQuery"
                   type="text" 
-                  placeholder="Search chat..." 
-                  class="block w-full pl-10 pr-10 py-2.5 border border-slate-700 rounded-xl leading-5 bg-slate-800/50 text-slate-200 placeholder-slate-500 focus:outline-none focus:bg-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 sm:text-sm transition-all shadow-sm"
+                  placeholder="Search or start new chat" 
+                  class="block w-full pl-10 pr-10 py-2.5 border border-[var(--wa-border)] rounded-lg leading-5 bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)] placeholder-[var(--wa-text-tertiary)] focus:outline-none focus:bg-[var(--wa-bg-tertiary)] focus:border-[var(--wa-accent-green)] focus:ring-0 sm:text-sm transition-all"
               >
               <div v-if="searchQuery" class="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer" @click="searchQuery = ''">
                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500 hover:text-slate-300 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1830,17 +1830,17 @@ window.addEventListener('focus', () => {
       >
         <!-- Skeleton Loading -->
         <div v-if="isLoadingConversations && conversations.length === 0" class="space-y-0">
-          <div v-for="n in 8" :key="'skeleton-' + n" class="p-3 flex items-center gap-3 border-b border-slate-800/50 animate-pulse">
+          <div v-for="n in 8" :key="'skeleton-' + n" class="p-3 flex items-center gap-3 border-b border-[var(--wa-divider)] animate-pulse">
             <!-- Avatar Skeleton -->
-            <div class="w-12 h-12 rounded-full bg-slate-700/50"></div>
+            <div class="w-12 h-12 rounded-full bg-[var(--wa-bg-tertiary)]"></div>
             
             <!-- Content Skeleton -->
             <div class="flex-1 space-y-2">
               <div class="flex justify-between items-center">
-                <div class="h-4 bg-slate-700/50 rounded w-32"></div>
-                <div class="h-3 bg-slate-700/50 rounded w-12"></div>
+                <div class="h-4 bg-[var(--wa-bg-tertiary)] rounded w-32"></div>
+                <div class="h-3 bg-[var(--wa-bg-tertiary)] rounded w-12"></div>
               </div>
-              <div class="h-3 bg-slate-700/50 rounded w-48"></div>
+              <div class="h-3 bg-[var(--wa-bg-tertiary)] rounded w-48"></div>
             </div>
           </div>
         </div>
@@ -1850,40 +1850,40 @@ window.addEventListener('focus', () => {
           v-for="chat in filteredConversations"  
           :key="chat.id"
           @click="selectChat(chat.id)"
-          class="p-3 flex items-center gap-3 cursor-pointer transition-colors duration-200 border-b border-slate-800/50"
+          class="p-3 flex items-center gap-3 cursor-pointer transition-colors duration-150 border-b border-[var(--wa-divider)] hover:bg-[var(--wa-hover)]"
           :class="{
-            'bg-[#334155]/60 border-l-4 border-l-indigo-500': activeChatId === chat.id && !chat.priority,
-            'bg-green-900/40 border-l-4 border-l-green-400 shadow-lg shadow-green-900/20': activeChatId === chat.id && chat.priority === 1,
-            'bg-yellow-900/40 border-l-4 border-l-yellow-400 shadow-lg shadow-yellow-900/20': activeChatId === chat.id && chat.priority === 2,
-            'bg-red-900/40 border-l-4 border-l-red-400 shadow-lg shadow-red-900/20': activeChatId === chat.id && chat.priority === 3,
-            'bg-purple-900/40 border-l-4 border-l-purple-400 shadow-lg shadow-purple-900/20': activeChatId === chat.id && chat.priority === 4,
-            'border-l-4 border-l-transparent': activeChatId !== chat.id && !chat.priority,
-            'border-l-4 border-l-green-600 bg-green-950/30': activeChatId !== chat.id && chat.priority === 1,
-            'border-l-4 border-l-yellow-600 bg-yellow-950/30': activeChatId !== chat.id && chat.priority === 2,
-            'border-l-4 border-l-red-600 bg-red-950/30': activeChatId !== chat.id && chat.priority === 3,
-            'border-l-4 border-l-purple-600 bg-purple-950/30': activeChatId !== chat.id && chat.priority === 4
+            'bg-[var(--wa-active)]': activeChatId === chat.id && !chat.priority,
+            'bg-green-900/30 border-l-4 border-l-green-500': activeChatId === chat.id && chat.priority === 1,
+            'bg-yellow-900/30 border-l-4 border-l-yellow-500': activeChatId === chat.id && chat.priority === 2,
+            'bg-red-900/30 border-l-4 border-l-red-500': activeChatId === chat.id && chat.priority === 3,
+            'bg-purple-900/30 border-l-4 border-l-purple-500': activeChatId === chat.id && chat.priority === 4,
+            'border-l-0': activeChatId !== chat.id && !chat.priority,
+            'border-l-4 border-l-green-600 bg-green-950/20': activeChatId !== chat.id && chat.priority === 1,
+            'border-l-4 border-l-yellow-600 bg-yellow-950/20': activeChatId !== chat.id && chat.priority === 2,
+            'border-l-4 border-l-red-600 bg-red-950/20': activeChatId !== chat.id && chat.priority === 3,
+            'border-l-4 border-l-purple-600 bg-purple-950/20': activeChatId !== chat.id && chat.priority === 4
           }"
         >
            <div class="relative">
              <div 
-               class="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold border border-slate-600"
+               class="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold border-0"
                :style="{ backgroundColor: chat.color }"
              >
                {{ chat.initials }}
              </div>
-             <span v-if="chat.status === 'online'" class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-[#1e293b] rounded-full"></span>
+             <span v-if="chat.status === 'online'" class="absolute bottom-0 right-0 w-3 h-3 bg-[var(--wa-accent-green)] border-2 border-[var(--wa-bg-panel)] rounded-full"></span>
            </div>
             <div class="flex-1 min-w-0">
               <div class="flex justify-between items-baseline mb-1 gap-2">
-                <h3 class="font-semibold text-[15px] truncate text-slate-100 uppercase max-w-[240px]" :title="chat.name">
-                  <span v-if="chat.kode_cabang" class="font-mono text-xs mr-1" :class="chat.kode_cabang === '00' ? 'text-pink-500' : 'text-indigo-400'">[{{ chat.kode_cabang }}]</span>
-                  {{ (chat.name || '').toUpperCase() }}
+                <h3 class="font-normal text-[16px] truncate text-[var(--wa-text-primary)] max-w-[240px]" :title="chat.name">
+                  <span v-if="chat.kode_cabang" class="font-mono text-xs mr-1" :class="chat.kode_cabang === '00' ? 'text-pink-400' : 'text-[var(--wa-accent-blue)]'">[{{ chat.kode_cabang }}]</span>
+                  {{ chat.name }}
                 </h3>
-                <span class="text-xs text-slate-500 flex-shrink-0">{{ chat.lastTime }}</span>
+                <span class="text-xs text-[var(--wa-text-tertiary)] flex-shrink-0">{{ chat.lastTime }}</span>
               </div>
              <div class="flex justify-between items-center">
-                <p class="text-sm text-slate-400 truncate w-64" :class="{'font-medium text-slate-200': chat.unread > 0}">{{ chat.lastMessage }}</p>
-                <span v-if="chat.unread > 0" class="bg-indigo-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shadow-sm">
+                <p class="text-sm text-[var(--wa-text-secondary)] truncate w-64" :class="{'font-normal text-[var(--wa-text-primary)]': chat.unread > 0}">{{ chat.lastMessage }}</p>
+                <span v-if="chat.unread > 0" class="bg-[var(--wa-accent-green)] text-black text-[11px] font-semibold px-2 py-0.5 rounded-full min-w-[20px] text-center">
                   {{ chat.unread }}
                 </span>
              </div>
@@ -1892,15 +1892,15 @@ window.addEventListener('focus', () => {
       </div>
       
       <!-- User Profile (Self) -->
-      <div class="p-4 border-t border-slate-700 bg-[#1e293b]/80 flex items-center justify-between gap-3">
+      <div class="p-4 border-t border-[var(--wa-border)] bg-[var(--wa-bg-panel)] flex items-center justify-between gap-3">
         <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold border border-slate-600">
+            <div class="w-10 h-10 rounded-full bg-[var(--wa-accent-green)] flex items-center justify-center text-black font-bold border-0">
                A
             </div>
             <div>
-               <div class="text-sm font-medium text-slate-200">MDL Agent <span class="text-indigo-400 font-mono">#{{ authId }}</span></div>
-               <div class="text-xs text-green-400 flex items-center gap-1">
-                 <span class="w-1.5 h-1.5 rounded-full bg-green-400"></span> Online
+               <div class="text-sm font-medium text-[var(--wa-text-primary)]">MDL Agent <span class="text-[var(--wa-accent-blue)] font-mono">#{{ authId }}</span></div>
+               <div class="text-xs text-[var(--wa-accent-green)] flex items-center gap-1">
+                 <span class="w-1.5 h-1.5 rounded-full bg-[var(--wa-accent-green)]"></span> Online
                </div>
             </div>
         </div>
@@ -1908,7 +1908,7 @@ window.addEventListener('focus', () => {
         <button 
            @click="logout" 
            title="Logout"
-           class="p-2 text-slate-400 hover:text-red-400 hover:bg-slate-700/50 rounded-lg transition-colors"
+           class="p-2 text-[var(--wa-icon-default)] hover:text-red-400 hover:bg-[var(--wa-hover)] rounded-lg transition-colors"
         >
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -1920,7 +1920,7 @@ window.addEventListener('focus', () => {
     <!-- Main Chat Area -->
     <!-- Mobile: Fixed on top (z-50) if active. Desktop: static flex-1. -->
     <main 
-        class="flex flex-col bg-[#0f172a] h-full overflow-x-hidden"
+        class="flex flex-col bg-[var(--wa-bg-chat)] h-full overflow-x-hidden"
         :class="{
             'fixed inset-0 z-50 w-full': showMobileChat,
             'hidden': !showMobileChat && windowWidth < 768,
@@ -1935,17 +1935,17 @@ window.addEventListener('focus', () => {
         @touchend="handleTouchEnd"
     >
 
-       <!-- Background Pattern -->
-       <div class="absolute inset-0 opacity-5 pointer-events-none" 
-            style="background-image: radial-gradient(#6366f1 1px, transparent 1px); background-size: 32px 32px;">
+       <!-- Background Pattern (WhatsApp style) -->
+       <div class="absolute inset-0 opacity-[0.03] pointer-events-none" 
+            style="background-image: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9IndhLWJnIiB4PSIwIiB5PSIwIiB3aWR0aD0iODAiIGhlaWdodD0iODAiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiPjxwYXRoIGQ9Ik0wIDIwIEwgMjAgMCBMIDQwIDIwIEwgNjAgMCBMIDgwIDIwIiBzdHJva2U9IiNhZWJhYzEiIHN0cm9rZS13aWR0aD0iMC41IiBmaWxsPSJub25lIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI3dhLWJnKSIvPjwvc3ZnPg=='); background-size: 80px 80px;">
        </div>
 
       <div v-if="activeConversation" class="w-full h-full relative z-10">
         <!-- Chat Header - ABSOLUTE TOP -->
         <header 
-          class="absolute top-0 left-0 right-0 h-16 border-b flex items-center justify-between px-4 md:px-6 z-30 backdrop-blur-md"
+          class="absolute top-0 left-0 right-0 h-16 border-b flex items-center justify-between px-4 md:px-6 z-30"
           :class="{
-            'border-slate-800 bg-[#0f172a]/95': !activeConversation.priority,
+            'border-[var(--wa-border)] bg-[var(--wa-bg-panel)]': !activeConversation.priority,
             'border-green-600 bg-gradient-to-r from-green-950/40 to-green-900/30': activeConversation.priority === 1,
             'border-yellow-600 bg-gradient-to-r from-yellow-950/40 to-yellow-900/30': activeConversation.priority === 2,
             'border-red-600 bg-gradient-to-r from-red-950/40 to-red-900/30': activeConversation.priority === 3,
@@ -1954,27 +1954,27 @@ window.addEventListener('focus', () => {
         >
           <div class="flex items-center gap-3 flex-1 min-w-0">
              <!-- Back Button (Mobile Only) -->
-             <button @click="backToMenu" class="md:hidden p-1 -ml-2 text-slate-400 hover:text-white flex-shrink-0">
+             <button @click="backToMenu" class="md:hidden p-1 -ml-2 text-[var(--wa-icon-default)] hover:text-[var(--wa-text-primary)] flex-shrink-0">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
                 </svg>
              </button>
              
              <div 
-               class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold border border-slate-700 flex-shrink-0"
+               class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold border-0 flex-shrink-0"
                :style="{ backgroundColor: activeConversation.color }"
              >
                {{ activeConversation.initials }}
              </div>
              
              <div class="min-w-0 flex-1">
-               <h2 class="font-bold text-slate-100 text-base md:text-lg uppercase truncate" :title="activeConversation.name">{{ (activeConversation.name || '').toUpperCase() }}</h2>
-               <p v-if="activeConversation.kode_cabang" class="text-xs font-mono" :class="activeConversation.kode_cabang === '00' ? 'text-pink-500' : 'text-indigo-400'">{{ activeConversation.kode_cabang }}</p>
+               <h2 class="font-medium text-[var(--wa-text-primary)] text-base md:text-lg truncate" :title="activeConversation.name">{{ activeConversation.name }}</h2>
+               <p v-if="activeConversation.kode_cabang" class="text-xs font-mono text-[var(--wa-text-secondary)]">{{ activeConversation.kode_cabang }}</p>
              </div>
           </div>
           
-          <div class="flex items-center gap-2 text-slate-400 flex-shrink-0 relative">
-             <button class="hover:text-indigo-400 transition-colors p-2 rounded-full hover:bg-slate-800">
+          <div class="flex items-center gap-2 text-[var(--wa-icon-default)] flex-shrink-0 relative">
+             <button class="hover:text-[var(--wa-text-primary)] transition-colors p-2 rounded-full hover:bg-[var(--wa-hover)]">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
              </button>
              
@@ -1982,8 +1982,8 @@ window.addEventListener('focus', () => {
              <div class="relative">
                <button 
                  @click.stop="showChatMenu = !showChatMenu" 
-                 class="hover:text-indigo-400 transition-colors p-2 rounded-full hover:bg-slate-800"
-                 :class="{'bg-slate-800 text-indigo-400': showChatMenu}"
+                 class="hover:text-[var(--wa-text-primary)] transition-colors p-2 rounded-full hover:bg-[var(--wa-hover)]"
+                 :class="{'bg-[var(--wa-hover)] text-[var(--wa-text-primary)]': showChatMenu}"
                >
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg>
                </button>
@@ -1992,7 +1992,7 @@ window.addEventListener('focus', () => {
                <div 
                  v-if="showChatMenu" 
                  @click.stop
-                 class="absolute right-0 top-full mt-2 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-xl overflow-hidden z-50"
+                 class="absolute right-0 top-full mt-2 w-48 bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-lg shadow-xl overflow-hidden z-50"
                >
                  <!-- Selesai Option -->
                  <!-- Check Payment Option -->
@@ -2000,7 +2000,7 @@ window.addEventListener('focus', () => {
                    v-if="activeConversation.priority !== 1"
                    @click="checkPayment"
                    :disabled="isCheckingPayment"
-                   class="w-full px-4 py-3 text-left hover:bg-slate-700 transition-colors flex items-center gap-3 text-sm text-slate-200 hover:text-blue-400 disabled:opacity-50 disabled:cursor-not-allowed border-b border-slate-700/50"
+                   class="w-full px-4 py-3 text-left hover:bg-[var(--wa-hover)] transition-colors flex items-center gap-3 text-sm text-[var(--wa-text-primary)] hover:text-blue-400 disabled:opacity-50 disabled:cursor-not-allowed border-b border-[var(--wa-divider)]"
                  >
                    <svg v-if="!isCheckingPayment" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -2013,7 +2013,7 @@ window.addEventListener('focus', () => {
                     v-if="activeConversation.priority !== 2"
                     @click="pickupDelivery"
                     :disabled="isPickupDelivery"
-                    class="w-full px-4 py-3 text-left hover:bg-slate-700 transition-colors flex items-center gap-3 text-sm text-slate-200 hover:text-yellow-400 disabled:opacity-50 disabled:cursor-not-allowed border-b border-slate-700/50"
+                    class="w-full px-4 py-3 text-left hover:bg-[var(--wa-hover)] transition-colors flex items-center gap-3 text-sm text-[var(--wa-text-primary)] hover:text-yellow-400 disabled:opacity-50 disabled:cursor-not-allowed border-b border-[var(--wa-divider)]"
                   >
                     <svg v-if="!isPickupDelivery" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
@@ -2027,7 +2027,7 @@ window.addEventListener('focus', () => {
                     v-if="activeConversation.priority !== 3"
                     @click="requestPriority"
                     :disabled="isRequest"
-                    class="w-full px-4 py-3 text-left hover:bg-slate-700 transition-colors flex items-center gap-3 text-sm text-slate-200 hover:text-red-400 disabled:opacity-50 disabled:cursor-not-allowed border-b border-slate-700/50"
+                    class="w-full px-4 py-3 text-left hover:bg-[var(--wa-hover)] transition-colors flex items-center gap-3 text-sm text-[var(--wa-text-primary)] hover:text-red-400 disabled:opacity-50 disabled:cursor-not-allowed border-b border-[var(--wa-divider)]"
                   >
                     <svg v-if="!isRequest" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
@@ -2041,7 +2041,7 @@ window.addEventListener('focus', () => {
                    v-if="activeConversation.priority > 0"
                    @click="markAsDone"
                    :disabled="isMarkingAsDone"
-                   class="w-full px-4 py-3 text-left hover:bg-slate-700 transition-colors flex items-center gap-3 text-sm text-slate-200 hover:text-green-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                   class="w-full px-4 py-3 text-left hover:bg-[var(--wa-hover)] transition-colors flex items-center gap-3 text-sm text-[var(--wa-text-primary)] hover:text-green-400 disabled:opacity-50 disabled:cursor-not-allowed"
                  >
                    <svg v-if="!isMarkingAsDone" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -2055,7 +2055,7 @@ window.addEventListener('focus', () => {
                     v-else
                     @click="reopenConversation"
                     :disabled="isReopeningConversation"
-                    class="w-full px-4 py-3 text-left hover:bg-slate-700 transition-colors flex items-center gap-3 text-sm text-slate-200 hover:text-purple-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                    class="w-full px-4 py-3 text-left hover:bg-[var(--wa-hover)] transition-colors flex items-center gap-3 text-sm text-[var(--wa-text-primary)] hover:text-purple-400 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <svg v-if="!isReopeningConversation" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -2080,7 +2080,7 @@ window.addEventListener('focus', () => {
             
                <!-- Date Separator -->
                <div v-if="index === 0 || needsDateSeparator(msg, activeConversation.messages[index - 1])" class="flex items-center justify-center my-4">
-                  <div class="bg-slate-800/60 backdrop-blur-sm text-slate-300 text-xs font-medium px-3 py-1.5 rounded-full shadow-sm border border-slate-700/50">
+                  <div class="bg-[var(--wa-bg-panel)] text-[var(--wa-text-secondary)] text-xs font-normal px-3 py-1 rounded-lg shadow-sm">
                      {{ formatDateSeparator(msg.rawTime) }}
                   </div>
                </div>
@@ -2097,7 +2097,7 @@ window.addEventListener('focus', () => {
                   <div v-else class="w-8"></div> <!-- Spacer -->
                   
                   <!-- Image Message: Transparent style -->
-                  <div v-if="msg.type === 'image'" class="rounded-lg overflow-hidden shadow-md max-w-[240px] bg-slate-800/20 border border-slate-700/30">
+                  <div v-if="msg.type === 'image'" class="rounded-lg overflow-hidden shadow-md max-w-[240px] bg-[var(--wa-bubble-incoming)]/50">
                      <div class="relative">
                         <img v-if="msg.media_url" :src="msg.media_url" class="w-full cursor-pointer" onclick="window.open(this.src)">
                         <img v-else-if="msg.media_id" :src="`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" class="w-full cursor-pointer" onclick="window.open(this.src)">
@@ -2113,16 +2113,16 @@ window.addEventListener('focus', () => {
                   </div>
                   
                   <!-- Text Message: Normal style -->
-                  <div v-else class="bg-slate-800 text-slate-200 px-3 py-2 rounded-lg rounded-bl-sm border border-slate-700/50 shadow-sm max-w-full">
-                     <p v-if="msg.text" class="leading-relaxed text-[15px] break-words whitespace-pre-wrap" v-html="parseWhatsAppFormatting(msg.text)"></p>
-                     <span class="text-[11px] text-slate-500 block mt-1 text-right">{{ msg.time }}</span>
+                  <div v-else class="bg-[var(--wa-bubble-incoming)] text-[var(--wa-text-primary)] px-3 py-2 rounded-lg rounded-tl-none shadow-sm max-w-full">
+                     <p v-if="msg.text" class="leading-relaxed text-[14.2px] break-words whitespace-pre-wrap" v-html="parseWhatsAppFormatting(msg.text)"></p>
+                     <span class="text-[11px] text-[var(--wa-text-tertiary)] block mt-1 text-right">{{ msg.time }}</span>
                   </div>
                </div>
                
                <!-- My Message -->
                <div v-else class="flex gap-3 max-w-[75%] self-end items-end justify-end">
                   <!-- Image Message: Transparent style -->
-                  <div v-if="msg.type === 'image'" class="rounded-lg overflow-hidden shadow-md max-w-[240px] bg-indigo-600/10 border border-indigo-500/20">
+                  <div v-if="msg.type === 'image'" class="rounded-lg overflow-hidden shadow-md max-w-[240px] bg-[var(--wa-bubble-outgoing)]/50">
                      <div class="relative">
                         <img v-if="msg.media_url" :src="msg.media_url" class="w-full cursor-pointer" onclick="window.open(this.src)">
                         <img v-else-if="msg.media_id" :src="`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" class="w-full cursor-pointer" onclick="window.open(this.src)">
@@ -2159,10 +2159,10 @@ window.addEventListener('focus', () => {
                   </div>
                   
                   <!-- Text Message: Normal style -->
-                  <div v-else class="bg-indigo-600 text-white px-4 py-2.5 rounded-2xl rounded-br-sm shadow-md shadow-indigo-900/20 max-w-full">
-                     <p v-if="msg.text" class="leading-relaxed text-[15px] break-words whitespace-pre-wrap" v-html="parseWhatsAppFormatting(msg.text)"></p>
+                  <div v-else class="bg-[var(--wa-bubble-outgoing)] text-white px-3 py-2 rounded-lg rounded-tr-none shadow-sm max-w-full">
+                     <p v-if="msg.text" class="leading-relaxed text-[14.2px] break-words whitespace-pre-wrap" v-html="parseWhatsAppFormatting(msg.text)"></p>
                        <div class="flex items-center justify-end gap-1 mt-1">
-                          <span class="text-[10px] text-indigo-200">{{ msg.time }}</span>
+                          <span class="text-[11px] text-white/70">{{ msg.time }}</span>
                           <!-- Status Indicators -->
                           <span v-if="msg.status === 'pending'" class="text-indigo-300">
                              <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -2194,20 +2194,20 @@ window.addEventListener('focus', () => {
         </div>
         
         <!-- Input Area - ABSOLUTE BOTTOM -->
-        <div class="absolute bottom-0 left-0 right-0 p-4 bg-[#0f172a] border-t border-slate-800 z-30">
+        <div class="absolute bottom-0 left-0 right-0 p-4 bg-[var(--wa-bg-panel)] border-t border-[var(--wa-border)] z-30">
            
            <!-- Case 1: Conversation Closed -->
-           <div v-if="activeConversation.status === 'closed'" class="flex items-center justify-center gap-2 p-2 bg-[#1e293b]/50 rounded-lg border border-slate-700/50">
-               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+           <div v-if="activeConversation.status === 'closed'" class="flex items-center justify-center gap-2 p-2 bg-[var(--wa-bg-tertiary)] rounded-lg border border-[var(--wa-border)]">
+               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--wa-text-tertiary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                </svg>
-               <span class="text-slate-400 text-xs font-medium">CSW Closed</span>
+               <span class="text-[var(--wa-text-secondary)] text-xs font-medium">CSW Closed</span>
            </div>
 
            <!-- Case 2: Active Chat Input -->
            <div v-else>
                <!-- Image Preview Modal -->
-               <div v-if="showImagePreview" class="absolute bottom-full left-4 right-4 mb-2 bg-[#1e293b] border border-slate-700 rounded-xl p-4 shadow-2xl">
+               <div v-if="showImagePreview" class="absolute bottom-full left-4 right-4 mb-2 bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-xl p-4 shadow-2xl">
                   <div class="flex flex-col gap-3">
                      <!-- Image with close button -->
                      <div class="relative mx-auto">
@@ -2225,12 +2225,12 @@ window.addEventListener('focus', () => {
                            v-model="imageCaption" 
                            type="text" 
                            placeholder="Add a caption (optional)..."
-                           class="bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                           class="bg-[var(--wa-bg-secondary)] border border-[var(--wa-border)] rounded-lg px-3 py-2 text-sm text-[var(--wa-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--wa-accent-green)]"
                         >
                         <button 
                            @click="sendImage" 
                            :disabled="isUploadingImage"
-                           class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-lg text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+                           class="bg-[var(--wa-accent-green)] hover:bg-[#00a884]/90 text-black px-4 py-2.5 rounded-lg text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50"
                         >
                            <span v-if="isUploadingImage" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
                            {{ isUploadingImage ? 'Sending...' : 'Send Image' }}
@@ -2239,7 +2239,7 @@ window.addEventListener('focus', () => {
                   </div>
                </div>
                
-               <div class="flex gap-3 items-end bg-[#1e293b] p-2 rounded-xl border border-slate-700 focus-within:ring-2 focus-within:ring-indigo-500/50 focus-within:border-indigo-500 transition-all">
+               <div class="flex gap-3 items-end bg-[var(--wa-bg-secondary)] p-2 rounded-lg border border-[var(--wa-border)] focus-within:ring-0 focus-within:border-[var(--wa-accent-green)] transition-all">
                   <input 
                      type="file" 
                      ref="fileInput" 
@@ -2248,19 +2248,19 @@ window.addEventListener('focus', () => {
                      class="hidden"
                   >
                   
-                  <button @click="fileInput.click()" class="p-2 text-slate-400 hover:text-indigo-400 transition-colors">
+                  <button @click="fileInput.click()" class="p-2 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)] transition-colors">
                      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
                   </button>
                   
                   <textarea 
                     v-model="messageInput"
                     @keydown.enter.prevent="sendMessage"
-                    placeholder="Type your message..." 
-                    class="flex-1 bg-transparent text-slate-200 placeholder:text-slate-500 focus:outline-none resize-none py-2 max-h-32 text-sm"
+                    placeholder="Type a message" 
+                    class="flex-1 bg-transparent text-[var(--wa-text-primary)] placeholder:text-[var(--wa-text-tertiary)] focus:outline-none resize-none py-2 max-h-32 text-sm"
                     rows="1"
                   ></textarea>
                   
-                  <button @click="sendMessage" class="p-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors shadow-lg shadow-indigo-600/30">
+                  <button @click="sendMessage" class="p-2 bg-[var(--wa-accent-green)] hover:bg-[#00a884]/90 text-black rounded-full transition-colors">
                      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 transform rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
                   </button>
                </div>
@@ -2270,11 +2270,11 @@ window.addEventListener('focus', () => {
       </div>
       
       <div v-else class="w-full h-full relative z-10 flex flex-col">
-         <div class="flex-1 flex flex-col items-center justify-center text-slate-500 w-full h-full">
+         <div class="flex-1 flex flex-col items-center justify-center text-[var(--wa-text-tertiary)] w-full h-full">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-24 w-24 mb-4 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
             </svg>
-            <p class="text-lg">Select a conversation to start chatting</p>
+            <p class="text-lg text-[var(--wa-text-secondary)]">Select a conversation to start chatting</p>
          </div>
       </div>
       
@@ -2328,11 +2328,11 @@ window.addEventListener('focus', () => {
   background: transparent;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: var(--wa-border);
   border-radius: 3px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: var(--wa-text-tertiary);
 }
 
 /* WhatsApp Formatting Styles */

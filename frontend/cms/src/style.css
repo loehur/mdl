@@ -2,8 +2,44 @@
 @tailwind components;
 @tailwind utilities;
 
+/* WhatsApp Dark Mode Color Scheme */
+:root {
+  /* Main Background Colors */
+  --wa-bg-primary: #0b141a;
+  --wa-bg-secondary: #111b21;
+  --wa-bg-tertiary: #1f2c33;
+  --wa-bg-panel: #202c33;
+  --wa-bg-chat: #0b141a;
+  
+  /* Message Bubble Colors */
+  --wa-bubble-outgoing: #005c4b;
+  --wa-bubble-incoming: #202c33;
+  
+  /* Text Colors */
+  --wa-text-primary: #e9edef;
+  --wa-text-secondary: #8696a0;
+  --wa-text-tertiary: #667781;
+  
+  /* Accent Colors */
+  --wa-accent-green: #00a884;
+  --wa-accent-blue: #53bdeb;
+  
+  /* Border/Divider Colors */
+  --wa-border: #2a3942;
+  --wa-divider: #1f2c33;
+  
+  /* Icon Colors */
+  --wa-icon-default: #aebac1;
+  --wa-icon-active: #00a884;
+  
+  /* Hover/Active States */
+  --wa-hover: #182229;
+  --wa-active: #2a3942;
+}
+
 html, body {
   overscroll-behavior: none;
-  overflow: hidden; /* Prevent scrolling of root */
+  overflow: hidden;
   height: 100%;
+  background-color: var(--wa-bg-primary);
 }
