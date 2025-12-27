@@ -286,7 +286,13 @@ class WhatsApp extends Controller
                 $currentPriority = $autoReplyResult->priority;
                 $messageStatus = $autoReplyResult->status ?? null;
                 
-
+                // Priority logic based on customer registration status
+                // If customer not registered (no code/cabang) -> low priority (10)
+                // If customer registered -> keep auto-reply priority or set to 0 for high priority
+                if($code === null){
+                    $currentPriority = 0;
+                }
+                
                 // Update message status if status is set
                 if ($messageStatus === 'read') {
                     $db->update('wa_messages_in', 
