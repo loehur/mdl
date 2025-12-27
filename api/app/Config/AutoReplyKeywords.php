@@ -4,7 +4,7 @@ return [
     'max_length' => 20,
     'priority' => null,
         'patterns' => [
-            '/^\s*(ping|ka*k|ba*n*g|b*a*pa*k|i*bu*k*|a*de*k|he*a*l+o|as+a*l+a*mu*a*l+a*i*ku*m|tes)\s*$/i',
+            '/^\s*(p|ping|ka*k|ba*n*g|b*a*pa*k|i*bu*k*|a*de*k|he*a*l+o|as+a*l+a*mu*a*l+a*i*ku*m|tes)\s*$/i',
             '/(pa*gi|so*re|si*a*ng|ma*la*m|ha*e*l+o+)\s*\b(ba*n*g|ka*k|pa*k|i*bu*k*|a*de*k*|a*na*k)/i',
         ]
     ],
@@ -66,6 +66,30 @@ return [
             '/\b(thx|tq|ty|ok)\b/i',
             '/((hm+|ok(e*)?|sip)\s*)*(y(a*)?\s*)?(u*da*h|s*u*da*h|la+h)/i',
             '/(oh*)\s*(gi*tu+)/i',
+            '/(ok|oh).*(siap|sip|ok)/i',
+        ]
+    ],
+
+    'EMOTE' => [
+        'max_length' => 20,
+        'priority' => null,
+        'patterns' => [
+            // Emoji patterns (Unicode ranges for common emojis)
+            '/[\x{1F600}-\x{1F64F}]/u', // Emoticons (😀-🙏)
+            '/[\x{1F300}-\x{1F5FF}]/u', // Symbols & Pictographs
+            '/[\x{1F680}-\x{1F6FF}]/u', // Transport & Map
+            '/[\x{1F900}-\x{1F9FF}]/u', // Supplemental Symbols
+            '/[\x{2600}-\x{26FF}]/u',   // Miscellaneous Symbols (☀-⛿)
+            '/[\x{2700}-\x{27BF}]/u',   // Dingbats
+            '/[\x{1F1E0}-\x{1F1FF}]/u', // Flags
+            '/[\x{1F910}-\x{1F96B}]/u', // Additional emoticons
+            '/[\x{1F980}-\x{1F9E0}]/u', // Additional symbols
+            
+            // Text-based emoticons
+            '/^(:\)|:\(|:D|:P|;-?\)|<3|:\*|:"\(|:-?\)|:-?D)$/i',
+            
+            // Very short responses (1-3 chars, likely just emoji or simple acknowledgment)
+            '/^\s*[👍👌✌️🙏❤️😊😁😂🤣😍🥰😘😎🤗🙌💪👏🤝✨🔥💯🎉🎊]\s*$/u',
         ]
     ]
 ];

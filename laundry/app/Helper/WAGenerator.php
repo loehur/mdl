@@ -183,7 +183,7 @@ class WAGenerator extends Controller
 
             // Build Item String
             // Format: "\n" . $kategori . " " . $show_qty . "\n" . ltrim($list_layanan_print) . " " . ucwords(strtolower($durasi)) . "\n_R" . $id . "_ " . $show_total_notif . "\n"
-            $listNotif .= "\n" . $kategori . " " . $show_qty . "\n" . ltrim($list_layanan_print) . " " . ucwords(strtolower($durasi)) . "\n_R" . $id . "_ " . $show_total_notif . "\n";
+            $listNotif .= "\n" . $kategori . " " . $show_qty . "\n" . ltrim($list_layanan_print) . " " . ucwords(strtolower($durasi)) . "\n_R" . $id . "_ *" . $show_total_notif . "*\n";
         }
 
         // 4. Surcas (Surcharges)
@@ -204,7 +204,7 @@ class WAGenerator extends Controller
                   }
                   $jumlahCas = $sca['jumlah'];
                   $subTotal += $jumlahCas;
-                  $listNotif .= "\n#S" . $sca['id_surcas'] . " " . $surcasName . " " . number_format($jumlahCas) . "\n";
+                  $listNotif .= "\n#S" . $sca['id_surcas'] . " " . $surcasName . " *" . number_format($jumlahCas) . "*\n";
              }
         }
 

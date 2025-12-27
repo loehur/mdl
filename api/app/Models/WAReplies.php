@@ -127,21 +127,36 @@ class WAReplies
             }
         }
 
-        // ambiguous -> PEMBUKA
+        // Ambiguous short messages -> Use AI to classify as PEMBUKA or PENUTUP
         if ($messageLength >= 1 && $messageLength <= 8) {
-            if ($this->shouldReply($waNumber, 'PEMBUKA')) {
-                $this->handlePembuka($phoneIn, $waNumber);
+            // Rate limiting for AI ambiguous check
+            if (!$this->shouldReply($waNumber, 'AI_AMBIGUOUS')) {
+                // Still in cooldown, don't handle anything (user just got a reply)
+                return (object) [
+                    'status' => null,
+                    'ai' => false,
+                    'priority' => null
+                ];
             }
-            return (object) [
-                'status' => 'read',
-                'ai' => false,
-                'priority' => 0
-            ];
+            
+            // Use AI to determine if it's PEMBUKA, PENUTUP, or EMOTE
+            $aiIntent = $this->classifyAmbiguous($phoneIn, $textBody, $waNumber);
+            
+            if ($aiIntent === 'PEMBUKA' || $aiIntent === 'PENUTUP' || $aiIntent === 'EMOTE') {
+                // Get priority from config
+                $priority = isset($keywordConfig[$aiIntent]['priority']) 
+                    ? $keywordConfig[$aiIntent]['priority'] 
+                    : null;
+                
+                return (object) [
+                    'status' => 'read',
+                    'ai' => true,
+                    'priority' => $priority
+                ];
+            }
+            
+            // AI ambiguous failed, fall through to AI_FALLBACK below for comprehensive intent detection
         }
-
-        // ============================================================
-        // FALLBACK: AI-Powered Intent Detection
-        // ============================================================
         
         // Rate limiting: Prevent AI from being called too frequently
         if (!$this->shouldReply($waNumber, 'AI_FALLBACK')) {
@@ -159,7 +174,10 @@ class WAReplies
         if ($aiResult !== false && strtoupper($aiResult) !== 'FALSE') {
             // AI successfully detected intent, get priority from config
             $aiIntent = strtoupper($aiResult);
-            $aiPriority = isset($keywordConfig[$aiIntent]) ? ($keywordConfig[$aiIntent]['priority'] ?? 4) : 4;
+            // Get priority from config, respecting null values (null = don't update priority)
+            $aiPriority = isset($keywordConfig[$aiIntent]['priority']) 
+                ? $keywordConfig[$aiIntent]['priority']  // Could be null, which is intentional
+                : 4;  // Default if intent not in config
             
             return (object) [
                 'status' => 'read',
@@ -648,6 +666,31 @@ class WAReplies
         }
     }
 
+    function handleEmote($phoneIn, $waNumber){
+        $waService = $this->getWaService();
+        
+        // Random emoji-based responses (keep it simple and friendly)
+        $variations = [
+            "👍",
+            "😊",
+            "🙏",
+            "👌",
+            "😁",
+            "✨",
+            "🎉",
+            "❤️",
+            "🤗",
+            "💪",
+            "🙌",
+        ];
+        
+        $text = $variations[array_rand($variations)];
+        $res = $waService->sendFreeText($waNumber, $text);
+        if ($res['success']) {
+            $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+        }
+    }
+
     function handleMinta_jemput_antar($phoneIn, $waNumber){
         $waService = $this->getWaService();
         
@@ -907,6 +950,95 @@ class WAReplies
             // Log the exception so we know why AI failed
             if (class_exists('\Log')) {
                 \Log::write("AI Error: " . $e->getMessage(), 'ai', 'intent_detection');
+            }
+            return false;
+        }
+    }
+    
+    /**
+     * AI-Powered Classification for Ambiguous Short Messages
+     * Specifically classifies between PEMBUKA (greeting) or PENUTUP (closing)
+     * 
+     * @param string $phoneIn CSV string of phone numbers
+     * @param string $textBody Original message text
+     * @param string $waNumber Sender's WhatsApp number
+     * @return string|false 'PEMBUKA' or 'PENUTUP' if classified, false otherwise
+     */
+    private function classifyAmbiguous($phoneIn, $textBody, $waNumber)
+    {
+        try {
+            // Check if AI Config class exists and is enabled
+            if (!class_exists('\\App\\Config\\AI')) {
+                $configFile = __DIR__ . '/../Config/AI.php';
+                if (!file_exists($configFile)) {
+                    return false;
+                }
+                require_once $configFile;
+            }
+            
+            if (!\App\Config\AI::isEnabled()) {
+                return false;
+            }
+            
+        } catch (\Exception $e) {
+            return false;
+        }
+        
+        try {
+            // Prepare specialized AI prompt for PEMBUKA vs PENUTUP classification
+            $prompt = "Kamu adalah AI classifier untuk WhatsApp bot laundry. Klasifikasikan pesan pendek berikut apakah PEMBUKA (greeting/salam awal) atau PENUTUP (closing/penutup percakapan).\\n\\n";
+            $prompt .= "Kategori:\\n";
+            $prompt .= "- PEMBUKA: Salam pembuka, sapaan awal (contoh: halo, hai, ping, pagi, siang, malam, sore, ka, bang, pak, bu)\\n";
+            $prompt .= "- PENUTUP: Penutup percakapan, konfirmasi, terima kasih (contoh: ok, oke, sip, siap, makasih, terima kasih, thanks, sudah, lah, iya, thx)\\n\\n";
+            $prompt .= "- EMOTE: cuma emote\\n\\n";
+            $prompt .= "Pesan: \\\"{$textBody}\\\"\\n\\n";
+            $prompt .= "WAJIB JAWAB HANYA SALAH SATU: PEMBUKA, PENUTUP, atau EMOTE (huruf kapital).";
+            
+            // Log AI checking input
+            if (class_exists('\Log')) {
+                \Log::write("AI Ambiguous Check: " . $textBody, 'ai', 'ambiguous_classification');
+            }
+            
+            // Call OpenAI API
+            $response = $this->callOpenAI($prompt);
+            $intent = trim(strtoupper($response));
+            
+            // Log AI response
+            if (class_exists('\Log')) {
+                \Log::write("AI Ambiguous Response: " . $response, 'ai', 'ambiguous_classification');
+            }
+            
+            // Validate response - must be either PEMBUKA, PENUTUP, or EMOTE
+            if ($intent !== 'PEMBUKA' && $intent !== 'PENUTUP' && $intent !== 'EMOTE') {
+                if (class_exists('\\Log')) {
+                    \Log::write("AI Ambiguous Invalid Response: " . $intent, 'ai', 'ambiguous_classification');
+                }
+                return false;
+            }
+            
+            // Check rate limiting for the determined intent
+            if (!$this->shouldReply($waNumber, $intent)) {
+                if (class_exists('\Log')) {
+                    \Log::write("AI Ambiguous Rate Limited: '{$intent}' for {$waNumber}", 'ai', 'ambiguous_classification');
+                }
+                return false;
+            }
+            
+            // Call appropriate handler
+            $handlerName = ucwords(strtolower($intent), '_');
+            $methodName = 'handle' . $handlerName;
+            
+            if (method_exists($this, $methodName)) {
+                $this->$methodName($phoneIn, $waNumber);
+                return $intent;
+            }
+            
+            return false;
+            
+        } catch (\Exception $e) {
+            // Log the exception
+            if (class_exists('\Log')) {
+                \Log::write("AI Ambiguous Error: " . $e->getMessage(), 'ai', 'ambiguous_classification');
             }
             return false;
         }
