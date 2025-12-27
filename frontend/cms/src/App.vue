@@ -2356,57 +2356,58 @@ window.addEventListener('focus', () => {
          </div>
       </div>
       
-      <!-- Settings Modal -->
-      <div v-if="showSettingsModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" @click="showSettingsModal = false">
-        <div class="bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-2xl shadow-2xl max-w-md w-full p-6" @click.stop>
-          <!-- Header -->
-          <div class="flex items-center justify-between mb-6">
-            <h2 class="text-xl font-semibold text-[var(--wa-text-primary)]">Settings</h2>
-            <button @click="showSettingsModal = false" class="p-2 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)] hover:bg-[var(--wa-hover)] rounded-lg transition-colors">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          
-          <!-- Font Size Setting -->
-          <div class="space-y-4">
-            <div>
-              <h3 class="text-sm font-medium text-[var(--wa-text-secondary)] mb-3">Font Size</h3>
-              <div class="space-y-2">
-                <!-- Medium Option (Default) -->
-                <button 
-                  @click="setFontSize('medium')"
-                  class="w-full flex items-center justify-between p-3 rounded-lg border transition-all"
-                  :class="fontSize === 'medium' ? 'border-[var(--wa-accent-green)] bg-[var(--wa-accent-green)]/10' : 'border-[var(--wa-border)] hover:bg-[var(--wa-hover)]'"
-                >
-                  <span class="text-[var(--wa-text-primary)]" style="font-size: 14.2px;">Medium (Default)</span>
-                  <svg v-if="fontSize === 'medium'" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[var(--wa-accent-green)]" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-                  </svg>
-                </button>
-                
-                <!-- Large Option -->
-                <button 
-                  @click="setFontSize('large')"
-                  class="w-full flex items-center justify-between p-3 rounded-lg border transition-all"
-                  :class="fontSize === 'large' ? 'border-[var(--wa-accent-green)] bg-[var(--wa-accent-green)]/10' : 'border-[var(--wa-border)] hover:bg-[var(--wa-hover)]'"
-                >
-                  <span class="text-[var(--wa-text-primary)]" style="font-size: 16px;">Large</span>
-                  <svg v-if="fontSize === 'large'" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[var(--wa-accent-green)]" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
       
     </main>
     <!-- Exit Toast -->
     <div v-if="showExitToast" class="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-slate-800/90 backdrop-blur text-white px-6 py-3 rounded-full shadow-xl border border-slate-700/50 z-[100] transition-opacity duration-300 pointer-events-none">
         <span class="text-sm font-medium">Press back again to exit</span>
+    </div>
+
+    <!-- Settings Modal -->
+    <div v-if="showSettingsModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-[500] flex items-center justify-center p-4" @click="showSettingsModal = false">
+      <div class="bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-2xl shadow-2xl max-w-md w-full p-6" @click.stop>
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-xl font-semibold text-[var(--wa-text-primary)]">Settings</h2>
+          <button @click="showSettingsModal = false" class="p-2 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)] hover:bg-[var(--wa-hover)] rounded-lg transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        
+        <!-- Font Size Setting -->
+        <div class="space-y-4">
+          <div>
+            <h3 class="text-sm font-medium text-[var(--wa-text-secondary)] mb-3">Font Size</h3>
+            <div class="space-y-2">
+              <!-- Medium Option (Default) -->
+              <button 
+                @click="setFontSize('medium')"
+                class="w-full flex items-center justify-between p-3 rounded-lg border transition-all"
+                :class="fontSize === 'medium' ? 'border-[var(--wa-accent-green)] bg-[var(--wa-accent-green)]/10' : 'border-[var(--wa-border)] hover:bg-[var(--wa-hover)]'"
+              >
+                <span class="text-[var(--wa-text-primary)]" style="font-size: 14.2px;">Medium (Default)</span>
+                <svg v-if="fontSize === 'medium'" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[var(--wa-accent-green)]" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                </svg>
+              </button>
+              
+              <!-- Large Option -->
+              <button 
+                @click="setFontSize('large')"
+                class="w-full flex items-center justify-between p-3 rounded-lg border transition-all"
+                :class="fontSize === 'large' ? 'border-[var(--wa-accent-green)] bg-[var(--wa-accent-green)]/10' : 'border-[var(--wa-border)] hover:bg-[var(--wa-hover)]'"
+              >
+                <span class="text-[var(--wa-text-primary)]" style="font-size: 16px;">Large</span>
+                <svg v-if="fontSize === 'large'" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[var(--wa-accent-green)]" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Duplicate Connection Modal (Blocking) -->
