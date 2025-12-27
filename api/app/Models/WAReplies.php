@@ -142,16 +142,15 @@ class WAReplies
             
             // Use AI to determine if it's PEMBUKA, PENUTUP, or EMOTE
             $aiIntent = $this->classifyAmbiguous($phoneIn, $textBody, $waNumber);
-            if (in_array($aiIntent, $matchPatterns)) {
-                return (object) [
-                    'status' => 'read',
-                    'ai' => false,
-                    'priority' => 0
-                ];
-            }
-
-            if ($aiIntent === 'PEMBUKA' || $aiIntent === 'PENUTUP' || $aiIntent === 'EMOTE') {
+            if (strtoupper($aiIntent) !== 'FALSE') { // selain false
                 // Get priority from config
+                if (in_array($aiIntent, $matchPatterns)) {
+                    return (object) [
+                        'status' => 'read',
+                        'ai' => false,
+                        'priority' => null
+                    ];
+                }
 
                 $matchPatterns[] = $aiIntent;
 
@@ -165,15 +164,13 @@ class WAReplies
                     'priority' => $priority
                 ];
             }
-            
-            // AI ambiguous failed, fall through to AI_FALLBACK below for comprehensive intent detection
         }
 
         if ($messageLength == 0) {
             return (object) [
                 'status' => null,
                 'ai' => false,
-                'priority' => 1
+                'priority' => null
             ];
         }
         
@@ -191,12 +188,11 @@ class WAReplies
         
         // Check if AI successfully detected a valid intent (not FALSE)
         if (strtoupper($aiResult) !== 'FALSE') {
-
             if (in_array($aiResult, $matchPatterns)) {
                 return (object) [
                     'status' => 'read',
                     'ai' => false,
-                    'priority' => 0
+                    'priority' => null
                 ];
             }
             // AI successfully detected intent, get priority from config
@@ -672,18 +668,6 @@ class WAReplies
             "Oke siap! 😊",
             "Siapp 👍",
             "Ok! 😊",
-
-            // Versi dengan terima kasih
-            "Baik, terima kasih! 🙏",
-            "Siap, terima kasih! 😊",
-            "Oke, terima kasih 😊",
-            "Okee, terima kasih 😊",
-            "Sip, terima kasih! 👍",
-            "Siap, terima kasih 🙏",
-            "Ok siap, terima kasih 😊",
-            "Oke siap, terima kasih! 😊",
-            "Siapp, terima kasih 👍",
-            "Ok, terima kasih! 😊",
         ];
         
         $text = $variations[array_rand($variations)];
@@ -1019,8 +1003,9 @@ class WAReplies
             $prompt .= "- PEMBUKA: Salam pembuka, sapaan awal (contoh: halo, hai, ping, pagi, siang, malam, sore, ka, bang, pak, bu)\\n";
             $prompt .= "- PENUTUP: Penutup percakapan, konfirmasi, terima kasih (contoh: ok, oke, sip, siap, makasih, terima kasih, thanks, sudah, lah, iya, thx)\\n\\n";
             $prompt .= "- EMOTE: cuma emote dan candaan seperti hehe haha wkwk\\n\\n";
+            $prompt .= "- FALSE: belum jelas atau tidak termasuk kategori di atas\\n\\n";
             $prompt .= "Pesan: \\\"{$textBody}\\\"\\n\\n";
-            $prompt .= "WAJIB JAWAB HANYA SALAH SATU: PEMBUKA, PENUTUP, atau EMOTE (huruf kapital).";
+            $prompt .= "WAJIB JAWAB HANYA SALAH SATU: PEMBUKA, PENUTUP, EMOTE, atau FALSE (huruf kapital).";
             
             // Log AI checking input
             if (class_exists('\Log')) {
