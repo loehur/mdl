@@ -128,7 +128,7 @@ class WAReplies
         }
 
         // ambiguous -> PEMBUKA
-        if ($messageLength <= 8) {
+        if ($messageLength >= 1 && $messageLength <= 8) {
             if ($this->shouldReply($waNumber, 'PEMBUKA')) {
                 $this->handlePembuka($phoneIn, $waNumber);
             }
