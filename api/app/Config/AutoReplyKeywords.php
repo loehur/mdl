@@ -14,12 +14,13 @@ return [
         'priority' => null,
         'patterns' => [
             '/^\s*(bon|nota+|stru*k|bil+|ta*gi*ha*n|re*si)\s*$/i',
-            '/ata*s\s*na*ma*/i',
-            '/(ke*ti*k|mi*nta*|ki*ri*m|ba*gi*|cek|ma*na*|a*da*|pe*rlu|bu*tu*h)\s*\b(stru*k|nota+|bil|bon|ta*gi*ha*n|re*si|bu*kti*)/i',
-            '/(be*lu*m)\s*\b(di*(te*ri*ma*|ki*ri*m))/i',
-            '/(be*ra*pa*|ki*ri*m|cek)?\s*\b(to*ta*l|ju*mla*h)/i',
-            '/(be*ra*pa*|cek)?\s*\b(to*ta*l|ju*mla*h|kg|be*ra*t|ti*mba*nga*n*)/i',
-            '/(to*ta*l|ju*mla*h)\s*\b(la*o*u*ndry*i*)/i',
+            '/ata*s.*na*ma*/i',
+            '/(be*lu*m).*(di*(te*ri*ma*|ki*ri*m))/i',
+            '/(be*ra*pa*|ki*ri*m|cek).*(to*ta*l|ju*mla*h)/i',
+            '/(be*ra*pa*|cek).*(to*ta*l|ju*mla*h|kg|be*ra*t|ti*mba*nga*n*)/i',
+            '/(to*ta*l|ju*mla*h).*(la*o*u*ndry*i*)/i',
+            '/(bon|nota*|bil+|ta*gi*ha*n|re*si|bu*kti*).*(ke*tik|mi*nta|ki*ri*m|ba*gi*|cek|ma*na*|a*da*|pe*rlu|bu*tu*h)/i',
+            '/(ke*tik|mi*nta|ki*ri*m|ba*gi*|cek|ma*na*|a*da*|pe*rlu|bu*tu*h).*(bon|nota*|bil+|ta*gi*ha*n|re*si|bu*kti*)/i'
         ]
     ],
 
@@ -28,11 +29,11 @@ return [
         'priority' => null,
         'patterns' => [
             '/^\s*(cek|sta*tu*s)\s*$/i',
-            '/((s*u*)?da*h*|ka*pa*n)\s*\b(si+a+p|be*re*s|ke*la*r|se*ls*e*s*a*i*|re*a*dy*i*|j*adi*)/i',
+            '/((s*u*)?da*h*|ka*pa*n).*(si+a+p|be*re*s|ke*la*r|se*ls*e*s*a*i*|re*a*dy*i*|j*adi*)/i',
             '/(si+a+p|be*re*s|ke*la*r|se*ls*e*s*a*i*|re*a*dy*i*|j*adi*)\s*\b(ka*pa*n|be*lu*m)/i',
-            '/((s*u*)?da*h*|ka*pa*n)\s*\b(bi*sa*|bo*le*h|da*pa*t)\s*\b(di*(ambi*l|je*mpu*t))/i',
-            '/(ka*pa*n)\s*\b(bi*sa*|bo*le*h|da*pa*t)\s*\b(di*(ambi*l|je*mpu*t))/i',
-            '/(ka*pa*n)\s*\b(bi*sa*|bo*le*h|da*pa*t)\s*\b(di*(ambi*l|je*mpu*t))/i',
+            '/((s*u*)?da*h*|ka*pa*n).*(bi*sa*|bo*le*h|da*pa*t).*(di*(ambi*l|je*mpu*t))/i',
+            '/(ka*pa*n).*(bi*sa*|bo*le*h|da*pa*t).*(di*(ambi*l|je*mpu*t))/i',
+            '/(ka*pa*n).*(bi*sa*|bo*le*h|da*pa*t).*(di*(ambi*l|je*mpu*t))/i',
         ]
     ],
 
@@ -41,8 +42,8 @@ return [
         'priority' => 2,
         'patterns' => [
             '/^\s*(je*m*pu*t|anta*r)\s*$/i',
-            '/(bi*sa*|bo*le*h|to*lo*ng)\s*\b(je*m*pu*t|anta*r|ki*ri*m)/i',
-            '/(je*m*pu*t|anta*r)\s*(la*o*u*ndry*i*|ba*ju)/i',
+            '/(bi*sa*|bo*le*h|to*lo*ng).*(je*m*pu*t|anta*r|ki*ri*m)/i',
+            '/(je*m*pu*t|anta*r).*(la*o*u*ndry*i*|ba*ju)/i',
             '/(to*lo*n*g).*(la*o*u*ndry*i*|ba*ju).*(je*m*pu*t|anta*r|ki*ri*m)/i'
         ]
     ],
@@ -51,8 +52,8 @@ return [
         'max_length' => 30,
         'priority' => null,
         'patterns' => [
-            '/(ka*pa*n|ma*si*h)\s*\b(bu*ka*|tu*tu*p)/i',
-            '/(ja*m)\s*\b(be*ra*pa*)\s*\b(bu*ka*|tu*tu*p)/i',
+            '/(ka*pa*n|ma*si*h).*(bu*ka*|tu*tu*p)/i',
+            '/(ja*m).*(be*ra*pa*).*(bu*ka*|tu*tu*p)/i',
         ]
     ],
 
