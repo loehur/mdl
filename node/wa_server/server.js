@@ -58,10 +58,23 @@ const ADMIN_IDS = [
     'TABLET',   // Tablet
 ];
 
+// Driver IDs for delivery/pickup
+const DRIVER_IDS = [
+    'DRIVER1',
+    'DRIVER2',
+];
+
 // Add admin IDs to allowed list
 ADMIN_IDS.forEach(adminId => {
     if (!ALLOWED_CLIENT_IDS.includes(adminId)) {
         ALLOWED_CLIENT_IDS.push(adminId);
+    }
+});
+
+// Add driver IDs to allowed list
+DRIVER_IDS.forEach(driverId => {
+    if (!ALLOWED_CLIENT_IDS.includes(driverId)) {
+        ALLOWED_CLIENT_IDS.push(driverId);
     }
 });
 
@@ -71,7 +84,8 @@ const SOCKET_PASSWORD = process.env.SOCKET_PASSWORD;
 console.log('='.repeat(50));
 console.log('WebSocket Server - Allowed Client IDs:');
 console.log('Admin IDs:', ADMIN_IDS.join(', '));
-console.log('Regular Agents:', ALLOWED_CLIENT_IDS.filter(id => !ADMIN_IDS.includes(id)).join(', '));
+console.log('Driver IDs:', DRIVER_IDS.join(', '));
+console.log('Regular Agents:', ALLOWED_CLIENT_IDS.filter(id => !ADMIN_IDS.includes(id) && !DRIVER_IDS.includes(id)).join(', '));
 console.log('Total Allowed IDs:', ALLOWED_CLIENT_IDS.length);
 console.log('='.repeat(50));
 
