@@ -40,6 +40,14 @@ const getCaseLabel = (caseId) => {
     }
 };
 
+// Check if a case is currently open
+const isCaseOpen = (caseId) => {
+    if (!activeConversation.value || !activeConversation.value.cases) return false;
+    return activeConversation.value.cases.some(c => 
+        parseInt(c.case) === parseInt(caseId) && (c.status || 'open') !== 'closed'
+    );
+};
+
 // --- State ---
 // --- State ---
 const API_BASE = 'https://api.nalju.com';
@@ -2342,7 +2350,7 @@ window.addEventListener('focus', () => {
                  <!-- Selesai Option -->
                  <!-- Check Payment Option -->
                  <button 
-                   v-if="activeConversation.priority !== 1"
+                   v-if="!isCaseOpen(1)"
                    @click="checkPayment"
                    :disabled="isCheckingPayment"
                    class="w-full px-4 py-3 text-left hover:bg-[var(--wa-hover)] transition-colors flex items-center gap-3 text-sm text-[var(--wa-text-primary)] hover:text-blue-400 disabled:opacity-50 disabled:cursor-not-allowed border-b border-[var(--wa-divider)]"
@@ -2355,7 +2363,7 @@ window.addEventListener('focus', () => {
                   </button>
                   <!-- Pickup/Delivery Option -->
                   <button 
-                    v-if="activeConversation.priority !== 2"
+                    v-if="!isCaseOpen(2)"
                     @click="pickupDelivery"
                     :disabled="isPickupDelivery"
                     class="w-full px-4 py-3 text-left hover:bg-[var(--wa-hover)] transition-colors flex items-center gap-3 text-sm text-[var(--wa-text-primary)] hover:text-yellow-400 disabled:opacity-50 disabled:cursor-not-allowed border-b border-[var(--wa-divider)]"
@@ -2369,7 +2377,7 @@ window.addEventListener('focus', () => {
                   
                   <!-- Request Option -->
                   <button 
-                    v-if="activeConversation.priority !== 3"
+                    v-if="!isCaseOpen(3)"
                     @click="requestPriority"
                     :disabled="isRequest"
                     class="w-full px-4 py-3 text-left hover:bg-[var(--wa-hover)] transition-colors flex items-center gap-3 text-sm text-[var(--wa-text-primary)] hover:text-red-400 disabled:opacity-50 disabled:cursor-not-allowed border-b border-[var(--wa-divider)]"

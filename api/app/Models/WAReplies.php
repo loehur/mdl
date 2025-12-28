@@ -200,7 +200,8 @@ class WAReplies
         $aiResult = $this->handleWithAI($phoneIn, $textBody, $waNumber);
         
         // Check if AI successfully detected a valid intent (not FALSE)
-        if (strtoupper($aiResult) !== 'FALSE') {
+        // Check if AI successfully detected a valid intent (not FALSE and not boolean false)
+        if ($aiResult && strtoupper($aiResult) !== 'FALSE') {
             if (in_array($aiResult, $matchPatterns)) {
                 return (object) [
                     'status' => null,
@@ -958,27 +959,36 @@ private function handleWithAI($phoneIn, $textBody, $waNumber)
         
         $prompt .= "- FALSE: Tidak termasuk kategori di atas\n\n";
         $prompt .= "Pesan: \"{$textBody}\"\n\n";
-        $prompt .= "JAWAB HANYA DENGAN NAMA KATEGORI (huruf kapital). Contoh: NOTA";
-        
-        // Log AI checking input
-        if (class_exists('\Log')) {
-            \Log::write("AI Checking: " . $textBody, 'ai', 'intent_detection');
-        }
+        $prompt .= "JAWAB HANYA DENGAN FORMAT JSON SEPERTI INI:\n";
+        $prompt .= "{\"intent\": \"NAMA_KATEGORI\", \"reason\": \"Alasan singkat memilih kategori ini\"}\n";
+        $prompt .= "Kategori harus salah satu dari daftar di atas atau FALSE.";
         
         // Call OpenAI API
         $response = $this->callOpenAI($prompt);
-        $intent = trim(strtoupper($response));
         
-        // Log AI response
+        // Parse JSON Response
+        $json = json_decode($response, true);
+        
+        // Handle markdown code blocks if AI adds them
+        if (!$json) {
+            $cleanMatches = [];
+            if (preg_match('/\{.*\}/s', $response, $cleanMatches)) {
+                $json = json_decode($cleanMatches[0], true);
+            }
+        }
+        
+        $intent = $json['intent'] ?? 'FALSE';
+        $reason = $json['reason'] ?? '';
+        
+        $intent = trim(strtoupper($intent));
+        
+        // Log: text | intent | reason
         if (class_exists('\Log')) {
-            \Log::write("AI Response: " . $response, 'ai', 'intent_detection');
+            \Log::write("{$textBody} | {$intent} | {$reason}", 'ai', 'intent');
         }
         
         // Check rate limiting
         if (!$this->shouldReply($waNumber, $intent)) {
-            if (class_exists('\Log')) {
-                \Log::write("AI Rate Limited: Handler '{$intent}' for {$waNumber}", 'ai', 'intent_detection');
-            }
             return false;
         }
         
@@ -994,10 +1004,6 @@ private function handleWithAI($phoneIn, $textBody, $waNumber)
         return false;
         
     } catch (\Exception $e) {
-        // Log the exception so we know why AI failed
-        if (class_exists('\Log')) {
-            \Log::write("AI Error: " . $e->getMessage(), 'ai', 'intent_detection');
-        }
         return false;
     }
 }
@@ -1049,35 +1055,40 @@ private function handleWithAI($phoneIn, $textBody, $waNumber)
             
             $prompt .= "- FALSE: belum jelas atau tidak termasuk kategori di atas\n\n";
             $prompt .= "Pesan: \"{$textBody}\"\n\n";
-            $prompt .= "WAJIB JAWAB HANYA SALAH SATU: PEMBUKA, PENUTUP, EMOTE, atau FALSE (huruf kapital).";
-            
-            // Log AI checking input
-            if (class_exists('\Log')) {
-                \Log::write("AI Ambiguous Check: " . $textBody, 'ai', 'ambiguous_classification');
-            }
+            $prompt .= "WAJIB JAWAB HANYA DENGAN FORMAT JSON SEPERTI INI:\n";
+            $prompt .= "{\"intent\": \"KATEGORI\", \"reason\": \"Alasan singkat\"}\n";
+            $prompt .= "Pilihan KATEGORI: PEMBUKA, PENUTUP, EMOTE, atau FALSE.";
             
             // Call OpenAI API
             $response = $this->callOpenAI($prompt);
-            $intent = trim(strtoupper($response));
             
-            // Log AI response
+            // Parse JSON Response
+            $json = json_decode($response, true);
+            
+            // Handle markdown code blocks
+            if (!$json) {
+                $cleanMatches = [];
+                if (preg_match('/\{.*\}/s', $response, $cleanMatches)) {
+                    $json = json_decode($cleanMatches[0], true);
+                }
+            }
+            
+            $intent = $json['intent'] ?? 'FALSE';
+            $intent = trim(strtoupper($intent));
+            $reason = $json['reason'] ?? '';
+            
+            // Log: text | intent | reason
             if (class_exists('\Log')) {
-                \Log::write("AI Ambiguous Response: " . $response, 'ai', 'ambiguous_classification');
+                \Log::write("{$textBody} | {$intent} | {$reason}", 'ai', 'intent');
             }
             
             // Validate response - must be either PEMBUKA, PENUTUP, or EMOTE
             if ($intent !== 'PEMBUKA' && $intent !== 'PENUTUP' && $intent !== 'EMOTE') {
-                if (class_exists('\\Log')) {
-                    \Log::write("AI Ambiguous Invalid Response: " . $intent, 'ai', 'ambiguous_classification');
-                }
                 return false;
             }
             
             // Check rate limiting for the determined intent
             if (!$this->shouldReply($waNumber, $intent)) {
-                if (class_exists('\Log')) {
-                    \Log::write("AI Ambiguous Rate Limited: '{$intent}' for {$waNumber}", 'ai', 'ambiguous_classification');
-                }
                 return false;
             }
             
@@ -1093,10 +1104,6 @@ private function handleWithAI($phoneIn, $textBody, $waNumber)
             return false;
             
         } catch (\Exception $e) {
-            // Log the exception
-            if (class_exists('\Log')) {
-                \Log::write("AI Ambiguous Error: " . $e->getMessage(), 'ai', 'ambiguous_classification');
-            }
             return false;
         }
     }
@@ -1164,35 +1171,14 @@ private function handleWithAI($phoneIn, $textBody, $waNumber)
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
-
-        // DEBUG: Internal Log
-        if (class_exists('\\Log')) {
-             \Log::write("Target URL: $url", 'auto_reply', 'ai');
-             \Log::write("Model: $model | Timeout: $timeout", 'auto_reply', 'ai');
-             \Log::write("cURL Executing...", 'auto_reply', 'ai');
-        }
         
         $result = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curlError = curl_error($ch);
         curl_close($ch);
         
-        // LOG: cURL execution result
-        if (class_exists('\\Log')) {
-            \Log::write("cURL executed - HTTP Code: {$httpCode}, Error: " . ($curlError ?: 'None'), 'auto_reply', 'ai');
-            if ($result) {
-                // Log shorter preview
-                \Log::write("API Response (first 500 chars): " . substr($result, 0, 500), 'auto_reply', 'ai');
-            } else {
-                \Log::write("❌ API Response is EMPTY/FALSE", 'auto_reply', 'ai');
-            }
-        }
-        
         // Check for cURL errors
         if ($result === false) {
-            if (class_exists('\\Log')) {
-                \Log::write("❌ OpenAI API cURL error: {$curlError}", 'auto_reply', 'ai');
-            }
             throw new \Exception("OpenAI API cURL error: {$curlError}");
         }
         
@@ -1205,36 +1191,15 @@ private function handleWithAI($phoneIn, $textBody, $waNumber)
                     $errorMsg .= " - " . $errorData['error']['message'];
                 }
             }
-            if (class_exists('\\Log')) {
-                \Log::write("❌ {$errorMsg}", 'auto_reply', 'ai');
-            }
             throw new \Exception($errorMsg);
         }
         
         // Parse response
         $response = json_decode($result, true);
         
-        // LOG: JSON decode result
-        if (class_exists('\\Log')) {
-            if ($response === null) {
-                \Log::write("❌ JSON decode failed - Invalid JSON response", 'auto_reply', 'ai');
-            } else {
-                \Log::write("✅ JSON decoded successfully", 'auto_reply', 'ai');
-            }
-        }
-        
         // Extract text from OpenAI response structure
         if (isset($response['choices'][0]['message']['content'])) {
-            $extractedText = trim($response['choices'][0]['message']['content']);
-            if (class_exists('\\Log')) {
-                \Log::write("✅ Extracted text from response: '{$extractedText}'", 'auto_reply', 'ai');
-            }
-            return $extractedText;
-        }
-        
-        // LOG: Invalid structure
-        if (class_exists('\\Log')) {
-            \Log::write("❌ OpenAI API: Invalid response structure - Response: " . json_encode($response), 'auto_reply', 'ai');
+            return trim($response['choices'][0]['message']['content']);
         }
         
         throw new \Exception("OpenAI API: Invalid response structure");

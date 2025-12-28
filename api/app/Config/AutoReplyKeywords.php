@@ -7,8 +7,11 @@ return [
         'patterns' => [
             '/^\s*(p|ping|ka*k|ba*n*g|b*a*pa*k|i*bu*k*|a*de*k|he*a*l+o|as+a*l+a*mu*a*l+a*i*ku*m|tes)\s*$/i',
             '/(pa*gi|so*re|si*a*ng|ma*la*m|ha*e*l+o+)\s*\b(ba*n*g|ka*k|pa*k|i*bu*k*|a*de*k*|a*na*k)/i',
+            '/^\s*.\s*$/i',
         ],
-        'ai_prompt' => 'Salam pembuka, sapaan awal (contoh: halo/hai/ping/pagi/siang/malam/sore/kak/bang/pak/bu)'
+        'ai_prompt' => "User memberi sapaan awal, contoh:\n
+        | halo | hai | ping | pagi | siang | malam | sore | kak | bang | pak | bu\n
+        atau yang menurut anda sangat yakin sebagai sapaan awal"
     ],
 
     'NOTA' => [
@@ -25,7 +28,9 @@ return [
             '/(bon|nota*|bil+|ta*gi*ha*n|re*si|bu*kti*)\s*\b(ke*tik|mi*nta|ki*ri*m|ba*gi*|cek|ma*na*|a*da*|pe*rlu|bu*tu*h)/i',
             '/(ke*tik|mi*nta|ki*ri*m|ba*gi*|cek|ma*na*|a*da*|pe*rlu|bu*tu*h)\s*\b(bon|nota*|bil+|ta*gi*ha*n|re*si|bu*kti*)/i'
         ],
-        'ai_prompt' => 'User meminta bon/nota/struk/tagihan/bukti pembayaran laundry'
+        'ai_prompt' => "User meminta:\n
+        | bon | nota | struk | tagihan | bukti pembayaran laundry |\n
+        atau yang menurut anda sangat yakin sebagai permintaan nota/bon"
     ],
 
     'STATUS' => [
@@ -41,7 +46,9 @@ return [
             '/(ka*pa*n)\s*\b(bi*sa*|bo*le*h|da*pa*t)\s*\b(di*(ambi*l|je*mpu*t))/i',
             '/(ja*m)\s*\b(be*ra*pa*)\s*\b(siap|se*le*sa*i*|ke*la*r|be*re*s)/i',
         ],
-        'ai_prompt' => 'User menanyakan status/progress laundry (sudah selesai? bisa diambil? kapan siap? sudah jadi? sudah bisa di jemput/antar?)'
+        'ai_prompt' => "User menanyakan status progress laundry seperti:\n
+        | sudah selesai? | bisa diambil? | kapan siap? | sudah jadi? | sudah bisa dijemput/antar? | sudah bisa diambil? |\n
+        atau yang menurut anda sangat yakin sebagai pertanyaan status progress laundry"
     ],
 
     'PERMINTAAN' => [
@@ -51,7 +58,7 @@ return [
         'patterns' => [
             '/(bi*sa*|bo*le*h).*(sa*ya*|a*ku|ka*mi).*(di)?(ambi*l|je*m*pu*t)/i',
         ],
-        'ai_prompt' => 'User melakukan permintaan selain jemput/antar laundry'
+        'ai_prompt' => 'User melakukan permintaan apapun SELAIN jemput/antar laundry'
     ],
 
     'MINTA_JEMPUT_ANTAR' => [
@@ -61,7 +68,7 @@ return [
         'patterns' => [
             '/^\s*(je*m*pu*t|anta*r)\s*$/i',
         ],
-        'ai_prompt' => 'User melakukan permintaan jemput/antar laundry (harus ada kata permintaan seperti: minta, tolong, bisa, boleh, bantu, dll)'
+        'ai_prompt' => 'User minta jemput/antar atau menanyakan kapan dijemput/antar'
     ],
 
     'CEK_BUKA' => [
@@ -72,7 +79,7 @@ return [
             '/(ka*pa*n|ma*si*h)\s*\b(bu*ka*|tu*tu*p)/i',
             '/(ja*m)\s*\b(be*ra*pa*)\s*\b(bu*ka*|tu*tu*p)/i',
         ],
-        'ai_prompt' => 'User meminta informasi jam/kapan buka/tutup, masih buka atau sudah tutup. tidak termasuk jam/kapan di antar/jemput'
+        'ai_prompt' => 'User butuh informasi tentang jam buka/tutup atau menanyakan kapan buka/tutup atau menanyakan masih buka/tutup atau menanyakan sudah buka/tutup, hanya menanyakan tentang buka atau tutup. BUKAN kapan atau jam berapa bisa dijemput/antar'
     ],
 
     'PENUTUP' => [
@@ -88,7 +95,9 @@ return [
             '/(oh*)\s*(gi*tu+)/i',
             '/(ok|oh).*(siap|sip|ok)/i',
         ],
-        'ai_prompt' => 'Penutup percakapan, konfirmasi, terima kasih (contoh: ok, oke, sip, siap, makasih, terima kasih, thanks, sudah, lah, iya, thx), atau hanya memberitahu kalau (sudah bayar)/(sudah lunas)/(sudah diambil)/(akan menjemput)/(akan mengantarkan)'
+        'ai_prompt' => "Penutup seperti:\n
+        | terima kasih | ok deh | siap kak | iya lah kak |\nAtau hanya mengkonfirmasi bahwa:\n
+        | sudah lunas | sudah diambil | akan menjemput | akan mengantarkan |"
     ],
 
     'EMOTE' => [
@@ -113,6 +122,6 @@ return [
             // Very short responses (1-3 chars, likely just emoji or simple acknowledgment)
             '/^\s*[👍👌✌️🙏❤️😊😁😂🤣😍🥰😘😎🤗🙌💪👏🤝✨🔥💯🎉🎊]\s*$/u',
         ],
-        'ai_prompt' => 'Hanya emoji/emote atau candaan tawa seperti hehe, haha, wkwk. tidak termasuk simbol2 yang tidak membentuk emote/emoji.'
+        'ai_prompt' => 'Hanya emoji/emote atau candaan tawa seperti hehe, haha, wkwk. TIDAK TERMASUK simbol2 yang tidak membentuk emote/emoji.'
     ]
 ];
