@@ -102,8 +102,8 @@ class WAReplies
             // Check regex patterns
             foreach ($patterns as $patternIndex => $pattern) {
                 if (preg_match($pattern, $textBodyToCheck)) {
-                    // Get priority from config, default to null (don't update) if not set or explicitly null
-                    $priority = (array_key_exists('priority', $config)) ? $config['priority'] : 4;
+                    // Get case from config, default to null (don't update) if not set or explicitly null
+                    $caseVal = (array_key_exists('case', $config)) ? $config['case'] : 4;
 
                     
                     // Check if auto_reply is enabled for this handler
@@ -114,7 +114,7 @@ class WAReplies
                         return (object) [
                             'status' => null,
                             'ai' => false,
-                            'priority' => $priority
+                            'case' => $caseVal
                         ];
                     }
                     
@@ -134,7 +134,7 @@ class WAReplies
                         return (object) [
                             'status' => null,
                             'ai' => false,
-                            'priority' => $priority
+                            'case' => $caseVal
                         ];
                     }
                 }
@@ -149,7 +149,7 @@ class WAReplies
                 return (object) [
                     'status' => null,
                     'ai' => false,
-                    'priority' => null
+                    'case' => null
                 ];
             }
             
@@ -161,20 +161,20 @@ class WAReplies
                     return (object) [
                         'status' => null,
                         'ai' => false,
-                        'priority' => null
+                        'case' => null
                     ];
                 }
 
                 $matchPatterns[] = $aiIntent;
 
-                $priority = (isset($keywordConfig[$aiIntent]) && array_key_exists('priority', $keywordConfig[$aiIntent]))
-                    ? $keywordConfig[$aiIntent]['priority'] 
+                $caseVal = (isset($keywordConfig[$aiIntent]) && array_key_exists('case', $keywordConfig[$aiIntent]))
+                    ? $keywordConfig[$aiIntent]['case'] 
                     : 4;
                 
                 return (object) [
                     'status' => null,
                     'ai' => true,
-                    'priority' => $priority
+                    'case' => $caseVal
                 ];
             }
         }
@@ -183,7 +183,7 @@ class WAReplies
             return (object) [
                 'status' => null,
                 'ai' => false,
-                'priority' => null
+                'case' => null
             ];
         }
         
@@ -193,7 +193,7 @@ class WAReplies
             return (object) [
                 'status' => null,
                 'ai' => false,
-                'priority' => null  // null = don't update priority
+                'case' => null  // null = don't update case
             ];
         }
         
@@ -205,20 +205,20 @@ class WAReplies
                 return (object) [
                     'status' => null,
                     'ai' => false,
-                    'priority' => null
+                    'case' => null
                 ];
             }
-            // AI successfully detected intent, get priority from config
+            // AI successfully detected intent, get case from config
             $aiIntent = strtoupper($aiResult);
-            // Get priority from config, respecting null values (null = don't update priority)
-            $aiPriority = (isset($keywordConfig[$aiIntent]) && array_key_exists('priority', $keywordConfig[$aiIntent]))
-                ? $keywordConfig[$aiIntent]['priority'] 
-                : 4;  // Default if intent not in config or priority key missing
+            // Get case from config, respecting null values (null = don't update case)
+            $aiCase = (isset($keywordConfig[$aiIntent]) && array_key_exists('case', $keywordConfig[$aiIntent]))
+                ? $keywordConfig[$aiIntent]['case'] 
+                : 4;  // Default if intent not in config or case key missing
             
             return (object) [
                 'status' => null,
                 'ai' => true,
-                'priority' => $aiPriority
+                'case' => $aiCase
             ];
         }
 
@@ -226,7 +226,7 @@ class WAReplies
         return (object) [
             'status' => null,
             'ai' => false,
-            'priority' => 4
+            'case' => 4
         ];
     }
     

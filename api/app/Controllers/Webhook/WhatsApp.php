@@ -313,7 +313,7 @@ class WhatsApp extends Controller
                 $autoReplyResult = (new \App\Models\WAReplies())->process($phoneIn, $messageText, $waNumber);
                 
                 // Extract values from result object
-                $currentCase = $autoReplyResult->priority;
+                $currentCase = $autoReplyResult->case;
                 $messageStatus = $autoReplyResult->status ?? null;
                 
                 // Case logic based on customer registration status

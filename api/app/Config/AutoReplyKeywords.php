@@ -2,7 +2,7 @@
 return [  
     'PEMBUKA' => [
         'max_length' => 20,
-        'priority' => null,
+        'case' => null,
         'auto_reply' => true,
         'patterns' => [
             '/^\s*(p|ping|ka*k|ba*n*g|b*a*pa*k|i*bu*k*|a*de*k|he*a*l+o|as+a*l+a*mu*a*l+a*i*ku*m|tes)\s*$/i',
@@ -13,7 +13,7 @@ return [
 
     'NOTA' => [
         'max_length' => 100,
-        'priority' => null,
+        'case' => null,
         'auto_reply' => true,
         'patterns' => [
             '/^\s*(bon|nota+|stru*k|bil+|ta*gi*ha*n|re*si)\s*$/i',
@@ -30,7 +30,7 @@ return [
 
     'STATUS' => [
         'max_length' => 100,
-        'priority' => null,
+        'case' => null,
         'auto_reply' => true,
         'patterns' => [
             '/^\s*(cek|sta*tu*s)\s*$/i',
@@ -46,7 +46,7 @@ return [
 
     'PERMINTAAN' => [
         'max_length' => 100,
-        'priority' => 3,
+        'case' => 3,
         'auto_reply' => false,
         'patterns' => [
             '/(bi*sa*|bo*le*h).*(sa*ya*|a*ku|ka*mi).*(di)?(ambi*l|je*m*pu*t)/i',
@@ -56,7 +56,7 @@ return [
 
     'MINTA_JEMPUT_ANTAR' => [
         'max_length' => 100,
-        'priority' => 2,
+        'case' => 2,
         'auto_reply' => true,
         'patterns' => [
             '/^\s*(je*m*pu*t|anta*r)\s*$/i',
