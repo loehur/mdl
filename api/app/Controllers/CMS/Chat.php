@@ -36,18 +36,33 @@ class Chat extends Controller
             $userId = $_GET['user_id'] ?? null;
             $whereClause = "c.updated_at >= (NOW() - INTERVAL 3 DAY)";
             
-            // List of admin IDs with full access
-            $adminIds = ['DEV', 'AYAH', 'IBU', 'TABLET'];
+            // Fetch roles from Env (Centralized)
+            $roles = defined('\Env::CMS_USER_ROLES') ? \Env::CMS_USER_ROLES : [
+                'admin' => ['DEV', 'AYAH', 'IBU', 'TABLET'],
+                'driver' => ['DRIVER1', 'DRIVER2']
+            ];
+
+            $adminIds = $roles['admin'] ?? [];
+            $driverIds = $roles['driver'] ?? [];
+            
             $isAdmin = in_array($userId, $adminIds, true);
+            $isDriver = in_array($userId, $driverIds, true);
             
             if ($userId && !$isAdmin) {
-               // Regular user - filter by assigned_user_id
-               // For numeric IDs, use intval for safety
-               if (is_numeric($userId)) {
-                   $whereClause .= " AND c.assigned_user_id = " . intval($userId);
+               if ($isDriver) {
+                   // Driver Role: Only Priority 2 (Pickup/Delivery)
+                   $whereClause .= " AND c.priority = 2";
                } else {
-                   // For string IDs, use proper escaping
-                   $whereClause .= " AND c.assigned_user_id = '" . $db->escape($userId) . "'";
+                   // Crew Role: Filter by assigned_user_id
+                   // For numeric IDs, use intval for safety
+                   if (is_numeric($userId)) {
+                       $whereClause .= " AND c.assigned_user_id = " . intval($userId);
+                   } else {
+                       // For string IDs, use proper escaping
+                       // Use underlying connection for escaping since DB wrapper has no escape()
+                       $safeId = $db->conn()->real_escape_string($userId);
+                       $whereClause .= " AND c.assigned_user_id = '$safeId'";
+                   }
                }
             }
             

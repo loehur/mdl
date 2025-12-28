@@ -34,6 +34,8 @@ const isConnecting = ref(false);
 const connectionError = ref('');
 const isLoadingConversations = ref(false); // For skeleton loading
 const showExitToast = ref(false);
+const refreshInterval = ref(null); // Fix: Add missing ref
+const currentUserRole = ref('crew'); // Default to crew (safest)
 let lastBackPress = 0;
 
 // Image Upload State
@@ -111,7 +113,22 @@ const messageFontSize = computed(() => {
 
 const filteredConversations = computed(() => {
   let list = conversations.value;
-  
+
+  // **ROLE BASED FILTERING**
+  const role = currentUserRole.value;
+  const myId = authId.value;
+
+  if (role === 'driver') {
+      // Driver only sees Priority 2 (Pickup/Delivery)
+      list = list.filter(c => c.priority === 2);
+  } else if (role === 'crew') {
+      // Crew only sees conversations assigned to them
+      if (myId) {
+          list = list.filter(c => String(c.assignment_user_id) === String(myId));
+      }
+  }
+  // Admin sees everything (no filter added)
+
   // Apply conversation filter (All/Unread)
   if (conversationFilter.value === 'unread') {
     list = list.filter(c => c.unread > 0);
@@ -208,6 +225,7 @@ const fetchConversations = async () => {
                     convo.lastMessage = c.last_message || c.last_message_text || 'No messages yet';
                     convo.lastTime = formatLastTime(c.last_message_time);
                     convo.unread = parseInt(c.unread_count) || 0;
+                    convo.assignment_user_id = c.assignment_user_id; // Add assignment mapping
                     // MESSAGES PRESERVED AUTOMATICALLY as we are modifying the object ref
                 } else {
                     // Create new
@@ -223,6 +241,7 @@ const fetchConversations = async () => {
                         lastMessage: c.last_message || c.last_message_text || 'No messages yet',
                         lastTime: formatLastTime(c.last_message_time),
                         unread: parseInt(c.unread_count) || 0,
+                        assignment_user_id: c.assignment_user_id, // Add assignment mapping
                         messages: []
                     };
                 }
@@ -1215,10 +1234,13 @@ const handleIncomingMessage = (payload) => {
      if (payload.kode_cabang) {
          conversation.kode_cabang = payload.kode_cabang;
      }
-     // ✅ Update priority if provided!
-     if (payload.priority !== undefined) {
-         conversation.priority = parseInt(payload.priority) || 0;
-     }
+      if (payload.priority !== undefined) {
+          conversation.priority = parseInt(payload.priority) || 0;
+      }
+      // Update assignment if provided
+      if (payload.assignment_user_id !== undefined) {
+          conversation.assignment_user_id = payload.assignment_user_id;
+      }
   }
   
   const newMsg = {
@@ -1340,9 +1362,13 @@ const connectWebSocket = () => {
        try {
          const payload = JSON.parse(event.data);
          
-         // Handle different message types
-         if (payload.type === 'connection' || payload.type === 'pong') {
-             // System messages, ignore for chat ui
+         // Handle Connection Welcome
+         if (payload.type === 'connection') {
+             if (payload.role) {
+                 currentUserRole.value = payload.role;
+                 localStorage.setItem('cms_chat_role', payload.role);
+                 console.log('User Role Set:', payload.role);
+             }
              return;
          }
          
@@ -1672,7 +1698,10 @@ onMounted(() => {
   const storedId = localStorage.getItem('cms_chat_id');
   const storedPass = localStorage.getItem('cms_chat_password');
   const storedExpiry = localStorage.getItem('cms_chat_expiry');
+  const storedRole = localStorage.getItem('cms_chat_role');
   const now = new Date().getTime();
+  
+  if (storedRole) currentUserRole.value = storedRole;
   
   // Case 1: Complete valid session (ID + Password + Valid Expiry)
   if (storedId && storedPass && storedExpiry && now < parseInt(storedExpiry)) {
