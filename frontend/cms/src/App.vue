@@ -133,7 +133,7 @@ const filteredConversations = computed(() => {
 
   if (role === 'driver') {
       // Driver only sees Priority 2 (Pickup/Delivery)
-      list = list.filter(c => c.priority === 2);
+      list = list.filter(c => c.cases && c.cases.some(x => x.case === 2));
   } else if (role === 'crew') {
       // Crew only sees conversations assigned to them
       if (myId) {
@@ -258,7 +258,7 @@ const fetchConversations = async () => {
                     convo.lastMessage = c.last_message || c.last_message_text || 'No messages yet';
                     convo.lastTime = formatLastTime(c.last_message_time);
                     convo.unread = parseInt(c.unread_count) || 0;
-                    convo.assignment_user_id = c.assignment_user_id; // Add assignment mapping
+                    convo.assignment_user_id = c.assigned_user_id; // Fix: map from backend assigned_user_id
                     // MESSAGES PRESERVED AUTOMATICALLY as we are modifying the object ref
                 } else {
                     // Create new
@@ -276,7 +276,7 @@ const fetchConversations = async () => {
                         lastMessage: c.last_message || c.last_message_text || 'No messages yet',
                         lastTime: formatLastTime(c.last_message_time),
                         unread: parseInt(c.unread_count) || 0,
-                        assignment_user_id: c.assignment_user_id, // Add assignment mapping
+                        assignment_user_id: c.assigned_user_id, // Fix: map from backend assigned_user_id
                         messages: []
                     };
                 }
