@@ -1889,7 +1889,7 @@ window.addEventListener('focus', () => {
        </div>
        
        <!-- Filter Tabs (WhatsApp Style Pills) -->
-       <div class="px-4 py-3 bg-[var(--wa-bg-panel)]">
+       <div class="px-4 py-2 bg-[var(--wa-bg-panel)]">
           <div class="flex gap-2">
              <!-- All Tab -->
              <button 
