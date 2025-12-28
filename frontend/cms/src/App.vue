@@ -2301,14 +2301,20 @@ window.addEventListener('focus', () => {
                         v-for="c in resolveableCases" 
                         :key="c.case"
                         @click="resolveCase(c.case)"
-                        class="w-full px-4 py-3 text-left hover:bg-[var(--wa-hover)] transition-colors flex items-center gap-3 text-sm text-[var(--wa-text-primary)] border-b border-[var(--wa-divider)] last:border-0 group"
+                        class="w-full px-4 py-3 text-left hover:bg-[var(--wa-hover)] transition-colors flex items-center gap-3 text-sm text-[var(--wa-text-primary)] border-b border-[var(--wa-divider)] last:border-0"
+                        :class="{
+                            'hover:text-blue-400': c.case === 1,
+                            'hover:text-yellow-400': c.case === 2,
+                            'hover:text-red-400': c.case === 3,
+                            'hover:text-purple-400': c.case === 4
+                        }"
                     >
-                        <!-- Generic Checklist Icon Colored by Case -->
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" :class="{'text-blue-400': c.case===1, 'text-yellow-400': c.case===2, 'text-red-400': c.case===3, 'text-purple-400': c.case===4}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <!-- Generic Checklist Icon (Inherits Hover Color) -->
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                         </svg>
                         
-                        <span :class="{'group-hover:text-blue-400': c.case===1, 'group-hover:text-yellow-400': c.case===2, 'group-hover:text-red-400': c.case===3}">
+                        <span>
                             {{ getCaseLabel(c.case) }}
                         </span>
                     </button>
