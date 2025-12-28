@@ -1,6 +1,7 @@
 const WebSocket = require('ws');
 const express = require('express');
 const http = require('http');
+const https = require('https'); // Add https module support
 const cors = require('cors');
 require('dotenv').config();
 
@@ -53,13 +54,19 @@ let DRIVER_IDS = [];
 
 // API URL for fetching roles
 // Adjust domain/path if hosted differently in production
-const API_URL = 'https://api.nalju.com/CMS/Roles';
+// API URL for fetching roles
+// Adjust domain/path if hosted differently in production
+// FOR LOCAL DEV: Use localhost URL to fetch 'ADI' role from local PHP
+const API_URL = process.env.API_URL || 'https://api.nalju.com/CMS/Roles';
 
 async function fetchRoles() {
     return new Promise((resolve) => {
         console.log(`Fetching roles from ${API_URL}...`);
 
-        http.get(API_URL, (res) => {
+        // Select correct module
+        const client = API_URL.startsWith('https') ? https : http;
+
+        client.get(API_URL, (res) => {
             let data = '';
 
             res.on('data', (chunk) => {
