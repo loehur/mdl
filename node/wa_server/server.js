@@ -51,18 +51,16 @@ const ALLOWED_CLIENT_IDS = process.env.ALLOWED_CLIENT_IDS
     : ['agent1', 'agent2', 'admin', 'cs1', 'cs2']; // Fallback default
 
 // Admin IDs with full access (easier to remember than numbers)
-const ADMIN_IDS = [
-    'DEV',      // Developer
-    'AYAH',
-    'IBU',
-    'TABLET',   // Tablet
-];
+// Load from ENV, default to empty array if not set
+const ADMIN_IDS = process.env.ADMIN_IDS
+    ? process.env.ADMIN_IDS.split(',').map(id => id.trim())
+    : ['DEV', 'AYAH', 'IBU', 'TABLET']; // Fallback default
 
 // Driver IDs for delivery/pickup
-const DRIVER_IDS = [
-    'DRIVER1',
-    'DRIVER2',
-];
+// Load from ENV, default to empty array if not set
+const DRIVER_IDS = process.env.DRIVER_IDS
+    ? process.env.DRIVER_IDS.split(',').map(id => id.trim())
+    : ['DRIVER1', 'DRIVER2']; // Fallback default
 
 // Add admin IDs to allowed list
 ADMIN_IDS.forEach(adminId => {
