@@ -442,6 +442,11 @@ class Chat extends Controller
                      $caseList[] = ['case' => (int)$raw, 'status' => 'open', 'timestamp' => date('Y-m-d H:i:s')];
                 }
             }
+
+            // Always remove Case 4 (Follow Up) when updating cases
+            $caseList = array_values(array_filter($caseList, function($c) {
+                return isset($c['case']) && (int)$c['case'] !== 4;
+            }));
             
             // 2. Add or Update the requested case
             $newCaseVal = (int)$caseVal;

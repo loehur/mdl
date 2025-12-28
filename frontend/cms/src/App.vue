@@ -190,8 +190,8 @@ const resolveableCases = computed(() => {
     if (!activeConversation.value || !activeConversation.value.cases) return [];
     
     const role = currentUserRole.value;
-    // Filter open cases
-    const openCases = activeConversation.value.cases.filter(c => (c.status || 'open') !== 'closed' && c.case > 0);
+    // Filter open cases AND exclude Case 4 (Follow Up)
+    const openCases = activeConversation.value.cases.filter(c => (c.status || 'open') !== 'closed' && c.case > 0 && c.case !== 4);
     
     if (role === 'admin') return openCases;
     if (role === 'driver') return openCases.filter(c => c.case === 2);
@@ -2395,19 +2395,7 @@ window.addEventListener('focus', () => {
                    <span>{{ isMarkingAsDone ? 'Memproses...' : 'Selesai' }}</span>
                  </button>
                  
-                  <!-- Reopen Option (if priority = 0) -->
-                  <button 
-                    v-else
-                    @click="reopenConversation"
-                    :disabled="isReopeningConversation"
-                    class="w-full px-4 py-3 text-left hover:bg-[var(--wa-hover)] transition-colors flex items-center gap-3 text-sm text-[var(--wa-text-primary)] hover:text-purple-400 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <svg v-if="!isReopeningConversation" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
-                    <span v-if="isReopeningConversation" class="w-5 h-5 border-2 border-slate-400 border-t-white rounded-full animate-spin"></span>
-                    <span>{{ isReopeningConversation ? 'Memproses...' : 'Follow Up' }}</span>
-                  </button>
+                  <!-- Reopen Option (Review Removed) -->
                </div>
              </div>
           </div>
