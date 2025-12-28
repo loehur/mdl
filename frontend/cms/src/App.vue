@@ -99,6 +99,7 @@ const isMarkingAsDone = ref(false);
 const isCheckingPayment = ref(false);
 const isPickupDelivery = ref(false);
 const isRequest = ref(false);
+const isFollowUp = ref(false);
 const isReopeningConversation = ref(false);
 const showResolveMenu = ref(false); // New state
 
@@ -931,6 +932,47 @@ const requestPriority = async () => {
     } catch (e) {
         console.error("Error marking as request:", e);
         isRequest.value = false;
+    }
+};
+
+const followUp = async () => {
+    if (!activeConversation.value || isFollowUp.value) return;
+    
+    try {
+        isFollowUp.value = true;
+        showChatMenu.value = false; // Close menu
+        
+        const response = await fetch(`${API_BASE}/CMS/Chat/updateCase`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ 
+                phone: activeConversation.value.wa_number,
+                case: 4,
+                user_id: authId.value
+            })
+        });
+        
+        const res = await response.json();
+        
+        if (res.status) {
+            // Update local cases (Append for multi-case)
+            if (!activeConversation.value.cases) activeConversation.value.cases = [];
+            activeConversation.value.cases = activeConversation.value.cases.filter(c => c.case !== 0);
+            if (!activeConversation.value.cases.some(c => c.case === 4)) {
+                 activeConversation.value.cases.push({case: 4});
+            }
+            console.log('✓ Conversation marked for follow up');
+        } else {
+            console.error('Failed to mark for follow up:', res.message);
+        }
+        
+        // Keep loading for 3 seconds
+        setTimeout(() => {
+            isFollowUp.value = false;
+        }, 3000);
+    } catch (e) {
+        console.error("Error marking for follow up:", e);
+        isFollowUp.value = false;
     }
 };
 
@@ -2447,8 +2489,22 @@ window.addEventListener('focus', () => {
                     <span v-if="isRequest" class="w-5 h-5 border-2 border-slate-400 border-t-white rounded-full animate-spin"></span>
                     <span>{{ isRequest ? 'Memproses...' : 'Request' }}</span>
                   </button>
-                  
-                  <!-- Selesai Option -->
+                   
+                   <!-- Follow Up Option -->
+                   <button 
+                     v-if="!isCaseOpen(4)"
+                     @click="followUp"
+                     :disabled="isFollowUp"
+                     class="w-full px-4 py-3 text-left hover:bg-[var(--wa-hover)] transition-colors flex items-center gap-3 text-sm text-[var(--wa-text-primary)] hover:text-purple-400 disabled:opacity-50 disabled:cursor-not-allowed border-b border-[var(--wa-divider)]"
+                   >
+                     <svg v-if="!isFollowUp" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                     </svg>
+                     <span v-if="isFollowUp" class="w-5 h-5 border-2 border-slate-400 border-t-white rounded-full animate-spin"></span>
+                     <span>{{ isFollowUp ? 'Memproses...' : 'Follow Up' }}</span>
+                   </button>
+                   
+                   <!-- Selesai Option -->
                  <button id="btn-selesai" 
                    v-if="activeConversation.priority > 0"
                    @click="markAsDone"
