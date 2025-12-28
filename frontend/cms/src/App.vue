@@ -1280,9 +1280,12 @@ const handleIncomingMessage = (payload) => {
       if (payload.assignment_user_id !== undefined) {
           conversation.assignment_user_id = payload.assignment_user_id;
       }
-      // Update case if provided
-      if (payload.case !== undefined || payload.priority !== undefined) {
-           conversation.cases = [{case: parseInt(payload.case || payload.priority || 0)}];
+      // Update case if provided (IGNORE NULL - Null means "no change", 0 means clear/normal)
+      if (payload.case !== undefined && payload.case !== null) {
+           conversation.cases = [{case: parseInt(payload.case)}];
+      } else if (payload.priority !== undefined && payload.priority !== null) {
+           // Fallback payload.priority
+           conversation.cases = [{case: parseInt(payload.priority)}];
       }
   }
   
