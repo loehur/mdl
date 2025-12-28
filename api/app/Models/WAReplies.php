@@ -149,18 +149,24 @@ class WAReplies
         $aiResult = $this->handleWithAI($phoneIn, $textBody, $waNumber);
         
         // Check if AI successfully detected a valid intent (not FALSE and not boolean false)
-        if ($aiResult && strtoupper($aiResult) !== 'FALSE') {
-            if (in_array($aiResult, $matchPatterns)) {
+        // Check if AI successfully detected a valid intent (array with intent key)
+        if ($aiResult && is_array($aiResult) && isset($aiResult['intent']) && strtoupper($aiResult['intent']) !== 'FALSE') {
+            $aiIntent = strtoupper($aiResult['intent']);
+
+            // Rate limiting check (using matchedPatterns logic logic from original code if needed, but simplifying here)
+            // Original code checked if intent was in $matchPatterns (which were skipped due to rate limit)
+            if (in_array($aiIntent, $matchPatterns)) {
                 return (object) [                    
                     'case' => null
                 ];
             }
+            
             // AI successfully detected intent, get case from config
-            $aiIntent = strtoupper($aiResult);
             // Get case from config, respecting null values (null = don't update case)
-            if(isset($keywordConfig[$aiIntent])) {
+            if(isset($keywordConfig[$aiIntent]) && array_key_exists('case', $keywordConfig[$aiIntent])) {
                 $aiCase = $keywordConfig[$aiIntent]['case'];
             } else {
+                // If intent found but configuration missing, fallback to 4
                 $aiCase = 4;
             }               
             
