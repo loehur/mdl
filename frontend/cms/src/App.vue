@@ -355,6 +355,59 @@ const fetchUserRole = async () => {
     }
 };
 
+// OneSignal Integration for Push Notifications
+const oneSignalLogin = (userId) => {
+    try {
+        // For WebView: Call Android interface if available
+        if (window.OneSignalInterface) {
+            window.OneSignalInterface.login(String(userId));
+            console.log('OneSignal: Logged in via Android interface:', userId);
+        }
+        // For Web: Use OneSignal Web SDK if available
+        else if (window.OneSignalDeferred) {
+            window.OneSignalDeferred.push(async function(OneSignal) {
+                await OneSignal.login(String(userId));
+                console.log('OneSignal: Logged in via Web SDK:', userId);
+            });
+        }
+        else if (window.OneSignal) {
+            window.OneSignal.login(String(userId));
+            console.log('OneSignal: Logged in:', userId);
+        }
+        else {
+            console.log('OneSignal: Not available (running in browser without SDK)');
+        }
+    } catch (e) {
+        console.error('OneSignal login error:', e);
+    }
+};
+
+const oneSignalLogout = () => {
+    try {
+        // For WebView: Call Android interface if available
+        if (window.OneSignalInterface) {
+            window.OneSignalInterface.logout();
+            console.log('OneSignal: Logged out via Android interface');
+        }
+        // For Web: Use OneSignal Web SDK if available
+        else if (window.OneSignalDeferred) {
+            window.OneSignalDeferred.push(async function(OneSignal) {
+                await OneSignal.logout();
+                console.log('OneSignal: Logged out via Web SDK');
+            });
+        }
+        else if (window.OneSignal) {
+            window.OneSignal.logout();
+            console.log('OneSignal: Logged out');
+        }
+        else {
+            console.log('OneSignal: Not available (running in browser without SDK)');
+        }
+    } catch (e) {
+        console.error('OneSignal logout error:', e);
+    }
+};
+
 const connect = () => {
     if(!authId.value || !authPassword.value) {
         connectionError.value = 'Please enter both ID and Password';
@@ -365,6 +418,9 @@ const connect = () => {
     connectWebSocket();
     fetchUserRole(); // Determine role
     fetchConversations();
+    
+    // OneSignal: Register user for push notifications
+    oneSignalLogin(authId.value);
     
     // ✅ FINAL RELIABLE SOLUTION: 3-Second Polling
     // WebSocket broadcast is blocked by server. SSE is buffered.
@@ -1961,6 +2017,9 @@ const logout = () => {
     localStorage.removeItem('cms_chat_password');
     localStorage.removeItem('cms_chat_expiry');
     // Note: conversations cache removed - data always from server
+    
+    // OneSignal: Logout from push notifications
+    oneSignalLogout();
 };
 
 

@@ -375,7 +375,7 @@ class Chat extends Controller
                 $userId = $_SERVER['HTTP_USER_ID'] ?? $body['user_id'] ?? null;
                 
                 $payload = [
-                    'type' => 'case_updated', // Changed from
+                    'type' => 'case_updated',
                     'phone' => $phone,
                     'case' => (int)$caseVal,
                     'target_id' => '0', // Broadcast to all
