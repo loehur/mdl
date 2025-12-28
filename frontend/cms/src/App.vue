@@ -1853,7 +1853,7 @@ window.addEventListener('focus', () => {
     <aside v-if="authId" class="flex flex-col border-r border-[var(--wa-border)] bg-[var(--wa-bg-panel)] transition-all duration-300 absolute md:static z-0 h-full w-full md:w-96"
            :class="showMobileChat ? 'flex' : 'flex'">
       <!-- Search Header -->
-       <div class="p-4 border-b border-[var(--wa-border)] bg-[var(--wa-bg-panel)] backdrop-blur-md sticky top-0 z-10 transition-colors duration-300">
+       <div class="px-4 pt-4 pb-2 bg-[var(--wa-bg-panel)] backdrop-blur-md sticky top-0 z-10 transition-colors duration-300">
           <div class="flex items-center gap-2">
               <div class="relative group flex-1">
                   <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -1889,7 +1889,7 @@ window.addEventListener('focus', () => {
        </div>
        
        <!-- Filter Tabs (WhatsApp Style Pills) -->
-       <div class="px-4 py-2 bg-[var(--wa-bg-panel)]">
+       <div class="px-4 py-3 bg-[var(--wa-bg-panel)]">
           <div class="flex gap-2">
              <!-- All Tab -->
              <button 
