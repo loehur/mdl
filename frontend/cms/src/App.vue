@@ -177,17 +177,16 @@ const filteredConversations = computed(() => {
     );
   }
   
-  // **NEW SORTING LOGIC**:
-  // Sort by updated_at (most recent first) - Case/Priority doesn't force top anymore per request?
-  // User said: "lingkaran2 berwarna sesuai beberapa case".
-  // Let's keep sorting by existence of ANY active case > 0 first, then time.
+  // **SORTING LOGIC**:
+  // Separate conversations with OPEN cases (case > 0 AND status !== 'closed') at the top
   return list.sort((a, b) => {
-    // Check if has any active case (>0)
-    const aHasCase = a.cases && a.cases.some(c => c.case > 0);
-    const bHasCase = b.cases && b.cases.some(c => c.case > 0);
+    // Check if has any OPEN case (case > 0 and status not closed)
+    const aHasOpenCase = a.cases && a.cases.some(c => c.case > 0 && (c.status || 'open') !== 'closed');
+    const bHasOpenCase = b.cases && b.cases.some(c => c.case > 0 && (c.status || 'open') !== 'closed');
     
-    if (aHasCase && !bHasCase) return -1;
-    if (!aHasCase && bHasCase) return 1;
+    // Open cases go to top
+    if (aHasOpenCase && !bHasOpenCase) return -1;
+    if (!aHasOpenCase && bHasOpenCase) return 1;
     
     // Fallback to API order (time)
     return 0;
