@@ -49,8 +49,8 @@ class Env
         ]
     ];
 
-    const OPENAI_API_KEY = 'dfasf'; // TODO: Isi dengan API key dari platform.openai.com. Format: sk-...
-    const OPENAI_MODEL = 'gpt-4o-mini'; // Optional, default: gpt-4o-mini
+    const OPENAI_API_KEY = '0'; // TODO: Isi dengan API key dari platform.openai.com. Format: sk-...
+    const OPENAI_MODEL = '0'; // Optional, default: gpt-4o-mini
 
     const CMS_USER_ROLES = [
         'admin' => ['DEV', 'AYAH', 'IBU', 'TABLET'],
