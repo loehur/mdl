@@ -322,6 +322,31 @@ const fetchConversations = async () => {
     }
 };
 
+const fetchUserRole = async () => {
+    try {
+        const res = await fetch(`${API_BASE}/CMS/Roles`);
+        const result = await res.json();
+        if (result.status && result.data) {
+            const roles = result.data;
+            const myId = authId.value;
+            let role = 'crew'; // Default
+            
+            // Loose comparison in case ID is string vs int
+            const includesId = (arr, id) => arr.some(x => String(x) === String(id));
+            
+            if (roles.admin && includesId(roles.admin, myId)) role = 'admin';
+            else if (roles.driver && includesId(roles.driver, myId)) role = 'driver';
+            else if (roles.crew && includesId(roles.crew, myId)) role = 'crew';
+            
+            currentUserRole.value = role;
+            localStorage.setItem('cms_chat_role', role);
+            console.log('User Role Detected:', role);
+        }
+    } catch (e) {
+        console.error("Failed to fetch roles:", e);
+    }
+};
+
 const connect = () => {
     if(!authId.value || !authPassword.value) {
         connectionError.value = 'Please enter both ID and Password';
@@ -330,6 +355,7 @@ const connect = () => {
     isConnecting.value = true;
     connectionError.value = '';
     connectWebSocket();
+    fetchUserRole(); // Determine role
     fetchConversations();
     
     // ✅ FINAL RELIABLE SOLUTION: 3-Second Polling
