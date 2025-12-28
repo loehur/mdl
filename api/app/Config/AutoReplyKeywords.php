@@ -15,13 +15,13 @@ return [
         'priority' => null,
         'patterns' => [
             '/^\s*(bon|nota+|stru*k|bil+|ta*gi*ha*n|re*si)\s*$/i',
-            '/ata*s.*na*ma*/i',
-            '/(be*lu*m).*(di*(te*ri*ma*|ki*ri*m))/i',
-            '/(be*ra*pa*|ki*ri*m|cek).*(to*ta*l|ju*mla*h|bon|stru*k|bil+|ta*gi*ha*n|re*si)/i',
-            '/(be*ra*pa*|cek).*(to*ta*l|ju*mla*h|kg|be*ra*t|ti*mba*nga*n*)/i',
-            '/(to*ta*l|ju*mla*h).*(la*o*u*ndry*i*)/i',
-            '/(bon|nota*|bil+|ta*gi*ha*n|re*si|bu*kti*).*(ke*tik|mi*nta|ki*ri*m|ba*gi*|cek|ma*na*|a*da*|pe*rlu|bu*tu*h)/i',
-            '/(ke*tik|mi*nta|ki*ri*m|ba*gi*|cek|ma*na*|a*da*|pe*rlu|bu*tu*h).*(bon|nota*|bil+|ta*gi*ha*n|re*si|bu*kti*)/i'
+            '/ata*s\s*na*ma*/i',
+            '/(be*lu*m)\s*di*(te*ri*ma*|ki*ri*m)/i',
+            '/(be*ra*pa*|ki*ri*m|cek)\s*\b(to*ta*l|ju*mla*h|bon|stru*k|bil+|ta*gi*ha*n|re*si)/i',
+            '/(be*ra*pa*|cek)\s*\b(to*ta*l|ju*mla*h|kg|be*ra*t|ti*mba*nga*n*)/i',
+            '/(to*ta*l|ju*mla*h)\s*\b(la*o*u*ndry*i*)/i',
+            '/(bon|nota*|bil+|ta*gi*ha*n|re*si|bu*kti*)\s*\b(ke*tik|mi*nta|ki*ri*m|ba*gi*|cek|ma*na*|a*da*|pe*rlu|bu*tu*h)/i',
+            '/(ke*tik|mi*nta|ki*ri*m|ba*gi*|cek|ma*na*|a*da*|pe*rlu|bu*tu*h)\s*\b(bon|nota*|bil+|ta*gi*ha*n|re*si|bu*kti*)/i'
         ],
         'ai_prompt' => 'User meminta bon/nota/struk/tagihan/bukti pembayaran laundry'
     ],
@@ -31,12 +31,12 @@ return [
         'priority' => null,
         'patterns' => [
             '/^\s*(cek|sta*tu*s)\s*$/i',
-            '/((s*u*)?da*h*|ka*pa*n).*(si+a+p|be*re*s|ke*la*r|se*ls*e*s*a*i*|re*a*dy*i*|j*adi*)/i',
+            '/((s*u*)?da*h*|ka*pa*n)\s*\b(si+a+p|be*re*s|ke*la*r|se*ls*e*s*a*i*|re*a*dy*i*|j*adi*)/i',
             '/(si+a+p|be*re*s|ke*la*r|se*ls*e*s*a*i*|re*a*dy*i*|j*adi*)\s*\b(ka*pa*n|be*lu*m)/i',
-            '/((s*u*)?da*h*|ka*pa*n).*(bi*sa*|bo*le*h|da*pa*t).*(di*(ambi*l|je*mpu*t))/i',
-            '/(ka*pa*n).*(bi*sa*|bo*le*h|da*pa*t).*(di*(ambi*l|je*mpu*t))/i',
-            '/(ka*pa*n).*(bi*sa*|bo*le*h|da*pa*t).*(di*(ambi*l|je*mpu*t))/i',
-            '/(ja*m).*(be*ra*pa*).*(siap|se*le*sa*i*|ke*la*r|be*re*s)/i',
+            '/((s*u*)?da*h*|ka*pa*n)\s*\b(bi*sa*|bo*le*h|da*pa*t)\s*\b(di*(ambi*l|je*mpu*t))/i',
+            '/(ka*pa*n)\s*\b(bi*sa*|bo*le*h|da*pa*t)\s*\b(di*(ambi*l|je*mpu*t))/i',
+            '/(ka*pa*n)\s*\b(bi*sa*|bo*le*h|da*pa*t)\s*\b(di*(ambi*l|je*mpu*t))/i',
+            '/(ja*m)\s*\b(be*ra*pa*)\s*\b(siap|se*le*sa*i*|ke*la*r|be*re*s)/i',
         ],
         'ai_prompt' => 'User menanyakan status/progress laundry (sudah selesai? bisa diambil? kapan siap? sudah jadi?)'
     ],
@@ -46,9 +46,9 @@ return [
         'priority' => 2,
         'patterns' => [
             '/^\s*(je*m*pu*t|anta*r)\s*$/i',
-            '/(bi*sa*|bo*le*h|to*lo*ng).*(je*m*pu*t|anta*r|ki*ri*m)/i',
-            '/(je*m*pu*t|anta*r).*(la*o*u*ndry*i*|ba*ju)/i',
-            '/(to*lo*n*g).*(la*o*u*ndry*i*|ba*ju).*(je*m*pu*t|anta*r|ki*ri*m)/i'
+            '/(bi*sa*|bo*le*h|to*lo*ng)\s*\b*(je*m*pu*t|anta*r|ki*ri*m)/i',
+            '/(je*m*pu*t|anta*r)\s*\b*(la*o*u*ndry*i*|ba*ju)/i',
+            '/(to*lo*n*g)\s*\b*(la*o*u*ndry*i*|ba*ju)\s*\b*(je*m*pu*t|anta*r|ki*ri*m)/i'
         ],
         'ai_prompt' => 'User melakukan permintaan jemput/antar laundry (harus ada kata permintaan seperti: minta, tolong, bisa, boleh, bantu, dll)'
     ],
@@ -57,8 +57,8 @@ return [
         'max_length' => 30,
         'priority' => null,
         'patterns' => [
-            '/(ka*pa*n|ma*si*h).*(bu*ka*|tu*tu*p)/i',
-            '/(ja*m).*(be*ra*pa*).*(bu*ka*|tu*tu*p)/i',
+            '/(ka*pa*n|ma*si*h)\s*\b(bu*ka*|tu*tu*p)/i',
+            '/(ja*m)\s*\b(be*ra*pa*)\s*\b(bu*ka*|tu*tu*p)/i',
         ],
         'ai_prompt' => 'User menanyakan jam buka/tutup, masih buka atau sudah tutup, jam operasional laundry'
     ],
@@ -99,6 +99,6 @@ return [
             // Very short responses (1-3 chars, likely just emoji or simple acknowledgment)
             '/^\s*[👍👌✌️🙏❤️😊😁😂🤣😍🥰😘😎🤗🙌💪👏🤝✨🔥💯🎉🎊]\s*$/u',
         ],
-        'ai_prompt' => 'Hanya emoji/emote atau candaan tawa seperti hehe, haha, wkwk'
+        'ai_prompt' => 'Hanya emoji/emote atau candaan tawa seperti hehe, haha, wkwk, hanya simbol2 yang tidak membentuk emote/emoji tidak termasuk.'
     ]
 ];

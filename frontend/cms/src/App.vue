@@ -77,6 +77,9 @@ const eventSource = ref(null);
 
 const searchQuery = ref('');
 
+// Conversation Filter State
+const conversationFilter = ref('all'); // 'all' or 'unread'
+
 // Settings State
 const showSettingsModal = ref(false);
 const fontSize = ref('medium'); // 'medium', 'large'
@@ -108,6 +111,11 @@ const messageFontSize = computed(() => {
 
 const filteredConversations = computed(() => {
   let list = conversations.value;
+  
+  // Apply conversation filter (All/Unread)
+  if (conversationFilter.value === 'unread') {
+    list = list.filter(c => c.unread > 0);
+  }
   
   // Apply search filter if query exists
   if (searchQuery.value) {
@@ -152,31 +160,8 @@ const totalUnreadCount = computed(() => {
   return conversations.value.reduce((sum, conv) => sum + (conv.unread || 0), 0);
 });
 
-// Watch for unread count changes to trigger title blinking
-watch(totalUnreadCount, (newCount) => {
-  if (newCount > 0) {
-    // Start blinking if not already blinking
-    if (!titleBlinkInterval.value) {
-      titleBlinkInterval.value = setInterval(() => {
-        isTitleRed.value = !isTitleRed.value;
-        document.title = isTitleRed.value ? `🔴 (${newCount}) New Messages` : originalTitle;
-      }, 1000);
-    } else {
-      // Update count if already blinking
-      if (isTitleRed.value) {
-        document.title = `🔴 (${newCount}) New Messages`;
-      }
-    }
-  } else {
-    // Stop blinking when no unread messages
-    if (titleBlinkInterval.value) {
-      clearInterval(titleBlinkInterval.value);
-      titleBlinkInterval.value = null;
-    }
-    isTitleRed.value = false;
-    document.title = originalTitle;
-  }
-});
+// Title blinking is now handled by shouldBlinkTitle watch below (line 314)
+// to avoid conflicts between totalUnreadCount and priority-based blinking
 
 
 const fetchConversations = async () => {
@@ -301,13 +286,10 @@ const totalPriority = computed(() => {
   return conversations.value.filter(chat => chat.priority && chat.priority > 0).length;
 });
 
-// Should Title Blink (only priority 4 with unread)
+// Should Title Blink (any conversation with unread messages)
 const shouldBlinkTitle = computed(() => {
-  const urgentUnread = conversations.value.filter(chat => chat.priority === 4 && chat.unread > 0);
-  if (urgentUnread.length > 0) {
-    console.log('🔴 Title should blink - Urgent unread conversations:', urgentUnread.map(c => ({name: c.name, priority: c.priority, unread: c.unread})));
-  }
-  return urgentUnread.length > 0;
+  const anyUnread = conversations.value.filter(chat => chat.unread > 0);
+  return anyUnread.length > 0;
 });
 
 // Watch for title blinking
@@ -317,7 +299,8 @@ watch(shouldBlinkTitle, (shouldBlink) => {
     if (!titleBlinkInterval.value) {
       titleBlinkInterval.value = setInterval(() => {
         isTitleRed.value = !isTitleRed.value;
-        document.title = isTitleRed.value ? '🔴 URGENT!' : originalTitle;
+        const count = totalUnreadCount.value;
+        document.title = isTitleRed.value ? `🔴 (${count}) New Messages` : originalTitle;
       }, 1000); // Blink every 1 second
     }
   } else {
@@ -1905,6 +1888,42 @@ window.addEventListener('focus', () => {
           </div>
        </div>
       
+       <!-- Filter Tabs (WhatsApp Style) -->
+       <div class="px-4 py-2 border-b border-[var(--wa-border)] bg-[var(--wa-bg-panel)]">
+          <div class="flex gap-1">
+             <!-- All Tab -->
+             <button 
+                @click="conversationFilter = 'all'"
+                class="flex-1 px-4 py-2 text-sm font-medium rounded-lg transition-all"
+                :class="conversationFilter === 'all' 
+                   ? 'bg-[var(--wa-accent-green)] text-black shadow-sm' 
+                   : 'text-[var(--wa-text-secondary)] hover:bg-[var(--wa-hover)]'"
+             >
+                All
+             </button>
+             
+             <!-- Unread Tab -->
+             <button 
+                @click="conversationFilter = 'unread'"
+                class="flex-1 px-4 py-2 text-sm font-medium rounded-lg transition-all relative"
+                :class="conversationFilter === 'unread' 
+                   ? 'bg-[var(--wa-accent-green)] text-black shadow-sm' 
+                   : 'text-[var(--wa-text-secondary)] hover:bg-[var(--wa-hover)]'"
+             >
+                <span>Unread</span>
+                <span 
+                   v-if="totalUnreadCount > 0" 
+                   class="ml-1.5 text-xs font-semibold px-1.5 py-0.5 rounded-full"
+                   :class="conversationFilter === 'unread' 
+                      ? 'bg-black/20 text-black' 
+                      : 'bg-[var(--wa-accent-green)] text-black'"
+                >
+                   {{ totalUnreadCount }}
+                </span>
+             </button>
+          </div>
+       </div>
+       
       <!-- Conversation List (Pure CSS Shadows) -->
       <div 
          ref="conversationListRef" 
