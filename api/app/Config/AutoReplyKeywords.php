@@ -1,5 +1,19 @@
 <?php 
 return [  
+    'PEMBUKA' => [
+        'max_length' => 20,
+        'case' => null,
+        'auto_reply' => false,
+        'patterns' => [
+            '/^\s*(p|ping|ka*k|ba*n*g|b*a*pa*k|i*bu*k*|a*de*k|he*a*l+o|as+a*l+a*mu*a*l+a*i*ku*m|tes)\s*$/i',
+            '/(pa*gi|so*re|si*a*ng|ma*la*m|ha*e*l+o+)\s*\b(ba*n*g|ka*k|pa*k|i*bu*k*|a*de*k*|a*na*k)/i',
+            '/^\s*.\s*$/i',
+        ],
+        'ai_prompt' => "User memberi sapaan awal, contoh:\n
+        | halo | hai | ping | pagi | siang | malam | sore | kak | bang | pak | bu\n
+        atau yang menurut anda sangat yakin sebagai sapaan awal"
+    ],
+
     'NOTA' => [
         'max_length' => 100,
         'case' => null,
@@ -57,14 +71,32 @@ return [
         'ai_prompt' => 'User melakukan permintaan apapun SELAIN jemput/antar laundry'
     ],
 
-    'JAM_OPERASIONAL' => [
+    'CEK_JAM_OPERASIONAL' => [
         'max_length' => 30,
-        'priority' => null,
+        'case' => null,
         'auto_reply' => true,
         'patterns' => [
             '/(ka*pa*n|ma*si*h)\s*\b(bu*ka*|tu*tu*p)/i',
             '/(ja*m)\s*\b(be*ra*pa*)\s*\b(bu*ka*|tu*tu*p)/i',
         ],
         'ai_prompt' => 'User butuh informasi tentang jam buka/tutup atau menanyakan kapan buka/tutup atau menanyakan masih buka/tutup atau menanyakan sudah buka/tutup, hanya menanyakan tentang buka atau tutup. BUKAN kapan atau jam berapa bisa dijemput/antar'
+    ],
+
+    'PENUTUP' => [
+        'max_length' => 20,
+        'case' => null,
+        'auto_reply' => false,
+        'patterns' => [
+            '/\bma*ka*(s|c)(i|e)*h\b/i',
+            '/\bte*ri*ma*ka*si*h\b/i',
+            '/\btha*nks\b/i',
+            '/\b(thx|tq|ty|ok)\b/i',
+            '/((hm+|ok(e*)?|sip)\s*)*(y(a*)?\s*)?(u*da*h|s*u*da*h|la+h)/i',
+            '/(oh*)\s*(gi*tu+)/i',
+            '/(ok|oh).*(siap|sip|ok)/i',
+        ],
+        'ai_prompt' => "Penutup seperti:\n
+        | terima kasih | ok deh | siap kak | iya lah kak |\nAtau hanya mengkonfirmasi bahwa:\n
+        | sudah lunas | sudah diambil | akan menjemput | akan mengantarkan |"
     ],
 ];

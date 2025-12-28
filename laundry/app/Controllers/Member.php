@@ -262,7 +262,7 @@ class Member extends Controller
       $where = $this->wCabang . " AND " . $setOne;
       $do = $this->db(0)->update('member', $set, $where);
       if ($do['errno'] <> 0) {
-         $this->helper('Notif')->send_wa(URL::WA_PRIVATE[0], $do['error']);
+         $this->model('Log')->write(__CLASS__ . " | " . __FUNCTION__ . "() | " . $do['error']);
       } else {
          echo 0;
       }
