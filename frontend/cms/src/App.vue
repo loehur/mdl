@@ -713,7 +713,12 @@ const checkPayment = async () => {
         
         if (res.status) {
             // Update local cases
-            activeConversation.value.cases = [{case: 1}];
+            // Update local cases (Append for multi-case)
+            if (!activeConversation.value.cases) activeConversation.value.cases = [];
+            activeConversation.value.cases = activeConversation.value.cases.filter(c => c.case !== 0); // Remove 'normal'
+            if (!activeConversation.value.cases.some(c => c.case === 1)) {
+                 activeConversation.value.cases.push({case: 1});
+            }
             console.log('✓ Conversation marked for payment check');
         } else {
             console.error('Failed to mark for payment check:', res.message);
@@ -750,7 +755,12 @@ const pickupDelivery = async () => {
         
         if (res.status) {
             // Update local cases
-            activeConversation.value.cases = [{case: 2}];
+            // Update local cases (Append for multi-case)
+            if (!activeConversation.value.cases) activeConversation.value.cases = [];
+            activeConversation.value.cases = activeConversation.value.cases.filter(c => c.case !== 0);
+            if (!activeConversation.value.cases.some(c => c.case === 2)) {
+                 activeConversation.value.cases.push({case: 2});
+            }
             console.log('✓ Conversation marked for pickup/delivery');
         } else {
             console.error('Failed to mark for pickup/delivery:', res.message);
@@ -787,7 +797,12 @@ const requestPriority = async () => {
         
         if (res.status) {
             // Update local cases
-            activeConversation.value.cases = [{case: 3}];
+            // Update local cases (Append for multi-case)
+            if (!activeConversation.value.cases) activeConversation.value.cases = [];
+            activeConversation.value.cases = activeConversation.value.cases.filter(c => c.case !== 0);
+            if (!activeConversation.value.cases.some(c => c.case === 3)) {
+                 activeConversation.value.cases.push({case: 3});
+            }
             console.log('✓ Conversation marked as request');
         } else {
             console.error('Failed to mark as request:', res.message);
@@ -1447,8 +1462,20 @@ const connectWebSocket = () => {
                const conv = conversations.value.find(c => normalizePhone(c.wa_number) === targetPhone);
                
                if (conv) {
-                   console.log('✓ Updating case for conversation:', conv.name, payload.case);
-                   conv.cases = [{case: parseInt(payload.case)}]; // Overwrite cases
+                    const newC = parseInt(payload.case);
+                    console.log('✓ Updating case for conversation:', conv.name, newC);
+                    
+                    if (newC === 0) {
+                        // Reset if 0 (Done)
+                        conv.cases = [{case: 0}];
+                    } else {
+                        // Append logic
+                        if (!conv.cases) conv.cases = [];
+                        conv.cases = conv.cases.filter(c => c.case !== 0); // Remove dummy 0
+                        if (!conv.cases.some(c => c.case === newC)) {
+                             conv.cases.push({case: newC}); 
+                        }
+                    }
                    // Force re-sort?? Automatically handled by computed filteredConversations
                } else {
                    console.warn('⚠️ Conversation not found for case update:', payload.phone);

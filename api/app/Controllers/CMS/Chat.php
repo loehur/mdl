@@ -428,13 +428,46 @@ class Chat extends Controller
             
             $db = $this->db(0);
             
-            // Update case with status 'open' (as requested)
-            // Overwrite history with new single-item list
-            $jsonCase = json_encode([[
-                'case' => (int)$caseVal,
-                'status' => 'open',
-                'timestamp' => date('Y-m-d H:i:s')
-            ]]);
+            // 1. Fetch existing cases first to support multi-case (append logic)
+            $existing = $db->query("SELECT conv_case FROM wa_conversations WHERE wa_number = '$phone'")->row();
+            $caseList = [];
+            
+            if ($existing && isset($existing->conv_case)) {
+                $raw = $existing->conv_case;
+                // Parse existing JSON
+                if (is_string($raw) && (strpos(trim($raw), '[') === 0)) {
+                    $caseList = json_decode($raw, true) ?? [];
+                } elseif (is_numeric($raw)) {
+                     // Legacy support: convert single int to array item
+                     $caseList[] = ['case' => (int)$raw, 'status' => 'open', 'timestamp' => date('Y-m-d H:i:s')];
+                }
+            }
+            
+            // 2. Add or Update the requested case
+            $newCaseVal = (int)$caseVal;
+            $found = false;
+            
+            foreach ($caseList as &$item) {
+                if (isset($item['case']) && (int)$item['case'] === $newCaseVal) {
+                    // Case already exists, refresh timestamp/status
+                    $item['status'] = 'open';
+                    $item['timestamp'] = date('Y-m-d H:i:s');
+                    $found = true;
+                    break;
+                }
+            }
+            
+            if (!$found) {
+                // Append new case
+                $caseList[] = [
+                    'case' => $newCaseVal,
+                    'status' => 'open',
+                    'timestamp' => date('Y-m-d H:i:s')
+                ];
+            }
+            
+            // 3. Save back entire list
+            $jsonCase = json_encode($caseList);
             
             $updated = $db->update('wa_conversations', 
                 ['conv_case' => $jsonCase], 
