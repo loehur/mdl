@@ -832,15 +832,26 @@ class WAReplies
                 return false;
             }
             
-            // Call appropriate handler
-            $handlerName = ucwords(strtolower($intent), '_');
-            $methodName = 'handle' . $handlerName;
-            
-            if (method_exists($this, $methodName)) {
-                $this->$methodName($phoneIn, $waNumber);
+            // Check if this is a valid intent from config
+            if (isset($keywordConfig[$intent])) {
+                $config = $keywordConfig[$intent];
+                $autoReply = $config['auto_reply'] ?? false;
+                
+                // Only call handler if auto_reply is enabled
+                if ($autoReply) {
+                    $handlerName = ucwords(strtolower($intent), '_');
+                    $methodName = 'handle' . $handlerName;
+                    
+                    if (method_exists($this, $methodName)) {
+                        $this->$methodName($phoneIn, $waNumber);
+                    }
+                }
+                
+                // Return intent (case will be taken from config in process())
                 return $intent;
             }
             
+            // Intent not in config, return false
             return false;
             
         } catch (\Exception $e) {
