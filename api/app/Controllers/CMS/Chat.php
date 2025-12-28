@@ -594,15 +594,16 @@ class Chat extends Controller
             $targetCase = (int)$caseVal;
             
             // Find and close
+            // Find and close
             foreach ($caseList as &$item) {
                 if (isset($item['case']) && (int)$item['case'] === $targetCase) {
-                    // Only update if not already closed
-                    if (($item['status'] ?? 'open') !== 'closed') {
-                        $item['status'] = 'closed';
-                        $item['resolved_at'] = date('Y-m-d H:i:s');
-                        $item['resolved_by'] = $userId;
-                        $modified = true;
-                    }
+                    // Update status and Clean up fields
+                    $item['status'] = 'closed';
+                    if(isset($item['resolved_at'])) unset($item['resolved_at']);
+                    if(isset($item['resolved_by'])) unset($item['resolved_by']);
+                    if(isset($item['timestamp'])) unset($item['timestamp']);
+                    
+                    $modified = true;
                 }
             }
             

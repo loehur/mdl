@@ -58,7 +58,7 @@ return [
         'patterns' => [
             '/^\s*(je*m*pu*t|anta*r)\s*$/i',
         ],
-        'ai_prompt' => 'User minta jemput/antar atau menanyakan kapan dijemput/antar'
+        'ai_prompt' => 'HANYA JIKA User secara eksplisit meminta laundry-nya DIJEMPUT (pick-up) atau DIANTAR (delivery) ke rumah. JANGAN pilih ini jika user hanya minta laundry cepat selesai atau request waktu selesai.'
     ],
 
     'PERMINTAAN' => [
@@ -68,7 +68,7 @@ return [
         'patterns' => [
             '/(bi*sa*|bo*le*h).*(sa*ya*|a*ku|ka*mi).*(di)?(ambi*l|je*m*pu*t)/i',
         ],
-        'ai_prompt' => 'User melakukan permintaan apapun, apapun yang diminta meskipun tidak jelas tetap masuk kategori ini. KECUALI minta jemput/antar laundry'
+        'ai_prompt' => 'User melakukan permintaan khusus atau request tertentu. Contoh: minta selesai cepat, minta lipat rapi, minta parfum tertentu, minta siap sebelum jam tertentu. SEMUA request masuk sini KECUALI request jemput/antar.'
     ],
 
     'JAM_OPERASIONAL' => [
