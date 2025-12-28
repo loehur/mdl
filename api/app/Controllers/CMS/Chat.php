@@ -421,7 +421,7 @@ class Chat extends Controller
             $db = $this->db(0);
             
             // 1. Fetch existing cases first to support multi-case (append logic)
-            $existing = $db->query("SELECT conv_case FROM wa_conversations WHERE wa_number = '$phone'")->row();
+            $existing = $db->query("SELECT conv_case FROM wa_conversations WHERE wa_number = ?", [$phone])->row();
             $caseList = [];
             
             if ($existing && isset($existing->conv_case)) {
@@ -560,11 +560,7 @@ class Chat extends Controller
     public function resolveCase()
     {
         try {
-            // Handle CORS
-            if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-                http_response_code(200);
-                exit;
-            }
+            $this->handleCors();
             
             $body = json_decode(file_get_contents('php://input'), true);
             $phone = $body['phone'] ?? null;
@@ -580,8 +576,8 @@ class Chat extends Controller
             
             $db = $this->db(0);
             
-            // Fetch existing cases
-            $existing = $db->query("SELECT conv_case FROM wa_conversations WHERE wa_number = '$phone'")->row();
+            // Fetch existing cases (use parameterized query)
+            $existing = $db->query("SELECT conv_case FROM wa_conversations WHERE wa_number = ?", [$phone])->row();
             $caseList = [];
             $modified = false;
             
@@ -622,6 +618,7 @@ class Chat extends Controller
                     'type' => 'case_resolved',
                     'phone' => $phone,
                     'case' => $targetCase,
+                    'target_id' => '0', // Broadcast to all
                     'sender_id' => $userId
                 ];
                 
@@ -635,6 +632,7 @@ class Chat extends Controller
             }
             
         } catch (\Throwable $e) {
+            \Log::write("resolveCase ERROR: " . $e->getMessage() . " at " . $e->getFile() . ":" . $e->getLine(), 'cms_error', 'Chat');
             http_response_code(500);
             header('Content-Type: application/json');
             echo json_encode([
