@@ -143,14 +143,9 @@ class WAReplies
             ];
         }
         
-        // Rate limiting: Prevent AI from being called too frequently
-        if (!$this->shouldReply($waNumber, 'AI_FALLBACK')) {
-            \Log::write("AI_FALLBACK in cooldown for $waNumber, skipping AI", 'ai_intent', 'rate_limit');
-            // AI is in cooldown, skip - don't update priority
-            return (object) [
-                'case' => null  // null = don't update case
-            ];
-        }
+        // Note: Per-intent rate limiting is handled inside handleWithAI()
+        // This allows AI to always detect intent, cooldown applies per-intent not globally at AI_FALLBACK level
+        \Log::write("[DEBUG] Calling AI for message: '" . substr($textBody, 0, 30) . "...'", 'ai_debug', 'call');
         
         $aiResult = $this->handleWithAI($phoneIn, $textBody, $waNumber);
         
