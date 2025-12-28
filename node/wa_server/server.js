@@ -432,7 +432,22 @@ app.post('/incoming', async (req, res) => {
     // Extract common data for push notification
     const customerPhone = data.phone || data.wa_number || '';
     const customerName = data.name || data.contact_name || 'Customer';
-    const messageText = data.text || data.message || data.lastMessage || '';
+
+    // Handle messageText - data.message can be an object from PHP webhook
+    let messageText = '';
+    if (typeof data.text === 'string') {
+        messageText = data.text;
+    } else if (typeof data.message === 'object' && data.message !== null) {
+        // PHP sends message as object: { id, text, type, ... }
+        messageText = data.message.text || data.message.caption || '';
+    } else if (typeof data.message === 'string') {
+        messageText = data.message;
+    } else if (typeof data.lastMessage === 'string') {
+        messageText = data.lastMessage;
+    }
+    // Ensure messageText is always a string
+    messageText = String(messageText || '');
+
     const caseType = parseInt(data.priority || data.case || 0);
 
     // BROADCAST TO ALL if target_id = '0'

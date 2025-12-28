@@ -350,17 +350,6 @@ class WhatsApp extends Controller
                     $currentCase = 0;
                 }
                 
-                // Update message status if status is set
-                if ($messageStatus === 'read') {
-                    $db->update('wa_messages_in', 
-                        ['status' => 'read'], 
-                        ['id' => $msgId]
-                    );
-
-                }
-                
-                // Get or create conversation with all updates in one call
-
                 // Get or create conversation with all updates in one call
                 $conversationId = $this->getOrCreateConversationWithCase(
                     $db, 
@@ -468,7 +457,6 @@ class WhatsApp extends Controller
         $updated = $db->update('wa_messages_out', $updateData, ['wamid' => $wamid]);
         
         // Also check if in wa_messages_out (sometimes stored there differently?) - actually handled in handleMessageUpdated for out
-        // Wait, handleStatusUpdate is generally for OUTBOUND messages status from YCloud (sent, delivered, read)
         // But wa_messages is legacy? Or unified?
         // Let's assume handleMessageUpdated is the main one for OUTBOUND.
         
@@ -511,7 +499,6 @@ class WhatsApp extends Controller
 
 
     /**
-     * Handle message updated event (for read, delivered, sent status)
      * This is for OUTBOUND messages (yang kita kirim)
      */
     private function handleMessageUpdated($db, $data)
@@ -680,9 +667,6 @@ class WhatsApp extends Controller
                 $updateData, 
                 ['wa_number' => $waNumber]
             );
-            
-            // Mark all previous messages as read using phone
-            $db->update('wa_messages_in', ['status' => 'read'], ['phone' => $waNumber]);
             
             return $conv->id ?? 0;
         }
