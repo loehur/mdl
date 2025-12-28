@@ -102,6 +102,21 @@ class WAReplies
             // Check regex patterns
             foreach ($patterns as $patternIndex => $pattern) {
                 if (preg_match($pattern, $textBodyToCheck)) {
+                    // Get priority from config, default to 0 if not set
+                    $priority = $config['priority'] ?? 0;
+                    
+                    // Check if auto_reply is enabled for this handler
+                    $autoReply = $config['auto_reply'] ?? false;
+                    
+                    // If auto_reply is false, skip handler but still return priority
+                    if (!$autoReply) {
+                        return (object) [
+                            'status' => null,
+                            'ai' => false,
+                            'priority' => $priority
+                        ];
+                    }
+                    
                     // RATE LIMITING: Check if can send reply (cooldown)
                     if (!$this->shouldReply($waNumber, $handler)) {
                         $matchPatterns[] = $handler;
@@ -114,9 +129,6 @@ class WAReplies
                     
                     if (method_exists($this, $methodName)) {
                         $this->$methodName($phoneIn, $waNumber);
-                        
-                        // Get priority from config, default to 0 if not set
-                        $priority = $config['priority'] ?? 0;
                         
                         return (object) [
                             'status' => null,
