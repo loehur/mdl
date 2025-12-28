@@ -1853,7 +1853,7 @@ window.addEventListener('focus', () => {
     <aside v-if="authId" class="flex flex-col border-r border-[var(--wa-border)] bg-[var(--wa-bg-panel)] transition-all duration-300 absolute md:static z-0 h-full w-full md:w-96"
            :class="showMobileChat ? 'flex' : 'flex'">
       <!-- Search Header -->
-       <div class="px-4 pt-4 pb-2 bg-[var(--wa-bg-panel)] backdrop-blur-md sticky top-0 z-10 transition-colors duration-300">
+       <div class="px-4 pt-4 pb-1 bg-[var(--wa-bg-panel)] backdrop-blur-md sticky top-0 z-10 transition-colors duration-300">
           <div class="flex items-center gap-2">
               <div class="relative group flex-1">
                   <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -1899,7 +1899,7 @@ window.addEventListener('focus', () => {
                    ? 'bg-[var(--wa-accent-green)] text-black' 
                    : 'bg-[var(--wa-bg-tertiary)] text-[var(--wa-text-secondary)] hover:bg-[var(--wa-hover)]'"
              >
-                All
+                Semua
              </button>
              
              <!-- Unread Tab -->
@@ -1910,7 +1910,7 @@ window.addEventListener('focus', () => {
                    ? 'bg-[var(--wa-accent-green)] text-black' 
                    : 'bg-[var(--wa-bg-tertiary)] text-[var(--wa-text-secondary)] hover:bg-[var(--wa-hover)]'"
              >
-                <span>Unread</span>
+                <span>Belum dibaca</span>
                 <span 
                    v-if="totalUnreadCount > 0" 
                    class="text-xs font-bold min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center"
