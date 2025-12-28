@@ -1339,11 +1339,8 @@ const connectWebSocket = () => {
   console.log("Connecting to WebSocket with ID:", authId.value);
   
   try {
-     // Auto-detect environment
-     const isLocal = window.location.hostname === 'localhost' || window.location.hostname.startsWith('192.168') || window.location.hostname === '127.0.0.1';
-     const baseUrl = isLocal ? 'ws://localhost:3003' : 'wss://waserver.nalju.com';
-     
-     const wsUrl = `${baseUrl}?id=${authId.value.trim()}&password=${authPassword.value.trim()}`;
+     // Always connect to Production Server (as per user workflow)
+     const wsUrl = `wss://waserver.nalju.com?id=${authId.value.trim()}&password=${authPassword.value.trim()}`;
      const ws = new WebSocket(wsUrl); 
      socket.value = ws;
      
