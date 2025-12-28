@@ -2146,10 +2146,10 @@ window.addEventListener('focus', () => {
               </div>
               
               <!-- Case Badges -->
-              <div v-if="chat.cases && chat.cases.some(c => c.case > 0)" class="flex flex-wrap gap-1.5 mb-1.5">
+              <div v-if="chat.cases && chat.cases.some(c => c.case > 0 && (c.status || 'open') !== 'closed')" class="flex flex-wrap gap-1.5 mb-1.5">
                   <template v-for="(cse, idx) in chat.cases" :key="idx">
                       <div 
-                        v-if="cse.case > 0"
+                        v-if="cse.case > 0 && (cse.status || 'open') !== 'closed'"
                         class="w-2.5 h-2.5 rounded-full ring-1 ring-black/20"
                         :class="getCaseColor(cse.case)"
                         :title="'Case: ' + cse.case"
@@ -2240,10 +2240,10 @@ window.addEventListener('focus', () => {
                <div class="flex items-center gap-2">
                  <p v-if="activeConversation.kode_cabang" class="text-xs font-mono text-[var(--wa-text-secondary)]">{{ activeConversation.kode_cabang }}</p>
                  <!-- Header Case Badges -->
-                 <div v-if="activeConversation.cases && activeConversation.cases.some(c => c.case > 0)" class="flex gap-1">
+                 <div v-if="activeConversation.cases && activeConversation.cases.some(c => c.case > 0 && (c.status || 'open') !== 'closed')" class="flex gap-1">
                     <template v-for="(cse, idx) in activeConversation.cases" :key="idx">
                         <div 
-                            v-if="cse.case > 0"
+                            v-if="cse.case > 0 && (cse.status || 'open') !== 'closed'"
                             class="w-3 h-3 rounded-full ring-1 ring-black/20"
                             :class="getCaseColor(cse.case)"
                             :title="'Case: ' + cse.case"
