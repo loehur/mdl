@@ -68,7 +68,7 @@ return [
         'patterns' => [
             '/(bi*sa*|bo*le*h).*(sa*ya*|a*ku|ka*mi).*(di)?(ambi*l|je*m*pu*t)/i',
         ],
-        'ai_prompt' => 'User melakukan permintaan apapun SELAIN jemput/antar laundry'
+        'ai_prompt' => 'User melakukan permintaan apapun, apapun yang diminta meskipun tidak jelas tetap masuk kategori ini. KECUALI minta jemput/antar laundry'
     ],
 
     'JAM_OPERASIONAL' => [
