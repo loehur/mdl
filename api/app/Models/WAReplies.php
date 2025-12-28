@@ -103,8 +103,12 @@ class WAReplies
             foreach ($patterns as $patternIndex => $pattern) {
                 if (preg_match($pattern, $textBodyToCheck)) {
                     // Get case from config, default to null (don't update) if not set or explicitly null
-                    $caseVal = (array_key_exists('case', $config)) ? $config['case'] : 4;
-
+                    if(isset($config['case'])) {
+                        $caseVal = $config['case'];
+                    } else {
+                        \Log::write("Case not set for $handler", 'ai_intent', 'error');
+                        $caseVal = 4;
+                    }
                     
                     // Check if auto_reply is enabled for this handler
                     $autoReply = $config['auto_reply'] ?? false;
@@ -112,7 +116,6 @@ class WAReplies
                     // If auto_reply is false, skip handler but still return priority
                     if (!$autoReply) {
                         return (object) [
-                            'status' => null,   
                             'case' => $caseVal
                         ];
                     }
@@ -131,7 +134,6 @@ class WAReplies
                         $this->$methodName($phoneIn, $waNumber);
                         
                         return (object) [
-                            'status' => null,
                             'case' => $caseVal
                         ];
                     }
@@ -139,49 +141,48 @@ class WAReplies
             }
         }
 
-        if ($messageLength >= 0 && $messageLength <= 8) {
+        if ($messageLength >= 0 && $messageLength <= 7) {
             return (object) [
-                'status' => null,
                 'case' => null
             ];
         }
         
         // Rate limiting: Prevent AI from being called too frequently
         if (!$this->shouldReply($waNumber, 'AI_FALLBACK')) {
+            \Log::write("AI_FALLBACK in cooldown for $waNumber, skipping AI", 'ai_intent', 'rate_limit');
             // AI is in cooldown, skip - don't update priority
             return (object) [
-                'status' => null,
                 'case' => null  // null = don't update case
             ];
         }
         
         $aiResult = $this->handleWithAI($phoneIn, $textBody, $waNumber);
         
-        // Check if AI successfully detected a valid intent (not FALSE)
         // Check if AI successfully detected a valid intent (not FALSE and not boolean false)
         if ($aiResult && strtoupper($aiResult) !== 'FALSE') {
             if (in_array($aiResult, $matchPatterns)) {
-                return (object) [
-                    'status' => null,
+                \Log::write("AI intent $aiResult found in matchPatterns", 'ai_intent', 'info');
+                return (object) [                    
                     'case' => null
                 ];
             }
             // AI successfully detected intent, get case from config
             $aiIntent = strtoupper($aiResult);
             // Get case from config, respecting null values (null = don't update case)
-            $aiCase = (isset($keywordConfig[$aiIntent]) && array_key_exists('case', $keywordConfig[$aiIntent]))
-                ? $keywordConfig[$aiIntent]['case'] 
-                : 4;  // Default if intent not in config or case key missing
+            if(isset($keywordConfig[$aiIntent])) {
+                $aiCase = $keywordConfig[$aiIntent]['case'];
+            } else {
+                \Log::write("AI intent $aiIntent not found in config", 'ai_intent', 'error');
+                $aiCase = 4;
+            }               
             
             return (object) [
-                'status' => null,
                 'case' => $aiCase
             ];
         }
 
         // AI failed or returned FALSE (unknown intent) - needs manual attention
         return (object) [
-            'status' => null,
             'case' => 4
         ];
     }

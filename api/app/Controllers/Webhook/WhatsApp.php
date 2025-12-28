@@ -342,7 +342,9 @@ class WhatsApp extends Controller
                 
                 // Extract values from result object
                 $currentCase = $autoReplyResult->case;
-                $messageStatus = $autoReplyResult->status ?? null;
+                if ($currentCase === 0){
+                    $currentCase = null;
+                }
                 
                 // Case logic based on customer registration status
                 // If customer registered -> keep auto-reply case or set to 0

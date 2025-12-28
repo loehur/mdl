@@ -2,7 +2,7 @@
 return [  
     'PEMBUKA' => [
         'max_length' => 20,
-        'case' => null,
+        'case' => 0,
         'auto_reply' => false,
         'patterns' => [
             '/^\s*(p|ping|ka*k|ba*n*g|b*a*pa*k|i*bu*k*|a*de*k|he*a*l+o|as+a*l+a*mu*a*l+a*i*ku*m|tes)\s*$/i',
@@ -16,7 +16,7 @@ return [
 
     'NOTA' => [
         'max_length' => 100,
-        'case' => null,
+        'case' => 0,
         'auto_reply' => true,
         'patterns' => [
             '/^\s*(bon|nota+|stru*k|bil+|ta*gi*ha*n|re*si)\s*$/i',
@@ -35,7 +35,7 @@ return [
 
     'STATUS' => [
         'max_length' => 100,
-        'case' => null,
+        'case' => 0,
         'auto_reply' => true,
         'patterns' => [
             '/^\s*(cek|sta*tu*s)\s*$/i',
@@ -73,7 +73,7 @@ return [
 
     'JAM_OPERASIONAL' => [
         'max_length' => 30,
-        'case' => null,
+        'case' => 0,
         'auto_reply' => true,
         'patterns' => [
             '/(ka*pa*n|ma*si*h)\s*\b(bu*ka*|tu*tu*p)/i',
@@ -84,7 +84,7 @@ return [
 
     'PENUTUP' => [
         'max_length' => 20,
-        'case' => null,
+        'case' => 0,
         'auto_reply' => false,
         'patterns' => [
             '/\bma*ka*(s|c)(i|e)*h\b/i',
