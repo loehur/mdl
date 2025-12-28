@@ -198,8 +198,8 @@ const resolveableCases = computed(() => {
     if (!activeConversation.value || !activeConversation.value.cases) return [];
     
     const role = currentUserRole.value;
-    // Filter open cases AND exclude Case 4 (Follow Up)
-    const openCases = activeConversation.value.cases.filter(c => (c.status || 'open') !== 'closed' && c.case > 0 && c.case !== 4);
+    // Filter open cases (include all cases including Case 4)
+    const openCases = activeConversation.value.cases.filter(c => (c.status || 'open') !== 'closed' && c.case > 0);
     
     if (role === 'admin') return openCases;
     if (role === 'driver') return openCases.filter(c => c.case === 2);

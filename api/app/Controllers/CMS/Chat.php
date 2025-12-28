@@ -50,15 +50,12 @@ class Chat extends Controller
             
             if ($userId && !$isAdmin) {
                if ($isDriver) {
-                   // Driver Role: Only Priority 2 (Pickup/Delivery)
                    // Handle Legacy Int, Single JSON Object, and JSON Array List
                    // Structure: [{"case": 2, ...}, ...]
                    // Using LIKE for broad compatibility (searching 2 or 4)
                    $whereClause .= " AND (
                         c.conv_case LIKE '%\"case\":2%'
                         OR c.conv_case LIKE '%\"case\":\"2\"%'
-                        OR c.conv_case LIKE '%\"case\":4%'
-                        OR c.conv_case LIKE '%\"case\":\"4\"%'
                    )";
                } else {
                    // Crew Role: Filter by assigned_user_id
@@ -105,10 +102,9 @@ class Chat extends Controller
 
             $conversations = $query->result();
             
-            // Normalize Case/Priority (Handle JSON Array List)
+            // Normalize Case (Handle JSON Array List)
             foreach ($conversations as &$conv) {
                 // Default values
-                $conv->priority = 0; 
                 $conv->case_val = 0;
                 $conv->case_status = null;
                 $conv->case_history = []; // New field for full history
@@ -138,9 +134,6 @@ class Chat extends Controller
                         // Legacy integer in 'conv_case' column
                         $conv->case_val = (int)$conv->conv_case;
                     }
-                    
-                    // Backward compatibility for Frontend expecting 'priority'
-                    $conv->priority = $conv->case_val;
                 }
             }
             
@@ -382,7 +375,7 @@ class Chat extends Controller
                 $userId = $_SERVER['HTTP_USER_ID'] ?? $body['user_id'] ?? null;
                 
                 $payload = [
-                    'type' => 'case_updated', // Changed from priority_updated
+                    'type' => 'case_updated', // Changed from
                     'phone' => $phone,
                     'case' => (int)$caseVal,
                     'target_id' => '0', // Broadcast to all
@@ -411,7 +404,6 @@ class Chat extends Controller
 
     /**
      * Unified Case Update Endpoint
-     * Replaces checkPayment, pickupDelivery, requestPriority
      * Client must send 'case' value from body
      */
     public function updateCase()
@@ -687,32 +679,6 @@ class Chat extends Controller
         if (isset($media['raw'])) {
             echo "\n\nDebug Raw Response:\n" . json_encode($media['raw'], JSON_PRETTY_PRINT);
         }
-    }
-
-    public function testWS()
-    {
-        $phone = $this->query('phone') ?? '+6281234567890';
-        $priority = $this->query('priority') ?? '2';
-        
-        $payload = [
-            'type' => 'priority_updated',
-            'phone' => $phone,
-            'priority' => (int)$priority,
-            'target_id' => '0', // Broadcast to all
-            'sender_id' => '9999' // Test sender
-        ];
-        
-        \Log::write("TEST WS: Sending priority_updated - " . json_encode($payload), 'cms_ws_test');
-        $res = $this->pushToWebSocket($payload);
-        
-        header('Content-Type: application/json');
-        echo json_encode([
-            'status' => 'sent',
-            'result' => $res, 
-            'payload' => $payload,
-            'note' => 'Check browser console for [WS] priority_updated received message'
-        ]);
-        exit;
     }
 
     private function pushToWebSocket($data)
