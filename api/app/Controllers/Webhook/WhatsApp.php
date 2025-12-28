@@ -363,6 +363,11 @@ class WhatsApp extends Controller
                     $currentCase
                 );
 
+                // DIAGNOSTIC LOG: Use Standard Log Class so it appears in logs/DATE folder
+                // File will be: api/logs/{DATE}/wa_ws_debug_check.log
+                if (class_exists('\Log')) {
+                    \Log::write("Code: " . var_export($code, true) . " | AI Case: " . var_export($currentCase, true), 'wa_ws_debug', 'check');
+                }
 
                 $this->pushIncomingToWebSocket([
                     'conversation_id' => $conversationId,
