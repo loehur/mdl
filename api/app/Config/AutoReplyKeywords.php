@@ -71,7 +71,7 @@ return [
         'ai_prompt' => 'User melakukan permintaan apapun SELAIN jemput/antar laundry'
     ],
 
-    'CEK_JAM_OPERASIONAL' => [
+    'JAM_OPERASIONAL' => [
         'max_length' => 30,
         'case' => null,
         'auto_reply' => true,
