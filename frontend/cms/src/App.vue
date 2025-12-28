@@ -1887,17 +1887,17 @@ window.addEventListener('focus', () => {
               </button>
           </div>
        </div>
-      
-       <!-- Filter Tabs (WhatsApp Style) -->
-       <div class="px-4 py-2 border-b border-[var(--wa-border)] bg-[var(--wa-bg-panel)]">
-          <div class="flex gap-1">
+       
+       <!-- Filter Tabs (WhatsApp Style Pills) -->
+       <div class="px-4 py-3 bg-[var(--wa-bg-panel)]">
+          <div class="flex gap-2">
              <!-- All Tab -->
              <button 
                 @click="conversationFilter = 'all'"
-                class="flex-1 px-4 py-2 text-sm font-medium rounded-lg transition-all"
+                class="px-3 py-1.5 text-sm font-medium rounded-full transition-all"
                 :class="conversationFilter === 'all' 
-                   ? 'bg-[var(--wa-accent-green)] text-black shadow-sm' 
-                   : 'text-[var(--wa-text-secondary)] hover:bg-[var(--wa-hover)]'"
+                   ? 'bg-[var(--wa-accent-green)] text-black' 
+                   : 'bg-[var(--wa-bg-tertiary)] text-[var(--wa-text-secondary)] hover:bg-[var(--wa-hover)]'"
              >
                 All
              </button>
@@ -1905,15 +1905,15 @@ window.addEventListener('focus', () => {
              <!-- Unread Tab -->
              <button 
                 @click="conversationFilter = 'unread'"
-                class="flex-1 px-4 py-2 text-sm font-medium rounded-lg transition-all relative"
+                class="px-3 py-1.5 text-sm font-medium rounded-full transition-all flex items-center gap-1.5"
                 :class="conversationFilter === 'unread' 
-                   ? 'bg-[var(--wa-accent-green)] text-black shadow-sm' 
-                   : 'text-[var(--wa-text-secondary)] hover:bg-[var(--wa-hover)]'"
+                   ? 'bg-[var(--wa-accent-green)] text-black' 
+                   : 'bg-[var(--wa-bg-tertiary)] text-[var(--wa-text-secondary)] hover:bg-[var(--wa-hover)]'"
              >
                 <span>Unread</span>
                 <span 
                    v-if="totalUnreadCount > 0" 
-                   class="ml-1.5 text-xs font-semibold px-1.5 py-0.5 rounded-full"
+                   class="text-xs font-bold min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center"
                    :class="conversationFilter === 'unread' 
                       ? 'bg-black/20 text-black' 
                       : 'bg-[var(--wa-accent-green)] text-black'"
