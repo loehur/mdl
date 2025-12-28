@@ -1728,13 +1728,13 @@ const connectWebSocket = () => {
           }
 
            // Handle Case Update (Replaces Priority Update)
+           // Handle Case Update
            if (payload.type === 'case_updated') {
                console.log('[WS] case_updated received:', payload);
                
-               // Normalize phone number for matching (remove +, spaces, etc)
                const normalizePhone = (phone) => {
                  if (!phone) return '';
-                 return phone.toString().replace(/\D/g, ''); // Remove all non-digits
+                 return phone.toString().replace(/\D/g, '');
                };
                
                const targetPhone = normalizePhone(payload.phone);
@@ -1744,25 +1744,39 @@ const connectWebSocket = () => {
                     const newC = parseInt(payload.case);
                     console.log('✓ Updating case for conversation:', conv.name, newC);
                     
+                    if (!conv.cases) conv.cases = [];
+                    
                     if (newC === 0) {
-                        // Reset if 0 (Done)
-                        conv.cases = [{case: 0}];
+                        // Reset/Clear all active? usually 0 means "reset"
+                        conv.cases = [{case: 0, status: 'open'}];
                     } else {
-                        // Append logic
-                        if (!conv.cases) conv.cases = [];
-                        conv.cases = conv.cases.filter(c => c.case !== 0); // Remove dummy 0
-                        if (!conv.cases.some(c => c.case === newC)) {
-                             conv.cases.push({case: newC}); 
+                        // 1. Update/Add Target Case
+                        const existing = conv.cases.find(c => c.case === newC);
+                        if (existing) {
+                            existing.status = 'open'; // Re-open/Update
+                        } else {
+                            conv.cases.push({ case: newC, status: 'open' });
                         }
+                        
+                        // 2. Auto-close Case 4 if new case is not 4
+                        if (newC !== 4) {
+                            const case4 = conv.cases.find(c => c.case === 4);
+                            if (case4) {
+                                case4.status = 'closed';
+                            }
+                        }
+                        
+                        // 3. Remove dummy case 0
+                        conv.cases = conv.cases.filter(c => c.case !== 0);
                     }
-                   // Force re-sort?? Automatically handled by computed filteredConversations
                } else {
-                   console.warn('⚠️ Conversation not found for case update:', payload.phone);
+                   console.log('⚠️ Conversation not found for case update (might need reload):', payload.phone);
+                   // Optionally trigger reload here
+                   // fetchConversations();
                }
                return;
            }
 
-          
            if (payload.type === 'case_resolved') {
                console.log('[WS] case_resolved received:', payload);
                const normalizePhone = (phone) => {
@@ -1773,9 +1787,12 @@ const connectWebSocket = () => {
                const conv = conversations.value.find(c => normalizePhone(c.wa_number) === targetPhone);
                
                if (conv && conv.cases) {
-                   // Remove resolved case from view
+                   // Update status to closed
                    const resolvedCase = parseInt(payload.case);
-                   conv.cases = conv.cases.filter(x => x.case !== resolvedCase);
+                   const target = conv.cases.find(x => x.case === resolvedCase);
+                   if (target) {
+                       target.status = 'closed';
+                   }
                }
                return;
            }

@@ -145,14 +145,12 @@ class WAReplies
         
         // Note: Per-intent rate limiting is handled inside handleWithAI()
         // This allows AI to always detect intent, cooldown applies per-intent not globally at AI_FALLBACK level
-        \Log::write("[DEBUG] Calling AI for message: '" . substr($textBody, 0, 30) . "...'", 'ai_debug', 'call');
         
         $aiResult = $this->handleWithAI($phoneIn, $textBody, $waNumber);
         
         // Check if AI successfully detected a valid intent (not FALSE and not boolean false)
         if ($aiResult && strtoupper($aiResult) !== 'FALSE') {
             if (in_array($aiResult, $matchPatterns)) {
-                \Log::write("AI intent $aiResult found in matchPatterns", 'ai_intent', 'info');
                 return (object) [                    
                     'case' => null
                 ];
@@ -163,7 +161,6 @@ class WAReplies
             if(isset($keywordConfig[$aiIntent])) {
                 $aiCase = $keywordConfig[$aiIntent]['case'];
             } else {
-                \Log::write("AI intent $aiIntent not found in config", 'ai_intent', 'error');
                 $aiCase = 4;
             }               
             

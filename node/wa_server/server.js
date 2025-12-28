@@ -448,7 +448,7 @@ app.post('/incoming', async (req, res) => {
     // Ensure messageText is always a string
     messageText = String(messageText || '');
 
-    const caseType = parseInt(data.priority || data.case || 0);
+    const caseType = parseInt(data.case || 0);
 
     // BROADCAST TO ALL if target_id = '0'
     if (targetId === '0') {
@@ -475,9 +475,9 @@ app.post('/incoming', async (req, res) => {
                     if (role === 'admin') {
                         shouldSend = true;
                     }
-                    // 2. Driver: Only Priority 2 (Delivery/Pickup)
+                    // 2. Driver: Only Case 2 (Delivery/Pickup)
                     else if (role === 'driver') {
-                        if (data.priority == 2) { // Loose equality for string/int
+                        if (data.case == 2) { // Loose equality for string/int
                             shouldSend = true;
                         }
                     }
