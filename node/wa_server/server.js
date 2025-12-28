@@ -38,6 +38,107 @@ const PORT = process.env.PORT || 3003;
 const SOCKET_PASSWORD = process.env.SOCKET_PASSWORD;
 
 // ============================================
+// OneSignal Configuration
+// ============================================
+const ONESIGNAL_APP_ID = process.env.ONESIGNAL_APP_ID || '';
+const ONESIGNAL_REST_API_KEY = process.env.ONESIGNAL_REST_API_KEY || '';
+
+/**
+ * Send push notification via OneSignal
+ * @param {object} options - Notification options
+ * @param {string} options.title - Notification title
+ * @param {string} options.message - Notification body
+ * @param {string} options.phone - Customer phone (used as collapse_id)
+ * @param {number} options.caseType - Case type (1=Payment, 2=Pickup, 3=Request, 4=FollowUp)
+ * @param {object} options.data - Additional data payload
+ * @param {string[]} options.userIds - Target user IDs (external_user_id in OneSignal)
+ */
+async function sendPushNotification(options) {
+    const { title, message, phone, caseType, data, userIds } = options;
+
+    if (!ONESIGNAL_APP_ID || !ONESIGNAL_REST_API_KEY) {
+        console.log('[OneSignal] Skipped: Missing APP_ID or REST_API_KEY');
+        return { success: false, error: 'OneSignal not configured' };
+    }
+
+    // Skip notification for case 0 (done/resolved conversations)
+    if (caseType === 0) {
+        console.log('[OneSignal] Skipped: Case 0 (done/resolved) - no notification needed');
+        return { success: false, error: 'Case 0 - no notification' };
+    }
+
+    if (!userIds || userIds.length === 0) {
+        console.log('[OneSignal] Skipped: No target user IDs');
+        return { success: false, error: 'No target users' };
+    }
+
+    // Filter users by role if caseType is specified
+    const filteredUserIds = userIds.filter(userId => {
+        const role = getUserRole(userId);
+
+        // Admin: receives all notifications
+        if (role === 'admin') return true;
+
+        // Driver: only receives case 2 (Pickup/Delivery)
+        if (role === 'driver') {
+            return caseType === 2;
+        }
+
+        // Crew: receives all (will be filtered by assignment at broadcast level)
+        return true;
+    });
+
+    if (filteredUserIds.length === 0) {
+        console.log('[OneSignal] Skipped: No eligible users after role filter');
+        return { success: false, error: 'No eligible users' };
+    }
+
+    const payload = {
+        app_id: ONESIGNAL_APP_ID,
+        include_external_user_ids: filteredUserIds,
+        headings: { en: title },
+        contents: { en: message },
+        collapse_id: phone ? `chat_${phone}` : undefined, // Group notifications by customer phone
+        data: {
+            type: 'wa_masuk',
+            phone: phone,
+            case: caseType,
+            ...data
+        },
+        android_channel_id: process.env.ONESIGNAL_ANDROID_CHANNEL_ID || undefined,
+        ios_badgeType: 'Increase',
+        ios_badgeCount: 1
+    };
+
+    // Remove undefined values
+    Object.keys(payload).forEach(key => payload[key] === undefined && delete payload[key]);
+
+    try {
+        const response = await fetch('https://onesignal.com/api/v1/notifications', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Basic ${ONESIGNAL_REST_API_KEY}`
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+
+        if (result.id) {
+            console.log(`[OneSignal] ✅ Sent to ${filteredUserIds.length} user(s), collapse_id: chat_${phone}`);
+            return { success: true, id: result.id, recipients: filteredUserIds.length };
+        } else {
+            console.log('[OneSignal] ❌ Error:', result.errors || result);
+            return { success: false, error: result.errors || 'Unknown error' };
+        }
+    } catch (err) {
+        console.error('[OneSignal] ❌ Request failed:', err.message);
+        return { success: false, error: err.message };
+    }
+}
+
+// ============================================
 // HTTP Server & WebSocket Setup
 // ============================================
 const server = http.createServer(app);
@@ -318,7 +419,7 @@ app.get('/', (req, res) => {
  * Endpoint to receive incoming WA messages
  * Expects JSON body with message details AND target_id
  */
-app.post('/incoming', (req, res) => {
+app.post('/incoming', async (req, res) => {
     const data = req.body;
     const targetId = data.target_id;
 
@@ -327,6 +428,12 @@ app.post('/incoming', (req, res) => {
     }
 
     console.log(`WA Incoming for ${targetId}:`, data);
+
+    // Extract common data for push notification
+    const customerPhone = data.phone || data.wa_number || '';
+    const customerName = data.name || data.contact_name || 'Customer';
+    const messageText = data.text || data.message || data.lastMessage || '';
+    const caseType = parseInt(data.priority || data.case || 0);
 
     // BROADCAST TO ALL if target_id = '0'
     if (targetId === '0') {
@@ -380,11 +487,40 @@ app.post('/incoming', (req, res) => {
             });
         });
 
+        // Collect OFFLINE users for push notification
+        // Only users who are NOT connected via WebSocket should get push
+        const connectedUserIds = Array.from(clients.keys()); // Currently connected users
+        const allUserIds = [...ADMIN_IDS, ...DRIVER_IDS, ...CREW_IDS];
+        const offlineUserIds = allUserIds.filter(userId => {
+            // Must not be connected AND must not be the sender
+            return !connectedUserIds.includes(userId) && userId !== senderId;
+        });
+
+        console.log(`[PUSH] Connected users: ${connectedUserIds.join(', ') || 'none'}`);
+        console.log(`[PUSH] Offline users for push: ${offlineUserIds.join(', ') || 'none'}`);
+
+        // Send Push Notification only to OFFLINE users
+        let pushResult = { success: false, error: 'No offline users' };
+        if (offlineUserIds.length > 0) {
+            pushResult = await sendPushNotification({
+                title: customerName,
+                message: messageText.substring(0, 100) || '📩 New message',
+                phone: customerPhone,
+                caseType: caseType,
+                userIds: offlineUserIds,
+                data: { phone: customerPhone }
+            });
+        }
+
         console.log(`[BROADCAST] Sent to ${broadcastCount} client(s), excluded sender: ${senderId || 'none'}`);
+        console.log(`[BROADCAST] Push notification to ${offlineUserIds.length} offline user(s):`, pushResult.success ? '✅' : '⏭️ skipped');
+
         return res.json({
             success: true,
             message: `Broadcast to ${broadcastCount} client(s)`,
-            broadcast: true
+            broadcast: true,
+            push: pushResult,
+            offlineUsers: offlineUserIds.length
         });
     }
 
@@ -397,11 +533,29 @@ app.post('/incoming', (req, res) => {
         timestamp: new Date().toISOString()
     }, senderId);
 
-    if (sent) {
-        res.json({ success: true, message: 'Message sent to client' });
+    // Send Push Notification only if target is OFFLINE (not connected)
+    let pushResult = { success: false, error: 'Target is online' };
+    const isTargetConnected = clients.has(targetId);
+
+    if (!isTargetConnected) {
+        pushResult = await sendPushNotification({
+            title: customerName,
+            message: messageText.substring(0, 100) || '📩 New message',
+            phone: customerPhone,
+            caseType: caseType,
+            userIds: [targetId],
+            data: { phone: customerPhone }
+        });
+        console.log(`[PUSH] Target ${targetId} is offline, push sent:`, pushResult.success ? '✅' : '❌');
     } else {
-        // Option: return generic 200 even if not connected, or 404
-        res.status(404).json({ success: false, message: 'Target client not connected' });
+        console.log(`[PUSH] Target ${targetId} is online, skipping push notification`);
+    }
+
+    if (sent) {
+        res.json({ success: true, message: 'Message sent to client', push: pushResult });
+    } else {
+        // Target not connected via WebSocket, but push was sent
+        res.json({ success: true, message: 'Target offline, push notification sent', push: pushResult });
     }
 });
 

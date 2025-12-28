@@ -172,6 +172,11 @@ class WhatsApp extends Controller
                 // Extract reaction emoji
                 $reactionEmoji = $msg['reaction']['emoji'] ?? null;
                 $messageText = $reactionEmoji ? "Reacted $reactionEmoji" : "Removed reaction";
+            } elseif ($messageType === 'location') {
+                // Extract location name/address for preview
+                $locName = $msg['location']['name'] ?? null;
+                $locAddr = $msg['location']['address'] ?? null;
+                $messageText = '📍 ' . ($locName ?: ($locAddr ?: 'Shared Location'));
             } elseif (isset($msg[$messageType]['caption'])) {
                 $messageText = $msg[$messageType]['caption'];
             }
@@ -187,6 +192,7 @@ class WhatsApp extends Controller
                     'voice' => '🎤 Voice',
                     'document' => '📄 Document',
                     'sticker' => '🎨 Sticker',
+                    'location' => '📍 Location',
                 ];
                  $lastMessageSummary = $typeLabels[$messageType] ?? "[$messageType]";
             }
@@ -273,6 +279,28 @@ class WhatsApp extends Controller
                         \Log::write("Media download exception: " . $e->getMessage(), 'webhook', 'WhatsApp');
                         $mediaUrl = $mediaUrlDirect; // Use direct URL as fallback
                     }
+                }
+                break;
+            
+            case 'location':
+                // Handle location message
+                $latitude = $msg['location']['latitude'] ?? null;
+                $longitude = $msg['location']['longitude'] ?? null;
+                $locationName = $msg['location']['name'] ?? null;
+                $locationAddress = $msg['location']['address'] ?? null;
+                
+                // Build text representation of location
+                $locationParts = [];
+                if ($locationName) $locationParts[] = $locationName;
+                if ($locationAddress) $locationParts[] = $locationAddress;
+                
+                $locationLabel = !empty($locationParts) ? implode(', ', $locationParts) : 'Shared Location';
+                $textBody = "📍 $locationLabel";
+                
+                // Store coordinates in media_url as Google Maps link for easy access
+                if ($latitude && $longitude) {
+                    $mediaUrl = "https://maps.google.com/maps?q={$latitude},{$longitude}";
+                    $mediaCaption = "{$latitude},{$longitude}"; // Raw coordinates
                 }
                 break;
         }

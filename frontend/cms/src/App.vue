@@ -119,6 +119,48 @@ const conversationFilter = ref('all'); // 'all' or 'unread'
 const showSettingsModal = ref(false);
 const fontSize = ref('medium'); // 'medium', 'large'
 
+// Notification Sound State
+const notificationSoundEnabled = ref(true);
+const notificationAudio = ref(null);
+
+// Initialize notification sound
+const initNotificationSound = () => {
+  // Use a simple beep/notification sound (base64 encoded short beep)
+  // Or load from URL - using a short "ding" sound
+  notificationAudio.value = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleAIBT6Pf3pJvBwMANZPZ4aWCABdCqOHcfVP/DxZItdrqjlsFNHHC4LiJe31dOw8RUI/W7pZUGjxys97Rll91cz4BADVGXZzP4bCQb0otAAIoLkN+t+jdnXNJLQAAMjVMdLHk17qNZD0H/xIsN1qQzuW0k2k/DPvzDyhNnNHqq4VADv/tByM/bK/f4aWFVin/4gMVNmmn1eaylZJpPAL+9BAiRny+3M+ffVMh/+H/BxE1dMHix4xkNA/8AAALIk2Y0+SsgjT/6fQEECVbpt3jooRPFv/t9QMBGV2s4eKUYRH93vAAAA0VR5LS5aSAL//e8QAAAB9bqd7ik18X/AAADgALFEON0OOlhDr/5fH9AAAJIFOg2uWhflgWAALz/QobVqfZ4JBqJv7x+gIDBCRfqtrgmm0rAAL7/AkYVqLU3ZFwMQD3+gQHBRxMfsfk0oVRFfc1Uww2YaXc4Z13Qgv88/wFBxdFes3nzIFMDu/44wIADhg9bLvi2ZNtNfz0AAUIGkV3wuXOimAe9u34BAgXQXHC58qTdC7z8QEFDA4wXqvg25p2Nv/4AAQJEU1+w+TLiV0Z8AAAAAAMKmeq3tidcR/48vwGDQ4uXKjd2pdyNwD4AAYKDSpkqNral2we8vb/Eg4YSHvB3tCIXBP17PkHCxMxVp7Y35h2KPLq+goTFDVWltHglnAm7/T+DxobOWOn1daWbib+AAARExA5cLzi1YxfF+76/gsMJEt+v93QjGEU9vP7BggZN1ul1dqWbyH19f0RGBpAdK/Y1Y5nJPj5ABkXKViWzNmOfRz47PoKDhE0Zpba2Zt8NPn+BBUSIUp9s9PPhmEW9fb9DhMXLk+Kx9KJYhT9+gISGBxIc6vRz45sMPz7ARETGSxLhsfRjGYa+fsGFxUdRnKozs6NbDX/+wQRFBYnQ3y/1tCLXhDz+P8NDhQoW5XP3JxzJe/1/g0RGjRjpNfZlWoa7fb/Dw8VN12h1NyXcynx+wMRExUuToO6z8iGXxb7+gQXEBczZKnW2JdzKPIAARkQFDNZntHblW8m8f0EFRYpRHOu0MqIYRX6/AAJ');
+  notificationAudio.value.volume = 0.5;
+};
+
+// Play notification sound
+const playNotificationSound = () => {
+  if (notificationSoundEnabled.value && notificationAudio.value) {
+    try {
+      // Reset to start and play
+      notificationAudio.value.currentTime = 0;
+      notificationAudio.value.play().catch(err => {
+        // Auto-play might be blocked by browser, silently ignore
+        console.log('[Sound] Auto-play blocked:', err.message);
+      });
+    } catch (e) {
+      console.log('[Sound] Error playing:', e.message);
+    }
+  }
+};
+
+// Load notification sound setting from localStorage
+const loadNotificationSoundSetting = () => {
+  const saved = localStorage.getItem('cms_notification_sound');
+  if (saved !== null) {
+    notificationSoundEnabled.value = saved === 'true';
+  }
+};
+
+// Toggle notification sound
+const toggleNotificationSound = () => {
+  notificationSoundEnabled.value = !notificationSoundEnabled.value;
+  localStorage.setItem('cms_notification_sound', notificationSoundEnabled.value.toString());
+};
+
 // Load font size from localStorage on mount
 const loadFontSize = () => {
   const saved = localStorage.getItem('cms_font_size');
@@ -1107,10 +1149,26 @@ const selectChat = async (id) => {
   scrollToBottom();
 };
 
-const backToMenu = () => {
-    touchOffset.value = 0; // Reset
-    showMobileChat.value = false;
-    activeChatId.value = null; // Deselect chat so unread counts increment
+const backToMenu = (animated = true) => {
+    if (animated && windowWidth.value < 768) {
+        // Animate slide-out to the right (same as swipe gesture)
+        touchOffset.value = window.innerWidth;
+        
+        // Wait for transition (300ms) to finish before hiding
+        setTimeout(() => {
+            showMobileChat.value = false;
+            activeChatId.value = null;
+            // Reset offset after hidden
+            setTimeout(() => {
+                touchOffset.value = 0;
+            }, 50);
+        }, 300);
+    } else {
+        // No animation (desktop or explicit call)
+        touchOffset.value = 0;
+        showMobileChat.value = false;
+        activeChatId.value = null;
+    }
 };
 
 const sendMessage = async () => {
@@ -1589,6 +1647,11 @@ const handleIncomingMessage = (payload) => {
   if (!isChatVisible) {
     conversation.unread++;
     
+    // 🔊 Play notification sound for incoming customer messages
+    if (sender === 'customer') {
+      playNotificationSound();
+    }
+    
     // 🆕 AUTO-OPEN FEATURE: Open conversation automatically for incoming customer messages
     if (autoOpenChatOnIncoming.value && sender === 'customer' && windowWidth.value >= 768) {
       console.log('🔔 Auto-opening conversation:', conversation.name);
@@ -1933,7 +1996,7 @@ const handleTouchEnd = (e) => {
           
           // Wait for transition (300ms) to finish before unmounting/hiding
           setTimeout(() => {
-              backToMenu();
+              backToMenu(false); // No animation needed - already animated above
               // Reset offset after hidden
               setTimeout(() => {
                   touchOffset.value = 0;
@@ -2002,6 +2065,10 @@ onMounted(() => {
   // Load font size preference
   loadFontSize();
   
+  // Initialize notification sound
+  initNotificationSound();
+  loadNotificationSoundSetting();
+  
   const storedId = localStorage.getItem('cms_chat_id');
   const storedPass = localStorage.getItem('cms_chat_password');
   const storedExpiry = localStorage.getItem('cms_chat_expiry');
@@ -2054,19 +2121,39 @@ onMounted(() => {
 
   });
 
-  // Handle Android Back Button
+  // Handle Android Back Button (Capacitor)
   App.addListener('backButton', () => {
+    handleBackButtonPress();
+  });
+
+  // Expose global function for Android WebView (non-Capacitor)
+  // Android Studio can call: webView.evaluateJavascript("window.onAndroidBackPressed()", null)
+  window.onAndroidBackPressed = () => {
+    return handleBackButtonPress();
+  };
+
+  // Unified back button handler for both Capacitor and WebView
+  function handleBackButtonPress() {
+    // If chat view is open, go back to menu with animation
+    if (showMobileChat.value && activeChatId.value) {
+      backToMenu(true); // Use animated back
+      return 'chat_closed'; // Return status for Android
+    }
+    
+    // If already in menu, handle double-press to exit
     const timeNow = Date.now();
     if (timeNow - lastBackPress < 2000) {
-        App.exitApp();
+      // Double press -> tell Android to exit
+      return 'should_exit';
     } else {
-        lastBackPress = timeNow;
-        showExitToast.value = true;
-        setTimeout(() => {
-            showExitToast.value = false;
-        }, 2000);
+      lastBackPress = timeNow;
+      showExitToast.value = true;
+      setTimeout(() => {
+        showExitToast.value = false;
+      }, 2000);
+      return 'toast_shown'; // First press, show toast
     }
-  });
+  }
 
   // Login Modal Delay Logic
   setTimeout(() => {
@@ -2115,6 +2202,13 @@ window.addEventListener('focus', () => {
     isTitleRed.value = false;
   }
 });
+
+// Open location in Google Maps
+const openLocation = (mapUrl) => {
+  if (mapUrl) {
+    window.open(mapUrl, '_blank');
+  }
+};
 
 </script>
 
@@ -2615,6 +2709,31 @@ window.addEventListener('focus', () => {
                   <div v-else-if="msg.type === 'reaction'" class="bg-[var(--wa-bubble-incoming)]/50 px-3 py-2 rounded-full shadow-sm flex items-center gap-2">
                      <span class="text-xl">{{ formatReactionText(msg.text) }}</span>
                      <span class="text-[10px] text-[var(--wa-text-tertiary)]">{{ msg.time }}</span>
+                  </div>
+                  
+                  <!-- Location Message -->
+                  <div v-else-if="msg.type === 'location'" 
+                     class="bg-[var(--wa-bubble-incoming)] rounded-lg overflow-hidden shadow-sm max-w-[280px] cursor-pointer hover:opacity-90 transition-opacity"
+                     @click="openLocation(msg.media_url)"
+                  >
+                     <!-- Map Preview using Static Maps or Placeholder -->
+                     <div class="w-full h-[120px] bg-gradient-to-br from-green-800/30 to-blue-900/30 flex items-center justify-center relative">
+                        <span class="text-5xl">📍</span>
+                        <div class="absolute bottom-2 right-2 bg-black/50 text-white text-[10px] px-2 py-1 rounded">
+                           <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                           </svg>
+                           Google Maps
+                        </div>
+                     </div>
+                     <!-- Location Info -->
+                     <div class="px-3 py-2">
+                        <p class="text-[var(--wa-text-primary)] text-sm leading-tight" v-html="parseWhatsAppFormatting(msg.text)"></p>
+                        <div class="flex items-center justify-between mt-1">
+                           <span v-if="msg.media_caption" class="text-[10px] text-[var(--wa-text-tertiary)]">{{ msg.media_caption }}</span>
+                           <span class="text-[11px] text-[var(--wa-text-tertiary)]">{{ msg.time }}</span>
+                        </div>
+                     </div>
                   </div>
                   
                   <!-- Text Message: Normal style -->

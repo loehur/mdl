@@ -112,8 +112,7 @@ class WAReplies
                     // If auto_reply is false, skip handler but still return priority
                     if (!$autoReply) {
                         return (object) [
-                            'status' => null,
-                            'ai' => false,
+                            'status' => null,   
                             'case' => $caseVal
                         ];
                     }
@@ -133,7 +132,6 @@ class WAReplies
                         
                         return (object) [
                             'status' => null,
-                            'ai' => false,
                             'case' => $caseVal
                         ];
                     }
@@ -141,10 +139,9 @@ class WAReplies
             }
         }
 
-        if ($messageLength == 0) {
+        if ($messageLength >= 0 && $messageLength <= 8) {
             return (object) [
                 'status' => null,
-                'ai' => false,
                 'case' => null
             ];
         }
@@ -154,7 +151,6 @@ class WAReplies
             // AI is in cooldown, skip - don't update priority
             return (object) [
                 'status' => null,
-                'ai' => false,
                 'case' => null  // null = don't update case
             ];
         }
@@ -167,7 +163,6 @@ class WAReplies
             if (in_array($aiResult, $matchPatterns)) {
                 return (object) [
                     'status' => null,
-                    'ai' => false,
                     'case' => null
                 ];
             }
@@ -180,7 +175,6 @@ class WAReplies
             
             return (object) [
                 'status' => null,
-                'ai' => true,
                 'case' => $aiCase
             ];
         }
@@ -188,7 +182,6 @@ class WAReplies
         // AI failed or returned FALSE (unknown intent) - needs manual attention
         return (object) [
             'status' => null,
-            'ai' => false,
             'case' => 4
         ];
     }
