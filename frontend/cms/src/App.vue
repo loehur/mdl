@@ -393,6 +393,12 @@ const parseWhatsAppFormatting = (text) => {
   return formatted;
 };
 
+// Format Reaction Text (safely handle null)
+const formatReactionText = (text) => {
+  if (!text) return '👍'; // Default emoji if text is null/undefined
+  return text.replace('Reacted: ', '').replace('Removed reaction', '👎');
+};
+
 // Format Last Time for Conversation List (WhatsApp Style)
 const formatLastTime = (dateString) => {
   if (!dateString) return '';
@@ -2200,7 +2206,7 @@ window.addEventListener('focus', () => {
                   
                   <!-- Reaction Message -->
                   <div v-else-if="msg.type === 'reaction'" class="bg-[var(--wa-bubble-incoming)]/50 px-3 py-2 rounded-full shadow-sm flex items-center gap-2">
-                     <span class="text-xl">{{ msg.text.replace('Reacted: ', '').replace('Removed reaction', '👎') }}</span>
+                     <span class="text-xl">{{ formatReactionText(msg.text) }}</span>
                      <span class="text-[10px] text-[var(--wa-text-tertiary)]">{{ msg.time }}</span>
                   </div>
                   
@@ -2262,7 +2268,7 @@ window.addEventListener('focus', () => {
                   
                   <!-- Reaction Message (rarely sent by agents, but supported) -->
                   <div v-else-if="msg.type === 'reaction'" class="bg-[var(--wa-bubble-outgoing)]/50 px-3 py-2 rounded-full shadow-sm flex items-center gap-2">
-                     <span class="text-xl">{{ msg.text.replace('Reacted: ', '').replace('Removed reaction', '👎') }}</span>
+                     <span class="text-xl">{{ formatReactionText(msg.text) }}</span>
                      <span class="text-[10px] text-white/70">{{ msg.time }}</span>
                   </div>
                   
