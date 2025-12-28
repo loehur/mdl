@@ -9,9 +9,9 @@ return [
             '/(pa*gi|so*re|si*a*ng|ma*la*m|ha*e*l+o+)\s*\b(ba*n*g|ka*k|pa*k|i*bu*k*|a*de*k*|a*na*k)/i',
             '/^\s*.\s*$/i',
         ],
-        'ai_prompt' => "User memberi sapaan awal, contoh:\n
-        | halo | hai | ping | pagi | siang | malam | sore | kak | bang | pak | bu\n
-        atau yang menurut anda sangat yakin sebagai sapaan awal"
+        'ai_prompt' => "User HANYA memberi sapaan awal singkat tanpa permintaan/isi pesan lain.\n
+        Contoh: | halo | hai | ping | pagi | siang | malam | sore | kak | bang | pak | bu |\n
+        PENTING: JIKA sapaan diikuti kalimat permintaan (misal: 'Bang, baju dulukan', 'Kak, jemput ya'), ini BUKAN PEMBUKA."
     ],
 
     'NOTA' => [
@@ -55,7 +55,7 @@ return [
         'patterns' => [
             '/(bi*sa*|bo*le*h).*(sa*ya*|a*ku|ka*mi).*(di)?(ambi*l|je*m*pu*t)/i',
         ],
-        'ai_prompt' => 'User melakukan permintaan khusus (waktu selesai, parfum, lipatan) ATAU user mengkonfirmasi akan datang mengambil/menjemput sendiri laundrynya (misal: "minggu malam ku jemput", "nanti saya ambil").'
+        'ai_prompt' => 'User melakukan permintaan khusus terkait laundry (waktu selesai dipercepat/didulukan, prioritas, ganti parfum, cara lipat) ATAU user mengkonfirmasi akan datang mengambil/menjemput sendiri laundrynya.'
     ],
 
     'JAM_OPERASIONAL' => [
