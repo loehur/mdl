@@ -248,6 +248,17 @@ class WAReplies
              foreach ($pendingNotifs as $notif) {
                  $idNotif = $notif['id_notif'];
                  
+                 // 🔒 LOCK: Update state to 'sending' first to prevent race condition
+                 $locked = $db1->update('notif', 
+                     ['state' => 'sending'], 
+                     ['id_notif' => $idNotif, 'state' => 'pending'] // Only update if still pending
+                 );
+                 
+                 // If lock failed (already being sent by another process), skip
+                 if (!$locked) {
+                     continue;
+                 }
+                 
                  // Send message (Free text is allowed now since customer just messaged us)
                  $res = $waService->sendFreeText($waNumber, $notif['text']);
                  
@@ -415,6 +426,18 @@ class WAReplies
         if (!empty($pendingNotifs)) {
              foreach ($pendingNotifs as $notif) {
                  $idNotif = $notif['id_notif'];
+                 
+                 // 🔒 LOCK: Update state to 'sending' first to prevent race condition
+                 $locked = $db1->update('notif', 
+                     ['state' => 'sending'], 
+                     ['id_notif' => $idNotif, 'state' => 'pending'] // Only update if still pending
+                 );
+                 
+                 // If lock failed (already being sent by another process), skip
+                 if (!$locked) {
+                     continue;
+                 }
+                 
                  // Send message (Free text is allowed now since customer just messaged us)
                  $res = $waService->sendFreeText($waNumber, $notif['text']);
                  
