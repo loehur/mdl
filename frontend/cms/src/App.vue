@@ -69,7 +69,7 @@ const isRequest = ref(false);
 const isReopeningConversation = ref(false);
 
 // Auto-Open Chat on Incoming Message
-const autoOpenChatOnIncoming = ref(true); // Set false if you want manual open only
+const autoOpenChatOnIncoming = ref(false); // Set false if you want manual open only
 
 
 // SSE (Server-Sent Events) for real-time updates
