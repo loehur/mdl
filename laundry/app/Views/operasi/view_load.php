@@ -342,7 +342,7 @@ $labeled = false;
               if (strlen($show_diskon) > 0) {
                 $tampilDiskon = "(Disc. " . $show_diskon . ")";
                 $show_total = "<del>" . number_format($f7 * $qty_real) . "</del><br>" . number_format($total);
-                $show_total_print = "-" . number_format(($f7 * $qty_real) - $total) . " " . number_format($total);
+                $show_total_print = "(-" . number_format(($f7 * $qty_real) - $total) . ") " . number_format($total);
                 $show_total_notif = "~" . number_format($f7 * $qty_real) . "~ " . number_format($total) . " ";
               } else {
                 $tampilDiskon = "";
