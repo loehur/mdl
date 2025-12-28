@@ -82,6 +82,7 @@ const isCheckingPayment = ref(false);
 const isPickupDelivery = ref(false);
 const isRequest = ref(false);
 const isReopeningConversation = ref(false);
+const showResolveMenu = ref(false); // New state
 
 // Auto-Open Chat on Incoming Message
 const autoOpenChatOnIncoming = ref(false); // Set false if you want manual open only
@@ -172,6 +173,21 @@ const filteredConversations = computed(() => {
     // Fallback to API order (time)
     return 0;
   });
+});
+
+// Computed: Cases available to resolve based on Role
+const resolveableCases = computed(() => {
+    if (!activeConversation.value || !activeConversation.value.cases) return [];
+    
+    const role = currentUserRole.value;
+    // Filter open cases
+    const openCases = activeConversation.value.cases.filter(c => (c.status || 'open') !== 'closed' && c.case > 0);
+    
+    if (role === 'admin') return openCases;
+    if (role === 'driver') return openCases.filter(c => c.case === 2);
+    if (role === 'crew') return openCases.filter(c => c.case === 3);
+    
+    return []; // default no access
 });
 
 // Total unread messages count
@@ -854,6 +870,32 @@ const reopenConversation = async () => {
     }
 };
 
+const resolveCase = async (caseId) => {
+    if (!activeConversation.value) return;
+    try {
+        const response = await fetch(`${API_BASE}/CMS/Chat/resolveCase`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                phone: activeConversation.value.wa_number,
+                case: caseId,
+                user_id: authId.value
+            })
+        });
+        const res = await response.json();
+        if (res.status) {
+             // Optimistic Update: Remove from local list
+             if (activeConversation.value.cases) {
+                 activeConversation.value.cases = activeConversation.value.cases.filter(x => x.case !== caseId);
+             }
+             showResolveMenu.value = false;
+             console.log('Case resolved:', caseId);
+        }
+    } catch (e) {
+        console.error("Error resolving case:", e);
+    }
+};
+
 const selectChat = async (id) => {
   activeChatId.value = id;
   showMobileChat.value = true;
@@ -1484,6 +1526,23 @@ const connectWebSocket = () => {
            }
 
           
+           if (payload.type === 'case_resolved') {
+               console.log('[WS] case_resolved received:', payload);
+               const normalizePhone = (phone) => {
+                  if (!phone) return '';
+                  return phone.toString().replace(/\D/g, ''); 
+               };
+               const targetPhone = normalizePhone(payload.phone);
+               const conv = conversations.value.find(c => normalizePhone(c.wa_number) === targetPhone);
+               
+               if (conv && conv.cases) {
+                   // Remove resolved case from view
+                   const resolvedCase = parseInt(payload.case);
+                   conv.cases = conv.cases.filter(x => x.case !== resolvedCase);
+               }
+               return;
+           }
+
           // Handle Agent Message Sent (from other devices)
           if (payload.type === 'agent_message_sent') {
               const conversationId = payload.conversation_id;
@@ -2186,7 +2245,37 @@ window.addEventListener('focus', () => {
              </div>
           </div>
           
+          
           <div class="flex items-center gap-2 text-[var(--wa-icon-default)] flex-shrink-0 relative">
+             <!-- Resolve Case Button -->
+             <div class="relative"> 
+                 <button 
+                    v-if="resolveableCases.length > 0"
+                    @click.stop="showResolveMenu = !showResolveMenu"
+                    class="hover:text-[var(--wa-text-primary)] transition-colors p-2 rounded-full hover:bg-[var(--wa-hover)] text-green-500"
+                    title="Resolve Cases"
+                 >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                 </button>
+                 
+                 <!-- Resolve Menu Dropdown -->
+                 <div v-if="showResolveMenu" class="absolute right-0 top-full mt-2 w-48 bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-lg shadow-xl overflow-hidden z-20">
+                    <div class="px-3 py-2 text-xs font-semibold text-[var(--wa-text-tertiary)] uppercase bg-[var(--wa-bg-tertiary)]">
+                        Mark as Done
+                    </div>
+                    <button 
+                        v-for="c in resolveableCases" 
+                        :key="c.case"
+                        @click="resolveCase(c.case)"
+                        class="w-full px-4 py-3 text-left hover:bg-[var(--wa-hover)] transition-colors flex items-center gap-3 text-sm text-[var(--wa-text-primary)] border-b border-[var(--wa-divider)] last:border-0"
+                    >
+                        <div class="w-3 h-3 rounded-full" :class="getCaseColor(c.case)"></div>
+                        <span>Case {{ c.case }}</span>
+                    </button>
+                 </div>
+             </div>
               <!-- Three Dots Menu Button - ACTIVE -->
               <div class="relative">
                 <button 
