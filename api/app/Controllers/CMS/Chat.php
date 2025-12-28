@@ -51,7 +51,15 @@ class Chat extends Controller
             if ($userId && !$isAdmin) {
                if ($isDriver) {
                    // Driver Role: Only Priority 2 (Pickup/Delivery)
-                   $whereClause .= " AND c.priority = 2";
+                   // Handle Legacy Int, Single JSON Object, and JSON Array List
+                   // Structure: [{"case": 2, ...}, ...]
+                   // Using LIKE for broad compatibility (searching 2 or 4)
+                   $whereClause .= " AND (
+                        c.conv_case LIKE '%\"case\":2%'
+                        OR c.conv_case LIKE '%\"case\":\"2\"%'
+                        OR c.conv_case LIKE '%\"case\":4%'
+                        OR c.conv_case LIKE '%\"case\":\"4\"%'
+                   )";
                } else {
                    // Crew Role: Filter by assigned_user_id
                    // For numeric IDs, use intval for safety
@@ -72,7 +80,7 @@ class Chat extends Controller
                     c.wa_number, 
                     c.contact_name, 
                     c.status,
-                    c.priority,
+                    c.conv_case,
                     (
                         SELECT COUNT(*) 
                         FROM wa_messages_in m 
@@ -85,20 +93,56 @@ class Chat extends Controller
                     COALESCE(c.code, '00') as kode_cabang
                 FROM wa_conversations c
                 WHERE $whereClause
-                ORDER BY c.priority DESC, c.last_message_at DESC
+                ORDER BY c.conv_case DESC, c.last_message_at DESC
             ";
     
             $query = $db->query($sql);
             
             if (!$query) {
-                 // DB Error in query preparing or something unknown
-                 // Since we use $db->query() which throws exception on prepare failure inside,
-                 // we might not reach here unless logic changes.
-                 // But let's be safe and check connection error
+                 // DB Error checking
                 throw new \Exception("Database Query Failed: " . $db->conn()->error);
             }
 
             $conversations = $query->result();
+            
+            // Normalize Case/Priority (Handle JSON Array List)
+            foreach ($conversations as &$conv) {
+                // Default values
+                $conv->priority = 0; 
+                $conv->case_val = 0;
+                $conv->case_status = null;
+                $conv->case_history = []; // New field for full history
+
+                // Check if 'conv_case' column exists and has content
+                if (isset($conv->conv_case)) {
+                    // If JSON
+                    if (is_string($conv->conv_case) && (strpos(trim($conv->conv_case), '{') === 0 || strpos(trim($conv->conv_case), '[') === 0)) {
+                        $jsonP = json_decode($conv->conv_case, true);
+                        
+                        if (is_array($jsonP)) {
+                            // Check if List (Array of Objects)
+                            if (isset($jsonP[0])) {
+                                // It's a list, take the LAST item as current active case
+                                $lastItem = end($jsonP);
+                                $conv->case_val = (int)($lastItem['case'] ?? 0);
+                                $conv->case_status = $lastItem['status'] ?? null;
+                                $conv->case_history = $jsonP;
+                            } elseif (isset($jsonP['case'])) {
+                                // Single Object (Legacy JSON)
+                                $conv->case_val = (int)$jsonP['case'];
+                                $conv->case_status = $jsonP['status'] ?? null;
+                                $conv->case_history = [$jsonP];
+                            }
+                        }
+                    } elseif (is_numeric($conv->conv_case)) {
+                        // Legacy integer in 'conv_case' column
+                        $conv->case_val = (int)$conv->conv_case;
+                    }
+                    
+                    // Backward compatibility for Frontend expecting 'priority'
+                    $conv->priority = $conv->case_val;
+                }
+            }
             
             // Check what we actually got
             if (empty($conversations)) {
@@ -305,8 +349,11 @@ class Chat extends Controller
     public function markAsDone()
     {
         try {
+            $this->handleCors();
             $body = json_decode(file_get_contents('php://input'), true);
             $phone = $body['phone'] ?? null;
+            // Get case from body, default to 0 if not provided
+            $caseVal = $body['case'] ?? 0;
             
             if (!$phone) {
                 $this->error('Phone required');
@@ -314,9 +361,19 @@ class Chat extends Controller
             
             $db = $this->db(0);
             
-            // Update priority to 0 (done/resolved)
+            // Update case (Overwrite history for manual action)
+            $jsonCase = json_encode([[
+                'case' => (int)$caseVal,
+                'status' => 'done',
+                'timestamp' => date('Y-m-d H:i:s')
+            ]]);
+            
+            // NOTE: Also close conversation
             $updated = $db->update('wa_conversations', 
-                ['priority' => 0], 
+                [
+                    'conv_case' => $jsonCase,
+                    'status' => 'closed'
+                ], 
                 ['wa_number' => $phone]
             );
             
@@ -325,20 +382,20 @@ class Chat extends Controller
                 $userId = $_SERVER['HTTP_USER_ID'] ?? $body['user_id'] ?? null;
                 
                 $payload = [
-                    'type' => 'priority_updated',
+                    'type' => 'case_updated', // Changed from priority_updated
                     'phone' => $phone,
-                    'priority' => 0,
+                    'case' => (int)$caseVal,
                     'target_id' => '0', // Broadcast to all
                     'sender_id' => $userId
                 ];
                 
                 
-                \Log::write("Pushing priority update to WebSocket: " . json_encode($payload), 'cms_ws', 'Chat');
+                \Log::write("Pushing case update to WebSocket: " . json_encode($payload), 'cms_ws', 'Chat');
                 $this->pushToWebSocket($payload);
                 
-                $this->success(['priority' => 0], 'Conversation marked as done');
+                $this->success(['case' => (int)$caseVal], 'Conversation marked as done');
             } else {
-                $this->error('Failed to update priority');
+                $this->error('Failed to update case');
             }
             
         } catch (\Throwable $e) {
@@ -351,43 +408,55 @@ class Chat extends Controller
             exit;
         }
     }
-    
-    public function checkPayment()
+
+    /**
+     * Unified Case Update Endpoint
+     * Replaces checkPayment, pickupDelivery, requestPriority
+     * Client must send 'case' value from body
+     */
+    public function updateCase()
     {
         try {
+            $this->handleCors();
             $body = json_decode(file_get_contents('php://input'), true);
             $phone = $body['phone'] ?? null;
+            $caseVal = $body['case'] ?? null;
+            $userId = $_SERVER['HTTP_USER_ID'] ?? $body['user_id'] ?? null;
             
-            if (!$phone) {
-                $this->error('Phone required');
-            }
+            if (!$phone) $this->error('Phone required');
+            if ($caseVal === null) $this->error('Case value (case) required');
             
             $db = $this->db(0);
             
-            // Update priority to 1 (check payment - GREEN)
+            // Update case with status 'open' (as requested)
+            // Overwrite history with new single-item list
+            $jsonCase = json_encode([[
+                'case' => (int)$caseVal,
+                'status' => 'open',
+                'timestamp' => date('Y-m-d H:i:s')
+            ]]);
+            
             $updated = $db->update('wa_conversations', 
-                ['priority' => 1], 
+                ['conv_case' => $jsonCase], 
                 ['wa_number' => $phone]
             );
             
             if ($updated) {
-                // Push WebSocket to update all clients
-                $userId = $_SERVER['HTTP_USER_ID'] ?? $body['user_id'] ?? null;
-                
+                // Push WebSocket
                 $payload = [
-                    'type' => 'priority_updated',
+                    'type' => 'case_updated',
                     'phone' => $phone,
-                    'priority' => 1,
-                    'target_id' => '0', // Broadcast to all
+                    'case' => (int)$caseVal,
+                    'target_id' => '0',
                     'sender_id' => $userId
                 ];
                 
-                \Log::write("Pushing priority update to WebSocket: " . json_encode($payload), 'cms_ws', 'Chat');
+                \Log::write("Pushing case update to WebSocket: " . json_encode($payload), 'cms_ws', 'Chat');
                 $this->pushToWebSocket($payload);
                 
-                $this->success(['priority' => 1], 'Conversation marked for payment check');
+                $this->success(['case' => (int)$caseVal], 'Case updated');
             } else {
-                $this->error('Failed to update priority');
+                $this->error('Failed to update case');
             }
             
         } catch (\Throwable $e) {
@@ -400,104 +469,7 @@ class Chat extends Controller
             exit;
         }
     }
-    
-    public function pickupDelivery()
-    {
-        try {
-            $body = json_decode(file_get_contents('php://input'), true);
-            $phone = $body['phone'] ?? null;
-            
-            if (!$phone) {
-                $this->error('Phone required');
-            }
-            
-            $db = $this->db(0);
-            
-            // Update priority to 2 (pickup/delivery - YELLOW)
-            $updated = $db->update('wa_conversations', 
-                ['priority' => 2], 
-                ['wa_number' => $phone]
-            );
-            
-            if ($updated) {
-                // Push WebSocket to update all clients
-                $userId = $_SERVER['HTTP_USER_ID'] ?? $body['user_id'] ?? null;
-                
-                $payload = [
-                    'type' => 'priority_updated',
-                    'phone' => $phone,
-                    'priority' => 2,
-                    'target_id' => '0', // Broadcast to all
-                    'sender_id' => $userId
-                ];
-                
-                \Log::write("Pushing priority update to WebSocket: " . json_encode($payload), 'cms_ws', 'Chat');
-                $this->pushToWebSocket($payload);
-                
-                $this->success(['priority' => 2], 'Conversation marked for pickup/delivery');
-            } else {
-                $this->error('Failed to update priority');
-            }
-            
-        } catch (\Throwable $e) {
-            http_response_code(500);
-            header('Content-Type: application/json');
-            echo json_encode([
-                'status' => false, 
-                'message' => "Server Error: " . $e->getMessage()
-            ]);
-            exit;
-        }
-    }
-    
-    public function requestPriority()
-    {
-        try {
-            $body = json_decode(file_get_contents('php://input'), true);
-            $phone = $body['phone'] ?? null;
-            
-            if (!$phone) {
-                $this->error('Phone required');
-            }
-            
-            $db = $this->db(0);
-            
-            // Update priority to 3 (request - PINK)
-            $updated = $db->update('wa_conversations', 
-                ['priority' => 3], 
-                ['wa_number' => $phone]
-            );
-            
-            if ($updated) {
-                // Push WebSocket to update all clients
-                $userId = $_SERVER['HTTP_USER_ID'] ?? $body['user_id'] ?? null;
-                
-                $payload = [
-                    'type' => 'priority_updated',
-                    'phone' => $phone,
-                    'priority' => 3,
-                    'target_id' => '0', // Broadcast to all
-                    'sender_id' => $userId
-                ];
-                
-                \Log::write("Pushing priority update to WebSocket: " . json_encode($payload), 'cms_ws', 'Chat');
-                $this->pushToWebSocket($payload);
-                
-                $this->success(['priority' => 3], 'Conversation marked as request');
-            } else {
-                $this->error('Failed to update priority');
-            }
-            
-        } catch (\Throwable $e) {
-            http_response_code(500);
-            header('Content-Type: application/json');
-            echo json_encode([
-                'status' => false, 
-                'message' => "Server Error: " . $e->getMessage()
-            ]);
-            exit;
-        }
-    }
+
     
     public function reopenConversation()
     {
@@ -511,9 +483,16 @@ class Chat extends Controller
             
             $db = $this->db(0);
             
-            // Update priority to 4 (urgent - needs attention)
+            // Update case to 4 (urgent)
+            $caseVal = 4;
+            $jsonCase = json_encode([[
+                'case' => $caseVal,
+                'status' => 'reopened',
+                'timestamp' => date('Y-m-d H:i:s')
+            ]]);
+            
             $updated = $db->update('wa_conversations', 
-                ['priority' => 4], 
+                ['conv_case' => $jsonCase], 
                 ['wa_number' => $phone]
             );
             
@@ -522,19 +501,19 @@ class Chat extends Controller
                 $userId = $_SERVER['HTTP_USER_ID'] ?? $body['user_id'] ?? null;
                 
                 $payload = [
-                    'type' => 'priority_updated',
+                    'type' => 'case_updated',
                     'phone' => $phone,
-                    'priority' => 4,
+                    'case' => $caseVal,
                     'target_id' => '0', // Broadcast to all
                     'sender_id' => $userId
                 ];
                 
-                \Log::write("Pushing priority update to WebSocket: " . json_encode($payload), 'cms_ws', 'Chat');
+                \Log::write("Pushing case update to WebSocket: " . json_encode($payload), 'cms_ws', 'Chat');
                 $this->pushToWebSocket($payload);
                 
-                $this->success(['priority' => 4], 'Conversation reopened - needs attention');
+                $this->success(['case' => 4], 'Conversation reopened - needs attention');
             } else {
-                $this->error('Failed to update priority');
+                $this->error('Failed to update case');
             }
             
         } catch (\Throwable $e) {

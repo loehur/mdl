@@ -313,13 +313,13 @@ class WhatsApp extends Controller
                 $autoReplyResult = (new \App\Models\WAReplies())->process($phoneIn, $messageText, $waNumber);
                 
                 // Extract values from result object
-                $currentPriority = $autoReplyResult->priority;
+                $currentCase = $autoReplyResult->priority;
                 $messageStatus = $autoReplyResult->status ?? null;
                 
-                // Priority logic based on customer registration status
-                // If customer registered -> keep auto-reply priority or set to 0 for high priority
+                // Case logic based on customer registration status
+                // If customer registered -> keep auto-reply case or set to 0
                 if($code === null){
-                    $currentPriority = 0;
+                    $currentCase = 0;
                 }
                 
                 // Update message status if status is set
@@ -333,14 +333,15 @@ class WhatsApp extends Controller
                 
                 // Get or create conversation with all updates in one call
 
-                $conversationId = $this->getOrCreateConversationWithPriority(
+                // Get or create conversation with all updates in one call
+                $conversationId = $this->getOrCreateConversationWithCase(
                     $db, 
                     $waNumber, 
                     $contact_name, 
                     $assigned_user_id, 
                     $code, 
                     $lastMessageSummary,
-                    $currentPriority
+                    $currentCase
                 );
 
 
@@ -348,7 +349,7 @@ class WhatsApp extends Controller
                     'conversation_id' => $conversationId,
                     'phone' => $waNumber,
                     'contact_name' => $contact_name,
-                    'priority' => $currentPriority, 
+                    'case' => $currentCase, 
                     'message' => [
                         'id' => $msgId, // local DB ID
                         'text' => $textBody,
@@ -571,10 +572,10 @@ class WhatsApp extends Controller
     }
 
     /**
-     * Get existing conversation or create new one with priority update
-     * This combines conversation creation/update with priority in one DB operation
+     * Get existing conversation or create new one with case update
+     * This combines conversation creation/update with case in one DB operation
      */
-    private function getOrCreateConversationWithPriority($db, $waNumber, $contactName = null, $assigned_user_id = null, $code = null, $lastMessage = null, $priority = null)
+    private function getOrCreateConversationWithCase($db, $waNumber, $contactName = null, $assigned_user_id = null, $code = null, $lastMessage = null, $case = null)
     {
         // Try to find existing conversation
         $existing = $db->get_where('wa_conversations', ['wa_number' => $waNumber]);
@@ -592,9 +593,41 @@ class WhatsApp extends Controller
                 'last_message' => $lastMessage,
             ];
             
-            // Only update priority if not null
-            if ($priority !== null) {
-                $updateData['priority'] = $priority;
+            // Only update case if not null (Append to existing list)
+            if ($case !== null) {
+                $caseList = [];
+                
+                // 1. Retrieve & Decode existing content
+                if (!empty($conv->conv_case)) {
+                    $decoded = json_decode($conv->conv_case, true);
+                    
+                    if (is_array($decoded)) {
+                        // Check if it's already a List (Numerical keys) or Single Object (Assoc)
+                        // If keys are 0,1,2... it's a list. If 'case','status'... it's an object.
+                        $isList = isset($decoded[0]);
+                        
+                        if ($isList) {
+                            $caseList = $decoded;
+                        } else {
+                            // Convert single legacy object to list
+                            if (!empty($decoded)) {
+                                $caseList[] = $decoded;
+                            }
+                        }
+                    } elseif (is_numeric($conv->conv_case)) {
+                        // Handle strict legacy integer data
+                        $caseList[] = ['case' => (int)$conv->conv_case, 'status' => 'unknown'];
+                    }
+                }
+                
+                // 2. Append New Case
+                $caseList[] = [
+                    'case' => $case,
+                    'status' => 'open',
+                    'timestamp' => date('Y-m-d H:i:s')
+                ];
+                
+                $updateData['conv_case'] = json_encode($caseList);
             }
             
             $db->update('wa_conversations', 
@@ -622,9 +655,14 @@ class WhatsApp extends Controller
             'last_message' => $lastMessage,
         ];
         
-        // Only set priority if not null
-        if ($priority !== null) {
-            $convData['priority'] = $priority;
+        // Only set case if not null (Store as JSON List)
+        if ($case !== null) {
+            // Initialize as Array containing the first case
+            $convData['conv_case'] = json_encode([[
+                'case' => $case,
+                'status' => 'open',
+                'timestamp' => date('Y-m-d H:i:s')
+            ]]);
         }
 
         if($db->insert('wa_conversations', $convData)) {

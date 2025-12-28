@@ -17,6 +17,19 @@ const getAvatarColor = (seed) => {
   return colors[num % colors.length];
 };
 
+// Case Color Helper
+const getCaseColor = (caseId) => {
+    // 1=Payment, 2=Pickup, 3=Request, 4=Reopen/Urgent
+    switch(parseInt(caseId)) {
+        case 1: return 'bg-green-500';
+        case 2: return 'bg-yellow-500';
+        case 3: return 'bg-red-500';
+        case 4: return 'bg-purple-500';
+        case 0: return 'bg-slate-500'; 
+        default: return 'hidden'; // Hide unknown/0 if preferred, or slate
+    }
+};
+
 // --- State ---
 // --- State ---
 const API_BASE = 'https://api.nalju.com';
@@ -145,29 +158,18 @@ const filteredConversations = computed(() => {
   }
   
   // **NEW SORTING LOGIC**:
-  // 1. Priority > 0: Top of list, sorted by priority DESC
-  // 2. Priority = 0: Below, sorted by updated_at (most recent first)
+  // Sort by updated_at (most recent first) - Case/Priority doesn't force top anymore per request?
+  // User said: "lingkaran2 berwarna sesuai beberapa case".
+  // Let's keep sorting by existence of ANY active case > 0 first, then time.
   return list.sort((a, b) => {
-    const aPriority = a.priority || 0;
-    const bPriority = b.priority || 0;
+    // Check if has any active case (>0)
+    const aHasCase = a.cases && a.cases.some(c => c.case > 0);
+    const bHasCase = b.cases && b.cases.some(c => c.case > 0);
     
-    // Case 1: Both have priority > 0 → sort by priority DESC
-    if (aPriority > 0 && bPriority > 0) {
-      return bPriority - aPriority;
-    }
+    if (aHasCase && !bHasCase) return -1;
+    if (!aHasCase && bHasCase) return 1;
     
-    // Case 2: Only A has priority > 0 → A comes first
-    if (aPriority > 0 && bPriority === 0) {
-      return -1;
-    }
-    
-    // Case 3: Only B has priority > 0 → B comes first
-    if (aPriority === 0 && bPriority > 0) {
-      return 1;
-    }
-    
-    // Case 4: Both have priority = 0 → sort by updated_at (already sorted from API)
-    // Keep original order from API (which is sorted by updated_at DESC)
+    // Fallback to API order (time)
     return 0;
   });
 });
@@ -211,6 +213,35 @@ const fetchConversations = async () => {
             const newOrder = [];
 
             result.data.forEach(c => {
+                // Normalizer helper for cases
+                const parseCases = (c) => {
+                    let cases = [];
+                    // 1. Try case_history (array from backend)
+                    if (Array.isArray(c.case_history)) {
+                        cases = c.case_history;
+                    } 
+                    // 2. Try parsing raw 'conv_case' OR 'case' column if string JSON
+                    else {
+                        // 2. Try parsing raw 'conv_case' OR 'case' column if string JSON
+                        const rawCase = c.conv_case || c.case;
+                        if (typeof rawCase === 'string' && (rawCase.startsWith('[') || rawCase.startsWith('{'))) {
+                            try {
+                                const parsed = JSON.parse(rawCase);
+                                if (Array.isArray(parsed)) cases = parsed;
+                                else if (parsed.case) cases = [parsed];
+                            } catch(e) {}
+                        }
+                        
+                        // 3. Fallback: Legacy Priority/Case Val (Only if still empty)
+                        if (cases.length === 0 && (c.priority > 0 || c.case_val > 0)) {
+                             cases = [{ case: parseInt(c.priority || c.case_val || 0) }];
+                        }
+                    }
+                    
+                    // Filter out 0 case if there are others, or just keep distinct
+                    return cases;
+                };
+
                 let convo = existingMap.get(c.id);
                 
                 if (convo) {
@@ -218,7 +249,9 @@ const fetchConversations = async () => {
                     convo.wa_number = c.wa_number;
                     convo.name = c.contact_name || c.wa_number;
                     convo.kode_cabang = c.kode_cabang;
-                    convo.priority = parseInt(c.priority) || 0;
+                    // convo.priority = parseInt(c.priority) || 0; // Legacy ignored
+                    convo.cases = parseCases(c); // New Array
+                    
                     convo.initials = (c.contact_name || c.wa_number || '?').substring(0, 1).toUpperCase();
                     convo.color = getAvatarColor(c.id);
                     convo.status = c.status;
@@ -234,7 +267,9 @@ const fetchConversations = async () => {
                         wa_number: c.wa_number,
                         name: c.contact_name || c.wa_number,
                         kode_cabang: c.kode_cabang,
-                        priority: parseInt(c.priority) || 0,
+                        // priority: parseInt(c.priority) || 0,
+                        cases: parseCases(c),
+                        
                         initials: (c.contact_name || c.wa_number || '?').substring(0, 1).toUpperCase(),
                         color: getAvatarColor(c.id),
                         status: c.status,  
@@ -637,8 +672,8 @@ const markAsDone = async () => {
         const res = await response.json();
         
         if (res.status) {
-            // Update local priority
-            activeConversation.value.priority = 0;
+            // Update local cases
+            activeConversation.value.cases = [{case: 0}]; 
             console.log('✓ Conversation marked as done');
             
             // ℹ️ SSE will broadcast update to all other clients automatically!
@@ -664,11 +699,12 @@ const checkPayment = async () => {
         isCheckingPayment.value = true;
         showChatMenu.value = false; // Close menu
         
-        const response = await fetch(`${API_BASE}/CMS/Chat/checkPayment`, {
+        const response = await fetch(`${API_BASE}/CMS/Chat/updateCase`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ 
                 phone: activeConversation.value.wa_number,
+                case: 1,
                 user_id: authId.value
             })
         });
@@ -676,8 +712,8 @@ const checkPayment = async () => {
         const res = await response.json();
         
         if (res.status) {
-            // Update local priority
-            activeConversation.value.priority = 1;
+            // Update local cases
+            activeConversation.value.cases = [{case: 1}];
             console.log('✓ Conversation marked for payment check');
         } else {
             console.error('Failed to mark for payment check:', res.message);
@@ -700,11 +736,12 @@ const pickupDelivery = async () => {
         isPickupDelivery.value = true;
         showChatMenu.value = false; // Close menu
         
-        const response = await fetch(`${API_BASE}/CMS/Chat/pickupDelivery`, {
+        const response = await fetch(`${API_BASE}/CMS/Chat/updateCase`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ 
                 phone: activeConversation.value.wa_number,
+                case: 2,
                 user_id: authId.value
             })
         });
@@ -712,8 +749,8 @@ const pickupDelivery = async () => {
         const res = await response.json();
         
         if (res.status) {
-            // Update local priority
-            activeConversation.value.priority = 2;
+            // Update local cases
+            activeConversation.value.cases = [{case: 2}];
             console.log('✓ Conversation marked for pickup/delivery');
         } else {
             console.error('Failed to mark for pickup/delivery:', res.message);
@@ -736,11 +773,12 @@ const requestPriority = async () => {
         isRequest.value = true;
         showChatMenu.value = false; // Close menu
         
-        const response = await fetch(`${API_BASE}/CMS/Chat/requestPriority`, {
+        const response = await fetch(`${API_BASE}/CMS/Chat/updateCase`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ 
                 phone: activeConversation.value.wa_number,
+                case: 3,
                 user_id: authId.value
             })
         });
@@ -748,8 +786,8 @@ const requestPriority = async () => {
         const res = await response.json();
         
         if (res.status) {
-            // Update local priority
-            activeConversation.value.priority = 3;
+            // Update local cases
+            activeConversation.value.cases = [{case: 3}];
             console.log('✓ Conversation marked as request');
         } else {
             console.error('Failed to mark as request:', res.message);
@@ -784,8 +822,8 @@ const reopenConversation = async () => {
         const res = await response.json();
         
         if (res.status) {
-            // Update local priority
-            activeConversation.value.priority = 4;
+            // Update local cases
+            activeConversation.value.cases = [{case: 4}];
             console.log('✓ Conversation reopened - needs attention');
         } else {
             console.error('Failed to reopen conversation:', res.message);
@@ -1221,7 +1259,8 @@ const handleIncomingMessage = (payload) => {
       wa_number: phone, // ✅ Add wa_number
       name: name || payload.phone || 'Unknown User',
       kode_cabang: payload.kode_cabang || '00', // Set from payload
-      priority: parseInt(payload.priority) || 0, // ✅ Set priority from payload!
+      // priority: parseInt(payload.priority) || 0, // Legacy
+      cases: [{case: parseInt(payload.case || payload.priority || 0)}], // Initialize cases
       initials: (name || payload.phone || '?').substring(0, 1).toUpperCase(),
       color: getAvatarColor(conversationId),
       status: 'online', // Assume online on new msg
@@ -1240,6 +1279,10 @@ const handleIncomingMessage = (payload) => {
       // Update assignment if provided
       if (payload.assignment_user_id !== undefined) {
           conversation.assignment_user_id = payload.assignment_user_id;
+      }
+      // Update case if provided
+      if (payload.case !== undefined || payload.priority !== undefined) {
+           conversation.cases = [{case: parseInt(payload.case || payload.priority || 0)}];
       }
   }
   
@@ -1387,9 +1430,9 @@ const connectWebSocket = () => {
              return;
           }
 
-           // Handle Priority Update (Mark as Done)
-           if (payload.type === 'priority_updated') {
-               console.log('[WS] priority_updated received:', payload);
+           // Handle Case Update (Replaces Priority Update)
+           if (payload.type === 'case_updated') {
+               console.log('[WS] case_updated received:', payload);
                
                // Normalize phone number for matching (remove +, spaces, etc)
                const normalizePhone = (phone) => {
@@ -1401,11 +1444,11 @@ const connectWebSocket = () => {
                const conv = conversations.value.find(c => normalizePhone(c.wa_number) === targetPhone);
                
                if (conv) {
-                   console.log('✓ Updating priority for conversation:', conv.name, 'from', conv.priority, 'to', payload.priority);
-                   conv.priority = payload.priority;
+                   console.log('✓ Updating case for conversation:', conv.name, payload.case);
+                   conv.cases = [{case: parseInt(payload.case)}]; // Overwrite cases
+                   // Force re-sort?? Automatically handled by computed filteredConversations
                } else {
-                   console.warn('⚠️ Conversation not found for priority update:', payload.phone);
-                   console.warn('Available conversations:', conversations.value.map(c => ({name: c.name, phone: c.wa_number})));
+                   console.warn('⚠️ Conversation not found for case update:', payload.phone);
                }
                return;
            }
@@ -1983,16 +2026,7 @@ window.addEventListener('focus', () => {
           @click="selectChat(chat.id)"
           class="p-3 flex items-center gap-3 cursor-pointer transition-colors duration-150 border-b border-[var(--wa-divider)] hover:bg-[var(--wa-hover)]"
           :class="{
-            'bg-[var(--wa-active)]': activeChatId === chat.id && !chat.priority,
-            'bg-green-900/30 border-l-4 border-l-green-500': activeChatId === chat.id && chat.priority === 1,
-            'bg-yellow-900/30 border-l-4 border-l-yellow-500': activeChatId === chat.id && chat.priority === 2,
-            'bg-red-900/30 border-l-4 border-l-red-500': activeChatId === chat.id && chat.priority === 3,
-            'bg-purple-900/30 border-l-4 border-l-purple-500': activeChatId === chat.id && chat.priority === 4,
-            'border-l-0': activeChatId !== chat.id && !chat.priority,
-            'border-l-4 border-l-green-600 bg-green-950/20': activeChatId !== chat.id && chat.priority === 1,
-            'border-l-4 border-l-yellow-600 bg-yellow-950/20': activeChatId !== chat.id && chat.priority === 2,
-            'border-l-4 border-l-red-600 bg-red-950/20': activeChatId !== chat.id && chat.priority === 3,
-            'border-l-4 border-l-purple-600 bg-purple-950/20': activeChatId !== chat.id && chat.priority === 4
+            'bg-[var(--wa-active)]': activeChatId === chat.id
           }"
         >
            <div class="relative">
@@ -2011,6 +2045,18 @@ window.addEventListener('focus', () => {
                   {{ chat.name }}
                 </h3>
                 <span class="text-xs text-[var(--wa-text-tertiary)] flex-shrink-0">{{ chat.lastTime }}</span>
+              </div>
+              
+              <!-- Case Badges -->
+              <div v-if="chat.cases && chat.cases.some(c => c.case > 0)" class="flex flex-wrap gap-1.5 mb-1.5">
+                  <template v-for="(cse, idx) in chat.cases" :key="idx">
+                      <div 
+                        v-if="cse.case > 0"
+                        class="w-2.5 h-2.5 rounded-full ring-1 ring-black/20"
+                        :class="getCaseColor(cse.case)"
+                        :title="'Case: ' + cse.case"
+                      ></div>
+                  </template>
               </div>
              <div class="flex justify-between items-center">
                 <p class="text-sm text-[var(--wa-text-secondary)] truncate w-64" :class="{'font-normal text-[var(--wa-text-primary)]': chat.unread > 0}">{{ chat.lastMessage }}</p>
@@ -2074,14 +2120,7 @@ window.addEventListener('focus', () => {
       <div v-if="activeConversation" class="w-full h-full relative z-10">
         <!-- Chat Header - ABSOLUTE TOP -->
         <header 
-          class="absolute top-0 left-0 right-0 h-16 border-b flex items-center justify-between px-4 md:px-6 z-30"
-          :class="{
-            'border-[var(--wa-border)] bg-[var(--wa-bg-panel)]': !activeConversation.priority,
-            'border-green-600 bg-green-950': activeConversation.priority === 1,
-            'border-yellow-600 bg-yellow-950': activeConversation.priority === 2,
-            'border-red-600 bg-red-950': activeConversation.priority === 3,
-            'border-purple-600 bg-purple-950': activeConversation.priority === 4
-          }"
+          class="absolute top-0 left-0 right-0 h-16 border-b flex items-center justify-between px-4 md:px-6 z-30 border-[var(--wa-border)] bg-[var(--wa-bg-panel)]"
         >
           <div class="flex items-center gap-3 flex-1 min-w-0">
              <!-- Back Button (Mobile Only) -->
@@ -2100,7 +2139,20 @@ window.addEventListener('focus', () => {
              
              <div class="min-w-0 flex-1">
                <h2 class="font-medium text-[var(--wa-text-primary)] text-base md:text-lg truncate uppercase" :title="activeConversation.name">{{ activeConversation.name }}</h2>
-               <p v-if="activeConversation.kode_cabang" class="text-xs font-mono text-[var(--wa-text-secondary)]">{{ activeConversation.kode_cabang }}</p>
+               <div class="flex items-center gap-2">
+                 <p v-if="activeConversation.kode_cabang" class="text-xs font-mono text-[var(--wa-text-secondary)]">{{ activeConversation.kode_cabang }}</p>
+                 <!-- Header Case Badges -->
+                 <div v-if="activeConversation.cases && activeConversation.cases.some(c => c.case > 0)" class="flex gap-1">
+                    <template v-for="(cse, idx) in activeConversation.cases" :key="idx">
+                        <div 
+                            v-if="cse.case > 0"
+                            class="w-3 h-3 rounded-full ring-1 ring-black/20"
+                            :class="getCaseColor(cse.case)"
+                            :title="'Case: ' + cse.case"
+                        ></div>
+                    </template>
+                 </div>
+               </div>
              </div>
           </div>
           
