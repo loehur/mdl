@@ -28,7 +28,7 @@ class WAReplies
      * @param int $cooldownMinutes Cooldown period in minutes (default: 10)
      * @return bool True if can send reply
      */
-    private function shouldReply($waNumber, $handler, $cooldownMinutes = 5)
+    private function shouldReply($waNumber, $handler, $cooldownMinutes = 1)
     {
         $db = DB::getInstance(0);
 
@@ -114,28 +114,24 @@ class WAReplies
                     $autoReply = $config['auto_reply'] ?? false;
                     
                     // If auto_reply is false, skip handler but still return priority
-                    if (!$autoReply) {
-                        return (object) [
-                            'case' => $caseVal
-                        ];
-                    }
-                    
-                    // RATE LIMITING: Check if can send reply (cooldown)
-                    if (!$this->shouldReply($waNumber, $handler)) {
-                        $matchPatterns[] = $handler;
-                        continue 2; // Skip to next handler (this handler is in cooldown)
-                    }
-                    
-                    // Dynamically call handler method
-                    $handlerName = ucwords(strtolower($handler), '_');
-                    $methodName = 'handle' . $handlerName;
-                    
-                    if (method_exists($this, $methodName)) {
-                        $this->$methodName($phoneIn, $waNumber);
+                    if ($autoReply) {
+                        // RATE LIMITING: Check if can send reply (cooldown)
+                        if (!$this->shouldReply($waNumber, $handler)) {
+                            $matchPatterns[] = $handler;
+                            continue 2; // Skip to next handler (this handler is in cooldown)
+                        }
                         
-                        return (object) [
-                            'case' => $caseVal
-                        ];
+                        // Dynamically call handler method
+                        $handlerName = ucwords(strtolower($handler), '_');
+                        $methodName = 'handle' . $handlerName;
+                        
+                        if (method_exists($this, $methodName)) {
+                            $this->$methodName($phoneIn, $waNumber);
+                            
+                            return (object) [
+                                'case' => $caseVal
+                            ];
+                        }
                     }
                 }
             }
