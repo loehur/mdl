@@ -102,8 +102,9 @@ class WAReplies
             // Check regex patterns
             foreach ($patterns as $patternIndex => $pattern) {
                 if (preg_match($pattern, $textBodyToCheck)) {
-                    // Get priority from config, default to 0 if not set
-                    $priority = $config['priority'] ?? 0;
+                    // Get priority from config, default to null (don't update) if not set or explicitly null
+                    $priority = (array_key_exists('priority', $config)) ? $config['priority'] : 4;
+
                     
                     // Check if auto_reply is enabled for this handler
                     $autoReply = $config['auto_reply'] ?? false;
@@ -166,9 +167,9 @@ class WAReplies
 
                 $matchPatterns[] = $aiIntent;
 
-                $priority = isset($keywordConfig[$aiIntent]['priority']) 
+                $priority = (isset($keywordConfig[$aiIntent]) && array_key_exists('priority', $keywordConfig[$aiIntent]))
                     ? $keywordConfig[$aiIntent]['priority'] 
-                    : null;
+                    : 4;
                 
                 return (object) [
                     'status' => null,
@@ -210,9 +211,9 @@ class WAReplies
             // AI successfully detected intent, get priority from config
             $aiIntent = strtoupper($aiResult);
             // Get priority from config, respecting null values (null = don't update priority)
-            $aiPriority = isset($keywordConfig[$aiIntent]['priority']) 
-                ? $keywordConfig[$aiIntent]['priority']  // Could be null, which is intentional
-                : 4;  // Default if intent not in config
+            $aiPriority = (isset($keywordConfig[$aiIntent]) && array_key_exists('priority', $keywordConfig[$aiIntent]))
+                ? $keywordConfig[$aiIntent]['priority'] 
+                : 4;  // Default if intent not in config or priority key missing
             
             return (object) [
                 'status' => null,
@@ -694,15 +695,13 @@ class WAReplies
         // Random variations untuk terlihat lebih natural
         $variations = [
             "Baik 👌",
-            "Siap! 😊",
             "Oke 😊",
             "Okee 😊",
-            "Sip! 👍",
-            "Siap 🙏",
-            "Ok siap 😊",
-            "Oke siap! 😊",
-            "Siapp 👍",
             "Ok! 😊",
+            "😊",
+            "🙏",
+            "👌",
+            "🤗",
         ];
         
         $text = $variations[array_rand($variations)];

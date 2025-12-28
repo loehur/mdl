@@ -75,7 +75,7 @@ return [
             '/(ka*pa*n|ma*si*h)\s*\b(bu*ka*|tu*tu*p)/i',
             '/(ja*m)\s*\b(be*ra*pa*)\s*\b(bu*ka*|tu*tu*p)/i',
         ],
-        'ai_prompt' => 'User menanyakan jam buka/tutup, masih buka atau sudah tutup, jam operasional laundry'
+        'ai_prompt' => 'User meminta informasi jam/kapan buka/tutup, masih buka atau sudah tutup. tidak termasuk jam/kapan di antar/jemput'
     ],
 
     'PENUTUP' => [
