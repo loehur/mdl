@@ -165,8 +165,10 @@ class WAReplies
             // Get case from config, respecting null values (null = don't update case)
             if(isset($keywordConfig[$aiIntent]) && array_key_exists('case', $keywordConfig[$aiIntent])) {
                 $aiCase = $keywordConfig[$aiIntent]['case'];
+                // \Log::write("DEBUG MAPPING SUCCESS: Intent='$aiIntent' -> Case=$aiCase", 'wa_case_debug');
             } else {
                 // If intent found but configuration missing, fallback to 4
+                \Log::write("DEBUG MAPPING FAILED: Intent='$aiIntent' not found in config or no case key. Keys available: " . implode(',', array_keys($keywordConfig)), 'wa_case_debug', 'error');
                 $aiCase = 4;
             }               
             
@@ -815,10 +817,8 @@ class WAReplies
                 \Log::write("{$textBody} | {$intent} | {$reason}", 'ai', 'intent');
             }
             
-            // Check rate limiting
-            if (!$this->shouldReply($waNumber, $intent)) {
-                return false;
-            }
+            // Rate limiting moved inside auto_reply check
+            // if (!$this->shouldReply($waNumber, $intent)) { return false; }
             
             // Check if this is a valid intent from config
             if (isset($keywordConfig[$intent])) {
@@ -827,16 +827,23 @@ class WAReplies
                 
                 // Only call handler if auto_reply is enabled
                 if ($autoReply) {
-                    $handlerName = ucwords(strtolower($intent), '_');
-                    $methodName = 'handle' . $handlerName;
-                    
-                    if (method_exists($this, $methodName)) {
-                        $this->$methodName($phoneIn, $waNumber);
+                    // Check rate limiting only if we are going to reply
+                    if ($this->shouldReply($waNumber, $intent)) {
+                        $handlerName = ucwords(strtolower($intent), '_');
+                        $methodName = 'handle' . $handlerName;
+                        
+                        if (method_exists($this, $methodName)) {
+                            $this->$methodName($phoneIn, $waNumber);
+                        }
                     }
                 }
                 
                 // Return intent (case will be taken from config in process())
-                return $intent;
+                // Ensure returning ARRAY as expected by process()
+                return [
+                    'intent' => $intent,
+                    'reason' => $reason
+                ];
             }
             
             // Intent not in config, return false
