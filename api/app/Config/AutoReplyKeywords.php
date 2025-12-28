@@ -41,7 +41,7 @@ return [
             '/(ka*pa*n)\s*\b(bi*sa*|bo*le*h|da*pa*t)\s*\b(di*(ambi*l|je*mpu*t))/i',
             '/(ja*m)\s*\b(be*ra*pa*)\s*\b(siap|se*le*sa*i*|ke*la*r|be*re*s)/i',
         ],
-        'ai_prompt' => 'User menanyakan status/progress laundry (sudah selesai? bisa diambil? kapan siap? sudah jadi?)'
+        'ai_prompt' => 'User menanyakan status/progress laundry (sudah selesai? bisa diambil? kapan siap? sudah jadi? sudah bisa di jemput/antar?)'
     ],
 
     'PERMINTAAN' => [
@@ -60,9 +60,6 @@ return [
         'auto_reply' => true,
         'patterns' => [
             '/^\s*(je*m*pu*t|anta*r)\s*$/i',
-            '/(bi*sa*|bo*le*h|to*lo*ng)\s*\b(je*m*pu*t|anta*r|ki*ri*m)/i',
-            '/(je*m*pu*t|anta*r)\s*\b(la*o*u*ndry*i*|ba*ju)/i',
-            '/(to*lo*n*g)\s*\b(la*o*u*ndry*i*|ba*ju)\s*\b(je*m*pu*t|anta*r|ki*ri*m)/i'
         ],
         'ai_prompt' => 'User melakukan permintaan jemput/antar laundry (harus ada kata permintaan seperti: minta, tolong, bisa, boleh, bantu, dll)'
     ],
