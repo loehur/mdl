@@ -1557,12 +1557,38 @@ const handleIncomingMessage = (payload) => {
       if (payload.assignment_user_id !== undefined) {
           conversation.assignment_user_id = payload.assignment_user_id;
       }
-      // Update case if provided (IGNORE NULL - Null means "no change", 0 means clear/normal)
-      if (payload.case !== undefined && payload.case !== null) {
-           conversation.cases = [{case: parseInt(payload.case)}];
-      } else if (payload.priority !== undefined && payload.priority !== null) {
-           // Fallback payload.priority
-           conversation.cases = [{case: parseInt(payload.priority)}];
+      // Update case if provided. Prioritize 'active_cases' list from server for accuracy.
+      if (payload.active_cases && Array.isArray(payload.active_cases) && payload.active_cases.length > 0) {
+           conversation.cases = payload.active_cases.map(c => ({
+               case: parseInt(c),
+               status: 'open'
+           }));
+      } 
+      else if (payload.case !== undefined && payload.case !== null) {
+           const newCase = parseInt(payload.case);
+           
+           if (!conversation.cases) conversation.cases = [];
+           
+           if (newCase === 0) {
+                // If 0 received explicitly without active_cases, it might mean reset or legacy
+                // But usually we preserve existing if 0 is just "no update"
+                // Assuming 0 means "Unknown/General" case here
+                // conversation.cases = [{case: 0, status: 'open'}];
+           } else {
+                // Smart Merge: Open the new case
+                const existing = conversation.cases.find(c => c.case === newCase);
+                if (existing) {
+                    existing.status = 'open';
+                } else {
+                    conversation.cases.push({ case: newCase, status: 'open' });
+                }
+                
+                // Auto-close Case 4 (Follow Up) if the new open case is NOT 4
+                if (newCase !== 4) {
+                    const c4 = conversation.cases.find(c => c.case === 4);
+                    if (c4) c4.status = 'closed';
+                }
+           }
       }
   }
   

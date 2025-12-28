@@ -508,7 +508,18 @@ app.post('/incoming', async (req, res) => {
         const allUserIds = [...ADMIN_IDS, ...DRIVER_IDS, ...CREW_IDS];
         const offlineUserIds = allUserIds.filter(userId => {
             // Must not be connected AND must not be the sender
-            return !connectedUserIds.includes(userId) && userId !== senderId;
+            const isOffline = !connectedUserIds.includes(userId) && userId !== senderId;
+            if (!isOffline) return false;
+
+            // ROLE FILTER
+            if (DRIVER_IDS.includes(userId)) {
+                // Driver Filter: Accept if Case 2 OR Conversation has Active Case 2
+                const activeCases = data.active_cases || [];
+                const hasPickup = Array.isArray(activeCases) && (activeCases.includes(2) || activeCases.includes('2'));
+                return (caseType === 2 || hasPickup);
+            }
+            // Admins & Crew get all
+            return true;
         });
 
         console.log(`[PUSH] Connected users: ${connectedUserIds.join(', ') || 'none'}`);
@@ -548,29 +559,62 @@ app.post('/incoming', async (req, res) => {
         timestamp: new Date().toISOString()
     }, senderId);
 
-    // Send Push Notification only if target is OFFLINE (not connected)
-    let pushResult = { success: false, error: 'Target is online' };
-    const isTargetConnected = clients.has(targetId);
+    // Send Push Notification
+    // Logic: 
+    // 1. Target: Filter if Driver (Case 2 only). Send if Offline.
+    // 2. Admin: Always send if Offline (Monitoring).
 
-    if (!isTargetConnected) {
+    let pushRecipients = [];
+
+    // 1. Target Logic
+    const isTargetDriver = DRIVER_IDS.includes(targetId);
+    let shouldNotifyTarget = true;
+
+    // Driver Constraint
+    if (isTargetDriver) {
+        // Driver only gets if Current Case is 2 OR Active Case 2 exists
+        const activeCases = data.active_cases || [];
+        const hasPickup = Array.isArray(activeCases) && (activeCases.includes(2) || activeCases.includes('2'));
+
+        if (caseType !== 2 && !hasPickup) {
+            shouldNotifyTarget = false;
+        }
+    }
+
+    if (shouldNotifyTarget && !clients.has(targetId)) {
+        pushRecipients.push(targetId);
+    }
+
+    // 2. Admin Monitoring (Always Include Offline Admins)
+    ADMIN_IDS.forEach(adminId => {
+        if (!clients.has(adminId) && adminId !== senderId) {
+            pushRecipients.push(adminId);
+        }
+    });
+
+    // Deduplicate
+    pushRecipients = [...new Set(pushRecipients)];
+
+    let pushResult = { success: false, recipients: 0 };
+
+    if (pushRecipients.length > 0) {
         pushResult = await sendPushNotification({
             title: customerName,
             message: messageText.substring(0, 100) || '📩 New message',
             phone: customerPhone,
             caseType: caseType,
-            userIds: [targetId],
+            userIds: pushRecipients,
             data: { phone: customerPhone }
         });
-        console.log(`[PUSH] Target ${targetId} is offline, push sent:`, pushResult.success ? '✅' : '❌');
+        console.log(`[PUSH] Sent to ${pushRecipients.length} offline user(s) (${pushRecipients.join(',')}) for target ${targetId} (Case ${caseType}):`, pushResult.success ? '✅' : '❌');
     } else {
-        console.log(`[PUSH] Target ${targetId} is online, skipping push notification`);
+        // console.log(`[PUSH] No eligible offline recipients.`);
     }
 
     if (sent) {
         res.json({ success: true, message: 'Message sent to client', push: pushResult });
     } else {
-        // Target not connected via WebSocket, but push was sent
-        res.json({ success: true, message: 'Target offline, push notification sent', push: pushResult });
+        res.json({ success: true, message: 'Target offline, push check complete', push: pushResult });
     }
 });
 

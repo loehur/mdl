@@ -368,12 +368,33 @@ class WhatsApp extends Controller
                 if (class_exists('\Log')) {
                     \Log::write("Code: " . var_export($code, true) . " | AI Case: " . var_export($currentCase, true), 'wa_ws_debug', 'check');
                 }
+                
+                // Fetch active cases specific for Notification Logic (Driver needs to know if Case 2 active)
+                $activeCases = [];
+                $freshConv = $db->get_where('wa_conversations', ['id' => $conversationId])->row();
+                if ($freshConv && !empty($freshConv->conv_case)) {
+                    $casesDecoded = json_decode($freshConv->conv_case, true);
+                    if (is_array($casesDecoded)) {
+                         // Normalize List vs Object
+                         if (!isset($casesDecoded[0])) { $casesDecoded = [$casesDecoded]; }
+                         
+                         foreach ($casesDecoded as $c) {
+                             if (isset($c['case']) && isset($c['status']) && $c['status'] === 'open') {
+                                 $activeCases[] = (int)$c['case'];
+                             }
+                         }
+                    } else if (is_numeric($freshConv->conv_case)) {
+                         // Legacy single int
+                         $activeCases[] = (int)$freshConv->conv_case;
+                    }
+                }
 
                 $this->pushIncomingToWebSocket([
                     'conversation_id' => $conversationId,
                     'phone' => $waNumber,
                     'contact_name' => $contact_name,
                     'case' => $currentCase, 
+                    'active_cases' => $activeCases, // Send active cases list
                     'message' => [
                         'id' => $msgId, // local DB ID
                         'text' => $textBody,
