@@ -120,31 +120,19 @@ const showSettingsModal = ref(false);
 const fontSize = ref('medium'); // 'medium', 'large'
 
 // Notification Sound State
-const notificationSoundEnabled = ref(true);
+const notificationSoundEnabled = ref(false); // Disabled by default as requested
 const notificationAudio = ref(null);
 
 // Initialize notification sound
 const initNotificationSound = () => {
-  // Use a simple beep/notification sound (base64 encoded short beep)
-  // Or load from URL - using a short "ding" sound
-  notificationAudio.value = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleAIBT6Pf3pJvBwMANZPZ4aWCABdCqOHcfVP/DxZItdrqjlsFNHHC4LiJe31dOw8RUI/W7pZUGjxys97Rll91cz4BADVGXZzP4bCQb0otAAIoLkN+t+jdnXNJLQAAMjVMdLHk17qNZD0H/xIsN1qQzuW0k2k/DPvzDyhNnNHqq4VADv/tByM/bK/f4aWFVin/4gMVNmmn1eaylZJpPAL+9BAiRny+3M+ffVMh/+H/BxE1dMHix4xkNA/8AAALIk2Y0+SsgjT/6fQEECVbpt3jooRPFv/t9QMBGV2s4eKUYRH93vAAAA0VR5LS5aSAL//e8QAAAB9bqd7ik18X/AAADgALFEON0OOlhDr/5fH9AAAJIFOg2uWhflgWAALz/QobVqfZ4JBqJv7x+gIDBCRfqtrgmm0rAAL7/AkYVqLU3ZFwMQD3+gQHBRxMfsfk0oVRFfc1Uww2YaXc4Z13Qgv88/wFBxdFes3nzIFMDu/44wIADhg9bLvi2ZNtNfz0AAUIGkV3wuXOimAe9u34BAgXQXHC58qTdC7z8QEFDA4wXqvg25p2Nv/4AAQJEU1+w+TLiV0Z8AAAAAAMKmeq3tidcR/48vwGDQ4uXKjd2pdyNwD4AAYKDSpkqNral2we8vb/Eg4YSHvB3tCIXBP17PkHCxMxVp7Y35h2KPLq+goTFDVWltHglnAm7/T+DxobOWOn1daWbib+AAARExA5cLzi1YxfF+76/gsMJEt+v93QjGEU9vP7BggZN1ul1dqWbyH19f0RGBpAdK/Y1Y5nJPj5ABkXKViWzNmOfRz47PoKDhE0Zpba2Zt8NPn+BBUSIUp9s9PPhmEW9fb9DhMXLk+Kx9KJYhT9+gISGBxIc6vRz45sMPz7ARETGSxLhsfRjGYa+fsGFxUdRnKozs6NbDX/+wQRFBYnQ3y/1tCLXhDz+P8NDhQoW5XP3JxzJe/1/g0RGjRjpNfZlWoa7fb/Dw8VN12h1NyXcynx+wMRExUuToO6z8iGXxb7+gQXEBczZKnW2JdzKPIAARkQFDNZntHblW8m8f0EFRYpRHOu0MqIYRX6/AAJ');
-  notificationAudio.value.volume = 0.5;
+  // Sound removed as requested
+  notificationAudio.value = null;
 };
 
 // Play notification sound
 const playNotificationSound = () => {
-  if (notificationSoundEnabled.value && notificationAudio.value) {
-    try {
-      // Reset to start and play
-      notificationAudio.value.currentTime = 0;
-      notificationAudio.value.play().catch(err => {
-        // Auto-play might be blocked by browser, silently ignore
-        console.log('[Sound] Auto-play blocked:', err.message);
-      });
-    } catch (e) {
-      console.log('[Sound] Error playing:', e.message);
-    }
-  }
+  // Sound disabled
+  return;
 };
 
 // Load notification sound setting from localStorage
