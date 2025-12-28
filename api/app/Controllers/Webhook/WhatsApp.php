@@ -620,12 +620,30 @@ class WhatsApp extends Controller
                     }
                 }
                 
-                // 2. Append New Case
-                $caseList[] = [
-                    'case' => $case,
-                    'status' => 'open',
-                    'timestamp' => date('Y-m-d H:i:s')
-                ];
+                // 2. Check if this case already exists and is still open
+                $caseExists = false;
+                foreach ($caseList as &$existingCase) {
+                    if (isset($existingCase['case']) && (int)$existingCase['case'] === (int)$case) {
+                        // Case exists - check if it's still open
+                        $existingStatus = $existingCase['status'] ?? 'open';
+                        if ($existingStatus !== 'closed') {
+                            // Update timestamp only (don't add duplicate)
+                            $existingCase['timestamp'] = date('Y-m-d H:i:s');
+                            $caseExists = true;
+                            break;
+                        }
+                    }
+                }
+                unset($existingCase); // Unset reference
+                
+                // 3. Only append if case doesn't exist or all instances are closed
+                if (!$caseExists) {
+                    $caseList[] = [
+                        'case' => $case,
+                        'status' => 'open',
+                        'timestamp' => date('Y-m-d H:i:s')
+                    ];
+                }
                 
                 $updateData['conv_case'] = json_encode($caseList);
             }

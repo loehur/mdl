@@ -141,44 +141,6 @@ class WAReplies
             }
         }
 
-        // Ambiguous short messages -> Use AI to classify as PEMBUKA or PENUTUP
-        if ($messageLength >= 1 && $messageLength <= 8) {
-            // Rate limiting for AI ambiguous check
-            if (!$this->shouldReply($waNumber, 'AI_AMBIGUOUS')) {
-                // Still in cooldown, don't handle anything (user just got a reply)
-                return (object) [
-                    'status' => null,
-                    'ai' => false,
-                    'case' => null
-                ];
-            }
-            
-            // Use AI to determine if it's PEMBUKA, PENUTUP, or EMOTE
-            $aiIntent = $this->classifyAmbiguous($phoneIn, $textBody, $waNumber);
-            if (strtoupper($aiIntent) !== 'FALSE') { // selain false
-                // Get priority from config
-                if (in_array($aiIntent, $matchPatterns)) {
-                    return (object) [
-                        'status' => null,
-                        'ai' => false,
-                        'case' => null
-                    ];
-                }
-
-                $matchPatterns[] = $aiIntent;
-
-                $caseVal = (isset($keywordConfig[$aiIntent]) && array_key_exists('case', $keywordConfig[$aiIntent]))
-                    ? $keywordConfig[$aiIntent]['case'] 
-                    : 4;
-                
-                return (object) [
-                    'status' => null,
-                    'ai' => true,
-                    'case' => $caseVal
-                ];
-            }
-        }
-
         if ($messageLength == 0) {
             return (object) [
                 'status' => null,
@@ -382,11 +344,11 @@ class WAReplies
                         $statusText = implode("\n", $statusList);
                         
                         if (count($flatInProgress) > 0) {
-                            $text = "Yth. *" . $nama_pelanggan . "*,\nStatus Laundry:\n" . $statusText . "\n\nTerima kasih sudah *CEK*.\n" . $list_link;
+                            $text = "Yth. *" . $nama_pelanggan . "*,\nStatus Laundry:\n" . $statusText . "\nTerima kasih sudah *CEK*.\n" . $list_link;
                         } else {
                             // Adjust message based on number of items
                             $completedMsg = count($flatCompleted) > 1 ? "Semua sudah selesai" : "Laundry sudah selesai";
-                            $text = "Yth. *" . $nama_pelanggan . "*,\nStatus Laundry:\n" . $statusText . "\n\n" . $completedMsg . ". Terima kasih.\n" . $list_link;
+                            $text = "Yth. *" . $nama_pelanggan . "*,\nStatus Laundry:\n" . $statusText . "\n" . $completedMsg . ". Terima kasih.\n" . $list_link;
                         }
                         
                         $res = $waService->sendFreeText($waNumber, $text);
@@ -569,7 +531,7 @@ class WAReplies
                         $list_link .= "https://ml.nalju.com/I/i/" . $id_pelanggan_active . "\n";
                     }
 
-                    $text = "Yth. *" . $nama_pelanggan . "*,\nNota/Bon sudah kami kirimkan sebelumnya. Terima kasih 😊\n\n" . $list_link;
+                    $text = "Yth. *" . $nama_pelanggan . "*,\nNota/Bon sudah kami kirimkan sebelumnya. Terima kasih 😊\n" . $list_link;
                     $res = $waService->sendFreeText($waNumber, $text);
                     if ($res['success']) {
                         $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
@@ -589,7 +551,7 @@ class WAReplies
      * Handler untuk pertanyaan jam buka/tutup
      * Smart handler: cek jam operasional lalu kasih response yang sesuai
      */
-    function handleCek_buka($phoneIn, $waNumber){
+    function handleJam_operasional($phoneIn, $waNumber){
         // Cek apakah sedang buka atau tutup
         if ($this->isOperatingHours()) {
             // Sedang buka, kasih tahu jam operasional
@@ -599,7 +561,7 @@ class WAReplies
             $this->handleJam_tutup($phoneIn, $waNumber);
         }
     }
-
+    
     /**
      * Handler untuk kasih tahu jam operasional (dipanggil saat buka)
      */
@@ -641,13 +603,13 @@ class WAReplies
         }
         
         $variations = [
-            "Madinah Laundry buka {$daysStr}, dari pukul {$openTime} - {$closeTime}. 🕐\n\nAda yang bisa kami bantu? 😊",
-            "Kami buka {$daysStr} pukul {$openTime} - {$closeTime}. ⏰\n\nAda yang ingin ditanyakan? 🙏",
-            "Jam operasional: {$openTime} - {$closeTime} ({$daysStr}) 📍\n\nAda yang bisa dibantu? 😊",
-            "Buka {$daysStr} jam {$openTime} sampai {$closeTime} ya! 😊\n\nSilakan, ada yang perlu dibantu? 🙏",
-            "Kami melayani dari jam {$openTime} sampai {$closeTime} 🕐\n\nAda yang bisa kami bantu hari ini? 😊",
-            "Operasional {$daysStr} pukul {$openTime} - {$closeTime} 😊\n\nSilakan, ada yang ditanyakan? 👋",
-            "Buka {$daysStr}, jam {$openTime} sampai {$closeTime} 👍\n\nAda yang bisa dibantu? 😊"
+            "Madinah Laundry buka {$daysStr}, dari pukul {$openTime} - {$closeTime}. 🕐\nAda yang bisa kami bantu? 😊",
+            "Kami buka {$daysStr} pukul {$openTime} - {$closeTime}. ⏰\nAda yang ingin ditanyakan? 🙏",
+            "Jam operasional: {$openTime} - {$closeTime} ({$daysStr}) 📍\nAda yang bisa dibantu? 😊",
+            "Buka {$daysStr} jam {$openTime} sampai {$closeTime} ya! 😊\nSilakan, ada yang perlu dibantu? 🙏",
+            "Kami melayani dari jam {$openTime} sampai {$closeTime} 🕐\nAda yang bisa kami bantu hari ini? 😊",
+            "Operasional {$daysStr} pukul {$openTime} - {$closeTime} 😊\nSilakan, ada yang ditanyakan? 👋",
+            "Buka {$daysStr}, jam {$openTime} sampai {$closeTime} 👍\nAda yang bisa dibantu? 😊"
         ];
         
         $text = $holidayPrefix . $variations[array_rand($variations)];
@@ -656,128 +618,6 @@ class WAReplies
             $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
         }
     }
-
-    function handlePembuka($phoneIn, $waNumber){
-        $waService = $this->getWaService();
-        
-        $variations = [
-            "Iya, ada yang bisa saya bantu? 😊",
-            "Halo! Ada yang bisa dibantu? 👋",
-            "Hai! Silahkan, ada yang ditanyakan? 😊",
-            "Ya, ada yang bisa kami bantu? 🙏",
-            "Halo! Dengan Madinah Laundry, ada yang bisa dibantu? 😊",
-            "Hai! Ada yang bisa kami bantu? 👋",
-            "Iya, silahkan 😊",
-            "Halo, ada yang ditanyakan? 😊",
-            "Hai! Ada yang perlu dibantu? 👋",
-            "Ya, silahkan 🙏",
-            "Iya kak, ada yang bisa dibantu? 😊",
-            "Halo kak! Silahkan 👋",
-            "Hai, dengan Madinah Laundry 😊",
-            "Ya, ada yang perlu dibantu? 🙏",
-            "Selamat datang! Ada yang bisa dibantu? 😊",
-            "Dengan Madinah Laundry, silahkan 👋",
-            "Halo! Silahkan, ada yang bisa kami bantu? 😊",
-            "Iya kak, silahkan 🙏",
-            "Hai! Madinah Laundry siap membantu 😊",
-            "Ya kak, ada yang ditanyakan? 👋"
-        ];
-        
-        $text = $variations[array_rand($variations)];
-        $res = $waService->sendFreeText($waNumber, $text);
-        if ($res['success']) {
-            $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
-        }
-    }
-
-    function handlePenutup($phoneIn, $waNumber){
-        $waService = $this->getWaService();
-        
-        // Random variations untuk terlihat lebih natural
-        $variations = [
-            "Baik 👌",
-            "Oke 😊",
-            "Okee 😊",
-            "Ok! 😊",
-            "😊",
-            "🙏",
-            "👌",
-            "🤗",
-        ];
-        
-        $text = $variations[array_rand($variations)];
-        $res = $waService->sendFreeText($waNumber, $text);
-        if ($res['success']) {
-            $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
-        }
-    }
-
-    function handleEmote($phoneIn, $waNumber){
-        $waService = $this->getWaService();
-        
-        // Random emoji-based responses (keep it simple and friendly)
-        $variations = [
-            "👍",
-            "😊",
-            "🙏",
-            "👌",
-            "😁",
-            "✨",
-            "🎉",
-            "❤️",
-            "🤗",
-            "💪",
-            "🙌",
-        ];
-        
-        $text = $variations[array_rand($variations)];
-        $res = $waService->sendFreeText($waNumber, $text);
-        if ($res['success']) {
-            $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
-        }
-    }
-
-    function handleMinta_jemput_antar($phoneIn, $waNumber){
-        $waService = $this->getWaService();
-        
-        // Cek jam operasional - layanan jemput/antar hanya saat jam kerja
-        if (!$this->isOperatingHours()) {
-            // Diluar jam kerja, kasih tahu tutup dan tidak bisa jemput/antar
-            $this->handleJam_tutup($phoneIn, $waNumber);
-            return;
-        }
-        
-        // Random variations untuk konfirmasi request jemput/antar
-        $variations = [
-            "Baik, kami konfirmasi ke abang driver dulu ya. Ditunggu.. 🚗",
-            "Siap! kami cek schedule bg driver dulu ya, tunggu sebentar. 😊",
-            "Oke, kami hubungi driver dulu ya. Mohon ditunggu sebentar 🙏",
-            "Baik, kami cek jadwal abang driver dulu. Ditunggu ya 😊",
-            "Siap, kami konfirmasi ke team driver dulu. Tunggu sebentar ya 🚗",
-            "Oke, kami cek ketersediaan driver dulu ya. Mohon ditunggu 👍",
-            "Baik, kami koordinasi dengan driver dulu. Sebentar ya 😊",
-            "Siap! kami tanyakan ke abang driver dulu. Ditunggu 🚗",
-            "Oke, kami cek schedule abang driver dulu ya. Tunggu sebentar 🙏",
-            "Baik, kami konfirmasi ketersediaan driver dulu. Mohon ditunggu ya 😊",
-            "Siap! kami hubungi team driver dulu. Sebentar ya 🚗",
-            "Oke, kami cek jadwal driver terdekat dulu. Ditunggu 👍",
-            "Baik, kami tanyakan ke driver dulu ya. Tunggu sebentar 😊",
-            "Siap! kami koordinasi sama abang driver dulu. Mohon ditunggu 🚗",
-            "Oke, kami cek driver yang available dulu ya. Sebentar 🙏",
-            "Baik, kami konfirmasi sama driver dulu. Ditunggu ya 😊",
-            "Siap! kami hubungi abang driver terdekat dulu. Tunggu ya 🚗",
-            "Oke, kami cek schedule team driver dulu. Mohon ditunggu 👍",
-            "Baik, kami tanya ke driver area sana dulu ya. Sebentar 😊",
-            "Siap! kami koordinasi ke driver dulu. Ditunggu ya 🚗"
-        ];
-        
-        $text = $variations[array_rand($variations)];
-        $res = $waService->sendFreeText($waNumber, $text);
-        if ($res['success']) {
-            $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
-        }
-    }
-
     /**
      * Handler untuk auto-reply diluar jam kerja
      */
@@ -921,106 +761,10 @@ class WAReplies
  * @param string $waNumber Sender's WhatsApp number
  * @return string|false Intent name if handled successfully, false otherwise
  */
-private function handleWithAI($phoneIn, $textBody, $waNumber)
-{
-    try {
-        // Check if AI Config class exists
-        if (!class_exists('\\App\\Config\\AI')) {
-            $configFile = __DIR__ . '/../Config/AI.php';
-            if (!file_exists($configFile)) {
-                return false;
-            }
-            require_once $configFile;
-        }
-        
-        // Check if AI is enabled
-        if (!\App\Config\AI::isEnabled()) {
-            return false;
-        }
-        
-    } catch (\Exception $e) {
-        return false;
-    }
-    
-    try {
-        // Load keyword configuration to get ai_prompt for each category
-        $keywordConfig = require __DIR__ . '/../Config/AutoReplyKeywords.php';
-        
-        // Prepare AI prompt for intent classification
-        $prompt = "Kamu adalah AI classifier untuk WhatsApp bot laundry. Klasifikasikan pesan berikut ke dalam SATU kategori saja:\n\n";
-        $prompt .= "Kategori:\n";
-        
-        // Build categories dynamically from config
-        foreach ($keywordConfig as $category => $config) {
-            if (isset($config['ai_prompt'])) {
-                $prompt .= "- {$category}: {$config['ai_prompt']}\n";
-            }
-        }
-        
-        $prompt .= "- FALSE: Tidak termasuk kategori di atas\n\n";
-        $prompt .= "Pesan: \"{$textBody}\"\n\n";
-        $prompt .= "JAWAB HANYA DENGAN FORMAT JSON SEPERTI INI:\n";
-        $prompt .= "{\"intent\": \"NAMA_KATEGORI\", \"reason\": \"Alasan singkat memilih kategori ini\"}\n";
-        $prompt .= "Kategori harus salah satu dari daftar di atas atau FALSE.";
-        
-        // Call OpenAI API
-        $response = $this->callOpenAI($prompt);
-        
-        // Parse JSON Response
-        $json = json_decode($response, true);
-        
-        // Handle markdown code blocks if AI adds them
-        if (!$json) {
-            $cleanMatches = [];
-            if (preg_match('/\{.*\}/s', $response, $cleanMatches)) {
-                $json = json_decode($cleanMatches[0], true);
-            }
-        }
-        
-        $intent = $json['intent'] ?? 'FALSE';
-        $reason = $json['reason'] ?? '';
-        
-        $intent = trim(strtoupper($intent));
-        
-        // Log: text | intent | reason
-        if (class_exists('\Log')) {
-            \Log::write("{$textBody} | {$intent} | {$reason}", 'ai', 'intent');
-        }
-        
-        // Check rate limiting
-        if (!$this->shouldReply($waNumber, $intent)) {
-            return false;
-        }
-        
-        // Call appropriate handler
-        $handlerName = ucwords(strtolower($intent), '_');
-        $methodName = 'handle' . $handlerName;
-        
-        if (method_exists($this, $methodName)) {
-            $this->$methodName($phoneIn, $waNumber);
-            return $intent;
-        }
-        
-        return false;
-        
-    } catch (\Exception $e) {
-        return false;
-    }
-}
-    
-    /**
-     * AI-Powered Classification for Ambiguous Short Messages
-     * Specifically classifies between PEMBUKA (greeting) or PENUTUP (closing)
-     * 
-     * @param string $phoneIn CSV string of phone numbers
-     * @param string $textBody Original message text
-     * @param string $waNumber Sender's WhatsApp number
-     * @return string|false 'PEMBUKA' or 'PENUTUP' if classified, false otherwise
-     */
-    private function classifyAmbiguous($phoneIn, $textBody, $waNumber)
+    private function handleWithAI($phoneIn, $textBody, $waNumber)
     {
         try {
-            // Check if AI Config class exists and is enabled
+            // Check if AI Config class exists
             if (!class_exists('\\App\\Config\\AI')) {
                 $configFile = __DIR__ . '/../Config/AI.php';
                 if (!file_exists($configFile)) {
@@ -1029,6 +773,7 @@ private function handleWithAI($phoneIn, $textBody, $waNumber)
                 require_once $configFile;
             }
             
+            // Check if AI is enabled
             if (!\App\Config\AI::isEnabled()) {
                 return false;
             }
@@ -1038,26 +783,25 @@ private function handleWithAI($phoneIn, $textBody, $waNumber)
         }
         
         try {
-            // Load keyword configuration to get ai_prompt
+            // Load keyword configuration to get ai_prompt for each category
             $keywordConfig = require __DIR__ . '/../Config/AutoReplyKeywords.php';
             
-            // Prepare specialized AI prompt for PEMBUKA vs PENUTUP vs EMOTE classification
-            $prompt = "Kamu adalah AI classifier untuk WhatsApp bot laundry. Klasifikasikan pesan pendek berikut apakah PEMBUKA (greeting/salam awal), PENUTUP (closing/penutup percakapan), atau EMOTE (emote/candaan).\n\n";
+            // Prepare AI prompt for intent classification
+            $prompt = "Kamu adalah AI classifier untuk WhatsApp bot laundry. Klasifikasikan pesan berikut ke dalam SATU kategori saja:\n";
             $prompt .= "Kategori:\n";
             
-            // Only include PEMBUKA, PENUTUP, and EMOTE for ambiguous classification
-            $ambiguousCategories = ['PEMBUKA', 'PENUTUP', 'EMOTE'];
-            foreach ($ambiguousCategories as $category) {
-                if (isset($keywordConfig[$category]['ai_prompt'])) {
-                    $prompt .= "- {$category}: {$keywordConfig[$category]['ai_prompt']}\n";
+            // Build categories dynamically from config
+            foreach ($keywordConfig as $category => $config) {
+                if (isset($config['ai_prompt'])) {
+                    $prompt .= "- {$category}: {$config['ai_prompt']}\n";
                 }
             }
             
-            $prompt .= "- FALSE: belum jelas atau tidak termasuk kategori di atas\n\n";
-            $prompt .= "Pesan: \"{$textBody}\"\n\n";
-            $prompt .= "WAJIB JAWAB HANYA DENGAN FORMAT JSON SEPERTI INI:\n";
-            $prompt .= "{\"intent\": \"KATEGORI\", \"reason\": \"Alasan singkat\"}\n";
-            $prompt .= "Pilihan KATEGORI: PEMBUKA, PENUTUP, EMOTE, atau FALSE.";
+            $prompt .= "- FALSE: Tidak termasuk kategori di atas\n";
+            $prompt .= "Pesan: \"{$textBody}\"\n";
+            $prompt .= "JAWAB HANYA DENGAN FORMAT JSON SEPERTI INI:\n";
+            $prompt .= "{\"intent\": \"NAMA_KATEGORI\", \"reason\": \"Alasan singkat memilih kategori ini\"}\n";
+            $prompt .= "Kategori harus salah satu dari daftar di atas atau FALSE.";
             
             // Call OpenAI API
             $response = $this->callOpenAI($prompt);
@@ -1065,7 +809,7 @@ private function handleWithAI($phoneIn, $textBody, $waNumber)
             // Parse JSON Response
             $json = json_decode($response, true);
             
-            // Handle markdown code blocks
+            // Handle markdown code blocks if AI adds them
             if (!$json) {
                 $cleanMatches = [];
                 if (preg_match('/\{.*\}/s', $response, $cleanMatches)) {
@@ -1074,20 +818,16 @@ private function handleWithAI($phoneIn, $textBody, $waNumber)
             }
             
             $intent = $json['intent'] ?? 'FALSE';
-            $intent = trim(strtoupper($intent));
             $reason = $json['reason'] ?? '';
+            
+            $intent = trim(strtoupper($intent));
             
             // Log: text | intent | reason
             if (class_exists('\Log')) {
                 \Log::write("{$textBody} | {$intent} | {$reason}", 'ai', 'intent');
             }
             
-            // Validate response - must be either PEMBUKA, PENUTUP, or EMOTE
-            if ($intent !== 'PEMBUKA' && $intent !== 'PENUTUP' && $intent !== 'EMOTE') {
-                return false;
-            }
-            
-            // Check rate limiting for the determined intent
+            // Check rate limiting
             if (!$this->shouldReply($waNumber, $intent)) {
                 return false;
             }

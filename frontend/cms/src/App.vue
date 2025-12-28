@@ -199,11 +199,12 @@ const resolveableCases = computed(() => {
     
     const role = currentUserRole.value;
     // Filter open cases (include all cases including Case 4)
-    const openCases = activeConversation.value.cases.filter(c => (c.status || 'open') !== 'closed' && c.case > 0);
+    // Use parseInt for defensive type conversion
+    const openCases = activeConversation.value.cases.filter(c => (c.status || 'open') !== 'closed' && parseInt(c.case) > 0);
     
     if (role === 'admin') return openCases;
-    if (role === 'driver') return openCases.filter(c => c.case === 2);
-    if (role === 'crew') return openCases.filter(c => c.case === 3);
+    if (role === 'driver') return openCases.filter(c => parseInt(c.case) === 2);
+    if (role === 'crew') return openCases.filter(c => parseInt(c.case) === 3);
     
     return []; // default no access
 });
@@ -273,7 +274,40 @@ const fetchConversations = async () => {
                     }
                     
                     // Filter out 0 case if there are others, or just keep distinct
-                    return cases;
+                    // FIX: Deduplicate cases - keep only latest open entry per case value
+                    const dedupedCases = [];
+                    const seenCases = new Map(); // Map<caseValue, caseEntry>
+                    
+                    // Process in order (already sorted by timestamp in backend)
+                    for (const cse of cases) {
+                        const caseVal = parseInt(cse.case);
+                        if (isNaN(caseVal) || caseVal === 0) continue;
+                        
+                        const status = cse.status || 'open';
+                        
+                        // Normalize the case object - ensure case is integer
+                        const normalizedCase = { ...cse, case: caseVal };
+                        
+                        if (!seenCases.has(caseVal)) {
+                            // First occurrence of this case value
+                            seenCases.set(caseVal, normalizedCase);
+                        } else {
+                            // Already seen - prefer open over closed, and newer timestamp
+                            const existing = seenCases.get(caseVal);
+                            const existingStatus = existing.status || 'open';
+                            
+                            // If existing is closed but new is open, replace
+                            if (existingStatus === 'closed' && status !== 'closed') {
+                                seenCases.set(caseVal, normalizedCase);
+                            }
+                            // If both are open/both are closed, keep the newer one (later in array = newer)
+                            else if (existingStatus === status) {
+                                seenCases.set(caseVal, normalizedCase);
+                            }
+                        }
+                    }
+                    
+                    return Array.from(seenCases.values());
                 };
 
                 let convo = existingMap.get(c.id);
@@ -1019,15 +1053,15 @@ const resolveCase = async (caseId) => {
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 phone: activeConversation.value.wa_number,
-                case: caseId,
+                case: parseInt(caseId),
                 user_id: authId.value
             })
         });
         const res = await response.json();
         if (res.status) {
-             // Optimistic Update: Remove from local list
+             // Optimistic Update: Remove from local list (use parseInt for type-safe comparison)
              if (activeConversation.value.cases) {
-                 activeConversation.value.cases = activeConversation.value.cases.filter(x => x.case !== caseId);
+                 activeConversation.value.cases = activeConversation.value.cases.filter(x => parseInt(x.case) !== parseInt(caseId));
              }
              showResolveMenu.value = false;
              console.log('Case resolved:', caseId);
