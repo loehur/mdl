@@ -31,7 +31,7 @@ class AI
      */
     private static $temperature = 0.1;  // Low temperature untuk konsistensi klasifikasi
     private static $maxTokens = 50;     // Cukup untuk response 1 kata
-    private static $timeout = 10;       // Timeout dalam detik
+    private static $timeout = 20;       // Timeout dalam detik (Increased to 20s for stability)
     
     /**
      * Enable/Disable AI Fallback

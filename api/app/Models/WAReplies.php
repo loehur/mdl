@@ -850,6 +850,9 @@ class WAReplies
             return false;
             
         } catch (\Exception $e) {
+            if (class_exists('\Log')) {
+                \Log::write("AI ERROR: " . $e->getMessage(), 'ai', 'error');
+            }
             return false;
         }
     }
