@@ -35,6 +35,7 @@ app.use(cors({
 }));
 
 const PORT = process.env.PORT || 3003;
+const SOCKET_PASSWORD = process.env.SOCKET_PASSWORD;
 
 // ============================================
 // HTTP Server & WebSocket Setup
