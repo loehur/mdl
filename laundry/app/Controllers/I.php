@@ -103,9 +103,10 @@ class I extends Controller
             $totalNya = $value['harga'];
             $akumBayar = 0;
             foreach ($kasM as $ck) {
-               if ($value['id_member'] == $ck['ref_transaksi']) {
+               // Only count successful payments (status_mutasi = 3)
+               if ($value['id_member'] == $ck['ref_transaksi'] && $ck['status_mutasi'] == 3) {
                   $akumBayar += $ck['jumlah'];
-                  break;
+                  // Removed break - need to sum ALL payments for this member
                }
             }
             if ($akumBayar >= $totalNya) {

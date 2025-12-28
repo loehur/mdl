@@ -230,8 +230,32 @@ class WAGenerator extends Controller
             $totalText = "*Total/Sisa " . number_format($sisa) . "*";
         }
 
-        // 7. Final Output
-        // <span id="<?= $ref ? >"><?= strtoupper($nama_pelanggan) ? > _#<?= $this->dCabang['kode_cabang'] ? >-<?= $cs_code ? >_<?= "\n" . $listNotif . "\n" . $totalText . "\n" ? ><?= URL::HOST_URL ? >/I/i/<?= $id_pelanggan ? ></span>
+        //TEXT SALDO MEMBER
+        $where = $this->wCabang . " AND bin = 0 AND id_pelanggan = " . $id_pelanggan . " GROUP BY id_harga";
+        $cols = "id_harga, SUM(qty) as saldo";
+        $data = $this->db(0)->get_cols_where('member', $cols, $where, 1);
+        $saldo = [];
+        foreach ($data as $a) {
+            $id_harga = $a['id_harga'];
+            $where_member = "bin = 0 AND id_pelanggan = $id_pelanggan AND id_harga = $id_harga";
+            $saldoManual = $this->db(0)->get_cols_where('member', 'SUM(qty) as saldo', $where_member, 0)['saldo'] ?? 0;
+            
+            $where_sale = $this->wCabang . " AND id_pelanggan = $id_pelanggan AND member = 1 AND bin = 0 AND id_harga = $id_harga";
+            $saldoPengurangan = $this->db(0)->get_cols_where('sale', 'SUM(qty) as saldo', $where_sale, 0)['saldo'] ?? 0;
+            
+            $saldo_akhir = $saldoManual - $saldoPengurangan;
+            $unit = $this->helper('Saldo')->unit_by_idHarga($id_harga);
+
+            if ($saldo_akhir > 0) {
+                $saldo[$id_harga] = number_format($saldo_akhir, 2) . $unit;
+            }
+        } 
+        if (!empty($saldo)) {
+            $totalText .= "\n";
+            foreach ($saldo as $key => $val) {
+                $totalText .= "M" . $key . " " . $val . " | ";
+            } 
+        }
         
         $output = "*" . strtoupper($nama_pelanggan) . "* _#" . $kode_cabang . "-" . $cs_code . "_\n" . $listNotif . "\n" . $totalText . "\n" . URL::HOST_URL . "/I/i/" . $id_pelanggan;
 
@@ -247,11 +271,13 @@ class WAGenerator extends Controller
         $cleanOrderList = str_replace(["\n", "\r", "\t"], " | ", $cleanOrderList);
         // Step 2: Add total text
         $cleanOrderList .= " | " . $totalText . " | ";
-        // Step 3: Clean multiple spaces
+        // Step 3: Replace single newlines with pipes
+        $cleanOrderList = str_replace(["\n", "\r", "\t"], " | ", $cleanOrderList);
+        // Step 4: Clean multiple spaces
         $cleanOrderList = preg_replace('/\s{2,}/', ' ', $cleanOrderList);
-        // Step 4: Remove leading/trailing pipes
+        // Step 5: Remove leading/trailing pipes
         $cleanOrderList = trim($cleanOrderList, ' |');
-        // Step 5: Final trim
+        // Step 6: Final trim
         $cleanOrderList = trim($cleanOrderList);
         
         $cleanTotalBill = str_replace(["\n", "\r", "\t", "*", "Total/Sisa "], "", $totalText); // Remove formatting and prefix

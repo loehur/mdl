@@ -99,24 +99,16 @@ class Saldo extends Controller
 
     function unit_by_idHarga($id_harga)
     {
-        $unit = "";
-        $harga = $this->db(0)->get("harga");
-        $penjualan_jenis = $this->db(0)->get('penjualan_jenis');
-        $satuan = $this->db(0)->get('satuan');
-
-        foreach ($harga as $a) {
-            if ($a['id_harga'] == $id_harga) {
-                foreach ($penjualan_jenis as $dp) {
-                    if ($dp['id_penjualan_jenis'] == $a['id_penjualan_jenis']) {
-                        foreach ($satuan as $ds) {
-                            if ($ds['id_satuan'] == $dp['id_satuan']) {
-                                $unit = $ds['nama_satuan'];
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        return $unit;
+        // Optimized: Single JOIN query instead of fetching all tables
+        $sql = "SELECT s.nama_satuan 
+                FROM harga h
+                JOIN penjualan_jenis pj ON pj.id_penjualan_jenis = h.id_penjualan_jenis
+                JOIN satuan s ON s.id_satuan = pj.id_satuan
+                WHERE h.id_harga = ?
+                LIMIT 1";
+        
+        $result = $this->db(0)->query($sql, [$id_harga])->row();
+        
+        return $result['nama_satuan'] ?? '';
     }
 }
