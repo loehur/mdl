@@ -249,13 +249,13 @@ class WAReplies
                  $idNotif = $notif['id_notif'];
                  
                  // 🔒 LOCK: Update state to 'sending' first to prevent race condition
-                 $locked = $db1->update('notif', 
+                 $success = $db1->update('notif', 
                      ['state' => 'sending'], 
                      ['id_notif' => $idNotif, 'state' => 'pending'] // Only update if still pending
                  );
                  
                  // If lock failed (already being sent by another process), skip
-                 if (!$locked) {
+                 if (!$success || $db1->affected_rows() <= 0) {
                      continue;
                  }
                  
@@ -428,13 +428,13 @@ class WAReplies
                  $idNotif = $notif['id_notif'];
                  
                  // 🔒 LOCK: Update state to 'sending' first to prevent race condition
-                 $locked = $db1->update('notif', 
+                 $success = $db1->update('notif', 
                      ['state' => 'sending'], 
                      ['id_notif' => $idNotif, 'state' => 'pending'] // Only update if still pending
                  );
                  
                  // If lock failed (already being sent by another process), skip
-                 if (!$locked) {
+                 if (!$success || $db1->affected_rows() <= 0) {
                      continue;
                  }
                  

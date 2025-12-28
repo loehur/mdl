@@ -8,6 +8,7 @@ class DB extends \DBC
     private static $_instance = [];
     private $mysqli;
     private $query_result;
+    private $last_affected_rows = 0;
 
     // Query Builder Props
     private $qb_table = "";
@@ -40,6 +41,11 @@ class DB extends \DBC
             self::$_instance[$db] = new DB($db);
         }
         return self::$_instance[$db];
+    }
+
+    public function affected_rows()
+    {
+        return $this->last_affected_rows;
     }
 
     /**
@@ -198,7 +204,9 @@ class DB extends \DBC
 
         $stmt->bind_param($types, ...$params);
 
-        return $stmt->execute();
+        $status = $stmt->execute();
+        $this->last_affected_rows = $stmt->affected_rows;
+        return $status;
     }
 
     /**
@@ -243,7 +251,9 @@ class DB extends \DBC
 
         $stmt->bind_param($types, ...$params);
 
-        return $stmt->execute();
+        $status = $stmt->execute();
+        $this->last_affected_rows = $stmt->affected_rows;
+        return $status;
     }
 
     /**
@@ -274,7 +284,9 @@ class DB extends \DBC
 
         $stmt->bind_param($types, ...$params);
 
-        return $stmt->execute();
+        $status = $stmt->execute();
+        $this->last_affected_rows = $stmt->affected_rows;
+        return $status;
     }
 
     /**
@@ -309,7 +321,9 @@ class DB extends \DBC
 
         $stmt->bind_param($types, ...$params);
 
-        return $stmt->execute();
+        $status = $stmt->execute();
+        $this->last_affected_rows = $stmt->affected_rows;
+        return $status;
     }
 
     // --- Result Methods (Fluent) ---
