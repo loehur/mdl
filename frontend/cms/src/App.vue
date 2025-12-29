@@ -2563,7 +2563,7 @@ const openLocation = (mapUrl) => {
                  </button>
                  
                  <!-- Resolve Menu Dropdown -->
-                 <div v-if="showResolveMenu" class="absolute right-0 top-full mt-2 w-56 bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-lg shadow-xl overflow-hidden z-20">
+                 <div v-if="showResolveMenu" class="absolute right-0 top-full mt-2 min-w-max bg-slate-800 border border-slate-600 rounded-lg shadow-xl overflow-hidden z-20">
                     <button 
                         v-for="c in resolveableCases" 
                         :key="c.case"
@@ -2604,7 +2604,7 @@ const openLocation = (mapUrl) => {
                <div 
                  v-if="showChatMenu" 
                  @click.stop
-                 class="absolute right-0 top-full mt-2 w-48 bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-lg shadow-xl overflow-hidden z-50"
+                 class="absolute right-0 top-full mt-2 min-w-max bg-slate-800 border border-slate-600 rounded-lg shadow-xl overflow-hidden z-50"
                >
                  <!-- Selesai Option -->
                  <!-- Check Payment Option -->
