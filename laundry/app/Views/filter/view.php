@@ -1,4 +1,4 @@
-<div id="load" class="content"></div>
+<div id="load"></div>
 
 <!-- SCRIPT -->
 <script src="<?= URL::EX_ASSETS ?>js/jquery-3.6.0.min.js"></script>
