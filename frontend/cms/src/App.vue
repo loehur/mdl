@@ -224,7 +224,8 @@ const filteredConversations = computed(() => {
   }
   
   // **SORTING LOGIC**:
-  // Separate conversations with OPEN cases (case > 0 AND status !== 'closed') at the top
+  // 1. Conversations with OPEN cases at the top
+  // 2. All conversations sorted by last message time (newest first)
   return list.sort((a, b) => {
     // Check if has any OPEN case (case > 0 and status not closed)
     const aHasOpenCase = a.cases && a.cases.some(c => c.case > 0 && (c.status || 'open') !== 'closed');
@@ -234,8 +235,10 @@ const filteredConversations = computed(() => {
     if (aHasOpenCase && !bHasOpenCase) return -1;
     if (!aHasOpenCase && bHasOpenCase) return 1;
     
-    // Fallback to API order (time)
-    return 0;
+    // Secondary sort: by last message time (newest first)
+    const aTime = a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0;
+    const bTime = b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0;
+    return bTime - aTime; // Descending (newest first)
   });
 });
 
@@ -371,6 +374,7 @@ const fetchConversations = async () => {
                     convo.status = c.status;
                     convo.lastMessage = c.last_message || c.last_message_text || 'No messages yet';
                     convo.lastTime = formatLastTime(c.last_message_time);
+                    convo.lastMessageTime = c.last_message_time; // Raw timestamp for sorting
                     convo.unread = parseInt(c.unread_count) || 0;
                     convo.assignment_user_id = c.assigned_user_id; // Fix: map from backend assigned_user_id
                     // MESSAGES PRESERVED AUTOMATICALLY as we are modifying the object ref
@@ -389,6 +393,7 @@ const fetchConversations = async () => {
                         status: c.status,  
                         lastMessage: c.last_message || c.last_message_text || 'No messages yet',
                         lastTime: formatLastTime(c.last_message_time),
+                        lastMessageTime: c.last_message_time, // Raw timestamp for sorting
                         unread: parseInt(c.unread_count) || 0,
                         assignment_user_id: c.assigned_user_id, // Fix: map from backend assigned_user_id
                         messages: []

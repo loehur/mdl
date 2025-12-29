@@ -113,8 +113,9 @@ async function sendPushNotification(options) {
         // iOS Thread ID: Groups notifications on iOS
         thread_id: groupKey,
 
-        // NOTE: Don't use 'url' - it opens external browser
-        // Instead, Android native should read 'data.phone' and pass to WebView
+        // NOTE: Do NOT use 'url' parameter here!
+        // It conflicts with Android's INotificationClickListener.
+        // Android reads 'data.phone' via additionalData and calls window.openChatByPhone()
 
         data: {
             type: 'wa_masuk',
