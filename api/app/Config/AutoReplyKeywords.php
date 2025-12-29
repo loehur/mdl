@@ -50,10 +50,15 @@ return [
         'patterns' => [
             '/^\s*(je*m*pu*t|anta*r)\s*$/i',
         ],
-        'ai_prompt' => "User meminta/menanyakan tentang JEMPUT atau ANTAR laundry oleh KURIR, termasuk:\n
-        | tolong jemput | minta antar | bisa dijemput? | kapan diantar? | jam berapa diantar? | diantar jam brp? | kapan dijemput? |\n
-        PENTING: Jika user menyebut 'antar' atau 'jemput' + waktu/jam = MINTA_JEMPUT_ANTAR\n
-        JANGAN pilih ini jika USER mengatakan DIA SENDIRI yang akan mengambil (misal: 'saya ambil', 'ku jemput', 'nanti saya ambil')."
+        'ai_prompt' => "HANYA jika User MEMINTA KURIR/LAUNDRY untuk datang JEMPUT atau ANTAR, contoh:\n
+        | tolong jemput | minta dijemput | bisa diantar? | kapan diantar? | jam berapa diantarnya? |\n
+        PENTING: JANGAN pilih ini jika USER mengatakan DIA SENDIRI yang akan datang mengambil!\n
+        Contoh yang BUKAN MINTA_JEMPUT_ANTAR (harus FALSE):\n
+        - 'Mau jemput laundry kak' = customer bilang DIA mau datang\n
+        - 'Saya jemput nanti' = customer sendiri yang jemput\n
+        - 'Nanti saya ambil' = customer sendiri yang ambil\n
+        - 'Ku jemput ya' = customer sendiri yang jemput\n
+        Kunci: Jika ada kata 'mau/saya/aku/ku' + jemput/ambil = Customer datang sendiri = FALSE"
     ],
 
     'PERMINTAAN' => [

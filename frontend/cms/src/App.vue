@@ -137,6 +137,11 @@ const lightboxImageUrl = ref('');
 const notificationSoundEnabled = ref(false); // Disabled by default as requested
 const notificationAudio = ref(null);
 
+// Quick Reply State
+const quickReplies = ref([]);
+const showQuickReplies = ref(false);
+const isLoadingQuickReplies = ref(false);
+
 // Initialize notification sound
 const initNotificationSound = () => {
   // Sound removed as requested
@@ -208,9 +213,12 @@ const filteredConversations = computed(() => {
   }
   // Admin sees everything (no filter added)
 
-  // Apply conversation filter (All/Unread)
+  // Apply conversation filter (All/Unread/Cases)
   if (conversationFilter.value === 'unread') {
     list = list.filter(c => c.unread > 0);
+  } else if (conversationFilter.value === 'cases') {
+    // Only show conversations with OPEN cases
+    list = list.filter(c => c.cases && c.cases.some(x => x.case > 0 && (x.status || 'open') !== 'closed'));
   }
   
   // Apply search filter if query exists
@@ -224,18 +232,11 @@ const filteredConversations = computed(() => {
   }
   
   // **SORTING LOGIC**:
-  // 1. Conversations with OPEN cases at the top
-  // 2. All conversations sorted by last message time (newest first)
+  // In 'all' tab: Sort purely by last message time (no case separation)
+  // In 'cases' tab: Sort by last message time (all have open cases anyway)
+  // In 'unread' tab: Sort by last message time
   return list.sort((a, b) => {
-    // Check if has any OPEN case (case > 0 and status not closed)
-    const aHasOpenCase = a.cases && a.cases.some(c => c.case > 0 && (c.status || 'open') !== 'closed');
-    const bHasOpenCase = b.cases && b.cases.some(c => c.case > 0 && (c.status || 'open') !== 'closed');
-    
-    // Open cases go to top
-    if (aHasOpenCase && !bHasOpenCase) return -1;
-    if (!aHasOpenCase && bHasOpenCase) return 1;
-    
-    // Secondary sort: by last message time (newest first)
+    // Sort by last message time (newest first)
     const aTime = a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0;
     const bTime = b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0;
     return bTime - aTime; // Descending (newest first)
@@ -261,6 +262,13 @@ const resolveableCases = computed(() => {
 // Total unread messages count
 const totalUnreadCount = computed(() => {
   return conversations.value.reduce((sum, conv) => sum + (conv.unread || 0), 0);
+});
+
+// Total conversations with open cases
+const totalOpenCasesCount = computed(() => {
+  return conversations.value.filter(c => 
+    c.cases && c.cases.some(x => x.case > 0 && (x.status || 'open') !== 'closed')
+  ).length;
 });
 
 // Title blinking is now handled by shouldBlinkTitle watch below (line 314)
@@ -639,7 +647,7 @@ const parseWhatsAppFormatting = (text) => {
     // Truncate display text if too long (keep first 40 chars + ...)
     const displayText = match.length > 50 ? match.substring(0, 47) + '...' : match;
     
-    return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:text-blue-300 underline">${displayText}</a>`;
+    return `<a href="${href}" rel="noopener noreferrer" class="text-blue-400 hover:text-blue-300 underline">${displayText}</a>`;
   });
   
   // Parse WhatsApp formatting patterns
@@ -1219,6 +1227,36 @@ const backToMenu = (animated = true) => {
         showMobileChat.value = false;
         activeChatId.value = null;
     }
+};
+
+// Quick Reply Functions
+const fetchQuickReplies = async () => {
+    if (quickReplies.value.length > 0) return; // Already loaded
+    
+    isLoadingQuickReplies.value = true;
+    try {
+        const response = await fetch(`${API_BASE}/CMS/QuickReply/getAll`);
+        const res = await response.json();
+        if (res.status && res.data) {
+            quickReplies.value = res.data;
+        }
+    } catch (e) {
+        console.error('Failed to load quick replies:', e);
+    } finally {
+        isLoadingQuickReplies.value = false;
+    }
+};
+
+const toggleQuickReplies = () => {
+    showQuickReplies.value = !showQuickReplies.value;
+    if (showQuickReplies.value) {
+        fetchQuickReplies();
+    }
+};
+
+const selectQuickReply = (qr) => {
+    messageInput.value = qr.message;
+    showQuickReplies.value = false;
 };
 
 const sendMessage = async () => {
@@ -2314,13 +2352,28 @@ onMounted(() => {
 
 // ⭐ Global function for Android native to call when notification is clicked
 if (typeof window !== 'undefined') {
-    window.openChatByPhone = (phone) => {
-        console.log('📲 openChatByPhone called from Android:', phone);
+    window.openChatByPhone = (phone, retryCount = 0) => {
+        console.log(`📲 openChatByPhone called from Android: ${phone} (retry: ${retryCount})`);
         
-        if (!phone) return;
+        if (!phone) {
+            console.log('❌ openChatByPhone: No phone provided');
+            return;
+        }
         
         // Normalize phone number for matching
         const cleanPhone = String(phone).replace(/\D/g, '');
+        console.log(`📲 Cleaned phone: ${cleanPhone}, Conversations loaded: ${conversations.value.length}`);
+        
+        // If conversations not loaded yet, retry with exponential backoff
+        if (conversations.value.length === 0 && retryCount < 10) {
+            console.log(`⏳ Conversations not loaded, setting pendingTargetPhone and retrying in 500ms...`);
+            pendingTargetPhone.value = cleanPhone;
+            
+            setTimeout(() => {
+                window.openChatByPhone(phone, retryCount + 1);
+            }, 500);
+            return;
+        }
         
         // Find conversation by phone
         const target = conversations.value.find(c => {
@@ -2329,21 +2382,40 @@ if (typeof window !== 'undefined') {
         });
         
         if (target) {
-            console.log('✅ Found conversation:', target.name);
+            console.log('✅ Found conversation:', target.name, target.id);
             activeChatId.value = target.id;
+            pendingTargetPhone.value = null; // Clear pending
             
             // If on mobile, show chat view
             if (window.innerWidth < 768) {
                 showMobileChat.value = true;
             }
-        } else {
-            console.log('⚠️ Conversation not found, setting pending target:', phone);
-            // Store for later (conversations might not be loaded yet)
-            pendingTargetPhone.value = phone;
             
-            // Trigger refresh
-            fetchConversations();
+            // Scroll to bottom after a short delay
+            setTimeout(() => {
+                scrollToBottom();
+            }, 300);
+        } else {
+            console.log('⚠️ Conversation not found, setting pending target:', cleanPhone);
+            // Store for later (will be handled when fetchConversations completes)
+            pendingTargetPhone.value = cleanPhone;
+            
+            // Trigger refresh if not already loading
+            if (!isLoadingConversations.value) {
+                fetchConversations();
+            }
         }
+    };
+    
+    // Also expose a debug function
+    window.debugChatState = () => {
+        console.log('=== DEBUG CHAT STATE ===');
+        console.log('Conversations count:', conversations.value.length);
+        console.log('pendingTargetPhone:', pendingTargetPhone.value);
+        console.log('activeChatId:', activeChatId.value);
+        console.log('isConnected:', isConnected.value);
+        console.log('showMobileChat:', showMobileChat.value);
+        console.log('========================');
     };
 }
 
@@ -2604,6 +2676,26 @@ const closeImageLightbox = () => {
                       : 'bg-[var(--wa-accent-green)] text-black'"
                 >
                    {{ totalUnreadCount }}
+                </span>
+             </button>
+             
+             <!-- Cases Tab -->
+             <button 
+                @click="conversationFilter = 'cases'"
+                class="px-3 py-1.5 text-sm font-medium rounded-full transition-all flex items-center gap-1.5"
+                :class="conversationFilter === 'cases' 
+                   ? 'bg-[var(--wa-accent-green)] text-black' 
+                   : 'bg-[var(--wa-bg-tertiary)] text-[var(--wa-text-secondary)] hover:bg-[var(--wa-hover)]'"
+             >
+                <span>Cases</span>
+                <span 
+                   v-if="totalOpenCasesCount > 0" 
+                   class="text-xs font-bold min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center"
+                   :class="conversationFilter === 'cases' 
+                      ? 'bg-black/20 text-black' 
+                      : 'bg-red-500 text-white'"
+                >
+                   {{ totalOpenCasesCount }}
                 </span>
              </button>
           </div>
@@ -3131,6 +3223,34 @@ const closeImageLightbox = () => {
                   </div>
                </div>
                
+               <!-- Quick Reply Panel -->
+               <div v-if="showQuickReplies && quickReplies.length > 0" class="absolute bottom-full left-0 right-0 mb-2 mx-4 bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-xl shadow-2xl max-h-64 overflow-y-auto">
+                  <div class="p-2">
+                     <div class="flex items-center justify-between px-2 py-1 mb-1">
+                        <span class="text-xs font-medium text-[var(--wa-text-secondary)]">Quick Replies</span>
+                        <button @click="showQuickReplies = false" class="p-1 hover:bg-[var(--wa-hover)] rounded">
+                           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--wa-text-tertiary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                           </svg>
+                        </button>
+                     </div>
+                     <div class="space-y-1">
+                        <button 
+                           v-for="qr in quickReplies" 
+                           :key="qr.id"
+                           @click="selectQuickReply(qr)"
+                           class="w-full text-left px-3 py-2 rounded-lg hover:bg-[var(--wa-hover)] transition-colors group"
+                        >
+                           <div class="flex items-center gap-2">
+                              <span class="text-xs font-mono text-[var(--wa-accent-green)]">{{ qr.shortcut }}</span>
+                              <span class="text-sm text-[var(--wa-text-primary)]">{{ qr.title }}</span>
+                           </div>
+                           <p class="text-xs text-[var(--wa-text-tertiary)] mt-0.5 line-clamp-1">{{ qr.message.substring(0, 50) }}...</p>
+                        </button>
+                     </div>
+                  </div>
+               </div>
+               
                <div class="flex gap-3 items-end bg-[var(--wa-bg-secondary)] p-2 rounded-lg border border-[var(--wa-border)] focus-within:ring-0 focus-within:border-[var(--wa-accent-green)] transition-all">
                   <input 
                      type="file" 
@@ -3144,6 +3264,10 @@ const closeImageLightbox = () => {
                      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
                   </button>
                   
+                  <!-- Quick Reply Button -->
+                  <button @click="toggleQuickReplies" class="p-2 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)] transition-colors" title="Quick Replies">
+                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                  </button>
 
                   <textarea 
                     v-model="messageInput"

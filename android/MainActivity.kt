@@ -118,40 +118,89 @@ class MainActivity : AppCompatActivity() {
     private fun setupOneSignalClickListener() {
         OneSignal.Notifications.addClickListener(object : INotificationClickListener {
             override fun onClick(event: INotificationClickEvent) {
-                val phone = event.notification.additionalData?.optString("phone")
+                android.util.Log.d("OneSignal", "=== Notification Clicked ===")
+                
+                val notification = event.notification
+                val additionalData = notification.additionalData
+                
+                // Debug: Log all available data
+                android.util.Log.d("OneSignal", "Title: ${notification.title}")
+                android.util.Log.d("OneSignal", "Body: ${notification.body}")
+                android.util.Log.d("OneSignal", "AdditionalData: $additionalData")
+                
+                // Try to get phone from additionalData
+                var phone: String? = null
+                
+                if (additionalData != null) {
+                    // Method 1: Direct phone key
+                    phone = additionalData.optString("phone", null)
+                    
+                    // Method 2: If phone is empty, try other keys
+                    if (phone.isNullOrEmpty()) {
+                        phone = additionalData.optString("wa_number", null)
+                    }
+                }
+                
+                // 🔧 DEBUG TOAST - Hapus setelah debugging selesai
+                runOnUiThread {
+                    val debugMsg = if (!phone.isNullOrEmpty()) {
+                        "Phone: $phone"
+                    } else {
+                        "No phone in data: $additionalData"
+                    }
+                    android.widget.Toast.makeText(
+                        this@MainActivity,
+                        "Notif clicked: $debugMsg",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                }
+                
                 if (!phone.isNullOrEmpty()) {
-                    android.util.Log.d("OneSignal", "Notification clicked, phone: $phone")
-
-                    // If WebView is ready, call JS immediately
-                    // Otherwise store for later
+                    android.util.Log.d("OneSignal", "✅ Phone found: $phone")
                     runOnUiThread {
                         if (::webView.isInitialized) {
                             openChatByPhone(phone)
                         } else {
                             pendingPhone = phone
+                            android.util.Log.d("OneSignal", "WebView not ready, stored pendingPhone")
                         }
                     }
+                } else {
+                    android.util.Log.d("OneSignal", "❌ No phone found in notification data")
                 }
             }
         })
     }
 
-    // ⭐ Call JavaScript to open specific chat
-    private fun openChatByPhone(phone: String) {
+    // ⭐ Call JavaScript to open specific chat with retry mechanism
+    private fun openChatByPhone(phone: String, retryAttempt: Int = 0) {
         val cleanPhone = phone.replace(Regex("[^0-9]"), "") // Clean phone number
+        android.util.Log.d("OneSignal", "openChatByPhone attempt $retryAttempt: $cleanPhone")
+        
         val jsCode = """
-            if(window.openChatByPhone) { 
-                window.openChatByPhone('$cleanPhone'); 
-                console.log('Android: openChatByPhone called with $cleanPhone');
-            } else { 
-                console.log('Android: openChatByPhone not ready, will retry...'); 
-                setTimeout(function() { 
-                    if(window.openChatByPhone) window.openChatByPhone('$cleanPhone'); 
-                }, 1000);
-            }
+            (function() {
+                console.log('Android calling openChatByPhone: $cleanPhone');
+                if(window.openChatByPhone) { 
+                    window.openChatByPhone('$cleanPhone'); 
+                    return 'called';
+                } else { 
+                    console.log('openChatByPhone not ready');
+                    return 'not_ready';
+                }
+            })();
         """.trimIndent()
-        webView.evaluateJavascript(jsCode, null)
-        android.util.Log.d("OneSignal", "Called openChatByPhone: $cleanPhone")
+        
+        webView.evaluateJavascript(jsCode) { result ->
+            val status = result?.replace("\"", "") ?: ""
+            android.util.Log.d("OneSignal", "openChatByPhone result: $status")
+            
+            // If function not ready and we haven't exceeded retries, try again
+            if (status == "not_ready" && retryAttempt < 5) {
+                webView.postDelayed({
+                    openChatByPhone(phone, retryAttempt + 1)
+                }, 1000) // Wait 1 second before retry
+            }
+        }
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -260,6 +309,18 @@ class MainActivity : AppCompatActivity() {
     private fun setupBackHandler() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
+                // Priority 1: Check if WebView can go back (e.g., user visited a link)
+                // This handles the case where user clicked a link and wants to go back to chat
+                val currentUrl = webView.url ?: ""
+                val isOnMainPage = currentUrl.startsWith(WEB_URL) && !currentUrl.contains("?")
+                
+                if (webView.canGoBack() && !isOnMainPage) {
+                    // If WebView has back history and we're not on main page, go back in WebView
+                    webView.goBack()
+                    return
+                }
+                
+                // Priority 2: Let Vue app handle the back press
                 webView.evaluateJavascript("window.onAndroidBackPressed()") { result ->
                     val status = result?.replace("\"", "") ?: ""
 
@@ -274,6 +335,7 @@ class MainActivity : AppCompatActivity() {
                             "settings_closed" -> {}
                             "toast_shown" -> {}
                             else -> {
+                                // Fallback: try WebView back or exit
                                 if (webView.canGoBack()) {
                                     webView.goBack()
                                 } else {

@@ -12,7 +12,7 @@ if (strlen($nama_pelanggan) > 20) {
 $labeled = false;
 ?>
 
-<div class="row mx-0 mt-2">
+<div class="row mx-0 mt-2" style="flex-wrap: wrap;">
 
   <?php
   $loadRekap = [];
@@ -220,9 +220,9 @@ $labeled = false;
                         }
                       }
 
-                      $user = $data['users'][$o['id_user_operasi']]['nama_user'];
+                      $user = $data['users'][$o['id_user_operasi']]['nama_user'] ?? "Crew";
                       if ($id_ambil > 0) {
-                        $userAmbil = $data['users'][$id_ambil]['nama_user'];
+                        $userAmbil = $data['users'][$id_ambil]['nama_user'] ?? "Crew";
                       } else {
                         $userAmbil = "";
                       }

@@ -37,21 +37,42 @@ if ($data['id_pelanggan'] > 0) {
       <div class="row mt-1 mr-1 w-100">
         <form id="main">
           <div class="d-flex align-items-start align-items-end pb-1">
-            <div class="pl-0 pr-1">
-              <a href="<?= URL::BASE_URL ?>Antrian/index/1" type="button" class="btn btn-outline-primary">
-                Terkini
-              </a>
-            </div>
-            <div class="pl-0 pr-1">
-              <a href="<?= URL::BASE_URL ?>Antrian/index/6" type="button" class="btn btn-outline-success">
-                Minggu
-              </a>
-            </div>
-            <div class="pl-0 pr-1">
-              <a href="<?= URL::BASE_URL ?>Antrian/index/7" type="button" class="btn btn-outline-info">
-                Bulan
-              </a>
-            </div>
+            <?php if ($data['mode'] == 1) { 
+              // Untuk mode tuntas, tampilkan navigasi tahun
+              $currentYear = isset($data['currentYear']) ? $data['currentYear'] : date('Y');
+              $selectedYear = isset($data['selectedYear']) ? $data['selectedYear'] : $currentYear;
+              $minYear = isset($data['minYear']) ? $data['minYear'] : 2021;
+              
+              // Note: selectedYear akan diupdate via JavaScript saat data dimuat
+            ?>
+              <div class="d-flex align-items-center">
+                <button type="button" id="btnPrevYear" class="btn btn-outline-secondary me-2" <?= ($selectedYear <= $minYear) ? 'disabled' : '' ?>>
+                  <i class="fas fa-chevron-left"></i>
+                </button>
+                <span id="currentYearDisplay" class="btn btn-primary px-4 fw-bold">
+                  <?= $selectedYear ?>
+                </span>
+                <button type="button" id="btnNextYear" class="btn btn-outline-secondary ms-2" <?= ($selectedYear >= $currentYear) ? 'disabled' : '' ?>>
+                  <i class="fas fa-chevron-right"></i>
+                </button>
+              </div>
+            <?php } else { ?>
+              <div class="pl-0 pr-1">
+                <a href="<?= URL::BASE_URL ?>Antrian/index/1" type="button" class="btn btn-outline-primary">
+                  Terkini
+                </a>
+              </div>
+              <div class="pl-0 pr-1">
+                <a href="<?= URL::BASE_URL ?>Antrian/index/6" type="button" class="btn btn-outline-success">
+                  Minggu
+                </a>
+              </div>
+              <div class="pl-0 pr-1">
+                <a href="<?= URL::BASE_URL ?>Antrian/index/7" type="button" class="btn btn-outline-info">
+                  Bulan
+                </a>
+              </div>
+            <?php } ?>
           </div>
         </form>
       </div>
@@ -74,6 +95,42 @@ if ($data['id_pelanggan'] > 0) {
     if (pelanggan && pelanggan.length != 0) {
       loadDataOnly(pelanggan);
     }
+    
+    // Year navigation handlers (for mode tuntas)
+    <?php if ($data['mode'] == 1) { ?>
+    var currentYear = <?= isset($data['currentYear']) ? $data['currentYear'] : date('Y') ?>;
+    var selectedYear = <?= isset($data['selectedYear']) ? $data['selectedYear'] : date('Y') ?>;
+    var minYear = <?= isset($data['minYear']) ? $data['minYear'] : 2021 ?>;
+    
+    $('#btnPrevYear').on('click', function() {
+      if (selectedYear > minYear) {
+        selectedYear--;
+        updateYearDisplay();
+        reloadDataWithYear();
+      }
+    });
+    
+    $('#btnNextYear').on('click', function() {
+      if (selectedYear < currentYear) {
+        selectedYear++;
+        updateYearDisplay();
+        reloadDataWithYear();
+      }
+    });
+    
+    function updateYearDisplay() {
+      $('#currentYearDisplay').text(selectedYear);
+      $('#btnPrevYear').prop('disabled', selectedYear <= minYear);
+      $('#btnNextYear').prop('disabled', selectedYear >= currentYear);
+    }
+    
+    function reloadDataWithYear() {
+      var pelanggan = $("select[name=pelanggan]").val();
+      if (pelanggan && pelanggan.length != 0) {
+        loadDataOnly(pelanggan, selectedYear);
+      }
+    }
+    <?php } ?>
   });
 
   $('select.tize').selectize({
@@ -90,10 +147,15 @@ if ($data['id_pelanggan'] > 0) {
   })
 
   // Fungsi untuk load data via AJAX (digunakan saat pertama kali halaman dibuka)
-  function loadDataOnly(id) {
+  function loadDataOnly(id, year) {
     $('.hrfsp').attr('href', '<?= URL::BASE_URL ?>Member/tambah_paket/' + id);
     $('.hrfsd').attr('href', '<?= URL::BASE_URL ?>SaldoTunai/tambah/' + id);
-    $("div#load").load("<?= URL::BASE_URL ?>Operasi/loadData/" + id + "/" + <?= $data['mode'] ?>);
+    
+    var url = "<?= URL::BASE_URL ?>Operasi/loadData/" + id + "/" + <?= $data['mode'] ?>;
+    if (year) {
+      url += "?year=" + year;
+    }
+    $("div#load").load(url);
   }
 
   function load_data_operasi(id) {

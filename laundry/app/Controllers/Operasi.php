@@ -38,8 +38,18 @@ class Operasi extends Controller
 
       $pelanggan = $this->pelanggan[$id_pelanggan];
 
+      // Get year parameter, default to current year
+      $year = isset($_GET['year']) ? intval($_GET['year']) : intval(date('Y'));
+      
+      // Limit year range: 2021 to current year
+      $currentYear = intval(date('Y'));
+      $minYear = 2021;
+      if ($year < $minYear) $year = $minYear;
+      if ($year > $currentYear) $year = $currentYear;
+
       if ($mode == 1) {
-         $whereSale = $this->wCabang . " AND id_pelanggan = $id_pelanggan AND bin = 0 AND tuntas = " . $mode . " ORDER BY id_penjualan DESC";
+         // Filter by year for completed orders (tuntas)
+         $whereSale = $this->wCabang . " AND id_pelanggan = $id_pelanggan AND bin = 0 AND tuntas = " . $mode . " AND YEAR(insertTime) = $year ORDER BY id_penjualan DESC";
          $modeView = 2;
       } else {
          $whereSale = $this->wCabang . " AND id_pelanggan = $id_pelanggan AND bin = 0 AND tuntas = 0 ORDER BY id_penjualan DESC";
@@ -209,7 +219,11 @@ class Operasi extends Controller
          'kas_member' => $kas_member,
          'saldoTunai' => $sisaSaldo,
          'users' => $users,
-         'finance_history' => $finance_history
+         'finance_history' => $finance_history,
+         // Year navigation data
+         'selectedYear' => $year,
+         'currentYear' => $currentYear,
+         'minYear' => $minYear
       ]);
    }
 
