@@ -2307,7 +2307,43 @@ onMounted(() => {
 
   });
 
+// ⭐ Global function for Android native to call when notification is clicked
+if (typeof window !== 'undefined') {
+    window.openChatByPhone = (phone) => {
+        console.log('📲 openChatByPhone called from Android:', phone);
+        
+        if (!phone) return;
+        
+        // Normalize phone number for matching
+        const cleanPhone = String(phone).replace(/\D/g, '');
+        
+        // Find conversation by phone
+        const target = conversations.value.find(c => {
+            const cleanA = (c.wa_number || '').replace(/\D/g, '');
+            return cleanA.endsWith(cleanPhone) || cleanPhone.endsWith(cleanA);
+        });
+        
+        if (target) {
+            console.log('✅ Found conversation:', target.name);
+            activeChatId.value = target.id;
+            
+            // If on mobile, show chat view
+            if (window.innerWidth < 768) {
+                showMobileChat.value = true;
+            }
+        } else {
+            console.log('⚠️ Conversation not found, setting pending target:', phone);
+            // Store for later (conversations might not be loaded yet)
+            pendingTargetPhone.value = phone;
+            
+            // Trigger refresh
+            fetchConversations();
+        }
+    };
+}
+
   // Handle Android Back Button (Capacitor)
+
   App.addListener('backButton', () => {
     handleBackButtonPress();
   });

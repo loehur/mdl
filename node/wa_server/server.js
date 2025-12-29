@@ -113,9 +113,8 @@ async function sendPushNotification(options) {
         // iOS Thread ID: Groups notifications on iOS
         thread_id: groupKey,
 
-        // Open specific chat when clicked
-        // TODO: Ensure this URL matches your actual production frontend URL
-        url: `https://cms.nalju.com/?phone=${phone}`,
+        // NOTE: Don't use 'url' - it opens external browser
+        // Instead, Android native should read 'data.phone' and pass to WebView
 
         data: {
             type: 'wa_masuk',
