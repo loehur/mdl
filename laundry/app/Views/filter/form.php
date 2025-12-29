@@ -8,8 +8,8 @@
 <?php $modeView = $data['modeView'];
 ?>
 
-<div class="sticky-top mt-5 mb-2" style="max-width:840px">
-  <div class="bg-white py-2 rounded border">
+<div class="sticky-top mb-2" style="max-width:840px;top:100px">
+  <div class="bg-white py-2 px-1 rounded border">
     <div class="row mx-0">
       <div class="col">
         <div class="row">
