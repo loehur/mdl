@@ -593,19 +593,27 @@ class Chat extends Controller
             
             $targetCase = (int)$caseVal;
             
-            // Find and close
-            // Find and close
+            // Find and close target case + ALWAYS close Case 4 (Follow Up)
             foreach ($caseList as &$item) {
-                if (isset($item['case']) && (int)$item['case'] === $targetCase) {
-                    // Update status and Clean up fields
+                $itemCase = (int)($item['case'] ?? 0);
+                
+                // Close target case
+                if ($itemCase === $targetCase) {
                     $item['status'] = 'closed';
                     if(isset($item['resolved_at'])) unset($item['resolved_at']);
                     if(isset($item['resolved_by'])) unset($item['resolved_by']);
                     if(isset($item['timestamp'])) unset($item['timestamp']);
-                    
+                    $modified = true;
+                }
+                
+                // ALWAYS close Case 4 (Follow Up) when ANY case is resolved
+                if ($itemCase === 4 && ($item['status'] ?? 'open') !== 'closed') {
+                    $item['status'] = 'closed';
+                    if(isset($item['timestamp'])) unset($item['timestamp']);
                     $modified = true;
                 }
             }
+
             
             if ($modified) {
                 $jsonCase = json_encode($caseList);
