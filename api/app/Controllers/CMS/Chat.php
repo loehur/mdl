@@ -51,12 +51,14 @@ class Chat extends Controller
             if ($userId && !$isAdmin) {
                if ($isDriver) {
                    // Handle Legacy Int, Single JSON Object, and JSON Array List
-                   // Structure: [{"case": 2, ...}, ...]
-                   // Using LIKE for broad compatibility (searching 2 or 4)
+                   // Structure: [{"case": 2, "status": "open", ...}, ...]
+                   // Only show Case 2 that is OPEN (not closed)
+                   // Must match both case:2 AND status:open in the same JSON object
                    $whereClause .= " AND (
-                        c.conv_case LIKE '%\"case\":2%'
-                        OR c.conv_case LIKE '%\"case\":\"2\"%'
+                        (c.conv_case LIKE '%\"case\":2%' AND c.conv_case LIKE '%\"status\":\"open\"%')
+                        OR (c.conv_case LIKE '%\"case\":\"2\"%' AND c.conv_case LIKE '%\"status\":\"open\"%')
                    )";
+
                } else {
                    // Crew Role: Filter by assigned_user_id
                    // For numeric IDs, use intval for safety

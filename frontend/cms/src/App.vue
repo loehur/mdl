@@ -498,20 +498,18 @@ const connect = () => {
     // OneSignal: Register user for push notifications
     oneSignalLogin(authId.value);
     
-    // ✅ FINAL RELIABLE SOLUTION: 3-Second Polling
-    // WebSocket broadcast is blocked by server. SSE is buffered.
-    // Short polling is the ONLY robust way to sync agents without Node.js access.
+    // Polling as FALLBACK only (30 seconds)
+    // WebSocket handles real-time updates, this is just for missed events
     if (refreshInterval.value) {
         clearInterval(refreshInterval.value);
     }
     
     refreshInterval.value = setInterval(() => {
-        // ALWAYS poll even if hidden, to ensure multi-monitor setups see updates instanty
-        if (isConnected.value) {
+        if (isConnected.value && !document.hidden) {
             fetchConversations();
-            // console.log('⚡ Polling (3s)...'); 
         }
-    }, 3000); // 3 Seconds = Fast enough for UX, light server load.
+    }, 30000); // 30 seconds - WebSocket handles real-time, this is fallback only
+
 }
 
 // --- Computed ---
@@ -907,9 +905,13 @@ const checkPayment = async () => {
             // Update local cases
             // Update local cases (Append for multi-case)
             if (!activeConversation.value.cases) activeConversation.value.cases = [];
-            activeConversation.value.cases = activeConversation.value.cases.filter(c => c.case !== 0); // Remove 'normal'
-            if (!activeConversation.value.cases.some(c => c.case === 1)) {
-                 activeConversation.value.cases.push({case: 1});
+            // Close case 4 if exists, remove case 0
+            activeConversation.value.cases = activeConversation.value.cases.map(c => 
+                c.case === 4 ? {...c, status: 'closed'} : c
+            ).filter(c => c.case !== 0);
+            // Add case 1 with status open
+            if (!activeConversation.value.cases.some(c => c.case === 1 && c.status === 'open')) {
+                 activeConversation.value.cases.push({case: 1, status: 'open'});
             }
             console.log('✓ Conversation marked for payment check');
         } else {
@@ -949,9 +951,13 @@ const pickupDelivery = async () => {
             // Update local cases
             // Update local cases (Append for multi-case)
             if (!activeConversation.value.cases) activeConversation.value.cases = [];
-            activeConversation.value.cases = activeConversation.value.cases.filter(c => c.case !== 0);
-            if (!activeConversation.value.cases.some(c => c.case === 2)) {
-                 activeConversation.value.cases.push({case: 2});
+            // Close case 4 if exists, remove case 0
+            activeConversation.value.cases = activeConversation.value.cases.map(c => 
+                c.case === 4 ? {...c, status: 'closed'} : c
+            ).filter(c => c.case !== 0);
+            // Add case 2 with status open
+            if (!activeConversation.value.cases.some(c => c.case === 2 && c.status === 'open')) {
+                 activeConversation.value.cases.push({case: 2, status: 'open'});
             }
             console.log('✓ Conversation marked for pickup/delivery');
         } else {
@@ -991,9 +997,13 @@ const requestPriority = async () => {
             // Update local cases
             // Update local cases (Append for multi-case)
             if (!activeConversation.value.cases) activeConversation.value.cases = [];
-            activeConversation.value.cases = activeConversation.value.cases.filter(c => c.case !== 0);
-            if (!activeConversation.value.cases.some(c => c.case === 3)) {
-                 activeConversation.value.cases.push({case: 3});
+            // Close case 4 if exists, remove case 0
+            activeConversation.value.cases = activeConversation.value.cases.map(c => 
+                c.case === 4 ? {...c, status: 'closed'} : c
+            ).filter(c => c.case !== 0);
+            // Add case 3 with status open
+            if (!activeConversation.value.cases.some(c => c.case === 3 && c.status === 'open')) {
+                 activeConversation.value.cases.push({case: 3, status: 'open'});
             }
             console.log('✓ Conversation marked as request');
         } else {
@@ -1033,10 +1043,12 @@ const followUp = async () => {
             // Update local cases (Append for multi-case)
             if (!activeConversation.value.cases) activeConversation.value.cases = [];
             activeConversation.value.cases = activeConversation.value.cases.filter(c => c.case !== 0);
-            if (!activeConversation.value.cases.some(c => c.case === 4)) {
-                 activeConversation.value.cases.push({case: 4});
+            // Add case 4 with status open
+            if (!activeConversation.value.cases.some(c => c.case === 4 && c.status === 'open')) {
+                 activeConversation.value.cases.push({case: 4, status: 'open'});
             }
             console.log('✓ Conversation marked for follow up');
+
         } else {
             console.error('Failed to mark for follow up:', res.message);
         }
@@ -1876,10 +1888,10 @@ const connectWebSocket = () => {
                         conv.cases = conv.cases.filter(c => c.case !== 0);
                     }
                } else {
-                   console.log('⚠️ Conversation not found for case update (might need reload):', payload.phone);
-                   // Optionally trigger reload here
-                   // fetchConversations();
+                   console.log('⚠️ Conversation not found for case update - reloading list:', payload.phone);
+                   fetchConversations(); // Reload to get new conversation
                }
+
                return;
            }
 
