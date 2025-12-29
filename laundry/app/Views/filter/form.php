@@ -9,14 +9,14 @@
 ?>
 
 <div class="sticky-top mb-2" style="max-width:840px;top:70px">
-  <div class="bg-white py-2 px-1 rounded border">
+  <div class="bg-white py-2 mx-1 rounded border">
     <div class="row mx-0">
       <div class="col">
         <div class="row">
           <div class="col mb-1">
             <div class="input-group input-group-sm">
               <span class="input-group-text text-primary">Dari</span>
-              <input name="start_date" type="date" onclick="max()" min="2023-07-01" max="<?= date("Y-m-d") ?>" placeholder="" class="form-control" required>
+              <input name="start_date" type="date" min="2023-07-01" max="<?= date("Y-m-d") ?>" placeholder="" class="form-control" required>
             </div>
           </div>
           <div class="col">
