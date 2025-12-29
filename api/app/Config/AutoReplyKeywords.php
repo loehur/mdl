@@ -23,7 +23,10 @@ return [
         ],
         'ai_prompt' => "User meminta:\n
         | bon | nota | struk | tagihan | bukti pembayaran laundry |\n
-        atau yang menurut anda sangat yakin sebagai permintaan nota/bon"
+        ATAU user menanyakan TOTAL/BIAYA/HARGA laundrynya, seperti:\n
+        | berapa total punya saya? | berapa biaya laundry saya? | totalnya berapa? | berapa tagihan? |\n
+        Jika user bertanya 'berapa' + (total/biaya/harga/tagihan) = NOTA\n
+        atau yang menurut anda sangat yakin sebagai permintaan nota/bon/informasi tagihan"
     ],
 
     'STATUS' => [
