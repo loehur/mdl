@@ -491,7 +491,11 @@ class Chat extends Controller
             );
             
             if ($updated) {
-                // Push WebSocket
+                // Get conversation info for notification
+                $conv = $db->get_where('wa_conversations', ['wa_number' => $phone])->row();
+                $contactName = $conv->contact_name ?? 'Customer';
+                
+                // Push WebSocket for general case update
                 $payload = [
                     'type' => 'case_updated',
                     'phone' => $phone,
@@ -503,7 +507,23 @@ class Chat extends Controller
                 \Log::write("Pushing case update to WebSocket: " . json_encode($payload), 'cms_ws', 'Chat');
                 $this->pushToWebSocket($payload);
                 
+                // ⭐ SPECIAL: Push notification to DRIVERS when Case 2 (Pickup/Delivery) is added
+                if ((int)$caseVal === 2) {
+                    $driverPayload = [
+                        'type' => 'driver_pickup_added',
+                        'phone' => $phone,
+                        'contact_name' => $contactName,
+                        'case' => 2,
+                        'target_id' => '0', // Broadcast - server will filter to drivers only
+                        'message' => "📦 Pickup/Delivery request from $contactName"
+                    ];
+                    
+                    \Log::write("Pushing Case 2 notification to drivers: " . json_encode($driverPayload), 'cms_ws', 'Chat');
+                    $this->pushToWebSocket($driverPayload);
+                }
+                
                 $this->success(['case' => (int)$caseVal], 'Case updated');
+
             } else {
                 $this->error('Failed to update case');
             }

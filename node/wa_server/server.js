@@ -444,6 +444,62 @@ app.post('/incoming', async (req, res) => {
         return res.status(400).json({ success: false, message: 'target_id is required' });
     }
 
+    // ⭐ SPECIAL HANDLER: Push notification to drivers for Case 2 (Pickup/Delivery)
+    if (data.type === 'driver_pickup_added') {
+        console.log('[DRIVER PUSH] Case 2 (Pickup/Delivery) added:', data);
+
+        const customerName = (data.contact_name || 'Customer').toUpperCase();
+        const customerPhone = data.phone || '';
+        const message = data.message || `📦 Pickup/Delivery from ${customerName}`;
+
+        // Find OFFLINE drivers only
+        const connectedUserIds = Array.from(clients.keys());
+        const offlineDrivers = DRIVER_IDS.filter(driverId => {
+            return !connectedUserIds.includes(driverId);
+        });
+
+        console.log(`[DRIVER PUSH] Connected: ${connectedUserIds.join(', ') || 'none'}`);
+        console.log(`[DRIVER PUSH] Offline drivers: ${offlineDrivers.join(', ') || 'none'}`);
+
+        let pushResult = { success: false, error: 'No offline drivers' };
+
+        if (offlineDrivers.length > 0) {
+            pushResult = await sendPushNotification({
+                title: `📦 ${customerName}`,
+                message: message,
+                phone: customerPhone,
+                caseType: 2,
+                userIds: offlineDrivers,
+                data: { phone: customerPhone, type: 'pickup' }
+            });
+            console.log(`[DRIVER PUSH] Sent to ${offlineDrivers.length} driver(s):`, pushResult.success ? '✅' : '❌');
+        }
+
+        // Also broadcast to connected drivers via WebSocket
+        let wsCount = 0;
+        DRIVER_IDS.forEach(driverId => {
+            if (clients.has(driverId)) {
+                const driverSockets = clients.get(driverId);
+                driverSockets.forEach(socket => {
+                    if (socket.readyState === WebSocket.OPEN) {
+                        socket.send(JSON.stringify(data));
+                        wsCount++;
+                    }
+                });
+            }
+        });
+
+        console.log(`[DRIVER PUSH] WebSocket sent to ${wsCount} connected driver(s)`);
+
+        return res.json({
+            success: true,
+            message: `Driver notification sent`,
+            push: pushResult,
+            websocket: wsCount
+        });
+    }
+
+
     console.log(`WA Incoming for ${targetId}:`, data);
 
     // Extract common data for push notification
@@ -452,20 +508,28 @@ app.post('/incoming', async (req, res) => {
 
     // Handle messageText - data.message can be an object from PHP webhook
     let messageText = '';
+    let messageType = '';
+
     if (typeof data.text === 'string') {
         messageText = data.text;
     } else if (typeof data.message === 'object' && data.message !== null) {
         // PHP sends message as object: { id, text, type, ... }
         messageText = data.message.text || data.message.caption || '';
+        messageType = data.message.type || '';
     } else if (typeof data.message === 'string') {
         messageText = data.message;
     } else if (typeof data.lastMessage === 'string') {
         messageText = data.lastMessage;
     }
-    // Ensure messageText is always a string
-    messageText = String(messageText || '');
+
+    // Ensure messageText is always a string and trimmed
+    messageText = String(messageText || '').trim();
+
+    // Flag to skip notification if no meaningful text content
+    const hasTextContent = messageText.length > 0;
 
     const caseType = parseInt(data.case || 0);
+
 
     // BROADCAST TO ALL if target_id = '0'
     if (targetId === '0') {
@@ -542,18 +606,21 @@ app.post('/incoming', async (req, res) => {
         console.log(`[PUSH] Connected users: ${connectedUserIds.join(', ') || 'none'}`);
         console.log(`[PUSH] Offline users for push: ${offlineUserIds.join(', ') || 'none'}`);
 
-        // Send Push Notification only to OFFLINE users
-        let pushResult = { success: false, error: 'No offline users' };
-        if (offlineUserIds.length > 0) {
+        // Send Push Notification only to OFFLINE users AND only if message has text content
+        let pushResult = { success: false, error: 'No text content' };
+        if (offlineUserIds.length > 0 && hasTextContent) {
             pushResult = await sendPushNotification({
                 title: customerName,
-                message: messageText.substring(0, 100) || '📩 New message',
+                message: messageText.substring(0, 100),
                 phone: customerPhone,
                 caseType: caseType,
                 userIds: offlineUserIds,
                 data: { phone: customerPhone }
             });
+        } else if (!hasTextContent) {
+            console.log('[PUSH] Skipped: Message has no text content (image/sticker/etc without caption)');
         }
+
 
         console.log(`[BROADCAST] Sent to ${broadcastCount} client(s), excluded sender: ${senderId || 'none'}`);
         console.log(`[BROADCAST] Push notification to ${offlineUserIds.length} offline user(s):`, pushResult.success ? '✅' : '⏭️ skipped');
@@ -614,19 +681,21 @@ app.post('/incoming', async (req, res) => {
 
     let pushResult = { success: false, recipients: 0 };
 
-    if (pushRecipients.length > 0) {
+    // Only send push if message has text content
+    if (pushRecipients.length > 0 && hasTextContent) {
         pushResult = await sendPushNotification({
             title: customerName,
-            message: messageText.substring(0, 100) || '📩 New message',
+            message: messageText.substring(0, 100),
             phone: customerPhone,
             caseType: caseType,
             userIds: pushRecipients,
             data: { phone: customerPhone }
         });
         console.log(`[PUSH] Sent to ${pushRecipients.length} offline user(s) (${pushRecipients.join(',')}) for target ${targetId} (Case ${caseType}):`, pushResult.success ? '✅' : '❌');
-    } else {
-        // console.log(`[PUSH] No eligible offline recipients.`);
+    } else if (!hasTextContent) {
+        console.log('[PUSH] Skipped: Message has no text content');
     }
+
 
     if (sent) {
         res.json({ success: true, message: 'Message sent to client', push: pushResult });
