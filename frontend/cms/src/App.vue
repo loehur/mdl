@@ -195,7 +195,9 @@ const filteredConversations = computed(() => {
 
   if (role === 'driver') {
       // Driver only sees Priority 2 (Pickup/Delivery)
-      list = list.filter(c => c.cases && c.cases.some(x => x.case === 2));
+      // Must have Case 2 AND status must be 'open' (or undefined/null which defaults to open)
+      list = list.filter(c => c.cases && c.cases.some(x => x.case === 2 && (x.status || 'open') !== 'closed'));
+
   } else if (role === 'crew') {
       // Crew only sees conversations assigned to them
       if (myId) {
