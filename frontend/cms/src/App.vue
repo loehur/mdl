@@ -498,19 +498,24 @@ const connect = () => {
     // OneSignal: Register user for push notifications
     oneSignalLogin(authId.value);
     
-    // Polling as FALLBACK only (30 seconds)
-    // WebSocket handles real-time updates, this is just for missed events
+    // Start Polling (Fallback)
+    resetPollingTimer();
+}
+
+// Helper to reset polling timer (called on WS events to delay next poll)
+const resetPollingTimer = () => {
     if (refreshInterval.value) {
         clearInterval(refreshInterval.value);
     }
     
     refreshInterval.value = setInterval(() => {
         if (isConnected.value && !document.hidden) {
+            // console.log('Checking for missed updates...');
             fetchConversations();
         }
-    }, 30000); // 30 seconds - WebSocket handles real-time, this is fallback only
+    }, 30000); // 30 seconds
+};
 
-}
 
 // --- Computed ---
 
@@ -1820,6 +1825,13 @@ const connectWebSocket = () => {
      ws.onmessage = (event) => {
        try {
          const payload = JSON.parse(event.data);
+
+         // EFFICIENCY: Reset 30s polling timer whenever specific events arrive
+         // If we get real-time data, we don't need to poll immediately
+         if (['status_update', 'wa_masuk', 'case_updated', 'case_resolved', 'conversation_read'].includes(payload.type)) {
+             resetPollingTimer();
+         }
+
          
          // Handle Connection Welcome
          if (payload.type === 'connection') {
