@@ -109,6 +109,8 @@ const isRequest = ref(false);
 const isFollowUp = ref(false);
 const isReopeningConversation = ref(false);
 const showResolveMenu = ref(false); // New state
+const pendingTargetPhone = ref(null); // Phone from URL param/notification
+
 
 // Auto-Open Chat on Incoming Message
 const autoOpenChatOnIncoming = ref(false); // Set false if you want manual open only
@@ -396,7 +398,31 @@ const fetchConversations = async () => {
             });
             
             // Re-assign to update list order/membership
+            // Re-assign to update list order/membership
             conversations.value = newOrder;
+            
+            // Auto-open chat if deep link pending
+            if (pendingTargetPhone.value) {
+                const target = conversations.value.find(c => {
+                    const cleanA = (c.wa_number || '').replace(/\D/g, '');
+                    const cleanB = (pendingTargetPhone.value || '').replace(/\D/g, '');
+                    return cleanA.endsWith(cleanB) || cleanB.endsWith(cleanA);
+                });
+                
+                if (target) {
+                    console.log('✅ Auto-opening chat from deep link:', target.name);
+                    activeChatId.value = target.id;
+                    pendingTargetPhone.value = null; // Clear it
+                    
+                    // If on mobile, show chat view
+                    if (window.innerWidth < 768) {
+                        showMobileChat.value = true;
+                    }
+                } else {
+                    console.log('⚠️ Deep link target not found in list (yet):', pendingTargetPhone.value);
+                }
+            }
+
             
         } else {
             console.error("API format error:", result);
@@ -2172,7 +2198,18 @@ const mockIncomingMessage = () => {
 // Data will always be fresh from API
 
 onMounted(() => {
+  // Check for Deep Link / Notification Click (URL Param)
+  const urlParams = new URLSearchParams(window.location.search);
+  const deepLinkPhone = urlParams.get('phone');
+  if (deepLinkPhone) {
+      console.log('🔗 Deep link detected for phone:', deepLinkPhone);
+      pendingTargetPhone.value = deepLinkPhone;
+      // Clean URL silently
+      window.history.replaceState({}, document.title, "/");
+  }
+
   // Add Paste Listener
+
   window.addEventListener('paste', handlePaste);
   
   scrollToBottom();
