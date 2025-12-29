@@ -665,46 +665,64 @@ class WhatsApp extends Controller
                 
                 // 2. Check if this case already exists (OPEN OR CLOSED)
                 $caseExists = false;
-                foreach ($caseList as &$existingCase) {
-                    if (isset($existingCase['case']) && (int)$existingCase['case'] === (int)$case) {
-                        // UPDATE existing case status to open
-                        $existingCase['status'] = 'open';
-                        
-                        // Clean up extra fields (no history/metadata needed)
-                        if(isset($existingCase['timestamp'])) unset($existingCase['timestamp']);
-                        if(isset($existingCase['resolved_at'])) unset($existingCase['resolved_at']);
-                        if(isset($existingCase['resolved_by'])) unset($existingCase['resolved_by']);
-                        
-                        $caseExists = true;
+                
+                // NEW: Check if there are other open cases (for Case 4 logic)
+                $hasOtherOpenCases = false;
+                foreach ($caseList as $c) {
+                    if (isset($c['case']) && (int)$c['case'] !== 4 && ($c['status'] ?? '') === 'open') {
+                        $hasOtherOpenCases = true;
                         break;
                     }
                 }
-                unset($existingCase); 
                 
-                // 3. Only append if case doesn't exist
-                if (!$caseExists) {
-                    $caseList[] = [
-                        'case' => $case,
-                        'status' => 'open'
-                    ];
-                }
-                
-                // NEW RULE: If updating any case OTHER than 4, auto-close Case 4 (Follow Up)
-                if ((int)$case !== 4) {
-                    foreach ($caseList as &$c) {
-                        if (isset($c['case']) && (int)$c['case'] === 4) {
-                            $c['status'] = 'closed';
-                            // Cleanup any extra fields
-                            if(isset($c['timestamp'])) unset($c['timestamp']);
-                            if(isset($c['resolved_at'])) unset($c['resolved_at']);
-                            if(isset($c['resolved_by'])) unset($c['resolved_by']);
+                // NEW RULE: If trying to add/open Case 4 but other cases are open, SKIP
+                if ((int)$case === 4 && $hasOtherOpenCases) {
+                    // Don't add or update Case 4 - just skip case update entirely
+                    // But still update other fields (contact_name, last_message, etc)
+                } else {
+                    // Normal case processing
+                    foreach ($caseList as &$existingCase) {
+                        if (isset($existingCase['case']) && (int)$existingCase['case'] === (int)$case) {
+                            // UPDATE existing case status to open
+                            $existingCase['status'] = 'open';
+                            
+                            // Clean up extra fields (no history/metadata needed)
+                            if(isset($existingCase['timestamp'])) unset($existingCase['timestamp']);
+                            if(isset($existingCase['resolved_at'])) unset($existingCase['resolved_at']);
+                            if(isset($existingCase['resolved_by'])) unset($existingCase['resolved_by']);
+                            
+                            $caseExists = true;
+                            break;
                         }
                     }
-                    unset($c);
+                    unset($existingCase); 
+                    
+                    // 3. Only append if case doesn't exist
+                    if (!$caseExists) {
+                        $caseList[] = [
+                            'case' => $case,
+                            'status' => 'open'
+                        ];
+                    }
+                    
+                    // RULE: If updating any case OTHER than 4, auto-close Case 4 (Follow Up)
+                    if ((int)$case !== 4) {
+                        foreach ($caseList as &$c) {
+                            if (isset($c['case']) && (int)$c['case'] === 4) {
+                                $c['status'] = 'closed';
+                                // Cleanup any extra fields
+                                if(isset($c['timestamp'])) unset($c['timestamp']);
+                                if(isset($c['resolved_at'])) unset($c['resolved_at']);
+                                if(isset($c['resolved_by'])) unset($c['resolved_by']);
+                            }
+                        }
+                        unset($c);
+                    }
+                    
+                    $updateData['conv_case'] = json_encode($caseList);
                 }
-                
-                $updateData['conv_case'] = json_encode($caseList);
             }
+
             
             $db->update('wa_conversations', 
                 $updateData, 

@@ -435,13 +435,31 @@ class Chat extends Controller
                 }
             }
 
-            // Always remove Case 4 (Follow Up) when updating cases
-            $caseList = array_values(array_filter($caseList, function($c) {
-                return isset($c['case']) && (int)$c['case'] !== 4;
-            }));
+            // Always close Case 4 (Follow Up) when updating cases (instead of removing, keep history)
+            foreach ($caseList as &$c) {
+                if (isset($c['case']) && (int)$c['case'] === 4 && ($c['status'] ?? '') !== 'closed') {
+                    $c['status'] = 'closed';
+                }
+            }
+            unset($c);
             
             // 2. Add or Update the requested case
             $newCaseVal = (int)$caseVal;
+            
+            // Check if there are other open cases (for Case 4 logic)
+            $hasOtherOpenCases = false;
+            foreach ($caseList as $c) {
+                if (isset($c['case']) && (int)$c['case'] !== 4 && ($c['status'] ?? '') === 'open') {
+                    $hasOtherOpenCases = true;
+                    break;
+                }
+            }
+            
+            // NEW RULE: If trying to add Case 4 but other cases are open, SKIP
+            if ($newCaseVal === 4 && $hasOtherOpenCases) {
+                $this->success(['case' => null], 'Other cases are open - Case 4 not needed');
+            }
+            
             $found = false;
             
             foreach ($caseList as &$item) {
@@ -462,6 +480,7 @@ class Chat extends Controller
                     'timestamp' => date('Y-m-d H:i:s')
                 ];
             }
+
             
             // 3. Save back entire list
             $jsonCase = json_encode($caseList);
@@ -513,6 +532,27 @@ class Chat extends Controller
             
             $db = $this->db(0);
             
+            // Check if there are other open cases - if so, don't add Case 4
+            $existing = $db->query("SELECT conv_case FROM wa_conversations WHERE wa_number = ?", [$phone])->row();
+            $hasOtherOpenCases = false;
+            
+            if ($existing && isset($existing->conv_case)) {
+                $caseList = json_decode($existing->conv_case, true) ?? [];
+                if (is_array($caseList)) {
+                    foreach ($caseList as $c) {
+                        if (isset($c['case']) && (int)$c['case'] !== 4 && ($c['status'] ?? '') === 'open') {
+                            $hasOtherOpenCases = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            // If other cases are open, skip adding Case 4
+            if ($hasOtherOpenCases) {
+                $this->success(['case' => null], 'Conversation already has open cases - Case 4 not needed');
+            }
+            
             // Update case to 4 (urgent)
             $caseVal = 4;
             $jsonCase = json_encode([[
@@ -542,6 +582,7 @@ class Chat extends Controller
                 $this->pushToWebSocket($payload);
                 
                 $this->success(['case' => 4], 'Conversation reopened - needs attention');
+
             } else {
                 $this->error('Failed to update case');
             }
