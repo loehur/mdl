@@ -49,18 +49,32 @@ class Filter extends Controller
    {
       $data_main = array();
       $viewData = 'filter/view_content';
+      $maxDays = 3; // Maksimal rentang tanggal
+      $errorMessage = null;
+
+      // Validasi rentang tanggal
+      if ($from <> "" && $to <> "") {
+         $dateFrom = new DateTime($from);
+         $dateTo = new DateTime($to);
+         $interval = $dateFrom->diff($dateTo);
+         $days = $interval->days;
+         
+         if ($days > $maxDays) {
+            $errorMessage = "Rentang tanggal tidak boleh lebih dari $maxDays hari. Anda memilih $days hari.";
+         }
+      }
 
       switch ($filter) {
          case 1:
             //PENGAMBILAN
-            if ($from <> "") {
+            if ($from <> "" && !$errorMessage) {
                $where = $this->wCabang . " AND id_pelanggan <> 0 AND bin = 0 AND SUBSTRING(tgl_ambil, 1, 10) >= '$from' AND SUBSTRING(tgl_ambil, 1, 10) <= '$to' ORDER BY id_penjualan DESC";
                $data_main = $this->db(0)->get_where('sale', $where);
             }
             break;
          case 2:
             //PENGANTARAN
-            if ($from <> "") {
+            if ($from <> "" && !$errorMessage) {
                $where = $this->wCabang . " AND id_pelanggan <> 0 AND bin = 0 AND SUBSTRING(insertTime, 1, 10) >= '$from' AND SUBSTRING(insertTime, 1, 10) <= '$to' ORDER BY id_penjualan DESC";
                $data_main = $this->db(0)->get_where('sale', $where);
             }
@@ -121,6 +135,7 @@ class Filter extends Controller
          'kas' => $kas,
          "surcas" => $surcas,
          'notif_bon' => $notif,
+         'errorMessage' => $errorMessage,
       ]);
    }
 

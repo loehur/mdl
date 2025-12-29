@@ -7,11 +7,28 @@
 
 <?php
 
+// Tampilkan error message jika ada
+if (isset($data['errorMessage']) && $data['errorMessage']) {
+?>
+  <div class="container-fluid">
+    <div class="row">
+      <div class='col p-0 m-2 rounded' style='max-width:450px;'>
+        <div class='alert alert-danger' role='alert'>
+          <i class="fas fa-exclamation-triangle"></i> <?= $data['errorMessage'] ?>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<?php
+  exit();
+}
+
 if (count($data['data_main']) == 0) {
 ?>
   <div class="container-fluid">
     <div class="row">
-      <div class='col p-0 m-2 rounded' style='max-width:400px;'>
+      <div class='col p-0 m-2 rounded' style='max-width:450px;'>
         <div class='bg-white p-2 rounded'>
           Tidak ada Data
         </div>
@@ -27,8 +44,8 @@ $kodeCabang = $this->dCabang['kode_cabang'];
 $modeView = $data['modeView'];
 ?>
 
-<div id="colAntri" class="container-fluid">
-  <div class="row p-1">
+<div id="colAntri">
+  <div class="row p-1 mx-0">
     <?php
     $prevPoin = 0;
     $arrRef = [];
@@ -190,7 +207,7 @@ $modeView = $data['modeView'];
       if ($no_urut == 1) {
         $adaBayar = false;
         $cols++;
-        echo "<div style='max-width:500px;' data-id_pelanggan='" . $f17 . "' id='grid" . $noref . "' class='" . $id . " R-" . $noref . " col backShow " . strtoupper($pelanggan) . " p-0 m-1 rounded'><div class='bg-white rounded container p-0'>";
+        echo "<div style='max-width:450px;' data-id_pelanggan='" . $f17 . "' id='grid" . $noref . "' class='" . $id . " R-" . $noref . " col backShow " . strtoupper($pelanggan) . " p-0 m-1 rounded'><div class='bg-white rounded container p-0'>";
         echo "<table class='table table-sm m-0 rounded w-100 shadow-sm bg-white'>";
         $lunas = false;
         $totalBayar = 0;

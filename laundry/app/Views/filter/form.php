@@ -29,6 +29,11 @@
                 </div>
               </div>
             </div>
+            <div class="row mt-1">
+              <div class="col">
+                <small class="text-muted"><i class="fas fa-info-circle"></i> Maksimal rentang tanggal: <strong>3 hari</strong></small>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -50,8 +55,8 @@
       return;
     }
 
-    if (days > 7) {
-      alert("Rentang Tidak boleh lebih dari 7 hari");
+    if (days > 3) {
+      alert("Rentang Tidak boleh lebih dari 3 hari");
       return;
     }
 
