@@ -80,7 +80,7 @@ $modeView = $data['modeView'];
       $deadlineSetrikaMiss = false;
 
       $no_urut += 1;
-      $id = "'" . $a['id_penjualan'] . "'";
+      $id = $a['id_penjualan'];
       $f10 = $a['id_penjualan_jenis'];
       $f3 = $a['id_item_group'];
       $f4 = $a['list_item'];
@@ -190,7 +190,7 @@ $modeView = $data['modeView'];
       if ($no_urut == 1) {
         $adaBayar = false;
         $cols++;
-        echo "<div style='max-width:400px;' data-id_pelanggan='" . $f17 . "' id='grid" . $noref . "' class='" . $id . " R-" . $noref . " col backShow " . strtoupper($pelanggan) . " p-0 m-1 rounded'><div class='bg-white rounded container p-0'>";
+        echo "<div style='max-width:500px;' data-id_pelanggan='" . $f17 . "' id='grid" . $noref . "' class='" . $id . " R-" . $noref . " col backShow " . strtoupper($pelanggan) . " p-0 m-1 rounded'><div class='bg-white rounded container p-0'>";
         echo "<table class='table table-sm m-0 rounded w-100 shadow-sm bg-white'>";
         $lunas = false;
         $totalBayar = 0;
