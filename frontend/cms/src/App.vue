@@ -1,6 +1,13 @@
 <script setup>
 import { ref, computed, onMounted, nextTick, watch, onUnmounted } from 'vue';
 import { App } from '@capacitor/app';
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+
+// Helper to detect if running in Capacitor native environment
+const isNativeApp = () => {
+  return window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
+};
+
 
 // Window resize listener helper
 const windowWidth = ref(window.innerWidth);
@@ -118,6 +125,11 @@ const conversationFilter = ref('all'); // 'all' or 'unread'
 // Settings State
 const showSettingsModal = ref(false);
 const fontSize = ref('medium'); // 'medium', 'large'
+
+// Image Lightbox State (for in-app image viewing)
+const showImageLightbox = ref(false);
+const lightboxImageUrl = ref('');
+
 
 // Notification Sound State
 const notificationSoundEnabled = ref(false); // Disabled by default as requested
@@ -1222,6 +1234,76 @@ const sendMessage = async () => {
 };
 
 // Handle Image Selection
+// Native Image Picker with Android WebView Support
+const isAndroidWebView = () => {
+  const userAgent = navigator.userAgent || navigator.vendor || '';
+  return /Android/i.test(userAgent) && /wv|WebView/i.test(userAgent);
+};
+
+// Global callback for Android WebView file picker
+// Android app should call: window.onImageSelected(base64DataUrl)
+if (typeof window !== 'undefined') {
+  window.onImageSelected = async (dataUrl) => {
+    try {
+      const response = await fetch(dataUrl);
+      const blob = await response.blob();
+      const file = new File([blob], `image_${Date.now()}.jpg`, { type: 'image/jpeg' });
+      await processSelectedImage(file, dataUrl);
+    } catch (err) {
+      console.error('Error processing native image:', err);
+    }
+  };
+}
+
+const openImagePicker = async () => {
+  // Strategy 1: Check if Android WebView has native file picker interface
+  // (Requires Android app to expose: window.FilePickerInterface.openImagePicker())
+  if (window.FilePickerInterface && typeof window.FilePickerInterface.openImagePicker === 'function') {
+    try {
+      window.FilePickerInterface.openImagePicker();
+      return; // Android will call window.onImageSelected with result
+    } catch (err) {
+      console.log('Native file picker failed:', err);
+    }
+  }
+  
+  // Strategy 2: Capacitor native environment
+  if (isNativeApp()) {
+    try {
+      const image = await Camera.getPhoto({
+        quality: 80,
+        allowEditing: false,
+        resultType: CameraResultType.DataUrl,
+        source: CameraSource.Prompt, // Let user choose Camera or Gallery
+        promptLabelPhoto: 'Gallery',
+        promptLabelPicture: 'Camera',
+        presentationStyle: 'popover'
+      });
+      
+      if (image && image.dataUrl) {
+        const response = await fetch(image.dataUrl);
+        const blob = await response.blob();
+        const file = new File([blob], `image_${Date.now()}.jpg`, { type: 'image/jpeg' });
+        await processSelectedImage(file, image.dataUrl);
+      }
+      return;
+    } catch (err) {
+      console.log('Capacitor Camera error:', err);
+      // Fall through to file input
+    }
+  }
+  
+  // Strategy 3: Standard file input (works in browsers and some WebViews)
+  // For Android WebView, ensure the input has proper attributes
+  if (fileInput.value) {
+    // Set capture attribute for Android WebView compatibility
+    if (isAndroidWebView()) {
+      fileInput.value.setAttribute('capture', 'environment');
+    }
+    fileInput.value.click();
+  }
+};
+
 const selectImage = async (event) => {
   const file = event.target.files[0];
   if (!file) return;
@@ -1236,32 +1318,42 @@ const selectImage = async (event) => {
     return;
   }
   
+  await processSelectedImage(file);
+  event.target.value = '';
+};
+
+// Shared function to process selected image (used by both native picker and file input)
+const processSelectedImage = async (file, precomputedDataUrl = null) => {
   try {
     // Compress image to ~500KB
     const compressedBlob = await compressImage(file, 500 * 1024); // 500KB target
     
     // Create new File from compressed blob
-    const compressedFile = new File([compressedBlob], file.name, {
-      type: file.type,
+    const compressedFile = new File([compressedBlob], file.name || 'image.jpg', {
+      type: file.type || 'image/jpeg',
       lastModified: Date.now()
     });
     
     selectedImage.value = compressedFile;
     
-    // Create preview
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      imagePreview.value = e.target.result;
+    // Use precomputed dataUrl if available (from Capacitor Camera), else create new
+    if (precomputedDataUrl) {
+      imagePreview.value = precomputedDataUrl;
       showImagePreview.value = true;
-    };
-    reader.readAsDataURL(compressedFile);
+    } else {
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        imagePreview.value = e.target.result;
+        showImagePreview.value = true;
+      };
+      reader.readAsDataURL(compressedFile);
+    }
     
   } catch (err) {
     console.error('Compression error:', err);
     alert('Failed to process image');
   }
-  
-  event.target.value = '';
 };
 
 // Compress image to target size
@@ -2165,13 +2257,25 @@ onMounted(() => {
 
   // Unified back button handler for both Capacitor and WebView
   function handleBackButtonPress() {
-    // If chat view is open, go back to menu with animation
+    // Priority 1: Close Image Lightbox if open
+    if (showImageLightbox.value) {
+      closeImageLightbox();
+      return 'lightbox_closed'; // Return status for Android
+    }
+    
+    // Priority 2: Close Settings Modal if open
+    if (showSettingsModal.value) {
+      showSettingsModal.value = false;
+      return 'settings_closed';
+    }
+    
+    // Priority 3: If chat view is open, go back to menu with animation
     if (showMobileChat.value && activeChatId.value) {
       backToMenu(true); // Use animated back
       return 'chat_closed'; // Return status for Android
     }
     
-    // If already in menu, handle double-press to exit
+    // Priority 4: If already in menu, handle double-press to exit
     const timeNow = Date.now();
     if (timeNow - lastBackPress < 2000) {
       // Double press -> tell Android to exit
@@ -2239,6 +2343,19 @@ const openLocation = (mapUrl) => {
   if (mapUrl) {
     window.open(mapUrl, '_blank');
   }
+};
+
+// Image Lightbox Functions (for in-app image viewing)
+const openImageLightbox = (imageUrl) => {
+  if (imageUrl) {
+    lightboxImageUrl.value = imageUrl;
+    showImageLightbox.value = true;
+  }
+};
+
+const closeImageLightbox = () => {
+  showImageLightbox.value = false;
+  lightboxImageUrl.value = '';
 };
 
 </script>
@@ -2713,8 +2830,8 @@ const openLocation = (mapUrl) => {
                   <!-- Image Message: Transparent style -->
                   <div v-if="msg.type === 'image'" class="rounded-lg overflow-hidden shadow-md max-w-[240px] bg-[var(--wa-bubble-incoming)]/50">
                      <div class="relative">
-                        <img v-if="msg.media_url" :src="msg.media_url" class="w-full cursor-pointer" onclick="window.open(this.src)">
-                        <img v-else-if="msg.media_id" :src="`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" class="w-full cursor-pointer" onclick="window.open(this.src)">
+                        <img v-if="msg.media_url" :src="msg.media_url" class="w-full cursor-pointer" @click="openImageLightbox(msg.media_url)">
+                        <img v-else-if="msg.media_id" :src="`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" class="w-full cursor-pointer" @click="openImageLightbox(`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`)">
                         <div v-else class="bg-slate-900/50 flex flex-col items-center justify-center w-full h-[150px]">
                            <span class="text-[10px] text-slate-400">Image (Protected)</span>
                         </div>
@@ -2728,8 +2845,8 @@ const openLocation = (mapUrl) => {
                   
                   <!-- Sticker Message -->
                   <div v-else-if="msg.type === 'sticker'" class="rounded-lg overflow-hidden max-w-[150px]">
-                     <img v-if="msg.media_url" :src="msg.media_url" class="w-full cursor-pointer" onclick="window.open(this.src)" style="background: transparent;">
-                     <img v-else-if="msg.media_id" :src="`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" class="w-full cursor-pointer" onclick="window.open(this.src)" style="background: transparent;">
+                     <img v-if="msg.media_url" :src="msg.media_url" class="w-full cursor-pointer" @click="openImageLightbox(msg.media_url)" style="background: transparent;">
+                     <img v-else-if="msg.media_id" :src="`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" class="w-full cursor-pointer" @click="openImageLightbox(`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`)" style="background: transparent;">
                      <div v-else class="bg-[var(--wa-bubble-incoming)] px-3 py-2 rounded-lg">
                         <span class="text-2xl">🎨</span>
                         <span class="text-[11px] text-[var(--wa-text-tertiary)] block mt-1">{{ msg.time }}</span>
@@ -2779,8 +2896,8 @@ const openLocation = (mapUrl) => {
                   <!-- Image Message: Transparent style -->
                   <div v-if="msg.type === 'image'" class="rounded-lg overflow-hidden shadow-md max-w-[240px] bg-[var(--wa-bubble-outgoing)]/50">
                      <div class="relative">
-                        <img v-if="msg.media_url" :src="msg.media_url" class="w-full cursor-pointer" onclick="window.open(this.src)">
-                        <img v-else-if="msg.media_id" :src="`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" class="w-full cursor-pointer" onclick="window.open(this.src)">
+                        <img v-if="msg.media_url" :src="msg.media_url" class="w-full cursor-pointer" @click="openImageLightbox(msg.media_url)">
+                        <img v-else-if="msg.media_id" :src="`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" class="w-full cursor-pointer" @click="openImageLightbox(`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`)">
                         <!-- Caption, Time & Status Overlay -->
                         <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
                            <p v-if="msg.text" class="text-white text-[13px] leading-tight mb-1" v-html="parseWhatsAppFormatting(msg.text)"></p>
@@ -2815,8 +2932,8 @@ const openLocation = (mapUrl) => {
                   
                   <!-- Sticker Message -->
                   <div v-else-if="msg.type === 'sticker'" class="rounded-lg overflow-hidden max-w-[150px]">
-                     <img v-if="msg.media_url" :src="msg.media_url" class="w-full cursor-pointer" onclick="window.open(this.src)" style="background: transparent;">
-                     <img v-else-if="msg.media_id" :src="`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" class="w-full cursor-pointer" onclick="window.open(this.src)" style="background: transparent;">
+                     <img v-if="msg.media_url" :src="msg.media_url" class="w-full cursor-pointer" @click="openImageLightbox(msg.media_url)" style="background: transparent;">
+                     <img v-else-if="msg.media_id" :src="`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" class="w-full cursor-pointer" @click="openImageLightbox(`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`)" style="background: transparent;">
                      <div v-else class="bg-[var(--wa-bubble-outgoing)] px-3 py-2 rounded-lg">
                         <span class="text-2xl">🎨</span>
                         <span class="text-[11px] text-white/70 block mt-1">{{ msg.time }}</span>
@@ -2919,10 +3036,11 @@ const openLocation = (mapUrl) => {
                      class="hidden"
                   >
                   
-                  <button @click="fileInput.click()" class="p-2 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)] transition-colors">
+                  <button @click="openImagePicker" class="p-2 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)] transition-colors">
                      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
                   </button>
                   
+
                   <textarea 
                     v-model="messageInput"
                     @keydown.enter.prevent="sendMessage"
@@ -2954,6 +3072,40 @@ const openLocation = (mapUrl) => {
     <!-- Exit Toast -->
     <div v-if="showExitToast" class="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-slate-800/90 backdrop-blur text-white px-6 py-3 rounded-full shadow-xl border border-slate-700/50 z-[100] transition-opacity duration-300 pointer-events-none">
         <span class="text-sm font-medium">Press back again to exit</span>
+    </div>
+
+    <!-- Image Lightbox Modal (for viewing images in-app, Android back button friendly) -->
+    <div 
+      v-if="showImageLightbox" 
+      class="fixed inset-0 bg-black z-[600] flex items-center justify-center p-2"
+      @click="closeImageLightbox"
+    >
+      <!-- Close Button -->
+      <button 
+        @click.stop="closeImageLightbox"
+        class="absolute top-2 right-2 p-2 bg-white/20 hover:bg-white/30 rounded-full text-white transition-colors z-20"
+        style="top: env(safe-area-inset-top, 8px);"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+      
+      <!-- Image Container -->
+      <div class="w-full h-full flex items-center justify-center">
+        <img 
+          :src="lightboxImageUrl" 
+          class="block"
+          style="max-width: 95vw; max-height: 90vh; width: auto; height: auto; object-fit: contain;"
+          @click.stop
+          alt="Image Preview"
+        >
+      </div>
+      
+      <!-- Hint Text -->
+      <div class="absolute bottom-2 left-1/2 transform -translate-x-1/2 text-white/50 text-xs bg-black/50 px-3 py-1 rounded-full">
+        Tap anywhere or press back to close
+      </div>
     </div>
 
     <!-- Settings Modal -->
