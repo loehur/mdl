@@ -8,36 +8,33 @@
 <?php $modeView = $data['modeView'];
 ?>
 
-<div class="content w-100 sticky-top" style="max-width:840px">
-  <header>
-    <div class="container-fluid">
-      <div class="bg-white py-2 rounded border">
-        <div class="row px-2">
-          <div class="col">
-            <div class="row">
-              <div class="col mb-1">
-                <div class="input-group input-group-sm">
-                  <span class="input-group-text text-primary">Dari</span>
-                  <input name="start_date" type="date" onclick="max()" min="2023-07-01" max="<?= date("Y-m-d") ?>" placeholder="" class="form-control" required>
-                </div>
-              </div>
-              <div class="col">
-                <div class="input-group input-group-sm">
-                  <span class="input-group-text text-primary">Ke</span>
-                  <input name="end_date" type="date" min="2023-07-02" max="<?= date("Y-m-d") ?>" placeholder="" class="form-control" required>
-                  <button type="submit" onclick="cek()" class="btn btn-primary">Cek</button>
-                </div>
-              </div>
+<div class="sticky-top mt-5 mb-2" style="max-width:840px">
+  <div class="bg-white py-2 rounded border">
+    <div class="row mx-0">
+      <div class="col">
+        <div class="row">
+          <div class="col mb-1">
+            <div class="input-group input-group-sm">
+              <span class="input-group-text text-primary">Dari</span>
+              <input name="start_date" type="date" onclick="max()" min="2023-07-01" max="<?= date("Y-m-d") ?>" placeholder="" class="form-control" required>
             </div>
-            <div class="row mt-1">
-              <div class="col">
-                <small class="text-muted"><i class="fas fa-info-circle"></i> Maksimal rentang tanggal: <strong>3 hari</strong></small>
-              </div>
+          </div>
+          <div class="col">
+            <div class="input-group input-group-sm">
+              <span class="input-group-text text-primary">Ke</span>
+              <input name="end_date" type="date" min="2023-07-02" max="<?= date("Y-m-d") ?>" placeholder="" class="form-control" required>
+              <button type="submit" onclick="cek()" class="btn btn-primary">Cek</button>
             </div>
           </div>
         </div>
+        <div class="row mt-1">
+          <div class="col">
+            <small class="text-muted"><i class="fas fa-info-circle"></i> Maksimal rentang tanggal: <strong>3 hari</strong></small>
+          </div>
+        </div>
       </div>
-  </header>
+    </div>
+  </div>
 </div>
 
 <!-- SCRIPT -->
