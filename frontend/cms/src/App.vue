@@ -2443,7 +2443,7 @@ const openLocation = (mapUrl) => {
                   <template v-for="(cse, idx) in chat.cases" :key="idx">
                       <div 
                         v-if="cse.case > 0 && (cse.status || 'open') !== 'closed'"
-                        class="w-2.5 h-2.5 rounded-full ring-1 ring-black/20"
+                        class="w-3.5 h-3.5 rounded-full ring-1 ring-black/20"
                         :class="getCaseColor(cse.case)"
                         :title="'Case: ' + cse.case"
                       ></div>
