@@ -746,6 +746,7 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
                 }
             } else {
                 $lunas = false;
+                echo "<script>unpaidInvoices.push({ref: 'M_" . $id . "', amount: " . $sisa . "});</script>";
             }
 
             $Rtotal_tagihan = $Rtotal_tagihan + $sisa;

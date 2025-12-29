@@ -93,21 +93,38 @@ async function sendPushNotification(options) {
         return { success: false, error: 'No eligible users' };
     }
 
+    // Sanitize phone for key generation (remove non-digits) to ensure consistency
+    // This fixes issues where formatted phones (e.g. +62...) don't match unformatted ones
+    const cleanPhone = phone ? String(phone).replace(/\D/g, '') : '';
+    const groupKey = cleanPhone ? `chat_${cleanPhone}` : undefined;
+
     const payload = {
         app_id: ONESIGNAL_APP_ID,
         include_external_user_ids: filteredUserIds,
         headings: { en: title },
         contents: { en: message },
-        collapse_id: phone ? `chat_${phone}` : undefined, // Group notifications by customer phone
+
+        // Collapse ID: Replaces the previous notification from the same user
+        collapse_id: groupKey,
+
+        // Android Group: Stacks notifications visually in a group (Inbox style)
+        android_group: groupKey,
+
+        // iOS Thread ID: Groups notifications on iOS
+        thread_id: groupKey,
+
         data: {
             type: 'wa_masuk',
-            phone: phone,
+            phone: phone, // Keep original legacy phone format in data
             case: caseType,
             ...data
         },
         android_channel_id: process.env.ONESIGNAL_ANDROID_CHANNEL_ID || undefined,
         ios_badgeType: 'Increase',
-        ios_badgeCount: 1
+        ios_badgeCount: 1,
+
+        // Android Summary Message (e.g. "5 new messages" instead of just text)
+        android_group_message: { en: "$[notif_count] new messages" }
     };
 
     // Remove undefined values
@@ -126,7 +143,7 @@ async function sendPushNotification(options) {
         const result = await response.json();
 
         if (result.id) {
-            console.log(`[OneSignal] ✅ Sent to ${filteredUserIds.length} user(s), collapse_id: chat_${phone}`);
+            console.log(`[OneSignal] ✅ Sent to ${filteredUserIds.length} user(s), group_key: ${groupKey}`);
             return { success: true, id: result.id, recipients: filteredUserIds.length };
         } else {
             console.log('[OneSignal] ❌ Error:', result.errors || result);
@@ -431,7 +448,7 @@ app.post('/incoming', async (req, res) => {
 
     // Extract common data for push notification
     const customerPhone = data.phone || data.wa_number || '';
-    const customerName = data.name || data.contact_name || 'Customer';
+    const customerName = (data.name || data.contact_name || 'Customer').toUpperCase();
 
     // Handle messageText - data.message can be an object from PHP webhook
     let messageText = '';
