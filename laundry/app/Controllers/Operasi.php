@@ -35,6 +35,14 @@ class Operasi extends Controller
       $modeView = 1;
 
       $pelanggan = $this->pelanggan[$id_pelanggan] ?? 0;
+      if($pelanggan == 0){
+         echo "
+         <div class='text-center mt-5'>
+            <i class='fa-solid fa-circle-check text-success mb-3' style='font-size: 4rem;'></i>
+            <h5 class='text-secondary'>Semua data pelanggan sudah tuntas!</h5>
+         </div>";
+         exit;
+      }
 
       // Get year parameter, default to current year
       $year = isset($_GET['year']) ? intval($_GET['year']) : intval(date('Y'));
