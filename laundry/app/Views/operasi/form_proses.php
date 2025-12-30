@@ -15,9 +15,7 @@ if ($data['id_pelanggan'] > 0) {
         <select name="pelanggan" class="id_pelanggan tize form-control form-control-sm" required>
           <option value="" selected disabled>...</option>
           <?php foreach ($this->pelanggan as $a) { ?>
-            <option <?php if ($id_pelanggan == $a['id_pelanggan']) {
-                      echo "selected";
-                    } ?> value="<?= $a['id_pelanggan'] ?>"><?= strtoupper($a['nama_pelanggan'])  ?> | <?= $a['nomor_pelanggan'] ?></option>
+            <option value="<?= $a['id_pelanggan'] ?>"><?= strtoupper($a['nama_pelanggan'])  ?> | <?= $a['nomor_pelanggan'] ?></option>
           <?php } ?>
         </select>
       </div>
