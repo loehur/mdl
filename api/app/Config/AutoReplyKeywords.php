@@ -14,21 +14,6 @@ return [
         PENTING: JIKA sapaan diikuti kalimat permintaan (misal: 'Bang, baju dulukan', 'Kak, jemput ya'), ini BUKAN PEMBUKA."
     ],
 
-    'NOTA' => [
-        'max_length' => 100,
-        'case' => 0,
-        'auto_reply' => true,
-        'patterns' => [
-            '/^\s*(bon|nota+|stru*k|bil+|ta*gi*ha*n|re*si)\s*$/i',
-        ],
-        'ai_prompt' => "User meminta:\n
-        | bon | nota | struk | tagihan | bukti terima |\n
-        ATAU user menanyakan TOTAL/BIAYA laundrynya, seperti:\n
-        | berapa total punya saya? | berapa biaya laundry saya? | totalnya berapa? | berapa tagihan? |\n
-        Jika user bertanya 'berapa' + (total/biaya/tagihan/berat) = NOTA\n
-        atau yang menurut anda sangat yakin sebagai permintaan nota/bon/informasi tagihan"
-    ],
-
     'STATUS' => [
         'max_length' => 100,
         'case' => 0,
@@ -50,15 +35,20 @@ return [
         'patterns' => [
             '/^\s*(je*m*pu*t|anta*r)\s*$/i',
         ],
-        'ai_prompt' => "HANYA jika User MEMINTA KURIR/LAUNDRY untuk datang JEMPUT atau ANTAR, contoh:\n
+        'ai_prompt' => "User MEMINTA KURIR/LAUNDRY untuk datang JEMPUT atau ANTAR, ATAU menanyakan ONGKIR/TIPE PENGIRIMAN.\n
+        Contoh yang ADALAH MINTA_JEMPUT_ANTAR (TRUE):\n
         | tolong jemput | minta dijemput | bisa diantar? | kapan diantar? | jam berapa diantarnya? |\n
-        PENTING: JANGAN pilih ini jika USER mengatakan DIA SENDIRI yang akan datang mengambil!\n
-        Contoh yang BUKAN MINTA_JEMPUT_ANTAR (harus FALSE):\n
-        - 'Mau jemput laundry kak' = customer bilang DIA mau datang\n
-        - 'Saya jemput nanti' = customer sendiri yang jemput\n
-        - 'Nanti saya ambil' = customer sendiri yang ambil\n
-        - 'Ku jemput ya' = customer sendiri yang jemput\n
-        Kunci: Jika ada kata 'mau/saya/aku/ku' + jemput/ambil = Customer datang sendiri = FALSE"
+        | bisa jemput kak? | nanti bisa jemput kak? | jemput dong | antar ya kak | dijemput ya |\n
+        | brp ongkirnya? | berapa ongkosnya? | brp ong nya kak? | ongkir berapa? | biaya antar? |\n
+        | kalo instant brp kak? | instant berapa? | same day brp? | express berapa? | pake gosend brp? |\n
+        KUNCI DETEKSI:\n
+        1. Pesan DITUJUKAN ke laundry (ada 'kak/bang/pak/kk') + kata 'jemput/antar' = TRUE\n
+        2. Pertanyaan tentang ONGKIR/ONGKOS KIRIM = TRUE\n
+        3. Pertanyaan tentang TIPE PENGIRIMAN (instant/same day/express/gosend/grab) = TRUE\n
+        Contoh: 'brp ong nya kak' = TRUE, 'kalo instant brp kak' = TRUE\n\n
+        PENGECUALIAN - BUKAN MINTA_JEMPUT_ANTAR (FALSE) jika:\n
+        - Ada 'saya/aku/ku/mau' + jemput/ambil = Customer SENDIRI yang datang\n
+        - Contoh: 'Mau jemput laundry kak' / 'Saya jemput nanti' / 'Ku jemput ya' = FALSE"
     ],
 
     'PERMINTAAN' => [

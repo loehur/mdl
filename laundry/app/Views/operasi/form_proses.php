@@ -162,7 +162,7 @@ if ($data['id_pelanggan'] > 0) {
   }
 
   function cekData() {
-    var pelanggan = $("select[name=pelanggan]").val();
+    var pelanggan = <?= $id_pelanggan ?>;
 
     if (pelanggan.length == 0) {
       return;
