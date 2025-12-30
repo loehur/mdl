@@ -56,12 +56,10 @@ $modeView = $data['modeView'];
 <div class="modal fade" id="waHistoryModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content">
-      <div class="modal-header bg-danger text-white py-2">
-        <h6 class="modal-title" id="waHistoryTitle">Riwayat Chat</h6>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body bg-light" id="waHistoryBody" style="min-height: 200px;">
-        <div class="text-center"><div class="spinner-border text-danger" role="status"></div></div>
+      <div class="modal-footer bg-light p-1">
+        <button type="button" class="btn btn-success w-100" id="btnCloseCase">
+            <i class="fas fa-check"></i> Permintaan sudah terpenuhi
+        </button>
       </div>
     </div>
   </div>
@@ -69,10 +67,14 @@ $modeView = $data['modeView'];
 
 <script>
 $(document).ready(function() {
+    var currentHp = '';
+
     $('.open-wa-modal').click(function() {
         var hp = $(this).data('hp');
         var nama = $(this).data('nama');
         
+        currentHp = hp; // Store for close action
+
         $('#waHistoryTitle').text(nama.toUpperCase());
         $('#waHistoryModal').modal('show');
         $('#waHistoryBody').html('<div class="text-center py-3"><div class="spinner-border text-danger" role="status"></div></div>');
@@ -86,6 +88,39 @@ $(document).ready(function() {
             },
             error: function() {
                 $('#waHistoryBody').html('<div class="text-center text-danger">Gagal memuat chat</div>');
+            }
+        });
+    });
+
+    $('#btnCloseCase').click(function() {
+        if(!currentHp) return;
+        
+        if(!confirm('Yakin permintaan sudah terpenuhi? Status akan diubah menjadi closed.')) return;
+
+        var btn = $(this);
+        var originalText = btn.html();
+        btn.prop('disabled', true).html('<div class="spinner-border spinner-border-sm" role="status"></div> Loading...');
+
+        $.ajax({
+            url: '<?= URL::BASE_URL ?>Antrian/close_case_request',
+            type: 'POST',
+            data: { hp: currentHp },
+            dataType: 'json',
+            success: function(response) {
+                if (response.status === 'success') {
+                    $('#waHistoryModal').modal('hide');
+                    location.reload(); 
+                } else if (response.status === 'no_change') {
+                    alert('Tidak ada case open yang ditemukan.');
+                    btn.prop('disabled', false).html(originalText);
+                } else {
+                    alert('Gagal: ' + (response.message || 'Unknown error'));
+                    btn.prop('disabled', false).html(originalText);
+                }
+            },
+            error: function() {
+                alert('Terjadi kesalahan koneksi.');
+                btn.prop('disabled', false).html(originalText);
             }
         });
     });

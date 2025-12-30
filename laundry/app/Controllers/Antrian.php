@@ -338,6 +338,51 @@ class Antrian extends Controller
       echo $html;
    }
 
+   public function close_case_request()
+   {
+      $hp = $_POST['hp'];
+      
+      // Normalize HP
+      $hpClean = preg_replace('/[^0-9]/', '', $hp);
+      $matchDigits = substr($hpClean, -10);
+
+      // Fetch the conversation row
+      $where = "RIGHT(REPLACE(REPLACE(wa_number, '+', ''), '-', ''), 10) = '$matchDigits'";
+      $row = $this->db(100)->get_where_row('wa_conversations', $where);
+
+      if ($row) {
+          $cases = json_decode($row['conv_case'] ?? '[]', true);
+          $updated = false;
+          
+          if (is_array($cases)) {
+              foreach ($cases as &$c) {
+                  // Only close Case 3
+                  if (isset($c['case']) && $c['case'] == 3 && isset($c['status']) && $c['status'] === 'open') {
+                      $c['status'] = 'closed';
+                      $updated = true;
+                  }
+              }
+          }
+
+          if ($updated) {
+              $newJson = json_encode($cases);
+              $updateWhere = "id = " . $row['id'];
+              $set = ['conv_case' => $newJson];
+              
+              $res = $this->db(100)->update('wa_conversations', $set, $updateWhere);
+              if ($res['errno'] == 0) {
+                  echo json_encode(['status' => 'success']);
+              } else {
+                  echo json_encode(['status' => 'error', 'message' => 'DB Update Failed']);
+              }
+          } else {
+              echo json_encode(['status' => 'no_change', 'message' => 'No open case 3 found']);
+          }
+      } else {
+          echo json_encode(['status' => 'error', 'message' => 'Conversation not found']);
+      }
+   }
+
    public function clearTuntas()
    {
       if (isset($_POST['data'])) {
