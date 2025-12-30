@@ -94,6 +94,15 @@ const touchOffset = ref(0); // Current drag distance
 const isDragging = ref(false);
 const minSwipeDistance = 75; // px
 
+// Chat Transition State (WhatsApp-style slide-in)
+const isEnteringChat = ref(false);
+
+// Internal Browser State (for nalju.com links)
+const showInternalBrowser = ref(false);
+const internalBrowserUrl = ref('');
+const isInternalBrowserEntering = ref(false);
+const isInternalBrowserLoading = ref(true);
+
 // Login Delay State
 const showLoginPrompt = ref(false);
 const showDuplicateConnectionModal = ref(false);
@@ -1197,7 +1206,18 @@ const selectChat = async (id) => {
   }
   
   activeChatId.value = id;
-  showMobileChat.value = true;
+  
+  // WhatsApp-style slide-in animation (mobile only)
+  if (window.innerWidth < 768) {
+    isEnteringChat.value = true;
+    showMobileChat.value = true;
+    
+    // Allow CSS transition to complete
+    await new Promise(resolve => setTimeout(resolve, 30));
+    isEnteringChat.value = false;
+  } else {
+    showMobileChat.value = true;
+  }
   
   // Persist state
   localStorage.setItem('active_chat_id', id);
@@ -1451,8 +1471,8 @@ const handleSwipeReplyMove = (e) => {
     if (!swipeReplyState.value.msgId) return;
     const diff = e.touches[0].clientX - swipeReplyState.value.startX;
     
-    // Only allow swipe LEFT (diff < 0) and limit max drag distance
-    if (diff < 0 && diff > -120) {
+    // Only allow swipe RIGHT (diff > 0) and limit max drag distance (WhatsApp style)
+    if (diff > 0 && diff < 120) {
        swipeReplyState.value.currentX = e.touches[0].clientX;
     }
 };
@@ -1462,8 +1482,8 @@ const handleSwipeReplyEnd = (e, msg) => {
     
     const diff = swipeReplyState.value.currentX - swipeReplyState.value.startX;
     
-    // Check threshold
-    if (diff < -swipeReplyState.value.threshold) {
+    // Check threshold (swipe RIGHT)
+    if (diff > swipeReplyState.value.threshold) {
         if (navigator.vibrate) navigator.vibrate(50);
         setReplyTo(msg);
     }
@@ -1475,7 +1495,7 @@ const handleSwipeReplyEnd = (e, msg) => {
 const getSwipeReplyStyle = (msgId) => {
    if (swipeReplyState.value.msgId === msgId) {
        const diff = swipeReplyState.value.currentX - swipeReplyState.value.startX;
-       if (diff < 0) {
+       if (diff > 0) {
            return { transform: `translateX(${diff}px)`, transition: 'none' }; // Move cleanly
        }
    }
@@ -2566,15 +2586,8 @@ const mockIncomingMessage = () => {
   window.addEventListener('paste', handlePaste);
   
   // --- LINK CLICK HANDLER ---
-  // Save chat state before navigating to external links
-  document.addEventListener('click', (e) => {
-      const link = e.target.closest('a[href]');
-      if (link && link.href && (link.href.startsWith('http://') || link.href.startsWith('https://'))) {
-          // External link clicked, save current chat state
-          persistChatState();
-          console.log('📎 External link clicked, saving chat state');
-      }
-  }, true);
+  // Intercept nalju.com links for internal browser, save state for others
+  document.addEventListener('click', handleLinkClick, true);
   
   // --- PAGE HIDE HANDLER ---
   // Save state when page is about to be hidden (covers all navigation cases)
@@ -2734,6 +2747,12 @@ if (typeof window !== 'undefined') {
 
   // Unified back button handler for both Capacitor and WebView
   function handleBackButtonPress() {
+    // Priority 0: Close Internal Browser if open
+    if (showInternalBrowser.value) {
+      closeInternalBrowser();
+      return 'internal_browser_closed';
+    }
+    
     // Priority 1: Close Image Lightbox if open
     if (showImageLightbox.value) {
       closeImageLightbox();
@@ -2833,6 +2852,58 @@ const openImageLightbox = (imageUrl) => {
 const closeImageLightbox = () => {
   showImageLightbox.value = false;
   lightboxImageUrl.value = '';
+};
+
+// --- Internal Browser Functions (for nalju.com links) ---
+const isNaljuDomain = (url) => {
+  try {
+    const urlObj = new URL(url);
+    // Check if domain is nalju.com or any subdomain *.nalju.com
+    return urlObj.hostname === 'nalju.com' || urlObj.hostname.endsWith('.nalju.com');
+  } catch {
+    return false;
+  }
+};
+
+const openInternalBrowser = async (url) => {
+  internalBrowserUrl.value = url;
+  isInternalBrowserLoading.value = true;
+  isInternalBrowserEntering.value = true;
+  showInternalBrowser.value = true;
+  
+  // Allow CSS transition to complete
+  await new Promise(resolve => setTimeout(resolve, 30));
+  isInternalBrowserEntering.value = false;
+};
+
+const closeInternalBrowser = () => {
+  showInternalBrowser.value = false;
+  internalBrowserUrl.value = '';
+  isInternalBrowserLoading.value = true;
+};
+
+const handleInternalBrowserLoad = () => {
+  isInternalBrowserLoading.value = false;
+};
+
+// Handle link clicks - intercept nalju.com links
+const handleLinkClick = (e) => {
+  const link = e.target.closest('a[href]');
+  if (link && link.href) {
+    // Check if it's a nalju.com link
+    if (isNaljuDomain(link.href)) {
+      e.preventDefault();
+      e.stopPropagation();
+      openInternalBrowser(link.href);
+      return;
+    }
+    
+    // External link - save state before navigating
+    if (link.href.startsWith('http://') || link.href.startsWith('https://')) {
+      persistChatState();
+      console.log('📎 External link clicked, saving chat state');
+    }
+  }
 };
 
 </script>
@@ -3104,17 +3175,11 @@ const closeImageLightbox = () => {
     <main 
         class="flex flex-col bg-[var(--wa-bg-chat)] h-full overflow-x-hidden"
         :class="{
-            'fixed inset-0 z-50 w-full': showMobileChat,
+            'fixed inset-0 z-50 w-full chat-panel-mobile': showMobileChat && windowWidth < 768,
+            'chat-entering': isEnteringChat,
             'hidden': !showMobileChat && windowWidth < 768,
             'fixed top-0 right-0 bottom-0 md:left-96 z-0 !w-auto': windowWidth >= 768
         }"
-        :style="{ 
-            transform: showMobileChat && windowWidth < 768 ? `translateX(${touchOffset}px)` : '',
-            transition: isDragging ? 'none' : 'transform 0.3s ease-out'
-        }"
-        @touchstart="handleTouchStart"
-        @touchmove="handleTouchMove"
-        @touchend="handleTouchEnd"
     >
 
        <!-- Background Pattern (WhatsApp style) -->
@@ -3862,6 +3927,59 @@ const closeImageLightbox = () => {
         </button>
       </div>
     </div>
+    
+    <!-- Internal Browser (for nalju.com links) -->
+    <div 
+      v-if="showInternalBrowser" 
+      class="fixed inset-0 z-[1000] bg-[var(--wa-bg-panel)] flex flex-col internal-browser-panel"
+      :class="{ 'internal-browser-entering': isInternalBrowserEntering }"
+    >
+      <!-- Header -->
+      <header class="h-14 bg-[var(--wa-bg-panel)] border-b border-[var(--wa-border)] flex items-center px-4 gap-3 flex-shrink-0">
+        <button 
+          @click="closeInternalBrowser" 
+          class="p-2 -ml-2 text-[var(--wa-icon-default)] hover:text-[var(--wa-text-primary)] hover:bg-[var(--wa-hover)] rounded-lg transition-colors"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        
+        <div class="flex-1 min-w-0">
+          <p class="text-sm text-[var(--wa-text-primary)] truncate font-medium">{{ internalBrowserUrl }}</p>
+        </div>
+        
+        <!-- Open in External Browser -->
+        <a 
+          :href="internalBrowserUrl" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          class="p-2 text-[var(--wa-icon-default)] hover:text-[var(--wa-text-primary)] hover:bg-[var(--wa-hover)] rounded-lg transition-colors"
+          title="Open in browser"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          </svg>
+        </a>
+      </header>
+      
+      <!-- Loading Indicator -->
+      <div v-if="isInternalBrowserLoading" class="absolute inset-0 top-14 flex items-center justify-center bg-[var(--wa-bg-chat)]">
+        <div class="flex flex-col items-center gap-3">
+          <div class="w-8 h-8 border-3 border-[var(--wa-accent-green)] border-t-transparent rounded-full animate-spin"></div>
+          <p class="text-sm text-[var(--wa-text-secondary)]">Memuat...</p>
+        </div>
+      </div>
+      
+      <!-- Iframe -->
+      <iframe 
+        :src="internalBrowserUrl" 
+        class="flex-1 w-full border-0 bg-white"
+        @load="handleInternalBrowserLoad"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals allow-downloads"
+      ></iframe>
+    </div>
 
   </div>
 </template>
@@ -3927,5 +4045,25 @@ p a:hover {
 
 .bg-indigo-600 p a:hover {
   color: #ffffff;
+}
+
+/* WhatsApp-style Chat Panel Slide-in Animation (Mobile) */
+.chat-panel-mobile {
+  transform: translateX(0);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.chat-panel-mobile.chat-entering {
+  transform: translateX(100%);
+}
+
+/* Internal Browser Slide-in Animation */
+.internal-browser-panel {
+  transform: translateX(0);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.internal-browser-panel.internal-browser-entering {
+  transform: translateX(100%);
 }
 </style>
