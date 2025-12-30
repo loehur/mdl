@@ -116,14 +116,28 @@ class Antrian extends Controller
       // --- START: Fetch Open WA Conversations ---
       $customersWithOpenCases = [];
       try {
-         $openWaRaw = $this->db(100)->get_where('wa_conversations', "status = 'open'");
+         $openWaRaw = $this->db(100)->get_where('wa_conversations', "conv_case LIKE '%\"status\":\"open\"%'");
          $openWaMap = [];
          if (is_array($openWaRaw)) {
             foreach ($openWaRaw as $row) {
-               $phone = $row['wa_number'];
-               // Normalize keys for easier matching (strip non-digits)
-               $cleanPhone = preg_replace('/[^0-9]/', '', $phone);
-               $openWaMap[$cleanPhone] = $row;
+               // Verify real "open" status in JSON
+               $cases = json_decode($row['conv_case'] ?? '[]', true);
+               $hasOpen = false;
+               if (is_array($cases)) {
+                   foreach ($cases as $c) {
+                       if (isset($c['status']) && $c['status'] === 'open') {
+                           $hasOpen = true;
+                           break;
+                       }
+                   }
+               }
+               
+               if ($hasOpen) {
+                   $phone = $row['wa_number'];
+                   // Normalize keys for easier matching (strip non-digits)
+                   $cleanPhone = preg_replace('/[^0-9]/', '', $phone);
+                   $openWaMap[$cleanPhone] = $row;
+               }
             }
          }
 
