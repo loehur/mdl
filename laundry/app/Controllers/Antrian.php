@@ -374,7 +374,7 @@ class Antrian extends Controller
               if ($res['errno'] == 0) {
                   // Push to WebSocket
                   $this->pushToWebSocket([
-                      'type' => 'case_updated',
+                      'type' => 'case_resolved',
                       'phone' => $row['wa_number'],
                       'case' => 3,
                       'target_id' => '0',
