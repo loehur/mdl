@@ -72,6 +72,25 @@ $modeView = $data['modeView'];
   </div>
 </div>
 
+<!-- Confirmation Modal -->
+<div class="modal fade" id="confirmCloseModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content">
+      <div class="modal-body text-center p-3">
+        <div class="mb-3">
+            <i class="fas fa-question-circle text-success fa-3x"></i>
+        </div>
+        <h6 class="fw-bold mb-2">Konfirmasi</h6>
+        <p class="small text-muted mb-3">Yakin permintaan sudah terpenuhi? Status akan diubah menjadi closed.</p>
+        <div class="d-flex gap-2 justify-content-center">
+            <button type="button" class="btn btn-secondary btn-sm px-3" data-bs-dismiss="modal">Batal</button>
+            <button type="button" class="btn btn-success btn-sm px-3" id="btnRealConfirmClose">Ya, Selesai</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 $(document).ready(function() {
     var currentHp = '';
@@ -99,14 +118,19 @@ $(document).ready(function() {
         });
     });
 
+    // Trigger Confirmation Modal
     $('#btnCloseCase').click(function() {
         if(!currentHp) return;
-        
-        if(!confirm('Yakin permintaan sudah terpenuhi? Status akan diubah menjadi closed.')) return;
+        $('#confirmCloseModal').modal('show');
+    });
+
+    // Handle Real Confirmation
+    $('#btnRealConfirmClose').click(function() {
+        if(!currentHp) return;
 
         var btn = $(this);
         var originalText = btn.html();
-        btn.prop('disabled', true).html('<div class="spinner-border spinner-border-sm" role="status"></div> Loading...');
+        btn.prop('disabled', true).html('<div class="spinner-border spinner-border-sm" role="status"></div>');
 
         $.ajax({
             url: '<?= URL::BASE_URL ?>Antrian/close_case_request',
@@ -115,19 +139,23 @@ $(document).ready(function() {
             dataType: 'json',
             success: function(response) {
                 if (response.status === 'success') {
+                    $('#confirmCloseModal').modal('hide');
                     $('#waHistoryModal').modal('hide');
                     location.reload(); 
                 } else if (response.status === 'no_change') {
                     alert('Tidak ada case open yang ditemukan.');
                     btn.prop('disabled', false).html(originalText);
+                    $('#confirmCloseModal').modal('hide');
                 } else {
                     alert('Gagal: ' + (response.message || 'Unknown error'));
                     btn.prop('disabled', false).html(originalText);
+                    $('#confirmCloseModal').modal('hide');
                 }
             },
             error: function() {
                 alert('Terjadi kesalahan koneksi.');
                 btn.prop('disabled', false).html(originalText);
+                $('#confirmCloseModal').modal('hide');
             }
         });
     });

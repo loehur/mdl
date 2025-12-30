@@ -359,6 +359,7 @@ class Antrian extends Controller
                   // Only close Case 3
                   if (isset($c['case']) && $c['case'] == 3 && isset($c['status']) && $c['status'] === 'open') {
                       $c['status'] = 'closed';
+                      // No timestamp update as requested
                       $updated = true;
                   }
               }
@@ -371,6 +372,15 @@ class Antrian extends Controller
               
               $res = $this->db(100)->update('wa_conversations', $set, $updateWhere);
               if ($res['errno'] == 0) {
+                  // Push to WebSocket
+                  $this->pushToWebSocket([
+                      'type' => 'case_updated',
+                      'phone' => $row['wa_number'],
+                      'case' => 3,
+                      'target_id' => '0',
+                      'sender_id' => $_SESSION[URL::SESSID]['user']['id_user'] ?? 'system'
+                  ]);
+
                   echo json_encode(['status' => 'success']);
               } else {
                   echo json_encode(['status' => 'error', 'message' => 'DB Update Failed']);
@@ -381,6 +391,26 @@ class Antrian extends Controller
       } else {
           echo json_encode(['status' => 'error', 'message' => 'Conversation not found']);
       }
+   }
+
+   private function pushToWebSocket($data)
+   {
+       $url = 'https://waserver.nalju.com/incoming';
+       
+       $ch = curl_init($url);
+       curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+       curl_setopt($ch, CURLOPT_POST, true);
+       curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+       curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+       curl_setopt($ch, CURLOPT_TIMEOUT, 5); 
+       curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
+       curl_setopt($ch, CURLOPT_NOSIGNAL, 1);
+       curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+       curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+
+       $result = curl_exec($ch);
+       curl_close($ch);
+       return $result;   
    }
 
    public function clearTuntas()
