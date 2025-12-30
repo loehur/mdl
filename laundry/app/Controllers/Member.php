@@ -333,8 +333,9 @@ class Member extends Controller
          $status = 'sent';
       } else {
          $status = 'pending';
-         // Log error jika gagal kirim
+         // Log error untuk debug
          $errorMsg = $res['error'] ?? 'Unknown error';
+         $this->model('Log')->write("WA Member Notif Failed | Phone: $hp | Error: $errorMsg | Full Response: " . json_encode($res));
       }
 
       if ($data_main < 1) {
