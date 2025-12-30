@@ -141,8 +141,25 @@ class Antrian extends Controller
             }
          }
 
+         // Get visible customers in current view
+         $visibleCustomerIds = [];
+         if (!empty($data_main2)) {
+             foreach ($data_main2 as $refBlock) {
+                 foreach ($refBlock as $row) {
+                     if (isset($row['id_pelanggan'])) {
+                         $visibleCustomerIds[$row['id_pelanggan']] = true;
+                     }
+                 }
+             }
+         }
+
          if (!empty($openWaMap) && !empty($this->pelanggan)) {
             foreach ($this->pelanggan as $p) {
+               // Only process if customer is in current view
+               if (!isset($visibleCustomerIds[$p['id_pelanggan']])) {
+                   continue;
+               }
+
                $rawHp = $p['nomor_pelanggan'];
                $hp = preg_replace('/[^0-9]/', '', $rawHp);
                

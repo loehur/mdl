@@ -141,18 +141,10 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
     $arrPoin = [];
     $jumlahRef = 0;
 
+    $countRef = 0;
     foreach ($data['data_main'] as $a) {
-        $ref = $a['no_ref'];
-
-        if ($prevRef != $a['no_ref']) {
-            $countRef = 0;
-            $countRef++;
-            $arrRef[$ref] = $countRef;
-        } else {
-            $countRef++;
-            $arrRef[$ref] = $countRef;
-        }
-        $prevRef = $ref;
+        $countRef++;
+        $arrRef[$a['no_ref']] = $countRef;
     }
 
     $no = 0;
