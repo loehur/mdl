@@ -305,7 +305,7 @@ class Antrian extends Controller
             $align = ($msg['sender'] == 'me') ? 'text-end' : 'text-start';
             
             if ($msg['sender'] == 'me') {
-                $bg = 'bg-success text-white';
+                $bg = 'bg-primary text-white';
                 $nameClass = 'text-white fw-bold';
                 $timeClass = 'text-white-50';
             } else {
