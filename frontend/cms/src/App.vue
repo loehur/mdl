@@ -1290,6 +1290,7 @@ const restoreActiveChatState = () => {
 const clearSavedChatState = () => {
     sessionStorage.removeItem('cms_active_chat_id');
     sessionStorage.removeItem('cms_show_mobile_chat');
+    localStorage.removeItem('active_chat_id');
 };
 
 const backToMenu = (animated = true) => {
@@ -2493,6 +2494,8 @@ const mockIncomingMessage = () => {
   const persistChatState = () => {
       if (activeChatId.value) {
           localStorage.setItem('active_chat_id', activeChatId.value);
+      } else {
+          localStorage.removeItem('active_chat_id');
       }
   };
 
