@@ -143,9 +143,16 @@ class WhatsApp extends Controller
                 $this->error('Message content is required for free text mode', 400);
             }
             
+            // FIX: Extract text from JSON if message is JSON format (from WAGenerator)
+            $messageText = $body['message'];
+            $decodedMsg = json_decode($body['message'], true);
+            if ($decodedMsg && isset($decodedMsg['text'])) {
+                $messageText = $decodedMsg['text'];
+            }
+            
             // Try to send - let yCloud API determine if CSW is valid
             // This is more reliable than checking local database
-            $result = $this->whatsappService->sendFreeText($phone, $body['message']);
+            $result = $this->whatsappService->sendFreeText($phone, $messageText);
             
             if (!$result['success']) {
                 // Check if it's a CSW error from yCloud
@@ -186,8 +193,15 @@ class WhatsApp extends Controller
         if ($messageMode === 'template') {
             // Try to send as free text first if CSW is open
             if ($isWithinCsw && !empty($body['message'])) {
+                // FIX: Extract text from JSON if message is JSON format
+                $freeTextMsg = $body['message'];
+                $decodedFree = json_decode($body['message'], true);
+                if ($decodedFree && isset($decodedFree['text'])) {
+                    $freeTextMsg = $decodedFree['text'];
+                }
+                
                 // CSW is open, try free text
-                $result = $this->whatsappService->sendFreeText($phone, $body['message']);
+                $result = $this->whatsappService->sendFreeText($phone, $freeTextMsg);
                 
                 if ($result['success']) {
                     // Free text succeeded - return immediately
