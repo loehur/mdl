@@ -3050,10 +3050,10 @@ const closeImageLightbox = () => {
               </div>
               
               <!-- Case Badges -->
-              <div v-if="chat.cases && chat.cases.some(c => c.case > 0 && (c.status || 'open') !== 'closed')" class="flex flex-wrap gap-1.5 mb-1.5">
+              <div v-if="chat.cases && chat.cases.some(c => c.case > 0)" class="flex flex-wrap gap-1.5 mb-1.5">
                   <template v-for="(cse, idx) in chat.cases" :key="idx">
                       <div 
-                        v-if="cse.case > 0 && (cse.status || 'open') !== 'closed'"
+                        v-if="cse.case > 0"
                         class="w-3.5 h-3.5 rounded-full ring-1 ring-black/20"
                         :class="getCaseColor(cse.case)"
                         :title="'Case: ' + cse.case"

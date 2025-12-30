@@ -244,6 +244,84 @@ class Antrian extends Controller
       ]);
    }
 
+   public function chat_history()
+   {
+      $hp = $_POST['hp'];
+      
+      // Normalize HP for querying
+      $hpClean = preg_replace('/[^0-9]/', '', $hp);
+      $matchDigits = substr($hpClean, -10);
+
+      $sql = "
+            SELECT * FROM (
+                SELECT * FROM (
+                    (SELECT 
+                        id,
+                        wamid,
+                        text,
+                        type,
+                        'customer' as sender,
+                        created_at as time,
+                        status,
+                        media_id,
+                        media_url,
+                        media_caption as caption,
+                        quoted_message_id
+                     FROM wa_messages_in 
+                     WHERE RIGHT(REPLACE(REPLACE(phone, '+', ''), '-', ''), 10) = '$matchDigits')
+                    UNION ALL
+                    (SELECT 
+                        id,
+                        wamid,
+                        COALESCE(content, '') as text,
+                        type,
+                        'me' as sender,
+                        created_at as time,
+                        status,
+                        NULL as media_id,
+                        media_url,
+                        NULL as caption,
+                        quoted_message_id
+                     FROM wa_messages_out 
+                     WHERE RIGHT(REPLACE(REPLACE(phone, '+', ''), '-', ''), 10) = '$matchDigits')
+                ) AS combined_msgs
+                ORDER BY time DESC
+                LIMIT 20
+            ) AS latest_msgs
+            ORDER BY time ASC
+      ";
+
+      try {
+          $messages = $this->db(100)->query($sql)->result_array();
+      } catch (\Exception $e) {
+          echo "<div class='text-center text-danger'>Data chat tidak tersedia</div>";
+          return;
+      }
+      
+      // Format as HTML for the modal body
+      $html = "";
+      if(!empty($messages)) {
+        foreach($messages as $msg) {
+            $align = ($msg['sender'] == 'me') ? 'text-end' : 'text-start';
+            $bg = ($msg['sender'] == 'me') ? 'bg-success bg-opacity-10' : 'bg-white';
+            $senderName = ($msg['sender'] == 'me') ? 'Me' : 'Customer';
+            $time = date('d/m H:i', strtotime($msg['time']));
+            
+            $content = htmlspecialchars($msg['text'] ?? '');
+            
+            $html .= "<div class='d-flex flex-column mb-3 ".$align."'>";
+            $html .= "<div class='p-2 rounded shadow-sm border ".$bg."' style='display:inline-block; max-width:85%; min-width: 200px; align-self:".(($msg['sender'] == 'me') ? 'flex-end' : 'flex-start')."'>";
+            $html .= "<div class='d-flex justify-content-between mb-1'><small class='fw-bold text-secondary'>".$senderName."</small><small class='text-muted' style='font-size: 0.7rem;'>".$time."</small></div>";
+            $html .= "<span style='white-space: pre-wrap;'>".$content."</span>";
+            $html .= "</div></div>";
+        }
+      } else {
+          $html = "<div class='text-center text-muted'>Tidak ada riwayat chat <br><small>Hanya menampilkan 20 pesan terakhir</small></div>";
+      }
+
+      echo $html;
+   }
+
    public function clearTuntas()
    {
       if (isset($_POST['data'])) {

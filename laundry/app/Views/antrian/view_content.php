@@ -28,31 +28,70 @@ $modeView = $data['modeView'];
 ?>
 
 
+
 <?php if (!empty($data['customersWithOpenCases'])) { ?>
-<div class="row mx-0 mt-2">
+<div class="row mx-0 mt-2 mb-2">
   <div class="col-12">
-    <div class="card bg-warning bg-opacity-10 border-warning shadow-sm mb-2">
-        <div class="card-body py-2 px-3">
-            <h6 class="card-title mb-2 text-dark fw-bold"><i class="fab fa-whatsapp text-success"></i> Pelanggan Menunggu Respon (Open Case)</h6>
-            <div class="d-flex flex-wrap" style="gap: 10px;">
-                <?php foreach ($data['customersWithOpenCases'] as $wac) { 
-                    $p = $wac['pelanggan'];
-                    $w = $wac['wa'];
-                ?>
-                <div class="bg-white rounded border p-2 shadow-sm" style="min-width: 200px;">
-                    <div class="fw-bold"><?= $p['nama_pelanggan'] ?></div>
-                    <div class="small text-muted"><i class="fab fa-whatsapp"></i> <?= $p['nomor_pelanggan'] ?></div>
-                    <div class="small text-secondary mt-1 text-truncate" style="max-width: 200px;">
-                        <?= isset($w['last_message']) ? htmlspecialchars(substr($w['last_message'], 0, 50)) : '' ?>
-                    </div>
-                </div>
-                <?php } ?>
-            </div>
-        </div>
+    <div class="d-flex flex-wrap gap-2">
+        <h6 class="align-self-center mb-0 me-2 text-dark small fw-bold"><i class="fab fa-whatsapp text-danger"></i> Open Case:</h6>
+        <?php foreach ($data['customersWithOpenCases'] as $wac) { 
+            $p = $wac['pelanggan'];
+            $w = $wac['wa'];
+            $hp = $p['nomor_pelanggan'];
+            $nama = $p['nama_pelanggan'];
+        ?>
+        <button class="btn btn-outline-danger btn-sm shadow-sm fw-bold open-wa-modal" 
+                data-hp="<?= $hp ?>" 
+                data-nama="<?= htmlspecialchars($nama) ?>"
+                type="button"
+                style="border-radius: 20px; font-size: 0.85rem; padding: 2px 12px;">
+            <i class="fab fa-whatsapp"></i> <?= $nama ?>
+        </button>
+        <?php } ?>
     </div>
   </div>
 </div>
 <?php } ?>
+
+<!-- Modal -->
+<div class="modal fade" id="waHistoryModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white py-2">
+        <h6 class="modal-title" id="waHistoryTitle">Riwayat Chat</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body bg-light" id="waHistoryBody" style="min-height: 200px;">
+        <div class="text-center"><div class="spinner-border text-danger" role="status"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    $('.open-wa-modal').click(function() {
+        var hp = $(this).data('hp');
+        var nama = $(this).data('nama');
+        
+        $('#waHistoryTitle').text(nama);
+        $('#waHistoryModal').modal('show');
+        $('#waHistoryBody').html('<div class="text-center py-3"><div class="spinner-border text-danger" role="status"></div></div>');
+        
+        $.ajax({
+            url: '<?= URL::BASE_URL ?>Antrian/chat_history',
+            type: 'POST',
+            data: { hp: hp },
+            success: function(response) {
+                $('#waHistoryBody').html(response);
+            },
+            error: function() {
+                $('#waHistoryBody').html('<div class="text-center text-danger">Gagal memuat chat</div>');
+            }
+        });
+    });
+});
+</script>
 
 <div class="row mx-0">
   <?php

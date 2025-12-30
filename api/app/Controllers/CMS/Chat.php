@@ -431,6 +431,12 @@ class Chat extends Controller
             if (!$phone) $this->error('Phone required');
             if ($caseVal === null) $this->error('Case value (case) required');
             
+            // Ignore Case 0
+            if ((int)$caseVal === 0) {
+                 $this->success([], 'Case 0 ignored');
+                 return;
+            }
+            
             $db = $this->db(0);
             
             // 1. Fetch existing cases first to support multi-case (append logic)
