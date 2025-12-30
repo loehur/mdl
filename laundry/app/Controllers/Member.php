@@ -330,11 +330,11 @@ class Member extends Controller
       $data_main = $this->db(0)->count_where("notif", $where);
 
       if ($res['status']) {
-         $status = $res['data']['status'];
-         $vals = "'" . $time . "'," . $this->id_cabang . ",'" . $noref . "','" . $hp . "','" . $text . "','" . $res['data']['id'] . "','" . $status . "',3";
+         $status = 'sent';
       } else {
-         $status = $res['data']['status'];
-         $vals = "'" . $time . "'," . $this->id_cabang . ",'" . $noref . "','" . $hp . "','" . $text . "','','" . $status . "',3";
+         $status = 'pending';
+         // Log error jika gagal kirim
+         $errorMsg = $res['error'] ?? 'Unknown error';
       }
 
       if ($data_main < 1) {
@@ -345,12 +345,22 @@ class Member extends Controller
             'no_ref' => $noref,
             'phone' => $hp,
             'text' => $text,
-            'proses' => $status,
-            'id_api' => isset($res['data']['id']) ? $res['data']['id'] : '',
-            'proses' => $status,
+            'id_api' => $res['data']['data']['message_id'] ?? ($res['data']['data']['id'] ?? ($res['data']['id'] ?? '')),
+            'state' => $status,
             'tipe' => 3
          ];
-         $this->db(0)->insert('notif', $data);
+         $do = $this->db(0)->insert('notif', $data);
+         if (isset($do['errno']) && $do['errno'] <> 0) {
+            echo "DB Error: " . $do['error'];
+            return;
+         }
+      }
+      
+      // Return response for AJAX
+      if ($res['status']) {
+         echo 0; // Success
+      } else {
+         echo "WA Error: " . ($errorMsg ?? 'Gagal mengirim');
       }
    }
 }

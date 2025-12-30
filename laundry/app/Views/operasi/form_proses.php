@@ -12,7 +12,7 @@ if ($data['id_pelanggan'] > 0) {
     <div class="row mx-0">
       <div class="col px-1" style="max-width: 270px;">
         <label>Pelanggan</label>
-        <select name="pelanggan" data-id="<?= $id_pelanggan ?>" class="id_pelanggan tize form-control form-control-sm" required>
+        <select name="pelanggan"  data-id="<?= $id_pelanggan ?>" class="id_pelanggan tize form-control form-control-sm" required>
           <option value="" selected disabled>...</option>
           <?php foreach ($this->pelanggan as $a) { ?>
             <option value="<?= $a['id_pelanggan'] ?>"><?= strtoupper($a['nama_pelanggan'])  ?> | <?= $a['nomor_pelanggan'] ?></option>
