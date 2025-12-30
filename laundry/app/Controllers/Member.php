@@ -374,7 +374,7 @@ class Member extends Controller
             'id_api' => $idApi,
             'state' => 'sent'
          ];
-         $this->db(0)->update('notif', $updateData, ['id_notif' => $id_notif]);
+         $this->db(0)->update('notif', $updateData, "id_notif = '$id_notif'");
       } else {
          // WA send failed, keep as pending for retry
          $errorMsg = $res['error'] ?? 'Unknown error';
