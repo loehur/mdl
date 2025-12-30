@@ -34,9 +34,7 @@ class Operasi extends Controller
       $idOperan = "";
       $modeView = 1;
 
-      $pelanggan = [];
-
-      $pelanggan = $this->pelanggan[$id_pelanggan];
+      $pelanggan = $this->pelanggan[$id_pelanggan] ?? 0;
 
       // Get year parameter, default to current year
       $year = isset($_GET['year']) ? intval($_GET['year']) : intval(date('Y'));
