@@ -125,7 +125,8 @@ class Antrian extends Controller
                $hasOpen = false;
                if (is_array($cases)) {
                    foreach ($cases as $c) {
-                       if (isset($c['status']) && $c['status'] === 'open') {
+                       // Only show if Case 3 is Open
+                       if (isset($c['case']) && $c['case'] == 3 && isset($c['status']) && $c['status'] === 'open') {
                            $hasOpen = true;
                            break;
                        }
@@ -317,6 +318,12 @@ class Antrian extends Controller
             $time = date('d/m H:i', strtotime($msg['time']));
             
             $content = htmlspecialchars($msg['text'] ?? '');
+            
+            // WA Formatting: Bold, Italic, Strikethrough, Monospace
+            $content = preg_replace('/```([^`]+)```/', '<code>$1</code>', $content);
+            $content = preg_replace('/\*([^\*]+)\*/', '<b>$1</b>', $content);
+            $content = preg_replace('/_([^_]+)_/', '<i>$1</i>', $content);
+            $content = preg_replace('/~([^~]+)~/', '<strike>$1</strike>', $content);
             
             $html .= "<div class='d-flex flex-column mb-3 ".$align."'>";
             $html .= "<div class='p-2 rounded shadow-sm border ".$bg."' style='display:inline-block; max-width:85%; min-width: 200px; align-self:".(($msg['sender'] == 'me') ? 'flex-end' : 'flex-start')."'>";
