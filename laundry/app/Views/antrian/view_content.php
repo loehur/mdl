@@ -56,6 +56,13 @@ $modeView = $data['modeView'];
 <div class="modal fade" id="waHistoryModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content">
+      <div class="modal-header bg-danger text-white py-2">
+        <h6 class="modal-title" id="waHistoryTitle">Riwayat Chat</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body bg-light" id="waHistoryBody" style="min-height: 200px;">
+        <div class="text-center"><div class="spinner-border text-danger" role="status"></div></div>
+      </div>
       <div class="modal-footer bg-light p-1">
         <button type="button" class="btn btn-success w-100" id="btnCloseCase">
             <i class="fas fa-check"></i> Permintaan sudah terpenuhi
