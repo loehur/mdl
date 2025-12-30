@@ -61,9 +61,17 @@ class Operasi extends Controller
 
       $sale_ids = [];
       $sale_refs = [];
-      foreach ($data_main as $dm) {
-         $sale_ids[] = "'" . $dm['id_penjualan'] . "'";
-         $sale_refs[] = $dm['no_ref'];
+      foreach ($data_main2 as $key_ref => $dm_group) {
+         $ref = $key_ref;
+         if (!empty($dm_group)) {
+            $first = reset($dm_group);
+            if (isset($first['no_ref'])) $ref = $first['no_ref'];
+         }
+         $sale_refs[] = $ref;
+
+         foreach ($dm_group as $dm) {
+            $sale_ids[] = "'" . $dm['id_penjualan'] . "'";
+         }
       }
 
       $operasi = [];
