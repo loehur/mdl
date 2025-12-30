@@ -321,7 +321,7 @@ class Member extends Controller
       $text = str_replace("<sup>3</sup>", "³", $text);
 
       $hp = $pelanggan['nomor_pelanggan'];
-      $res = $this->helper('Notif')->send_wa($hp, $text, false);
+      $res = $this->helper('Notif')->send_wa($hp, $text, 'free');
       $time = $d['insertTime'];
       $noref = $id_member;
 
@@ -356,11 +356,7 @@ class Member extends Controller
          }
       }
       
-      // Return response for AJAX
-      if ($res['status']) {
-         echo 0; // Success
-      } else {
-         echo "WA Error: " . ($errorMsg ?? 'Gagal mengirim');
-      }
+      // Always return success - data sudah di-insert (sent atau pending)
+      echo 0;
    }
 }
