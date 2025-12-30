@@ -89,7 +89,7 @@ if ($data['id_pelanggan'] > 0) {
     $('select.tize').selectize();
 
     // Load data saat pertama kali halaman dibuka (tanpa redirect)
-    var pelanggan = $("select[name=pelanggan]").val();
+    var pelanggan = <?= $id_pelanggan ?>;
     if (pelanggan && pelanggan.length != 0) {
       loadDataOnly(pelanggan);
     }
