@@ -1621,11 +1621,11 @@
 
   function loadDiv() {
     if (modeView != 2) {
-      var pelanggan = $("select[name=pelanggan]").val();
+      var pelanggan = $("select[name=pelanggan]").attr("data-id");
       $("div#load").load(BASE_URL + "Operasi/loadData/" + pelanggan + "/0");
     }
     if (modeView == 2) {
-      var pelanggan = $("select[name=pelanggan]").val();
+      var pelanggan = $("select[name=pelanggan]").attr("data-id");
       var tahun = $("select[name=tahun]").val();
       $("div#load").load(
         BASE_URL + "Operasi/loadData/" + pelanggan + "/" + tahun
