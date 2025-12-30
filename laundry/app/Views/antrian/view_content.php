@@ -27,6 +27,33 @@ $kodeCabang = $this->dCabang['kode_cabang'];
 $modeView = $data['modeView'];
 ?>
 
+
+<?php if (!empty($data['customersWithOpenCases'])) { ?>
+<div class="row mx-0 mt-2">
+  <div class="col-12">
+    <div class="card bg-warning bg-opacity-10 border-warning shadow-sm mb-2">
+        <div class="card-body py-2 px-3">
+            <h6 class="card-title mb-2 text-dark fw-bold"><i class="fab fa-whatsapp text-success"></i> Pelanggan Menunggu Respon (Open Case)</h6>
+            <div class="d-flex flex-wrap" style="gap: 10px;">
+                <?php foreach ($data['customersWithOpenCases'] as $wac) { 
+                    $p = $wac['pelanggan'];
+                    $w = $wac['wa'];
+                ?>
+                <div class="bg-white rounded border p-2 shadow-sm" style="min-width: 200px;">
+                    <div class="fw-bold"><?= $p['nama_pelanggan'] ?></div>
+                    <div class="small text-muted"><i class="fab fa-whatsapp"></i> <?= $p['nomor_pelanggan'] ?></div>
+                    <div class="small text-secondary mt-1 text-truncate" style="max-width: 200px;">
+                        <?= isset($w['last_message']) ? htmlspecialchars(substr($w['last_message'], 0, 50)) : '' ?>
+                    </div>
+                </div>
+                <?php } ?>
+            </div>
+        </div>
+    </div>
+  </div>
+</div>
+<?php } ?>
+
 <div class="row mx-0">
   <?php
   $arrRekapAntrian = [];
