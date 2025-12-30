@@ -252,50 +252,49 @@ class Antrian extends Controller
       $hpClean = preg_replace('/[^0-9]/', '', $hp);
       $matchDigits = substr($hpClean, -10);
 
-      $sql = "
-            SELECT * FROM (
-                SELECT * FROM (
-                    (SELECT 
-                        id,
-                        wamid,
-                        text,
-                        type,
-                        'customer' as sender,
-                        created_at as time,
-                        status,
-                        media_id,
-                        media_url,
-                        media_caption as caption,
-                        quoted_message_id
-                     FROM wa_messages_in 
-                     WHERE RIGHT(REPLACE(REPLACE(phone, '+', ''), '-', ''), 10) = '$matchDigits')
-                    UNION ALL
-                    (SELECT 
-                        id,
-                        wamid,
-                        COALESCE(content, '') as text,
-                        type,
-                        'me' as sender,
-                        created_at as time,
-                        status,
-                        NULL as media_id,
-                        media_url,
-                        NULL as caption,
-                        quoted_message_id
-                     FROM wa_messages_out 
-                     WHERE RIGHT(REPLACE(REPLACE(phone, '+', ''), '-', ''), 10) = '$matchDigits')
-                ) AS combined_msgs
-                ORDER BY time DESC
-                LIMIT 20
-            ) AS latest_msgs
-            ORDER BY time ASC
-      ";
+      // Normalize HP for querying
+      $hpClean = preg_replace('/[^0-9]/', '', $hp);
+      $matchDigits = substr($hpClean, -10);
 
-      try {
-          $messages = $this->db(100)->query($sql)->result_array();
-      } catch (\Exception $e) {
-          echo "<div class='text-center text-danger'>Data chat tidak tersedia</div>";
-          return;
+      // Fetch Incoming
+      $whereIn = "RIGHT(REPLACE(REPLACE(phone, '+', ''), '-', ''), 10) = '$matchDigits' ORDER BY created_at DESC LIMIT 20";
+      $msgsIn = $this->db(100)->get_where('wa_messages_in', $whereIn);
+      if (!is_array($msgsIn)) $msgsIn = [];
+
+      // Fetch Outgoing
+      $whereOut = "RIGHT(REPLACE(REPLACE(phone, '+', ''), '-', ''), 10) = '$matchDigits' ORDER BY created_at DESC LIMIT 20";
+      $msgsOut = $this->db(100)->get_where('wa_messages_out', $whereOut);
+      if (!is_array($msgsOut)) $msgsOut = [];
+
+      // Combine
+      $messages = [];
+      
+      foreach ($msgsIn as $m) {
+          $messages[] = [
+              'text' => $m['text'] ?? '',
+              'sender' => 'customer',
+              'time' => $m['created_at'],
+              'status' => $m['status']
+          ];
+      }
+
+      foreach ($msgsOut as $m) {
+          $messages[] = [
+              'text' => $m['content'] ?? '', // Note: outgoing uses 'content'
+              'sender' => 'me',
+              'time' => $m['created_at'],
+              'status' => $m['status']
+          ];
+      }
+
+      // Sort by time ASC
+      usort($messages, function($a, $b) {
+          return strtotime($a['time']) - strtotime($b['time']);
+      });
+
+      // Take last 20
+      if (count($messages) > 20) {
+          $messages = array_slice($messages, -20);
       }
       
       // Format as HTML for the modal body
