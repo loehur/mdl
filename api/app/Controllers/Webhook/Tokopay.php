@@ -60,7 +60,8 @@ class Tokopay extends Controller
             }
         }
 
-        if ($status == 'Success' || $status == 'Completed') {
+        $statusLower = strtolower($status);
+        if ($statusLower == 'success' || $statusLower == 'completed' || $statusLower == 'expired') {
             // Processing success (no verbose log)
 
             // Debugging DB connection and query
@@ -90,7 +91,7 @@ class Tokopay extends Controller
                 return;
             }
 
-            if ($cek_target) {
+            if ($cek_target && ($statusLower == 'success' || $statusLower == 'completed')) {
             // Target found (no log)
 
                 $book = $cek_target->book;

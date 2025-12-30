@@ -239,7 +239,6 @@ class WAReplies
                  }
              }
          }else{
-            //cek dulu ada tidak nya nota terbuka
             $cleanPhone = preg_replace('/[^0-9]/', '', $waNumber);
             $phone0 = '0' . substr($cleanPhone, 2);
 
@@ -332,15 +331,7 @@ class WAReplies
                         }
                         
                         $statusText = implode("\n", $statusList);
-                        
-                        if (count($flatInProgress) > 0) {
-                            $text = "Yth. *" . $nama_pelanggan . "*,\nStatus Laundry:\n" . $statusText . "\nTerima kasih sudah *CEK*.\n" . $list_link;
-                        } else {
-                            // Adjust message based on number of items
-                            $completedMsg = count($flatCompleted) > 1 ? "Semua sudah selesai" : "Laundry sudah selesai";
-                            $text = "Yth. *" . $nama_pelanggan . "*,\nStatus Laundry:\n" . $statusText . "\n" . $completedMsg . ". Terima kasih.\n" . $list_link;
-                        }
-                        
+                        $text = "Yth. *" . $nama_pelanggan . "*,\nStatus Laundry:\n" . $statusText . "\n" . $list_link;
                         $res = $waService->sendFreeText($waNumber, $text);
                         if ($res['success']) {
                             $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
