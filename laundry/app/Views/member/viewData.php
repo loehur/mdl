@@ -182,11 +182,11 @@ foreach ($this->pelanggan as $dp) {
     $buttonNotif = "<a href='#' data-ref='" . $id . "' class='text-dark sendNotifMember bg-white rounded col pl-2 pr-2 mr-1'><i class='fab fa-whatsapp'></i> <span id='notif" . $id . "'></span></a>";
     foreach ($data['notif_member'] as $notif) {
       if ($notif['no_ref'] == $id) {
-        $statusWA = $notif['proses'];
+        $statusWA = $notif['state'];
         if ($statusWA == '') {
           $statusWA = 'Pending';
         }
-        $stNotif = "<b>" . ucwords($statusWA) . "</b> " . ucwords($notif['state']);
+        $stNotif = "<b>" . ucwords($statusWA) . "</b>";
         $buttonNotif = "<span class='bg-white rounded col pl-2 pr-2 mr-1'><i class='fab fa-whatsapp'></i> " . $stNotif . "</span>";
       }
     }
