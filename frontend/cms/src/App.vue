@@ -1471,8 +1471,8 @@ const handleSwipeReplyMove = (e) => {
     if (!swipeReplyState.value.msgId) return;
     const diff = e.touches[0].clientX - swipeReplyState.value.startX;
     
-    // Only allow swipe RIGHT (diff > 0) and limit max drag distance (WhatsApp style)
-    if (diff > 0 && diff < 120) {
+    // Only allow swipe LEFT (diff < 0) and limit max drag distance
+    if (diff < 0 && diff > -120) {
        swipeReplyState.value.currentX = e.touches[0].clientX;
     }
 };
@@ -1482,8 +1482,8 @@ const handleSwipeReplyEnd = (e, msg) => {
     
     const diff = swipeReplyState.value.currentX - swipeReplyState.value.startX;
     
-    // Check threshold (swipe RIGHT)
-    if (diff > swipeReplyState.value.threshold) {
+    // Check threshold (swipe LEFT)
+    if (diff < -swipeReplyState.value.threshold) {
         if (navigator.vibrate) navigator.vibrate(50);
         setReplyTo(msg);
     }
@@ -1495,7 +1495,7 @@ const handleSwipeReplyEnd = (e, msg) => {
 const getSwipeReplyStyle = (msgId) => {
    if (swipeReplyState.value.msgId === msgId) {
        const diff = swipeReplyState.value.currentX - swipeReplyState.value.startX;
-       if (diff > 0) {
+       if (diff < 0) {
            return { transform: `translateX(${diff}px)`, transition: 'none' }; // Move cleanly
        }
    }
@@ -3209,6 +3209,10 @@ const handleLinkClick = (e) => {
             'hidden': !showMobileChat && windowWidth < 768,
             'fixed top-0 right-0 bottom-0 md:left-96 z-0 !w-auto': windowWidth >= 768
         }"
+        :style="{ 
+            transform: showMobileChat && windowWidth < 768 && !isEnteringChat && touchOffset > 0 ? `translateX(${touchOffset}px)` : '',
+            transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+        }"
     >
 
        <!-- Background Pattern (WhatsApp style) -->
@@ -3425,10 +3429,6 @@ const handleLinkClick = (e) => {
                <!-- Customer Message -->
                <div v-if="msg.sender !== 'me'" 
                     class="flex gap-3 max-w-[75%] items-end"
-                    @touchstart="handleSwipeReplyStart($event, msg.id)" 
-                    @touchmove="handleSwipeReplyMove($event)" 
-                    @touchend="handleSwipeReplyEnd($event, msg)" 
-                    :style="getSwipeReplyStyle(msg.id)"
                >
                   <div 
                     v-if="index === 0 || activeConversation.messages[index-1]?.sender === 'me'" 
@@ -3590,26 +3590,22 @@ const handleLinkClick = (e) => {
                          <p v-if="msg.text" class="leading-relaxed break-words whitespace-pre-wrap inline" v-html="parseWhatsAppFormatting(msg.text)" :style="{ fontSize: messageFontSize }"></p>
                          <span class="text-[10px] text-[var(--wa-text-tertiary)] ml-auto whitespace-nowrap leading-[1.8]">{{ msg.time }}</span>
                       </div>
-                      <!-- Reply button (visible on hover) -->
-                      <button 
-                         @click="setReplyTo(msg)" 
-                         class="absolute -right-8 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] shadow-md opacity-0 group-hover/msg:opacity-100 transition-opacity hover:bg-[var(--wa-hover)]"
-                         title="Reply"
-                      >
-                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--wa-text-secondary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                         </svg>
-                      </button>
+                      <!-- Reply button (always visible on mobile, hover on desktop) -->
+                       <button 
+                          @click="setReplyTo(msg)" 
+                          class="absolute -right-8 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] shadow-md transition-opacity hover:bg-[var(--wa-hover)] md:opacity-0 md:group-hover/msg:opacity-100"
+                          title="Reply"
+                       >
+                          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--wa-text-secondary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                          </svg>
+                       </button>
                    </div>
                </div>
                
                <!-- My Message -->
                <div v-else 
                     class="flex gap-3 max-w-[75%] self-end items-end justify-end"
-                    @touchstart="handleSwipeReplyStart($event, msg.id)" 
-                    @touchmove="handleSwipeReplyMove($event)" 
-                    @touchend="handleSwipeReplyEnd($event, msg)" 
-                    :style="getSwipeReplyStyle(msg.id)"
                >
                   <!-- Image Message: Transparent style -->
                   <div v-if="msg.type === 'image'" class="rounded-lg overflow-hidden shadow-md max-w-[240px] bg-[var(--wa-bubble-outgoing)]/50">
