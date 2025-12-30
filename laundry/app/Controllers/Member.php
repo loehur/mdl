@@ -321,43 +321,67 @@ class Member extends Controller
       $text = str_replace("<sup>3</sup>", "³", $text);
 
       $hp = $pelanggan['nomor_pelanggan'];
-      $res = $this->helper('Notif')->send_wa($hp, $text, 'free');
       $time = $d['insertTime'];
       $noref = $id_member;
 
+      // FIX: Close session before long-running WA operation to prevent blocking other requests
+      if (session_status() === PHP_SESSION_ACTIVE) {
+         session_write_close();
+      }
+
+      // Check if notification already exists
       $setOne = "no_ref = '" . $noref . "' AND tipe = 3";
       $where = $this->wCabang . " AND " . $setOne;
-      $data_main = $this->db(0)->count_where("notif", $where);
+      $existingNotif = $this->db(0)->count_where('notif', $where);
 
+      if ($existingNotif > 0) {
+         // Notification already sent
+         echo 0;
+         return;
+      }
+
+      // INSERT PENDING RECORD FIRST as distributed lock (same pattern as Antrian.sendNotif)
+      $id_notif = (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9);
+      $pendingData = [
+         'id_notif' => $id_notif,
+         'insertTime' => $time,
+         'id_cabang' => $this->id_cabang,
+         'no_ref' => $noref,
+         'phone' => $hp,
+         'text' => $text,
+         'tipe' => 3,
+         'id_api' => '',
+         'state' => 'pending'
+      ];
+
+      $insertResult = $this->db(0)->insert('notif', $pendingData);
+      if (isset($insertResult['errno']) && $insertResult['errno'] <> 0) {
+         // Insert failed (duplicate key - another request just inserted)
+         echo 0;
+         return;
+      }
+
+      // NOW send WA (protected by the record we just inserted)
+      $res = $this->helper('Notif')->send_wa($hp, $text, 'free');
+
+      // Extract API message ID
+      $apiData = $res['data']['data'] ?? $res['data'] ?? [];
+      $idApi = $apiData['id'] ?? ($apiData['message_id'] ?? '');
+
+      // Update the record with WA API result
       if ($res['status']) {
-         $status = 'sent';
+         $updateData = [
+            'id_api' => $idApi,
+            'state' => 'sent'
+         ];
+         $this->db(0)->update('notif', $updateData, ['id_notif' => $id_notif]);
       } else {
-         $status = 'pending';
-         // Log error untuk debug
+         // WA send failed, keep as pending for retry
          $errorMsg = $res['error'] ?? 'Unknown error';
          $this->model('Log')->write("WA Member Notif Failed | Phone: $hp | Error: $errorMsg | Full Response: " . json_encode($res));
       }
-
-      if ($data_main < 1) {
-         $data = [
-            'id_notif' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
-            'insertTime' => $time,
-            'id_cabang' => $this->id_cabang,
-            'no_ref' => $noref,
-            'phone' => $hp,
-            'text' => $text,
-            'id_api' => $res['data']['data']['message_id'] ?? ($res['data']['data']['id'] ?? ($res['data']['id'] ?? '')),
-            'state' => $status,
-            'tipe' => 3
-         ];
-         $do = $this->db(0)->insert('notif', $data);
-         if (isset($do['errno']) && $do['errno'] <> 0) {
-            echo "DB Error: " . $do['error'];
-            return;
-         }
-      }
       
-      // Always return success - data sudah di-insert (sent atau pending)
+      // Always return success - data sudah di-insert
       echo 0;
    }
 }
