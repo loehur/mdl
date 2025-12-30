@@ -33,7 +33,6 @@ $modeView = $data['modeView'];
 <div class="row mx-0 mt-2 mb-2">
   <div class="col-12">
     <div class="d-flex flex-wrap gap-2">
-        <h6 class="align-self-center mb-0 me-2 text-dark small fw-bold"><i class="fab fa-whatsapp text-danger"></i> Open Case:</h6>
         <?php foreach ($data['customersWithOpenCases'] as $wac) { 
             $p = $wac['pelanggan'];
             $w = $wac['wa'];
@@ -45,7 +44,7 @@ $modeView = $data['modeView'];
                 data-nama="<?= htmlspecialchars($nama) ?>"
                 type="button"
                 style="border-radius: 20px; font-size: 0.85rem; padding: 2px 12px;">
-            <i class="fab fa-whatsapp"></i> <?= $nama ?>
+            <?= strtoupper($nama) ?>
         </button>
         <?php } ?>
     </div>
@@ -74,7 +73,7 @@ $(document).ready(function() {
         var hp = $(this).data('hp');
         var nama = $(this).data('nama');
         
-        $('#waHistoryTitle').text(nama);
+        $('#waHistoryTitle').text(nama.toUpperCase());
         $('#waHistoryModal').modal('show');
         $('#waHistoryBody').html('<div class="text-center py-3"><div class="spinner-border text-danger" role="status"></div></div>');
         

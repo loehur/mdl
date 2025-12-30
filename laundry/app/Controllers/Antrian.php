@@ -302,7 +302,17 @@ class Antrian extends Controller
       if(!empty($messages)) {
         foreach($messages as $msg) {
             $align = ($msg['sender'] == 'me') ? 'text-end' : 'text-start';
-            $bg = ($msg['sender'] == 'me') ? 'bg-success bg-opacity-10' : 'bg-white';
+            
+            if ($msg['sender'] == 'me') {
+                $bg = 'bg-success text-white';
+                $nameClass = 'text-white fw-bold';
+                $timeClass = 'text-white-50';
+            } else {
+                $bg = 'bg-white';
+                $nameClass = 'text-secondary fw-bold';
+                $timeClass = 'text-muted';
+            }
+            
             $senderName = ($msg['sender'] == 'me') ? 'Me' : 'Customer';
             $time = date('d/m H:i', strtotime($msg['time']));
             
@@ -310,7 +320,7 @@ class Antrian extends Controller
             
             $html .= "<div class='d-flex flex-column mb-3 ".$align."'>";
             $html .= "<div class='p-2 rounded shadow-sm border ".$bg."' style='display:inline-block; max-width:85%; min-width: 200px; align-self:".(($msg['sender'] == 'me') ? 'flex-end' : 'flex-start')."'>";
-            $html .= "<div class='d-flex justify-content-between mb-1'><small class='fw-bold text-secondary'>".$senderName."</small><small class='text-muted' style='font-size: 0.7rem;'>".$time."</small></div>";
+            $html .= "<div class='d-flex justify-content-between mb-1'><small class='".$nameClass."'>".$senderName."</small><small class='".$timeClass."' style='font-size: 0.7rem;'>".$time."</small></div>";
             $html .= "<span style='white-space: pre-wrap;'>".$content."</span>";
             $html .= "</div></div>";
         }
