@@ -370,8 +370,7 @@ class Chat extends Controller
             // Update case (Overwrite history for manual action)
             $jsonCase = json_encode([[
                 'case' => (int)$caseVal,
-                'status' => 'done',
-                'timestamp' => date('Y-m-d H:i:s')
+                'status' => 'done'
             ]]);
             
             // NOTE: Also close conversation
@@ -450,7 +449,7 @@ class Chat extends Controller
                     $caseList = json_decode($raw, true) ?? [];
                 } elseif (is_numeric($raw)) {
                      // Legacy support: convert single int to array item
-                     $caseList[] = ['case' => (int)$raw, 'status' => 'open', 'timestamp' => date('Y-m-d H:i:s')];
+                     $caseList[] = ['case' => (int)$raw, 'status' => 'open'];
                 }
             }
 
@@ -485,7 +484,8 @@ class Chat extends Controller
                 if (isset($item['case']) && (int)$item['case'] === $newCaseVal) {
                     // Case already exists, refresh timestamp/status
                     $item['status'] = 'open';
-                    $item['timestamp'] = date('Y-m-d H:i:s');
+                    $item['status'] = 'open';
+                    // Timestamp removed as per request
                     $found = true;
                     break;
                 }
@@ -495,8 +495,7 @@ class Chat extends Controller
                 // Append new case
                 $caseList[] = [
                     'case' => $newCaseVal,
-                    'status' => 'open',
-                    'timestamp' => date('Y-m-d H:i:s')
+                    'status' => 'open'
                 ];
             }
 
@@ -596,8 +595,7 @@ class Chat extends Controller
             $caseVal = 4;
             $jsonCase = json_encode([[
                 'case' => $caseVal,
-                'status' => 'reopened',
-                'timestamp' => date('Y-m-d H:i:s')
+                'status' => 'reopened'
             ]]);
             
             $updated = $db->update('wa_conversations', 
@@ -667,7 +665,7 @@ class Chat extends Controller
                     $caseList = json_decode($raw, true) ?? [];
                 } elseif (is_numeric($raw)) {
                      // Legacy
-                     $caseList[] = ['case' => (int)$raw, 'status' => 'open', 'timestamp' => date('Y-m-d H:i:s')];
+                     $caseList[] = ['case' => (int)$raw, 'status' => 'open'];
                 }
             }
             

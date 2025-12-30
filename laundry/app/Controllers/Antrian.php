@@ -359,7 +359,7 @@ class Antrian extends Controller
                   // Only close Case 3
                   if (isset($c['case']) && $c['case'] == 3 && isset($c['status']) && $c['status'] === 'open') {
                       $c['status'] = 'closed';
-                      // No timestamp update as requested
+                      unset($c['timestamp']); // Remove timestamp as requested
                       $updated = true;
                   }
               }
