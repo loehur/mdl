@@ -63,6 +63,7 @@ const conversations = ref([]);
 const activeChatId = ref(null);
 const messageInput = ref('');
 const chatDrafts = ref({}); // Store draft messages per conversation ID
+const replyToMessage = ref(null); // Message being replied to (quoted reply)
 const chatContainer = ref(null);
 const socket = ref(null);
 const isConnected = ref(false);
@@ -1384,12 +1385,121 @@ const resetTextareaHeight = () => {
     }
 };
 
+// Set message to reply to (quoted reply)
+const setReplyTo = (msg) => {
+    replyToMessage.value = msg;
+    // Focus on input after selecting reply
+    nextTick(() => {
+        const textarea = messageTextarea.value;
+        if (textarea) textarea.focus();
+    });
+};
+
+// Cancel reply
+const cancelReply = () => {
+    replyToMessage.value = null;
+};
+
+// Find quoted message in current conversation
+const findQuotedMessage = (quotedMessageId) => {
+    if (!quotedMessageId || !activeConversation.value?.messages) return null;
+    return activeConversation.value.messages.find(m => 
+        m.wamid === quotedMessageId || m.message_id === quotedMessageId
+    );
+};
+
+// Get short preview of message for quoted display
+const getMessagePreview = (msg) => {
+    if (!msg) return '';
+    if (msg.type === 'image') return '📷 Image';
+    if (msg.type === 'video') return '🎥 Video';
+    if (msg.type === 'audio' || msg.type === 'voice') return '🎤 Voice';
+    if (msg.type === 'document') return '📄 Document';
+    if (msg.type === 'location') return '📍 Location';
+    if (msg.type === 'sticker') return '🎨 Sticker';
+    const text = msg.text || msg.caption || '';
+    return text.length > 60 ? text.substring(0, 60) + '...' : text;
+    return text.length > 60 ? text.substring(0, 60) + '...' : text;
+};
+
+// --- Swipe to Reply Logic (Android/Touch) ---
+const swipeReplyState = ref({
+    startX: 0,
+    currentX: 0,
+    msgId: null,
+    threshold: 60 // px to trigger reply
+});
+
+const handleSwipeReplyStart = (e, msgId) => {
+    // Only single touch
+    if (e.touches.length > 1) return;
+    swipeReplyState.value.startX = e.touches[0].clientX;
+    swipeReplyState.value.currentX = e.touches[0].clientX;
+    swipeReplyState.value.msgId = msgId;
+};
+
+const handleSwipeReplyMove = (e) => {
+    if (!swipeReplyState.value.msgId) return;
+    const diff = e.touches[0].clientX - swipeReplyState.value.startX;
+    
+    // Only allow swipe LEFT (diff < 0) and limit max drag distance
+    if (diff < 0 && diff > -120) {
+       swipeReplyState.value.currentX = e.touches[0].clientX;
+    }
+};
+
+const handleSwipeReplyEnd = (e, msg) => {
+    if (!swipeReplyState.value.msgId) return;
+    
+    const diff = swipeReplyState.value.currentX - swipeReplyState.value.startX;
+    
+    // Check threshold
+    if (diff < -swipeReplyState.value.threshold) {
+        if (navigator.vibrate) navigator.vibrate(50);
+        setReplyTo(msg);
+    }
+    
+    // Reset
+    swipeReplyState.value = { startX: 0, currentX: 0, msgId: null, threshold: 60 };
+};
+
+const getSwipeReplyStyle = (msgId) => {
+   if (swipeReplyState.value.msgId === msgId) {
+       const diff = swipeReplyState.value.currentX - swipeReplyState.value.startX;
+       if (diff < 0) {
+           return { transform: `translateX(${diff}px)`, transition: 'none' }; // Move cleanly
+       }
+   }
+   return { transition: 'transform 0.2s ease-out', transform: 'translateX(0)' };
+};
+
+// Scroll to a specific message (for quoted message click)
+const scrollToMessage = (quotedMessageId) => {
+    if (!quotedMessageId) return;
+    
+    // Find the message element by wamid or message_id
+    const msg = activeConversation.value?.messages?.find(m => 
+        m.wamid === quotedMessageId || m.message_id === quotedMessageId
+    );
+    if (!msg) return;
+    
+    const element = document.getElementById('msg-' + msg.id);
+    if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Highlight briefly
+        element.classList.add('bg-yellow-500/20');
+        setTimeout(() => element.classList.remove('bg-yellow-500/20'), 1500);
+    }
+};
+
 const sendMessage = async () => {
   const text = messageInput.value.trim();
   if (!text) return;
   
   if (activeConversation.value) {
     const tempId = Date.now();
+    const replyingTo = replyToMessage.value; // Capture before clearing
+    
     const newMsg = {
       id: tempId,
       text: text,
@@ -1397,7 +1507,8 @@ const sendMessage = async () => {
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
       rawTime: new Date().toISOString(), // Fixed: Add rawTime for proper sorting
       timestamp: Date.now(), // Add timestamp for duplicate detection
-      status: 'pending'
+      status: 'pending',
+      quoted_message_id: replyingTo?.wamid || null // Store quoted reference
     };
     
     // Optimistic UI
@@ -1406,6 +1517,7 @@ const sendMessage = async () => {
     activeConversation.value.lastTime = newMsg.time;
     
     messageInput.value = '';
+    replyToMessage.value = null; // Clear reply UI
     // Clear draft for this chat since message is sent
     if (activeChatId.value) {
         delete chatDrafts.value[activeChatId.value];
@@ -1421,7 +1533,8 @@ const sendMessage = async () => {
             body: JSON.stringify({
                 phone: activeConversation.value.wa_number, // Use wa_number
                 message: text,
-                user_id: authId.value // Add sender ID
+                user_id: authId.value, // Add sender ID
+                reply_to: replyingTo?.wamid || null // Send quoted message WAMID
             })
         });
         const res = await response.json();
@@ -3160,7 +3273,13 @@ const closeImageLightbox = () => {
                </div>
                
                <!-- Customer Message -->
-               <div v-if="msg.sender !== 'me'" class="flex gap-3 max-w-[75%] items-end">
+               <div v-if="msg.sender !== 'me'" 
+                    class="flex gap-3 max-w-[75%] items-end"
+                    @touchstart="handleSwipeReplyStart($event, msg.id)" 
+                    @touchmove="handleSwipeReplyMove($event)" 
+                    @touchend="handleSwipeReplyEnd($event, msg)" 
+                    :style="getSwipeReplyStyle(msg.id)"
+               >
                   <div 
                     v-if="index === 0 || activeConversation.messages[index-1]?.sender === 'me'" 
                     class="w-8 h-8 rounded-full flex items-center justify-center text-[10px] text-white font-bold mb-1 flex-shrink-0"
@@ -3256,6 +3375,31 @@ const closeImageLightbox = () => {
                       </div>
                    </div>
                    
+                   <!-- Document Message -->
+                   <div v-else-if="msg.type === 'document'" class="bg-[var(--wa-bubble-incoming)] rounded-lg shadow-sm px-3 py-2 max-w-[280px]">
+                      <a 
+                         :href="msg.media_url || `${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" 
+                         target="_blank"
+                         class="flex items-center gap-3 hover:opacity-80 transition-opacity"
+                      >
+                         <div class="w-10 h-10 bg-red-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <span class="text-xl">📄</span>
+                         </div>
+                         <div class="flex-1 min-w-0">
+                            <p class="text-[var(--wa-text-primary)] text-sm font-medium truncate">
+                               {{ msg.text || msg.media_caption || 'Document' }}
+                            </p>
+                            <span class="text-[10px] text-[var(--wa-text-tertiary)]">Tap to download</span>
+                         </div>
+                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[var(--wa-text-tertiary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                         </svg>
+                      </a>
+                      <div class="flex items-center justify-end mt-1">
+                         <span class="text-[10px] text-[var(--wa-text-tertiary)]">{{ msg.time }}</span>
+                      </div>
+                   </div>
+                   
                   <!-- Location Message -->
                   <div v-else-if="msg.type === 'location'" 
                      class="bg-[var(--wa-bubble-incoming)] rounded-lg overflow-hidden shadow-sm max-w-[280px] cursor-pointer hover:opacity-90 transition-opacity"
@@ -3282,16 +3426,41 @@ const closeImageLightbox = () => {
                   </div>
                   
                    <!-- Text Message: WhatsApp style with inline time -->
-                   <div v-else class="bg-[var(--wa-bubble-incoming)] text-[var(--wa-text-primary)] px-3 py-1.5 rounded-lg rounded-tl-none shadow-sm max-w-full">
+                   <div v-else class="bg-[var(--wa-bubble-incoming)] text-[var(--wa-text-primary)] px-3 py-1.5 rounded-lg rounded-tl-none shadow-sm max-w-full relative group/msg">
+                      <!-- Quoted Message Preview (if replying to a message) -->
+                      <div v-if="msg.quoted_message_id && findQuotedMessage(msg.quoted_message_id)" 
+                           class="bg-black/10 rounded px-2 py-1.5 mb-1.5 border-l-2 border-blue-400 cursor-pointer hover:bg-black/20"
+                           @click="scrollToMessage(msg.quoted_message_id)">
+                         <span class="text-[10px] font-medium text-blue-400 block">
+                            {{ findQuotedMessage(msg.quoted_message_id)?.sender === 'me' ? 'You' : activeConversation?.contact_name || 'Customer' }}
+                         </span>
+                         <p class="text-xs text-[var(--wa-text-secondary)] truncate">{{ getMessagePreview(findQuotedMessage(msg.quoted_message_id)) }}</p>
+                      </div>
                       <div class="flex flex-wrap items-end gap-x-2">
                          <p v-if="msg.text" class="leading-relaxed break-words whitespace-pre-wrap inline" v-html="parseWhatsAppFormatting(msg.text)" :style="{ fontSize: messageFontSize }"></p>
                          <span class="text-[10px] text-[var(--wa-text-tertiary)] ml-auto whitespace-nowrap leading-[1.8]">{{ msg.time }}</span>
                       </div>
+                      <!-- Reply button (visible on hover) -->
+                      <button 
+                         @click="setReplyTo(msg)" 
+                         class="absolute -right-8 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] shadow-md opacity-0 group-hover/msg:opacity-100 transition-opacity hover:bg-[var(--wa-hover)]"
+                         title="Reply"
+                      >
+                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--wa-text-secondary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                         </svg>
+                      </button>
                    </div>
                </div>
                
                <!-- My Message -->
-               <div v-else class="flex gap-3 max-w-[75%] self-end items-end justify-end">
+               <div v-else 
+                    class="flex gap-3 max-w-[75%] self-end items-end justify-end"
+                    @touchstart="handleSwipeReplyStart($event, msg.id)" 
+                    @touchmove="handleSwipeReplyMove($event)" 
+                    @touchend="handleSwipeReplyEnd($event, msg)" 
+                    :style="getSwipeReplyStyle(msg.id)"
+               >
                   <!-- Image Message: Transparent style -->
                   <div v-if="msg.type === 'image'" class="rounded-lg overflow-hidden shadow-md max-w-[240px] bg-[var(--wa-bubble-outgoing)]/50">
                      <div class="relative">
@@ -3347,6 +3516,15 @@ const closeImageLightbox = () => {
                   
                    <!-- Text Message: WhatsApp style with inline time -->
                    <div v-else class="bg-[var(--wa-bubble-outgoing)] text-white px-3 py-1.5 rounded-lg rounded-tr-none shadow-sm max-w-full">
+                      <!-- Quoted Message Preview (if replying to a message) -->
+                      <div v-if="msg.quoted_message_id && findQuotedMessage(msg.quoted_message_id)" 
+                           class="bg-black/20 rounded px-2 py-1.5 mb-1.5 border-l-2 border-[var(--wa-accent-green)] cursor-pointer hover:bg-black/30"
+                           @click="scrollToMessage(msg.quoted_message_id)">
+                         <span class="text-[10px] font-medium text-[var(--wa-accent-green)] block">
+                            {{ findQuotedMessage(msg.quoted_message_id)?.sender === 'me' ? 'You' : activeConversation?.contact_name || 'Customer' }}
+                         </span>
+                         <p class="text-xs text-white/70 truncate">{{ getMessagePreview(findQuotedMessage(msg.quoted_message_id)) }}</p>
+                      </div>
                       <div class="flex flex-wrap items-end gap-x-2">
                          <p v-if="msg.text" class="leading-relaxed break-words whitespace-pre-wrap inline" v-html="parseWhatsAppFormatting(msg.text)" :style="{ fontSize: messageFontSize }"></p>
                          <span class="flex items-center gap-1 ml-auto whitespace-nowrap">
@@ -3427,7 +3605,30 @@ const closeImageLightbox = () => {
                      </div>
                   </div>
                </div>
-               
+                
+                <!-- Reply Preview Panel (when replying to a message) -->
+                <div v-if="replyToMessage" class="absolute bottom-full left-4 right-4 mb-2 bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-xl shadow-2xl overflow-hidden">
+                   <div class="flex items-stretch">
+                      <!-- Green accent bar -->
+                      <div class="w-1 bg-[var(--wa-accent-green)]"></div>
+                      <!-- Content -->
+                      <div class="flex-1 px-3 py-2 min-w-0">
+                         <div class="flex items-center gap-2 mb-0.5">
+                            <span class="text-xs font-medium" :class="replyToMessage.sender === 'me' ? 'text-[var(--wa-accent-green)]' : 'text-blue-400'">
+                               {{ replyToMessage.sender === 'me' ? 'You' : activeConversation?.contact_name || 'Customer' }}
+                            </span>
+                         </div>
+                         <p class="text-sm text-[var(--wa-text-secondary)] truncate">{{ getMessagePreview(replyToMessage) }}</p>
+                      </div>
+                      <!-- Close button -->
+                      <button @click="cancelReply" class="px-3 text-[var(--wa-text-tertiary)] hover:text-red-400 transition-colors">
+                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                         </svg>
+                      </button>
+                   </div>
+                </div>
+
                 <!-- Quick Reply Panel (triggered by typing /) -->
                 <div v-if="showQuickReplies && filteredQuickReplies.length > 0" class="absolute bottom-full left-0 right-0 mb-2 mx-4 bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-xl shadow-2xl max-h-64 overflow-y-auto">
                    <div class="p-2">

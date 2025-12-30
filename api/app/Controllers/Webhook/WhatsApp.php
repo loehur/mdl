@@ -124,6 +124,14 @@ class WhatsApp extends Controller
         $wamid = $msg['wamid'] ?? null;
         $status = $msg['status'] ?? 'received'; // Default status for inbound
         $sendTime = date('Y-m-d H:i:s');
+        
+        // Extract context (quoted/reply-to message)
+        $quotedMessageId = null;
+        if (isset($msg['context']['message_id'])) {
+            $quotedMessageId = $msg['context']['message_id'];
+        } elseif (isset($msg['context']['id'])) {
+            $quotedMessageId = $msg['context']['id'];
+        }
 
         if (!$waNumber) {
             \Log::write("ERROR: No 'from' number", 'wa_inbound', 'error');
@@ -317,6 +325,7 @@ class WhatsApp extends Controller
             'media_caption' => $mediaCaption,
             'message_id' => $messageId,
             'wamid' => $wamid,
+            'quoted_message_id' => $quotedMessageId, // Reply-to message reference
             'contact_name' => $contact_name,
             'status' => $status,
             'created_at' => date('Y-m-d H:i:s'),
@@ -402,6 +411,7 @@ class WhatsApp extends Controller
                         'media_id' => $mediaId,
                         'media_url' => $mediaUrl,
                         'caption' => $mediaCaption,
+                        'quoted_message_id' => $quotedMessageId, // Reply-to reference
                         'time' => date('Y-m-d H:i:s'),
                     ],
                     // Target ID logic: if assigned, send to agent. Else '0' (Broadcast)? 

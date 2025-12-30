@@ -187,7 +187,8 @@ class Chat extends Controller
                         status,
                         media_id,
                         media_url,
-                        media_caption as caption
+                        media_caption as caption,
+                        quoted_message_id
                      FROM wa_messages_in 
                      WHERE RIGHT(REPLACE(REPLACE(phone, '+', ''), '-', ''), 10) = ?)
                     UNION ALL
@@ -201,7 +202,8 @@ class Chat extends Controller
                         status,
                         NULL as media_id,
                         media_url,
-                        NULL as caption
+                        NULL as caption,
+                        quoted_message_id
                      FROM wa_messages_out 
                      WHERE RIGHT(REPLACE(REPLACE(phone, '+', ''), '-', ''), 10) = ?)
                 ) AS combined_msgs
@@ -223,6 +225,7 @@ class Chat extends Controller
         $body = $this->getBody();
         $phone = $body['phone'] ?? null;
         $message = $body['message'] ?? null;
+        $replyTo = $body['reply_to'] ?? null; // WAMID of message being replied to
 
         if (!$phone || !$message) $this->error('Missing required fields (phone, message)');
 
@@ -239,9 +242,16 @@ class Chat extends Controller
         }
         
         $wa = new \App\Helpers\WhatsAppService();
-        $res = $wa->sendFreeText($phone, $message); // Use phone directly
+        $res = $wa->sendFreeText($phone, $message, $replyTo); // Pass reply_to for quoted reply
 
         if ($res['success']) {
+            // Update quoted_message_id in wa_messages_out if reply_to provided
+            if ($replyTo && isset($res['local_id'])) {
+                $db->update('wa_messages_out', [
+                    'quoted_message_id' => $replyTo
+                ], ['id' => $res['local_id']]);
+            }
+            
             // Update conversation last_message using wa_number
             $db->update('wa_conversations', [
                 'last_message' => $message,
@@ -267,7 +277,8 @@ class Chat extends Controller
                     'type' => 'text',
                     'sender' => 'me',
                     'time' => date('Y-m-d H:i:s'),
-                    'status' => 'sent'
+                    'status' => 'sent',
+                    'quoted_message_id' => $replyTo // Include quoted message reference
                 ],
                 'contact_name' => $conv->contact_name ?? '',
                 'phone' => $phone

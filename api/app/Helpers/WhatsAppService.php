@@ -50,9 +50,10 @@ class WhatsAppService
      * 
      * @param string $to Customer phone number (format: +628xxx)
      * @param string $message Text message content
+     * @param string|null $replyToMessageId WAMID of message to reply to (for quoted reply)
      * @return array Response from yCloud API
      */
-    public function sendFreeText($to, $message)
+    public function sendFreeText($to, $message, $replyToMessageId = null)
     {
         $payload = [
             'from' => $this->formatPhoneNumber($this->whatsappNumber),
@@ -63,7 +64,14 @@ class WhatsAppService
             ]
         ];
         
-        return $this->sendRequest('/whatsapp/messages', $payload);
+        // Add context for quoted reply
+        if ($replyToMessageId) {
+            $payload['context'] = [
+                'message_id' => $replyToMessageId
+            ];
+        }
+        
+        return $this->sendRequest('/whatsapp/messages', $payload, 'POST', null, $replyToMessageId);
     }
     
     /**
