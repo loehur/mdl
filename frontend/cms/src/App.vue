@@ -62,6 +62,7 @@ const conversations = ref([]);
 
 const activeChatId = ref(null);
 const messageInput = ref('');
+const chatDrafts = ref({}); // Store draft messages per conversation ID
 const chatContainer = ref(null);
 const socket = ref(null);
 const isConnected = ref(false);
@@ -83,6 +84,7 @@ const showImagePreview = ref(false);
 const isUploadingImage = ref(false);
 const imageCaption = ref('');
 const fileInput = ref(null);
+const messageTextarea = ref(null); // Auto-resize textarea ref
 
 // Swipe Gesture State
 const touchStartX = ref(0);
@@ -141,6 +143,21 @@ const notificationAudio = ref(null);
 const quickReplies = ref([]);
 const showQuickReplies = ref(false);
 const isLoadingQuickReplies = ref(false);
+const quickReplySearchQuery = ref(''); // Search query from "/" command
+
+// Computed: Filtered Quick Replies based on search query
+const filteredQuickReplies = computed(() => {
+    if (!quickReplySearchQuery.value) return quickReplies.value;
+    
+    const query = quickReplySearchQuery.value.toLowerCase();
+    return quickReplies.value.filter(qr => {
+        // Match shortcut (without leading /)
+        const shortcutWithoutSlash = (qr.shortcut || '').replace(/^\//, '').toLowerCase();
+        const titleLower = (qr.title || '').toLowerCase();
+        
+        return shortcutWithoutSlash.includes(query) || titleLower.includes(query);
+    });
+});
 
 // Initialize notification sound
 const initNotificationSound = () => {
@@ -424,13 +441,10 @@ const fetchConversations = async () => {
                 
                 if (target) {
                     console.log('✅ Auto-opening chat from deep link:', target.name);
-                    activeChatId.value = target.id;
-                    pendingTargetPhone.value = null; // Clear it
+                    pendingTargetPhone.value = null; // Clear it first to prevent re-triggering
                     
-                    // If on mobile, show chat view
-                    if (window.innerWidth < 768) {
-                        showMobileChat.value = true;
-                    }
+                    // Use selectChat to properly load messages from API
+                    selectChat(target.id);
                 } else {
                     console.log('⚠️ Deep link target not found in list (yet):', pendingTargetPhone.value);
                 }
@@ -535,6 +549,7 @@ const connect = () => {
     connectWebSocket();
     fetchUserRole(); // Determine role
     fetchConversations();
+    fetchQuickReplies(); // Pre-load quick replies for "/" command
     
     // OneSignal: Register user for push notifications
     oneSignalLogin(authId.value);
@@ -684,7 +699,7 @@ const formatLastTime = (dateString) => {
   const y = new Date(n); y.setDate(y.getDate() - 1);
   
   if (d.getTime() === n.getTime()) {
-    return date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    return date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false});
   } else if (d.getTime() === y.getTime()) {
     return 'Yesterday';
   } else {
@@ -845,7 +860,7 @@ const fetchMessages = async (phone) => {
                 media_id: m.media_id,
                 media_url: m.media_url,
                 sender: m.sender, 
-                time: m.time ? new Date(m.time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '',
+                time: m.time ? new Date(m.time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false}) : '',
                 rawTime: m.time, 
                 status: m.status
             }));
@@ -1172,8 +1187,22 @@ const resolveCase = async (caseId) => {
 };
 
 const selectChat = async (id) => {
+  // Save current draft before switching chats
+  if (activeChatId.value && messageInput.value.trim()) {
+      chatDrafts.value[activeChatId.value] = messageInput.value;
+  } else if (activeChatId.value) {
+      // Clear draft if input is empty
+      delete chatDrafts.value[activeChatId.value];
+  }
+  
   activeChatId.value = id;
   showMobileChat.value = true;
+  
+  // Restore draft for the new chat (or clear input)
+  messageInput.value = chatDrafts.value[id] || '';
+  
+  // Reset textarea height based on new content
+  nextTick(() => autoResizeTextarea());
   
   const chat = conversations.value.find(c => c.id === id);
   if (chat) {
@@ -1204,10 +1233,71 @@ const selectChat = async (id) => {
       markMessagesRead(chat.wa_number);
   }
   
+  // Save active chat state for restoration after returning from external links
+  saveActiveChatState();
+  
   scrollToBottom();
 };
 
+// Save active chat state to sessionStorage (for restoring after opening links)
+const saveActiveChatState = () => {
+    if (activeChatId.value) {
+        sessionStorage.setItem('cms_active_chat_id', String(activeChatId.value));
+        sessionStorage.setItem('cms_show_mobile_chat', showMobileChat.value ? 'true' : 'false');
+    }
+};
+
+// Restore active chat state from sessionStorage
+const restoreActiveChatState = () => {
+    const savedChatId = sessionStorage.getItem('cms_active_chat_id');
+    const savedShowMobile = sessionStorage.getItem('cms_show_mobile_chat');
+    
+    if (savedChatId && !activeChatId.value) {
+        console.log('🔄 Restoring chat state:', savedChatId);
+        
+        // Find the conversation
+        const target = conversations.value.find(c => String(c.id) === savedChatId);
+        if (target) {
+            activeChatId.value = target.id;
+            
+            if (savedShowMobile === 'true' && window.innerWidth < 768) {
+                showMobileChat.value = true;
+            }
+            
+            // Re-fetch messages if needed
+            if (!target.messages || target.messages.length === 0) {
+                fetchMessages(target.wa_number).then(msgs => {
+                    target.messages = msgs;
+                    scrollToBottom();
+                });
+            } else {
+                scrollToBottom();
+            }
+        }
+    }
+};
+
+// Clear saved chat state (called when user explicitly goes back to menu)
+const clearSavedChatState = () => {
+    sessionStorage.removeItem('cms_active_chat_id');
+    sessionStorage.removeItem('cms_show_mobile_chat');
+};
+
 const backToMenu = (animated = true) => {
+    // Save current draft before going back to menu
+    if (activeChatId.value && messageInput.value.trim()) {
+        chatDrafts.value[activeChatId.value] = messageInput.value;
+    } else if (activeChatId.value) {
+        delete chatDrafts.value[activeChatId.value];
+    }
+    
+    // Clear saved state since user explicitly wants to go back
+    clearSavedChatState();
+    
+    // Clear message input when going back
+    messageInput.value = '';
+    resetTextareaHeight();
+    
     if (animated && windowWidth.value < 768) {
         // Animate slide-out to the right (same as swipe gesture)
         touchOffset.value = window.innerWidth;
@@ -1247,16 +1337,51 @@ const fetchQuickReplies = async () => {
     }
 };
 
-const toggleQuickReplies = () => {
-    showQuickReplies.value = !showQuickReplies.value;
-    if (showQuickReplies.value) {
-        fetchQuickReplies();
+// Watch messageInput for "/" command to trigger quick replies
+watch(messageInput, (newVal) => {
+    if (newVal && newVal.startsWith('/')) {
+        // Extract search query (text after "/")
+        quickReplySearchQuery.value = newVal.substring(1).trim();
+        showQuickReplies.value = true;
+        
+        // Load quick replies if not loaded yet
+        if (quickReplies.value.length === 0) {
+            fetchQuickReplies();
+        }
+    } else {
+        showQuickReplies.value = false;
+        quickReplySearchQuery.value = '';
     }
-};
+});
 
 const selectQuickReply = (qr) => {
     messageInput.value = qr.message;
     showQuickReplies.value = false;
+    quickReplySearchQuery.value = '';
+    // Trigger auto-resize after inserting quick reply text
+    nextTick(() => autoResizeTextarea());
+};
+
+// Auto-resize textarea like WhatsApp (max 6 lines / ~150px)
+const autoResizeTextarea = () => {
+    const textarea = messageTextarea.value;
+    if (!textarea) return;
+    
+    // Reset height to auto to get correct scrollHeight
+    textarea.style.height = 'auto';
+    
+    // Set height to scrollHeight but cap at max-height (150px ~6 lines)
+    const maxHeight = 150;
+    const newHeight = Math.min(textarea.scrollHeight, maxHeight);
+    textarea.style.height = newHeight + 'px';
+};
+
+// Reset textarea height after sending message
+const resetTextareaHeight = () => {
+    const textarea = messageTextarea.value;
+    if (textarea) {
+        textarea.style.height = 'auto';
+    }
 };
 
 const sendMessage = async () => {
@@ -1269,7 +1394,7 @@ const sendMessage = async () => {
       id: tempId,
       text: text,
       sender: 'me',
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
       rawTime: new Date().toISOString(), // Fixed: Add rawTime for proper sorting
       timestamp: Date.now(), // Add timestamp for duplicate detection
       status: 'pending'
@@ -1281,6 +1406,11 @@ const sendMessage = async () => {
     activeConversation.value.lastTime = newMsg.time;
     
     messageInput.value = '';
+    // Clear draft for this chat since message is sent
+    if (activeChatId.value) {
+        delete chatDrafts.value[activeChatId.value];
+    }
+    resetTextareaHeight(); // Reset textarea size after sending
     scrollToBottom();
     
     // API Call
@@ -1614,7 +1744,7 @@ const sendImage = async () => {
       type: 'image',
       media_url: imagePreview.value,
       sender: 'me',
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
       rawTime: new Date().toISOString(), // FIXED: Add rawTime for proper sorting and date separator
       status: 'pending'
     };
@@ -1779,7 +1909,7 @@ const handleIncomingMessage = (payload) => {
     media_id: messageData.media_id,
     media_url: messageData.media_url,
     sender: sender,
-    time: messageData.time ? new Date(messageData.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    time: messageData.time ? new Date(messageData.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
     rawTime: messageData.time || new Date().toISOString() // Keep raw timestamp for date separator
   };
   
@@ -2082,7 +2212,7 @@ const connectWebSocket = () => {
                            type: messageData.type || 'text',
                            media_url: messageData.media_url,
                            sender: 'me',
-                           time: new Date(messageData.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                           time: new Date(messageData.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
                            rawTime: messageData.time,
                            status: messageData.status || 'sent'
                        };
@@ -2275,6 +2405,10 @@ onMounted(() => {
       // Refresh data to ensure sync
       fetchConversations();
       
+      // Restore active chat state if user was viewing a chat before leaving
+      // This handles the case when user clicks a link and comes back
+      restoreActiveChatState();
+      
       // Hard refresh if really stale (optional, but requested solution for "blank")
       // We rely on the view reactivation. 
       // If the WebView completely killed the renderer but kept the process, a reload might be needed.
@@ -2290,6 +2424,27 @@ onMounted(() => {
   // --- PASTE HANDLER ---
   // Handle pasted images
   window.addEventListener('paste', handlePaste);
+  
+  // --- LINK CLICK HANDLER ---
+  // Save chat state before navigating to external links
+  document.addEventListener('click', (e) => {
+      const link = e.target.closest('a[href]');
+      if (link && link.href && (link.href.startsWith('http://') || link.href.startsWith('https://'))) {
+          // External link clicked, save current chat state
+          saveActiveChatState();
+          console.log('📎 External link clicked, saving chat state');
+      }
+  }, true);
+  
+  // --- PAGE HIDE HANDLER ---
+  // Save state when page is about to be hidden (covers all navigation cases)
+  window.addEventListener('pagehide', () => {
+      saveActiveChatState();
+  });
+  
+  window.addEventListener('beforeunload', () => {
+      saveActiveChatState();
+  });
   
   // Load font size preference
   loadFontSize();
@@ -2383,18 +2538,10 @@ if (typeof window !== 'undefined') {
         
         if (target) {
             console.log('✅ Found conversation:', target.name, target.id);
-            activeChatId.value = target.id;
             pendingTargetPhone.value = null; // Clear pending
             
-            // If on mobile, show chat view
-            if (window.innerWidth < 768) {
-                showMobileChat.value = true;
-            }
-            
-            // Scroll to bottom after a short delay
-            setTimeout(() => {
-                scrollToBottom();
-            }, 300);
+            // Use selectChat to properly load messages from API
+            selectChat(target.id);
         } else {
             console.log('⚠️ Conversation not found, setting pending target:', cleanPhone);
             // Store for later (will be handled when fetchConversations completes)
@@ -3055,6 +3202,60 @@ const closeImageLightbox = () => {
                      <span class="text-[10px] text-[var(--wa-text-tertiary)]">{{ msg.time }}</span>
                   </div>
                   
+                  <!-- Audio/Voice Message -->
+                  <div v-else-if="msg.type === 'audio' || msg.type === 'voice'" class="bg-[var(--wa-bubble-incoming)] rounded-lg shadow-sm px-3 py-2 max-w-[280px]">
+                     <div class="flex items-center gap-3">
+                        <span class="text-2xl">🎤</span>
+                        <audio 
+                           v-if="msg.media_url" 
+                           :src="msg.media_url" 
+                           controls 
+                           class="h-8 w-full max-w-[200px]"
+                           style="filter: invert(1) hue-rotate(180deg);"
+                        ></audio>
+                        <audio 
+                           v-else-if="msg.media_id" 
+                           :src="`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" 
+                           controls 
+                           class="h-8 w-full max-w-[200px]"
+                           style="filter: invert(1) hue-rotate(180deg);"
+                        ></audio>
+                        <span v-else class="text-xs text-[var(--wa-text-tertiary)]">Audio not available</span>
+                     </div>
+                     <div class="flex items-center justify-end mt-1">
+                        <span class="text-[10px] text-[var(--wa-text-tertiary)]">{{ msg.time }}</span>
+                     </div>
+                  </div>
+                   
+                   <!-- Video Message -->
+                   <div v-else-if="msg.type === 'video'" class="rounded-lg overflow-hidden shadow-md max-w-[280px] bg-[var(--wa-bubble-incoming)]/50">
+                      <div class="relative">
+                         <video 
+                            v-if="msg.media_url" 
+                            :src="msg.media_url" 
+                            controls 
+                            class="w-full max-h-[300px] cursor-pointer"
+                            preload="metadata"
+                         ></video>
+                         <video 
+                            v-else-if="msg.media_id" 
+                            :src="`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" 
+                            controls 
+                            class="w-full max-h-[300px] cursor-pointer"
+                            preload="metadata"
+                         ></video>
+                         <div v-else class="bg-slate-900/50 flex flex-col items-center justify-center w-full h-[150px]">
+                            <span class="text-3xl mb-2">🎥</span>
+                            <span class="text-[10px] text-slate-400">Video (Protected)</span>
+                         </div>
+                         <!-- Caption & Time Overlay -->
+                         <div v-if="msg.text || msg.time" class="bg-[var(--wa-bubble-incoming)] px-3 py-2">
+                            <p v-if="msg.text" class="text-[var(--wa-text-primary)] text-[13px] leading-tight mb-1" v-html="parseWhatsAppFormatting(msg.text)"></p>
+                            <span class="text-[10px] text-[var(--wa-text-tertiary)] block text-right">{{ msg.time }}</span>
+                         </div>
+                      </div>
+                   </div>
+                   
                   <!-- Location Message -->
                   <div v-else-if="msg.type === 'location'" 
                      class="bg-[var(--wa-bubble-incoming)] rounded-lg overflow-hidden shadow-sm max-w-[280px] cursor-pointer hover:opacity-90 transition-opacity"
@@ -3080,11 +3281,13 @@ const closeImageLightbox = () => {
                      </div>
                   </div>
                   
-                  <!-- Text Message: Normal style -->
-                  <div v-else class="bg-[var(--wa-bubble-incoming)] text-[var(--wa-text-primary)] px-3 py-2 rounded-lg rounded-tl-none shadow-sm max-w-full">
-                     <p v-if="msg.text" class="leading-relaxed break-words whitespace-pre-wrap" v-html="parseWhatsAppFormatting(msg.text)" :style="{ fontSize: messageFontSize }"></p>
-                     <span class="text-[11px] text-[var(--wa-text-tertiary)] block mt-1 text-right">{{ msg.time }}</span>
-                  </div>
+                   <!-- Text Message: WhatsApp style with inline time -->
+                   <div v-else class="bg-[var(--wa-bubble-incoming)] text-[var(--wa-text-primary)] px-3 py-1.5 rounded-lg rounded-tl-none shadow-sm max-w-full">
+                      <div class="flex flex-wrap items-end gap-x-2">
+                         <p v-if="msg.text" class="leading-relaxed break-words whitespace-pre-wrap inline" v-html="parseWhatsAppFormatting(msg.text)" :style="{ fontSize: messageFontSize }"></p>
+                         <span class="text-[10px] text-[var(--wa-text-tertiary)] ml-auto whitespace-nowrap leading-[1.8]">{{ msg.time }}</span>
+                      </div>
+                   </div>
                </div>
                
                <!-- My Message -->
@@ -3142,35 +3345,37 @@ const closeImageLightbox = () => {
                      <span class="text-[10px] text-white/70">{{ msg.time }}</span>
                   </div>
                   
-                  <!-- Text Message: Normal style -->
-                  <div v-else class="bg-[var(--wa-bubble-outgoing)] text-white px-3 py-2 rounded-lg rounded-tr-none shadow-sm max-w-full">
-                     <p v-if="msg.text" class="leading-relaxed break-words whitespace-pre-wrap" v-html="parseWhatsAppFormatting(msg.text)" :style="{ fontSize: messageFontSize }"></p>
-                       <div class="flex items-center justify-end gap-1 mt-1">
-                          <span class="text-[11px] text-white/70">{{ msg.time }}</span>
-                          <!-- Status Indicators -->
-                          <span v-if="msg.status === 'pending'" class="text-indigo-300">
-                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                          </span>
-                          <span v-else-if="msg.status === 'sent'" class="text-indigo-300">
-                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
-                          </span>
-                          <span v-else-if="msg.status === 'delivered'" class="text-indigo-300">
-                             <div class="flex -space-x-1">
+                   <!-- Text Message: WhatsApp style with inline time -->
+                   <div v-else class="bg-[var(--wa-bubble-outgoing)] text-white px-3 py-1.5 rounded-lg rounded-tr-none shadow-sm max-w-full">
+                      <div class="flex flex-wrap items-end gap-x-2">
+                         <p v-if="msg.text" class="leading-relaxed break-words whitespace-pre-wrap inline" v-html="parseWhatsAppFormatting(msg.text)" :style="{ fontSize: messageFontSize }"></p>
+                         <span class="flex items-center gap-1 ml-auto whitespace-nowrap">
+                            <span class="text-[10px] text-white/60 leading-[1.8]">{{ msg.time }}</span>
+                            <!-- Status Indicators -->
+                            <span v-if="msg.status === 'pending'" class="text-white/60">
+                               <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            </span>
+                            <span v-else-if="msg.status === 'sent'" class="text-white/60">
                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
-                               <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
-                             </div>
-                          </span>
-                          <span v-else-if="msg.status === 'read'" class="text-blue-300">
-                              <div class="flex -space-x-1">
-                               <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
-                               <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
-                             </div>
-                          </span>
-                           <span v-else-if="msg.status === 'failed'" class="text-red-300">
-                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                          </span>
-                       </div>
-                  </div>
+                            </span>
+                            <span v-else-if="msg.status === 'delivered'" class="text-white/60">
+                               <div class="flex -space-x-1">
+                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                               </div>
+                            </span>
+                            <span v-else-if="msg.status === 'read'" class="text-blue-300">
+                                <div class="flex -space-x-1">
+                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                               </div>
+                            </span>
+                            <span v-else-if="msg.status === 'failed'" class="text-red-300">
+                               <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            </span>
+                         </span>
+                      </div>
+                   </div>
                </div>
                
              </div>
@@ -3223,33 +3428,37 @@ const closeImageLightbox = () => {
                   </div>
                </div>
                
-               <!-- Quick Reply Panel -->
-               <div v-if="showQuickReplies && quickReplies.length > 0" class="absolute bottom-full left-0 right-0 mb-2 mx-4 bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-xl shadow-2xl max-h-64 overflow-y-auto">
-                  <div class="p-2">
-                     <div class="flex items-center justify-between px-2 py-1 mb-1">
-                        <span class="text-xs font-medium text-[var(--wa-text-secondary)]">Quick Replies</span>
-                        <button @click="showQuickReplies = false" class="p-1 hover:bg-[var(--wa-hover)] rounded">
-                           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--wa-text-tertiary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                           </svg>
-                        </button>
-                     </div>
-                     <div class="space-y-1">
-                        <button 
-                           v-for="qr in quickReplies" 
-                           :key="qr.id"
-                           @click="selectQuickReply(qr)"
-                           class="w-full text-left px-3 py-2 rounded-lg hover:bg-[var(--wa-hover)] transition-colors group"
-                        >
-                           <div class="flex items-center gap-2">
-                              <span class="text-xs font-mono text-[var(--wa-accent-green)]">{{ qr.shortcut }}</span>
-                              <span class="text-sm text-[var(--wa-text-primary)]">{{ qr.title }}</span>
-                           </div>
-                           <p class="text-xs text-[var(--wa-text-tertiary)] mt-0.5 line-clamp-1">{{ qr.message.substring(0, 50) }}...</p>
-                        </button>
-                     </div>
-                  </div>
-               </div>
+                <!-- Quick Reply Panel (triggered by typing /) -->
+                <div v-if="showQuickReplies && filteredQuickReplies.length > 0" class="absolute bottom-full left-0 right-0 mb-2 mx-4 bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-xl shadow-2xl max-h-64 overflow-y-auto">
+                   <div class="p-2">
+                      <div class="flex items-center justify-between px-2 py-1 mb-1">
+                         <span class="text-xs font-medium text-[var(--wa-text-secondary)]">
+                            <span class="text-[var(--wa-accent-green)] font-mono">/{{ quickReplySearchQuery }}</span>
+                            <span v-if="quickReplySearchQuery"> - {{ filteredQuickReplies.length }} hasil</span>
+                            <span v-else>Quick Replies (ketik untuk filter)</span>
+                         </span>
+                         <button @click="showQuickReplies = false; messageInput = ''" class="p-1 hover:bg-[var(--wa-hover)] rounded">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--wa-text-tertiary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                         </button>
+                      </div>
+                      <div class="space-y-1">
+                         <button 
+                            v-for="qr in filteredQuickReplies" 
+                            :key="qr.id"
+                            @click="selectQuickReply(qr)"
+                            class="w-full text-left px-3 py-2 rounded-lg hover:bg-[var(--wa-hover)] transition-colors group"
+                         >
+                            <div class="flex items-center gap-2">
+                               <span class="text-xs font-mono text-[var(--wa-accent-green)]">{{ qr.shortcut }}</span>
+                               <span class="text-sm text-[var(--wa-text-primary)]">{{ qr.title }}</span>
+                            </div>
+                            <p class="text-xs text-[var(--wa-text-tertiary)] mt-0.5 line-clamp-1">{{ qr.message.substring(0, 50) }}...</p>
+                         </button>
+                      </div>
+                   </div>
+                </div>
                
                <div class="flex gap-3 items-end bg-[var(--wa-bg-secondary)] p-2 rounded-lg border border-[var(--wa-border)] focus-within:ring-0 focus-within:border-[var(--wa-accent-green)] transition-all">
                   <input 
@@ -3260,22 +3469,20 @@ const closeImageLightbox = () => {
                      class="hidden"
                   >
                   
-                  <button @click="openImagePicker" class="p-2 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)] transition-colors">
-                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
-                  </button>
-                  
-                  <!-- Quick Reply Button -->
-                  <button @click="toggleQuickReplies" class="p-2 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)] transition-colors" title="Quick Replies">
-                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                  </button>
+                <button @click="openImagePicker" class="p-2 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)] transition-colors">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                   </button>
 
-                  <textarea 
-                    v-model="messageInput"
-                    @keydown.enter.prevent="sendMessage"
-                    placeholder="Type a message" 
-                    class="flex-1 bg-transparent text-[var(--wa-text-primary)] placeholder:text-[var(--wa-text-tertiary)] focus:outline-none resize-none py-2 max-h-32 text-sm"
-                    rows="1"
-                  ></textarea>
+                   <textarea 
+                     ref="messageTextarea"
+                     v-model="messageInput"
+                     @input="autoResizeTextarea"
+                     @keydown.enter.prevent="sendMessage"
+                     placeholder="Ketik pesan... (/ untuk quick reply)" 
+                     class="flex-1 bg-transparent text-[var(--wa-text-primary)] placeholder:text-[var(--wa-text-tertiary)] focus:outline-none resize-none py-2 text-sm overflow-y-auto"
+                     style="max-height: 150px;"
+                     rows="1"
+                   ></textarea>
                   
                   <button @click="sendMessage" class="p-2 bg-[var(--wa-accent-green)] hover:bg-[#00a884]/90 text-black rounded-full transition-colors">
                      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 transform rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
