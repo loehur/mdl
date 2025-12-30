@@ -141,19 +141,6 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 
-                // 🔧 DEBUG TOAST - Hapus setelah debugging selesai
-                runOnUiThread {
-                    val debugMsg = if (!phone.isNullOrEmpty()) {
-                        "Phone: $phone"
-                    } else {
-                        "No phone in data: $additionalData"
-                    }
-                    android.widget.Toast.makeText(
-                        this@MainActivity,
-                        "Notif clicked: $debugMsg",
-                        android.widget.Toast.LENGTH_LONG
-                    ).show()
-                }
                 
                 if (!phone.isNullOrEmpty()) {
                     android.util.Log.d("OneSignal", "✅ Phone found: $phone")
@@ -332,7 +319,8 @@ class MainActivity : AppCompatActivity() {
                             }
                             "chat_closed",
                             "lightbox_closed",
-                            "settings_closed" -> {}
+                            "settings_closed",
+                            "internal_browser_closed" -> {}
                             "toast_shown" -> {}
                             else -> {
                                 // Fallback: try WebView back or exit

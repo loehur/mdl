@@ -2912,6 +2912,35 @@ const handleLinkClick = (e) => {
   <!-- Use fixed inset-0 to prevent body scroll issues on mobile -->
   <div class="fixed inset-0 w-full bg-[#0f172a] text-slate-200 overflow-hidden font-sans selection:bg-indigo-500 selection:text-white">
     
+    <!-- Initial App Loading Screen (before login prompt) -->
+    <div v-if="!showLoginPrompt && !isConnected" class="fixed inset-0 z-[70] bg-[#0f172a] flex flex-col items-center justify-center">
+      <div class="flex flex-col items-center gap-6">
+        <!-- Animated Logo/Icon -->
+        <div class="relative">
+          <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-2xl shadow-indigo-500/30 animate-pulse">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+          </div>
+          <!-- Pulsing ring -->
+          <div class="absolute inset-0 rounded-2xl border-2 border-indigo-400/50 animate-ping"></div>
+        </div>
+        
+        <!-- App Name -->
+        <div class="text-center">
+          <h1 class="text-2xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">MDL Chat</h1>
+          <p class="text-slate-500 text-sm mt-1">Loading...</p>
+        </div>
+        
+        <!-- Animated Dots -->
+        <div class="flex gap-1.5">
+          <div class="w-2 h-2 rounded-full bg-indigo-500 animate-bounce" style="animation-delay: 0ms;"></div>
+          <div class="w-2 h-2 rounded-full bg-indigo-500 animate-bounce" style="animation-delay: 150ms;"></div>
+          <div class="w-2 h-2 rounded-full bg-indigo-500 animate-bounce" style="animation-delay: 300ms;"></div>
+        </div>
+      </div>
+    </div>
+    
     <!-- Login Modal (Overlay) -->
      <div v-if="!isConnected && showLoginPrompt" class="fixed inset-0 z-[60] bg-[#0f172a] flex items-center justify-center p-4">
        <!-- Login Card -->
@@ -3078,19 +3107,19 @@ const handleLinkClick = (e) => {
          ref="conversationListRef" 
          class="flex-1 overflow-y-auto custom-scrollbar"
       >
-        <!-- Skeleton Loading -->
+        <!-- Skeleton Loading with Shimmer Effect -->
         <div v-if="isLoadingConversations && conversations.length === 0" class="space-y-0">
-          <div v-for="n in 8" :key="'skeleton-' + n" class="p-3 flex items-center gap-3 border-b border-[var(--wa-divider)] animate-pulse">
+          <div v-for="n in 8" :key="'skeleton-' + n" class="p-3 flex items-center gap-3 border-b border-[var(--wa-divider)]">
             <!-- Avatar Skeleton -->
-            <div class="w-12 h-12 rounded-full bg-[var(--wa-bg-tertiary)]"></div>
+            <div class="w-12 h-12 rounded-full skeleton-shimmer"></div>
             
             <!-- Content Skeleton -->
             <div class="flex-1 space-y-2">
               <div class="flex justify-between items-center">
-                <div class="h-4 bg-[var(--wa-bg-tertiary)] rounded w-32"></div>
-                <div class="h-3 bg-[var(--wa-bg-tertiary)] rounded w-12"></div>
+                <div class="h-4 skeleton-shimmer rounded w-32"></div>
+                <div class="h-3 skeleton-shimmer rounded w-12"></div>
               </div>
-              <div class="h-3 bg-[var(--wa-bg-tertiary)] rounded w-48"></div>
+              <div class="h-3 skeleton-shimmer rounded w-48"></div>
             </div>
           </div>
         </div>
@@ -3188,6 +3217,21 @@ const handleLinkClick = (e) => {
        </div>
 
       <div v-if="activeConversation" class="w-full h-full relative z-10">
+        <!-- Chat Loading State (when switching chats) -->
+        <div v-if="!activeConversation.messages || activeConversation.messages.length === 0" class="absolute inset-0 flex items-center justify-center z-20 bg-[var(--wa-bg-chat)]">
+          <div class="flex flex-col items-center gap-4">
+            <!-- Animated Chat Bubbles -->
+            <div class="flex items-end gap-2">
+              <div class="w-12 h-8 rounded-2xl rounded-bl-sm bg-[var(--wa-bg-secondary)] skeleton-shimmer"></div>
+              <div class="w-20 h-8 rounded-2xl rounded-bl-sm bg-[var(--wa-bg-secondary)] skeleton-shimmer" style="animation-delay: 150ms;"></div>
+            </div>
+            <div class="flex items-end gap-2 -mt-2 ml-8">
+              <div class="w-16 h-8 rounded-2xl rounded-br-sm bg-indigo-600/30 skeleton-shimmer" style="animation-delay: 300ms;"></div>
+            </div>
+            <p class="text-sm text-[var(--wa-text-tertiary)] mt-2">Memuat pesan...</p>
+          </div>
+        </div>
+        
         <!-- Chat Header - ABSOLUTE TOP -->
         <header 
           class="absolute top-0 left-0 right-0 h-16 border-b flex items-center justify-between px-4 md:px-6 z-30 border-[var(--wa-border)] bg-[var(--wa-bg-panel)]"
@@ -4065,5 +4109,26 @@ p a:hover {
 
 .internal-browser-panel.internal-browser-entering {
   transform: translateX(100%);
+}
+
+/* Skeleton Shimmer Effect */
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--wa-bg-tertiary) 0%,
+    rgba(99, 102, 241, 0.1) 50%,
+    var(--wa-bg-tertiary) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite ease-in-out;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 </style>
