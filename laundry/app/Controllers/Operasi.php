@@ -58,6 +58,55 @@ class Operasi extends Controller
       $data_main = $this->db(0)->get_where('sale', $whereSale);
       $data_main2 = $this->db(0)->get_where('sale', $whereSale, 'no_ref', 1);
 
+      // --- START: Fetch Open WA Conversations ---
+      $customersWithOpenCases = [];
+      try {
+         $openWaRaw = $this->db(100)->get_where('wa_conversations', "status = 'open'");
+         $openWaMap = [];
+         if (is_array($openWaRaw)) {
+            foreach ($openWaRaw as $row) {
+               $phone = $row['wa_number'];
+               // Normalize keys for easier matching (strip non-digits)
+               $cleanPhone = preg_replace('/[^0-9]/', '', $phone);
+               $openWaMap[$cleanPhone] = $row;
+            }
+         }
+
+         if (!empty($openWaMap) && !empty($this->pelanggan)) {
+            foreach ($this->pelanggan as $p) {
+               $rawHp = $p['nomor_pelanggan'];
+               $hp = preg_replace('/[^0-9]/', '', $rawHp);
+               
+               $found = false;
+               
+               // 1. Direct match
+               if (isset($openWaMap[$hp])) {
+                  $found = $openWaMap[$hp];
+               } 
+               // 2. Try converting 08 -> 628
+               elseif (substr($hp, 0, 2) == '08') {
+                  $hp62 = '62' . substr($hp, 1);
+                  if (isset($openWaMap[$hp62])) $found = $openWaMap[$hp62];
+               }
+               // 3. Try converting 628 -> 08
+               elseif (substr($hp, 0, 3) == '628') {
+                  $hp0 = '0' . substr($hp, 2);
+                  if (isset($openWaMap[$hp0])) $found = $openWaMap[$hp0];
+               }
+
+               if ($found) {
+                  $customersWithOpenCases[] = [
+                     'pelanggan' => $p,
+                     'wa' => $found
+                  ];
+               }
+            }
+         }
+      } catch (\Exception $e) {
+         // Silently fail if db(100) is not configured or other error
+      }
+      // --- END: Fetch Open WA Conversations ---
+
       $viewData = 'operasi/view_load';
 
       $sale_ids = [];
@@ -223,7 +272,8 @@ class Operasi extends Controller
          // Year navigation data
          'selectedYear' => $year,
          'currentYear' => $currentYear,
-         'minYear' => $minYear
+         'minYear' => $minYear,
+         'customersWithOpenCases' => $customersWithOpenCases
       ]);
    }
 
