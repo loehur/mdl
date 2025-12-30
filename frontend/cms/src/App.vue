@@ -1199,6 +1199,14 @@ const selectChat = async (id) => {
   activeChatId.value = id;
   showMobileChat.value = true;
   
+  // Persist state
+  localStorage.setItem('active_chat_id', id);
+  
+  // Push history state to handle Android back button
+  if (window.innerWidth < 768) { // Only on mobile
+      window.history.pushState({ chatOpen: true }, '', '#chat=' + id);
+  }
+  
   // Restore draft for the new chat (or clear input)
   messageInput.value = chatDrafts.value[id] || '';
   
@@ -2477,13 +2485,29 @@ const mockIncomingMessage = () => {
 
 
 
-
-
 // --- Persistence DISABLED ---
 // localStorage cache removed to ensure 100% accurate data from server
-// Data will always be fresh from API
+// Data will always be fresh from storage logic below
+  
+  // --- STATE PERSISTENCE HELPERS ---
+  const persistChatState = () => {
+      if (activeChatId.value) {
+          localStorage.setItem('active_chat_id', activeChatId.value);
+      }
+  };
 
-onMounted(() => {
+  const resumeChatState = () => {
+      const savedId = localStorage.getItem('active_chat_id');
+      if (savedId && !activeChatId.value) {
+          const id = parseInt(savedId);
+          // Only switch if conversation exists
+          if (conversations.value.some(c => c.id === id)) {
+              selectChat(id);
+          }
+      }
+  };
+  
+  onMounted(() => {
   // Check for Deep Link / Notification Click (URL Param)
   const urlParams = new URLSearchParams(window.location.search);
   const deepLinkPhone = urlParams.get('phone');
@@ -2520,7 +2544,7 @@ onMounted(() => {
       
       // Restore active chat state if user was viewing a chat before leaving
       // This handles the case when user clicks a link and comes back
-      restoreActiveChatState();
+      resumeChatState();
       
       // Hard refresh if really stale (optional, but requested solution for "blank")
       // We rely on the view reactivation. 
@@ -2544,7 +2568,7 @@ onMounted(() => {
       const link = e.target.closest('a[href]');
       if (link && link.href && (link.href.startsWith('http://') || link.href.startsWith('https://'))) {
           // External link clicked, save current chat state
-          saveActiveChatState();
+          persistChatState();
           console.log('📎 External link clicked, saving chat state');
       }
   }, true);
@@ -2552,11 +2576,22 @@ onMounted(() => {
   // --- PAGE HIDE HANDLER ---
   // Save state when page is about to be hidden (covers all navigation cases)
   window.addEventListener('pagehide', () => {
-      saveActiveChatState();
+      persistChatState();
   });
   
   window.addEventListener('beforeunload', () => {
-      saveActiveChatState();
+      persistChatState();
+  });
+  
+  // --- ANDROID BACK BUTTON HANDLER ---
+  window.addEventListener('popstate', (event) => {
+      // If mobile chat ui is open, just close it and stay on page
+      if (showMobileChat.value) {
+          console.log('🔙 Android Back: Closing chat overlay');
+          showMobileChat.value = false; 
+          activeChatId.value = null;
+          localStorage.removeItem('active_chat_id');
+      }
   });
   
   // Load font size preference
@@ -2585,7 +2620,10 @@ onMounted(() => {
       localStorage.setItem('cms_chat_expiry', newExpiry.toString());
       
       connectWebSocket();
-      fetchConversations();
+      fetchConversations().then(() => {
+          // Restore active chat if persisted for resume
+          resumeChatState();
+      });
   } 
   // Case 2: Has ID but missing password (legacy session) - Keep ID, prompt for password
   else if (storedId && !storedPass) {
@@ -3679,7 +3717,7 @@ const closeImageLightbox = () => {
                      v-model="messageInput"
                      @input="autoResizeTextarea"
                      @keydown.enter.prevent="sendMessage"
-                     placeholder="Ketik pesan... (/ untuk quick reply)" 
+                     placeholder="Ketik pesan..." 
                      class="flex-1 bg-transparent text-[var(--wa-text-primary)] placeholder:text-[var(--wa-text-tertiary)] focus:outline-none resize-none py-2 text-sm overflow-y-auto"
                      style="max-height: 150px;"
                      rows="1"
