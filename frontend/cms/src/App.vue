@@ -101,6 +101,7 @@ const isEnteringChat = ref(false);
 const showInternalBrowser = ref(false);
 const internalBrowserUrl = ref('');
 const isInternalBrowserEntering = ref(false);
+const isInternalBrowserExiting = ref(false);
 const isInternalBrowserLoading = ref(true);
 
 // Login Delay State
@@ -2877,9 +2878,16 @@ const openInternalBrowser = async (url) => {
 };
 
 const closeInternalBrowser = () => {
-  showInternalBrowser.value = false;
-  internalBrowserUrl.value = '';
-  isInternalBrowserLoading.value = true;
+  // Animate slide-out to the right
+  isInternalBrowserExiting.value = true;
+  
+  // Wait for animation to complete (300ms) then hide
+  setTimeout(() => {
+    showInternalBrowser.value = false;
+    internalBrowserUrl.value = '';
+    isInternalBrowserLoading.value = true;
+    isInternalBrowserExiting.value = false;
+  }, 300);
 };
 
 const handleInternalBrowserLoad = () => {
@@ -3972,7 +3980,10 @@ const handleLinkClick = (e) => {
     <div 
       v-if="showInternalBrowser" 
       class="fixed inset-0 z-[1000] bg-[var(--wa-bg-panel)] flex flex-col internal-browser-panel"
-      :class="{ 'internal-browser-entering': isInternalBrowserEntering }"
+      :class="{ 
+        'internal-browser-entering': isInternalBrowserEntering,
+        'internal-browser-exiting': isInternalBrowserExiting
+      }"
     >
       <!-- Header -->
       <header class="h-14 bg-[var(--wa-bg-panel)] border-b border-[var(--wa-border)] flex items-center px-4 gap-3 flex-shrink-0">
@@ -4104,6 +4115,10 @@ p a:hover {
 }
 
 .internal-browser-panel.internal-browser-entering {
+  transform: translateX(100%);
+}
+
+.internal-browser-panel.internal-browser-exiting {
   transform: translateX(100%);
 }
 
