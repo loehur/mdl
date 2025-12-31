@@ -70,8 +70,25 @@ router.beforeEach((to) => {
   if (to.meta && to.meta.area === "user") {
     try {
       const raw = localStorage.getItem("salon_user");
-      const u = raw ? JSON.parse(raw) : null;
+      let u = raw ? JSON.parse(raw) : null;
+
       if (!u) return "/login";
+
+      // Check expiry (New Format)
+      if (u.expiry && u.user) {
+        const now = new Date().getTime();
+        if (now > u.expiry) {
+          localStorage.removeItem("salon_user");
+          return "/login";
+        }
+        u = u.user; // Unwrap user object
+      } else if (!u.role && !u.user) {
+        // Invalid structure
+        return "/login";
+      }
+
+      // Legacy support (if u doesn't have expiry but has role/id directly)
+      // No change needed if structure matches directly, but my code above unwraps u.user if expiry exists.
 
       // Check if route requires admin
       if (to.meta.requiresAdmin && u.role !== 'admin') {
@@ -79,6 +96,7 @@ router.beforeEach((to) => {
         return "/order";
       }
     } catch {
+      localStorage.removeItem("salon_user"); // Clear corrupted data
       return "/login";
     }
   }

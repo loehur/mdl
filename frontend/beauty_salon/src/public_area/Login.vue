@@ -118,7 +118,12 @@ async function onSubmit() {
     // Direct Login
     try {
       if (data.user) {
-        localStorage.setItem("salon_user", JSON.stringify(data.user));
+        const expiry = new Date().getTime() + (24 * 60 * 60 * 1000); // 1 Hari (24 Jam)
+        const sessionData = {
+          user: data.user,
+          expiry: expiry
+        };
+        localStorage.setItem("salon_user", JSON.stringify(sessionData));
       }
     } catch {}
     
