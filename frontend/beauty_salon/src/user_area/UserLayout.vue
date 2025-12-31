@@ -32,24 +32,24 @@
               {{ item.label }}
             </router-link>
 
-            <!-- Master Data Dropdown -->
+            <!-- Dropdown Menu (Mobile) -->
             <div v-else-if="item.type === 'dropdown'">
               <button 
-                @click="showMasterDropdown = !showMasterDropdown"
+                @click="toggleDropdown(item.label)"
                 class="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl transition-all"
-                :class="isMasterDataActive() ? 'bg-pink-600 text-white shadow-lg' : 'text-slate-300 hover:bg-white/5'"
+                :class="isDropdownActive(item.children) ? 'bg-pink-600 text-white shadow-lg' : 'text-slate-300 hover:bg-white/5'"
               >
                 <div class="flex items-center gap-3">
                   <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" v-html="item.icon"></svg>
                   <span>{{ item.label }}</span>
                 </div>
-                <svg class="w-4 h-4 transition-transform" :class="showMasterDropdown ? 'rotate-180' : ''" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <svg class="w-4 h-4 transition-transform" :class="openDropdowns[item.label] ? 'rotate-180' : ''" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"></path>
                 </svg>
               </button>
               
-              <div v-show="showMasterDropdown" class="ml-4 mt-1 space-y-1">
-                <router-link v-for="subItem in masterDataItems" :key="subItem.path" :to="subItem.path" @click="isOpen = false"
+              <div v-show="openDropdowns[item.label]" class="ml-4 mt-1 space-y-1">
+                <router-link v-for="subItem in getDropdownItems(item.children)" :key="subItem.path" :to="subItem.path" @click="isOpen = false"
                   class="flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all text-sm"
                   active-class="bg-pink-500/20 text-pink-300 font-medium"
                   :class="$route.path.includes(subItem.path) ? '' : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'"
@@ -106,20 +106,20 @@
             <span>{{ item.label }}</span>
           </router-link>
 
-          <!-- Master Data Dropdown Desktop -->
+          <!-- Dropdown Menu -->
           <div v-else-if="item.type === 'dropdown'">
-            <button @click="showMasterDropdown = !showMasterDropdown" class="nav-link w-full justify-between" :class="isMasterDataActive() ? 'nav-link-active' : 'nav-link-inactive'">
+            <button @click="toggleDropdown(item.label)" class="nav-link w-full justify-between" :class="isDropdownActive(item.children) ? 'nav-link-active' : 'nav-link-inactive'">
               <div class="flex items-center gap-3">
                 <svg class="w-5 h-5 transition-transform group-hover:scale-110 duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" v-html="item.icon"></svg>
                 <span>{{ item.label }}</span>
               </div>
-              <svg class="w-4 h-4 transition-transform" :class="showMasterDropdown ? 'rotate-180' : ''" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <svg class="w-4 h-4 transition-transform" :class="openDropdowns[item.label] ? 'rotate-180' : ''" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"></path>
               </svg>
             </button>
             
-            <div v-show="showMasterDropdown" class="ml-4 mt-1 space-y-1">
-              <router-link v-for="subItem in masterDataItems" :key="subItem.path" :to="subItem.path" class="flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all text-sm group"
+            <div v-show="openDropdowns[item.label]" class="ml-4 mt-1 space-y-1">
+              <router-link v-for="subItem in getDropdownItems(item.children)" :key="subItem.path" :to="subItem.path" class="flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all text-sm group"
                 active-class="bg-pink-500/20 text-pink-300 font-medium"
                 :class="$route.path.includes(subItem.path) ? '' : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'"
               >
@@ -215,7 +215,7 @@ import { useRoute, useRouter } from "vue-router";
 
 const isOpen = ref(false);
 const showUserMenu = ref(false);
-const showMasterDropdown = ref(false);
+const openDropdowns = ref({}); // Dynamic dropdown state
 const route = useRoute();
 const router = useRouter();
 const userName = ref("Guest");
@@ -255,6 +255,15 @@ const menuItems = computed(() => {
       icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>',
       adminOnly: true
     });
+    
+    // Master Barang dropdown for admin
+    items.push({
+      type: 'dropdown',
+      label: 'Master Barang',
+      icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>',
+      children: 'masterBarangItems',
+      adminOnly: true
+    });
   }
 
   // Master Data dropdown
@@ -264,6 +273,16 @@ const menuItems = computed(() => {
     icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"></path>',
     children: 'masterDataItems'
   });
+
+  // Laporan Laba Rugi for admin
+  if (isAdmin()) {
+    items.push({
+      path: '/profit-loss',
+      label: 'Laba Rugi',
+      icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>',
+      adminOnly: true
+    });
+  }
 
   return items;
 });
@@ -325,6 +344,40 @@ const masterDataItems = computed(() => {
   return items;
 });
 
+// Master Barang submenu items (Admin only)
+const masterBarangItems = computed(() => {
+  return [
+    {
+      path: '/inventory-prices',
+      label: 'Harga Jual',
+      icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path>'
+    },
+    {
+      path: '/inventory-input',
+      label: 'Input Barang',
+      icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>'
+    }
+  ];
+});
+
+// Helper function to toggle dropdown
+function toggleDropdown(label) {
+  openDropdowns.value[label] = !openDropdowns.value[label];
+}
+
+// Helper function to get dropdown items by children name
+function getDropdownItems(childrenName) {
+  if (childrenName === 'masterDataItems') return masterDataItems.value;
+  if (childrenName === 'masterBarangItems') return masterBarangItems.value;
+  return [];
+}
+
+// Helper function to check if dropdown is active
+function isDropdownActive(childrenName) {
+  const items = getDropdownItems(childrenName);
+  return items.some(item => route.path.includes(item.path));
+}
+
 onMounted(() => {
   try {
     const raw = localStorage.getItem("salon_user");
@@ -358,19 +411,14 @@ function getPageTitle() {
   if (route.path.includes('/cash-flow')) return 'Laporan Kas';
   if (route.path.includes('/cashier-cash')) return 'Kas Kasir';
   if (route.path.includes('/main-cash')) return 'Kas Besar';
+  if (route.path.includes('/inventory-prices')) return 'Harga Jual Persediaan';
+  if (route.path.includes('/inventory-input')) return 'Input Barang Persediaan';
+  if (route.path.includes('/profit-loss')) return 'Laporan Laba Rugi';
   if (route.path.includes('/archive/orders')) return 'Arsip Order Selesai';
   if (route.path.includes('/users')) return 'Manajemen Pengguna';
   if (route.path.includes('/settings')) return 'Pengaturan Salon';
   if (route.path.includes('/user/profile')) return 'Profil Akun';
   return 'Salon Area';
-}
-
-function isMasterDataActive() {
-  return route.path.includes('/products') ||
-         route.path.includes('/worksteps') || 
-         route.path.includes('/customers') || 
-         route.path.includes('/therapists') || 
-         route.path.includes('/users');
 }
 
 const isAdmin = () => userRole.value === 'admin';

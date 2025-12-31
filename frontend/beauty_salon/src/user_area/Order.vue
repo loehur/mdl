@@ -2,26 +2,61 @@
   <div class="max-w-7xl mx-auto space-y-6">
     <!-- Header & Actions -->
     <!-- Header & Actions -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 px-4 py-3 flex items-center justify-between gap-4">
-      <h2 class="text-lg font-bold text-gray-800">Daftar Order</h2>
-      <button 
-        @click="openCreateModal"
-        class="px-4 py-2 bg-gradient-to-r from-pink-500 to-fuchsia-600 hover:from-pink-600 hover:to-fuchsia-700 text-white rounded-lg text-sm font-medium shadow-md hover:shadow-lg transition-all flex items-center gap-2"
-      >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-        </svg>
-        <span>Buat Order</span>
-      </button>
-    </div>
+     <div class="bg-white rounded-xl shadow-sm border border-gray-100 px-4 py-3 flex flex-col md:flex-row items-center justify-between gap-4">
+       <div class="flex items-center gap-4 w-full md:w-auto">        
+         <!-- Filter Tabs -->
+         <div class="flex bg-gray-100 p-1 rounded-lg">
+            <button 
+                @click="filterType = 'all'" 
+                class="px-3 py-1.5 text-xs font-bold rounded-md transition-all"
+                :class="filterType === 'all' ? 'bg-white text-pink-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
+            >
+                Semua
+            </button>
+            <button 
+                @click="filterType = 'booking'" 
+                class="px-3 py-1.5 text-xs font-bold rounded-md transition-all flex items-center gap-1"
+                :class="filterType === 'booking' ? 'bg-white text-pink-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
+            >
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                Booking
+            </button>
+         </div>
+       </div>
+
+       <div class="flex gap-2 w-full md:w-auto">
+           <!-- Search Bar -->
+           <div class="relative flex-1 md:w-64">
+                <input 
+                    type="text" 
+                    v-model="searchQuery" 
+                    placeholder="Cari Pelanggan..." 
+                    class="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-pink-500 outline-none transition"
+                />
+                <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                </div>
+           </div>
+           
+           <button 
+             @click="openCreateModal"
+             class="px-4 py-2 bg-gradient-to-r from-pink-500 to-fuchsia-600 hover:from-pink-600 hover:to-fuchsia-700 text-white rounded-lg text-sm font-medium shadow-md hover:shadow-lg transition-all flex items-center gap-2 whitespace-nowrap"
+           >
+             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+             </svg>
+             <span class="hidden sm:inline">Buat Order</span>
+           </button>
+       </div>
+     </div>
 
     <!-- Active Orders Grid -->
     <div v-if="loading" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
        <div v-for="i in 3" :key="i" class="bg-gray-50 h-64 rounded-xl animate-pulse"></div>
     </div>
     
-    <div v-else-if="orders.length" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-      <div v-for="order in orders" :key="order.id" class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow group">
+    <div v-else-if="filteredOrders.length" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+      <div v-for="order in filteredOrders" :key="order.id" class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow group">
         <!-- Card Header -->
         <div class="p-5 border-b border-gray-50 bg-gradient-to-r from-gray-50 to-white flex justify-between items-start">
           <div>
@@ -29,6 +64,10 @@
             <div class="text-sm text-gray-500 mt-1 flex items-center gap-2">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path></svg>
               {{ order.customer_phone }}
+            </div>
+            <div v-if="order.booking_date" class="text-xs text-pink-600 font-bold mt-1 flex items-center gap-1 bg-pink-50 px-2 py-1 rounded w-fit">
+               <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+               Booking: {{ new Date(order.booking_date).toLocaleString('id-ID', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'}) }}
             </div>
           </div>
           <span class="px-3 py-1 rounded-full text-xs font-semibold" :class="getStatusClass(order.status)">
@@ -39,10 +78,17 @@
         <!-- Order Items & Progress -->
         <div class="p-5 space-y-4">
            <div v-for="(item, itemIndex) in order.order_items" :key="itemIndex" class="space-y-2">
+              <!-- Item Header -->
               <div class="font-medium text-gray-800 flex justify-between items-center">
-                <span>{{ item.product_name }}</span>
+                <div class="flex items-center gap-2">
+                  <!-- Badge for inventory item -->
+                  <span v-if="item.item_id" class="px-1.5 py-0.5 text-xs font-bold bg-purple-100 text-purple-700 rounded">
+                    📦 {{ item.qty || 1 }}x
+                  </span>
+                  <span>{{ item.product_name }}</span>
+                </div>
                 
-                <!-- Price Edit -->
+                <!-- Price Edit (only for non-inventory items or admin) -->
                 <div v-if="editingItem.orderId === order.id && editingItem.itemIndex === itemIndex" class="flex items-center gap-2">
                     <input 
                         type="number" 
@@ -61,15 +107,15 @@
                     </button>
                 </div>
                 <div v-else class="flex items-center gap-2 group/price cursor-pointer relative" @click="startEditPrice(order, itemIndex, item.price)" title="Klik untuk ubah harga">
-                    <span class="text-pink-600 font-bold">Rp {{ formatNumber(item.price) }}</span>
+                    <span :class="item.item_id ? 'text-purple-600 font-bold' : 'text-pink-600 font-bold'">Rp {{ formatNumber(item.price) }}</span>
                      <div v-if="!['completed', 'cancelled'].includes(order.status)" class="opacity-0 group-hover/price:opacity-100 absolute -left-5 text-gray-400">
                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                     </div>
                 </div>
               </div>
               
-              <!-- Work Steps Progress -->
-              <div class="space-y-2 pl-3 border-l-2 border-gray-100">
+              <!-- Work Steps Progress (only for service items) -->
+              <div v-if="item.work_steps && item.work_steps.length > 0" class="space-y-2 pl-3 border-l-2 border-gray-100">
                 <div v-for="(step, stepIndex) in item.work_steps" :key="stepIndex" class="flex items-center justify-between text-sm">
                    <div class="flex items-center gap-2">
                      <button 
@@ -99,6 +145,11 @@
                    </div>
                 </div>
               </div>
+              
+              <!-- Inventory item indicator (no work steps) -->
+              <div v-else-if="item.item_id" class="pl-3 border-l-2 border-purple-200">
+                <span class="text-xs text-purple-500 italic">Penjualan barang persediaan</span>
+              </div>
            </div>
         </div>
 
@@ -113,9 +164,10 @@
         </div>
         
         <!-- Action Buttons -->
-        <div class="p-3 bg-white border-t border-gray-100 grid grid-cols-2 gap-3" v-if="order.status !== 'completed' && order.status !== 'cancelled'">
-           <button @click="confirmDelete(order)" class="text-red-500 text-sm font-medium hover:bg-red-50 py-2 rounded-lg transition">Batalkan</button>
-           <button @click="finishOrder(order)" class="bg-green-50 text-green-600 text-sm font-medium hover:bg-green-100 py-2 rounded-lg transition">Selesai</button>
+        <div class="p-3 bg-white border-t border-gray-100 flex gap-2" v-if="order.status !== 'completed' && order.status !== 'cancelled'">
+           <button @click="editOrder(order)" class="flex-1 text-blue-600 bg-blue-50 hover:bg-blue-100 text-sm font-medium py-2 rounded-lg transition">Edit</button>
+           <button @click="confirmDelete(order)" class="flex-1 text-red-500 bg-red-50 hover:bg-red-100 text-sm font-medium py-2 rounded-lg transition">Batalkan</button>
+           <button @click="finishOrder(order)" class="flex-1 bg-green-50 text-green-600 border border-green-100 hover:bg-green-100 text-sm font-medium py-2 rounded-lg transition">Selesai</button>
         </div>
         <div class="p-3 bg-white border-t border-gray-100" v-if="order.status === 'completed'">
             <button @click="printOrder(order)" class="w-full text-gray-600 bg-gray-50 hover:bg-gray-100 text-sm font-medium py-2 rounded-lg transition border border-gray-200 flex justify-center items-center gap-2">
@@ -140,10 +192,40 @@
       <div v-if="showCreateModal" class="fixed inset-0 z-[100000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto w-full">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl my-4 flex flex-col max-h-[90vh]">
           <div class="bg-gradient-to-r from-pink-500 to-fuchsia-600 px-6 py-4 flex-shrink-0">
-            <h3 class="font-bold text-white text-lg">Buat Order Baru</h3>
+            <h3 class="font-bold text-white text-lg">{{ editingOrderId ? 'Ubah Order' : 'Buat Order Baru' }}</h3>
           </div>
           
           <div class="p-6 space-y-6 overflow-y-auto flex-grow">
+            <!-- Order Type Selection -->
+            <div class="flex p-1 bg-gray-100 rounded-xl mb-4">
+                <button 
+                  @click="form.orderType = 'direct'" 
+                  class="flex-1 py-2 rounded-lg text-sm font-bold transition-all"
+                  :class="form.orderType === 'direct' ? 'bg-white text-pink-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
+                >
+                  Order Langsung
+                </button>
+                <button 
+                  @click="form.orderType = 'booking'" 
+                  class="flex-1 py-2 rounded-lg text-sm font-bold transition-all"
+                  :class="form.orderType === 'booking' ? 'bg-white text-pink-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
+                >
+                  Booking / Reservasi
+                </button>
+            </div>
+
+            <!-- Booking Fields -->
+            <div v-if="form.orderType === 'booking'" class="grid grid-cols-2 gap-4 animate-fade-in-down mb-4 border border-pink-100 bg-pink-50 p-4 rounded-xl">
+               <div>
+                  <label class="block text-xs font-bold text-gray-800 mb-1">Tanggal</label>
+                  <input type="date" v-model="form.bookingDate" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none" />
+               </div>
+               <div>
+                  <label class="block text-xs font-bold text-gray-800 mb-1">Jam</label>
+                  <input type="time" v-model="form.bookingTime" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none" />
+               </div>
+            </div>
+
             <!-- Step 1: Customer -->
             <div>
               <label class="block text-sm font-bold text-gray-800 mb-3">Pilih Pelanggan</label>
@@ -183,19 +265,64 @@
                <label class="block text-sm font-bold text-gray-800 mb-3">Pilih Layanan</label>
                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-60 overflow-y-auto p-1">
                  <div 
-                   v-for="prod in products" 
-                   :key="prod.id"
-                   class="border rounded-xl p-3 cursor-pointer transition relative overflow-hidden group"
-                   :class="isSelected(prod.id) ? 'border-pink-500 bg-pink-50' : 'border-gray-200 hover:border-pink-300'"
-                   @click="toggleProductSelect(prod)"
-                 >
-                    <div class="font-medium text-gray-800">{{ prod.name }}</div>
-                    <div class="text-sm font-bold text-pink-600">Rp {{ formatNumber(prod.price) }}</div>
-                    
-                    <div v-if="isSelected(prod.id)" class="absolute top-2 right-2 text-pink-500">
-                      <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
-                    </div>
-                 </div>
+                    v-for="prod in products" 
+                    :key="prod.id"
+                    class="border rounded-xl p-3 relative overflow-hidden group transition-all"
+                    :class="getQuantity(prod.id) > 0 ? 'border-pink-500 bg-pink-50' : 'border-gray-200 hover:border-pink-300'"
+                  >
+                     <div class="flex justify-between items-start mb-2" @click="getQuantity(prod.id) === 0 ? addProduct(prod) : null">
+                        <div class="w-full cursor-pointer">
+                            <div class="font-medium text-gray-800">{{ prod.name }}</div>
+                            <div class="text-sm font-bold text-pink-600">Rp {{ formatNumber(prod.price) }}</div>
+                        </div>
+                     </div>
+                     
+                     <div v-if="getQuantity(prod.id) > 0" class="flex items-center justify-end gap-2 mt-2 z-10 relative">
+                        <button @click.stop="removeProduct(prod)" class="w-8 h-8 rounded-full bg-white border border-pink-200 text-pink-600 hover:bg-pink-100 flex items-center justify-center font-bold shadow-sm transition-colors">-</button>
+                        <span class="font-bold text-gray-800 w-6 text-center">{{ getQuantity(prod.id) }}</span>
+                        <button @click.stop="addProduct(prod)" class="w-8 h-8 rounded-full bg-pink-600 text-white hover:bg-pink-700 flex items-center justify-center font-bold shadow-sm transition-colors">+</button>
+                     </div>
+                     <div v-else class="absolute inset-0 cursor-pointer" @click="addProduct(prod)"></div>
+                  </div>
+               </div>
+            </div>
+
+            <!-- Step 2.5: Inventory Items for Sale -->
+            <div v-if="inventoryItems.length > 0">
+               <label class="block text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                 <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                 </svg>
+                 Jual Barang Persediaan
+               </label>
+               <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-48 overflow-y-auto p-1 bg-purple-50 rounded-xl border border-purple-100">
+                 <div 
+                    v-for="item in inventoryItems" 
+                    :key="item.item_id"
+                    class="border rounded-xl p-3 relative overflow-hidden group transition-all bg-white"
+                    :class="getInventoryQuantity(item.item_id) > 0 ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:border-purple-300'"
+                  >
+                     <div class="flex justify-between items-start mb-2" @click="getInventoryQuantity(item.item_id) === 0 ? addInventoryItem(item) : null">
+                        <div class="w-full cursor-pointer">
+                            <div class="font-medium text-gray-800">{{ item.item_name }}</div>
+                            <div class="flex items-center justify-between">
+                              <div class="text-sm font-bold text-purple-600">Rp {{ formatNumber(item.sell_price) }}</div>
+                              <span class="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded">Stok: {{ item.stock }}</span>
+                            </div>
+                        </div>
+                     </div>
+                     
+                     <div v-if="getInventoryQuantity(item.item_id) > 0" class="flex items-center justify-end gap-2 mt-2 z-10 relative">
+                        <button @click.stop="removeInventoryItem(item)" class="w-8 h-8 rounded-full bg-white border border-purple-200 text-purple-600 hover:bg-purple-100 flex items-center justify-center font-bold shadow-sm transition-colors">-</button>
+                        <span class="font-bold text-gray-800 w-6 text-center">{{ getInventoryQuantity(item.item_id) }}</span>
+                        <button 
+                          @click.stop="addInventoryItem(item)" 
+                          :disabled="getInventoryQuantity(item.item_id) >= item.stock"
+                          class="w-8 h-8 rounded-full bg-purple-600 text-white hover:bg-purple-700 flex items-center justify-center font-bold shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >+</button>
+                     </div>
+                     <div v-else class="absolute inset-0 cursor-pointer" @click="addInventoryItem(item)"></div>
+                  </div>
                </div>
             </div>
             
@@ -203,7 +330,11 @@
             <div class="bg-gray-50 rounded-xl p-4 border border-gray-200">
                <div class="flex justify-between items-center mb-2">
                  <span class="text-gray-600">Total Item</span>
-                 <span class="font-medium">{{ form.selectedItems.length }}</span>
+                 <span class="font-medium">{{ form.selectedItems.length + form.selectedInventoryItems.length }}</span>
+               </div>
+               <div v-if="form.selectedInventoryItems.length > 0" class="flex justify-between items-center mb-2 text-sm">
+                 <span class="text-purple-600">Barang Dijual</span>
+                 <span class="font-medium text-purple-600">{{ form.selectedInventoryItems.reduce((sum, i) => sum + i.qty, 0) }} pcs</span>
                </div>
                <div class="flex justify-between items-center text-lg font-bold text-gray-800 border-t border-gray-200 pt-2">
                  <span>Total Harga</span>
@@ -214,8 +345,8 @@
           
           <div class="p-6 border-t border-gray-100 bg-gray-50 flex gap-3 flex-shrink-0">
              <button @click="showCreateModal = false" class="flex-1 px-4 py-3 border border-gray-200 text-gray-700 bg-white rounded-xl hover:bg-gray-50 font-medium transition">Batal</button>
-             <button @click="submitOrder" :disabled="isSubmitting || !form.customer_id || !form.selectedItems.length" class="flex-1 px-4 py-3 bg-gradient-to-r from-pink-500 to-fuchsia-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-               {{ isSubmitting ? 'Memproses...' : 'Buat Order' }}
+             <button @click="submitOrder" :disabled="isSubmitting || !form.customer_id || (form.selectedItems.length === 0 && form.selectedInventoryItems.length === 0)" class="flex-1 px-4 py-3 bg-gradient-to-r from-pink-500 to-fuchsia-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+               {{ isSubmitting ? 'Memproses...' : (editingOrderId ? 'Simpan Perubahan' : 'Buat Order') }}
              </button>
           </div>
         </div>
@@ -328,8 +459,34 @@ const loading = ref(true);
 const orders = ref([]);
 const customers = ref([]);
 const products = ref([]);
+const inventoryItems = ref([]); // Inventory items available for sale
 const workers = ref([]); // List of users with role cashier/admin to assign as worker
 const showCreateModal = ref(false);
+const editingOrderId = ref(null);
+
+// Filters
+const filterType = ref('all'); // all, booking
+const searchQuery = ref('');
+
+const filteredOrders = computed(() => {
+    let res = orders.value;
+    
+    // 1. Filter Type
+    if (filterType.value === 'booking') {
+        res = res.filter(o => o.booking_date); // Only those with a booking date
+    }
+    
+    // 2. Search
+    if (searchQuery.value) {
+        const q = searchQuery.value.toLowerCase();
+        res = res.filter(o => 
+            (o.customer_name && o.customer_name.toLowerCase().includes(q)) ||
+            (o.customer_phone && o.customer_phone.includes(q))
+        );
+    }
+    
+    return res;
+});
 
 /* Customer Search */
 const custSearch = ref('');
@@ -371,7 +528,11 @@ const showDeleteModal = ref(false);
 
 const form = reactive({
   customer_id: null,
-  selectedItems: [], // Array of product objects
+  orderType: 'direct', // 'direct' or 'booking'
+  bookingDate: '',
+  bookingTime: '',
+  selectedItems: [], // Array of product objects (services)
+  selectedInventoryItems: [], // Array of inventory items to sell
   notes: ''
 });
 
@@ -421,27 +582,31 @@ function displayStepName(step) {
 async function fetchData() {
     loading.value = true;
     try {
-        const [resOrders, resCust, resProd] = await Promise.all([
+        const [resOrders, resCust, resProd, resInventory] = await Promise.all([
             fetch('/api/Beauty_Salon/Orders'),
             fetch('/api/Beauty_Salon/Customers'),
-            fetch('/api/Beauty_Salon/Products')
+            fetch('/api/Beauty_Salon/Products'),
+            fetch('/api/Beauty_Salon/CashManagement/inventoryForSale')
         ]);
         
         const dOrders = await resOrders.json();
         const dCust = await resCust.json();
         const dProd = await resProd.json();
+        const dInventory = await resInventory.json();
 
         if (dOrders.success) {
             // Filter: Show pending/active orders OR Completed orders from TODAY
             const today = new Date().toISOString().split('T')[0];
             orders.value = dOrders.data.filter(order => {
-                if (order.status !== 'completed') return true;
+                // Show pending always, but for completed AND cancelled, ensure it's from today
+                if (order.status !== 'completed' && order.status !== 'cancelled') return true;
                 const orderDate = (order.order_date || '').split(' ')[0];
                 return orderDate === today;
             });
         }
         if (dCust.success) customers.value = dCust.data;
         if (dProd.success) products.value = dProd.data;
+        if (dInventory.success) inventoryItems.value = dInventory.data;
     } catch (e) {
         console.error(e);
         showToast('Gagal memuat data', 'error');
@@ -461,59 +626,146 @@ async function fetchAllWorkSteps() {
    } catch{}
 }
 function openCreateModal() {
+    editingOrderId.value = null;
     form.customer_id = null;
+    form.orderType = 'direct';
+    form.bookingDate = new Date().toISOString().split('T')[0];
+    form.bookingTime = new Date().toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit', hour12: false}).substring(0,5);
     form.selectedItems = [];
+    form.selectedInventoryItems = [];
     form.notes = '';
     custSearch.value = '';
     showCreateModal.value = true;
 }
 
-function isSelected(prodId) {
-    return form.selectedItems.some(p => p.id === prodId);
+function editOrder(order) {
+    editingOrderId.value = order.id;
+    form.customer_id = order.customer_id; // Ensure order has this
+    // If customer name isn't readily available in id form, we use what we have
+    // The card shows customer_name, let's try to match it or set text
+    custSearch.value = order.customer_name || '';
+    
+    // Attempt to reverse-lookup customer object to ensure ID is valid if needed, 
+    // but usually ID is enough.
+    
+    form.notes = order.notes || '';
+    
+    // Booking info
+    if (order.booking_date) {
+        form.orderType = 'booking';
+        const d = new Date(order.booking_date);
+        form.bookingDate = d.toISOString().split('T')[0];
+        form.bookingTime = d.toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit', hour12: false}).substring(0,5);
+    } else {
+        form.orderType = 'direct';
+    }
+
+    // Hydrate items
+    // map order_items to selectedItems format
+    if (order.order_items) {
+        form.selectedItems = order.order_items.map(item => ({
+            id: item.product_id, // Important for getQuantity
+            name: item.product_name,
+            price: item.price,
+            work_steps: item.work_steps ? JSON.parse(JSON.stringify(item.work_steps)) : [], // Deep copy steps
+            // Keep track of original item id for backend to know which to update/keep
+            original_item_id: item.id 
+        }));
+    } else {
+        form.selectedItems = [];
+    }
+    
+    showCreateModal.value = true;
 }
 
-function toggleProductSelect(prod) {
+function getQuantity(prodId) {
+    return form.selectedItems.filter(p => p.id === prodId).length;
+}
+
+function removeProduct(prod) {
     const idx = form.selectedItems.findIndex(p => p.id === prod.id);
     if (idx >= 0) {
         form.selectedItems.splice(idx, 1);
-    } else {
-        // Prepare work steps with strict structure
-        const rawSteps = Array.isArray(prod.work_steps) ? prod.work_steps : [];
-        const hydratedSteps = rawSteps.map(stepRaw => {
-            // Handle if stepRaw is ID (number/string) or Object
-            const stepId = (typeof stepRaw === 'object' && stepRaw !== null) ? (stepRaw.id || stepRaw.step_id) : stepRaw;
-            
-            // Lookup details
-            const details = allWorkSteps.value.find(s => s.id == stepId);
-            
-            return {
-                step_id: stepId,
-                step_name: details ? details.name : ('Step ' + stepId),
-                fee: details ? Number(details.fee) : 0,
-                worker_id: null,
-                status: 'pending'
-            };
-        });
+    }
+}
 
-        // Push clean object
-        form.selectedItems.push({
-            id: prod.id,
-            name: prod.name,
-            price: Number(prod.price),
-            work_steps: hydratedSteps
+function addProduct(prod) {
+    // Prepare work steps with strict structure
+    const rawSteps = Array.isArray(prod.work_steps) ? prod.work_steps : [];
+    const hydratedSteps = rawSteps.map(stepRaw => {
+        // Handle if stepRaw is ID (number/string) or Object
+        const stepId = (typeof stepRaw === 'object' && stepRaw !== null) ? (stepRaw.id || stepRaw.step_id) : stepRaw;
+        
+        // Lookup details
+        const details = allWorkSteps.value.find(s => s.id == stepId);
+        
+        return {
+            step_id: stepId,
+            step_name: details ? details.name : ('Step ' + stepId),
+            fee: details ? Number(details.fee) : 0,
+            worker_id: null,
+            status: 'pending'
+        };
+    });
+
+    // Push clean object
+    form.selectedItems.push({
+        id: prod.id,
+        name: prod.name,
+        price: Number(prod.price),
+        work_steps: hydratedSteps
+    });
+}
+
+function calculateTotal() {
+    const servicesTotal = form.selectedItems.reduce((sum, item) => sum + item.price, 0);
+    const inventoryTotal = form.selectedInventoryItems.reduce((sum, item) => sum + (item.price * item.qty), 0);
+    return servicesTotal + inventoryTotal;
+}
+
+// -- Inventory Item Functions --
+function getInventoryQuantity(itemId) {
+    const found = form.selectedInventoryItems.find(i => i.item_id === itemId);
+    return found ? found.qty : 0;
+}
+
+function addInventoryItem(item) {
+    const existing = form.selectedInventoryItems.find(i => i.item_id === item.item_id);
+    if (existing) {
+        // Check stock limit
+        if (existing.qty < item.stock) {
+            existing.qty++;
+        } else {
+            showToast('Stok tidak mencukupi!', 'error');
+        }
+    } else {
+        form.selectedInventoryItems.push({
+            item_id: item.item_id,
+            item_name: item.item_name,
+            price: Number(item.sell_price),
+            buy_price: Number(item.buy_price),
+            qty: 1,
+            stock: item.stock
         });
     }
 }
 
-function calculateTotal() {
-    return form.selectedItems.reduce((sum, item) => sum + item.price, 0);
+function removeInventoryItem(item) {
+    const idx = form.selectedInventoryItems.findIndex(i => i.item_id === item.item_id);
+    if (idx >= 0) {
+        if (form.selectedInventoryItems[idx].qty > 1) {
+            form.selectedInventoryItems[idx].qty--;
+        } else {
+            form.selectedInventoryItems.splice(idx, 1);
+        }
+    }
 }
 
 async function submitOrder() {
     isSubmitting.value = true;
     try {
-        // Construct payload explicitly to avoid reference issues or extra fields
-        const orderItemsPayload = form.selectedItems.map(p => ({
+        // Construct service items payload
+        const serviceItemsPayload = form.selectedItems.map(p => ({
             product_id: p.id,
             product_name: p.name,
             price: p.price,
@@ -526,22 +778,56 @@ async function submitOrder() {
             }))
         }));
 
+        // Construct inventory items payload (mark with item_id for backend to recognize)
+        const inventoryItemsPayload = form.selectedInventoryItems.map(item => ({
+            item_id: item.item_id, // This marks it as an inventory item
+            product_name: item.item_name,
+            price: item.price * item.qty, // Total price for this line
+            qty: item.qty,
+            buy_price: item.buy_price,
+            work_steps: [] // No work steps for inventory items
+        }));
+
+        // Combine both
+        const orderItemsPayload = [...serviceItemsPayload, ...inventoryItemsPayload];
+
         console.log('Submitting Order Payload:', orderItemsPayload); // Debug
 
-        const res = await fetch('/api/Beauty_Salon/Orders/create', {
-            method: 'POST',
+        let url = '/api/Beauty_Salon/Orders/create';
+        let method = 'POST';
+        
+        if (editingOrderId.value) {
+            url = `/api/Beauty_Salon/Orders/update/${editingOrderId.value}`;
+            // method is still POST usually for my APIs, or PUT. keeping POST as per other endpoints
+        }
+        
+        // Prepare Booking Date
+        let booking_date = null;
+        if (form.orderType === 'booking') {
+            if (!form.bookingDate || !form.bookingTime) {
+                showToast('Tanggal dan Jam Booking harus diisi', 'error');
+                isSubmitting.value = false;
+                return;
+            }
+            booking_date = `${form.bookingDate} ${form.bookingTime}:00`;
+        }
+
+        const res = await fetch(url, {
+            method: method,
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 customer_id: form.customer_id,
                 order_items: orderItemsPayload,
+                booking_date: booking_date, // Send booking date (null if direct)
                 notes: form.notes
             })
         });
         
         const data = await res.json();
         if (data.success) {
-            showToast('Order berhasil dibuat');
+            showToast(editingOrderId.value ? 'Order berhasil diubah' : 'Order berhasil dibuat');
             showCreateModal.value = false;
+            editingOrderId.value = null;
             fetchData(); 
         } else {
              showToast(data.message || 'Gagal buat order', 'error');
@@ -631,13 +917,18 @@ function handlePaymentMethodChange() {
 }
 
 function finishOrder(order) {
-    // Validation: Check pending steps and missing workers
+    // Validation: Check pending steps and missing workers (only for service items, not inventory)
     let pendingCount = 0;
     let missingWorkerCount = 0;
+    let hasServiceItems = false;
 
     if (order.order_items) {
         order.order_items.forEach(item => {
-            if (item.work_steps) {
+            // Skip inventory items (they have item_id and no work_steps)
+            if (item.item_id) return;
+            
+            if (item.work_steps && item.work_steps.length > 0) {
+                hasServiceItems = true;
                 item.work_steps.forEach(step => {
                     if (step.status !== 'completed') {
                         pendingCount++;
@@ -650,14 +941,17 @@ function finishOrder(order) {
         });
     }
 
-    if (pendingCount > 0) {
-        showToast('Semua langkah kerja harus berstatus Selesai (checklist hijau).', 'error');
-        return;
-    }
+    // Only validate if there are service items with work steps
+    if (hasServiceItems) {
+        if (pendingCount > 0) {
+            showToast('Semua langkah kerja harus berstatus Selesai (checklist hijau).', 'error');
+            return;
+        }
 
-    if (missingWorkerCount > 0) {
-        showToast('Semua langkah kerja harus memiliki Terapis yang bertugas.', 'error');
-        return;
+        if (missingWorkerCount > 0) {
+            showToast('Semua langkah kerja harus memiliki Terapis yang bertugas.', 'error');
+            return;
+        }
     }
 
     // Open Modal if Valid
@@ -964,10 +1258,18 @@ const salonInfo = ref({ nama_salon: 'MDL BEAUTY SALON', alamat_salon: 'Jakarta' 
 
 // -- Init --
 onMounted(async () => {
+    // Add click outside listener for customer dropdown
+    document.addEventListener('click', handleClickOutside);
+    
     await fetchAllWorkSteps();
     await fetchTherapists(); // Fetch therapists as workers
     await fetchSalon();
     await fetchData();
+});
+
+onUnmounted(() => {
+    // Cleanup click outside listener
+    document.removeEventListener('click', handleClickOutside);
 });
 
 async function fetchSalon() {

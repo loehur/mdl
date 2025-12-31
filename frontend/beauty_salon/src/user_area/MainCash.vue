@@ -61,6 +61,16 @@
       </button>
       
       <button 
+        @click="showCapitalModal = true"
+        class="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-medium transition shadow-lg flex items-center justify-center gap-2"
+      >
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+        </svg>
+        Tambah Modal
+      </button>
+      
+      <button 
         @click="showExpenseModal = true"
         class="flex-1 sm:flex-none bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-xl font-medium transition shadow-lg flex items-center justify-center gap-2"
       >
@@ -136,11 +146,31 @@
                 {{ formatAmount(trx.transaction_type, trx.amount) }}
               </td>
               <td class="px-6 py-3 text-center">
-                <button v-if="trx.reference_type !== 'order'" @click="deleteTransaction(trx.id)" class="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 rounded-lg transition" title="Hapus">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                  </svg>
-                </button>
+                <!-- Action Buttons -->
+                <div class="flex items-center justify-center gap-2">
+                    <!-- Settle Inventory Button -->
+                    <button 
+                        v-if="isInventoryTransaction(trx) && (!trx.inventory_count || trx.inventory_count == 0)"
+                        @click="openInventoryModal(trx)"
+                        class="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold hover:bg-red-200 shadow-sm animate-pulse border border-red-200"
+                        title="Input rincian barang"
+                    >
+                        ⚠ Input Barang
+                    </button>
+                    <span 
+                        v-else-if="isInventoryTransaction(trx) && trx.inventory_count > 0"
+                        class="text-green-600 text-xs font-bold flex items-center gap-1 bg-green-50 px-2 py-1 rounded-full border border-green-100"
+                    >
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                        Lengkap
+                    </span>
+
+                    <button v-if="trx.reference_type !== 'order'" @click="deleteTransaction(trx.id)" class="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 rounded-lg transition" title="Hapus">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                    </svg>
+                    </button>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -244,6 +274,65 @@
               <button type="submit" :disabled="loadingTransfer" class="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg font-medium transition">
                 <span v-if="loadingTransfer">Transfer...</span>
                 <span v-else>Transfer</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Modal Tambah Modal -->
+    <Teleport to="body">
+      <div v-if="showCapitalModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full my-8">
+          <!-- Header -->
+          <div class="border-b border-gray-100 px-6 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
+                <svg class="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                </svg>
+              </div>
+              <h3 class="font-bold text-gray-900">Tambah Modal Kas Besar</h3>
+            </div>
+            <button @click="showCapitalModal = false" class="text-gray-400 hover:text-gray-600">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
+            </button>
+          </div>
+          
+          <!-- Form -->
+          <form @submit.prevent="submitCapital" class="p-6 space-y-4">
+            <div class="bg-emerald-50 text-emerald-800 text-sm p-3 rounded-lg flex gap-2">
+              <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              <span>Dana akan ditambahkan ke <b>Kas Besar</b> sebagai pemasukan (Modal).</span>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Jumlah Modal (Rp) *</label>
+              <input v-model.number="capitalForm.amount" type="number" required min="0" step="1000" placeholder="0" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-200">
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Keterangan *</label>
+              <input v-model="capitalForm.description" type="text" required placeholder="Contoh: Tambahan modal dari Owner" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-200">
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Catatan</label>
+              <textarea v-model="capitalForm.notes" rows="2" placeholder="Catatan tambahan (opsional)" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-200"></textarea>
+            </div>
+
+            <div class="flex gap-3 pt-4">
+              <button type="button" @click="showCapitalModal = false" class="flex-1 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition">
+                Batal
+              </button>
+              <button type="submit" :disabled="loadingCapital" class="flex-1 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-400 text-white rounded-lg font-medium transition">
+                <span v-if="loadingCapital">Menyimpan...</span>
+                <span v-else>Simpan Modal</span>
               </button>
             </div>
           </form>
@@ -373,6 +462,109 @@
       </div>
     </Teleport>
 
+    <!-- Modal Pertanggungjawaban Inventory -->
+    <Teleport to="body">
+      <div v-if="showInventoryModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full my-8 flex flex-col max-h-[90vh]">
+          <!-- Header -->
+          <div class="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4 flex-shrink-0 flex items-center justify-between">
+            <h3 class="font-bold text-white text-lg">Input Barang Persediaan</h3>
+            <button @click="closeInventoryModal" class="text-white/80 hover:text-white">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+          </div>
+          
+          <div class="p-6 overflow-y-auto flex-1">
+             <!-- Summary -->
+             <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4 flex justify-between items-center">
+                <div>
+                    <div class="text-xs text-gray-500 uppercase font-semibold">Total Nota Belanja</div>
+                    <div class="text-xl font-bold text-gray-800">{{ formatCurrency(inventoryForm.targetAmount) }}</div>
+                </div>
+                <div class="text-right">
+                    <div class="text-xs text-gray-500 uppercase font-semibold">Total Input Barang</div>
+                    <div class="text-xl font-bold" :class="inventoryDifference === 0 ? 'text-green-600' : 'text-red-600'">
+                        {{ formatCurrency(inventoryForm.currentTotal) }}
+                    </div>
+                </div>
+             </div>
+             
+             <!-- Warning if mismatch -->
+             <div v-if="inventoryDifference !== 0" class="bg-red-50 text-red-700 px-4 py-2 rounded-lg text-sm mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                <span>Selisih: <b>{{ formatCurrency(Math.abs(inventoryDifference)) }}</b>. Total harus sama persis.</span>
+             </div>
+
+             <!-- Item Input List -->
+             <div class="space-y-3 pb-24">
+                 <div v-for="(item, index) in inventoryItems" :key="index" class="flex gap-2 items-start bg-white border border-gray-100 p-2 rounded shadow-sm relative z-0" :class="{'z-10 ring-2 ring-purple-100': activeInventoryRow === index}">
+                    <div class="flex-1 relative">
+                         <label class="block text-[10px] text-gray-500 mb-0.5">Nama Barang</label>
+                         <input 
+                            v-model="item.name" 
+                            type="text" 
+                            placeholder="Ketik untuk cari..." 
+                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-purple-500 outline-none" 
+                            required
+                            @focus="activeInventoryRow = index"
+                            @blur="handleInputBlur"
+                            autocomplete="off"
+                         >
+                         
+                         <!-- Autocomplete Dropdown -->
+                         <div v-if="activeInventoryRow === index && getFilteredProducts(item.name).length > 0" class="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-xl max-h-48 overflow-y-auto z-50">
+                             <div 
+                                v-for="prod in getFilteredProducts(item.name)" 
+                                :key="prod.id"
+                                @mousedown.prevent="selectInventoryProduct(index, prod)"
+                                class="px-3 py-2 hover:bg-purple-50 cursor-pointer text-sm border-b border-gray-50 last:border-0"
+                             >
+                                 <div class="font-medium text-gray-800">{{ prod.item_name }}</div>
+                                 <div class="text-xs text-gray-500 flex justify-between">
+                                     <span class="text-gray-400">History</span>
+                                     <span>Rp {{ formatNumber(prod.buy_price) }}</span>
+                                 </div>
+                             </div>
+                         </div>
+                    </div>
+                    <div class="w-20">
+                         <label class="block text-[10px] text-gray-500 mb-0.5">Qty</label>
+                         <input v-model.number="item.qty" type="number" min="1" placeholder="1" @input="updateInventoryTotal" class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm text-center focus:ring-1 focus:ring-purple-500 outline-none" required>
+                    </div>
+                    <div class="w-32">
+                         <label class="block text-[10px] text-gray-500 mb-0.5">Harga Beli</label>
+                         <input v-model.number="item.buy_price" type="number" min="0" placeholder="0" @input="updateInventoryTotal" class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm text-right focus:ring-1 focus:ring-purple-500 outline-none" required>
+                    </div>
+                    <div class="pt-6">
+                        <button type="button" @click="removeInventoryItem(index)" class="text-red-400 hover:text-red-600 p-1">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        </button>
+                    </div>
+                 </div>
+             </div>
+             
+             <button @click="addInventoryItem" class="mt-4 w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 font-medium hover:border-purple-500 hover:text-purple-600 transition flex items-center justify-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                Tambah Baris Barang
+             </button>
+
+          </div>
+
+          <div class="p-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3 flex-shrink-0">
+             <button @click="closeInventoryModal" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition">Batal</button>
+             <button 
+                @click="submitInventorySettle" 
+                :disabled="loadingInventorySettle || inventoryDifference !== 0"
+                class="px-6 py-2 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed shadow-lg shadow-purple-200"
+             >
+                <span v-if="loadingInventorySettle">Menyimpan...</span>
+                <span v-else>Simpan & Update Stok</span>
+             </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
     <!-- Toast Notification -->
     <div v-if="toast.show" class="fixed top-4 right-4 z-50 animate-fade-in-down">
       <div class="bg-white rounded-lg shadow-2xl border-l-4 p-4" :class="toast.type === 'success' ? 'border-green-500' : 'border-red-500'">
@@ -415,6 +607,7 @@ const mainCashIncome = ref(0);
 const mainCashExpense = ref(0);
 
 const categories = ref([]);
+const products = ref([]); // For autocomplete
 const transactions = ref([]);
 
 const filterType = ref('');
@@ -440,7 +633,17 @@ const deleteModal = reactive({
 
 // Modal states
 const showTransferModal = ref(false);
+const showCapitalModal = ref(false); // Add Capital Modal
+const loadingCapital = ref(false);
 const showExpenseModal = ref(false);
+const showInventoryModal = ref(false);
+const loadingInventorySettle = ref(false);
+
+const inventoryForm = reactive({
+    transactionId: null,
+    targetAmount: 0,
+    currentTotal: 0
+});
 
 function showToast(message, type = 'success') {
   toast.message = message;
@@ -481,6 +684,12 @@ const filteredNonExpenseCategories = computed(() => {
   );
 });
 
+const capitalForm = reactive({
+  amount: 0,
+  description: '',
+  notes: ''
+});
+
 const transferForm = reactive({
   from: 'cashier',
   to: 'main',
@@ -495,6 +704,133 @@ const expenseForm = reactive({
   description: '',
   notes: ''
 });
+
+// Inventory Logic
+const inventoryItems = ref([]); // reused for both creation (if needed) and settling now
+const activeInventoryRow = ref(null); // Track which row is focused for autocomplete
+const inventoryDifference = computed(() => {
+    return inventoryForm.currentTotal - inventoryForm.targetAmount;
+});
+
+// Fetch Products for Autocomplete
+async function fetchInventoryHistory() {
+    try {
+        const res = await fetch('/api/Beauty_Salon/CashManagement/inventoryHistory');
+        const d = await res.json();
+        if (d.success) products.value = d.data;
+    } catch(e) {
+        console.error('Error fetching inventory history', e);
+    }
+}
+
+// Helper filter products
+function getFilteredProducts(query) {
+    if (!query) return [];
+    const q = query.toLowerCase();
+    // Return max 5 matches
+    return products.value.filter(p => p.item_name.toLowerCase().includes(q)).slice(0, 5);
+}
+
+// Select product from autocomplete
+function selectInventoryProduct(index, prod) {
+    if (inventoryItems.value[index]) {
+        inventoryItems.value[index].name = prod.item_name;
+        // Auto fill price from history
+        inventoryItems.value[index].buy_price = Number(prod.buy_price) || 0; 
+        updateInventoryTotal();
+    }
+    activeInventoryRow.value = null;
+}
+
+function handleInputBlur() {
+    // Delay hiding to allow click event to register
+    setTimeout(() => {
+        activeInventoryRow.value = null;
+    }, 200);
+}
+
+function addInventoryItem() {
+    inventoryItems.value.push({
+        name: '',
+        qty: 1,
+        buy_price: 0
+    });
+}
+
+function removeInventoryItem(index) {
+    inventoryItems.value.splice(index, 1);
+    updateInventoryTotal();
+}
+
+function updateInventoryTotal() {
+    let total = 0;
+    inventoryItems.value.forEach(item => {
+        total += (Number(item.qty) || 0) * (Number(item.buy_price) || 0);
+    });
+    inventoryForm.currentTotal = total;
+}
+
+function formatNumber(val) {
+   return new Intl.NumberFormat('id-ID').format(val || 0);
+}
+
+// Check if transaction is 'Persediaan Barang'
+function isInventoryTransaction(trx) {
+    if (!trx.category_name) return false;
+    const name = trx.category_name.toLowerCase();
+    return name.includes('persediaan') || name.includes('stok');
+}
+
+// Open Inventory Modal
+function openInventoryModal(trx) {
+    inventoryForm.transactionId = trx.id;
+    inventoryForm.targetAmount = Number(trx.amount);
+    inventoryForm.currentTotal = 0;
+    inventoryItems.value = [{ name: '', qty: 1, buy_price: 0 }]; // Start with 1 row
+    showInventoryModal.value = true;
+    updateInventoryTotal();
+    // Ensure history is loaded
+    if (products.value.length === 0) fetchInventoryHistory();
+}
+
+function closeInventoryModal() {
+    showInventoryModal.value = false;
+    inventoryItems.value = [];
+}
+
+// Submit Inventory Settle
+async function submitInventorySettle() {
+    if (inventoryDifference.value !== 0) {
+        showToast('Jumlah total barang harus sama dengan nilai nota!', 'error');
+        return;
+    }
+    
+    loadingInventorySettle.value = true;
+    try {
+        const res = await fetch('/api/Beauty_Salon/CashManagement/settleInventory', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                transaction_id: inventoryForm.transactionId,
+                items: inventoryItems.value
+            })
+        });
+        
+        const d = await res.json();
+        if (d.success) {
+            showToast('✅ Barang berhasil disimpan & stok diupdate!');
+            closeInventoryModal();
+            fetchTransactions(); // Refresh list to update status
+        } else {
+            showToast(d.message || 'Gagal menyimpan', 'error');
+        }
+    } catch(e) {
+        console.error(e);
+        showToast('Terjadi kesalahan sistem', 'error');
+    } finally {
+        loadingInventorySettle.value = false;
+    }
+}
 
 // Select Category
 function selectCategory(cat) {
@@ -632,6 +968,7 @@ async function submitExpense() {
     showToast('Pilih kategori terlebih dahulu', 'error');
     return;
   }
+  if (loadingExpense.value) return; 
 
   loadingExpense.value = true;
   try {
@@ -666,6 +1003,49 @@ async function submitExpense() {
     showToast('Error menyimpan pengeluaran', 'error');
   } finally {
     loadingExpense.value = false;
+  }
+}
+
+// Submit Capital
+async function submitCapital() {
+  if (loadingCapital.value) return;
+  loadingCapital.value = true;
+  
+  try {
+    const payload = {
+      amount: capitalForm.amount,
+      cash_source: 'main', // Default to Main Cash
+      category_id: null, // Income may not need generic category
+      description: capitalForm.description,
+      notes: capitalForm.notes
+    };
+    
+    // Call addIncome endpoint
+    const res = await fetch('/api/Beauty_Salon/CashManagement/addIncome', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    
+    const d = await res.json();
+    
+    if (d.success) {
+      showToast('✅ Modal berhasil ditambahkan');
+      // Reset form
+      capitalForm.amount = 0;
+      capitalForm.description = '';
+      capitalForm.notes = '';
+      showCapitalModal.value = false;
+      fetchBalances();
+      fetchTransactions();
+    } else {
+      showToast('Error: ' + (d.message || 'Gagal menyimpan'), 'error');
+    }
+  } catch(e) {
+    console.error('Error adding capital:', e);
+    showToast('Error menyimpan modal', 'error');
+  } finally {
+    loadingCapital.value = false;
   }
 }
 
@@ -745,106 +1125,56 @@ function getAmountClass(type) {
 // Fetch balances for both cashier and main cash
 async function fetchBalances() {
   try {
-    // === FETCH ORDERS ===
-    const resOrders = await fetch('/api/Beauty_Salon/Orders');
-    const dataOrders = await resOrders.json();
-    
-    let cashierIncomeFromOrders = 0;
-    let mainCashIncomeFromOrders = 0;
-    
-    if (dataOrders.success) {
-      dataOrders.data.forEach(order => {
-        if (order.status === 'completed') {
-          cashierIncomeFromOrders += Number(order.pay_cash) || 0;
-          mainCashIncomeFromOrders += Number(order.pay_non_cash) || 0; // Non-cash → Main
-        }
-      });
-    }
-    
     // === KAS KASIR ===
-    // Expense: dari cash_transactions
-    const resCashierExpense = await fetch('/api/Beauty_Salon/CashManagement/transactions?cash=cashier&type=expense');
-    const dataCashierExpense = await resCashierExpense.json();
-    
-    let cashierExpenseFromTx = 0;
-    if (dataCashierExpense.success) {
-      dataCashierExpense.data.forEach(tx => {
-        cashierExpenseFromTx += Number(tx.amount) || 0;
-      });
+    const resCashier = await fetch('/api/Beauty_Salon/CashManagement/balances?cash_source=cashier');
+    if (!resCashier.ok) {
+      console.error('Cashier balance API error:', resCashier.status, resCashier.statusText);
     }
+    const dataCashier = await resCashier.json();
+    console.log('Cashier balance API response:', dataCashier);
     
-    // Transfer: all transfers
-    const resTransfers = await fetch('/api/Beauty_Salon/CashManagement/transactions?type=transfer');
-    const dataTransfers = await resTransfers.json();
-    
-    let cashierTransferOut = 0;
-    let cashierTransferIn = 0;
-    let mainTransferOut = 0;
-    let mainTransferIn = 0;
-    
-    if (dataTransfers.success) {
-      dataTransfers.data.forEach(tx => {
-        // Cashier transfers
-        if (tx.transfer_from === 'cashier') {
-          cashierTransferOut += Number(tx.amount) || 0;
-        }
-        if (tx.transfer_to === 'cashier') {
-          cashierTransferIn += Number(tx.amount) || 0;
-        }
-        
-        // Main transfers
-        if (tx.transfer_from === 'main') {
-          mainTransferOut += Number(tx.amount) || 0;
-        }
-        if (tx.transfer_to === 'main') {
-          mainTransferIn += Number(tx.amount) || 0;
-        }
-      });
+    if (dataCashier.success && dataCashier.data) {
+        cashierBalance.value = Number(dataCashier.data.current_balance) || 0;
+        cashierIncome.value = Number(dataCashier.data.total_income) || 0;
+        cashierExpense.value = Number(dataCashier.data.total_expense) || 0;
+        console.log('Cashier balance set to:', cashierBalance.value);
+    } else {
+        console.error('Failed to fetch cashier balance:', dataCashier);
+        // Fallback: set to 0 if API fails
+        cashierBalance.value = 0;
+        cashierIncome.value = 0;
+        cashierExpense.value = 0;
     }
-    
-    // Set Cashier Balance
-    cashierIncome.value = cashierIncomeFromOrders + cashierTransferIn;
-    cashierExpense.value = cashierExpenseFromTx + cashierTransferOut;
-    cashierBalance.value = cashierIncome.value - cashierExpense.value;
 
     // === KAS BESAR ===
-    // Expense: dari cash_transactions
-    const resMainExpense = await fetch('/api/Beauty_Salon/CashManagement/transactions?cash=main&type=expense');
-    const dataMainExpense = await resMainExpense.json();
+    const resMain = await fetch('/api/Beauty_Salon/CashManagement/balances?cash_source=main');
+    if (!resMain.ok) {
+      console.error('Main cash balance API error:', resMain.status, resMain.statusText);
+    }
+    const dataMain = await resMain.json();
+    console.log('Main cash balance API response:', dataMain);
     
-    let mainExpenseFromTx = 0;
-    if (dataMainExpense.success) {
-      dataMainExpense.data.forEach(tx => {
-        mainExpenseFromTx += Number(tx.amount) || 0;
-      });
+    if (dataMain.success && dataMain.data) {
+        mainCashBalance.value = Number(dataMain.data.current_balance) || 0;
+        mainCashIncome.value = Number(dataMain.data.total_income) || 0;
+        mainCashExpense.value = Number(dataMain.data.total_expense) || 0;
+    } else {
+        console.error('Failed to fetch main cash balance:', dataMain);
+        // Fallback: set to 0 if API fails
+        mainCashBalance.value = 0;
+        mainCashIncome.value = 0;
+        mainCashExpense.value = 0;
     }
     
-    // Manual Income (dari cash_transactions, misal: prive return, dll)
-    const resMainIncome = await fetch('/api/Beauty_Salon/CashManagement/transactions?cash=main&type=income');
-    const dataMainIncome = await resMainIncome.json();
-    
-    let mainManualIncome = 0;
-    if (dataMainIncome.success) {
-      dataMainIncome.data.forEach(tx => {
-        mainManualIncome += Number(tx.amount) || 0;
-      });
-    }
-    
-    // Set Main Cash Balance (income from non-cash orders + manual + transfers)
-    mainCashIncome.value = mainCashIncomeFromOrders + mainManualIncome + mainTransferIn;
-    mainCashExpense.value = mainExpenseFromTx + mainTransferOut;
-    mainCashBalance.value = mainCashIncome.value - mainCashExpense.value;
-    
-    console.log('=== DEBUG KAS BESAR ===');
-    console.log('Income dari orders non-cash:', mainCashIncomeFromOrders);
-    console.log('Income manual:', mainManualIncome);
-    console.log('Transfer IN:', mainTransferIn);
-    console.log('Total Income:', mainCashIncome.value);
-    console.log('Expense:', mainCashExpense.value);
-    console.log('Transfer OUT:', mainTransferOut);
-    console.log('Balance:', mainCashBalance.value);
   } catch(e) {
     console.error('Error fetching balances:', e);
+    // Set defaults on error
+    cashierBalance.value = 0;
+    cashierIncome.value = 0;
+    cashierExpense.value = 0;
+    mainCashBalance.value = 0;
+    mainCashIncome.value = 0;
+    mainCashExpense.value = 0;
   }
 }
 

@@ -160,25 +160,44 @@
                     </span>
                   </td>
                   <td class="px-6 py-4 text-center">
-                    <button 
-                      v-if="isToday(tx.transaction_date)"
-                      @click="deleteExpense(tx.id)"
-                      class="text-gray-400 hover:text-rose-600 hover:bg-rose-50 p-2 rounded-xl transition-all"
-                      title="Hapus"
-                    >
-                      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                      </svg>
-                    </button>
-                    <span 
-                      v-else
-                      class="text-gray-200 p-2 inline-block cursor-not-allowed"
-                      title="Hanya bisa menghapus transaksi hari ini"
-                    >
-                      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
-                      </svg>
-                    </span>
+                    <div class="flex items-center justify-center gap-2">
+                        <!-- Settle Inventory Button -->
+                        <button 
+                            v-if="isInventoryTransaction(tx) && (!tx.inventory_count || tx.inventory_count == 0)"
+                            @click="openInventoryModal(tx)"
+                            class="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold hover:bg-red-200 shadow-sm animate-pulse border border-red-200 whitespace-nowrap"
+                            title="Input rincian barang"
+                        >
+                            ⚠ Input Barang
+                        </button>
+                        <span 
+                            v-else-if="isInventoryTransaction(tx) && tx.inventory_count > 0"
+                            class="text-green-600 text-xs font-bold flex items-center gap-1 bg-green-50 px-2 py-1 rounded-full border border-green-100 whitespace-nowrap"
+                        >
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                            Lengkap
+                        </span>
+
+                        <button 
+                        v-if="isToday(tx.transaction_date)"
+                        @click="deleteExpense(tx.id)"
+                        class="text-gray-400 hover:text-rose-600 hover:bg-rose-50 p-2 rounded-xl transition-all"
+                        title="Hapus"
+                        >
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                        </button>
+                        <span 
+                        v-else
+                        class="text-gray-200 p-2 inline-block cursor-not-allowed"
+                        title="Hanya bisa menghapus transaksi hari ini"
+                        >
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                        </svg>
+                        </span>
+                    </div>
                   </td>
                 </tr>
               </tbody>
@@ -474,6 +493,109 @@
       </div>
     </Teleport>
     
+    <!-- Modal Pertanggungjawaban Inventory -->
+    <Teleport to="body">
+      <div v-if="showInventoryModal" class="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full my-8 flex flex-col max-h-[90vh]">
+          <!-- Header -->
+          <div class="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4 flex-shrink-0 flex items-center justify-between">
+            <h3 class="font-bold text-white text-lg">Input Barang Persediaan (Kasir)</h3>
+            <button @click="closeInventoryModal" class="text-white/80 hover:text-white">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+          </div>
+          
+          <div class="p-6 overflow-y-auto flex-1">
+             <!-- Summary -->
+             <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4 flex justify-between items-center">
+                <div>
+                    <div class="text-xs text-gray-500 uppercase font-semibold">Total Nota Belanja</div>
+                    <div class="text-xl font-bold text-gray-800">{{ formatCurrency(inventoryForm.targetAmount) }}</div>
+                </div>
+                <div class="text-right">
+                    <div class="text-xs text-gray-500 uppercase font-semibold">Total Input Barang</div>
+                    <div class="text-xl font-bold" :class="inventoryDifference === 0 ? 'text-green-600' : 'text-red-600'">
+                        {{ formatCurrency(inventoryForm.currentTotal) }}
+                    </div>
+                </div>
+             </div>
+             
+             <!-- Warning if mismatch -->
+             <div v-if="inventoryDifference !== 0" class="bg-red-50 text-red-700 px-4 py-2 rounded-lg text-sm mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                <span>Selisih: <b>{{ formatCurrency(Math.abs(inventoryDifference)) }}</b>. Total harus sama persis.</span>
+             </div>
+
+             <!-- Item Input List -->
+             <div class="space-y-3 pb-24">
+                 <div v-for="(item, index) in inventoryItems" :key="index" class="flex gap-2 items-start bg-white border border-gray-100 p-2 rounded shadow-sm relative z-0" :class="{'z-10 ring-2 ring-purple-100': activeInventoryRow === index}">
+                    <div class="flex-1 relative">
+                         <label class="block text-[10px] text-gray-500 mb-0.5">Nama Barang</label>
+                         <input 
+                            v-model="item.name" 
+                            type="text" 
+                            placeholder="Ketik untuk cari..." 
+                            class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-purple-500 outline-none" 
+                            required
+                            @focus="activeInventoryRow = index"
+                            @blur="handleInputBlur"
+                            autocomplete="off"
+                         >
+                         
+                         <!-- Autocomplete Dropdown -->
+                         <div v-if="activeInventoryRow === index && getFilteredProducts(item.name).length > 0" class="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-xl max-h-48 overflow-y-auto z-50">
+                             <div 
+                                v-for="prod in getFilteredProducts(item.name)" 
+                                :key="prod.id"
+                                @mousedown.prevent="selectInventoryProduct(index, prod)"
+                                class="px-3 py-2 hover:bg-purple-50 cursor-pointer text-sm border-b border-gray-50 last:border-0"
+                             >
+                                 <div class="font-medium text-gray-800">{{ prod.item_name }}</div>
+                                 <div class="text-xs text-gray-500 flex justify-between">
+                                     <span class="text-gray-400">History</span>
+                                     <span>Rp {{ formatNumber(prod.buy_price) }}</span>
+                                 </div>
+                             </div>
+                         </div>
+                    </div>
+                    <div class="w-20">
+                         <label class="block text-[10px] text-gray-500 mb-0.5">Qty</label>
+                         <input v-model.number="item.qty" type="number" min="1" placeholder="1" @input="updateInventoryTotal" class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm text-center focus:ring-1 focus:ring-purple-500 outline-none" required>
+                    </div>
+                    <div class="w-32">
+                         <label class="block text-[10px] text-gray-500 mb-0.5">Harga Beli</label>
+                         <input v-model.number="item.buy_price" type="number" min="0" placeholder="0" @input="updateInventoryTotal" class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm text-right focus:ring-1 focus:ring-purple-500 outline-none" required>
+                    </div>
+                    <div class="pt-6">
+                        <button type="button" @click="removeInventoryItem(index)" class="text-red-400 hover:text-red-600 p-1">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        </button>
+                    </div>
+                 </div>
+             </div>
+             
+             <button @click="addInventoryItem" class="mt-4 w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 font-medium hover:border-purple-500 hover:text-purple-600 transition flex items-center justify-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                Tambah Baris Barang
+             </button>
+
+          </div>
+
+          <div class="p-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3 flex-shrink-0">
+             <button @click="closeInventoryModal" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition">Batal</button>
+             <button 
+                @click="submitInventorySettle" 
+                :disabled="loadingInventorySettle || inventoryDifference !== 0"
+                class="px-6 py-2 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed shadow-lg shadow-purple-200"
+             >
+                <span v-if="loadingInventorySettle">Menyimpan...</span>
+                <span v-else>Simpan & Update Stok</span>
+             </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+    
     <!-- Toast Notification -->
     <div v-if="toast.show" class="fixed top-4 right-4 z-50 animate-fade-in-down">
       <div class="bg-white rounded-lg shadow-2xl border-l-4 p-4" :class="toast.type === 'success' ? 'border-green-500' : 'border-red-500'">
@@ -506,10 +628,19 @@ import { ref, reactive, onMounted, computed, onUnmounted } from 'vue';
 const loading = ref(false);
 const loadingExpenses = ref(true);
 const expenses = ref([]);
+const products = ref([]); // For autocomplete
 const categories = ref([]);
 const totalIncome = ref(0); // Total pemasukan dari orders
 const showExpenseModal = ref(false); // Modal state
 const showTransferModal = ref(false); // Transfer modal state
+const showInventoryModal = ref(false); // Inventory modal state
+const loadingInventorySettle = ref(false);
+
+const inventoryForm = reactive({
+    transactionId: null,
+    targetAmount: 0,
+    currentTotal: 0
+});
 
 // Date filter
 const dateFilter = reactive({
@@ -555,6 +686,134 @@ const transferForm = reactive({
   description: 'Transfer ke Kas Besar',
   notes: ''
 });
+
+// Inventory Logic
+const inventoryItems = ref([]);
+const activeInventoryRow = ref(null);
+const inventoryDifference = computed(() => {
+    return inventoryForm.currentTotal - inventoryForm.targetAmount;
+});
+
+function updateInventoryTotal() {
+    let total = 0;
+    inventoryItems.value.forEach(item => {
+        total += (Number(item.qty) || 0) * (Number(item.buy_price) || 0);
+    });
+    inventoryForm.currentTotal = total;
+}
+
+function formatNumber(val) {
+   return new Intl.NumberFormat('id-ID').format(val || 0);
+}
+
+// Fetch Products for Autocomplete
+async function fetchInventoryHistory() {
+    try {
+        const res = await fetch('/api/Beauty_Salon/CashManagement/inventoryHistory');
+        const d = await res.json();
+        if (d.success) products.value = d.data;
+    } catch(e) {
+        console.error('Error fetching inventory history', e);
+    }
+}
+
+// Helper filter products
+function getFilteredProducts(query) {
+    if (!query) return [];
+    const q = query.toLowerCase();
+    // Return max 5 matches
+    return products.value.filter(p => p.item_name.toLowerCase().includes(q)).slice(0, 5);
+}
+
+// Select product from autocomplete
+function selectInventoryProduct(index, prod) {
+    if (inventoryItems.value[index]) {
+        inventoryItems.value[index].name = prod.item_name;
+        // Auto fill price
+        inventoryItems.value[index].buy_price = Number(prod.buy_price) || 0; 
+        updateInventoryTotal();
+    }
+    activeInventoryRow.value = null;
+}
+
+function handleInputBlur() {
+    setTimeout(() => {
+        activeInventoryRow.value = null;
+    }, 200);
+}
+
+function addInventoryItem() {
+    inventoryItems.value.push({
+        name: '',
+        qty: 1,
+        buy_price: 0
+    });
+}
+
+function removeInventoryItem(index) {
+    inventoryItems.value.splice(index, 1);
+    updateInventoryTotal();
+}
+
+
+
+// Check if transaction is 'Persediaan Barang'
+function isInventoryTransaction(trx) {
+    if (!trx.category_name) return false;
+    const name = trx.category_name.toLowerCase();
+    return name.includes('persediaan') || name.includes('stok');
+}
+
+// Open Inventory Modal
+function openInventoryModal(trx) {
+    inventoryForm.transactionId = trx.id;
+    inventoryForm.targetAmount = Number(trx.amount);
+    inventoryForm.currentTotal = 0;
+    inventoryItems.value = [{ name: '', qty: 1, buy_price: 0 }]; // Start with 1 row
+    showInventoryModal.value = true;
+    updateInventoryTotal();
+    // Ensure products are loaded
+    if (products.value.length === 0) fetchInventoryHistory();
+}
+
+function closeInventoryModal() {
+    showInventoryModal.value = false;
+    inventoryItems.value = [];
+}
+
+// Submit Inventory Settle
+async function submitInventorySettle() {
+    if (inventoryDifference.value !== 0) {
+        showToast('Jumlah total barang harus sama dengan nilai nota!', 'error');
+        return;
+    }
+    
+    loadingInventorySettle.value = true;
+    try {
+        const res = await fetch('/api/Beauty_Salon/CashManagement/settleInventory', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                transaction_id: inventoryForm.transactionId,
+                items: inventoryItems.value
+            })
+        });
+        
+        const d = await res.json();
+        if (d.success) {
+            showToast('✅ Barang berhasil disimpan & stok diupdate!');
+            closeInventoryModal();
+            fetchExpenses(); // Refresh list to update status
+        } else {
+            showToast(d.message || 'Gagal menyimpan', 'error');
+        }
+    } catch(e) {
+        console.error(e);
+        showToast('Terjadi kesalahan sistem', 'error');
+    } finally {
+        loadingInventorySettle.value = false;
+    }
+}
 
 // Computed: Filter categories by search and is_expense
 const filteredExpenseCategories = computed(() => {
@@ -746,8 +1005,13 @@ async function submitTransfer() {
 
 // Submit expense
 async function submitExpense() {
+  if (loading.value) return; // Prevent double submit
+  if (expenseForm.amount <= 0) {
+    showToast('Jumlah harus lebih dari 0', 'error');
+    return;
+  }
   if (!expenseForm.category_id) {
-    showToast('Mohon pilih kategori', 'error');
+    showToast('Pilih kategori terlebih dahulu', 'error');
     return;
   }
   

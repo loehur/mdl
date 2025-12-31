@@ -90,6 +90,7 @@ class Orders extends Controller
                 'salon_id' => $salon_id,
                 'customer_id' => $body['customer_id'],
                 'order_date' => date('Y-m-d H:i:s'),
+                'booking_date' => $body['booking_date'] ?? null,
                 'total_price' => $total_price,
                 'status' => 'pending',
                 'order_items' => $order_items,
@@ -114,6 +115,79 @@ class Orders extends Controller
             }
         } catch (\Exception $e) {
             error_log("Orders create error: " . $e->getMessage());
+            $this->error('Terjadi kesalahan: ' . $e->getMessage(), 500);
+        }
+    }
+    
+    /**
+     * POST - Update existing order (replace items data)
+     */
+    public function update($id)
+    {
+        if (!$this->isPost()) {
+            $this->error('Method not allowed', 405);
+        }
+
+        try {
+            $body = $this->getBody();
+            // Validate basic inputs (similar to create)
+            $this->validate($body, ['customer_id', 'order_items']);
+
+            $salon_id = $_SESSION['salon_user_session']['user']['salon_id'] ?? null;
+            $user_id = $_SESSION['salon_user_session']['user']['id'] ?? null;
+            
+            if (!$salon_id) {
+                $this->error('Session tidak valid', 401);
+            }
+
+            // Verify existence
+            $existing = $this->db($this->db_index)
+                ->get_where('orders', ['id' => $id, 'salon_id' => $salon_id], 1)
+                ->row_array();
+
+            if (!$existing) {
+                $this->error('Order tidak ditemukan', 404);
+            }
+            
+            // Allow update only if not completed/cancelled (optional business rule)
+            if (in_array($existing['status'], ['completed', 'cancelled'])) {
+                 $this->error('Order tidak dapat diubah karena status sudah ' . $existing['status'], 400);
+            }
+
+            // Calculate new total price
+            $total_price = 0;
+            foreach ($body['order_items'] as $item) {
+                $total_price += $item['price'] ?? 0;
+            }
+
+            // Prepare Order Items
+            // The frontend sends full list of items. 
+            // We should use that to replace the current JSON.
+            // Note: If we need to preserve some state (like worker_id in steps),
+            // the frontend must have sent it back. We assume frontend sends full hydrated object.
+            
+            $order_items = json_encode($body['order_items']);
+
+            $data = [
+                'customer_id' => $body['customer_id'],
+                'total_price' => $total_price,
+                'booking_date' => $body['booking_date'] ?? null,
+                'order_items' => $order_items,
+                'notes' => $body['notes'] ?? null,
+                'updated_at' => date('Y-m-d H:i:s'),
+                'updated_by' => $user_id
+            ];
+
+            $this->db($this->db_index)->update('orders', $data, ['id' => $id]);
+
+            $this->json([
+                'success' => true,
+                'message' => 'Order berhasil diperbarui',
+                'data' => array_merge($existing, $data, ['order_items' => $body['order_items']])
+            ]);
+            
+        } catch (\Exception $e) {
+            error_log("Orders update error: " . $e->getMessage());
             $this->error('Terjadi kesalahan: ' . $e->getMessage(), 500);
         }
     }
@@ -205,6 +279,28 @@ class Orders extends Controller
             }
 
             $this->db($this->db_index)->update('orders', $data, ['id' => $id]);
+
+            // Record inventory sales if order contains inventory items
+            if ($body['status'] === 'completed') {
+                $order_items = json_decode($existing['order_items'], true);
+                foreach ($order_items as $item) {
+                    // Check if this is an inventory item (has item_id field)
+                    if (isset($item['item_id']) && !empty($item['item_id'])) {
+                        // Insert into inventory_sales
+                        $this->db($this->db_index)->insert('inventory_sales', [
+                            'salon_id' => $salon_id,
+                            'order_id' => $id,
+                            'item_id' => $item['item_id'],
+                            'item_name' => $item['product_name'] ?? $item['item_name'] ?? 'Unknown',
+                            'qty' => $item['qty'] ?? 1,
+                            'sell_price' => $item['price'] ?? 0,
+                            'buy_price' => $item['buy_price'] ?? null,
+                            'total_price' => ($item['price'] ?? 0) * ($item['qty'] ?? 1),
+                            'created_at' => date('Y-m-d H:i:s')
+                        ]);
+                    }
+                }
+            }
 
             $this->json([
                 'success' => true,
