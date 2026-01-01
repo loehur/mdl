@@ -171,7 +171,7 @@ $totalTerima = 0;
                     $penjualan = "Non";
                     foreach ($this->dPenjualan as $jp) {
                       if ($jp['id_penjualan_jenis'] == $jenisJualID) {
-                        $id_penjualan = "'".$jp['id_penjualan_jenis']."'";
+                        $id_penjualan = $jp['id_penjualan_jenis'];
                         $penjualan = $jp['penjualan_jenis'];
                       }
                     }

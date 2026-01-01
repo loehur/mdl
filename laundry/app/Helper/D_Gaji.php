@@ -159,7 +159,7 @@ class D_Gaji extends Controller
                     $penjualan = "Non";
                     foreach ($jenis_penjualan as $jp) {
                         if ($jp['id_penjualan_jenis'] == $jenisJualID) {
-                            $id_penjualan = "'".$jp['id_penjualan_jenis']."'";
+                            $id_penjualan = $jp['id_penjualan_jenis'];
                             $penjualan = $jp['penjualan_jenis'];
                         }
                     }
