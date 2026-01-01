@@ -143,10 +143,10 @@ class Gaji extends Controller
       $this->db(0)->update($table, $set, $where);
    }
 
-   function penetapan($userID, $date, $book)
+   function penetapan($userID, $date)
    {
-      $data_olah = $this->helper("D_Gaji")->data_olah($userID, $date, $book);
-      $data = $this->helper("D_Gaji")->rekap_final($data_olah, $date, $userID, $book);
+      $data_olah = $this->helper("D_Gaji")->data_olah($userID, $date);
+      $data = $this->helper("D_Gaji")->rekap_final($data_olah, $date, $userID);
       $tetapkan = $this->helper('D_Gaji')->tetapkan($userID, $date, $data);
       return $tetapkan;
    }
@@ -156,7 +156,6 @@ class Gaji extends Controller
    public function tetapkan($mode = 0)
    {
       $date = isset($_POST['date']) ? $_POST['date'] : date('Y-m', strtotime("-1 month"));
-      $book = substr($date, 0, 4);
 
       if ($mode == 1) {
          $userID = $_POST['user_id'];
@@ -212,7 +211,7 @@ class Gaji extends Controller
             exit();
          }
 
-         $tetapkan = $this->penetapan($userID, $date, $book);
+         $tetapkan = $this->penetapan($userID, $date);
          echo $tetapkan;
       } else {
          $karyawan = $this->db(0)->get_cols_where("user", "id_user", "en = 1", 1);
@@ -271,7 +270,7 @@ class Gaji extends Controller
                exit();
             }
 
-            $tetapkan = $this->penetapan($userID, $date, $book);
+            $tetapkan = $this->penetapan($userID, $date);
          }
          echo "PENETAPAN GAJI PERIODE " . $date . " SELESAI\n";
       }
