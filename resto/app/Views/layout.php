@@ -111,14 +111,6 @@ if ($log_mode == 1) {
                         <?php } ?>
                     </div>
                 <?php } ?>
-
-                <div class="col-auto ps-0 me-auto">
-                    <select id="selectBook" class="form-control bg-info">
-                        <?php for ($y = URL::Y_START; $y <= date('Y'); $y++) { ?>
-                            <option class="font-weight-bold" value="<?= $y ?>" <?= ($_SESSION['resto_user']['book'] == $y) ? "selected" : '' ?>><?= $y ?></option>
-                        <?php } ?>
-                    </select>
-                </div>
                 <div class="col-auto ps-0">
                     <a class="refresh" href="#">
                         <span class="btn btn-outline-success"><i class="fas fa-sync"></i></span>
