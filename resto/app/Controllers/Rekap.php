@@ -113,7 +113,9 @@ class Rekap extends Controller
       $col = "price";
       $where_prepost = $whereCabang . "tr_status = 1 AND insertTime LIKE '" . $today . "%'";
       $cost_pre = $this->db(0)->sum_col_where('prepaid', $col, $where_prepost);
+      if (is_array($cost_pre)) $cost_pre = 0;
       $cost_post = $this->db(0)->sum_col_where('postpaid', $col, $where_prepost);
+      if (is_array($cost_post)) $cost_post = 0;
       $prepost_cost = $cost_pre + $cost_post;
 
       //PENARIKAN
