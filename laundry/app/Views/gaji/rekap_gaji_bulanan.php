@@ -661,19 +661,48 @@ $totalTerima = 0;
   $('#btnPrintGaji').on('click', function() {
     var btn = $(this);
     
-    // Clone element print dan bersihkan
-    var printElement = $('#print').clone();
-    // Hapus border dan styling yang tidak perlu untuk printer
-    printElement.css({
-      'border': 'none',
-      'padding': '0',
-      'width': 'auto',
-      'background-color': 'transparent'
+    // Ambil table HTML
+    var printTable = $('#print table').clone();
+    
+    // Process table rows menjadi format text
+    var lines = [];
+    printTable.find('tr').each(function() {
+      var row = $(this);
+      var cells = row.find('td');
+      
+      // Check if dashRow
+      if (row.attr('id') === 'dashRow') {
+        lines.push('<tr><td>--------------------------------</td></tr>');
+        return;
+      }
+      
+      if (cells.length === 0) return;
+      
+      if (cells.length === 1) {
+        // Single column - center align
+        var text = cells.eq(0).html().replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]+>/g, '').trim();
+        lines.push('<tr><td>' + text + '</td></tr>');
+      } else if (cells.length === 2) {
+        // Two columns - left and right
+        var left = cells.eq(0).html().replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').trim();
+        var right = cells.eq(1).html().replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').trim();
+        
+        // Split by newline if exists
+        var leftLines = left.split('\n');
+        var rightLines = right.split('\n');
+        var maxLines = Math.max(leftLines.length, rightLines.length);
+        
+        for (var i = 0; i < maxLines; i++) {
+          var l = leftLines[i] || '';
+          var r = rightLines[i] || '';
+          lines.push('<tr><td>' + l + '</td><td>' + r + '</td></tr>');
+        }
+      }
     });
     
-    var printContent = printElement.html();
+    var printText = lines.join('');
     
-    if (!printContent) {
+    if (!printText) {
       alert('Tidak ada data untuk dicetak');
       return;
     }
@@ -682,14 +711,14 @@ $totalTerima = 0;
     var originalHtml = btn.html();
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Printing...');
     
-    // Kirim ke print server
+    // Kirim ke print server dengan parameter 'text' bukan 'html'
     fetch('http://localhost:3000/print', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        html: printContent,
+        text: printText,  // 'text' bukan 'html'
         margin_top: <?= $this->mdl_setting["margin_printer_top"] ?? 0 ?>,
         feed_lines: <?= $this->mdl_setting["margin_printer_bottom"] ?? 0 ?>
       })
@@ -699,25 +728,20 @@ $totalTerima = 0;
       if (!res.ok) {
         alert('Gagal print: ' + res.status);
       } else {
-        // Success feedback (optional)
+        // Success feedback
         btn.html('<i class="fas fa-check"></i> Printed!');
         setTimeout(function() {
           btn.html(originalHtml);
+          btn.prop('disabled', false);
         }, 2000);
+        return;
       }
-      return res;
+      btn.prop('disabled', false).html(originalHtml);
     })
     .catch(function(err) {
       console.error('Print error:', err);
       alert('Gagal mengirim ke printer. Pastikan print server berjalan di localhost:3000');
-    })
-    .finally(function() {
-      setTimeout(function() {
-        btn.prop('disabled', false);
-        if (btn.html().includes('Printing')) {
-          btn.html(originalHtml);
-        }
-      }, 500);
+      btn.prop('disabled', false).html(originalHtml);
     });
   });
 
