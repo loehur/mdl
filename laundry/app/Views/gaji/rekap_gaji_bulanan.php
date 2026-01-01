@@ -427,7 +427,10 @@ $totalTerima = 0;
 
   <?php if ($nama_user <> "") { ?>
     <div class="col p-1 bg-white mr-4 mt-1" id="tes">
-      <div id="print" style="width:50mm; background-color:white; padding:10px; border:1px solid #ddd; margin-bottom:10px; font-family: 'Courier New', monospace;">
+      <button type="button" class="btn btn-primary btn-sm" id="btnPrintGaji">
+        <i class="fas fa-print me-1"></i> Print Slip Gaji
+      </button>
+      <div id="print">
         <table>
           <tr>
             <td><?= $this->dCabang['nama'] ?> - <?= $this->dCabang['kode_cabang'] ?></td>
@@ -466,9 +469,6 @@ $totalTerima = 0;
           </tr>
         </table>
       </div>
-      <button type="button" class="btn btn-primary btn-sm" id="btnPrintGaji">
-        <i class="fas fa-print me-1"></i> Print Slip Gaji
-      </button>
     </div>
   <?php } ?>
 </div>
