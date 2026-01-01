@@ -235,26 +235,39 @@ class WAGenerator extends Controller
         $cols = "id_harga, SUM(qty) as saldo";
         $data = $this->db(0)->get_cols_where('member', $cols, $where, 1);
         $saldo = [];
-        if (is_array($data) && !empty($data)) {
-        foreach ($data as $a) {
-            if (!is_array($a)) continue; // Skip jika bukan array
-            $id_harga = $a['id_harga'];
-            $where_member = "bin = 0 AND id_pelanggan = $id_pelanggan AND id_harga = $id_harga";
-            $saldoManualResult = $this->db(0)->get_cols_where('member', 'SUM(qty) as saldo', $where_member, 0);
-            $saldoManual = is_array($saldoManualResult) ? ($saldoManualResult['saldo'] ?? 0) : 0;
-            
-            $where_sale = $this->wCabang . " AND id_pelanggan = $id_pelanggan AND member = 1 AND bin = 0 AND id_harga = $id_harga";
-            $saldoPenguranganResult = $this->db(0)->get_cols_where('sale', 'SUM(qty) as saldo', $where_sale, 0);
-            $saldoPengurangan = is_array($saldoPenguranganResult) ? ($saldoPenguranganResult['saldo'] ?? 0) : 0;
-            
-            $saldo_akhir = $saldoManual - $saldoPengurangan;
-            $unit = $this->helper('Saldo')->unit_by_idHarga($id_harga);
+        
+        // Debug: check data type
+        if (!empty($data) && is_array($data)) {
+            foreach ($data as $a) {
+                // Handle jika $a adalah single row array atau bukan array
+                if (!is_array($a)) {
+                    // Jika $data adalah single row, treat $data as the row itself
+                    $a = $data;
+                }
+                
+                if (!isset($a['id_harga'])) continue;
+                
+                $id_harga = $a['id_harga'];
+                
+                // Gunakan sum_col_where yang lebih reliable
+                $where_member = "bin = 0 AND id_pelanggan = $id_pelanggan AND id_harga = $id_harga";
+                $saldoManual = $this->db(0)->sum_col_where('member', 'qty', $where_member) ?? 0;
+                
+                $where_sale = $this->wCabang . " AND id_pelanggan = $id_pelanggan AND member = 1 AND bin = 0 AND id_harga = $id_harga";
+                $saldoPengurangan = $this->db(0)->sum_col_where('sale', 'qty', $where_sale) ?? 0;
+                
+                $saldo_akhir = floatval($saldoManual) - floatval($saldoPengurangan);
+                $unit = $this->helper('Saldo')->unit_by_idHarga($id_harga);
 
-            if ($saldo_akhir > 0) {
-                $saldo[$id_harga] = number_format($saldo_akhir, 2) . $unit;
+                if ($saldo_akhir > 0) {
+                    $saldo[$id_harga] = number_format($saldo_akhir, 2) . $unit;
+                }
+                
+                // Jika $data bukan array of arrays, break setelah proses satu kali
+                if (!is_array($data[0] ?? null)) break;
             }
-        } 
-        } // End if (is_array($data))
+        }
+        
         if (!empty($saldo)) {
             $totalText .= "\n";
             foreach ($saldo as $key => $val) {
