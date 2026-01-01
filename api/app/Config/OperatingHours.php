@@ -19,7 +19,12 @@ if (file_exists($envFile)) {
 }
 
 // Check if OPERATING_HOURS constant exists (defined in Env.php)
-$envHours = defined('OPERATING_HOURS') ? OPERATING_HOURS : [];
+$envHours = [];
+if (defined('OPERATING_HOURS')) {
+    $envHours = OPERATING_HOURS;
+} elseif (defined('Env::operating_hours')) {
+    $envHours = Env::operating_hours;
+}
 
 // Default configuration (will be overridden by Env.php if set)
 return [

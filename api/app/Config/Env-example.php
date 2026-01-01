@@ -3,9 +3,9 @@
 class Env
 {
     const MODE = 'dev';
-    const WA_VERIFY_TOKEN = 'fgsfg';
-    const WA_API_KEY = 'fsdgsfdg';
-    const WA_PHONE_NUMBER = '+dfsgsfdgsfdg';
+    const WA_VERIFY_TOKEN = 'ay4hIbusayangJagguF0rev3r';
+    const WA_API_KEY = '4d4fe66504181f862fb8aa3b4358ee0f';
+    const WA_PHONE_NUMBER = '+6281170706611';
 
     public static function isProduction()
     {
@@ -25,7 +25,7 @@ class Env
         'working_days' => [1, 2, 3, 4, 5, 6, 7], // Senin - Minggu
         'timezone' => 'Asia/Jakarta',
         'holidays' => [
-            '2025-01-01', // Tahun Baru
+            '2026-01-01', // Tahun Baru
         ],
     ];
 
@@ -53,8 +53,8 @@ class Env
     const OPENAI_MODEL = '0'; // Optional, default: gpt-4o-mini
 
     const CMS_USER_ROLES = [
-        'admin' => ['DEV', 'AYAH', 'IBU', 'TABLET'],
+        'admin' => ['A', 'B', 'C', 'D'],
         'crew' => ['3', '4', '5', '6', '10', '11', '12', '13', '14'],
-        'driver' => ['DRIVER1', 'DRIVER2', 'ADI']
+        'driver' => ['DRIVER1', 'DRIVER2']
     ];
 }
