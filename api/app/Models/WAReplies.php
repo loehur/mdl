@@ -185,19 +185,15 @@ class WAReplies
 
     private function handleNota($phoneIn, $waNumber)
     {
-        \Log::write("🔔 handleNota CALLED | waNumber: $waNumber | phoneIn: $phoneIn", 'wa_nota_debug');
-        
         $waService = $this->getWaService();
 
         // Use DB(1)
         $db1 = DB::getInstance(1);
 
-        // Derive phon Terima kasihom waNumber (+628... or 628...)
+        // Derive phone from waNumber (+628... or 628...)
         $cleanPhone = preg_replace('/[^0-9]/', '', $waNumber);
         $phone0 = '0' . substr($cleanPhone, 2);
         $limitTime = date('Y-m-d H:i:s', strtotime('-48 hours'));
-        
-        \Log::write("📱 Phone converted: $phone0 | limitTime: $limitTime", 'wa_nota_debug');
 
         $sql = "SELECT * FROM notif 
                 WHERE tipe = 1 AND state = 'pending' 
@@ -206,8 +202,6 @@ class WAReplies
                 ORDER BY insertTime ASC";
         
         $pendingNotifs = $db1->query($sql)->result_array();
-        
-        \Log::write("📋 Pending notifs count: " . count($pendingNotifs), 'wa_nota_debug');
 
         if (!empty($pendingNotifs)) {
              foreach ($pendingNotifs as $notif) {
@@ -248,18 +242,13 @@ class WAReplies
                  }
              }
          } else {
-            \Log::write("🔍 No pending notifs, searching for customer...", 'wa_nota_debug');
-            
             // Find customer
             $where = "nomor_pelanggan IN ($phoneIn)";
             $pelanggan = $db1->query("SELECT id_pelanggan, nama_pelanggan FROM pelanggan WHERE $where")->result_array();
             $id_pelanggans = array_column($pelanggan, 'id_pelanggan');
             
-            \Log::write("👤 Customer found: " . count($id_pelanggans) . " | IDs: " . implode(',', $id_pelanggans), 'wa_nota_debug');
-            
-            // FIX: Check if customer exists BEFORE accessing array
+            // Check if customer exists BEFORE accessing array
             if (empty($id_pelanggans)) {
-                \Log::write("❌ Customer NOT registered, sending noRegisterText", 'wa_nota_debug');
                 // Customer NOT registered - send message and exit
                 $res = $waService->sendFreeText($waNumber, $this->noRegisterText);
                 if ($res['success']) {
@@ -280,15 +269,11 @@ class WAReplies
             $id_pelanggans_active = array_column($sales, 'id_pelanggan');
             $noRefs = array_column($sales, 'no_ref');
             
-            \Log::write("🛒 Sales found: " . count($sales) . " | Refs: " . implode(',', $noRefs), 'wa_nota_debug');
-            
             if (!empty($noRefs)) {
                 // Remove refs that already have a notification of tipe 1
                 $noRefsIn = "'" . implode("','", $noRefs) . "'";
                 $existingRefs = array_column($db1->query("SELECT no_ref FROM notif WHERE tipe = 1 AND no_ref IN ($noRefsIn)")->result_array(), 'no_ref');
                 $missingRefs = array_diff($noRefs, $existingRefs);
-                
-                \Log::write("📝 Missing refs (need to generate): " . count($missingRefs) . " | Refs: " . implode(',', $missingRefs), 'wa_nota_debug');
                 
                 if (count($missingRefs) > 0) {
                     foreach ($missingRefs as $ref) {
@@ -302,15 +287,11 @@ class WAReplies
                         $context = stream_context_create($opts);
                         
                         $apiUrl = "https://ml.nalju.com/Get/wa_nota/" . urlencode($ref);
-                        \Log::write("🌐 Calling API: $apiUrl", 'wa_nota_debug');
-                        
                         $apiResponse = @file_get_contents($apiUrl, false, $context);
                         
                         if ($apiResponse) {
-                            \Log::write("✅ API Response received | Length: " . strlen($apiResponse), 'wa_nota_debug');
                             $responseData = json_decode($apiResponse, true);
                             if (!empty($responseData['text'])) {
-                                \Log::write("📄 Text from API: " . substr($responseData['text'], 0, 100) . "...", 'wa_nota_debug');
                                 // Insert Notif
                                 $id_notif = (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9);
                                 $insertData = [
