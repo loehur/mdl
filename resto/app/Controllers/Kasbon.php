@@ -29,10 +29,10 @@ class Kasbon extends Controller
 
       $setOne = "id_client = " . $karyawan . " AND insertTime LIKE '" . $today . "%'";
       $where = $this->wCabang . " AND " . $setOne;
-      $data_main = $this->db(date('Y'))->count_where('kas', $where);
+      $data_main = $this->db(0)->count_where('kas', $where);
 
       if ($data_main < 1) {
-         print_r($this->db(date('Y'))->insertCols('kas', $cols, $vals));
+         print_r($this->db(0)->insertCols('kas', $cols, $vals));
       } else {
          echo "Tidak dapat Cashbon 2x/Hari";
       }

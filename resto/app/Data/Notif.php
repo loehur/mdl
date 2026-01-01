@@ -13,7 +13,7 @@ class Notif extends Controller
         $message_id = isset($res['data']['data']['id']) ? $res['data']['data']['id'] : '';
         
         $vals =  "'" . date('Y-m-d H:i:s') . "'," . $id_cabang . ",'" . $today . "','" . $hp . "','" . $otp . "',6,'" . $message_id . "','" . $status . "'";
-        $do = $this->db(date('Y'))->insertCols('notif', $cols, $vals);
+        $do = $this->db(0)->insertCols('notif', $cols, $vals);
         return $do;
     }
 
@@ -21,7 +21,7 @@ class Notif extends Controller
     {
         $where = "phone = '" . $hp . "' AND no_ref = '" . $date . "' AND state NOT IN ('delivered','read') AND id_api_2 = ''";
 
-        $cek = $this->db(date('Y'))->get_where_row('notif', $where);
+        $cek = $this->db(0)->get_where_row('notif', $where);
         if (isset($cek['text'])) {
             return $cek;
         }
