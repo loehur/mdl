@@ -161,6 +161,23 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
                                                     } ?>>12</option>
             </select>
           </td>
+          <td>
+            <label>Tahun</label>
+            <select name="y" class="form-control">
+              <?php
+              $startYear = 2022;
+              $endYear = date('Y');
+              for ($y = $startYear; $y <= $endYear; $y++) {
+                if ($y == $currentYear) {
+                  echo '<option value="' . $y . '" selected>' . $y . '</option>';
+                } else {
+                  echo '<option value="' . $y . '">' . $y . '</option>';
+                }
+              }
+              ?>
+            </select>
+          </td>
+          
           <td style="vertical-align: bottom;">
             <button class="btn btn-outline-success w-100">Cek</button>
           </td>
