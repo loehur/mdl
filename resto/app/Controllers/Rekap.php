@@ -23,7 +23,7 @@ class Rekap extends Controller
             $viewData = 'Rekap/main';
 
             if (isset($_POST['m'])) {
-               $today = db(0) . "-" . $_POST['m'] . "-" . $_POST['d'];
+               $today = $_POST['y'] . "-" . $_POST['m'] . "-" . $_POST['d'];
                $dataTanggal = array('tanggal' => $_POST['d'], 'bulan' => $_POST['m'], 'tahun' => $_POST['y']);
             } else {
                $today = date('Y-m-d');
