@@ -11,12 +11,12 @@ class Riwayat extends Controller
    public function index()
    {
       $layout = ['title' => 'Riwayat Pesanan'];
-      $data['ref'] = $this->db(db(0))->get_where('ref', "step <> 0 ORDER BY id DESC LIMIT 100", 'id');
+      $data['ref'] = $this->db(0)->get_where('ref', "step <> 0 ORDER BY id DESC LIMIT 100", 'id');
 
       $order = [];
       $total = [];
       foreach ($data['ref'] as $key => $r) {
-         $order[$key] = $this->db(db(0))->get_where('pesanan', "ref = '" . $key . "'");
+         $order[$key] = $this->db(0)->get_where('pesanan', "ref = '" . $key . "'");
          $total[$key] = 0;
          foreach ($order[$key] as $dk) {
             $subTotal = ($dk['harga'] * $dk['qty']) - $dk['diskon'];
@@ -35,8 +35,8 @@ class Riwayat extends Controller
    {
       $viewData = __CLASS__ . '/cart';
       $data['menu'] = $_SESSION['resto_menu'];
-      $data['order'] = $this->db(db(0))->get_where('pesanan', "ref = '" . $ref . "'", "id_menu");
-      $data['bayar'] = $this->db(db(0))->get_where('kas', "ref = '" . $ref . "' AND status_mutasi <> 2");
+      $data['order'] = $this->db(0)->get_where('pesanan', "ref = '" . $ref . "'", "id_menu");
+      $data['bayar'] = $this->db(0)->get_where('kas', "ref = '" . $ref . "' AND status_mutasi <> 2");
       $this->view($viewData, $data);
    }
 }
