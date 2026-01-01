@@ -14,6 +14,21 @@ return [
         PENTING: JIKA sapaan diikuti kalimat permintaan (misal: 'Bang, baju dulukan', 'Kak, jemput ya'), ini BUKAN PEMBUKA."
     ],
 
+    'NOTA' => [
+        'max_length' => 100,
+        'case' => 0,
+        'auto_reply' => true,
+        'patterns' => [
+            '/^\s*(bon|nota+|stru*k|bil+|ta*gi*ha*n|re*si)\s*$/i',
+        ],
+        'ai_prompt' => "User meminta:\n
+        | bon | nota | struk | tagihan | bukti terima |\n
+        ATAU user menanyakan TOTAL/BIAYA laundrynya, seperti:\n
+        | berapa total punya saya? | berapa biaya laundry saya? | totalnya berapa? | berapa tagihan? |\n
+        Jika user bertanya 'berapa' + (total/biaya/tagihan/berat) = NOTA\n
+        atau yang menurut anda sangat yakin sebagai permintaan nota/bon/informasi tagihan"
+    ],
+
     'STATUS' => [
         'max_length' => 100,
         'case' => 0,

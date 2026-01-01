@@ -182,6 +182,186 @@ class WAReplies
             'case' => 4
         ];
     }
+
+    private function handleNota($phoneIn, $waNumber)
+    {
+        $waService = $this->getWaService();
+
+        // Use DB(1)
+        $db1 = DB::getInstance(1);
+
+        // Derive phon Terima kasihom waNumber (+628... or 628...)
+        $cleanPhone = preg_replace('/[^0-9]/', '', $waNumber);
+        $phone0 = '0' . substr($cleanPhone, 2);
+        $limitTime = date('Y-m-d H:i:s', strtotime('-48 hours'));
+
+        $sql = "SELECT * FROM notif 
+                WHERE tipe = 1 AND state = 'pending' 
+                AND insertTime >= '$limitTime' 
+                AND phone IN ($phoneIn)
+                ORDER BY insertTime ASC";
+        
+        $pendingNotifs = $db1->query($sql)->result_array();
+
+        if (!empty($pendingNotifs)) {
+             foreach ($pendingNotifs as $notif) {
+                 $idNotif = $notif['id_notif'];
+                 
+                 // 🔒 LOCK: Update state to 'sending' first to prevent race condition
+                 $success = $db1->update('notif', 
+                     ['state' => 'sending'], 
+                     ['id_notif' => $idNotif, 'state' => 'pending'] // Only update if still pending
+                 );
+                 
+                 // If lock failed (already being sent by another process), skip
+                 if (!$success || $db1->affected_rows() <= 0) {
+                     continue;
+                 }
+                 
+                 // Send message (Free text is allowed now since customer just messaged us)
+                 $res = $waService->sendFreeText($waNumber, $notif['text']);
+                 
+                 $status = ($res['success'] ?? false) ? 'sent' : 'failed';
+                 $msgId = $res['data']['id'] ?? ($res['data']['message_id'] ?? null);
+                 $wamid = $res['data']['wamid'] ?? null;
+                 
+                 $updateData = ['state' => $status];
+                 if ($msgId) {
+                     $updateData['id_api'] = $msgId;
+                 }
+                 
+                 $updated = $db1->update('notif', $updateData, ['id_notif' => $notif['id_notif']]);
+                 if (!$updated) {
+                     \Log::write("FAILED to update DB for Notif #$idNotif (Error: " . $db1->conn()->error . ")", 'wa_replies', 'PendingNotifs');
+                 }
+                 
+                 // Broadcast to WebSocket
+                 if ($res['success']) {
+                     $payload = $this->buildWsPayload($waNumber, $notif['text'], $msgId, $wamid);
+                     $this->pushToWebSocket($payload);
+                 }
+             }
+         } else {
+            // Find customer
+            $where = "nomor_pelanggan IN ($phoneIn)";
+            $pelanggan = $db1->query("SELECT id_pelanggan, nama_pelanggan FROM pelanggan WHERE $where")->result_array();
+            $id_pelanggans = array_column($pelanggan, 'id_pelanggan');
+            
+            // FIX: Check if customer exists BEFORE accessing array
+            if (empty($id_pelanggans)) {
+                // Customer NOT registered - send message and exit
+                $res = $waService->sendFreeText($waNumber, $this->noRegisterText);
+                if ($res['success']) {
+                    $this->pushToWebSocket($this->buildWsPayload($waNumber, $this->noRegisterText, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+                }
+                return;
+            }
+
+            // Customer exists - get first one
+            $id_pelanggan = $id_pelanggans[0];
+            $nama_pelanggans = array_column($pelanggan, 'nama_pelanggan');
+            $nama_pelanggan = strtoupper($nama_pelanggans[0] ?? 'PELANGGAN');
+
+            $ids_in = implode(',', $id_pelanggans);
+            
+            // Find unfinished sales
+            $sales = $db1->query("SELECT * FROM sale WHERE tuntas = 0 AND bin = 0 AND id_pelanggan IN ($ids_in) GROUP BY no_ref, tuntas, id_pelanggan ORDER BY insertTime DESC")->result_array();
+            $id_pelanggans_active = array_column($sales, 'id_pelanggan');
+            $noRefs = array_column($sales, 'no_ref');
+            
+            if (!empty($noRefs)) {
+                // Remove refs that already have a notification of tipe 1
+                $noRefsIn = "'" . implode("','", $noRefs) . "'";
+                $existingRefs = array_column($db1->query("SELECT no_ref FROM notif WHERE tipe = 1 AND no_ref IN ($noRefsIn)")->result_array(), 'no_ref');
+                $missingRefs = array_diff($noRefs, $existingRefs);
+                
+                if (count($missingRefs) > 0) {
+                    foreach ($missingRefs as $ref) {
+                        // Create context with User-Agent to avoid potential filtering
+                        $opts = [
+                            "http" => [
+                                "method" => "GET",
+                                "header" => "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36\r\n"
+                            ]
+                        ];
+                        $context = stream_context_create($opts);
+                        
+                        $apiResponse = @file_get_contents("https://ml.nalju.com/Get/wa_nota/" . urlencode($ref), false, $context);
+                        if ($apiResponse) {
+                            $responseData = json_decode($apiResponse, true);
+                            if (!empty($responseData['text'])) {
+                                // Insert Notif
+                                $id_notif = (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9);
+                                $insertData = [
+                                'id_notif'   => $id_notif,
+                                'id_cabang'  => $sales[array_search($ref, $noRefs)]['id_cabang'],
+                                'tipe'       => 1,
+                                'no_ref'     => $ref,
+                                'text'       => $responseData['text'],
+                                'phone'      => $phone0,
+                                'state'      => 'pending',
+                                ];
+                            
+                                $isInserted = $db1->insert('notif', $insertData);
+                                
+                                if ($isInserted !== false) {
+                                    $res = $waService->sendFreeText($waNumber, $responseData['text']);
+                                    
+                                    $status = ($res['success'] ?? false) ? 'sent' : 'failed';
+                                    $msgId = $res['data']['id'] ?? ($res['data']['message_id'] ?? null);
+                                    $wamid = $res['data']['wamid'] ?? null;
+                                    
+                                    // Update state immediately
+                                    $updateData = ['state' => $status];
+                                    if ($msgId) {
+                                        $updateData['id_api'] = $msgId;
+                                    }
+                                    
+                                    $db1->update('notif', $updateData, ['id_notif' => $id_notif]);
+                                    
+                                    // Broadcast to WebSocket
+                                    if ($res['success']) {
+                                        $payload = $this->buildWsPayload($waNumber, $responseData['text'], $msgId, $wamid);
+                                        $this->pushToWebSocket($payload);
+                                    }
+                                } else {
+                                    $conn = $db1->conn();
+                                    $errorMsg = $conn->error ?? 'No Error Msg';
+                                    if (empty($errorMsg) && !empty($conn->error_list)) {
+                                        $errorMsg = json_encode($conn->error_list);
+                                    }
+                                    
+                                    // Try to get last query if available in wrapper
+                                    $lastQuery = method_exists($db1, 'last_query') ? $db1->last_query() : 'N/A';
+                                    \Log::write("Insert Data: " . json_encode($insertData), 'webhook', 'WhatsApp');
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // All notifs already exist - they were sent before
+                    $list_link = "";
+                    // Remove duplicates - same customer may have multiple transactions
+                    $unique_pelanggans_active = array_unique($id_pelanggans_active);
+                    foreach ($unique_pelanggans_active as $id_pelanggan_active) {
+                        $list_link .= "https://ml.nalju.com/I/i/" . $id_pelanggan_active . "\n";
+                    }
+
+                    $text = "Yth. *" . $nama_pelanggan . "*,\nNota/Bon sudah kami kirimkan sebelumnya. Terima kasih 😊\n" . $list_link;
+                    $res = $waService->sendFreeText($waNumber, $text);
+                    if ($res['success']) {
+                        $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+                    }
+                }
+            } else {
+                $text = "Yth. *" . $nama_pelanggan . "*, belum ada Nota/Bon. Terima kasih 😊";
+                $res = $waService->sendFreeText($waNumber, $text);
+                if ($res['success']) {
+                    $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+                }
+            }
+        }        
+    }
     
     private function handleStatus($phoneIn, $waNumber)
     {
