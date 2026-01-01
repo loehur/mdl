@@ -420,60 +420,49 @@ $totalTerima = 0;
       $vGaji = "-Rp" . number_format($gf['jumlah']);
     }
 
-    $tr_gaji = $tr_gaji . "<tr><td colspan=''>" . $gf['ref'] . "<br>" . $gf['deskripsi'] . "</td><td align='right'>" . $gf['qty'] . "<br>" . $vGaji . "</td></tr>";
+    $tr_gaji = $tr_gaji . "<tr><td>" . $gf['ref'] . "<br>" . $gf['deskripsi'] . "</td><td>" . $gf['qty'] . "<br>" . $vGaji . "</td></tr>";
   }
   $totalTer = $totalGaji - $totalPot;
   ?>
 
   <?php if ($nama_user <> "") { ?>
     <div class="col p-1 bg-white mr-4 mt-1" id="tes">
-      <div id="print" class="d-none">
-        <table style="width:42mm; font-size:x-small; margin-top:10px; margin-bottom:10px">
+      <div id="print" style="width:50mm; background-color:white; padding:10px; border:1px solid #ddd; margin-bottom:10px; font-family: 'Courier New', monospace;">
+        <table>
           <tr>
-            <td colspan="2" style="text-align: center;border-bottom:1px dashed black; padding:6px;">
-              <b> <?= $this->dCabang['nama'] ?> - <?= $this->dCabang['kode_cabang'] ?></b><br>-- SALARY SLIP --
-            </td>
+            <td><?= $this->dCabang['nama'] ?> - <?= $this->dCabang['kode_cabang'] ?></td>
           </tr>
           <tr>
-            <td colspan="2" style="border-bottom:1px dashed black; padding-top:6px;padding-bottom:6px;">
-              <font size='2'><b><?= strtoupper($nama_user) ?></font>
-              </b><br>Periode: <?= $dateOn ?>
-            </td>
+            <td>-- SALARY SLIP --</td>
+          </tr>
+          <tr id="dashRow"><td></td></tr>
+          
+          <tr>
+            <td><?= strtoupper($nama_user) ?></td>
+          </tr>
+          <tr>
+            <td>Periode: <?= $dateOn ?></td>
+          </tr>
+          <tr id="dashRow"><td></td></tr>
 
-            <?= $tr_gaji ?>
+          <?= $tr_gaji ?>
 
+          <tr id="dashRow"><td></td></tr>
           <tr>
-            <td colspan="2" style="border-bottom:1px dashed black;"></td>
+            <td>Total Gaji</td>
+            <td>Rp<?= number_format($totalGaji) ?></td>
           </tr>
           <tr>
-            <td>
-              <b>Total Gaji</b>
-            </td>
-            <td style="text-align: right;">
-              <b><?= "Rp" . number_format($totalGaji) ?></b>
-            </td>
+            <td>Total Potongan</td>
+            <td>-Rp<?= number_format($totalPot) ?></td>
           </tr>
           <tr>
-            <td>
-              Total Potongan
-            </td>
-            <td style="text-align: right;">
-              -Rp<?= number_format($totalPot) ?>
-            </td>
+            <td>Gaji Diterima</td>
+            <td>Rp<?= number_format($totalTer) ?></td>
           </tr>
+          <tr id="dashRow"><td></td></tr>
           <tr>
-            <td>
-              Gaji Diterima
-            </td>
-            <td style="text-align: right;">
-              Rp<?= number_format($totalTer) ?>
-            </td>
-          </tr>
-          <tr>
-            <td colspan="2" style="border-bottom:1px dashed black;"></td>
-          </tr>
-          <tr>
-            <td colspan="2">.<br>.</td>
+            <td>Terima Kasih</td>
           </tr>
         </table>
       </div>
@@ -671,7 +660,18 @@ $totalTerima = 0;
   // Print Slip Gaji menggunakan Thermal Printer Server
   $('#btnPrintGaji').on('click', function() {
     var btn = $(this);
-    var printContent = $('#print').html();
+    
+    // Clone element print dan bersihkan
+    var printElement = $('#print').clone();
+    // Hapus border dan styling yang tidak perlu untuk printer
+    printElement.css({
+      'border': 'none',
+      'padding': '0',
+      'width': 'auto',
+      'background-color': 'transparent'
+    });
+    
+    var printContent = printElement.html();
     
     if (!printContent) {
       alert('Tidak ada data untuk dicetak');
@@ -698,14 +698,26 @@ $totalTerima = 0;
       console.log('Print server response:', res.status);
       if (!res.ok) {
         alert('Gagal print: ' + res.status);
+      } else {
+        // Success feedback (optional)
+        btn.html('<i class="fas fa-check"></i> Printed!');
+        setTimeout(function() {
+          btn.html(originalHtml);
+        }, 2000);
       }
+      return res;
     })
     .catch(function(err) {
       console.error('Print error:', err);
       alert('Gagal mengirim ke printer. Pastikan print server berjalan di localhost:3000');
     })
     .finally(function() {
-      btn.prop('disabled', false).html(originalHtml);
+      setTimeout(function() {
+        btn.prop('disabled', false);
+        if (btn.html().includes('Printing')) {
+          btn.html(originalHtml);
+        }
+      }, 500);
     });
   });
 
