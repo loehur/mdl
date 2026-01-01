@@ -235,7 +235,9 @@ class WAGenerator extends Controller
         $cols = "id_harga, SUM(qty) as saldo";
         $data = $this->db(0)->get_cols_where('member', $cols, $where, 1);
         $saldo = [];
+        if (is_array($data) && !empty($data)) {
         foreach ($data as $a) {
+            if (!is_array($a)) continue; // Skip jika bukan array
             $id_harga = $a['id_harga'];
             $where_member = "bin = 0 AND id_pelanggan = $id_pelanggan AND id_harga = $id_harga";
             $saldoManualResult = $this->db(0)->get_cols_where('member', 'SUM(qty) as saldo', $where_member, 0);
@@ -252,6 +254,7 @@ class WAGenerator extends Controller
                 $saldo[$id_harga] = number_format($saldo_akhir, 2) . $unit;
             }
         } 
+        } // End if (is_array($data))
         if (!empty($saldo)) {
             $totalText .= "\n";
             foreach ($saldo as $key => $val) {
