@@ -32,7 +32,7 @@ class Rekap extends Controller
                $dataTanggal = array('tanggal' => date('d'), 'bulan' => date('m'), 'tahun' => date('Y'));
             }
 
-            $whereCabang = $this->wCabang . " AND ";
+            $whereCabang = (!empty($this->wCabang) && trim($this->wCabang) != "id_cabang =") ? $this->wCabang . " AND " : "";
             break;
          case 2:
             $layout = ['title' => 'Rekap Cabang Bulanan'];
@@ -46,7 +46,7 @@ class Rekap extends Controller
                $dataTanggal = array('bulan' => date('m'), 'tahun' => date('Y'));
             }
 
-            $whereCabang = $this->wCabang . " AND ";
+            $whereCabang = (!empty($this->wCabang) && trim($this->wCabang) != "id_cabang =") ? $this->wCabang . " AND " : "";
             break;
          case 3:
             $layout = ['title' => 'Rekap Total Bulanan', 'vLaundry' => true];

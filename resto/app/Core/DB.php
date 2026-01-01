@@ -359,8 +359,8 @@ class DB extends DBC
         $query = "SELECT SUM($col) as Total FROM $table WHERE $where";
         $result = $this->mysqli->query($query);
 
-        $reply = $result->fetch_assoc();
         if ($result) {
+            $reply = $result->fetch_assoc();
             if ($reply["Total"] == '') {
                 $reply["Total"] = 0;
             }
