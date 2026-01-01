@@ -6,6 +6,7 @@ Env.php
 .env
 auth
 laundry/app/Config/*
+resto/app/Config/*
 api/scripts/
 *.sql
 api/scripts/*
