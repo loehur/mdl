@@ -15,7 +15,6 @@ class Controller extends URL
                 $this->id_cabang = $_SESSION['resto_user']['id_cabang'];
                 $this->id_privilege = $_SESSION['resto_user']['id_privilege'];
                 $this->wCabang = 'id_cabang = ' . $this->id_cabang;
-                $this->book = $_SESSION['resto_user']['book'];
             }
         }
     }

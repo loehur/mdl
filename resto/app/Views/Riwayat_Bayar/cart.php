@@ -32,7 +32,7 @@
 
 <?php $today = substr($data['refbayar'], 0, 4) ?>
 
-<?php if ($today == date('md') && $this->book == date('Y')) { ?>
+<?php if ($today == date('md') && db(0) == date('Y')) { ?>
   <div class="row mt-4">
     <div class="col text-center">
       <span class="btn btn-danger" onclick="batalkan('<?= $data['refbayar'] ?>')">

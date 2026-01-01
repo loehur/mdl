@@ -20,7 +20,7 @@ class Approval extends Controller
       $layout = ['title' => 'Approval'];
       $data['mode'] = $this->mode;
       foreach ($this->mode as $key => $dm) {
-         $data[$dm] = $this->db($this->book)->count_where('kas', "status_mutasi = 0 AND " . $this->where[$key]);
+         $data[$dm] = $this->db(db(0))->count_where('kas', "status_mutasi = 0 AND " . $this->where[$key]);
       }
 
       $this->view('layout', $layout);
@@ -30,7 +30,7 @@ class Approval extends Controller
    public function cek($key)
    {
       $data['key'] = $key;
-      $data[$this->mode[$key]] = $this->db($this->book)->get_where('kas', "status_mutasi = 0 AND " . $this->where[$key], 'id');
+      $data[$this->mode[$key]] = $this->db(db(0))->get_where('kas', "status_mutasi = 0 AND " . $this->where[$key], 'id');
       $viewData = __CLASS__ . '/' . $this->mode[$key];
       $this->view($viewData, $data);
    }
@@ -39,9 +39,9 @@ class Approval extends Controller
    {
       $p = $_POST;
       $where = $this->where[$p['key']];
-      $up =  $this->db($this->book)->update('kas', "status_mutasi = " . $p['v'], "id = " . $p['id']);
+      $up =  $this->db(db(0))->update('kas', "status_mutasi = " . $p['v'], "id = " . $p['id']);
       if ($up['errno'] == 0) {
-         echo $this->db($this->book)->count_where('kas', "status_mutasi = 0 AND " . $where);
+         echo $this->db(db(0))->count_where('kas', "status_mutasi = 0 AND " . $where);
       } else {
          echo $up['error'];
       }
