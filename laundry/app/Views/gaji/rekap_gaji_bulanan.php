@@ -427,29 +427,7 @@ $totalTerima = 0;
 
   <?php if ($nama_user <> "") { ?>
     <div class="col p-1 bg-white mr-4 mt-1" id="tes">
-      <span id="print" style="width:50mm;background-color:white; padding-bottom:10px">
-        <style>
-          @font-face {
-            font-family: "fontku";
-            src: url("<?= URL::EX_ASSETS ?>font/Titillium-Regular.otf");
-          }
-
-          html .table {
-            font-family: 'fontku', sans-serif;
-          }
-
-          html .content {
-            font-family: 'fontku', sans-serif;
-          }
-
-          html body {
-            font-family: 'fontku', sans-serif;
-          }
-
-          hr {
-            border-top: 1px dashed black;
-          }
-        </style>
+      <div id="print" class="d-none">
         <table style="width:42mm; font-size:x-small; margin-top:10px; margin-bottom:10px">
           <tr>
             <td colspan="2" style="text-align: center;border-bottom:1px dashed black; padding:6px;">
@@ -485,7 +463,6 @@ $totalTerima = 0;
           </tr>
           <tr>
             <td>
-
               Gaji Diterima
             </td>
             <td style="text-align: right;">
@@ -499,8 +476,10 @@ $totalTerima = 0;
             <td colspan="2">.<br>.</td>
           </tr>
         </table>
-      </span>
-      <button onclick="Print()">Print</button>
+      </div>
+      <button type="button" class="btn btn-primary btn-sm" id="btnPrintGaji">
+        <i class="fas fa-print me-1"></i> Print Slip Gaji
+      </button>
     </div>
   <?php } ?>
 </div>
@@ -689,25 +668,46 @@ $totalTerima = 0;
 
   var WindowObject;
 
-  function Print(id) {
-    var divContents = document.getElementById("print").innerHTML;
-    var a = window.open('');
-    a.document.write('<html>');
-    a.document.write('<title>Print Page</title>');
-    a.document.write('<body>');
-    a.document.write(divContents);
-    a.document.write('</body></html>');
-    var window_width = $(window).width();
-    a.print();
-
-    if (window_width > 600) {
-      a.close()
-    } else {
-      setTimeout(function() {
-        a.close()
-      }, 60000);
+  // Print Slip Gaji menggunakan Thermal Printer Server
+  $('#btnPrintGaji').on('click', function() {
+    var btn = $(this);
+    var printContent = $('#print').html();
+    
+    if (!printContent) {
+      alert('Tidak ada data untuk dicetak');
+      return;
     }
-  }
+    
+    // Disable button
+    var originalHtml = btn.html();
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Printing...');
+    
+    // Kirim ke print server
+    fetch('http://localhost:3000/print', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        html: printContent,
+        margin_top: <?= $this->mdl_setting["margin_printer_top"] ?? 0 ?>,
+        feed_lines: <?= $this->mdl_setting["margin_printer_bottom"] ?? 0 ?>
+      })
+    })
+    .then(function(res) {
+      console.log('Print server response:', res.status);
+      if (!res.ok) {
+        alert('Gagal print: ' + res.status);
+      }
+    })
+    .catch(function(err) {
+      console.error('Print error:', err);
+      alert('Gagal mengirim ke printer. Pastikan print server berjalan di localhost:3000');
+    })
+    .finally(function() {
+      btn.prop('disabled', false).html(originalHtml);
+    });
+  });
 
   var click = 0;
   $("span.edit").on('dblclick', function() {
