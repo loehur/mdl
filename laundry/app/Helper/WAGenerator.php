@@ -238,10 +238,12 @@ class WAGenerator extends Controller
         foreach ($data as $a) {
             $id_harga = $a['id_harga'];
             $where_member = "bin = 0 AND id_pelanggan = $id_pelanggan AND id_harga = $id_harga";
-            $saldoManual = $this->db(0)->get_cols_where('member', 'SUM(qty) as saldo', $where_member, 0)['saldo'] ?? 0;
+            $saldoManualResult = $this->db(0)->get_cols_where('member', 'SUM(qty) as saldo', $where_member, 0);
+            $saldoManual = is_array($saldoManualResult) ? ($saldoManualResult['saldo'] ?? 0) : 0;
             
             $where_sale = $this->wCabang . " AND id_pelanggan = $id_pelanggan AND member = 1 AND bin = 0 AND id_harga = $id_harga";
-            $saldoPengurangan = $this->db(0)->get_cols_where('sale', 'SUM(qty) as saldo', $where_sale, 0)['saldo'] ?? 0;
+            $saldoPenguranganResult = $this->db(0)->get_cols_where('sale', 'SUM(qty) as saldo', $where_sale, 0);
+            $saldoPengurangan = is_array($saldoPenguranganResult) ? ($saldoPenguranganResult['saldo'] ?? 0) : 0;
             
             $saldo_akhir = $saldoManual - $saldoPengurangan;
             $unit = $this->helper('Saldo')->unit_by_idHarga($id_harga);
