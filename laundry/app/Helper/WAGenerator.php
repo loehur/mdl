@@ -230,64 +230,44 @@ class WAGenerator extends Controller
             $totalText = "*Total/Sisa " . number_format($sisa) . "*";
         }
 
-        //TEXT SALDO MEMBER
-        $where = $this->wCabang . " AND bin = 0 AND id_pelanggan = " . $id_pelanggan . " GROUP BY id_harga";
+        //TEXT SALDO MEMBER - Query tanpa wCabang untuk tabel member
+        $where = "bin = 0 AND id_pelanggan = " . $id_pelanggan . " GROUP BY id_harga";
         $cols = "id_harga, SUM(qty) as saldo";
         $data = $this->db(0)->get_cols_where('member', $cols, $where, 1);
         $saldo = [];
         
-        // DEBUG LOG
-        error_log("SALDO_DEBUG: wCabang=" . $this->wCabang . " | id_pelanggan=$id_pelanggan");
-        error_log("SALDO_DEBUG: data type=" . gettype($data) . " | count=" . (is_array($data) ? count($data) : 'N/A'));
-        error_log("SALDO_DEBUG: data=" . json_encode($data));
-        
-        // Debug: check data type
         if (!empty($data) && is_array($data)) {
             foreach ($data as $key => $a) {
-                error_log("SALDO_DEBUG: Processing key=$key, a type=" . gettype($a));
-                
                 // Handle jika $a adalah single row array atau bukan array
                 if (!is_array($a)) {
-                    // Jika $data adalah single row, treat $data as the row itself
+                    // Jika $data adalah single row, treat $data as the row itself  
                     $a = $data;
-                    error_log("SALDO_DEBUG: Converted to single row mode");
                 }
                 
-                if (!isset($a['id_harga'])) {
-                    error_log("SALDO_DEBUG: id_harga not found in row, skipping");
-                    continue;
-                }
+                if (!isset($a['id_harga'])) continue;
                 
                 $id_harga = $a['id_harga'];
-                error_log("SALDO_DEBUG: id_harga=$id_harga");
                 
-                // Gunakan sum_col_where yang lebih reliable
+                // Query saldo manual dari tabel member (tanpa wCabang)
                 $where_member = "bin = 0 AND id_pelanggan = $id_pelanggan AND id_harga = $id_harga";
                 $saldoManual = $this->db(0)->sum_col_where('member', 'qty', $where_member) ?? 0;
                 
-                $where_sale = $this->wCabang . " AND id_pelanggan = $id_pelanggan AND member = 1 AND bin = 0 AND id_harga = $id_harga";
+                // Query pengurangan dari tabel sale (dengan wCabang jika ada, fallback tanpa)
+                $wCabangFilter = !empty($this->wCabang) ? $this->wCabang . " AND " : "";
+                $where_sale = $wCabangFilter . "id_pelanggan = $id_pelanggan AND member = 1 AND bin = 0 AND id_harga = $id_harga";
                 $saldoPengurangan = $this->db(0)->sum_col_where('sale', 'qty', $where_sale) ?? 0;
-                
-                error_log("SALDO_DEBUG: saldoManual=$saldoManual | saldoPengurangan=$saldoPengurangan");
                 
                 $saldo_akhir = floatval($saldoManual) - floatval($saldoPengurangan);
                 $unit = $this->helper('Saldo')->unit_by_idHarga($id_harga);
-                
-                error_log("SALDO_DEBUG: saldo_akhir=$saldo_akhir | unit=$unit");
 
                 if ($saldo_akhir > 0) {
                     $saldo[$id_harga] = number_format($saldo_akhir, 2) . $unit;
-                    error_log("SALDO_DEBUG: Added saldo[$id_harga]=" . $saldo[$id_harga]);
                 }
                 
                 // Jika $data bukan array of arrays, break setelah proses satu kali
                 if (!is_array($data[0] ?? null)) break;
             }
-        } else {
-            error_log("SALDO_DEBUG: data is empty or not array");
         }
-        
-        error_log("SALDO_DEBUG: Final saldo array=" . json_encode($saldo));
         
         if (!empty($saldo)) {
             $totalText .= "\n";
