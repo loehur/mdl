@@ -433,15 +433,14 @@ $totalTerima = 0;
       <div id="print">
         <table>
           <tr>
-            <td><?= $this->dCabang['nama'] ?> - <?= $this->dCabang['kode_cabang'] ?></td>
+            <td><b><?= $this->dCabang['nama'] ?> - <?= $this->dCabang['kode_cabang'] ?></b></td>
           </tr>
           <tr>
             <td>-- SALARY SLIP --</td>
           </tr>
           <tr id="dashRow"><td></td></tr>
-          
           <tr>
-            <td><?= strtoupper($nama_user) ?></td>
+            <td><b><?= strtoupper($nama_user) ?></b></td>
           </tr>
           <tr>
             <td>Periode: <?= $dateOn ?></td>
@@ -461,7 +460,7 @@ $totalTerima = 0;
           </tr>
           <tr>
             <td>Gaji Diterima</td>
-            <td>Rp<?= number_format($totalTer) ?></td>
+            <td><b>Rp<?= number_format($totalTer) ?></b></td>
           </tr>
           <tr id="dashRow"><td></td></tr>
           <tr>
