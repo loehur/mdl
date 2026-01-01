@@ -69,6 +69,7 @@ class Gaji extends Controller
       $id_user = $_POST['id_user'];
       $fee = $_POST['fee'];
 
+      $data_main = $this->db(0)->count_where('gaji_pengali', "id_karyawan = " . $id_user . " AND id_pengali = " . $id_pengali);
       if ($data_main < 1) {
          $data = [
             'id_karyawan' => $id_user,
