@@ -382,7 +382,10 @@ onMounted(() => {
   try {
     const raw = localStorage.getItem("salon_user");
     if (raw) {
-      const u = JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      // Handle wrapped structure (with expiry) or legacy flat structure
+      const u = parsed.user || parsed;
+      
       // Extract first name only
       const fullName = u.name || "Guest";
       userName.value = fullName.split(' ')[0]; // Get first word only
