@@ -677,14 +677,25 @@ $totalTerima = 0;
       
       if (cells.length === 0) return;
       
+      // Helper function to clean HTML but preserve <b>, <h1>, etc
+      var cleanHtml = function(html) {
+        var s = html || '';
+        // Replace <br> with newline
+        s = s.replace(/<br\s*\/?>/gi, '\n');
+        // Remove tags EXCEPT <b>, </b>, <h1>, </h1>
+        // Keep only supported tags for printer
+        s = s.replace(/<(?!\/?(?:b|h1)\b)[^>]+>/gi, '');
+        return s.trim();
+      };
+      
       if (cells.length === 1) {
-        // Single column - center align
-        var text = cells.eq(0).html().replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]+>/g, '').trim();
+        // Single column
+        var text = cleanHtml(cells.eq(0).html());
         lines.push('<tr><td>' + text + '</td></tr>');
       } else if (cells.length === 2) {
         // Two columns - left and right
-        var left = cells.eq(0).html().replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').trim();
-        var right = cells.eq(1).html().replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').trim();
+        var left = cleanHtml(cells.eq(0).html());
+        var right = cleanHtml(cells.eq(1).html());
         
         // Split by newline if exists
         var leftLines = left.split('\n');
