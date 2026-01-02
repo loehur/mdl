@@ -1,0 +1,85 @@
+.loader {
+  border: 16px solid #f3f3f3;
+  border-radius: 50%;
+  border-top: 16px solid #04871e;
+  border-right: 16px solid #abf1b9;
+  border-bottom: 16px solid #ffffff;
+  border-left: 16px solid #3193df;
+  width: 100px;
+  height: 100px;
+  -webkit-animation: spin 1s linear infinite; /* Safari */
+  animation: spin 1s linear infinite;
+}
+
+.loaderDiv {
+  position: fixed;
+  z-index: 9999;
+  left: 40%;
+  top: 30%;
+  width: 100%;
+  height: 100%;
+}
+
+/* Safari */
+@-webkit-keyframes spin {
+  0% {
+    -webkit-transform: rotate(0deg);
+  }
+  100% {
+    -webkit-transform: rotate(360deg);
+  }
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.shake_hover:hover {
+  animation: shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+  perspective: 1000px;
+}
+
+@keyframes shake {
+  10%,
+  90% {
+    transform: translate3d(-1px, 0, 0);
+  }
+
+  50%,
+  60% {
+    transform: translate3d(2px, 0, 0);
+  }
+}
+
+.modal-backdrop {
+  opacity: 0.1 !important;
+}
+
+.accordion-button:focus,
+.btn {
+  outline: none;
+  box-shadow: none;
+}
+
+input:focus,
+.form-select:focus,
+.btn:focus,
+select:focus,
+textarea,
+input.form-control:focus {
+  outline: none !important;
+  outline-width: 0 !important;
+  box-shadow: none;
+  -moz-box-shadow: none;
+  -webkit-box-shadow: none;
+}
+
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  display: none;
+}
