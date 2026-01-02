@@ -61,10 +61,10 @@ class Kas extends Controller
 
       $setOne = "note = '" . $keterangan . "' AND jumlah = " . $jumlah . " AND insertTime LIKE '" . $today . "%'";
       $where = $this->wCabang . " AND " . $setOne;
-      $data_main = $this->db(date('Y'))->count_where('kas', $where);
+      $data_main = $this->db(0)->count_where('kas', $where);
 
       if ($data_main < 1) {
-         $do = $this->db(date('Y'))->insertCols('kas', $cols, $vals);
+         $do = $this->db(0)->insertCols('kas', $cols, $vals);
          if ($do['errno'] == 0) {
             echo 0;
          } else {
@@ -93,14 +93,14 @@ class Kas extends Controller
 
       $setOne = "note = '" . $keterangan . "' AND jumlah = " . $jumlah . " AND insertTime LIKE '" . $today . "%'";
       $where = $this->wCabang . " AND " . $setOne;
-      $data_main = $this->db(date('Y'))->count_where('kas', $where);
+      $data_main = $this->db(0)->count_where('kas', $where);
 
       if ($data_main < 1) {
          //update freq
          $this->db(0)->update('item_pengeluaran', "freq = freq + 1", "id_item_pengeluaran = " . $id_jenis);
          $cols = 'id_cabang, jenis_mutasi, jenis_transaksi, metode_mutasi, note, note_primary, status_mutasi, jumlah, id_user, id_client, ref';
          $vals = $this->id_cabang . ",2,4,1,'" . $keterangan . "','" . $jenis . "'," . $status_mutasi . "," . $jumlah . "," . $this->id_user . ",0," . $id_jenis;
-         $in = $this->db(date('Y'))->insertCols('kas', $cols, $vals);
+         $in = $this->db(0)->insertCols('kas', $cols, $vals);
          echo $in['errno'] == 0 ? 0 : $in['error'];
       }
    }
