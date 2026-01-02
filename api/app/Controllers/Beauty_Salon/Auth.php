@@ -83,7 +83,7 @@ class Auth extends Controller
                 'success' => true,
                 'message' => 'Login berhasil',
                 'user' => $user,
-                'redirect' => $user['role'] === 'cashier' ? '/order' : '/performance' // or dashboard? Performance is common for admin
+                'redirect' => '/order' // Always redirect to order page
             ]);
         } catch (\Exception $e) {
             error_log("Login error: " . $e->getMessage() . " | " . $e->getTraceAsString());
