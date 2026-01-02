@@ -476,7 +476,6 @@
           html += '<h3 class="fw-bold text-danger mb-0">Rp' + totalFmt + '</h3>';
           html += '<button type="button" class="btn btn-sm btn-outline-danger" onclick="copyToClipboard(\'' + total + '\', this)"><i class="fas fa-copy"></i></button>';
           html += '</div>';
-          html += '<div class="alert alert-warning small mb-0"><i class="fas fa-exclamation-triangle"></i> Pastikan nominal transfer sama dan tepat hingga digit terakhir</div>';
           html += '</div>';
 
           $('#modalAlertMessage').html(html);
