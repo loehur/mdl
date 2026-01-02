@@ -31,7 +31,7 @@ const appIcon = "./icons/beauty_salon.png";
 const router = createRouter({
   history: createWebHashHistory(),
   routes: [
-    { path: "/", redirect: "/login" },
+    { path: "/", redirect: "/order" },
     { path: "/login", component: Login, meta: { area: "public" } },
     { path: "/register", component: () => import("./public_area/Register.vue"), meta: { area: "public" } },
     { path: "/forgot-password", component: () => import("./public_area/ForgotPassword.vue"), meta: { area: "public" } },

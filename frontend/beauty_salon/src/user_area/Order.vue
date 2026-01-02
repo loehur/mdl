@@ -30,7 +30,7 @@
                 <input 
                     type="text" 
                     v-model="searchQuery" 
-                    placeholder="Cari Pelanggan..." 
+                    placeholder="Cari nama / produk..." 
                     class="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-pink-500 outline-none transition"
                 />
                 <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
@@ -258,6 +258,40 @@
                  </div>
                </div>
               <p class="text-xs text-pink-600 mt-2 cursor-pointer hover:underline" @click="router.push('/customers')">+ Tambah Pelanggan Baru</p>
+              
+              <!-- Voucher Loyalty Info -->
+              <div v-if="customerVoucherInfo && form.customer_id" class="mt-4 p-3 bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200 rounded-xl">
+                <div class="flex items-center gap-2 mb-2">
+                  <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"></path>
+                  </svg>
+                  <span class="font-bold text-amber-800 text-sm">Program Loyalty</span>
+                </div>
+                
+                <!-- Progress Bar -->
+                <div class="mb-2">
+                  <div class="flex justify-between text-xs text-amber-700 mb-1">
+                    <span>Progress ke voucher berikutnya</span>
+                    <span class="font-bold">{{ customerVoucherInfo.progress_to_next }}/10</span>
+                  </div>
+                  <div class="w-full bg-amber-200 rounded-full h-2">
+                    <div class="bg-gradient-to-r from-amber-400 to-yellow-500 h-2 rounded-full transition-all" 
+                         :style="{ width: (customerVoucherInfo.progress_to_next * 10) + '%' }"></div>
+                  </div>
+                  <p class="text-xs text-amber-600 mt-1">{{ customerVoucherInfo.orders_needed_for_next }} order lagi untuk dapat voucher gratis!</p>
+                </div>
+                
+                <!-- Available Vouchers -->
+                <div v-if="customerVoucherInfo.available_vouchers_count > 0" class="mt-3 p-2 bg-green-100 border border-green-300 rounded-lg">
+                  <div class="flex items-center gap-2 text-green-800">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span class="text-sm font-bold">{{ customerVoucherInfo.available_vouchers_count }} Voucher Tersedia!</span>
+                  </div>
+                  <p class="text-xs text-green-700 mt-1">Bisa dipakai untuk 1 layanan gratis (pilih di langkah berikutnya)</p>
+                </div>
+              </div>
             </div>
             
             <!-- Step 2: Products -->
@@ -336,8 +370,58 @@
                  <span class="text-purple-600">Barang Dijual</span>
                  <span class="font-medium text-purple-600">{{ form.selectedInventoryItems.reduce((sum, i) => sum + i.qty, 0) }} pcs</span>
                </div>
+               
+               <!-- Voucher Redemption Section -->
+               <div v-if="customerVoucherInfo && customerVoucherInfo.available_vouchers_count > 0 && form.selectedItems.length > 0" 
+                    class="my-3 p-3 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg">
+                 <div class="flex items-center gap-2 mb-2">
+                   <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"></path>
+                   </svg>
+                   <span class="text-sm font-bold text-green-800">Gunakan Voucher (Gratis 1 Layanan)</span>
+                 </div>
+                 
+                 <div class="space-y-2">
+                   <div v-for="(item, idx) in form.selectedItems" :key="idx" 
+                        @click="applyVoucherToItem(customerVoucherInfo.available_vouchers[0], idx)"
+                        class="flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all"
+                        :class="voucherAppliedToIndex === idx ? 'bg-green-200 border-2 border-green-500' : 'bg-white hover:bg-green-100 border border-green-100'">
+                     <div class="flex items-center gap-2">
+                       <div class="w-5 h-5 rounded border-2 flex items-center justify-center"
+                            :class="voucherAppliedToIndex === idx ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300'">
+                         <svg v-if="voucherAppliedToIndex === idx" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
+                         </svg>
+                       </div>
+                       <span class="text-sm font-medium text-gray-700">{{ item.name }}</span>
+                     </div>
+                     <span class="text-sm" :class="voucherAppliedToIndex === idx ? 'text-green-600 font-bold line-through' : 'text-gray-500'">
+                       Rp {{ formatNumber(item.price) }}
+                     </span>
+                   </div>
+                 </div>
+                 
+                 <p v-if="selectedVoucher" class="text-xs text-green-700 mt-2 flex items-center gap-1">
+                   <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                   </svg>
+                   Voucher {{ selectedVoucher.voucher_code }} akan digunakan
+                 </p>
+               </div>
+               
+               <!-- Show discount if voucher applied -->
+               <div v-if="selectedVoucher && getVoucherDiscount() > 0" class="flex justify-between items-center mb-2 text-sm text-green-600">
+                 <span class="flex items-center gap-1">
+                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"></path>
+                   </svg>
+                   Diskon Voucher
+                 </span>
+                 <span class="font-bold">-Rp {{ formatNumber(getVoucherDiscount()) }}</span>
+               </div>
+               
                <div class="flex justify-between items-center text-lg font-bold text-gray-800 border-t border-gray-200 pt-2">
-                 <span>Total Harga</span>
+                 <span>Total Bayar</span>
                  <span class="text-pink-600">Rp {{ formatNumber(calculateTotal()) }}</span>
                </div>
             </div>
@@ -446,6 +530,37 @@
       </div>
     </div>
 
+    <!-- Voucher Earned Notification Modal -->
+    <div v-if="showVoucherModal" class="fixed inset-0 z-[100001] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div class="bg-gradient-to-br from-amber-50 to-yellow-100 rounded-2xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-100 border-2 border-amber-300">
+        <div class="text-center">
+            <!-- Celebration Icon -->
+            <div class="mx-auto flex items-center justify-center h-20 w-20 rounded-full bg-gradient-to-r from-amber-400 to-yellow-500 mb-4 animate-bounce">
+                <svg class="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
+                </svg>
+            </div>
+            
+            <h3 class="text-xl font-bold text-amber-800 mb-2">🎉 Selamat!</h3>
+            <p class="text-amber-700 mb-4">{{ newVoucherInfo?.message || 'Customer mendapat voucher gratis!' }}</p>
+            
+            <!-- Voucher Code Display -->
+            <div class="bg-white rounded-xl p-4 border-2 border-dashed border-amber-400 mb-4">
+                <p class="text-xs text-amber-600 mb-1">Kode Voucher:</p>
+                <p class="text-2xl font-bold text-amber-800 tracking-wider">{{ newVoucherInfo?.code }}</p>
+                <p class="text-xs text-amber-500 mt-2">Berlaku untuk 1 layanan GRATIS!</p>
+            </div>
+            
+            <p class="text-sm text-amber-600 mb-4">Voucher ini bisa digunakan di kunjungan berikutnya</p>
+            
+            <button @click="showVoucherModal = false; showToast('Order selesai & Voucher tersimpan!')" 
+                    class="w-full px-4 py-3 bg-gradient-to-r from-amber-500 to-yellow-500 text-white rounded-xl font-bold hover:from-amber-600 hover:to-yellow-600 transition shadow-lg">
+                Tutup
+            </button>
+        </div>
+      </div>
+    </div>
+
     </Teleport>
   </div>
 </template>
@@ -476,13 +591,23 @@ const filteredOrders = computed(() => {
         res = res.filter(o => o.booking_date); // Only those with a booking date
     }
     
-    // 2. Search
+    // 2. Search - search by customer name, phone, and product names
     if (searchQuery.value) {
         const q = searchQuery.value.toLowerCase();
-        res = res.filter(o => 
-            (o.customer_name && o.customer_name.toLowerCase().includes(q)) ||
-            (o.customer_phone && o.customer_phone.includes(q))
-        );
+        res = res.filter(o => {
+            // Search by customer name
+            if (o.customer_name && o.customer_name.toLowerCase().includes(q)) return true;
+            // Search by customer phone
+            if (o.customer_phone && o.customer_phone.includes(q)) return true;
+            // Search by product names in order_items
+            if (o.order_items && Array.isArray(o.order_items)) {
+                const hasMatchingProduct = o.order_items.some(item => 
+                    item.product_name && item.product_name.toLowerCase().includes(q)
+                );
+                if (hasMatchingProduct) return true;
+            }
+            return false;
+        });
     }
     
     return res;
@@ -502,10 +627,31 @@ const filteredCustomers = computed(() => {
     );
 });
 
-function selectCustomer(cust) {
+async function selectCustomer(cust) {
     form.customer_id = cust.id;
     custSearch.value = cust.nama;
     showCustDropdown.value = false;
+    
+    // Fetch voucher info for selected customer
+    await fetchCustomerVoucherInfo(cust.id);
+}
+
+async function fetchCustomerVoucherInfo(customerId) {
+    try {
+        const res = await fetch(`/api/Beauty_Salon/Vouchers/customerStats/${customerId}`);
+        const data = await res.json();
+        if (data.success) {
+            customerVoucherInfo.value = data.data;
+        } else {
+            customerVoucherInfo.value = null;
+        }
+    } catch (e) {
+        console.error('Failed to fetch voucher info:', e);
+        customerVoucherInfo.value = null;
+    }
+    // Reset voucher selection when customer changes
+    selectedVoucher.value = null;
+    voucherAppliedToIndex.value = null;
 }
 
 // Click Outside Handler
@@ -525,6 +671,11 @@ const handleClickOutside = (event) => {
 };
 const isSubmitting = ref(false);
 const showDeleteModal = ref(false);
+
+// Voucher Loyalty System
+const customerVoucherInfo = ref(null);
+const selectedVoucher = ref(null);
+const voucherAppliedToIndex = ref(null);
 
 const form = reactive({
   customer_id: null,
@@ -635,6 +786,10 @@ function openCreateModal() {
     form.selectedInventoryItems = [];
     form.notes = '';
     custSearch.value = '';
+    // Reset voucher state
+    customerVoucherInfo.value = null;
+    selectedVoucher.value = null;
+    voucherAppliedToIndex.value = null;
     showCreateModal.value = true;
 }
 
@@ -718,9 +873,39 @@ function addProduct(prod) {
 }
 
 function calculateTotal() {
-    const servicesTotal = form.selectedItems.reduce((sum, item) => sum + item.price, 0);
+    let servicesTotal = form.selectedItems.reduce((sum, item, index) => {
+        // If voucher is applied to this item, it's free
+        if (selectedVoucher.value && voucherAppliedToIndex.value === index) {
+            return sum;
+        }
+        return sum + item.price;
+    }, 0);
     const inventoryTotal = form.selectedInventoryItems.reduce((sum, item) => sum + (item.price * item.qty), 0);
     return servicesTotal + inventoryTotal;
+}
+
+function getVoucherDiscount() {
+    if (selectedVoucher.value && voucherAppliedToIndex.value !== null) {
+        const item = form.selectedItems[voucherAppliedToIndex.value];
+        return item ? item.price : 0;
+    }
+    return 0;
+}
+
+function applyVoucherToItem(voucher, itemIndex) {
+    if (selectedVoucher.value?.id === voucher.id && voucherAppliedToIndex.value === itemIndex) {
+        // Toggle off
+        selectedVoucher.value = null;
+        voucherAppliedToIndex.value = null;
+    } else {
+        selectedVoucher.value = voucher;
+        voucherAppliedToIndex.value = itemIndex;
+    }
+}
+
+function clearVoucher() {
+    selectedVoucher.value = null;
+    voucherAppliedToIndex.value = null;
 }
 
 // -- Inventory Item Functions --
@@ -778,6 +963,14 @@ async function submitOrder() {
             }))
         }));
 
+        // Apply voucher discount if selected (make item free)
+        if (selectedVoucher.value && voucherAppliedToIndex.value !== null && serviceItemsPayload[voucherAppliedToIndex.value]) {
+            serviceItemsPayload[voucherAppliedToIndex.value].price = 0;
+            serviceItemsPayload[voucherAppliedToIndex.value].voucher_applied = true;
+            serviceItemsPayload[voucherAppliedToIndex.value].voucher_id = selectedVoucher.value.id;
+            serviceItemsPayload[voucherAppliedToIndex.value].voucher_code = selectedVoucher.value.voucher_code;
+        }
+
         // Construct inventory items payload (mark with item_id for backend to recognize)
         const inventoryItemsPayload = form.selectedInventoryItems.map(item => ({
             item_id: item.item_id, // This marks it as an inventory item
@@ -812,6 +1005,15 @@ async function submitOrder() {
             booking_date = `${form.bookingDate} ${form.bookingTime}:00`;
         }
 
+        // Prepare voucher info for backend
+        const voucherInfo = selectedVoucher.value ? {
+            voucher_id: selectedVoucher.value.id,
+            voucher_code: selectedVoucher.value.voucher_code,
+            applied_to_index: voucherAppliedToIndex.value,
+            product_name: form.selectedItems[voucherAppliedToIndex.value]?.name,
+            product_value: form.selectedItems[voucherAppliedToIndex.value]?.price
+        } : null;
+
         const res = await fetch(url, {
             method: method,
             headers: {'Content-Type': 'application/json'},
@@ -819,7 +1021,8 @@ async function submitOrder() {
                 customer_id: form.customer_id,
                 order_items: orderItemsPayload,
                 booking_date: booking_date, // Send booking date (null if direct)
-                notes: form.notes
+                notes: form.notes,
+                voucher: voucherInfo // Include voucher info
             })
         });
         
@@ -886,6 +1089,11 @@ const showCancelModal = ref(false);
 const orderToCancel = ref(null);
 const showFinishModal = ref(false);
 const orderToFinish = ref(null);
+
+// Voucher Notification Modal
+const showVoucherModal = ref(false);
+const newVoucherInfo = ref(null);
+
 const finishForm = reactive({ 
     payment_method: 'tunai', 
     payment_notes: '',
@@ -999,7 +1207,17 @@ async function processFinish() {
         });
         const d = await res.json();
         if(d.success) {
-            showToast('Order selesai');
+            // Check if customer got a new voucher
+            if (d.voucher_granted) {
+                // Show special voucher notification
+                showVoucherModal.value = true;
+                newVoucherInfo.value = {
+                    code: d.voucher_code,
+                    message: d.voucher_message
+                };
+            } else {
+                showToast('Order selesai');
+            }
             fetchData();
         } else {
              showToast(d.message || 'Gagal selesaikan order', 'error');

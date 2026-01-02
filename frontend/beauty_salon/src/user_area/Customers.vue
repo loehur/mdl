@@ -1,5 +1,5 @@
 <template>
-  <div class="max-w-5xl">
+  <div class="max-w-6xl">
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
       <div class="flex items-center justify-between mb-6">
         <h2 class="text-2xl font-bold text-gray-800">Pelanggan</h2>
@@ -17,7 +17,9 @@
               <th class="px-4 py-3">#</th>
               <th class="px-4 py-3">Nama</th>
               <th class="px-4 py-3">No HP</th>
-              <th class="px-4 py-3 text-right w-32">Aksi</th>
+              <th class="px-4 py-3 text-center">Progress Loyalty</th>
+              <th class="px-4 py-3 text-center">Voucher</th>
+              <th class="px-4 py-3 text-right w-40">Aksi</th>
             </tr>
           </thead>
           <tbody v-if="loading">
@@ -25,6 +27,8 @@
               <td class="px-4 py-3"><div class="h-4 bg-gray-200 rounded w-8"></div></td>
               <td class="px-4 py-3"><div class="h-4 bg-gray-200 rounded w-32"></div></td>
               <td class="px-4 py-3"><div class="h-4 bg-gray-200 rounded w-24"></div></td>
+              <td class="px-4 py-3"><div class="h-4 bg-gray-200 rounded w-20 mx-auto"></div></td>
+              <td class="px-4 py-3"><div class="h-4 bg-gray-200 rounded w-16 mx-auto"></div></td>
               <td class="px-4 py-3"></td>
             </tr>
           </tbody>
@@ -33,12 +37,35 @@
               <td class="px-4 py-3 text-gray-500">{{ index + 1 }}</td>
               <td class="px-4 py-3 font-medium text-gray-800">{{ customer.nama }}</td>
               <td class="px-4 py-3 text-gray-600">{{ customer.no_hp }}</td>
+              <!-- Loyalty Progress -->
+              <td class="px-4 py-3">
+                <div class="flex flex-col items-center">
+                  <div class="w-24 bg-gray-200 rounded-full h-2 mb-1">
+                    <div class="bg-gradient-to-r from-amber-400 to-yellow-500 h-2 rounded-full transition-all" 
+                         :style="{ width: (customer.progress || 0) * 10 + '%' }"></div>
+                  </div>
+                  <span class="text-xs text-gray-500">{{ customer.progress || 0 }}/10</span>
+                </div>
+              </td>
+              <!-- Vouchers -->
+              <td class="px-4 py-3 text-center">
+                <span v-if="customer.available_vouchers > 0" class="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">
+                  🎁 {{ customer.available_vouchers }}
+                </span>
+                <span v-else class="text-gray-400 text-xs">-</span>
+              </td>
               <td class="px-4 py-3 text-right">
-                <div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition">
-                  <button @click="editCustomer(customer)" class="text-blue-600 hover:text-blue-700 p-1">
+                <div class="flex justify-end gap-1">
+                  <!-- Loyalty Button -->
+                  <button @click="openLoyaltyModal(customer)" class="text-amber-600 hover:text-amber-700 p-1.5 hover:bg-amber-50 rounded-lg transition" title="Atur Loyalty">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"></path>
+                    </svg>
+                  </button>
+                  <button @click="editCustomer(customer)" class="text-blue-600 hover:text-blue-700 p-1.5 hover:bg-blue-50 rounded-lg transition" title="Edit">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                   </button>
-                  <button @click="confirmDelete(customer)" class="text-red-600 hover:text-red-700 p-1">
+                  <button @click="confirmDelete(customer)" class="text-red-600 hover:text-red-700 p-1.5 hover:bg-red-50 rounded-lg transition" title="Hapus">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                   </button>
                 </div>
@@ -46,13 +73,13 @@
             </tr>
           </tbody>
           <tbody v-else>
-            <tr><td colspan="4" class="px-4 py-12 text-center text-gray-400">Belum ada pelanggan</td></tr>
+            <tr><td colspan="6" class="px-4 py-12 text-center text-gray-400">Belum ada pelanggan</td></tr>
           </tbody>
         </table>
       </div>
     </div>
 
-    <!-- Modal -->
+    <!-- Modal Create/Edit Customer -->
     <Teleport to="body">
       <div v-if="showModal" class="fixed inset-0 z-[100000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md">
@@ -90,6 +117,105 @@
         </div>
       </div>
 
+      <!-- Loyalty Modal -->
+      <div v-if="showLoyaltyModal" class="fixed inset-0 z-[100000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+          <div class="bg-gradient-to-r from-amber-500 to-yellow-500 px-6 py-4">
+            <h3 class="font-bold text-white text-lg flex items-center gap-2">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"></path>
+              </svg>
+              Atur Loyalty - {{ loyaltyCustomer?.nama }}
+            </h3>
+          </div>
+          
+          <div class="p-6 space-y-6">
+            <!-- Current Status -->
+            <div class="bg-gray-50 rounded-xl p-4 border border-gray-100">
+              <h4 class="text-sm font-bold text-gray-600 mb-3">Status Saat Ini</h4>
+              <div class="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span class="text-gray-500">Order di Sistem:</span>
+                  <span class="font-bold text-gray-800 ml-2">{{ loyaltyInfo?.actual_orders || 0 }}</span>
+                </div>
+                <div>
+                  <span class="text-gray-500">Adjustment:</span>
+                  <span class="font-bold ml-2" :class="(loyaltyInfo?.adjustment || 0) > 0 ? 'text-green-600' : 'text-gray-800'">
+                    {{ (loyaltyInfo?.adjustment || 0) > 0 ? '+' : '' }}{{ loyaltyInfo?.adjustment || 0 }}
+                  </span>
+                </div>
+                <div>
+                  <span class="text-gray-500">Total Efektif:</span>
+                  <span class="font-bold text-amber-600 ml-2">{{ loyaltyInfo?.completed_orders || 0 }}</span>
+                </div>
+                <div>
+                  <span class="text-gray-500">Voucher Tersedia:</span>
+                  <span class="font-bold text-green-600 ml-2">{{ loyaltyInfo?.available_vouchers_count || 0 }}</span>
+                </div>
+              </div>
+              
+              <!-- Progress Bar -->
+              <div class="mt-4">
+                <div class="flex justify-between text-xs text-gray-500 mb-1">
+                  <span>Progress ke voucher berikutnya</span>
+                  <span class="font-bold">{{ loyaltyInfo?.progress_to_next || 0 }}/10</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-3">
+                  <div class="bg-gradient-to-r from-amber-400 to-yellow-500 h-3 rounded-full transition-all" 
+                       :style="{ width: (loyaltyInfo?.progress_to_next || 0) * 10 + '%' }"></div>
+                </div>
+                <p class="text-xs text-amber-600 mt-1">{{ loyaltyInfo?.orders_needed_for_next || 10 }} order lagi untuk voucher berikutnya</p>
+              </div>
+            </div>
+
+            <!-- Set Progress Form -->
+            <div class="bg-amber-50 rounded-xl p-4 border border-amber-200">
+              <h4 class="text-sm font-bold text-amber-800 mb-3 flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                </svg>
+                Atur Total Order (Migrasi Manual)
+              </h4>
+              <p class="text-xs text-amber-700 mb-3">Masukkan total order selesai dari catatan manual. Voucher akan otomatis diberikan jika memenuhi syarat (setiap 10 order).</p>
+              
+              <div class="flex gap-2">
+                <input type="number" v-model.number="loyaltyForm.totalOrders" min="0" 
+                       class="flex-1 px-4 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-200 focus:border-amber-400 outline-none text-center font-bold"
+                       placeholder="Total order" />
+                <button @click="setLoyaltyProgress" :disabled="savingLoyalty" 
+                        class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-medium transition disabled:opacity-50">
+                  {{ savingLoyalty ? '...' : 'Simpan' }}
+                </button>
+              </div>
+            </div>
+
+            <!-- Grant Voucher Manually -->
+            <div class="bg-green-50 rounded-xl p-4 border border-green-200">
+              <h4 class="text-sm font-bold text-green-800 mb-3 flex items-center gap-2">
+                🎁 Berikan Voucher Langsung
+              </h4>
+              <p class="text-xs text-green-700 mb-3">Berikan voucher langsung tanpa mengubah progress order.</p>
+              
+              <div class="flex gap-2">
+                <input type="number" v-model.number="loyaltyForm.voucherQty" min="1" max="10"
+                       class="w-20 px-4 py-2 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-200 focus:border-green-400 outline-none text-center font-bold"
+                       placeholder="Qty" />
+                <button @click="grantVoucherManually" :disabled="savingVoucher" 
+                        class="flex-1 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition disabled:opacity-50">
+                  {{ savingVoucher ? '...' : 'Berikan Voucher' }}
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <div class="px-6 pb-6">
+            <button @click="closeLoyaltyModal" class="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium">
+              Tutup
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Toast -->
       <div v-if="toast.show" class="fixed top-4 right-4 z-[100002] bg-white rounded-lg shadow-2xl border-l-4 p-4" :class="toast.type === 'success' ? 'border-green-500' : 'border-red-500'">
         <p class="font-medium">{{ toast.message }}</p>
@@ -110,6 +236,14 @@ const form = reactive({ id: null, nama: '', no_hp: '' });
 const deleteConfirm = reactive({ show: false, customerId: null, customerName: '' });
 const toast = reactive({ show: false, message: '', type: 'success' });
 
+// Loyalty Modal
+const showLoyaltyModal = ref(false);
+const loyaltyCustomer = ref(null);
+const loyaltyInfo = ref(null);
+const loyaltyForm = reactive({ totalOrders: 0, voucherQty: 1 });
+const savingLoyalty = ref(false);
+const savingVoucher = ref(false);
+
 function showToast(message, type = 'success') {
   toast.message = message;
   toast.type = type;
@@ -120,11 +254,27 @@ function showToast(message, type = 'success') {
 async function fetchCustomers() {
   loading.value = true;
   try {
-    const res = await fetch('/api/Beauty_Salon/Customers');
+    // Fetch customers with loyalty data
+    const res = await fetch('/api/Beauty_Salon/Vouchers/allCustomersLoyalty');
     const data = await res.json();
-    if (data.success) customers.value = data.data;
+    if (data.success) {
+      customers.value = data.data;
+    } else {
+      // Fallback to regular customers endpoint
+      const res2 = await fetch('/api/Beauty_Salon/Customers');
+      const data2 = await res2.json();
+      if (data2.success) customers.value = data2.data;
+    }
   } catch (e) {
     console.error(e);
+    // Fallback
+    try {
+      const res = await fetch('/api/Beauty_Salon/Customers');
+      const data = await res.json();
+      if (data.success) customers.value = data.data;
+    } catch (e2) {
+      console.error(e2);
+    }
   } finally {
     loading.value = false;
   }
@@ -194,6 +344,112 @@ async function deleteCustomer() {
     }
   } catch (e) {
     showToast('Kesalahan jaringan', 'error');
+  }
+}
+
+// Loyalty Functions
+async function openLoyaltyModal(customer) {
+  loyaltyCustomer.value = customer;
+  loyaltyInfo.value = null;
+  loyaltyForm.totalOrders = customer.effective_orders || 0;
+  loyaltyForm.voucherQty = 1;
+  showLoyaltyModal.value = true;
+  
+  // Fetch detailed loyalty info
+  try {
+    const res = await fetch(`/api/Beauty_Salon/Vouchers/customerStats/${customer.id}`);
+    const data = await res.json();
+    if (data.success) {
+      loyaltyInfo.value = data.data;
+      loyaltyForm.totalOrders = data.data.completed_orders || 0;
+    }
+  } catch (e) {
+    console.error('Failed to fetch loyalty info:', e);
+  }
+}
+
+function closeLoyaltyModal() {
+  showLoyaltyModal.value = false;
+  loyaltyCustomer.value = null;
+  loyaltyInfo.value = null;
+}
+
+async function setLoyaltyProgress() {
+  if (!loyaltyCustomer.value) return;
+  
+  savingLoyalty.value = true;
+  try {
+    const res = await fetch('/api/Beauty_Salon/Vouchers/setProgress', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customer_id: loyaltyCustomer.value.id,
+        completed_orders_count: loyaltyForm.totalOrders
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(data.message);
+      
+      // Show voucher info if any were granted
+      if (data.data.vouchers_auto_granted > 0) {
+        showToast(`🎁 ${data.data.vouchers_auto_granted} voucher otomatis diberikan!`);
+      }
+      
+      // Refresh loyalty info
+      loyaltyInfo.value = {
+        ...loyaltyInfo.value,
+        completed_orders: data.data.total_effective_orders,
+        actual_orders: data.data.actual_orders_in_system,
+        adjustment: data.data.adjustment_applied,
+        progress_to_next: data.data.current_progress,
+        orders_needed_for_next: data.data.orders_needed_for_next_voucher,
+        available_vouchers_count: (loyaltyInfo.value?.available_vouchers_count || 0) + data.data.vouchers_auto_granted
+      };
+      
+      // Refresh main list
+      fetchCustomers();
+    } else {
+      showToast(data.message || 'Gagal menyimpan', 'error');
+    }
+  } catch (e) {
+    showToast('Kesalahan jaringan', 'error');
+  } finally {
+    savingLoyalty.value = false;
+  }
+}
+
+async function grantVoucherManually() {
+  if (!loyaltyCustomer.value || loyaltyForm.voucherQty < 1) return;
+  
+  savingVoucher.value = true;
+  try {
+    const res = await fetch('/api/Beauty_Salon/Vouchers/grantManual', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customer_id: loyaltyCustomer.value.id,
+        qty: loyaltyForm.voucherQty
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(data.message);
+      
+      // Update loyalty info
+      if (loyaltyInfo.value) {
+        loyaltyInfo.value.available_vouchers_count = (loyaltyInfo.value.available_vouchers_count || 0) + data.data.vouchers_granted;
+      }
+      
+      // Refresh main list
+      fetchCustomers();
+    } else {
+      showToast(data.message || 'Gagal memberikan voucher', 'error');
+    }
+  } catch (e) {
+    showToast('Kesalahan jaringan', 'error');
+  } finally {
+    savingVoucher.value = false;
   }
 }
 

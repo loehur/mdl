@@ -269,8 +269,9 @@ const toast = reactive({
 // Get user role from localStorage
 const userRole = computed(() => {
   try {
-    const user = JSON.parse(localStorage.getItem('salon_user'));
-    return user?.role || 'cashier';
+    const sessionData = JSON.parse(localStorage.getItem('salon_user'));
+    // Structure: { user: { role: 'admin', ... }, expiry: ... }
+    return sessionData?.user?.role || 'cashier';
   } catch {
     return 'cashier';
   }

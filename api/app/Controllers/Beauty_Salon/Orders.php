@@ -105,9 +105,27 @@ class Orders extends Controller
                 $data['id'] = $id;
                 $data['order_items'] = json_decode($order_items, true);
                 
+                // Handle voucher redemption if provided
+                $voucherRedeemed = false;
+                if (isset($body['voucher']) && !empty($body['voucher']['voucher_id'])) {
+                    $voucherInfo = $body['voucher'];
+                    
+                    // Update voucher as used
+                    $this->db($this->db_index)->update('customer_vouchers', [
+                        'status' => 'used',
+                        'used_at' => date('Y-m-d H:i:s'),
+                        'used_in_order_id' => $id,
+                        'redeemed_product_name' => $voucherInfo['product_name'] ?? null,
+                        'redeemed_product_value' => $voucherInfo['product_value'] ?? null
+                    ], ['id' => $voucherInfo['voucher_id'], 'salon_id' => $salon_id]);
+                    
+                    $voucherRedeemed = true;
+                }
+                
                 $this->json([
                     'success' => true,
-                    'message' => 'Order berhasil dibuat',
+                    'message' => $voucherRedeemed ? 'Order berhasil dibuat dengan voucher!' : 'Order berhasil dibuat',
+                    'voucher_redeemed' => $voucherRedeemed,
                     'data' => $data
                 ]);
             } else {
@@ -300,12 +318,26 @@ class Orders extends Controller
                         ]);
                     }
                 }
+                
+                // Check and grant voucher (loyalty program: every 10 completed orders = 1 voucher)
+                $vouchersController = new Vouchers();
+                $voucherResult = $vouchersController->checkAndGrantVoucher($existing['customer_id'], $id);
             }
 
-            $this->json([
+            // Build response
+            $response = [
                 'success' => true,
                 'message' => 'Status order berhasil diperbarui'
-            ]);
+            ];
+            
+            // Add voucher info if granted
+            if (isset($voucherResult) && $voucherResult['voucher_granted']) {
+                $response['voucher_granted'] = true;
+                $response['voucher_message'] = $voucherResult['message'];
+                $response['voucher_code'] = $voucherResult['voucher_code'];
+            }
+
+            $this->json($response);
         } catch (\Exception $e) {
             error_log("Orders updateStatus error: " . $e->getMessage());
             $this->error('Terjadi kesalahan: ' . $e->getMessage(), 500);
@@ -465,6 +497,121 @@ class Orders extends Controller
             ]);
         } catch (\Exception $e) {
             error_log("Orders delete error: " . $e->getMessage());
+            $this->error('Terjadi kesalahan: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * POST - Sync fee in orders with latest work_step settings
+     * Only allowed for current month and last month
+     * 
+     * Body: { start_date, end_date }
+     */
+    public function syncFee()
+    {
+        if (!$this->isPost()) {
+            $this->error('Method not allowed', 405);
+        }
+
+        try {
+            $body = $this->getBody();
+            $this->validate($body, ['start_date', 'end_date']);
+
+            $salon_id = $_SESSION['salon_user_session']['user']['salon_id'] ?? null;
+            
+            if (!$salon_id) {
+                $this->error('Salon ID tidak ditemukan', 401);
+            }
+
+            $startDate = $body['start_date'];
+            $endDate = $body['end_date'];
+
+            // Validate: Only allow current month and last month
+            $now = new \DateTime();
+            $currentMonthStart = new \DateTime($now->format('Y-m-01'));
+            $lastMonthStart = (clone $currentMonthStart)->modify('-1 month');
+            $filterStart = new \DateTime($startDate);
+
+            if ($filterStart < $lastMonthStart) {
+                $this->error('Sinkronisasi fee hanya dapat dilakukan untuk order di bulan ini dan bulan lalu', 400);
+            }
+
+            // Get latest work step fees
+            $workSteps = $this->db($this->db_index)
+                ->query("SELECT id, name, fee FROM work_step WHERE salon_id = ?", [$salon_id])
+                ->result_array();
+
+            // Create lookup map: step_id => fee, step_name => fee
+            $feeByStepId = [];
+            $feeByStepName = [];
+            foreach ($workSteps as $ws) {
+                $feeByStepId[$ws['id']] = (float)$ws['fee'];
+                $feeByStepName[$ws['name']] = (float)$ws['fee'];
+            }
+
+            // Get orders in date range
+            $orders = $this->db($this->db_index)
+                ->query("SELECT id, order_items, order_date FROM orders 
+                        WHERE salon_id = ? 
+                        AND DATE(order_date) >= ? 
+                        AND DATE(order_date) <= ?
+                        AND status != 'cancelled'", 
+                        [$salon_id, $startDate, $endDate])
+                ->result_array();
+
+            $updatedCount = 0;
+            $totalStepsUpdated = 0;
+
+            foreach ($orders as $order) {
+                $orderItems = json_decode($order['order_items'], true);
+                $modified = false;
+
+                if (!is_array($orderItems)) continue;
+
+                foreach ($orderItems as &$item) {
+                    if (!isset($item['work_steps']) || !is_array($item['work_steps'])) continue;
+
+                    foreach ($item['work_steps'] as &$step) {
+                        // Try to find fee by step_id first, then by step_name
+                        $newFee = null;
+                        
+                        if (isset($step['step_id']) && isset($feeByStepId[$step['step_id']])) {
+                            $newFee = $feeByStepId[$step['step_id']];
+                        } elseif (isset($step['step_name']) && isset($feeByStepName[$step['step_name']])) {
+                            $newFee = $feeByStepName[$step['step_name']];
+                        }
+
+                        if ($newFee !== null) {
+                            $oldFee = isset($step['fee']) ? (float)$step['fee'] : 0;
+                            if ($oldFee !== $newFee) {
+                                $step['fee'] = $newFee;
+                                $modified = true;
+                                $totalStepsUpdated++;
+                            }
+                        }
+                    }
+                }
+
+                if ($modified) {
+                    $this->db($this->db_index)->update('orders', [
+                        'order_items' => json_encode($orderItems),
+                        'updated_at' => date('Y-m-d H:i:s')
+                    ], ['id' => $order['id']]);
+                    $updatedCount++;
+                }
+            }
+
+            $this->json([
+                'success' => true,
+                'message' => "Berhasil menyinkronkan fee untuk {$updatedCount} order ({$totalStepsUpdated} langkah kerja)",
+                'data' => [
+                    'orders_updated' => $updatedCount,
+                    'steps_updated' => $totalStepsUpdated,
+                    'total_orders_checked' => count($orders)
+                ]
+            ]);
+        } catch (\Exception $e) {
+            error_log("Orders syncFee error: " . $e->getMessage());
             $this->error('Terjadi kesalahan: ' . $e->getMessage(), 500);
         }
     }
