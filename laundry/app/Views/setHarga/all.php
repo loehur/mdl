@@ -8,7 +8,7 @@ foreach ($this->dSatuan as $a) {
   }
 }
 ?>
-<link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/dataTables/jquery.dataTables.css" rel="stylesheet" />
+<link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/DataTables/datatables.min.css" rel="stylesheet" />
 
 <div class="content">
   <div class="container-fluid">
@@ -179,7 +179,7 @@ foreach ($this->dSatuan as $a) {
 <script src="<?= URL::EX_ASSETS ?>js/popper.min.js"></script>
 <script src="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/js/bootstrap.bundle.min.js"></script>
 <script src="<?= URL::EX_ASSETS ?>plugins/select2/select2.min.js"></script>
-<script src="<?= URL::EX_ASSETS ?>plugins/dataTables/jquery.dataTables.js"></script>
+<script src="<?= URL::EX_ASSETS ?>plugins/DataTables/datatables.min.js"></script>
 
 <script>
   $(document).ready(function() {
