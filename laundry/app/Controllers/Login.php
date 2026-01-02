@@ -229,11 +229,16 @@ class Login extends Controller
                $text = $otp . " (" . $cek['nama_user'] . ") - LAUNDRY";
                $hp = $cek['no_user'];
 
+               // Log sebelum kirim WA untuk tracking
+               $this->model('Log')->write("[req_pin] Attempting to send OTP to: $hp");
+               
                $res = $this->send_wa_ycloud($hp, $text);
+               
+               // Log response lengkap untuk debugging
+               $this->model('Log')->write("[req_pin] WA Response: " . json_encode($res));
 
                if ($res['status']) {
                   // PASTIKAN pengiriman WhatsApp BERHASIL (status=true) sebelum insert ke database
-                  $this->model('Log')->write("[req_pin] WA Response: " . json_encode($res));
                   
                   $do = $this->helper('Notif')->insertOTP($res, $today, $hp_input, $otp, $id_cabang);
                   
@@ -266,9 +271,12 @@ class Login extends Controller
                   // Cek jika CSW expired
                   if (isset($res['csw_expired']) && $res['csw_expired']) {
                      $phone_sent = isset($res['phone_sent']) ? $res['phone_sent'] : 'unknown';
+                     $hoursElapsed = isset($res['data']['hours_elapsed']) ? $res['data']['hours_elapsed'] : 'unknown';
+                     $lastMessage = isset($res['data']['last_message_at']) ? $res['data']['last_message_at'] : 'unknown';
+                     
                      $res_f = [
                         'code' => 0,
-                        'msg' => "CSW Expired untuk nomor {$phone_sent}. Pastikan Anda sudah mengirim pesan ke nomor WhatsApp bisnis dalam 24 jam terakhir."
+                        'msg' => "CSW Expired untuk nomor {$phone_sent}. Pastikan Anda sudah mengirim pesan ke nomor WhatsApp bisnis dalam 24 jam terakhir. (Terakhir chat: {$lastMessage}, sudah {$hoursElapsed} jam yang lalu)"
                      ];
                   } else {
                      $res_f = [
@@ -327,13 +335,29 @@ class Login extends Controller
       // Deteksi CSW Expired dari error message atau code 400
       if (!$res['status']) {
          $errorMsg = $res['error'];
-         if (($res['code'] ?? 0) == 400 || stripos($errorMsg, 'CSW') !== false || stripos($errorMsg, 'expired') !== false) {
+         $apiData = $res['data'] ?? [];
+         
+         // Check if API returned CSW expired flag
+         if (($res['code'] ?? 0) == 400 && isset($apiData['csw_expired']) && $apiData['csw_expired']) {
+            $result['csw_expired'] = true;
+            $result['phone_sent'] = $apiData['phone_sent'] ?? $phone;
+            
+            // Include additional CSW info if available
+            if (isset($apiData['hours_elapsed'])) {
+               $result['data']['hours_elapsed'] = $apiData['hours_elapsed'];
+            }
+            if (isset($apiData['last_message_at'])) {
+               $result['data']['last_message_at'] = $apiData['last_message_at'];
+            }
+         } 
+         // Fallback: detect from error message
+         else if (($res['code'] ?? 0) == 400 || stripos($errorMsg, 'CSW') !== false || stripos($errorMsg, 'expired') !== false) {
             $result['csw_expired'] = true;
             $result['phone_sent'] = $phone;
          }
          
          // Log failure details
-         $this->model('Log')->write("[Login::send_wa_ycloud] Failed via WA_YCloud - Phone: $phone, Error: $errorMsg");
+         $this->model('Log')->write("[Login::send_wa_ycloud] Failed via WA_YCloud - Phone: $phone, Error: $errorMsg, Code: " . ($res['code'] ?? 0));
       }
       
       return $result;

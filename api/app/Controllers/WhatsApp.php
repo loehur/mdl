@@ -136,11 +136,27 @@ class WhatsApp extends Controller
             $hoursElapsed = $this->whatsappService->diffHours(date('Y-m-d H:i:s'), $lastMessageAt);
         }
         
-        // Business Logic: Free text mode (try to send, let yCloud decide CSW)
+        // Business Logic: Free text mode (CHECK CSW FIRST before sending)
         if ($messageMode === 'free') {
             // Validate message content
             if (empty($body['message'])) {
                 $this->error('Message content is required for free text mode', 400);
+            }
+            
+            // ✅ FIX: CHECK CSW FROM DATABASE BEFORE SENDING
+            // Prevent unnecessary yCloud API calls when CSW is expired
+            if (!$isWithinCsw) {
+                $this->error(
+                    'Customer Service Window (CSW) expired. Cannot send free text message.',
+                    400,
+                    [
+                        'csw_expired' => true,
+                        'hours_elapsed' => round($hoursElapsed, 2),
+                        'last_message_at' => $lastMessageAt ?? 'No previous message',
+                        'phone_sent' => $phone,
+                        'suggestion' => 'Please ask customer to send a message to WhatsApp business first, or use template mode.'
+                    ]
+                );
             }
             
             // FIX: Extract text from JSON if message is JSON format (from WAGenerator)
@@ -150,25 +166,25 @@ class WhatsApp extends Controller
                 $messageText = $decodedMsg['text'];
             }
             
-            // Try to send - let yCloud API determine if CSW is valid
-            // This is more reliable than checking local database
+            // CSW is valid - proceed to send via yCloud
             $result = $this->whatsappService->sendFreeText($phone, $messageText);
             
             if (!$result['success']) {
-                // Check if it's a CSW error from yCloud
+                // Check if it's a CSW error from yCloud (double-check)
                 $errorData = $result['data']['error'] ?? [];
                 $errorCode = $errorData['code'] ?? '';
                 $errorMsg = $errorData['message'] ?? ($result['error'] ?? 'Failed to send');
                 
-                // If it's CSW expired (131047 = message outside window), suggest template
+                // If it's CSW expired (131047 = message outside window), return specific error
                 if (strpos($errorCode, '131047') !== false || strpos($errorMsg, 'outside') !== false || strpos($errorMsg, '24 hour') !== false) {
                     $this->error(
-                        'Customer Service Window (CSW) expired. Please use template mode.',
+                        'Customer Service Window (CSW) expired (confirmed by yCloud).',
                         400,
                         [
                             'csw_expired' => true,
                             'ycloud_error' => $errorMsg,
-                            'suggestion' => 'Change message_mode to "template"'
+                            'phone_sent' => $phone,
+                            'suggestion' => 'Please ask customer to send a message to WhatsApp business first.'
                         ]
                     );
                 }
