@@ -28,7 +28,7 @@ class WAReplies
      * @param int $cooldownMinutes Cooldown period in minutes (default: 10)
      * @return bool True if can send reply
      */
-    private function shouldReply($waNumber, $handler, $cooldownMinutes = 1)
+    private function shouldReply($waNumber, $handler, $cooldownMinutes = 3)
     {
         $db = DB::getInstance(0);
 

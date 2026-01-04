@@ -10,6 +10,80 @@
 </head>
 
 <body>
+  <!-- Loading Screen with Auto-Reload for Android WebView -->
+  <div id="loading-screen" style="
+    position: fixed; 
+    inset: 0; 
+    background: #0f172a; 
+    display: flex; 
+    flex-direction: column;
+    align-items: center; 
+    justify-content: center; 
+    z-index: 9999;
+  ">
+    <div style="
+      width: 40px; 
+      height: 40px; 
+      border: 3px solid #334155; 
+      border-top-color: #6366f1; 
+      border-radius: 50%; 
+      animation: spin 1s linear infinite;
+    "></div>
+    <p style="color: #94a3b8; margin-top: 16px; font-family: system-ui, sans-serif;">Loading...</p>
+  </div>
+  <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+  
+  <script>
+    // Auto-reload mechanism for Android WebView stale cache issue
+    (function() {
+      var TIMEOUT_MS = 3000; // 3 seconds
+      var reloadTimeout = setTimeout(function() {
+        // If this runs, the app hasn't initialized yet
+        console.warn('[AutoReload] App did not initialize in ' + TIMEOUT_MS + 'ms. Reloading...');
+        
+        // Add a query param to prevent infinite loops (max 3 retries)
+        var url = new URL(window.location.href);
+        var retryCount = parseInt(url.searchParams.get('_retry') || '0');
+        
+        if (retryCount < 3) {
+          url.searchParams.set('_retry', retryCount + 1);
+          url.searchParams.set('_t', Date.now()); // Cache bust
+          window.location.replace(url.toString());
+        } else {
+          // Too many retries, show error instead
+          var loadingScreen = document.getElementById('loading-screen');
+          if (loadingScreen) {
+            loadingScreen.innerHTML = '<div style="text-align: center; padding: 20px;">' +
+              '<p style="color: #f87171; font-family: system-ui, sans-serif; font-size: 16px;">Unable to load app</p>' +
+              '<p style="color: #94a3b8; font-family: system-ui, sans-serif; font-size: 14px; margin-top: 8px;">Please close and reopen the app</p>' +
+              '<button onclick="localStorage.clear(); window.location.replace(window.location.pathname);" style="margin-top: 16px; padding: 12px 24px; background: #6366f1; color: white; border: none; border-radius: 8px; font-size: 14px; cursor: pointer;">Force Refresh</button>' +
+              '</div>';
+          }
+        }
+      }, TIMEOUT_MS);
+      
+      // Expose function for Vue app to call when ready
+      window.__cancelAppLoadingTimeout = function() {
+        clearTimeout(reloadTimeout);
+        var loadingScreen = document.getElementById('loading-screen');
+        if (loadingScreen) {
+          loadingScreen.style.opacity = '0';
+          loadingScreen.style.transition = 'opacity 0.3s ease';
+          setTimeout(function() {
+            loadingScreen.remove();
+          }, 300);
+        }
+        // Clear retry param from URL without reload
+        if (window.history && window.history.replaceState) {
+          var url = new URL(window.location.href);
+          url.searchParams.delete('_retry');
+          url.searchParams.delete('_t');
+          window.history.replaceState({}, '', url.pathname + url.search.replace(/^\?$/, ''));
+        }
+      };
+    })();
+  </script>
+  
   <div id="app"></div>
   <script type="module" src="/src/main.js"></script>
 </body>
