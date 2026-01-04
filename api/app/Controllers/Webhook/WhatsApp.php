@@ -154,7 +154,8 @@ class WhatsApp extends Controller
             $phone0 = '0' . substr($cleanPhone, 2); // 08...
             $phonePlus = '+' . $cleanPhone; // +62...
             
-            $phones = ["'$cleanPhone'", "'$phone0'", "'$phonePlus'"];
+            $phoneNoPrefix = substr($cleanPhone, 2);
+            $phones = ["'$cleanPhone'", "'$phone0'", "'$phonePlus'", "'$phoneNoPrefix'"];
             $phoneIn = implode(',', $phones);
 
             //cari assigned_user_id

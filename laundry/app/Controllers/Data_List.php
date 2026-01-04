@@ -157,7 +157,7 @@ class Data_List extends Controller
                $data = [
                   'id_cabang' => $this->id_cabang,
                   'nama_pelanggan' => $nama_pelanggan,
-                  'nomor_pelanggan' => $_POST['f2']
+                  'nomor_pelanggan' => preg_replace('/\D/', '', $_POST['f2'])
                ];
                $do = $this->db(0)->insert($table, $data);
 
