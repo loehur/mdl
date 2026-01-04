@@ -344,7 +344,7 @@
 </button>
 
 <!-- Offcanvas Sales Order -->
-<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasSalesOrder" aria-labelledby="offcanvasSalesOrderLabel" data-bs-backdrop="false" data-bs-scroll="true">
+<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasSalesOrder" aria-labelledby="offcanvasSalesOrderLabel" data-bs-backdrop="true" data-bs-scroll="true">
   <div class="offcanvas-header bg-warning bg-gradient">
     <h5 class="offcanvas-title fw-bold text-dark" id="offcanvasSalesOrderLabel"><i class="fas fa-shopping-cart me-2"></i>Buat Sales Order</h5>
     <button type="button" class="btn-close text-dark" data-bs-dismiss="offcanvas" aria-label="Close"></button>

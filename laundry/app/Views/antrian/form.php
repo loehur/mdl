@@ -74,7 +74,7 @@
 </button>
 
 <!-- Offcanvas Buka Order -->
-<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasBukaOrder" aria-labelledby="offcanvasBukaOrderLabel" data-bs-backdrop="false">
+<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasBukaOrder" aria-labelledby="offcanvasBukaOrderLabel" data-bs-backdrop="true">
   <div class="offcanvas-header bg-warning bg-gradient">
     <h5 class="offcanvas-title fw-bold text-dark" id="offcanvasBukaOrderLabel"><i class="fas fa-cash-register me-2"></i>Buka Order Baru</h5>
     <button type="button" class="btn-close text-dark" data-bs-dismiss="offcanvas" aria-label="Close"></button>
