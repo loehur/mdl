@@ -709,7 +709,7 @@ $labeled = false;
             <td></td>
           </tr>
           <tr>
-            <td>Ketik <b>Cek</b> ke whatsapp kami, untuk cek status laundry Anda</td>
+            <td>Ketik <b>Cek</b> ke whatsapp kami,<br>untuk cek status laundry Anda</td>
           </tr>
           <tr>
             <td><?= URL::PACK_ROWS ?><b>- <?= $this->dCabang['kode_cabang'] ?> -</b></td>
