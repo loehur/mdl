@@ -78,6 +78,13 @@ const refreshInterval = ref(null); // Fix: Add missing ref
 const currentUserRole = ref('crew'); // Default to crew (safest)
 let lastBackPress = 0;
 
+// Reconnection State (to prevent loading screen during temporary disconnects)
+const wasConnected = ref(false); // Track if user has ever connected in this session
+const isReconnecting = ref(false); // True when attempting auto-reconnect
+const reconnectAttempts = ref(0); // Count of reconnect attempts
+const maxReconnectAttempts = 5; // Max attempts before giving up
+const reconnectDelay = ref(3000); // Base delay in ms (will be exponentially increased)
+
 // Image Upload State
 const selectedImage = ref(null);
 const imagePreview = ref('');
@@ -2230,6 +2237,12 @@ const connectWebSocket = () => {
        isConnecting.value = false;
        connectionError.value = '';
        
+       // Mark as successfully connected (for reconnect logic)
+       wasConnected.value = true;
+       isReconnecting.value = false;
+       reconnectAttempts.value = 0;
+       reconnectDelay.value = 3000; // Reset delay
+       
        // Save session (3 days)
        const expiry = new Date().getTime() + (3 * 24 * 60 * 60 * 1000);
        localStorage.setItem('cms_chat_id', authId.value);
@@ -2472,18 +2485,36 @@ const connectWebSocket = () => {
              console.log('WebSocket disconnected, code:', event.code, 'reason:', event.reason);
              isConnected.value = false;
              
-             // Check if disconnected due to connection limit (code 1008)
+             // Check if disconnected due to connection limit (code 1008 = duplicate connection)
              if (event.code === 1008) {
                  connectionError.value = '⚠️ Koneksi ditutup: ID ini sudah terkoneksi di tab/device lain';
                  console.warn('Connection closed: Another connection with same ID exists');
-                 // Show blocking modal
+                 // Show blocking modal - don't auto-reconnect
                  showDuplicateConnectionModal.value = true;
+                 wasConnected.value = false; // Prevent auto-reconnect
+             } else if (wasConnected.value && reconnectAttempts.value < maxReconnectAttempts) {
+                 // AUTO-RECONNECT: If was connected and not auth error, try reconnecting
+                 isReconnecting.value = true;
+                 reconnectAttempts.value++;
+                 
+                 // Calculate exponential backoff delay (max 30 seconds)
+                 const delay = Math.min(reconnectDelay.value * Math.pow(1.5, reconnectAttempts.value - 1), 30000);
+                 
+                 connectionError.value = `🔄 Mencoba reconnect (${reconnectAttempts.value}/${maxReconnectAttempts})...`;
+                 console.log(`Auto-reconnecting in ${delay}ms (attempt ${reconnectAttempts.value}/${maxReconnectAttempts})`);
+                 
+                 setTimeout(() => {
+                     if (authId.value && authPassword.value && !isConnected.value) {
+                         connectWebSocket();
+                     }
+                 }, delay);
              } else {
-                 connectionError.value = '⚠️ WebSocket terputus. Polling backup aktif (update setiap 3 detik)';
+                 connectionError.value = '⚠️ WebSocket terputus. Polling backup aktif (update setiap 30 detik)';
              }
         } else {
             // Connection failed during attempt
             isConnecting.value = false;
+            isReconnecting.value = false;
            // Clear invalid session if we failed to connect (e.g. ID revoked)
            // But be careful not to clear on transient network errors? 
            // Probably safe to let user try again or re-enter.
@@ -2494,11 +2525,24 @@ const connectWebSocket = () => {
                 msg = 'Access Denied: Invalid ID.';
                 localStorage.removeItem('chat_connection_id'); // Clear invalid ID
                 localStorage.removeItem('chat_connection_expiry');
+                wasConnected.value = false;
                 showLoginPrompt.value = true; // Show login immediately on auth error
+            } else if (event.code === 1006 && wasConnected.value && reconnectAttempts.value < maxReconnectAttempts) {
+                // Network error during reconnect attempt - keep trying
+                isReconnecting.value = true;
+                reconnectAttempts.value++;
+                const delay = Math.min(reconnectDelay.value * Math.pow(1.5, reconnectAttempts.value - 1), 30000);
+                
+                msg = `🔄 Koneksi terputus, mencoba reconnect (${reconnectAttempts.value}/${maxReconnectAttempts})...`;
+                console.log(`Reconnect attempt ${reconnectAttempts.value} in ${delay}ms`);
+                
+                setTimeout(() => {
+                    if (authId.value && authPassword.value && !isConnected.value) {
+                        connectWebSocket();
+                    }
+                }, delay);
             } else if (event.code === 1006) {
-                msg = 'Connection terminated abnormally.';
-                // If pure network error, maybe wait or show modal? 
-                // Let's show modal if we are truly disconnected for clarity
+                msg = 'Connection terminated. Tap to retry.';
                 showLoginPrompt.value = true;
             } else if (event.reason) {
                 msg = `Error: ${event.reason}`;
@@ -2625,15 +2669,29 @@ const mockIncomingMessage = () => {
   // Always fetch fresh data from server for 100% accuracy
   
   // --- VISIBILITY CHANGE HANDLER ---
-  // Fix for blank screen/disconnect after long backgrounding
+  // Fix for blank screen/disconnect after long backgrounding (Android sleep)
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
-      console.log('App resumed, checking connection...');
+      console.log('App resumed from background, checking connection...');
       
-      // Check if socket is dead
+      // Check if socket is dead or not connected
       if (!socket.value || socket.value.readyState !== WebSocket.OPEN) {
-          console.log('Socket disconnected, reconnecting...');
-          connectWebSocket();
+          console.log('Socket disconnected, initiating reconnect...');
+          
+          // CRITICAL FIX: Reset reconnect state to allow fresh reconnection
+          reconnectAttempts.value = 0;
+          reconnectDelay.value = 3000;
+          isReconnecting.value = true;
+          connectionError.value = '🔄 Reconnecting after resume...';
+          
+          // Only reconnect if we have credentials
+          if (authId.value && authPassword.value) {
+              connectWebSocket();
+          } else {
+              // No credentials - show login
+              isReconnecting.value = false;
+              showLoginPrompt.value = true;
+          }
       }
       
       // Refresh data to ensure sync
@@ -2650,6 +2708,54 @@ const mockIncomingMessage = () => {
       // We can try to force update a key ref to trigger re-render if needed.
     }
   });
+  
+  // --- ANDROID WEBVIEW RESUME HANDLER ---
+  // Handle custom event from Android MainActivity.onResume()
+  window.addEventListener('androidResume', () => {
+    console.log('📱 Android Resume event received');
+    
+    // Check if socket is dead and reconnect
+    if (!socket.value || socket.value.readyState !== WebSocket.OPEN) {
+      console.log('Socket disconnected, reconnecting from Android resume...');
+      
+      // Reset reconnect state
+      reconnectAttempts.value = 0;
+      reconnectDelay.value = 3000;
+      isReconnecting.value = true;
+      connectionError.value = '🔄 Reconnecting...';
+      
+      if (authId.value && authPassword.value) {
+        connectWebSocket();
+      } else {
+        isReconnecting.value = false;
+        showLoginPrompt.value = true;
+      }
+    }
+    
+    // Refresh conversations
+    fetchConversations();
+    resumeChatState();
+  });
+  
+  // --- EXPOSE GLOBAL FUNCTION FOR ANDROID ---
+  // Android WebView can call: window.triggerReconnect()
+  window.triggerReconnect = () => {
+    console.log('📱 triggerReconnect called from Android');
+    
+    if (!socket.value || socket.value.readyState !== WebSocket.OPEN) {
+      reconnectAttempts.value = 0;
+      reconnectDelay.value = 3000;
+      isReconnecting.value = true;
+      connectionError.value = '🔄 Reconnecting...';
+      
+      if (authId.value && authPassword.value) {
+        connectWebSocket();
+        fetchConversations();
+        return true;
+      }
+    }
+    return false;
+  };
   
   // --- CLICK OUTSIDE HANDLER ---
   // Close menu when clicking anywhere
@@ -2811,6 +2917,34 @@ if (typeof window !== 'undefined') {
 
   App.addListener('backButton', () => {
     handleBackButtonPress();
+  });
+
+  // Handle App State Change (Capacitor) - Resume from background/sleep
+  App.addListener('appStateChange', ({ isActive }) => {
+    console.log('Capacitor App State Changed:', isActive ? 'ACTIVE' : 'BACKGROUND');
+    
+    if (isActive) {
+      // App resumed from background - same logic as visibilitychange
+      if (!socket.value || socket.value.readyState !== WebSocket.OPEN) {
+        console.log('App resumed (Capacitor), socket disconnected, reconnecting...');
+        
+        // Reset reconnect state
+        reconnectAttempts.value = 0;
+        reconnectDelay.value = 3000;
+        isReconnecting.value = true;
+        connectionError.value = '🔄 Reconnecting...';
+        
+        if (authId.value && authPassword.value) {
+          connectWebSocket();
+        } else {
+          isReconnecting.value = false;
+          showLoginPrompt.value = true;
+        }
+      }
+      
+      // Refresh conversations
+      fetchConversations();
+    }
   });
 
   // Expose global function for Android WebView (non-Capacitor)
@@ -2993,8 +3127,8 @@ const handleLinkClick = (e) => {
   <!-- Use fixed inset-0 to prevent body scroll issues on mobile -->
   <div class="fixed inset-0 w-full bg-[#0f172a] text-slate-200 overflow-hidden font-sans selection:bg-indigo-500 selection:text-white">
     
-    <!-- Initial App Loading Screen (before login prompt) -->
-    <div v-if="!showLoginPrompt && !isConnected" class="fixed inset-0 z-[70] bg-[#0f172a] flex flex-col items-center justify-center">
+    <!-- Initial App Loading Screen (only on first load, not during reconnects) -->
+    <div v-if="!showLoginPrompt && !isConnected && !wasConnected && !isReconnecting" class="fixed inset-0 z-[70] bg-[#0f172a] flex flex-col items-center justify-center">
       <div class="flex flex-col items-center gap-6">
         <!-- Animated Logo/Icon -->
         <div class="relative">
@@ -3180,6 +3314,14 @@ const handleLinkClick = (e) => {
                    {{ totalOpenCasesCount }}
                 </span>
              </button>
+          </div>
+       </div>
+       
+       <!-- Reconnecting Banner (shows during auto-reconnect) -->
+       <div v-if="isReconnecting && !isConnected" class="px-4 py-2 bg-yellow-500/10 border-b border-yellow-500/20">
+          <div class="flex items-center gap-2 text-yellow-400 text-sm">
+             <div class="w-4 h-4 border-2 border-yellow-400/30 border-t-yellow-400 rounded-full animate-spin"></div>
+             <span>{{ connectionError || 'Reconnecting...' }}</span>
           </div>
        </div>
        

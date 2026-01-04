@@ -55,6 +55,39 @@ class MainActivity : AppCompatActivity() {
         checkLaunchIntent(intent)
     }
 
+    // ⭐ Handle when app resumes from background/sleep
+    override fun onResume() {
+        super.onResume()
+        
+        if (::webView.isInitialized) {
+            // Notify JavaScript that app has resumed - trigger reconnection
+            android.util.Log.d("MainActivity", "App resumed from background, triggering JS reconnect")
+            
+            val jsCode = """
+                (function() {
+                    console.log('Android: App resumed from background');
+                    
+                    // Trigger visibilitychange event manually for better compatibility
+                    if (document.visibilityState === 'visible') {
+                        // Dispatch custom event that our Vue app can listen to
+                        window.dispatchEvent(new CustomEvent('androidResume'));
+                    }
+                    
+                    // Also directly trigger reconnection if the function exists
+                    if (window.triggerReconnect) {
+                        window.triggerReconnect();
+                        return 'reconnect_triggered';
+                    }
+                    return 'event_dispatched';
+                })();
+            """.trimIndent()
+            
+            webView.evaluateJavascript(jsCode) { result ->
+                android.util.Log.d("MainActivity", "Resume JS result: $result")
+            }
+        }
+    }
+
     // ⭐ Handle when app is brought to foreground from background via notification
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
