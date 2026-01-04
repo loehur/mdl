@@ -746,13 +746,14 @@ async function fetchData() {
         const dInventory = await resInventory.json();
 
         if (dOrders.success) {
-            // Filter: Show pending/active orders OR Completed orders from TODAY
+            // Filter: Show pending/active orders OR Completed/Cancelled orders completed TODAY
             const today = new Date().toISOString().split('T')[0];
             orders.value = dOrders.data.filter(order => {
-                // Show pending always, but for completed AND cancelled, ensure it's from today
+                // Show pending always
                 if (order.status !== 'completed' && order.status !== 'cancelled') return true;
-                const orderDate = (order.order_date || '').split(' ')[0];
-                return orderDate === today;
+                // For completed/cancelled, use completed_at (or updated_at as fallback) to determine if it's from today
+                const completedDate = (order.completed_at || order.updated_at || '').split(' ')[0];
+                return completedDate === today;
             });
         }
         if (dCust.success) customers.value = dCust.data;

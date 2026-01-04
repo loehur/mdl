@@ -65,7 +65,11 @@
                     <span v-if="order.payment_notes" class="text-xs text-gray-500 italic truncate max-w-[150px]">{{ order.payment_notes }}</span>
                  </div>
               </td>
-              <td class="px-6 py-4 text-right">
+              <td class="px-6 py-4 text-right space-x-2">
+                <button @click="printReceipt(order)" class="text-gray-600 hover:text-gray-800 font-medium text-xs inline-flex items-center gap-1">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                  Cetak
+                </button>
                 <button @click="viewDetail(order)" class="text-pink-600 hover:text-pink-800 font-medium text-xs">Detail</button>
               </td>
             </tr>
@@ -134,6 +138,12 @@
                          "{{ selectedOrder.payment_notes }}"
                       </div>
                   </div>
+                  
+                  <!-- Print Button -->
+                  <button @click="printReceipt(selectedOrder)" class="w-full mt-4 py-3 bg-gradient-to-r from-gray-700 to-gray-900 hover:from-gray-800 hover:to-black text-white rounded-xl font-medium transition-all flex items-center justify-center gap-2 shadow-lg">
+                      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                      Cetak Nota
+                  </button>
               </div>
           </div>
        </div>
@@ -169,6 +179,176 @@ function viewDetail(order) {
 
 function formatNumber(num) {
     return new Intl.NumberFormat('id-ID').format(num || 0);
+}
+
+// Print Receipt Function - Thermal 58mm style
+function printReceipt(order) {
+    const printWindow = window.open('', '_blank', 'width=400,height=600');
+    
+    // Format items
+    let itemsHtml = '';
+    if (order.order_items && order.order_items.length > 0) {
+        order.order_items.forEach(item => {
+            const qty = item.qty || 1;
+            const price = formatNumber(item.price);
+            itemsHtml += `
+                <tr>
+                    <td style="padding: 2px 0;">${item.product_name}</td>
+                    <td style="padding: 2px 0; text-align: center;">${qty}</td>
+                    <td style="padding: 2px 0; text-align: right;">${price}</td>
+                </tr>
+            `;
+        });
+    }
+    
+    // Payment method display
+    let paymentDisplay = '';
+    if (order.payment_method === 'split') {
+        paymentDisplay = `Split (Tunai: ${formatNumber(order.pay_cash)} / Non-Tunai: ${formatNumber(order.pay_non_cash)})`;
+    } else if (order.payment_method === 'non_tunai') {
+        paymentDisplay = 'Non Tunai (Transfer/QRIS)';
+    } else {
+        paymentDisplay = 'Tunai';
+    }
+    
+    const orderDate = formatDate(order.completed_at || order.order_date || order.created_at);
+    const orderTime = formatTime(order.completed_at || order.order_date || order.created_at);
+    
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Nota #${order.id}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            width: 58mm;
+            padding: 5mm;
+            background: white;
+        }
+        .center { text-align: center; }
+        .bold { font-weight: bold; }
+        .divider {
+            border-top: 1px dashed #000;
+            margin: 8px 0;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .header h1 {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 2px;
+        }
+        .header p {
+            font-size: 10px;
+            color: #333;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            margin-bottom: 2px;
+        }
+        table {
+            width: 100%;
+            font-size: 11px;
+            border-collapse: collapse;
+        }
+        .total-section {
+            margin-top: 8px;
+        }
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            font-weight: bold;
+            margin-top: 4px;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 15px;
+            font-size: 10px;
+        }
+        @media print {
+            body { width: 58mm; }
+            @page { size: 58mm auto; margin: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>BEAUTY SALON</h1>
+        <p>Jl. Contoh Alamat No. 123</p>
+        <p>Telp: 08xx-xxxx-xxxx</p>
+    </div>
+    
+    <div class="divider"></div>
+    
+    <div class="info-row">
+        <span>No: #${order.id}</span>
+        <span>${orderDate}</span>
+    </div>
+    <div class="info-row">
+        <span>Kasir: Admin</span>
+        <span>${orderTime}</span>
+    </div>
+    <div class="info-row">
+        <span>Customer:</span>
+        <span>${order.customer_name || '-'}</span>
+    </div>
+    
+    <div class="divider"></div>
+    
+    <table>
+        <thead>
+            <tr style="border-bottom: 1px solid #000;">
+                <th style="text-align: left; padding-bottom: 4px;">Item</th>
+                <th style="text-align: center; padding-bottom: 4px;">Qty</th>
+                <th style="text-align: right; padding-bottom: 4px;">Harga</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${itemsHtml}
+        </tbody>
+    </table>
+    
+    <div class="divider"></div>
+    
+    <div class="total-section">
+        <div class="total-row">
+            <span>TOTAL</span>
+            <span>Rp ${formatNumber(order.total_price)}</span>
+        </div>
+        <div class="info-row" style="margin-top: 6px;">
+            <span>Bayar:</span>
+            <span>${paymentDisplay}</span>
+        </div>
+        ${order.payment_notes ? `<div class="info-row"><span>Catatan:</span><span>${order.payment_notes}</span></div>` : ''}
+    </div>
+    
+    <div class="divider"></div>
+    
+    <div class="footer">
+        <p class="bold">Terima Kasih</p>
+        <p>Atas Kunjungan Anda</p>
+        <p style="margin-top: 5px;">~ Sampai Jumpa Kembali ~</p>
+    </div>
+    
+    <script>
+        window.onload = function() {
+            window.print();
+        }
+    <\/script>
+</body>
+</html>
+    `;
+    
+    printWindow.document.write(html);
+    printWindow.document.close();
 }
 
 function formatDate(dateStr) {
