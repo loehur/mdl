@@ -171,25 +171,12 @@ class Users extends Controller
                 ->query("
                     SELECT COUNT(*) as count 
                     FROM orders 
-                    WHERE created_by_user_id = ?
+                    WHERE created_by = ?
                 ", [$id])
                 ->row_array();
 
             if ($hasOrders && $hasOrders['count'] > 0) {
                 $this->error('User tidak dapat dihapus karena telah membuat ' . $hasOrders['count'] . ' order', 400);
-            }
-
-            // Check if user assigned as worker in orders
-            $assignedOrders = $this->db($this->db_index)
-                ->query("
-                    SELECT COUNT(*) as count 
-                    FROM order_workers 
-                    WHERE worker_id = ?
-                ", [$id])
-                ->row_array();
-
-            if ($assignedOrders && $assignedOrders['count'] > 0) {
-                $this->error('User tidak dapat dihapus karena sudah ditugaskan di ' . $assignedOrders['count'] . ' layanan', 400);
             }
 
             $deleted = $this->db($this->db_index)->delete('users', ['id' => $id]);

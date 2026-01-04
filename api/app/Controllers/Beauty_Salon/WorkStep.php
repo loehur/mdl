@@ -163,19 +163,6 @@ class WorkStep extends Controller
                 $this->error('Langkah kerja tidak dapat dihapus karena digunakan di ' . $usedInProducts['count'] . ' produk', 400);
             }
 
-            // Check if work step is used in order workers
-            $usedInOrders = $this->db($this->db_index)
-                ->query("
-                    SELECT COUNT(*) as count 
-                    FROM order_workers 
-                    WHERE work_step_id = ?
-                ", [$id])
-                ->row_array();
-
-            if ($usedInOrders && $usedInOrders['count'] > 0) {
-                $this->error('Langkah kerja tidak dapat dihapus karena sudah ditugaskan di ' . $usedInOrders['count'] . ' layanan order', 400);
-            }
-
             $this->db($this->db_index)->delete('work_step', ['id' => $id]);
 
             $this->json([

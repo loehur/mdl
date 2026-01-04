@@ -9,6 +9,30 @@
         </button>
       </div>
 
+      <!-- Search Bar -->
+      <div class="mb-4">
+        <div class="relative">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+          </svg>
+          <input 
+            v-model="searchQuery" 
+            type="text" 
+            placeholder="Cari nama atau no HP..." 
+            class="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-200 focus:border-pink-400 outline-none transition"
+          />
+          <button 
+            v-if="searchQuery" 
+            @click="searchQuery = ''" 
+            class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+
       <!-- Table -->
       <div class="overflow-x-auto">
         <table class="w-full text-left text-sm">
@@ -32,8 +56,8 @@
               <td class="px-4 py-3"></td>
             </tr>
           </tbody>
-          <tbody v-else-if="customers.length" class="divide-y">
-            <tr v-for="(customer, index) in customers" :key="customer.id" class="hover:bg-fuchsia-50/30 group">
+          <tbody v-else-if="filteredCustomers.length" class="divide-y">
+            <tr v-for="(customer, index) in filteredCustomers" :key="customer.id" class="hover:bg-fuchsia-50/30 group">
               <td class="px-4 py-3 text-gray-500">{{ index + 1 }}</td>
               <td class="px-4 py-3 font-medium text-gray-800">{{ customer.nama }}</td>
               <td class="px-4 py-3 text-gray-600">{{ customer.no_hp }}</td>
@@ -71,6 +95,9 @@
                 </div>
               </td>
             </tr>
+          </tbody>
+          <tbody v-else-if="customers.length && !filteredCustomers.length">
+            <tr><td colspan="6" class="px-4 py-12 text-center text-gray-400">Tidak ada pelanggan yang cocok dengan pencarian "{{ searchQuery }}"</td></tr>
           </tbody>
           <tbody v-else>
             <tr><td colspan="6" class="px-4 py-12 text-center text-gray-400">Belum ada pelanggan</td></tr>
@@ -225,10 +252,24 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 
 const customers = ref([]);
 const loading = ref(true);
+const searchQuery = ref('');
+
+// Computed: Filtered Customers
+const filteredCustomers = computed(() => {
+  if (!searchQuery.value.trim()) {
+    return customers.value;
+  }
+  const query = searchQuery.value.toLowerCase().trim();
+  return customers.value.filter(customer => {
+    const nama = (customer.nama || '').toLowerCase();
+    const noHp = (customer.no_hp || '').toLowerCase();
+    return nama.includes(query) || noHp.includes(query);
+  });
+});
 const showModal = ref(false);
 const editMode = ref(false);
 const saving = ref(false);
