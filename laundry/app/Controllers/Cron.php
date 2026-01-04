@@ -23,7 +23,7 @@ class Cron extends Controller
          $diff = $t2 - $t1;
          $hours = round($diff / (60 * 60), 1);
 
-         if ($hours > 48) { // 48 hours atau 2 hari
+         if ($hours > 72) { // 72 hours atau 3 hari
             $expired_bol = true;
          }
 
