@@ -6,28 +6,9 @@
 </style>
 
 <?php
-
-if (count($data['data_main']) == 0) {
-?>
-  <div class="container-fluid">
-    <div class="row">
-      <div class='col p-0 m-2 rounded'>
-        <div class='bg-white p-2 rounded'>
-          Tidak ada Data
-        </div>
-      </div>
-    </div>
-  </div>
-
-<?php
-  exit();
-}
-
 $kodeCabang = $this->dCabang['kode_cabang'];
 $modeView = $data['modeView'];
 ?>
-
-
 
 <?php if (!empty($data['customersWithOpenCases'])) { ?>
 <div class="row mx-0 mt-2 mb-2">
@@ -161,6 +142,23 @@ $(document).ready(function() {
     });
 });
 </script>
+
+<?php
+if (count($data['data_main']) == 0) {
+?>
+  <div class="container-fluid">
+    <div class="row">
+      <div class='col p-0 m-2 rounded'>
+        <div class='bg-white p-2 rounded'>
+          Tidak ada Data
+        </div>
+      </div>
+    </div>
+  </div>
+
+<?php
+  exit();
+}
 
 <div class="row mx-0">
   <?php

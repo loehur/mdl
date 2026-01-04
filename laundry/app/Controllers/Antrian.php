@@ -156,11 +156,6 @@ class Antrian extends Controller
 
          if (!empty($openWaMap) && !empty($this->pelanggan)) {
             foreach ($this->pelanggan as $p) {
-               // Only process if customer is in current view
-               if (!isset($visibleCustomerIds[$p['id_pelanggan']])) {
-                   continue;
-               }
-
                $rawHp = $p['nomor_pelanggan'];
                $hp = preg_replace('/[^0-9]/', '', $rawHp);
                
