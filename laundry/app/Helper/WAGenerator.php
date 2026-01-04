@@ -276,7 +276,7 @@ class WAGenerator extends Controller
             } 
         }
         
-        $output = "*" . strtoupper($nama_pelanggan) . "* _#" . $kode_cabang . "-" . $cs_code . "_\n" . $listNotif . "\n" . $totalText . "\n" . URL::HOST_URL . "/I/i/" . $id_pelanggan. "\nKetik *CEK* untuk info status laundry";
+        $output = "*" . strtoupper($nama_pelanggan) . "* _#" . $kode_cabang . "-" . $cs_code . "_\n" . $listNotif . "\n" . $totalText . "\n" . URL::HOST_URL . "/I/i/" . $id_pelanggan. "\n_Ketik *CEK* untuk info status laundry_";
 
         // Post-processing
         $output = str_replace("<sup>2</sup>", "²", $output);
