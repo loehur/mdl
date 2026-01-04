@@ -159,6 +159,7 @@ if (count($data['data_main']) == 0) {
 <?php
   exit();
 }
+?>
 
 <div class="row mx-0">
   <?php
