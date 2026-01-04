@@ -306,7 +306,7 @@ class WAGenerator extends Controller
             'customer' => strtoupper($nama_pelanggan) . " _#" . $kode_cabang . "-" . $cs_code . "_",
             'order_list' => $cleanOrderList,
             //'total_bill' => $cleanTotalBill,
-            'invoice_link' => URL::HOST_URL . "/I/i/" . $id_pelanggan . " _Ketik *CEK* untuk cek status laundry Anda_"
+            'invoice_link' => URL::HOST_URL . "/I/i/" . $id_pelanggan . " _Ketik *CEK* untuk cek status laundry_"
         ];
 
         return json_encode([
