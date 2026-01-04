@@ -192,7 +192,7 @@ if ($data['id_pelanggan'] > 0) {
     <h5 class="offcanvas-title fw-bold text-dark" id="offcanvasBukaOrderOpLabel"><i class="fas fa-cash-register me-2"></i>Buka Order Baru</h5>
     <button type="button" class="btn-close text-dark" data-bs-dismiss="offcanvas" aria-label="Close"></button>
   </div>
-  <div class="offcanvas-body p-0" id="bukaOrderContentOp">
+  <div class="offcanvas-body p-0" id="bukaOrderContentOp" style="background-color: #2d3436;">
     <div class="d-flex justify-content-center align-items-center h-100">
         <div class="spinner-border text-warning" role="status">
             <span class="visually-hidden">Loading...</span>

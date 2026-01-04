@@ -349,7 +349,7 @@
     <h5 class="offcanvas-title fw-bold text-dark" id="offcanvasSalesOrderLabel"><i class="fas fa-shopping-cart me-2"></i>Buat Sales Order</h5>
     <button type="button" class="btn-close text-dark" data-bs-dismiss="offcanvas" aria-label="Close"></button>
   </div>
-  <div class="offcanvas-body p-3" id="salesOrderContent">
+  <div class="offcanvas-body p-3" id="salesOrderContent" style="background-color: #2d3436;">
     <div class="d-flex justify-content-center align-items-center py-5">
       <div class="spinner-border text-warning" role="status">
         <span class="visually-hidden">Loading...</span>

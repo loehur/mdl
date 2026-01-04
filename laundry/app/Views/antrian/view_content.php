@@ -41,7 +41,7 @@ $modeView = $data['modeView'];
         <h6 class="modal-title" id="waHistoryTitle">Riwayat Chat</h6>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body bg-light" id="waHistoryBody" style="min-height: 200px;">
+      <div class="modal-body" id="waHistoryBody" style="min-height: 200px; background-color: #1a1a2e;">
         <div class="text-center"><div class="spinner-border text-danger" role="status"></div></div>
       </div>
       <div class="modal-footer bg-light p-1">
@@ -92,6 +92,11 @@ $(document).ready(function() {
             data: { hp: hp },
             success: function(response) {
                 $('#waHistoryBody').html(response);
+                // Auto scroll to bottom to show latest messages
+                setTimeout(function() {
+                    var chatBody = document.getElementById('waHistoryBody');
+                    chatBody.scrollTop = chatBody.scrollHeight;
+                }, 100);
             },
             error: function() {
                 $('#waHistoryBody').html('<div class="text-center text-danger">Gagal memuat chat</div>');
