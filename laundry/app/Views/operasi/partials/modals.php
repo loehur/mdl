@@ -199,7 +199,7 @@
     <h5 class="offcanvas-title" id="offcanvasPaymentLabel">Pembayaran</h5>
     <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
   </div>
-  <div class="offcanvas-body" style="background-color: #2d3436;">
+  <div class="offcanvas-body bg-gradient">
     <div id="loadRekap" class="pb-0 w-100">
       <div class="row mx-0">
         <div class="col p-1">
