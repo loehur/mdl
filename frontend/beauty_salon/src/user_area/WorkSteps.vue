@@ -37,7 +37,7 @@
                 <td class="px-4 py-3 text-gray-500">{{ index + 1 }}</td>
                 <td class="px-4 py-3 font-medium text-gray-800">{{ step.name }}</td>
                 <td v-if="isAdmin" class="px-4 py-3 text-right font-mono text-gray-600">
-                  Rp {{ formatNumber(step.fee) }}
+                  {{ formatNumber(step.fee) }} Poin
                 </td>
                 <td class="px-4 py-3 text-right">
                   <div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -92,7 +92,7 @@
               </div>
             </div>
             <div v-if="isAdmin" class="text-sm text-gray-600 font-mono mb-3">
-              Rp {{ formatNumber(step.fee) }}
+              {{ formatNumber(step.fee) }} Poin
             </div>
             <div class="flex gap-2">
               <button 
@@ -143,7 +143,7 @@
 
             <div v-if="isAdmin">
               <label class="block text-sm font-medium text-gray-700 mb-2">
-                Fee (Rp) <span class="text-red-500">*</span>
+                Fee (Poin) <span class="text-red-500">*</span>
               </label>
               <input 
                 v-model="form.fee" 

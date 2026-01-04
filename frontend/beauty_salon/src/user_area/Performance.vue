@@ -5,7 +5,7 @@
       <!-- Title -->
       <div>
         <h1 class="text-xl md:text-2xl font-bold text-gray-800">Kinerja Terapis</h1>
-        <p class="text-xs md:text-sm text-gray-500">Statistik pekerjaan dan fee terapis (Maksimal rentang 31 hari)</p>
+        <p class="text-xs md:text-sm text-gray-500">Statistik pekerjaan dan poin terapis (Maksimal rentang 31 hari)</p>
       </div>
       
       <!-- Filter Section -->
@@ -64,12 +64,12 @@
         <p class="text-2xl font-bold text-pink-600">{{ totalTasks }}</p>
       </div>
       <div class="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
-        <p class="text-xs text-gray-500 mb-1">Total Fee Terapis</p>
-        <p class="text-2xl font-bold text-green-600">Rp {{ formatNumber(totalFee) }}</p>
+        <p class="text-xs text-gray-500 mb-1">Total Poin Terapis</p>
+        <p class="text-2xl font-bold text-green-600">{{ formatNumber(totalFee) }} Poin</p>
       </div>
       <div class="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
-        <p class="text-xs text-gray-500 mb-1">Rata-rata Fee/Terapis</p>
-        <p class="text-2xl font-bold text-amber-600">Rp {{ formatNumber(averageFee) }}</p>
+        <p class="text-xs text-gray-500 mb-1">Rata-rata Poin/Terapis</p>
+        <p class="text-2xl font-bold text-amber-600">{{ formatNumber(averageFee) }} Poin</p>
       </div>
     </div>
 
@@ -114,8 +114,8 @@
         <!-- Fee Summary -->
         <div class="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-b border-green-100">
           <div class="flex items-center justify-between">
-            <span class="text-sm font-medium text-green-700">Total Fee</span>
-            <span class="text-xl font-bold text-green-600">Rp {{ formatNumber(stat.totalFee) }}</span>
+            <span class="text-sm font-medium text-green-700">Total Poin</span>
+            <span class="text-xl font-bold text-green-600">{{ formatNumber(stat.totalFee) }} Poin</span>
           </div>
         </div>
 
@@ -131,7 +131,7 @@
               </div>
               <div class="flex items-center gap-3">
                 <span class="text-xs text-gray-500">{{ service.count }}x</span>
-                <span class="font-bold text-green-600">Rp {{ formatNumber(service.totalFee) }}</span>
+                <span class="font-bold text-green-600">{{ formatNumber(service.totalFee) }} Poin</span>
               </div>
             </div>
             <div v-if="Object.keys(stat.statsByStep).length === 0" class="text-xs text-gray-400 italic text-center py-4">
@@ -178,12 +178,12 @@
                         <p class="text-xs text-gray-500">Total Layanan</p>
                     </div>
                     <div class="text-center">
-                        <p class="text-2xl font-bold text-green-600">Rp {{ formatNumber(selectedStat.totalFee) }}</p>
-                        <p class="text-xs text-gray-500">Total Fee</p>
+                        <p class="text-2xl font-bold text-green-600">{{ formatNumber(selectedStat.totalFee) }} Poin</p>
+                        <p class="text-xs text-gray-500">Total Poin</p>
                     </div>
                     <div class="text-center">
-                        <p class="text-2xl font-bold text-amber-600">Rp {{ formatNumber(Math.round(selectedStat.totalFee / Math.max(selectedStat.totalTasks, 1))) }}</p>
-                        <p class="text-xs text-gray-500">Rata-rata Fee</p>
+                        <p class="text-2xl font-bold text-amber-600">{{ formatNumber(Math.round(selectedStat.totalFee / Math.max(selectedStat.totalTasks, 1))) }} Poin</p>
+                        <p class="text-xs text-gray-500">Rata-rata Poin</p>
                     </div>
                 </div>
 
@@ -195,7 +195,7 @@
                              class="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm flex items-center gap-3">
                            <span class="font-medium text-gray-700">{{ name }}</span>
                            <span class="bg-pink-100 text-pink-700 px-2 py-0.5 rounded text-xs font-bold">{{ service.count }}x</span>
-                           <span class="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-bold">Rp {{ formatNumber(service.totalFee) }}</span>
+                           <span class="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-bold">{{ formatNumber(service.totalFee) }} Poin</span>
                         </div>
                         <div v-if="Object.keys(selectedStat.statsByStep).length === 0" class="text-xs text-gray-400 italic">Belum ada data.</div>
                     </div>
@@ -209,7 +209,7 @@
                                 <th class="px-4 py-3 text-left">Tanggal</th>
                                 <th class="px-4 py-3 text-left">Layanan</th>
                                 <th class="px-4 py-3 text-left">Pelanggan</th>
-                                <th class="px-4 py-3 text-right">Fee</th>
+                                <th class="px-4 py-3 text-right">Poin</th>
                            </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
@@ -217,7 +217,7 @@
                                 <td class="px-4 py-3 text-gray-500 whitespace-nowrap font-mono text-xs">{{ formatDate(task.date) }}</td>
                                 <td class="px-4 py-3 font-medium text-gray-700">{{ task.stepName }}</td>
                                 <td class="px-4 py-3 text-gray-600">{{ task.customerName }}</td>
-                                <td class="px-4 py-3 text-right font-bold text-green-600">Rp {{ formatNumber(task.fee) }}</td>
+                                <td class="px-4 py-3 text-right font-bold text-green-600">{{ formatNumber(task.fee) }} Poin</td>
                            </tr>
                            <tr v-if="selectedStat.tasks.length === 0">
                                <td colspan="4" class="px-4 py-8 text-center text-gray-400">Belum ada layanan selesai.</td>
@@ -230,7 +230,7 @@
                 <div class="p-4 border-t bg-gray-50 rounded-b-2xl flex justify-between items-center">
                     <div class="flex items-center gap-4">
                         <span class="text-sm text-gray-500">Total: <strong class="text-gray-700">{{ selectedStat.tasks.length }} Layanan</strong></span>
-                        <span class="text-sm text-gray-500">Fee: <strong class="text-green-600">Rp {{ formatNumber(selectedStat.totalFee) }}</strong></span>
+                        <span class="text-sm text-gray-500">Poin: <strong class="text-green-600">{{ formatNumber(selectedStat.totalFee) }} Poin</strong></span>
                     </div>
                     <button @click="selectedStat = null" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm hover:bg-gray-50 font-medium text-gray-700 transition">Tutup</button>
                 </div>

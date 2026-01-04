@@ -20,7 +20,7 @@
         <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs md:text-sm">
           <div class="flex items-center gap-1">
             <span class="text-green-200">↑ Pemasukan:</span>
-            <span class="font-semibold text-white break-words">{{ formatCurrency(totalIncome) }}</span>
+            <span class="font-semibold text-white break-words">{{ formatCurrency(totalIncome + totalTransferIn) }}</span>
           </div>
           <div class="flex items-center gap-1">
             <span class="text-red-200">↓ Pengeluaran:</span>
@@ -133,15 +133,25 @@
                 <tr v-for="tx in filteredExpenses" :key="tx.id" class="hover:bg-gray-50 transition border-b border-gray-50 last:border-0">
                   <td class="px-6 py-4 whitespace-nowrap">
                     <div class="flex items-center gap-3">
+                      <!-- Icon: Pengeluaran -->
                       <div v-if="tx.transaction_type === 'expense'" class="w-8 h-8 rounded-lg bg-red-100 text-red-600 flex items-center justify-center flex-shrink-0">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg>
                       </div>
+                      <!-- Icon: Transfer Masuk (dari Kas Besar ke Cashier) -->
+                      <div v-else-if="tx.transaction_type === 'transfer' && tx.transfer_to === 'cashier' && tx.transfer_from !== 'cashier'" class="w-8 h-8 rounded-lg bg-green-100 text-green-600 flex items-center justify-center flex-shrink-0">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"></path></svg>
+                      </div>
+                      <!-- Icon: Transfer Keluar -->
                       <div v-else class="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
                       </div>
                       <div>
-                        <div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none mb-1">
-                          {{ tx.transaction_type === 'expense' ? 'Pengeluaran' : 'Transfer Keluar' }}
+                        <div class="text-[10px] font-bold uppercase tracking-widest leading-none mb-1" :class="{
+                          'text-red-500': tx.transaction_type === 'expense',
+                          'text-green-500': tx.transaction_type === 'transfer' && tx.transfer_to === 'cashier' && tx.transfer_from !== 'cashier',
+                          'text-blue-500': tx.transaction_type === 'transfer' && tx.transfer_from === 'cashier'
+                        }">
+                          {{ tx.transaction_type === 'expense' ? 'Pengeluaran' : (tx.transfer_to === 'cashier' && tx.transfer_from !== 'cashier' ? 'Transfer Masuk' : 'Transfer Keluar') }}
                         </div>
                         <div class="text-xs font-mono text-gray-600">{{ formatDate(tx.transaction_date) }}</div>
                       </div>
@@ -150,12 +160,22 @@
                   <td class="px-6 py-4">
                     <div class="font-bold text-gray-800 tracking-tight">{{ tx.description }}</div>
                     <div v-if="tx.notes" class="text-xs text-gray-500 mt-1 italic">{{ tx.notes }}</div>
-                    <div v-if="tx.transaction_type === 'transfer'" class="text-[10px] text-blue-600 font-bold mt-1 uppercase tracking-wider bg-blue-50 inline-block px-2 py-0.5 rounded">
+                    <!-- Transfer Masuk: Dari Kas Besar -->
+                    <div v-if="tx.transaction_type === 'transfer' && tx.transfer_to === 'cashier' && tx.transfer_from !== 'cashier'" class="text-[10px] text-green-600 font-bold mt-1 uppercase tracking-wider bg-green-50 inline-block px-2 py-0.5 rounded">
+                      Dari: {{ tx.transfer_from === 'main' ? 'Kas Besar' : tx.transfer_from }}
+                    </div>
+                    <!-- Transfer Keluar: Ke Kas Besar -->
+                    <div v-else-if="tx.transaction_type === 'transfer' && tx.transfer_from === 'cashier'" class="text-[10px] text-blue-600 font-bold mt-1 uppercase tracking-wider bg-blue-50 inline-block px-2 py-0.5 rounded">
                       Ke: {{ tx.transfer_to === 'main' ? 'Kas Besar' : tx.transfer_to }}
                     </div>
                   </td>
                   <td class="px-6 py-4 text-right">
-                    <span class="font-black text-sm" :class="tx.transaction_type === 'expense' ? 'text-rose-600' : 'text-blue-600'">
+                    <!-- Transfer masuk: hijau dengan + -->
+                    <span v-if="tx.transaction_type === 'transfer' && tx.transfer_to === 'cashier' && tx.transfer_from !== 'cashier'" class="font-black text-sm text-green-600">
+                      + {{ formatCurrency(tx.amount) }}
+                    </span>
+                    <!-- Pengeluaran atau transfer keluar: merah/biru dengan - -->
+                    <span v-else class="font-black text-sm" :class="tx.transaction_type === 'expense' ? 'text-rose-600' : 'text-blue-600'">
                       - {{ formatCurrency(tx.amount) }}
                     </span>
                   </td>
@@ -891,14 +911,31 @@ const filteredExpenses = computed(() => {
   });
 });
 
-// Computed: Total pengeluaran & transfer out (dari filtered)
+// Computed: Separate outgoing and incoming transactions
+// Pengeluaran = expense + transfer OUT (from cashier to main)
+// Pemasukan = transfer IN (from main to cashier)
 const totalExpense = computed(() => {
-  return filteredExpenses.value.reduce((sum, tx) => sum + Number(tx.amount), 0);
+  return filteredExpenses.value
+    .filter(tx => {
+      // Expense type = pengeluaran
+      if (tx.transaction_type === 'expense') return true;
+      // Transfer OUT from cashier = pengeluaran
+      if (tx.transaction_type === 'transfer' && tx.transfer_from === 'cashier') return true;
+      return false;
+    })
+    .reduce((sum, tx) => sum + Number(tx.amount), 0);
 });
 
-// Computed: Saldo kas (income - expense)
+// Total transfer masuk (dari Kas Besar ke Kas Kasir)
+const totalTransferIn = computed(() => {
+  return filteredExpenses.value
+    .filter(tx => tx.transaction_type === 'transfer' && tx.transfer_to === 'cashier' && tx.transfer_from !== 'cashier')
+    .reduce((sum, tx) => sum + Number(tx.amount), 0);
+});
+
+// Computed: Saldo kas (income + transfer_in - expense)
 const cashBalance = computed(() => {
-  return totalIncome.value - totalExpense.value;
+  return totalIncome.value + totalTransferIn.value - totalExpense.value;
 });
 
 // Fetch income from completed orders
