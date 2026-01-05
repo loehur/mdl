@@ -151,6 +151,40 @@ class Operan extends Controller
 
       $text = str_replace("|STAFF|", $karyawan_code, $text);
 
+      // Ambil data penjualan untuk menghitung TOTAL
+      $saleData = $this->db(0)->get_where_row("sale", "id_penjualan = '" . $penjualan . "' AND id_cabang = " . $idCabang);
+      if ($saleData) {
+         $harga = floatval($saleData['harga'] ?? 0);
+         $qty = floatval($saleData['qty'] ?? 0);
+         $min_order = floatval($saleData['min_order'] ?? 0);
+         $diskon_qty = floatval($saleData['diskon_qty'] ?? 0);
+         $member = intval($saleData['member'] ?? 0);
+         
+         // Hitung qty real (minimal order)
+         $qty_real = ($qty < $min_order) ? $min_order : $qty;
+         
+         // Hitung total dengan diskon
+         if ($member == 0) {
+            if ($diskon_qty > 0) {
+               $total = ($harga * $qty_real) - (($harga * $qty_real) * ($diskon_qty / 100));
+            } else {
+               $total = $harga * $qty_real;
+            }
+            $totalFormatted = "Rp" . number_format($total, 0, ',', '.');
+         } else {
+            $totalFormatted = "MEMBER";
+         }
+         
+         $text = str_replace("|TOTAL|", $totalFormatted, $text);
+      } else {
+         // Jika data sale tidak ditemukan, hapus placeholder
+         $text = str_replace("|TOTAL|", "", $text);
+         $this->writeLog('operasiOperan', 'WARNING', 'Data sale tidak ditemukan untuk menghitung TOTAL', [
+            'penjualan' => $penjualan,
+            'idCabang' => $idCabang
+         ]);
+      }
+
       if ($idCabang == 0 || strlen($hp) == 0) {
          $this->writeLog('operasiOperan', 'ERROR', 'ID Cabang atau No HP Pelanggan tidak valid', [
             'idCabang' => $idCabang,
