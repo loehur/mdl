@@ -186,7 +186,6 @@ class Data_List extends Controller
                'no_user' => $no_user,
                'nama_user' => $_POST['f1'] ?? '',
                'id_privilege' => $privilege,
-               'book' => date('Y')
             ];
             
             // Debug log
