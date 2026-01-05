@@ -27,6 +27,20 @@ class Cron extends Controller
             $expired_bol = true;
          }
 
+         // Cek apakah transaksi sudah tuntas (sudah diambil customer)
+         $no_ref = $dm['no_ref'] ?? '';
+         if (!empty($no_ref)) {
+            $saleCheck = $this->db(0)->get_where_row("sale", "id_penjualan = '" . $no_ref . "'");
+            if ($saleCheck && (intval($saleCheck['tuntas'] ?? 0) == 1 || intval($saleCheck['id_user_ambil'] ?? 0) != 0)) {
+               // Transaksi sudah tuntas, tidak perlu kirim WA lagi
+               $set = ['state' => 'expired'];
+               $where2 = "id_notif = '" . $id_notif . "'";
+               $this->db(0)->update('notif', $set, $where2);
+               $expire += 1;
+               continue; // Skip ke notif berikutnya
+            }
+         }
+
          if ($expired_bol == false) {
             $hp = $dm['phone'];
             $text = $dm['text'];
