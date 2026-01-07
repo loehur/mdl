@@ -54,9 +54,10 @@ class Data_List extends Controller
             break;
          case "item_pengeluaran":
             $this->session_cek(1);
-            $cols = 'item_pengeluaran';
+            $cols = 'item_pengeluaran, is_expense';
             $f1 = $_POST['f1'];
-            $vals = "'" . $f1 . "'";
+            $is_expense = isset($_POST['is_expense']) ? 1 : 0;
+            $vals = "'" . $f1 . "'," . $is_expense;
             $where = "item_pengeluaran = '" . $f1 . "'";
             $data_main = $this->db(0)->count_where($table, $where);
             if ($data_main < 1) {
@@ -136,6 +137,8 @@ class Data_List extends Controller
             $this->session_cek(1);
             if ($mode == 1) {
                $col = "item_pengeluaran";
+            } else if ($mode == 2) {
+               $col = "is_expense";
             }
             $where = "id_item_pengeluaran = " . $id;
             break;

@@ -17,7 +17,7 @@ class Kas extends Controller
       $cols_kredit = "SUM(jumlah) as jumlah";
 
       $debit = 0;
-      $where_debit = $this->wCabang . " AND jenis_mutasi = 2 AND metode_mutasi = 1 AND status_mutasi <> 2";
+      $where_debit = $this->wCabang . " AND jenis_mutasi = 2 AND jenis_transaksi IN (2,4) AND metode_mutasi = 1 AND status_mutasi <> 2";
       $cols_debit = "SUM(jumlah) as jumlah";
 
       $jumlah_kredit = isset($this->db(0)->get_cols_where('kas', $cols_kredit, $where_kredit, 0)['jumlah']) ? $this->db(0)->get_cols_where('kas', $cols_kredit, $where_kredit, 0)['jumlah'] : 0;
@@ -33,7 +33,7 @@ class Kas extends Controller
          $limit = 25;
       }
 
-      $where = $this->wCabang . " AND jenis_mutasi = 2 ORDER BY id DESC LIMIT $limit"; //pengeluaran
+      $where = $this->wCabang . " AND jenis_mutasi = 2 AND jenis_transaksi IN (2,4) ORDER BY id DESC LIMIT $limit"; //pengeluaran
       $debit_list = $this->db(0)->get_where('kas', $where);
 
       //KASBON
@@ -118,8 +118,8 @@ class Kas extends Controller
       if ($data_main < 1) {
          //update freq
          $this->db(0)->update('item_pengeluaran', "freq = freq + 1", "id_item_pengeluaran = " . $id_jenis);
-         $cols = 'id_cabang, jenis_mutasi, jenis_transaksi, metode_mutasi, note, note_primary, status_mutasi, jumlah, id_user, id_client, ref';
-         $vals = $this->id_cabang . ",2,4,1,'" . $keterangan . "','" . $jenis . "'," . $status_mutasi . "," . $jumlah . "," . $this->id_user . ",0," . $id_jenis;
+         $cols = 'id_cabang, jenis_mutasi, jenis_transaksi, metode_mutasi, note, note_primary, status_mutasi, jumlah, id_user, id_client, ref, is_expense';
+         $vals = $this->id_cabang . ",2,4,1,'" . $keterangan . "','" . $jenis . "'," . $status_mutasi . "," . $jumlah . "," . $this->id_user . ",0," . $id_jenis . ",1";
          $in = $this->db(0)->insertCols('kas', $cols, $vals);
          echo $in['errno'] == 0 ? 0 : $in['error'];
       }

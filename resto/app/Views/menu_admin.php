@@ -9,6 +9,13 @@ $menu[1] = [
     ],
     [
         'p' => 100,
+        'c' => 'Kas_Besar',
+        'title' => 'Kas Besar',
+        'icon' => 'fas fa-vault',
+        'txt' => 'Kas Besar'
+    ],
+    [
+        'p' => 100,
         'c' => '',
         'title' => 'Rekap',
         'icon' => 'fas fa-chart-line',

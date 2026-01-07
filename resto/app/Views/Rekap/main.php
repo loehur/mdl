@@ -245,24 +245,7 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
               echo "</tr>";
               $total_keluar += $a['total'];
             }
-
-            $gaji = $data['gaji'];
-            $gaji = (int)$gaji;
-
-            if ($gaji > 0) {
-              echo "<tr>";
-              echo "<td class=''>Gaji Karyawan</td>";
-              echo "<td class='text-right'>Rp" . number_format($gaji) . "</td>";
-              echo "</tr>";
-              $total_keluar += $gaji;
-            }
-
-            $total_keluar += $data['prepost_cost'];
             ?>
-            <tr>
-              <td>Pre/Post Paid</td>
-              <td class="text-end"><?= number_format($data['prepost_cost']) ?></td>
-            </tr>
             <tr class="table-danger">
               <td><b>Total Pengeluaran</b></td>
               <td class="text-right"><b>Rp<?= number_format($total_keluar) ?></b></td>

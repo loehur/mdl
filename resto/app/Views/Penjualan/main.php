@@ -238,4 +238,25 @@ $bawa_pulang = 5;
       },
     });
   }
+
+  function hapusBayar(id) {
+    if (!confirm('Yakin ingin menghapus pembayaran ini?')) {
+      return;
+    }
+    
+    $.ajax({
+      url: "<?= URL::BASE_URL ?>Penjualan/hapus_bayar",
+      data: {
+        id: id
+      },
+      type: "POST",
+      success: function(res) {
+        if (res == 0) {
+          load_pesanan(mode_dt, nomor);
+        } else {
+          alert(res);
+        }
+      },
+    });
+  }
 </script>

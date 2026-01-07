@@ -79,6 +79,9 @@ class Penjualan extends Controller
       $metode = $_POST['metode'];
       $ref = $_POST['ref'];
 
+      // DEBUG: Log nilai yang diterima
+      Log::write("ref: $ref, dibayar: $uang_diterima, metode: $metode");
+
       if ($metode == 1) {
          $st_mutasi = 1;
          $step = 1;
@@ -118,6 +121,9 @@ class Penjualan extends Controller
             $jumlah_bayar = $uang_diterima;
          }
 
+         // DEBUG: Log kalkulasi
+         Log::write("sisa_tagihan: $sisa_tagihan, uang_diterima: $uang_diterima, jumlah_bayar: $jumlah_bayar");
+
          $cols = "id_cabang, jenis_mutasi, jenis_transaksi, ref, metode_mutasi, status_mutasi, jumlah, id_user, dibayar, kembali";
          $vals = $this->id_cabang . ",1,1,'" . $ref . "'," . $metode . "," . $st_mutasi . "," . $jumlah_bayar . "," . $this->id_user . "," . $uang_diterima . "," . $kembali;
          $in = $this->db(0)->insertCols("kas", $cols, $vals);
@@ -131,6 +137,37 @@ class Penjualan extends Controller
          } else {
             echo $in['error'];
          }
+      }
+   }
+
+   public function hapus_bayar()
+   {
+      // Cek privilege (hanya kasir level atas)
+      if ($_SESSION['resto_user']['id_privilege'] < 30) {
+         echo "Anda tidak memiliki akses";
+         return;
+      }
+
+      $id = $_POST['id'];
+
+      // Cek apakah pembayaran ada
+      $cek = $this->db(0)->get_where_row('kas', "id = " . $id);
+      if (count($cek) == 0) {
+         echo "Pembayaran tidak ditemukan";
+         return;
+      }
+
+      // Hapus pembayaran (soft delete dengan status_mutasi = 2)
+      $del = $this->db(0)->update("kas", "status_mutasi = 2", "id = " . $id);
+      
+      if ($del['errno'] == 0) {
+         // Update step ref kembali ke 0 (order aktif)
+         $this->db(0)->update('ref', "step = 0", "id = '" . $cek['ref'] . "'");
+         
+         Log::write("Hapus pembayaran id: $id, ref: " . $cek['ref'] . ", jumlah: " . $cek['jumlah']);
+         echo 0;
+      } else {
+         echo $del['error'];
       }
    }
 

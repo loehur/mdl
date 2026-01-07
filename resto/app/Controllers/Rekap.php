@@ -105,47 +105,15 @@ class Rekap extends Controller
 
       //PENGELUARAN
       $cols = "note_primary, sum(jumlah) as total";
-      $where = $whereCabang . "jenis_transaksi = 4 AND status_mutasi <> 2 AND insertTime LIKE '%" . $today . "%' GROUP BY note_primary";
-      $where_keluar =  $whereCabang . "jenis_transaksi = 4 AND status_mutasi <> 3 AND insertTime LIKE '%" . $today . "%'";
+      $where = $whereCabang . "jenis_transaksi IN (3,4) AND status_mutasi <> 2 AND insertTime LIKE '%" . $today . "%' GROUP BY note_primary";
+      $where_keluar =  $whereCabang . "jenis_transaksi IN (3,4) AND status_mutasi <> 3 AND insertTime LIKE '%" . $today . "%'";
       $kas_keluar = $this->db(0)->get_cols_where('kas', $cols, $where, 1);
-
-      //PENGELUARAN PREPAID/POSTPAID
-      $col = "price";
-      $where_prepost = $whereCabang . "tr_status = 1 AND insertTime LIKE '" . $today . "%'";
-      $cost_pre = $this->db(0)->sum_col_where('prepaid', $col, $where_prepost);
-      if (is_array($cost_pre)) $cost_pre = 0;
-      $cost_post = $this->db(0)->sum_col_where('postpaid', $col, $where_prepost);
-      if (is_array($cost_post)) $cost_post = 0;
-      $prepost_cost = $cost_pre + $cost_post;
 
       //PENARIKAN
       $cols = "note_primary, sum(jumlah) as total";
       $where = $whereCabang . "jenis_transaksi = 2 AND status_mutasi <> 2 AND insertTime LIKE '%" . $today . "%' GROUP BY note_primary";
       $where_tarik =  $whereCabang . "jenis_transaksi = 2 AND status_mutasi <> 3 AND insertTime LIKE '%" . $today . "%'";
       $kas_tarik = $this->db(0)->get_cols_where('kas', $cols, $where, 1);
-
-      //GAJI KARYAWAN
-      $cols = "sum(jumlah) as total";
-      $gaji = 0;
-      if ($whereCabang == '') {
-         $where = $whereCabang . "tipe = 1 AND tgl = '" . $today . "'";
-
-         $get = $this->db(0)->get_cols_where("gaji_result", $cols, $where, 0);
-         if (isset($get['total'])) {
-            $gaji = $get['total'];
-         } else {
-            $gaji = 0;
-         }
-      } else {
-         $karyawan = $this->db(0)->get_cols_where('user', 'id_user', $this->wCabang, 1);
-         foreach ($karyawan as $kr) {
-            $where = "tipe = 1 AND id_karyawan = " . $kr['id_user'] . " AND tgl = '" . $today . "'";
-            $get = $this->db(0)->get_cols_where("gaji_result", $cols, $where, 0);
-            if (isset($get['total'])) {
-               $gaji += $get['total'];
-            }
-         }
-      }
 
       $this->view('layout', $layout);
       $this->view($viewData, [
@@ -158,8 +126,6 @@ class Rekap extends Controller
          'whereTarik' => $where_tarik,
          'kas_keluar' => $kas_keluar,
          'kas_tarik' => $kas_tarik,
-         'prepost_cost' => $prepost_cost,
-         'gaji' => $gaji
       ]);
    }
 

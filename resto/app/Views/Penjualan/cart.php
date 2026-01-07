@@ -40,7 +40,12 @@
   foreach ($data['bayar'] as $b) {
     $dibayar += $b['jumlah'] ?>
     <tr>
-      <td class="text-end"><?= URL::METOD_BAYAR[$b['metode_mutasi']] ?></td>
+      <td class="text-end">
+        <span class="text-danger me-2" style="cursor: pointer;" onclick="hapusBayar(<?= $b['id'] ?>)" title="Hapus pembayaran">
+          <i class="fas fa-times-circle"></i>
+        </span>
+        <?= URL::METOD_BAYAR[$b['metode_mutasi']] ?>
+      </td>
       <td class="text-end">-<?= number_format($b['jumlah'])  ?></td>
     </tr>
   <?php } ?>

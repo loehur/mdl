@@ -1,3 +1,5 @@
+<link rel="stylesheet" href="<?= URL::ASSETS_URL ?>css/selectize.bootstrap3.min.css">
+
 <?php $kas = $data['saldo']; ?>
 <div class="row mx-0">
   <div class="col p-1">
@@ -85,15 +87,16 @@
             <div class="form-group">
               <input type="text" name='kas' class="form-control text-center text-bold saldoKas" id="exampleInputEmail1" readonly>
             </div>
-            <div class="form-group" id="jenisKeluar">
+            <div class="form-group">
               <label for="exampleInputEmail1">Jenis Pengeluaran</label>
               <select name="f1a" class="form-control form-control-sm jenisKeluar" style="width: 100%;" required>
                 <option value="" selected disabled></option>
-                <?php
-                $sf = 0;
-                foreach ($data['pengeluaran_jenis'] as $ip) { ?>
-                  <option value="<?= $ip['id_item_pengeluaran'] ?><explode><?= $ip['item_pengeluaran'] ?>"><?= $ip['item_pengeluaran'] ?></option>
-                <?php } ?>
+                <?php foreach ($data['pengeluaran_jenis'] as $ip) {
+                  $is_expense = isset($ip['is_expense']) ? $ip['is_expense'] : 1;
+                  if ($is_expense == 1) { ?>
+                    <option value="<?= $ip['id_item_pengeluaran'] ?><explode><?= $ip['item_pengeluaran'] ?>"><?= $ip['item_pengeluaran'] ?></option>
+                <?php }
+                } ?>
               </select>
             </div>
             <div class="form-group">
@@ -146,15 +149,19 @@
   </div>
 </div>
 
-<!-- SCRIPT -->
-<script src="<?= URL::ASSETS_URL ?>plugins/select2/select2.min.js"></script>
 
+<script src="<?= URL::ASSETS_URL ?>js/selectize.min.js"></script>
 <script>
   $(document).ready(function() {
-    selectList();
     $("div#nTunai").hide();
     var saldoKas = <?= $kas ?>;
     $('input.saldoKas').val(formatter.format(saldoKas));
+
+    // Inisialisasi Selectize untuk jenis pengeluaran
+    $('select.jenisKeluar').selectize({
+      sortField: 'text',
+      placeholder: 'Pilih Jenis Pengeluaran'
+    });
   });
 
   $("form").on("submit", function(e) {
@@ -203,18 +210,6 @@
     style: 'currency',
     currency: 'IDR',
   });
-
-  function selectList() {
-    $('select.userKeluar').select2({
-      dropdownParent: $("#userKeluar"),
-    });
-    $('select.jenisKeluar').select2({
-      dropdownParent: $("#jenisKeluar"),
-    });
-    $('select.tarik').select2({
-      dropdownParent: $("#exampleModal3"),
-    });
-  }
 
   function tarik(idnya) {
     $.ajax({

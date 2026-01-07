@@ -8,6 +8,7 @@
         <tr>
           <th class="text-right">#</th>
           <th>Item Pengeluaran</th>
+          <th class="text-center">Biaya</th>
         </tr>
       </thead>
       <tbody>
@@ -16,10 +17,14 @@
         foreach ($data['data_main'] as $a) {
           $id = $a['id_item_pengeluaran'];
           $f1 = $a['item_pengeluaran'];
+          $is_expense = isset($a['is_expense']) ? $a['is_expense'] : 1;
           $no++;
           echo "<tr>";
           echo "<td class='text-right'>" . $no . "</td>";
           echo "<td><span data-mode='1' data-id_value='" . $id . "' data-value='" . $f1 . "'>" . $f1 . "</span></td>";
+          echo "<td class='text-center'>";
+          echo "<input type='checkbox' class='form-check-input expense-check' data-id='" . $id . "' " . ($is_expense == 1 ? "checked" : "") . ">";
+          echo "</td>";
           echo "</tr>";
         }
         ?>
@@ -39,9 +44,15 @@
         <!-- ====================== FORM ========================= -->
         <form action="<?= URL::BASE_URL; ?>Data_List/insert/item_pengeluaran" method="POST">
           <div class="card-body">
-            <div class="form-group">
+            <div class="form-group mb-3">
               <label for="exampleInputEmail1">Nama Item</label>
               <input type="text" name="f1" class="form-control" id="exampleInputEmail1" placeholder="" required>
+            </div>
+            <div class="form-group">
+              <div class="form-check">
+                <input type="checkbox" class="form-check-input" name="is_expense" id="is_expense" value="1" checked>
+                <label class="form-check-label" for="is_expense">Biaya (Masuk Laporan Pengeluaran)</label>
+              </div>
             </div>
           </div>
           <div class="modal-footer">
@@ -75,7 +86,7 @@
     });
 
     var click = 0;
-    $("span").on('dblclick', function() {
+    $("span[data-mode]").on('dblclick', function() {
       click = click + 1;
       if (click != 1) {
         return;
@@ -87,7 +98,6 @@
       var value_before = value;
       var span = $(this);
 
-      var valHtml = $(this).html();
       span.html("<input type='text' class='text-center' id='value_' value='" + value + "'>");
 
       $("#value_").focus();
@@ -111,6 +121,26 @@
             },
           });
         }
+      });
+    });
+
+    // Handler untuk checkbox is_expense
+    $(".expense-check").on('change', function() {
+      var id = $(this).attr('data-id');
+      var value = $(this).is(':checked') ? 1 : 0;
+      
+      $.ajax({
+        url: '<?= URL::BASE_URL ?>Data_List/updateCell/item_pengeluaran',
+        data: {
+          'id': id,
+          'value': value,
+          'mode': 2
+        },
+        type: 'POST',
+        dataType: 'html',
+        success: function(response) {
+          // Tidak perlu reload, checkbox sudah berubah
+        },
       });
     });
 

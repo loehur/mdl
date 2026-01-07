@@ -25,7 +25,7 @@ foreach ($data['bayar'] as $b) {
   </div>
   <div class="w-100 mt-3">
     <div class="text-center">Input Jumlah Bayar</div>
-    <div class="text-center"><input x-bind:value="total_bayar" x-model="total_bayar" class="border-top-0 border-start-0 border-end-0 border-bottom fs-2 text-success w-100 text-center" type="number"></div>
+    <div class="text-center"><input x-model.number="total_bayar" class="border-top-0 border-start-0 border-end-0 border-bottom fs-2 text-success w-100 text-center" type="number"></div>
   </div>
   <div class="w-100 mt-3">
     <div class="text-center">Dibayar</div>
@@ -58,7 +58,11 @@ foreach ($data['bayar'] as $b) {
 
   <div class="w-100 mt-4">
     <div class="text-center fs-5 fw-bold">
-      <span class="btn btn-success w-100 bg-gradient rounded-0" x-on:click="bayarOK()">Bayar</span>
+      <span class="btn btn-success w-100 bg-gradient rounded-0" 
+            x-bind:class="isProcessing ? 'disabled opacity-50' : ''" 
+            x-bind:style="isProcessing ? 'pointer-events: none' : ''"
+            x-on:click="bayarOK()" 
+            x-text="isProcessing ? 'Memproses...' : 'Bayar'"></span>
     </div>
   </div>
 </div>
@@ -76,14 +80,19 @@ foreach ($data['bayar'] as $b) {
       bill: parseInt(<?= $total ?>),
       total_bayar: parseInt(<?= $total ?>),
       kembalian: 0,
+      isProcessing: false,
 
       metodeBayar() {
-        if (this.metodePilih != 1) {
-          this.total_bayar = parseInt(<?= $total ?>)
-        }
+        // Tidak lagi auto-reset ke total agar partial payment tetap bisa dilakukan
+        // dengan metode bayar apapun
       },
 
       bayarOK() {
+        // Cegah double click
+        if (this.isProcessing) {
+          return;
+        }
+
         let metode = $('input[name="metode"]:checked').val();
 
         if (this.total_bayar <= 0) {
@@ -96,6 +105,11 @@ foreach ($data['bayar'] as $b) {
           return;
         }
 
+        // Set processing state
+        this.isProcessing = true;
+
+        console.log('DEBUG dibayar:', this.total_bayar, 'metode:', metode);
+
         $.ajax({
           url: "<?= URL::BASE_URL ?>Penjualan/bayar",
           data: {
@@ -104,6 +118,7 @@ foreach ($data['bayar'] as $b) {
             metode: metode
           },
           type: "POST",
+          context: this,
           success: function(res) {
             if (res == 0) {
               $('.offcanvas.show').each(function() {
@@ -118,8 +133,15 @@ foreach ($data['bayar'] as $b) {
               load_pesanan(mode_dt, nomor);
             } else {
               console.log(res);
+              // Reset processing state jika error
+              this.isProcessing = false;
             }
           },
+          error: function() {
+            // Reset processing state jika error
+            this.isProcessing = false;
+            alert('Terjadi kesalahan. Silakan coba lagi.');
+          }
         });
       },
 
