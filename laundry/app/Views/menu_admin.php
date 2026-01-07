@@ -8,9 +8,9 @@ $menu[1] = [
     ],
     [
         'c' => 'Kas_Besar',
-        'title' => 'Kas Besar',
+        'title' => 'Kas_Besar',
         'icon' => 'fas fa-cash-register',
-        'txt' => 'Kas_Besar'
+        'txt' => 'Kas Besar'
     ],
     [
         'c' => '#',
