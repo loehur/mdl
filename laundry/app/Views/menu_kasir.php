@@ -171,7 +171,7 @@ $menu[0] = [
     ],
     [
         'c' => 'Kas',
-        'title' => 'Kas',
+        'title' => 'Kas Kasir',
         'icon' => 'fas fa-wallet',
         'txt' => 'Kas Kasir',
     ],

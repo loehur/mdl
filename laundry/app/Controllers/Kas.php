@@ -11,7 +11,7 @@ class Kas extends Controller
    public function index()
    {
       $view = 'kas/kas_main';
-      $data_operasi = ['title' => 'Kas'];    
+      $data_operasi = ['title' => 'Kas Kasir'];    
 
       //uang masuk
       $kredit = 0;
