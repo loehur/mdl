@@ -111,7 +111,7 @@ if ($log_mode == 1) {
                         <?php } ?>
                     </div>
                 <?php } ?>
-                <div class="col-auto ps-0">
+                <div class="col me-auto ps-0">
                     <a class="refresh" href="#">
                         <span class="btn btn-outline-success"><i class="fas fa-sync"></i></span>
                     </a>
