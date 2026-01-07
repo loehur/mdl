@@ -234,17 +234,6 @@ if ($log_mode == 1) {
                             } else {
                                 echo 'none;';
                             } ?>;">
-                                        <li class="nav-item">
-                                            <a href="#" class="nav-link 
-              <?php if ($title == 'Item Laundry') {
-                                echo 'active';
-                            } ?>">
-                                                <i class="far fa-circle nav-icon"></i>
-                                                <p>
-                                                    Menu dan Kategori
-                                                </p>
-                                            </a>
-                                        </li>
 
                                         <li class="nav-item">
                                             <a href="<?= URL::BASE_URL ?>Data_List/i/item_pengeluaran" class="nav-link 
@@ -258,17 +247,6 @@ if ($log_mode == 1) {
                                             </a>
                                         </li>
                                     </ul>
-                                </li>
-
-                                <li class="nav-item ">
-                                    <a href="<?= URL::BASE_URL ?>Troubleshoot" class="nav-link 
-                  <?php if ($title == 'Troubleshoot') : echo 'active';
-                            endif ?>">
-                                        <i class="nav-icon fas fa-hammer"></i>
-                                        <p>
-                                            Troubleshoot
-                                        </p>
-                                    </a>
                                 </li>
                             </ul>
                         <?php

@@ -57,11 +57,4 @@ $menu[1] = [
             ],
         ]
     ],
-    [
-        'p' => 100,
-        'c' => 'WA_Status',
-        'title' => 'WA_Status',
-        'icon' => 'fab fa-whatsapp',
-        'txt' => 'Whatsapp Status'
-    ],
 ];
