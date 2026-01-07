@@ -105,8 +105,8 @@ class Rekap extends Controller
 
       //PENGELUARAN
       $cols = "note_primary, sum(jumlah) as total";
-      $where = $whereCabang . "jenis_transaksi IN (3,4) AND status_mutasi <> 2 AND insertTime LIKE '%" . $today . "%' GROUP BY note_primary";
-      $where_keluar =  $whereCabang . "jenis_transaksi IN (3,4) AND status_mutasi <> 3 AND insertTime LIKE '%" . $today . "%'";
+      $where = $whereCabang . "jenis_transaksi IN (3,4) AND is_expense = 1 AND status_mutasi <> 2 AND insertTime LIKE '%" . $today . "%' GROUP BY note_primary";
+      $where_keluar =  $whereCabang . "jenis_transaksi IN (3,4) AND is_expense = 1 AND status_mutasi <> 3 AND insertTime LIKE '%" . $today . "%'";
       $kas_keluar = $this->db(0)->get_cols_where('kas', $cols, $where, 1);
 
       //PENARIKAN
