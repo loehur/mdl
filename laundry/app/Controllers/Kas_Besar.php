@@ -19,13 +19,13 @@ class Kas_Besar extends Controller
       
       $kredit = 0;
       
-      // 1. Penarikan dari kas kasir
-      $where_penarikan = "jenis_transaksi IN (2, 8) AND status_mutasi <> 4";
+      // 1. Penarikan dari kas kasir 2 penarikan, 9 modal
+      $where_penarikan = "jenis_transaksi IN (2, 9) AND status_mutasi <> 4";
       $cols = "SUM(jumlah) as jumlah";
       $jumlah_penarikan = $this->db(0)->get_cols_where('kas', $cols, $where_penarikan, 0);
       $kredit += isset($jumlah_penarikan['jumlah']) ? (int)$jumlah_penarikan['jumlah'] : 0;
 
-      // 2. Pembayaran non-tunai
+      // 2. Pembayaran non-tunai, 1 jualan, 3 member, 7 sales
       $where_nontunai = "jenis_transaksi IN (1, 3, 7) AND metode_mutasi = 2 AND status_mutasi <> 4";
       $jumlah_nontunai = $this->db(0)->get_cols_where('kas', $cols, $where_nontunai, 0);
       $kredit += isset($jumlah_nontunai['jumlah']) ? (int)$jumlah_nontunai['jumlah'] : 0;
