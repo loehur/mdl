@@ -105,6 +105,10 @@
               <label>Keterangan</label>
               <input type="text" name="f1" class="form-control" placeholder="">
             </div>
+            <div class="form-group">
+              <label>Tanggal</label>
+              <input type="datetime-local" name="tgl" class="form-control" value="<?= date('Y-m-d\TH:i') ?>" required>
+            </div>
           </div>
           <div class="modal-footer">
             <button type="submit" class="btn btn-sm rounded-0 w-100 bg-gradient btn-danger">Buat Pengeluaran</button>

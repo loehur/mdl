@@ -58,6 +58,10 @@ class Kas_Besar extends Controller
       $keterangan = $_POST['f1'];
       $jumlah = $_POST['f2'];
       $jenis = $_POST['f1a'];
+      
+      // Tanggal manual (format datetime-local: 2026-01-07T10:00)
+      $tgl_input = $_POST['tgl'];
+      $insertTime = date('Y-m-d H:i:s', strtotime($tgl_input));
 
       $jenisEXP = explode("<explode>", $jenis);
       $id_jenis = $jenisEXP[0];
@@ -71,14 +75,14 @@ class Kas_Besar extends Controller
       $status_mutasi = 1;
 
       // jenis_transaksi = 3 untuk pengeluaran dari Kas Besar
-      $cols = 'id_cabang, jenis_mutasi, jenis_transaksi, metode_mutasi, note, note_primary, status_mutasi, jumlah, id_user, id_client, ref, is_expense';
-      $vals = $this->id_cabang . ",2,3,1,'" . $keterangan . "','" . $jenis_nama . "'," . $status_mutasi . "," . $jumlah . "," . $this->id_user . ",0," . $id_jenis . "," . $is_expense;
+      $cols = 'id_cabang, jenis_mutasi, jenis_transaksi, metode_mutasi, note, note_primary, status_mutasi, jumlah, id_user, id_client, ref, is_expense, insertTime';
+      $vals = $this->id_cabang . ",2,3,1,'" . $keterangan . "','" . $jenis_nama . "'," . $status_mutasi . "," . $jumlah . "," . $this->id_user . ",0," . $id_jenis . "," . $is_expense . ",'" . $insertTime . "'";
       $in = $this->db(0)->insertCols('kas', $cols, $vals);
       
       if ($in['errno'] == 0) {
          // Update freq jenis pengeluaran
          $this->db(0)->update('item_pengeluaran', "freq = freq + 1", "id_item_pengeluaran = " . $id_jenis);
-         Log::write("Pengeluaran Kas Besar: " . $jenis_nama . " - Rp " . number_format($jumlah));
+         Log::write("Pengeluaran Kas Besar: " . $jenis_nama . " - Rp " . number_format($jumlah) . " - Tgl: " . $insertTime);
          echo 0;
       } else {
          echo $in['error'];
