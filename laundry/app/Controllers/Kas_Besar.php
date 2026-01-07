@@ -11,7 +11,7 @@ class Kas_Besar extends Controller
    public function index()
    {
       $view = 'kas/kas_besar';
-      $data_operasi = ['title' => 'Kas Besar'];
+      $data_operasi = ['title' => 'Kas_Besar'];
 
       // ====== SALDO KAS BESAR ======
       // Pemasukan: jenis_transaksi = 2 (Penarikan dari kas kasir ke kas besar)
