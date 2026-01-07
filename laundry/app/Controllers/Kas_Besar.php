@@ -33,7 +33,7 @@ class Kas_Besar extends Controller
       // ====== PENGELUARAN KAS BESAR ======
       // Pengeluaran dari kas besar
       $debit = 0;
-      $where_debit = "jenis_transaksi = 8 AND status_mutasi <> 4";
+      $where_debit = "(jenis_transaksi = 8 OR (jenis_transaksi = 5 AND metode_mutasi = 2)) AND status_mutasi <> 4";
       $jumlah_debit = $this->db(0)->get_cols_where('kas', $cols, $where_debit, 0);
       $debit += isset($jumlah_debit['jumlah']) ? (int)$jumlah_debit['jumlah'] : 0;
 

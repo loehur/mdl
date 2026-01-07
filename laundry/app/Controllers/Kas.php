@@ -22,7 +22,7 @@ class Kas extends Controller
 
       //uang keluar
       $debit = 0;
-      $where_debit = $this->wCabang . " AND jenis_transaksi IN (2, 4, 5) AND jenis_mutasi = 2 AND status_mutasi <> 4";
+      $where_debit = $this->wCabang . " AND jenis_transaksi IN (2, 4, 5) AND jenis_mutasi = 2 AND metode_mutasi = 1 AND status_mutasi <> 4";
       $cols_debit = "SUM(jumlah) as jumlah";
       $jumlah_debit = isset($this->db(0)->get_cols_where('kas', $cols_debit, $where_debit, 0)['jumlah']) ? $this->db(0)->get_cols_where('kas', $cols_debit, $where_debit, 0)['jumlah'] : 0;
       $debit = $jumlah_debit;
