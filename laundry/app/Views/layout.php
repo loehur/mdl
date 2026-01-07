@@ -174,6 +174,12 @@ if ($log_mode == 1) {
                         <?php foreach ($menu as $key => $m) { ?>
                             <ul id="nav_<?= $key ?>" class="nav nav-pills nav-sidebar flex-column <?= $key == 0 ? $hideKasir : $hideAdmin ?>">
                                 <?php foreach ($m as $mk) { ?>
+                                    <?php 
+                                    // Skip menu if show_if_multi_cabang is true but only 1 cabang exists
+                                    if (isset($mk['show_if_multi_cabang']) && $mk['show_if_multi_cabang'] && count($this->listCabang) <= 1) {
+                                        continue;
+                                    }
+                                    ?>
                                     <?php if (!isset($mk['submenu'])) { ?>
                                         <li class="nav-item ">
                                             <a href="<?= URL::BASE_URL . $mk['c'] ?>" class="nav-link <?= (strpos($title, $mk['title']) !== FALSE) ? 'active' : '' ?>">
@@ -229,51 +235,6 @@ if ($log_mode == 1) {
                             </ul>
                         <?php } ?>
 
-                        <ul id="nav_2" class="nav nav-pills nav-sidebar flex-column <?= $hideKasir ?> ?>">
-                            <?php if (count($this->listCabang) > 1) { ?>
-                                <li class="nav-item ">
-                                    <a href="<?= URL::BASE_URL ?>Operan" class="nav-link 
-                  <?php if (strpos($title, 'Operan') !== FALSE) : echo 'active';
-                                endif ?>">
-                                        <i class="nav-icon fas fa-random"></i>
-                                        <p>
-                                            Operan
-                                        </p>
-                                    </a>
-                                </li>
-                            <?php } ?>
-
-                            <li class="nav-item ">
-                                <a href="<?= URL::BASE_URL ?>Kas" class="nav-link 
-                <?php if (strpos($title, 'Kas') !== FALSE) : echo 'active';
-                endif ?>">
-                                    <i class="nav-icon fas fa-wallet"></i>
-                                    <p>
-                                        Kas
-                                    </p>
-                                </a>
-                            </li>
-                            <li class="nav-item ">
-                                <a href="<?= URL::BASE_URL ?>PackLabel" class="nav-link 
-                <?php if (strpos($title, 'PackLabel') !== FALSE) : echo 'active';
-                endif ?>">
-                                    <i class="nav-icon fas fa-tag"></i>
-                                    <p>
-                                        Pack Label
-                                    </p>
-                                </a>
-                            </li>
-                            <li class="nav-item ">
-                                <a href="<?= URL::BASE_URL ?>Prepaid" class="nav-link 
-                <?php if (strpos($title, 'Pre/Post Paid') !== FALSE) : echo 'active';
-                endif ?>">
-                                    <i class="nav-icon far fa-credit-card"></i>
-                                    <p>
-                                        Pre/Post Paid
-                                    </p>
-                                </a>
-                            </li>
-                        </ul>
 
                         <!-- INI MENU ADMIN ----------------------------------------->
                         <?php if ($this->id_privilege == 100) { ?>
@@ -433,76 +394,7 @@ if ($log_mode == 1) {
                                             </li>
                                         </ul>
                                     </li>
-
-                                    <li class="nav-item 
-                <?php if (strpos($title, 'Broadcast') !== FALSE) {
-                                        echo 'menu-is-opening menu-open';
-                                    } ?>">
-                                        <a href="#" class="nav-link 
-                <?php if (strpos($title, 'Broadcast') !== FALSE) {
-                                        echo 'active';
-                                    } ?>">
-                                            <i class="nav-icon fas fa-bullhorn"></i>
-                                            <p>
-                                                Broadcast
-                                                <i class="fas fa-angle-left right"></i>
-                                            </p>
-                                        </a>
-                                        <ul class="nav nav-treeview" style="display: 
-                <?php if (strpos($title, 'Broadcast') !== FALSE) {
-                                        echo 'block;';
-                                    } else {
-                                        echo 'none;';
-                                    } ?>;">
-                                            <li class="nav-item">
-                                                <a href="<?= URL::BASE_URL ?>Broadcast/i/1" class="nav-link 
-                    <?php if ($title == 'Broadcast PDP') {
-                                        echo 'active';
-                                    } ?>">
-                                                    <i class="far fa-circle nav-icon"></i>
-                                                    <p>
-                                                        Pelanggan Dalam Proses
-                                                    </p>
-                                                </a>
-                                            </li>
-                                            <li class="nav-item">
-                                                <a href="<?= URL::BASE_URL ?>Broadcast/i/2" class="nav-link 
-                    <?php if ($title == 'Broadcast PNP') {
-                                        echo 'active';
-                                    } ?>">
-                                                    <i class="far fa-circle nav-icon"></i>
-                                                    <p>
-                                                        Pelanggan Non Proses
-                                                    </p>
-                                                </a>
-                                            </li>
-                                            <li class="nav-item">
-                                                <a href="<?= URL::BASE_URL ?>Broadcast/i/3" class="nav-link 
-                    <?php if ($title == 'Broadcast Semua Pelanggan') {
-                                        echo 'active';
-                                    } ?>">
-                                                    <i class="far fa-circle nav-icon"></i>
-                                                    <p>
-                                                        Pelanggan Semua
-                                                    </p>
-                                                </a>
-                                            </li>
-                                            <li class="nav-item">
-                                                <a href="<?= URL::BASE_URL ?>Broadcast/i/4" class="nav-link 
-                    <?php if ($title == 'Broadcast List') {
-                                        echo 'active';
-                                    } ?>">
-                                                    <i class="far fa-circle nav-icon"></i>
-                                                    <p>
-                                                        Broadcast List
-                                                    </p>
-                                                </a>
-                                            </li>
-                                        </ul>
-                                    </li>
-
-
-                            </ul>
+                                </ul>
                     <?php
                                 }
                             } ?>

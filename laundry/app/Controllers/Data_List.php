@@ -119,12 +119,14 @@ class Data_List extends Controller
             $this->session_cek(1);
             $cols = 'item_pengeluaran';
             $f1 = $_POST['f1'];
+            $is_expense = isset($_POST['is_expense']) ? intval($_POST['is_expense']) : 1;
             $vals = "'" . $f1 . "'";
             $where = "item_pengeluaran = '" . $f1 . "'";
             $data_main = $this->db(0)->count_where($table, $where);
             if ($data_main < 1) {
                $data = [
-                  'item_pengeluaran' => $f1
+                  'item_pengeluaran' => $f1,
+                  'is_expense' => $is_expense
                ];
                $this->db(0)->insert($table, $data);
                $this->dataSynchrone($_SESSION[URL::SESSID]['user']['id_user']);
@@ -248,6 +250,8 @@ class Data_List extends Controller
             $this->session_cek(1);
             if ($mode == 1) {
                $col = "item_pengeluaran";
+            } else if ($mode == 2) {
+               $col = "is_expense";
             }
             $where = "id_item_pengeluaran = " . $id;
             break;

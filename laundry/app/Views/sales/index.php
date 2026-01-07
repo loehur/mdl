@@ -173,11 +173,15 @@
               <?php 
                 } else {
                   // CABANG SOURCE: Alert peninjauan + tombol hapus
+                  // Get kode cabang tujuan
+                  $targetCabang = $this->db(0)->get_where_row('cabang', "id_cabang = '$targetId'");
+                  $kodeCabangTarget = $targetCabang['kode_cabang'] ?? 'N/A';
               ?>
                 <div class="d-flex align-items-center justify-content-between">
                   <div class="alert alert-info mb-0 py-2 px-3 flex-grow-1" role="alert">
                     <i class="fas fa-info-circle me-2"></i>
                     <strong>Transfer barang dalam peninjauan</strong>
+                    <span class="ms-2 badge bg-primary"><?= $kodeCabangTarget ?></span>
                   </div>
                   <button type="button" class="btn btn-sm btn-outline-danger btnBatalNota ms-2" data-ref="<?= $ref ?>" title="Hapus Nota">
                     <i class="fas fa-times"></i>

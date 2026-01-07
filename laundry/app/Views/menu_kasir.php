@@ -162,4 +162,29 @@ $menu[0] = [
             ],
         ]
     ],
+    [
+        'c' => 'Operan',
+        'title' => 'Operan',
+        'icon' => 'fas fa-random',
+        'txt' => 'Operan',
+        'show_if_multi_cabang' => true, // Only show if listCabang > 1
+    ],
+    [
+        'c' => 'Kas',
+        'title' => 'Kas',
+        'icon' => 'fas fa-wallet',
+        'txt' => 'Kas Kasir',
+    ],
+    [
+        'c' => 'PackLabel',
+        'title' => 'PackLabel',
+        'icon' => 'fas fa-tag',
+        'txt' => 'Pack Label',
+    ],
+    [
+        'c' => 'Prepaid',
+        'title' => 'Pre/Post Paid',
+        'icon' => 'far fa-credit-card',
+        'txt' => 'Pre/Post Paid',
+    ],
 ];

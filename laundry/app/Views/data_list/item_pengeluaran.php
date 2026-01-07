@@ -16,6 +16,7 @@
                 <tr>
                   <th class="text-right">#</th>
                   <th>Item Pengeluaran</th>
+                  <th class="text-center">Tipe</th>
                 </tr>
               </thead>
               <tbody>
@@ -24,10 +25,12 @@
                 foreach ($data['data_main'] as $a) {
                   $id = $a['id_item_pengeluaran'];
                   $f1 = $a['item_pengeluaran'];
+                  $is_expense = $a['is_expense'] ?? 1;
                   $no++;
                   echo "<tr>";
                   echo "<td class='text-right'>" . $no . "</td>";
                   echo "<td><span data-mode='1' data-id_value='" . $id . "' data-value='" . $f1 . "'>" . $f1 . "</span></td>";
+                  echo "<td class='text-center'><span class='badge " . ($is_expense == 1 ? 'bg-danger' : 'bg-warning') . " is-expense-toggle' style='cursor:pointer;' data-id='" . $id . "' data-value='" . $is_expense . "'>" . ($is_expense == 1 ? 'Biaya' : 'Non-Biaya') . "</span></td>";
                   echo "</tr>";
                 }
                 ?>
@@ -50,9 +53,24 @@
           <!-- ====================== FORM ========================= -->
           <form action="<?= URL::BASE_URL; ?>Data_List/insert/item_pengeluaran" method="POST">
             <div class="card-body">
-              <div class="form-group">
-                <label for="exampleInputEmail1">Nama Item</label>
-                <input type="text" name="f1" class="form-control" id="exampleInputEmail1" placeholder="" required>
+              <div class="form-group mb-3">
+                <label for="inputNamaItem">Nama Item</label>
+                <input type="text" name="f1" class="form-control" id="inputNamaItem" placeholder="" required>
+              </div>
+              <div class="form-group mb-3">
+                <label>Tipe</label>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="is_expense" id="typeExpense" value="1" checked>
+                  <label class="form-check-label" for="typeExpense">
+                    <span class="badge bg-danger">Biaya</span> - Termasuk pengeluaran operasional
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="is_expense" id="typeNonExpense" value="0">
+                  <label class="form-check-label" for="typeNonExpense">
+                    <span class="badge bg-warning">Non-Biaya</span> - Prive, Aset, dll
+                  </label>
+                </div>
               </div>
             </div>
             <div class="modal-footer">
@@ -86,7 +104,7 @@
       });
 
       var click = 0;
-      $("span").on('dblclick', function() {
+      $("span[data-mode]").on('dblclick', function() {
         click = click + 1;
         if (click != 1) {
           return;
@@ -122,6 +140,27 @@
               },
             });
           }
+        });
+      });
+
+      // Toggle is_expense on click
+      $(".is-expense-toggle").on('click', function() {
+        var id = $(this).attr('data-id');
+        var currentValue = $(this).attr('data-value');
+        var newValue = currentValue == 1 ? 0 : 1;
+        
+        $.ajax({
+          url: '<?= URL::BASE_URL ?>Data_List/updateCell/item_pengeluaran',
+          data: {
+            'id': id,
+            'value': newValue,
+            'mode': 2
+          },
+          type: 'POST',
+          dataType: 'html',
+          success: function(response) {
+            location.reload(true);
+          },
         });
       });
 

@@ -7,6 +7,12 @@ $menu[1] = [
         'txt' => 'Approval'
     ],
     [
+        'c' => 'Kas_Besar',
+        'title' => 'Kas Besar',
+        'icon' => 'fas fa-cash-register',
+        'txt' => 'Kas Besar'
+    ],
+    [
         'c' => '#',
         'title' => 'Sales Ops',
         'icon' => 'fas fa-shopping-cart',
@@ -59,11 +65,6 @@ $menu[1] = [
         'icon' => 'fas fa-cogs',
         'txt' => 'System Ops',
         'submenu' => [
-            [
-                'c' => '@WA_Status',
-                'title' => 'WA_Status',
-                'txt' => 'Whatsapp Status'
-            ],
             [
                 'c' => '@Setting',
                 'title' => 'Setting',

@@ -15,14 +15,14 @@ class Kas extends Controller
 
       //uang masuk
       $kredit = 0;
-      $where_kredit = $this->wCabang . " AND jenis_mutasi = 1 AND metode_mutasi = 1 AND status_mutasi = 3";
+      $where_kredit = $this->wCabang . " AND jenis_transaksi IN (1,3,7) AND jenis_mutasi = 1 AND metode_mutasi = 1 AND status_mutasi <> 4";
       $cols_kredit = "SUM(jumlah) as jumlah";
       $jumlah_kredit = isset($this->db(0)->get_cols_where('kas', $cols_kredit, $where_kredit, 0)['jumlah']) ? $this->db(0)->get_cols_where('kas', $cols_kredit, $where_kredit, 0)['jumlah'] : 0;
       $kredit = $jumlah_kredit;
 
       //uang keluar
       $debit = 0;
-      $where_debit = $this->wCabang . " AND jenis_mutasi = 2 AND metode_mutasi = 1 AND status_mutasi <> 4";
+      $where_debit = $this->wCabang . " AND jenis_transaksi IN (2, 4, 5) AND jenis_mutasi = 2 AND metode_mutasi = 1 AND status_mutasi <> 4";
       $cols_debit = "SUM(jumlah) as jumlah";
       $jumlah_debit = isset($this->db(0)->get_cols_where('kas', $cols_debit, $where_debit, 0)['jumlah']) ? $this->db(0)->get_cols_where('kas', $cols_debit, $where_debit, 0)['jumlah'] : 0;
       $debit = $jumlah_debit;
@@ -35,7 +35,7 @@ class Kas extends Controller
          $limit = 25;
       }
 
-      $where = $this->wCabang . " AND jenis_mutasi = 2 ORDER BY insertTime DESC LIMIT $limit";
+      $where = $this->wCabang . " AND jenis_transaksi IN (2, 4) AND jenis_mutasi = 2 ORDER BY insertTime DESC LIMIT $limit";
       $debit_list = $this->db(0)->get_where('kas', $where);
 
       //KASBON

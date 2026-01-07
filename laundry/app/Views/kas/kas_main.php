@@ -220,11 +220,20 @@
               <label for="exampleInputEmail1">Jenis Pengeluaran</label>
               <select name="f1a" class="form-control form-control-sm jenisKeluar" style="width: 100%;" required>
                 <option value="" selected disabled></option>
-                <?php
-                $sf = 0;
-                foreach ($this->dItemPengeluaran as $ip) { ?>
-                  <option value="<?= $ip['id_item_pengeluaran'] ?><explode><?= $ip['item_pengeluaran'] ?>"><?= $ip['item_pengeluaran'] ?></option>
-                <?php } ?>
+                <optgroup label="💸 Biaya Operasional">
+                  <?php foreach ($this->dItemPengeluaran as $ip) { 
+                    if (isset($ip['is_expense']) && $ip['is_expense'] == 1) { ?>
+                    <option value="<?= $ip['id_item_pengeluaran'] ?><explode><?= $ip['item_pengeluaran'] ?>"><?= $ip['item_pengeluaran'] ?></option>
+                  <?php } 
+                  } ?>
+                </optgroup>
+                <optgroup label="💰 Non-Biaya (Prive/Aset)">
+                  <?php foreach ($this->dItemPengeluaran as $ip) { 
+                    if (isset($ip['is_expense']) && $ip['is_expense'] == 0) { ?>
+                    <option value="<?= $ip['id_item_pengeluaran'] ?><explode><?= $ip['item_pengeluaran'] ?>"><?= $ip['item_pengeluaran'] ?></option>
+                  <?php } 
+                  } ?>
+                </optgroup>
               </select>
             </div>
             <div class="form-group">
@@ -389,7 +398,7 @@
 
 <!-- SCRIPT -->
 <script src="<?= URL::EX_ASSETS ?>js/popper.min.js"></script>
-<script src="<?= URL::EX_ASSETS ?>plugins/select2/select2.min.js"></script>
+<script src="<?= URL::EX_ASSETS ?>js/selectize.min.js"></script>
 
 <script>
   var saldoKas = <?= $kas ?>;
@@ -449,17 +458,17 @@
   });
 
   function selectList() {
-    $('select.userKeluar').select2({
-      dropdownParent: $("#userKeluar"),
+    $('select.userKeluar').selectize({
+      sortField: 'text'
     });
-    $('select.jenisKeluar').select2({
-      dropdownParent: $("#jenisKeluar"),
+    $('select.jenisKeluar').selectize({
+      sortField: 'text'
     });
-    $('select.tarik').select2({
-      dropdownParent: $("#exampleModal3"),
+    $('select.tarik').selectize({
+      sortField: 'text'
     });
-    $('select.kasbon').select2({
-      dropdownParent: $("#exampleModal2"),
+    $('select.kasbon').selectize({
+      sortField: 'text'
     });
   }
 
@@ -488,8 +497,4 @@
       },
     });
   }
-
-  $(document).on('select2:open', () => {
-    document.querySelector('.select2-search__field').focus();
-  });
 </script>
