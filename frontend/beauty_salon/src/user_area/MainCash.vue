@@ -433,9 +433,15 @@
               </div>
             </div>
 
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Jumlah (Rp) *</label>
-              <input v-model.number="expenseForm.amount" type="number" required min="0" step="1000" placeholder="0" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-red-200">
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Jumlah (Rp) *</label>
+                <input v-model.number="expenseForm.amount" type="number" required min="0" step="1000" placeholder="0" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-red-200">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Tanggal *</label>
+                <input v-model="expenseForm.date" type="date" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-red-200">
+              </div>
             </div>
 
             <div>
@@ -702,6 +708,7 @@ const expenseForm = reactive({
   category_id: '',
   amount: 0,
   description: '',
+  date: new Date().toISOString().split('T')[0],
   notes: ''
 });
 
@@ -980,6 +987,7 @@ async function submitExpense() {
         category_id: expenseForm.category_id,
         amount: expenseForm.amount,
         description: expenseForm.description,
+        date: expenseForm.date,
         notes: expenseForm.notes
       })
     });
@@ -991,6 +999,7 @@ async function submitExpense() {
       categorySearch.value = ''; // Reset search
       expenseForm.amount = 0;
       expenseForm.description = '';
+      expenseForm.date = new Date().toISOString().split('T')[0]; // Reset to today
       expenseForm.notes = '';
       showExpenseModal.value = false; // Close modal  
       fetchBalances();
