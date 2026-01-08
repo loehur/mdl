@@ -146,7 +146,7 @@ const conversationFilter = ref('all'); // 'all' or 'unread'
 // Settings State
 const showSettingsModal = ref(false);
 const fontSize = ref('medium'); // 'medium', 'large'
-const theme = ref('dark'); // 'dark', 'light'
+const theme = ref('light'); // 'dark', 'light'
 
 // Image Lightbox State (for in-app image viewing)
 const showImageLightbox = ref(false);
