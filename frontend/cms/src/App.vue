@@ -1391,6 +1391,7 @@ const clearSavedChatState = () => {
     sessionStorage.removeItem('cms_active_chat_id');
     sessionStorage.removeItem('cms_show_mobile_chat');
     localStorage.removeItem('active_chat_id');
+    localStorage.removeItem('show_mobile_chat');
 };
 
 const backToMenu = (animated = true) => {
@@ -2535,16 +2536,23 @@ const connectWebSocket = () => {
                 console.log(`Reconnect attempt ${reconnectAttempts.value} in ${delay}ms`);
                 
                 setTimeout(() => {
-                    if (authId.value && authPassword.value && !isConnected.value) {
+                    if (authId.value && !isConnected.value) {
                         connectWebSocket();
+                    } else if (!authId.value) {
+                        // No ID, show login
+                        isReconnecting.value = false;
+                        showLoginPrompt.value = true;
                     }
                 }, delay);
-            } else if (event.code === 1006) {
-                msg = 'Connection terminated. Tap to retry.';
+            } else {
+                // Max attempts reached or error - show login
+                isReconnecting.value = false;
+                if (event.code === 1006) {
+                    msg = 'Koneksi terputus. Silakan login ulang.';
+                } else if (event.reason) {
+                    msg = `Error: ${event.reason}`;
+                }
                 showLoginPrompt.value = true;
-            } else if (event.reason) {
-                msg = `Error: ${event.reason}`;
-                 showLoginPrompt.value = true;
             }
             connectionError.value = msg;
         }
@@ -2627,21 +2635,32 @@ const mockIncomingMessage = () => {
 // Data will always be fresh from storage logic below
   
   // --- STATE PERSISTENCE HELPERS ---
+  // Persist critical UI state for Android sleep/resume recovery
   const persistChatState = () => {
       if (activeChatId.value) {
-          localStorage.setItem('active_chat_id', activeChatId.value);
+          localStorage.setItem('active_chat_id', activeChatId.value.toString());
+          localStorage.setItem('show_mobile_chat', showMobileChat.value ? 'true' : 'false');
       } else {
           localStorage.removeItem('active_chat_id');
+          localStorage.removeItem('show_mobile_chat');
       }
   };
 
   const resumeChatState = () => {
       const savedId = localStorage.getItem('active_chat_id');
+      const savedMobileChat = localStorage.getItem('show_mobile_chat');
+      
       if (savedId && !activeChatId.value) {
           const id = parseInt(savedId);
           // Only switch if conversation exists
           if (conversations.value.some(c => c.id === id)) {
               selectChat(id);
+              
+              // CRITICAL: Restore showMobileChat state for mobile devices
+              // This ensures back button handler works correctly after Android resume
+              if (savedMobileChat === 'true' && windowWidth.value < 768) {
+                  showMobileChat.value = true;
+              }
           }
       }
   };
@@ -2663,6 +2682,16 @@ const mockIncomingMessage = () => {
   
   scrollToBottom();
   
+  // --- LOADING TIMEOUT SAFETY NET ---
+  // If app is stuck on loading screen for more than 5 seconds, force show login
+  // This prevents the "infinite loading" bug after Android sleep
+  setTimeout(() => {
+    if (!isConnected.value && !showLoginPrompt.value && !isConnecting.value) {
+      console.log('⚠️ Loading timeout - forcing login prompt');
+      showLoginPrompt.value = true;
+    }
+  }, 3000);
+  
   // --- NO CACHE LOADING ---
   // Always fetch fresh data from server for 100% accuracy
   
@@ -2682,11 +2711,11 @@ const mockIncomingMessage = () => {
           isReconnecting.value = true;
           connectionError.value = '🔄 Reconnecting after resume...';
           
-          // Only reconnect if we have credentials
-          if (authId.value && authPassword.value) {
+          // Only reconnect if we have ID
+          if (authId.value) {
               connectWebSocket();
           } else {
-              // No credentials - show login
+              // No ID - show login
               isReconnecting.value = false;
               showLoginPrompt.value = true;
           }
@@ -2971,7 +3000,15 @@ if (typeof window !== 'undefined') {
     }
     
     // Priority 3: If chat view is open, go back to menu with animation
-    if (showMobileChat.value && activeChatId.value) {
+    // ROBUST CHECK: On mobile, if activeChatId exists, user is in chat even if showMobileChat got desynced
+    const isMobile = windowWidth.value < 768;
+    const isInChatView = showMobileChat.value || (isMobile && activeChatId.value);
+    
+    if (isInChatView && activeChatId.value) {
+      // SYNC FIX: Ensure showMobileChat is true before closing (in case it got desynced)
+      if (!showMobileChat.value && isMobile) {
+        showMobileChat.value = true;
+      }
       backToMenu(true); // Use animated back
       return 'chat_closed'; // Return status for Android
     }
@@ -4091,7 +4128,7 @@ const handleLinkClick = (e) => {
                      ref="messageTextarea"
                      v-model="messageInput"
                      @input="autoResizeTextarea"
-                     @keydown.enter.prevent="sendMessage"
+                     @keydown.ctrl.enter.prevent="sendMessage"
                      placeholder="Ketik pesan..." 
                      class="flex-1 bg-transparent text-[var(--wa-text-primary)] placeholder:text-[var(--wa-text-tertiary)] focus:outline-none resize-none py-2 text-sm overflow-y-auto"
                      style="max-height: 150px;"
