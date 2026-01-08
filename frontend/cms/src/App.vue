@@ -307,6 +307,7 @@ const applyTheme = (themeName) => {
     root.style.setProperty('--wa-bubble-out-quoted-text', '#54656f');
     root.style.setProperty('--wa-icon-default', '#54656f');
     root.style.setProperty('--wa-accent-green', '#00a884');
+    root.style.setProperty('--wa-divider', '#f0f2f5'); // Light divider merging with bg
     root.style.setProperty('--wa-link-color', '#027eb5');
     root.style.setProperty('--wa-date-badge', '#ffffff');
     root.style.setProperty('--wa-date-badge-text', '#54656f');
@@ -337,6 +338,7 @@ const applyTheme = (themeName) => {
     root.style.setProperty('--wa-bubble-out-quoted-text', 'rgba(255, 255, 255, 0.7)');
     root.style.setProperty('--wa-icon-default', '#aebac1');
     root.style.setProperty('--wa-accent-green', '#00a884');
+    root.style.setProperty('--wa-divider', '#2a3942'); // Dark divider merging with bg
     root.style.setProperty('--wa-link-color', '#53bdeb');
     root.style.setProperty('--wa-date-badge', '#182229');
     root.style.setProperty('--wa-date-badge-text', '#8696a0');
@@ -3502,7 +3504,7 @@ const handleLinkClick = (e) => {
                       v-model="searchQuery"
                       type="text" 
                       placeholder="Search or start new chat" 
-                      class="block w-full pl-10 pr-10 py-2.5 border border-[var(--wa-border)] rounded-lg leading-5 bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)] placeholder-[var(--wa-text-tertiary)] focus:outline-none focus:bg-[var(--wa-bg-tertiary)] focus:border-[var(--wa-accent-green)] focus:ring-0 sm:text-sm transition-all"
+                      class="block w-full pl-10 pr-10 py-2.5 border border-[var(--wa-border)] rounded-lg leading-5 bg-[var(--wa-bg-tertiary)] text-[var(--wa-text-primary)] placeholder-[var(--wa-text-tertiary)] focus:outline-none focus:bg-[var(--wa-bg-tertiary)] focus:border-[var(--wa-accent-green)] focus:ring-0 sm:text-sm transition-all"
                   >
                   <div v-if="searchQuery" class="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer" @click="searchQuery = ''">
                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500 hover:text-slate-300 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
