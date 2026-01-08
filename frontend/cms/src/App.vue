@@ -284,35 +284,65 @@ const applyTheme = (themeName) => {
   const root = document.documentElement;
   
   if (themeName === 'light') {
-    // Light theme colors
+    // Light theme colors (WhatsApp-like)
     root.style.setProperty('--wa-bg-primary', '#f0f2f5');
     root.style.setProperty('--wa-bg-secondary', '#ffffff');
     root.style.setProperty('--wa-bg-tertiary', '#f0f2f5');
     root.style.setProperty('--wa-bg-panel', '#ffffff');
-    root.style.setProperty('--wa-border', '#d1d5db');
+    root.style.setProperty('--wa-bg-chat', '#efeae2'); // Chat area background
+    root.style.setProperty('--wa-border', '#e9edef');
     root.style.setProperty('--wa-text-primary', '#111b21');
-    root.style.setProperty('--wa-text-secondary', '#667781');
+    root.style.setProperty('--wa-text-secondary', '#54656f');
     root.style.setProperty('--wa-text-tertiary', '#8696a0');
     root.style.setProperty('--wa-bubble-out', '#d9fdd3');
+    root.style.setProperty('--wa-bubble-outgoing', '#d9fdd3'); // Alias
+    root.style.setProperty('--wa-bubble-out-text', '#111b21');
     root.style.setProperty('--wa-bubble-in', '#ffffff');
+    root.style.setProperty('--wa-bubble-incoming', '#ffffff'); // Alias
+    root.style.setProperty('--wa-bubble-in-text', '#111b21');
     root.style.setProperty('--wa-hover', '#f5f6f6');
+    root.style.setProperty('--wa-active', '#f0f2f5');
+    root.style.setProperty('--wa-bubble-out-meta', '#54656f'); // Dark gray for light mode
+    root.style.setProperty('--wa-bubble-out-quoted-bg', 'rgba(0, 0, 0, 0.05)');
+    root.style.setProperty('--wa-bubble-out-quoted-text', '#54656f');
     root.style.setProperty('--wa-icon-default', '#54656f');
     root.style.setProperty('--wa-accent-green', '#00a884');
+    root.style.setProperty('--wa-link-color', '#027eb5');
+    root.style.setProperty('--wa-date-badge', '#ffffff');
+    root.style.setProperty('--wa-date-badge-text', '#54656f');
+    root.style.setProperty('--wa-header-bg', '#f0f2f5');
+    root.style.setProperty('--wa-input-bg', '#ffffff');
+    root.style.setProperty('--wa-conversation-active', '#f0f2f5');
   } else {
     // Dark theme colors (default)
     root.style.setProperty('--wa-bg-primary', '#111b21');
     root.style.setProperty('--wa-bg-secondary', '#202c33');
     root.style.setProperty('--wa-bg-tertiary', '#2a3942');
     root.style.setProperty('--wa-bg-panel', '#111b21');
+    root.style.setProperty('--wa-bg-chat', '#0b141a'); // Chat area background
     root.style.setProperty('--wa-border', '#2a3942');
     root.style.setProperty('--wa-text-primary', '#e9edef');
     root.style.setProperty('--wa-text-secondary', '#8696a0');
     root.style.setProperty('--wa-text-tertiary', '#667781');
     root.style.setProperty('--wa-bubble-out', '#005c4b');
+    root.style.setProperty('--wa-bubble-outgoing', '#005c4b'); // Alias
+    root.style.setProperty('--wa-bubble-out-text', '#e9edef');
     root.style.setProperty('--wa-bubble-in', '#202c33');
+    root.style.setProperty('--wa-bubble-incoming', '#202c33'); // Alias
+    root.style.setProperty('--wa-bubble-in-text', '#e9edef');
     root.style.setProperty('--wa-hover', '#2a3942');
+    root.style.setProperty('--wa-active', '#2a3942');
+    root.style.setProperty('--wa-bubble-out-meta', 'rgba(255, 255, 255, 0.6)'); // White/translucent for dark mode
+    root.style.setProperty('--wa-bubble-out-quoted-bg', 'rgba(0, 0, 0, 0.2)');
+    root.style.setProperty('--wa-bubble-out-quoted-text', 'rgba(255, 255, 255, 0.7)');
     root.style.setProperty('--wa-icon-default', '#aebac1');
     root.style.setProperty('--wa-accent-green', '#00a884');
+    root.style.setProperty('--wa-link-color', '#53bdeb');
+    root.style.setProperty('--wa-date-badge', '#182229');
+    root.style.setProperty('--wa-date-badge-text', '#8696a0');
+    root.style.setProperty('--wa-header-bg', '#202c33');
+    root.style.setProperty('--wa-input-bg', '#2a3942');
+    root.style.setProperty('--wa-conversation-active', '#2a3942');
   }
 };
 
@@ -4120,41 +4150,50 @@ const handleLinkClick = (e) => {
                   </div>
                   
                    <!-- Text Message: WhatsApp style with inline time -->
-                   <div v-else class="bg-[var(--wa-bubble-outgoing)] text-white px-3 py-1.5 rounded-lg rounded-tr-none shadow-sm max-w-full">
+                   <div v-else class="bg-[var(--wa-bubble-outgoing)] text-[var(--wa-bubble-out-text)] px-3 py-1.5 rounded-lg rounded-tr-none shadow-sm max-w-full">
                       <!-- Quoted Message Preview (if replying to a message) -->
                       <div v-if="msg.quoted_message_id && findQuotedMessage(msg.quoted_message_id)" 
-                           class="bg-black/20 rounded px-2 py-1.5 mb-1.5 border-l-2 border-[var(--wa-accent-green)] cursor-pointer hover:bg-black/30"
+                           class="rounded px-2 py-1.5 mb-1.5 border-l-2 border-[var(--wa-accent-green)] cursor-pointer hover:opacity-80 transition-opacity bg-[var(--wa-bubble-out-quoted-bg)]"
                            @click="scrollToMessage(msg.quoted_message_id)">
                          <span class="text-[10px] font-medium text-[var(--wa-accent-green)] block">
                             {{ findQuotedMessage(msg.quoted_message_id)?.sender === 'me' ? 'You' : activeConversation?.contact_name || 'Customer' }}
                          </span>
-                         <p class="text-xs text-white/70 truncate">{{ getMessagePreview(findQuotedMessage(msg.quoted_message_id)) }}</p>
+                         <p class="text-xs truncate text-[var(--wa-bubble-out-quoted-text)]">{{ getMessagePreview(findQuotedMessage(msg.quoted_message_id)) }}</p>
                       </div>
                       <div class="flex flex-wrap items-end gap-x-2">
                          <p v-if="msg.text" class="leading-relaxed break-words whitespace-pre-wrap inline" v-html="parseWhatsAppFormatting(msg.text)" :style="{ fontSize: messageFontSize }"></p>
                          <span class="flex items-center gap-1 ml-auto whitespace-nowrap">
-                            <span class="text-[10px] text-white/60 leading-[1.8]">{{ msg.time }}</span>
-                            <!-- Status Indicators -->
-                            <span v-if="msg.status === 'pending'" class="text-white/60">
-                               <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                            </span>
-                            <span v-else-if="msg.status === 'sent'" class="text-white/60">
-                               <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
-                            </span>
-                            <span v-else-if="msg.status === 'delivered'" class="text-white/60">
-                               <div class="flex -space-x-1">
-                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
-                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                            <span class="text-[10px] text-[var(--wa-bubble-out-meta)] leading-[1.8]">{{ msg.time }}</span>
+                            <!-- Status Checks -->
+                            <span v-if="msg.status" class="ml-0.5">
+                               <!-- Pending -->
+                               <svg v-if="msg.status === 'pending'" xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-[var(--wa-bubble-out-meta)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                               </svg>
+                               <!-- Sent (Single Tick) -->
+                               <svg v-else-if="msg.status === 'sent'" xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-[var(--wa-bubble-out-meta)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                               </svg>
+                               <!-- Delivered (Double Tick) -->
+                               <div v-else-if="msg.status === 'delivered'" class="relative w-4 h-3">
+                                  <svg xmlns="http://www.w3.org/2000/svg" class="absolute left-0 top-0 h-3.5 w-3.5 text-[var(--wa-bubble-out-meta)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                  </svg>
+                                  <svg xmlns="http://www.w3.org/2000/svg" class="absolute left-1.5 top-0 h-3.5 w-3.5 text-[var(--wa-bubble-out-meta)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                  </svg>
                                </div>
-                            </span>
-                            <span v-else-if="msg.status === 'read'" class="text-blue-300">
-                                <div class="flex -space-x-1">
-                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
-                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                               <!-- Read (Blue Double Tick) -->
+                               <div v-else-if="msg.status === 'read'" class="relative w-4 h-3">
+                                  <svg xmlns="http://www.w3.org/2000/svg" class="absolute left-0 top-0 h-3.5 w-3.5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                  </svg>
+                                  <svg xmlns="http://www.w3.org/2000/svg" class="absolute left-1.5 top-0 h-3.5 w-3.5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                  </svg>
                                </div>
-                            </span>
-                            <span v-else-if="msg.status === 'failed'" class="text-red-300">
-                               <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                               <!-- Failed -->
+                               <svg v-else-if="msg.status === 'failed'" xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-red-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                             </span>
                          </span>
                       </div>
@@ -4166,7 +4205,7 @@ const handleLinkClick = (e) => {
         </div>
         
         <!-- Input Area - ABSOLUTE BOTTOM -->
-        <div class="absolute bottom-0 left-0 right-0 p-4 bg-[var(--wa-bg-panel)] border-t border-[var(--wa-border)] z-30">
+        <div class="absolute bottom-0 left-0 right-0 p-4 bg-[var(--wa-header-bg)] border-t border-[var(--wa-border)] z-30">
            
            <!-- Case 1: Conversation Closed -->
            <div v-if="activeConversation.status === 'closed'" class="flex items-center justify-center gap-2 p-2 bg-[var(--wa-bg-tertiary)] rounded-lg border border-[var(--wa-border)]">
@@ -4329,7 +4368,7 @@ const handleLinkClick = (e) => {
                
                <div class="flex gap-2 items-end">
                   <!-- Input Container (like WhatsApp) -->
-                  <div class="flex-1 flex items-end bg-[var(--wa-bg-secondary)] rounded-3xl border border-[var(--wa-border)] overflow-hidden">
+                  <div class="flex-1 flex items-end bg-[var(--wa-input-bg)] rounded-3xl border border-[var(--wa-border)] overflow-hidden">
                      <input 
                         type="file" 
                         ref="fileInput" 
