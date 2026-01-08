@@ -51,7 +51,7 @@ $isEmpty = empty($grouped);
     </div>
   <?php } else { ?>
     <!-- Grid 2 Kolom -->
-    <div class="row g-3">
+    <div class="row g-1">
     <?php foreach ($grouped as $ref => $group) { ?>
       <div class="col-md-6">
       <div class="card shadow-sm border-0">
