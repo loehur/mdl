@@ -35,7 +35,6 @@ app.use(cors({
 }));
 
 const PORT = process.env.PORT || 3003;
-const SOCKET_PASSWORD = process.env.SOCKET_PASSWORD;
 
 // ============================================
 // OneSignal Configuration
@@ -279,21 +278,13 @@ const clients = new Map();
 const MAX_CONNECTIONS_PER_ID = 1;
 
 wss.on('connection', (ws, req) => {
-    // Extract ID and Password from query params (e.g. ?id=123&password=pass)
+    // Extract ID from query params (e.g. ?id=123)
     const urlParams = new URLSearchParams(req.url.split('?')[1]);
     const id = urlParams.get('id');
-    const password = urlParams.get('password');
 
     if (!id) {
         console.log('Connection rejected: missing id');
         ws.close(1008, 'id required');
-        return;
-    }
-
-    // Check Password if set in ENV
-    if (SOCKET_PASSWORD && password !== SOCKET_PASSWORD) {
-        console.log(`Connection rejected for ID ${id}: Invalid Password`);
-        ws.close(1008, 'Invalid Password');
         return;
     }
 

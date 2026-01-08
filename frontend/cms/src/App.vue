@@ -69,7 +69,6 @@ const socket = ref(null);
 const isConnected = ref(false);
 const showMobileChat = ref(false);
 const authId = ref('');
-const authPassword = ref(''); // Added
 const isConnecting = ref(false);
 const connectionError = ref('');
 const isLoadingConversations = ref(false); // For skeleton loading
@@ -562,8 +561,8 @@ const oneSignalLogout = () => {
 };
 
 const connect = () => {
-    if(!authId.value || !authPassword.value) {
-        connectionError.value = 'Please enter both ID and Password';
+    if(!authId.value) {
+        connectionError.value = 'Please enter your Connection ID';
         return;
     }
     isConnecting.value = true;
@@ -2227,7 +2226,7 @@ const connectWebSocket = () => {
   
   try {
      // Always connect to Production Server (as per user workflow)
-     const wsUrl = `wss://waserver.nalju.com?id=${authId.value.trim()}&password=${authPassword.value.trim()}`;
+     const wsUrl = `wss://waserver.nalju.com?id=${authId.value.trim()}`;
      const ws = new WebSocket(wsUrl); 
      socket.value = ws;
      
@@ -2246,7 +2245,6 @@ const connectWebSocket = () => {
        // Save session (3 days)
        const expiry = new Date().getTime() + (3 * 24 * 60 * 60 * 1000);
        localStorage.setItem('cms_chat_id', authId.value);
-       localStorage.setItem('cms_chat_password', authPassword.value);
        localStorage.setItem('cms_chat_expiry', expiry.toString());
        
        showLoginPrompt.value = false;
@@ -2724,7 +2722,7 @@ const mockIncomingMessage = () => {
       isReconnecting.value = true;
       connectionError.value = '🔄 Reconnecting...';
       
-      if (authId.value && authPassword.value) {
+      if (authId.value) {
         connectWebSocket();
       } else {
         isReconnecting.value = false;
@@ -2748,7 +2746,7 @@ const mockIncomingMessage = () => {
       isReconnecting.value = true;
       connectionError.value = '🔄 Reconnecting...';
       
-      if (authId.value && authPassword.value) {
+      if (authId.value) {
         connectWebSocket();
         fetchConversations();
         return true;
@@ -2798,18 +2796,19 @@ const mockIncomingMessage = () => {
   loadNotificationSoundSetting();
   
   const storedId = localStorage.getItem('cms_chat_id');
-  const storedPass = localStorage.getItem('cms_chat_password');
   const storedExpiry = localStorage.getItem('cms_chat_expiry');
   const storedRole = localStorage.getItem('cms_chat_role');
   const now = new Date().getTime();
   
+  // Clean up old password storage (migration)
+  localStorage.removeItem('cms_chat_password');
+  
   if (storedRole) currentUserRole.value = storedRole;
   
-  // Case 1: Complete valid session (ID + Password + Valid Expiry)
-  if (storedId && storedPass && storedExpiry && now < parseInt(storedExpiry)) {
+  // Case 1: Valid session (ID + Valid Expiry)
+  if (storedId && storedExpiry && now < parseInt(storedExpiry)) {
       console.log("Restoring session for ID:", storedId);
       authId.value = storedId;
-      authPassword.value = storedPass;
       
       // Renew expiry for another 3 days
       const newExpiry = new Date().getTime() + (3 * 24 * 60 * 60 * 1000);
@@ -2821,18 +2820,16 @@ const mockIncomingMessage = () => {
           resumeChatState();
       });
   } 
-  // Case 2: Has ID but missing password (legacy session) - Keep ID, prompt for password
-  else if (storedId && !storedPass) {
-      console.log("Legacy session detected. ID found but password missing. Please re-enter password.");
-      authId.value = storedId; // Keep the ID
-      connectionError.value = 'Session incomplete. Please enter your password to continue.';
+  // Case 2: Has ID but expired - Keep ID, prompt to reconnect
+  else if (storedId && storedExpiry && now >= parseInt(storedExpiry)) {
+      console.log("Session expired. ID found, please reconnect.");
+      authId.value = storedId; // Keep the ID for convenience
       showLoginPrompt.value = true;
   }
-  // Case 3: Expired or no session - Start fresh
+  // Case 3: No session - Start fresh
   else {
       // Clean up any partial/expired data
       localStorage.removeItem('cms_chat_id');
-      localStorage.removeItem('cms_chat_password');
       localStorage.removeItem('cms_chat_expiry');
       
       // Check URL param?
@@ -2840,8 +2837,8 @@ const mockIncomingMessage = () => {
       const idParam = urlParams.get('id');
       if (idParam) {
           authId.value = idParam;
-          // Prompt for password
-          showLoginPrompt.value = true;
+          // Auto-connect with ID from URL
+          connect();
           // Clean URL
           window.history.replaceState({}, document.title, window.location.pathname);
       } else {
@@ -2934,7 +2931,7 @@ if (typeof window !== 'undefined') {
         isReconnecting.value = true;
         connectionError.value = '🔄 Reconnecting...';
         
-        if (authId.value && authPassword.value) {
+        if (authId.value) {
           connectWebSocket();
         } else {
           isReconnecting.value = false;
@@ -3009,13 +3006,11 @@ const logout = () => {
     }
     isConnected.value = false;
     authId.value = '';
-    authPassword.value = '';
     isConnecting.value = false;
     showLoginPrompt.value = true;
     
     // Clear Session
     localStorage.removeItem('cms_chat_id');
-    localStorage.removeItem('cms_chat_password');
     localStorage.removeItem('cms_chat_expiry');
     // Note: conversations cache removed - data always from server
     
@@ -3157,67 +3152,114 @@ const handleLinkClick = (e) => {
     </div>
     
     <!-- Login Modal (Overlay) -->
-     <div v-if="!isConnected && showLoginPrompt" class="fixed inset-0 z-[60] bg-[#0f172a] flex items-center justify-center p-4">
-       <!-- Login Card -->
-       <!-- ... existing login card ... -->
-       <div class="bg-[#1e293b] border border-slate-700 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
-        <!-- ... content ... -->
-          <div class="p-6 bg-[#1e293b] border-b border-slate-700 text-center">
-             <!-- ... header ... -->
-             <div class="w-16 h-16 bg-slate-800 rounded-full mx-auto flex items-center justify-center mb-4 shadow-inner">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-             </div>
-             <h2 class="text-xl font-bold text-white">Connect to Chat Console</h2>
-             <p class="text-slate-400 text-sm mt-1">Enter your unique Connection ID to start.</p>
-          </div>
-          
-          <!-- Form -->
-          <div class="p-8">
-             <div class="space-y-4">
-                <div>
-                   <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Connection ID</label>
-                   <input 
-                      v-model="authId" 
-                      type="text" 
-                      placeholder="e.g. 12345"
-                      @keydown.enter="connect"
-                      class="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-4 py-3 text-slate-200 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
-                      :disabled="isConnecting"
-                   >                 </div>
- 
-                 <div>
-                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Password</label>
-                    <input 
-                       v-model="authPassword" 
-                       type="password" 
-                       placeholder="Enter password"
-                       @keydown.enter="connect"
-                       class="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-4 py-3 text-slate-200 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
-                       :disabled="isConnecting"
-                    >
-                 </div>
- 
-                 <div v-if="connectionError" class="p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-2 text-red-400 text-sm animate-pulse">
-                   <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                   </svg>
-                   {{ connectionError }}
-                </div>
-                
-                <button 
-                   @click="connect" 
-                   class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 px-4 rounded-lg transition-all transform active:scale-[0.98] flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                   :disabled="isConnecting || !authId || !authPassword"
-                >
-                   <span v-if="isConnecting" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                   {{ isConnecting ? 'Connecting...' : 'Connect' }}
-                </button>
-             </div>
-          </div>
+    <!-- Login Modal (Premium Design) -->
+     <div v-if="!isConnected && showLoginPrompt" class="fixed inset-0 z-[60] flex items-center justify-center p-4 overflow-hidden">
+       <!-- Animated Gradient Background -->
+       <div class="absolute inset-0 bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900">
+         <!-- Floating Orbs -->
+         <div class="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl animate-pulse"></div>
+         <div class="absolute bottom-1/4 right-1/4 w-80 h-80 bg-purple-500/15 rounded-full blur-3xl animate-pulse" style="animation-delay: 1s;"></div>
+         <div class="absolute top-1/2 right-1/3 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl animate-pulse" style="animation-delay: 2s;"></div>
        </div>
-    </div>
+       
+       <!-- Login Card (Glassmorphism) -->
+       <div class="relative w-full max-w-md transform transition-all animate-scale-in">
+         <!-- Glowing Border Effect -->
+         <div class="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-cyan-500 rounded-3xl blur opacity-30 animate-gradient-shift"></div>
+         
+         <div class="relative bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl overflow-hidden">
+           <!-- Header Section -->
+           <div class="px-8 pt-10 pb-6 text-center relative">
+             <!-- Decorative Grid -->
+             <div class="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(99,102,241,0.1)_0%,_transparent_70%)]"></div>
+             
+             <!-- Logo Icon -->
+             <div class="relative inline-flex mb-6">
+               <div class="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/30 transform hover:scale-105 transition-transform">
+                 <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                 </svg>
+               </div>
+               <!-- Floating Badge -->
+               <div class="absolute -top-1 -right-1 w-6 h-6 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center shadow-lg">
+                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                   <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                 </svg>
+               </div>
+             </div>
+             
+             <!-- Title -->
+             <h1 class="text-3xl font-bold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent mb-2">
+               MDL Chat
+             </h1>
+             <p class="text-slate-400 text-sm">Masukkan ID untuk terhubung ke konsol</p>
+           </div>
+           
+           <!-- Form Section -->
+           <div class="px-8 pb-10">
+             <div class="space-y-5">
+               <!-- ID Input -->
+               <div class="relative group">
+                 <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 transition-colors group-focus-within:text-indigo-400">
+                   Connection ID
+                 </label>
+                 <div class="relative">
+                   <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-500 group-focus-within:text-indigo-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                     </svg>
+                   </div>
+                   <input 
+                     v-model="authId" 
+                     type="text" 
+                     placeholder="Contoh: ADI atau 123"
+                     @keydown.enter="connect"
+                     class="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl pl-12 pr-4 py-4 text-white text-lg font-medium placeholder:text-slate-500 focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 focus:bg-slate-800 transition-all"
+                     :disabled="isConnecting"
+                     autofocus
+                   >
+                 </div>
+               </div>
+
+               <!-- Error Message -->
+               <div v-if="connectionError" class="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 text-red-400 text-sm backdrop-blur-sm">
+                 <div class="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center flex-shrink-0">
+                   <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                   </svg>
+                 </div>
+                 <span>{{ connectionError }}</span>
+               </div>
+               
+               <!-- Connect Button -->
+               <button 
+                 @click="connect" 
+                 class="w-full relative group overflow-hidden bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold py-4 px-6 rounded-xl transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 shadow-lg shadow-indigo-500/25"
+                 :disabled="isConnecting || !authId"
+               >
+                 <!-- Shine Effect -->
+                 <div class="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
+                 
+                 <span class="relative flex items-center justify-center gap-3">
+                   <span v-if="isConnecting" class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                   <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                   </svg>
+                   {{ isConnecting ? 'Menghubungkan...' : 'Hubungkan' }}
+                 </span>
+               </button>
+             </div>
+             
+             <!-- Footer Info -->
+             <div class="mt-8 pt-6 border-t border-slate-800 text-center">
+               <p class="text-slate-500 text-xs">
+                 💡 ID Anda adalah nomor karyawan atau username yang diberikan admin
+               </p>
+             </div>
+           </div>
+         </div>
+       </div>
+     </div>
     
 
 
@@ -4448,6 +4490,22 @@ p a:hover {
   100% {
     opacity: 1;
     transform: scale(1);
+  }
+}
+
+/* Login Gradient Animation */
+.animate-gradient-shift {
+  animation: gradientShift 3s ease-in-out infinite;
+}
+
+@keyframes gradientShift {
+  0%, 100% {
+    opacity: 0.3;
+    transform: rotate(0deg);
+  }
+  50% {
+    opacity: 0.5;
+    transform: rotate(1deg);
   }
 }
 </style>
