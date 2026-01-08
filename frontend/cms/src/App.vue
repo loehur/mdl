@@ -129,7 +129,7 @@ const isFollowUp = ref(false);
 const isReopeningConversation = ref(false);
 const showResolveMenu = ref(false); // New state
 const pendingTargetPhone = ref(null); // Phone from URL param/notification
-
+const resumeTimestamp = ref(0); // Track when app resumed/connected to ignore false duplicates
 
 // Auto-Open Chat on Incoming Message
 const autoOpenChatOnIncoming = ref(false); // Set false if you want manual open only
@@ -2436,6 +2436,18 @@ const handleIncomingMessage = (payload) => {
 const connectWebSocket = () => {
   if (!authId.value) return;
 
+  // Cleanup existing socket to prevent zombies
+  if (socket.value) {
+      // Remove listeners to prevent 'onclose' from triggering UI changes
+      socket.value.onopen = null;
+      socket.value.onmessage = null;
+      socket.value.onerror = null;
+      socket.value.onclose = null;
+      try {
+        socket.value.close();
+      } catch (e) { /* ignore */ }
+  }
+
   console.log("Connecting to WebSocket with ID:", authId.value);
   
   try {
@@ -2453,6 +2465,9 @@ const connectWebSocket = () => {
      }, 10000);
 
      ws.onopen = () => {
+       // Guard: Ignore if this is not the latest socket
+       if (socket.value && ws !== socket.value) return;
+
        clearTimeout(connTimeout);
        console.log('WebSocket connected');
        isConnected.value = true;
@@ -2702,17 +2717,31 @@ const connectWebSocket = () => {
      };
      
       ws.onclose = (event) => {
+        // Guard: Ignore if this is not the latest socket
+        if (socket.value && ws !== socket.value) return;
+
         if (isConnected.value) {
              console.log('WebSocket disconnected, code:', event.code, 'reason:', event.reason);
              isConnected.value = false;
              
              // Check if disconnected due to connection limit (code 1008 = duplicate connection)
              if (event.code === 1008) {
-                 connectionError.value = '⚠️ Koneksi ditutup: ID ini sudah terkoneksi di tab/device lain';
-                 console.warn('Connection closed: Another connection with same ID exists');
-                 // Show blocking modal - don't auto-reconnect
-                 showDuplicateConnectionModal.value = true;
-                 wasConnected.value = false; // Prevent auto-reconnect
+                 // GUARD: If this happens shortly after resume (within 5s), it's likely a false positive involving the old socket
+                 const isRecentResume = (Date.now() - resumeTimestamp.value) < 5000;
+                 
+                 if (isRecentResume) {
+                     console.warn('Ignoring duplicate connection error during resume grace period. Retrying...');
+                     // Retry once after delay
+                     setTimeout(() => {
+                         if (!isConnected.value && authId.value) connectWebSocket();
+                     }, 1500);
+                 } else {
+                     connectionError.value = '⚠️ Koneksi ditutup: ID ini sudah terkoneksi di tab/device lain';
+                     console.warn('Connection closed: Another connection with same ID exists');
+                     // Show blocking modal - don't auto-reconnect
+                     showDuplicateConnectionModal.value = true;
+                     wasConnected.value = false; // Prevent auto-reconnect
+                 }
              } else if (wasConnected.value && reconnectAttempts.value < maxReconnectAttempts) {
                  // AUTO-RECONNECT: If was connected and not auth error, try reconnecting
                  isReconnecting.value = true;
@@ -2947,6 +2976,9 @@ const mockIncomingMessage = () => {
       
       // Refresh data to ensure sync
       fetchConversations();
+      
+      // Update resume timestamp
+      resumeTimestamp.value = Date.now();
       
       // Restore active chat state if user was viewing a chat before leaving
       // This handles the case when user clicks a link and comes back
@@ -3200,6 +3232,9 @@ if (typeof window !== 'undefined') {
       
       // Refresh conversations
       fetchConversations();
+      
+      // Update resume timestamp
+      resumeTimestamp.value = Date.now();
     }
   });
 
