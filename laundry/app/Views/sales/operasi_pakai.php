@@ -54,7 +54,7 @@ $isEmpty = empty($grouped);
     <div class="row g-3">
     <?php foreach ($grouped as $ref => $group) { ?>
       <div class="col-md-6">
-      <div class="card mb-3 shadow-sm border-0">
+      <div class="card shadow-sm border-0">
         <!-- Header -->
         <div class="card-header bg-success text-white py-2 px-3">
           <div class="d-flex justify-content-between align-items-center">
