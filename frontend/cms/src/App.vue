@@ -146,6 +146,7 @@ const conversationFilter = ref('all'); // 'all' or 'unread'
 // Settings State
 const showSettingsModal = ref(false);
 const fontSize = ref('medium'); // 'medium', 'large'
+const theme = ref('dark'); // 'dark', 'light'
 
 // Image Lightbox State (for in-app image viewing)
 const showImageLightbox = ref(false);
@@ -262,7 +263,62 @@ const loadFontSize = () => {
 const setFontSize = (size) => {
   fontSize.value = size;
   localStorage.setItem('cms_font_size', size);
-  showSettingsModal.value = false;
+};
+
+// Theme Functions
+const loadTheme = () => {
+  const saved = localStorage.getItem('cms_theme');
+  if (saved && ['dark', 'light'].includes(saved)) {
+    theme.value = saved;
+  }
+  applyTheme(theme.value);
+};
+
+const setTheme = (newTheme) => {
+  theme.value = newTheme;
+  localStorage.setItem('cms_theme', newTheme);
+  applyTheme(newTheme);
+};
+
+const applyTheme = (themeName) => {
+  const root = document.documentElement;
+  
+  if (themeName === 'light') {
+    // Light theme colors
+    root.style.setProperty('--wa-bg-primary', '#f0f2f5');
+    root.style.setProperty('--wa-bg-secondary', '#ffffff');
+    root.style.setProperty('--wa-bg-tertiary', '#f0f2f5');
+    root.style.setProperty('--wa-bg-panel', '#ffffff');
+    root.style.setProperty('--wa-border', '#d1d5db');
+    root.style.setProperty('--wa-text-primary', '#111b21');
+    root.style.setProperty('--wa-text-secondary', '#667781');
+    root.style.setProperty('--wa-text-tertiary', '#8696a0');
+    root.style.setProperty('--wa-bubble-out', '#d9fdd3');
+    root.style.setProperty('--wa-bubble-in', '#ffffff');
+    root.style.setProperty('--wa-hover', '#f5f6f6');
+    root.style.setProperty('--wa-icon-default', '#54656f');
+    root.style.setProperty('--wa-accent-green', '#00a884');
+  } else {
+    // Dark theme colors (default)
+    root.style.setProperty('--wa-bg-primary', '#111b21');
+    root.style.setProperty('--wa-bg-secondary', '#202c33');
+    root.style.setProperty('--wa-bg-tertiary', '#2a3942');
+    root.style.setProperty('--wa-bg-panel', '#111b21');
+    root.style.setProperty('--wa-border', '#2a3942');
+    root.style.setProperty('--wa-text-primary', '#e9edef');
+    root.style.setProperty('--wa-text-secondary', '#8696a0');
+    root.style.setProperty('--wa-text-tertiary', '#667781');
+    root.style.setProperty('--wa-bubble-out', '#005c4b');
+    root.style.setProperty('--wa-bubble-in', '#202c33');
+    root.style.setProperty('--wa-hover', '#2a3942');
+    root.style.setProperty('--wa-icon-default', '#aebac1');
+    root.style.setProperty('--wa-accent-green', '#00a884');
+  }
+};
+
+const toggleTheme = () => {
+  const newTheme = theme.value === 'dark' ? 'light' : 'dark';
+  setTheme(newTheme);
 };
 
 // Computed font sizes for messages
@@ -2913,6 +2969,9 @@ const mockIncomingMessage = () => {
   // Load font size preference
   loadFontSize();
   
+  // Load theme preference
+  loadTheme();
+  
   // Initialize notification sound
   initNotificationSound();
   loadNotificationSoundSetting();
@@ -4402,6 +4461,65 @@ const handleLinkClick = (e) => {
                 <svg v-if="fontSize === 'large'" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[var(--wa-accent-green)]" viewBox="0 0 20 20" fill="currentColor">
                   <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
                 </svg>
+              </button>
+            </div>
+          </div>
+          
+          <!-- Theme Setting -->
+          <div class="mt-6 pt-6 border-t border-[var(--wa-border)]">
+            <h3 class="text-sm font-medium text-[var(--wa-text-secondary)] mb-3">Theme</h3>
+            <div class="flex items-center justify-between p-3 rounded-lg border border-[var(--wa-border)]">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-[var(--wa-bg-tertiary)] flex items-center justify-center">
+                  <svg v-if="theme === 'light'" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-500" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd" />
+                  </svg>
+                  <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+                  </svg>
+                </div>
+                <div>
+                  <p class="text-[var(--wa-text-primary)] font-medium">{{ theme === 'dark' ? 'Dark Mode' : 'Light Mode' }}</p>
+                  <p class="text-xs text-[var(--wa-text-tertiary)]">Ubah tampilan aplikasi</p>
+                </div>
+              </div>
+              <button 
+                @click="toggleTheme"
+                class="relative w-12 h-6 rounded-full transition-colors duration-300"
+                :class="theme === 'dark' ? 'bg-indigo-600' : 'bg-yellow-500'"
+              >
+                <div 
+                  class="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300"
+                  :class="theme === 'dark' ? 'left-0.5' : 'left-6'"
+                ></div>
+              </button>
+            </div>
+          </div>
+          
+          <!-- Notification Sound Setting -->
+          <div class="mt-6 pt-6 border-t border-[var(--wa-border)]">
+            <h3 class="text-sm font-medium text-[var(--wa-text-secondary)] mb-3">Notification Sound</h3>
+            <div class="flex items-center justify-between p-3 rounded-lg border border-[var(--wa-border)]">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-[var(--wa-bg-tertiary)] flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[var(--wa-accent-green)]" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+                  </svg>
+                </div>
+                <div>
+                  <p class="text-[var(--wa-text-primary)] font-medium">{{ notificationSoundEnabled ? 'Sound On' : 'Sound Off' }}</p>
+                  <p class="text-xs text-[var(--wa-text-tertiary)]">Bunyi saat pesan masuk</p>
+                </div>
+              </div>
+              <button 
+                @click="toggleNotificationSound"
+                class="relative w-12 h-6 rounded-full transition-colors duration-300"
+                :class="notificationSoundEnabled ? 'bg-[var(--wa-accent-green)]' : 'bg-gray-500'"
+              >
+                <div 
+                  class="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300"
+                  :class="notificationSoundEnabled ? 'left-6' : 'left-0.5'"
+                ></div>
               </button>
             </div>
           </div>
