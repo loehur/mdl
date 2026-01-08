@@ -1500,7 +1500,10 @@ const refreshActiveChat = async () => {
    
    isRefreshingChat.value = true;
    try {
-      // Force reload/re-select the chat
+      // 1. Fetch latest metadata (CSW status, etc) for all chats
+      await fetchConversations();
+      
+      // 2. Refresh messages for active chat
       await selectChat(activeChatId.value);
    } catch (error) {
       console.error("Failed to refresh chat", error);
@@ -3862,7 +3865,7 @@ const handleLinkClick = (e) => {
                <div 
                  v-if="showChatMenu" 
                  @click.stop
-                 class="absolute right-0 top-full mt-2 min-w-max bg-slate-800 border border-slate-600 rounded-lg shadow-xl overflow-hidden z-50"
+                 class="absolute right-0 top-full mt-2 min-w-max bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-lg shadow-xl overflow-hidden z-50"
                >
                  <!-- Selesai Option -->
                  <!-- Check Payment Option -->
