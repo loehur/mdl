@@ -175,7 +175,7 @@
             <label class="form-label fw-bold">Metode</label>
             <select name="metode" class="form-control form-control-sm" required>
               <?php foreach ($this->dMetodeMutasi as $a) {
-                if ($a['id_metode_mutasi'] <> 1) { ?>
+                if ($a['id_metode_mutasi'] <> 3) { ?>
                   <option value="<?= $a['id_metode_mutasi'] ?>"><?= $a['metode_mutasi'] ?></option>
               <?php }
               } ?>
@@ -216,7 +216,7 @@
             <label class="form-label fw-bold">Metode</label>
             <select name="metode" class="form-control form-control-sm" required>
               <?php foreach ($this->dMetodeMutasi as $a) {
-                if ($a['id_metode_mutasi'] <> 1) { ?>
+                if ($a['id_metode_mutasi'] <> 3) { ?>
                   <option value="<?= $a['id_metode_mutasi'] ?>"><?= $a['metode_mutasi'] ?></option>
               <?php }
               } ?>

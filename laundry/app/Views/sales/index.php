@@ -162,8 +162,12 @@
                 if ($isTarget) {
                   // CABANG TARGET: Tombol terima barang
                   // Get kode cabang pengirim
-                  $sourceCabang = $this->db(0)->get_where_row('cabang', "id_cabang = '$sourceId'");
-                  $kodeCabangSource = $sourceCabang['kode_cabang'] ?? 'N/A';
+                  if ($sourceId == 0) {
+                      $kodeCabangSource = 'Supplier';
+                  } else {
+                      $sourceCabang = $this->db(0)->get_where_row('cabang', "id_cabang = '$sourceId'");
+                      $kodeCabangSource = $sourceCabang['kode_cabang'] ?? 'N/A';
+                  }
               ?>
                 <div class="d-grid">
                   <button type="button" class="btn btn-success btnTerimaBarang" data-ref="<?= $ref ?>" data-source="<?= $kodeCabangSource ?>">

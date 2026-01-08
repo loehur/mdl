@@ -44,6 +44,11 @@ $menu[0] = [
         'submenu' =>
         [
             [
+                'c' => 'Stok',
+                'title' => 'Stok Barang',
+                'txt' => 'Stok',
+            ],
+            [
                 'c' => 'Sales/operasi_pakai',
                 'title' => 'Barang Dipakai',
                 'txt' => 'Pakai',

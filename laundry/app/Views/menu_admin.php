@@ -19,6 +19,11 @@ $menu[1] = [
         'txt' => 'Sales Ops',
         'submenu' => [
             [
+                'c' => '@BarangMasuk',
+                'title' => 'Barang Masuk',
+                'txt' => 'Barang Masuk'
+            ],
+            [
                 'c' => '@Data_List/i/barang',
                 'title' => 'Master Barang',
                 'txt' => 'Master Barang'
@@ -27,7 +32,7 @@ $menu[1] = [
                 'c' => '@Data_List/i/barang_sub',
                 'title' => 'Sub Barang',
                 'txt' => 'Sub Barang'
-            ]
+            ],
         ]
     ],
 
