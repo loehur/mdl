@@ -1,5 +1,5 @@
 <div class="px-1 mt-2">
-  <div class="card shadow-sm border-0">
+  <div class="card shadow-sm border-0" style="max-width: 500px;">
     <div class="card-header bg-primary text-white py-2">
       <div class="d-flex justify-content-between align-items-center">
         <h6 class="mb-0 overflow-hidden text-nowrap me-2"><i class="fas fa-boxes me-2"></i>Stok</h6>
@@ -12,7 +12,7 @@
         </div>
       </div>
     </div>
-    <div class="card-body p-0">
+    <div class="card-body p-0" style="height: 80vh; overflow-y: auto;">
       <div class="table-responsive">
         <table class="table table-hover table-striped mb-0 align-middle" id="tableStok">
           <thead class="bg-light">

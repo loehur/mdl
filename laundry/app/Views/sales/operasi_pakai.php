@@ -75,18 +75,13 @@ $isEmpty = empty($grouped);
               <?php foreach ($group['items'] as $item) { ?>
                 <tr>
                   <td class="ps-3 py-2">
-                    <span class="fw-medium"><?= $item['nama_barang'] ?? 'Unknown' ?></span>
+                    <span class="fw-medium text-dark"><?= $item['nama_barang'] ?? 'Unknown' ?></span>
                     <?php if (isset($item['denom']) && $item['denom'] != 1) { ?>
-                      <span class="badge bg-info ms-1" style="font-size: 0.7rem;">@<?= $item['denom'] ?></span>
+                      <span class="badge bg-secondary ms-1" style="font-size: 0.7rem;">@<?= $item['denom'] ?></span>
                     <?php } ?>
-                    <?php 
-                      $margin = $item['margin'] ?? 0;
-                      $displayPrice = ($item['price'] ?? 0) + $margin;
-                    ?>
-                    <div class="text-muted small"><?= $item['qty'] ?? 0 ?> x Rp<?= number_format($displayPrice) ?></div>
                   </td>
                   <td class="text-end pe-3 py-2 align-middle">
-                    <span class="fw-bold">Rp<?= number_format($displayPrice * ($item['qty'] ?? 0)) ?></span>
+                     <span class="badge bg-light text-dark border"><?= $item['qty'] ?? 0 ?> Item</span>
                   </td>
                 </tr>
               <?php } ?>
@@ -95,13 +90,7 @@ $isEmpty = empty($grouped);
           </table>
         </div>
         
-        <!-- Footer - Total -->
-        <div class="card-footer bg-success bg-opacity-10 py-2 px-3">
-          <div class="d-flex justify-content-between align-items-center">
-            <span class="fw-bold">TOTAL</span>
-            <span class="fw-bold text-success">Rp<?= number_format($group['total'] ?? 0) ?></span>
-          </div>
-        </div>
+
       </div>
       </div> <!-- /col-md-6 -->
     <?php } ?>
