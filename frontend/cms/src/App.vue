@@ -4268,37 +4268,43 @@ const handleLinkClick = (e) => {
                    </div>
                 </div>
                
-               <div class="flex gap-3 items-end bg-[var(--wa-bg-secondary)] p-2 rounded-lg border border-[var(--wa-border)] focus-within:ring-0 focus-within:border-[var(--wa-accent-green)] transition-all">
-                  <input 
-                     type="file" 
-                     ref="fileInput" 
-                     @change="selectImage" 
-                     accept="image/*" 
-                     class="hidden"
-                  >
-                  
-                <button @click="openImagePicker" class="p-2 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)] transition-colors" title="Attach Image">
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
-                   </button>
-                   
-                   <!-- Emoji Button -->
-                   <button @click="toggleEmojiPicker" class="p-2 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)] transition-colors" :class="showEmojiPicker ? 'text-[var(--wa-accent-green)]' : ''" title="Emoji">
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                   </button>
+               <div class="flex gap-2 items-end">
+                  <!-- Input Container (like WhatsApp) -->
+                  <div class="flex-1 flex items-end bg-[var(--wa-bg-secondary)] rounded-3xl border border-[var(--wa-border)] overflow-hidden">
+                     <input 
+                        type="file" 
+                        ref="fileInput" 
+                        @change="selectImage" 
+                        accept="image/*" 
+                        class="hidden"
+                     >
+                     
+                     <!-- Emoji Button (Left) -->
+                     <button @click.stop="toggleEmojiPicker" class="p-3 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)] transition-colors flex-shrink-0" :class="showEmojiPicker ? 'text-[var(--wa-accent-green)]' : ''" title="Emoji">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                     </button>
 
-                   <textarea 
-                     ref="messageTextarea"
-                     v-model="messageInput"
-                     @input="autoResizeTextarea"
-                     @keydown.ctrl.enter.prevent="sendMessage"
-                     placeholder="Ketik pesan..." 
-                     class="flex-1 bg-transparent text-[var(--wa-text-primary)] placeholder:text-[var(--wa-text-tertiary)] focus:outline-none resize-none py-2 text-sm overflow-y-auto"
-                     style="max-height: 150px;"
-                     rows="1"
-                   ></textarea>
+                     <!-- Text Input (Middle - Flexible) -->
+                     <textarea 
+                        ref="messageTextarea"
+                        v-model="messageInput"
+                        @input="autoResizeTextarea"
+                        @keydown.ctrl.enter.prevent="sendMessage"
+                        placeholder="Ketik pesan..." 
+                        class="flex-1 bg-transparent text-[var(--wa-text-primary)] placeholder:text-[var(--wa-text-tertiary)] focus:outline-none resize-none py-3 text-sm overflow-y-auto min-w-0"
+                        style="max-height: 150px;"
+                        rows="1"
+                     ></textarea>
+                     
+                     <!-- Attach Button (Right) -->
+                     <button @click="openImagePicker" class="p-3 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)] transition-colors flex-shrink-0" title="Attach Image">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                     </button>
+                  </div>
                   
-                  <button @click="sendMessage" class="p-2 bg-[var(--wa-accent-green)] hover:bg-[#00a884]/90 text-black rounded-full transition-colors">
-                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 transform rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+                  <!-- Send Button (Outside - Circle) -->
+                  <button @click="sendMessage" class="p-3 bg-[var(--wa-accent-green)] hover:bg-[#00a884]/90 text-black rounded-full transition-colors flex-shrink-0 shadow-lg">
+                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
                   </button>
                </div>
            </div>
