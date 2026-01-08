@@ -166,6 +166,50 @@ const showCustomerInfoModal = ref(false);
 const copiedPhone = ref(false);
 const quickReplySearchQuery = ref(''); // Search query from "/" command
 
+// Emoji Picker State
+const showEmojiPicker = ref(false);
+const activeEmojiCategory = ref('smileys');
+const recentEmojis = ref([]);
+
+// Emoji Data (organized by category like WhatsApp)
+const emojiCategories = {
+    smileys: {
+        label: '😊',
+        title: 'Smileys & Emotions',
+        emojis: ['😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '🙃', '😉', '😊', '😇', '🥰', '😍', '🤩', '😘', '😗', '😚', '😙', '🥲', '😋', '😛', '😜', '🤪', '😝', '🤑', '🤗', '🤭', '🤫', '🤔', '🤐', '🤨', '😐', '😑', '😶', '😏', '😒', '🙄', '😬', '🤥', '😌', '😔', '😪', '🤤', '😴', '😷', '🤒', '🤕', '🤢', '🤮', '🤧', '🥵', '🥶', '🥴', '😵', '🤯', '🤠', '🥳', '🥸', '😎', '🤓', '🧐', '😕', '😟', '🙁', '☹️', '😮', '😯', '😲', '😳', '🥺', '😦', '😧', '😨', '😰', '😥', '😢', '😭', '😱', '😖', '😣', '😞', '😓', '😩', '😫', '🥱', '😤', '😡', '😠', '🤬', '😈', '👿', '💀', '☠️', '💩', '🤡', '👹', '👺', '👻', '👽', '👾', '🤖']
+    },
+    gestures: {
+        label: '👋',
+        title: 'Gestures & People',
+        emojis: ['👋', '🤚', '🖐️', '✋', '🖖', '👌', '🤌', '🤏', '✌️', '🤞', '🤟', '🤘', '🤙', '👈', '👉', '👆', '🖕', '👇', '☝️', '👍', '👎', '✊', '👊', '🤛', '🤜', '👏', '🙌', '👐', '🤲', '🤝', '🙏', '✍️', '💅', '🤳', '💪', '🦾', '🦿', '🦵', '🦶', '👂', '🦻', '👃', '🧠', '🫀', '🫁', '🦷', '🦴', '👀', '👁️', '👅', '👄', '👶', '🧒', '👦', '👧', '🧑', '👱', '👨', '🧔', '👩', '🧓', '👴', '👵', '🙍', '🙎', '🙅', '🙆', '💁', '🙋', '🧏', '🙇', '🤦', '🤷', '👮', '🕵️', '💂', '🥷', '👷', '🤴', '👸', '👳', '👲', '🧕', '🤵', '👰', '🤰', '🤱', '👼', '🎅', '🤶']
+    },
+    animals: {
+        label: '🐶',
+        title: 'Animals & Nature',
+        emojis: ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐻‍❄️', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🙈', '🙉', '🙊', '🐒', '🐔', '🐧', '🐦', '🐤', '🐣', '🐥', '🦆', '🦅', '🦉', '🦇', '🐺', '🐗', '🐴', '🦄', '🐝', '🪱', '🐛', '🦋', '🐌', '🐞', '🐜', '🪰', '🪲', '🪳', '🦟', '🦗', '🕷️', '🕸️', '🦂', '🐢', '🐍', '🦎', '🦖', '🦕', '🐙', '🦑', '🦐', '🦞', '🦀', '🐡', '🐠', '🐟', '🐬', '🐳', '🐋', '🦈', '🐊', '🐅', '🐆', '🦓', '🦍', '🦧', '🦣', '🐘', '🦛', '🦏', '🐪', '🐫', '🦒', '🦘', '🦬', '🐃', '🐂', '🐄', '🐎', '🐖', '🐏', '🐑', '🦙', '🐐', '🦌', '🐕', '🐩', '🦮', '🐕‍🦺', '🐈', '🐈‍⬛', '🪶', '🐓', '🦃', '🦤', '🦚', '🦜', '🦢', '🦩', '🕊️', '🐇', '🦝', '🦨', '🦡', '🦫', '🦦', '🦥', '🐁', '🐀', '🐿️', '🦔']
+    },
+    food: {
+        label: '🍔',
+        title: 'Food & Drink',
+        emojis: ['🍏', '🍎', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🫐', '🍈', '🍒', '🍑', '🥭', '🍍', '🥥', '🥝', '🍅', '🍆', '🥑', '🥦', '🥬', '🥒', '🌶️', '🫑', '🌽', '🥕', '🫒', '🧄', '🧅', '🥔', '🍠', '🥐', '🥯', '🍞', '🥖', '🥨', '🧀', '🥚', '🍳', '🧈', '🥞', '🧇', '🥓', '🥩', '🍗', '🍖', '🦴', '🌭', '🍔', '🍟', '🍕', '🫓', '🥪', '🥙', '🧆', '🌮', '🌯', '🫔', '🥗', '🥘', '🫕', '🥫', '🍝', '🍜', '🍲', '🍛', '🍣', '🍱', '🥟', '🦪', '🍤', '🍙', '🍚', '🍘', '🍥', '🥠', '🥮', '🍢', '🍡', '🍧', '🍨', '🍦', '🥧', '🧁', '🍰', '🎂', '🍮', '🍭', '🍬', '🍫', '🍿', '🍩', '🍪', '🌰', '🥜', '🍯', '🥛', '🍼', '🫖', '☕', '🍵', '🧃', '🥤', '🧋', '🍶', '🍺', '🍻', '🥂', '🍷', '🥃', '🍸', '🍹', '🧉', '🍾', '🧊']
+    },
+    activities: {
+        label: '⚽',
+        title: 'Activities',
+        emojis: ['⚽', '🏀', '🏈', '⚾', '🥎', '🎾', '🏐', '🏉', '🥏', '🎱', '🪀', '🏓', '🏸', '🏒', '🏑', '🥍', '🏏', '🪃', '🥅', '⛳', '🪁', '🏹', '🎣', '🤿', '🥊', '🥋', '🎽', '🛹', '🛼', '🛷', '⛸️', '🥌', '🎿', '⛷️', '🏂', '🪂', '🏋️', '🤼', '🤸', '⛹️', '🤺', '🤾', '🏌️', '🏇', '🧘', '🏄', '🏊', '🤽', '🚣', '🧗', '🚵', '🚴', '🏆', '🥇', '🥈', '🥉', '🏅', '🎖️', '🏵️', '🎗️', '🎫', '🎟️', '🎪', '🤹', '🎭', '🩰', '🎨', '🎬', '🎤', '🎧', '🎼', '🎹', '🥁', '🪘', '🎷', '🎺', '🪗', '🎸', '🪕', '🎻', '🎲', '♟️', '🎯', '🎳', '🎮', '🎰', '🧩']
+    },
+    objects: {
+        label: '💡',
+        title: 'Objects',
+        emojis: ['⌚', '📱', '📲', '💻', '⌨️', '🖥️', '🖨️', '🖱️', '🖲️', '🕹️', '🗜️', '💽', '💾', '💿', '📀', '📼', '📷', '📸', '📹', '🎥', '📽️', '🎞️', '📞', '☎️', '📟', '📠', '📺', '📻', '🎙️', '🎚️', '🎛️', '🧭', '⏱️', '⏲️', '⏰', '🕰️', '⌛', '⏳', '📡', '🔋', '🔌', '💡', '🔦', '🕯️', '🪔', '🧯', '🛢️', '💸', '💵', '💴', '💶', '💷', '🪙', '💰', '💳', '💎', '⚖️', '🪜', '🧰', '🪛', '🔧', '🔨', '⚒️', '🛠️', '⛏️', '🪚', '🔩', '⚙️', '🪤', '🧱', '⛓️', '🧲', '🔫', '💣', '🧨', '🪓', '🔪', '🗡️', '⚔️', '🛡️', '🚬', '⚰️', '🪦', '⚱️', '🏺', '🔮', '📿', '🧿', '💈', '⚗️', '🔭', '🔬', '🕳️', '🩹', '🩺', '💊', '💉', '🩸', '🧬', '🦠', '🧫', '🧪', '🌡️', '🧹', '🪠', '🧺', '🧻', '🚽', '🚿', '🛁', '🛀', '🧼', '🪥', '🪒', '🧽', '🪣', '🧴', '🛎️', '🔑', '🗝️', '🚪', '🪑', '🛋️', '🛏️', '🛌', '🧸', '🪆', '🖼️', '🪞', '🪟', '🛍️', '🛒', '🎁', '🎈', '🎏', '🎀', '🪄', '🪅', '🎊', '🎉', '🎎', '🏮', '🎐', '🧧', '✉️', '📩', '📨', '📧', '💌', '📥', '📤', '📦', '🏷️', '🪧', '📪', '📫', '📬', '📭', '📮', '📯', '📜', '📃', '📄', '📑', '🧾', '📊', '📈', '📉', '🗒️', '🗓️', '📆', '📅', '🗑️', '📇', '🗃️', '🗳️', '🗄️', '📋', '📁', '📂', '🗂️', '🗞️', '📰', '📓', '📔', '📒', '📕', '📗', '📘', '📙', '📚', '📖', '🔖', '🧷', '🔗', '📎', '🖇️', '📐', '📏', '🧮', '📌', '📍', '✂️', '🖊️', '🖋️', '✒️', '🖌️', '🖍️', '📝', '✏️', '🔍', '🔎', '🔏', '🔐', '🔒', '🔓']
+    },
+    symbols: {
+        label: '❤️',
+        title: 'Symbols',
+        emojis: ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '☮️', '✝️', '☪️', '🕉️', '☸️', '✡️', '🔯', '🕎', '☯️', '☦️', '🛐', '⛎', '♈', '♉', '♊', '♋', '♌', '♍', '♎', '♏', '♐', '♑', '♒', '♓', '🆔', '⚛️', '🉑', '☢️', '☣️', '📴', '📳', '🈶', '🈚', '🈸', '🈺', '🈷️', '✴️', '🆚', '💮', '🉐', '㊙️', '㊗️', '🈴', '🈵', '🈹', '🈲', '🅰️', '🅱️', '🆎', '🆑', '🅾️', '🆘', '❌', '⭕', '🛑', '⛔', '📛', '🚫', '💯', '💢', '♨️', '🚷', '🚯', '🚳', '🚱', '🔞', '📵', '🚭', '❗', '❕', '❓', '❔', '‼️', '⁉️', '🔅', '🔆', '〽️', '⚠️', '🚸', '🔱', '⚜️', '🔰', '♻️', '✅', '🈯', '💹', '❇️', '✳️', '❎', '🌐', '💠', 'Ⓜ️', '🌀', '💤', '🏧', '🚾', '♿', '🅿️', '🛗', '🈳', '🈂️', '🛂', '🛃', '🛄', '🛅', '🚹', '🚺', '🚼', '⚧️', '🚻', '🚮', '🎦', '📶', '🈁', '🔣', 'ℹ️', '🔤', '🔡', '🔠', '🆖', '🆗', '🆙', '🆒', '🆕', '🆓', '0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟', '🔢', '#️⃣', '*️⃣', '⏏️', '▶️', '⏸️', '⏯️', '⏹️', '⏺️', '⏭️', '⏮️', '⏩', '⏪', '⏫', '⏬', '◀️', '🔼', '🔽', '➡️', '⬅️', '⬆️', '⬇️', '↗️', '↘️', '↙️', '↖️', '↕️', '↔️', '↪️', '↩️', '⤴️', '⤵️', '🔀', '🔁', '🔂', '🔄', '🔃', '🎵', '🎶', '➕', '➖', '➗', '✖️', '🟰', '♾️', '💲', '💱', '™️', '©️', '®️', '〰️', '➰', '➿', '🔚', '🔙', '🔛', '🔝', '🔜', '✔️', '☑️', '🔘', '🔴', '🟠', '🟡', '🟢', '🔵', '🟣', '⚫', '⚪', '🟤', '🔺', '🔻', '🔸', '🔹', '🔶', '🔷', '🔳', '🔲', '▪️', '▫️', '◾', '◽', '◼️', '◻️', '🟥', '🟧', '🟨', '🟩', '🟦', '🟪', '⬛', '⬜', '🟫', '🔈', '🔇', '🔉', '🔊', '🔔', '🔕', '📣', '📢', '💬', '💭', '🗯️', '♠️', '♣️', '♥️', '♦️', '🃏', '🎴', '🀄', '🕐', '🕑', '🕒', '🕓', '🕔', '🕕', '🕖', '🕗', '🕘', '🕙', '🕚', '🕛', '🕜', '🕝', '🕞', '🕟', '🕠', '🕡', '🕢', '🕣', '🕤', '🕥', '🕦', '🕧']
+    }
+};
+
 // Computed: Filtered Quick Replies based on search query
 const filteredQuickReplies = computed(() => {
     if (!quickReplySearchQuery.value) return quickReplies.value;
@@ -1495,6 +1539,54 @@ const resetTextareaHeight = () => {
     }
 };
 
+// Emoji Picker Functions
+const toggleEmojiPicker = () => {
+    showEmojiPicker.value = !showEmojiPicker.value;
+    // Close quick replies if open
+    if (showEmojiPicker.value) {
+        showQuickReplies.value = false;
+    }
+};
+
+const selectEmoji = (emoji) => {
+    // Insert emoji at cursor position or at end
+    const textarea = messageTextarea.value;
+    if (textarea) {
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const text = messageInput.value;
+        messageInput.value = text.substring(0, start) + emoji + text.substring(end);
+        
+        // Set cursor position after inserted emoji
+        nextTick(() => {
+            textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
+            textarea.focus();
+            autoResizeTextarea();
+        });
+    } else {
+        messageInput.value += emoji;
+    }
+    
+    // Add to recent emojis (max 20)
+    if (!recentEmojis.value.includes(emoji)) {
+        recentEmojis.value = [emoji, ...recentEmojis.value.slice(0, 19)];
+        // Save to localStorage
+        localStorage.setItem('recent_emojis', JSON.stringify(recentEmojis.value));
+    }
+};
+
+// Load recent emojis from localStorage
+const loadRecentEmojis = () => {
+    const saved = localStorage.getItem('recent_emojis');
+    if (saved) {
+        try {
+            recentEmojis.value = JSON.parse(saved);
+        } catch (e) {
+            recentEmojis.value = [];
+        }
+    }
+};
+
 // Set message to reply to (quoted reply)
 const setReplyTo = (msg) => {
     replyToMessage.value = msg;
@@ -1914,6 +2006,7 @@ const handlePaste = async (event) => {
 const handleClickOutside = (event) => {
   if (showChatMenu.value) showChatMenu.value = false;
   if (showResolveMenu.value) showResolveMenu.value = false;
+  if (showEmojiPicker.value) showEmojiPicker.value = false;
 };
 
 onUnmounted(() => {
@@ -2823,6 +2916,9 @@ const mockIncomingMessage = () => {
   // Initialize notification sound
   initNotificationSound();
   loadNotificationSoundSetting();
+  
+  // Load recent emojis
+  loadRecentEmojis();
   
   const storedId = localStorage.getItem('cms_chat_id');
   const storedExpiry = localStorage.getItem('cms_chat_expiry');
@@ -4079,6 +4175,67 @@ const handleLinkClick = (e) => {
                    </div>
                 </div>
 
+                <!-- Emoji Picker Panel -->
+                <div v-if="showEmojiPicker" class="absolute bottom-full left-0 right-0 mb-2 mx-4 bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-xl shadow-2xl overflow-hidden" @click.stop>
+                   <!-- Category Tabs -->
+                   <div class="flex items-center border-b border-[var(--wa-border)] px-1 py-1.5 overflow-x-auto custom-scrollbar">
+                      <!-- Recent Tab -->
+                      <button 
+                         v-if="recentEmojis.length > 0"
+                         @click="activeEmojiCategory = 'recent'"
+                         class="flex-shrink-0 p-2 rounded-lg text-xl transition-colors"
+                         :class="activeEmojiCategory === 'recent' ? 'bg-[var(--wa-accent-green)]/20 text-[var(--wa-accent-green)]' : 'text-[var(--wa-text-secondary)] hover:bg-[var(--wa-hover)]'"
+                         title="Recent"
+                      >🕐</button>
+                      
+                      <!-- Category Tabs -->
+                      <button 
+                         v-for="(category, key) in emojiCategories" 
+                         :key="key"
+                         @click="activeEmojiCategory = key"
+                         class="flex-shrink-0 p-2 rounded-lg text-xl transition-colors"
+                         :class="activeEmojiCategory === key ? 'bg-[var(--wa-accent-green)]/20 text-[var(--wa-accent-green)]' : 'text-[var(--wa-text-secondary)] hover:bg-[var(--wa-hover)]'"
+                         :title="category.title"
+                      >{{ category.label }}</button>
+                      
+                      <!-- Close Button -->
+                      <button @click="showEmojiPicker = false" class="flex-shrink-0 ml-auto p-2 text-[var(--wa-text-tertiary)] hover:text-red-400 hover:bg-[var(--wa-hover)] rounded-lg transition-colors">
+                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                         </svg>
+                      </button>
+                   </div>
+                   
+                   <!-- Emoji Grid -->
+                   <div class="h-52 overflow-y-auto custom-scrollbar p-2">
+                      <!-- Recent Emojis -->
+                      <div v-if="activeEmojiCategory === 'recent' && recentEmojis.length > 0">
+                         <p class="text-xs text-[var(--wa-text-tertiary)] mb-2 px-1">Recently Used</p>
+                         <div class="grid grid-cols-8 gap-1">
+                            <button 
+                               v-for="emoji in recentEmojis" 
+                               :key="emoji"
+                               @click="selectEmoji(emoji)"
+                               class="text-2xl p-1.5 hover:bg-[var(--wa-hover)] rounded-lg transition-colors active:scale-90"
+                            >{{ emoji }}</button>
+                         </div>
+                      </div>
+                      
+                      <!-- Category Emojis -->
+                      <div v-else-if="emojiCategories[activeEmojiCategory]">
+                         <p class="text-xs text-[var(--wa-text-tertiary)] mb-2 px-1">{{ emojiCategories[activeEmojiCategory].title }}</p>
+                         <div class="grid grid-cols-8 gap-1">
+                            <button 
+                               v-for="emoji in emojiCategories[activeEmojiCategory].emojis" 
+                               :key="emoji"
+                               @click="selectEmoji(emoji)"
+                               class="text-2xl p-1.5 hover:bg-[var(--wa-hover)] rounded-lg transition-colors active:scale-90"
+                            >{{ emoji }}</button>
+                         </div>
+                      </div>
+                   </div>
+                </div>
+
                 <!-- Quick Reply Panel (triggered by typing /) -->
                 <div v-if="showQuickReplies && filteredQuickReplies.length > 0" class="absolute bottom-full left-0 right-0 mb-2 mx-4 bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-xl shadow-2xl max-h-64 overflow-y-auto">
                    <div class="p-2">
@@ -4120,8 +4277,13 @@ const handleLinkClick = (e) => {
                      class="hidden"
                   >
                   
-                <button @click="openImagePicker" class="p-2 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)] transition-colors">
+                <button @click="openImagePicker" class="p-2 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)] transition-colors" title="Attach Image">
                       <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                   </button>
+                   
+                   <!-- Emoji Button -->
+                   <button @click="toggleEmojiPicker" class="p-2 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)] transition-colors" :class="showEmojiPicker ? 'text-[var(--wa-accent-green)]' : ''" title="Emoji">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                    </button>
 
                    <textarea 
