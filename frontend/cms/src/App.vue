@@ -81,7 +81,7 @@ let lastBackPress = 0;
 const wasConnected = ref(false); // Track if user has ever connected in this session
 const isReconnecting = ref(false); // True when attempting auto-reconnect
 const reconnectAttempts = ref(0); // Count of reconnect attempts
-const maxReconnectAttempts = 5; // Max attempts before giving up
+const maxReconnectAttempts = 3; // Max attempts before giving up
 const reconnectDelay = ref(3000); // Base delay in ms (will be exponentially increased)
 
 // Image Upload State
@@ -166,6 +166,7 @@ const isLoadingQuickReplies = ref(false);
 const showCustomerInfoModal = ref(false);
 const copiedPhone = ref(false);
 const quickReplySearchQuery = ref(''); // Search query from "/" command
+const isRefreshingChat = ref(false); // For CSW Closed refresh button
 
 // Emoji Picker State
 const showEmojiPicker = ref(false);
@@ -314,6 +315,13 @@ const applyTheme = (themeName) => {
     root.style.setProperty('--wa-header-bg', '#f0f2f5');
     root.style.setProperty('--wa-input-bg', '#ffffff');
     root.style.setProperty('--wa-conversation-active', '#f0f2f5');
+    
+    // Filter Tabs
+    root.style.setProperty('--wa-filter-active-bg', '#d9fdd3');
+    root.style.setProperty('--wa-filter-active-text', '#008069');
+    root.style.setProperty('--wa-filter-inactive-bg', 'transparent');
+    root.style.setProperty('--wa-filter-inactive-border', '#e9edef');
+    root.style.setProperty('--wa-filter-inactive-text', '#54656f');
   } else {
     // Dark theme colors (default)
     root.style.setProperty('--wa-bg-primary', '#111b21');
@@ -345,6 +353,13 @@ const applyTheme = (themeName) => {
     root.style.setProperty('--wa-header-bg', '#202c33');
     root.style.setProperty('--wa-input-bg', '#2a3942');
     root.style.setProperty('--wa-conversation-active', '#2a3942');
+    
+    // Filter Tabs
+    root.style.setProperty('--wa-filter-active-bg', '#00a884');
+    root.style.setProperty('--wa-filter-active-text', '#111b21');
+    root.style.setProperty('--wa-filter-inactive-bg', '#2a3942');
+    root.style.setProperty('--wa-filter-inactive-border', 'transparent');
+    root.style.setProperty('--wa-filter-inactive-text', '#8696a0');
   }
 };
 
@@ -1480,6 +1495,20 @@ const selectChat = async (id) => {
   scrollToBottom();
 };
 
+const refreshActiveChat = async () => {
+   if (!activeChatId.value) return;
+   
+   isRefreshingChat.value = true;
+   try {
+      // Force reload/re-select the chat
+      await selectChat(activeChatId.value);
+   } catch (error) {
+      console.error("Failed to refresh chat", error);
+   } finally {
+      setTimeout(() => { isRefreshingChat.value = false; }, 500);
+   }
+};
+
 // Save active chat state to sessionStorage (for restoring after opening links)
 const saveActiveChatState = () => {
     if (activeChatId.value) {
@@ -2412,7 +2441,16 @@ const connectWebSocket = () => {
      const ws = new WebSocket(wsUrl); 
      socket.value = ws;
      
+     // Connection Timeout: Force close if not connected within 10s
+     const connTimeout = setTimeout(() => {
+        if (ws.readyState !== WebSocket.OPEN) {
+            console.warn('WebSocket connection timed out (10s), forcing close...');
+            ws.close();
+        }
+     }, 10000);
+
      ws.onopen = () => {
+       clearTimeout(connTimeout);
        console.log('WebSocket connected');
        isConnected.value = true;
        isConnecting.value = false;
@@ -2713,7 +2751,9 @@ const connectWebSocket = () => {
                 reconnectAttempts.value++;
                 const delay = Math.min(reconnectDelay.value * Math.pow(1.5, reconnectAttempts.value - 1), 30000);
                 
-                msg = `🔄 Koneksi terputus, mencoba reconnect (${reconnectAttempts.value}/${maxReconnectAttempts})...`;
+                const statusMsg = `🔄 Koneksi terputus, mencoba reconnect (${reconnectAttempts.value}/${maxReconnectAttempts})...`;
+                msg = statusMsg;
+                connectionError.value = statusMsg; // FORCE UPDATE UI
                 console.log(`Reconnect attempt ${reconnectAttempts.value} in ${delay}ms`);
                 
                 setTimeout(() => {
@@ -3533,10 +3573,10 @@ const handleLinkClick = (e) => {
              <!-- All Tab -->
              <button 
                 @click="conversationFilter = 'all'"
-                class="px-3 py-1.5 text-sm font-medium rounded-full transition-all"
+                class="px-3 py-1.5 text-sm font-medium rounded-full transition-all border"
                 :class="conversationFilter === 'all' 
-                   ? 'bg-[var(--wa-accent-green)] text-black' 
-                   : 'bg-[var(--wa-bg-tertiary)] text-[var(--wa-text-secondary)] hover:bg-[var(--wa-hover)]'"
+                   ? 'bg-[var(--wa-filter-active-bg)] text-[var(--wa-filter-active-text)] border-transparent' 
+                   : 'bg-[var(--wa-filter-inactive-bg)] text-[var(--wa-filter-inactive-text)] border-[var(--wa-filter-inactive-border)] hover:bg-[var(--wa-hover)]'"
              >
                 Semua
              </button>
@@ -3544,17 +3584,17 @@ const handleLinkClick = (e) => {
              <!-- Unread Tab -->
              <button 
                 @click="conversationFilter = 'unread'"
-                class="px-3 py-1.5 text-sm font-medium rounded-full transition-all flex items-center gap-1.5"
+                class="px-3 py-1.5 text-sm font-medium rounded-full transition-all flex items-center gap-1.5 border"
                 :class="conversationFilter === 'unread' 
-                   ? 'bg-[var(--wa-accent-green)] text-black' 
-                   : 'bg-[var(--wa-bg-tertiary)] text-[var(--wa-text-secondary)] hover:bg-[var(--wa-hover)]'"
+                   ? 'bg-[var(--wa-filter-active-bg)] text-[var(--wa-filter-active-text)] border-transparent' 
+                   : 'bg-[var(--wa-filter-inactive-bg)] text-[var(--wa-filter-inactive-text)] border-[var(--wa-filter-inactive-border)] hover:bg-[var(--wa-hover)]'"
              >
                 <span>Belum dibaca</span>
                 <span 
                    v-if="totalUnreadCount > 0" 
                    class="text-xs font-bold min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center"
                    :class="conversationFilter === 'unread' 
-                      ? 'bg-black/20 text-black' 
+                      ? 'bg-black/10 text-[var(--wa-filter-active-text)]' 
                       : 'bg-[var(--wa-accent-green)] text-black'"
                 >
                    {{ totalUnreadCount }}
@@ -3564,17 +3604,17 @@ const handleLinkClick = (e) => {
              <!-- Cases Tab -->
              <button 
                 @click="conversationFilter = 'cases'"
-                class="px-3 py-1.5 text-sm font-medium rounded-full transition-all flex items-center gap-1.5"
+                class="px-3 py-1.5 text-sm font-medium rounded-full transition-all flex items-center gap-1.5 border"
                 :class="conversationFilter === 'cases' 
-                   ? 'bg-[var(--wa-accent-green)] text-black' 
-                   : 'bg-[var(--wa-bg-tertiary)] text-[var(--wa-text-secondary)] hover:bg-[var(--wa-hover)]'"
+                   ? 'bg-[var(--wa-filter-active-bg)] text-[var(--wa-filter-active-text)] border-transparent' 
+                   : 'bg-[var(--wa-filter-inactive-bg)] text-[var(--wa-filter-inactive-text)] border-[var(--wa-filter-inactive-border)] hover:bg-[var(--wa-hover)]'"
              >
                 <span>Cases</span>
                 <span 
                    v-if="totalOpenCasesCount > 0" 
                    class="text-xs font-bold min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center"
                    :class="conversationFilter === 'cases' 
-                      ? 'bg-black/20 text-black' 
+                      ? 'bg-black/10 text-[var(--wa-filter-active-text)]' 
                       : 'bg-red-500 text-white'"
                 >
                    {{ totalOpenCasesCount }}
@@ -4210,12 +4250,20 @@ const handleLinkClick = (e) => {
         <div class="absolute bottom-0 left-0 right-0 p-4 bg-[var(--wa-header-bg)] border-t border-[var(--wa-border)] z-30">
            
            <!-- Case 1: Conversation Closed -->
-           <div v-if="activeConversation.status === 'closed'" class="flex items-center justify-center gap-2 p-2 bg-[var(--wa-bg-tertiary)] rounded-lg border border-[var(--wa-border)]">
-               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--wa-text-tertiary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-               </svg>
-               <span class="text-[var(--wa-text-secondary)] text-xs font-medium">CSW Closed</span>
-           </div>
+           <button 
+              v-if="activeConversation.status === 'closed'" 
+              @click="refreshActiveChat"
+              class="flex items-center justify-center gap-2 p-3 bg-[var(--wa-bg-tertiary)] hover:bg-[var(--wa-hover)] rounded-lg border border-[var(--wa-border)] w-full transition-all active:scale-[0.99] group"
+              title="Click to refresh chat data"
+           >
+               <div v-if="isRefreshingChat" class="w-4 h-4 border-2 border-[var(--wa-text-tertiary)] border-t-[var(--wa-accent-green)] rounded-full animate-spin"></div>
+               <template v-else>
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--wa-text-tertiary)] group-hover:text-[var(--wa-accent-green)] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  <span class="text-[var(--wa-text-secondary)] text-sm font-medium group-hover:text-[var(--wa-text-primary)] transition-colors">CSW Closed - Refresh</span>
+               </template>
+           </button>
 
            <!-- Case 2: Active Chat Input -->
            <div v-else>
