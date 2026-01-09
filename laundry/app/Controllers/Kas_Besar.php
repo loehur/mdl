@@ -26,7 +26,7 @@ class Kas_Besar extends Controller
       $kredit += isset($jumlah_penarikan['jumlah']) ? (int)$jumlah_penarikan['jumlah'] : 0;
 
       // 2. Pembayaran non-tunai, 1 jualan, 3 member, 7 sales
-      $where_nontunai = "jenis_transaksi IN (1, 3, 7) AND metode_mutasi = 2 AND status_mutasi <> 4";
+      $where_nontunai = "jenis_transaksi IN (1, 3, 6, 7) AND metode_mutasi = 2 AND status_mutasi <> 4";
       $jumlah_nontunai = $this->db(0)->get_cols_where('kas', $cols, $where_nontunai, 0);
       $kredit += isset($jumlah_nontunai['jumlah']) ? (int)$jumlah_nontunai['jumlah'] : 0;
 

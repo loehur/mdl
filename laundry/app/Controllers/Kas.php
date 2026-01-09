@@ -15,7 +15,7 @@ class Kas extends Controller
 
       //uang masuk 1 jualan, 3 member, 7 sales
       $kredit = 0;
-      $where_kredit = $this->wCabang . " AND jenis_transaksi IN (1,3,7) AND jenis_mutasi = 1 AND metode_mutasi = 1 AND status_mutasi <> 4";
+      $where_kredit = $this->wCabang . " AND jenis_transaksi IN (1,3,6,7) AND jenis_mutasi = 1 AND metode_mutasi = 1 AND status_mutasi <> 4";
       $cols_kredit = "SUM(jumlah) as jumlah";
       $jumlah_kredit = isset($this->db(0)->get_cols_where('kas', $cols_kredit, $where_kredit, 0)['jumlah']) ? $this->db(0)->get_cols_where('kas', $cols_kredit, $where_kredit, 0)['jumlah'] : 0;
       $kredit = $jumlah_kredit;
