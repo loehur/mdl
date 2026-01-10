@@ -194,7 +194,12 @@ if (count($data['data_main']) == 0) {
       $f18 = $a['id_user'];
       $f1 = $a['insertTime'];
 
-      $pelanggan = $this->pelanggan[$f17]['nama_pelanggan'];
+      // Check if pelanggan exists (might be deleted)
+      if (isset($this->pelanggan[$f17]) && is_array($this->pelanggan[$f17])) {
+        $pelanggan = $this->pelanggan[$f17]['nama_pelanggan'];
+      } else {
+        $pelanggan = "Pelanggan #" . $f17;
+      }
       $pelanggan_show = $pelanggan;
       if (strlen($pelanggan) > 20) {
         $pelanggan_show = substr($pelanggan, 0, 20) . "...";
