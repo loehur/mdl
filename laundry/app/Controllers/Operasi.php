@@ -11,7 +11,22 @@ class Operasi extends Controller
    public function i($modeOperasi, $id_pelanggan)
    {
       $viewData = 'operasi/form_proses';
-      $formData = array('id_pelanggan' => $id_pelanggan, 'mode' => $modeOperasi);
+      
+      // Year data for tuntas mode
+      $currentYear = intval(date('Y'));
+      $minYear = 2021;
+      $selectedYear = isset($_GET['year']) ? intval($_GET['year']) : $currentYear;
+      if ($selectedYear < $minYear) $selectedYear = $minYear;
+      if ($selectedYear > $currentYear) $selectedYear = $currentYear;
+      
+      $formData = array(
+         'id_pelanggan' => $id_pelanggan, 
+         'mode' => $modeOperasi,
+         'currentYear' => $currentYear,
+         'selectedYear' => $selectedYear,
+         'minYear' => $minYear
+      );
+      
       switch ($modeOperasi) {
          case 0:
             //DALAM PROSES

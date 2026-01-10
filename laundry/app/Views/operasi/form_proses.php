@@ -88,18 +88,25 @@ if ($data['id_pelanggan'] > 0) {
   $(document).ready(function() {
     $('select.tize').selectize();
 
-    // Load data saat pertama kali halaman dibuka (tanpa redirect)
-    var pelanggan = <?= $id_pelanggan ?>;
-    if (pelanggan && pelanggan.length != 0) {
-      loadDataOnly(pelanggan);
-    }
-    
     // Year navigation handlers (for mode tuntas)
     <?php if ($data['mode'] == 1) { ?>
     var currentYear = <?= isset($data['currentYear']) ? $data['currentYear'] : date('Y') ?>;
     var selectedYear = <?= isset($data['selectedYear']) ? $data['selectedYear'] : date('Y') ?>;
     var minYear = <?= isset($data['minYear']) ? $data['minYear'] : 2021 ?>;
+    <?php } ?>
+
+    // Load data saat pertama kali halaman dibuka (tanpa redirect)
+    var pelanggan = <?= $id_pelanggan ?>;
+    if (pelanggan && pelanggan.length != 0) {
+      <?php if ($data['mode'] == 1) { ?>
+      // Untuk mode tuntas, load dengan year yang dipilih
+      loadDataOnly(pelanggan, selectedYear);
+      <?php } else { ?>
+      loadDataOnly(pelanggan);
+      <?php } ?>
+    }
     
+    <?php if ($data['mode'] == 1) { ?>
     $('#btnPrevYear').on('click', function() {
       if (selectedYear > minYear) {
         selectedYear--;
