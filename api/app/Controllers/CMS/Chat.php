@@ -34,7 +34,7 @@ class Chat extends Controller
             // Modified to include kode_cabang from database using local column 'code'
             
             $userId = $_GET['user_id'] ?? null;
-            $whereClause = "c.updated_at >= (NOW() - INTERVAL 3 DAY)";
+            $whereClause = "c.updated_at >= (NOW() - INTERVAL 30 DAY)";
             
             // Fetch roles from Env (Centralized)
             $roles = defined('\Env::CMS_USER_ROLES') ? \Env::CMS_USER_ROLES : [

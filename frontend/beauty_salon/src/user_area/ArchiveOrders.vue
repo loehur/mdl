@@ -148,15 +148,33 @@
           </div>
        </div>
     </Teleport>
+     
+    <!-- Toast Notification -->
+    <Teleport to="body">
+      <div v-if="toast.show" class="fixed top-4 right-4 z-[100050] animate-fade-in-down">
+        <div class="bg-white rounded-lg shadow-2xl border-l-4 p-4 min-w-[280px]" :class="toast.type === 'success' ? 'border-green-500' : toast.type === 'error' ? 'border-red-500' : 'border-yellow-500'">
+          <p class="font-medium text-gray-800">{{ toast.message }}</p>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 
 const loading = ref(true);
 const orders = ref([]);
 const selectedOrder = ref(null);
+const toast = reactive({ show: false, message: '', type: 'success' });
+const salonInfo = ref({ nama_salon: 'MDL BEAUTY SALON', alamat_salon: 'Jakarta' });
+
+function showToast(message, type = 'success') {
+  toast.message = message;
+  toast.type = type;
+  toast.show = true;
+  setTimeout(() => toast.show = false, 3000);
+}
 
 onMounted(async () => {
     try {
@@ -186,174 +204,135 @@ function formatNumber(num) {
     return new Intl.NumberFormat('id-ID').format(num || 0);
 }
 
-// Print Receipt Function - Thermal 58mm style
-function printReceipt(order) {
-    const printWindow = window.open('', '_blank', 'width=400,height=600');
+// -- Print Helper (Direct Print) --
+function generateReceiptText(order) {
+    let html = "";
     
-    // Format items
-    let itemsHtml = '';
-    if (order.order_items && order.order_items.length > 0) {
-        order.order_items.forEach(item => {
-            const qty = item.qty || 1;
-            const price = formatNumber(item.price);
-            itemsHtml += `
-                <tr>
-                    <td style="padding: 2px 0;">${item.product_name}</td>
-                    <td style="padding: 2px 0; text-align: center;">${qty}</td>
-                    <td style="padding: 2px 0; text-align: right;">${price}</td>
-                </tr>
-            `;
-        });
-    }
+    // Helper formats for Printer Server
+    // 1 Column = Center
+    const row1 = (str) => `<tr><td>${str}</td></tr>`;
+    // 2 Columns = Left - Right
+    const row2 = (left, right) => `<tr><td>${left}</td><td>${right}</td></tr>`;
+    const divider = () => `<tr><td>--------------------------------</td></tr>`;
+
+    // Header
+    const sName = (salonInfo.value.nama_salon || 'MDL BEAUTY SALON').toUpperCase();
+    const sAddr = salonInfo.value.alamat_salon || 'Jakarta';
     
-    // Payment method display
-    let paymentDisplay = '';
+    html += row1(`<b>${sName}</b>`);
+    html += row1(sAddr);
+    html += divider();
+    
+    // Info
+    html += row2(`No Order`, `#${order.id}`);
+    html += row2(`Tanggal`, `${formatDate(order.completed_at)}`);
+    html += row2(`Jam`, `${formatTime(order.completed_at)}`);
+    html += row2(`Pelanggan`, order.customer_name);
+    html += divider();
+
+    // Items
+    (order.order_items || []).forEach(item => {
+        html += row2(item.product_name, formatNumber(item.price));
+    });
+
+    html += divider();
+    
+    // Totals
+    html += row2("<b>TOTAL</b>", `<b>${formatNumber(order.total_price)}</b>`);
+    
+    // Payment
+    const methodStr = (order.payment_method || 'TUNAI').toUpperCase().replace('_', ' ');
+    const payCash = Number(order.pay_cash) || 0;
+    const payNonCash = Number(order.pay_non_cash) || 0;
+    const totalPaid = payCash + payNonCash;
+    
+    html += row2(methodStr, formatNumber(totalPaid));
+
     if (order.payment_method === 'split') {
-        paymentDisplay = `Split (Tunai: ${formatNumber(order.pay_cash)} / Non-Tunai: ${formatNumber(order.pay_non_cash)})`;
-    } else if (order.payment_method === 'non_tunai') {
-        paymentDisplay = 'Non Tunai (Transfer/QRIS)';
-    } else {
-        paymentDisplay = 'Tunai';
+        html += row2("Tunai", formatNumber(payCash));
+        html += row2("Non-Tunai", formatNumber(payNonCash));
+    }
+
+    html += divider();
+    html += row1("Terima Kasih");
+    
+    return html;
+}
+
+async function printReceipt(order) {
+    const text = generateReceiptText(order);
+    
+    // 1. Try Printer Server (Localhost)
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000); // 2s timeout
+        
+        const res = await fetch('http://localhost:3000/print', {
+             method: 'POST',
+             headers: {'Content-Type': 'application/json'},
+             body: JSON.stringify({ 
+                 text: text, 
+                 printer_name: 'Thermal',
+                 cut: true
+             }),
+             signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        
+        if (res.ok) {
+            showToast('Tercetak via Server Local', 'success');
+            return;
+        }
+    } catch (e) {
+        console.log('Printer server not reachable, trying Serial...');
     }
     
-    const orderDate = formatDate(order.completed_at);
-    const orderTime = formatTime(order.completed_at);
-    
-    const html = `
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Nota #${order.id}</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            width: 58mm;
-            padding: 5mm;
-            background: white;
+    // 2. Try Web Serial API
+    if ('serial' in navigator) {
+        try {
+            const ports = await navigator.serial.getPorts();
+            let port;
+            if (ports.length > 0) {
+                 port = ports[0];
+            } else {
+                 try {
+                    port = await navigator.serial.requestPort();
+                 } catch (err) {
+                    if (err.name === 'NotFoundError') {
+                        showToast('Tidak ada port dipilih', 'info');
+                        return;
+                    }
+                    throw err;
+                 }
+            }
+            
+            await port.open({ baudRate: 9600 });
+            
+            const encoder = new TextEncoder();
+            const writer = port.writable.getWriter();
+            
+            // ESC/POS Commands
+            const ESC = '\x1B';
+            const GS = '\x1D';
+            const init = ESC + '@';
+            const cut = GS + 'V' + '\x42' + '\x00';
+            
+            await writer.write(encoder.encode(init + text + cut));
+            
+            writer.releaseLock();
+            await port.close();
+            
+            showToast('Tercetak via Serial Port', 'success');
+            return;
+            
+        } catch (e) {
+            console.error('Serial Error:', e);
+            showToast('Gagal cetak Serial: ' + e.message, 'error');
         }
-        .center { text-align: center; }
-        .bold { font-weight: bold; }
-        .divider {
-            border-top: 1px dashed #000;
-            margin: 8px 0;
-        }
-        .header {
-            text-align: center;
-            margin-bottom: 10px;
-        }
-        .header h1 {
-            font-size: 16px;
-            font-weight: bold;
-            margin-bottom: 2px;
-        }
-        .header p {
-            font-size: 10px;
-            color: #333;
-        }
-        .info-row {
-            display: flex;
-            justify-content: space-between;
-            font-size: 11px;
-            margin-bottom: 2px;
-        }
-        table {
-            width: 100%;
-            font-size: 11px;
-            border-collapse: collapse;
-        }
-        .total-section {
-            margin-top: 8px;
-        }
-        .total-row {
-            display: flex;
-            justify-content: space-between;
-            font-size: 14px;
-            font-weight: bold;
-            margin-top: 4px;
-        }
-        .footer {
-            text-align: center;
-            margin-top: 15px;
-            font-size: 10px;
-        }
-        @media print {
-            body { width: 58mm; }
-            @page { size: 58mm auto; margin: 0; }
-        }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>BEAUTY SALON</h1>
-        <p>Jl. Contoh Alamat No. 123</p>
-        <p>Telp: 08xx-xxxx-xxxx</p>
-    </div>
-    
-    <div class="divider"></div>
-    
-    <div class="info-row">
-        <span>No: #${order.id}</span>
-        <span>${orderDate}</span>
-    </div>
-    <div class="info-row">
-        <span>Kasir: Admin</span>
-        <span>${orderTime}</span>
-    </div>
-    <div class="info-row">
-        <span>Customer:</span>
-        <span>${order.customer_name || '-'}</span>
-    </div>
-    
-    <div class="divider"></div>
-    
-    <table>
-        <thead>
-            <tr style="border-bottom: 1px solid #000;">
-                <th style="text-align: left; padding-bottom: 4px;">Item</th>
-                <th style="text-align: center; padding-bottom: 4px;">Qty</th>
-                <th style="text-align: right; padding-bottom: 4px;">Harga</th>
-            </tr>
-        </thead>
-        <tbody>
-            ${itemsHtml}
-        </tbody>
-    </table>
-    
-    <div class="divider"></div>
-    
-    <div class="total-section">
-        <div class="total-row">
-            <span>TOTAL</span>
-            <span>Rp ${formatNumber(order.total_price)}</span>
-        </div>
-        <div class="info-row" style="margin-top: 6px;">
-            <span>Bayar:</span>
-            <span>${paymentDisplay}</span>
-        </div>
-        ${order.payment_notes ? `<div class="info-row"><span>Catatan:</span><span>${order.payment_notes}</span></div>` : ''}
-    </div>
-    
-    <div class="divider"></div>
-    
-    <div class="footer">
-        <p class="bold">Terima Kasih</p>
-        <p>Atas Kunjungan Anda</p>
-        <p style="margin-top: 5px;">~ Sampai Jumpa Kembali ~</p>
-    </div>
-    
-    <script>
-        window.onload = function() {
-            window.print();
-        }
-    <\/script>
-</body>
-</html>
-    `;
-    
-    printWindow.document.write(html);
-    printWindow.document.close();
+    } else {
+        // 3. Bluetooth (Placeholder)
+        showToast('Browser tidak mendukung Web Serial. Bluetooth belum tersedia.', 'warning');
+    }
 }
 
 function formatDate(dateStr) {
@@ -366,3 +345,13 @@ function formatTime(dateStr) {
     return new Date(dateStr).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 }
 </script>
+
+<style scoped>
+@keyframes fade-in-down {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in-down {
+  animation: fade-in-down 0.3s ease-out;
+}
+</style>
