@@ -1,7 +1,7 @@
 const WebSocket = require('ws');
 const express = require('express');
 const http = require('http');
-const crypto = require('crypto');
+
 
 const app = express();
 app.use(express.json());
@@ -60,15 +60,6 @@ const ALLOWED_KASIR_IDS = [
     // Add more kasir IDs as needed
 ];
 
-// PIN for connection authentication (SHA256 hash of '123654')
-// To generate: crypto.createHash('sha256').update('123654').digest('hex')
-const CONNECTION_PIN_HASH = '6460662e217c7a9f899208dd70a2c28abdea42f128666a9b78e6c0c064846493';
-
-// Helper function to hash PIN
-const hashPin = (pin) => {
-    return crypto.createHash('sha256').update(pin).digest('hex');
-};
-
 // ============================================
 
 // Create HTTP server
@@ -82,10 +73,9 @@ const clients = new Map();
 
 // WebSocket connection handler
 wss.on('connection', (ws, req) => {
-    // Extract kasir_id and pin from query parameter
+    // Extract kasir_id from query parameter
     const urlParams = new URLSearchParams(req.url.split('?')[1]);
     const kasirId = urlParams.get('kasir_id');
-    const pin = urlParams.get('pin');
 
     // Validate kasir_id is provided
     if (!kasirId) {
@@ -98,13 +88,6 @@ wss.on('connection', (ws, req) => {
     if (!ALLOWED_KASIR_IDS.includes(kasirId)) {
         console.log(`Connection rejected: kasir_id "${kasirId}" is not allowed`);
         ws.close(4003, 'kasir_id is not allowed');
-        return;
-    }
-
-    // Validate PIN (compare hash)
-    if (!pin || hashPin(pin) !== CONNECTION_PIN_HASH) {
-        console.log(`Connection rejected: invalid PIN for kasir_id "${kasirId}"`);
-        ws.close(4002, 'Invalid PIN');
         return;
     }
 

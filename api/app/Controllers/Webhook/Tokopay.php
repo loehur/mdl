@@ -168,9 +168,9 @@ class Tokopay extends Controller
                                         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
                                         curl_close($ch);
                                         
-                                        // Optional: Log success/fail of this push
+                                        // Log success/fail of this push
                                         if ($httpCode !== 200) {
-                                            \Log::write("Err: QRS Push $httpCode", 'webhook', 'Tokopay');
+                                            \Log::write("Err: QRS Push $httpCode kasir=$kasirId", 'webhook', 'Tokopay');
                                         }
                                     }
                                 } catch (\Exception $ex) {

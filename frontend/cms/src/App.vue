@@ -3514,7 +3514,7 @@ const handleLinkClick = (e) => {
                    <input 
                      v-model="authId" 
                      type="text" 
-                     placeholder="Contoh: ADI atau 123"
+                     placeholder="ID Cabang Laundry"
                      @keydown.enter="connect"
                      class="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl pl-12 pr-4 py-4 text-white text-lg font-medium placeholder:text-slate-500 focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 focus:bg-slate-800 transition-all"
                      :disabled="isConnecting"

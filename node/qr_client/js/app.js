@@ -27,50 +27,40 @@ function setCookieWithExpiry(name, value, days) {
 
 function checkAndRefreshCookie() {
     const kasirId = getCookie('kasir_id');
-    const pin = getCookie('pin');
     const expiry = getCookieExpiry('kasir_id');
 
-    if (kasirId && pin && expiry) {
+    if (kasirId && expiry) {
         const oneDayMs = 24 * 60 * 60 * 1000;
         const timeLeft = expiry - Date.now();
 
         // If less than 1 day left, refresh to 2 days
         if (timeLeft < oneDayMs) {
             setCookieWithExpiry('kasir_id', kasirId, 2);
-            setCookieWithExpiry('pin', pin, 2);
         }
-        return { kasirId, pin };
+        return { kasirId };
     }
     return null;
 }
 
 // Save Kasir ID and PIN, then connect
+// Save Kasir ID, then connect
 function saveKasirId() {
     const kasirInput = document.getElementById('kasir-id-input');
-    const pinInput = document.getElementById('pin-input');
     const kasirId = kasirInput.value.trim().toUpperCase();
-    const pin = pinInput.value.trim();
 
     if (!kasirId) {
         kasirInput.focus();
         return;
     }
 
-    if (!pin) {
-        pinInput.focus();
-        return;
-    }
-
     setCookieWithExpiry('kasir_id', kasirId, 2);
-    setCookieWithExpiry('pin', pin, 2);
 
     // Debug: verify cookies were saved
     console.log('Cookies after save:', document.cookie);
     console.log('kasir_id cookie:', getCookie('kasir_id'));
-    console.log('pin cookie:', getCookie('pin'));
 
     showQrDisplay(kasirId);
-    connectWebSocket(kasirId, pin);
+    connectWebSocket(kasirId);
 }
 
 // Show QR display
@@ -98,23 +88,18 @@ function showLoginForm(errorMessage) {
 }
 
 // Clear stored credentials
+// Clear stored credentials
 function clearCredentials() {
     // Delete cookies by setting expiry to past
     document.cookie = 'kasir_id=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
     document.cookie = 'kasir_id_expiry=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-    document.cookie = 'pin=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-    document.cookie = 'pin_expiry=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
 }
 
 // WebSocket connection
-function connectWebSocket(kasirId, pin) {
-    // Get PIN from cookie if not provided
-    if (!pin) {
-        pin = getCookie('pin');
-    }
-
-    console.log('Connecting to:', `${WS_URL}?kasir_id=${kasirId}&pin=***`);
-    ws = new WebSocket(`${WS_URL}?kasir_id=${kasirId}&pin=${pin}`);
+// WebSocket connection
+function connectWebSocket(kasirId) {
+    console.log('Connecting to:', `${WS_URL}?kasir_id=${kasirId}`);
+    ws = new WebSocket(`${WS_URL}?kasir_id=${kasirId}`);
 
     ws.onopen = function () {
         console.log('WebSocket connected!');
@@ -149,7 +134,8 @@ function connectWebSocket(kasirId, pin) {
         }
 
         // Reconnect after 3 seconds for other errors
-        setTimeout(() => connectWebSocket(kasirId, pin), 3000);
+        // Reconnect after 3 seconds for other errors
+        setTimeout(() => connectWebSocket(kasirId), 3000);
     };
 
     ws.onerror = function (e) {
@@ -296,7 +282,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (credentials) {
         console.log('Auto-connecting with saved credentials...');
         showQrDisplay(credentials.kasirId);
-        connectWebSocket(credentials.kasirId, credentials.pin);
+        connectWebSocket(credentials.kasirId);
     } else {
         console.log('No saved credentials, showing login form');
     }
