@@ -68,10 +68,16 @@ class Operasi extends Controller
       if ($year < $minYear) $year = $minYear;
       if ($year > $currentYear) $year = $currentYear;
 
+      // DEBUG: Log the year being used
+      error_log("loadData - Year from GET: " . ($_GET['year'] ?? 'not set') . ", Using year: $year, Mode: $mode");
+
       if ($mode == 1) {
          // Filter by year for completed orders (tuntas)
          $whereSale = $this->wCabang . " AND id_pelanggan = $id_pelanggan AND bin = 0 AND tuntas = " . $mode . " AND YEAR(insertTime) = $year ORDER BY id_penjualan DESC";
          $modeView = 2;
+         
+         // DEBUG: Log the query
+         error_log("loadData - whereSale: $whereSale");
       } else {
          $whereSale = $this->wCabang . " AND id_pelanggan = $id_pelanggan AND bin = 0 AND tuntas = 0 ORDER BY id_penjualan DESC";
       }

@@ -15,7 +15,7 @@ if ($data['id_pelanggan'] > 0) {
         <select name="pelanggan"  data-id="<?= $id_pelanggan ?>" class="id_pelanggan tize form-control form-control-sm" required>
           <option value="" selected disabled>...</option>
           <?php foreach ($this->pelanggan as $a) { ?>
-            <option value="<?= $a['id_pelanggan'] ?>"><?= strtoupper($a['nama_pelanggan'])  ?> | <?= $a['nomor_pelanggan'] ?></option>
+            <option value="<?= $a['id_pelanggan'] ?>" <?= $a['id_pelanggan'] == $id_pelanggan ? 'selected' : '' ?>><?= (strlen($a['nama_pelanggan']) > 10 ? strtoupper(substr($a['nama_pelanggan'], 0, 10)) . '...' : strtoupper($a['nama_pelanggan'])) ?> | <?= $a['nomor_pelanggan'] ?></option>
           <?php } ?>
         </select>
       </div>
@@ -130,9 +130,12 @@ if ($data['id_pelanggan'] > 0) {
     }
     
     function reloadDataWithYear() {
-      var pelanggan = $("select[name=pelanggan]").val();
-      if (pelanggan && pelanggan.length != 0) {
+      // Gunakan pelanggan dari variable, bukan dari select (Selectize mungkin tidak return value dengan benar)
+      if (pelanggan && pelanggan != 0) {
+        console.log('reloadDataWithYear - pelanggan:', pelanggan, 'selectedYear:', selectedYear);
         loadDataOnly(pelanggan, selectedYear);
+      } else {
+        console.log('reloadDataWithYear - no pelanggan selected');
       }
     }
     <?php } ?>
@@ -160,6 +163,10 @@ if ($data['id_pelanggan'] > 0) {
     if (year) {
       url += "?year=" + year;
     }
+    // Add cache busting
+    url += (url.indexOf('?') > -1 ? '&' : '?') + '_=' + Date.now();
+    
+    console.log('loadDataOnly called with year:', year, 'URL:', url);
     $("div#load").load(url);
   }
 
