@@ -216,25 +216,24 @@ trait Attributes
       if ($kas && $kas['status_mutasi'] == 3) {
          echo json_encode(['status' => 'paid']);
          exit();
-      } elseif ($kas && $kas['payment_gateway'] == $gateway) {
-         $cek_qr_string = $this->db(100)->get_where_row('wh_tokopay', "ref_id = '" . $ref_finance . "'");
+      } else {
+         $cek_qr_string = $this->db(100)->get_where_row('wh_' . $gateway, "ref_id = '" . $ref_finance . "'");
          if ($cek_qr_string && $cek_qr_string['qr_string']) {
-            echo json_encode([
-               'status' => $cek_qr_string['state'],
-               'qr_string' => $cek_qr_string['qr_string'],
-               'trx_id' => $ref_finance
-            ]);
-            exit();
-         }
-      } elseif ($kas && $kas['payment_gateway'] == 'midtrans') {
-         $cek_qr_string = $this->db(100)->get_where_row('wh_midtrans', "ref_id = '" . $ref_finance . "'");
-         if ($cek_qr_string && $cek_qr_string['qr_string']) {
-            echo json_encode([
-               'status' => $cek_qr_string['state'],
-               'qr_string' => $cek_qr_string['qr_string'],
-               'trx_id' => $ref_finance
-            ]);
-            exit();
+            // Check if QR is older than 5 minutes
+            $created_at = isset($cek_qr_string['created_at']) ? strtotime($cek_qr_string['created_at']) : 0;
+            $now = time();
+            $diff_minutes = ($now - $created_at) / 60;
+            
+            if ($diff_minutes < 5) {
+               // QR masih fresh, return existing
+               echo json_encode([
+                  'status' => $cek_qr_string['state'],
+                  'qr_string' => $cek_qr_string['qr_string'],
+                  'trx_id' => $ref_finance
+               ]);
+               exit();
+            }
+            // Jika sudah > 5 menit, lanjut generate QR baru (tidak exit)
          }
       }
 
@@ -293,7 +292,8 @@ trait Attributes
                'ref_id' => $ref_finance,
                'book' => date('Y'),
                'qr_string' => $qr_string,
-               'state' => 'pending'
+               'state' => 'pending',
+               'created_at' => date('Y-m-d H:i:s')
             ]);
 
             if ($in['errno'] <> 0) {
@@ -369,7 +369,8 @@ trait Attributes
                'ref_id' => $ref_finance,
                'book' => date('Y'),
                'qr_string' => $qr_string,
-               'state' => 'pending'
+               'state' => 'pending',
+               'created_at' => date('Y-m-d H:i:s')
             ]);
 
             if ($insert['errno'] == 0) {
