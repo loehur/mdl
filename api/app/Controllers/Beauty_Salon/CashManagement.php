@@ -918,8 +918,8 @@ class CashManagement extends Controller
                         FROM orders 
                         WHERE salon_id = ? 
                           AND status = 'completed'
-                          AND DATE(order_date) >= ? 
-                          AND DATE(order_date) <= ?", 
+                          AND DATE(completed_at) >= ? 
+                          AND DATE(completed_at) <= ?", 
                     [$salon_id, $date_from, $date_to])
                 ->row_array();
 
@@ -1017,8 +1017,9 @@ class CashManagement extends Controller
                             COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_orders
                         FROM orders 
                         WHERE salon_id = ? 
-                          AND DATE(order_date) >= ? 
-                          AND DATE(order_date) <= ?", 
+                          AND status = 'completed'
+                          AND DATE(completed_at) >= ? 
+                          AND DATE(completed_at) <= ?", 
                     [$salon_id, $date_from, $date_to])
                 ->row_array();
 

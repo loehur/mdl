@@ -40,8 +40,8 @@
             <tr v-for="order in orders" :key="order.id" class="hover:bg-gray-50/50 transition">
               <td class="px-6 py-4 font-mono text-gray-500">#{{ order.id }}</td>
               <td class="px-6 py-4 text-gray-700">
-                <div>{{ formatDate(order.completed_at || order.updated_at) }}</div>
-                <div class="text-xs text-gray-400">{{ formatTime(order.completed_at || order.updated_at) }}</div>
+                <div>{{ formatDate(order.completed_at) }}</div>
+                <div class="text-xs text-gray-400">{{ formatTime(order.completed_at) }}</div>
               </td>
               <td class="px-6 py-4">
                 <div class="font-medium text-gray-900">{{ order.customer_name }}</div>
@@ -95,9 +95,9 @@
                         <div class="text-sm text-gray-500">{{ selectedOrder.customer_phone }}</div>
                      </div>
                      <div class="text-right">
-                        <div class="text-xs text-gray-500 uppercase font-bold">Tanggal</div>
-                        <div class="font-medium">{{ formatDate(selectedOrder.completed_at || selectedOrder.updated_at) }}</div>
-                        <div class="text-xs text-gray-500">{{ formatTime(selectedOrder.completed_at || selectedOrder.updated_at) }}</div>
+                        <div class="text-xs text-gray-500 uppercase font-bold">Tanggal Selesai</div>
+                        <div class="font-medium">{{ formatDate(selectedOrder.completed_at) }}</div>
+                        <div class="text-xs text-gray-500">{{ formatTime(selectedOrder.completed_at) }}</div>
                      </div>
                   </div>
 
@@ -164,7 +164,12 @@ onMounted(async () => {
         const res = await fetch('/api/Beauty_Salon/Orders?status=completed');
         const d = await res.json();
         if (d.success) {
-            orders.value = d.data;
+            // Sort by completed_at descending (newest first)
+            orders.value = d.data.sort((a, b) => {
+                const dateA = new Date(a.completed_at || 0);
+                const dateB = new Date(b.completed_at || 0);
+                return dateB - dateA;
+            });
         }
     } catch (e) {
         console.error(e);
@@ -211,8 +216,8 @@ function printReceipt(order) {
         paymentDisplay = 'Tunai';
     }
     
-    const orderDate = formatDate(order.completed_at || order.order_date || order.created_at);
-    const orderTime = formatTime(order.completed_at || order.order_date || order.created_at);
+    const orderDate = formatDate(order.completed_at);
+    const orderTime = formatTime(order.completed_at);
     
     const html = `
 <!DOCTYPE html>
