@@ -47,8 +47,19 @@ class Tokopay extends Controller
         $status = isset($data['status']) ? $data['status'] : '';
         
         // reff_id dari Tokopay adalah trx_id (unique order_id) yang kita kirim
-        // Format: ref_finance_timestamp (contoh: 1234567890_1704873600)
+        // Format BARU: ref_finance_timestamp (contoh: 1234567890_1704873600)
+        // Format LAMA: ref_finance saja (contoh: 1234567890)
         $tokopay_trx_id = $reff_id;
+        
+        // Extract ref_finance dari trx_id jika format baru (mengandung underscore)
+        // ref_finance adalah bagian sebelum underscore terakhir
+        $ref_finance_extracted = $reff_id;
+        if (strpos($reff_id, '_') !== false) {
+            // Format baru: ambil bagian sebelum underscore terakhir
+            $parts = explode('_', $reff_id);
+            array_pop($parts); // Hapus timestamp
+            $ref_finance_extracted = implode('_', $parts);
+        }
 
         if (isset($data['status'])) {
             $db_main = $this->db(0);
@@ -57,11 +68,11 @@ class Tokopay extends Controller
                 return;
             }
 
-            // Update wh_tokopay - try by trx_id first, then fallback to ref_id
+            // Update wh_tokopay - try by trx_id first, then fallback to ref_id (extracted)
             $up_wh = $db_main->update("wh_tokopay", ["state" => $status], ["trx_id" => $tokopay_trx_id]);
             if (!$up_wh) {
-                // Fallback for old format where trx_id = ref_id
-                $up_wh = $db_main->update("wh_tokopay", ["state" => $status], ["ref_id" => $tokopay_trx_id]);
+                // Fallback: use extracted ref_finance (tanpa timestamp)
+                $up_wh = $db_main->update("wh_tokopay", ["state" => $status], ["ref_id" => $ref_finance_extracted]);
             }
         }
 
@@ -81,22 +92,22 @@ class Tokopay extends Controller
                 // Try update by trx_id first (new format: ref_finance_timestamp)
                 $update_wh = $db_instance->update("wh_tokopay", ["state" => $status], ["trx_id" => $tokopay_trx_id]);
                 if (!$update_wh) {
-                    // Fallback: try by ref_id (old format: trx_id = ref_id = ref_finance)
-                    $db_instance->update("wh_tokopay", ["state" => $status], ["ref_id" => $tokopay_trx_id]);
+                    // Fallback: use extracted ref_finance (tanpa timestamp)
+                    $db_instance->update("wh_tokopay", ["state" => $status], ["ref_id" => $ref_finance_extracted]);
                 }
 
                 // Lookup by trx_id first (new format)
                 $cek_target_query = $db_instance->get_where("wh_tokopay", ["trx_id" => $tokopay_trx_id]);
                 $cek_target = $cek_target_query ? $cek_target_query->row() : null;
                 
-                // Fallback: lookup by ref_id (old format where trx_id = ref_id)
+                // Fallback: lookup by ref_id using extracted ref_finance
                 if (!$cek_target) {
-                    $cek_target_query = $db_instance->get_where("wh_tokopay", ["ref_id" => $tokopay_trx_id]);
+                    $cek_target_query = $db_instance->get_where("wh_tokopay", ["ref_id" => $ref_finance_extracted]);
                     $cek_target = $cek_target_query ? $cek_target_query->row() : null;
                 }
                 
                 if (!$cek_target) {
-                    \Log::write("Err: WH Null trx/ref=$tokopay_trx_id", 'webhook', 'Tokopay');
+                    \Log::write("Err: WH Null trx=$tokopay_trx_id ref=$ref_finance_extracted", 'webhook', 'Tokopay');
                     return;
                 }
             } catch (\Exception $e) {
