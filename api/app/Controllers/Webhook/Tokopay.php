@@ -11,7 +11,7 @@ class Tokopay extends Controller
         // CONFIGURATION
         // ==============================
         $merchant_id = 'M240926BMTGB612'; // Ganti dengan Tokopay Merchant ID Anda
-        $secret      = '4aea0ede516df65d88ccb773a443c61b3b3702fe1b9647deb9293cac07fd72bf'; // Ganti dengan Tokopay Secret Key Anda
+        $secret = '4aea0ede516df65d88ccb773a443c61b3b3702fe1b9647deb9293cac07fd72bf'; // Ganti dengan Tokopay Secret Key Anda
 
         header('Content-Type: application/json; charset=utf-8');
 
@@ -45,12 +45,12 @@ class Tokopay extends Controller
 
         // Process Transaction
         $status = isset($data['status']) ? $data['status'] : '';
-        
+
         // reff_id dari Tokopay adalah trx_id (unique order_id) yang kita kirim
         // Format BARU: ref_finance_timestamp (contoh: 1234567890_1704873600)
         // Format LAMA: ref_finance saja (contoh: 1234567890)
         $tokopay_trx_id = $reff_id;
-        
+
         // Extract ref_finance dari trx_id jika format baru (mengandung underscore)
         // ref_finance adalah bagian sebelum underscore terakhir
         $ref_finance_extracted = $reff_id;
@@ -61,51 +61,42 @@ class Tokopay extends Controller
             $ref_finance_extracted = implode('_', $parts);
         }
 
-        if (isset($data['status'])) {
-            $db_main = $this->db(0);
-            if (!$db_main) {
-                \Log::write("Err: DB 0", 'webhook', 'Tokopay');
-                return;
-            }
-
-            // Update wh_tokopay - try by trx_id first, then fallback to ref_id (extracted)
-            $up_wh = $db_main->update("wh_tokopay", ["state" => $status], ["trx_id" => $tokopay_trx_id]);
-            if (!$up_wh) {
-                // Fallback: use extracted ref_finance (tanpa timestamp)
-                $up_wh = $db_main->update("wh_tokopay", ["state" => $status], ["ref_id" => $ref_finance_extracted]);
+        // Update wh_tokopay untuk SEMUA status (pending, success, expired, dll)
+        $db_instance = $this->db(0);
+        if ($db_instance) {
+            $update_wh = $db_instance->update("wh_tokopay", ["state" => $status], ["trx_id" => $tokopay_trx_id]);
+            if (!$update_wh) {
+                $update_wh = $db_instance->update("wh_tokopay", ["state" => $status], ["ref_id" => $ref_finance_extracted]);
+                if (!$update_wh) {
+                    \Log::write("Err: WH Update Failed trx=$tokopay_trx_id ref=$ref_finance_extracted status=$status", 'webhook', 'Tokopay');
+                } else {
+                    \Log::write("OK: WH Updated by ref_id=$ref_finance_extracted status=$status", 'webhook', 'Tokopay');
+                }
+            } else {
+                \Log::write("OK: WH Updated by trx_id=$tokopay_trx_id status=$status", 'webhook', 'Tokopay');
             }
         }
 
         $statusLower = strtolower($status);
         if ($statusLower == 'success' || $statusLower == 'completed' || $statusLower == 'expired') {
-            // Processing success (no verbose log)
+            // Processing for success/completed/expired
 
-            // Debugging DB connection and query
             try {
-                $db_instance = $this->db(0);
                 if (!$db_instance) {
                     \Log::write("Err: DB 0", 'webhook', 'Tokopay');
                     return;
-                }
-                // DB instance obtained (no log)
-
-                // Try update by trx_id first (new format: ref_finance_timestamp)
-                $update_wh = $db_instance->update("wh_tokopay", ["state" => $status], ["trx_id" => $tokopay_trx_id]);
-                if (!$update_wh) {
-                    // Fallback: use extracted ref_finance (tanpa timestamp)
-                    $db_instance->update("wh_tokopay", ["state" => $status], ["ref_id" => $ref_finance_extracted]);
                 }
 
                 // Lookup by trx_id first (new format)
                 $cek_target_query = $db_instance->get_where("wh_tokopay", ["trx_id" => $tokopay_trx_id]);
                 $cek_target = $cek_target_query ? $cek_target_query->row() : null;
-                
+
                 // Fallback: lookup by ref_id using extracted ref_finance
                 if (!$cek_target) {
                     $cek_target_query = $db_instance->get_where("wh_tokopay", ["ref_id" => $ref_finance_extracted]);
                     $cek_target = $cek_target_query ? $cek_target_query->row() : null;
                 }
-                
+
                 if (!$cek_target) {
                     \Log::write("Err: WH Null trx=$tokopay_trx_id ref=$ref_finance_extracted", 'webhook', 'Tokopay');
                     return;
@@ -116,7 +107,7 @@ class Tokopay extends Controller
             }
 
             if ($cek_target && ($statusLower == 'success' || $statusLower == 'completed')) {
-            // Target found (no log)
+                // Target found (no log)
 
                 $book = $cek_target->book;
                 $target = $cek_target->target;
@@ -146,28 +137,28 @@ class Tokopay extends Controller
 
                                     // 2. Get Kasir ID (id_cabang) from kas table - gunakan ref_finance asli
                                     $kasData = $db_update_instance->query("SELECT id_cabang FROM kas WHERE ref_finance = '$ref_finance'")->row();
-                                    
+
                                     if ($kasData && !empty($qrString)) {
                                         $kasirId = $kasData->id_cabang; // Ensure this maps to your Node server Kasir IDs (3, 4, etc)
-                                        
+
                                         $url = 'https://qrs.nalju.com/payment-success';
                                         $postData = [
-                                            'kasir_id' => (string)$kasirId,
+                                            'kasir_id' => (string) $kasirId,
                                             'qr_string' => $qrString,
                                             'status' => true
                                         ];
-                                        
+
                                         $ch = curl_init($url);
                                         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                                         curl_setopt($ch, CURLOPT_POST, true);
                                         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($postData));
                                         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
                                         curl_setopt($ch, CURLOPT_TIMEOUT, 3); // Don't hang PHP
-                                        
+
                                         $response = curl_exec($ch);
                                         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
                                         curl_close($ch);
-                                        
+
                                         // Log success/fail of this push
                                         if ($httpCode !== 200) {
                                             \Log::write("Err: QRS Push $httpCode kasir=$kasirId", 'webhook', 'Tokopay');
