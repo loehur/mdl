@@ -45,6 +45,10 @@ class Tokopay extends Controller
 
         // Process Transaction
         $status = isset($data['status']) ? $data['status'] : '';
+        
+        // reff_id dari Tokopay adalah trx_id (unique order_id) yang kita kirim
+        // Format: ref_finance_timestamp (contoh: 1234567890_1704873600)
+        $tokopay_trx_id = $reff_id;
 
         if (isset($data['status'])) {
             $db_main = $this->db(0);
@@ -53,9 +57,10 @@ class Tokopay extends Controller
                 return;
             }
 
-            $up_wh = $db_main->update("wh_tokopay", ["state" => $status], ["ref_id" => $reff_id]);
+            // Update wh_tokopay by trx_id (bukan ref_id)
+            $up_wh = $db_main->update("wh_tokopay", ["state" => $status], ["trx_id" => $tokopay_trx_id]);
             if (!$up_wh) {
-                \Log::write("Err: Upd WH", 'webhook', 'Tokopay');
+                \Log::write("Err: Upd WH trx_id=$tokopay_trx_id", 'webhook', 'Tokopay');
                 return;
             }
         }
@@ -73,15 +78,16 @@ class Tokopay extends Controller
                 }
                 // DB instance obtained (no log)
 
-                $update_wh = $db_instance->update("wh_tokopay", ["state" => $status], ["ref_id" => $reff_id]);
+                $update_wh = $db_instance->update("wh_tokopay", ["state" => $status], ["trx_id" => $tokopay_trx_id]);
                 if (!$update_wh) {
-                    \Log::write("Err: Upd WH $reff_id", 'webhook', 'Tokopay');
+                    \Log::write("Err: Upd WH trx_id=$tokopay_trx_id", 'webhook', 'Tokopay');
                 }
                 // Success - no log
 
-                $cek_target_query = $db_instance->get_where("wh_tokopay", ["ref_id" => $reff_id]);
+                // Lookup by trx_id untuk mendapatkan ref_id (ref_finance asli)
+                $cek_target_query = $db_instance->get_where("wh_tokopay", ["trx_id" => $tokopay_trx_id]);
                 if (!$cek_target_query) {
-                    \Log::write("Err: WH Null", 'webhook', 'Tokopay');
+                    \Log::write("Err: WH Null trx_id=$tokopay_trx_id", 'webhook', 'Tokopay');
                     return;
                 }
 
@@ -96,6 +102,8 @@ class Tokopay extends Controller
 
                 $book = $cek_target->book;
                 $target = $cek_target->target;
+                // Ambil ref_id yang merupakan ref_finance asli (tanpa timestamp)
+                $ref_finance = $cek_target->ref_id;
 
                 if ($target == "kas_laundry") {
                     // FIX: use db(0) directly instead of year iteration
@@ -107,18 +115,19 @@ class Tokopay extends Controller
                         if (!$db_update_instance) {
                             \Log::write("Err: DB 1", 'webhook', 'Tokopay');
                         } else {
-                            $update = $db_update_instance->update("kas", ["status_mutasi" => 3], ["ref_finance" => $reff_id]);
+                            // Update kas menggunakan ref_finance asli (bukan trx_id dari Tokopay)
+                            $update = $db_update_instance->update("kas", ["status_mutasi" => 3], ["ref_finance" => $ref_finance]);
 
                             if (!$update) {
-                                \Log::write("Err: Upd Kas $reff_id", 'webhook', 'Tokopay');
+                                \Log::write("Err: Upd Kas ref=$ref_finance", 'webhook', 'Tokopay');
                             } else {
                                 // Send Webhook to QR Server (Node.js) to notify frontend
                                 try {
                                     // 1. Get QR String from wh_tokopay (already fetched in $cek_target)
                                     $qrString = isset($cek_target->qr_string) ? $cek_target->qr_string : '';
 
-                                    // 2. Get Kasir ID (id_cabang) from kas table
-                                    $kasData = $db_update_instance->query("SELECT id_cabang FROM kas WHERE ref_finance = '$reff_id'")->row();
+                                    // 2. Get Kasir ID (id_cabang) from kas table - gunakan ref_finance asli
+                                    $kasData = $db_update_instance->query("SELECT id_cabang FROM kas WHERE ref_finance = '$ref_finance'")->row();
                                     
                                     if ($kasData && !empty($qrString)) {
                                         $kasirId = $kasData->id_cabang; // Ensure this maps to your Node server Kasir IDs (3, 4, etc)

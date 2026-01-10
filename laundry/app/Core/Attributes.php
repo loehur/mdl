@@ -255,14 +255,19 @@ trait Attributes
          exit();
       }
 
-      $ref_id = $ref_finance;
+       $ref_id = $ref_finance;
 
       if ($gateway == 'tokopay') {
-         $res = $this->model('Tokopay')->createOrder($nominal, $ref_id, 'QRIS');
+         // Generate unique order_id untuk Tokopay (ref_finance + timestamp)
+         // Ini memungkinkan generate QR baru jika expired, tanpa duplicate order error
+         $unique_order_id = $ref_finance . '_' . time();
+         
+         $res = $this->model('Tokopay')->createOrder($nominal, $unique_order_id, 'QRIS');
          $data = json_decode($res, true);
 
          if (isset($data['status']) && $data['status']) {
-            $trx_id = $data['data']['trx_id'] ?? $ref_id;
+            // Gunakan trx_id dari response Tokopay, atau fallback ke unique_order_id yang kita kirim
+            $trx_id = $data['data']['trx_id'] ?? $unique_order_id;
             $qr_string = '';
             if (isset($data['data']['qr_string']) && !empty($data['data']['qr_string'])) {
                $qr_string = $data['data']['qr_string'];
@@ -338,7 +343,10 @@ trait Attributes
             exit();
          }
       } elseif ($gateway == 'midtrans') {
-         $midtransResponse = $this->model('Midtrans')->createTransaction($ref_id, $nominal);
+         // Generate unique order_id untuk Midtrans (ref_finance + timestamp)
+         $unique_order_id = $ref_finance . '_' . time();
+         
+         $midtransResponse = $this->model('Midtrans')->createTransaction($unique_order_id, $nominal);
          $data = json_decode($midtransResponse, true);
 
          if (isset($data['transaction_id'])) {
