@@ -57,11 +57,11 @@ class Tokopay extends Controller
                 return;
             }
 
-            // Update wh_tokopay by trx_id (bukan ref_id)
+            // Update wh_tokopay - try by trx_id first, then fallback to ref_id
             $up_wh = $db_main->update("wh_tokopay", ["state" => $status], ["trx_id" => $tokopay_trx_id]);
             if (!$up_wh) {
-                \Log::write("Err: Upd WH trx_id=$tokopay_trx_id", 'webhook', 'Tokopay');
-                return;
+                // Fallback for old format where trx_id = ref_id
+                $up_wh = $db_main->update("wh_tokopay", ["state" => $status], ["ref_id" => $tokopay_trx_id]);
             }
         }
 
@@ -78,20 +78,27 @@ class Tokopay extends Controller
                 }
                 // DB instance obtained (no log)
 
+                // Try update by trx_id first (new format: ref_finance_timestamp)
                 $update_wh = $db_instance->update("wh_tokopay", ["state" => $status], ["trx_id" => $tokopay_trx_id]);
                 if (!$update_wh) {
-                    \Log::write("Err: Upd WH trx_id=$tokopay_trx_id", 'webhook', 'Tokopay');
+                    // Fallback: try by ref_id (old format: trx_id = ref_id = ref_finance)
+                    $db_instance->update("wh_tokopay", ["state" => $status], ["ref_id" => $tokopay_trx_id]);
                 }
-                // Success - no log
 
-                // Lookup by trx_id untuk mendapatkan ref_id (ref_finance asli)
+                // Lookup by trx_id first (new format)
                 $cek_target_query = $db_instance->get_where("wh_tokopay", ["trx_id" => $tokopay_trx_id]);
-                if (!$cek_target_query) {
-                    \Log::write("Err: WH Null trx_id=$tokopay_trx_id", 'webhook', 'Tokopay');
+                $cek_target = $cek_target_query ? $cek_target_query->row() : null;
+                
+                // Fallback: lookup by ref_id (old format where trx_id = ref_id)
+                if (!$cek_target) {
+                    $cek_target_query = $db_instance->get_where("wh_tokopay", ["ref_id" => $tokopay_trx_id]);
+                    $cek_target = $cek_target_query ? $cek_target_query->row() : null;
+                }
+                
+                if (!$cek_target) {
+                    \Log::write("Err: WH Null trx/ref=$tokopay_trx_id", 'webhook', 'Tokopay');
                     return;
                 }
-
-                $cek_target = $cek_target_query->row();
             } catch (\Exception $e) {
                 \Log::write("Exc: DB " . $e->getMessage(), 'webhook', 'Tokopay');
                 return;
