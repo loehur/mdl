@@ -130,12 +130,8 @@ if ($data['id_pelanggan'] > 0) {
     }
     
     function reloadDataWithYear() {
-      // Gunakan pelanggan dari variable, bukan dari select (Selectize mungkin tidak return value dengan benar)
       if (pelanggan && pelanggan != 0) {
-        console.log('reloadDataWithYear - pelanggan:', pelanggan, 'selectedYear:', selectedYear);
         loadDataOnly(pelanggan, selectedYear);
-      } else {
-        console.log('reloadDataWithYear - no pelanggan selected');
       }
     }
     <?php } ?>
@@ -159,6 +155,18 @@ if ($data['id_pelanggan'] > 0) {
     $('.hrfsp').attr('href', '<?= URL::BASE_URL ?>Member/tambah_paket/' + id);
     $('.hrfsd').attr('href', '<?= URL::BASE_URL ?>SaldoTunai/tambah/' + id);
     
+    // Show loading indicator
+    $("div#load").html(`
+      <div class="d-flex justify-content-center align-items-center py-5">
+        <div class="text-center">
+          <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+          <p class="text-muted mb-0">Memuat data...</p>
+        </div>
+      </div>
+    `);
+    
     var url = "<?= URL::BASE_URL ?>Operasi/loadData/" + id + "/" + <?= $data['mode'] ?>;
     if (year) {
       url += "?year=" + year;
@@ -166,7 +174,6 @@ if ($data['id_pelanggan'] > 0) {
     // Add cache busting
     url += (url.indexOf('?') > -1 ? '&' : '?') + '_=' + Date.now();
     
-    console.log('loadDataOnly called with year:', year, 'URL:', url);
     $("div#load").load(url);
   }
 
