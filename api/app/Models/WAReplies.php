@@ -722,7 +722,7 @@ class WAReplies
             
             // Send all reminders to the requesting user
             if (!empty($reminders)) {
-                $combined_text = implode("\n\n---\n\n", $reminders);
+                $combined_text = implode("\n\n", $reminders);
                 $res = $waService->sendFreeText($waNumber, $combined_text);
                 \Log::write("handleReminder - sent reminders, result: " . json_encode($res), 'reminder_debug');
             } else {

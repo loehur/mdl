@@ -1,10 +1,15 @@
 <?php
 
+namespace App\Controllers;
+
+use App\Core\Controller;
+use App\Core\DB;
+
 class Reminder extends Controller
 {
    public function cek()
    {
-      $data = $this->db(0)->get('reminder');
+      $data = DB::getInstance(0)->query("SELECT * FROM reminder")->result_array();
       
       // Group reminders by phone number
       $grouped = [];
@@ -46,16 +51,32 @@ class Reminder extends Controller
       
       // Send grouped messages
       foreach ($grouped as $hp => $messages) {
-         $combined_text = implode("\n\n---\n\n", $messages);
-         $res = $this->helper('Notif')->send_wa($hp, $combined_text);
+         $combined_text = implode("\n\n", $messages);
+         // TODO: Implement notification sending
+         // $res = $this->helper('Notif')->send_wa($hp, $combined_text);
       }
    }
 
-   function update()
+   public function update()
    {
-      $id = $_POST['id'];
-      $where = "id = " . $id;
-      $d = $this->db(0)->get_where_row('reminder', $where);
+      $id = $_POST['id'] ?? null;
+      
+      if (!$id || !is_numeric($id)) {
+         echo "Invalid ID";
+         return;
+      }
+      
+      $db = DB::getInstance(0);
+      
+      // Get reminder data
+      $result = $db->get_where('reminder', ['id' => (int)$id], 1);
+      $d = $result->row_array();
+      
+      if (!$d) {
+         echo "Reminder not found";
+         return;
+      }
+      
       $cycle = $d['cycle'];
 
       $t1 = date_create($d['next_date']);
@@ -67,49 +88,20 @@ class Reminder extends Controller
 
       if ($selisih_hari <= $rentang) {
          $next_date = date("Y-m-d", strtotime($d['next_date'] . " +" . $cycle . " " . $d['cycle_type']));
-         $up = $this->db(0)->update('reminder', ['next_date' => $next_date], $where);
-         if ($up['errno'] == 0) {
+         $up = $db->update('reminder', ['next_date' => $next_date], ['id' => (int)$id]);
+         
+         if ($up) {
             echo 0;
          } else {
             echo "Error Updating, Hubungi Admin";
          }
+      } else {
+         echo "Reminder belum dalam rentang update";
       }
    }
 
-   function cek_kas_cabang()
+   public function index()
    {
-      $hp = URL::WA_PRIVATE[1];
-      $cabangs = $this->db(0)->get("cabang", "id_cabang");
-      
-      // FIX: use db(0) directly instead of helper
-      $data = [];
-      foreach ($cabangs as $a) {
-         $where_kredit = "id_cabang = " . $a['id_cabang'] . " AND jenis_mutasi = 1 AND metode_mutasi = 1 AND status_mutasi = 3";
-         $jumlah_kredit = $this->db(0)->get_cols_where('kas', 'SUM(jumlah) as jumlah', $where_kredit, 0)['jumlah'] ?? 0;
-         
-         $where_debit = "id_cabang = " . $a['id_cabang'] . " AND jenis_mutasi = 2 AND metode_mutasi = 1 AND status_mutasi <> 4";
-         $jumlah_debit = $this->db(0)->get_cols_where('kas', 'SUM(jumlah) as jumlah', $where_debit, 0)['jumlah'] ?? 0;
-         
-         $data[$a['id_cabang']] = $jumlah_kredit - $jumlah_debit;
-      }
-      $text = "";
-      foreach ($data as $key => $s) {
-         if ($s >= 1000000) {
-            if (strlen($text) == 0) {
-               $text = "*" . $cabangs[$key]['kode_cabang'] . "* Rp" . number_format($s);
-            } else {
-               $text .= "\n*" . $cabangs[$key]['kode_cabang'] . "* Rp" . number_format($s);
-            }
-
-            $text_log = $cabangs[$key]['kode_cabang'] . " Rp" . number_format($s);
-            echo $text_log . " \n";
-         }
-      }
-
-      if (strlen($text) > 0) {
-         $res = $this->helper('Notif')->send_wa($hp, $text);
-      } else {
-         echo "ALL CASH UNDER 1.000.000 \n";
-      }
+      $this->success(['message' => 'Reminder API'], 'Reminder endpoint');
    }
 }
