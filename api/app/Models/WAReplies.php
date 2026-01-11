@@ -743,7 +743,7 @@ class WAReplies
         }
     }
 
-    function handleKas_Laundry($phoneIn, $waNumber)
+    function handleKas_laundry($phoneIn, $waNumber)
     {
         $hp = ['081268098300','085278114125'];
 
@@ -762,7 +762,7 @@ class WAReplies
             return;
         }
 
-        $cabangs = DB::getInstance(0)->query("SELECT * FROM cabang")->result_array();
+        $cabangs = DB::getInstance(1)->query("SELECT * FROM cabang")->result_array();
       
         $db1 = DB::getInstance(1);
         $data = [];

@@ -116,4 +116,13 @@ return [
             '/^\s*(reminder|remind|ingatkan|ingat|pengingat)\s*$/i',
         ],
     ],
+
+    'KAS_LAUNDRY' => [
+        'max_length' => 20,
+        'case' => 0,
+        'auto_reply' => true,
+        'patterns' => [
+            '/^\s*(kas|saldo)\s*(laundry|laundri|londri|loundry|loundri)\s*$/i',
+        ],
+    ],
 ];
