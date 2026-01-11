@@ -745,53 +745,67 @@ class WAReplies
 
     function handleKas_laundry($phoneIn, $waNumber)
     {
-        $hp = ['081268098300','085278114125'];
+        try {
+            $hp = ['081268098300','085278114125'];
 
-        // Parse phone numbers and check authorization
-        $phones = array_map(function($p) {
-            return trim($p, "' ");
-        }, explode(',', $phoneIn));
-        $cleanWaNumber = preg_replace('/[^0-9]/', '', $waNumber);
-        $phone0 = '0' . substr($cleanWaNumber, 2);
-        $phones[] = $phone0;
-        $phones[] = $cleanWaNumber;
-        $phones = array_unique(array_filter($phones));
-        
-        // Only allowed phones can access this
-        if (empty(array_intersect($phones, $hp))) {
-            return;
-        }
+            // Parse phone numbers and check authorization
+            $phones = array_map(function($p) {
+                return trim($p, "' ");
+            }, explode(',', $phoneIn));
+            $cleanWaNumber = preg_replace('/[^0-9]/', '', $waNumber);
+            $phone0 = '0' . substr($cleanWaNumber, 2);
+            $phones[] = $phone0;
+            $phones[] = $cleanWaNumber;
+            $phones = array_unique(array_filter($phones));
+            
+            \Log::write("handleKas_laundry - phones: " . json_encode($phones), 'kas_debug');
+            
+            // Only allowed phones can access this
+            $intersect = array_intersect($phones, $hp);
+            if (empty($intersect)) {
+                \Log::write("handleKas_laundry - NOT authorized", 'kas_debug');
+                return;
+            }
 
-        $cabangs = DB::getInstance(1)->query("SELECT * FROM cabang")->result_array();
-      
-        $db1 = DB::getInstance(1);
-        $data = [];
-        foreach ($cabangs as $a) {
-            $where_kredit = "id_cabang = " . $a['id_cabang'] . " AND jenis_mutasi = 1 AND metode_mutasi = 1 AND status_mutasi = 3";
-            $kredit_result = $db1->query("SELECT SUM(jumlah) as jumlah FROM kas WHERE $where_kredit")->row_array();
-            $jumlah_kredit = $kredit_result['jumlah'] ?? 0;
+            $db1 = DB::getInstance(1);
+            $cabangs = $db1->query("SELECT * FROM cabang")->result_array();
             
-            $where_debit = "id_cabang = " . $a['id_cabang'] . " AND jenis_mutasi = 2 AND metode_mutasi = 1 AND status_mutasi <> 4";
-            $debit_result = $db1->query("SELECT SUM(jumlah) as jumlah FROM kas WHERE $where_debit")->row_array();
-            $jumlah_debit = $debit_result['jumlah'] ?? 0;
+            \Log::write("handleKas_laundry - cabang count: " . count($cabangs), 'kas_debug');
+          
+            $data = [];
+            foreach ($cabangs as $a) {
+                $where_kredit = "id_cabang = " . $a['id_cabang'] . " AND jenis_mutasi = 1 AND metode_mutasi = 1 AND status_mutasi <> 4";
+                $kredit_result = $db1->query("SELECT SUM(jumlah) as jumlah FROM kas WHERE $where_kredit")->row_array();
+                $jumlah_kredit = $kredit_result['jumlah'] ?? 0;
+                
+                $where_debit = "id_cabang = " . $a['id_cabang'] . " AND jenis_mutasi = 2 AND metode_mutasi = 1 AND status_mutasi <> 4";
+                $debit_result = $db1->query("SELECT SUM(jumlah) as jumlah FROM kas WHERE $where_debit")->row_array();
+                $jumlah_debit = $debit_result['jumlah'] ?? 0;
+                
+                $data[$a['id_cabang']] = $jumlah_kredit - $jumlah_debit;
+            }
             
-            $data[$a['id_cabang']] = $jumlah_kredit - $jumlah_debit;
-        }
-        
-        $text = "";
-        foreach ($data as $key => $s) {
-            if ($s >= 1000000) {
-                if (strlen($text) == 0) {
-                    $text = "*" . $cabangs[$key]['kode_cabang'] . "* Rp" . number_format($s);
-                } else {
-                    $text .= "\n*" . $cabangs[$key]['kode_cabang'] . "* Rp" . number_format($s);
+            $text = "";
+            foreach ($data as $key => $s) {
+                if ($s >= 1000000) {
+                    if (strlen($text) == 0) {
+                        $text = "*" . $cabangs[$key]['kode_cabang'] . "* Rp" . number_format($s);
+                    } else {
+                        $text .= "\n*" . $cabangs[$key]['kode_cabang'] . "* Rp" . number_format($s);
+                    }
                 }
             }
-        }
 
-        if (strlen($text) > 0) {
+            \Log::write("handleKas_laundry - text: " . $text, 'kas_debug');
+
             $waService = $this->getWaService();
-            $waService->sendFreeText($waNumber, $text);
+            if (strlen($text) > 0) {
+                $waService->sendFreeText($waNumber, $text);
+            } else {
+                $waService->sendFreeText($waNumber, "Semua kas cabang di bawah Rp1.000.000");
+            }
+        } catch (\Throwable $e) {
+            \Log::write("handleKas_laundry ERROR: " . $e->getMessage(), 'kas_debug', 'error');
         }
     }
 
