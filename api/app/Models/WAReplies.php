@@ -743,6 +743,58 @@ class WAReplies
         }
     }
 
+    function handleKas_Laundry($phoneIn, $waNumber)
+    {
+        $hp = ['081268098300','085278114125'];
+
+        // Parse phone numbers and check authorization
+        $phones = array_map(function($p) {
+            return trim($p, "' ");
+        }, explode(',', $phoneIn));
+        $cleanWaNumber = preg_replace('/[^0-9]/', '', $waNumber);
+        $phone0 = '0' . substr($cleanWaNumber, 2);
+        $phones[] = $phone0;
+        $phones[] = $cleanWaNumber;
+        $phones = array_unique(array_filter($phones));
+        
+        // Only allowed phones can access this
+        if (empty(array_intersect($phones, $hp))) {
+            return;
+        }
+
+        $cabangs = DB::getInstance(0)->query("SELECT * FROM cabang")->result_array();
+      
+        $db1 = DB::getInstance(1);
+        $data = [];
+        foreach ($cabangs as $a) {
+            $where_kredit = "id_cabang = " . $a['id_cabang'] . " AND jenis_mutasi = 1 AND metode_mutasi = 1 AND status_mutasi = 3";
+            $kredit_result = $db1->query("SELECT SUM(jumlah) as jumlah FROM kas WHERE $where_kredit")->row_array();
+            $jumlah_kredit = $kredit_result['jumlah'] ?? 0;
+            
+            $where_debit = "id_cabang = " . $a['id_cabang'] . " AND jenis_mutasi = 2 AND metode_mutasi = 1 AND status_mutasi <> 4";
+            $debit_result = $db1->query("SELECT SUM(jumlah) as jumlah FROM kas WHERE $where_debit")->row_array();
+            $jumlah_debit = $debit_result['jumlah'] ?? 0;
+            
+            $data[$a['id_cabang']] = $jumlah_kredit - $jumlah_debit;
+        }
+        
+        $text = "";
+        foreach ($data as $key => $s) {
+            if ($s >= 1000000) {
+                if (strlen($text) == 0) {
+                    $text = "*" . $cabangs[$key]['kode_cabang'] . "* Rp" . number_format($s);
+                } else {
+                    $text .= "\n*" . $cabangs[$key]['kode_cabang'] . "* Rp" . number_format($s);
+                }
+            }
+        }
+
+        if (strlen($text) > 0) {
+            $waService = $this->getWaService();
+            $waService->sendFreeText($waNumber, $text);
+        }
+    }
+
     /**
      * Check if current time is within operating hours
      * Operating hours configurable in Config/OperatingHours.php
@@ -839,13 +891,11 @@ class WAReplies
     }
     
     /**
- * AI-Powered Intent Detection
- * 
- * @param string $phoneIn CSV string of phone numbers
- * @param string $textBody Original message text
- * @param string $waNumber Sender's WhatsApp number
- * @return string|false Intent name if handled successfully, false otherwise
- */
+     * @param string $phoneIn CSV string of phone numbers
+     * @param string $textBody Original message text
+     * @param string $waNumber Sender's WhatsApp number
+     * @return string|false Intent name if handled successfully, false otherwise
+     */
     private function handleWithAI($phoneIn, $textBody, $waNumber)
     {
         try {
