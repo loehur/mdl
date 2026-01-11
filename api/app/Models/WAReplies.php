@@ -711,7 +711,7 @@ class WAReplies
                         $note = "\n" . $d['note'];
                     }
 
-                    $ops_link = "https://api.nalju.com/I/r/" . $d['id'];
+                    $ops_link = "https://api.nalju.com/Reminder/r/" . $d['id'];
                     $text = "*" . $d['name'] . "*" . $note . "\n" . $text_count . "\n" . $ops_link;
                     
                     $reminders[] = $text;

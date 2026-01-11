@@ -7,6 +7,51 @@ use App\Core\DB;
 
 class Reminder extends Controller
 {
+   /**
+    * View reminder page - /Reminder/r/{id}
+    */
+   public function r($id)
+   {
+      if (!is_numeric($id)) {
+         echo "Invalid ID";
+         exit();
+      }
+
+      $db = DB::getInstance(0);
+      $where = ['id' => (int)$id];
+      $result = $db->get_where('reminder', $where, 1);
+      $data = $result->row_array();
+
+      if (!$data) {
+         echo "Reminder tidak ditemukan";
+         exit();
+      }
+
+      $t1 = strtotime($data['next_date']);
+      $t2 = strtotime(date("Y-m-d H:i:s"));
+      $diff = $t1 - $t2;
+      $dates = floor(($diff / (60 * 60)) / 24);
+
+      if ($dates > 0) {
+         $data['class'] = 'success';
+         $text_count = $dates . " Hari Lagi";
+      } elseif ($dates < 0) {
+         $data['class'] = 'danger';
+         $text_count = "Terlewat " . ($dates * -1) . " Hari";
+      } else {
+         $data['class'] = 'danger';
+         $text_count = "Hari Ini";
+      }
+      $data['dates'] = $dates;
+      $data['warning'] = $text_count;
+
+      // Render the view
+      $this->renderView('reminder', $data);
+   }
+
+   /**
+    * Update reminder next_date - POST /Reminder/update
+    */
    public function update()
    {
       $id = $_POST['id'] ?? null;
@@ -53,5 +98,14 @@ class Reminder extends Controller
    public function index()
    {
       $this->success(['message' => 'Reminder API'], 'Reminder endpoint');
+   }
+
+   /**
+    * Render a view file
+    */
+   private function renderView($view, $data = [])
+   {
+      extract($data);
+      include __DIR__ . '/../Views/' . $view . '.php';
    }
 }
