@@ -777,11 +777,11 @@ class WAReplies
                 $id_cabang = $a['id_cabang'];
                 $kode_cabang = $a['kode_cabang'];
                 
-                $where_kredit = "id_cabang = $id_cabang AND jenis_transaksi IN (1,3,6,7) AND metode_mutasi = 1 AND status_mutasi <> 4";
+                $where_kredit = "id_cabang = $id_cabang AND jenis_transaksi IN (1,3,6,7) AND jenis_mutasi = 1 AND metode_mutasi = 1 AND status_mutasi <> 4";
                 $kredit_result = $db1->query("SELECT SUM(jumlah) as jumlah FROM kas WHERE $where_kredit")->row_array();
                 $jumlah_kredit = $kredit_result['jumlah'] ?? 0;
                 
-                $where_debit = "id_cabang = $id_cabang AND jenis_transaksi IN (2,4,5) AND metode_mutasi = 1 AND status_mutasi <> 4";
+                $where_debit = "id_cabang = $id_cabang AND jenis_transaksi IN (2,4,5) AND jenis_mutasi = 2 AND metode_mutasi = 1 AND status_mutasi <> 4";
                 $debit_result = $db1->query("SELECT SUM(jumlah) as jumlah FROM kas WHERE $where_debit")->row_array();
                 $jumlah_debit = $debit_result['jumlah'] ?? 0;
                 
