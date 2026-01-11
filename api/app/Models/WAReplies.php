@@ -674,8 +674,15 @@ class WAReplies
             
             \Log::write("handleReminder - SQL: $sql", 'reminder_debug');
             
-            $queryResult = $this->db(0)->query($sql);
-            $data = $queryResult ? $queryResult->result_array() : [];
+            try {
+                $queryResult = $this->db(0)->query($sql);
+                $data = $queryResult ? $queryResult->result_array() : [];
+            } catch (\Throwable $qe) {
+                \Log::write("handleReminder - Query ERROR: " . $qe->getMessage(), 'reminder_debug', 'error');
+                $text = "Tidak ada reminder yang ditemukan.";
+                $waService->sendFreeText($waNumber, $text);
+                return;
+            }
             
             \Log::write("handleReminder - data count: " . count($data), 'reminder_debug');
             
