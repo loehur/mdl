@@ -313,10 +313,10 @@
             btn.classList.add('loading');
             btn.disabled = true;
             
-            // Get base path relative to current script
-            const basePath = '<?= dirname($_SERVER['SCRIPT_NAME']) ?>';
+            // Build absolute URL for API call
+            const apiUrl = window.location.origin + '/Reminder/update';
 
-            fetch(basePath + '/Reminder/update', {
+            fetch(apiUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
