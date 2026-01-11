@@ -1,0 +1,115 @@
+<?php
+
+class Reminder extends Controller
+{
+   public function cek()
+   {
+      $data = $this->db(0)->get('reminder');
+      
+      // Group reminders by phone number
+      $grouped = [];
+      
+      foreach ($data as $d) {
+         $t1 = date_create($d['next_date']);
+         $t2 = date_create(date("Y-m-d"));
+         $diff = date_diff($t2, $t1);
+         $selisih_hari = $diff->format('%R%a') + 0;
+
+         $rentang = $d['range'];
+
+         if ($selisih_hari <= $rentang) {
+            if ($selisih_hari > 0) {
+               $text_count = $selisih_hari . " Hari Lagi";
+            } elseif ($selisih_hari < 0) {
+               $text_count = "Terlewat " . $selisih_hari * -1 . " Hari";
+            } else {
+               $text_count = "Hari Ini";
+            }
+
+            $note = "";
+            if ($d['note'] <> "") {
+               $note = "\n" . $d['note'];
+            }
+
+            $ops_link = "https://api.nalju.com/I/r/" . $d['id'];
+            $hp = $d['notif_number'];
+            $text = "*" . $d['name'] . "* " . $note . " \n" . $text_count . " \n" . $ops_link;
+            echo $d['name'] . " " . $text_count . " \n";
+
+            // Group by phone number
+            if (!isset($grouped[$hp])) {
+               $grouped[$hp] = [];
+            }
+            $grouped[$hp][] = $text;
+         }
+      }
+      
+      // Send grouped messages
+      foreach ($grouped as $hp => $messages) {
+         $combined_text = implode("\n\n---\n\n", $messages);
+         $res = $this->helper('Notif')->send_wa($hp, $combined_text);
+      }
+   }
+
+   function update()
+   {
+      $id = $_POST['id'];
+      $where = "id = " . $id;
+      $d = $this->db(0)->get_where_row('reminder', $where);
+      $cycle = $d['cycle'];
+
+      $t1 = date_create($d['next_date']);
+      $t2 = date_create(date("Y-m-d"));
+      $diff = date_diff($t2, $t1);
+      $selisih_hari = $diff->format('%R%a') + 0;
+
+      $rentang = $d['range'];
+
+      if ($selisih_hari <= $rentang) {
+         $next_date = date("Y-m-d", strtotime($d['next_date'] . " +" . $cycle . " " . $d['cycle_type']));
+         $up = $this->db(0)->update('reminder', ['next_date' => $next_date], $where);
+         if ($up['errno'] == 0) {
+            echo 0;
+         } else {
+            echo "Error Updating, Hubungi Admin";
+         }
+      }
+   }
+
+   function cek_kas_cabang()
+   {
+      $hp = URL::WA_PRIVATE[1];
+      $cabangs = $this->db(0)->get("cabang", "id_cabang");
+      
+      // FIX: use db(0) directly instead of helper
+      $data = [];
+      foreach ($cabangs as $a) {
+         $where_kredit = "id_cabang = " . $a['id_cabang'] . " AND jenis_mutasi = 1 AND metode_mutasi = 1 AND status_mutasi = 3";
+         $jumlah_kredit = $this->db(0)->get_cols_where('kas', 'SUM(jumlah) as jumlah', $where_kredit, 0)['jumlah'] ?? 0;
+         
+         $where_debit = "id_cabang = " . $a['id_cabang'] . " AND jenis_mutasi = 2 AND metode_mutasi = 1 AND status_mutasi <> 4";
+         $jumlah_debit = $this->db(0)->get_cols_where('kas', 'SUM(jumlah) as jumlah', $where_debit, 0)['jumlah'] ?? 0;
+         
+         $data[$a['id_cabang']] = $jumlah_kredit - $jumlah_debit;
+      }
+      $text = "";
+      foreach ($data as $key => $s) {
+         if ($s >= 1000000) {
+            if (strlen($text) == 0) {
+               $text = "*" . $cabangs[$key]['kode_cabang'] . "* Rp" . number_format($s);
+            } else {
+               $text .= "\n*" . $cabangs[$key]['kode_cabang'] . "* Rp" . number_format($s);
+            }
+
+            $text_log = $cabangs[$key]['kode_cabang'] . " Rp" . number_format($s);
+            echo $text_log . " \n";
+         }
+      }
+
+      if (strlen($text) > 0) {
+         $res = $this->helper('Notif')->send_wa($hp, $text);
+      } else {
+         echo "ALL CASH UNDER 1.000.000 \n";
+      }
+   }
+}

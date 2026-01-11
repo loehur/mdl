@@ -545,9 +545,6 @@ class WAReplies
         }
     }
     
-    /**
-     * Handler untuk kasih tahu jam operasional (dipanggil saat buka)
-     */
     function handleJam_buka($phoneIn, $waNumber){
         $waService = $this->getWaService();
         
@@ -601,9 +598,7 @@ class WAReplies
             $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
         }
     }
-    /**
-     * Handler untuk auto-reply diluar jam kerja
-     */
+   
     function handleJam_tutup($phoneIn, $waNumber){
         $waService = $this->getWaService();
         
@@ -638,6 +633,83 @@ class WAReplies
         $res = $waService->sendFreeText($waNumber, $text);
         if ($res['success']) {
             $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+        }
+    }
+
+    function handleReminder($phoneIn, $waNumber){
+        $waService = $this->getWaService();
+        
+        // Parse phone numbers from $phoneIn (format: '08123','08456')
+        // Remove quotes and split into array
+        $phones = array_map(function($p) {
+            return trim($p, "' ");
+        }, explode(',', $phoneIn));
+        
+        // Add waNumber (clean format) to the list
+        $cleanWaNumber = preg_replace('/[^0-9]/', '', $waNumber);
+        $phone0 = '0' . substr($cleanWaNumber, 2); // Convert 62xxx to 0xxx
+        $phones[] = $phone0;
+        $phones[] = $cleanWaNumber;
+        $phones = array_unique($phones);
+        
+        // Build FIND_IN_SET conditions for each phone
+        // This handles notif_number containing comma-separated values like "08123,08456"
+        $conditions = [];
+        foreach ($phones as $phone) {
+            if (!empty($phone)) {
+                $escapedPhone = addslashes($phone);
+                $conditions[] = "FIND_IN_SET('$escapedPhone', REPLACE(notif_number, ' ', ''))";
+            }
+        }
+        
+        if (empty($conditions)) {
+            return;
+        }
+        
+        $whereClause = implode(' OR ', $conditions);
+        $sql = "SELECT * FROM reminder WHERE $whereClause";
+        $data = $this->db(0)->query($sql)->result_array();
+        
+        // Collect all matching reminders
+        $reminders = [];
+      
+        foreach ($data as $d) {
+            $t1 = date_create($d['next_date']);
+            $t2 = date_create(date("Y-m-d"));
+            $diff = date_diff($t2, $t1);
+            $selisih_hari = $diff->format('%R%a') + 0;
+
+            $rentang = $d['range'];
+
+            if ($selisih_hari <= $rentang) {
+                if ($selisih_hari > 0) {
+                    $text_count = $selisih_hari . " Hari Lagi";
+                } elseif ($selisih_hari < 0) {
+                    $text_count = "Terlewat " . $selisih_hari * -1 . " Hari";
+                } else {
+                    $text_count = "Hari Ini";
+                }
+
+                $note = "";
+                if ($d['note'] <> "") {
+                    $note = "\n" . $d['note'];
+                }
+
+                $ops_link = "https://api.nalju.com/I/r/" . $d['id'];
+                $text = "*" . $d['name'] . "*" . $note . "\n" . $text_count . "\n" . $ops_link;
+                
+                $reminders[] = $text;
+            }
+        }
+        
+        // Send all reminders to the requesting user
+        if (!empty($reminders)) {
+            $combined_text = implode("\n\n---\n\n", $reminders);
+            $res = $waService->sendFreeText($waNumber, $combined_text);
+        } else {
+            // No reminders found
+            $text = "Tidak ada reminder yang ditemukan untuk nomor Anda.";
+            $res = $waService->sendFreeText($waNumber, $text);
         }
     }
 
