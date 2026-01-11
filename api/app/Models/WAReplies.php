@@ -142,10 +142,7 @@ class WAReplies
                 'case' => null
             ];
         }
-        
-        // Note: Per-intent rate limiting is handled inside handleWithAI()
-        // This allows AI to always detect intent, cooldown applies per-intent not globally at AI_FALLBACK level
-        
+                
         $aiResult = $this->handleWithAI($phoneIn, $textBody, $waNumber);
         
         // Check if AI successfully detected a valid intent (not FALSE and not boolean false)

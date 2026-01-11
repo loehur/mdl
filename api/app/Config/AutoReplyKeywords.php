@@ -107,4 +107,13 @@ return [
         | terima kasih | ok deh | siap kak | iya lah kak |\nAtau hanya mengkonfirmasi bahwa:\n
         | sudah lunas | sudah diambil | akan menjemput | akan mengantarkan |"
     ],
+
+    'REMINDER' => [
+        'max_length' => 20,
+        'case' => 0,
+        'auto_reply' => true,
+        'patterns' => [
+            '/^\s*(reminder|remind|ingatkan|ingat|pengingat)\s*$/i',
+        ],
+    ],
 ];
