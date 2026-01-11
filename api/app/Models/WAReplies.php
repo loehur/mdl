@@ -774,24 +774,28 @@ class WAReplies
           
             $data = [];
             foreach ($cabangs as $a) {
-                $where_kredit = "id_cabang = " . $a['id_cabang'] . " AND jenis_mutasi = 1 AND metode_mutasi = 1 AND status_mutasi <> 4";
+                $id_cabang = $a['id_cabang'];
+                $kode_cabang = $a['kode_cabang'];
+                
+                $where_kredit = "id_cabang = $id_cabang AND jenis_transaksi IN (1,3,6,7) AND metode_mutasi = 1 AND status_mutasi <> 4";
                 $kredit_result = $db1->query("SELECT SUM(jumlah) as jumlah FROM kas WHERE $where_kredit")->row_array();
                 $jumlah_kredit = $kredit_result['jumlah'] ?? 0;
                 
-                $where_debit = "id_cabang = " . $a['id_cabang'] . " AND jenis_mutasi = 2 AND metode_mutasi = 1 AND status_mutasi <> 4";
+                $where_debit = "id_cabang = $id_cabang AND jenis_transaksi IN (2,4,5) AND metode_mutasi = 1 AND status_mutasi <> 4";
                 $debit_result = $db1->query("SELECT SUM(jumlah) as jumlah FROM kas WHERE $where_debit")->row_array();
                 $jumlah_debit = $debit_result['jumlah'] ?? 0;
                 
-                $data[$a['id_cabang']] = $jumlah_kredit - $jumlah_debit;
+                $saldo = $jumlah_kredit - $jumlah_debit;
+                $data[] = ['kode' => $kode_cabang, 'saldo' => $saldo];
             }
             
             $text = "";
-            foreach ($data as $key => $s) {
-                if ($s >= 1000000) {
+            foreach ($data as $item) {
+                if ($item['saldo'] >= 1000000) {
                     if (strlen($text) == 0) {
-                        $text = "*" . $cabangs[$key]['kode_cabang'] . "* Rp" . number_format($s);
+                        $text = "*" . $item['kode'] . "* Rp" . number_format($item['saldo']);
                     } else {
-                        $text .= "\n*" . $cabangs[$key]['kode_cabang'] . "* Rp" . number_format($s);
+                        $text .= "\n*" . $item['kode'] . "* Rp" . number_format($item['saldo']);
                     }
                 }
             }
