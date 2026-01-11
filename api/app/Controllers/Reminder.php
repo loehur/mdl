@@ -7,56 +7,6 @@ use App\Core\DB;
 
 class Reminder extends Controller
 {
-   public function cek()
-   {
-      $data = DB::getInstance(0)->query("SELECT * FROM reminder")->result_array();
-      
-      // Group reminders by phone number
-      $grouped = [];
-      
-      foreach ($data as $d) {
-         $t1 = date_create($d['next_date']);
-         $t2 = date_create(date("Y-m-d"));
-         $diff = date_diff($t2, $t1);
-         $selisih_hari = $diff->format('%R%a') + 0;
-
-         $rentang = $d['range'];
-
-         if ($selisih_hari <= $rentang) {
-            if ($selisih_hari > 0) {
-               $text_count = $selisih_hari . " Hari Lagi";
-            } elseif ($selisih_hari < 0) {
-               $text_count = "Terlewat " . $selisih_hari * -1 . " Hari";
-            } else {
-               $text_count = "Hari Ini";
-            }
-
-            $note = "";
-            if ($d['note'] <> "") {
-               $note = "\n" . $d['note'];
-            }
-
-            $ops_link = "https://api.nalju.com/I/r/" . $d['id'];
-            $hp = $d['notif_number'];
-            $text = "*" . $d['name'] . "* " . $note . " \n" . $text_count . " \n" . $ops_link;
-            echo $d['name'] . " " . $text_count . " \n";
-
-            // Group by phone number
-            if (!isset($grouped[$hp])) {
-               $grouped[$hp] = [];
-            }
-            $grouped[$hp][] = $text;
-         }
-      }
-      
-      // Send grouped messages
-      foreach ($grouped as $hp => $messages) {
-         $combined_text = implode("\n\n", $messages);
-         // TODO: Implement notification sending
-         // $res = $this->helper('Notif')->send_wa($hp, $combined_text);
-      }
-   }
-
    public function update()
    {
       $id = $_POST['id'] ?? null;
