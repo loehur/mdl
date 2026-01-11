@@ -326,11 +326,7 @@
             .then(response => response.text())
             .then(res => {
                 if (res == '0' || res.trim() == '0') {
-                    // Success animation or feedback could go here
-                    setTimeout(() => {
-                        alert('✅ Reminder berhasil diperbarui!');
-                        location.reload(true);
-                    }, 500);
+                    location.reload(true);
                 } else {
                     alert('Error: ' + res);
                     resetBtn();
