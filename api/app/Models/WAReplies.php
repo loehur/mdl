@@ -675,7 +675,7 @@ class WAReplies
             \Log::write("handleReminder - SQL: $sql", 'reminder_debug');
             
             try {
-                $queryResult = $this->db(0)->query($sql);
+                $queryResult = DB::getInstance(0)->query($sql);
                 $data = $queryResult ? $queryResult->result_array() : [];
             } catch (\Throwable $qe) {
                 \Log::write("handleReminder - Query ERROR: " . $qe->getMessage(), 'reminder_debug', 'error');
