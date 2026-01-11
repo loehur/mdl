@@ -130,6 +130,7 @@ const isReopeningConversation = ref(false);
 const showResolveMenu = ref(false); // New state
 const pendingTargetPhone = ref(null); // Phone from URL param/notification
 const resumeTimestamp = ref(0); // Track when app resumed/connected to ignore false duplicates
+const lastDisconnectTime = ref(0); // Track when last disconnected for reconnect delay
 
 // Auto-Open Chat on Incoming Message
 const autoOpenChatOnIncoming = ref(false); // Set false if you want manual open only
@@ -2433,20 +2434,32 @@ const handleIncomingMessage = (payload) => {
 
 
 
-const connectWebSocket = () => {
-  if (!authId.value) return;
-
-  // Cleanup existing socket to prevent zombies
+// Force disconnect old socket before reconnecting
+const forceDisconnect = () => {
   if (socket.value) {
+      console.log('Force disconnecting old socket...');
       // Remove listeners to prevent 'onclose' from triggering UI changes
       socket.value.onopen = null;
       socket.value.onmessage = null;
       socket.value.onerror = null;
       socket.value.onclose = null;
       try {
+        // Send explicit disconnect message if socket is still open
+        if (socket.value.readyState === WebSocket.OPEN) {
+          socket.value.send(JSON.stringify({ type: 'disconnect', reason: 'reconnect' }));
+        }
         socket.value.close();
       } catch (e) { /* ignore */ }
+      socket.value = null;
+      lastDisconnectTime.value = Date.now();
   }
+};
+
+const connectWebSocket = () => {
+  if (!authId.value) return;
+
+  // Cleanup existing socket to prevent zombies
+  forceDisconnect();
 
   console.log("Connecting to WebSocket with ID:", authId.value);
   
@@ -2819,6 +2832,34 @@ const connectWebSocket = () => {
   }
 };
 
+// Retry Connection - Try to reconnect without full logout (for network change scenarios)
+const retryConnection = () => {
+  console.log('Retrying connection from duplicate modal...');
+  
+  // Close the duplicate modal
+  showDuplicateConnectionModal.value = false;
+  
+  // Reset connection states
+  isConnected.value = false;
+  isConnecting.value = true;
+  wasConnected.value = true; // Allow reconnect attempts
+  reconnectAttempts.value = 0;
+  reconnectDelay.value = 3000;
+  isReconnecting.value = true;
+  connectionError.value = '🔄 Mencoba reconnect...';
+  
+  // Force disconnect any existing socket first
+  forceDisconnect();
+  
+  // Wait 3 seconds to allow server cleanup, then reconnect
+  setTimeout(() => {
+    if (authId.value && !isConnected.value) {
+      connectWebSocket();
+      fetchConversations();
+    }
+  }, 3000);
+};
+
 const handleTouchStart = (e) => {
   touchStartX.value = e.touches[0].screenX;
   touchStartY.value = e.touches[0].screenY;
@@ -2954,19 +2995,44 @@ const mockIncomingMessage = () => {
     if (document.visibilityState === 'visible') {
       console.log('App resumed from background, checking connection...');
       
+      // Update resume timestamp FIRST
+      resumeTimestamp.value = Date.now();
+      
       // Check if socket is dead or not connected
       if (!socket.value || socket.value.readyState !== WebSocket.OPEN) {
           console.log('Socket disconnected, initiating reconnect...');
+          
+          // CRITICAL FIX: Close duplicate connection modal if open (might be stale from network change)
+          showDuplicateConnectionModal.value = false;
           
           // CRITICAL FIX: Reset reconnect state to allow fresh reconnection
           reconnectAttempts.value = 0;
           reconnectDelay.value = 3000;
           isReconnecting.value = true;
-          connectionError.value = '🔄 Reconnecting after resume...';
+          
+          // SMART DELAY: If we recently disconnected (network change scenario),
+          // wait longer to give server time to cleanup old connection
+          const timeSinceDisconnect = Date.now() - lastDisconnectTime.value;
+          const needsDelay = timeSinceDisconnect < 10000; // Within 10 seconds of disconnect
+          const reconnectDelayMs = needsDelay ? 3000 : 500; // 3s delay if recent disconnect, else quick
+          
+          connectionError.value = needsDelay 
+            ? '🔄 Menunggu server... (jaringan berubah)' 
+            : '🔄 Reconnecting...';
+          
+          console.log(`Reconnect delay: ${reconnectDelayMs}ms (recent disconnect: ${needsDelay})`);
           
           // Only reconnect if we have ID
           if (authId.value) {
-              connectWebSocket();
+              // Force disconnect any zombie socket first
+              forceDisconnect();
+              
+              // Delayed reconnect to allow server cleanup
+              setTimeout(() => {
+                  if (!isConnected.value && authId.value) {
+                      connectWebSocket();
+                  }
+              }, reconnectDelayMs);
           } else {
               // No ID - show login
               isReconnecting.value = false;
@@ -2977,18 +3043,9 @@ const mockIncomingMessage = () => {
       // Refresh data to ensure sync
       fetchConversations();
       
-      // Update resume timestamp
-      resumeTimestamp.value = Date.now();
-      
       // Restore active chat state if user was viewing a chat before leaving
       // This handles the case when user clicks a link and comes back
       resumeChatState();
-      
-      // Hard refresh if really stale (optional, but requested solution for "blank")
-      // We rely on the view reactivation. 
-      // If the WebView completely killed the renderer but kept the process, a reload might be needed.
-      // But usually "blank" means the Vue app crashed or memory loss. 
-      // We can try to force update a key ref to trigger re-render if needed.
     }
   });
   
@@ -2996,6 +3053,11 @@ const mockIncomingMessage = () => {
   // Handle custom event from Android MainActivity.onResume()
   window.addEventListener('androidResume', () => {
     console.log('📱 Android Resume event received');
+    
+    resumeTimestamp.value = Date.now();
+    
+    // Close duplicate modal if open (might be stale)
+    showDuplicateConnectionModal.value = false;
     
     // Check if socket is dead and reconnect
     if (!socket.value || socket.value.readyState !== WebSocket.OPEN) {
@@ -3005,10 +3067,23 @@ const mockIncomingMessage = () => {
       reconnectAttempts.value = 0;
       reconnectDelay.value = 3000;
       isReconnecting.value = true;
-      connectionError.value = '🔄 Reconnecting...';
+      
+      // Smart delay for network change scenario
+      const timeSinceDisconnect = Date.now() - lastDisconnectTime.value;
+      const needsDelay = timeSinceDisconnect < 10000;
+      const reconnectDelayMs = needsDelay ? 3000 : 500;
+      
+      connectionError.value = needsDelay 
+        ? '🔄 Menunggu server cleanup...' 
+        : '🔄 Reconnecting...';
       
       if (authId.value) {
-        connectWebSocket();
+        forceDisconnect();
+        setTimeout(() => {
+          if (!isConnected.value && authId.value) {
+            connectWebSocket();
+          }
+        }, reconnectDelayMs);
       } else {
         isReconnecting.value = false;
         showLoginPrompt.value = true;
@@ -4747,16 +4822,27 @@ const handleLinkClick = (e) => {
           ID Anda (<strong>{{ authId }}</strong>) sudah terkoneksi di tab atau device lain.
         </p>
         <p class="text-red-300/80 text-sm mb-6">
-          Hanya 1 koneksi aktif per ID yang diizinkan. Silakan logout dari device lain atau reload tab ini.
+          Jika baru saja berpindah jaringan (WiFi/Data), tekan "Coba Lagi". Jika masalah berlanjut, logout dari device lain.
         </p>
         
-        <!-- Action -->
-        <button 
-          @click="handleDuplicateConnection" 
-          class="w-full bg-red-600 hover:bg-red-500 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
-        >
-          Logout & Reload
-        </button>
+        <!-- Actions -->
+        <div class="space-y-3">
+          <!-- Retry Button (Primary) -->
+          <button 
+            @click="retryConnection" 
+            class="w-full bg-green-600 hover:bg-green-500 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+          >
+            🔄 Coba Lagi
+          </button>
+          
+          <!-- Logout Button (Secondary) -->
+          <button 
+            @click="handleDuplicateConnection" 
+            class="w-full bg-red-600/50 hover:bg-red-600 text-white font-medium py-2.5 px-6 rounded-xl transition-all duration-200 border border-red-500/50"
+          >
+            Logout & Reload
+          </button>
+        </div>
       </div>
     </div>
     
