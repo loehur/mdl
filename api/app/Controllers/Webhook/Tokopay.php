@@ -64,16 +64,22 @@ class Tokopay extends Controller
         // Update wh_tokopay untuk SEMUA status (pending, success, expired, dll)
         $db_instance = $this->db(0);
         if ($db_instance) {
+            // Coba update berdasarkan trx_id (format: ref_finance_timestamp)
             $update_wh = $db_instance->update("wh_tokopay", ["state" => $status], ["trx_id" => $tokopay_trx_id]);
-            if (!$update_wh) {
-                $update_wh = $db_instance->update("wh_tokopay", ["state" => $status], ["ref_id" => $ref_finance_extracted]);
-                if (!$update_wh) {
-                    \Log::write("Err: WH Update Failed trx=$tokopay_trx_id ref=$ref_finance_extracted status=$status", 'webhook', 'Tokopay');
-                } else {
-                    \Log::write("OK: WH Updated by ref_id=$ref_finance_extracted status=$status", 'webhook', 'Tokopay');
-                }
-            } else {
+            $affected = $db_instance->affected_rows();
+            
+            if ($update_wh && $affected > 0) {
                 \Log::write("OK: WH Updated by trx_id=$tokopay_trx_id status=$status", 'webhook', 'Tokopay');
+            } else {
+                // Fallback: coba update berdasarkan ref_id (untuk data lama atau jika trx_id tidak match)
+                $update_wh = $db_instance->update("wh_tokopay", ["state" => $status], ["ref_id" => $ref_finance_extracted]);
+                $affected = $db_instance->affected_rows();
+                
+                if ($update_wh && $affected > 0) {
+                    \Log::write("OK: WH Updated by ref_id=$ref_finance_extracted status=$status", 'webhook', 'Tokopay');
+                } else {
+                    \Log::write("Err: WH Update Failed trx=$tokopay_trx_id ref=$ref_finance_extracted status=$status (affected=0)", 'webhook', 'Tokopay');
+                }
             }
         }
 

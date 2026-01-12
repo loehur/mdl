@@ -266,8 +266,10 @@ trait Attributes
          $data = json_decode($res, true);
 
          if (isset($data['status']) && $data['status']) {
-            // Gunakan trx_id dari response Tokopay, atau fallback ke unique_order_id yang kita kirim
-            $trx_id = $data['data']['trx_id'] ?? $unique_order_id;
+            // PENTING: Gunakan unique_order_id yang kita kirim, BUKAN trx_id dari response Tokopay
+            // Alasan: Webhook Tokopay akan mengirim reff_id = unique_order_id yang kita kirim
+            // Tokopay response trx_id (format TP260112...) berbeda dari reff_id di webhook
+            $trx_id = $unique_order_id;
             $qr_string = '';
             if (isset($data['data']['qr_string']) && !empty($data['data']['qr_string'])) {
                $qr_string = $data['data']['qr_string'];
