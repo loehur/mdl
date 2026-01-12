@@ -13,7 +13,7 @@ class Prepaid extends Controller
       $view = 'prepaid/content';
       $data_operasi = ['title' => 'Pre/Post Paid'];
       $this->view('layout', ['data_operasi' => $data_operasi]);
-      $data['list'] = $this->db(0)->get_where("prepaid_list", "id_cabang = " . $_SESSION[URL::SESSID]['user']['id_cabang']);
+      $data['list'] = $this->db(100)->get_where("prepaid_list", "bisnis = 'laundry' AND id_cabang = " . $_SESSION[URL::SESSID]['user']['id_cabang']);
       $this->view($view, $data);
    }
 
@@ -35,7 +35,7 @@ class Prepaid extends Controller
       if (isset($user_data['otp'])) {
          //pin ok
          //cek limit
-         $pre_list = $this->db(0)->get_where_row("prepaid_list", "pre_id = " . $id . " AND id_cabang = " . $_SESSION[URL::SESSID]['user']['id_cabang']);
+         $pre_list = $this->db(100)->get_where_row("prepaid_list", "pre_id = " . $id . " AND bisnis = 'laundry' AND id_cabang = " . $_SESSION[URL::SESSID]['user']['id_cabang']);
          $product_code = $pre_list['product_code'];
          $customer_id = $pre_list['customer_id'];
          $akan_dipakai = $pre_list['nominal'];
@@ -58,10 +58,10 @@ class Prepaid extends Controller
                'product_code' => $product_code,
                'customer_id' => $customer_id
             ];
-            $do = $this->db(0)->insert("prepaid", $col);
+            $do = $this->db(100)->insert("prepaid", $col);
 
             if ($do['errno'] == 0) {
-               $a = $this->db(0)->get_where_row("prepaid", "ref_id = '" . $ref_id . "'");
+               $a = $this->db(100)->get_where_row("prepaid", "ref_id = '" . $ref_id . "'");
                $proses = $this->model('IAK')->pre_pay($ref_id, $customer_id, $product_code);
                if (isset($proses['data'])) {
                   $d = $proses['data'];
@@ -76,7 +76,7 @@ class Prepaid extends Controller
 
                   $where = "ref_id = '" . $ref_id . "'";
                   $set =  ['sn' => $sn, 'tr_status' => $tr_status, 'price' => $price, 'message' => $message, 'balance' => $balance, 'tr_id' => $tr_id, 'rc' => $rc];
-                  $update = $this->db(0)->update('prepaid', $set, $where);
+                  $update = $this->db(100)->update('prepaid', $set, $where);
                   if ($update['errno'] == 0) {
                      $res = [
                         'code' => 1,
@@ -113,7 +113,7 @@ class Prepaid extends Controller
    function cek_status()
    {
       $ref_id = $_POST['ref_id'];
-      $a = $this->db(0)->get_where_row("prepaid", "ref_id = '" . $ref_id . "'");
+      $a = $this->db(100)->get_where_row("prepaid", "ref_id = '" . $ref_id . "'");
       $response = $this->model('IAK')->pre_cek($ref_id);
       if (isset($response['data'])) {
          $d = $response['data'];
@@ -128,7 +128,7 @@ class Prepaid extends Controller
 
          $where = "ref_id = '" . $ref_id . "'";
          $set =  ['sn' => $sn, 'tr_status' => $tr_status, 'price' => $price, 'message' => $message, 'balance' => $balance, 'tr_id' => $tr_id, 'rc' => $rc];
-         $update = $this->db(0)->update('prepaid', $set, $where);
+         $update = $this->db(100)->update('prepaid', $set, $where);
          if ($update['errno'] == 0) {
             echo 0;
          } else {
@@ -144,7 +144,7 @@ class Prepaid extends Controller
       $msg = "";
       $ref_id = $_POST['ref_id'];
       $where = "ref_id = '" . $ref_id . "'";
-      $a = $this->db(0)->get_where_row('postpaid', $where);
+      $a = $this->db(100)->get_where_row('postpaid', $where);
       $month = $this->helper('Pre')->get_post_month();
       $response = $this->model('IAK')->post_cek($ref_id);
       if (isset($response['data'])) {
@@ -168,7 +168,7 @@ class Prepaid extends Controller
          if ($tr_status == 1) {
             $where = "customer_id = '" . $d['hp'] . "' AND code = '" . $d['code'] . "'";
             $set =  ['last_bill' => $month];
-            $update = $this->db(0)->update('postpaid_list', $set, $where);
+            $update = $this->db(100)->update('postpaid_list', $set, $where);
             if ($update['errno'] <> 0) {
                $alert = "DB ERROR - " . $update['error'];
                $msg .= $alert . "\n";
@@ -187,7 +187,7 @@ class Prepaid extends Controller
 
          $where = "ref_id = '" . $ref_id . "'";
          $set =  ['tr_status' => $tr_status, 'datetime' => $datetime, 'noref' => $noref, 'price' => $price, 'message' => $message, 'balance' => $balance, 'tr_id' => $tr_id, 'response_code' => $rc];
-         $update = $this->db(0)->update('postpaid', $set, $where);
+         $update = $this->db(100)->update('postpaid', $set, $where);
          if ($update['errno'] == 0) {
             $msg = 0;
          } else {
@@ -221,8 +221,8 @@ class Prepaid extends Controller
    function load_data()
    {
       $view = 'prepaid/data';
-      $data['pre'] = $this->db(0)->get_where("prepaid", "id_cabang = " . $_SESSION[URL::SESSID]['user']['id_cabang'] . " ORDER BY id DESC LIMIT 5");
-      $data['post'] = $this->db(0)->get_where("postpaid", "id_cabang = " . $_SESSION[URL::SESSID]['user']['id_cabang'] . " ORDER BY id DESC LIMIT 5");
+      $data['pre'] = $this->db(100)->get_where("prepaid", "bisnis = 'laundry' AND id_cabang = " . $_SESSION[URL::SESSID]['user']['id_cabang'] . " ORDER BY id DESC LIMIT 5");
+      $data['post'] = $this->db(100)->get_where("postpaid", "bisnis = 'laundry' AND id_cabang = " . $_SESSION[URL::SESSID]['user']['id_cabang'] . " ORDER BY id DESC LIMIT 5");
       $this->view($view, $data);
    }
 }
