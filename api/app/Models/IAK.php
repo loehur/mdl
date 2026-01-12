@@ -1,6 +1,7 @@
 <?php
+namespace App\Models;
 
-class IAK extends URL
+class IAK
 {
     public $ik_username, $ik_apiKey, $ik_prepaid_url, $ik_postpaid_url;
 
