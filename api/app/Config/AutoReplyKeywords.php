@@ -134,4 +134,13 @@ return [
             '/^\s*(token|pln)\s*(list|data)\s*$/i',
         ],
     ],
+
+    'TOKEN_BUY' => [
+        'max_length' => 20,
+        'case' => 0,
+        'auto_reply' => true,
+        'patterns' => [
+            '/^token \d+$/i',
+        ],
+    ],
 ];

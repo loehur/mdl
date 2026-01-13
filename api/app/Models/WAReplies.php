@@ -831,7 +831,7 @@ class WAReplies
         // Use DB(1)
         $db1 = DB::getInstance(1);
 
-        $user = $db1->query("SELECT id_cabang FROM user WHERE no_user IN ($phoneIn)")->row_array();
+        $user = $db1->query("SELECT id_cabang, id_privilege FROM user WHERE no_user IN ($phoneIn)")->row_array();
         $id_cabang = $user['id_cabang'] ?? null;
         $id_privilege = $user['id_privilege'] ?? null;
 
@@ -844,9 +844,7 @@ class WAReplies
                     "SELECT * FROM prepaid_list WHERE bisnis = 'laundry'")->result_array();
             } else {
                 $pre_list = $db0->query(
-                    "SELECT * FROM prepaid_list WHERE bisnis = 'laundry' AND id_cabang = ?",
-                    [$id_cabang]
-                )->result_array();
+                    "SELECT * FROM prepaid_list WHERE bisnis = 'laundry' AND id_cabang = '$id_cabang'")->result_array();
             }
 
             if (!$pre_list) {
@@ -857,7 +855,7 @@ class WAReplies
             $text = "";
             foreach ($pre_list as $item) {
                 $pakai_result = $db0->query(
-                    "SELECT SUM(price) as total FROM prepaid WHERE product_code = '$item[product_code]' AND MONTH(insertTime) = MONTH(NOW()) AND YEAR(insertTime) = YEAR(NOW()) AND tr_status = 1"
+                    "SELECT SUM(price) as total FROM prepaid WHERE product_code = '$item[product_code]' AND id_cabang = '$item[id_cabang]' AND MONTH(insertTime) = MONTH(NOW()) AND YEAR(insertTime) = YEAR(NOW()) AND tr_status = 1"
                 )->row_array();
 
                 if (isset($pakai_result['total'])) {
@@ -866,10 +864,10 @@ class WAReplies
                     $pakai_bulan_ini = 0;
                 }
                 $sisalimit = $item['monthly_limit'] - $pakai_bulan_ini;
-                $text .= "ID: *" . $item['pre_id'] . "*\n" . $item['description'] . " " . number_format($item['nominal']) . "\nSisa Limit: " . number_format($sisalimit) . "\n\n";
+                $text .= "ID: *" . $item['pre_id'] . "* - " . $item['bisnis'] . "\n" . $item['description'] . " " . number_format($item['nominal']) . "\nSisa Limit: " . number_format($sisalimit) . "\n\n";
             }
 
-            $text = $text . "Ketik Token<spasi>{ID} untuk membeli token.\n Contoh: Token " . $item['pre_id'];
+            $text = $text . "Ketik Token<spasi>{ID} untuk membeli token.\nContoh: Token " . $item['pre_id'];
             $waService->sendFreeText($waNumber, $text);
         }
     }
