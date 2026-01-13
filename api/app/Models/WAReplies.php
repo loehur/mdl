@@ -920,7 +920,7 @@ class WAReplies
 
             // Get prepaid_list - TODO: $pre_id perlu didefinisikan (dari parameter atau parsing message)
             $pre_list = $db0->query(
-                "SELECT * FROM prepaid_list WHERE pre_id = $pre_id AND bisnis = '$bisnis' AND id_cabang = $id_cabang"
+                "SELECT * FROM prepaid_list WHERE pre_id = $pre_id"
             )->row_array();
 
             if (!$pre_list) {
@@ -997,6 +997,8 @@ class WAReplies
             }
 
             $waService->sendFreeText($waNumber, $text);
+        } else {
+            $waService->sendFreeText($waNumber, "Nomor anda tidak terdaftar sebagai karyawan.");
         }
     }
 
