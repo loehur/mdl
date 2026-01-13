@@ -866,7 +866,7 @@ class WAReplies
                     $pakai_bulan_ini = 0;
                 }
                 $sisalimit = $item['monthly_limit'] - $pakai_bulan_ini;
-                $text .= "ID: #" . $item['pre_id'] . "\n" . $item['description'] . " " . number_format($item['nominal']) . "\nSisa Limit: " . number_format($sisalimit) . "\n\n";
+                $text .= "ID: *#" . $item['pre_id'] . "*\n" . $item['description'] . " " . number_format($item['nominal']) . "\nSisa Limit: " . number_format($sisalimit) . "\n\n";
             }
 
             $waService->sendFreeText($waNumber, $text);
