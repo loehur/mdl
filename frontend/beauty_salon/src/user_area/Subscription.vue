@@ -591,6 +591,7 @@ async function manualCheckPayment() {
       await fetchPaymentHistory();
       showAlert('Pembayaran berhasil dikonfirmasi!', 'Sukses', 'success');
     } else {
+       console.log("Tokopay Debug Response:", data.debug_response || data);
        const isError = data.status === 'error';
        const title = isError ? 'Gagal Cek' : 'Belum Lunas';
        const msg = isError ? data.message : ('Status pembayaran saat ini: ' + (data.status || 'Menunggu') + '. Jika Anda sudah membayar, mohon tunggu sebentar dan coba lagi.');

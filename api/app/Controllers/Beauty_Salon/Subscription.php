@@ -668,6 +668,8 @@ class Subscription extends Controller
         $merchantId = 'M240926BMTGB612';
         $secretKey = '4aea0ede516df65d88ccb773a443c61b3b3702fe1b9647deb9293cac07fd72bf';
         
+        $amount_int = (int)floatval($payment['amount']); // Fix: Define amount_int
+        
         $curl = curl_init();
         curl_setopt_array($curl, array(
             CURLOPT_URL => "https://api.tokopay.id/v1/order?merchant=" . $merchantId . "&secret=" . $secretKey . "&ref_id=" . $payment_ref . "&nominal=" . $amount_int . "&metode=QRIS",
@@ -766,12 +768,13 @@ class Subscription extends Controller
                     'message' => 'Pembayaran berhasil! Langganan aktif hingga ' . $payment['period_end']
                 ]);
             } else {
-                $this->json([
-                    'success' => true,
-                    'status' => 'pending',
-                    'message' => 'Menunggu pembayaran...'
-                ]);
-            }
+            $this->json([
+                'success' => true,
+                'status' => 'pending',
+                'message' => 'Menunggu pembayaran...',
+                'debug_response' => $data
+            ]);
+        }
         } catch (\Exception $e) {
             error_log("Check payment error: " . $e->getMessage());
             $this->error('Terjadi kesalahan: ' . $e->getMessage(), 500);
