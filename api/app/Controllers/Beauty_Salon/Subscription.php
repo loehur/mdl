@@ -664,14 +664,24 @@ class Subscription extends Controller
             }
 
             // Check status from Tokopay
+        try {
             $tokopay = new \App\Models\Tokopay();
             $amount_int = (int)floatval($payment['amount']);
             $response = $tokopay->checkStatus($payment_ref, $amount_int, 'QRIS');
-            
-            // Log response for debugging
-            // error_log("Check Status Tokopay [$payment_ref]: " . $response);
-            
-            $data = json_decode($response, true);
+        } catch (\Throwable $t) {
+             error_log("Tokopay Model Error: " . $t->getMessage());
+             $this->json([
+                'success' => true,
+                'status' => 'error',
+                'message' => 'Internal Error: ' . $t->getMessage()
+            ]);
+            return;
+        }
+        
+        // Log response for debugging
+        // error_log("Check Status Tokopay [$payment_ref]: " . $response);
+        
+        $data = json_decode($response, true);
         
         // Handle connection/API error
         if (!$data || (isset($data['status']) && $data['status'] === false && isset($data['message']))) {
