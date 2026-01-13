@@ -673,18 +673,22 @@ class Subscription extends Controller
             // Check various status fields
             $status_trx = '';
             
-            // Case 1: data.status (common in payment gateways)
-            if (isset($data['data']['status'])) {
-                $status_trx = $data['data']['status'];
+            if (isset($data['data'])) {
+                // Check inside 'data' object
+                if (isset($data['data']['status_pembayaran'])) {
+                    $status_trx = $data['data']['status_pembayaran'];
+                } elseif (isset($data['data']['status'])) {
+                    $status_trx = $data['data']['status'];
+                }
+            } elseif (isset($data['status_pembayaran'])) {
+                // Check at root level (some endpoints return flat)
+                 $status_trx = $data['status_pembayaran'];
             }
-            // Case 2: data.status_pembayaran
-            elseif (isset($data['data']['status_pembayaran'])) {
-                $status_trx = $data['data']['status_pembayaran'];
-            }
-            // Case 3: status (root level - careful, usually api status)
-            // But sometimes used for transaction status too if simple api
             
             $status_trx = strtolower($status_trx);
+            
+            // Log status for debug
+            error_log("Tokopay Check Status Ref [$payment_ref]: $status_trx | Full: " . substr($response, 0, 100));
             
             // Tokopay usually uses 'Success' or 'Paid' for paid transactions
             if ($status_trx === 'success' || $status_trx === 'paid' || $status_trx === 'settlement') {

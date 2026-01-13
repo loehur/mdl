@@ -217,12 +217,25 @@
               </div>
 
               <!-- Status Checking -->
-              <div v-if="checkingPayment" class="flex items-center justify-center gap-2 text-gray-600">
-                <svg class="animate-spin h-5 w-5 text-pink-500" fill="none" viewBox="0 0 24 24">
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                <span>Menunggu pembayaran...</span>
+              <!-- Manual Status Info -->
+              <div v-if="!paymentSuccess" class="mt-6 space-y-3">
+                 <button 
+                    @click="manualCheckPayment" 
+                    :disabled="checkingPayment"
+                    class="w-full px-4 py-3 bg-blue-50 text-blue-700 font-semibold rounded-xl hover:bg-blue-100 transition flex items-center justify-center gap-2 border border-blue-200"
+                  >
+                    <svg v-if="checkingPayment" class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    {{ checkingPayment ? 'Memeriksa...' : 'Cek Status Pembayaran' }}
+                  </button>
+                  <p class="text-xs text-gray-500 text-center">
+                    Jika sudah membayar, tekan tombol di atas untuk verifikasi status
+                  </p>
               </div>
 
               <!-- Success Message -->
@@ -497,7 +510,6 @@ async function createPayment() {
     if (data.success) {
       paymentData.value = data.data;
       showPaymentModal.value = true;
-      startCheckingPayment(data.data.payment_ref);
       fetchPaymentHistory();
     } else {
       showAlert(data.message || 'Gagal membuat invoice', 'Gagal', 'error');
@@ -534,7 +546,6 @@ async function resumePayment(payment) {
       selectedMonths.value = months; // for modal display
       
       showPaymentModal.value = true;
-      startCheckingPayment(data.data.payment_ref);
       fetchPaymentHistory();
     } else if (data.expired) {
        showConfirm(
@@ -569,34 +580,34 @@ async function resumePayment(payment) {
   }
 }
 
-function startCheckingPayment(paymentRef) {
-  if (statusInterval) clearInterval(statusInterval);
-  checkingPayment.value = true;
+async function manualCheckPayment() {
+  if (!paymentData.value?.payment_ref) return;
   
-  // Poll every 5 seconds
-  statusInterval = setInterval(async () => {
-    if (!showPaymentModal.value) {
-      stopCheckingPayment();
-      return;
-    }
+  checkingPayment.value = true;
+  try {
+    const res = await fetch(`${API_BASE_URL}/Beauty_Salon/Subscription/checkPayment?payment_ref=${paymentData.value.payment_ref}`, {
+      credentials: 'include'
+    });
+    const data = await res.json();
     
-    try {
-      const res = await fetch(`${API_BASE_URL}/Beauty_Salon/Subscription/checkPayment?payment_ref=${paymentRef}`, {
-        credentials: 'include'
-      });
-      const data = await res.json();
-      
-      if (data.success && data.status === 'paid') {
-        paymentSuccess.value = true;
-        stopCheckingPayment();
-        await fetchSubscription();
-        await fetchPaymentHistory();
-      }
-    } catch (err) {
-      console.error('Error checking payment status:', err);
+    if (data.success && (data.status === 'paid' || data.status === 'success')) {
+      paymentSuccess.value = true;
+      await fetchSubscription();
+      await fetchPaymentHistory();
+      showAlert('Pembayaran berhasil dikonfirmasi!', 'Sukses', 'success');
+    } else {
+       // Optional: Beri tahu user masih pending
+       showAlert('Status pembayaran saat ini: ' + (data.status || 'Menunggu') + '. Jika Anda sudah membayar, mohon tunggu sebentar dan coba lagi.', 'Belum Lunas');
     }
-  }, 5000);
+  } catch (err) {
+    console.error('Error checking payment status:', err);
+    showAlert('Gagal mengecek status: ' + err.message, 'Error', 'error');
+  } finally {
+    checkingPayment.value = false;
+  }
 }
+
+
 
 // Confirmation Modal State
 const showConfirmModal = ref(false);
