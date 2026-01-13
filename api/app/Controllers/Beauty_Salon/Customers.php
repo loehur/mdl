@@ -6,7 +6,7 @@ use App\Core\Controller;
 
 class Customers extends Controller
 {
-    private $db_index = 5;
+    private $db_index = 4;
 
     /**
      * GET - List all customers for salon

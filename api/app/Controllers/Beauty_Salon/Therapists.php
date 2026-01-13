@@ -6,7 +6,7 @@ use App\Core\Controller;
 
 class Therapists extends Controller
 {
-    private $db_index = 5;
+    private $db_index = 4;
 
     public function index()
     {

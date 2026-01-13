@@ -5,7 +5,7 @@ use App\Core\Controller;
 
 class CashManagement extends Controller
 {
-    private $db_index = 5; // salon database
+    private $db_index = 4; // salon database
 
     public function __construct()
     {

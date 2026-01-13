@@ -6,7 +6,7 @@ use App\Core\Controller;
 
 class Users extends Controller
 {
-    private $db_index = 5; // Using the salon database index
+    private $db_index = 4; // Using the salon database index
 
     public function index()
     {

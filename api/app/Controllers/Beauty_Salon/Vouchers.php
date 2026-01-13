@@ -14,7 +14,7 @@ use App\Core\Controller;
  */
 class Vouchers extends Controller
 {
-    private $db_index = 5;
+    private $db_index = 4;
 
     /**
      * Create vouchers table if not exists

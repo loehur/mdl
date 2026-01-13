@@ -6,7 +6,7 @@ use App\Core\Controller;
 
 class Orders extends Controller
 {
-    private $db_index = 5;
+    private $db_index = 4;
 
     /**
      * GET - List all orders for salon

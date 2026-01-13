@@ -6,7 +6,7 @@ use App\Core\Controller;
 
 class Products extends Controller
 {
-    private $db_index = 5;
+    private $db_index = 4;
 
     /**
      * GET - List all products for salon

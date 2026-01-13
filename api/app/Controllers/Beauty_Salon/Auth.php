@@ -13,7 +13,7 @@ use App\Core\Controller;
  */
 class Auth extends Controller
 {
-    private $db_index = 5; // mdl_salon
+    private $db_index = 4; // mdl_salon
     private $mdl_main_db = 0; // mdl_main
     private $session_key = 'salon_user_session';
     private $wa_server = 'http://127.0.0.1:8033';
