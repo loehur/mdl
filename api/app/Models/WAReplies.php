@@ -920,12 +920,11 @@ class WAReplies
 
             // Get prepaid_list - TODO: $pre_id perlu didefinisikan (dari parameter atau parsing message)
             $pre_list = $db0->query(
-                "SELECT * FROM prepaid_list WHERE pre_id = ? AND bisnis = ? AND id_cabang = ?",
-                [$pre_id, $bisnis, $id_cabang]
+                "SELECT * FROM prepaid_list WHERE pre_id = $pre_id AND bisnis = '$bisnis' AND id_cabang = $id_cabang"
             )->row_array();
 
             if (!$pre_list) {
-                $waService->sendFreeText($waNumber, "Data prepaid id: $pre_id tidak ditemukan.");
+                $waService->sendFreeText($waNumber, "Token id: $pre_id tidak ditemukan.");
                 return;
             }
 
@@ -936,8 +935,7 @@ class WAReplies
 
             // Get usage this month (pengganti helper('Pre')->bulan_ini)
             $pakai_result = $db0->query(
-                "SELECT SUM(price) as total FROM prepaid WHERE product_code = ? AND MONTH(insertTime) = MONTH(NOW()) AND YEAR(insertTime) = YEAR(NOW()) AND tr_status = 1",
-                [$product_code]
+                "SELECT SUM(price) as total FROM prepaid WHERE product_code = '$product_code' AND MONTH(insertTime) = MONTH(NOW()) AND YEAR(insertTime) = YEAR(NOW()) AND tr_status = 1"
             )->row_array();
             $pakai_bulan_ini = $pakai_result['total'] ?? 0;
             $total_pakai = $akan_dipakai + $pakai_bulan_ini;
