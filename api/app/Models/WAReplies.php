@@ -887,6 +887,8 @@ class WAReplies
 
             $text = $text . "Ketik _Token {bisnis} {id}_ untuk beli. Contoh: *_Token ".$item['bisnis']. " " . $item['pre_id']. "_*";
             $waService->sendFreeText($waNumber, $text);
+        }else{
+            $waService->sendFreeText($waNumber, "Nomor Anda tidak terdaftar di sistem.");
         }
     }
 
