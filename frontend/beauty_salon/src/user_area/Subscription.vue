@@ -103,7 +103,7 @@
           >
             <div class="text-center">
               <h4 class="font-semibold text-gray-800 mb-2">Bulanan</h4>
-              <div class="text-3xl font-bold text-pink-600">Rp 60.000</div>
+              <div class="text-3xl font-bold text-pink-600">{{ formatPrice(PRICES.monthly) }}</div>
               <div class="text-gray-500 text-sm mt-1">per bulan</div>
             </div>
             <div v-if="selectedPlan === 'monthly'" class="absolute top-2 right-2">
@@ -124,8 +124,8 @@
             </div>
             <div class="text-center">
               <h4 class="font-semibold text-gray-800 mb-2">3 Bulan</h4>
-              <div class="text-3xl font-bold text-pink-600">Rp 171.000</div>
-              <div class="text-gray-500 text-sm mt-1">Rp 57.000/bulan</div>
+              <div class="text-3xl font-bold text-pink-600">{{ formatPrice(PRICES.quarterly) }}</div>
+              <div class="text-gray-500 text-sm mt-1">{{ formatPrice(PRICES.quarterly / 3) }}/bulan</div>
             </div>
             <div v-if="selectedPlan === 'quarterly'" class="absolute top-2 right-2">
               <svg class="w-6 h-6 text-pink-500" fill="currentColor" viewBox="0 0 20 20">
@@ -145,8 +145,8 @@
             </div>
             <div class="text-center">
               <h4 class="font-semibold text-gray-800 mb-2">Tahunan</h4>
-              <div class="text-3xl font-bold text-pink-600">Rp 612.000</div>
-              <div class="text-gray-500 text-sm mt-1">Rp 51.000/bulan</div>
+              <div class="text-3xl font-bold text-pink-600">{{ formatPrice(PRICES.yearly) }}</div>
+              <div class="text-gray-500 text-sm mt-1">{{ formatPrice(PRICES.yearly / 12) }}/bulan</div>
             </div>
             <div v-if="selectedPlan === 'yearly'" class="absolute top-2 right-2">
               <svg class="w-6 h-6 text-pink-500" fill="currentColor" viewBox="0 0 20 20">
@@ -397,11 +397,14 @@ const qrImageUrl = computed(() => {
   return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(paymentData.value.qr_string)}`;
 });
 
-const PRICES = {
-  monthly: 60000,
-  quarterly: 171000,  // 5% discount
-  yearly: 612000      // 15% discount
-};
+const PRICES = computed(() => {
+  const base = parseInt(subscription.value?.monthly_price || 60000);
+  return {
+    monthly: base,
+    quarterly: base * 3 * 0.95, // 5% discount
+    yearly: base * 12 * 0.85    // 15% discount
+  };
+});
 
 const statusGradient = computed(() => {
   const status = subscription.value?.effective_status;
@@ -438,7 +441,7 @@ const daysRemaining = computed(() => {
 function selectPlan(plan, months) {
   selectedPlan.value = plan;
   selectedMonths.value = months;
-  selectedAmount.value = PRICES[plan];
+  selectedAmount.value = PRICES.value[plan];
 }
 
 function formatPrice(amount) {
@@ -529,8 +532,8 @@ async function resumePayment(payment) {
       
       // Try to determine months from amount for display
       let months = 1;
-      if (data.data.amount >= PRICES.yearly) months = 12;
-      else if (data.data.amount >= PRICES.quarterly) months = 3;
+      if (data.data.amount >= PRICES.value.yearly) months = 12;
+      else if (data.data.amount >= PRICES.value.quarterly) months = 3;
       selectedMonths.value = months; // for modal display
       
       showPaymentModal.value = true;
@@ -549,8 +552,8 @@ async function resumePayment(payment) {
                 const amount = parseInt(payment.amount);
                 let planMonths = 1;
                 // Note: PRICES might be reactive/ref if not simple object. Assuming simple object from previous context.
-                if (amount >= PRICES.yearly) planMonths = 12;
-                else if (amount >= PRICES.quarterly) planMonths = 3;
+                if (amount >= PRICES.value.yearly) planMonths = 12;
+                else if (amount >= PRICES.value.quarterly) planMonths = 3;
                 
                 const planName = planMonths === 12 ? 'yearly' : (planMonths === 3 ? 'quarterly' : 'monthly');
                 selectPlan(planName, planMonths);
