@@ -72,12 +72,7 @@ class IAK extends Controller
 
             if ($update) {
                 \Log::write("OK: $ref_id, SN: $sn, Status: $tr_status", 'webhook', 'IAK');
-
-                // Jika transaksi sukses (status 1), kirim notifikasi WA
-                if ($tr_status == 1 && !empty($sn)) {
-                    $this->sendWhatsAppNotification($a, $sn);
-                }
-
+                $this->sendWhatsAppNotification($a);
                 echo json_encode(['status' => true, 'message' => 'Updated successfully']);
             } else {
                 \Log::write("Err: Update fail $ref_id", 'webhook', 'IAK');
@@ -96,22 +91,39 @@ class IAK extends Controller
     /**
      * Kirim notifikasi WhatsApp setelah transaksi sukses
      */
-    private function sendWhatsAppNotification($record, $sn)
+    private function sendWhatsAppNotification($record)
     {
         try {
             $ref_id = $record['ref_id'] ?? '';
+            $sn = $record['sn'] ?? '';
+            $message = $record['message'] ?? '';
+            
+            // Ambil bagian SN sebelum "/" (token number saja)
+            if ($sn) {
+                $sn = explode('/', $sn)[0];  // Fixed: separator dulu, baru string
+            }
             
             // Parse ref_id: wa-{waNumber}-{datetime}-{id_cabang}
             $parts = explode('-', $ref_id);
-            if($parts[0] != 'wa') {
-               return;
+            
+            // Validasi: harus dimulai dengan 'wa' dan punya minimal 2 bagian
+            if (count($parts) < 2 || $parts[0] != 'wa') {
+                return;
             }
 
             $waNumber = $parts[1];
+            
+            // Hapus karakter non-digit (seperti +) dari nomor WA
+            $waNumber = preg_replace('/[^0-9]/', '', $waNumber);
 
             // Kirim notifikasi
             $waService = new \App\Services\WA();
-            $text = "*" . implode(' ', str_split($sn, 4)) . "*";
+            if ($sn) {
+                $text = "*" . implode(' ', str_split($sn, 4)) . "*";
+            } else {
+                $text = $message;
+            }
+            
             $waService->sendFreeText($waNumber, $text);
             
             \Log::write("WA Notif sent to $waNumber", 'webhook', 'IAK');

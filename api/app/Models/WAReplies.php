@@ -913,14 +913,14 @@ class WAReplies
             return;
         }
 
-        $id_cabang = $db->query("SELECT id_cabang FROM user WHERE no_user IN ($phoneIn)")->row_array()['id_cabang'] ?? null;
+        $no_user = $db->query("SELECT no_user FROM user WHERE no_user IN ($phoneIn)")->row_array()['no_user'] ?? null;
 
-        if ($id_cabang) {
+        if ($no_user) {
             $db0 = DB::getInstance(0);
 
             // Get prepaid_list - TODO: $pre_id perlu didefinisikan (dari parameter atau parsing message)
             $pre_list = $db0->query(
-                "SELECT * FROM prepaid_list WHERE pre_id = $pre_id"
+                "SELECT * FROM prepaid_list WHERE pre_id = $pre_id AND bisnis = '$bisnis'"
             )->row_array();
 
             if (!$pre_list) {
@@ -928,6 +928,7 @@ class WAReplies
                 return;
             }
 
+            $id_cabang = $pre_list['id_cabang'];
             $product_code = $pre_list['product_code'];
             $customer_id_prepaid = $pre_list['customer_id'];
             $akan_dipakai = $pre_list['nominal'];
@@ -945,7 +946,9 @@ class WAReplies
                 return;
             }
 
-            $ref_id = "wa-".$waNumber."-" . date('YmdHi') . "-" . $id_cabang;
+            // Bersihkan waNumber dari karakter non-digit (seperti +)
+            $cleanWaNumber = preg_replace('/[^0-9]/', '', $waNumber);
+            $ref_id = "wa-" . $cleanWaNumber . "-" . date('YmdHi') . "-" . $id_cabang;
 
             $col = [
                 'id_cabang' => $id_cabang,
@@ -985,7 +988,7 @@ class WAReplies
                     $update = $db0->update('prepaid', $set, ['ref_id' => $ref_id]);
 
                     if ($update) {
-                        $text = "PEMBELIAN DI PROSES\nSN: $sn";
+                        $text = "Silahkan tunggu, nomor Token akan dikirimkan";
                     } else {
                         $text = "ERROR: Gagal update database";
                     }
