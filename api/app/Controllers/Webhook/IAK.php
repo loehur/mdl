@@ -117,7 +117,10 @@ class IAK extends Controller
             $waNumber = preg_replace('/[^0-9]/', '', $waNumber);
 
             // Kirim notifikasi
-            $waService = new \App\Services\WA();
+            if (!class_exists('\\App\\Helpers\\WhatsAppService')) {
+                require_once __DIR__ . '/../../Helpers/WhatsAppService.php';
+            }
+            $waService = new \App\Helpers\WhatsAppService();
             if ($sn) {
                 $text = "*" . implode(' ', str_split($sn, 4)) . "*";
             } else {
