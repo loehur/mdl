@@ -188,8 +188,8 @@
             <div class="p-6 space-y-4">
               <!-- QR Code Display -->
               <div class="flex justify-center">
-                <div v-if="paymentData?.qr_string" class="p-4 bg-white border-4 border-pink-200 rounded-2xl">
-                  <img :src="qrImageUrl" alt="QRIS" class="w-64 h-64" />
+                <div v-if="paymentData?.qr_string" class="p-4 bg-white border-4 border-pink-200 rounded-2xl flex justify-center">
+                  <qrcode-vue :value="paymentData.qr_string" :size="250" level="H" />
                 </div>
                 <div v-else class="w-64 h-64 bg-gray-100 rounded-xl flex items-center justify-center">
                   <div class="animate-spin rounded-full h-8 w-8 border-4 border-pink-500 border-t-transparent"></div>
@@ -378,6 +378,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { API_BASE_URL } from '../api';
+import QrcodeVue from 'qrcode.vue';
 
 const loading = ref(true);
 const processing = ref(false);
@@ -391,11 +392,6 @@ const paymentData = ref(null);
 const checkingPayment = ref(false);
 const paymentSuccess = ref(false);
 let statusInterval = null;
-
-const qrImageUrl = computed(() => {
-  if (!paymentData.value?.qr_string) return '';
-  return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(paymentData.value.qr_string)}`;
-});
 
 const PRICES = computed(() => {
   const base = parseInt(subscription.value?.monthly_price || 60000);

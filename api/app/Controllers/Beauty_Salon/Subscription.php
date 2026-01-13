@@ -173,8 +173,48 @@ class Subscription extends Controller
                 ->row_array();
 
             if ($pending_payment) {
-                $this->error('Anda memiliki pembayaran yang belum selesai. Mohon selesaikan atau batalkan pembayaran sebelumnya di riwayat.', 400);
+            // Attempt to auto-resume existing pending payment
+            $payment_ref = $pending_payment['payment_ref'];
+            $tokopay = new \App\Models\Tokopay();
+            $amount_int = (int)floatval($pending_payment['amount']);
+            $response = $tokopay->createOrder($amount_int, $payment_ref, 'QRIS');
+            $data = json_decode($response, true);
+            
+            $isSuccess = false;
+            if (isset($data['status'])) {
+                $status = is_string($data['status']) ? strtolower($data['status']) : $data['status'];
+                if ($status === 'success' || $status === 'true' || $status === true || $status === 1) {
+                    $isSuccess = true;
+                }
             }
+
+            if ($isSuccess) {
+                 $qr_string = '';
+                 if (isset($data['data']['qr_string'])) {
+                     $qr_string = $data['data']['qr_string'];
+                 } elseif (isset($data['qr_string'])) {
+                     $qr_string = $data['qr_string'];
+                 }
+                 
+                 if (!empty($qr_string)) {
+                      $this->json([
+                        'success' => true,
+                        'data' => [
+                            'payment_ref' => $payment_ref,
+                            'amount' => $pending_payment['amount'],
+                            'period_start' => $pending_payment['period_start'],
+                            'period_end' => $pending_payment['period_end'],
+                            'qr_string' => $qr_string,
+                            'discount' => 0
+                        ],
+                        'message' => 'Melanjutkan pembayaran tertunda Anda'
+                    ]);
+                    return;
+                 }
+            }
+            
+            $this->error('Anda memiliki pembayaran yang belum selesai. Mohon selesaikan atau batalkan pembayaran sebelumnya di riwayat.', 400);
+        }
 
             $body = $this->getBody();
             
