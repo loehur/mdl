@@ -463,6 +463,7 @@ async function fetchSubscription() {
     const data = await res.json();
     if (data.success) {
       subscription.value = data.data;
+      selectedAmount.value = PRICES.value[selectedPlan.value];
     }
   } catch (err) {
     console.error('Failed to fetch subscription:', err);
