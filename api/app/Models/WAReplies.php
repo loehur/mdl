@@ -867,7 +867,7 @@ class WAReplies
                 $text .= "ID: *" . $item['pre_id'] . "* - " . $item['bisnis'] . "\n" . $item['description'] . " " . number_format($item['nominal']) . "\nSisa Limit: " . number_format($sisalimit) . "\n\n";
             }
 
-            $text = $text . "Ketik Token<spasi>{ID} untuk membeli token.\nContoh: Token " . $item['pre_id'];
+            $text = $text . "Ketik Token {ID} untuk membeli token.\nContoh: Token " . $item['pre_id'];
             $waService->sendFreeText($waNumber, $text);
         }
     }
