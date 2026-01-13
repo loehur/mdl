@@ -126,21 +126,21 @@ return [
         ],
     ],
 
-    'TOKEN_LIST' => [
+    'CEK_TOKEN' => [
         'max_length' => 20,
         'case' => 0,
         'auto_reply' => true,
         'patterns' => [
-            '/^(token|pln) (laundry|laundri|londri|loundry|loundri|resto)$/i',
+            '/^(cek|lihat|info) (token|pln) (laundry|laundri|londri|loundry|loundri|resto)$/i',
         ],
     ],
 
-    'TOKEN_BUY' => [
+    'BELI_TOKEN' => [
         'max_length' => 20,
         'case' => 0,
         'auto_reply' => true,
         'patterns' => [
-            '/^token \d+$/i',
+            '/^(token|pln) (laundry|laundri|londri|loundry|loundri|resto) \d+$/i',
         ],
     ],
 ];

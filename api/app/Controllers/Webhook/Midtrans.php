@@ -4,7 +4,7 @@ use App\Core\Controller;
 
 class Midtrans extends Controller
 {
-    public function update()
+    public function index()
     {
         // ==============================
         // CONFIGURATION

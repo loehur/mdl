@@ -825,31 +825,31 @@ class WAReplies
         }
     }
 
-    function handleToken_list($phoneIn, $waNumber, $textBody = '')
+    function handleCek_token($phoneIn, $waNumber, $textBody = '')
     {
         $waService = $this->getWaService();
         
         //tentukan DB berdasarkan textBody
-        $bisnis = explode(" ", $textBody)[1] ?? null;
+        $bisnis = explode(" ", $textBody)[2] ?? null;
         
         if (isset($bisnis)) {
             // Regex untuk match variasi kata laundry (case-insensitive)
             if (preg_match('/laundry|laundri|londri|loundry|loundri/i', $bisnis)) {
                 $bisnis = "laundry";
-                $db1 = DB::getInstance(1);
+                $db = DB::getInstance(1);
             } else if (preg_match('/resto/i', $bisnis)) {
                 $bisnis = "resto";
-                $db1 = DB::getInstance(2);
+                $db = DB::getInstance(2);
             } else {
                 $bisnis = "laundry";
-                $db1 = DB::getInstance(1);
+                $db = DB::getInstance(1);
             }
         } else {
             $waService->sendFreeText($waNumber, "Bisnis tidak ditemukan.");
             return;
         }
 
-        $user = $db1->query("SELECT id_cabang, id_privilege FROM user WHERE no_user IN ($phoneIn)")->row_array();
+        $user = $db->query("SELECT id_cabang, id_privilege FROM user WHERE no_user IN ($phoneIn)")->row_array();
         $id_cabang = $user['id_cabang'] ?? null;
         $id_privilege = $user['id_privilege'] ?? null;
 
@@ -885,31 +885,47 @@ class WAReplies
                 $text .= "ID: *" . $item['pre_id'] . "* - " . $item['bisnis'] . "\n" . $item['description'] . " " . number_format($item['nominal']) . "\nSisa Limit: " . number_format($sisalimit) . "\n\n";
             }
 
-            $text = $text . "Ketik _Token {ID}_ untuk beli. Contoh: *_Token " . $item['pre_id']. "_*";
+            $text = $text . "Ketik _Token {bisnis} {id}_ untuk beli. Contoh: *_Token ".$item['bisnis']. " " . $item['pre_id']. "_*";
             $waService->sendFreeText($waNumber, $text);
         }
     }
 
-    function handleToken_pay($phoneIn, $waNumber, $textBody = '')
+    function handleBeli_token($phoneIn, $waNumber, $textBody = '')
     {
         $waService = $this->getWaService();
-        // Use DB(1)
-        $db1 = DB::getInstance(1);
+        $bisnis = explode(" ", $textBody)[1] ?? null;
+        $pre_id = explode(" ", $textBody)[2] ?? null;
+        
+        if (isset($bisnis)) {
+            // Regex untuk match variasi kata laundry (case-insensitive)
+            if (preg_match('/laundry|laundri|londri|loundry|loundri/i', $bisnis)) {
+                $bisnis = "laundry";
+                $db = DB::getInstance(1);
+            } else if (preg_match('/resto/i', $bisnis)) {
+                $bisnis = "resto";
+                $db = DB::getInstance(2);
+            } else {
+                $bisnis = "laundry";
+                $db = DB::getInstance(1);
+            }
+        } else {
+            $waService->sendFreeText($waNumber, "Bisnis tidak ditemukan.");
+            return;
+        }
 
-        $id_cabang = $db1->query("SELECT id_cabang FROM user WHERE no_user IN ($phoneIn)")->row_array()['id_cabang'] ?? null;
+        $id_cabang = $db->query("SELECT id_cabang FROM user WHERE no_user IN ($phoneIn)")->row_array()['id_cabang'] ?? null;
 
         if ($id_cabang) {
             $db0 = DB::getInstance(0);
 
             // Get prepaid_list - TODO: $pre_id perlu didefinisikan (dari parameter atau parsing message)
-            $pre_id = 1; // Placeholder - sesuaikan dengan logic Anda
             $pre_list = $db0->query(
-                "SELECT * FROM prepaid_list WHERE pre_id = ? AND bisnis = 'laundry' AND id_cabang = ?",
-                [$pre_id, $id_cabang]
+                "SELECT * FROM prepaid_list WHERE pre_id = ? AND bisnis = ? AND id_cabang = ?",
+                [$pre_id, $bisnis, $id_cabang]
             )->row_array();
 
             if (!$pre_list) {
-                $waService->sendFreeText($waNumber, "Data prepaid tidak ditemukan.");
+                $waService->sendFreeText($waNumber, "Data prepaid id: $pre_id tidak ditemukan.");
                 return;
             }
 
@@ -931,7 +947,7 @@ class WAReplies
                 return;
             }
 
-            $ref_id = "mdlpre-" . date('YmdHi') . "-" . $id_cabang;
+            $ref_id = "wa-".$waNumber."-" . date('YmdHi') . "-" . $id_cabang;
 
             $col = [
                 'id_cabang' => $id_cabang,
