@@ -59,6 +59,7 @@ const router = createRouter({
         { path: "users", component: () => import("./user_area/Users.vue") },
         { path: "settings", component: () => import("./user_area/Settings.vue") },
         { path: "user/profile", component: () => import("./user_area/Profile.vue") },
+        { path: "subscription", component: () => import("./user_area/Subscription.vue"), meta: { requiresAdmin: true } },
       ]
     }
   ],

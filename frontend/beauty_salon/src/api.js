@@ -8,6 +8,9 @@ export const API_BASE = isProd
     ? 'https://api.nalju.com'
     : '';
 
+// Alias for consistency with other components
+export const API_BASE_URL = API_BASE;
+
 export function apiUrl(path) {
     return `${API_BASE}${path}`;
 }

@@ -46,6 +46,82 @@ class Tokopay extends Controller
         // Process Transaction
         $status = isset($data['status']) ? $data['status'] : '';
 
+        // Handle Salon Subscription based on prefix
+        $parts = explode('_', $reff_id);
+        if ($parts[0] === 'SALONSUB') {
+             $this->handleSalonSubscription($reff_id, $status);
+             echo json_encode(['status' => true, 'message' => 'Processed SALONSUB']);
+             return;
+        } else {
+             $this->handleKasLaundry($reff_id, $status);
+        }
+    }
+    
+    private function handleSalonSubscription($payment_ref, $status_tokopay)
+    {
+        $db_index = 4; // mdl_salon
+        $db = $this->db($db_index);
+
+        if (!$db) {
+             \Log::write("Err: DB Salon Not Found", 'webhook', 'Tokopay');
+             return;
+        }
+
+        // Get payment record
+        $payment = $db->get_where('subscription_payments', ['payment_ref' => $payment_ref])->row_array();
+
+        if (!$payment) {
+             \Log::write("Err: Sub Pmt Not Found ref=$payment_ref", 'webhook', 'Tokopay');
+             return;
+        }
+        
+        // Normalize status
+        $statusLower = strtolower($status_tokopay);
+        $isPaid = ($statusLower === 'success' || $statusLower === 'paid' || $statusLower === 'settlement');
+        $isExpired = ($statusLower === 'expired');
+        $isFailed = ($statusLower === 'failed');
+
+        if ($isPaid) {
+            if ($payment['payment_status'] !== 'paid') {
+                // Update payment status
+                $db->update('subscription_payments', [
+                    'payment_status' => 'paid'
+                ], ['payment_ref' => $payment_ref]);
+
+                $salon_id = $payment['salon_id'];
+                
+                // Update subscription tables
+                $db->update('subscriptions', [
+                    'status' => 'active',
+                    'end_date' => $payment['period_end'],
+                    'last_payment_date' => date('Y-m-d'),
+                    'last_payment_amount' => $payment['amount'],
+                    'payment_ref' => $payment_ref
+                ], ['salon_id' => $salon_id]);
+
+                // Update salon table
+                $db->update('salon', [
+                    'subscription_status' => 'active',
+                    'subscription_end_date' => $payment['period_end']
+                ], ['salon_id' => $salon_id]);
+                
+                \Log::write("OK: Salon Sub PAID ref=$payment_ref salon=$salon_id", 'webhook', 'Tokopay');
+            }
+        } elseif ($isExpired) {
+            $db->update('subscription_payments', [
+                'payment_status' => 'failed' 
+            ], ['payment_ref' => $payment_ref]);
+            \Log::write("OK: Salon Sub EXPIRED ref=$payment_ref", 'webhook', 'Tokopay');
+        } elseif ($isFailed) {
+            $db->update('subscription_payments', [
+                'payment_status' => 'failed'
+            ], ['payment_ref' => $payment_ref]);
+             \Log::write("OK: Salon Sub FAILED ref=$payment_ref", 'webhook', 'Tokopay');
+        }
+    }
+
+    private function handleKasLaundry($reff_id, $status)
+    {
         // reff_id dari Tokopay adalah trx_id (unique order_id) yang kita kirim
         // Format BARU: ref_finance_timestamp (contoh: 1234567890_1704873600)
         // Format LAMA: ref_finance saja (contoh: 1234567890)

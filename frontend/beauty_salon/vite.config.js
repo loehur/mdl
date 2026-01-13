@@ -48,6 +48,10 @@ export default defineConfig(({ command }) => ({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, "/api"),
       },
+      "/Beauty_Salon": {
+        target: "http://localhost/mdl/api",
+        changeOrigin: true,
+      },
     },
   },
 }));

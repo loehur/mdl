@@ -158,6 +158,22 @@
         <h1 class="text-xl font-bold text-gray-800 hidden md:block">{{ getPageTitle() }}</h1>
         <h1 class="text-lg font-bold text-gray-800 md:hidden">Salon</h1>
 
+        <!-- Subscription Status Indicator -->
+        <div v-if="isAdmin() && subscriptionStatus" class="hidden md:flex items-center gap-2">
+          <router-link 
+            to="/subscription" 
+            class="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all hover:scale-105"
+            :class="subscriptionBadgeClass"
+          >
+            <span class="relative flex h-2 w-2">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" :class="subscriptionPingClass"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2" :class="subscriptionDotClass"></span>
+            </span>
+            <span>{{ subscriptionLabel }}</span>
+            <span v-if="subscriptionDaysText" class="text-xs opacity-75">({{ subscriptionDaysText }})</span>
+          </router-link>
+        </div>
+
         <!-- User Dropdown -->
         <div class="relative">
           <button @click="showUserMenu = !showUserMenu" class="flex items-center gap-3 hover:bg-gray-50 rounded-xl px-3 py-2 transition">
@@ -197,10 +213,26 @@
         </div>
       </header>
 
+      <!-- Subscription Expired Banner -->
+      <div v-if="isSubscriptionExpired" class="bg-gradient-to-r from-red-500 to-rose-600 text-white px-4 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <svg class="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+          </svg>
+          <div>
+            <span class="font-semibold">Langganan Anda telah berakhir!</span>
+            <span class="hidden sm:inline ml-2 text-white/90">Anda tidak dapat membuat order baru sampai langganan diperpanjang.</span>
+          </div>
+        </div>
+        <router-link to="/subscription" class="px-4 py-1.5 bg-white text-red-600 font-semibold rounded-lg hover:bg-red-50 transition text-sm whitespace-nowrap">
+          Perpanjang Sekarang
+        </router-link>
+      </div>
+
       <main class="flex-1 p-6 overflow-y-auto scroll-smooth">
         <router-view v-slot="{ Component }">
           <transition name="fade" mode="out-in">
-             <component :is="Component" />
+             <component :is="Component" :subscription-valid="isSubscriptionValid" />
           </transition>
         </router-view>
       </main>
@@ -212,6 +244,7 @@
 <script setup>
 import { ref, onMounted, computed, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { API_BASE_URL } from '../api';
 
 const isOpen = ref(false);
 const showUserMenu = ref(false);
@@ -220,6 +253,69 @@ const route = useRoute();
 const router = useRouter();
 const userName = ref("Guest");
 const userRole = ref("customer");
+
+// Subscription status
+const subscriptionStatus = ref(null);
+const subscriptionDays = ref(0);
+
+const subscriptionBadgeClass = computed(() => {
+  const status = subscriptionStatus.value;
+  if (status === 'active') return 'bg-green-100 text-green-700 hover:bg-green-200';
+  if (status === 'trial') return 'bg-blue-100 text-blue-700 hover:bg-blue-200';
+  if (status === 'grace_period') return 'bg-orange-100 text-orange-700 hover:bg-orange-200';
+  if (status === 'expired') return 'bg-red-100 text-red-700 hover:bg-red-200';
+  return 'bg-gray-100 text-gray-600';
+});
+
+const subscriptionPingClass = computed(() => {
+  const status = subscriptionStatus.value;
+  if (status === 'active') return 'bg-green-400';
+  if (status === 'trial') return 'bg-blue-400';
+  if (status === 'grace_period') return 'bg-orange-400';
+  if (status === 'expired') return 'bg-red-400';
+  return 'bg-gray-400';
+});
+
+const subscriptionDotClass = computed(() => {
+  const status = subscriptionStatus.value;
+  if (status === 'active') return 'bg-green-500';
+  if (status === 'trial') return 'bg-blue-500';
+  if (status === 'grace_period') return 'bg-orange-500';
+  if (status === 'expired') return 'bg-red-500';
+  return 'bg-gray-500';
+});
+
+const subscriptionLabel = computed(() => {
+  const status = subscriptionStatus.value;
+  if (status === 'active') return 'Aktif';
+  if (status === 'trial') return 'Trial';
+  if (status === 'grace_period') return 'Masa Tenggang';
+  if (status === 'expired') return 'Kadaluarsa';
+  return 'Langganan';
+});
+
+const subscriptionDaysText = computed(() => {
+  const days = subscriptionDays.value;
+  if (days < 0) return null;
+  if (days === 0) return 'Hari ini';
+  if (days === 1) return '1 hari';
+  return `${days} hari`;
+});
+
+// Check if subscription is expired (past grace period)
+const isSubscriptionExpired = computed(() => {
+  const status = subscriptionStatus.value;
+  // Status 'expired' means past grace period (API already handles this logic)
+  return status === 'expired';
+});
+
+// Check if subscription is still valid (can create orders)
+const isSubscriptionValid = computed(() => {
+  const status = subscriptionStatus.value;
+  if (!status) return true; // Default to valid if not loaded yet
+  // Valid statuses: trial, active, grace_period (API returns effective status)
+  return ['trial', 'active', 'grace_period'].includes(status);
+});
 
 // Main menu items (dinamis)
 const menuItems = computed(() => {
@@ -303,6 +399,11 @@ const archiveItems = computed(() => {
       label: 'Settings',
       icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>'
     });
+    items.push({
+      path: '/subscription',
+      label: 'Langganan',
+      icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>'
+    });
   }
   
   return items;
@@ -378,7 +479,23 @@ function isDropdownActive(childrenName) {
   return items.some(item => route.path.includes(item.path));
 }
 
-onMounted(() => {
+async function fetchSubscriptionStatus() {
+  if (!isAdmin()) return;
+  try {
+    const res = await fetch(`${API_BASE_URL}/Beauty_Salon/Subscription/check`, {
+      credentials: 'include'
+    });
+    const data = await res.json();
+    if (data.success) {
+      subscriptionStatus.value = data.status || (data.is_valid ? 'active' : 'expired');
+      subscriptionDays.value = data.days_remaining ?? 0;
+    }
+  } catch (err) {
+    console.error('Failed to fetch subscription status:', err);
+  }
+}
+
+onMounted(async () => {
   try {
     const raw = localStorage.getItem("salon_user");
     if (raw) {
@@ -392,6 +509,9 @@ onMounted(() => {
       userRole.value = u.role || "customer";
     }
   } catch {}
+  
+  // Fetch subscription status for admin
+  await fetchSubscriptionStatus();
 });
 
 watch(() => route.fullPath, () => {
@@ -421,6 +541,7 @@ function getPageTitle() {
   if (route.path.includes('/users')) return 'Manajemen Pengguna';
   if (route.path.includes('/settings')) return 'Pengaturan Salon';
   if (route.path.includes('/user/profile')) return 'Profil Akun';
+  if (route.path.includes('/subscription')) return 'Langganan';
   return 'Salon Area';
 }
 

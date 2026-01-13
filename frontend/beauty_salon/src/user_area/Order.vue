@@ -560,6 +560,31 @@
         </div>
       </div>
     </div>
+    <!-- Subscription Expired Modal -->
+    <div v-if="showSubscriptionModal" class="fixed inset-0 z-[100002] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all scale-100">
+        <div class="bg-gradient-to-r from-red-500 to-rose-600 px-6 py-8 text-center">
+          <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-white/20 mb-4">
+            <svg class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <h3 class="text-xl font-bold text-white mb-2">Langganan Berakhir!</h3>
+          <p class="text-white/90 text-sm">Anda tidak dapat membuat order baru sampai langganan diperpanjang.</p>
+        </div>
+        <div class="p-6 text-center">
+          <p class="text-gray-600 mb-6">Perpanjang langganan sekarang untuk melanjutkan menggunakan semua fitur Beauty Salon.</p>
+          <div class="flex gap-3">
+            <button @click="showSubscriptionModal = false" class="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition">
+              Nanti
+            </button>
+            <button @click="goToSubscription" class="flex-1 px-4 py-2.5 bg-gradient-to-r from-pink-500 to-fuchsia-600 text-white rounded-xl font-bold hover:from-pink-600 hover:to-fuchsia-700 transition shadow-lg">
+              Perpanjang
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     </Teleport>
   </div>
@@ -568,6 +593,14 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
+
+// Props from parent (UserLayout)
+const props = defineProps({
+  subscriptionValid: {
+    type: Boolean,
+    default: true
+  }
+});
 
 const router = useRouter();
 const loading = ref(true);
@@ -671,6 +704,7 @@ const handleClickOutside = (event) => {
 };
 const isSubmitting = ref(false);
 const showDeleteModal = ref(false);
+const showSubscriptionModal = ref(false);
 
 // Voucher Loyalty System
 const customerVoucherInfo = ref(null);
@@ -718,6 +752,11 @@ function getStatusClass(status) {
         cancelled: 'bg-red-100 text-red-700' 
     };
     return map[status] || 'bg-gray-100 text-gray-700';
+}
+
+function goToSubscription() {
+    showSubscriptionModal.value = false;
+    router.push('/subscription');
 }
 
 function displayStepName(step) {
@@ -778,6 +817,12 @@ async function fetchAllWorkSteps() {
    } catch{}
 }
 function openCreateModal() {
+    // Check subscription status before allowing order creation
+    if (!props.subscriptionValid) {
+        showSubscriptionModal.value = true;
+        return;
+    }
+    
     editingOrderId.value = null;
     form.customer_id = null;
     form.orderType = 'direct';
