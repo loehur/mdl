@@ -149,7 +149,7 @@ return [
         'case' => 0,
         'auto_reply' => true,
         'patterns' => [
-            '/^(saldo|cek|info)\s*(iak|deposit)$/i',
+            '/^(saldo|cek|info)\s*(iak)$/i',
         ],
     ],
 ];
