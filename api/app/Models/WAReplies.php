@@ -1039,10 +1039,10 @@ class WAReplies
 
             if (isset($response['data']['balance'])) {
                 $balance = $response['data']['balance'];
-                $text = "*Saldo IAK*\nRp " . number_format($balance, 0, ',', '.');
+                $text = number_format($balance, 0, ',', '.');
             } else {
                 $message = $response['data']['message'] ?? 'Unknown error';
-                $text = "Gagal cek saldo IAK: " . $message;
+                $text = "Gagal: " . $message;
             }
 
             $waService->sendFreeText($waNumber, $text);
