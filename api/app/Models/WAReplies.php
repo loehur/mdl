@@ -853,6 +853,8 @@ class WAReplies
         $id_cabang = $user['id_cabang'] ?? null;
         $id_privilege = $user['id_privilege'] ?? null;
 
+        \Log::write("handleCek_token - bisnis: $bisnis, phoneIn: $phoneIn, id_cabang: $id_cabang, id_privilege: $id_privilege", 'token_debug');
+
         if ($id_cabang) {
             $db0 = DB::getInstance(0);
 
@@ -865,8 +867,10 @@ class WAReplies
                     "SELECT * FROM prepaid_list WHERE bisnis = '$bisnis' AND id_cabang = '$id_cabang'")->result_array();
             }
 
-            if (!$pre_list) {
-                $waService->sendFreeText($waNumber, "Data prepaid tidak ditemukan.");
+            \Log::write("handleCek_token - pre_list count: " . count($pre_list), 'token_debug');
+
+            if (!$pre_list || count($pre_list) == 0) {
+                $waService->sendFreeText($waNumber, "Data token untuk $bisnis tidak ditemukan.");
                 return;
             }
 
@@ -887,8 +891,9 @@ class WAReplies
 
             $text = $text . "Ketik _Token {bisnis} {id}_ untuk beli. Contoh: *_Token ".$item['bisnis']. " " . $item['pre_id']. "_*";
             $waService->sendFreeText($waNumber, $text);
-        }else{
-            $waService->sendFreeText($waNumber, "Nomor Anda tidak terdaftar di sistem.");
+        } else {
+            \Log::write("handleCek_token - user not found in $bisnis DB for phone: $phoneIn", 'token_debug');
+            $waService->sendFreeText($waNumber, "Nomor Anda tidak terdaftar di sistem $bisnis.");
         }
     }
 
