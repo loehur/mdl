@@ -831,16 +831,23 @@ class WAReplies
         // Use DB(1)
         $db1 = DB::getInstance(1);
 
-        $id_cabang = $db1->query("SELECT id_cabang FROM user WHERE no_user IN ($phoneIn)")->row_array()['id_cabang'] ?? null;
+        $user = $db1->query("SELECT id_cabang FROM user WHERE no_user IN ($phoneIn)")->row_array();
+        $id_cabang = $user['id_cabang'] ?? null;
+        $id_privilege = $user['id_privilege'] ?? null;
 
         if ($id_cabang) {
             $db0 = DB::getInstance(0);
 
             // Get prepaid_list - TODO: $pre_id perlu didefinisikan (dari parameter atau parsing message)
-            $pre_list = $db0->query(
-                "SELECT * FROM prepaid_list WHERE bisnis = 'laundry' AND id_cabang = ?",
-                [$id_cabang]
-            )->result_array();
+            if ($id_privilege == 100) {
+                $pre_list = $db0->query(
+                    "SELECT * FROM prepaid_list WHERE bisnis = 'laundry'")->result_array();
+            } else {
+                $pre_list = $db0->query(
+                    "SELECT * FROM prepaid_list WHERE bisnis = 'laundry' AND id_cabang = ?",
+                    [$id_cabang]
+                )->result_array();
+            }
 
             if (!$pre_list) {
                 $waService->sendFreeText($waNumber, "Data prepaid tidak ditemukan.");
@@ -859,7 +866,7 @@ class WAReplies
                     $pakai_bulan_ini = 0;
                 }
                 $sisalimit = $item['monthly_limit'] - $pakai_bulan_ini;
-                $text .= $item['description'] . " - " . number_format($item['nominal']) . ", Sisa Limit: " . number_format($sisalimit) . "\n";
+                $text .= "ID: #" . $item['pre_id'] . "\n" . $item['description'] . " " . number_format($item['nominal']) . "\nSisa Limit: " . number_format($sisalimit) . "\n\n";
             }
 
             $waService->sendFreeText($waNumber, $text);
