@@ -654,7 +654,7 @@ class Subscription extends Controller
             }
 
             // If already paid, return success
-            if ($payment['payment_status'] === 'paid') {
+            if ($payment['payment_status'] === 'paid' || $payment['payment_status'] === 'success') {
                 $this->json([
                     'success' => true,
                     'status' => 'paid',
@@ -741,7 +741,7 @@ class Subscription extends Controller
             if ($isPaid) {
                 // Update payment status
                 $this->db($this->db_index)->update('subscription_payments', [
-                    'payment_status' => 'paid'
+                    'payment_status' => 'success'
                 ], ['payment_ref' => $payment_ref]);
 
                 // Update subscription

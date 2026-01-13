@@ -82,10 +82,10 @@ class Tokopay extends Controller
         $isFailed = ($statusLower === 'failed');
 
         if ($isPaid) {
-            if ($payment['payment_status'] !== 'paid') {
-                // Update payment status
+            if ($payment['payment_status'] !== 'paid' && $payment['payment_status'] !== 'success') {
+                // Update payment status - Use success for ENUM consistency
                 $db->update('subscription_payments', [
-                    'payment_status' => 'paid'
+                    'payment_status' => 'success'
                 ], ['payment_ref' => $payment_ref]);
 
                 $salon_id = $payment['salon_id'];
