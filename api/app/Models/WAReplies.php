@@ -988,7 +988,7 @@ class WAReplies
                     $update = $db0->update('prepaid', $set, ['ref_id' => $ref_id]);
 
                     if ($update) {
-                        $text = "Silahkan tunggu, nomor Token akan dikirimkan";
+                        $text = "PROCESS";
                     } else {
                         $text = "ERROR: Gagal update database";
                     }

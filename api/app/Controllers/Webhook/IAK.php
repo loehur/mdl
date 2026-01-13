@@ -72,7 +72,7 @@ class IAK extends Controller
 
             if ($update) {
                 \Log::write("OK: $ref_id, SN: $sn, Status: $tr_status", 'webhook', 'IAK');
-                $this->sendWhatsAppNotification($a);
+                $this->sendWhatsAppNotification($d);
                 echo json_encode(['status' => true, 'message' => 'Updated successfully']);
             } else {
                 \Log::write("Err: Update fail $ref_id", 'webhook', 'IAK');
