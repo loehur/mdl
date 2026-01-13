@@ -143,4 +143,13 @@ return [
             '/^(token|pln) (laundry|laundri|londri|loundry|loundri|resto) \d+$/i',
         ],
     ],
+
+    'SALDO_IAK' => [
+        'max_length' => 20,
+        'case' => 0,
+        'auto_reply' => true,
+        'patterns' => [
+            '/^(saldo|cek|info)\s*(iak|deposit)$/i',
+        ],
+    ],
 ];

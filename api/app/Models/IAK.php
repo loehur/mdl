@@ -144,6 +144,32 @@ class IAK
         return $response;
     }
 
+    /**
+     * Cek saldo deposit IAK
+     */
+    public function check_balance()
+    {
+        $sign = md5($this->ik_username . $this->ik_apiKey . "bl");
+        $url = $this->ik_prepaid_url . 'api/check-balance';
+        $data = [
+            "username" => $this->ik_username,
+            "sign" => $sign,
+        ];
+
+        $postdata = json_encode($data);
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_POST, 1);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $postdata);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: application/json'));
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+        $result = curl_exec($ch);
+        curl_close($ch);
+
+        $response = json_decode($result, JSON_PRESERVE_ZERO_FRACTION);
+        return $response;
+    }
+
     function dec_2($encryption)
     {
         $ciphering = "AES-128-CTR";

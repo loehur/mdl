@@ -1005,6 +1005,55 @@ class WAReplies
         }
     }
 
+    function handleSaldo_iak($phoneIn, $waNumber, $textBody = '')
+    {
+        try {
+            $hp = ['081268098300', '085278114125'];
+
+            // Parse phone numbers and check authorization
+            $phones = array_map(function ($p) {
+                return trim($p, "' ");
+            }, explode(',', $phoneIn));
+            $cleanWaNumber = preg_replace('/[^0-9]/', '', $waNumber);
+            $phone0 = '0' . substr($cleanWaNumber, 2);
+            $phones[] = $phone0;
+            $phones[] = $cleanWaNumber;
+            $phones = array_unique(array_filter($phones));
+
+            \Log::write("handleSaldo_iak - phones: " . json_encode($phones), 'iak_debug');
+
+            // Only allowed phones can access this
+            $intersect = array_intersect($phones, $hp);
+            if (empty($intersect)) {
+                \Log::write("handleSaldo_iak - NOT authorized", 'iak_debug');
+                return;
+            }
+
+            // Cek saldo IAK
+            $iak = new \App\Models\IAK();
+            $response = $iak->check_balance();
+
+            \Log::write("handleSaldo_iak - response: " . json_encode($response), 'iak_debug');
+
+            $waService = $this->getWaService();
+
+            if (isset($response['data']['balance'])) {
+                $balance = $response['data']['balance'];
+                $text = "*Saldo IAK*\nRp " . number_format($balance, 0, ',', '.');
+            } else {
+                $message = $response['data']['message'] ?? 'Unknown error';
+                $text = "Gagal cek saldo IAK: " . $message;
+            }
+
+            $waService->sendFreeText($waNumber, $text);
+
+        } catch (\Throwable $e) {
+            \Log::write("handleSaldo_iak ERROR: " . $e->getMessage(), 'iak_debug', 'error');
+            $waService = $this->getWaService();
+            $waService->sendFreeText($waNumber, "Error: " . $e->getMessage());
+        }
+    }
+
     private function isOperatingHours()
     {
         // Load operating hours config
