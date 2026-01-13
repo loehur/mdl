@@ -626,6 +626,11 @@ class Subscription extends Controller
      */
     public function checkPayment($payment_ref = null)
     {
+        // Fix: Ambil dari query string jika argument null
+        if (!$payment_ref && isset($_GET['payment_ref'])) {
+            $payment_ref = $_GET['payment_ref'];
+        }
+
         try {
             if (!$payment_ref) {
                 $this->error('Payment reference required', 400);
