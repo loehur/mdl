@@ -830,15 +830,18 @@ class WAReplies
         $waService = $this->getWaService();
         
         //tentukan DB berdasarkan textBody
-        $bisnis = explode(" ", $textBody)[2] ?? null;
+        $bisnis = explode(" ", $textBody)[1] ?? null;
         
         if (isset($bisnis)) {
             // Regex untuk match variasi kata laundry (case-insensitive)
             if (preg_match('/laundry|laundri|londri|loundry|loundri/i', $bisnis)) {
+                $bisnis = "laundry";
                 $db1 = DB::getInstance(1);
             } else if (preg_match('/resto/i', $bisnis)) {
+                $bisnis = "resto";
                 $db1 = DB::getInstance(2);
             } else {
+                $bisnis = "laundry";
                 $db1 = DB::getInstance(1);
             }
         } else {
@@ -856,10 +859,10 @@ class WAReplies
             // Get prepaid_list - TODO: $pre_id perlu didefinisikan (dari parameter atau parsing message)
             if ($id_privilege == 100) {
                 $pre_list = $db0->query(
-                    "SELECT * FROM prepaid_list WHERE bisnis = 'laundry'")->result_array();
+                    "SELECT * FROM prepaid_list WHERE bisnis = '$bisnis'")->result_array();
             } else {
                 $pre_list = $db0->query(
-                    "SELECT * FROM prepaid_list WHERE bisnis = 'laundry' AND id_cabang = '$id_cabang'")->result_array();
+                    "SELECT * FROM prepaid_list WHERE bisnis = '$bisnis' AND id_cabang = '$id_cabang'")->result_array();
             }
 
             if (!$pre_list) {
@@ -870,7 +873,7 @@ class WAReplies
             $text = "";
             foreach ($pre_list as $item) {
                 $pakai_result = $db0->query(
-                    "SELECT SUM(price) as total FROM prepaid WHERE product_code = '$item[product_code]' AND id_cabang = '$item[id_cabang]' AND MONTH(insertTime) = MONTH(NOW()) AND YEAR(insertTime) = YEAR(NOW()) AND tr_status = 1"
+                    "SELECT SUM(price) as total FROM prepaid WHERE bisnis = '$bisnis' AND product_code = '$item[product_code]' AND id_cabang = '$item[id_cabang]' AND MONTH(insertTime) = MONTH(NOW()) AND YEAR(insertTime) = YEAR(NOW()) AND tr_status = 1"
                 )->row_array();
 
                 if (isset($pakai_result['total'])) {

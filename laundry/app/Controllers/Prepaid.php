@@ -50,10 +50,11 @@ class Prepaid extends Controller
                'msg' => "GAGAL - SUDAH MENCAPAI LIMIT BULANAN"
             ];
          } else {
-            $ref_id = "mdlpre-" . date('YmdHi') . "-" . $_SESSION[URL::SESSID]['user']['id_cabang'];
+            $ref_id = "mdlpre-" . date('YmdHi') . "-" . $pre_list['id_cabang'];
 
             $col = [
-               'id_cabang' => $_SESSION[URL::SESSID]['user']['id_cabang'],
+               'id_cabang' => $pre_list['id_cabang'],
+               'bisnis' => 'laundry',
                'ref_id' => $ref_id,
                'product_code' => $product_code,
                'customer_id' => $customer_id
