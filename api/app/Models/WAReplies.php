@@ -828,8 +828,23 @@ class WAReplies
     function handleToken_list($phoneIn, $waNumber, $textBody = '')
     {
         $waService = $this->getWaService();
-        // Use DB(1)
-        $db1 = DB::getInstance(1);
+        
+        //tentukan DB berdasarkan textBody
+        $bisnis = explode(" ", $textBody)[2] ?? null;
+        
+        if (isset($bisnis)) {
+            // Regex untuk match variasi kata laundry (case-insensitive)
+            if (preg_match('/laundry|laundri|londri|loundry|loundri/i', $bisnis)) {
+                $db1 = DB::getInstance(1);
+            } else if (preg_match('/resto/i', $bisnis)) {
+                $db1 = DB::getInstance(2);
+            } else {
+                $db1 = DB::getInstance(1);
+            }
+        } else {
+            $waService->sendFreeText($waNumber, "Bisnis tidak ditemukan.");
+            return;
+        }
 
         $user = $db1->query("SELECT id_cabang, id_privilege FROM user WHERE no_user IN ($phoneIn)")->row_array();
         $id_cabang = $user['id_cabang'] ?? null;
@@ -867,7 +882,7 @@ class WAReplies
                 $text .= "ID: *" . $item['pre_id'] . "* - " . $item['bisnis'] . "\n" . $item['description'] . " " . number_format($item['nominal']) . "\nSisa Limit: " . number_format($sisalimit) . "\n\n";
             }
 
-            $text = $text . "Ketik _Token {ID}_ untuk membeli token. Contoh: *_Token " . $item['pre_id']. "_*";
+            $text = $text . "Ketik _Token {ID}_ untuk beli. Contoh: *_Token " . $item['pre_id']. "_*";
             $waService->sendFreeText($waNumber, $text);
         }
     }

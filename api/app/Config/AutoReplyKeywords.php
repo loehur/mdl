@@ -131,7 +131,7 @@ return [
         'case' => 0,
         'auto_reply' => true,
         'patterns' => [
-            '/^\s*(token|pln)\s*(list|data)\s*$/i',
+            '/^(token|pln) (laundry|laundri|londri|loundry|loundri|resto)$/i',
         ],
     ],
 
