@@ -76,9 +76,8 @@ class PayBill extends Controller
             }
 
             if ($tr_status == 1) {
-                $where = "customer_id = '" . $d['hp'] . "' AND code = '" . $d['code'] . "'";
                 $set = ['last_bill' => $month];
-                $update = $this->db(0)->update('postpaid_list', $set, $where);
+                $update = $this->db(0)->update('postpaid_list', $set, ['customer_id' => $d['hp'], 'code' => $d['code']]);
                 if ($update) {
                     $msg .= $dt['description'] . " - POSTPAID LIST - " . $message . "\n";
                 } else {
@@ -89,7 +88,6 @@ class PayBill extends Controller
                 }
             }
 
-            $where = "ref_id = '" . $ref_id . "'";
             $set = [
                 'tr_status' => $tr_status,
                 'datetime' => $datetime,
@@ -100,7 +98,7 @@ class PayBill extends Controller
                 'tr_id' => $tr_id,
                 'response_code' => $rc
             ];
-            $update = $this->db(0)->update('postpaid', $set, $where);
+            $update = $this->db(0)->update('postpaid', $set, ['ref_id' => $ref_id]);
             if ($update) {
                 $msg .= $dt['description'] . " - PAY - " . $a['message'] . "\n";
             } else {
@@ -142,9 +140,8 @@ class PayBill extends Controller
             $tr_status = isset($d['status']) ? $d['status'] : $a['tr_status'];
 
             if ($tr_status == 1) {
-                $where = "customer_id = '" . $d['hp'] . "' AND code = '" . $d['code'] . "'";
                 $set = ['last_bill' => $month];
-                $update = $this->db(0)->update('postpaid_list', $set, $where);
+                $update = $this->db(0)->update('postpaid_list', $set, ['customer_id' => $d['hp'], 'code' => $d['code']]);
                 if ($update) {
                     $msg .= $dt['description'] . " - POSTPAID LIST - " . $message . "\n";
                 } else {
@@ -155,7 +152,6 @@ class PayBill extends Controller
                 }
             }
 
-            $where = "ref_id = '" . $ref_id . "'";
             $set = [
                 'tr_status' => $tr_status,
                 'datetime' => $datetime,
@@ -166,7 +162,7 @@ class PayBill extends Controller
                 'tr_id' => $tr_id,
                 'response_code' => $rc
             ];
-            $update = $this->db(0)->update('postpaid', $set, $where);
+            $update = $this->db(0)->update('postpaid', $set, ['ref_id' => $ref_id]);
             if ($update) {
                 $msg .= $dt['description'] . " - POSTPAID - " . $a['message'] . "\n";
             } else {
@@ -192,7 +188,7 @@ class PayBill extends Controller
         $month = $this->getPostMonth();
         $output = "";
 
-        $data = $this->db(0)->get_where('postpaid_list', 'en = 1 ORDER BY code ASC')->result_array();
+        $data = $this->db(0)->query("SELECT * FROM postpaid_list WHERE en = ? ORDER BY code ASC", [1])->result_array();
         
         foreach ($data as $dt) {
             $code = $dt['code'];
@@ -204,8 +200,7 @@ class PayBill extends Controller
             }
 
             // Cek tagihan yang sudah pernah di cek atau dibayar
-            $where = "customer_id = '" . $dt['customer_id'] . "' AND code = '" . $dt['code'] . "' AND (tr_status = 0 OR tr_status = 3)";
-            $cek = $this->db(0)->get_where('postpaid', $where)->result_array();
+            $cek = $this->db(0)->query("SELECT * FROM postpaid WHERE customer_id = ? AND code = ? AND (tr_status = 0 OR tr_status = 3)", [$dt['customer_id'], $dt['code']])->result_array();
             
             if (count($cek) > 0) {
                 foreach ($cek as $a) {
@@ -233,9 +228,8 @@ class PayBill extends Controller
                             case "34":
                             case "40":
                                 // SUDAH DIBAYAR
-                                $where = "customer_id = '" . $customer_id . "' AND code = '" . $code . "'";
                                 $set = ['last_bill' => $month];
-                                $update = $this->db(0)->update('postpaid_list', $set, $where);
+                                $update = $this->db(0)->update('postpaid_list', $set, ['customer_id' => $customer_id, 'code' => $code]);
                                 if ($update) {
                                     $output .= $dt['description'] . " " . $d['message'] . "\n";
                                 } else {
@@ -271,8 +265,7 @@ class PayBill extends Controller
                                     $output .= $dt['description'] . " - CHECK - " . $d['message'] . "\n";
 
                                     // Bayar karena sudah pernah di cek
-                                    $where = "ref_id = '" . $d['ref_id'] . "'";
-                                    $a = $this->db(0)->get_where('postpaid', $where)->row_array();
+                                    $a = $this->db(0)->get_where('postpaid', ['ref_id' => $d['ref_id']])->row_array();
                                     $output .= $this->bayar_after_cek($d['ref_id'], $dt, $a, $month);
                                 } else {
                                     $alert = "POSTPAID - DB ERROR - Insert postpaid failed\n";
