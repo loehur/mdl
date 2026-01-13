@@ -605,6 +605,9 @@ class Subscription extends Controller
                 usort($payments, function($a, $b) {
                     return strtotime($b['created_at']) - strtotime($a['created_at']);
                 });
+            
+                // Limit to last 5 records as requested
+                $payments = array_slice($payments, 0, 5);
             }
 
             $this->json([
