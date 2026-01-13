@@ -96,6 +96,26 @@ class Salon extends Controller
                     'created_at' => date('Y-m-d H:i:s')
                 ]);
 
+                // Auto create Trial Subscription (30 days)
+                // Check if subscription exists first to be safe
+                $subExists = $this->db($this->db_index)->get_where('subscriptions', ['salon_id' => $salon_id], 1)->row_array();
+                
+                if (!$subExists) {
+                    $start_date = date('Y-m-d');
+                    $end_date = date('Y-m-d', strtotime('+30 days'));
+                    
+                    $this->db($this->db_index)->insert('subscriptions', [
+                        'salon_id' => $salon_id,
+                        'status' => 'trial',
+                        'plan_type' => 'monthly',
+                        'start_date' => $start_date,
+                        'end_date' => $end_date,
+                        'billing_cycle' => 'monthly',
+                        'created_at' => date('Y-m-d H:i:s'),
+                        'updated_at' => date('Y-m-d H:i:s')
+                    ]);
+                }
+
                 $this->json([
                     'success' => true,
                     'message' => 'Data salon berhasil disimpan'
