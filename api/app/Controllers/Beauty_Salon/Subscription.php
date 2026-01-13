@@ -11,7 +11,7 @@ use App\Core\Controller;
 class Subscription extends Controller
 {
     private $db_index = 4; // mdl_salon database
-    private $monthly_price = 10000; // Rp 60.000 per month
+    private $monthly_price = 60000; // Rp 60.000 per month
     private $trial_days = 30; // 30 days trial period
     private $grace_period_days = 3; // 3 days grace period after expiry
     private $session_key = 'salon_user_session';
