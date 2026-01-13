@@ -98,11 +98,6 @@ class IAK extends Controller
             $sn = $record['sn'] ?? '';
             $message = $record['message'] ?? '';
             
-            // Ambil bagian SN sebelum "/" (token number saja)
-            if ($sn) {
-                $sn = explode('/', $sn)[0];  // Fixed: separator dulu, baru string
-            }
-            
             // Parse ref_id: wa-{waNumber}-{datetime}-{id_cabang}
             $parts = explode('-', $ref_id);
             
@@ -122,7 +117,8 @@ class IAK extends Controller
             }
             $waService = new \App\Helpers\WhatsAppService();
             if ($sn) {
-                $text = "*" . implode(' ', str_split($sn, 4)) . "*";
+                $sn = explode('/', $sn)[0];
+                $text = "*" . $sn . "*";
             } else {
                 $text = $message;
             }
