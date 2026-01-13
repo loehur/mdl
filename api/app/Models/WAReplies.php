@@ -829,31 +829,36 @@ class WAReplies
     {
         $waService = $this->getWaService();
         
-        //tentukan DB berdasarkan textBody
-        $bisnis = explode(" ", $textBody)[2] ?? null;
-        
-        if (isset($bisnis)) {
-            // Regex untuk match variasi kata laundry (case-insensitive)
-            if (preg_match('/laundry|laundri|londri|loundry|loundri/i', $bisnis)) {
-                $bisnis = "laundry";
-                $db = DB::getInstance(1);
-            } else if (preg_match('/resto/i', $bisnis)) {
-                $bisnis = "resto";
-                $db = DB::getInstance(2);
+        try {
+            \Log::write("handleCek_token START - textBody: $textBody", 'token_debug');
+            
+            //tentukan DB berdasarkan textBody
+            $bisnis = explode(" ", $textBody)[2] ?? null;
+            
+            if (isset($bisnis)) {
+                // Regex untuk match variasi kata laundry (case-insensitive)
+                if (preg_match('/laundry|laundri|londri|loundry|loundri/i', $bisnis)) {
+                    $bisnis = "laundry";
+                    $db = DB::getInstance(1);
+                } else if (preg_match('/resto/i', $bisnis)) {
+                    $bisnis = "resto";
+                    $db = DB::getInstance(2);
+                } else {
+                    $bisnis = "laundry";
+                    $db = DB::getInstance(1);
+                }
             } else {
-                $bisnis = "laundry";
-                $db = DB::getInstance(1);
+                $waService->sendFreeText($waNumber, "Bisnis tidak ditemukan.");
+                return;
             }
-        } else {
-            $waService->sendFreeText($waNumber, "Bisnis tidak ditemukan.");
-            return;
-        }
 
-        $user = $db->query("SELECT id_cabang, id_privilege FROM user WHERE no_user IN ($phoneIn)")->row_array();
-        $id_cabang = $user['id_cabang'] ?? null;
-        $id_privilege = $user['id_privilege'] ?? null;
+            \Log::write("handleCek_token - bisnis: $bisnis, DB connected", 'token_debug');
 
-        \Log::write("handleCek_token - bisnis: $bisnis, phoneIn: $phoneIn, id_cabang: $id_cabang, id_privilege: $id_privilege", 'token_debug');
+            $user = $db->query("SELECT id_cabang, id_privilege FROM user WHERE no_user IN ($phoneIn)")->row_array();
+            $id_cabang = $user['id_cabang'] ?? null;
+            $id_privilege = $user['id_privilege'] ?? null;
+
+            \Log::write("handleCek_token - bisnis: $bisnis, phoneIn: $phoneIn, id_cabang: $id_cabang, id_privilege: $id_privilege", 'token_debug');
 
         if ($id_cabang) {
             $db0 = DB::getInstance(0);
@@ -894,6 +899,11 @@ class WAReplies
         } else {
             \Log::write("handleCek_token - user not found in $bisnis DB for phone: $phoneIn", 'token_debug');
             $waService->sendFreeText($waNumber, "Nomor Anda tidak terdaftar di sistem $bisnis.");
+        }
+        
+        } catch (\Throwable $e) {
+            \Log::write("handleCek_token ERROR: " . $e->getMessage(), 'token_debug', 'error');
+            $waService->sendFreeText($waNumber, "Terjadi kesalahan sistem.");
         }
     }
 
