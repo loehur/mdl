@@ -125,4 +125,13 @@ return [
             '/^\s*(kas|saldo)\s*(laundry|laundri|londri|loundry|loundri)\s*$/i',
         ],
     ],
+
+    'TOKEN_LIST' => [
+        'max_length' => 20,
+        'case' => 0,
+        'auto_reply' => true,
+        'patterns' => [
+            '/^\s*(token|pln)\s*(list|data)\s*$/i',
+        ],
+    ],
 ];
