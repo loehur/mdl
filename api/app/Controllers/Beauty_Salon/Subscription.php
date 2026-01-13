@@ -755,11 +755,13 @@ class Subscription extends Controller
                         'payment_ref' => $payment_ref
                     ], ['salon_id' => $salon_id]);
 
-                    // Update salon table
+                    // Update salon table - DISABLED (Columns missing in production)
+                    /*
                     $this->db($this->db_index)->update('salon', [
                         'subscription_status' => 'active',
                         'subscription_end_date' => $payment['period_end']
                     ], ['salon_id' => $salon_id]);
+                    */
                 }
 
                 $this->json([

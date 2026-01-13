@@ -99,11 +99,13 @@ class Tokopay extends Controller
                     'payment_ref' => $payment_ref
                 ], ['salon_id' => $salon_id]);
 
-                // Update salon table
+                // Update salon table - DISABLED (Columns missing in production)
+                /*
                 $db->update('salon', [
                     'subscription_status' => 'active',
                     'subscription_end_date' => $payment['period_end']
                 ], ['salon_id' => $salon_id]);
+                */
                 
                 \Log::write("OK: Salon Sub PAID ref=$payment_ref salon=$salon_id", 'webhook', 'Tokopay');
             }
