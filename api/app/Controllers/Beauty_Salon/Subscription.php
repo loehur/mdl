@@ -667,8 +667,19 @@ class Subscription extends Controller
             // error_log("Check Status Tokopay [$payment_ref]: " . $response);
             
             $data = json_decode($response, true);
+        
+        // Handle connection/API error
+        if (!$data || (isset($data['status']) && $data['status'] === false && isset($data['message']))) {
+            $error_msg = isset($data['message']) ? $data['message'] : 'Respon tidak valid dari Payment Gateway';
+            $this->json([
+                'success' => true, // Still success true to show alert in frontend logic usually, but let's see frontend logic
+                'status' => 'error',
+                'message' => 'Gagal cek ke Tokopay: ' . $error_msg
+            ]);
+            return;
+        }
 
-            $isPaid = false;
+        $isPaid = false;
             
             // Check various status fields
             $status_trx = '';

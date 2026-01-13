@@ -68,7 +68,12 @@ class Tokopay
         ));
         
         $response = curl_exec($curl);
+        $error = curl_error($curl);
         curl_close($curl);
+        
+        if ($error) {
+            return json_encode(['status' => false, 'message' => 'Connection Error: ' . $error, 'error_msg' => $error]);
+        }
         
         return $response;
     }

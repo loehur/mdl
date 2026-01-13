@@ -181,26 +181,26 @@
       <Teleport to="body">
         <div v-if="showPaymentModal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl">
-            <div class="p-6 border-b border-gray-100 bg-gradient-to-r from-pink-500 to-purple-500 rounded-t-2xl">
-              <h3 class="text-xl font-bold text-white text-center">Scan QRIS</h3>
+            <div class="p-4 border-b border-gray-100 bg-gradient-to-r from-pink-500 to-purple-500 rounded-t-2xl">
+              <h3 class="text-lg font-bold text-white text-center">Scan QRIS</h3>
             </div>
             
-            <div class="p-6 space-y-4">
+            <div class="p-4 space-y-3">
               <!-- QR Code Display -->
               <div class="flex justify-center">
-                <div v-if="paymentData?.qr_string" class="p-4 bg-white border-4 border-pink-200 rounded-2xl flex justify-center">
-                  <qrcode-vue :value="paymentData.qr_string" :size="250" level="H" />
+                <div v-if="paymentData?.qr_string" class="p-2 bg-white border-2 border-pink-200 rounded-xl flex justify-center">
+                  <qrcode-vue :value="paymentData.qr_string" :size="180" level="H" />
                 </div>
-                <div v-else class="w-64 h-64 bg-gray-100 rounded-xl flex items-center justify-center">
+                <div v-else class="w-48 h-48 bg-gray-100 rounded-xl flex items-center justify-center">
                   <div class="animate-spin rounded-full h-8 w-8 border-4 border-pink-500 border-t-transparent"></div>
                 </div>
               </div>
 
               <!-- Payment Info -->
-              <div class="bg-gray-50 rounded-xl p-4 space-y-2">
+              <div class="bg-gray-50 rounded-lg p-3 space-y-1 text-xs">
                 <div class="flex justify-between">
                   <span class="text-gray-600">No. Referensi</span>
-                  <span class="font-mono font-semibold text-gray-800 text-sm">{{ paymentData?.payment_ref }}</span>
+                  <span class="font-mono font-semibold text-gray-800 truncate max-w-[150px]">{{ paymentData?.payment_ref }}</span>
                 </div>
                 <div class="flex justify-between">
                   <span class="text-gray-600">Periode</span>
@@ -210,54 +210,49 @@
                   <span>Diskon</span>
                   <span class="font-semibold">-{{ formatPrice(paymentData?.discount) }}</span>
                 </div>
-                <div class="flex justify-between pt-2 border-t border-gray-200">
-                  <span class="text-gray-800 font-semibold">Total</span>
-                  <span class="text-2xl font-bold text-pink-600">{{ formatPrice(paymentData?.amount) }}</span>
+                <div class="flex justify-between pt-2 border-t border-gray-200 mt-1">
+                  <span class="text-gray-800 font-semibold self-center">Total</span>
+                  <span class="text-xl font-bold text-pink-600">{{ formatPrice(paymentData?.amount) }}</span>
                 </div>
               </div>
 
-              <!-- Status Checking -->
               <!-- Manual Status Info -->
-              <div v-if="!paymentSuccess" class="mt-6 space-y-3">
+              <div v-if="!paymentSuccess" class="mt-2 space-y-2">
                  <button 
                     @click="manualCheckPayment" 
                     :disabled="checkingPayment"
-                    class="w-full px-4 py-3 bg-blue-50 text-blue-700 font-semibold rounded-xl hover:bg-blue-100 transition flex items-center justify-center gap-2 border border-blue-200"
+                    class="w-full px-4 py-2 bg-blue-50 text-blue-700 font-semibold rounded-lg hover:bg-blue-100 transition flex items-center justify-center gap-2 border border-blue-200 text-sm"
                   >
-                    <svg v-if="checkingPayment" class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                    <svg v-if="checkingPayment" class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
                     {{ checkingPayment ? 'Memeriksa...' : 'Cek Status Pembayaran' }}
                   </button>
-                  <p class="text-xs text-gray-500 text-center">
-                    Jika sudah membayar, tekan tombol di atas untuk verifikasi status
+                  <p class="text-[10px] text-gray-500 text-center">
+                    Tekan tombol untuk verifikasi
                   </p>
               </div>
 
               <!-- Success Message -->
-              <div v-if="paymentSuccess" class="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
-                <svg class="w-12 h-12 mx-auto text-green-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div v-if="paymentSuccess" class="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
+                <svg class="w-8 h-8 mx-auto text-green-500 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
-                <h4 class="font-bold text-green-800">Pembayaran Berhasil!</h4>
-                <p class="text-green-700 text-sm mt-1">Langganan Anda telah diperpanjang</p>
+                <h4 class="font-bold text-green-800 text-sm">Pembayaran Berhasil!</h4>
               </div>
-
-              <p class="text-gray-500 text-sm text-center">
-                Scan QR code di atas menggunakan aplikasi e-wallet atau mobile banking Anda
-              </p>
             </div>
             
-            <div class="p-6 border-t border-gray-100">
+            <div class="p-4 border-t border-gray-100">
               <button 
                 @click="closePaymentModal"
-                class="w-full px-4 py-2.5 border border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition"
+                class="w-full px-4 py-2 border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition text-sm"
               >
                 {{ paymentSuccess ? 'Selesai' : 'Tutup' }}
+
               </button>
             </div>
           </div>
@@ -596,8 +591,10 @@ async function manualCheckPayment() {
       await fetchPaymentHistory();
       showAlert('Pembayaran berhasil dikonfirmasi!', 'Sukses', 'success');
     } else {
-       // Optional: Beri tahu user masih pending
-       showAlert('Status pembayaran saat ini: ' + (data.status || 'Menunggu') + '. Jika Anda sudah membayar, mohon tunggu sebentar dan coba lagi.', 'Belum Lunas');
+       const isError = data.status === 'error';
+       const title = isError ? 'Gagal Cek' : 'Belum Lunas';
+       const msg = isError ? data.message : ('Status pembayaran saat ini: ' + (data.status || 'Menunggu') + '. Jika Anda sudah membayar, mohon tunggu sebentar dan coba lagi.');
+       showAlert(msg, title, isError ? 'error' : 'info');
     }
   } catch (err) {
     console.error('Error checking payment status:', err);
