@@ -664,22 +664,37 @@ class Subscription extends Controller
             }
 
             // Check status from Tokopay
-        try {
-            $tokopay = new \App\Models\Tokopay();
-            $amount_int = (int)floatval($payment['amount']);
-            $response = $tokopay->checkStatus($payment_ref, $amount_int, 'QRIS');
-        } catch (\Throwable $t) {
-             error_log("Tokopay Model Error: " . $t->getMessage());
+        // Check status from Tokopay using INLINE CURL to avoid Class Loading issues
+        $merchantId = 'M240926BMTGB612';
+        $secretKey = '4aea0ede516df65d88ccb773a443c61b3b3702fe1b9647deb9293cac07fd72bf';
+        
+        $curl = curl_init();
+        curl_setopt_array($curl, array(
+            CURLOPT_URL => "https://api.tokopay.id/v1/order?merchant=" . $merchantId . "&secret=" . $secretKey . "&ref_id=" . $payment_ref . "&nominal=" . $amount_int . "&metode=QRIS",
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_ENCODING => '',
+            CURLOPT_MAXREDIRS => 10,
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            CURLOPT_CUSTOMREQUEST => 'GET',
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => false,
+        ));
+        
+        $response = curl_exec($curl);
+        $err = curl_error($curl);
+        curl_close($curl);
+
+        if ($err) {
+             error_log("Tokopay Curl Error: $err");
              $this->json([
                 'success' => true,
                 'status' => 'error',
-                'message' => 'Internal Error: ' . $t->getMessage()
+                'message' => 'Connection Error: ' . $err
             ]);
             return;
         }
-        
-        // Log response for debugging
-        // error_log("Check Status Tokopay [$payment_ref]: " . $response);
         
         $data = json_decode($response, true);
         
