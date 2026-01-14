@@ -39,9 +39,12 @@ class Controller extends URL
 
     public function db($db = 0)
     {
-        $file = "M_DB";
-        require_once "app/Models/" . $file . ".php";
-        return new $file($db);
+        // Bypass M_DB wrapper, langsung pakai Core DB
+        // Pastikan class DB sudah diload (biasanya di index.php atau autoloader)
+        if (!class_exists('DB')) {
+             require_once "app/Core/DB.php";
+        }
+        return DB::getInstance($db);
     }
 
     public function session_cek($admin = 0)
