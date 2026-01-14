@@ -367,6 +367,9 @@ foreach ($data['bayar'] as $b) {
       },
 
       regenerateQris() {
+        this.qrisStatus = 'generating';
+        this.qrisMessage = 'Sedang membuat QR baru...';
+
         // Generate QR baru menggunakan ref_bayar yang sudah ada
         $.ajax({
           url: "<?= URL::BASE_URL ?>Penjualan/generate_qris",
