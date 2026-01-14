@@ -146,12 +146,7 @@ class I extends Controller
          return $item['status'] == 2;
       });
 
-      foreach ($finance_history as $key => $fh) {
-         $check_moota = $this->db(0)->get_where_row("wh_moota", "trx_id = '" . $fh['ref_finance'] . "'");
-         if(isset($check_moota['amount']) && $check_moota['amount'] > 0){
-             $finance_history[$key]['total'] = $check_moota['amount'];
-         }
-      }
+      // Note: Moota integration removed
 
       // FIX: calculate saldo directly with db(0)
       $q_cr = "id_client = '$pelanggan' AND jenis_transaksi = 6 AND jenis_mutasi = 1 AND status_mutasi = 3";
@@ -359,8 +354,7 @@ class I extends Controller
       // Delete from wh_midtrans (ignore if table doesn't exist) - FIX: use db(0)
       try { $this->db(100)->delete('wh_midtrans', "ref_id = '$ref_finance'"); } catch (Exception $e) {}
       
-      // Delete from wh_moota (ignore if table doesn't exist) - FIX: use db(0)
-      try { $this->db(100)->delete('wh_moota', "trx_id = '$ref_finance'"); } catch (Exception $e) {}
+      // Note: Moota integration removed - no wh_moota cleanup needed
 
       echo json_encode(['status' => 'success', 'msg' => 'Pembayaran berhasil dibatalkan']);
    }

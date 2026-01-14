@@ -99,7 +99,7 @@ class Kas extends Controller
          if ($do['errno'] == 0) {
             echo 1;
          } else {
-            $this->helper('Notif')->send_wa(URL::WA_PRIVATE[0], $do['error']);
+            $this->model('Log')->write("[Kas::insert] Error: " . $do['error'] . " | Query: " . $do['query']);
          }
       } else {
          echo "Duplicate Entry!";
@@ -140,7 +140,7 @@ class Kas extends Controller
          ];
          $do = $this->db(0)->insert('kas', $data);
          if ($do['errno'] <> 0) {
-            $this->helper('Notif')->send_wa(URL::WA_PRIVATE[0], $do['error']);
+            $this->model('Log')->write("[Kas::insert_pengeluaran] Error: " . $do['error'] . " | Query: " . $do['query']);
          }
       }
    }

@@ -473,33 +473,8 @@ class Sales extends Controller
                    'ref_finance' => $ref_finance
                 ]);
              } elseif ($metode == 2 && strtoupper($note) != 'QRIS') {
-                // Transfer Bank - insert ke wh_moota
-                
-                // Safe checking for MOOTA_BANK_ID
-                $bank_acc_id = '';
-                if (defined('URL::MOOTA_BANK_ID')) {
-                    $moota_ids = constant('URL::MOOTA_BANK_ID');
-                    $bank_acc_id = isset($moota_ids[$note]) ? $moota_ids[$note] : '';
-                }
-                
-                if (!empty($bank_acc_id)) {
-                   // Update payment_gateway di kas
-                   $this->db(0)->update('kas', ['payment_gateway' => 'moota'], "ref_finance = '$ref_finance'");
-                   
-                   // Insert ke wh_moota untuk tracking (Wrap in try catch)
-                   try {
-                       $this->db(100)->insert('wh_moota', [
-                          'trx_id' => $ref_finance,
-                          'bank_id' => $bank_acc_id,
-                          'amount' => $dibayar,
-                          'target' => 'kas_laundry',
-                          'book' => date('Y'),
-                          'state' => 'pending'
-                       ]);
-                   } catch (\Throwable $e) {
-                       $this->model('Log')->write("[Sales::bayar] Error insert wh_moota: " . $e->getMessage());
-                   }
-                }
+                // Transfer Bank - confirmed manually via NonTunai
+                // Note: Moota integration removed
                 
                 ob_end_clean();
                 session_write_close();

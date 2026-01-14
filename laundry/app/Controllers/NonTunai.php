@@ -79,16 +79,7 @@ class NonTunai extends Controller
             $this->model('Log')->write("[NonTunai::operasi] WA conversation fatal error: " . $e->getMessage());
          }
          
-         //delete tracker webhooks
-         $check = $this->db(100)->get_where('wh_moota', "trx_id = '$id'");
-         if (count($check) > 0) {
-            $delete = $this->db(100)->delete('wh_moota', "trx_id = '$id'");
-            
-            if($delete['errno'] <> 0){
-               $this->model('Log')->write('[NonTunai::operasi] Delete Wh Moota Error: ' . $delete['error']);
-               return $delete['error'];
-            }
-         }
+         // Note: Moota integration removed - no wh_moota cleanup needed
       }
       return 0;
    }

@@ -207,12 +207,7 @@ class Operasi extends Controller
          return $item['status'] == 2;
       });
 
-      foreach ($finance_history as $key => $fh) {
-         $check_moota = $this->db(0)->get_where_row("wh_moota", "trx_id = '" . $fh['ref_finance'] . "'");
-         if (isset($check_moota['amount']) && $check_moota['amount'] > 0) {
-            $finance_history[$key]['total'] = $check_moota['amount'];
-         }
-      }
+      // Note: Moota integration removed
 
       //SALDO DEPOSIT
       //SALDO DEPOSIT
@@ -323,11 +318,7 @@ class Operasi extends Controller
       } catch (Exception $e) {
       } // Changed to db(0)
 
-      // Delete from wh_moota (ignore if table doesn't exist)
-      try {
-         $this->db(100)->delete('wh_moota', "trx_id = '$ref_finance'");
-      } catch (Exception $e) {
-      } // Changed to db(0)
+      // Note: Moota integration removed - no wh_moota cleanup needed
 
       echo json_encode(['status' => 'success', 'msg' => 'Pembayaran berhasil dibatalkan']);
    }

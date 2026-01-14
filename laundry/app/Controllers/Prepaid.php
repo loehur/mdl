@@ -173,7 +173,7 @@ class Prepaid extends Controller
             if ($update['errno'] <> 0) {
                $alert = "DB ERROR - " . $update['error'];
                $msg .= $alert . "\n";
-               $res = $this->helper('Notif')->send_wa(URL::WA_PRIVATE[0], $alert);
+               $this->model('Log')->write("[Prepaid::cek_status_post] Error: " . $update['error'] . " | Query: " . $update['query']);
                if (!$res['status']) {
                   if (isset($res['data']['status'])) {
                      $msg .= "WHTASAPP ERROR - " . $res['data']['status'] . "\n";
@@ -194,7 +194,7 @@ class Prepaid extends Controller
          } else {
             $alert = "DB ERROR - " . $update['error'];
             $msg .= $alert . "\n";
-            $res = $this->helper('Notif')->send_wa(URL::WA_PRIVATE[0], $alert);
+            $this->model('Log')->write("[Prepaid::cek_status_post] Error: " . $update['error'] . " | Query: " . $update['query']);
             if (!$res['status']) {
                if (isset($res['data']['status'])) {
                   $msg .= "WHTASAPP ERROR - " . $res['data']['status'] . "\n";
@@ -206,7 +206,7 @@ class Prepaid extends Controller
       } else {
          $alert = "DATA RESPONSE NOT FOUND - " . json_encode($response);
          $msg .= $alert . "\n";
-         $res = $this->helper('Notif')->send_wa(URL::WA_PRIVATE[0], $alert);
+         $this->model('Log')->write("[Prepaid::cek_status_post] Error: " . $alert);
          if (!$res['status']) {
             if (isset($res['data']['status'])) {
                $msg .= "WHTASAPP ERROR - " . $res['data']['status'] . "\n";

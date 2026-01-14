@@ -88,7 +88,7 @@ class Kas_Besar extends Controller
       
       $do = $this->db(0)->insert('kas', $data);
       if ($do['errno'] <> 0) {
-         $this->helper('Notif')->send_wa(URL::WA_PRIVATE[0], $do['error']);
+         $this->model('Log')->write("[Kas_Besar::insert_pengeluaran] Error: " . $do['error'] . " | Query: " . $do['query']);
          echo $do['error'];
       } else {
          echo 1;
@@ -118,7 +118,7 @@ class Kas_Besar extends Controller
       
       $do = $this->db(0)->insert('kas', $data);
       if ($do['errno'] <> 0) {
-         $this->helper('Notif')->send_wa(URL::WA_PRIVATE[0], $do['error']);
+         $this->model('Log')->write("[Kas_Besar::insert_modal] Error: " . $do['error'] . " | Query: " . $do['query']);
          echo $do['error'];
       } else {
          echo 1;

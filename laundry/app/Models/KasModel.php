@@ -132,40 +132,6 @@ class KasModel extends Controller
             }
         }
 
-        if ($total_dibayar > 0 && $metode == 2 && $note <> "QRIS") {
-            $bank_acc_id = isset(URL::MOOTA_BANK_ID[$note]) ? URL::MOOTA_BANK_ID[$note] : '';
-            if(empty($bank_acc_id)){
-                 return 0; // Or handle error? existing logic just returns 0 on success/ignore
-            }
-
-            //update kas dengan payment_gateway moota - FIX: use db(0)
-            $set = [
-                'payment_gateway' => 'moota',
-            ];
-            $where = "ref_finance = '" . $ref_f . "'";
-            $up = $this->db(0)->update('kas', $set, $where);
-            if ($up['errno'] <> 0) {
-               $this->model('Log')->write("[KasModel::bayarMulti] Update Kas Error: " . $up['error']);
-               return $up['error'];
-            }
-                        
-            //insert into wh_moota
-            $data_wh_moota = [
-                'trx_id' => $ref_f,
-                'bank_id' => $bank_acc_id,
-                'amount' => $total_dibayar,
-                'target' => 'kas_laundry',
-                'book' => date('Y'),
-                'state' => 'pending'
-            ];
-            
-            $do = $this->db(100)->insert('wh_moota', $data_wh_moota);
-            if ($do['errno'] != 0) {
-               $this->model('Log')->write("[KasModel::bayarMulti] Insert Moota Error: " . $do['error']);
-               return $do['error'];
-            }
-        }
-
         return 0;
     }
 }

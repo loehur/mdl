@@ -512,7 +512,6 @@ class Antrian extends Controller
           $do = $this->db(0)->insert('notif', $notifData);
           if ($do['errno'] <> 0) {
              $this->model('Log')->write("[operasi] Insert Notif Error: " . $do['error'] . " | Phone: " . $hp);
-             $this->helper('Notif')->send_wa(URL::WA_PRIVATE[0], $do['error']);
           } else {
              $this->model('Log')->write("[operasi] Insert Notif Success - ID: " . $notifData['id_notif'] . " | Phone: " . $hp . " | State: pending");
           }

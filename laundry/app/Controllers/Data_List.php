@@ -164,7 +164,7 @@ class Data_List extends Controller
                $do = $this->db(0)->insert($table, $data);
 
                if ($do['errno'] <> 0) {
-                  $this->helper('Notif')->send_wa(URL::WA_PRIVATE[0], $do['error']);
+                  $this->model('Log')->write("[Data_List::insert/pelanggan] Error: " . $do['error'] . " | Query: " . $do['query']);
                }
 
                $this->dataSynchrone($_SESSION[URL::SESSID]['user']['id_user']);
