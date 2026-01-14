@@ -445,12 +445,13 @@ class DB extends DBC
         $query = "SELECT SUM($col) as Total FROM $table WHERE $where";
         $result = $this->mysqli->query($query);
 
-        $reply = $result->fetch_assoc();
-        if ($result) {
-            return $reply["Total"];
-        } else {
-            return array('query' => $query, 'error' => $this->mysqli->error, 'errno' => $this->mysqli->errno, 'db' => $this->db_name);
+        // Check $result BEFORE calling fetch_assoc to prevent fatal error
+        if ($result === false) {
+            return 0;
         }
+        
+        $reply = $result->fetch_assoc();
+        return $reply["Total"] ?? 0;
     }
 
     public function max($table, $col)
