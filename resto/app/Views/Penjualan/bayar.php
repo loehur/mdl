@@ -133,20 +133,33 @@ foreach ($data['bayar'] as $b) {
           this.refBayar = '<?= $data['qris_pending']['ref_bayar'] ?>';
           this.qrisNominal = <?= $data['qris_pending']['nominal'] ?>;
           this.showQris = true;
-          this.qrisStatus = 'pending';
-          this.qrisMessage = 'Melanjutkan pembayaran...';
+          
+          let elapsed = <?= $data['qris_pending']['elapsed'] ?? 0 ?>;
+          if (elapsed >= 300) {
+             this.qrisStatus = 'expired';
+             this.qrisMessage = 'QR Code Expired';
+          } else {
+             this.qrisStatus = 'pending';
+             this.qrisMessage = 'Melanjutkan pembayaran...';
+             
+             // Adjust start time to match server time
+             this.offset = elapsed; 
+          }
           
           setTimeout(() => {
-            $('#qrcode').empty();
-            new QRCode(document.getElementById("qrcode"), {
-                 text: this.qrString,
-                 width: 200,
-                 height: 200,
-                 colorDark: "#000000",
-                 colorLight: "#ffffff",
-                 correctLevel: QRCode.CorrectLevel.M
-            });
-            this.startCountdown();
+            if (this.qrisStatus != 'expired') {
+                $('#qrcode').empty();
+                new QRCode(document.getElementById("qrcode"), {
+                     text: this.qrString,
+                     width: 200,
+                     height: 200,
+                     colorDark: "#000000",
+                     colorLight: "#ffffff",
+                     correctLevel: QRCode.CorrectLevel.M
+                });
+                // Start countdown with offset
+                this.startCountdown(this.offset);
+            }
           }, 300);
         <?php endif; ?>
       },
@@ -277,12 +290,12 @@ foreach ($data['bayar'] as $b) {
         });
       },
 
-      startCountdown() {
+      startCountdown(offset = 0) {
         // Reset interval jika ada
         if (this.qrisInterval) clearInterval(this.qrisInterval);
         
-        // Waktu mulai (lokal estimasi)
-        this.startTime = Date.now();
+        // Waktu mulai (lokal estimasi) - dikurangi offset agar lanjut
+        this.startTime = Date.now() - (offset * 1000);
         this.duration = 300; // 5 menit
 
         // Update tampilan setiap detik secara visual saja

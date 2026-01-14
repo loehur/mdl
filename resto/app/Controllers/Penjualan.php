@@ -249,7 +249,8 @@ class Penjualan extends Controller
             'qr_string' => $qris_pending['payment_qr_string'],
             'trx_id' => $qris_pending['payment_trx_id'],
             'ref_bayar' => $qris_pending['ref_bayar'],
-            'nominal' => $qris_pending['jumlah']
+            'nominal' => $qris_pending['jumlah'],
+            'elapsed' => $elapsed
          ];
       }
 
