@@ -316,12 +316,7 @@ class Operasi extends Controller
          exit();
       }
 
-      // Delete from wh_tokopay (ignore if table doesn't exist)
-      try {
-         $this->db(100)->delete('wh_tokopay', "ref_id = '$ref_finance'");
-      } catch (Exception $e) {
-      } // Changed to db(0)
-
+      // Note: wh_tokopay not used anymore - payment info is now in kas table
       // Delete from wh_midtrans (ignore if table doesn't exist)
       try {
          $this->db(100)->delete('wh_midtrans', "ref_id = '$ref_finance'");

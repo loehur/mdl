@@ -139,24 +139,25 @@ class Tokopay extends Controller
             $ref_finance_extracted = implode('_', $parts);
         }
 
-        // Update wh_tokopay untuk SEMUA status (pending, success, expired, dll)
-        $db_instance = $this->db(0);
-        if ($db_instance) {
-            // Coba update berdasarkan trx_id (format: ref_finance_timestamp)
-            $update_wh = $db_instance->update("wh_tokopay", ["state" => $status], ["trx_id" => $tokopay_trx_id]);
-            $affected = $db_instance->affected_rows();
+        // Update kas table directly (not wh_tokopay anymore)
+        // field: payment_state
+        $db_kas = $this->db(1); // db kas itu db 1
+        if ($db_kas) {
+            // Coba update berdasarkan payment_trx_id (format: ref_finance_timestamp)
+            $update_kas = $db_kas->update("kas", ["payment_state" => $status], ["payment_trx_id" => $tokopay_trx_id]);
+            $affected = $db_kas->affected_rows();
             
-            if ($update_wh && $affected > 0) {
-                \Log::write("OK: WH Updated by trx_id=$tokopay_trx_id status=$status", 'webhook', 'Tokopay');
+            if ($update_kas && $affected > 0) {
+                \Log::write("OK: Kas payment_state Updated by payment_trx_id=$tokopay_trx_id status=$status", 'webhook', 'Tokopay');
             } else {
-                // Fallback: coba update berdasarkan ref_id (untuk data lama atau jika trx_id tidak match)
-                $update_wh = $db_instance->update("wh_tokopay", ["state" => $status], ["ref_id" => $ref_finance_extracted]);
-                $affected = $db_instance->affected_rows();
+                // Fallback: coba update berdasarkan ref_finance (untuk data lama)
+                $update_kas = $db_kas->update("kas", ["payment_state" => $status], ["ref_finance" => $ref_finance_extracted]);
+                $affected = $db_kas->affected_rows();
                 
-                if ($update_wh && $affected > 0) {
-                    \Log::write("OK: WH Updated by ref_id=$ref_finance_extracted status=$status", 'webhook', 'Tokopay');
+                if ($update_kas && $affected > 0) {
+                    \Log::write("OK: Kas payment_state Updated by ref_finance=$ref_finance_extracted status=$status", 'webhook', 'Tokopay');
                 } else {
-                    \Log::write("Err: WH Update Failed trx=$tokopay_trx_id ref=$ref_finance_extracted status=$status (affected=0)", 'webhook', 'Tokopay');
+                    \Log::write("Err: Kas payment_state Update Failed trx=$tokopay_trx_id ref=$ref_finance_extracted status=$status (affected=0)", 'webhook', 'Tokopay');
                 }
             }
         }
@@ -166,23 +167,23 @@ class Tokopay extends Controller
             // Processing for success/completed/expired
 
             try {
-                if (!$db_instance) {
-                    \Log::write("Err: DB 0", 'webhook', 'Tokopay');
+                if (!$db_kas) {
+                    \Log::write("Err: DB 1", 'webhook', 'Tokopay');
                     return;
                 }
 
-                // Lookup by trx_id first (new format)
-                $cek_target_query = $db_instance->get_where("wh_tokopay", ["trx_id" => $tokopay_trx_id]);
-                $cek_target = $cek_target_query ? $cek_target_query->row() : null;
+                // Lookup by payment_trx_id first (new format) directly from kas table
+                $cek_kas_query = $db_kas->get_where("kas", ["payment_trx_id" => $tokopay_trx_id]);
+                $cek_kas = $cek_kas_query ? $cek_kas_query->row() : null;
 
-                // Fallback: lookup by ref_id using extracted ref_finance
-                if (!$cek_target) {
-                    $cek_target_query = $db_instance->get_where("wh_tokopay", ["ref_id" => $ref_finance_extracted]);
-                    $cek_target = $cek_target_query ? $cek_target_query->row() : null;
+                // Fallback: lookup by ref_finance using extracted ref_finance
+                if (!$cek_kas) {
+                    $cek_kas_query = $db_kas->get_where("kas", ["ref_finance" => $ref_finance_extracted]);
+                    $cek_kas = $cek_kas_query ? $cek_kas_query->row() : null;
                 }
 
-                if (!$cek_target) {
-                    \Log::write("Err: WH Null trx=$tokopay_trx_id ref=$ref_finance_extracted", 'webhook', 'Tokopay');
+                if (!$cek_kas) {
+                    \Log::write("Err: Kas Not Found trx=$tokopay_trx_id ref=$ref_finance_extracted", 'webhook', 'Tokopay');
                     return;
                 }
             } catch (\Exception $e) {
@@ -190,78 +191,59 @@ class Tokopay extends Controller
                 return;
             }
 
-            if ($cek_target && ($statusLower == 'success' || $statusLower == 'completed')) {
-                // Target found (no log)
+            if ($cek_kas && ($statusLower == 'success' || $statusLower == 'completed')) {
+                // Ambil ref_finance dari record kas
+                $ref_finance = $cek_kas->ref_finance;
 
-                $book = $cek_target->book;
-                $target = $cek_target->target;
-                // Ambil ref_id yang merupakan ref_finance asli (tanpa timestamp)
-                $ref_finance = $cek_target->ref_id;
+                try {
+                    // Update kas status_mutasi = 3 (paid)
+                    $update = $db_kas->update("kas", ["status_mutasi" => 3, "payment_state" => "paid"], ["ref_finance" => $ref_finance]);
 
-                if ($target == "kas_laundry") {
-                    // FIX: use db(0) directly instead of year iteration
-                    // Update kas (no verbose log)
+                    if (!$update) {
+                        \Log::write("Err: Upd Kas ref=$ref_finance", 'webhook', 'Tokopay');
+                    } else {
+                        // Send Webhook to QR Server (Node.js) to notify frontend
+                        try {
+                            // 1. Get QR String from kas table
+                            $qrString = isset($cek_kas->payment_qr_string) ? $cek_kas->payment_qr_string : '';
 
-                    try {
-                        // db kas itu db 1
-                        $db_update_instance = $this->db(1);
-                        if (!$db_update_instance) {
-                            \Log::write("Err: DB 1", 'webhook', 'Tokopay');
-                        } else {
-                            // Update kas menggunakan ref_finance asli (bukan trx_id dari Tokopay)
-                            $update = $db_update_instance->update("kas", ["status_mutasi" => 3], ["ref_finance" => $ref_finance]);
+                            // 2. Get Kasir ID (id_cabang) from kas record
+                            if ($cek_kas && !empty($qrString)) {
+                                $kasirId = $cek_kas->id_cabang; // Ensure this maps to your Node server Kasir IDs (3, 4, etc)
 
-                            if (!$update) {
-                                \Log::write("Err: Upd Kas ref=$ref_finance", 'webhook', 'Tokopay');
-                            } else {
-                                // Send Webhook to QR Server (Node.js) to notify frontend
-                                try {
-                                    // 1. Get QR String from wh_tokopay (already fetched in $cek_target)
-                                    $qrString = isset($cek_target->qr_string) ? $cek_target->qr_string : '';
+                                $url = 'https://qrs.nalju.com/payment-success';
+                                $postData = [
+                                    'kasir_id' => (string) $kasirId,
+                                    'qr_string' => $qrString,
+                                    'status' => true
+                                ];
 
-                                    // 2. Get Kasir ID (id_cabang) from kas table - gunakan ref_finance asli
-                                    $kasData = $db_update_instance->query("SELECT id_cabang FROM kas WHERE ref_finance = '$ref_finance'")->row();
+                                $ch = curl_init($url);
+                                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                                curl_setopt($ch, CURLOPT_POST, true);
+                                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($postData));
+                                curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+                                curl_setopt($ch, CURLOPT_TIMEOUT, 3); // Don't hang PHP
 
-                                    if ($kasData && !empty($qrString)) {
-                                        $kasirId = $kasData->id_cabang; // Ensure this maps to your Node server Kasir IDs (3, 4, etc)
+                                $response = curl_exec($ch);
+                                $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                                curl_close($ch);
 
-                                        $url = 'https://qrs.nalju.com/payment-success';
-                                        $postData = [
-                                            'kasir_id' => (string) $kasirId,
-                                            'qr_string' => $qrString,
-                                            'status' => true
-                                        ];
-
-                                        $ch = curl_init($url);
-                                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                                        curl_setopt($ch, CURLOPT_POST, true);
-                                        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($postData));
-                                        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-                                        curl_setopt($ch, CURLOPT_TIMEOUT, 3); // Don't hang PHP
-
-                                        $response = curl_exec($ch);
-                                        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                                        curl_close($ch);
-
-                                        // Log success/fail of this push
-                                        if ($httpCode !== 200) {
-                                            \Log::write("Err: QRS Push $httpCode kasir=$kasirId", 'webhook', 'Tokopay');
-                                        }
-                                    }
-                                } catch (\Exception $ex) {
-                                    \Log::write("Err: QRS Exc " . $ex->getMessage(), 'webhook', 'Tokopay');
+                                // Log success/fail of this push
+                                if ($httpCode !== 200) {
+                                    \Log::write("Err: QRS Push $httpCode kasir=$kasirId", 'webhook', 'Tokopay');
                                 }
                             }
-                            // Success - no log
+                        } catch (\Exception $ex) {
+                            \Log::write("Err: QRS Exc " . $ex->getMessage(), 'webhook', 'Tokopay');
                         }
-                    } catch (\Exception $e) {
-                        \Log::write("Exc: Upd " . $e->getMessage(), 'webhook', 'Tokopay');
                     }
-                } else {
-                    \Log::write("Err: Trg !kas_laundry", 'webhook', 'Tokopay');
+                    // Success - no log
+                } catch (\Exception $e) {
+                    \Log::write("Exc: Upd " . $e->getMessage(), 'webhook', 'Tokopay');
                 }
             } else {
-                \Log::write("Err: Trg Not Fnd", 'webhook', 'Tokopay');
+                \Log::write("Err: Kas Not Fnd or Status not Success", 'webhook', 'Tokopay');
             }
         } else {
             \Log::write("Err: Sts $status", 'webhook', 'Tokopay');

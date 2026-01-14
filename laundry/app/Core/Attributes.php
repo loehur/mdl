@@ -216,19 +216,23 @@ trait Attributes
       if ($kas && $kas['status_mutasi'] == 3) {
          echo json_encode(['status' => 'paid']);
          exit();
-      } else {
-         $cek_qr_string = $this->db(100)->get_where_row('wh_' . $gateway, "ref_id = '" . $ref_finance . "'");
-         if ($cek_qr_string && $cek_qr_string['qr_string']) {
+      } else if ($kas) {
+         // Check QR from kas table directly (no longer using wh_tokopay)
+         $payment_qr_string = isset($kas['payment_qr_string']) ? $kas['payment_qr_string'] : '';
+         $payment_created_at = isset($kas['payment_created_at']) ? $kas['payment_created_at'] : '';
+         $payment_state = isset($kas['payment_state']) ? $kas['payment_state'] : '';
+         
+         if (!empty($payment_qr_string)) {
             // Check if QR is older than 5 minutes
-            $created_at = isset($cek_qr_string['created_at']) ? strtotime($cek_qr_string['created_at']) : 0;
+            $created_at = !empty($payment_created_at) ? strtotime($payment_created_at) : 0;
             $now = time();
             $diff_minutes = ($now - $created_at) / 60;
             
             if ($diff_minutes < 5) {
                // QR masih fresh, return existing
                echo json_encode([
-                  'status' => $cek_qr_string['state'],
-                  'qr_string' => $cek_qr_string['qr_string'],
+                  'status' => $payment_state ?: 'pending',
+                  'qr_string' => $payment_qr_string,
                   'trx_id' => $ref_finance
                ]);
                exit();
@@ -255,7 +259,7 @@ trait Attributes
          exit();
       }
 
-       $ref_id = $ref_finance;
+      $ref_id = $ref_finance;
 
       if ($gateway == 'tokopay') {
          // Generate unique order_id untuk Tokopay (ref_finance + timestamp)
@@ -281,46 +285,28 @@ trait Attributes
                exit();
             }
 
-            $error_update = 0;
-            $up_kas = $this->db(0)->update('kas', ['payment_gateway' => $gateway], "ref_finance = '$ref_finance'");
+            // Update kas dengan payment info (langsung ke tabel kas, tidak ke wh_tokopay)
+            $payment_data = [
+               'payment_gateway' => $gateway,
+               'payment_trx_id' => $trx_id,
+               'payment_qr_string' => $qr_string,
+               'payment_state' => 'pending',
+               'payment_created_at' => date('Y-m-d H:i:s')
+            ];
+            
+            $up_kas = $this->db(0)->update('kas', $payment_data, "ref_finance = '$ref_finance'");
             if ($up_kas['errno'] <> 0) {
-               $error_update++;
-               $this->model('Log')->write('[payment_gateway_order] Update Payment Gateway Error ' . $i . ': ' . $up_kas['error']);
-            }
-         
-
-            if($error_update > 0) {
-               exit();
-            }
-
-            $in = $this->db(100)->insertReplace('wh_tokopay', [
-               'trx_id' => $trx_id,
-               'target' => 'kas_laundry',
-               'ref_id' => $ref_finance,
-               'book' => date('Y'),
-               'qr_string' => $qr_string,
-               'state' => 'pending',
-               'created_at' => date('Y-m-d H:i:s')
-            ]);
-
-            if ($in['errno'] <> 0) {
-               if (!$is_public) $this->model('Log')->write("[payment_gateway_order] Insert WH Error: " . $in['error']);
-               echo json_encode(['status' => 'error', 'msg' => 'Failed to insert to tracking table']);
+               $this->model('Log')->write('[payment_gateway_order] Update Payment Info Error: ' . $up_kas['error']);
+               echo json_encode(['status' => 'error', 'msg' => 'Failed to update payment info']);
                exit();
             }
 
             if (isset($data['data']['status']) && (strtolower($data['data']['status']) == 'success' || strtolower($data['data']['status']) == 'paid')) {
-               $error_update = 0;
-             
-               $update = $this->db(0)->update('kas', ['status_mutasi' => 3], "ref_finance = '$ref_finance'");
+               $update = $this->db(0)->update('kas', ['status_mutasi' => 3, 'payment_state' => 'paid'], "ref_finance = '$ref_finance'");
                if ($update['errno'] <> 0) {
-                  $error_update++;
-                  if (!$is_public) $this->model('Log')->write('[payment_gateway_order] Update Kas Error ' . $i . ': ' . $update['error']);
-               }
-
-               if ($error_update > 0) {
-                   echo json_encode(['status' => 'error', 'msg' => 'DB Update Error']);
-                   exit();
+                  if (!$is_public) $this->model('Log')->write('[payment_gateway_order] Update Kas Error: ' . $update['error']);
+                  echo json_encode(['status' => 'error', 'msg' => 'DB Update Error']);
+                  exit();
                }
                
                // Ambil ref_transaksi untuk update state sales
@@ -352,18 +338,6 @@ trait Attributes
          $data = json_decode($midtransResponse, true);
 
          if (isset($data['transaction_id'])) {
-
-            $error_update = 0;
-            $up_kas = $this->db(0)->update('kas', ['payment_gateway' => $gateway], "ref_finance = '$ref_finance'");
-            if ($up_kas['errno'] <> 0) {
-               $error_update++;
-               $this->model('Log')->write('[payment_gateway_order] Update Payment Gateway Error: ' . $up_kas['error']);
-            }
-
-            if($error_update > 0) {
-               exit();
-            }
-
             $trx_id = $data['transaction_id'];
             $qr_string = isset($data['qr_string']) ? $data['qr_string'] : '';
 
@@ -373,34 +347,34 @@ trait Attributes
                exit();
             }
 
-            $insert = $this->db(0)->insertReplace('wh_midtrans', [
-               'trx_id' => $trx_id,
-               'target' => 'kas_laundry',
-               'ref_id' => $ref_finance,
-               'book' => date('Y'),
-               'qr_string' => $qr_string,
-               'state' => 'pending',
-               'created_at' => date('Y-m-d H:i:s')
-            ]);
-
-            if ($insert['errno'] == 0) {
-               echo json_encode([
-                  'status' => $data['status'] ?? 'pending',
-                  'qr_string' => $qr_string,
-                  'trx_id' => $trx_id
-               ]);
-               exit();
-            } else {
-               if (!$is_public) $this->model('Log')->write("[payment_gateway_order] Midtrans Insert WH Error: " . $insert['error']);
-               echo json_encode(['status' => 'error', 'msg' => $insert['error']]);
+            // Update kas dengan payment info (langsung ke tabel kas, tidak ke wh_midtrans)
+            $payment_data = [
+               'payment_gateway' => $gateway,
+               'payment_trx_id' => $trx_id,
+               'payment_qr_string' => $qr_string,
+               'payment_state' => 'pending',
+               'payment_created_at' => date('Y-m-d H:i:s')
+            ];
+            
+            $up_kas = $this->db(0)->update('kas', $payment_data, "ref_finance = '$ref_finance'");
+            if ($up_kas['errno'] <> 0) {
+               $this->model('Log')->write('[payment_gateway_order] Update Payment Info Error: ' . $up_kas['error']);
+               echo json_encode(['status' => 'error', 'msg' => 'Failed to update payment info']);
                exit();
             }
+
+            echo json_encode([
+               'status' => $data['status'] ?? 'pending',
+               'qr_string' => $qr_string,
+               'trx_id' => $trx_id
+            ]);
+            exit();
          } else {
             if (!$is_public) $this->model('Log')->write("[payment_gateway_order] Midtrans API Failed: " . $midtransResponse);
             echo $midtransResponse;
             exit();
          }
-      }else{
+      } else {
          if (!$is_public) $this->model('Log')->write("[payment_gateway_order] Payment Gateway not found");
          echo json_encode(['status' => 'error', 'msg' => 'Payment Gateway not found']);
          exit();

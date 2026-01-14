@@ -354,8 +354,7 @@ class I extends Controller
          exit();
       }
 
-      // Delete from wh_tokopay (ignore if table doesn't exist) - FIX: use db(0)
-      try { $this->db(100)->delete('wh_tokopay', "ref_id = '$ref_finance'"); } catch (Exception $e) {}
+      // Note: wh_tokopay not used anymore - payment info is now in kas table
       
       // Delete from wh_midtrans (ignore if table doesn't exist) - FIX: use db(0)
       try { $this->db(100)->delete('wh_midtrans', "ref_id = '$ref_finance'"); } catch (Exception $e) {}
