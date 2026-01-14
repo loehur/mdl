@@ -27,6 +27,13 @@ class Chat extends Controller
                          SET status = 'closed' WHERE status = 'open' 
                          AND last_in_at < (NOW() - INTERVAL 23 HOUR)";
             $db->query($sqlClose);
+            
+            // Auto-delete old messages (older than 30 days)
+            $sqlDeleteIn = "DELETE FROM wa_messages_in WHERE created_at < (NOW() - INTERVAL 30 DAY)";
+            $db->query($sqlDeleteIn);
+            
+            $sqlDeleteOut = "DELETE FROM wa_messages_out WHERE created_at < (NOW() - INTERVAL 30 DAY)";
+            $db->query($sqlDeleteOut);
 
             // Fetch conversations
             // status can be 'open', 'closed', etc.
