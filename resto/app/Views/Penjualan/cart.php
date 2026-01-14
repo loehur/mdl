@@ -41,9 +41,15 @@
     $dibayar += $b['jumlah'] ?>
     <tr>
       <td class="text-end">
-        <span class="text-danger me-2" style="cursor: pointer;" onclick="hapusBayar(<?= $b['id'] ?>)" title="Hapus pembayaran">
-          <i class="fas fa-times-circle"></i>
-        </span>
+        <?php if ($b['status_mutasi'] == 1) { ?>
+          <span class="text-success me-2" title="Pembayaran berhasil">
+            <i class="fas fa-check-circle"></i>
+          </span>
+        <?php } else { ?>
+          <span class="text-danger me-2" style="cursor: pointer;" onclick="hapusBayar(<?= $b['id'] ?>)" title="Hapus pembayaran">
+            <i class="fas fa-times-circle"></i>
+          </span>
+        <?php } ?>
         <?= URL::METOD_BAYAR[$b['metode_mutasi']] ?>
       </td>
       <td class="text-end">-<?= number_format($b['jumlah'])  ?></td>
