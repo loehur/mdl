@@ -46,11 +46,15 @@ class Tokopay extends Controller
         // Process Transaction
         $status = isset($data['status']) ? $data['status'] : '';
 
-        // Handle Salon Subscription based on prefix
+        // Handle based on prefix
         $parts = explode('_', $reff_id);
         if ($parts[0] === 'SALONSUB') {
              $this->handleSalonSubscription($reff_id, $status);
              echo json_encode(['status' => true, 'message' => 'Processed SALONSUB']);
+             return;
+        } else if ($parts[0] === 'RESTOKAS') {
+             $this->handleRestoKas($reff_id, $status);
+             echo json_encode(['status' => true, 'message' => 'Processed RESTOKAS']);
              return;
         } else {
              $this->handleKasLaundry($reff_id, $status);
@@ -251,5 +255,92 @@ class Tokopay extends Controller
 
         // Webhook processed (no log)
         echo json_encode(['status' => true, 'message' => 'Success']);
+    }
+
+    /**
+     * Handle Resto Kas QRIS Payment
+     * payment_trx_id format: RESTOKAS_timestamp
+     */
+    private function handleRestoKas($reff_id, $status)
+    {
+        $db_index = 2; // mdl_resto - adjust as needed
+        $db = $this->db($db_index);
+
+        if (!$db) {
+            \Log::write("Err: DB Resto Not Found", 'webhook', 'Tokopay');
+            return;
+        }
+
+        // Normalize status
+        $statusLower = strtolower($status);
+        $isPaid = ($statusLower === 'success' || $statusLower === 'paid' || $statusLower === 'settlement');
+
+        if (!$isPaid) {
+            \Log::write("RESTOKAS: Status not paid ($status) - $reff_id", 'webhook', 'Tokopay');
+            return;
+        }
+
+        // Find kas record by payment_trx_id
+        $kas = $db->get_where_row('kas', "payment_trx_id = '" . $reff_id . "'");
+
+        if (!$kas) {
+            \Log::write("RESTOKAS: Kas not found - $reff_id", 'webhook', 'Tokopay');
+            return;
+        }
+
+        // Already paid?
+        if ($kas['status_mutasi'] == 1 && $kas['payment_state'] == 'paid') {
+            \Log::write("RESTOKAS: Already paid - $reff_id", 'webhook', 'Tokopay');
+            return;
+        }
+
+        // Update kas: status_mutasi = 1 (verified), payment_state = 'paid'
+        $update = $db->update('kas', "status_mutasi = 1, payment_state = 'paid'", "id = " . $kas['id']);
+
+        if ($update['errno'] != 0) {
+            \Log::write("RESTOKAS: Update failed - " . $update['error'], 'webhook', 'Tokopay');
+            return;
+        }
+
+        \Log::write("RESTOKAS: Paid OK - $reff_id, Ref: " . $kas['ref'], 'webhook', 'Tokopay');
+
+        // Update step of the order (ref)
+        $ref = $kas['ref'];
+        
+        // Calculate totals
+        $order = $db->get_where('pesanan', "ref = '" . $ref . "'");
+        $total_tagihan = 0;
+        foreach ($order as $o) {
+            $subTotal = ($o['harga'] * $o['qty']) - ($o['diskon'] ?? 0);
+            $total_tagihan += $subTotal;
+        }
+
+        $payments = $db->get_where('kas', "status_mutasi <> 2 AND jenis_transaksi = 1 AND ref = '" . $ref . "'");
+        $total_dibayar = 0;
+        $total_verified = 0;
+        $has_pending = false;
+        
+        foreach ($payments as $p) {
+            $total_dibayar += $p['jumlah'];
+            if ($p['status_mutasi'] == 1) {
+                $total_verified += $p['jumlah'];
+            } else {
+                $has_pending = true;
+            }
+        }
+
+        // Determine step
+        if ($total_dibayar >= $total_tagihan) {
+            if ($total_verified >= $total_tagihan && !$has_pending) {
+                // All verified, close order
+                $db->update('ref', "step = 1", "id = '" . $ref . "'");
+                \Log::write("RESTOKAS: Order closed - $ref", 'webhook', 'Tokopay');
+            } else {
+                // Has pending, needs manual check
+                $db->update('ref', "step = 4", "id = '" . $ref . "'");
+                \Log::write("RESTOKAS: Order pending check - $ref", 'webhook', 'Tokopay');
+            }
+        }
+        // If not fully paid, step remains 0 (order open)
     }
 }

@@ -11,63 +11,88 @@ foreach ($data['bayar'] as $b) {
 ?>
 
 <div x-data="data">
-  <div class="w-100 mt-2">
-    <div class="text-center">Total</div>
-    <div class="text-center fs-5 fw-bold"><?= number_format($total) ?></div>
-  </div>
-  <div class="w-100 mt-3">
-    <div class="d-flex justify-content-center">
-      <div class="px-1"><span x-on:click="total_bayar = <?= $total ?>" onclick="cash()" class="btn btn-outline-primary">Pas</span></div>
-      <div class="px-1"><span x-on:click="total_bayar = 20000" onclick="cash()" class="pilihBayar btn btn-outline-primary">20.000</span></div>
-      <div class="px-1"><span x-on:click="total_bayar = 50000" onclick="cash()" class="pilihBayar btn btn-outline-primary">50.000</span></div>
-      <div class="px-1"><span x-on:click="total_bayar = 100000" onclick="cash()" class="pilihBayar btn btn-outline-primary">100.000</span></div>
+  <!-- Normal Payment View -->
+  <div x-show="!showQris">
+    <div class="w-100 mt-2">
+      <div class="text-center">Total</div>
+      <div class="text-center fs-5 fw-bold"><?= number_format($total) ?></div>
     </div>
-  </div>
-  <div class="w-100 mt-3">
-    <div class="text-center">Input Jumlah Bayar</div>
-    <div class="text-center"><input x-model.number="total_bayar" class="border-top-0 border-start-0 border-end-0 border-bottom fs-2 text-success w-100 text-center" type="number"></div>
-  </div>
-  <div class="w-100 mt-3">
-    <div class="text-center">Dibayar</div>
-    <div class="text-center fs-5 fw-bold" x-text="number_format(total_bayar)"></div>
-  </div>
-  <div class="w-100 mt-3">
-    <div class="d-flex justify-content-center">
-      <div class="px-3 border-end">
-        <div class="text-end">Kembalian</div>
-        <div class="text-end fs-5 fw-bold text-danger" x-text="total_bayar - bill > 0 ? number_format(total_bayar - bill) : 0"></div>
+    <div class="w-100 mt-3">
+      <div class="d-flex justify-content-center">
+        <div class="px-1"><span x-on:click="total_bayar = <?= $total ?>" onclick="cash()" class="btn btn-outline-primary">Pas</span></div>
+        <div class="px-1"><span x-on:click="total_bayar = 20000" onclick="cash()" class="pilihBayar btn btn-outline-primary">20.000</span></div>
+        <div class="px-1"><span x-on:click="total_bayar = 50000" onclick="cash()" class="pilihBayar btn btn-outline-primary">50.000</span></div>
+        <div class="px-1"><span x-on:click="total_bayar = 100000" onclick="cash()" class="pilihBayar btn btn-outline-primary">100.000</span></div>
       </div>
-      <div class="px-3">
-        <div class="text-center">Metode Bayar</div>
-        <?php foreach (URL::METOD_BAYAR as $key => $value) { ?>
-          <div class="form-check">
-            <input class="form-check-input" type="radio" value="<?= $key ?>" x-model="metodePilih" x-on:change="metodeBayar" name="metode" id="option<?= $key ?>">
-            <label class="form-check-label" for="option<?= $key ?>">
-              <?= strtoupper($value) ?>
-            </label>
-          </div>
-        <?php } ?>
+    </div>
+    <div class="w-100 mt-3">
+      <div class="text-center">Input Jumlah Bayar</div>
+      <div class="text-center"><input x-model.number="total_bayar" class="border-top-0 border-start-0 border-end-0 border-bottom fs-2 text-success w-100 text-center" type="number"></div>
+    </div>
+    <div class="w-100 mt-3">
+      <div class="text-center">Dibayar</div>
+      <div class="text-center fs-5 fw-bold" x-text="number_format(total_bayar)"></div>
+    </div>
+    <div class="w-100 mt-3">
+      <div class="d-flex justify-content-center">
+        <div class="px-3 border-end">
+          <div class="text-end">Kembalian</div>
+          <div class="text-end fs-5 fw-bold text-danger" x-text="total_bayar - bill > 0 ? number_format(total_bayar - bill) : 0"></div>
+        </div>
+        <div class="px-3">
+          <div class="text-center">Metode Bayar</div>
+          <?php foreach (URL::METOD_BAYAR as $key => $value) { ?>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" value="<?= $key ?>" x-model="metodePilih" x-on:change="metodeBayar" name="metode" id="option<?= $key ?>">
+              <label class="form-check-label" for="option<?= $key ?>">
+                <?= strtoupper($value) ?>
+              </label>
+            </div>
+          <?php } ?>
+        </div>
+      </div>
+    </div>
+
+    <div class="w-100 mt-3">
+      <div class="text-center">Catatan</div>
+      <div class="text-center"><input name="catatan" x-bind:class="metodePilih == 1 ? '' : 'border-danger'" x-bind:required="metodePilih == 1 ? 0 : metodePilih" class="border-top-0 border-start-0 border-end-0 border-bottom fs-2 text-danger w-100 text-center" type="text"></div>
+    </div>
+
+    <div class="w-100 mt-4">
+      <div class="text-center fs-5 fw-bold">
+        <span class="btn btn-success w-100 bg-gradient rounded-0" 
+              x-bind:class="isProcessing ? 'disabled opacity-50' : ''" 
+              x-bind:style="isProcessing ? 'pointer-events: none' : ''"
+              x-on:click="bayarOK()" 
+              x-text="isProcessing ? 'Memproses...' : 'Bayar'"></span>
       </div>
     </div>
   </div>
 
-  <div class="w-100 mt-3">
-    <div class="text-center">Catatan</div>
-    <div class="text-center"><input name="catatan" x-bind:class="metodePilih == 1 ? '' : 'border-danger'" x-bind:required="metodePilih == 1 ? 0 : metodePilih" class="border-top-0 border-start-0 border-end-0 border-bottom fs-2 text-danger w-100 text-center" type="text"></div>
-  </div>
-
-  <div class="w-100 mt-4">
-    <div class="text-center fs-5 fw-bold">
-      <span class="btn btn-success w-100 bg-gradient rounded-0" 
-            x-bind:class="isProcessing ? 'disabled opacity-50' : ''" 
-            x-bind:style="isProcessing ? 'pointer-events: none' : ''"
-            x-on:click="bayarOK()" 
-            x-text="isProcessing ? 'Memproses...' : 'Bayar'"></span>
+  <!-- QRIS Payment View -->
+  <div x-show="showQris" class="text-center">
+    <div class="mb-3">
+      <h5>Scan QR untuk Pembayaran</h5>
+      <div class="text-muted">Total: <strong x-text="number_format(qrisNominal || total_bayar)"></strong></div>
+    </div>
+    
+    <div class="d-flex justify-content-center my-3">
+      <div id="qrcode" style="padding: 10px; background: white; display: inline-block;"></div>
+    </div>
+    
+    <div class="my-3">
+      <div class="spinner-border spinner-border-sm text-primary me-2" role="status" x-show="qrisStatus == 'pending' || qrisStatus == 'generating'"></div>
+      <span x-text="qrisMessage" x-bind:class="qrisStatus == 'paid' ? 'text-success fw-bold' : (qrisStatus == 'expired' ? 'text-danger' : 'text-warning')"></span>
+    </div>
+    
+    <div class="mt-3 text-muted small" x-show="qrisStatus == 'pending'">
+      <i class="fas fa-info-circle"></i> Pembayaran QRIS wajib diselesaikan. Halaman akan otomatis update setelah pembayaran berhasil.
     </div>
   </div>
 </div>
 
 <script src="<?= URL::ASSETS_URL ?>js/alpine.min.js" defer></script>
+<script src="<?= URL::ASSETS_URL ?>js/qrcode.js"></script>
 
 <script>
   function cash() {
@@ -81,6 +106,39 @@ foreach ($data['bayar'] as $b) {
       total_bayar: parseInt(<?= $total ?>),
       kembalian: 0,
       isProcessing: false,
+      showQris: false,
+      qrString: '',
+      qrisStatus: 'pending',
+      qrisMessage: 'Menunggu pembayaran...',
+      qrisInterval: null,
+      trxId: '',
+      refBayar: '',
+      qrisNominal: 0,
+
+      init() {
+        <?php if (isset($data['qris_pending'])) : ?>
+          this.qrString = '<?= $data['qris_pending']['qr_string'] ?>';
+          this.trxId = '<?= $data['qris_pending']['trx_id'] ?>';
+          this.refBayar = '<?= $data['qris_pending']['ref_bayar'] ?>';
+          this.qrisNominal = <?= $data['qris_pending']['nominal'] ?>;
+          this.showQris = true;
+          this.qrisStatus = 'pending';
+          this.qrisMessage = 'Melanjutkan pembayaran...';
+          
+          setTimeout(() => {
+            $('#qrcode').empty();
+            new QRCode(document.getElementById("qrcode"), {
+                 text: this.qrString,
+                 width: 200,
+                 height: 200,
+                 colorDark: "#000000",
+                 colorLight: "#ffffff",
+                 correctLevel: QRCode.CorrectLevel.M
+            });
+            this.startPolling();
+          }, 300);
+        <?php endif; ?>
+      },
 
       metodeBayar() {
         // Tidak lagi auto-reset ke total agar partial payment tetap bisa dilakukan
@@ -110,6 +168,8 @@ foreach ($data['bayar'] as $b) {
 
         console.log('DEBUG dibayar:', this.total_bayar, 'metode:', metode);
 
+        // Untuk QRIS (metode = 2), panggil bayar() dulu untuk insert kas record
+        // lalu panggil generate_qris() dengan ref_bayar yang didapat
         $.ajax({
           url: "<?= URL::BASE_URL ?>Penjualan/bayar",
           data: {
@@ -120,6 +180,18 @@ foreach ($data['bayar'] as $b) {
           type: "POST",
           context: this,
           success: function(res) {
+            console.log('Bayar Response:', res);
+            
+            // Cek apakah response adalah JSON (untuk QRIS)
+            if (typeof res === 'object' && res.status === 'qris_pending') {
+              // QRIS: lanjut generate QR dengan ref_bayar
+              this.refBayar = res.ref_bayar;
+              this.qrisNominal = res.nominal;
+              this.generateQris(res.ref_bayar, res.ref, res.nominal);
+              return;
+            }
+            
+            // Non-QRIS response
             if (res == 0) {
               $('.offcanvas.show').each(function() {
                 $(this).offcanvas('hide');
@@ -144,6 +216,165 @@ foreach ($data['bayar'] as $b) {
           }
         });
       },
+
+      generateQris(ref_bayar, ref, nominal) {
+        this.qrisStatus = 'generating';
+        this.qrisMessage = 'Membuat QR Code...';
+
+        $.ajax({
+          url: "<?= URL::BASE_URL ?>Penjualan/generate_qris",
+          data: {
+            ref_bayar: ref_bayar,
+            ref: ref,
+            nominal: nominal
+          },
+          type: "POST",
+          context: this,
+          success: function(res) {
+            console.log('QRIS Response:', res);
+            if (res.status == 'success') {
+              this.qrString = res.qr_string;
+              this.trxId = res.trx_id;
+              this.showQris = true;
+              this.qrisStatus = 'pending';
+              this.qrisMessage = 'Menunggu pembayaran...';
+              
+              // Render QR Code
+              setTimeout(() => {
+                $('#qrcode').empty();
+                new QRCode(document.getElementById("qrcode"), {
+                  text: this.qrString,
+                  width: 200,
+                  height: 200,
+                  colorDark: "#000000",
+                  colorLight: "#ffffff",
+                  correctLevel: QRCode.CorrectLevel.M
+                });
+              }, 100);
+              
+              // Start polling
+              this.startPolling();
+            } else {
+              alert(res.msg || 'Gagal generate QRIS');
+              this.isProcessing = false;
+            }
+          },
+          error: function() {
+            alert('Gagal membuat QRIS. Silakan coba lagi.');
+            this.isProcessing = false;
+          }
+        });
+      },
+
+      startPolling() {
+        this.qrisInterval = setInterval(() => {
+          this.checkQrisStatus();
+        }, 3000); // Cek setiap 3 detik
+      },
+
+      checkQrisStatus() {
+        $.ajax({
+          url: "<?= URL::BASE_URL ?>Penjualan/check_qris_status",
+          data: {
+            ref: '<?= $data['ref'] ?>',
+            ref_bayar: this.refBayar
+          },
+          type: "POST",
+          context: this,
+          success: function(res) {
+            console.log('QRIS Status:', res);
+            if (res.status == 'paid') {
+              this.qrisStatus = 'paid';
+              this.qrisMessage = '✓ Pembayaran Berhasil!';
+              this.stopPolling();
+              
+              // Auto close dan refresh
+              setTimeout(() => {
+                $('.offcanvas.show').each(function() {
+                  $(this).offcanvas('hide');
+                });
+                load_pesanan(mode_dt, nomor);
+              }, 1500);
+            } else if (res.status == 'expired') {
+              // QR expired - auto regenerate
+              this.qrisStatus = 'generating';
+              this.qrisMessage = 'QR expired, membuat QR baru...';
+              this.stopPolling();
+              
+              // Auto regenerate setelah 1 detik
+              setTimeout(() => {
+                this.regenerateQris();
+              }, 1000);
+            } else {
+              // Still pending
+              let elapsed = res.elapsed || 0;
+              let remaining = 300 - elapsed;
+              let mins = Math.floor(remaining / 60);
+              let secs = remaining % 60;
+              this.qrisMessage = `Menunggu pembayaran... (${mins}:${secs.toString().padStart(2, '0')})`;
+            }
+          },
+          error: function() {
+            console.log('Error checking QRIS status');
+          }
+        });
+      },
+
+      regenerateQris() {
+        // Generate QR baru menggunakan ref_bayar yang sudah ada
+        $.ajax({
+          url: "<?= URL::BASE_URL ?>Penjualan/generate_qris",
+          data: {
+            ref_bayar: this.refBayar,
+            ref: '<?= $data['ref'] ?>',
+            nominal: this.qrisNominal || this.total_bayar
+          },
+          type: "POST",
+          context: this,
+          success: function(res) {
+            if (res.status == 'success') {
+              this.qrString = res.qr_string;
+              this.trxId = res.trx_id;
+              this.qrisStatus = 'pending';
+              this.qrisMessage = 'Menunggu pembayaran...';
+              
+              // Re-render QR Code
+              $('#qrcode').empty();
+              new QRCode(document.getElementById("qrcode"), {
+                text: this.qrString,
+                width: 200,
+                height: 200,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.M
+              });
+              
+              // Restart polling
+              this.startPolling();
+            } else {
+              this.qrisMessage = 'Gagal membuat QR baru. Akan dicoba lagi...';
+              setTimeout(() => {
+                this.regenerateQris();
+              }, 3000);
+            }
+          },
+          error: function() {
+            this.qrisMessage = 'Error, mencoba lagi...';
+            setTimeout(() => {
+              this.regenerateQris();
+            }, 3000);
+          }
+        });
+      },
+
+      stopPolling() {
+        if (this.qrisInterval) {
+          clearInterval(this.qrisInterval);
+          this.qrisInterval = null;
+        }
+      },
+
+      // cancelQris removed - QRIS payment must be completed
 
       number_format(number, decimals, dec_point, thousands_sep) {
         number = (number + '').replace(/[^0-9+\-Ee.]/g, '');

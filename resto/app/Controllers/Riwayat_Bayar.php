@@ -11,7 +11,7 @@ class Riwayat_Bayar extends Controller
    public function index()
    {
       $layout = ['title' => 'Riwayat Bayar'];
-      $data['bayar'] = $this->db(0)->get_cols_where('kas', "ref_bayar, SUM(jumlah) as jumlah, id_client", "ref_bayar <> '' GROUP BY ref_bayar ORDER BY ref_bayar DESC", 1);
+      $data['bayar'] = $this->db(0)->get_cols_where('kas', "ref_bayar, SUM(jumlah) as jumlah, id_client", "ref_bayar <> '' AND id_client <> 0 GROUP BY ref_bayar ORDER BY ref_bayar DESC", 1);
       $data['pelanggan'] = $this->db(0)->get("pelanggan", "id");
 
       $this->view('layout', $layout);
