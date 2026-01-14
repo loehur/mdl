@@ -85,8 +85,19 @@ foreach ($data['bayar'] as $b) {
       <span x-text="qrisMessage" x-bind:class="qrisStatus == 'paid' ? 'text-success fw-bold' : (qrisStatus == 'expired' ? 'text-danger' : 'text-warning')"></span>
     </div>
     
-    <div class="mt-3 text-muted small" x-show="qrisStatus == 'pending'">
-      <i class="fas fa-info-circle"></i> Pembayaran QRIS wajib diselesaikan. Halaman akan otomatis update setelah pembayaran berhasil.
+    <div class="mt-3" x-show="qrisStatus == 'pending'">
+      <button class="btn btn-primary w-100 mb-2" x-on:click="checkQrisStatus()">
+        <i class="fas fa-sync-alt me-1"></i> Cek Status Pembayaran
+      </button>
+      <div class="text-muted small">
+        <i class="fas fa-info-circle"></i> Klik tombol di atas jika sudah melakukan pembayaran.
+      </div>
+    </div>
+
+    <div class="mt-3" x-show="qrisStatus == 'expired'">
+      <button class="btn btn-warning w-100" x-on:click="regenerateQris()">
+        <i class="fas fa-redo me-1"></i> Generate QR Baru
+      </button>
     </div>
   </div>
 </div>
@@ -135,7 +146,7 @@ foreach ($data['bayar'] as $b) {
                  colorLight: "#ffffff",
                  correctLevel: QRCode.CorrectLevel.M
             });
-            this.startPolling();
+            this.startCountdown();
           }, 300);
         <?php endif; ?>
       },
@@ -252,8 +263,8 @@ foreach ($data['bayar'] as $b) {
                 });
               }, 100);
               
-              // Start polling
-              this.startPolling();
+              // Start Local Countdown
+              this.startCountdown();
             } else {
               alert(res.msg || 'Gagal generate QRIS');
               this.isProcessing = false;
@@ -266,13 +277,34 @@ foreach ($data['bayar'] as $b) {
         });
       },
 
-      startPolling() {
+      startCountdown() {
+        // Reset interval jika ada
+        if (this.qrisInterval) clearInterval(this.qrisInterval);
+        
+        // Waktu mulai (lokal estimasi)
+        this.startTime = Date.now();
+        this.duration = 300; // 5 menit
+
+        // Update tampilan setiap detik secara visual saja
         this.qrisInterval = setInterval(() => {
-          this.checkQrisStatus();
-        }, 3000); // Cek setiap 3 detik
+          let elapsed = Math.floor((Date.now() - this.startTime) / 1000);
+          let remaining = this.duration - elapsed;
+
+          if (remaining <= 0) {
+            this.qrisStatus = 'expired';
+            this.qrisMessage = 'QR Code Expired';
+            clearInterval(this.qrisInterval);
+          } else {
+            let mins = Math.floor(remaining / 60);
+            let secs = remaining % 60;
+            this.qrisMessage = `Menunggu pembayaran... (${mins}:${secs.toString().padStart(2, '0')})`;
+          }
+        }, 1000);
       },
 
       checkQrisStatus() {
+        this.qrisMessage = 'Mengecek status...';
+        
         $.ajax({
           url: "<?= URL::BASE_URL ?>Penjualan/check_qris_status",
           data: {
@@ -286,7 +318,7 @@ foreach ($data['bayar'] as $b) {
             if (res.status == 'paid') {
               this.qrisStatus = 'paid';
               this.qrisMessage = '✓ Pembayaran Berhasil!';
-              this.stopPolling();
+              if (this.qrisInterval) clearInterval(this.qrisInterval);
               
               // Auto close dan refresh
               setTimeout(() => {
@@ -296,26 +328,27 @@ foreach ($data['bayar'] as $b) {
                 load_pesanan(mode_dt, nomor);
               }, 1500);
             } else if (res.status == 'expired') {
-              // QR expired - auto regenerate
-              this.qrisStatus = 'generating';
-              this.qrisMessage = 'QR expired, membuat QR baru...';
-              this.stopPolling();
-              
-              // Auto regenerate setelah 1 detik
-              setTimeout(() => {
-                this.regenerateQris();
-              }, 1000);
+              this.qrisStatus = 'expired';
+              this.qrisMessage = 'QR Code Expired (Server)';
+              if (this.qrisInterval) clearInterval(this.qrisInterval);
             } else {
-              // Still pending
+              // Masih pending, update timer berdasarkan server
               let elapsed = res.elapsed || 0;
               let remaining = 300 - elapsed;
+              if (res.status == 'pending') {
+                 // Sync local timer dengan server time
+                 this.duration = 300; 
+                 this.startTime = Date.now() - (elapsed * 1000);
+              }
+              
               let mins = Math.floor(remaining / 60);
               let secs = remaining % 60;
-              this.qrisMessage = `Menunggu pembayaran... (${mins}:${secs.toString().padStart(2, '0')})`;
+              this.qrisMessage = `Belum dibayar... (${mins}:${secs.toString().padStart(2, '0')})`;
             }
           },
           error: function() {
             console.log('Error checking QRIS status');
+            this.qrisMessage = 'Gagal cek status';
           }
         });
       },
@@ -349,29 +382,16 @@ foreach ($data['bayar'] as $b) {
                 correctLevel: QRCode.CorrectLevel.M
               });
               
-              // Restart polling
-              this.startPolling();
+              // Restart Countdown
+              this.startCountdown();
             } else {
-              this.qrisMessage = 'Gagal membuat QR baru. Akan dicoba lagi...';
-              setTimeout(() => {
-                this.regenerateQris();
-              }, 3000);
+              this.qrisMessage = 'Gagal membuat QR baru';
             }
           },
           error: function() {
-            this.qrisMessage = 'Error, mencoba lagi...';
-            setTimeout(() => {
-              this.regenerateQris();
-            }, 3000);
+            this.qrisMessage = 'Error generate QR';
           }
         });
-      },
-
-      stopPolling() {
-        if (this.qrisInterval) {
-          clearInterval(this.qrisInterval);
-          this.qrisInterval = null;
-        }
       },
 
       // cancelQris removed - QRIS payment must be completed
