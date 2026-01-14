@@ -13,19 +13,28 @@ class Riwayat extends Controller
       $layout = ['title' => 'Riwayat Pesanan'];
       $data['ref'] = $this->db(0)->get_where('ref', "step <> 0 ORDER BY id DESC LIMIT 50", 'id');
 
-      $order = [];
       $total = [];
-      foreach ($data['ref'] as $key => $r) {
-         $order[$key] = $this->db(0)->get_where('pesanan', "ref = '" . $key . "'");
-         $total[$key] = 0;
-         foreach ($order[$key] as $dk) {
-            $subTotal = ($dk['harga'] * $dk['qty']) - $dk['diskon'];
-            $total[$key] += $subTotal;
+      
+      if (!empty($data['ref'])) {
+         $ids = implode(',', array_keys($data['ref']));
+         
+         // Query optimasi: Hitung total langsung di database
+         $q_total = $this->db(0)->run("
+            SELECT ref, SUM((harga * qty) - diskon) as total_belanja 
+            FROM pesanan 
+            WHERE ref IN ($ids) 
+            GROUP BY ref
+         ");
+
+         foreach ($q_total as $t) {
+            $total[$t['ref']] = $t['total_belanja'];
          }
       }
 
-      $data['order'] = $order;
       $data['total'] = $total;
+      // $order tidak perlu diload semua di sini jika hanya butuh total di list
+      // Detail order bisa diload via AJAX/klik (cart function)
+      $data['order'] = [];
 
       $this->view('layout', $layout);
       $this->view(__CLASS__ . "/main", $data);

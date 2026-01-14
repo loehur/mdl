@@ -272,6 +272,24 @@ class DB extends DBC
         }
     }
 
+    public function last_id()
+    {
+        return $this->mysqli->insert_id;
+    }
+
+    public function run($query)
+    {
+        $reply = [];
+        $result = $this->mysqli->query($query);
+
+        if ($result && $result instanceof mysqli_result) {
+            while ($row = $result->fetch_assoc())
+                $reply[] = $row;
+        }
+
+        return $reply;
+    }
+
     public function query($query)
     {
         $query = $this->mysqli->query($query);
