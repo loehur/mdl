@@ -747,7 +747,7 @@ class Antrian extends Controller
          $hpVariations[] = "'0" . $hpClean . "'";
          $hpVariations[] = "'" . $hpClean . "'";
       }
-      
+
       $whereUser = "no_user IN (" . implode(', ', $hpVariations) . ")";
       $userExists = $this->db(0)->count_where('user', $whereUser);
       

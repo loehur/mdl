@@ -97,6 +97,15 @@ class WhatsApp extends Controller
         
         $phone = $body['phone'];
         $messageMode = strtolower($body['message_mode']);
+        
+        // Override: nomor-nomor tertentu WAJIB pakai mode 'free'
+        $forbidWATemplateHp = ['8117686252','81170706611','85117517625','82286901860'];
+        foreach ($forbidWATemplateHp as $fhp) {
+            if (strpos($phone, $fhp) !== false) {
+                $messageMode = 'free';
+                break;
+            }
+        }
 
         $lastMessageAt = null;
         
