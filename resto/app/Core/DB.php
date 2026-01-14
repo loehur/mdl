@@ -24,7 +24,7 @@ class DB extends DBC
         return self::$_instance[$db];
     }
 
-    public function get($table, $index, $group)
+    public function get($table, $index = "", $group = 0)
     {
         $reply = [];
         $query = "SELECT * FROM $table";
@@ -48,7 +48,7 @@ class DB extends DBC
         return $reply;
     }
 
-    public function get_where($table, $where, $index, $group)
+    public function get_where($table, $where, $index = "", $group = 0)
     {
         $reply = [];
         $query = "SELECT * FROM $table WHERE $where";
