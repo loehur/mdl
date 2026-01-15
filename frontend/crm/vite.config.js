@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [vue()],
   base: './',
   build: {
-    outDir: '../../public/cms',
+    outDir: '../../public/crm',
     emptyOutDir: true,
   }
 })
