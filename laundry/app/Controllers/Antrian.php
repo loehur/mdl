@@ -755,7 +755,7 @@ class Antrian extends Controller
       $where = $this->wCabang . " AND " . $setOne;
       $existingNotif = $this->db(0)->count_where('notif', $where);
       
-      if ($existingNotif === 0) {
+      if ($existingNotif > 0) {
          // Notification already sent, skip sending again
          $this->model('Log')->write("[sendNotif] WARNING: Notif already exists, skipped sending - Ref: " . $noref . " | HP: " . $hp);
          echo json_encode(['status' => 'exists', 'message' => 'Notifikasi sudah pernah dikirim']);
