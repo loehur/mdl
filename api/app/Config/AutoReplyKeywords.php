@@ -50,20 +50,18 @@ return [
         'patterns' => [
             '/^\s*(je*m*pu*t|anta*r)\s*$/i',
         ],
-        'ai_prompt' => "User MEMINTA KURIR/LAUNDRY untuk datang JEMPUT atau ANTAR, ATAU menanyakan ONGKIR/TIPE PENGIRIMAN.\n
-        Contoh yang ADALAH MINTA_JEMPUT_ANTAR (TRUE):\n
-        | tolong jemput | minta dijemput | bisa diantar? | kapan diantar? | jam berapa diantarnya? |\n
-        | bisa jemput kak? | nanti bisa jemput kak? | jemput dong | antar ya kak | dijemput ya |\n
-        | brp ongkirnya? | berapa ongkosnya? | brp ong nya kak? | ongkir berapa? | biaya antar? |\n
-        | kalo instant brp kak? | instant berapa? | same day brp? | express berapa? | pake gosend brp? |\n
-        KUNCI DETEKSI:\n
-        1. Pesan DITUJUKAN ke laundry (ada 'kak/bang/pak/kk') + kata 'jemput/antar' = TRUE\n
-        2. Pertanyaan tentang ONGKIR/ONGKOS KIRIM = TRUE\n
-        3. Pertanyaan tentang TIPE PENGIRIMAN (instant/same day/express/gosend/grab) = TRUE\n
-        Contoh: 'brp ong nya kak' = TRUE, 'kalo instant brp kak' = TRUE\n\n
-        PENGECUALIAN - BUKAN MINTA_JEMPUT_ANTAR (FALSE) jika:\n
-        - Ada 'saya/aku/ku/mau' + jemput/ambil = Customer SENDIRI yang datang\n
-        - Contoh: 'Mau jemput laundry kak' / 'Saya jemput nanti' / 'Ku jemput ya' = FALSE"
+        'ai_prompt' => "User MEMINTA KURIR/LAUNDRY untuk datang JEMPUT atau ANTAR, ATAU menanyakan ONGKIR.\n
+        TRUE (MINTA JEMPUT/ANTAR):\n
+        - tolong jemput, minta dijemput, bisa diantar?, kapan diantar?\n
+        - bisa jemput kak?, nanti bisa jemput kak?, jemput dong, antar ya kak, dijemput ya\n
+        - brp ongkirnya?, berapa ongkosnya?, brp ong nya kak?, biaya antar?\n
+        \n
+        FALSE (BUKAN MINTA JEMPUT/ANTAR):\n
+        - Jika User SENDIRI yang akan melakukan tindakan (ada kata 'saya', 'aku', 'ku', 'mau', 'awak', 'awk', 'sy' + jemput/ambil/antar)\n
+        - Contoh: 'Mau jemput laundry kak' => FALSE\n
+        - Contoh: 'Saya jemput nanti' => FALSE\n
+        - Contoh: 'nanti sore awk jmpt ya' => FALSE (ini konfirmasi ambil sendiri)\n
+        - Contoh: 'awak jemput' => FALSE"
     ],
 
     'PERMINTAAN' => [
