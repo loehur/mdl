@@ -2274,6 +2274,7 @@ const fetchMessages = async (phone) => {
           : "",
         rawTime: m.time,
         status: m.status,
+        sender_code: m.sender_code,
       }));
 
       // Use Centralized Sanitizer
@@ -3616,6 +3617,7 @@ const handleIncomingMessage = (payload) => {
           hour12: false,
         }),
     rawTime: messageData.time || new Date().toISOString(), // Keep raw timestamp for date separator
+    sender_code: messageData.sender_code, // Map sender_code from WebSocket payload
   };
 
   // DEBUG: Log every incoming message attempt
