@@ -86,6 +86,77 @@ class DB extends \DBC
     // --- Query Builder Methods ---
 
     /**
+     * Builder: Where
+     */
+    public function where($key, $value = null)
+    {
+        // Handle array
+        if (is_array($key)) {
+            foreach ($key as $k => $v) {
+                $this->where($k, $v);
+            }
+            return $this;
+        }
+
+        list($column, $operator) = $this->parseWhereKey($key);
+
+        $this->qb_where[] = "$column $operator ?";
+        $this->qb_params[] = $value;
+
+        if (is_int($value)) $this->qb_types .= "i";
+        elseif (is_float($value)) $this->qb_types .= "d";
+        else $this->qb_types .= "s";
+
+        return $this;
+    }
+
+    /**
+     * Builder: Get
+     */
+    public function get($table = null, $limit = null, $offset = null)
+    {
+        if ($table) {
+            $this->qb_table = $table;
+        }
+
+        $sql = "SELECT * FROM " . $this->qb_table;
+
+        if (!empty($this->qb_where)) {
+            $sql .= " WHERE " . implode(" AND ", $this->qb_where);
+        }
+
+        if ($limit) {
+            $sql .= " LIMIT ?";
+            $this->qb_params[] = $limit;
+            $this->qb_types .= "i";
+        }
+
+        if ($offset) {
+            $sql .= " OFFSET ?";
+            $this->qb_params[] = $offset;
+            $this->qb_types .= "i";
+        }
+
+        $stmt = $this->mysqli->prepare($sql);
+        if (!$stmt) throw new \Exception("DB Error: " . $this->mysqli->error);
+
+        if (!empty($this->qb_params)) {
+             $stmt->bind_param($this->qb_types, ...$this->qb_params);
+        }
+
+        $stmt->execute();
+        $this->query_result = $stmt->get_result();
+
+        // Clear builder state but keep result
+        $this->qb_table = "";
+        $this->qb_where = [];
+        $this->qb_params = [];
+        $this->qb_types = "";
+
+        return $this;
+    }
+
+    /**
      * Get Where
      * Usage: get_where('table', ['id' => 1])
      */
