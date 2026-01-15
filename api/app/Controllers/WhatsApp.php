@@ -251,9 +251,12 @@ class WhatsApp extends Controller
             //tambahkan keamanan pastikan dikirim hanya menerima domain ip server ip 194.233.94.47
             $this->validateIpWhitelist();
 
-            // Validate template params
-            if (empty($body['template_params']) || empty($body['template_name'])) {
-                $this->error('Template params and template name are required when CSW is closed', 400);
+            // Validate template name (template_params can be empty array)
+            if (empty($body['template_name'])) {
+                $this->error('Template name is required when CSW is closed', 400);
+            }
+            if (!isset($body['template_params'])) {
+                $body['template_params'] = []; // Default to empty array
             }
 
             $templateLanguage = $body['template_language'] ?? 'id';
