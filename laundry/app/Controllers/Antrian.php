@@ -785,9 +785,8 @@ class Antrian extends Controller
          return;
       }
       
-      // TEMP: Force template for testing (uncomment below to restore user check)
-      // $template_name = ($userExists > 0) ? 'free' : URL::TEMPLATE_NOTA;
-      $template_name = URL::TEMPLATE_NOTA;
+      // Jika user internal (ada di tabel user), pakai free mode. Jika tidak, pakai template.
+      $template_name = ($userExists > 0) ? 'free' : URL::TEMPLATE_NOTA;
       $res = $this->helper('Notif')->send_wa($hp, $jsonText, $template_name);
       
       $apiData = $res['data']['data'] ?? $res['data'] ?? [];

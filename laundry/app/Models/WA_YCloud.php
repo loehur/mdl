@@ -32,14 +32,9 @@ class WA_YCloud extends DB
                 $data['message'] = $messageData['text'] ?? '';
                 $data['template_params'] = $messageData['template_params'];
             } else {
-                // DEBUG: Return error info so we can trace the issue
-                return [
-                    'status' => false,
-                    'code' => 0,
-                    'forward' => false,
-                    'error' => 'DEBUG: template_params not found. JSON decode error: ' . json_last_error_msg() . ' | Message preview: ' . substr($message, 0, 300),
-                    'data' => null
-                ];
+                // JSON tidak valid atau template_params tidak ada, tetap kirim dengan params kosong
+                $data['message'] = $messageData['text'] ?? $message;
+                $data['template_params'] = [];
             }
             // ALWAYS use template mode when template_name is specified
             $data['template_name'] = $template_name;
@@ -99,10 +94,13 @@ class WA_YCloud extends DB
             } else {
                 // Handle HTTP Error
                 $apiError = $decoded['message'] ?? ($decoded['error'] ?? '');
-                $msg = "HTTP $httpCode: " . ($apiError ? $apiError : ($error ? $error : 'Request Failed'));
                 
-                // DEBUG: Show full response for troubleshooting
-                $msg .= " | Mode: " . ($data['message_mode'] ?? 'unknown') . " | Response: " . substr(json_encode($decoded), 0, 500);
+                // Pesan error yang simple untuk user
+                if (isset($decoded['data']['csw_expired']) || strpos($apiError, 'CSW') !== false) {
+                    $msg = "Gagal kirim WA: Pelanggan belum chat dalam 24 jam terakhir.";
+                } else {
+                    $msg = "Gagal kirim WA: " . ($apiError ?: 'Koneksi bermasalah');
+                }
             }
         }
 
