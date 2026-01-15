@@ -26,7 +26,7 @@ class Log
             }
 
             // Hapus log yang sudah lebih dari 3 hari
-            $limit_date = date('Y-m-d', strtotime('-3 days'));
+            $limit_date = date('Y-m-d', strtotime('-7 days'));
             foreach (glob("logs/*", GLOB_ONLYDIR) as $old_dir) {
                 if (basename($old_dir) < $limit_date) {
                     foreach (glob("$old_dir/*") as $old_file) {
