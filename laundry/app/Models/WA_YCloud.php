@@ -36,7 +36,6 @@ class WA_YCloud extends DB
                 // Try to extract text if possible, otherwise use raw message
                 $data['message'] = $messageData['text'] ?? $message;
                 $data['template_params'] = []; // Empty params - API will handle validation
-                Log::write("[WA_YCloud] WARNING: template_params not found in JSON, using empty params. Message: " . substr($message, 0, 200));
             }
             // ALWAYS use template mode when template_name is specified
             $data['template_name'] = $template_name;
@@ -104,15 +103,7 @@ class WA_YCloud extends DB
                 }
             }
         }
-        
-        // Log errors for debugging
-        if (!$status) {
-            Log::write("[WA_YCloud] FAILED | Phone: $phone | Mode: " . ($data['message_mode'] ?? 'unknown') . " | HTTP: $httpCode | Error: $msg");
-            if ($decoded) {
-                Log::write("[WA_YCloud] Response: " . json_encode($decoded));
-            }
-        }
-        
+
         return [
             'status' => $status,
             'code' => $httpCode,
