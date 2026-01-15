@@ -85,157 +85,108 @@ class Antrian extends Controller
 
    public function loadList($antrian)
    {
-      $data_main = [];
       $viewData = 'antrian/view_content';
       switch ($antrian) {
          case 1:
-            //DALAM PROSES 7 HARI
             $where = $this->wCabang . " AND id_pelanggan <> 0 AND bin = 0 AND tuntas = 0 AND DATE(NOW()) <= (insertTime + INTERVAL 7 DAY) ORDER BY id_penjualan DESC";
             break;
          case 6:
-            //DALAM PROSES > 7 HARI
             $where = $this->wCabang . " AND id_pelanggan <> 0 AND bin = 0 AND tuntas = 0 AND DATE(NOW()) > (insertTime + INTERVAL 7 DAY) AND DATE(NOW()) <= (insertTime + INTERVAL 30 DAY) ORDER BY id_penjualan DESC";
             break;
          case 7:
-            //DALAM PROSES > 30 HARI
             $where = $this->wCabang . " AND id_pelanggan <> 0 AND bin = 0 AND tuntas = 0 AND DATE(NOW()) > (insertTime + INTERVAL 30 DAY) AND DATE(NOW()) <= (insertTime + INTERVAL 365 DAY) ORDER BY id_penjualan DESC";
             break;
          case 8:
-            //DALAM PROSES > 1 TAHUN
             $where = $this->wCabang . " AND id_pelanggan <> 0 AND bin = 0 AND tuntas = 0 AND DATE(NOW()) > (insertTime + INTERVAL 365 DAY) ORDER BY id_penjualan DESC";
             break;
          case 100:
-            //PIUTANG 7 HARI
             $where = $this->wCabang . " AND id_pelanggan <> 0 AND bin = 0 AND tuntas = 0 AND id_user_ambil <> 0 ORDER BY id_penjualan ASC";
             break;
       }
 
-      $data_main = $this->db(0)->get_cols_where('sale', 'id_penjualan', $where, 1, 'id_penjualan');
+      // OPTIMIZED: Single query, extract both keys
       $data_main2 = $this->db(0)->get_where('sale', $where, 'no_ref', 1);
+      $refs = array_keys($data_main2);
+      
+      // Extract id_penjualan from data_main2 (no duplicate query)
+      $numbers = [];
+      $visibleCustomerIds = [];
+      foreach ($data_main2 as $refBlock) {
+         foreach ($refBlock as $row) {
+            if (isset($row['id_penjualan'])) $numbers[] = $row['id_penjualan'];
+            if (isset($row['id_pelanggan'])) $visibleCustomerIds[$row['id_pelanggan']] = true;
+         }
+      }
 
-      // --- START: Fetch Open WA Conversations ---
+      // --- Fetch Open WA Conversations (optimized: only visible customers) ---
       $customersWithOpenCases = [];
       try {
-         $openWaRaw = $this->db(100)->get_where('wa_conversations', "conv_case LIKE '%\"status\":\"open\"%'");
-         $openWaMap = [];
-         if (is_array($openWaRaw)) {
-            foreach ($openWaRaw as $row) {
-               // Verify real "open" status in JSON
-               $cases = json_decode($row['conv_case'] ?? '[]', true);
-               $hasOpen = false;
-               if (is_array($cases)) {
-                   foreach ($cases as $c) {
-                       // Only show if Case 3 is Open
-                       if (isset($c['case']) && $c['case'] == 3 && isset($c['status']) && $c['status'] === 'open') {
-                           $hasOpen = true;
+         if (!empty($visibleCustomerIds)) {
+            $openWaRaw = $this->db(100)->get_where('wa_conversations', "conv_case LIKE '%\"status\":\"open\"%'");
+            $openWaMap = [];
+            if (is_array($openWaRaw)) {
+               foreach ($openWaRaw as $row) {
+                  $cases = json_decode($row['conv_case'] ?? '[]', true);
+                  if (is_array($cases)) {
+                     foreach ($cases as $c) {
+                        if (isset($c['case']) && $c['case'] == 3 && ($c['status'] ?? '') === 'open') {
+                           $cleanPhone = preg_replace('/[^0-9]/', '', $row['wa_number']);
+                           $openWaMap[$cleanPhone] = $row;
                            break;
-                       }
-                   }
-               }
-               
-               if ($hasOpen) {
-                   $phone = $row['wa_number'];
-                   // Normalize keys for easier matching (strip non-digits)
-                   $cleanPhone = preg_replace('/[^0-9]/', '', $phone);
-                   $openWaMap[$cleanPhone] = $row;
-               }
-            }
-         }
-
-         // Get visible customers in current view
-         $visibleCustomerIds = [];
-         if (!empty($data_main2)) {
-             foreach ($data_main2 as $refBlock) {
-                 foreach ($refBlock as $row) {
-                     if (isset($row['id_pelanggan'])) {
-                         $visibleCustomerIds[$row['id_pelanggan']] = true;
+                        }
                      }
-                 }
-             }
-         }
-
-         if (!empty($openWaMap) && !empty($this->pelanggan)) {
-            foreach ($this->pelanggan as $p) {
-               $rawHp = $p['nomor_pelanggan'];
-               $hp = preg_replace('/[^0-9]/', '', $rawHp);
-               
-               $found = false;
-               
-               // 1. Direct match
-               if (isset($openWaMap[$hp])) {
-                  $found = $openWaMap[$hp];
-               } 
-               // 2. Try converting 08 -> 628
-               elseif (substr($hp, 0, 2) == '08') {
-                  $hp62 = '62' . substr($hp, 1);
-                  if (isset($openWaMap[$hp62])) $found = $openWaMap[$hp62];
+                  }
                }
-               // 3. Try converting 628 -> 08
-               elseif (substr($hp, 0, 3) == '628') {
-                  $hp0 = '0' . substr($hp, 2);
-                  if (isset($openWaMap[$hp0])) $found = $openWaMap[$hp0];
-               }
+            }
 
-               if ($found) {
-                  $customersWithOpenCases[] = [
-                     'pelanggan' => $p,
-                     'wa' => $found
-                  ];
+            // OPTIMIZED: Only loop visible customers, not all pelanggan
+            if (!empty($openWaMap)) {
+               foreach ($visibleCustomerIds as $id_pelanggan => $v) {
+                  $p = $this->pelanggan[$id_pelanggan] ?? null;
+                  if (!$p) continue;
+                  
+                  $hp = preg_replace('/[^0-9]/', '', $p['nomor_pelanggan'] ?? '');
+                  if (empty($hp)) continue;
+                  
+                  // Match with phone variations
+                  $found = $openWaMap[$hp] 
+                     ?? (substr($hp, 0, 2) == '08' ? ($openWaMap['62' . substr($hp, 1)] ?? null) : null)
+                     ?? (substr($hp, 0, 3) == '628' ? ($openWaMap['0' . substr($hp, 2)] ?? null) : null);
+
+                  if ($found) {
+                     $customersWithOpenCases[] = ['pelanggan' => $p, 'wa' => $found];
+                  }
                }
             }
          }
-      } catch (\Exception $e) {
-         // Silently fail if db(100) is not configured or other error
-      }
-      // --- END: Fetch Open WA Conversations ---
-
-      $numbers = array_keys($data_main);
-      $refs = array_keys($data_main2);
+      } catch (\Exception $e) {}
 
       $operasi = [];
       $kas = [];
       $surcas = [];
       $notif = [];
 
-      if (count($refs) > 0) {
-         $ref_list = "";
-         foreach ($refs as $r) {
-            $ref_list .= $r . ",";
-         }
-         $ref_list = rtrim($ref_list, ',');
-
-         $where = $this->wCabang . " AND jenis_transaksi = 1 AND ref_transaksi IN (" . $ref_list . ")";
-         $kas = $this->db(0)->get_where('kas', $where);
-
-         $where = $this->wCabang . " AND no_ref IN (" . $ref_list . ")";
-         $surcas = $this->db(0)->get_where('surcas', $where);
-
-         $where = $this->wCabang . " AND tipe = 1 AND no_ref IN (" . $ref_list . ")";
-         $notif = $this->db(0)->get_where('notif', $where);
+      // OPTIMIZED: Use implode instead of loop
+      if (!empty($refs)) {
+         $ref_list = implode(',', $refs);
+         $kas = $this->db(0)->get_where('kas', $this->wCabang . " AND jenis_transaksi = 1 AND ref_transaksi IN ($ref_list)");
+         $surcas = $this->db(0)->get_where('surcas', $this->wCabang . " AND no_ref IN ($ref_list)");
+         $notif = $this->db(0)->get_where('notif', $this->wCabang . " AND tipe = 1 AND no_ref IN ($ref_list)");
       }
 
-      if (count($numbers) > 0) {
-         $no_list = "";
-         foreach ($numbers as $r) {
-            $no_list .= "'" . $r . "',";
-         }
-         $no_list = rtrim($no_list, ',');
-
-         //OPERASI
-         $where = $this->wCabang . " AND id_penjualan IN (" . $no_list . ")";
-         $operasi = $this->db(0)->get_where('operasi', $where);
+      if (!empty($numbers)) {
+         $no_list = "'" . implode("','", $numbers) . "'";
+         $operasi = $this->db(0)->get_where('operasi', $this->wCabang . " AND id_penjualan IN ($no_list)");
       }
-
-      $karyawan = $this->userAll;
 
       $this->view($viewData, [
          'modeView' => $antrian,
          'data_main' => $data_main2,
          'operasi' => $operasi,
          'kas' => $kas,
-         "surcas" => $surcas,
+         'surcas' => $surcas,
          'data_notif' => $notif,
-         "karyawan" => $karyawan,
+         'karyawan' => $this->userAll,
          'customersWithOpenCases' => $customersWithOpenCases
       ]);
    }

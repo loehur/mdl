@@ -6,6 +6,7 @@ Env.php
 api/app/Config/Env.php
 .env
 auth
+*copy*
 laundry/app/Config/*
 resto/app/Config/*
 api/scripts/
