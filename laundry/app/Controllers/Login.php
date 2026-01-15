@@ -322,7 +322,7 @@ class Login extends Controller
    {
       // Gunakan Model yang sudah kita buat untuk sentralisasi
       // Mode 'free' agar API Server melakukan pengecekan CSW secara otomatis via Database
-      $res = $this->model('WA_YCloud')->send($phone, $message, 'free');
+      $res = $this->model('WA_YCloud')->send($phone, $message);
       
       $result = [
          'status' => $res['status'],

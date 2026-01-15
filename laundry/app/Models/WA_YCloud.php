@@ -8,7 +8,7 @@ class WA_YCloud extends DB
     private $local_api_url = 'https://api.nalju.com/WhatsApp/send';
 
     // Modifikasi: param ke-3 jadi message_mode untuk support template
-    public function send($phone, $message, $message_mode = 'free')
+    public function send($phone, $message, $template_name = 'free')
     {
         // 1. Normalisasi Nomor (Standard)
         $phone = preg_replace('/[^0-9]/', '', $phone);
@@ -25,14 +25,14 @@ class WA_YCloud extends DB
         ];
         
         // 3. Handle template mode - extract params from JSON
-        if ($message_mode === 'template') {
+        if ($template_name !== 'free') {
             $messageData = json_decode($message, true);
             if ($messageData && isset($messageData['template_params'])) {
                 // IMPORTANT: Extract the actual text from JSON
                 // This text will be used for free text sending if CSW is open
                 $data['message'] = $messageData['text'] ?? '';
                 $data['template_params'] = $messageData['template_params'];
-                $data['template_name'] = 'template_utility_20251225082933'; // Default template name
+                $data['template_name'] = $template_name; // Default template name
             } else {
                 // Fallback: treat as free text if no template_params
                 $data['message'] = $message;

@@ -786,8 +786,8 @@ class Antrian extends Controller
       }
       
       // NOW send WA (protected by the record we just inserted)
-      $useTemplate = ($userExists > 0) ? 'free' : 'template';
-      $res = $this->helper("Notif")->send_wa($hp, $jsonText, $useTemplate);
+      $template_name = ($userExists > 0) ? 'free' : URL::TEMPLATE_NOTA;
+      $res = $this->helper('Notif')->send_wa($hp, $jsonText, $template_name);
       
       $apiData = $res['data']['data'] ?? $res['data'] ?? [];
       $idApi = $apiData['id'] ?? ($apiData['message_id'] ?? '');

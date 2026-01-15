@@ -122,7 +122,7 @@ return [
         'case' => 0,
         'auto_reply' => true,
         'patterns' => [
-            '/^\s*(kas|saldo)\s*(laundry|laundri|londri|loundry|loundri)\s*$/i',
+            '/^\s*(kas|saldo)\s*(l(a|o)u*ndr(y|i)|resto)\s*$/i',
         ],
     ],
 
@@ -131,7 +131,7 @@ return [
         'case' => 0,
         'auto_reply' => true,
         'patterns' => [
-            '/^(cek|lihat|info) (token|pln) (laundry|laundri|londri|loundry|loundri|resto)$/i',
+            '/^(cek|lihat|info) (token|pln) (l(a|o)u*ndr(y|i)|resto)$/i',
         ],
     ],
 
@@ -140,7 +140,7 @@ return [
         'case' => 0,
         'auto_reply' => true,
         'patterns' => [
-            '/^(token|pln) (laundry|laundri|londri|loundry|loundri|resto) \d+$/i',
+            '/^(token|pln) (l(a|o)u*ndr(y|i)|resto) \d+$/i',
         ],
     ],
 

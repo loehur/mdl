@@ -353,14 +353,14 @@ class WAReplies
                         $list_link .= "https://ml.nalju.com/I/i/" . $id_pelanggan_active . "\n";
                     }
 
-                    $text = "Yth. *" . $nama_pelanggan . "*,\nNota/Bon sudah kami kirimkan sebelumnya. Terima kasih 😊\n" . $list_link;
+                    $text = "Pak/Bu *" . $nama_pelanggan . "*,\nNota/Bon sudah kami kirimkan sebelumnya. Terima kasih 😊\n" . $list_link;
                     $res = $waService->sendFreeText($waNumber, $text);
                     if ($res['success']) {
                         $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
                     }
                 }
             } else {
-                $text = "Yth. *" . $nama_pelanggan . "*, belum ada Nota/Bon. Terima kasih 😊";
+                $text = "Pak/Bu *" . $nama_pelanggan . "*, belum ada Nota/Bon. Terima kasih 😊";
                 $res = $waService->sendFreeText($waNumber, $text);
                 if ($res['success']) {
                     $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
@@ -445,7 +445,7 @@ class WAReplies
                 $sales = $db1->query("SELECT * FROM sale WHERE tuntas = 0 AND bin = 0 AND id_pelanggan IN ($ids_in) GROUP BY no_ref, tuntas, id_pelanggan")->result_array();
                 $noRefs = array_column($sales, 'no_ref');
                 if (empty($noRefs)) {
-                    $text = 'Yth. *' . $nama_pelanggan . '*, belum ada transaksi terbuka. Terima kasih';
+                    $text = 'Pak/Bu *' . $nama_pelanggan . '*, belum ada transaksi terbuka. Terima kasih';
                     $res = $waService->sendFreeText($waNumber, $text);
                     if ($res['success']) {
                         $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
@@ -522,13 +522,13 @@ class WAReplies
                         }
 
                         $statusText = implode("\n", $statusList);
-                        $text = "Yth. *" . $nama_pelanggan . "*,\nStatus Laundry:\n" . $statusText . "\n" . $list_link;
+                        $text = "Pak/Bu *" . $nama_pelanggan . "*,\nStatus Laundry:\n" . $statusText . "\n" . $list_link;
                         $res = $waService->sendFreeText($waNumber, $text);
                         if ($res['success']) {
                             $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
                         }
                     } else {
-                        $text = "Yth. *" . $nama_pelanggan . "*, Status Laundry sudah selesai. Terima kasih\n" . $list_link;
+                        $text = "Pak/Bu *" . $nama_pelanggan . "*, Status Laundry sudah selesai. Terima kasih\n" . $list_link;
                         $res = $waService->sendFreeText($waNumber, $text);
                         if ($res['success']) {
                             $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
