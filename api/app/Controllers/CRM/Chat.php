@@ -104,7 +104,7 @@ class Chat extends Controller
                     COALESCE(c.code, '00') as kode_cabang
                 FROM wa_conversations c
                 WHERE $whereClause
-                ORDER BY c.conv_case DESC, c.last_message_at DESC
+                ORDER BY c.last_message_at DESC
             ";
     
             $query = $db->query($sql);
