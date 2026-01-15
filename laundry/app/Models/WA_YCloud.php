@@ -21,7 +21,6 @@ class WA_YCloud extends DB
         // 2. Prepare data for API
         $data = [
             'phone' => $phone,
-            'message_mode' => $message_mode,
         ];
         
         // 3. Handle template mode - extract params from JSON
@@ -32,7 +31,8 @@ class WA_YCloud extends DB
                 // This text will be used for free text sending if CSW is open
                 $data['message'] = $messageData['text'] ?? '';
                 $data['template_params'] = $messageData['template_params'];
-                $data['template_name'] = $template_name; // Default template name
+                $data['template_name'] = $template_name;
+                $data['message_mode'] = 'template';
             } else {
                 // Fallback: treat as free text if no template_params
                 $data['message'] = $message;
@@ -41,6 +41,7 @@ class WA_YCloud extends DB
         } else {
             // Free mode - just send message
             $data['message'] = $message;
+            $data['message_mode'] = 'free';
         }
 
         $ch = curl_init($this->local_api_url);
