@@ -255,14 +255,28 @@ class Chat extends Controller
         
         $wa = new \App\Helpers\WhatsAppService();
         
-        // AUTO-SENDER-CODE: Get from session (Username based)
-        $senderCode = null;
-        if (isset($_SESSION['mdl_crm_session']['user']['username'])) {
-            $username = $_SESSION['mdl_crm_session']['user']['username'];
-            $senderCode = strtoupper(substr($username, 0, 2));
+        // Get sender_code: 1. From request body, 2. From database by user_id, 3. From session
+        $senderCode = $body['sender_code'] ?? null;
+        
+        if (!$senderCode && isset($body['user_id'])) {
+            // Lookup name from crm_users and get first 2 chars
+            $userId = $body['user_id'];
+            $userRecord = $db
+                ->where('LOWER(username)', strtolower($userId))
+                ->get('crm_users')
+                ->row();
+            
+            if ($userRecord && !empty($userRecord->name)) {
+                $senderCode = strtoupper(substr($userRecord->name, 0, 2));
+            }
+        }
+        
+        // Fallback to session
+        if (!$senderCode && isset($_SESSION['mdl_crm_session']['user']['name'])) {
+            $senderCode = strtoupper(substr($_SESSION['mdl_crm_session']['user']['name'], 0, 2));
         }
 
-        $res = $wa->sendFreeText($phone, $message, $replyTo, $senderCode); // Pass senderCode from session
+        $res = $wa->sendFreeText($phone, $message, $replyTo, $senderCode); // Pass senderCode
 
         if ($res['success']) {
             // Update quoted_message_id in wa_messages_out if reply_to provided
@@ -879,11 +893,24 @@ class Chat extends Controller
                 $waService = new \App\Helpers\WhatsAppService();
                 \Log::write("WhatsAppService instance created successfully", 'cms_debug', 'Chat');
                 
-                // AUTO-SENDER-CODE: Get from session (Username based)
-                $senderCode = null;
-                if (isset($_SESSION['mdl_crm_session']['user']['username'])) {
-                    $username = $_SESSION['mdl_crm_session']['user']['username'];
-                    $senderCode = strtoupper(substr($username, 0, 2));
+                // Get sender_code: 1. From POST body, 2. From database by user_id, 3. From session
+                $senderCode = $body['sender_code'] ?? null;
+                
+                if (!$senderCode && $userId) {
+                    // Lookup name from crm_users and get first 2 chars
+                    $userRecord = $db
+                        ->where('LOWER(username)', strtolower($userId))
+                        ->get('crm_users')
+                        ->row();
+                    
+                    if ($userRecord && !empty($userRecord->name)) {
+                        $senderCode = strtoupper(substr($userRecord->name, 0, 2));
+                    }
+                }
+                
+                // Fallback to session
+                if (!$senderCode && isset($_SESSION['mdl_crm_session']['user']['name'])) {
+                    $senderCode = strtoupper(substr($_SESSION['mdl_crm_session']['user']['name'], 0, 2));
                 }
                 
                 \Log::write("Sending image to: $waNumber, URL: $mediaUrl, SenderCode: $senderCode", 'cms_debug', 'Chat');

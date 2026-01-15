@@ -103,6 +103,8 @@ const isLoadingConversations = ref(false); // For skeleton loading
 const showExitToast = ref(false);
 const refreshInterval = ref(null); // Fix: Add missing ref
 const currentUserRole = ref("crew"); // Default to crew (safest)
+const userName = ref(""); // User's display name from crm_users
+const senderCode = ref(""); // First 2 chars of name (uppercase) for message tagging
 let lastBackPress = 0;
 
 // Reconnection State (to prevent loading screen during temporary disconnects)
@@ -1831,7 +1833,13 @@ const connect = async () => {
     // Use Role from backend
     if (data.user) {
       currentUserRole.value = data.user.role || "crew";
+      userName.value = data.user.name || "";
+      // Generate sender code: first 2 chars of name, uppercase
+      senderCode.value = (data.user.name || "").substring(0, 2).toUpperCase();
+      
       localStorage.setItem("cms_chat_role", currentUserRole.value);
+      localStorage.setItem("cms_chat_name", userName.value);
+      localStorage.setItem("cms_chat_sender_code", senderCode.value);
       localStorage.setItem("cms_chat_token", "true"); // Flag logged in
     }
 
@@ -3056,6 +3064,7 @@ const sendMessage = async () => {
           phone: activeConversation.value.wa_number, // Use wa_number
           message: text,
           user_id: authId.value, // Add sender ID
+          sender_code: senderCode.value || localStorage.getItem("cms_chat_sender_code") || "", // First 2 chars of name
           reply_to: replyingTo?.wamid || null, // Send quoted message WAMID
         }),
       });
@@ -3392,6 +3401,7 @@ const sendImage = async () => {
     formData.append("image", selectedImage.value);
     formData.append("phone", activeConversation.value.wa_number); // Use wa_number
     formData.append("user_id", authId.value);
+    formData.append("sender_code", senderCode.value || localStorage.getItem("cms_chat_sender_code") || "");
     if (caption) formData.append("caption", caption);
 
     const tempId = Date.now();
@@ -4510,12 +4520,16 @@ onMounted(() => {
   const storedId = localStorage.getItem("cms_chat_id");
   const storedExpiry = localStorage.getItem("cms_chat_expiry");
   const storedRole = localStorage.getItem("cms_chat_role");
+  const storedName = localStorage.getItem("cms_chat_name");
+  const storedSenderCode = localStorage.getItem("cms_chat_sender_code");
   const now = new Date().getTime();
 
   // Clean up old password storage (migration)
   localStorage.removeItem("cms_chat_password");
 
   if (storedRole) currentUserRole.value = storedRole;
+  if (storedName) userName.value = storedName;
+  if (storedSenderCode) senderCode.value = storedSenderCode;
 
   // Case 1: Valid session (ID + Valid Expiry)
   if (storedId && storedExpiry && now < parseInt(storedExpiry)) {
