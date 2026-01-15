@@ -31,13 +31,16 @@ class WA_YCloud extends DB
                 // This text will be used for free text sending if CSW is open
                 $data['message'] = $messageData['text'] ?? '';
                 $data['template_params'] = $messageData['template_params'];
-                $data['template_name'] = $template_name;
-                $data['message_mode'] = 'template';
             } else {
-                // Fallback: treat as free text if no template_params
-                $data['message'] = $message;
-                $data['message_mode'] = 'free';
+                // JSON parsing failed or no template_params, but still use template mode
+                // Try to extract text if possible, otherwise use raw message
+                $data['message'] = $messageData['text'] ?? $message;
+                $data['template_params'] = []; // Empty params - API will handle validation
+                error_log("[WA_YCloud] WARNING: template_params not found in JSON, using empty params. Message: " . substr($message, 0, 200));
             }
+            // ALWAYS use template mode when template_name is specified
+            $data['template_name'] = $template_name;
+            $data['message_mode'] = 'template';
         } else {
             // Free mode - just send message
             $data['message'] = $message;
