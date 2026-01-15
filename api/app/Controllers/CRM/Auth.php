@@ -35,11 +35,12 @@ class Auth extends Controller
             $this->validate($body, ['username']);
 
             $username = $body['username']; // This equals the old "ID"
-            // $password = $body['password']; // Password removed as per request
-
-            // Find user by username
+            
+            // Find user by username (Case Insensitive)
+            // Menggunakan LOWER() untuk memastikan pencarian tidak case-sensitive
             $user = $this->db($this->db_index)
-                ->get_where('crm_users', ['username' => $username], 1)
+                ->where('LOWER(username)', strtolower($username))
+                ->get('crm_users')
                 ->row_array();
 
             if (!$user) {
@@ -56,7 +57,7 @@ class Auth extends Controller
                 'id' => $user['id'],
                 'username' => $user['username'],
                 'name' => $user['name'],
-                'role' => $user['role'] ?? 'access', // admin, crew, driver
+                'role' => $user['role'] ?? 'crew', // admin, crew, driver
             ];
 
             // Set Session
