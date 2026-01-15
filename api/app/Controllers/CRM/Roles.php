@@ -37,9 +37,10 @@ class Roles extends Controller
             ];
 
             // Group users by role
+            // IMPORTANT: Convert to UPPERCASE for OneSignal External ID compatibility
             foreach ($users as $user) {
                 $role = strtolower($user['role'] ?? 'crew');
-                $username = $user['username'];
+                $username = strtoupper($user['username']); // UPPERCASE for OneSignal
 
                 if ($role === 'admin') {
                     $data['admin'][] = $username;

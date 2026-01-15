@@ -58,6 +58,7 @@ class Auth extends Controller
                 'username' => $user['username'],
                 'name' => $user['name'],
                 'role' => $user['role'] ?? 'crew', // admin, crew, driver
+                'code' => $user['code'] ?? '', // Sender code from database
             ];
 
             // Set Session

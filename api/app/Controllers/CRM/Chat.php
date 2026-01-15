@@ -261,21 +261,21 @@ class Chat extends Controller
         $senderCode = $body['sender_code'] ?? null;
         
         if (!$senderCode && isset($body['user_id'])) {
-            // Lookup name from crm_users and get first 2 chars
+            // Lookup code from crm_users directly
             $userId = $body['user_id'];
             $userRecord = $db
                 ->where('LOWER(username)', strtolower($userId))
                 ->get('crm_users')
                 ->row();
             
-            if ($userRecord && !empty($userRecord->name)) {
-                $senderCode = strtoupper(substr($userRecord->name, 0, 2));
+            if ($userRecord && !empty($userRecord->code)) {
+                $senderCode = $userRecord->code;
             }
         }
         
-        // Fallback to session
-        if (!$senderCode && isset($_SESSION['mdl_crm_session']['user']['name'])) {
-            $senderCode = strtoupper(substr($_SESSION['mdl_crm_session']['user']['name'], 0, 2));
+        // Fallback to session code
+        if (!$senderCode && isset($_SESSION['mdl_crm_session']['user']['code'])) {
+            $senderCode = $_SESSION['mdl_crm_session']['user']['code'];
         }
 
         $res = $wa->sendFreeText($phone, $message, $replyTo, $senderCode); // Pass senderCode
@@ -899,20 +899,20 @@ class Chat extends Controller
                 $senderCode = $body['sender_code'] ?? null;
                 
                 if (!$senderCode && $userId) {
-                    // Lookup name from crm_users and get first 2 chars
+                    // Lookup code from crm_users directly
                     $userRecord = $db
                         ->where('LOWER(username)', strtolower($userId))
                         ->get('crm_users')
                         ->row();
                     
-                    if ($userRecord && !empty($userRecord->name)) {
-                        $senderCode = strtoupper(substr($userRecord->name, 0, 2));
+                    if ($userRecord && !empty($userRecord->code)) {
+                        $senderCode = $userRecord->code;
                     }
                 }
                 
-                // Fallback to session
-                if (!$senderCode && isset($_SESSION['mdl_crm_session']['user']['name'])) {
-                    $senderCode = strtoupper(substr($_SESSION['mdl_crm_session']['user']['name'], 0, 2));
+                // Fallback to session code
+                if (!$senderCode && isset($_SESSION['mdl_crm_session']['user']['code'])) {
+                    $senderCode = $_SESSION['mdl_crm_session']['user']['code'];
                 }
                 
                 \Log::write("Sending image to: $waNumber, URL: $mediaUrl, SenderCode: $senderCode", 'cms_debug', 'Chat');

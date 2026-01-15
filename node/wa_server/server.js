@@ -99,7 +99,8 @@ async function sendPushNotification(options) {
 
     const payload = {
         app_id: ONESIGNAL_APP_ID,
-        include_external_user_ids: filteredUserIds,
+        // Force UPPERCASE to match OneSignal External IDs exactly
+        include_external_user_ids: filteredUserIds.map(id => id.toUpperCase()),
         headings: { en: title },
         contents: { en: message },
 
@@ -460,10 +461,11 @@ app.post('/incoming', async (req, res) => {
         const customerPhone = data.phone || '';
         const message = data.message || `📦 Pickup/Delivery from ${customerName}`;
 
-        // Find OFFLINE drivers only
+        // Find OFFLINE drivers only (case-insensitive compare)
         const connectedUserIds = Array.from(clients.keys());
+        const connectedLower = connectedUserIds.map(id => id.toLowerCase());
         const offlineDrivers = DRIVER_IDS.filter(driverId => {
-            return !connectedUserIds.includes(driverId);
+            return !connectedLower.includes(driverId.toLowerCase());
         });
 
         console.log(`[DRIVER PUSH] Connected: ${connectedUserIds.join(', ') || 'none'}`);
@@ -594,14 +596,18 @@ app.post('/incoming', async (req, res) => {
         // Collect OFFLINE users for push notification
         // Only users who are NOT connected via WebSocket should get push
         const connectedUserIds = Array.from(clients.keys()); // Currently connected users
+        const connectedLower = connectedUserIds.map(id => id.toLowerCase()); // For case-insensitive compare
+        const senderLower = senderId ? senderId.toLowerCase() : null;
+
         const allUserIds = [...ADMIN_IDS, ...DRIVER_IDS, ...CREW_IDS];
         const offlineUserIds = allUserIds.filter(userId => {
-            // Must not be connected AND must not be the sender
-            const isOffline = !connectedUserIds.includes(userId) && userId !== senderId;
+            const userIdLower = userId.toLowerCase();
+            // Must not be connected AND must not be the sender (case-insensitive)
+            const isOffline = !connectedLower.includes(userIdLower) && userIdLower !== senderLower;
             if (!isOffline) return false;
 
-            // ROLE FILTER
-            if (DRIVER_IDS.includes(userId)) {
+            // ROLE FILTER (use includesIgnoreCase for safety)
+            if (includesIgnoreCase(DRIVER_IDS, userId)) {
                 // Driver Filter: Accept if Case 2 OR Conversation has Active Case 2
                 const activeCases = data.active_cases || [];
                 const hasPickup = Array.isArray(activeCases) && (activeCases.includes(2) || activeCases.includes('2'));

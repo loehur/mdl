@@ -314,7 +314,7 @@
             btn.disabled = true;
             
             // Build absolute URL for API call
-            const apiUrl = window.location.origin + '/Reminder/update';
+            const apiUrl = window.location.origin + '/R/update';
 
             fetch(apiUrl, {
                 method: 'POST',
