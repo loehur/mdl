@@ -456,6 +456,7 @@ onMounted(() => {
 const handleClickOutside = () => {
     showChatMenu.value = false;
     showResolveMenu.value = false;
+    showEmojiPicker.value = false;
 };
 
 onUnmounted(() => {

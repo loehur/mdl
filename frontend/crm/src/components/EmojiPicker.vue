@@ -69,6 +69,7 @@ const close = () => {
 <template>
   <div 
     v-if="modelValue"
+    @click.stop
     class="absolute bottom-full left-0 mb-2 bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-2xl shadow-2xl w-80 overflow-hidden z-50"
   >
     <!-- Header with Categories -->
