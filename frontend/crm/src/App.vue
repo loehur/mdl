@@ -1555,52 +1555,7 @@ const resetTextareaHeight = () => {
 };
 
 // Emoji Picker Functions
-const toggleEmojiPicker = () => {
-  showEmojiPicker.value = !showEmojiPicker.value;
-  // Close quick replies if open
-  if (showEmojiPicker.value) {
-    showQuickReplies.value = false;
-  }
-};
 
-const selectEmoji = (emoji) => {
-  // Insert emoji at cursor position or at end
-  const textarea = messageTextarea.value;
-  if (textarea) {
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const text = messageInput.value;
-    messageInput.value = text.substring(0, start) + emoji + text.substring(end);
-
-    // Set cursor position after inserted emoji
-    nextTick(() => {
-      textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
-      textarea.focus();
-      autoResizeTextarea();
-    });
-  } else {
-    messageInput.value += emoji;
-  }
-
-  // Add to recent emojis (max 20)
-  if (!recentEmojis.value.includes(emoji)) {
-    recentEmojis.value = [emoji, ...recentEmojis.value.slice(0, 19)];
-    // Save to localStorage
-    localStorage.setItem("recent_emojis", JSON.stringify(recentEmojis.value));
-  }
-};
-
-// Load recent emojis from localStorage
-const loadRecentEmojis = () => {
-  const saved = localStorage.getItem("recent_emojis");
-  if (saved) {
-    try {
-      recentEmojis.value = JSON.parse(saved);
-    } catch (e) {
-      recentEmojis.value = [];
-    }
-  }
-};
 
 // Set message to reply to (quoted reply)
 const setReplyTo = (msg) => {
@@ -3213,8 +3168,7 @@ onMounted(() => {
   initNotificationSound();
   loadNotificationSoundSetting();
 
-  // Load recent emojis
-  loadRecentEmojis();
+
 
   const storedId = localStorage.getItem("cms_chat_id");
   const storedExpiry = localStorage.getItem("cms_chat_expiry");
