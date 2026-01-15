@@ -249,17 +249,30 @@ function logRoles() {
 // ============================================
 // Helper Functions для Role Detection
 // ============================================
+
 /**
- * Determine user role based on ID
+ * Case-insensitive check if array includes value
+ * @param {string[]} arr - Array of strings
+ * @param {string} value - Value to find
+ * @returns {boolean}
+ */
+function includesIgnoreCase(arr, value) {
+    if (!value) return false;
+    const lowerValue = value.toLowerCase();
+    return arr.some(item => item.toLowerCase() === lowerValue);
+}
+
+/**
+ * Determine user role based on ID (case-insensitive)
  * @param {string} id - User ID
  * @returns {string} - 'admin', 'driver', or 'crew'
  */
 function getUserRole(id) {
-    if (ADMIN_IDS.includes(id)) {
+    if (includesIgnoreCase(ADMIN_IDS, id)) {
         return 'admin';
-    } else if (DRIVER_IDS.includes(id)) {
+    } else if (includesIgnoreCase(DRIVER_IDS, id)) {
         return 'driver';
-    } else if (CREW_IDS.includes(id)) {
+    } else if (includesIgnoreCase(CREW_IDS, id)) {
         return 'crew';
     } else {
         // If not in explicit lists but connected (maybe allow all?)
@@ -269,7 +282,7 @@ function getUserRole(id) {
 }
 
 function isIdAllowed(id) {
-    return ADMIN_IDS.includes(id) || DRIVER_IDS.includes(id) || CREW_IDS.includes(id);
+    return includesIgnoreCase(ADMIN_IDS, id) || includesIgnoreCase(DRIVER_IDS, id) || includesIgnoreCase(CREW_IDS, id);
 }
 
 // Store connected clients: Map<id, Set<WebSocket>> to support multiple connections per ID
