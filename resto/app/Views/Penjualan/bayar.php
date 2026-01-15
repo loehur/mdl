@@ -338,6 +338,8 @@ foreach ($data['bayar'] as $b) {
                 $('.offcanvas.show').each(function() {
                   $(this).offcanvas('hide');
                 });
+                // Hapus border dari tombol meja karena order sudah selesai
+                $('button.pilih[data-group=nomor][data-id=' + nomor + '][data-mode=' + mode_dt + ']').removeClass('border-2 border-dark');
                 load_pesanan(mode_dt, nomor);
               }, 1500);
             } else if (res.status == 'expired') {

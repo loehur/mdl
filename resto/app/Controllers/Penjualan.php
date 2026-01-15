@@ -533,8 +533,11 @@ class Penjualan extends Controller
          );
 
          if ($update['errno'] == 0) {
+            // Gunakan ref dari kas record, bukan dari POST (lebih reliable)
+            $actual_ref = $qris_record['ref'];
+            
             // Hitung total tagihan
-            $order = $this->db(0)->get_where('pesanan', "ref = '" . $ref . "'", "id_menu");
+            $order = $this->db(0)->get_where('pesanan', "ref = '" . $actual_ref . "'", "id_menu");
             $total_tagihan = 0;
             foreach ($order as $dk) {
                $subTotal = ($dk['harga'] * $dk['qty']) - $dk['diskon'];
@@ -545,7 +548,7 @@ class Penjualan extends Controller
             $total_dibayar = 0;
             $total_verified = 0;
             $has_pending = false;
-            $cek_dibayar = $this->db(0)->get_where('kas', "status_mutasi <> 2 AND jenis_transaksi = 1 AND ref = '" . $ref . "'");
+            $cek_dibayar = $this->db(0)->get_where('kas', "status_mutasi <> 2 AND jenis_transaksi = 1 AND ref = '" . $actual_ref . "'");
             foreach ($cek_dibayar as $b) {
                $total_dibayar += $b['jumlah'];
                if ($b['status_mutasi'] == 1) {
@@ -555,19 +558,23 @@ class Penjualan extends Controller
                }
             }
 
+            Log::write("QRIS Step Check - Ref: $actual_ref, Tagihan: $total_tagihan, Dibayar: $total_dibayar, Verified: $total_verified, HasPending: " . ($has_pending ? 'true' : 'false'));
+
             // Tentukan step berdasarkan pembayaran
             if ($total_dibayar >= $total_tagihan) {
                if ($total_verified >= $total_tagihan && !$has_pending) {
                   // Semua verified, tutup order
-                  $this->db(0)->update('ref', "step = 1", "id = '" . $ref . "'");
+                  $step_update = $this->db(0)->update('ref', "step = 1", "id = '" . $actual_ref . "'");
+                  Log::write("QRIS Step Update to 1 - Result: " . ($step_update['errno'] == 0 ? 'success' : $step_update['error']));
                } else {
                   // Ada pending, perlu pengecekan manual
-                  $this->db(0)->update('ref', "step = 4", "id = '" . $ref . "'");
+                  $step_update = $this->db(0)->update('ref', "step = 4", "id = '" . $actual_ref . "'");
+                  Log::write("QRIS Step Update to 4 - Result: " . ($step_update['errno'] == 0 ? 'success' : $step_update['error']));
                }
             }
             // Jika belum lunas, step tetap 0 (order terbuka)
 
-            Log::write("QRIS Paid - Ref: $ref, Nominal: " . $qris_record['jumlah'] . ", TrxID: " . $qris_record['payment_trx_id']);
+            Log::write("QRIS Paid - Ref: $actual_ref, Nominal: " . $qris_record['jumlah'] . ", TrxID: " . $qris_record['payment_trx_id']);
             echo json_encode(['status' => 'paid']);
          } else {
             echo json_encode(['status' => 'error', 'msg' => 'Gagal update pembayaran']);

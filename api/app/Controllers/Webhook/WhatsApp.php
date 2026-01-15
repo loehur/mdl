@@ -352,6 +352,7 @@ class WhatsApp extends Controller
                 
                 // Extract values from result object
                 $currentCase = $autoReplyResult->case;
+                $autoReplied = $autoReplyResult->auto_replied ?? false;
                 if ($currentCase === 0){
                     $currentCase = null;
                 }
@@ -376,7 +377,7 @@ class WhatsApp extends Controller
                 // DIAGNOSTIC LOG: Use Standard Log Class so it appears in logs/DATE folder
                 // File will be: api/logs/{DATE}/wa_ws_debug_check.log
                 if (class_exists('\Log')) {
-                    \Log::write("Code: " . var_export($code, true) . " | AI Case: " . var_export($currentCase, true), 'wa_ws_debug', 'check');
+                    \Log::write("Code: " . var_export($code, true) . " | AI Case: " . var_export($currentCase, true) . " | AutoReplied: " . ($autoReplied ? 'true' : 'false'), 'wa_ws_debug', 'check');
                 }
                 
                 // Fetch active cases specific for Notification Logic (Driver needs to know if Case 2 active)
@@ -405,6 +406,7 @@ class WhatsApp extends Controller
                     'contact_name' => $contact_name,
                     'case' => $currentCase, 
                     'active_cases' => $activeCases, // Send active cases list
+                    'auto_replied' => $autoReplied, // Flag for push notification logic
                     'message' => [
                         'id' => $msgId, // local DB ID
                         'text' => $textBody,

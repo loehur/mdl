@@ -53,17 +53,17 @@ const ONESIGNAL_REST_API_KEY = process.env.ONESIGNAL_REST_API_KEY || '';
  * @param {string[]} options.userIds - Target user IDs (external_user_id in OneSignal)
  */
 async function sendPushNotification(options) {
-    const { title, message, phone, caseType, data, userIds } = options;
+    const { title, message, phone, caseType, data, userIds, autoReplied } = options;
 
     if (!ONESIGNAL_APP_ID || !ONESIGNAL_REST_API_KEY) {
         console.log('[OneSignal] Skipped: Missing APP_ID or REST_API_KEY');
         return { success: false, error: 'OneSignal not configured' };
     }
 
-    // Skip notification for case 0 (done/resolved conversations)
-    if (caseType === 0) {
-        console.log('[OneSignal] Skipped: Case 0 (done/resolved) - no notification needed');
-        return { success: false, error: 'Case 0 - no notification' };
+    // Skip notification if system already auto-replied to the customer
+    if (autoReplied === true) {
+        console.log('[OneSignal] Skipped: Auto-reply was sent - no push notification needed');
+        return { success: false, error: 'Auto-replied - no notification' };
     }
 
     if (!userIds || userIds.length === 0) {
@@ -622,6 +622,8 @@ app.post('/incoming', async (req, res) => {
 
         // Send Push Notification only to OFFLINE users AND only if message has text content
         let pushResult = { success: false, error: 'No text content' };
+        const autoReplied = data.auto_replied === true;
+
         if (offlineUserIds.length > 0 && hasTextContent) {
             pushResult = await sendPushNotification({
                 title: customerName,
@@ -629,6 +631,7 @@ app.post('/incoming', async (req, res) => {
                 phone: customerPhone,
                 caseType: caseType,
                 userIds: offlineUserIds,
+                autoReplied: autoReplied,
                 data: { phone: customerPhone }
             });
         } else if (!hasTextContent) {
@@ -694,6 +697,7 @@ app.post('/incoming', async (req, res) => {
     pushRecipients = [...new Set(pushRecipients)];
 
     let pushResult = { success: false, recipients: 0 };
+    const autoRepliedTarget = data.auto_replied === true;
 
     // Only send push if message has text content
     if (pushRecipients.length > 0 && hasTextContent) {
@@ -703,6 +707,7 @@ app.post('/incoming', async (req, res) => {
             phone: customerPhone,
             caseType: caseType,
             userIds: pushRecipients,
+            autoReplied: autoRepliedTarget,
             data: { phone: customerPhone }
         });
         console.log(`[PUSH] Sent to ${pushRecipients.length} offline user(s) (${pushRecipients.join(',')}) for target ${targetId} (Case ${caseType}):`, pushResult.success ? '✅' : '❌');

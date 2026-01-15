@@ -131,7 +131,8 @@ class WAReplies
                             $this->$methodName($phoneIn, $waNumber, $textBody);
 
                             return (object) [
-                                'case' => $caseVal
+                                'case' => $caseVal,
+                                'auto_replied' => true
                             ];
                         }
                     }
@@ -141,7 +142,8 @@ class WAReplies
 
         if ($messageLength >= 0 && $messageLength <= 7) {
             return (object) [
-                'case' => null
+                'case' => null,
+                'auto_replied' => false
             ];
         }
 
@@ -156,7 +158,8 @@ class WAReplies
             // Original code checked if intent was in $matchPatterns (which were skipped due to rate limit)
             if (in_array($aiIntent, $matchPatterns)) {
                 return (object) [
-                    'case' => null
+                    'case' => null,
+                    'auto_replied' => false
                 ];
             }
 
@@ -172,13 +175,15 @@ class WAReplies
             }
 
             return (object) [
-                'case' => $aiCase
+                'case' => $aiCase,
+                'auto_replied' => false
             ];
         }
 
         // AI failed or returned FALSE (unknown intent) - needs manual attention
         return (object) [
-            'case' => 4
+            'case' => 4,
+            'auto_replied' => false
         ];
     }
 
