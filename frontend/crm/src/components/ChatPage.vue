@@ -518,8 +518,8 @@ onMounted(() => {
           </header>
 
          <!-- Messages -->
-         <div ref="chatContainer" class="flex-1 overflow-y-auto custom-scrollbar pt-4 pb-2 relative">
-              <div class="px-4 space-y-2">
+         <div ref="chatContainer" class="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar pt-4 pb-2 relative">
+              <div class="px-4 space-y-2 overflow-hidden">
                    <div v-for="(msg, index) in activeConversation.messages" :key="msg.id" :id="'msg-' + msg.id" class="flex flex-col relative group">
                         <!-- Date Separator -->
                         <div v-if="index === 0 || needsDateSeparator(msg, activeConversation.messages[index-1])" class="flex justify-center my-4">
@@ -527,14 +527,14 @@ onMounted(() => {
                         </div>
 
                         <!-- Messages -->
-                        <div class="flex gap-3 max-w-[85%] md:max-w-[70%]" :class="msg.sender === 'me' ? 'self-end justify-end' : 'self-start'">
+                        <div class="flex gap-3 max-w-[85%] md:max-w-[70%] overflow-hidden" :class="msg.sender === 'me' ? 'self-end justify-end' : 'self-start'">
                              <!-- Avatar for incoming -->
                              <div v-if="msg.sender !== 'me'" class="w-8 h-8 rounded-full flex items-center justify-center text-[10px] text-white font-bold flex-shrink-0" :style="{ backgroundColor: activeConversation.color }">{{ activeConversation.initials }}</div>
 
                              <!-- Bubble -->
                              <div :class="[
-                               'rounded-lg shadow-sm px-3 py-1.5 relative',
-                               msg.type === 'image' ? 'p-0 overflow-hidden bg-[var(--wa-bubble-incoming)]' : '',
+                               'rounded-lg shadow-sm px-3 py-1.5 relative overflow-hidden',
+                               msg.type === 'image' ? 'p-0 bg-[var(--wa-bubble-incoming)]' : '',
                                msg.sender === 'me' ? 'bg-[var(--wa-bubble-outgoing)] rounded-tr-none' : 'bg-[var(--wa-bubble-incoming)] rounded-tl-none'
                              ]">
                                   <!-- Reply Quote -->
@@ -556,17 +556,17 @@ onMounted(() => {
                                   </div>
 
                                   <!-- Text -->
-                                  <div v-else class="text-sm text-[var(--wa-text-primary)]">
-                                       <div v-html="parseWhatsAppFormatting(msg.text)" class="whitespace-pre-wrap break-words"></div>
+                                  <div v-else class="text-sm text-[var(--wa-text-primary)] overflow-hidden">
+                                       <div v-html="parseWhatsAppFormatting(msg.text)" class="whitespace-pre-wrap break-words" style="word-break: break-word; overflow-wrap: anywhere;"></div>
                                        <div class="flex justify-end items-center gap-1 mt-1 select-none">
                                             <span v-if="msg.sender_code" class="text-[10px] text-[var(--wa-bubble-out-meta)] opacity-70">~{{ msg.sender_code }}</span>
                                             <span class="text-[10px] text-[var(--wa-text-tertiary)]">{{ msg.time }}</span>
                                             <!-- Status Icon for outgoing -->
                                             <span v-if="msg.sender === 'me'" class="text-[var(--wa-bubble-out-meta)]">
-                                                 <span v-if="msg.status === 'read'" class="text-blue-400">✓✓</span>
-                                                 <span v-else-if="msg.status === 'delivered'">✓✓</span>
-                                                 <span v-else-if="msg.status === 'sent'">✓</span>
-                                                 <span v-else>🕒</span>
+                                                 <span v-if="msg.status === 'read'"><svg class="w-4 h-3 inline" viewBox="0 0 16 11" fill="none"><path d="M11.07 0.73L4.51 7.29L1.79 4.57L0.38 5.98L4.51 10.12L12.48 2.14L11.07 0.73Z" fill="#53bdeb"/><path d="M14.07 0.73L7.51 7.29L6.79 6.57L5.38 7.98L7.51 10.12L15.48 2.14L14.07 0.73Z" fill="#53bdeb"/></svg></span>
+                                                 <span v-else-if="msg.status === 'delivered'"><svg class="w-4 h-3 inline text-[var(--wa-text-tertiary)]" viewBox="0 0 16 11" fill="none"><path d="M11.07 0.73L4.51 7.29L1.79 4.57L0.38 5.98L4.51 10.12L12.48 2.14L11.07 0.73Z" fill="currentColor"/><path d="M14.07 0.73L7.51 7.29L6.79 6.57L5.38 7.98L7.51 10.12L15.48 2.14L14.07 0.73Z" fill="currentColor"/></svg></span>
+                                                 <span v-else-if="msg.status === 'sent'"><svg class="w-3 h-3 inline text-[var(--wa-text-tertiary)]" viewBox="0 0 12 11" fill="none"><path d="M10.07 0.73L3.51 7.29L0.79 4.57L0 5.36L3.51 8.87L10.86 1.52L10.07 0.73Z" fill="currentColor"/></svg></span>
+                                                 <span v-else><svg class="w-3 h-3 inline text-[var(--wa-text-tertiary)]" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M6 3v3.5l2 1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>
                                             </span>
                                        </div>
                                   </div>
@@ -601,13 +601,33 @@ onMounted(() => {
 
              <!-- Main Input -->
              <div class="flex gap-2 items-end">
-                  <div class="flex-1 flex items-end bg-[var(--wa-input-bg)] rounded-3xl border border-[var(--wa-border)] overflow-hidden">
+                  <!-- Attachment buttons (left side) -->
+                  <div class="flex items-center gap-1">
                        <input type="file" ref="fileInput" @change="selectImage" accept="image/*" class="hidden" />
-                       <button @click="showEmojiPicker = !showEmojiPicker" class="p-3 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)]">😊</button>
-                       <textarea ref="messageTextarea" v-model="messageInput" @input="autoResizeTextarea" @keydown.ctrl.enter.prevent="sendMessage" placeholder="Ketik pesan..." class="flex-1 bg-transparent py-3 text-sm focus:outline-none max-h-[150px] overflow-y-auto resize-none text-[var(--wa-text-primary)]" rows="1"></textarea>
-                       <button @click="openImagePicker" class="p-3 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)]">📷</button>
+                       <!-- Emoji Button -->
+                       <button @click="showEmojiPicker = !showEmojiPicker" class="p-2 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)] transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                 <path stroke-linecap="round" stroke-linejoin="round" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                       </button>
+                       <!-- Camera/Image Button -->
+                       <button @click="openImagePicker" class="p-2 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)] transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                       </button>
                   </div>
-                  <button @click="sendMessage" class="p-3 bg-[var(--wa-accent-green)] rounded-full text-black shadow-lg hover:opacity-90"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" /></svg></button>
+                  <!-- Text Input -->
+                  <div class="flex-1 flex items-end bg-[var(--wa-input-bg)] rounded-3xl border border-[var(--wa-border)] overflow-hidden">
+                       <textarea ref="messageTextarea" v-model="messageInput" @input="autoResizeTextarea" @keydown.ctrl.enter.prevent="sendMessage" placeholder="Ketik pesan..." class="flex-1 bg-transparent py-3 px-4 text-sm focus:outline-none max-h-[150px] overflow-y-auto resize-none text-[var(--wa-text-primary)]" rows="1"></textarea>
+                  </div>
+                  <!-- Send Button -->
+                  <button @click="sendMessage" class="p-3 bg-[var(--wa-accent-green)] rounded-full text-black shadow-lg hover:opacity-90 transition-opacity">
+                       <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                       </svg>
+                  </button>
              </div>
              
              <!-- Emoji Picker Component -->
