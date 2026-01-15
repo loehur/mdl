@@ -8,8 +8,8 @@ const props = defineProps({
 
 const emit = defineEmits(["update:modelValue", "select"]);
 
-// Active category tab
-const activeCategory = ref("smileys");
+// Active category tab - defaults to recent
+const activeCategory = ref("recent");
 
 // Emoji Categories with full sets
 const emojiCategories = {
