@@ -447,6 +447,19 @@ onMounted(() => {
             if(res.status) quickReplies.value = res.data;
         }).catch(e=>{});
     }
+    
+    // Click outside handler to close dropdown menus
+    document.addEventListener('click', handleClickOutside);
+});
+
+// Handle click outside to close menus
+const handleClickOutside = () => {
+    showChatMenu.value = false;
+    showResolveMenu.value = false;
+};
+
+onUnmounted(() => {
+    document.removeEventListener('click', handleClickOutside);
 });
 
 </script>
@@ -499,19 +512,42 @@ onMounted(() => {
                         <button v-if="resolveableCases.length > 0" @click.stop="showResolveMenu = !showResolveMenu; showChatMenu = false" class="hover:text-[var(--wa-text-primary)] p-2 rounded-full text-green-500">
                              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
                         </button>
-                        <div v-if="showResolveMenu" class="absolute right-0 top-full mt-2 w-48 bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-lg shadow-xl overflow-hidden z-50">
-                             <button v-for="c in resolveableCases" :key="c.case" @click="resolveCase(c.case)" class="w-full px-4 py-3 text-left hover:bg-[var(--wa-hover)] text-sm text-[var(--wa-text-primary)] border-b border-[var(--wa-divider)]">Resolve {{ getCaseLabel(c.case) }}</button>
+                        <div v-if="showResolveMenu" class="absolute right-0 top-full mt-2 w-52 bg-[var(--wa-bg-secondary)] rounded-xl shadow-2xl overflow-hidden z-50 py-1">
+                             <button v-for="c in resolveableCases" :key="c.case" @click="resolveCase(c.case)" class="w-full px-4 py-2.5 text-left hover:bg-[var(--wa-hover)] text-sm text-[var(--wa-text-primary)] flex items-center gap-3">
+                                  <!-- Checkmark in colored circle -->
+                                  <span class="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" :class="getCaseColor(c.case)">
+                                       <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-white" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                                       </svg>
+                                  </span>
+                                  {{ getCaseLabel(c.case) }}
+                             </button>
                         </div>
                     </div>
                     <!-- Chat Menu -->
                     <div class="relative">
                         <button @click.stop="showChatMenu = !showChatMenu; showResolveMenu = false" class="hover:text-[var(--wa-text-primary)] p-2 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg></button>
-                         <div v-if="showChatMenu" @click.stop class="absolute right-0 top-full mt-2 w-56 bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-lg shadow-xl overflow-hidden z-50">
-                               <button v-if="!isCaseOpen(1)" @click="checkPayment" :disabled="isCheckingPayment" class="w-full px-4 py-3 text-left hover:bg-[var(--wa-hover)] text-sm text-[var(--wa-text-primary)] border-b">Check Payment</button>
-                               <button v-if="!isCaseOpen(2)" @click="pickupDelivery" :disabled="isPickupDelivery" class="w-full px-4 py-3 text-left hover:bg-[var(--wa-hover)] text-sm text-[var(--wa-text-primary)] border-b">Pickup/Delivery</button>
-                               <button v-if="!isCaseOpen(3)" @click="requestPriority" :disabled="isRequest" class="w-full px-4 py-3 text-left hover:bg-[var(--wa-hover)] text-sm text-[var(--wa-text-primary)] border-b">Request</button>
-                               <button v-if="!isCaseOpen(4)" @click="followUp" :disabled="isFollowUp" class="w-full px-4 py-3 text-left hover:bg-[var(--wa-hover)] text-sm text-[var(--wa-text-primary)] border-b">Follow Up</button>
-                               <button v-if="activeConversation.priority > 0" @click="markAsDone" :disabled="isMarkingAsDone" class="w-full px-4 py-3 text-left hover:bg-[var(--wa-hover)] text-sm text-green-500">Selesai</button>
+                         <div v-if="showChatMenu" class="absolute right-0 top-full mt-2 w-52 bg-[var(--wa-bg-secondary)] rounded-xl shadow-2xl overflow-hidden z-50 py-1">
+                               <button v-if="!isCaseOpen(1)" @click="checkPayment" :disabled="isCheckingPayment" class="w-full px-4 py-2.5 text-left hover:bg-[var(--wa-hover)] text-sm text-[var(--wa-text-primary)] flex items-center gap-3">
+                                    <span class="w-2.5 h-2.5 rounded-full bg-blue-500 flex-shrink-0"></span>
+                                    Check Payment
+                               </button>
+                               <button v-if="!isCaseOpen(2)" @click="pickupDelivery" :disabled="isPickupDelivery" class="w-full px-4 py-2.5 text-left hover:bg-[var(--wa-hover)] text-sm text-[var(--wa-text-primary)] flex items-center gap-3">
+                                    <span class="w-2.5 h-2.5 rounded-full bg-yellow-500 flex-shrink-0"></span>
+                                    Pickup/Delivery
+                               </button>
+                               <button v-if="!isCaseOpen(3)" @click="requestPriority" :disabled="isRequest" class="w-full px-4 py-2.5 text-left hover:bg-[var(--wa-hover)] text-sm text-[var(--wa-text-primary)] flex items-center gap-3">
+                                    <span class="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0"></span>
+                                    Request
+                               </button>
+                               <button v-if="!isCaseOpen(4)" @click="followUp" :disabled="isFollowUp" class="w-full px-4 py-2.5 text-left hover:bg-[var(--wa-hover)] text-sm text-[var(--wa-text-primary)] flex items-center gap-3">
+                                    <span class="w-2.5 h-2.5 rounded-full bg-purple-500 flex-shrink-0"></span>
+                                    Follow Up
+                               </button>
+                               <button v-if="activeConversation.priority > 0" @click="markAsDone" :disabled="isMarkingAsDone" class="w-full px-4 py-2.5 text-left hover:bg-[var(--wa-hover)] text-sm text-green-500 flex items-center gap-3 border-t border-[var(--wa-border)] mt-1 pt-2">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-2.5 h-2.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                                    Selesai
+                               </button>
                          </div>
                     </div>
                </div>
