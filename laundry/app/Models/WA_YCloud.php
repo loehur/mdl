@@ -32,10 +32,14 @@ class WA_YCloud extends DB
                 $data['message'] = $messageData['text'] ?? '';
                 $data['template_params'] = $messageData['template_params'];
             } else {
-                // JSON parsing failed or no template_params, but still use template mode
-                // Try to extract text if possible, otherwise use raw message
-                $data['message'] = $messageData['text'] ?? $message;
-                $data['template_params'] = []; // Empty params - API will handle validation
+                // DEBUG: Return error info so we can trace the issue
+                return [
+                    'status' => false,
+                    'code' => 0,
+                    'forward' => false,
+                    'error' => 'DEBUG: template_params not found. JSON decode error: ' . json_last_error_msg() . ' | Message preview: ' . substr($message, 0, 300),
+                    'data' => null
+                ];
             }
             // ALWAYS use template mode when template_name is specified
             $data['template_name'] = $template_name;
