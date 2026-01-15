@@ -43,17 +43,22 @@ class Chat extends Controller
             $userId = $_GET['user_id'] ?? null;
             $whereClause = "c.updated_at >= (NOW() - INTERVAL 30 DAY)";
             
-            // Fetch roles from Env (Centralized)
-            $roles = defined('\Env::CRM_USER_ROLES') ? \Env::CRM_USER_ROLES : [
-                'admin' => ['DEV', 'AYAH', 'IBU', 'TABLET'],
-                'driver' => ['DRIVER1', 'DRIVER2']
-            ];
-
-            $adminIds = $roles['admin'] ?? [];
-            $driverIds = $roles['driver'] ?? [];
+            // Get user role from database (case-insensitive like Auth.php)
+            $isAdmin = false;
+            $isDriver = false;
             
-            $isAdmin = in_array($userId, $adminIds, true);
-            $isDriver = in_array($userId, $driverIds, true);
+            if ($userId) {
+                $userRecord = $db
+                    ->where('LOWER(username)', strtolower($userId))
+                    ->get('crm_users')
+                    ->row();
+                    
+                if ($userRecord) {
+                    $role = strtolower($userRecord->role ?? 'crew');
+                    $isAdmin = ($role === 'admin');
+                    $isDriver = ($role === 'driver');
+                }
+            }
             
             if ($userId && !$isAdmin) {
                if ($isDriver) {
