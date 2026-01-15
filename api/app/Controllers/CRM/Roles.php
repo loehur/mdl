@@ -4,19 +4,67 @@ namespace App\Controllers\CRM;
 
 use App\Core\Controller;
 
+/**
+ * CRM Roles API
+ * Provides role lists for WA Server authentication
+ * Fetches from crm_users table dynamically
+ */
 class Roles extends Controller
 {
-    public function index()
+    private $db_index = 0;
+
+    public function __construct()
     {
         $this->handleCors();
-        
-        // Fetch from Env or use Defaults (Safety fallback)
-        $data = defined('\Env::CRM_USER_ROLES') ? \Env::CRM_USER_ROLES : [
-            'admin' => ['DEV', 'AYAH', 'IBU', 'TABLET'],
-            'driver' => ['DRIVER1', 'DRIVER2'],
-            'crew' => ['3', '4', '5', '6', '10', '11', '12', '13', '14']
-        ];
-        
-        $this->success($data, 'Role IDs retrieved successfully');
+    }
+
+    /**
+     * GET /CRM/Roles
+     * Returns users grouped by role for WA Server
+     */
+    public function index()
+    {
+        try {
+            // Fetch all active users grouped by role from crm_users table
+            $users = $this->db($this->db_index)
+                ->select('username, role')
+                ->get('crm_users')
+                ->result_array();
+
+            $data = [
+                'admin' => [],
+                'driver' => [],
+                'crew' => []
+            ];
+
+            // Group users by role
+            foreach ($users as $user) {
+                $role = strtolower($user['role'] ?? 'crew');
+                $username = $user['username'];
+
+                if ($role === 'admin') {
+                    $data['admin'][] = $username;
+                } elseif ($role === 'driver') {
+                    $data['driver'][] = $username;
+                } else {
+                    // Default to crew for any other role
+                    $data['crew'][] = $username;
+                }
+            }
+
+            $this->success($data, 'Role IDs retrieved successfully');
+
+        } catch (\Exception $e) {
+            \Log::write("CRM Roles error: " . $e->getMessage(), 'crm_error', 'Roles');
+            
+            // Fallback to env/hardcoded if database fails
+            $fallback = defined('\Env::CRM_USER_ROLES') ? \Env::CRM_USER_ROLES : [
+                'admin' => ['DEV', 'AYAH'],
+                'driver' => ['DRIVER1'],
+                'crew' => []
+            ];
+            
+            $this->success($fallback, 'Role IDs retrieved (fallback)');
+        }
     }
 }

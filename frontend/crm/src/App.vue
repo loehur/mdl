@@ -3741,7 +3741,7 @@ const connectWebSocket = () => {
 
   try {
     // Always connect to Production Server (as per user workflow)
-    const wsUrl = `wss://waserver.nalju.com?id=${authId.value.trim()}_${Date.now()}`;
+    const wsUrl = `wss://waserver.nalju.com?id=${authId.value.trim()}`;
     const ws = new WebSocket(wsUrl);
     socket.value = ws;
 
