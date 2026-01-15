@@ -303,7 +303,7 @@ class WAGenerator extends Controller
         $cleanTotalBill = trim($cleanTotalBill);
         
         $templateParams = [
-            'customer' => strtoupper($nama_pelanggan) . " _#" . $kode_cabang . "-" . $cs_code . "_",
+            'customer' => "*" . strtoupper($nama_pelanggan) . "* _#" . $kode_cabang . "-" . $cs_code . "_",
             'order_list' => $cleanOrderList,
             //'total_bill' => $cleanTotalBill,
             'invoice_link' => URL::HOST_URL . "/I/i/" . $id_pelanggan . " _Ketik *CEK* untuk info status laundry_"
