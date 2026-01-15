@@ -102,6 +102,14 @@ class WA_YCloud extends DB
             }
         }
         
+        // Log errors for debugging
+        if (!$status) {
+            error_log("[WA_YCloud] FAILED | Phone: $phone | Mode: " . ($data['message_mode'] ?? 'unknown') . " | HTTP: $httpCode | Error: $msg");
+            if ($decoded) {
+                error_log("[WA_YCloud] Response: " . json_encode($decoded));
+            }
+        }
+        
         return [
             'status' => $status,
             'code' => $httpCode,

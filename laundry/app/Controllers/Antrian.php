@@ -806,7 +806,8 @@ class Antrian extends Controller
             'state' => 'pending'
          ];
          $this->db(0)->update('notif', $updateVals, $where);
-         echo json_encode(['status' => 'failed', 'message' => 'Gagal mengirim WA']);
+         $errorMsg = $res['error'] ?? ($res['message'] ?? 'Gagal mengirim WA');
+         echo json_encode(['status' => 'failed', 'message' => $errorMsg]);
       }
    }
 
