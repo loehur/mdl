@@ -29,6 +29,35 @@ class Penjualan extends Controller
          $data['menu'] = $_SESSION['resto_menu'];
          $data['order'] = $this->db(0)->get_where('pesanan', "ref = '" . $cek['id'] . "'", "id_menu");
          $data['bayar'] = $this->db(0)->get_where('kas', "ref = '" . $cek['id'] . "' AND status_mutasi <> 2");
+         
+         // AUTO-FIX: Cek apakah pembayaran sudah lunas dan verified
+         // Jika ya, update step ke 1 (order selesai)
+         $total_tagihan = 0;
+         foreach ($data['order'] as $dk) {
+            $subTotal = ($dk['harga'] * $dk['qty']) - $dk['diskon'];
+            $total_tagihan += $subTotal;
+         }
+         
+         $total_dibayar = 0;
+         $total_verified = 0;
+         $has_pending = false;
+         foreach ($data['bayar'] as $b) {
+            $total_dibayar += $b['jumlah'];
+            if ($b['status_mutasi'] == 1) {
+               $total_verified += $b['jumlah'];
+            } else {
+               $has_pending = true;
+            }
+         }
+         
+         // Jika sudah lunas dan semua verified, auto-fix step
+         if ($total_tagihan > 0 && $total_dibayar >= $total_tagihan && $total_verified >= $total_tagihan && !$has_pending) {
+            $this->db(0)->update('ref', "step = 1", "id = '" . $cek['id'] . "'");
+            // Reload dengan data kosong karena order sudah selesai
+            $data['order'] = [];
+            $data['bayar'] = [];
+            $cek = [];
+         }
       } else {
          $data['order'] = [];
          $data['bayar'] = [];
