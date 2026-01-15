@@ -2009,7 +2009,7 @@ const handlePaste = async (event) => {
 const handleClickOutside = (event) => {
   if (showChatMenu.value) showChatMenu.value = false;
   if (showResolveMenu.value) showResolveMenu.value = false;
-  if (showEmojiPicker.value) showEmojiPicker.value = false;
+
 };
 
 onUnmounted(() => {
