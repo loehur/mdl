@@ -25,9 +25,8 @@ class Roles extends Controller
     public function index()
     {
         try {
-            // Fetch all active users grouped by role from crm_users table
+            // Fetch all active users from crm_users table
             $users = $this->db($this->db_index)
-                ->select('username, role')
                 ->get('crm_users')
                 ->result_array();
 
