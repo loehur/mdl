@@ -51,9 +51,10 @@ class WhatsAppService
      * @param string $to Customer phone number (format: +628xxx)
      * @param string $message Text message content
      * @param string|null $replyToMessageId WAMID of message to reply to (for quoted reply)
+     * @param string|null $senderCode Sender code (e.g. AD, CR) - derived from username
      * @return array Response from yCloud API
      */
-    public function sendFreeText($to, $message, $replyToMessageId = null)
+    public function sendFreeText($to, $message, $replyToMessageId = null, $senderCode = null)
     {
         $payload = [
             'from' => $this->formatPhoneNumber($this->whatsappNumber),
@@ -71,7 +72,7 @@ class WhatsAppService
             ];
         }
         
-        return $this->sendRequest('/whatsapp/messages', $payload, 'POST', null, $replyToMessageId);
+        return $this->sendRequest('/whatsapp/messages', $payload, 'POST', null, $replyToMessageId, $senderCode);
     }
     
     /**
@@ -520,9 +521,11 @@ class WhatsAppService
      * @param array $payload Request payload
      * @param string $method HTTP method (default: POST)
      * @param string|null $messageText Optional pre-rendered message text for database storage
+     * @param string|null $replyToMessageId Optional reply to message ID
+     * @param string|null $senderCode Optional sender code
      * @return array API response
      */
-    private function sendRequest($endpoint, $payload, $method = 'POST', $messageText = null)
+    private function sendRequest($endpoint, $payload, $method = 'POST', $messageText = null, $replyToMessageId = null, $senderCode = null)
     {
         $url = $this->baseUrl . $endpoint;
         
@@ -567,7 +570,7 @@ class WhatsAppService
         $localId = null;
         if ($success && isset($responseData['id'])) {
             try {
-                $localId = $this->saveOutboundMessage($payload, $responseData, $messageText);
+                $localId = $this->saveOutboundMessage($payload, $responseData, $messageText, $senderCode);
             } catch (\Throwable $e) {
                 if (class_exists('\Log')) {
                     \Log::write("!! EXCEPTION saving outbound: " . $e->getMessage(), 'wa_error', 'SaveOutbound');
@@ -598,8 +601,9 @@ class WhatsAppService
      * @param array $payload Request payload sent to API
      * @param array $response API response
      * @param string|null $messageText Optional pre-rendered message text (for templates)
+     * @param string|null $senderCode Sender code
      */
-    private function saveOutboundMessage($payload, $response, $messageText = null)
+    private function saveOutboundMessage($payload, $response, $messageText = null, $senderCode = null)
     {       
         // Wrap everything in try-catch to prevent breaking the main flow
         try {
@@ -741,6 +745,7 @@ class WhatsAppService
                 'content' => $content,
                 'template_params' => $templateParams,
                 'media_url' => $mediaUrl,
+                'sender_code' => $senderCode, // Changed from initial to sender_code
                 'status' => 'accepted', // Initial status when API accepted
                 'created_at' => date('Y-m-d H:i:s')
             ];
@@ -837,7 +842,7 @@ class WhatsAppService
      * @param string $caption Optional caption
      * @return array Response with success status and data
      */
-    public function sendImage($to, $imageUrl, $caption = '')
+    public function sendImage($to, $imageUrl, $caption = '', $senderCode = null)
     {
 
         
@@ -856,7 +861,7 @@ class WhatsAppService
         
         try {
             // Use correct YCloud endpoint: /whatsapp/messages
-            $response = $this->sendRequest('/whatsapp/messages', $payload);
+            $response = $this->sendRequest('/whatsapp/messages', $payload, 'POST', null, null, $senderCode);
             
             // Parse response - check http_code (underscore, not camelCase!)
             if ($response['success'] && ($response['http_code'] == 200 || $response['http_code'] == 201)) {

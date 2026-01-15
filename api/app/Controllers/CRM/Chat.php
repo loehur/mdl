@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Controllers\CMS;
+namespace App\Controllers\CRM;
 
 use App\Core\Controller;
 
@@ -44,7 +44,7 @@ class Chat extends Controller
             $whereClause = "c.updated_at >= (NOW() - INTERVAL 30 DAY)";
             
             // Fetch roles from Env (Centralized)
-            $roles = defined('\Env::CMS_USER_ROLES') ? \Env::CMS_USER_ROLES : [
+            $roles = defined('\Env::CRM_USER_ROLES') ? \Env::CRM_USER_ROLES : [
                 'admin' => ['DEV', 'AYAH', 'IBU', 'TABLET'],
                 'driver' => ['DRIVER1', 'DRIVER2']
             ];
@@ -249,7 +249,15 @@ class Chat extends Controller
         }
         
         $wa = new \App\Helpers\WhatsAppService();
-        $res = $wa->sendFreeText($phone, $message, $replyTo); // Pass reply_to for quoted reply
+        
+        // AUTO-SENDER-CODE: Get from session (Username based)
+        $senderCode = null;
+        if (isset($_SESSION['mdl_crm_session']['user']['username'])) {
+            $username = $_SESSION['mdl_crm_session']['user']['username'];
+            $senderCode = strtoupper(substr($username, 0, 2));
+        }
+
+        $res = $wa->sendFreeText($phone, $message, $replyTo, $senderCode); // Pass senderCode from session
 
         if ($res['success']) {
             // Update quoted_message_id in wa_messages_out if reply_to provided
@@ -863,10 +871,18 @@ class Chat extends Controller
             
             try {
                 $waService = new \App\Helpers\WhatsAppService();
+                $waService = new \App\Helpers\WhatsAppService();
                 \Log::write("WhatsAppService instance created successfully", 'cms_debug', 'Chat');
                 
-                \Log::write("Sending image to: $waNumber, URL: $mediaUrl", 'cms_debug', 'Chat');
-                $result = $waService->sendImage($waNumber, $mediaUrl, $caption);
+                // AUTO-SENDER-CODE: Get from session (Username based)
+                $senderCode = null;
+                if (isset($_SESSION['mdl_crm_session']['user']['username'])) {
+                    $username = $_SESSION['mdl_crm_session']['user']['username'];
+                    $senderCode = strtoupper(substr($username, 0, 2));
+                }
+                
+                \Log::write("Sending image to: $waNumber, URL: $mediaUrl, SenderCode: $senderCode", 'cms_debug', 'Chat');
+                $result = $waService->sendImage($waNumber, $mediaUrl, $caption, $senderCode);
                 \Log::write("WA send result: " . json_encode($result), 'cms_debug', 'Chat');
                 
             } catch (\Throwable $e) {

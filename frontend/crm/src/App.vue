@@ -469,7 +469,7 @@ const fetchConversations = async () => {
         const separator = userIdParam ? '&' : '?';
         const query = userIdParam ? `?${userIdParam}${separator}_t=${Date.now()}` : `?_t=${Date.now()}`;
         
-        const response = await fetch(`${API_BASE}/CMS/Chat/getConversations${query}`); 
+        const response = await fetch(`${API_BASE}/CRM/Chat/getConversations${query}`); 
         
         if (!response.ok) {
             const text = await response.text();
@@ -632,7 +632,7 @@ const fetchConversations = async () => {
 
 const fetchUserRole = async () => {
     try {
-        const res = await fetch(`${API_BASE}/CMS/Roles`);
+        const res = await fetch(`${API_BASE}/CRM/Roles`);
         const result = await res.json();
         if (result.status && result.data) {
             const roles = result.data;
@@ -708,23 +708,65 @@ const oneSignalLogout = () => {
     }
 };
 
-const connect = () => {
+const connect = async () => {
     if(!authId.value) {
-        connectionError.value = 'Please enter your Connection ID';
+        connectionError.value = 'Please enter your Username';
         return;
     }
+
     isConnecting.value = true;
     connectionError.value = '';
-    connectWebSocket();
-    fetchUserRole(); // Determine role
-    fetchConversations();
-    fetchQuickReplies(); // Pre-load quick replies for "/" command
-    
-    // OneSignal: Register user for push notifications
-    oneSignalLogin(authId.value);
-    
-    // Start Polling (Fallback)
-    resetPollingTimer();
+
+    try {
+        // Step 1: Login to Backend
+        const res = await fetch(`${API_BASE}/CRM/Auth/login`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                username: authId.value
+            })
+        });
+        
+        // Handle non-JSON response gracefully
+        if (!res.ok) {
+            const text = await res.text();
+             throw new Error(text || res.statusText);
+        }
+
+        const data = await res.json();
+        
+        if (!data.success) {
+            connectionError.value = data.message || 'Login Failed';
+            isConnecting.value = false;
+            return;
+        }
+
+        // Step 2: Login Success
+        // Use Role from backend
+        if (data.user) {
+             currentUserRole.value = data.user.role || 'crew';
+             localStorage.setItem('cms_chat_role', currentUserRole.value);
+             localStorage.setItem('cms_chat_token', 'true'); // Flag logged in
+        }
+
+        // Step 3: Connect WebSocket same as before (using authId as ID)
+        connectWebSocket();
+        fetchConversations();
+        fetchQuickReplies();
+        // fetchUserRole(); // REPLACED: Role now comes from Auth Response
+        
+        oneSignalLogin(authId.value);
+        resetPollingTimer();
+
+    } catch (e) {
+        console.error(e);
+        const msg = e.message && e.message.includes('Unexpected token') 
+            ? 'Server Error (Invalid JSON)' 
+            : (e.message || 'Connection Error');
+            
+        connectionError.value = msg;
+        isConnecting.value = false;
+    }
 }
 
 // Helper to reset polling timer (called on WS events to delay next poll)
@@ -1086,7 +1128,7 @@ const sanitizeMessages = (messages) => {
 const fetchMessages = async (phone) => {
     try {
         // Add cache buster
-        const response = await fetch(`${API_BASE}/CMS/Chat/getMessages?phone=${phone}&_t=${Date.now()}`);
+        const response = await fetch(`${API_BASE}/CRM/Chat/getMessages?phone=${phone}&_t=${Date.now()}`);
         const result = await response.json();
         
         if (result.status && Array.isArray(result.data)) {
@@ -1125,7 +1167,7 @@ const scrollToBottom = () => {
 
 const markMessagesRead = async (phone) => {
     try {
-        await fetch(`${API_BASE}/CMS/Chat/markRead`, {
+        await fetch(`${API_BASE}/CRM/Chat/markRead`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ 
@@ -1149,7 +1191,7 @@ const markAsDone = async () => {
         isMarkingAsDone.value = true;
         showChatMenu.value = false; // Close menu
         
-        const response = await fetch(`${API_BASE}/CMS/Chat/markAsDone`, {
+        const response = await fetch(`${API_BASE}/CRM/Chat/markAsDone`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ 
@@ -1188,7 +1230,7 @@ const checkPayment = async () => {
         isCheckingPayment.value = true;
         showChatMenu.value = false; // Close menu
         
-        const response = await fetch(`${API_BASE}/CMS/Chat/updateCase`, {
+        const response = await fetch(`${API_BASE}/CRM/Chat/updateCase`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ 
@@ -1234,7 +1276,7 @@ const pickupDelivery = async () => {
         isPickupDelivery.value = true;
         showChatMenu.value = false; // Close menu
         
-        const response = await fetch(`${API_BASE}/CMS/Chat/updateCase`, {
+        const response = await fetch(`${API_BASE}/CRM/Chat/updateCase`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ 
@@ -1280,7 +1322,7 @@ const requestPriority = async () => {
         isRequest.value = true;
         showChatMenu.value = false; // Close menu
         
-        const response = await fetch(`${API_BASE}/CMS/Chat/updateCase`, {
+        const response = await fetch(`${API_BASE}/CRM/Chat/updateCase`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ 
@@ -1326,7 +1368,7 @@ const followUp = async () => {
         isFollowUp.value = true;
         showChatMenu.value = false; // Close menu
         
-        const response = await fetch(`${API_BASE}/CMS/Chat/updateCase`, {
+        const response = await fetch(`${API_BASE}/CRM/Chat/updateCase`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ 
@@ -1369,7 +1411,7 @@ const reopenConversation = async () => {
         isReopeningConversation.value = true;
         showChatMenu.value = false; // Close menu
         
-        const response = await fetch(`${API_BASE}/CMS/Chat/reopenConversation`, {
+        const response = await fetch(`${API_BASE}/CRM/Chat/reopenConversation`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ 
@@ -1401,7 +1443,7 @@ const reopenConversation = async () => {
 const resolveCase = async (caseId) => {
     if (!activeConversation.value) return;
     try {
-        const response = await fetch(`${API_BASE}/CMS/Chat/resolveCase`, {
+        const response = await fetch(`${API_BASE}/CRM/Chat/resolveCase`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
@@ -1601,7 +1643,7 @@ const fetchQuickReplies = async () => {
     
     isLoadingQuickReplies.value = true;
     try {
-        const response = await fetch(`${API_BASE}/CMS/QuickReply/getAll`);
+        const response = await fetch(`${API_BASE}/CRM/QuickReply/getAll`);
         const res = await response.json();
         if (res.status && res.data) {
             quickReplies.value = res.data;
@@ -1850,7 +1892,7 @@ const sendMessage = async () => {
     
     // API Call
     try {
-        const response = await fetch(`${API_BASE}/CMS/Chat/reply`, {
+        const response = await fetch(`${API_BASE}/CRM/Chat/reply`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
@@ -2192,7 +2234,7 @@ const sendImage = async () => {
     
     scrollToBottom();
     
-    const response = await fetch(`${API_BASE}/CMS/Chat/sendImage`, {
+    const response = await fetch(`${API_BASE}/CRM/Chat/sendImage`, {
       method: 'POST',
       body: formData
     });
@@ -3575,10 +3617,10 @@ const handleLinkClick = (e) => {
            <!-- Form Section -->
            <div class="px-8 pb-10">
              <div class="space-y-5">
-               <!-- ID Input -->
+                 <!-- ID Input -->
                <div class="relative group">
                  <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 transition-colors group-focus-within:text-indigo-400">
-                   Connection ID
+                   Username
                  </label>
                  <div class="relative">
                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -3589,8 +3631,7 @@ const handleLinkClick = (e) => {
                    <input 
                      v-model="authId" 
                      type="text" 
-                     placeholder="ID Cabang Laundry"
-                     @keydown.enter="connect"
+                     placeholder="Username"
                      class="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl pl-12 pr-4 py-4 text-white text-lg font-medium placeholder:text-slate-500 focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 focus:bg-slate-800 transition-all"
                      :disabled="isConnecting"
                      autofocus
@@ -4087,7 +4128,7 @@ const handleLinkClick = (e) => {
                   <div v-if="msg.type === 'image'" class="rounded-lg overflow-hidden shadow-md max-w-[240px] bg-[var(--wa-bubble-incoming)]/50">
                      <div class="relative">
                         <img v-if="msg.media_url" :src="msg.media_url" class="w-full cursor-pointer" @click="openImageLightbox(msg.media_url)">
-                        <img v-else-if="msg.media_id" :src="`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" class="w-full cursor-pointer" @click="openImageLightbox(`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`)">
+                        <img v-else-if="msg.media_id" :src="`${API_BASE}/CRM/Chat/media?id=${msg.media_id}`" class="w-full cursor-pointer" @click="openImageLightbox(`${API_BASE}/CRM/Chat/media?id=${msg.media_id}`)">
                         <div v-else class="bg-slate-900/50 flex flex-col items-center justify-center w-full h-[150px]">
                            <span class="text-[10px] text-slate-400">Image (Protected)</span>
                         </div>
@@ -4102,7 +4143,7 @@ const handleLinkClick = (e) => {
                   <!-- Sticker Message -->
                   <div v-else-if="msg.type === 'sticker'" class="rounded-lg overflow-hidden max-w-[150px]">
                      <img v-if="msg.media_url" :src="msg.media_url" class="w-full cursor-pointer" @click="openImageLightbox(msg.media_url)" style="background: transparent;">
-                     <img v-else-if="msg.media_id" :src="`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" class="w-full cursor-pointer" @click="openImageLightbox(`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`)" style="background: transparent;">
+                     <img v-else-if="msg.media_id" :src="`${API_BASE}/CRM/Chat/media?id=${msg.media_id}`" class="w-full cursor-pointer" @click="openImageLightbox(`${API_BASE}/CRM/Chat/media?id=${msg.media_id}`)" style="background: transparent;">
                      <div v-else class="bg-[var(--wa-bubble-incoming)] px-3 py-2 rounded-lg">
                         <span class="text-2xl">🎨</span>
                         <span class="text-[11px] text-[var(--wa-text-tertiary)] block mt-1">{{ msg.time }}</span>
@@ -4128,7 +4169,7 @@ const handleLinkClick = (e) => {
                         ></audio>
                         <audio 
                            v-else-if="msg.media_id" 
-                           :src="`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" 
+                           :src="`${API_BASE}/CRM/Chat/media?id=${msg.media_id}`" 
                            controls 
                            class="h-8 w-full max-w-[200px]"
                            style="filter: invert(1) hue-rotate(180deg);"
@@ -4152,7 +4193,7 @@ const handleLinkClick = (e) => {
                          ></video>
                          <video 
                             v-else-if="msg.media_id" 
-                            :src="`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" 
+                            :src="`${API_BASE}/CRM/Chat/media?id=${msg.media_id}`" 
                             controls 
                             class="w-full max-h-[300px] cursor-pointer"
                             preload="metadata"
@@ -4172,7 +4213,7 @@ const handleLinkClick = (e) => {
                    <!-- Document Message -->
                    <div v-else-if="msg.type === 'document'" class="bg-[var(--wa-bubble-incoming)] rounded-lg shadow-sm px-3 py-2 max-w-[280px]">
                       <a 
-                         :href="msg.media_url || `${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" 
+                         :href="msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`" 
                          target="_blank"
                          class="flex items-center gap-3 hover:opacity-80 transition-opacity"
                       >
@@ -4255,7 +4296,7 @@ const handleLinkClick = (e) => {
                   <div v-if="msg.type === 'image'" class="rounded-lg overflow-hidden shadow-md max-w-[240px] bg-[var(--wa-bubble-outgoing)]/50">
                      <div class="relative">
                         <img v-if="msg.media_url" :src="msg.media_url" class="w-full cursor-pointer" @click="openImageLightbox(msg.media_url)">
-                        <img v-else-if="msg.media_id" :src="`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" class="w-full cursor-pointer" @click="openImageLightbox(`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`)">
+                        <img v-else-if="msg.media_id" :src="`${API_BASE}/CRM/Chat/media?id=${msg.media_id}`" class="w-full cursor-pointer" @click="openImageLightbox(`${API_BASE}/CRM/Chat/media?id=${msg.media_id}`)">
                         <!-- Caption, Time & Status Overlay -->
                         <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
                            <p v-if="msg.text" class="text-white text-[13px] leading-tight mb-1" v-html="parseWhatsAppFormatting(msg.text)"></p>
@@ -4291,7 +4332,7 @@ const handleLinkClick = (e) => {
                   <!-- Sticker Message -->
                   <div v-else-if="msg.type === 'sticker'" class="rounded-lg overflow-hidden max-w-[150px]">
                      <img v-if="msg.media_url" :src="msg.media_url" class="w-full cursor-pointer" @click="openImageLightbox(msg.media_url)" style="background: transparent;">
-                     <img v-else-if="msg.media_id" :src="`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`" class="w-full cursor-pointer" @click="openImageLightbox(`${API_BASE}/CMS/Chat/media?id=${msg.media_id}`)" style="background: transparent;">
+                     <img v-else-if="msg.media_id" :src="`${API_BASE}/CRM/Chat/media?id=${msg.media_id}`" class="w-full cursor-pointer" @click="openImageLightbox(`${API_BASE}/CRM/Chat/media?id=${msg.media_id}`)" style="background: transparent;">
                      <div v-else class="bg-[var(--wa-bubble-outgoing)] px-3 py-2 rounded-lg">
                         <span class="text-2xl">🎨</span>
                         <span class="text-[11px] text-white/70 block mt-1">{{ msg.time }}</span>

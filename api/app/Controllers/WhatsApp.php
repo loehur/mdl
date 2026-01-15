@@ -97,7 +97,7 @@ class WhatsApp extends Controller
         
         $phone = $body['phone'];
         $messageMode = strtolower($body['message_mode']);
-        $initial = $body['initial'] ?? null;
+        $senderCode = $body['sender_code'] ?? null;
         
         // Override: nomor-nomor tertentu WAJIB pakai mode 'free'
         foreach (\Env::FORBID_WA_TEMPLATE_HP as $fhp) {
@@ -176,7 +176,7 @@ class WhatsApp extends Controller
             }
             
             // CSW is valid - proceed to send via yCloud
-            $result = $this->whatsappService->sendFreeText($phone, $messageText, null, $initial);
+            $result = $this->whatsappService->sendFreeText($phone, $messageText, null, $senderCode);
             
             if (!$result['success']) {
                 // Check if it's a CSW error from yCloud (double-check)
@@ -226,7 +226,7 @@ class WhatsApp extends Controller
                 }
                 
                 // CSW is open, try free text
-                $result = $this->whatsappService->sendFreeText($phone, $freeTextMsg, null, $initial);
+                $result = $this->whatsappService->sendFreeText($phone, $freeTextMsg, null, $senderCode);
                 
                 if ($result['success']) {
                     // Free text succeeded - return immediately
@@ -315,7 +315,7 @@ class WhatsApp extends Controller
         $phone = $body['phone'];
         $message = $body['message'];
         $lastMessageAt = $body['last_message_at'];
-        $initial = $body['initial'] ?? null;
+        $senderCode = $body['sender_code'] ?? null;
         $skipCswCheck = $body['skip_csw_check'] ?? false;
         
         // Check CSW unless explicitly skipped
@@ -335,7 +335,7 @@ class WhatsApp extends Controller
         }
         
         // Send message
-        $result = $this->whatsappService->sendFreeText($phone, $message, null, $initial);
+        $result = $this->whatsappService->sendFreeText($phone, $message, null, $senderCode);
         
         if (!$result['success']) {
             $this->error('Failed to send message', 500, $result);

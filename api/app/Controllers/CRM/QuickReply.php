@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Controllers\CMS;
+namespace App\Controllers\CRM;
 
 use App\Core\Controller;
 

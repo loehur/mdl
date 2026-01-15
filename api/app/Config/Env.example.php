@@ -52,7 +52,7 @@ class Env
     const OPENAI_API_KEY = '0'; // TODO: Isi dengan API key dari platform.openai.com. Format: sk-...
     const OPENAI_MODEL = '0'; // Optional, default: gpt-4o-mini
 
-    const CMS_USER_ROLES = [
+    const CRM_USER_ROLES = [
         'admin' => ['A', 'B', 'C', 'D'],
         'crew' => ['3', '4', '5', '6', '10', '11', '12', '13', '14'],
         'driver' => ['DRIVER1', 'DRIVER2']
