@@ -101,10 +101,8 @@ class WA_YCloud extends DB
                 $apiError = $decoded['message'] ?? ($decoded['error'] ?? '');
                 $msg = "HTTP $httpCode: " . ($apiError ? $apiError : ($error ? $error : 'Request Failed'));
                 
-                // Highlight CSW Check result
-                if ($httpCode == 400 && (isset($decoded['data']['csw_expired']) || strpos($msg, 'CSW') !== false)) {
-                     $msg = "CSW EXPIRED: Pesan gagal dikirim karena pelanggan belum chat dalam 24 jam terakhir.";
-                }
+                // DEBUG: Show full response for troubleshooting
+                $msg .= " | Mode: " . ($data['message_mode'] ?? 'unknown') . " | Response: " . substr(json_encode($decoded), 0, 500);
             }
         }
 
