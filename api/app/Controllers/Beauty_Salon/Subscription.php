@@ -556,6 +556,7 @@ class Subscription extends Controller
             // Update subscription
             $this->db($this->db_index)->update('subscriptions', [
                 'status' => 'active',
+                'start_date' => $payment['period_start'],
                 'end_date' => $payment['period_end'],
                 'last_payment_date' => date('Y-m-d H:i:s'),
                 'last_payment_amount' => $payment['amount'],
@@ -752,6 +753,7 @@ class Subscription extends Controller
                 if ($subscription) {
                     $this->db($this->db_index)->update('subscriptions', [
                         'status' => 'active',
+                        'start_date' => $payment['period_start'],
                         'end_date' => $payment['period_end'],
                         'last_payment_date' => date('Y-m-d'),
                         'last_payment_amount' => $payment['amount'],
