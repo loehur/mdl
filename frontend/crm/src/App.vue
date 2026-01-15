@@ -1,80 +1,107 @@
 <script setup>
-import { ref, computed, onMounted, nextTick, watch, onUnmounted } from 'vue';
-import { App } from '@capacitor/app';
-import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+import { ref, computed, onMounted, nextTick, watch, onUnmounted } from "vue";
+import { App } from "@capacitor/app";
+import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 
 // Helper to detect if running in Capacitor native environment
 const isNativeApp = () => {
-  return window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
+  return (
+    window.Capacitor &&
+    window.Capacitor.isNativePlatform &&
+    window.Capacitor.isNativePlatform()
+  );
 };
-
 
 // Window resize listener helper
 const windowWidth = ref(window.innerWidth);
-const updateWidth = () => windowWidth.value = window.innerWidth;
-window.addEventListener('resize', updateWidth);
+const updateWidth = () => (windowWidth.value = window.innerWidth);
+window.addEventListener("resize", updateWidth);
 
 const getAvatarColor = (seed) => {
   const colors = [
-    '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#ef4444', 
-    '#f59e0b', '#10b981', '#06b6d4', '#3b82f6', '#64748b'
+    "#6366f1",
+    "#8b5cf6",
+    "#ec4899",
+    "#f43f5e",
+    "#ef4444",
+    "#f59e0b",
+    "#10b981",
+    "#06b6d4",
+    "#3b82f6",
+    "#64748b",
   ];
   if (!seed) return colors[0];
-  const num = typeof seed === 'string' ? seed.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) : seed;
+  const num =
+    typeof seed === "string"
+      ? seed.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0)
+      : seed;
   return colors[num % colors.length];
 };
 
 // Case Color Helper
 const getCaseColor = (caseId) => {
-    // 1=Payment, 2=Pickup, 3=Request, 4=Reopen/Urgent
-    switch(parseInt(caseId)) {
-        case 1: return 'bg-green-500';
-        case 2: return 'bg-yellow-500';
-        case 3: return 'bg-red-500';
-        case 4: return 'bg-purple-500';
-        case 0: return 'bg-slate-500'; 
-        default: return 'hidden'; 
-    }
+  // 1=Payment, 2=Pickup, 3=Request, 4=Reopen/Urgent
+  switch (parseInt(caseId)) {
+    case 1:
+      return "bg-green-500";
+    case 2:
+      return "bg-yellow-500";
+    case 3:
+      return "bg-red-500";
+    case 4:
+      return "bg-purple-500";
+    case 0:
+      return "bg-slate-500";
+    default:
+      return "hidden";
+  }
 };
 
 const getCaseLabel = (caseId) => {
-    switch(parseInt(caseId)) {
-        case 1: return 'Check Payment';
-        case 2: return 'Pickup/Delivery';
-        case 3: return 'Request';
-        case 4: return 'Follow Up';
-        default: return 'Case ' + caseId;
-    }
+  switch (parseInt(caseId)) {
+    case 1:
+      return "Check Payment";
+    case 2:
+      return "Pickup/Delivery";
+    case 3:
+      return "Request";
+    case 4:
+      return "Follow Up";
+    default:
+      return "Case " + caseId;
+  }
 };
 
 // Check if a case is currently open
 const isCaseOpen = (caseId) => {
-    if (!activeConversation.value || !activeConversation.value.cases) return false;
-    return activeConversation.value.cases.some(c => 
-        parseInt(c.case) === parseInt(caseId) && (c.status || 'open') !== 'closed'
-    );
+  if (!activeConversation.value || !activeConversation.value.cases)
+    return false;
+  return activeConversation.value.cases.some(
+    (c) =>
+      parseInt(c.case) === parseInt(caseId) && (c.status || "open") !== "closed"
+  );
 };
 
 // --- State ---
 // --- State ---
-const API_BASE = 'https://api.nalju.com';
+const API_BASE = "https://api.nalju.com";
 const conversations = ref([]);
 
 const activeChatId = ref(null);
-const messageInput = ref('');
+const messageInput = ref("");
 const chatDrafts = ref({}); // Store draft messages per conversation ID
 const replyToMessage = ref(null); // Message being replied to (quoted reply)
 const chatContainer = ref(null);
 const socket = ref(null);
 const isConnected = ref(false);
 const showMobileChat = ref(false);
-const authId = ref('');
+const authId = ref("");
 const isConnecting = ref(false);
-const connectionError = ref('');
+const connectionError = ref("");
 const isLoadingConversations = ref(false); // For skeleton loading
 const showExitToast = ref(false);
 const refreshInterval = ref(null); // Fix: Add missing ref
-const currentUserRole = ref('crew'); // Default to crew (safest)
+const currentUserRole = ref("crew"); // Default to crew (safest)
 let lastBackPress = 0;
 
 // Reconnection State (to prevent loading screen during temporary disconnects)
@@ -86,10 +113,10 @@ const reconnectDelay = ref(3000); // Base delay in ms (will be exponentially inc
 
 // Image Upload State
 const selectedImage = ref(null);
-const imagePreview = ref('');
+const imagePreview = ref("");
 const showImagePreview = ref(false);
 const isUploadingImage = ref(false);
-const imageCaption = ref('');
+const imageCaption = ref("");
 const fileInput = ref(null);
 const messageTextarea = ref(null); // Auto-resize textarea ref
 
@@ -105,7 +132,7 @@ const isEnteringChat = ref(false);
 
 // Internal Browser State (for nalju.com links)
 const showInternalBrowser = ref(false);
-const internalBrowserUrl = ref('');
+const internalBrowserUrl = ref("");
 const isInternalBrowserEntering = ref(false);
 const isInternalBrowserExiting = ref(false);
 const isInternalBrowserLoading = ref(true);
@@ -115,7 +142,7 @@ const showLoginPrompt = ref(false);
 const showDuplicateConnectionModal = ref(false);
 
 // Title Blinking State
-const originalTitle = 'MDL Chat';
+const originalTitle = "MDL Chat";
 const titleBlinkInterval = ref(null);
 const isTitleRed = ref(false);
 
@@ -135,24 +162,22 @@ const lastDisconnectTime = ref(0); // Track when last disconnected for reconnect
 // Auto-Open Chat on Incoming Message
 const autoOpenChatOnIncoming = ref(false); // Set false if you want manual open only
 
-
 // SSE (Server-Sent Events) for real-time updates
 const eventSource = ref(null);
 
-const searchQuery = ref('');
+const searchQuery = ref("");
 
 // Conversation Filter State
-const conversationFilter = ref('all'); // 'all' or 'unread'
+const conversationFilter = ref("all"); // 'all' or 'unread'
 
 // Settings State
 const showSettingsModal = ref(false);
-const fontSize = ref('medium'); // 'medium', 'large'
-const theme = ref('dark'); // 'dark', 'light'
+const fontSize = ref("medium"); // 'medium', 'large'
+const theme = ref("dark"); // 'dark', 'light'
 
 // Image Lightbox State (for in-app image viewing)
 const showImageLightbox = ref(false);
-const lightboxImageUrl = ref('');
-
+const lightboxImageUrl = ref("");
 
 // Notification Sound State
 const notificationSoundEnabled = ref(false); // Disabled by default as requested
@@ -166,65 +191,1093 @@ const isLoadingQuickReplies = ref(false);
 // Customer Info Modal State
 const showCustomerInfoModal = ref(false);
 const copiedPhone = ref(false);
-const quickReplySearchQuery = ref(''); // Search query from "/" command
+const quickReplySearchQuery = ref(""); // Search query from "/" command
 const isRefreshingChat = ref(false); // For CSW Closed refresh button
 
 // Emoji Picker State
 const showEmojiPicker = ref(false);
-const activeEmojiCategory = ref('smileys');
+const activeEmojiCategory = ref("smileys");
 const recentEmojis = ref([]);
 
 // Emoji Data (organized by category like WhatsApp)
 const emojiCategories = {
-    smileys: {
-        label: '😊',
-        title: 'Smileys & Emotions',
-        emojis: ['😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '🙃', '😉', '😊', '😇', '🥰', '😍', '🤩', '😘', '😗', '😚', '😙', '🥲', '😋', '😛', '😜', '🤪', '😝', '🤑', '🤗', '🤭', '🤫', '🤔', '🤐', '🤨', '😐', '😑', '😶', '😏', '😒', '🙄', '😬', '🤥', '😌', '😔', '😪', '🤤', '😴', '😷', '🤒', '🤕', '🤢', '🤮', '🤧', '🥵', '🥶', '🥴', '😵', '🤯', '🤠', '🥳', '🥸', '😎', '🤓', '🧐', '😕', '😟', '🙁', '☹️', '😮', '😯', '😲', '😳', '🥺', '😦', '😧', '😨', '😰', '😥', '😢', '😭', '😱', '😖', '😣', '😞', '😓', '😩', '😫', '🥱', '😤', '😡', '😠', '🤬', '😈', '👿', '💀', '☠️', '💩', '🤡', '👹', '👺', '👻', '👽', '👾', '🤖']
-    },
-    gestures: {
-        label: '👋',
-        title: 'Gestures & People',
-        emojis: ['👋', '🤚', '🖐️', '✋', '🖖', '👌', '🤌', '🤏', '✌️', '🤞', '🤟', '🤘', '🤙', '👈', '👉', '👆', '🖕', '👇', '☝️', '👍', '👎', '✊', '👊', '🤛', '🤜', '👏', '🙌', '👐', '🤲', '🤝', '🙏', '✍️', '💅', '🤳', '💪', '🦾', '🦿', '🦵', '🦶', '👂', '🦻', '👃', '🧠', '🫀', '🫁', '🦷', '🦴', '👀', '👁️', '👅', '👄', '👶', '🧒', '👦', '👧', '🧑', '👱', '👨', '🧔', '👩', '🧓', '👴', '👵', '🙍', '🙎', '🙅', '🙆', '💁', '🙋', '🧏', '🙇', '🤦', '🤷', '👮', '🕵️', '💂', '🥷', '👷', '🤴', '👸', '👳', '👲', '🧕', '🤵', '👰', '🤰', '🤱', '👼', '🎅', '🤶']
-    },
-    animals: {
-        label: '🐶',
-        title: 'Animals & Nature',
-        emojis: ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐻‍❄️', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🙈', '🙉', '🙊', '🐒', '🐔', '🐧', '🐦', '🐤', '🐣', '🐥', '🦆', '🦅', '🦉', '🦇', '🐺', '🐗', '🐴', '🦄', '🐝', '🪱', '🐛', '🦋', '🐌', '🐞', '🐜', '🪰', '🪲', '🪳', '🦟', '🦗', '🕷️', '🕸️', '🦂', '🐢', '🐍', '🦎', '🦖', '🦕', '🐙', '🦑', '🦐', '🦞', '🦀', '🐡', '🐠', '🐟', '🐬', '🐳', '🐋', '🦈', '🐊', '🐅', '🐆', '🦓', '🦍', '🦧', '🦣', '🐘', '🦛', '🦏', '🐪', '🐫', '🦒', '🦘', '🦬', '🐃', '🐂', '🐄', '🐎', '🐖', '🐏', '🐑', '🦙', '🐐', '🦌', '🐕', '🐩', '🦮', '🐕‍🦺', '🐈', '🐈‍⬛', '🪶', '🐓', '🦃', '🦤', '🦚', '🦜', '🦢', '🦩', '🕊️', '🐇', '🦝', '🦨', '🦡', '🦫', '🦦', '🦥', '🐁', '🐀', '🐿️', '🦔']
-    },
-    food: {
-        label: '🍔',
-        title: 'Food & Drink',
-        emojis: ['🍏', '🍎', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🫐', '🍈', '🍒', '🍑', '🥭', '🍍', '🥥', '🥝', '🍅', '🍆', '🥑', '🥦', '🥬', '🥒', '🌶️', '🫑', '🌽', '🥕', '🫒', '🧄', '🧅', '🥔', '🍠', '🥐', '🥯', '🍞', '🥖', '🥨', '🧀', '🥚', '🍳', '🧈', '🥞', '🧇', '🥓', '🥩', '🍗', '🍖', '🦴', '🌭', '🍔', '🍟', '🍕', '🫓', '🥪', '🥙', '🧆', '🌮', '🌯', '🫔', '🥗', '🥘', '🫕', '🥫', '🍝', '🍜', '🍲', '🍛', '🍣', '🍱', '🥟', '🦪', '🍤', '🍙', '🍚', '🍘', '🍥', '🥠', '🥮', '🍢', '🍡', '🍧', '🍨', '🍦', '🥧', '🧁', '🍰', '🎂', '🍮', '🍭', '🍬', '🍫', '🍿', '🍩', '🍪', '🌰', '🥜', '🍯', '🥛', '🍼', '🫖', '☕', '🍵', '🧃', '🥤', '🧋', '🍶', '🍺', '🍻', '🥂', '🍷', '🥃', '🍸', '🍹', '🧉', '🍾', '🧊']
-    },
-    activities: {
-        label: '⚽',
-        title: 'Activities',
-        emojis: ['⚽', '🏀', '🏈', '⚾', '🥎', '🎾', '🏐', '🏉', '🥏', '🎱', '🪀', '🏓', '🏸', '🏒', '🏑', '🥍', '🏏', '🪃', '🥅', '⛳', '🪁', '🏹', '🎣', '🤿', '🥊', '🥋', '🎽', '🛹', '🛼', '🛷', '⛸️', '🥌', '🎿', '⛷️', '🏂', '🪂', '🏋️', '🤼', '🤸', '⛹️', '🤺', '🤾', '🏌️', '🏇', '🧘', '🏄', '🏊', '🤽', '🚣', '🧗', '🚵', '🚴', '🏆', '🥇', '🥈', '🥉', '🏅', '🎖️', '🏵️', '🎗️', '🎫', '🎟️', '🎪', '🤹', '🎭', '🩰', '🎨', '🎬', '🎤', '🎧', '🎼', '🎹', '🥁', '🪘', '🎷', '🎺', '🪗', '🎸', '🪕', '🎻', '🎲', '♟️', '🎯', '🎳', '🎮', '🎰', '🧩']
-    },
-    objects: {
-        label: '💡',
-        title: 'Objects',
-        emojis: ['⌚', '📱', '📲', '💻', '⌨️', '🖥️', '🖨️', '🖱️', '🖲️', '🕹️', '🗜️', '💽', '💾', '💿', '📀', '📼', '📷', '📸', '📹', '🎥', '📽️', '🎞️', '📞', '☎️', '📟', '📠', '📺', '📻', '🎙️', '🎚️', '🎛️', '🧭', '⏱️', '⏲️', '⏰', '🕰️', '⌛', '⏳', '📡', '🔋', '🔌', '💡', '🔦', '🕯️', '🪔', '🧯', '🛢️', '💸', '💵', '💴', '💶', '💷', '🪙', '💰', '💳', '💎', '⚖️', '🪜', '🧰', '🪛', '🔧', '🔨', '⚒️', '🛠️', '⛏️', '🪚', '🔩', '⚙️', '🪤', '🧱', '⛓️', '🧲', '🔫', '💣', '🧨', '🪓', '🔪', '🗡️', '⚔️', '🛡️', '🚬', '⚰️', '🪦', '⚱️', '🏺', '🔮', '📿', '🧿', '💈', '⚗️', '🔭', '🔬', '🕳️', '🩹', '🩺', '💊', '💉', '🩸', '🧬', '🦠', '🧫', '🧪', '🌡️', '🧹', '🪠', '🧺', '🧻', '🚽', '🚿', '🛁', '🛀', '🧼', '🪥', '🪒', '🧽', '🪣', '🧴', '🛎️', '🔑', '🗝️', '🚪', '🪑', '🛋️', '🛏️', '🛌', '🧸', '🪆', '🖼️', '🪞', '🪟', '🛍️', '🛒', '🎁', '🎈', '🎏', '🎀', '🪄', '🪅', '🎊', '🎉', '🎎', '🏮', '🎐', '🧧', '✉️', '📩', '📨', '📧', '💌', '📥', '📤', '📦', '🏷️', '🪧', '📪', '📫', '📬', '📭', '📮', '📯', '📜', '📃', '📄', '📑', '🧾', '📊', '📈', '📉', '🗒️', '🗓️', '📆', '📅', '🗑️', '📇', '🗃️', '🗳️', '🗄️', '📋', '📁', '📂', '🗂️', '🗞️', '📰', '📓', '📔', '📒', '📕', '📗', '📘', '📙', '📚', '📖', '🔖', '🧷', '🔗', '📎', '🖇️', '📐', '📏', '🧮', '📌', '📍', '✂️', '🖊️', '🖋️', '✒️', '🖌️', '🖍️', '📝', '✏️', '🔍', '🔎', '🔏', '🔐', '🔒', '🔓']
-    },
-    symbols: {
-        label: '❤️',
-        title: 'Symbols',
-        emojis: ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '☮️', '✝️', '☪️', '🕉️', '☸️', '✡️', '🔯', '🕎', '☯️', '☦️', '🛐', '⛎', '♈', '♉', '♊', '♋', '♌', '♍', '♎', '♏', '♐', '♑', '♒', '♓', '🆔', '⚛️', '🉑', '☢️', '☣️', '📴', '📳', '🈶', '🈚', '🈸', '🈺', '🈷️', '✴️', '🆚', '💮', '🉐', '㊙️', '㊗️', '🈴', '🈵', '🈹', '🈲', '🅰️', '🅱️', '🆎', '🆑', '🅾️', '🆘', '❌', '⭕', '🛑', '⛔', '📛', '🚫', '💯', '💢', '♨️', '🚷', '🚯', '🚳', '🚱', '🔞', '📵', '🚭', '❗', '❕', '❓', '❔', '‼️', '⁉️', '🔅', '🔆', '〽️', '⚠️', '🚸', '🔱', '⚜️', '🔰', '♻️', '✅', '🈯', '💹', '❇️', '✳️', '❎', '🌐', '💠', 'Ⓜ️', '🌀', '💤', '🏧', '🚾', '♿', '🅿️', '🛗', '🈳', '🈂️', '🛂', '🛃', '🛄', '🛅', '🚹', '🚺', '🚼', '⚧️', '🚻', '🚮', '🎦', '📶', '🈁', '🔣', 'ℹ️', '🔤', '🔡', '🔠', '🆖', '🆗', '🆙', '🆒', '🆕', '🆓', '0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟', '🔢', '#️⃣', '*️⃣', '⏏️', '▶️', '⏸️', '⏯️', '⏹️', '⏺️', '⏭️', '⏮️', '⏩', '⏪', '⏫', '⏬', '◀️', '🔼', '🔽', '➡️', '⬅️', '⬆️', '⬇️', '↗️', '↘️', '↙️', '↖️', '↕️', '↔️', '↪️', '↩️', '⤴️', '⤵️', '🔀', '🔁', '🔂', '🔄', '🔃', '🎵', '🎶', '➕', '➖', '➗', '✖️', '🟰', '♾️', '💲', '💱', '™️', '©️', '®️', '〰️', '➰', '➿', '🔚', '🔙', '🔛', '🔝', '🔜', '✔️', '☑️', '🔘', '🔴', '🟠', '🟡', '🟢', '🔵', '🟣', '⚫', '⚪', '🟤', '🔺', '🔻', '🔸', '🔹', '🔶', '🔷', '🔳', '🔲', '▪️', '▫️', '◾', '◽', '◼️', '◻️', '🟥', '🟧', '🟨', '🟩', '🟦', '🟪', '⬛', '⬜', '🟫', '🔈', '🔇', '🔉', '🔊', '🔔', '🔕', '📣', '📢', '💬', '💭', '🗯️', '♠️', '♣️', '♥️', '♦️', '🃏', '🎴', '🀄', '🕐', '🕑', '🕒', '🕓', '🕔', '🕕', '🕖', '🕗', '🕘', '🕙', '🕚', '🕛', '🕜', '🕝', '🕞', '🕟', '🕠', '🕡', '🕢', '🕣', '🕤', '🕥', '🕦', '🕧']
-    }
+  smileys: {
+    label: "😊",
+    title: "Smileys & Emotions",
+    emojis: [
+      "😀",
+      "😃",
+      "😄",
+      "😁",
+      "😆",
+      "😅",
+      "🤣",
+      "😂",
+      "🙂",
+      "🙃",
+      "😉",
+      "😊",
+      "😇",
+      "🥰",
+      "😍",
+      "🤩",
+      "😘",
+      "😗",
+      "😚",
+      "😙",
+      "🥲",
+      "😋",
+      "😛",
+      "😜",
+      "🤪",
+      "😝",
+      "🤑",
+      "🤗",
+      "🤭",
+      "🤫",
+      "🤔",
+      "🤐",
+      "🤨",
+      "😐",
+      "😑",
+      "😶",
+      "😏",
+      "😒",
+      "🙄",
+      "😬",
+      "🤥",
+      "😌",
+      "😔",
+      "😪",
+      "🤤",
+      "😴",
+      "😷",
+      "🤒",
+      "🤕",
+      "🤢",
+      "🤮",
+      "🤧",
+      "🥵",
+      "🥶",
+      "🥴",
+      "😵",
+      "🤯",
+      "🤠",
+      "🥳",
+      "🥸",
+      "😎",
+      "🤓",
+      "🧐",
+      "😕",
+      "😟",
+      "🙁",
+      "☹️",
+      "😮",
+      "😯",
+      "😲",
+      "😳",
+      "🥺",
+      "😦",
+      "😧",
+      "😨",
+      "😰",
+      "😥",
+      "😢",
+      "😭",
+      "😱",
+      "😖",
+      "😣",
+      "😞",
+      "😓",
+      "😩",
+      "😫",
+      "🥱",
+      "😤",
+      "😡",
+      "😠",
+      "🤬",
+      "😈",
+      "👿",
+      "💀",
+      "☠️",
+      "💩",
+      "🤡",
+      "👹",
+      "👺",
+      "👻",
+      "👽",
+      "👾",
+      "🤖",
+    ],
+  },
+  gestures: {
+    label: "👋",
+    title: "Gestures & People",
+    emojis: [
+      "👋",
+      "🤚",
+      "🖐️",
+      "✋",
+      "🖖",
+      "👌",
+      "🤌",
+      "🤏",
+      "✌️",
+      "🤞",
+      "🤟",
+      "🤘",
+      "🤙",
+      "👈",
+      "👉",
+      "👆",
+      "🖕",
+      "👇",
+      "☝️",
+      "👍",
+      "👎",
+      "✊",
+      "👊",
+      "🤛",
+      "🤜",
+      "👏",
+      "🙌",
+      "👐",
+      "🤲",
+      "🤝",
+      "🙏",
+      "✍️",
+      "💅",
+      "🤳",
+      "💪",
+      "🦾",
+      "🦿",
+      "🦵",
+      "🦶",
+      "👂",
+      "🦻",
+      "👃",
+      "🧠",
+      "🫀",
+      "🫁",
+      "🦷",
+      "🦴",
+      "👀",
+      "👁️",
+      "👅",
+      "👄",
+      "👶",
+      "🧒",
+      "👦",
+      "👧",
+      "🧑",
+      "👱",
+      "👨",
+      "🧔",
+      "👩",
+      "🧓",
+      "👴",
+      "👵",
+      "🙍",
+      "🙎",
+      "🙅",
+      "🙆",
+      "💁",
+      "🙋",
+      "🧏",
+      "🙇",
+      "🤦",
+      "🤷",
+      "👮",
+      "🕵️",
+      "💂",
+      "🥷",
+      "👷",
+      "🤴",
+      "👸",
+      "👳",
+      "👲",
+      "🧕",
+      "🤵",
+      "👰",
+      "🤰",
+      "🤱",
+      "👼",
+      "🎅",
+      "🤶",
+    ],
+  },
+  animals: {
+    label: "🐶",
+    title: "Animals & Nature",
+    emojis: [
+      "🐶",
+      "🐱",
+      "🐭",
+      "🐹",
+      "🐰",
+      "🦊",
+      "🐻",
+      "🐼",
+      "🐻‍❄️",
+      "🐨",
+      "🐯",
+      "🦁",
+      "🐮",
+      "🐷",
+      "🐸",
+      "🐵",
+      "🙈",
+      "🙉",
+      "🙊",
+      "🐒",
+      "🐔",
+      "🐧",
+      "🐦",
+      "🐤",
+      "🐣",
+      "🐥",
+      "🦆",
+      "🦅",
+      "🦉",
+      "🦇",
+      "🐺",
+      "🐗",
+      "🐴",
+      "🦄",
+      "🐝",
+      "🪱",
+      "🐛",
+      "🦋",
+      "🐌",
+      "🐞",
+      "🐜",
+      "🪰",
+      "🪲",
+      "🪳",
+      "🦟",
+      "🦗",
+      "🕷️",
+      "🕸️",
+      "🦂",
+      "🐢",
+      "🐍",
+      "🦎",
+      "🦖",
+      "🦕",
+      "🐙",
+      "🦑",
+      "🦐",
+      "🦞",
+      "🦀",
+      "🐡",
+      "🐠",
+      "🐟",
+      "🐬",
+      "🐳",
+      "🐋",
+      "🦈",
+      "🐊",
+      "🐅",
+      "🐆",
+      "🦓",
+      "🦍",
+      "🦧",
+      "🦣",
+      "🐘",
+      "🦛",
+      "🦏",
+      "🐪",
+      "🐫",
+      "🦒",
+      "🦘",
+      "🦬",
+      "🐃",
+      "🐂",
+      "🐄",
+      "🐎",
+      "🐖",
+      "🐏",
+      "🐑",
+      "🦙",
+      "🐐",
+      "🦌",
+      "🐕",
+      "🐩",
+      "🦮",
+      "🐕‍🦺",
+      "🐈",
+      "🐈‍⬛",
+      "🪶",
+      "🐓",
+      "🦃",
+      "🦤",
+      "🦚",
+      "🦜",
+      "🦢",
+      "🦩",
+      "🕊️",
+      "🐇",
+      "🦝",
+      "🦨",
+      "🦡",
+      "🦫",
+      "🦦",
+      "🦥",
+      "🐁",
+      "🐀",
+      "🐿️",
+      "🦔",
+    ],
+  },
+  food: {
+    label: "🍔",
+    title: "Food & Drink",
+    emojis: [
+      "🍏",
+      "🍎",
+      "🍐",
+      "🍊",
+      "🍋",
+      "🍌",
+      "🍉",
+      "🍇",
+      "🍓",
+      "🫐",
+      "🍈",
+      "🍒",
+      "🍑",
+      "🥭",
+      "🍍",
+      "🥥",
+      "🥝",
+      "🍅",
+      "🍆",
+      "🥑",
+      "🥦",
+      "🥬",
+      "🥒",
+      "🌶️",
+      "🫑",
+      "🌽",
+      "🥕",
+      "🫒",
+      "🧄",
+      "🧅",
+      "🥔",
+      "🍠",
+      "🥐",
+      "🥯",
+      "🍞",
+      "🥖",
+      "🥨",
+      "🧀",
+      "🥚",
+      "🍳",
+      "🧈",
+      "🥞",
+      "🧇",
+      "🥓",
+      "🥩",
+      "🍗",
+      "🍖",
+      "🦴",
+      "🌭",
+      "🍔",
+      "🍟",
+      "🍕",
+      "🫓",
+      "🥪",
+      "🥙",
+      "🧆",
+      "🌮",
+      "🌯",
+      "🫔",
+      "🥗",
+      "🥘",
+      "🫕",
+      "🥫",
+      "🍝",
+      "🍜",
+      "🍲",
+      "🍛",
+      "🍣",
+      "🍱",
+      "🥟",
+      "🦪",
+      "🍤",
+      "🍙",
+      "🍚",
+      "🍘",
+      "🍥",
+      "🥠",
+      "🥮",
+      "🍢",
+      "🍡",
+      "🍧",
+      "🍨",
+      "🍦",
+      "🥧",
+      "🧁",
+      "🍰",
+      "🎂",
+      "🍮",
+      "🍭",
+      "🍬",
+      "🍫",
+      "🍿",
+      "🍩",
+      "🍪",
+      "🌰",
+      "🥜",
+      "🍯",
+      "🥛",
+      "🍼",
+      "🫖",
+      "☕",
+      "🍵",
+      "🧃",
+      "🥤",
+      "🧋",
+      "🍶",
+      "🍺",
+      "🍻",
+      "🥂",
+      "🍷",
+      "🥃",
+      "🍸",
+      "🍹",
+      "🧉",
+      "🍾",
+      "🧊",
+    ],
+  },
+  activities: {
+    label: "⚽",
+    title: "Activities",
+    emojis: [
+      "⚽",
+      "🏀",
+      "🏈",
+      "⚾",
+      "🥎",
+      "🎾",
+      "🏐",
+      "🏉",
+      "🥏",
+      "🎱",
+      "🪀",
+      "🏓",
+      "🏸",
+      "🏒",
+      "🏑",
+      "🥍",
+      "🏏",
+      "🪃",
+      "🥅",
+      "⛳",
+      "🪁",
+      "🏹",
+      "🎣",
+      "🤿",
+      "🥊",
+      "🥋",
+      "🎽",
+      "🛹",
+      "🛼",
+      "🛷",
+      "⛸️",
+      "🥌",
+      "🎿",
+      "⛷️",
+      "🏂",
+      "🪂",
+      "🏋️",
+      "🤼",
+      "🤸",
+      "⛹️",
+      "🤺",
+      "🤾",
+      "🏌️",
+      "🏇",
+      "🧘",
+      "🏄",
+      "🏊",
+      "🤽",
+      "🚣",
+      "🧗",
+      "🚵",
+      "🚴",
+      "🏆",
+      "🥇",
+      "🥈",
+      "🥉",
+      "🏅",
+      "🎖️",
+      "🏵️",
+      "🎗️",
+      "🎫",
+      "🎟️",
+      "🎪",
+      "🤹",
+      "🎭",
+      "🩰",
+      "🎨",
+      "🎬",
+      "🎤",
+      "🎧",
+      "🎼",
+      "🎹",
+      "🥁",
+      "🪘",
+      "🎷",
+      "🎺",
+      "🪗",
+      "🎸",
+      "🪕",
+      "🎻",
+      "🎲",
+      "♟️",
+      "🎯",
+      "🎳",
+      "🎮",
+      "🎰",
+      "🧩",
+    ],
+  },
+  objects: {
+    label: "💡",
+    title: "Objects",
+    emojis: [
+      "⌚",
+      "📱",
+      "📲",
+      "💻",
+      "⌨️",
+      "🖥️",
+      "🖨️",
+      "🖱️",
+      "🖲️",
+      "🕹️",
+      "🗜️",
+      "💽",
+      "💾",
+      "💿",
+      "📀",
+      "📼",
+      "📷",
+      "📸",
+      "📹",
+      "🎥",
+      "📽️",
+      "🎞️",
+      "📞",
+      "☎️",
+      "📟",
+      "📠",
+      "📺",
+      "📻",
+      "🎙️",
+      "🎚️",
+      "🎛️",
+      "🧭",
+      "⏱️",
+      "⏲️",
+      "⏰",
+      "🕰️",
+      "⌛",
+      "⏳",
+      "📡",
+      "🔋",
+      "🔌",
+      "💡",
+      "🔦",
+      "🕯️",
+      "🪔",
+      "🧯",
+      "🛢️",
+      "💸",
+      "💵",
+      "💴",
+      "💶",
+      "💷",
+      "🪙",
+      "💰",
+      "💳",
+      "💎",
+      "⚖️",
+      "🪜",
+      "🧰",
+      "🪛",
+      "🔧",
+      "🔨",
+      "⚒️",
+      "🛠️",
+      "⛏️",
+      "🪚",
+      "🔩",
+      "⚙️",
+      "🪤",
+      "🧱",
+      "⛓️",
+      "🧲",
+      "🔫",
+      "💣",
+      "🧨",
+      "🪓",
+      "🔪",
+      "🗡️",
+      "⚔️",
+      "🛡️",
+      "🚬",
+      "⚰️",
+      "🪦",
+      "⚱️",
+      "🏺",
+      "🔮",
+      "📿",
+      "🧿",
+      "💈",
+      "⚗️",
+      "🔭",
+      "🔬",
+      "🕳️",
+      "🩹",
+      "🩺",
+      "💊",
+      "💉",
+      "🩸",
+      "🧬",
+      "🦠",
+      "🧫",
+      "🧪",
+      "🌡️",
+      "🧹",
+      "🪠",
+      "🧺",
+      "🧻",
+      "🚽",
+      "🚿",
+      "🛁",
+      "🛀",
+      "🧼",
+      "🪥",
+      "🪒",
+      "🧽",
+      "🪣",
+      "🧴",
+      "🛎️",
+      "🔑",
+      "🗝️",
+      "🚪",
+      "🪑",
+      "🛋️",
+      "🛏️",
+      "🛌",
+      "🧸",
+      "🪆",
+      "🖼️",
+      "🪞",
+      "🪟",
+      "🛍️",
+      "🛒",
+      "🎁",
+      "🎈",
+      "🎏",
+      "🎀",
+      "🪄",
+      "🪅",
+      "🎊",
+      "🎉",
+      "🎎",
+      "🏮",
+      "🎐",
+      "🧧",
+      "✉️",
+      "📩",
+      "📨",
+      "📧",
+      "💌",
+      "📥",
+      "📤",
+      "📦",
+      "🏷️",
+      "🪧",
+      "📪",
+      "📫",
+      "📬",
+      "📭",
+      "📮",
+      "📯",
+      "📜",
+      "📃",
+      "📄",
+      "📑",
+      "🧾",
+      "📊",
+      "📈",
+      "📉",
+      "🗒️",
+      "🗓️",
+      "📆",
+      "📅",
+      "🗑️",
+      "📇",
+      "🗃️",
+      "🗳️",
+      "🗄️",
+      "📋",
+      "📁",
+      "📂",
+      "🗂️",
+      "🗞️",
+      "📰",
+      "📓",
+      "📔",
+      "📒",
+      "📕",
+      "📗",
+      "📘",
+      "📙",
+      "📚",
+      "📖",
+      "🔖",
+      "🧷",
+      "🔗",
+      "📎",
+      "🖇️",
+      "📐",
+      "📏",
+      "🧮",
+      "📌",
+      "📍",
+      "✂️",
+      "🖊️",
+      "🖋️",
+      "✒️",
+      "🖌️",
+      "🖍️",
+      "📝",
+      "✏️",
+      "🔍",
+      "🔎",
+      "🔏",
+      "🔐",
+      "🔒",
+      "🔓",
+    ],
+  },
+  symbols: {
+    label: "❤️",
+    title: "Symbols",
+    emojis: [
+      "❤️",
+      "🧡",
+      "💛",
+      "💚",
+      "💙",
+      "💜",
+      "🖤",
+      "🤍",
+      "🤎",
+      "💔",
+      "❣️",
+      "💕",
+      "💞",
+      "💓",
+      "💗",
+      "💖",
+      "💘",
+      "💝",
+      "💟",
+      "☮️",
+      "✝️",
+      "☪️",
+      "🕉️",
+      "☸️",
+      "✡️",
+      "🔯",
+      "🕎",
+      "☯️",
+      "☦️",
+      "🛐",
+      "⛎",
+      "♈",
+      "♉",
+      "♊",
+      "♋",
+      "♌",
+      "♍",
+      "♎",
+      "♏",
+      "♐",
+      "♑",
+      "♒",
+      "♓",
+      "🆔",
+      "⚛️",
+      "🉑",
+      "☢️",
+      "☣️",
+      "📴",
+      "📳",
+      "🈶",
+      "🈚",
+      "🈸",
+      "🈺",
+      "🈷️",
+      "✴️",
+      "🆚",
+      "💮",
+      "🉐",
+      "㊙️",
+      "㊗️",
+      "🈴",
+      "🈵",
+      "🈹",
+      "🈲",
+      "🅰️",
+      "🅱️",
+      "🆎",
+      "🆑",
+      "🅾️",
+      "🆘",
+      "❌",
+      "⭕",
+      "🛑",
+      "⛔",
+      "📛",
+      "🚫",
+      "💯",
+      "💢",
+      "♨️",
+      "🚷",
+      "🚯",
+      "🚳",
+      "🚱",
+      "🔞",
+      "📵",
+      "🚭",
+      "❗",
+      "❕",
+      "❓",
+      "❔",
+      "‼️",
+      "⁉️",
+      "🔅",
+      "🔆",
+      "〽️",
+      "⚠️",
+      "🚸",
+      "🔱",
+      "⚜️",
+      "🔰",
+      "♻️",
+      "✅",
+      "🈯",
+      "💹",
+      "❇️",
+      "✳️",
+      "❎",
+      "🌐",
+      "💠",
+      "Ⓜ️",
+      "🌀",
+      "💤",
+      "🏧",
+      "🚾",
+      "♿",
+      "🅿️",
+      "🛗",
+      "🈳",
+      "🈂️",
+      "🛂",
+      "🛃",
+      "🛄",
+      "🛅",
+      "🚹",
+      "🚺",
+      "🚼",
+      "⚧️",
+      "🚻",
+      "🚮",
+      "🎦",
+      "📶",
+      "🈁",
+      "🔣",
+      "ℹ️",
+      "🔤",
+      "🔡",
+      "🔠",
+      "🆖",
+      "🆗",
+      "🆙",
+      "🆒",
+      "🆕",
+      "🆓",
+      "0️⃣",
+      "1️⃣",
+      "2️⃣",
+      "3️⃣",
+      "4️⃣",
+      "5️⃣",
+      "6️⃣",
+      "7️⃣",
+      "8️⃣",
+      "9️⃣",
+      "🔟",
+      "🔢",
+      "#️⃣",
+      "*️⃣",
+      "⏏️",
+      "▶️",
+      "⏸️",
+      "⏯️",
+      "⏹️",
+      "⏺️",
+      "⏭️",
+      "⏮️",
+      "⏩",
+      "⏪",
+      "⏫",
+      "⏬",
+      "◀️",
+      "🔼",
+      "🔽",
+      "➡️",
+      "⬅️",
+      "⬆️",
+      "⬇️",
+      "↗️",
+      "↘️",
+      "↙️",
+      "↖️",
+      "↕️",
+      "↔️",
+      "↪️",
+      "↩️",
+      "⤴️",
+      "⤵️",
+      "🔀",
+      "🔁",
+      "🔂",
+      "🔄",
+      "🔃",
+      "🎵",
+      "🎶",
+      "➕",
+      "➖",
+      "➗",
+      "✖️",
+      "🟰",
+      "♾️",
+      "💲",
+      "💱",
+      "™️",
+      "©️",
+      "®️",
+      "〰️",
+      "➰",
+      "➿",
+      "🔚",
+      "🔙",
+      "🔛",
+      "🔝",
+      "🔜",
+      "✔️",
+      "☑️",
+      "🔘",
+      "🔴",
+      "🟠",
+      "🟡",
+      "🟢",
+      "🔵",
+      "🟣",
+      "⚫",
+      "⚪",
+      "🟤",
+      "🔺",
+      "🔻",
+      "🔸",
+      "🔹",
+      "🔶",
+      "🔷",
+      "🔳",
+      "🔲",
+      "▪️",
+      "▫️",
+      "◾",
+      "◽",
+      "◼️",
+      "◻️",
+      "🟥",
+      "🟧",
+      "🟨",
+      "🟩",
+      "🟦",
+      "🟪",
+      "⬛",
+      "⬜",
+      "🟫",
+      "🔈",
+      "🔇",
+      "🔉",
+      "🔊",
+      "🔔",
+      "🔕",
+      "📣",
+      "📢",
+      "💬",
+      "💭",
+      "🗯️",
+      "♠️",
+      "♣️",
+      "♥️",
+      "♦️",
+      "🃏",
+      "🎴",
+      "🀄",
+      "🕐",
+      "🕑",
+      "🕒",
+      "🕓",
+      "🕔",
+      "🕕",
+      "🕖",
+      "🕗",
+      "🕘",
+      "🕙",
+      "🕚",
+      "🕛",
+      "🕜",
+      "🕝",
+      "🕞",
+      "🕟",
+      "🕠",
+      "🕡",
+      "🕢",
+      "🕣",
+      "🕤",
+      "🕥",
+      "🕦",
+      "🕧",
+    ],
+  },
 };
 
 // Computed: Filtered Quick Replies based on search query
 const filteredQuickReplies = computed(() => {
-    if (!quickReplySearchQuery.value) return quickReplies.value;
-    
-    const query = quickReplySearchQuery.value.toLowerCase();
-    return quickReplies.value.filter(qr => {
-        // Match shortcut (without leading /)
-        const shortcutWithoutSlash = (qr.shortcut || '').replace(/^\//, '').toLowerCase();
-        const titleLower = (qr.title || '').toLowerCase();
-        
-        return shortcutWithoutSlash.includes(query) || titleLower.includes(query);
-    });
+  if (!quickReplySearchQuery.value) return quickReplies.value;
+
+  const query = quickReplySearchQuery.value.toLowerCase();
+  return quickReplies.value.filter((qr) => {
+    // Match shortcut (without leading /)
+    const shortcutWithoutSlash = (qr.shortcut || "")
+      .replace(/^\//, "")
+      .toLowerCase();
+    const titleLower = (qr.title || "").toLowerCase();
+
+    return shortcutWithoutSlash.includes(query) || titleLower.includes(query);
+  });
 });
 
 // Initialize notification sound
@@ -241,22 +1294,25 @@ const playNotificationSound = () => {
 
 // Load notification sound setting from localStorage
 const loadNotificationSoundSetting = () => {
-  const saved = localStorage.getItem('cms_notification_sound');
+  const saved = localStorage.getItem("cms_notification_sound");
   if (saved !== null) {
-    notificationSoundEnabled.value = saved === 'true';
+    notificationSoundEnabled.value = saved === "true";
   }
 };
 
 // Toggle notification sound
 const toggleNotificationSound = () => {
   notificationSoundEnabled.value = !notificationSoundEnabled.value;
-  localStorage.setItem('cms_notification_sound', notificationSoundEnabled.value.toString());
+  localStorage.setItem(
+    "cms_notification_sound",
+    notificationSoundEnabled.value.toString()
+  );
 };
 
 // Load font size from localStorage on mount
 const loadFontSize = () => {
-  const saved = localStorage.getItem('cms_font_size');
-  if (saved && ['medium', 'large'].includes(saved)) {
+  const saved = localStorage.getItem("cms_font_size");
+  if (saved && ["medium", "large"].includes(saved)) {
     fontSize.value = saved;
   }
 };
@@ -264,13 +1320,13 @@ const loadFontSize = () => {
 // Save font size to localStorage
 const setFontSize = (size) => {
   fontSize.value = size;
-  localStorage.setItem('cms_font_size', size);
+  localStorage.setItem("cms_font_size", size);
 };
 
 // Theme Functions
 const loadTheme = () => {
-  const saved = localStorage.getItem('cms_theme');
-  if (saved && ['dark', 'light'].includes(saved)) {
+  const saved = localStorage.getItem("cms_theme");
+  if (saved && ["dark", "light"].includes(saved)) {
     theme.value = saved;
   }
   applyTheme(theme.value);
@@ -278,106 +1334,108 @@ const loadTheme = () => {
 
 const setTheme = (newTheme) => {
   theme.value = newTheme;
-  localStorage.setItem('cms_theme', newTheme);
+  localStorage.setItem("cms_theme", newTheme);
   applyTheme(newTheme);
 };
 
 const applyTheme = (themeName) => {
   const root = document.documentElement;
-  
-  if (themeName === 'light') {
+
+  if (themeName === "light") {
     // Light theme colors (WhatsApp-like)
-    root.style.setProperty('--wa-bg-primary', '#f0f2f5');
-    root.style.setProperty('--wa-bg-secondary', '#ffffff');
-    root.style.setProperty('--wa-bg-tertiary', '#f0f2f5');
-    root.style.setProperty('--wa-bg-panel', '#ffffff');
-    root.style.setProperty('--wa-bg-chat', '#efeae2'); // Chat area background
-    root.style.setProperty('--wa-border', '#e9edef');
-    root.style.setProperty('--wa-text-primary', '#111b21');
-    root.style.setProperty('--wa-text-secondary', '#54656f');
-    root.style.setProperty('--wa-text-tertiary', '#8696a0');
-    root.style.setProperty('--wa-bubble-out', '#d9fdd3');
-    root.style.setProperty('--wa-bubble-outgoing', '#d9fdd3'); // Alias
-    root.style.setProperty('--wa-bubble-out-text', '#111b21');
-    root.style.setProperty('--wa-bubble-in', '#ffffff');
-    root.style.setProperty('--wa-bubble-incoming', '#ffffff'); // Alias
-    root.style.setProperty('--wa-bubble-in-text', '#111b21');
-    root.style.setProperty('--wa-hover', '#f5f6f6');
-    root.style.setProperty('--wa-active', '#f0f2f5');
-    root.style.setProperty('--wa-bubble-out-meta', '#54656f'); // Dark gray for light mode
-    root.style.setProperty('--wa-bubble-out-quoted-bg', 'rgba(0, 0, 0, 0.05)');
-    root.style.setProperty('--wa-bubble-out-quoted-text', '#54656f');
-    root.style.setProperty('--wa-icon-default', '#54656f');
-    root.style.setProperty('--wa-accent-green', '#00a884');
-    root.style.setProperty('--wa-divider', '#f0f2f5'); // Light divider merging with bg
-    root.style.setProperty('--wa-link-color', '#027eb5');
-    root.style.setProperty('--wa-date-badge', '#ffffff');
-    root.style.setProperty('--wa-date-badge-text', '#54656f');
-    root.style.setProperty('--wa-header-bg', '#f0f2f5');
-    root.style.setProperty('--wa-input-bg', '#ffffff');
-    root.style.setProperty('--wa-conversation-active', '#f0f2f5');
-    
+    root.style.setProperty("--wa-bg-primary", "#f0f2f5");
+    root.style.setProperty("--wa-bg-secondary", "#ffffff");
+    root.style.setProperty("--wa-bg-tertiary", "#f0f2f5");
+    root.style.setProperty("--wa-bg-panel", "#ffffff");
+    root.style.setProperty("--wa-bg-chat", "#efeae2"); // Chat area background
+    root.style.setProperty("--wa-border", "#e9edef");
+    root.style.setProperty("--wa-text-primary", "#111b21");
+    root.style.setProperty("--wa-text-secondary", "#54656f");
+    root.style.setProperty("--wa-text-tertiary", "#8696a0");
+    root.style.setProperty("--wa-bubble-out", "#d9fdd3");
+    root.style.setProperty("--wa-bubble-outgoing", "#d9fdd3"); // Alias
+    root.style.setProperty("--wa-bubble-out-text", "#111b21");
+    root.style.setProperty("--wa-bubble-in", "#ffffff");
+    root.style.setProperty("--wa-bubble-incoming", "#ffffff"); // Alias
+    root.style.setProperty("--wa-bubble-in-text", "#111b21");
+    root.style.setProperty("--wa-hover", "#f5f6f6");
+    root.style.setProperty("--wa-active", "#f0f2f5");
+    root.style.setProperty("--wa-bubble-out-meta", "#54656f"); // Dark gray for light mode
+    root.style.setProperty("--wa-bubble-out-quoted-bg", "rgba(0, 0, 0, 0.05)");
+    root.style.setProperty("--wa-bubble-out-quoted-text", "#54656f");
+    root.style.setProperty("--wa-icon-default", "#54656f");
+    root.style.setProperty("--wa-accent-green", "#00a884");
+    root.style.setProperty("--wa-divider", "#f0f2f5"); // Light divider merging with bg
+    root.style.setProperty("--wa-link-color", "#027eb5");
+    root.style.setProperty("--wa-date-badge", "#ffffff");
+    root.style.setProperty("--wa-date-badge-text", "#54656f");
+    root.style.setProperty("--wa-header-bg", "#f0f2f5");
+    root.style.setProperty("--wa-input-bg", "#ffffff");
+    root.style.setProperty("--wa-conversation-active", "#f0f2f5");
+
     // Filter Tabs
-    root.style.setProperty('--wa-filter-active-bg', '#d9fdd3');
-    root.style.setProperty('--wa-filter-active-text', '#008069');
-    root.style.setProperty('--wa-filter-inactive-bg', 'transparent');
-    root.style.setProperty('--wa-filter-inactive-border', '#e9edef');
-    root.style.setProperty('--wa-filter-inactive-text', '#54656f');
+    root.style.setProperty("--wa-filter-active-bg", "#d9fdd3");
+    root.style.setProperty("--wa-filter-active-text", "#008069");
+    root.style.setProperty("--wa-filter-inactive-bg", "transparent");
+    root.style.setProperty("--wa-filter-inactive-border", "#e9edef");
+    root.style.setProperty("--wa-filter-inactive-text", "#54656f");
   } else {
     // Dark theme colors (default)
-    root.style.setProperty('--wa-bg-primary', '#111b21');
-    root.style.setProperty('--wa-bg-secondary', '#202c33');
-    root.style.setProperty('--wa-bg-tertiary', '#2a3942');
-    root.style.setProperty('--wa-bg-panel', '#111b21');
-    root.style.setProperty('--wa-bg-chat', '#0b141a'); // Chat area background
-    root.style.setProperty('--wa-border', '#2a3942');
-    root.style.setProperty('--wa-text-primary', '#e9edef');
-    root.style.setProperty('--wa-text-secondary', '#8696a0');
-    root.style.setProperty('--wa-text-tertiary', '#667781');
-    root.style.setProperty('--wa-bubble-out', '#005c4b');
-    root.style.setProperty('--wa-bubble-outgoing', '#005c4b'); // Alias
-    root.style.setProperty('--wa-bubble-out-text', '#e9edef');
-    root.style.setProperty('--wa-bubble-in', '#202c33');
-    root.style.setProperty('--wa-bubble-incoming', '#202c33'); // Alias
-    root.style.setProperty('--wa-bubble-in-text', '#e9edef');
-    root.style.setProperty('--wa-hover', '#2a3942');
-    root.style.setProperty('--wa-active', '#2a3942');
-    root.style.setProperty('--wa-bubble-out-meta', 'rgba(255, 255, 255, 0.6)'); // White/translucent for dark mode
-    root.style.setProperty('--wa-bubble-out-quoted-bg', 'rgba(0, 0, 0, 0.2)');
-    root.style.setProperty('--wa-bubble-out-quoted-text', 'rgba(255, 255, 255, 0.7)');
-    root.style.setProperty('--wa-icon-default', '#aebac1');
-    root.style.setProperty('--wa-accent-green', '#00a884');
-    root.style.setProperty('--wa-divider', '#2a3942'); // Dark divider merging with bg
-    root.style.setProperty('--wa-link-color', '#53bdeb');
-    root.style.setProperty('--wa-date-badge', '#182229');
-    root.style.setProperty('--wa-date-badge-text', '#8696a0');
-    root.style.setProperty('--wa-header-bg', '#202c33');
-    root.style.setProperty('--wa-input-bg', '#2a3942');
-    root.style.setProperty('--wa-conversation-active', '#2a3942');
-    
+    root.style.setProperty("--wa-bg-primary", "#111b21");
+    root.style.setProperty("--wa-bg-secondary", "#202c33");
+    root.style.setProperty("--wa-bg-tertiary", "#2a3942");
+    root.style.setProperty("--wa-bg-panel", "#111b21");
+    root.style.setProperty("--wa-bg-chat", "#0b141a"); // Chat area background
+    root.style.setProperty("--wa-border", "#2a3942");
+    root.style.setProperty("--wa-text-primary", "#e9edef");
+    root.style.setProperty("--wa-text-secondary", "#8696a0");
+    root.style.setProperty("--wa-text-tertiary", "#667781");
+    root.style.setProperty("--wa-bubble-out", "#005c4b");
+    root.style.setProperty("--wa-bubble-outgoing", "#005c4b"); // Alias
+    root.style.setProperty("--wa-bubble-out-text", "#e9edef");
+    root.style.setProperty("--wa-bubble-in", "#202c33");
+    root.style.setProperty("--wa-bubble-incoming", "#202c33"); // Alias
+    root.style.setProperty("--wa-bubble-in-text", "#e9edef");
+    root.style.setProperty("--wa-hover", "#2a3942");
+    root.style.setProperty("--wa-active", "#2a3942");
+    root.style.setProperty("--wa-bubble-out-meta", "rgba(255, 255, 255, 0.6)"); // White/translucent for dark mode
+    root.style.setProperty("--wa-bubble-out-quoted-bg", "rgba(0, 0, 0, 0.2)");
+    root.style.setProperty(
+      "--wa-bubble-out-quoted-text",
+      "rgba(255, 255, 255, 0.7)"
+    );
+    root.style.setProperty("--wa-icon-default", "#aebac1");
+    root.style.setProperty("--wa-accent-green", "#00a884");
+    root.style.setProperty("--wa-divider", "#2a3942"); // Dark divider merging with bg
+    root.style.setProperty("--wa-link-color", "#53bdeb");
+    root.style.setProperty("--wa-date-badge", "#182229");
+    root.style.setProperty("--wa-date-badge-text", "#8696a0");
+    root.style.setProperty("--wa-header-bg", "#202c33");
+    root.style.setProperty("--wa-input-bg", "#2a3942");
+    root.style.setProperty("--wa-conversation-active", "#2a3942");
+
     // Filter Tabs
-    root.style.setProperty('--wa-filter-active-bg', '#00a884');
-    root.style.setProperty('--wa-filter-active-text', '#111b21');
-    root.style.setProperty('--wa-filter-inactive-bg', '#2a3942');
-    root.style.setProperty('--wa-filter-inactive-border', 'transparent');
-    root.style.setProperty('--wa-filter-inactive-text', '#8696a0');
+    root.style.setProperty("--wa-filter-active-bg", "#00a884");
+    root.style.setProperty("--wa-filter-active-text", "#111b21");
+    root.style.setProperty("--wa-filter-inactive-bg", "#2a3942");
+    root.style.setProperty("--wa-filter-inactive-border", "transparent");
+    root.style.setProperty("--wa-filter-inactive-text", "#8696a0");
   }
 };
 
 const toggleTheme = () => {
-  const newTheme = theme.value === 'dark' ? 'light' : 'dark';
+  const newTheme = theme.value === "dark" ? "light" : "dark";
   setTheme(newTheme);
 };
 
 // Computed font sizes for messages
 const messageFontSize = computed(() => {
   const sizes = {
-    medium: '14.2px',
-    large: '16px'
+    medium: "14.2px",
+    large: "16px",
   };
   return sizes[fontSize.value] || sizes.medium;
 });
-
 
 const filteredConversations = computed(() => {
   let list = conversations.value;
@@ -386,37 +1444,45 @@ const filteredConversations = computed(() => {
   const role = currentUserRole.value;
   const myId = authId.value;
 
-  if (role === 'driver') {
-      // Driver only sees Priority 2 (Pickup/Delivery)
-      // Must have Case 2 AND status must be 'open' (or undefined/null which defaults to open)
-      list = list.filter(c => c.cases && c.cases.some(x => x.case === 2 && (x.status || 'open') !== 'closed'));
-
-  } else if (role === 'crew') {
-      // Crew only sees conversations assigned to them
-      if (myId) {
-          list = list.filter(c => String(c.assignment_user_id) === String(myId));
-      }
+  if (role === "driver") {
+    // Driver only sees Priority 2 (Pickup/Delivery)
+    // Must have Case 2 AND status must be 'open' (or undefined/null which defaults to open)
+    list = list.filter(
+      (c) =>
+        c.cases &&
+        c.cases.some((x) => x.case === 2 && (x.status || "open") !== "closed")
+    );
+  } else if (role === "crew") {
+    // Crew only sees conversations assigned to them
+    if (myId) {
+      list = list.filter((c) => String(c.assignment_user_id) === String(myId));
+    }
   }
   // Admin sees everything (no filter added)
 
   // Apply conversation filter (All/Unread/Cases)
-  if (conversationFilter.value === 'unread') {
-    list = list.filter(c => c.unread > 0);
-  } else if (conversationFilter.value === 'cases') {
+  if (conversationFilter.value === "unread") {
+    list = list.filter((c) => c.unread > 0);
+  } else if (conversationFilter.value === "cases") {
     // Only show conversations with OPEN cases
-    list = list.filter(c => c.cases && c.cases.some(x => x.case > 0 && (x.status || 'open') !== 'closed'));
+    list = list.filter(
+      (c) =>
+        c.cases &&
+        c.cases.some((x) => x.case > 0 && (x.status || "open") !== "closed")
+    );
   }
-  
+
   // Apply search filter if query exists
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase();
-    list = list.filter(c => 
-      (c.name && c.name.toLowerCase().includes(query)) ||
-      (c.wa_number && c.wa_number.includes(query)) ||
-      (c.lastMessage && c.lastMessage.toLowerCase().includes(query))
+    list = list.filter(
+      (c) =>
+        (c.name && c.name.toLowerCase().includes(query)) ||
+        (c.wa_number && c.wa_number.includes(query)) ||
+        (c.lastMessage && c.lastMessage.toLowerCase().includes(query))
     );
   }
-  
+
   // **SORTING LOGIC**:
   // In 'all' tab: Sort purely by last message time (no case separation)
   // In 'cases' tab: Sort by last message time (all have open cases anyway)
@@ -431,18 +1497,20 @@ const filteredConversations = computed(() => {
 
 // Computed: Cases available to resolve based on Role
 const resolveableCases = computed(() => {
-    if (!activeConversation.value || !activeConversation.value.cases) return [];
-    
-    const role = currentUserRole.value;
-    // Filter open cases (include all cases including Case 4)
-    // Use parseInt for defensive type conversion
-    const openCases = activeConversation.value.cases.filter(c => (c.status || 'open') !== 'closed' && parseInt(c.case) > 0);
-    
-    if (role === 'admin') return openCases;
-    if (role === 'driver') return openCases.filter(c => parseInt(c.case) === 2);
-    if (role === 'crew') return openCases.filter(c => parseInt(c.case) === 3);
-    
-    return []; // default no access
+  if (!activeConversation.value || !activeConversation.value.cases) return [];
+
+  const role = currentUserRole.value;
+  // Filter open cases (include all cases including Case 4)
+  // Use parseInt for defensive type conversion
+  const openCases = activeConversation.value.cases.filter(
+    (c) => (c.status || "open") !== "closed" && parseInt(c.case) > 0
+  );
+
+  if (role === "admin") return openCases;
+  if (role === "driver") return openCases.filter((c) => parseInt(c.case) === 2);
+  if (role === "crew") return openCases.filter((c) => parseInt(c.case) === 3);
+
+  return []; // default no access
 });
 
 // Total unread messages count
@@ -452,359 +1520,374 @@ const totalUnreadCount = computed(() => {
 
 // Total conversations with open cases
 const totalOpenCasesCount = computed(() => {
-  return conversations.value.filter(c => 
-    c.cases && c.cases.some(x => x.case > 0 && (x.status || 'open') !== 'closed')
+  return conversations.value.filter(
+    (c) =>
+      c.cases &&
+      c.cases.some((x) => x.case > 0 && (x.status || "open") !== "closed")
   ).length;
 });
 
 // Title blinking is now handled by shouldBlinkTitle watch below (line 314)
 // to avoid conflicts between totalUnreadCount and priority-based blinking
 
-
 const fetchConversations = async () => {
-    try {
-        isLoadingConversations.value = true; // Start loading
-        
-        const userIdParam = authId.value ? `user_id=${authId.value}` : '';
-        const separator = userIdParam ? '&' : '?';
-        const query = userIdParam ? `?${userIdParam}${separator}_t=${Date.now()}` : `?_t=${Date.now()}`;
-        
-        const response = await fetch(`${API_BASE}/CRM/Chat/getConversations${query}`); 
-        
-        if (!response.ok) {
-            const text = await response.text();
-            console.error("API Error Response:", text);
-            return;
-        }
+  try {
+    isLoadingConversations.value = true; // Start loading
 
-        const result = await response.json();
-        
-        // Backend returns "status": true, not "success"
-        if (result.status && Array.isArray(result.data)) {
-            if (result.data.length === 0) {
-                 console.log("API returned 0 conversations.");
-            }
-            
-            // SMART MERGE STRATEGY
-            // 1. Create Map of existing convos
-            const existingMap = new Map(conversations.value.map(c => [c.id, c]));
-            const newOrder = [];
+    const userIdParam = authId.value ? `user_id=${authId.value}` : "";
+    const separator = userIdParam ? "&" : "?";
+    const query = userIdParam
+      ? `?${userIdParam}${separator}_t=${Date.now()}`
+      : `?_t=${Date.now()}`;
 
-            result.data.forEach(c => {
-                // Normalizer helper for cases
-                const parseCases = (c) => {
-                    let cases = [];
-                    // 1. Try case_history (array from backend)
-                    if (Array.isArray(c.case_history)) {
-                        cases = c.case_history;
-                    } 
-                    // 2. Try parsing raw 'conv_case' OR 'case' column if string JSON
-                    else {
-                        // 2. Try parsing raw 'conv_case' OR 'case' column if string JSON
-                        const rawCase = c.conv_case || c.case;
-                        if (typeof rawCase === 'string' && (rawCase.startsWith('[') || rawCase.startsWith('{'))) {
-                            try {
-                                const parsed = JSON.parse(rawCase);
-                                if (Array.isArray(parsed)) cases = parsed;
-                                else if (parsed.case) cases = [parsed];
-                            } catch(e) {}
-                        }
-                        
-                        // 3. Fallback: Legacy Priority/Case Val (Only if still empty)
-                        if (cases.length === 0 && (c.priority > 0 || c.case_val > 0)) {
-                             cases = [{ case: parseInt(c.priority || c.case_val || 0) }];
-                        }
-                    }
-                    
-                    // Filter out 0 case if there are others, or just keep distinct
-                    // FIX: Deduplicate cases - keep only latest open entry per case value
-                    const dedupedCases = [];
-                    const seenCases = new Map(); // Map<caseValue, caseEntry>
-                    
-                    // Process in order (already sorted by timestamp in backend)
-                    for (const cse of cases) {
-                        const caseVal = parseInt(cse.case);
-                        if (isNaN(caseVal) || caseVal === 0) continue;
-                        
-                        const status = cse.status || 'open';
-                        
-                        // Normalize the case object - ensure case is integer
-                        const normalizedCase = { ...cse, case: caseVal };
-                        
-                        if (!seenCases.has(caseVal)) {
-                            // First occurrence of this case value
-                            seenCases.set(caseVal, normalizedCase);
-                        } else {
-                            // Already seen - prefer open over closed, and newer timestamp
-                            const existing = seenCases.get(caseVal);
-                            const existingStatus = existing.status || 'open';
-                            
-                            // If existing is closed but new is open, replace
-                            if (existingStatus === 'closed' && status !== 'closed') {
-                                seenCases.set(caseVal, normalizedCase);
-                            }
-                            // If both are open/both are closed, keep the newer one (later in array = newer)
-                            else if (existingStatus === status) {
-                                seenCases.set(caseVal, normalizedCase);
-                            }
-                        }
-                    }
-                    
-                    return Array.from(seenCases.values());
-                };
+    const response = await fetch(
+      `${API_BASE}/CRM/Chat/getConversations${query}`
+    );
 
-                let convo = existingMap.get(c.id);
-                
-                if (convo) {
-                    // Update existing
-                    convo.wa_number = c.wa_number;
-                    convo.name = c.contact_name || c.wa_number;
-                    convo.kode_cabang = c.kode_cabang;
-                    // convo.priority = parseInt(c.priority) || 0; // Legacy ignored
-                    convo.cases = parseCases(c); // New Array
-                    
-                    convo.initials = (c.contact_name || c.wa_number || '?').substring(0, 1).toUpperCase();
-                    convo.color = getAvatarColor(c.id);
-                    convo.status = c.status;
-                    convo.lastMessage = c.last_message || c.last_message_text || 'No messages yet';
-                    convo.lastTime = formatLastTime(c.last_message_time);
-                    convo.lastMessageTime = c.last_message_time; // Raw timestamp for sorting
-                    convo.unread = parseInt(c.unread_count) || 0;
-                    convo.assignment_user_id = c.assigned_user_id; // Fix: map from backend assigned_user_id
-                    // MESSAGES PRESERVED AUTOMATICALLY as we are modifying the object ref
-                } else {
-                    // Create new
-                    convo = {
-                        id: c.id,
-                        wa_number: c.wa_number,
-                        name: c.contact_name || c.wa_number,
-                        kode_cabang: c.kode_cabang,
-                        // priority: parseInt(c.priority) || 0,
-                        cases: parseCases(c),
-                        
-                        initials: (c.contact_name || c.wa_number || '?').substring(0, 1).toUpperCase(),
-                        color: getAvatarColor(c.id),
-                        status: c.status,  
-                        lastMessage: c.last_message || c.last_message_text || 'No messages yet',
-                        lastTime: formatLastTime(c.last_message_time),
-                        lastMessageTime: c.last_message_time, // Raw timestamp for sorting
-                        unread: parseInt(c.unread_count) || 0,
-                        assignment_user_id: c.assigned_user_id, // Fix: map from backend assigned_user_id
-                        messages: []
-                    };
-                }
-                newOrder.push(convo);
-            });
-            
-            // Re-assign to update list order/membership
-            // Re-assign to update list order/membership
-            conversations.value = newOrder;
-            
-            // Auto-open chat if deep link pending
-            if (pendingTargetPhone.value) {
-                const target = conversations.value.find(c => {
-                    const cleanA = (c.wa_number || '').replace(/\D/g, '');
-                    const cleanB = (pendingTargetPhone.value || '').replace(/\D/g, '');
-                    return cleanA.endsWith(cleanB) || cleanB.endsWith(cleanA);
-                });
-                
-                if (target) {
-                    console.log('✅ Auto-opening chat from deep link:', target.name);
-                    pendingTargetPhone.value = null; // Clear it first to prevent re-triggering
-                    
-                    // Use selectChat to properly load messages from API
-                    selectChat(target.id);
-                } else {
-                    console.log('⚠️ Deep link target not found in list (yet):', pendingTargetPhone.value);
-                }
-            }
-
-            
-        } else {
-            console.error("API format error:", result);
-        }
-    } catch (e) {
-        console.error("Error fetching conversations:", e);
-    } finally {
-        isLoadingConversations.value = false; // End loading
+    if (!response.ok) {
+      const text = await response.text();
+      console.error("API Error Response:", text);
+      return;
     }
+
+    const result = await response.json();
+
+    // Backend returns "status": true, not "success"
+    if (result.status && Array.isArray(result.data)) {
+      if (result.data.length === 0) {
+        console.log("API returned 0 conversations.");
+      }
+
+      // SMART MERGE STRATEGY
+      // 1. Create Map of existing convos
+      const existingMap = new Map(conversations.value.map((c) => [c.id, c]));
+      const newOrder = [];
+
+      result.data.forEach((c) => {
+        // Normalizer helper for cases
+        const parseCases = (c) => {
+          let cases = [];
+          // 1. Try case_history (array from backend)
+          if (Array.isArray(c.case_history)) {
+            cases = c.case_history;
+          }
+          // 2. Try parsing raw 'conv_case' OR 'case' column if string JSON
+          else {
+            // 2. Try parsing raw 'conv_case' OR 'case' column if string JSON
+            const rawCase = c.conv_case || c.case;
+            if (
+              typeof rawCase === "string" &&
+              (rawCase.startsWith("[") || rawCase.startsWith("{"))
+            ) {
+              try {
+                const parsed = JSON.parse(rawCase);
+                if (Array.isArray(parsed)) cases = parsed;
+                else if (parsed.case) cases = [parsed];
+              } catch (e) {}
+            }
+
+            // 3. Fallback: Legacy Priority/Case Val (Only if still empty)
+            if (cases.length === 0 && (c.priority > 0 || c.case_val > 0)) {
+              cases = [{ case: parseInt(c.priority || c.case_val || 0) }];
+            }
+          }
+
+          // Filter out 0 case if there are others, or just keep distinct
+          // FIX: Deduplicate cases - keep only latest open entry per case value
+          const dedupedCases = [];
+          const seenCases = new Map(); // Map<caseValue, caseEntry>
+
+          // Process in order (already sorted by timestamp in backend)
+          for (const cse of cases) {
+            const caseVal = parseInt(cse.case);
+            if (isNaN(caseVal) || caseVal === 0) continue;
+
+            const status = cse.status || "open";
+
+            // Normalize the case object - ensure case is integer
+            const normalizedCase = { ...cse, case: caseVal };
+
+            if (!seenCases.has(caseVal)) {
+              // First occurrence of this case value
+              seenCases.set(caseVal, normalizedCase);
+            } else {
+              // Already seen - prefer open over closed, and newer timestamp
+              const existing = seenCases.get(caseVal);
+              const existingStatus = existing.status || "open";
+
+              // If existing is closed but new is open, replace
+              if (existingStatus === "closed" && status !== "closed") {
+                seenCases.set(caseVal, normalizedCase);
+              }
+              // If both are open/both are closed, keep the newer one (later in array = newer)
+              else if (existingStatus === status) {
+                seenCases.set(caseVal, normalizedCase);
+              }
+            }
+          }
+
+          return Array.from(seenCases.values());
+        };
+
+        let convo = existingMap.get(c.id);
+
+        if (convo) {
+          // Update existing
+          convo.wa_number = c.wa_number;
+          convo.name = c.contact_name || c.wa_number;
+          convo.kode_cabang = c.kode_cabang;
+          // convo.priority = parseInt(c.priority) || 0; // Legacy ignored
+          convo.cases = parseCases(c); // New Array
+
+          convo.initials = (c.contact_name || c.wa_number || "?")
+            .substring(0, 1)
+            .toUpperCase();
+          convo.color = getAvatarColor(c.id);
+          convo.status = c.status;
+          convo.lastMessage =
+            c.last_message || c.last_message_text || "No messages yet";
+          convo.lastTime = formatLastTime(c.last_message_time);
+          convo.lastMessageTime = c.last_message_time; // Raw timestamp for sorting
+          convo.unread = parseInt(c.unread_count) || 0;
+          convo.assignment_user_id = c.assigned_user_id; // Fix: map from backend assigned_user_id
+          // MESSAGES PRESERVED AUTOMATICALLY as we are modifying the object ref
+        } else {
+          // Create new
+          convo = {
+            id: c.id,
+            wa_number: c.wa_number,
+            name: c.contact_name || c.wa_number,
+            kode_cabang: c.kode_cabang,
+            // priority: parseInt(c.priority) || 0,
+            cases: parseCases(c),
+
+            initials: (c.contact_name || c.wa_number || "?")
+              .substring(0, 1)
+              .toUpperCase(),
+            color: getAvatarColor(c.id),
+            status: c.status,
+            lastMessage:
+              c.last_message || c.last_message_text || "No messages yet",
+            lastTime: formatLastTime(c.last_message_time),
+            lastMessageTime: c.last_message_time, // Raw timestamp for sorting
+            unread: parseInt(c.unread_count) || 0,
+            assignment_user_id: c.assigned_user_id, // Fix: map from backend assigned_user_id
+            messages: [],
+          };
+        }
+        newOrder.push(convo);
+      });
+
+      // Re-assign to update list order/membership
+      // Re-assign to update list order/membership
+      conversations.value = newOrder;
+
+      // Auto-open chat if deep link pending
+      if (pendingTargetPhone.value) {
+        const target = conversations.value.find((c) => {
+          const cleanA = (c.wa_number || "").replace(/\D/g, "");
+          const cleanB = (pendingTargetPhone.value || "").replace(/\D/g, "");
+          return cleanA.endsWith(cleanB) || cleanB.endsWith(cleanA);
+        });
+
+        if (target) {
+          console.log("✅ Auto-opening chat from deep link:", target.name);
+          pendingTargetPhone.value = null; // Clear it first to prevent re-triggering
+
+          // Use selectChat to properly load messages from API
+          selectChat(target.id);
+        } else {
+          console.log(
+            "⚠️ Deep link target not found in list (yet):",
+            pendingTargetPhone.value
+          );
+        }
+      }
+    } else {
+      console.error("API format error:", result);
+    }
+  } catch (e) {
+    console.error("Error fetching conversations:", e);
+  } finally {
+    isLoadingConversations.value = false; // End loading
+  }
 };
 
 const fetchUserRole = async () => {
-    try {
-        const res = await fetch(`${API_BASE}/CRM/Roles`);
-        const result = await res.json();
-        if (result.status && result.data) {
-            const roles = result.data;
-            const myId = authId.value;
-            let role = 'crew'; // Default
-            
-            // Loose comparison in case ID is string vs int
-            const includesId = (arr, id) => arr.some(x => String(x) === String(id));
-            
-            if (roles.admin && includesId(roles.admin, myId)) role = 'admin';
-            else if (roles.driver && includesId(roles.driver, myId)) role = 'driver';
-            else if (roles.crew && includesId(roles.crew, myId)) role = 'crew';
-            
-            currentUserRole.value = role;
-            localStorage.setItem('cms_chat_role', role);
-            console.log('User Role Detected:', role);
-        }
-    } catch (e) {
-        console.error("Failed to fetch roles:", e);
+  try {
+    const res = await fetch(`${API_BASE}/CRM/Roles`);
+    const result = await res.json();
+    if (result.status && result.data) {
+      const roles = result.data;
+      const myId = authId.value;
+      let role = "crew"; // Default
+
+      // Loose comparison in case ID is string vs int
+      const includesId = (arr, id) => arr.some((x) => String(x) === String(id));
+
+      if (roles.admin && includesId(roles.admin, myId)) role = "admin";
+      else if (roles.driver && includesId(roles.driver, myId)) role = "driver";
+      else if (roles.crew && includesId(roles.crew, myId)) role = "crew";
+
+      currentUserRole.value = role;
+      localStorage.setItem("cms_chat_role", role);
+      console.log("User Role Detected:", role);
     }
+  } catch (e) {
+    console.error("Failed to fetch roles:", e);
+  }
 };
 
 // OneSignal Integration for Push Notifications
 const oneSignalLogin = (userId) => {
-    try {
-        // For WebView: Call Android interface if available
-        if (window.OneSignalInterface) {
-            window.OneSignalInterface.login(String(userId));
-            console.log('OneSignal: Logged in via Android interface:', userId);
-        }
-        // For Web: Use OneSignal Web SDK if available
-        else if (window.OneSignalDeferred) {
-            window.OneSignalDeferred.push(async function(OneSignal) {
-                await OneSignal.login(String(userId));
-                console.log('OneSignal: Logged in via Web SDK:', userId);
-            });
-        }
-        else if (window.OneSignal) {
-            window.OneSignal.login(String(userId));
-            console.log('OneSignal: Logged in:', userId);
-        }
-        else {
-            console.log('OneSignal: Not available (running in browser without SDK)');
-        }
-    } catch (e) {
-        console.error('OneSignal login error:', e);
+  try {
+    // For WebView: Call Android interface if available
+    if (window.OneSignalInterface) {
+      window.OneSignalInterface.login(String(userId));
+      console.log("OneSignal: Logged in via Android interface:", userId);
     }
+    // For Web: Use OneSignal Web SDK if available
+    else if (window.OneSignalDeferred) {
+      window.OneSignalDeferred.push(async function (OneSignal) {
+        await OneSignal.login(String(userId));
+        console.log("OneSignal: Logged in via Web SDK:", userId);
+      });
+    } else if (window.OneSignal) {
+      window.OneSignal.login(String(userId));
+      console.log("OneSignal: Logged in:", userId);
+    } else {
+      console.log("OneSignal: Not available (running in browser without SDK)");
+    }
+  } catch (e) {
+    console.error("OneSignal login error:", e);
+  }
 };
 
 const oneSignalLogout = () => {
-    try {
-        // For WebView: Call Android interface if available
-        if (window.OneSignalInterface) {
-            window.OneSignalInterface.logout();
-            console.log('OneSignal: Logged out via Android interface');
-        }
-        // For Web: Use OneSignal Web SDK if available
-        else if (window.OneSignalDeferred) {
-            window.OneSignalDeferred.push(async function(OneSignal) {
-                await OneSignal.logout();
-                console.log('OneSignal: Logged out via Web SDK');
-            });
-        }
-        else if (window.OneSignal) {
-            window.OneSignal.logout();
-            console.log('OneSignal: Logged out');
-        }
-        else {
-            console.log('OneSignal: Not available (running in browser without SDK)');
-        }
-    } catch (e) {
-        console.error('OneSignal logout error:', e);
+  try {
+    // For WebView: Call Android interface if available
+    if (window.OneSignalInterface) {
+      window.OneSignalInterface.logout();
+      console.log("OneSignal: Logged out via Android interface");
     }
+    // For Web: Use OneSignal Web SDK if available
+    else if (window.OneSignalDeferred) {
+      window.OneSignalDeferred.push(async function (OneSignal) {
+        await OneSignal.logout();
+        console.log("OneSignal: Logged out via Web SDK");
+      });
+    } else if (window.OneSignal) {
+      window.OneSignal.logout();
+      console.log("OneSignal: Logged out");
+    } else {
+      console.log("OneSignal: Not available (running in browser without SDK)");
+    }
+  } catch (e) {
+    console.error("OneSignal logout error:", e);
+  }
 };
 
 const connect = async () => {
-    if(!authId.value) {
-        connectionError.value = 'Please enter your Username';
-        return;
+  if (!authId.value) {
+    connectionError.value = "Please enter your Username";
+    return;
+  }
+
+  isConnecting.value = true;
+  connectionError.value = "";
+
+  try {
+    // Step 1: Login to Backend
+    const res = await fetch(`${API_BASE}/CRM/Auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: authId.value,
+      }),
+    });
+
+    // Handle non-JSON response gracefully
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || res.statusText);
     }
 
-    isConnecting.value = true;
-    connectionError.value = '';
+    const data = await res.json();
 
-    try {
-        // Step 1: Login to Backend
-        const res = await fetch(`${API_BASE}/CRM/Auth/login`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                username: authId.value
-            })
-        });
-        
-        // Handle non-JSON response gracefully
-        if (!res.ok) {
-            const text = await res.text();
-             throw new Error(text || res.statusText);
-        }
-
-        const data = await res.json();
-        
-        if (!data.success) {
-            connectionError.value = data.message || 'Login Failed';
-            isConnecting.value = false;
-            return;
-        }
-
-        // Step 2: Login Success
-        // Use Role from backend
-        if (data.user) {
-             currentUserRole.value = data.user.role || 'crew';
-             localStorage.setItem('cms_chat_role', currentUserRole.value);
-             localStorage.setItem('cms_chat_token', 'true'); // Flag logged in
-        }
-
-        // Step 3: Connect WebSocket same as before (using authId as ID)
-        connectWebSocket();
-        fetchConversations();
-        fetchQuickReplies();
-        // fetchUserRole(); // REPLACED: Role now comes from Auth Response
-        
-        oneSignalLogin(authId.value);
-        resetPollingTimer();
-
-    } catch (e) {
-        console.error(e);
-        const msg = e.message && e.message.includes('Unexpected token') 
-            ? 'Server Error (Invalid JSON)' 
-            : (e.message || 'Connection Error');
-            
-        connectionError.value = msg;
-        isConnecting.value = false;
+    if (!data.success) {
+      connectionError.value = data.message || "Login Failed";
+      isConnecting.value = false;
+      return;
     }
-}
+
+    // Step 2: Login Success
+    // Use Role from backend
+    if (data.user) {
+      currentUserRole.value = data.user.role || "crew";
+      localStorage.setItem("cms_chat_role", currentUserRole.value);
+      localStorage.setItem("cms_chat_token", "true"); // Flag logged in
+    }
+
+    // Step 3: Connect WebSocket same as before (using authId as ID)
+    connectWebSocket();
+    fetchConversations();
+    fetchQuickReplies();
+    // fetchUserRole(); // REPLACED: Role now comes from Auth Response
+
+    oneSignalLogin(authId.value);
+    resetPollingTimer();
+  } catch (e) {
+    console.error(e);
+    const msg =
+      e.message && e.message.includes("Unexpected token")
+        ? "Server Error (Invalid JSON)"
+        : e.message || "Connection Error";
+
+    connectionError.value = msg;
+    isConnecting.value = false;
+  }
+};
 
 // Helper to reset polling timer (called on WS events to delay next poll)
 const resetPollingTimer = () => {
-    if (refreshInterval.value) {
-        clearInterval(refreshInterval.value);
+  if (refreshInterval.value) {
+    clearInterval(refreshInterval.value);
+  }
+
+  refreshInterval.value = setInterval(() => {
+    if (isConnected.value && !document.hidden) {
+      // console.log('Checking for missed updates...');
+      fetchConversations();
     }
-    
-    refreshInterval.value = setInterval(() => {
-        if (isConnected.value && !document.hidden) {
-            // console.log('Checking for missed updates...');
-            fetchConversations();
-        }
-    }, 30000); // 30 seconds
+  }, 30000); // 30 seconds
 };
 
-
 // --- Computed ---
 
 // --- Computed ---
-const activeConversation = computed(() => { 
+const activeConversation = computed(() => {
   if (!activeChatId.value) return null;
-  return conversations.value.find(c => c.id === activeChatId.value) || null;
+  return conversations.value.find((c) => c.id === activeChatId.value) || null;
 });
 
 // Total Unread Messages
 const totalUnread = computed(() => {
-  return conversations.value.reduce((total, chat) => total + (chat.unread || 0), 0);
+  return conversations.value.reduce(
+    (total, chat) => total + (chat.unread || 0),
+    0
+  );
 });
 
 // Total Priority Conversations
 const totalPriority = computed(() => {
-  return conversations.value.filter(chat => chat.priority && chat.priority > 0).length;
+  return conversations.value.filter(
+    (chat) => chat.priority && chat.priority > 0
+  ).length;
 });
 
 // Should Title Blink (any conversation with unread messages)
 const shouldBlinkTitle = computed(() => {
-  const anyUnread = conversations.value.filter(chat => chat.unread > 0);
+  const anyUnread = conversations.value.filter((chat) => chat.unread > 0);
   return anyUnread.length > 0;
 });
 
@@ -816,7 +1899,9 @@ watch(shouldBlinkTitle, (shouldBlink) => {
       titleBlinkInterval.value = setInterval(() => {
         isTitleRed.value = !isTitleRed.value;
         const count = totalUnreadCount.value;
-        document.title = isTitleRed.value ? `🔴 (${count}) New Messages` : originalTitle;
+        document.title = isTitleRed.value
+          ? `🔴 (${count}) New Messages`
+          : originalTitle;
       }, 1000); // Blink every 1 second
     }
   } else {
@@ -839,83 +1924,99 @@ watch(activeChatId, () => {
 
 // Handle Duplicate Connection - Clear session and reload
 const handleDuplicateConnection = () => {
-  localStorage.removeItem('cms_chat_id');
-  localStorage.removeItem('cms_chat_password');
-  localStorage.removeItem('cms_chat_expiry');
+  localStorage.removeItem("cms_chat_id");
+  localStorage.removeItem("cms_chat_password");
+  localStorage.removeItem("cms_chat_expiry");
   window.location.reload();
 };
 
 // Parse WhatsApp Formatting to HTML
 const parseWhatsAppFormatting = (text) => {
-  if (!text) return '';
-  
+  if (!text) return "";
+
   let formatted = text;
-  
+
   // Escape HTML first to prevent XSS
   formatted = formatted
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-  
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
   // Convert URLs to clickable links BEFORE other formatting
   // This prevents URLs from being broken by formatting tags
   // Pattern matches: http://, https://, www., or domain.com patterns
-  const urlPattern = /(https?:\/\/[^\s]+)|(www\.[^\s]+)|([a-zA-Z0-9][-a-zA-Z0-9]{0,62}\.(?:com|net|org|id|co\.id|ac\.id|io|dev|app|ai|me|info|biz|edu|gov|mil|xyz|online|store|tech|site|web|cloud|link|blog)[^\s]*)/gi;
-  
+  const urlPattern =
+    /(https?:\/\/[^\s]+)|(www\.[^\s]+)|([a-zA-Z0-9][-a-zA-Z0-9]{0,62}\.(?:com|net|org|id|co\.id|ac\.id|io|dev|app|ai|me|info|biz|edu|gov|mil|xyz|online|store|tech|site|web|cloud|link|blog)[^\s]*)/gi;
+
   formatted = formatted.replace(urlPattern, (match) => {
     let href = match;
-    
+
     // Add protocol if missing
     if (!href.match(/^https?:\/\//i)) {
-      href = 'http://' + href;
+      href = "http://" + href;
     }
-    
+
     // Truncate display text if too long (keep first 40 chars + ...)
-    const displayText = match.length > 50 ? match.substring(0, 47) + '...' : match;
-    
+    const displayText =
+      match.length > 50 ? match.substring(0, 47) + "..." : match;
+
     return `<a href="${href}" rel="noopener noreferrer" class="text-blue-400 hover:text-blue-300 underline">${displayText}</a>`;
   });
-  
+
   // Parse WhatsApp formatting patterns
   // Bold: *text* → <strong>text</strong>
-  formatted = formatted.replace(/\*([^*]+)\*/g, '<strong>$1</strong>');
-  
+  formatted = formatted.replace(/\*([^*]+)\*/g, "<strong>$1</strong>");
+
   // Italic: _text_ → <em>text</em>
-  formatted = formatted.replace(/_([^_]+)_/g, '<em>$1</em>');
-  
+  formatted = formatted.replace(/_([^_]+)_/g, "<em>$1</em>");
+
   // Strikethrough: ~text~ → <del>text</del>
-  formatted = formatted.replace(/~([^~]+)~/g, '<del>$1</del>');
-  
+  formatted = formatted.replace(/~([^~]+)~/g, "<del>$1</del>");
+
   // Monospace/Code: ```text``` → <code>text</code>
-  formatted = formatted.replace(/```([^`]+)```/g, '<code class="bg-slate-900/50 px-1.5 py-0.5 rounded text-xs font-mono">$1</code>');
-  
+  formatted = formatted.replace(
+    /```([^`]+)```/g,
+    '<code class="bg-slate-900/50 px-1.5 py-0.5 rounded text-xs font-mono">$1</code>'
+  );
+
   return formatted;
 };
 
 // Format Reaction Text (safely handle null)
 const formatReactionText = (text) => {
-  if (!text) return '👍'; // Default emoji if text is null/undefined
-  return text.replace('Reacted: ', '').replace('Removed reaction', '👎');
+  if (!text) return "👍"; // Default emoji if text is null/undefined
+  return text.replace("Reacted: ", "").replace("Removed reaction", "👎");
 };
 
 // Format Last Time for Conversation List (WhatsApp Style)
 const formatLastTime = (dateString) => {
-  if (!dateString) return '';
+  if (!dateString) return "";
   const date = new Date(dateString);
   const now = new Date();
-  
+
   // Reset time part for accurate date comparison
-  const d = new Date(date); d.setHours(0,0,0,0);
-  const n = new Date(now); n.setHours(0,0,0,0);
-  const y = new Date(n); y.setDate(y.getDate() - 1);
-  
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  const n = new Date(now);
+  n.setHours(0, 0, 0, 0);
+  const y = new Date(n);
+  y.setDate(y.getDate() - 1);
+
   if (d.getTime() === n.getTime()) {
-    return date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false});
+    return date.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
   } else if (d.getTime() === y.getTime()) {
-    return 'Yesterday';
+    return "Yesterday";
   } else {
     // DD/MM/YY
-    return date.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: '2-digit' });
+    return date.toLocaleDateString("id-ID", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "2-digit",
+    });
   }
 };
 
@@ -925,21 +2026,21 @@ const formatDateSeparator = (dateString) => {
   const today = new Date();
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
-  
+
   // Reset time to compare dates only
   msgDate.setHours(0, 0, 0, 0);
   today.setHours(0, 0, 0, 0);
   yesterday.setHours(0, 0, 0, 0);
-  
+
   if (msgDate.getTime() === today.getTime()) {
-    return 'Today';
+    return "Today";
   } else if (msgDate.getTime() === yesterday.getTime()) {
-    return 'Yesterday';
+    return "Yesterday";
   } else {
-    return new Date(dateString).toLocaleDateString('id-ID', { 
-      day: 'numeric', 
-      month: 'long', 
-      year: 'numeric' 
+    return new Date(dateString).toLocaleDateString("id-ID", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
     });
   }
 };
@@ -947,13 +2048,13 @@ const formatDateSeparator = (dateString) => {
 // Check if date separator is needed between two messages
 const needsDateSeparator = (currentMsg, previousMsg) => {
   if (!previousMsg || !currentMsg.rawTime || !previousMsg.rawTime) return false;
-  
+
   const currentDate = new Date(currentMsg.rawTime);
   const previousDate = new Date(previousMsg.rawTime);
-  
+
   currentDate.setHours(0, 0, 0, 0);
   previousDate.setHours(0, 0, 0, 0);
-  
+
   return currentDate.getTime() !== previousDate.getTime();
 };
 
@@ -969,45 +2070,45 @@ const showCustomerInfo = () => {
 // Copy phone number to clipboard
 const copyPhoneNumber = async () => {
   if (!activeConversation.value) return;
-  
+
   try {
     // Convert to 08xx format
-    let phone = activeConversation.value.wa_number || '';
+    let phone = activeConversation.value.wa_number || "";
     // Remove all non-digits
-    phone = phone.replace(/\D/g, '');
-    
+    phone = phone.replace(/\D/g, "");
+
     // Convert to 08xx format
-    if (phone.startsWith('628')) {
-      phone = '0' + phone.substring(2);
-    } else if (phone.startsWith('62')) {
-      phone = '0' + phone.substring(2);
-    } else if (!phone.startsWith('0')) {
-      phone = '0' + phone;
+    if (phone.startsWith("628")) {
+      phone = "0" + phone.substring(2);
+    } else if (phone.startsWith("62")) {
+      phone = "0" + phone.substring(2);
+    } else if (!phone.startsWith("0")) {
+      phone = "0" + phone;
     }
-    
+
     // Copy to clipboard
     await navigator.clipboard.writeText(phone);
-    
+
     // Show copied feedback
     copiedPhone.value = true;
     setTimeout(() => {
       copiedPhone.value = false;
     }, 2000);
   } catch (err) {
-    console.error('Failed to copy:', err);
+    console.error("Failed to copy:", err);
     // Fallback for older browsers
-    const textArea = document.createElement('textarea');
+    const textArea = document.createElement("textarea");
     textArea.value = formatPhoneTo08(activeConversation.value.wa_number);
     document.body.appendChild(textArea);
     textArea.select();
     try {
-      document.execCommand('copy');
+      document.execCommand("copy");
       copiedPhone.value = true;
       setTimeout(() => {
         copiedPhone.value = false;
       }, 2000);
     } catch (err2) {
-      console.error('Fallback copy failed:', err2);
+      console.error("Fallback copy failed:", err2);
     }
     document.body.removeChild(textArea);
   }
@@ -1015,14 +2116,14 @@ const copyPhoneNumber = async () => {
 
 // Format phone to 08xx
 const formatPhoneTo08 = (phone) => {
-  if (!phone) return '';
-  let cleaned = phone.replace(/\D/g, '');
-  if (cleaned.startsWith('628')) {
-    return '0' + cleaned.substring(2);
-  } else if (cleaned.startsWith('62')) {
-    return '0' + cleaned.substring(2);
-  } else if (!cleaned.startsWith('0')) {
-    return '0' + cleaned;
+  if (!phone) return "";
+  let cleaned = phone.replace(/\D/g, "");
+  if (cleaned.startsWith("628")) {
+    return "0" + cleaned.substring(2);
+  } else if (cleaned.startsWith("62")) {
+    return "0" + cleaned.substring(2);
+  } else if (!cleaned.startsWith("0")) {
+    return "0" + cleaned;
   }
   return cleaned;
 };
@@ -1030,131 +2131,144 @@ const formatPhoneTo08 = (phone) => {
 // --- Helper: Centralized Message Sanitizer ---
 // Aggressively cleans duplicates based on ID, WAMID, and Fuzzy Content/Time
 const sanitizeMessages = (messages) => {
-    if (!Array.isArray(messages)) return [];
-    
-    // 1. Sort by Time (Robust)
-    messages.sort((a, b) => {
-        let ta = new Date(a.rawTime || a.time).getTime();
-        let tb = new Date(b.rawTime || b.time).getTime();
-        
-        // Fallback for "10:30 PM" format if Date parse fails
-        if (isNaN(ta) && a.time) ta = new Date('1970/01/01 ' + a.time).getTime();
-        if (isNaN(tb) && b.time) tb = new Date('1970/01/01 ' + b.time).getTime();
-        
-        // Final fallback: keep original order (0)
-        return (isNaN(ta) ? 0 : ta) - (isNaN(tb) ? 0 : tb);
-    });
-    
-    const uniqueMap = new Map();
-    const result = [];
-    
-    messages.forEach(msg => {
-        // Create multiple keys to check for duplicates
-        const idKey = String(msg.id);
-        const wamidKey = msg.wamid ? String(msg.wamid) : null;
-        
-        // Check for existing by ID
-        let existing = uniqueMap.get(idKey);
-        
-        // Check for existing by WAMID
-        if (!existing && wamidKey) {
-             // Find any message that shares this wamid
-             for (const m of uniqueMap.values()) {
-                 if (m.wamid === wamidKey) {
-                     existing = m;
-                     break;
-                 }
-             }
+  if (!Array.isArray(messages)) return [];
+
+  // 1. Sort by Time (Robust)
+  messages.sort((a, b) => {
+    let ta = new Date(a.rawTime || a.time).getTime();
+    let tb = new Date(b.rawTime || b.time).getTime();
+
+    // Fallback for "10:30 PM" format if Date parse fails
+    if (isNaN(ta) && a.time) ta = new Date("1970/01/01 " + a.time).getTime();
+    if (isNaN(tb) && b.time) tb = new Date("1970/01/01 " + b.time).getTime();
+
+    // Final fallback: keep original order (0)
+    return (isNaN(ta) ? 0 : ta) - (isNaN(tb) ? 0 : tb);
+  });
+
+  const uniqueMap = new Map();
+  const result = [];
+
+  messages.forEach((msg) => {
+    // Create multiple keys to check for duplicates
+    const idKey = String(msg.id);
+    const wamidKey = msg.wamid ? String(msg.wamid) : null;
+
+    // Check for existing by ID
+    let existing = uniqueMap.get(idKey);
+
+    // Check for existing by WAMID
+    if (!existing && wamidKey) {
+      // Find any message that shares this wamid
+      for (const m of uniqueMap.values()) {
+        if (m.wamid === wamidKey) {
+          existing = m;
+          break;
         }
-        
-        // Fuzzy Check (The "Healer")
-        if (!existing) {
-             const normalize = (str) => String(str || '').replace(/\s+/g, ' ').trim();
-             const msgTime = new Date(msg.rawTime || msg.time).getTime();
-             const msgText = normalize(msg.text);
-             
-             // Look backwards for a fuzzy match (optimisation: only check last 10 messages)
-             // We iterate result array which contains 'kept' messages
-             for (let i = result.length - 1; i >= 0 && i >= result.length - 10; i--) {
-                 const cand = result[i];
-                 if (cand.sender === msg.sender && normalize(cand.text) === msgText) {
-                     const candTime = new Date(cand.rawTime || cand.time).getTime();
-                     if (Math.abs(candTime - msgTime) < 5000) { // 5s window
-                         existing = cand; // Found a fuzzy match!
-                         break;
-                     }
-                 }
-             }
+      }
+    }
+
+    // Fuzzy Check (The "Healer")
+    if (!existing) {
+      const normalize = (str) =>
+        String(str || "")
+          .replace(/\s+/g, " ")
+          .trim();
+      const msgTime = new Date(msg.rawTime || msg.time).getTime();
+      const msgText = normalize(msg.text);
+
+      // Look backwards for a fuzzy match (optimisation: only check last 10 messages)
+      // We iterate result array which contains 'kept' messages
+      for (let i = result.length - 1; i >= 0 && i >= result.length - 10; i--) {
+        const cand = result[i];
+        if (cand.sender === msg.sender && normalize(cand.text) === msgText) {
+          const candTime = new Date(cand.rawTime || cand.time).getTime();
+          if (Math.abs(candTime - msgTime) < 5000) {
+            // 5s window
+            existing = cand; // Found a fuzzy match!
+            break;
+          }
         }
-        
-        if (existing) {
-             // MERGE STRATEGY: Keep the "Better" version
-             // Prefer Integer IDs over Long Strings (Hex/UUID)
-             // Prefer Existing WAMID over Null
-             
-             const existingIdIsInt = /^\d+$/.test(String(existing.id));
-             const msgIdIsInt = /^\d+$/.test(String(msg.id));
-             
-             // If incoming is "better" (e.g. Real ID vs Hex ID), update the existing object
-             if (msgIdIsInt && !existingIdIsInt) {
-                 existing.id = msg.id; // Upgrade ID
-             }
-             
-             if (msg.wamid && !existing.wamid) {
-                 existing.wamid = msg.wamid; // Upgrade WAMID
-             }
-             
-             if (msg.status && msg.status !== 'read' && existing.status !== msg.status) {
-                 existing.status = msg.status; // Update status
-             }
-             
-             // Don't add 'msg' to result, we merged it into 'existing'
-             // Update map keys to point to the merged object
-             uniqueMap.set(String(existing.id), existing);
-             if (existing.wamid) uniqueMap.set(existing.wamid, existing);
-             
-        } else {
-            // New message
-            result.push(msg);
-            uniqueMap.set(idKey, msg);
-            if (wamidKey) uniqueMap.set(wamidKey, msg);
-        }
-    });
-    
-    return result;
+      }
+    }
+
+    if (existing) {
+      // MERGE STRATEGY: Keep the "Better" version
+      // Prefer Integer IDs over Long Strings (Hex/UUID)
+      // Prefer Existing WAMID over Null
+
+      const existingIdIsInt = /^\d+$/.test(String(existing.id));
+      const msgIdIsInt = /^\d+$/.test(String(msg.id));
+
+      // If incoming is "better" (e.g. Real ID vs Hex ID), update the existing object
+      if (msgIdIsInt && !existingIdIsInt) {
+        existing.id = msg.id; // Upgrade ID
+      }
+
+      if (msg.wamid && !existing.wamid) {
+        existing.wamid = msg.wamid; // Upgrade WAMID
+      }
+
+      if (
+        msg.status &&
+        msg.status !== "read" &&
+        existing.status !== msg.status
+      ) {
+        existing.status = msg.status; // Update status
+      }
+
+      // Don't add 'msg' to result, we merged it into 'existing'
+      // Update map keys to point to the merged object
+      uniqueMap.set(String(existing.id), existing);
+      if (existing.wamid) uniqueMap.set(existing.wamid, existing);
+    } else {
+      // New message
+      result.push(msg);
+      uniqueMap.set(idKey, msg);
+      if (wamidKey) uniqueMap.set(wamidKey, msg);
+    }
+  });
+
+  return result;
 };
 
 // --- Methods ---
 const fetchMessages = async (phone) => {
-    try {
-        // Add cache buster
-        const response = await fetch(`${API_BASE}/CRM/Chat/getMessages?phone=${phone}&_t=${Date.now()}`);
-        const result = await response.json();
-        
-        if (result.status && Array.isArray(result.data)) {
-            const mappedMessages = result.data.map(m => ({
-                id: m.id,
-                wamid: m.wamid,
-                text: m.text || m.caption, 
-                type: m.type,
-                media_id: m.media_id,
-                media_url: m.media_url,
-                sender: m.sender, 
-                time: m.time ? new Date(m.time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false}) : '',
-                rawTime: m.time, 
-                status: m.status
-            }));
+  try {
+    // Add cache buster
+    const response = await fetch(
+      `${API_BASE}/CRM/Chat/getMessages?phone=${phone}&_t=${Date.now()}`
+    );
+    const result = await response.json();
 
-            // Use Centralized Sanitizer
-            return sanitizeMessages(mappedMessages);
-        }
-    } catch (e) {
-        console.error("Error loading messages:", e);
+    if (result.status && Array.isArray(result.data)) {
+      const mappedMessages = result.data.map((m) => ({
+        id: m.id,
+        wamid: m.wamid,
+        text: m.text || m.caption,
+        type: m.type,
+        media_id: m.media_id,
+        media_url: m.media_url,
+        sender: m.sender,
+        time: m.time
+          ? new Date(m.time).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: false,
+            })
+          : "",
+        rawTime: m.time,
+        status: m.status,
+      }));
+
+      // Use Centralized Sanitizer
+      return sanitizeMessages(mappedMessages);
     }
-    return [];
+  } catch (e) {
+    console.error("Error loading messages:", e);
+  }
+  return [];
 };
-
-
 
 const scrollToBottom = () => {
   nextTick(() => {
@@ -1166,765 +2280,807 @@ const scrollToBottom = () => {
 };
 
 const markMessagesRead = async (phone) => {
-    try {
-        await fetch(`${API_BASE}/CRM/Chat/markRead`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ 
-                phone: phone, // Send phone
-                user_id: authId.value // Add sender ID
-            })
-        });
-        
-        // Update local state if needed
-        const chat = conversations.value.find(c => c.wa_number === phone);
-        if(chat) chat.unread = 0;
-    } catch (e) {
-        console.error("Failed to mark read", e);
-    }
+  try {
+    await fetch(`${API_BASE}/CRM/Chat/markRead`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        phone: phone, // Send phone
+        user_id: authId.value, // Add sender ID
+      }),
+    });
+
+    // Update local state if needed
+    const chat = conversations.value.find((c) => c.wa_number === phone);
+    if (chat) chat.unread = 0;
+  } catch (e) {
+    console.error("Failed to mark read", e);
+  }
 };
 
 const markAsDone = async () => {
-    if (!activeConversation.value || isMarkingAsDone.value) return;
-    
-    try {
-        isMarkingAsDone.value = true;
-        showChatMenu.value = false; // Close menu
-        
-        const response = await fetch(`${API_BASE}/CRM/Chat/markAsDone`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ 
-                phone: activeConversation.value.wa_number,
-                user_id: authId.value
-            })
-        });
-        
-        const res = await response.json();
-        
-        if (res.status) {
-            // Update local cases
-            activeConversation.value.cases = [{case: 0}]; 
-            console.log('✓ Conversation marked as done');
-            
-            // ℹ️ SSE will broadcast update to all other clients automatically!
-            // No manual refresh needed - real-time magic! ✨
-        } else {
-            console.error('Failed to mark as done:', res.message);
-        }
-        
-        // Keep loading for 3 seconds
-        setTimeout(() => {
-            isMarkingAsDone.value = false;
-        }, 3000);
-    } catch (e) {
-        console.error("Error marking as done:", e);
-        isMarkingAsDone.value = false;
+  if (!activeConversation.value || isMarkingAsDone.value) return;
+
+  try {
+    isMarkingAsDone.value = true;
+    showChatMenu.value = false; // Close menu
+
+    const response = await fetch(`${API_BASE}/CRM/Chat/markAsDone`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        phone: activeConversation.value.wa_number,
+        user_id: authId.value,
+      }),
+    });
+
+    const res = await response.json();
+
+    if (res.status) {
+      // Update local cases
+      activeConversation.value.cases = [{ case: 0 }];
+      console.log("✓ Conversation marked as done");
+
+      // ℹ️ SSE will broadcast update to all other clients automatically!
+      // No manual refresh needed - real-time magic! ✨
+    } else {
+      console.error("Failed to mark as done:", res.message);
     }
+
+    // Keep loading for 3 seconds
+    setTimeout(() => {
+      isMarkingAsDone.value = false;
+    }, 3000);
+  } catch (e) {
+    console.error("Error marking as done:", e);
+    isMarkingAsDone.value = false;
+  }
 };
 
 const checkPayment = async () => {
-    if (!activeConversation.value || isCheckingPayment.value) return;
-    
-    try {
-        isCheckingPayment.value = true;
-        showChatMenu.value = false; // Close menu
-        
-        const response = await fetch(`${API_BASE}/CRM/Chat/updateCase`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ 
-                phone: activeConversation.value.wa_number,
-                case: 1,
-                user_id: authId.value
-            })
-        });
-        
-        const res = await response.json();
-        
-        if (res.status) {
-            // Update local cases
-            // Update local cases (Append for multi-case)
-            if (!activeConversation.value.cases) activeConversation.value.cases = [];
-            // Close case 4 if exists, remove case 0
-            activeConversation.value.cases = activeConversation.value.cases.map(c => 
-                c.case === 4 ? {...c, status: 'closed'} : c
-            ).filter(c => c.case !== 0);
-            // Add case 1 with status open
-            if (!activeConversation.value.cases.some(c => c.case === 1 && c.status === 'open')) {
-                 activeConversation.value.cases.push({case: 1, status: 'open'});
-            }
-            console.log('✓ Conversation marked for payment check');
-        } else {
-            console.error('Failed to mark for payment check:', res.message);
-        }
-        
-        // Keep loading for 3 seconds
-        setTimeout(() => {
-            isCheckingPayment.value = false;
-        }, 3000);
-    } catch (e) {
-        console.error("Error marking for payment check:", e);
-        isCheckingPayment.value = false;
+  if (!activeConversation.value || isCheckingPayment.value) return;
+
+  try {
+    isCheckingPayment.value = true;
+    showChatMenu.value = false; // Close menu
+
+    const response = await fetch(`${API_BASE}/CRM/Chat/updateCase`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        phone: activeConversation.value.wa_number,
+        case: 1,
+        user_id: authId.value,
+      }),
+    });
+
+    const res = await response.json();
+
+    if (res.status) {
+      // Update local cases
+      // Update local cases (Append for multi-case)
+      if (!activeConversation.value.cases) activeConversation.value.cases = [];
+      // Close case 4 if exists, remove case 0
+      activeConversation.value.cases = activeConversation.value.cases
+        .map((c) => (c.case === 4 ? { ...c, status: "closed" } : c))
+        .filter((c) => c.case !== 0);
+      // Add case 1 with status open
+      if (
+        !activeConversation.value.cases.some(
+          (c) => c.case === 1 && c.status === "open"
+        )
+      ) {
+        activeConversation.value.cases.push({ case: 1, status: "open" });
+      }
+      console.log("✓ Conversation marked for payment check");
+    } else {
+      console.error("Failed to mark for payment check:", res.message);
     }
+
+    // Keep loading for 3 seconds
+    setTimeout(() => {
+      isCheckingPayment.value = false;
+    }, 3000);
+  } catch (e) {
+    console.error("Error marking for payment check:", e);
+    isCheckingPayment.value = false;
+  }
 };
 
 const pickupDelivery = async () => {
-    if (!activeConversation.value || isPickupDelivery.value) return;
-    
-    try {
-        isPickupDelivery.value = true;
-        showChatMenu.value = false; // Close menu
-        
-        const response = await fetch(`${API_BASE}/CRM/Chat/updateCase`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ 
-                phone: activeConversation.value.wa_number,
-                case: 2,
-                user_id: authId.value
-            })
-        });
-        
-        const res = await response.json();
-        
-        if (res.status) {
-            // Update local cases
-            // Update local cases (Append for multi-case)
-            if (!activeConversation.value.cases) activeConversation.value.cases = [];
-            // Close case 4 if exists, remove case 0
-            activeConversation.value.cases = activeConversation.value.cases.map(c => 
-                c.case === 4 ? {...c, status: 'closed'} : c
-            ).filter(c => c.case !== 0);
-            // Add case 2 with status open
-            if (!activeConversation.value.cases.some(c => c.case === 2 && c.status === 'open')) {
-                 activeConversation.value.cases.push({case: 2, status: 'open'});
-            }
-            console.log('✓ Conversation marked for pickup/delivery');
-        } else {
-            console.error('Failed to mark for pickup/delivery:', res.message);
-        }
-        
-        // Keep loading for 3 seconds
-        setTimeout(() => {
-            isPickupDelivery.value = false;
-        }, 3000);
-    } catch (e) {
-        console.error("Error marking for pickup/delivery:", e);
-        isPickupDelivery.value = false;
+  if (!activeConversation.value || isPickupDelivery.value) return;
+
+  try {
+    isPickupDelivery.value = true;
+    showChatMenu.value = false; // Close menu
+
+    const response = await fetch(`${API_BASE}/CRM/Chat/updateCase`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        phone: activeConversation.value.wa_number,
+        case: 2,
+        user_id: authId.value,
+      }),
+    });
+
+    const res = await response.json();
+
+    if (res.status) {
+      // Update local cases
+      // Update local cases (Append for multi-case)
+      if (!activeConversation.value.cases) activeConversation.value.cases = [];
+      // Close case 4 if exists, remove case 0
+      activeConversation.value.cases = activeConversation.value.cases
+        .map((c) => (c.case === 4 ? { ...c, status: "closed" } : c))
+        .filter((c) => c.case !== 0);
+      // Add case 2 with status open
+      if (
+        !activeConversation.value.cases.some(
+          (c) => c.case === 2 && c.status === "open"
+        )
+      ) {
+        activeConversation.value.cases.push({ case: 2, status: "open" });
+      }
+      console.log("✓ Conversation marked for pickup/delivery");
+    } else {
+      console.error("Failed to mark for pickup/delivery:", res.message);
     }
+
+    // Keep loading for 3 seconds
+    setTimeout(() => {
+      isPickupDelivery.value = false;
+    }, 3000);
+  } catch (e) {
+    console.error("Error marking for pickup/delivery:", e);
+    isPickupDelivery.value = false;
+  }
 };
 
 const requestPriority = async () => {
-    if (!activeConversation.value || isRequest.value) return;
-    
-    try {
-        isRequest.value = true;
-        showChatMenu.value = false; // Close menu
-        
-        const response = await fetch(`${API_BASE}/CRM/Chat/updateCase`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ 
-                phone: activeConversation.value.wa_number,
-                case: 3,
-                user_id: authId.value
-            })
-        });
-        
-        const res = await response.json();
-        
-        if (res.status) {
-            // Update local cases
-            // Update local cases (Append for multi-case)
-            if (!activeConversation.value.cases) activeConversation.value.cases = [];
-            // Close case 4 if exists, remove case 0
-            activeConversation.value.cases = activeConversation.value.cases.map(c => 
-                c.case === 4 ? {...c, status: 'closed'} : c
-            ).filter(c => c.case !== 0);
-            // Add case 3 with status open
-            if (!activeConversation.value.cases.some(c => c.case === 3 && c.status === 'open')) {
-                 activeConversation.value.cases.push({case: 3, status: 'open'});
-            }
-            console.log('✓ Conversation marked as request');
-        } else {
-            console.error('Failed to mark as request:', res.message);
-        }
-        
-        // Keep loading for 3 seconds
-        setTimeout(() => {
-            isRequest.value = false;
-        }, 3000);
-    } catch (e) {
-        console.error("Error marking as request:", e);
-        isRequest.value = false;
+  if (!activeConversation.value || isRequest.value) return;
+
+  try {
+    isRequest.value = true;
+    showChatMenu.value = false; // Close menu
+
+    const response = await fetch(`${API_BASE}/CRM/Chat/updateCase`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        phone: activeConversation.value.wa_number,
+        case: 3,
+        user_id: authId.value,
+      }),
+    });
+
+    const res = await response.json();
+
+    if (res.status) {
+      // Update local cases
+      // Update local cases (Append for multi-case)
+      if (!activeConversation.value.cases) activeConversation.value.cases = [];
+      // Close case 4 if exists, remove case 0
+      activeConversation.value.cases = activeConversation.value.cases
+        .map((c) => (c.case === 4 ? { ...c, status: "closed" } : c))
+        .filter((c) => c.case !== 0);
+      // Add case 3 with status open
+      if (
+        !activeConversation.value.cases.some(
+          (c) => c.case === 3 && c.status === "open"
+        )
+      ) {
+        activeConversation.value.cases.push({ case: 3, status: "open" });
+      }
+      console.log("✓ Conversation marked as request");
+    } else {
+      console.error("Failed to mark as request:", res.message);
     }
+
+    // Keep loading for 3 seconds
+    setTimeout(() => {
+      isRequest.value = false;
+    }, 3000);
+  } catch (e) {
+    console.error("Error marking as request:", e);
+    isRequest.value = false;
+  }
 };
 
 const followUp = async () => {
-    if (!activeConversation.value || isFollowUp.value) return;
-    
-    try {
-        isFollowUp.value = true;
-        showChatMenu.value = false; // Close menu
-        
-        const response = await fetch(`${API_BASE}/CRM/Chat/updateCase`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ 
-                phone: activeConversation.value.wa_number,
-                case: 4,
-                user_id: authId.value
-            })
-        });
-        
-        const res = await response.json();
-        
-        if (res.status) {
-            // Update local cases (Append for multi-case)
-            if (!activeConversation.value.cases) activeConversation.value.cases = [];
-            activeConversation.value.cases = activeConversation.value.cases.filter(c => c.case !== 0);
-            // Add case 4 with status open
-            if (!activeConversation.value.cases.some(c => c.case === 4 && c.status === 'open')) {
-                 activeConversation.value.cases.push({case: 4, status: 'open'});
-            }
-            console.log('✓ Conversation marked for follow up');
+  if (!activeConversation.value || isFollowUp.value) return;
 
-        } else {
-            console.error('Failed to mark for follow up:', res.message);
-        }
-        
-        // Keep loading for 3 seconds
-        setTimeout(() => {
-            isFollowUp.value = false;
-        }, 3000);
-    } catch (e) {
-        console.error("Error marking for follow up:", e);
-        isFollowUp.value = false;
+  try {
+    isFollowUp.value = true;
+    showChatMenu.value = false; // Close menu
+
+    const response = await fetch(`${API_BASE}/CRM/Chat/updateCase`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        phone: activeConversation.value.wa_number,
+        case: 4,
+        user_id: authId.value,
+      }),
+    });
+
+    const res = await response.json();
+
+    if (res.status) {
+      // Update local cases (Append for multi-case)
+      if (!activeConversation.value.cases) activeConversation.value.cases = [];
+      activeConversation.value.cases = activeConversation.value.cases.filter(
+        (c) => c.case !== 0
+      );
+      // Add case 4 with status open
+      if (
+        !activeConversation.value.cases.some(
+          (c) => c.case === 4 && c.status === "open"
+        )
+      ) {
+        activeConversation.value.cases.push({ case: 4, status: "open" });
+      }
+      console.log("✓ Conversation marked for follow up");
+    } else {
+      console.error("Failed to mark for follow up:", res.message);
     }
+
+    // Keep loading for 3 seconds
+    setTimeout(() => {
+      isFollowUp.value = false;
+    }, 3000);
+  } catch (e) {
+    console.error("Error marking for follow up:", e);
+    isFollowUp.value = false;
+  }
 };
 
 const reopenConversation = async () => {
-    if (!activeConversation.value || isReopeningConversation.value) return;
-    
-    try {
-        isReopeningConversation.value = true;
-        showChatMenu.value = false; // Close menu
-        
-        const response = await fetch(`${API_BASE}/CRM/Chat/reopenConversation`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ 
-                phone: activeConversation.value.wa_number,
-                user_id: authId.value
-            })
-        });
-        
-        const res = await response.json();
-        
-        if (res.status) {
-            // Update local cases
-            activeConversation.value.cases = [{case: 4}];
-            console.log('✓ Conversation reopened - needs attention');
-        } else {
-            console.error('Failed to reopen conversation:', res.message);
-        }
-        
-        // Keep loading for 3 seconds
-        setTimeout(() => {
-            isReopeningConversation.value = false;
-        }, 3000);
-    } catch (e) {
-        console.error("Error reopening conversation:", e);
-        isReopeningConversation.value = false;
+  if (!activeConversation.value || isReopeningConversation.value) return;
+
+  try {
+    isReopeningConversation.value = true;
+    showChatMenu.value = false; // Close menu
+
+    const response = await fetch(`${API_BASE}/CRM/Chat/reopenConversation`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        phone: activeConversation.value.wa_number,
+        user_id: authId.value,
+      }),
+    });
+
+    const res = await response.json();
+
+    if (res.status) {
+      // Update local cases
+      activeConversation.value.cases = [{ case: 4 }];
+      console.log("✓ Conversation reopened - needs attention");
+    } else {
+      console.error("Failed to reopen conversation:", res.message);
     }
+
+    // Keep loading for 3 seconds
+    setTimeout(() => {
+      isReopeningConversation.value = false;
+    }, 3000);
+  } catch (e) {
+    console.error("Error reopening conversation:", e);
+    isReopeningConversation.value = false;
+  }
 };
 
 const resolveCase = async (caseId) => {
-    if (!activeConversation.value) return;
-    try {
-        const response = await fetch(`${API_BASE}/CRM/Chat/resolveCase`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                phone: activeConversation.value.wa_number,
-                case: parseInt(caseId),
-                user_id: authId.value
-            })
-        });
-        const res = await response.json();
-        if (res.status) {
-             // Optimistic Update: Remove from local list (use parseInt for type-safe comparison)
-             if (activeConversation.value.cases) {
-                 activeConversation.value.cases = activeConversation.value.cases.filter(x => parseInt(x.case) !== parseInt(caseId));
-             }
-             showResolveMenu.value = false;
-             console.log('Case resolved:', caseId);
-        }
-    } catch (e) {
-        console.error("Error resolving case:", e);
+  if (!activeConversation.value) return;
+  try {
+    const response = await fetch(`${API_BASE}/CRM/Chat/resolveCase`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        phone: activeConversation.value.wa_number,
+        case: parseInt(caseId),
+        user_id: authId.value,
+      }),
+    });
+    const res = await response.json();
+    if (res.status) {
+      // Optimistic Update: Remove from local list (use parseInt for type-safe comparison)
+      if (activeConversation.value.cases) {
+        activeConversation.value.cases = activeConversation.value.cases.filter(
+          (x) => parseInt(x.case) !== parseInt(caseId)
+        );
+      }
+      showResolveMenu.value = false;
+      console.log("Case resolved:", caseId);
     }
+  } catch (e) {
+    console.error("Error resolving case:", e);
+  }
 };
 
 const selectChat = async (id) => {
   // Save current draft before switching chats
   if (activeChatId.value && messageInput.value.trim()) {
-      chatDrafts.value[activeChatId.value] = messageInput.value;
+    chatDrafts.value[activeChatId.value] = messageInput.value;
   } else if (activeChatId.value) {
-      // Clear draft if input is empty
-      delete chatDrafts.value[activeChatId.value];
+    // Clear draft if input is empty
+    delete chatDrafts.value[activeChatId.value];
   }
-  
+
   activeChatId.value = id;
-  
+
   // WhatsApp-style slide-in animation (mobile only)
   if (window.innerWidth < 768) {
     isEnteringChat.value = true;
     showMobileChat.value = true;
-    
+
     // Allow CSS transition to complete
-    await new Promise(resolve => setTimeout(resolve, 30));
+    await new Promise((resolve) => setTimeout(resolve, 30));
     isEnteringChat.value = false;
   } else {
     showMobileChat.value = true;
   }
-  
+
   // Persist state
-  localStorage.setItem('active_chat_id', id);
-  
+  localStorage.setItem("active_chat_id", id);
+
   // Push history state to handle Android back button
-  if (window.innerWidth < 768) { // Only on mobile
-      window.history.pushState({ chatOpen: true }, '', '#chat=' + id);
+  if (window.innerWidth < 768) {
+    // Only on mobile
+    window.history.pushState({ chatOpen: true }, "", "#chat=" + id);
   }
-  
+
   // Restore draft for the new chat (or clear input)
-  messageInput.value = chatDrafts.value[id] || '';
-  
+  messageInput.value = chatDrafts.value[id] || "";
+
   // Reset textarea height based on new content
   nextTick(() => autoResizeTextarea());
-  
-  const chat = conversations.value.find(c => c.id === id);
+
+  const chat = conversations.value.find((c) => c.id === id);
   if (chat) {
-      // Optimistic read status
-      chat.unread = 0;
-      
-      // Load messages
-      // If we have cached messages, show them immediately and fetch in background
-      if (chat.messages && chat.messages.length > 0) {
-          scrollToBottom(); // Show cache immediately
-          // Background fetch to sync and merge
-          // Background fetch to sync and merge
-          fetchMessages(chat.wa_number).then(msgs => {
-              if (msgs.length > 0) {
-                  // Merge simply by combining and then Sanitizing
-                  // This allows the Healer to work its magic on the combined set
-                  const combined = [...chat.messages, ...msgs];
-                  chat.messages = sanitizeMessages(combined);
-                  scrollToBottom();
-              }
-          });
-      } else {
-          // No cache, wait for fetch
-          chat.messages = await fetchMessages(chat.wa_number);
-      }
-      
-      // Mark read in DB
-      markMessagesRead(chat.wa_number);
+    // Optimistic read status
+    chat.unread = 0;
+
+    // Load messages
+    // If we have cached messages, show them immediately and fetch in background
+    if (chat.messages && chat.messages.length > 0) {
+      scrollToBottom(); // Show cache immediately
+      // Background fetch to sync and merge
+      // Background fetch to sync and merge
+      fetchMessages(chat.wa_number).then((msgs) => {
+        if (msgs.length > 0) {
+          // Merge simply by combining and then Sanitizing
+          // This allows the Healer to work its magic on the combined set
+          const combined = [...chat.messages, ...msgs];
+          chat.messages = sanitizeMessages(combined);
+          scrollToBottom();
+        }
+      });
+    } else {
+      // No cache, wait for fetch
+      chat.messages = await fetchMessages(chat.wa_number);
+    }
+
+    // Mark read in DB
+    markMessagesRead(chat.wa_number);
   }
-  
+
   // Save active chat state for restoration after returning from external links
   saveActiveChatState();
-  
+
   scrollToBottom();
 };
 
 const refreshActiveChat = async () => {
-   if (!activeChatId.value) return;
-   
-   isRefreshingChat.value = true;
-   try {
-      // 1. Fetch latest metadata (CSW status, etc) for all chats
-      await fetchConversations();
-      
-      // 2. Refresh messages for active chat
-      await selectChat(activeChatId.value);
-   } catch (error) {
-      console.error("Failed to refresh chat", error);
-   } finally {
-      setTimeout(() => { isRefreshingChat.value = false; }, 500);
-   }
+  if (!activeChatId.value) return;
+
+  isRefreshingChat.value = true;
+  try {
+    // 1. Fetch latest metadata (CSW status, etc) for all chats
+    await fetchConversations();
+
+    // 2. Refresh messages for active chat
+    await selectChat(activeChatId.value);
+  } catch (error) {
+    console.error("Failed to refresh chat", error);
+  } finally {
+    setTimeout(() => {
+      isRefreshingChat.value = false;
+    }, 500);
+  }
 };
 
 // Save active chat state to sessionStorage (for restoring after opening links)
 const saveActiveChatState = () => {
-    if (activeChatId.value) {
-        sessionStorage.setItem('cms_active_chat_id', String(activeChatId.value));
-        sessionStorage.setItem('cms_show_mobile_chat', showMobileChat.value ? 'true' : 'false');
-    }
+  if (activeChatId.value) {
+    sessionStorage.setItem("cms_active_chat_id", String(activeChatId.value));
+    sessionStorage.setItem(
+      "cms_show_mobile_chat",
+      showMobileChat.value ? "true" : "false"
+    );
+  }
 };
 
 // Restore active chat state from sessionStorage
 const restoreActiveChatState = () => {
-    const savedChatId = sessionStorage.getItem('cms_active_chat_id');
-    const savedShowMobile = sessionStorage.getItem('cms_show_mobile_chat');
-    
-    if (savedChatId && !activeChatId.value) {
-        console.log('🔄 Restoring chat state:', savedChatId);
-        
-        // Find the conversation
-        const target = conversations.value.find(c => String(c.id) === savedChatId);
-        if (target) {
-            activeChatId.value = target.id;
-            
-            if (savedShowMobile === 'true' && window.innerWidth < 768) {
-                showMobileChat.value = true;
-            }
-            
-            // Re-fetch messages if needed
-            if (!target.messages || target.messages.length === 0) {
-                fetchMessages(target.wa_number).then(msgs => {
-                    target.messages = msgs;
-                    scrollToBottom();
-                });
-            } else {
-                scrollToBottom();
-            }
-        }
+  const savedChatId = sessionStorage.getItem("cms_active_chat_id");
+  const savedShowMobile = sessionStorage.getItem("cms_show_mobile_chat");
+
+  if (savedChatId && !activeChatId.value) {
+    console.log("🔄 Restoring chat state:", savedChatId);
+
+    // Find the conversation
+    const target = conversations.value.find(
+      (c) => String(c.id) === savedChatId
+    );
+    if (target) {
+      activeChatId.value = target.id;
+
+      if (savedShowMobile === "true" && window.innerWidth < 768) {
+        showMobileChat.value = true;
+      }
+
+      // Re-fetch messages if needed
+      if (!target.messages || target.messages.length === 0) {
+        fetchMessages(target.wa_number).then((msgs) => {
+          target.messages = msgs;
+          scrollToBottom();
+        });
+      } else {
+        scrollToBottom();
+      }
     }
+  }
 };
 
 // Clear saved chat state (called when user explicitly goes back to menu)
 const clearSavedChatState = () => {
-    sessionStorage.removeItem('cms_active_chat_id');
-    sessionStorage.removeItem('cms_show_mobile_chat');
-    localStorage.removeItem('active_chat_id');
-    localStorage.removeItem('show_mobile_chat');
+  sessionStorage.removeItem("cms_active_chat_id");
+  sessionStorage.removeItem("cms_show_mobile_chat");
+  localStorage.removeItem("active_chat_id");
+  localStorage.removeItem("show_mobile_chat");
 };
 
 const backToMenu = (animated = true) => {
-    // Save current draft before going back to menu
-    if (activeChatId.value && messageInput.value.trim()) {
-        chatDrafts.value[activeChatId.value] = messageInput.value;
-    } else if (activeChatId.value) {
-        delete chatDrafts.value[activeChatId.value];
-    }
-    
-    // Clear saved state since user explicitly wants to go back
-    clearSavedChatState();
-    
-    // Clear message input when going back
-    messageInput.value = '';
-    resetTextareaHeight();
-    
-    if (animated && windowWidth.value < 768) {
-        // Animate slide-out to the right (same as swipe gesture)
-        touchOffset.value = window.innerWidth;
-        
-        // Wait for transition (300ms) to finish before hiding
-        setTimeout(() => {
-            showMobileChat.value = false;
-            activeChatId.value = null;
-            // Reset offset after hidden
-            setTimeout(() => {
-                touchOffset.value = 0;
-            }, 50);
-        }, 300);
-    } else {
-        // No animation (desktop or explicit call)
+  // Save current draft before going back to menu
+  if (activeChatId.value && messageInput.value.trim()) {
+    chatDrafts.value[activeChatId.value] = messageInput.value;
+  } else if (activeChatId.value) {
+    delete chatDrafts.value[activeChatId.value];
+  }
+
+  // Clear saved state since user explicitly wants to go back
+  clearSavedChatState();
+
+  // Clear message input when going back
+  messageInput.value = "";
+  resetTextareaHeight();
+
+  if (animated && windowWidth.value < 768) {
+    // Animate slide-out to the right (same as swipe gesture)
+    touchOffset.value = window.innerWidth;
+
+    // Wait for transition (300ms) to finish before hiding
+    setTimeout(() => {
+      showMobileChat.value = false;
+      activeChatId.value = null;
+      // Reset offset after hidden
+      setTimeout(() => {
         touchOffset.value = 0;
-        showMobileChat.value = false;
-        activeChatId.value = null;
-    }
+      }, 50);
+    }, 300);
+  } else {
+    // No animation (desktop or explicit call)
+    touchOffset.value = 0;
+    showMobileChat.value = false;
+    activeChatId.value = null;
+  }
 };
 
 // Quick Reply Functions
 const fetchQuickReplies = async () => {
-    if (quickReplies.value.length > 0) return; // Already loaded
-    
-    isLoadingQuickReplies.value = true;
-    try {
-        const response = await fetch(`${API_BASE}/CRM/QuickReply/getAll`);
-        const res = await response.json();
-        if (res.status && res.data) {
-            quickReplies.value = res.data;
-        }
-    } catch (e) {
-        console.error('Failed to load quick replies:', e);
-    } finally {
-        isLoadingQuickReplies.value = false;
+  if (quickReplies.value.length > 0) return; // Already loaded
+
+  isLoadingQuickReplies.value = true;
+  try {
+    const response = await fetch(`${API_BASE}/CRM/QuickReply/getAll`);
+    const res = await response.json();
+    if (res.status && res.data) {
+      quickReplies.value = res.data;
     }
+  } catch (e) {
+    console.error("Failed to load quick replies:", e);
+  } finally {
+    isLoadingQuickReplies.value = false;
+  }
 };
 
 // Watch messageInput for "/" command to trigger quick replies
 watch(messageInput, (newVal) => {
-    if (newVal && newVal.startsWith('/')) {
-        // Extract search query (text after "/")
-        quickReplySearchQuery.value = newVal.substring(1).trim();
-        showQuickReplies.value = true;
-        
-        // Load quick replies if not loaded yet
-        if (quickReplies.value.length === 0) {
-            fetchQuickReplies();
-        }
-    } else {
-        showQuickReplies.value = false;
-        quickReplySearchQuery.value = '';
+  if (newVal && newVal.startsWith("/")) {
+    // Extract search query (text after "/")
+    quickReplySearchQuery.value = newVal.substring(1).trim();
+    showQuickReplies.value = true;
+
+    // Load quick replies if not loaded yet
+    if (quickReplies.value.length === 0) {
+      fetchQuickReplies();
     }
+  } else {
+    showQuickReplies.value = false;
+    quickReplySearchQuery.value = "";
+  }
 });
 
 const selectQuickReply = (qr) => {
-    messageInput.value = qr.message;
-    showQuickReplies.value = false;
-    quickReplySearchQuery.value = '';
-    // Trigger auto-resize after inserting quick reply text
-    nextTick(() => autoResizeTextarea());
+  messageInput.value = qr.message;
+  showQuickReplies.value = false;
+  quickReplySearchQuery.value = "";
+  // Trigger auto-resize after inserting quick reply text
+  nextTick(() => autoResizeTextarea());
 };
 
 // Auto-resize textarea like WhatsApp (max 6 lines / ~150px)
 const autoResizeTextarea = () => {
-    const textarea = messageTextarea.value;
-    if (!textarea) return;
-    
-    // Reset height to auto to get correct scrollHeight
-    textarea.style.height = 'auto';
-    
-    // Set height to scrollHeight but cap at max-height (150px ~6 lines)
-    const maxHeight = 150;
-    const newHeight = Math.min(textarea.scrollHeight, maxHeight);
-    textarea.style.height = newHeight + 'px';
+  const textarea = messageTextarea.value;
+  if (!textarea) return;
+
+  // Reset height to auto to get correct scrollHeight
+  textarea.style.height = "auto";
+
+  // Set height to scrollHeight but cap at max-height (150px ~6 lines)
+  const maxHeight = 150;
+  const newHeight = Math.min(textarea.scrollHeight, maxHeight);
+  textarea.style.height = newHeight + "px";
 };
 
 // Reset textarea height after sending message
 const resetTextareaHeight = () => {
-    const textarea = messageTextarea.value;
-    if (textarea) {
-        textarea.style.height = 'auto';
-    }
+  const textarea = messageTextarea.value;
+  if (textarea) {
+    textarea.style.height = "auto";
+  }
 };
 
 // Emoji Picker Functions
 const toggleEmojiPicker = () => {
-    showEmojiPicker.value = !showEmojiPicker.value;
-    // Close quick replies if open
-    if (showEmojiPicker.value) {
-        showQuickReplies.value = false;
-    }
+  showEmojiPicker.value = !showEmojiPicker.value;
+  // Close quick replies if open
+  if (showEmojiPicker.value) {
+    showQuickReplies.value = false;
+  }
 };
 
 const selectEmoji = (emoji) => {
-    // Insert emoji at cursor position or at end
-    const textarea = messageTextarea.value;
-    if (textarea) {
-        const start = textarea.selectionStart;
-        const end = textarea.selectionEnd;
-        const text = messageInput.value;
-        messageInput.value = text.substring(0, start) + emoji + text.substring(end);
-        
-        // Set cursor position after inserted emoji
-        nextTick(() => {
-            textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
-            textarea.focus();
-            autoResizeTextarea();
-        });
-    } else {
-        messageInput.value += emoji;
-    }
-    
-    // Add to recent emojis (max 20)
-    if (!recentEmojis.value.includes(emoji)) {
-        recentEmojis.value = [emoji, ...recentEmojis.value.slice(0, 19)];
-        // Save to localStorage
-        localStorage.setItem('recent_emojis', JSON.stringify(recentEmojis.value));
-    }
+  // Insert emoji at cursor position or at end
+  const textarea = messageTextarea.value;
+  if (textarea) {
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = messageInput.value;
+    messageInput.value = text.substring(0, start) + emoji + text.substring(end);
+
+    // Set cursor position after inserted emoji
+    nextTick(() => {
+      textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
+      textarea.focus();
+      autoResizeTextarea();
+    });
+  } else {
+    messageInput.value += emoji;
+  }
+
+  // Add to recent emojis (max 20)
+  if (!recentEmojis.value.includes(emoji)) {
+    recentEmojis.value = [emoji, ...recentEmojis.value.slice(0, 19)];
+    // Save to localStorage
+    localStorage.setItem("recent_emojis", JSON.stringify(recentEmojis.value));
+  }
 };
 
 // Load recent emojis from localStorage
 const loadRecentEmojis = () => {
-    const saved = localStorage.getItem('recent_emojis');
-    if (saved) {
-        try {
-            recentEmojis.value = JSON.parse(saved);
-        } catch (e) {
-            recentEmojis.value = [];
-        }
+  const saved = localStorage.getItem("recent_emojis");
+  if (saved) {
+    try {
+      recentEmojis.value = JSON.parse(saved);
+    } catch (e) {
+      recentEmojis.value = [];
     }
+  }
 };
 
 // Set message to reply to (quoted reply)
 const setReplyTo = (msg) => {
-    replyToMessage.value = msg;
-    // Focus on input after selecting reply
-    nextTick(() => {
-        const textarea = messageTextarea.value;
-        if (textarea) textarea.focus();
-    });
+  replyToMessage.value = msg;
+  // Focus on input after selecting reply
+  nextTick(() => {
+    const textarea = messageTextarea.value;
+    if (textarea) textarea.focus();
+  });
 };
 
 // Cancel reply
 const cancelReply = () => {
-    replyToMessage.value = null;
+  replyToMessage.value = null;
 };
 
 // Find quoted message in current conversation
 const findQuotedMessage = (quotedMessageId) => {
-    if (!quotedMessageId || !activeConversation.value?.messages) return null;
-    return activeConversation.value.messages.find(m => 
-        m.wamid === quotedMessageId || m.message_id === quotedMessageId
-    );
+  if (!quotedMessageId || !activeConversation.value?.messages) return null;
+  return activeConversation.value.messages.find(
+    (m) => m.wamid === quotedMessageId || m.message_id === quotedMessageId
+  );
 };
 
 // Get short preview of message for quoted display
 const getMessagePreview = (msg) => {
-    if (!msg) return '';
-    if (msg.type === 'image') return '📷 Image';
-    if (msg.type === 'video') return '🎥 Video';
-    if (msg.type === 'audio' || msg.type === 'voice') return '🎤 Voice';
-    if (msg.type === 'document') return '📄 Document';
-    if (msg.type === 'location') return '📍 Location';
-    if (msg.type === 'sticker') return '🎨 Sticker';
-    const text = msg.text || msg.caption || '';
-    return text.length > 60 ? text.substring(0, 60) + '...' : text;
-    return text.length > 60 ? text.substring(0, 60) + '...' : text;
+  if (!msg) return "";
+  if (msg.type === "image") return "📷 Image";
+  if (msg.type === "video") return "🎥 Video";
+  if (msg.type === "audio" || msg.type === "voice") return "🎤 Voice";
+  if (msg.type === "document") return "📄 Document";
+  if (msg.type === "location") return "📍 Location";
+  if (msg.type === "sticker") return "🎨 Sticker";
+  const text = msg.text || msg.caption || "";
+  return text.length > 60 ? text.substring(0, 60) + "..." : text;
+  return text.length > 60 ? text.substring(0, 60) + "..." : text;
 };
 
 // --- Swipe to Reply Logic (Android/Touch) ---
 const swipeReplyState = ref({
-    startX: 0,
-    currentX: 0,
-    msgId: null,
-    threshold: 60 // px to trigger reply
+  startX: 0,
+  currentX: 0,
+  msgId: null,
+  threshold: 60, // px to trigger reply
 });
 
 const handleSwipeReplyStart = (e, msgId) => {
-    // Only single touch
-    if (e.touches.length > 1) return;
-    swipeReplyState.value.startX = e.touches[0].clientX;
-    swipeReplyState.value.currentX = e.touches[0].clientX;
-    swipeReplyState.value.msgId = msgId;
+  // Only single touch
+  if (e.touches.length > 1) return;
+  swipeReplyState.value.startX = e.touches[0].clientX;
+  swipeReplyState.value.currentX = e.touches[0].clientX;
+  swipeReplyState.value.msgId = msgId;
 };
 
 const handleSwipeReplyMove = (e) => {
-    if (!swipeReplyState.value.msgId) return;
-    const diff = e.touches[0].clientX - swipeReplyState.value.startX;
-    
-    // Only allow swipe LEFT (diff < 0) and limit max drag distance
-    if (diff < 0 && diff > -120) {
-       swipeReplyState.value.currentX = e.touches[0].clientX;
-    }
+  if (!swipeReplyState.value.msgId) return;
+  const diff = e.touches[0].clientX - swipeReplyState.value.startX;
+
+  // Only allow swipe LEFT (diff < 0) and limit max drag distance
+  if (diff < 0 && diff > -120) {
+    swipeReplyState.value.currentX = e.touches[0].clientX;
+  }
 };
 
 const handleSwipeReplyEnd = (e, msg) => {
-    if (!swipeReplyState.value.msgId) return;
-    
-    const diff = swipeReplyState.value.currentX - swipeReplyState.value.startX;
-    
-    // Check threshold (swipe LEFT)
-    if (diff < -swipeReplyState.value.threshold) {
-        if (navigator.vibrate) navigator.vibrate(50);
-        setReplyTo(msg);
-    }
-    
-    // Reset
-    swipeReplyState.value = { startX: 0, currentX: 0, msgId: null, threshold: 60 };
+  if (!swipeReplyState.value.msgId) return;
+
+  const diff = swipeReplyState.value.currentX - swipeReplyState.value.startX;
+
+  // Check threshold (swipe LEFT)
+  if (diff < -swipeReplyState.value.threshold) {
+    if (navigator.vibrate) navigator.vibrate(50);
+    setReplyTo(msg);
+  }
+
+  // Reset
+  swipeReplyState.value = {
+    startX: 0,
+    currentX: 0,
+    msgId: null,
+    threshold: 60,
+  };
 };
 
 const getSwipeReplyStyle = (msgId) => {
-   if (swipeReplyState.value.msgId === msgId) {
-       const diff = swipeReplyState.value.currentX - swipeReplyState.value.startX;
-       if (diff < 0) {
-           return { transform: `translateX(${diff}px)`, transition: 'none' }; // Move cleanly
-       }
-   }
-   return { transition: 'transform 0.2s ease-out', transform: 'translateX(0)' };
+  if (swipeReplyState.value.msgId === msgId) {
+    const diff = swipeReplyState.value.currentX - swipeReplyState.value.startX;
+    if (diff < 0) {
+      return { transform: `translateX(${diff}px)`, transition: "none" }; // Move cleanly
+    }
+  }
+  return { transition: "transform 0.2s ease-out", transform: "translateX(0)" };
 };
 
 // Scroll to a specific message (for quoted message click)
 const scrollToMessage = (quotedMessageId) => {
-    if (!quotedMessageId) return;
-    
-    // Find the message element by wamid or message_id
-    const msg = activeConversation.value?.messages?.find(m => 
-        m.wamid === quotedMessageId || m.message_id === quotedMessageId
-    );
-    if (!msg) return;
-    
-    const element = document.getElementById('msg-' + msg.id);
-    if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        // Highlight briefly
-        element.classList.add('bg-yellow-500/20');
-        setTimeout(() => element.classList.remove('bg-yellow-500/20'), 1500);
-    }
+  if (!quotedMessageId) return;
+
+  // Find the message element by wamid or message_id
+  const msg = activeConversation.value?.messages?.find(
+    (m) => m.wamid === quotedMessageId || m.message_id === quotedMessageId
+  );
+  if (!msg) return;
+
+  const element = document.getElementById("msg-" + msg.id);
+  if (element) {
+    element.scrollIntoView({ behavior: "smooth", block: "center" });
+    // Highlight briefly
+    element.classList.add("bg-yellow-500/20");
+    setTimeout(() => element.classList.remove("bg-yellow-500/20"), 1500);
+  }
 };
 
 const sendMessage = async () => {
   const text = messageInput.value.trim();
   if (!text) return;
-  
+
   if (activeConversation.value) {
     const tempId = Date.now();
     const replyingTo = replyToMessage.value; // Capture before clearing
-    
+
     const newMsg = {
       id: tempId,
       text: text,
-      sender: 'me',
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
+      sender: "me",
+      time: new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }),
       rawTime: new Date().toISOString(), // Fixed: Add rawTime for proper sorting
       timestamp: Date.now(), // Add timestamp for duplicate detection
-      status: 'pending',
-      quoted_message_id: replyingTo?.wamid || null // Store quoted reference
+      status: "pending",
+      quoted_message_id: replyingTo?.wamid || null, // Store quoted reference
     };
-    
+
     // Optimistic UI
     activeConversation.value.messages.push(newMsg);
     activeConversation.value.lastMessage = "You: " + text;
     activeConversation.value.lastTime = newMsg.time;
-    
-    messageInput.value = '';
+
+    messageInput.value = "";
     replyToMessage.value = null; // Clear reply UI
     // Clear draft for this chat since message is sent
     if (activeChatId.value) {
-        delete chatDrafts.value[activeChatId.value];
+      delete chatDrafts.value[activeChatId.value];
     }
     resetTextareaHeight(); // Reset textarea size after sending
     scrollToBottom();
-    
+
     // API Call
     try {
-        const response = await fetch(`${API_BASE}/CRM/Chat/reply`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                phone: activeConversation.value.wa_number, // Use wa_number
-                message: text,
-                user_id: authId.value, // Add sender ID
-                reply_to: replyingTo?.wamid || null // Send quoted message WAMID
-            })
-        });
-        const res = await response.json();
-        
-        if (res.status) {
-            // Update status (not strictly needed if we reload, but good for UI)
-            const sentMsg = activeConversation.value.messages.find(m => m.id === tempId);
-            if(sentMsg) {
-                sentMsg.status = 'sent';
-                if (res.data && res.data.local_id) {
-                    sentMsg.id = res.data.local_id; // Swap temp ID with real DB ID
-                    if (res.data.wamid) sentMsg.wamid = res.data.wamid;
-                    else if (res.data.id) sentMsg.wamid = res.data.id;
-                }
-            }
-        } else {
-             // Error state
-            const sentMsg = activeConversation.value.messages.find(m => m.id === tempId);
-            if(sentMsg) sentMsg.status = 'failed';
-            alert("Failed to send: " + (res.message || 'Unknown error'));
+      const response = await fetch(`${API_BASE}/CRM/Chat/reply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: activeConversation.value.wa_number, // Use wa_number
+          message: text,
+          user_id: authId.value, // Add sender ID
+          reply_to: replyingTo?.wamid || null, // Send quoted message WAMID
+        }),
+      });
+      const res = await response.json();
+
+      if (res.status) {
+        // Update status (not strictly needed if we reload, but good for UI)
+        const sentMsg = activeConversation.value.messages.find(
+          (m) => m.id === tempId
+        );
+        if (sentMsg) {
+          sentMsg.status = "sent";
+          if (res.data && res.data.local_id) {
+            sentMsg.id = res.data.local_id; // Swap temp ID with real DB ID
+            if (res.data.wamid) sentMsg.wamid = res.data.wamid;
+            else if (res.data.id) sentMsg.wamid = res.data.id;
+          }
         }
+      } else {
+        // Error state
+        const sentMsg = activeConversation.value.messages.find(
+          (m) => m.id === tempId
+        );
+        if (sentMsg) sentMsg.status = "failed";
+        alert("Failed to send: " + (res.message || "Unknown error"));
+      }
     } catch (e) {
-        console.error("Reply error:", e);
-        const sentMsg = activeConversation.value.messages.find(m => m.id === tempId);
-        if(sentMsg) sentMsg.status = 'error';
+      console.error("Reply error:", e);
+      const sentMsg = activeConversation.value.messages.find(
+        (m) => m.id === tempId
+      );
+      if (sentMsg) sentMsg.status = "error";
     }
   }
 };
@@ -1932,21 +3088,23 @@ const sendMessage = async () => {
 // Handle Image Selection
 // Native Image Picker with Android WebView Support
 const isAndroidWebView = () => {
-  const userAgent = navigator.userAgent || navigator.vendor || '';
+  const userAgent = navigator.userAgent || navigator.vendor || "";
   return /Android/i.test(userAgent) && /wv|WebView/i.test(userAgent);
 };
 
 // Global callback for Android WebView file picker
 // Android app should call: window.onImageSelected(base64DataUrl)
-if (typeof window !== 'undefined') {
+if (typeof window !== "undefined") {
   window.onImageSelected = async (dataUrl) => {
     try {
       const response = await fetch(dataUrl);
       const blob = await response.blob();
-      const file = new File([blob], `image_${Date.now()}.jpg`, { type: 'image/jpeg' });
+      const file = new File([blob], `image_${Date.now()}.jpg`, {
+        type: "image/jpeg",
+      });
       await processSelectedImage(file, dataUrl);
     } catch (err) {
-      console.error('Error processing native image:', err);
+      console.error("Error processing native image:", err);
     }
   };
 }
@@ -1954,15 +3112,18 @@ if (typeof window !== 'undefined') {
 const openImagePicker = async () => {
   // Strategy 1: Check if Android WebView has native file picker interface
   // (Requires Android app to expose: window.FilePickerInterface.openImagePicker())
-  if (window.FilePickerInterface && typeof window.FilePickerInterface.openImagePicker === 'function') {
+  if (
+    window.FilePickerInterface &&
+    typeof window.FilePickerInterface.openImagePicker === "function"
+  ) {
     try {
       window.FilePickerInterface.openImagePicker();
       return; // Android will call window.onImageSelected with result
     } catch (err) {
-      console.log('Native file picker failed:', err);
+      console.log("Native file picker failed:", err);
     }
   }
-  
+
   // Strategy 2: Capacitor native environment
   if (isNativeApp()) {
     try {
@@ -1971,30 +3132,32 @@ const openImagePicker = async () => {
         allowEditing: false,
         resultType: CameraResultType.DataUrl,
         source: CameraSource.Prompt, // Let user choose Camera or Gallery
-        promptLabelPhoto: 'Gallery',
-        promptLabelPicture: 'Camera',
-        presentationStyle: 'popover'
+        promptLabelPhoto: "Gallery",
+        promptLabelPicture: "Camera",
+        presentationStyle: "popover",
       });
-      
+
       if (image && image.dataUrl) {
         const response = await fetch(image.dataUrl);
         const blob = await response.blob();
-        const file = new File([blob], `image_${Date.now()}.jpg`, { type: 'image/jpeg' });
+        const file = new File([blob], `image_${Date.now()}.jpg`, {
+          type: "image/jpeg",
+        });
         await processSelectedImage(file, image.dataUrl);
       }
       return;
     } catch (err) {
-      console.log('Capacitor Camera error:', err);
+      console.log("Capacitor Camera error:", err);
       // Fall through to file input
     }
   }
-  
+
   // Strategy 3: Standard file input (works in browsers and some WebViews)
   // For Android WebView, ensure the input has proper attributes
   if (fileInput.value) {
     // Set capture attribute for Android WebView compatibility
     if (isAndroidWebView()) {
-      fileInput.value.setAttribute('capture', 'environment');
+      fileInput.value.setAttribute("capture", "environment");
     }
     fileInput.value.click();
   }
@@ -2003,19 +3166,19 @@ const openImagePicker = async () => {
 const selectImage = async (event) => {
   const file = event.target.files[0];
   if (!file) return;
-  
-  if (!file.type.startsWith('image/')) {
-    alert('Please select an image file');
+
+  if (!file.type.startsWith("image/")) {
+    alert("Please select an image file");
     return;
   }
-  
+
   if (file.size > 10 * 1024 * 1024) {
-    alert('Image size must be less than 10MB');
+    alert("Image size must be less than 10MB");
     return;
   }
-  
+
   await processSelectedImage(file);
-  event.target.value = '';
+  event.target.value = "";
 };
 
 // Shared function to process selected image (used by both native picker and file input)
@@ -2023,15 +3186,19 @@ const processSelectedImage = async (file, precomputedDataUrl = null) => {
   try {
     // Compress image to ~500KB
     const compressedBlob = await compressImage(file, 500 * 1024); // 500KB target
-    
+
     // Create new File from compressed blob
-    const compressedFile = new File([compressedBlob], file.name || 'image.jpg', {
-      type: file.type || 'image/jpeg',
-      lastModified: Date.now()
-    });
-    
+    const compressedFile = new File(
+      [compressedBlob],
+      file.name || "image.jpg",
+      {
+        type: file.type || "image/jpeg",
+        lastModified: Date.now(),
+      }
+    );
+
     selectedImage.value = compressedFile;
-    
+
     // Use precomputed dataUrl if available (from Capacitor Camera), else create new
     if (precomputedDataUrl) {
       imagePreview.value = precomputedDataUrl;
@@ -2045,10 +3212,9 @@ const processSelectedImage = async (file, precomputedDataUrl = null) => {
       };
       reader.readAsDataURL(compressedFile);
     }
-    
   } catch (err) {
-    console.error('Compression error:', err);
-    alert('Failed to process image');
+    console.error("Compression error:", err);
+    alert("Failed to process image");
   }
 };
 
@@ -2061,14 +3227,14 @@ const compressImage = (file, targetSizeBytes) => {
       const img = new Image();
       img.src = e.target.result;
       img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+
         // Calculate new dimensions (max 1920x1920)
         let width = img.width;
         let height = img.height;
         const maxDim = 1920;
-        
+
         if (width > maxDim || height > maxDim) {
           if (width > height) {
             height = (height / width) * maxDim;
@@ -2078,24 +3244,28 @@ const compressImage = (file, targetSizeBytes) => {
             height = maxDim;
           }
         }
-        
+
         canvas.width = width;
         canvas.height = height;
         ctx.drawImage(img, 0, 0, width, height);
-        
+
         // Try different quality levels to hit target size
         let quality = 0.9;
         const tryCompress = (q) => {
-          canvas.toBlob((blob) => {
-            if (blob.size <= targetSizeBytes || q <= 0.1) {
-              resolve(blob);
-            } else {
-              // Reduce quality and try again
-              tryCompress(q - 0.1);
-            }
-          }, file.type, q);
+          canvas.toBlob(
+            (blob) => {
+              if (blob.size <= targetSizeBytes || q <= 0.1) {
+                resolve(blob);
+              } else {
+                // Reduce quality and try again
+                tryCompress(q - 0.1);
+              }
+            },
+            file.type,
+            q
+          );
         };
-        
+
         tryCompress(quality);
       };
       img.onerror = reject;
@@ -2106,9 +3276,9 @@ const compressImage = (file, targetSizeBytes) => {
 
 const cancelImage = () => {
   selectedImage.value = null;
-  imagePreview.value = '';
+  imagePreview.value = "";
   showImagePreview.value = false;
-  imageCaption.value = '';
+  imageCaption.value = "";
 };
 
 // Handle Paste Event (Windows Screenshot / Clipboard)
@@ -2116,11 +3286,12 @@ const handlePaste = async (event) => {
   // Only allow paste if a chat is active
   if (!activeChatId.value && !showMobileChat.value) return;
 
-  const items = (event.clipboardData || event.originalEvent.clipboardData).items;
+  const items = (event.clipboardData || event.originalEvent.clipboardData)
+    .items;
   let file = null;
 
   for (const item of items) {
-    if (item.type.indexOf('image') !== -1) {
+    if (item.type.indexOf("image") !== -1) {
       file = item.getAsFile();
       break;
     }
@@ -2132,22 +3303,26 @@ const handlePaste = async (event) => {
   event.preventDefault();
 
   if (file.size > 10 * 1024 * 1024) {
-    alert('Image size must be less than 10MB');
+    alert("Image size must be less than 10MB");
     return;
   }
 
   try {
     // Compress image to ~500KB using existing compressImage function
     const compressedBlob = await compressImage(file, 500 * 1024);
-    
+
     // Create new File from compressed blob
-    const compressedFile = new File([compressedBlob], "pasted_image_" + Date.now() + ".jpg", {
-      type: file.type || 'image/jpeg',
-      lastModified: Date.now()
-    });
-    
+    const compressedFile = new File(
+      [compressedBlob],
+      "pasted_image_" + Date.now() + ".jpg",
+      {
+        type: file.type || "image/jpeg",
+        lastModified: Date.now(),
+      }
+    );
+
     selectedImage.value = compressedFile;
-    
+
     // Create preview
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -2156,14 +3331,11 @@ const handlePaste = async (event) => {
       // Focus caption input if available (optional)
     };
     reader.readAsDataURL(compressedFile);
-    
   } catch (err) {
-    console.error('Paste processing error:', err);
-    alert('Failed to process pasted image');
+    console.error("Paste processing error:", err);
+    alert("Failed to process pasted image");
   }
 };
-
-
 
 // Close menu when clicking outside
 const handleClickOutside = (event) => {
@@ -2173,78 +3345,83 @@ const handleClickOutside = (event) => {
 };
 
 onUnmounted(() => {
-    window.removeEventListener('paste', handlePaste);
-    window.removeEventListener('click', handleClickOutside);
-    
-    // Clear polling interval
-    if (refreshInterval.value) {
-        clearInterval(refreshInterval.value);
-    }
+  window.removeEventListener("paste", handlePaste);
+  window.removeEventListener("click", handleClickOutside);
+
+  // Clear polling interval
+  if (refreshInterval.value) {
+    clearInterval(refreshInterval.value);
+  }
 });
 
 const sendImage = async () => {
   // ❌ GUARD: Prevent multiple simultaneous sends - CHECK FIRST!
   if (isUploadingImage.value) {
-    console.warn('Image upload already in progress, ignoring duplicate call');
+    console.warn("Image upload already in progress, ignoring duplicate call");
     return;
   }
-  
+
   // Validate required data
   if (!selectedImage.value) {
-    console.error('No image selected');
+    console.error("No image selected");
     return;
   }
-  
+
   if (!activeConversation.value) {
-    console.error('No active conversation');
+    console.error("No active conversation");
     return;
   }
-  
+
   // Set guard IMMEDIATELY before any async operations
   isUploadingImage.value = true;
-  
+
   const caption = imageCaption.value.trim();
-  
+
   // ✨ Hide modal immediately for snappy UX
   showImagePreview.value = false;
-  
+
   try {
     const formData = new FormData();
-    formData.append('image', selectedImage.value);
-    formData.append('phone', activeConversation.value.wa_number); // Use wa_number
-    formData.append('user_id', authId.value);
-    if (caption) formData.append('caption', caption);
-    
+    formData.append("image", selectedImage.value);
+    formData.append("phone", activeConversation.value.wa_number); // Use wa_number
+    formData.append("user_id", authId.value);
+    if (caption) formData.append("caption", caption);
 
     const tempId = Date.now();
     const newMsg = {
       id: tempId,
-      text: caption || '', // ✅ Empty string if no caption (not "[Image]")
-      type: 'image',
+      text: caption || "", // ✅ Empty string if no caption (not "[Image]")
+      type: "image",
       media_url: imagePreview.value,
-      sender: 'me',
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
+      sender: "me",
+      time: new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }),
       rawTime: new Date().toISOString(), // FIXED: Add rawTime for proper sorting and date separator
-      status: 'pending'
+      status: "pending",
     };
-    
+
     activeConversation.value.messages.push(newMsg);
     activeConversation.value.lastMessage = "You: 📷 Image";
     activeConversation.value.lastTime = newMsg.time;
-    
+
     scrollToBottom();
-    
+
     const response = await fetch(`${API_BASE}/CRM/Chat/sendImage`, {
-      method: 'POST',
-      body: formData
+      method: "POST",
+      body: formData,
     });
-    
+
     const res = await response.json();
-    
+
     if (res.status) {
-      const sentMsg = activeConversation.value.messages.find(m => m.id === tempId);
+      const sentMsg = activeConversation.value.messages.find(
+        (m) => m.id === tempId
+      );
       if (sentMsg) {
-        sentMsg.status = 'sent';
+        sentMsg.status = "sent";
         if (res.data && res.data.local_id) {
           sentMsg.id = res.data.local_id;
           if (res.data.media_url) sentMsg.media_url = res.data.media_url;
@@ -2252,15 +3429,21 @@ const sendImage = async () => {
       }
       cancelImage();
     } else {
-      const sentMsg = activeConversation.value.messages.find(m => m.id === tempId);
-      if (sentMsg) sentMsg.status = 'failed';
-      alert('Failed to send image: ' + (res.message || res.error || 'Unknown error'));
+      const sentMsg = activeConversation.value.messages.find(
+        (m) => m.id === tempId
+      );
+      if (sentMsg) sentMsg.status = "failed";
+      alert(
+        "Failed to send image: " + (res.message || res.error || "Unknown error")
+      );
     }
   } catch (e) {
-    console.error('Send image error:', e);
-    const sentMsg = activeConversation.value.messages.find(m => m.id === tempId);
-    if (sentMsg) sentMsg.status = 'failed';
-    alert('Error: ' + e.message);
+    console.error("Send image error:", e);
+    const sentMsg = activeConversation.value.messages.find(
+      (m) => m.id === tempId
+    );
+    if (sentMsg) sentMsg.status = "failed";
+    alert("Error: " + e.message);
   } finally {
     isUploadingImage.value = false;
   }
@@ -2268,119 +3451,133 @@ const sendImage = async () => {
 
 const handleIncomingMessage = (payload) => {
   // DEBUG: Log ALL incoming messages to see what we really get
-  console.log('📡 WS Payload:', payload);
+  console.log("📡 WS Payload:", payload);
 
   // Check if this is a status update
-  if (payload.type === 'status_update') {
-      // ... existing status logic ...
-      const { conversation_id, message, phone } = payload;
-      const conversation = conversations.value.find(c => (conversation_id && c.id == conversation_id) || (phone && c.wa_number == phone));
-      
-      if (conversation) {
-          const msgToUpdate = conversation.messages.find(m => m.id == message.id || m.wamid == message.wamid);
-          if (msgToUpdate) {
-              msgToUpdate.status = message.status;
-          }
+  if (payload.type === "status_update") {
+    // ... existing status logic ...
+    const { conversation_id, message, phone } = payload;
+    const conversation = conversations.value.find(
+      (c) =>
+        (conversation_id && c.id == conversation_id) ||
+        (phone && c.wa_number == phone)
+    );
+
+    if (conversation) {
+      const msgToUpdate = conversation.messages.find(
+        (m) => m.id == message.id || m.wamid == message.wamid
+      );
+      if (msgToUpdate) {
+        msgToUpdate.status = message.status;
       }
-      return;
+    }
+    return;
   }
 
   // Handle priority update (Standard)
-  if (payload.type === 'priority_updated') {
-      const { phone, priority } = payload;
-      console.log('[WebSocket] Received priority_updated:', { phone, priority });
-      
-      const conversation = conversations.value.find(c => c.wa_number === phone);
-      
-      if (conversation) {
-          conversation.priority = parseInt(priority) || 0;
-          conversations.value = [...conversations.value];
-      }
-      return;
+  if (payload.type === "priority_updated") {
+    const { phone, priority } = payload;
+    console.log("[WebSocket] Received priority_updated:", { phone, priority });
+
+    const conversation = conversations.value.find((c) => c.wa_number === phone);
+
+    if (conversation) {
+      conversation.priority = parseInt(priority) || 0;
+      conversations.value = [...conversations.value];
+    }
+    return;
   }
 
   // Or fallback if direct
   const conversationId = payload.conversation_id;
   const phone = payload.phone;
   const messageData = payload.message || payload; // if message is nested or flat
-  
+
   const text = messageData.text;
-  const type = messageData.type || 'text';
-  const sender = messageData.sender || 'customer';
-  
+  const type = messageData.type || "text";
+  const sender = messageData.sender || "customer";
+
   let displayText = text;
-  if (!displayText && type !== 'text') {
-      displayText = `[${type}]`;
-      if (messageData.media_caption) displayText += ' ' + messageData.media_caption; 
+  if (!displayText && type !== "text") {
+    displayText = `[${type}]`;
+    if (messageData.media_caption)
+      displayText += " " + messageData.media_caption;
   }
   const name = payload.contact_name || payload.name;
-  
+
   // Find or create conversation
-  let conversation = conversations.value.find(c => (conversationId && c.id == conversationId) || (phone && c.wa_number == phone));
-  
+  let conversation = conversations.value.find(
+    (c) =>
+      (conversationId && c.id == conversationId) ||
+      (phone && c.wa_number == phone)
+  );
+
   if (!conversation) {
     // New conversation
     conversation = {
       id: conversationId,
       wa_number: phone, // ✅ Add wa_number
-      name: name || payload.phone || 'Unknown User',
-      kode_cabang: payload.kode_cabang || '00', // Set from payload
+      name: name || payload.phone || "Unknown User",
+      kode_cabang: payload.kode_cabang || "00", // Set from payload
       // priority: parseInt(payload.priority) || 0, // Legacy
-      cases: [{case: parseInt(payload.case || payload.priority || 0)}], // Initialize cases
-      initials: (name || payload.phone || '?').substring(0, 1).toUpperCase(),
+      cases: [{ case: parseInt(payload.case || payload.priority || 0) }], // Initialize cases
+      initials: (name || payload.phone || "?").substring(0, 1).toUpperCase(),
       color: getAvatarColor(conversationId),
-      status: 'online', // Assume online on new msg
+      status: "online", // Assume online on new msg
       messages: [],
-      unread: 0
+      unread: 0,
     };
     conversations.value.unshift(conversation);
   } else {
     // Update existing conversation details if available
-     if (payload.kode_cabang) {
-         conversation.kode_cabang = payload.kode_cabang;
-     }
-      if (payload.priority !== undefined) {
-          conversation.priority = parseInt(payload.priority) || 0;
+    if (payload.kode_cabang) {
+      conversation.kode_cabang = payload.kode_cabang;
+    }
+    if (payload.priority !== undefined) {
+      conversation.priority = parseInt(payload.priority) || 0;
+    }
+    // Update assignment if provided
+    if (payload.assignment_user_id !== undefined) {
+      conversation.assignment_user_id = payload.assignment_user_id;
+    }
+    // Update case if provided. Prioritize 'active_cases' list from server for accuracy.
+    if (
+      payload.active_cases &&
+      Array.isArray(payload.active_cases) &&
+      payload.active_cases.length > 0
+    ) {
+      conversation.cases = payload.active_cases.map((c) => ({
+        case: parseInt(c),
+        status: "open",
+      }));
+    } else if (payload.case !== undefined && payload.case !== null) {
+      const newCase = parseInt(payload.case);
+
+      if (!conversation.cases) conversation.cases = [];
+
+      if (newCase === 0) {
+        // If 0 received explicitly without active_cases, it might mean reset or legacy
+        // But usually we preserve existing if 0 is just "no update"
+        // Assuming 0 means "Unknown/General" case here
+        // conversation.cases = [{case: 0, status: 'open'}];
+      } else {
+        // Smart Merge: Open the new case
+        const existing = conversation.cases.find((c) => c.case === newCase);
+        if (existing) {
+          existing.status = "open";
+        } else {
+          conversation.cases.push({ case: newCase, status: "open" });
+        }
+
+        // Auto-close Case 4 (Follow Up) if the new open case is NOT 4
+        if (newCase !== 4) {
+          const c4 = conversation.cases.find((c) => c.case === 4);
+          if (c4) c4.status = "closed";
+        }
       }
-      // Update assignment if provided
-      if (payload.assignment_user_id !== undefined) {
-          conversation.assignment_user_id = payload.assignment_user_id;
-      }
-      // Update case if provided. Prioritize 'active_cases' list from server for accuracy.
-      if (payload.active_cases && Array.isArray(payload.active_cases) && payload.active_cases.length > 0) {
-           conversation.cases = payload.active_cases.map(c => ({
-               case: parseInt(c),
-               status: 'open'
-           }));
-      } 
-      else if (payload.case !== undefined && payload.case !== null) {
-           const newCase = parseInt(payload.case);
-           
-           if (!conversation.cases) conversation.cases = [];
-           
-           if (newCase === 0) {
-                // If 0 received explicitly without active_cases, it might mean reset or legacy
-                // But usually we preserve existing if 0 is just "no update"
-                // Assuming 0 means "Unknown/General" case here
-                // conversation.cases = [{case: 0, status: 'open'}];
-           } else {
-                // Smart Merge: Open the new case
-                const existing = conversation.cases.find(c => c.case === newCase);
-                if (existing) {
-                    existing.status = 'open';
-                } else {
-                    conversation.cases.push({ case: newCase, status: 'open' });
-                }
-                
-                // Auto-close Case 4 (Follow Up) if the new open case is NOT 4
-                if (newCase !== 4) {
-                    const c4 = conversation.cases.find(c => c.case === 4);
-                    if (c4) c4.status = 'closed';
-                }
-           }
-      }
+    }
   }
-  
+
   const newMsg = {
     id: messageData.id || Date.now(),
     text: displayText, // Use the safe display text
@@ -2388,112 +3585,142 @@ const handleIncomingMessage = (payload) => {
     media_id: messageData.media_id,
     media_url: messageData.media_url,
     sender: sender,
-    time: messageData.time ? new Date(messageData.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
-    rawTime: messageData.time || new Date().toISOString() // Keep raw timestamp for date separator
+    time: messageData.time
+      ? new Date(messageData.time).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        })
+      : new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        }),
+    rawTime: messageData.time || new Date().toISOString(), // Keep raw timestamp for date separator
   };
-  
+
   // DEBUG: Log every incoming message attempt
-  console.log('[handleIncomingMessage] Processing:', {
-      conversation: conversationId || phone,
-      sender: sender,
-      text: displayText,
-      id: newMsg.id,
-      source: 'handleIncomingMessage'
+  console.log("[handleIncomingMessage] Processing:", {
+    conversation: conversationId || phone,
+    sender: sender,
+    text: displayText,
+    id: newMsg.id,
+    source: "handleIncomingMessage",
   });
-  
+
   // Avoid duplicate messages if already present
   // Enhanced check: ID match OR (same sender + same text + within 2 seconds)
-  const isDuplicate = conversation.messages.find(m => {
-      // Exact ID match (string comparison for safety)
-      if (String(m.id) === String(newMsg.id)) return true;
-      
-      // Wamid match
-      if (m.wamid && newMsg.wamid && String(m.wamid) === String(newMsg.wamid)) return true;
-      
-      // Fuzzy match: same sender + same NORMALIZED text + close timestamp
-      const normalize = (str) => String(str || '').replace(/\s+/g, ' ').trim();
-      
-      if (m.sender === newMsg.sender && normalize(m.text) === normalize(newMsg.text)) {
-          // Check if timestamps are within 5 seconds of each other
-          const time1 = new Date(m.rawTime || m.time).getTime();
-          const time2 = new Date(newMsg.rawTime || newMsg.time).getTime();
-          
-          if (!isNaN(time1) && !isNaN(time2) && Math.abs(time1 - time2) < 5000) {
-              console.log('⚠️ Duplicate detected (fuzzy match):', newMsg.id, 'matches existing:', m.id);
-              return true;
-          }
-      }
-      
-      return false;
-  });
-  
-  if (!isDuplicate) {
-      console.log('✓ Adding message to conversation:', newMsg.id);
-      // Simply push to array
-      conversation.messages.push(newMsg);
-      
-      // Sort entire array by rawTime to ensure chronological order
-      conversation.messages.sort((a, b) => {
-          if (!a.rawTime || !b.rawTime) return 0;
-          return new Date(a.rawTime) - new Date(b.rawTime);
-      });
-      
-       // Re-sanitize entire conversation to be sure
-       conversation.messages = sanitizeMessages(conversation.messages);
-       
-       conversation.lastMessage = displayText;
-       conversation.lastTime = formatLastTime(newMsg.rawTime);
-      
-  // Check visibility: Active ID matches AND (Desktop OR Mobile Chat View Open)
-  const isChatVisible = activeChatId.value == conversationId && (windowWidth.value >= 768 || showMobileChat.value);
+  const isDuplicate = conversation.messages.find((m) => {
+    // Exact ID match (string comparison for safety)
+    if (String(m.id) === String(newMsg.id)) return true;
 
-  if (!isChatVisible) {
-    conversation.unread++;
-    
-    // 🔊 Play notification sound for incoming customer messages
-    if (sender === 'customer') {
-      playNotificationSound();
-    }
-    
-    // 🆕 AUTO-OPEN FEATURE: Open conversation automatically for incoming customer messages
-    if (autoOpenChatOnIncoming.value && sender === 'customer' && windowWidth.value >= 768) {
-      console.log('🔔 Auto-opening conversation:', conversation.name);
-      selectChat(conversation.id);
-    }
-  } else {
-    scrollToBottom();
-    markMessagesRead(conversation.wa_number); // Use phone number, not conversation ID
-  }
-      
-      // Move conversation to top
-      const idx = conversations.value.findIndex(c => c.id == conversation.id);
-      if (idx > 0) {
-        conversations.value.splice(idx, 1);
-        conversations.value.unshift(conversation);
+    // Wamid match
+    if (m.wamid && newMsg.wamid && String(m.wamid) === String(newMsg.wamid))
+      return true;
+
+    // Fuzzy match: same sender + same NORMALIZED text + close timestamp
+    const normalize = (str) =>
+      String(str || "")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    if (
+      m.sender === newMsg.sender &&
+      normalize(m.text) === normalize(newMsg.text)
+    ) {
+      // Check if timestamps are within 5 seconds of each other
+      const time1 = new Date(m.rawTime || m.time).getTime();
+      const time2 = new Date(newMsg.rawTime || newMsg.time).getTime();
+
+      if (!isNaN(time1) && !isNaN(time2) && Math.abs(time1 - time2) < 5000) {
+        console.log(
+          "⚠️ Duplicate detected (fuzzy match):",
+          newMsg.id,
+          "matches existing:",
+          m.id
+        );
+        return true;
       }
+    }
+
+    return false;
+  });
+
+  if (!isDuplicate) {
+    console.log("✓ Adding message to conversation:", newMsg.id);
+    // Simply push to array
+    conversation.messages.push(newMsg);
+
+    // Sort entire array by rawTime to ensure chronological order
+    conversation.messages.sort((a, b) => {
+      if (!a.rawTime || !b.rawTime) return 0;
+      return new Date(a.rawTime) - new Date(b.rawTime);
+    });
+
+    // Re-sanitize entire conversation to be sure
+    conversation.messages = sanitizeMessages(conversation.messages);
+
+    conversation.lastMessage = displayText;
+    conversation.lastTime = formatLastTime(newMsg.rawTime);
+
+    // Check visibility: Active ID matches AND (Desktop OR Mobile Chat View Open)
+    const isChatVisible =
+      activeChatId.value == conversationId &&
+      (windowWidth.value >= 768 || showMobileChat.value);
+
+    if (!isChatVisible) {
+      conversation.unread++;
+
+      // 🔊 Play notification sound for incoming customer messages
+      if (sender === "customer") {
+        playNotificationSound();
+      }
+
+      // 🆕 AUTO-OPEN FEATURE: Open conversation automatically for incoming customer messages
+      if (
+        autoOpenChatOnIncoming.value &&
+        sender === "customer" &&
+        windowWidth.value >= 768
+      ) {
+        console.log("🔔 Auto-opening conversation:", conversation.name);
+        selectChat(conversation.id);
+      }
+    } else {
+      scrollToBottom();
+      markMessagesRead(conversation.wa_number); // Use phone number, not conversation ID
+    }
+
+    // Move conversation to top
+    const idx = conversations.value.findIndex((c) => c.id == conversation.id);
+    if (idx > 0) {
+      conversations.value.splice(idx, 1);
+      conversations.value.unshift(conversation);
+    }
   }
 };
-
-
 
 // Force disconnect old socket before reconnecting
 const forceDisconnect = () => {
   if (socket.value) {
-      console.log('Force disconnecting old socket...');
-      // Remove listeners to prevent 'onclose' from triggering UI changes
-      socket.value.onopen = null;
-      socket.value.onmessage = null;
-      socket.value.onerror = null;
-      socket.value.onclose = null;
-      try {
-        // Send explicit disconnect message if socket is still open
-        if (socket.value.readyState === WebSocket.OPEN) {
-          socket.value.send(JSON.stringify({ type: 'disconnect', reason: 'reconnect' }));
-        }
-        socket.value.close();
-      } catch (e) { /* ignore */ }
-      socket.value = null;
-      lastDisconnectTime.value = Date.now();
+    console.log("Force disconnecting old socket...");
+    // Remove listeners to prevent 'onclose' from triggering UI changes
+    socket.value.onopen = null;
+    socket.value.onmessage = null;
+    socket.value.onerror = null;
+    socket.value.onclose = null;
+    try {
+      // Send explicit disconnect message if socket is still open
+      if (socket.value.readyState === WebSocket.OPEN) {
+        socket.value.send(
+          JSON.stringify({ type: "disconnect", reason: "reconnect" })
+        );
+      }
+      socket.value.close();
+    } catch (e) {
+      /* ignore */
+    }
+    socket.value = null;
+    lastDisconnectTime.value = Date.now();
   }
 };
 
@@ -2504,371 +3731,438 @@ const connectWebSocket = () => {
   forceDisconnect();
 
   console.log("Connecting to WebSocket with ID:", authId.value);
-  
+
   try {
-     // Always connect to Production Server (as per user workflow)
-     const wsUrl = `wss://waserver.nalju.com?id=${authId.value.trim()}`;
-     const ws = new WebSocket(wsUrl); 
-     socket.value = ws;
-     
-     // Connection Timeout: Force close if not connected within 10s
-     const connTimeout = setTimeout(() => {
-        if (ws.readyState !== WebSocket.OPEN) {
-            console.warn('WebSocket connection timed out (10s), forcing close...');
-            ws.close();
+    // Always connect to Production Server (as per user workflow)
+    const wsUrl = `wss://waserver.nalju.com?id=${authId.value.trim()}_${Date.now()}`;
+    const ws = new WebSocket(wsUrl);
+    socket.value = ws;
+
+    // Connection Timeout: Force close if not connected within 10s
+    const connTimeout = setTimeout(() => {
+      if (ws.readyState !== WebSocket.OPEN) {
+        console.warn("WebSocket connection timed out (10s), forcing close...");
+        ws.close();
+      }
+    }, 10000);
+
+    ws.onopen = () => {
+      // Guard: Ignore if this is not the latest socket
+      if (socket.value && ws !== socket.value) return;
+
+      clearTimeout(connTimeout);
+      console.log("WebSocket connected");
+      isConnected.value = true;
+      isConnecting.value = false;
+      connectionError.value = "";
+
+      // Mark as successfully connected (for reconnect logic)
+      wasConnected.value = true;
+      isReconnecting.value = false;
+      reconnectAttempts.value = 0;
+      reconnectDelay.value = 3000; // Reset delay
+
+      // Save session (3 days)
+      const expiry = new Date().getTime() + 3 * 24 * 60 * 60 * 1000;
+      localStorage.setItem("cms_chat_id", authId.value);
+      localStorage.setItem("cms_chat_expiry", expiry.toString());
+
+      showLoginPrompt.value = false;
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+
+        // EFFICIENCY: Reset 30s polling timer whenever specific events arrive
+        // If we get real-time data, we don't need to poll immediately
+        if (
+          [
+            "status_update",
+            "wa_masuk",
+            "case_updated",
+            "case_resolved",
+            "conversation_read",
+          ].includes(payload.type)
+        ) {
+          resetPollingTimer();
         }
-     }, 10000);
 
-     ws.onopen = () => {
-       // Guard: Ignore if this is not the latest socket
-       if (socket.value && ws !== socket.value) return;
+        // Handle Connection Welcome
+        if (payload.type === "connection") {
+          if (payload.role) {
+            currentUserRole.value = payload.role;
+            localStorage.setItem("cms_chat_role", payload.role);
+            console.log("User Role Set:", payload.role);
+          }
+          return;
+        }
 
-       clearTimeout(connTimeout);
-       console.log('WebSocket connected');
-       isConnected.value = true;
-       isConnecting.value = false;
-       connectionError.value = '';
-       
-       // Mark as successfully connected (for reconnect logic)
-       wasConnected.value = true;
-       isReconnecting.value = false;
-       reconnectAttempts.value = 0;
-       reconnectDelay.value = 3000; // Reset delay
-       
-       // Save session (3 days)
-       const expiry = new Date().getTime() + (3 * 24 * 60 * 60 * 1000);
-       localStorage.setItem('cms_chat_id', authId.value);
-       localStorage.setItem('cms_chat_expiry', expiry.toString());
-       
-       showLoginPrompt.value = false;
-     };
-     
-     ws.onmessage = (event) => {
-       try {
-         const payload = JSON.parse(event.data);
+        if (payload.type === "status_update") {
+          handleIncomingMessage(payload);
+          return;
+        }
 
-         // EFFICIENCY: Reset 30s polling timer whenever specific events arrive
-         // If we get real-time data, we don't need to poll immediately
-         if (['status_update', 'wa_masuk', 'case_updated', 'case_resolved', 'conversation_read'].includes(payload.type)) {
-             resetPollingTimer();
-         }
+        // Handle Read Receipt Sync
+        if (payload.type === "conversation_read") {
+          const conv = conversations.value.find(
+            (c) =>
+              (payload.conversation_id && c.id == payload.conversation_id) ||
+              (payload.phone && c.wa_number == payload.phone)
+          );
+          if (conv) {
+            conv.unread = 0;
+          }
+          return;
+        }
 
-         
-         // Handle Connection Welcome
-         if (payload.type === 'connection') {
-             if (payload.role) {
-                 currentUserRole.value = payload.role;
-                 localStorage.setItem('cms_chat_role', payload.role);
-                 console.log('User Role Set:', payload.role);
-             }
-             return;
-         }
-         
-         if (payload.type === 'status_update') {
-             handleIncomingMessage(payload);
-             return;
-         }
+        // Handle Case Update (Replaces Priority Update)
+        // Handle Case Update
+        if (payload.type === "case_updated") {
+          console.log("[WS] case_updated received:", payload);
 
-         // Handle Read Receipt Sync
-         if (payload.type === 'conversation_read') {
-             const conv = conversations.value.find(c => (payload.conversation_id && c.id == payload.conversation_id) || (payload.phone && c.wa_number == payload.phone));
-             if (conv) {
-                 conv.unread = 0;
-             }
-             return;
+          const normalizePhone = (phone) => {
+            if (!phone) return "";
+            return phone.toString().replace(/\D/g, "");
+          };
+
+          const targetPhone = normalizePhone(payload.phone);
+          const conv = conversations.value.find(
+            (c) => normalizePhone(c.wa_number) === targetPhone
+          );
+
+          if (conv) {
+            const newC = parseInt(payload.case);
+            console.log("✓ Updating case for conversation:", conv.name, newC);
+
+            if (!conv.cases) conv.cases = [];
+
+            if (newC === 0) {
+              // Reset/Clear all active? usually 0 means "reset"
+              conv.cases = [{ case: 0, status: "open" }];
+            } else {
+              // 1. Update/Add Target Case
+              const existing = conv.cases.find((c) => c.case === newC);
+              if (existing) {
+                existing.status = "open"; // Re-open/Update
+              } else {
+                conv.cases.push({ case: newC, status: "open" });
+              }
+
+              // 2. Auto-close Case 4 if new case is not 4
+              if (newC !== 4) {
+                const case4 = conv.cases.find((c) => c.case === 4);
+                if (case4) {
+                  case4.status = "closed";
+                }
+              }
+
+              // 3. Remove dummy case 0
+              conv.cases = conv.cases.filter((c) => c.case !== 0);
+            }
+          } else {
+            console.log(
+              "⚠️ Conversation not found for case update - reloading list:",
+              payload.phone
+            );
+            fetchConversations(); // Reload to get new conversation
           }
 
-           // Handle Case Update (Replaces Priority Update)
-           // Handle Case Update
-           if (payload.type === 'case_updated') {
-               console.log('[WS] case_updated received:', payload);
-               
-               const normalizePhone = (phone) => {
-                 if (!phone) return '';
-                 return phone.toString().replace(/\D/g, '');
-               };
-               
-               const targetPhone = normalizePhone(payload.phone);
-               const conv = conversations.value.find(c => normalizePhone(c.wa_number) === targetPhone);
-               
-               if (conv) {
-                    const newC = parseInt(payload.case);
-                    console.log('✓ Updating case for conversation:', conv.name, newC);
-                    
-                    if (!conv.cases) conv.cases = [];
-                    
-                    if (newC === 0) {
-                        // Reset/Clear all active? usually 0 means "reset"
-                        conv.cases = [{case: 0, status: 'open'}];
-                    } else {
-                        // 1. Update/Add Target Case
-                        const existing = conv.cases.find(c => c.case === newC);
-                        if (existing) {
-                            existing.status = 'open'; // Re-open/Update
-                        } else {
-                            conv.cases.push({ case: newC, status: 'open' });
-                        }
-                        
-                        // 2. Auto-close Case 4 if new case is not 4
-                        if (newC !== 4) {
-                            const case4 = conv.cases.find(c => c.case === 4);
-                            if (case4) {
-                                case4.status = 'closed';
-                            }
-                        }
-                        
-                        // 3. Remove dummy case 0
-                        conv.cases = conv.cases.filter(c => c.case !== 0);
-                    }
-               } else {
-                   console.log('⚠️ Conversation not found for case update - reloading list:', payload.phone);
-                   fetchConversations(); // Reload to get new conversation
-               }
-
-               return;
-           }
-
-           if (payload.type === 'case_resolved') {
-               console.log('[WS] case_resolved received:', payload);
-               const normalizePhone = (phone) => {
-                  if (!phone) return '';
-                  return phone.toString().replace(/\D/g, ''); 
-               };
-               const targetPhone = normalizePhone(payload.phone);
-               const conv = conversations.value.find(c => normalizePhone(c.wa_number) === targetPhone);
-               
-               if (conv && conv.cases) {
-                   // Update status to closed
-                   const resolvedCase = parseInt(payload.case);
-                   const target = conv.cases.find(x => x.case === resolvedCase);
-                   if (target) {
-                       target.status = 'closed';
-                   }
-               }
-               return;
-           }
-
-          // Handle Agent Message Sent (from other devices)
-          if (payload.type === 'agent_message_sent') {
-              const conversationId = payload.conversation_id;
-              const messageData = payload.message;
-              const senderId = payload.sender_id;
-               
-              // DEBUG: Log all agent messages for troubleshooting
-              console.log('[WS] agent_message_sent:', {
-                  conversation: conversationId,
-                  sender: senderId,
-                  myId: authId.value,
-                  text: messageData.text,
-                  match: senderId == authId.value
-              });
-               
-              // Skip if this message was sent by current user (use == for type safety)
-              // This prevents the duplicate when server echoes our own message back
-              if (senderId == authId.value) {
-                  console.log('✓ Ignoring self-broadcast (already in optimistic UI)');
-                  return;
-              }
-               
-               
-              const conversation = conversations.value.find(c => (conversationId && c.id == conversationId) || (payload.phone && c.wa_number == payload.phone));
-              if (conversation) {
-                   // Enhanced duplicate check: ID, wamid, OR media_url for images
-                   const existingMessage = conversation.messages.find(m => 
-                      m.id == messageData.id || 
-                      (m.wamid && messageData.wamid && m.wamid == messageData.wamid) ||
-                      (messageData.type === 'image' && m.media_url && messageData.media_url && m.media_url == messageData.media_url)
-                   );
-                   
-                   if (existingMessage) {
-                       // Update existing message (from optimistic UI after API response)
-                       existingMessage.id = messageData.id;
-                       existingMessage.wamid = messageData.wamid;
-                       existingMessage.status = messageData.status || 'sent';
-                       if (messageData.media_url) existingMessage.media_url = messageData.media_url;
-                       console.log('Updated existing message:', existingMessage.id);
-                       // Don't add as new - already exists
-                   } else {
-                       // NEW DEFENSE: Robust Fuzzy Match
-                       // Search backwards for the most recent message from 'me' with same text
-                       // This handles race conditions where the order might be slightly off or not the very last item
-                       let pendingMatch = null;
-                       const cleanIncomingText = (messageData.text || '').trim();
-                       
-                       // Scan last 5 messages
-                       for (let i = conversation.messages.length - 1; i >= 0; i--) {
-                           if (conversation.messages.length - i > 5) break; 
-                           
-                           const m = conversation.messages[i];
-                           const cleanLocalText = (m.text || '').trim();
-                           
-                           // Check match: Sender is me AND text matches
-                           if (m.sender === 'me' && cleanLocalText === cleanIncomingText) {
-                                // If it's already "read", we probably shouldn't merge (it's old)
-                                // But if it's pending, sent, or delivered, it's a candidate
-                                if (m.status !== 'read') {
-                                    pendingMatch = m;
-                                    break;
-                                }
-                           }
-                       }
-                       
-                       if (pendingMatch) {
-                           console.log('Matched duplicate (Fuzzy Refined):', pendingMatch.id);
-                           
-                           // Update IDs to server values
-                           pendingMatch.id = messageData.id; 
-                           if (messageData.wamid) pendingMatch.wamid = messageData.wamid;
-                           pendingMatch.status = messageData.status || 'sent';
-                           if (messageData.media_url) pendingMatch.media_url = messageData.media_url;
-                           return; // Stop, don't add new
-                       }
-
-                       // Add new message (from another agent/device)
-                       const newMsg = {
-                           id: messageData.id,
-                           wamid: messageData.wamid,
-                           text: messageData.text,
-                           type: messageData.type || 'text',
-                           media_url: messageData.media_url,
-                           sender: 'me',
-                           time: new Date(messageData.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
-                           rawTime: messageData.time,
-                           status: messageData.status || 'sent'
-                       };
-                       
-                       conversation.messages.push(newMsg);
-                       
-                       // Sort messages by rawTime to ensure chronological order
-                       conversation.messages.sort((a, b) => {
-                           if (!a.rawTime || !b.rawTime) return 0;
-                           return new Date(a.rawTime) - new Date(b.rawTime);
-                       });
-                       
-                       conversation.lastMessage = messageData.type === 'image' ? "You: 📷 Image" : "You: " + messageData.text;
-                       conversation.lastTime = newMsg.time;
-                       
-                       console.log('Added new message from other device:', newMsg.id);
-                       
-                       // Auto-scroll if viewing this conversation
-                       if (activeChatId.value == conversationId) {
-                           scrollToBottom();
-                       }
-                   }
-               }
-               return;
-           }
-          
-         if (payload.type === 'wa_masuk') {
-             // Real incoming WA message
-             handleIncomingMessage(payload.data);
-         } else if (payload.conversationId) {
-             // Fallback for direct legacy format (if any)
-             handleIncomingMessage(payload);
-         }
-       } catch (e) {
-         console.error('Error parsing WS message', e);
-       }
-     };
-     
-      ws.onclose = (event) => {
-        // Guard: Ignore if this is not the latest socket
-        if (socket.value && ws !== socket.value) return;
-
-        if (isConnected.value) {
-             console.log('WebSocket disconnected, code:', event.code, 'reason:', event.reason);
-             isConnected.value = false;
-             
-             // Check if disconnected due to connection limit (code 1008 = duplicate connection)
-             if (event.code === 1008) {
-                 // GUARD: If this happens shortly after resume (within 5s), it's likely a false positive involving the old socket
-                 const isRecentResume = (Date.now() - resumeTimestamp.value) < 5000;
-                 
-                 if (isRecentResume) {
-                     console.warn('Ignoring duplicate connection error during resume grace period. Retrying...');
-                     // Retry once after delay
-                     setTimeout(() => {
-                         if (!isConnected.value && authId.value) connectWebSocket();
-                     }, 1500);
-                 } else {
-                     connectionError.value = '⚠️ Koneksi ditutup: ID ini sudah terkoneksi di tab/device lain';
-                     console.warn('Connection closed: Another connection with same ID exists');
-                     // Show blocking modal - don't auto-reconnect
-                     showDuplicateConnectionModal.value = true;
-                     wasConnected.value = false; // Prevent auto-reconnect
-                 }
-             } else if (wasConnected.value && reconnectAttempts.value < maxReconnectAttempts) {
-                 // AUTO-RECONNECT: If was connected and not auth error, try reconnecting
-                 isReconnecting.value = true;
-                 reconnectAttempts.value++;
-                 
-                 // Calculate exponential backoff delay (max 30 seconds)
-                 const delay = Math.min(reconnectDelay.value * Math.pow(1.5, reconnectAttempts.value - 1), 30000);
-                 
-                 connectionError.value = `🔄 Mencoba reconnect (${reconnectAttempts.value}/${maxReconnectAttempts})...`;
-                 console.log(`Auto-reconnecting in ${delay}ms (attempt ${reconnectAttempts.value}/${maxReconnectAttempts})`);
-                 
-                 setTimeout(() => {
-                     if (authId.value && authPassword.value && !isConnected.value) {
-                         connectWebSocket();
-                     }
-                 }, delay);
-             } else {
-                 connectionError.value = '⚠️ WebSocket terputus. Polling backup aktif (update setiap 30 detik)';
-             }
-        } else {
-            // Connection failed during attempt
-            isConnecting.value = false;
-            isReconnecting.value = false;
-           // Clear invalid session if we failed to connect (e.g. ID revoked)
-           // But be careful not to clear on transient network errors? 
-           // Probably safe to let user try again or re-enter.
-           // For now, let's not clear automatically unless it's strictly Auth error (1008)
-           
-           let msg = 'Connection failed.';
-            if (event.code === 1008) {
-                msg = 'Access Denied: Invalid ID.';
-                localStorage.removeItem('chat_connection_id'); // Clear invalid ID
-                localStorage.removeItem('chat_connection_expiry');
-                wasConnected.value = false;
-                showLoginPrompt.value = true; // Show login immediately on auth error
-            } else if (event.code === 1006 && wasConnected.value && reconnectAttempts.value < maxReconnectAttempts) {
-                // Network error during reconnect attempt - keep trying
-                isReconnecting.value = true;
-                reconnectAttempts.value++;
-                const delay = Math.min(reconnectDelay.value * Math.pow(1.5, reconnectAttempts.value - 1), 30000);
-                
-                const statusMsg = `🔄 Koneksi terputus, mencoba reconnect (${reconnectAttempts.value}/${maxReconnectAttempts})...`;
-                msg = statusMsg;
-                connectionError.value = statusMsg; // FORCE UPDATE UI
-                console.log(`Reconnect attempt ${reconnectAttempts.value} in ${delay}ms`);
-                
-                setTimeout(() => {
-                    if (authId.value && !isConnected.value) {
-                        connectWebSocket();
-                    } else if (!authId.value) {
-                        // No ID, show login
-                        isReconnecting.value = false;
-                        showLoginPrompt.value = true;
-                    }
-                }, delay);
-            } else {
-                // Max attempts reached or error - show login
-                isReconnecting.value = false;
-                if (event.code === 1006) {
-                    msg = 'Koneksi terputus. Silakan login ulang.';
-                } else if (event.reason) {
-                    msg = `Error: ${event.reason}`;
-                }
-                showLoginPrompt.value = true;
-            }
-            connectionError.value = msg;
+          return;
         }
-     };
-     
-     ws.onerror = (err) => {
-        // console.error('WS Error', err);
-     };
+
+        if (payload.type === "case_resolved") {
+          console.log("[WS] case_resolved received:", payload);
+          const normalizePhone = (phone) => {
+            if (!phone) return "";
+            return phone.toString().replace(/\D/g, "");
+          };
+          const targetPhone = normalizePhone(payload.phone);
+          const conv = conversations.value.find(
+            (c) => normalizePhone(c.wa_number) === targetPhone
+          );
+
+          if (conv && conv.cases) {
+            // Update status to closed
+            const resolvedCase = parseInt(payload.case);
+            const target = conv.cases.find((x) => x.case === resolvedCase);
+            if (target) {
+              target.status = "closed";
+            }
+          }
+          return;
+        }
+
+        // Handle Agent Message Sent (from other devices)
+        if (payload.type === "agent_message_sent") {
+          const conversationId = payload.conversation_id;
+          const messageData = payload.message;
+          const senderId = payload.sender_id;
+
+          // DEBUG: Log all agent messages for troubleshooting
+          console.log("[WS] agent_message_sent:", {
+            conversation: conversationId,
+            sender: senderId,
+            myId: authId.value,
+            text: messageData.text,
+            match: senderId == authId.value,
+          });
+
+          // Skip if this message was sent by current user (use == for type safety)
+          // This prevents the duplicate when server echoes our own message back
+          if (senderId == authId.value) {
+            console.log("✓ Ignoring self-broadcast (already in optimistic UI)");
+            return;
+          }
+
+          const conversation = conversations.value.find(
+            (c) =>
+              (conversationId && c.id == conversationId) ||
+              (payload.phone && c.wa_number == payload.phone)
+          );
+          if (conversation) {
+            // Enhanced duplicate check: ID, wamid, OR media_url for images
+            const existingMessage = conversation.messages.find(
+              (m) =>
+                m.id == messageData.id ||
+                (m.wamid &&
+                  messageData.wamid &&
+                  m.wamid == messageData.wamid) ||
+                (messageData.type === "image" &&
+                  m.media_url &&
+                  messageData.media_url &&
+                  m.media_url == messageData.media_url)
+            );
+
+            if (existingMessage) {
+              // Update existing message (from optimistic UI after API response)
+              existingMessage.id = messageData.id;
+              existingMessage.wamid = messageData.wamid;
+              existingMessage.status = messageData.status || "sent";
+              if (messageData.media_url)
+                existingMessage.media_url = messageData.media_url;
+              console.log("Updated existing message:", existingMessage.id);
+              // Don't add as new - already exists
+            } else {
+              // NEW DEFENSE: Robust Fuzzy Match
+              // Search backwards for the most recent message from 'me' with same text
+              // This handles race conditions where the order might be slightly off or not the very last item
+              let pendingMatch = null;
+              const cleanIncomingText = (messageData.text || "").trim();
+
+              // Scan last 5 messages
+              for (let i = conversation.messages.length - 1; i >= 0; i--) {
+                if (conversation.messages.length - i > 5) break;
+
+                const m = conversation.messages[i];
+                const cleanLocalText = (m.text || "").trim();
+
+                // Check match: Sender is me AND text matches
+                if (m.sender === "me" && cleanLocalText === cleanIncomingText) {
+                  // If it's already "read", we probably shouldn't merge (it's old)
+                  // But if it's pending, sent, or delivered, it's a candidate
+                  if (m.status !== "read") {
+                    pendingMatch = m;
+                    break;
+                  }
+                }
+              }
+
+              if (pendingMatch) {
+                console.log(
+                  "Matched duplicate (Fuzzy Refined):",
+                  pendingMatch.id
+                );
+
+                // Update IDs to server values
+                pendingMatch.id = messageData.id;
+                if (messageData.wamid) pendingMatch.wamid = messageData.wamid;
+                pendingMatch.status = messageData.status || "sent";
+                if (messageData.media_url)
+                  pendingMatch.media_url = messageData.media_url;
+                return; // Stop, don't add new
+              }
+
+              // Add new message (from another agent/device)
+              const newMsg = {
+                id: messageData.id,
+                wamid: messageData.wamid,
+                text: messageData.text,
+                type: messageData.type || "text",
+                media_url: messageData.media_url,
+                sender: "me",
+                time: new Date(messageData.time).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: false,
+                }),
+                rawTime: messageData.time,
+                status: messageData.status || "sent",
+              };
+
+              conversation.messages.push(newMsg);
+
+              // Sort messages by rawTime to ensure chronological order
+              conversation.messages.sort((a, b) => {
+                if (!a.rawTime || !b.rawTime) return 0;
+                return new Date(a.rawTime) - new Date(b.rawTime);
+              });
+
+              conversation.lastMessage =
+                messageData.type === "image"
+                  ? "You: 📷 Image"
+                  : "You: " + messageData.text;
+              conversation.lastTime = newMsg.time;
+
+              console.log("Added new message from other device:", newMsg.id);
+
+              // Auto-scroll if viewing this conversation
+              if (activeChatId.value == conversationId) {
+                scrollToBottom();
+              }
+            }
+          }
+          return;
+        }
+
+        if (payload.type === "wa_masuk") {
+          // Real incoming WA message
+          handleIncomingMessage(payload.data);
+        } else if (payload.conversationId) {
+          // Fallback for direct legacy format (if any)
+          handleIncomingMessage(payload);
+        }
+      } catch (e) {
+        console.error("Error parsing WS message", e);
+      }
+    };
+
+    ws.onclose = (event) => {
+      // Guard: Ignore if this is not the latest socket
+      if (socket.value && ws !== socket.value) return;
+
+      if (isConnected.value) {
+        console.log(
+          "WebSocket disconnected, code:",
+          event.code,
+          "reason:",
+          event.reason
+        );
+        isConnected.value = false;
+
+        // Check if disconnected due to connection limit (code 1008 = duplicate connection)
+        if (event.code === 1008) {
+          // GUARD: If this happens shortly after resume (within 5s), it's likely a false positive involving the old socket
+          const isRecentResume = Date.now() - resumeTimestamp.value < 5000;
+
+          if (isRecentResume) {
+            console.warn(
+              "Ignoring duplicate connection error during resume grace period. Retrying..."
+            );
+            // Retry once after delay
+            setTimeout(() => {
+              if (!isConnected.value && authId.value) connectWebSocket();
+            }, 1500);
+          } else {
+            connectionError.value =
+              "⚠️ Koneksi ditutup: ID ini sudah terkoneksi di tab/device lain";
+            console.warn(
+              "Connection closed: Another connection with same ID exists"
+            );
+            // Show blocking modal - don't auto-reconnect
+            showDuplicateConnectionModal.value = true;
+            wasConnected.value = false; // Prevent auto-reconnect
+          }
+        } else if (
+          wasConnected.value &&
+          reconnectAttempts.value < maxReconnectAttempts
+        ) {
+          // AUTO-RECONNECT: If was connected and not auth error, try reconnecting
+          isReconnecting.value = true;
+          reconnectAttempts.value++;
+
+          // Calculate exponential backoff delay (max 30 seconds)
+          const delay = Math.min(
+            reconnectDelay.value * Math.pow(1.5, reconnectAttempts.value - 1),
+            30000
+          );
+
+          connectionError.value = `🔄 Mencoba reconnect (${reconnectAttempts.value}/${maxReconnectAttempts})...`;
+          console.log(
+            `Auto-reconnecting in ${delay}ms (attempt ${reconnectAttempts.value}/${maxReconnectAttempts})`
+          );
+
+          setTimeout(() => {
+            if (authId.value && authPassword.value && !isConnected.value) {
+              connectWebSocket();
+            }
+          }, delay);
+        } else {
+          connectionError.value =
+            "⚠️ WebSocket terputus. Polling backup aktif (update setiap 30 detik)";
+        }
+      } else {
+        // Connection failed during attempt
+        isConnecting.value = false;
+        isReconnecting.value = false;
+        // Clear invalid session if we failed to connect (e.g. ID revoked)
+        // But be careful not to clear on transient network errors?
+        // Probably safe to let user try again or re-enter.
+        // For now, let's not clear automatically unless it's strictly Auth error (1008)
+
+        let msg = "Connection failed.";
+        if (event.code === 1008) {
+          msg = "Access Denied: Invalid ID.";
+          localStorage.removeItem("chat_connection_id"); // Clear invalid ID
+          localStorage.removeItem("chat_connection_expiry");
+          wasConnected.value = false;
+          showLoginPrompt.value = true; // Show login immediately on auth error
+        } else if (
+          event.code === 1006 &&
+          wasConnected.value &&
+          reconnectAttempts.value < maxReconnectAttempts
+        ) {
+          // Network error during reconnect attempt - keep trying
+          isReconnecting.value = true;
+          reconnectAttempts.value++;
+          const delay = Math.min(
+            reconnectDelay.value * Math.pow(1.5, reconnectAttempts.value - 1),
+            30000
+          );
+
+          const statusMsg = `🔄 Koneksi terputus, mencoba reconnect (${reconnectAttempts.value}/${maxReconnectAttempts})...`;
+          msg = statusMsg;
+          connectionError.value = statusMsg; // FORCE UPDATE UI
+          console.log(
+            `Reconnect attempt ${reconnectAttempts.value} in ${delay}ms`
+          );
+
+          setTimeout(() => {
+            if (authId.value && !isConnected.value) {
+              connectWebSocket();
+            } else if (!authId.value) {
+              // No ID, show login
+              isReconnecting.value = false;
+              showLoginPrompt.value = true;
+            }
+          }, delay);
+        } else {
+          // Max attempts reached or error - show login
+          isReconnecting.value = false;
+          if (event.code === 1006) {
+            msg = "Koneksi terputus. Silakan login ulang.";
+          } else if (event.reason) {
+            msg = `Error: ${event.reason}`;
+          }
+          showLoginPrompt.value = true;
+        }
+        connectionError.value = msg;
+      }
+    };
+
+    ws.onerror = (err) => {
+      // console.error('WS Error', err);
+    };
   } catch (e) {
     console.error(e);
   }
@@ -2876,11 +4170,11 @@ const connectWebSocket = () => {
 
 // Retry Connection - Try to reconnect without full logout (for network change scenarios)
 const retryConnection = () => {
-  console.log('Retrying connection from duplicate modal...');
-  
+  console.log("Retrying connection from duplicate modal...");
+
   // Close the duplicate modal
   showDuplicateConnectionModal.value = false;
-  
+
   // Reset connection states
   isConnected.value = false;
   isConnecting.value = true;
@@ -2888,11 +4182,11 @@ const retryConnection = () => {
   reconnectAttempts.value = 0;
   reconnectDelay.value = 3000;
   isReconnecting.value = true;
-  connectionError.value = '🔄 Mencoba reconnect...';
-  
+  connectionError.value = "🔄 Mencoba reconnect...";
+
   // Force disconnect any existing socket first
   forceDisconnect();
-  
+
   // Wait 3 seconds to allow server cleanup, then reconnect
   setTimeout(() => {
     if (authId.value && !isConnected.value) {
@@ -2910,215 +4204,218 @@ const handleTouchStart = (e) => {
 
 const handleTouchMove = (e) => {
   if (!showMobileChat.value) return;
-  
+
   const currentX = e.touches[0].screenX;
   const currentY = e.touches[0].screenY;
-  
+
   const diffX = currentX - touchStartX.value;
   const diffY = currentY - touchStartY.value;
-  
+
   // Only start dragging if substantially horizontal
   if (!isDragging.value) {
-      if (diffX > 10 && Math.abs(diffX) > Math.abs(diffY)) {
-          isDragging.value = true;
-      }
+    if (diffX > 10 && Math.abs(diffX) > Math.abs(diffY)) {
+      isDragging.value = true;
+    }
   }
-  
+
   if (isDragging.value && diffX > 0) {
-      // Prevent default scrolling only if we are dragging horizontally
-      if (e.cancelable) e.preventDefault(); 
-      touchOffset.value = diffX;
+    // Prevent default scrolling only if we are dragging horizontally
+    if (e.cancelable) e.preventDefault();
+    touchOffset.value = diffX;
   }
 };
 
 const handleTouchEnd = (e) => {
-  if (!showMobileChat.value) return; 
-  
-  if (isDragging.value) {
-      // Enable transition for the snap/exit animation
-      isDragging.value = false;
+  if (!showMobileChat.value) return;
 
-      // If dragged more than 25% of screen width, close it
-      const screenWidth = window.innerWidth;
-      if (touchOffset.value > screenWidth * 0.25) {
-          // Animate out to the right
-          touchOffset.value = screenWidth; 
-          
-          // Wait for transition (300ms) to finish before unmounting/hiding
-          setTimeout(() => {
-              backToMenu(false); // No animation needed - already animated above
-              // Reset offset after hidden
-              setTimeout(() => {
-                  touchOffset.value = 0;
-              }, 50);
-          }, 300);
-      } else {
-          // Snap back to 0
+  if (isDragging.value) {
+    // Enable transition for the snap/exit animation
+    isDragging.value = false;
+
+    // If dragged more than 25% of screen width, close it
+    const screenWidth = window.innerWidth;
+    if (touchOffset.value > screenWidth * 0.25) {
+      // Animate out to the right
+      touchOffset.value = screenWidth;
+
+      // Wait for transition (300ms) to finish before unmounting/hiding
+      setTimeout(() => {
+        backToMenu(false); // No animation needed - already animated above
+        // Reset offset after hidden
+        setTimeout(() => {
           touchOffset.value = 0;
-      }
+        }, 50);
+      }, 300);
+    } else {
+      // Snap back to 0
+      touchOffset.value = 0;
+    }
   }
 };
 
 // Mock incoming message for demonstration
 const mockIncomingMessage = () => {
-    // Mock disabled - using real API data
+  // Mock disabled - using real API data
 };
-
-
 
 // --- Persistence DISABLED ---
 // localStorage cache removed to ensure 100% accurate data from server
 // Data will always be fresh from storage logic below
-  
-  // --- STATE PERSISTENCE HELPERS ---
-  // Persist critical UI state for Android sleep/resume recovery
-  const persistChatState = () => {
-      if (activeChatId.value) {
-          localStorage.setItem('active_chat_id', activeChatId.value.toString());
-          localStorage.setItem('show_mobile_chat', showMobileChat.value ? 'true' : 'false');
-      } else {
-          localStorage.removeItem('active_chat_id');
-          localStorage.removeItem('show_mobile_chat');
-      }
-  };
 
-  const resumeChatState = () => {
-      const savedId = localStorage.getItem('active_chat_id');
-      const savedMobileChat = localStorage.getItem('show_mobile_chat');
-      
-      if (savedId && !activeChatId.value) {
-          const id = parseInt(savedId);
-          // Only switch if conversation exists
-          if (conversations.value.some(c => c.id === id)) {
-              selectChat(id);
-              
-              // CRITICAL: Restore showMobileChat state for mobile devices
-              // This ensures back button handler works correctly after Android resume
-              if (savedMobileChat === 'true' && windowWidth.value < 768) {
-                  showMobileChat.value = true;
-              }
-          }
+// --- STATE PERSISTENCE HELPERS ---
+// Persist critical UI state for Android sleep/resume recovery
+const persistChatState = () => {
+  if (activeChatId.value) {
+    localStorage.setItem("active_chat_id", activeChatId.value.toString());
+    localStorage.setItem(
+      "show_mobile_chat",
+      showMobileChat.value ? "true" : "false"
+    );
+  } else {
+    localStorage.removeItem("active_chat_id");
+    localStorage.removeItem("show_mobile_chat");
+  }
+};
+
+const resumeChatState = () => {
+  const savedId = localStorage.getItem("active_chat_id");
+  const savedMobileChat = localStorage.getItem("show_mobile_chat");
+
+  if (savedId && !activeChatId.value) {
+    const id = parseInt(savedId);
+    // Only switch if conversation exists
+    if (conversations.value.some((c) => c.id === id)) {
+      selectChat(id);
+
+      // CRITICAL: Restore showMobileChat state for mobile devices
+      // This ensures back button handler works correctly after Android resume
+      if (savedMobileChat === "true" && windowWidth.value < 768) {
+        showMobileChat.value = true;
       }
-  };
-  
-  onMounted(() => {
+    }
+  }
+};
+
+onMounted(() => {
   // Check for Deep Link / Notification Click (URL Param)
   const urlParams = new URLSearchParams(window.location.search);
-  const deepLinkPhone = urlParams.get('phone');
+  const deepLinkPhone = urlParams.get("phone");
   if (deepLinkPhone) {
-      console.log('🔗 Deep link detected for phone:', deepLinkPhone);
-      pendingTargetPhone.value = deepLinkPhone;
-      // Clean URL silently
-      window.history.replaceState({}, document.title, "/");
+    console.log("🔗 Deep link detected for phone:", deepLinkPhone);
+    pendingTargetPhone.value = deepLinkPhone;
+    // Clean URL silently
+    window.history.replaceState({}, document.title, "/");
   }
 
   // Add Paste Listener
 
-  window.addEventListener('paste', handlePaste);
-  
+  window.addEventListener("paste", handlePaste);
+
   scrollToBottom();
-  
+
   // --- LOADING TIMEOUT SAFETY NET ---
   // If app is stuck on loading screen for more than 5 seconds, force show login
   // This prevents the "infinite loading" bug after Android sleep
   setTimeout(() => {
     if (!isConnected.value && !showLoginPrompt.value && !isConnecting.value) {
-      console.log('⚠️ Loading timeout - forcing login prompt');
+      console.log("⚠️ Loading timeout - forcing login prompt");
       showLoginPrompt.value = true;
     }
   }, 3000);
-  
+
   // --- NO CACHE LOADING ---
   // Always fetch fresh data from server for 100% accuracy
-  
+
   // --- VISIBILITY CHANGE HANDLER ---
   // Fix for blank screen/disconnect after long backgrounding (Android sleep)
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-      console.log('App resumed from background, checking connection...');
-      
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      console.log("App resumed from background, checking connection...");
+
       // Update resume timestamp FIRST
       resumeTimestamp.value = Date.now();
-      
+
       // Check if socket is dead or not connected
       if (!socket.value || socket.value.readyState !== WebSocket.OPEN) {
-          console.log('Socket disconnected, initiating reconnect...');
-          
-          // CRITICAL FIX: Close duplicate connection modal if open (might be stale from network change)
-          showDuplicateConnectionModal.value = false;
-          
-          // CRITICAL FIX: Reset reconnect state to allow fresh reconnection
-          reconnectAttempts.value = 0;
-          reconnectDelay.value = 3000;
-          isReconnecting.value = true;
-          
-          // SMART DELAY: If we recently disconnected (network change scenario),
-          // wait longer to give server time to cleanup old connection
-          const timeSinceDisconnect = Date.now() - lastDisconnectTime.value;
-          const needsDelay = timeSinceDisconnect < 10000; // Within 10 seconds of disconnect
-          const reconnectDelayMs = needsDelay ? 3000 : 500; // 3s delay if recent disconnect, else quick
-          
-          connectionError.value = needsDelay 
-            ? '🔄 Menunggu server... (jaringan berubah)' 
-            : '🔄 Reconnecting...';
-          
-          console.log(`Reconnect delay: ${reconnectDelayMs}ms (recent disconnect: ${needsDelay})`);
-          
-          // Only reconnect if we have ID
-          if (authId.value) {
-              // Force disconnect any zombie socket first
-              forceDisconnect();
-              
-              // Delayed reconnect to allow server cleanup
-              setTimeout(() => {
-                  if (!isConnected.value && authId.value) {
-                      connectWebSocket();
-                  }
-              }, reconnectDelayMs);
-          } else {
-              // No ID - show login
-              isReconnecting.value = false;
-              showLoginPrompt.value = true;
-          }
+        console.log("Socket disconnected, initiating reconnect...");
+
+        // CRITICAL FIX: Close duplicate connection modal if open (might be stale from network change)
+        showDuplicateConnectionModal.value = false;
+
+        // CRITICAL FIX: Reset reconnect state to allow fresh reconnection
+        reconnectAttempts.value = 0;
+        reconnectDelay.value = 3000;
+        isReconnecting.value = true;
+
+        // SMART DELAY: If we recently disconnected (network change scenario),
+        // wait longer to give server time to cleanup old connection
+        const timeSinceDisconnect = Date.now() - lastDisconnectTime.value;
+        const needsDelay = timeSinceDisconnect < 10000; // Within 10 seconds of disconnect
+        const reconnectDelayMs = needsDelay ? 3000 : 500; // 3s delay if recent disconnect, else quick
+
+        connectionError.value = needsDelay
+          ? "🔄 Menunggu server... (jaringan berubah)"
+          : "🔄 Reconnecting...";
+
+        console.log(
+          `Reconnect delay: ${reconnectDelayMs}ms (recent disconnect: ${needsDelay})`
+        );
+
+        // Only reconnect if we have ID
+        if (authId.value) {
+          // Force disconnect any zombie socket first
+          forceDisconnect();
+
+          // Delayed reconnect to allow server cleanup
+          setTimeout(() => {
+            if (!isConnected.value && authId.value) {
+              connectWebSocket();
+            }
+          }, reconnectDelayMs);
+        } else {
+          // No ID - show login
+          isReconnecting.value = false;
+          showLoginPrompt.value = true;
+        }
       }
-      
+
       // Refresh data to ensure sync
       fetchConversations();
-      
+
       // Restore active chat state if user was viewing a chat before leaving
       // This handles the case when user clicks a link and comes back
       resumeChatState();
     }
   });
-  
+
   // --- ANDROID WEBVIEW RESUME HANDLER ---
   // Handle custom event from Android MainActivity.onResume()
-  window.addEventListener('androidResume', () => {
-    console.log('📱 Android Resume event received');
-    
+  window.addEventListener("androidResume", () => {
+    console.log("📱 Android Resume event received");
+
     resumeTimestamp.value = Date.now();
-    
+
     // Close duplicate modal if open (might be stale)
     showDuplicateConnectionModal.value = false;
-    
+
     // Check if socket is dead and reconnect
     if (!socket.value || socket.value.readyState !== WebSocket.OPEN) {
-      console.log('Socket disconnected, reconnecting from Android resume...');
-      
+      console.log("Socket disconnected, reconnecting from Android resume...");
+
       // Reset reconnect state
       reconnectAttempts.value = 0;
       reconnectDelay.value = 3000;
       isReconnecting.value = true;
-      
+
       // Smart delay for network change scenario
       const timeSinceDisconnect = Date.now() - lastDisconnectTime.value;
       const needsDelay = timeSinceDisconnect < 10000;
       const reconnectDelayMs = needsDelay ? 3000 : 500;
-      
-      connectionError.value = needsDelay 
-        ? '🔄 Menunggu server cleanup...' 
-        : '🔄 Reconnecting...';
-      
+
+      connectionError.value = needsDelay
+        ? "🔄 Menunggu server cleanup..."
+        : "🔄 Reconnecting...";
+
       if (authId.value) {
         forceDisconnect();
         setTimeout(() => {
@@ -3131,23 +4428,23 @@ const mockIncomingMessage = () => {
         showLoginPrompt.value = true;
       }
     }
-    
+
     // Refresh conversations
     fetchConversations();
     resumeChatState();
   });
-  
+
   // --- EXPOSE GLOBAL FUNCTION FOR ANDROID ---
   // Android WebView can call: window.triggerReconnect()
   window.triggerReconnect = () => {
-    console.log('📱 triggerReconnect called from Android');
-    
+    console.log("📱 triggerReconnect called from Android");
+
     if (!socket.value || socket.value.readyState !== WebSocket.OPEN) {
       reconnectAttempts.value = 0;
       reconnectDelay.value = 3000;
       isReconnecting.value = true;
-      connectionError.value = '🔄 Reconnecting...';
-      
+      connectionError.value = "🔄 Reconnecting...";
+
       if (authId.value) {
         connectWebSocket();
         fetchConversations();
@@ -3156,287 +4453,301 @@ const mockIncomingMessage = () => {
     }
     return false;
   };
-  
+
   // --- CLICK OUTSIDE HANDLER ---
   // Close menu when clicking anywhere
-  window.addEventListener('click', handleClickOutside);
-  
+  window.addEventListener("click", handleClickOutside);
+
   // --- PASTE HANDLER ---
   // Handle pasted images
-  window.addEventListener('paste', handlePaste);
-  
+  window.addEventListener("paste", handlePaste);
+
   // --- LINK CLICK HANDLER ---
   // Intercept nalju.com links for internal browser, save state for others
-  document.addEventListener('click', handleLinkClick, true);
-  
+  document.addEventListener("click", handleLinkClick, true);
+
   // --- PAGE HIDE HANDLER ---
   // Save state when page is about to be hidden (covers all navigation cases)
-  window.addEventListener('pagehide', () => {
-      persistChatState();
+  window.addEventListener("pagehide", () => {
+    persistChatState();
   });
-  
-  window.addEventListener('beforeunload', () => {
-      persistChatState();
+
+  window.addEventListener("beforeunload", () => {
+    persistChatState();
   });
-  
+
   // --- ANDROID BACK BUTTON HANDLER ---
-  window.addEventListener('popstate', (event) => {
-      // If mobile chat ui is open, just close it and stay on page
-      if (showMobileChat.value) {
-          console.log('🔙 Android Back: Closing chat overlay');
-          showMobileChat.value = false; 
-          activeChatId.value = null;
-          localStorage.removeItem('active_chat_id');
-      }
+  window.addEventListener("popstate", (event) => {
+    // If mobile chat ui is open, just close it and stay on page
+    if (showMobileChat.value) {
+      console.log("🔙 Android Back: Closing chat overlay");
+      showMobileChat.value = false;
+      activeChatId.value = null;
+      localStorage.removeItem("active_chat_id");
+    }
   });
-  
+
   // Load font size preference
   loadFontSize();
-  
+
   // Load theme preference
   loadTheme();
-  
+
   // Initialize notification sound
   initNotificationSound();
   loadNotificationSoundSetting();
-  
+
   // Load recent emojis
   loadRecentEmojis();
-  
-  const storedId = localStorage.getItem('cms_chat_id');
-  const storedExpiry = localStorage.getItem('cms_chat_expiry');
-  const storedRole = localStorage.getItem('cms_chat_role');
+
+  const storedId = localStorage.getItem("cms_chat_id");
+  const storedExpiry = localStorage.getItem("cms_chat_expiry");
+  const storedRole = localStorage.getItem("cms_chat_role");
   const now = new Date().getTime();
-  
+
   // Clean up old password storage (migration)
-  localStorage.removeItem('cms_chat_password');
-  
+  localStorage.removeItem("cms_chat_password");
+
   if (storedRole) currentUserRole.value = storedRole;
-  
+
   // Case 1: Valid session (ID + Valid Expiry)
   if (storedId && storedExpiry && now < parseInt(storedExpiry)) {
-      console.log("Restoring session for ID:", storedId);
-      authId.value = storedId;
-      
-      // Renew expiry for another 3 days
-      const newExpiry = new Date().getTime() + (3 * 24 * 60 * 60 * 1000);
-      localStorage.setItem('cms_chat_expiry', newExpiry.toString());
-      
-      connectWebSocket();
-      fetchConversations().then(() => {
-          // Restore active chat if persisted for resume
-          resumeChatState();
-      });
-  } 
+    console.log("Restoring session for ID:", storedId);
+    authId.value = storedId;
+
+    // Renew expiry for another 3 days
+    const newExpiry = new Date().getTime() + 3 * 24 * 60 * 60 * 1000;
+    localStorage.setItem("cms_chat_expiry", newExpiry.toString());
+
+    connectWebSocket();
+    fetchConversations().then(() => {
+      // Restore active chat if persisted for resume
+      resumeChatState();
+    });
+  }
   // Case 2: Has ID but expired - Keep ID, prompt to reconnect
   else if (storedId && storedExpiry && now >= parseInt(storedExpiry)) {
-      console.log("Session expired. ID found, please reconnect.");
-      authId.value = storedId; // Keep the ID for convenience
-      showLoginPrompt.value = true;
+    console.log("Session expired. ID found, please reconnect.");
+    authId.value = storedId; // Keep the ID for convenience
+    showLoginPrompt.value = true;
   }
   // Case 3: No session - Start fresh
   else {
-      // Clean up any partial/expired data
-      localStorage.removeItem('cms_chat_id');
-      localStorage.removeItem('cms_chat_expiry');
-      
-      // Check URL param?
-      const urlParams = new URLSearchParams(window.location.search);
-      const idParam = urlParams.get('id');
-      if (idParam) {
-          authId.value = idParam;
-          // Auto-connect with ID from URL
-          connect();
-          // Clean URL
-          window.history.replaceState({}, document.title, window.location.pathname);
-      } else {
-        // Show Login Prompt
-        setTimeout(() => { showLoginPrompt.value = true; }, 500);
-      }
-  }
+    // Clean up any partial/expired data
+    localStorage.removeItem("cms_chat_id");
+    localStorage.removeItem("cms_chat_expiry");
 
-  });
+    // Check URL param?
+    const urlParams = new URLSearchParams(window.location.search);
+    const idParam = urlParams.get("id");
+    if (idParam) {
+      authId.value = idParam;
+      // Auto-connect with ID from URL
+      connect();
+      // Clean URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else {
+      // Show Login Prompt
+      setTimeout(() => {
+        showLoginPrompt.value = true;
+      }, 500);
+    }
+  }
+});
 
 // ⭐ Global function for Android native to call when notification is clicked
-if (typeof window !== 'undefined') {
-    window.openChatByPhone = (phone, retryCount = 0) => {
-        console.log(`📲 openChatByPhone called from Android: ${phone} (retry: ${retryCount})`);
-        
-        if (!phone) {
-            console.log('❌ openChatByPhone: No phone provided');
-            return;
-        }
-        
-        // Normalize phone number for matching
-        const cleanPhone = String(phone).replace(/\D/g, '');
-        console.log(`📲 Cleaned phone: ${cleanPhone}, Conversations loaded: ${conversations.value.length}`);
-        
-        // If conversations not loaded yet, retry with exponential backoff
-        if (conversations.value.length === 0 && retryCount < 10) {
-            console.log(`⏳ Conversations not loaded, setting pendingTargetPhone and retrying in 500ms...`);
-            pendingTargetPhone.value = cleanPhone;
-            
-            setTimeout(() => {
-                window.openChatByPhone(phone, retryCount + 1);
-            }, 500);
-            return;
-        }
-        
-        // Find conversation by phone
-        const target = conversations.value.find(c => {
-            const cleanA = (c.wa_number || '').replace(/\D/g, '');
-            return cleanA.endsWith(cleanPhone) || cleanPhone.endsWith(cleanA);
-        });
-        
-        if (target) {
-            console.log('✅ Found conversation:', target.name, target.id);
-            pendingTargetPhone.value = null; // Clear pending
-            
-            // Use selectChat to properly load messages from API
-            selectChat(target.id);
-        } else {
-            console.log('⚠️ Conversation not found, setting pending target:', cleanPhone);
-            // Store for later (will be handled when fetchConversations completes)
-            pendingTargetPhone.value = cleanPhone;
-            
-            // Trigger refresh if not already loading
-            if (!isLoadingConversations.value) {
-                fetchConversations();
-            }
-        }
-    };
-    
-    // Also expose a debug function
-    window.debugChatState = () => {
-        console.log('=== DEBUG CHAT STATE ===');
-        console.log('Conversations count:', conversations.value.length);
-        console.log('pendingTargetPhone:', pendingTargetPhone.value);
-        console.log('activeChatId:', activeChatId.value);
-        console.log('isConnected:', isConnected.value);
-        console.log('showMobileChat:', showMobileChat.value);
-        console.log('========================');
-    };
-}
+if (typeof window !== "undefined") {
+  window.openChatByPhone = (phone, retryCount = 0) => {
+    console.log(
+      `📲 openChatByPhone called from Android: ${phone} (retry: ${retryCount})`
+    );
 
-  // Handle Android Back Button (Capacitor)
-
-  App.addListener('backButton', () => {
-    handleBackButtonPress();
-  });
-
-  // Handle App State Change (Capacitor) - Resume from background/sleep
-  App.addListener('appStateChange', ({ isActive }) => {
-    console.log('Capacitor App State Changed:', isActive ? 'ACTIVE' : 'BACKGROUND');
-    
-    if (isActive) {
-      // App resumed from background - same logic as visibilitychange
-      if (!socket.value || socket.value.readyState !== WebSocket.OPEN) {
-        console.log('App resumed (Capacitor), socket disconnected, reconnecting...');
-        
-        // Reset reconnect state
-        reconnectAttempts.value = 0;
-        reconnectDelay.value = 3000;
-        isReconnecting.value = true;
-        connectionError.value = '🔄 Reconnecting...';
-        
-        if (authId.value) {
-          connectWebSocket();
-        } else {
-          isReconnecting.value = false;
-          showLoginPrompt.value = true;
-        }
-      }
-      
-      // Refresh conversations
-      fetchConversations();
-      
-      // Update resume timestamp
-      resumeTimestamp.value = Date.now();
+    if (!phone) {
+      console.log("❌ openChatByPhone: No phone provided");
+      return;
     }
-  });
 
-  // Expose global function for Android WebView (non-Capacitor)
-  // Android Studio can call: webView.evaluateJavascript("window.onAndroidBackPressed()", null)
-  window.onAndroidBackPressed = () => {
-    return handleBackButtonPress();
+    // Normalize phone number for matching
+    const cleanPhone = String(phone).replace(/\D/g, "");
+    console.log(
+      `📲 Cleaned phone: ${cleanPhone}, Conversations loaded: ${conversations.value.length}`
+    );
+
+    // If conversations not loaded yet, retry with exponential backoff
+    if (conversations.value.length === 0 && retryCount < 10) {
+      console.log(
+        `⏳ Conversations not loaded, setting pendingTargetPhone and retrying in 500ms...`
+      );
+      pendingTargetPhone.value = cleanPhone;
+
+      setTimeout(() => {
+        window.openChatByPhone(phone, retryCount + 1);
+      }, 500);
+      return;
+    }
+
+    // Find conversation by phone
+    const target = conversations.value.find((c) => {
+      const cleanA = (c.wa_number || "").replace(/\D/g, "");
+      return cleanA.endsWith(cleanPhone) || cleanPhone.endsWith(cleanA);
+    });
+
+    if (target) {
+      console.log("✅ Found conversation:", target.name, target.id);
+      pendingTargetPhone.value = null; // Clear pending
+
+      // Use selectChat to properly load messages from API
+      selectChat(target.id);
+    } else {
+      console.log(
+        "⚠️ Conversation not found, setting pending target:",
+        cleanPhone
+      );
+      // Store for later (will be handled when fetchConversations completes)
+      pendingTargetPhone.value = cleanPhone;
+
+      // Trigger refresh if not already loading
+      if (!isLoadingConversations.value) {
+        fetchConversations();
+      }
+    }
   };
 
-  // Unified back button handler for both Capacitor and WebView
-  function handleBackButtonPress() {
-    // Priority 0: Close Internal Browser if open
-    if (showInternalBrowser.value) {
-      closeInternalBrowser();
-      return 'internal_browser_closed';
-    }
-    
-    // Priority 1: Close Image Lightbox if open
-    if (showImageLightbox.value) {
-      closeImageLightbox();
-      return 'lightbox_closed'; // Return status for Android
-    }
-    
-    // Priority 2: Close Settings Modal if open
-    if (showSettingsModal.value) {
-      showSettingsModal.value = false;
-      return 'settings_closed';
-    }
-    
-    // Priority 3: If chat view is open, go back to menu with animation
-    // ROBUST CHECK: On mobile, if activeChatId exists, user is in chat even if showMobileChat got desynced
-    const isMobile = windowWidth.value < 768;
-    const isInChatView = showMobileChat.value || (isMobile && activeChatId.value);
-    
-    if (isInChatView && activeChatId.value) {
-      // SYNC FIX: Ensure showMobileChat is true before closing (in case it got desynced)
-      if (!showMobileChat.value && isMobile) {
-        showMobileChat.value = true;
+  // Also expose a debug function
+  window.debugChatState = () => {
+    console.log("=== DEBUG CHAT STATE ===");
+    console.log("Conversations count:", conversations.value.length);
+    console.log("pendingTargetPhone:", pendingTargetPhone.value);
+    console.log("activeChatId:", activeChatId.value);
+    console.log("isConnected:", isConnected.value);
+    console.log("showMobileChat:", showMobileChat.value);
+    console.log("========================");
+  };
+}
+
+// Handle Android Back Button (Capacitor)
+
+App.addListener("backButton", () => {
+  handleBackButtonPress();
+});
+
+// Handle App State Change (Capacitor) - Resume from background/sleep
+App.addListener("appStateChange", ({ isActive }) => {
+  console.log(
+    "Capacitor App State Changed:",
+    isActive ? "ACTIVE" : "BACKGROUND"
+  );
+
+  if (isActive) {
+    // App resumed from background - same logic as visibilitychange
+    if (!socket.value || socket.value.readyState !== WebSocket.OPEN) {
+      console.log(
+        "App resumed (Capacitor), socket disconnected, reconnecting..."
+      );
+
+      // Reset reconnect state
+      reconnectAttempts.value = 0;
+      reconnectDelay.value = 3000;
+      isReconnecting.value = true;
+      connectionError.value = "🔄 Reconnecting...";
+
+      if (authId.value) {
+        connectWebSocket();
+      } else {
+        isReconnecting.value = false;
+        showLoginPrompt.value = true;
       }
-      backToMenu(true); // Use animated back
-      return 'chat_closed'; // Return status for Android
     }
-    
-    // Priority 4: If already in menu, handle double-press to exit
-    const timeNow = Date.now();
-    if (timeNow - lastBackPress < 2000) {
-      // Double press -> tell Android to exit
-      return 'should_exit';
-    } else {
-      lastBackPress = timeNow;
-      showExitToast.value = true;
-      setTimeout(() => {
-        showExitToast.value = false;
-      }, 2000);
-      return 'toast_shown'; // First press, show toast
-    }
+
+    // Refresh conversations
+    fetchConversations();
+
+    // Update resume timestamp
+    resumeTimestamp.value = Date.now();
   }
+});
 
-  // Login Modal Delay Logic
-  setTimeout(() => {
-      // Only show login prompt if we are not connected, not connecting, AND don't have a saved ID
-      if (!isConnected.value && !isConnecting.value && !authId.value) {
-          showLoginPrompt.value = true;
-      }
-  }, 1500); // Wait 1.5s before showing modal if not connected
-
-const logout = () => {
-    if (socket.value) {
-        socket.value.close();
-        socket.value = null;
-    }
-    isConnected.value = false;
-    authId.value = '';
-    isConnecting.value = false;
-    showLoginPrompt.value = true;
-    
-    // Clear Session
-    localStorage.removeItem('cms_chat_id');
-    localStorage.removeItem('cms_chat_expiry');
-    // Note: conversations cache removed - data always from server
-    
-    // OneSignal: Logout from push notifications
-    oneSignalLogout();
+// Expose global function for Android WebView (non-Capacitor)
+// Android Studio can call: webView.evaluateJavascript("window.onAndroidBackPressed()", null)
+window.onAndroidBackPressed = () => {
+  return handleBackButtonPress();
 };
 
+// Unified back button handler for both Capacitor and WebView
+function handleBackButtonPress() {
+  // Priority 0: Close Internal Browser if open
+  if (showInternalBrowser.value) {
+    closeInternalBrowser();
+    return "internal_browser_closed";
+  }
+
+  // Priority 1: Close Image Lightbox if open
+  if (showImageLightbox.value) {
+    closeImageLightbox();
+    return "lightbox_closed"; // Return status for Android
+  }
+
+  // Priority 2: Close Settings Modal if open
+  if (showSettingsModal.value) {
+    showSettingsModal.value = false;
+    return "settings_closed";
+  }
+
+  // Priority 3: If chat view is open, go back to menu with animation
+  // ROBUST CHECK: On mobile, if activeChatId exists, user is in chat even if showMobileChat got desynced
+  const isMobile = windowWidth.value < 768;
+  const isInChatView = showMobileChat.value || (isMobile && activeChatId.value);
+
+  if (isInChatView && activeChatId.value) {
+    // SYNC FIX: Ensure showMobileChat is true before closing (in case it got desynced)
+    if (!showMobileChat.value && isMobile) {
+      showMobileChat.value = true;
+    }
+    backToMenu(true); // Use animated back
+    return "chat_closed"; // Return status for Android
+  }
+
+  // Priority 4: If already in menu, handle double-press to exit
+  const timeNow = Date.now();
+  if (timeNow - lastBackPress < 2000) {
+    // Double press -> tell Android to exit
+    return "should_exit";
+  } else {
+    lastBackPress = timeNow;
+    showExitToast.value = true;
+    setTimeout(() => {
+      showExitToast.value = false;
+    }, 2000);
+    return "toast_shown"; // First press, show toast
+  }
+}
+
+// Login Modal Delay Logic
+setTimeout(() => {
+  // Only show login prompt if we are not connected, not connecting, AND don't have a saved ID
+  if (!isConnected.value && !isConnecting.value && !authId.value) {
+    showLoginPrompt.value = true;
+  }
+}, 1500); // Wait 1.5s before showing modal if not connected
+
+const logout = () => {
+  if (socket.value) {
+    socket.value.close();
+    socket.value = null;
+  }
+  isConnected.value = false;
+  authId.value = "";
+  isConnecting.value = false;
+  showLoginPrompt.value = true;
+
+  // Clear Session
+  localStorage.removeItem("cms_chat_id");
+  localStorage.removeItem("cms_chat_expiry");
+  // Note: conversations cache removed - data always from server
+
+  // OneSignal: Logout from push notifications
+  oneSignalLogout();
+};
 
 // Cleanup on unmount
 onUnmounted(() => {
@@ -3447,7 +4758,7 @@ onUnmounted(() => {
 });
 
 // Stop blinking when window is focused
-window.addEventListener('focus', () => {
+window.addEventListener("focus", () => {
   if (titleBlinkInterval.value) {
     clearInterval(titleBlinkInterval.value);
     titleBlinkInterval.value = null;
@@ -3459,7 +4770,7 @@ window.addEventListener('focus', () => {
 // Open location in Google Maps
 const openLocation = (mapUrl) => {
   if (mapUrl) {
-    window.open(mapUrl, '_blank');
+    window.open(mapUrl, "_blank");
   }
 };
 
@@ -3473,7 +4784,7 @@ const openImageLightbox = (imageUrl) => {
 
 const closeImageLightbox = () => {
   showImageLightbox.value = false;
-  lightboxImageUrl.value = '';
+  lightboxImageUrl.value = "";
 };
 
 // --- Internal Browser Functions (for nalju.com links) ---
@@ -3481,7 +4792,9 @@ const isNaljuDomain = (url) => {
   try {
     const urlObj = new URL(url);
     // Check if domain is nalju.com or any subdomain *.nalju.com
-    return urlObj.hostname === 'nalju.com' || urlObj.hostname.endsWith('.nalju.com');
+    return (
+      urlObj.hostname === "nalju.com" || urlObj.hostname.endsWith(".nalju.com")
+    );
   } catch {
     return false;
   }
@@ -3492,20 +4805,20 @@ const openInternalBrowser = async (url) => {
   isInternalBrowserLoading.value = true;
   isInternalBrowserEntering.value = true;
   showInternalBrowser.value = true;
-  
+
   // Allow CSS transition to complete
-  await new Promise(resolve => setTimeout(resolve, 30));
+  await new Promise((resolve) => setTimeout(resolve, 30));
   isInternalBrowserEntering.value = false;
 };
 
 const closeInternalBrowser = () => {
   // Animate slide-out to the right
   isInternalBrowserExiting.value = true;
-  
+
   // Wait for animation to complete (300ms) then hide
   setTimeout(() => {
     showInternalBrowser.value = false;
-    internalBrowserUrl.value = '';
+    internalBrowserUrl.value = "";
     isInternalBrowserLoading.value = true;
     isInternalBrowserExiting.value = false;
   }, 300);
@@ -3517,7 +4830,7 @@ const handleInternalBrowserLoad = () => {
 
 // Handle link clicks - intercept nalju.com links
 const handleLinkClick = (e) => {
-  const link = e.target.closest('a[href]');
+  const link = e.target.closest("a[href]");
   if (link && link.href) {
     // Check if it's a nalju.com link
     if (isNaljuDomain(link.href)) {
@@ -3526,276 +4839,476 @@ const handleLinkClick = (e) => {
       openInternalBrowser(link.href);
       return;
     }
-    
+
     // External link - save state before navigating
-    if (link.href.startsWith('http://') || link.href.startsWith('https://')) {
+    if (link.href.startsWith("http://") || link.href.startsWith("https://")) {
       persistChatState();
-      console.log('📎 External link clicked, saving chat state');
+      console.log("📎 External link clicked, saving chat state");
     }
   }
 };
-
 </script>
 
 <template>
   <!-- Use fixed inset-0 to prevent body scroll issues on mobile -->
-  <div class="fixed inset-0 w-full bg-[#0f172a] text-slate-200 overflow-hidden font-sans selection:bg-indigo-500 selection:text-white">
-    
+  <div
+    class="fixed inset-0 w-full bg-[#0f172a] text-slate-200 overflow-hidden font-sans selection:bg-indigo-500 selection:text-white"
+  >
     <!-- Initial App Loading Screen (only on first load, not during reconnects) -->
-    <div v-if="!showLoginPrompt && !isConnected && !wasConnected && !isReconnecting" class="fixed inset-0 z-[70] bg-[#0f172a] flex flex-col items-center justify-center">
+    <div
+      v-if="
+        !showLoginPrompt && !isConnected && !wasConnected && !isReconnecting
+      "
+      class="fixed inset-0 z-[70] bg-[#0f172a] flex flex-col items-center justify-center"
+    >
       <div class="flex flex-col items-center gap-6">
         <!-- Animated Logo/Icon -->
         <div class="relative">
-          <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-2xl shadow-indigo-500/30 animate-pulse">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          <div
+            class="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-2xl shadow-indigo-500/30 animate-pulse"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-10 w-10 text-white"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+              />
             </svg>
           </div>
           <!-- Pulsing ring -->
-          <div class="absolute inset-0 rounded-2xl border-2 border-indigo-400/50 animate-ping"></div>
+          <div
+            class="absolute inset-0 rounded-2xl border-2 border-indigo-400/50 animate-ping"
+          ></div>
         </div>
-        
+
         <!-- App Name -->
         <div class="text-center">
-          <h1 class="text-2xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">MDL Chat</h1>
+          <h1
+            class="text-2xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent"
+          >
+            MDL Chat
+          </h1>
           <p class="text-slate-500 text-sm mt-1">Loading...</p>
         </div>
-        
+
         <!-- Animated Dots -->
         <div class="flex gap-1.5">
-          <div class="w-2 h-2 rounded-full bg-indigo-500 animate-bounce" style="animation-delay: 0ms;"></div>
-          <div class="w-2 h-2 rounded-full bg-indigo-500 animate-bounce" style="animation-delay: 150ms;"></div>
-          <div class="w-2 h-2 rounded-full bg-indigo-500 animate-bounce" style="animation-delay: 300ms;"></div>
+          <div
+            class="w-2 h-2 rounded-full bg-indigo-500 animate-bounce"
+            style="animation-delay: 0ms"
+          ></div>
+          <div
+            class="w-2 h-2 rounded-full bg-indigo-500 animate-bounce"
+            style="animation-delay: 150ms"
+          ></div>
+          <div
+            class="w-2 h-2 rounded-full bg-indigo-500 animate-bounce"
+            style="animation-delay: 300ms"
+          ></div>
         </div>
       </div>
     </div>
-    
+
     <!-- Login Modal (Overlay) -->
     <!-- Login Modal (Premium Design) -->
-     <div v-if="!isConnected && showLoginPrompt" class="fixed inset-0 z-[60] flex items-center justify-center p-4 overflow-hidden">
-       <!-- Animated Gradient Background -->
-       <div class="absolute inset-0 bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900">
-         <!-- Floating Orbs -->
-         <div class="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl animate-pulse"></div>
-         <div class="absolute bottom-1/4 right-1/4 w-80 h-80 bg-purple-500/15 rounded-full blur-3xl animate-pulse" style="animation-delay: 1s;"></div>
-         <div class="absolute top-1/2 right-1/3 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl animate-pulse" style="animation-delay: 2s;"></div>
-       </div>
-       
-       <!-- Login Card (Glassmorphism) -->
-       <div class="relative w-full max-w-md transform transition-all animate-scale-in">
-         <!-- Glowing Border Effect -->
-         <div class="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-cyan-500 rounded-3xl blur opacity-30 animate-gradient-shift"></div>
-         
-         <div class="relative bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl overflow-hidden">
-           <!-- Header Section -->
-           <div class="px-8 pt-10 pb-6 text-center relative">
-             <!-- Decorative Grid -->
-             <div class="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(99,102,241,0.1)_0%,_transparent_70%)]"></div>
-             
-             <!-- Logo Icon -->
-             <div class="relative inline-flex mb-6">
-               <div class="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/30 transform hover:scale-105 transition-transform">
-                 <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                 </svg>
-               </div>
-               <!-- Floating Badge -->
-               <div class="absolute -top-1 -right-1 w-6 h-6 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center shadow-lg">
-                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-white" viewBox="0 0 20 20" fill="currentColor">
-                   <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
-                 </svg>
-               </div>
-             </div>
-             
-             <!-- Title -->
-             <h1 class="text-3xl font-bold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent mb-2">
-               MDL Chat
-             </h1>
-             <p class="text-slate-400 text-sm">Masukkan ID untuk terhubung ke konsol</p>
-           </div>
-           
-           <!-- Form Section -->
-           <div class="px-8 pb-10">
-             <div class="space-y-5">
-                 <!-- ID Input -->
-               <div class="relative group">
-                 <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 transition-colors group-focus-within:text-indigo-400">
-                   Username
-                 </label>
-                 <div class="relative">
-                   <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-500 group-focus-within:text-indigo-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                     </svg>
-                   </div>
-                   <input 
-                     v-model="authId" 
-                     type="text" 
-                     placeholder="Username"
-                     class="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl pl-12 pr-4 py-4 text-white text-lg font-medium placeholder:text-slate-500 focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 focus:bg-slate-800 transition-all"
-                     :disabled="isConnecting"
-                     autofocus
-                   >
-                 </div>
-               </div>
+    <div
+      v-if="!isConnected && showLoginPrompt"
+      class="fixed inset-0 z-[60] flex items-center justify-center p-4 overflow-hidden"
+    >
+      <!-- Animated Gradient Background -->
+      <div
+        class="absolute inset-0 bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900"
+      >
+        <!-- Floating Orbs -->
+        <div
+          class="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl animate-pulse"
+        ></div>
+        <div
+          class="absolute bottom-1/4 right-1/4 w-80 h-80 bg-purple-500/15 rounded-full blur-3xl animate-pulse"
+          style="animation-delay: 1s"
+        ></div>
+        <div
+          class="absolute top-1/2 right-1/3 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl animate-pulse"
+          style="animation-delay: 2s"
+        ></div>
+      </div>
 
-               <!-- Error Message -->
-               <div v-if="connectionError" class="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 text-red-400 text-sm backdrop-blur-sm">
-                 <div class="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center flex-shrink-0">
-                   <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                   </svg>
-                 </div>
-                 <span>{{ connectionError }}</span>
-               </div>
-               
-               <!-- Connect Button -->
-               <button 
-                 @click="connect" 
-                 class="w-full relative group overflow-hidden bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold py-4 px-6 rounded-xl transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 shadow-lg shadow-indigo-500/25"
-                 :disabled="isConnecting || !authId"
-               >
-                 <!-- Shine Effect -->
-                 <div class="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
-                 
-                 <span class="relative flex items-center justify-center gap-3">
-                   <span v-if="isConnecting" class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                   <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                   </svg>
-                   {{ isConnecting ? 'Menghubungkan...' : 'Hubungkan' }}
-                 </span>
-               </button>
-             </div>
-             
-             <!-- Footer Info -->
-             <div class="mt-8 pt-6 border-t border-slate-800 text-center">
-               <p class="text-slate-500 text-xs">
-                 💡 ID Anda adalah nomor karyawan atau username yang diberikan admin
-               </p>
-             </div>
-           </div>
-         </div>
-       </div>
-     </div>
-    
+      <!-- Login Card (Glassmorphism) -->
+      <div
+        class="relative w-full max-w-md transform transition-all animate-scale-in"
+      >
+        <!-- Glowing Border Effect -->
+        <div
+          class="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-cyan-500 rounded-3xl blur opacity-30 animate-gradient-shift"
+        ></div>
 
+        <div
+          class="relative bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl overflow-hidden"
+        >
+          <!-- Header Section -->
+          <div class="px-8 pt-10 pb-6 text-center relative">
+            <!-- Decorative Grid -->
+            <div
+              class="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(99,102,241,0.1)_0%,_transparent_70%)]"
+            ></div>
+
+            <!-- Logo Icon -->
+            <div class="relative inline-flex mb-6">
+              <div
+                class="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/30 transform hover:scale-105 transition-transform"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-10 w-10 text-white"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                  />
+                </svg>
+              </div>
+              <!-- Floating Badge -->
+              <div
+                class="absolute -top-1 -right-1 w-6 h-6 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center shadow-lg"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-3.5 w-3.5 text-white"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </div>
+            </div>
+
+            <!-- Title -->
+            <h1
+              class="text-3xl font-bold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent mb-2"
+            >
+              MDL Chat
+            </h1>
+            <p class="text-slate-400 text-sm">
+              Masukkan ID untuk terhubung ke konsol
+            </p>
+          </div>
+
+          <!-- Form Section -->
+          <div class="px-8 pb-10">
+            <div class="space-y-5">
+              <!-- ID Input -->
+              <div class="relative group">
+                <label
+                  class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 transition-colors group-focus-within:text-indigo-400"
+                >
+                  Username
+                </label>
+                <div class="relative">
+                  <div
+                    class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      class="h-5 w-5 text-slate-500 group-focus-within:text-indigo-400 transition-colors"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                      />
+                    </svg>
+                  </div>
+                  <input
+                    v-model="authId"
+                    type="text"
+                    placeholder="Username"
+                    class="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl pl-12 pr-4 py-4 text-white text-lg font-medium placeholder:text-slate-500 focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 focus:bg-slate-800 transition-all"
+                    :disabled="isConnecting"
+                    autofocus
+                  />
+                </div>
+              </div>
+
+              <!-- Error Message -->
+              <div
+                v-if="connectionError"
+                class="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 text-red-400 text-sm backdrop-blur-sm"
+              >
+                <div
+                  class="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center flex-shrink-0"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                </div>
+                <span>{{ connectionError }}</span>
+              </div>
+
+              <!-- Connect Button -->
+              <button
+                @click="connect"
+                class="w-full relative group overflow-hidden bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold py-4 px-6 rounded-xl transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 shadow-lg shadow-indigo-500/25"
+                :disabled="isConnecting || !authId"
+              >
+                <!-- Shine Effect -->
+                <div
+                  class="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/10 to-transparent"
+                ></div>
+
+                <span class="relative flex items-center justify-center gap-3">
+                  <span
+                    v-if="isConnecting"
+                    class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"
+                  ></span>
+                  <svg
+                    v-else
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M13 10V3L4 14h7v7l9-11h-7z"
+                    />
+                  </svg>
+                  {{ isConnecting ? "Menghubungkan..." : "Hubungkan" }}
+                </span>
+              </button>
+            </div>
+
+            <!-- Footer Info -->
+            <div class="mt-8 pt-6 border-t border-slate-800 text-center">
+              <p class="text-slate-500 text-xs">
+                💡 ID Anda adalah nomor karyawan atau username yang diberikan
+                admin
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Sidebar -->
     <!-- On mobile, we keep it rendered but covered by chat when active. On desktop it's side-by-side. -->
-    <aside v-if="authId" class="flex flex-col border-r border-[var(--wa-border)] bg-[var(--wa-bg-panel)] transition-all duration-300 absolute md:static z-0 h-full w-full md:w-96"
-           :class="showMobileChat ? 'flex' : 'flex'">
+    <aside
+      v-if="authId"
+      class="flex flex-col border-r border-[var(--wa-border)] bg-[var(--wa-bg-panel)] transition-all duration-300 absolute md:static z-0 h-full w-full md:w-96"
+      :class="showMobileChat ? 'flex' : 'flex'"
+    >
       <!-- Search Header -->
-       <div class="px-4 pt-4 pb-1 bg-[var(--wa-bg-panel)] backdrop-blur-md sticky top-0 z-10 transition-colors duration-300">
-          <div class="flex items-center gap-2">
-              <div class="relative group flex-1">
-                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[var(--wa-icon-default)] group-focus-within:text-[var(--wa-accent-green)] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                      </svg>
-                  </div>
-                  <input 
-                      v-model="searchQuery"
-                      type="text" 
-                      placeholder="Search or start new chat" 
-                      class="block w-full pl-10 pr-10 py-2.5 border border-[var(--wa-border)] rounded-lg leading-5 bg-[var(--wa-bg-tertiary)] text-[var(--wa-text-primary)] placeholder-[var(--wa-text-tertiary)] focus:outline-none focus:bg-[var(--wa-bg-tertiary)] focus:border-[var(--wa-accent-green)] focus:ring-0 sm:text-sm transition-all"
-                  >
-                  <div v-if="searchQuery" class="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer" @click="searchQuery = ''">
-                       <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500 hover:text-slate-300 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                       </svg>
-                  </div>
-              </div>
-              
-              <!-- Settings Button -->
-              <button 
-                  @click="showSettingsModal = !showSettingsModal"
-                  class="p-2.5 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)] hover:bg-[var(--wa-hover)] rounded-lg transition-colors"
-                  title="Settings"
+      <div
+        class="px-4 pt-4 pb-1 bg-[var(--wa-bg-panel)] backdrop-blur-md sticky top-0 z-10 transition-colors duration-300"
+      >
+        <div class="flex items-center gap-2">
+          <div class="relative group flex-1">
+            <div
+              class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-5 w-5 text-[var(--wa-icon-default)] group-focus-within:text-[var(--wa-accent-green)] transition-colors"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
               >
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-              </button>
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
+            </div>
+            <input
+              v-model="searchQuery"
+              type="text"
+              placeholder="Search or start new chat"
+              class="block w-full pl-10 pr-10 py-2.5 border border-[var(--wa-border)] rounded-lg leading-5 bg-[var(--wa-bg-tertiary)] text-[var(--wa-text-primary)] placeholder-[var(--wa-text-tertiary)] focus:outline-none focus:bg-[var(--wa-bg-tertiary)] focus:border-[var(--wa-accent-green)] focus:ring-0 sm:text-sm transition-all"
+            />
+            <div
+              v-if="searchQuery"
+              class="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer"
+              @click="searchQuery = ''"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-4 w-4 text-slate-500 hover:text-slate-300 transition-colors"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </div>
           </div>
-       </div>
-       
-       <!-- Filter Tabs (WhatsApp Style Pills) -->
-       <div class="px-4 py-3 bg-[var(--wa-bg-panel)]">
-          <div class="flex gap-2">
-             <!-- All Tab -->
-             <button 
-                @click="conversationFilter = 'all'"
-                class="px-3 py-1.5 text-sm font-medium rounded-full transition-all border"
-                :class="conversationFilter === 'all' 
-                   ? 'bg-[var(--wa-filter-active-bg)] text-[var(--wa-filter-active-text)] border-transparent' 
-                   : 'bg-[var(--wa-filter-inactive-bg)] text-[var(--wa-filter-inactive-text)] border-[var(--wa-filter-inactive-border)] hover:bg-[var(--wa-hover)]'"
-             >
-                Semua
-             </button>
-             
-             <!-- Unread Tab -->
-             <button 
-                @click="conversationFilter = 'unread'"
-                class="px-3 py-1.5 text-sm font-medium rounded-full transition-all flex items-center gap-1.5 border"
-                :class="conversationFilter === 'unread' 
-                   ? 'bg-[var(--wa-filter-active-bg)] text-[var(--wa-filter-active-text)] border-transparent' 
-                   : 'bg-[var(--wa-filter-inactive-bg)] text-[var(--wa-filter-inactive-text)] border-[var(--wa-filter-inactive-border)] hover:bg-[var(--wa-hover)]'"
-             >
-                <span>Belum dibaca</span>
-                <span 
-                   v-if="totalUnreadCount > 0" 
-                   class="text-xs font-bold min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center"
-                   :class="conversationFilter === 'unread' 
-                      ? 'bg-black/10 text-[var(--wa-filter-active-text)]' 
-                      : 'bg-[var(--wa-accent-green)] text-black'"
-                >
-                   {{ totalUnreadCount }}
-                </span>
-             </button>
-             
-             <!-- Cases Tab -->
-             <button 
-                @click="conversationFilter = 'cases'"
-                class="px-3 py-1.5 text-sm font-medium rounded-full transition-all flex items-center gap-1.5 border"
-                :class="conversationFilter === 'cases' 
-                   ? 'bg-[var(--wa-filter-active-bg)] text-[var(--wa-filter-active-text)] border-transparent' 
-                   : 'bg-[var(--wa-filter-inactive-bg)] text-[var(--wa-filter-inactive-text)] border-[var(--wa-filter-inactive-border)] hover:bg-[var(--wa-hover)]'"
-             >
-                <span>Cases</span>
-                <span 
-                   v-if="totalOpenCasesCount > 0" 
-                   class="text-xs font-bold min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center"
-                   :class="conversationFilter === 'cases' 
-                      ? 'bg-black/10 text-[var(--wa-filter-active-text)]' 
-                      : 'bg-red-500 text-white'"
-                >
-                   {{ totalOpenCasesCount }}
-                </span>
-             </button>
-          </div>
-       </div>
-       
-       <!-- Reconnecting Banner (shows during auto-reconnect) -->
-       <div v-if="isReconnecting && !isConnected" class="px-4 py-2 bg-yellow-500/10 border-b border-yellow-500/20">
-          <div class="flex items-center gap-2 text-yellow-400 text-sm">
-             <div class="w-4 h-4 border-2 border-yellow-400/30 border-t-yellow-400 rounded-full animate-spin"></div>
-             <span>{{ connectionError || 'Reconnecting...' }}</span>
-          </div>
-       </div>
-       
+
+          <!-- Settings Button -->
+          <button
+            @click="showSettingsModal = !showSettingsModal"
+            class="p-2.5 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)] hover:bg-[var(--wa-hover)] rounded-lg transition-colors"
+            title="Settings"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+              />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+              />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Filter Tabs (WhatsApp Style Pills) -->
+      <div class="px-4 py-3 bg-[var(--wa-bg-panel)]">
+        <div class="flex gap-2">
+          <!-- All Tab -->
+          <button
+            @click="conversationFilter = 'all'"
+            class="px-3 py-1.5 text-sm font-medium rounded-full transition-all border"
+            :class="
+              conversationFilter === 'all'
+                ? 'bg-[var(--wa-filter-active-bg)] text-[var(--wa-filter-active-text)] border-transparent'
+                : 'bg-[var(--wa-filter-inactive-bg)] text-[var(--wa-filter-inactive-text)] border-[var(--wa-filter-inactive-border)] hover:bg-[var(--wa-hover)]'
+            "
+          >
+            Semua
+          </button>
+
+          <!-- Unread Tab -->
+          <button
+            @click="conversationFilter = 'unread'"
+            class="px-3 py-1.5 text-sm font-medium rounded-full transition-all flex items-center gap-1.5 border"
+            :class="
+              conversationFilter === 'unread'
+                ? 'bg-[var(--wa-filter-active-bg)] text-[var(--wa-filter-active-text)] border-transparent'
+                : 'bg-[var(--wa-filter-inactive-bg)] text-[var(--wa-filter-inactive-text)] border-[var(--wa-filter-inactive-border)] hover:bg-[var(--wa-hover)]'
+            "
+          >
+            <span>Belum dibaca</span>
+            <span
+              v-if="totalUnreadCount > 0"
+              class="text-xs font-bold min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center"
+              :class="
+                conversationFilter === 'unread'
+                  ? 'bg-black/10 text-[var(--wa-filter-active-text)]'
+                  : 'bg-[var(--wa-accent-green)] text-black'
+              "
+            >
+              {{ totalUnreadCount }}
+            </span>
+          </button>
+
+          <!-- Cases Tab -->
+          <button
+            @click="conversationFilter = 'cases'"
+            class="px-3 py-1.5 text-sm font-medium rounded-full transition-all flex items-center gap-1.5 border"
+            :class="
+              conversationFilter === 'cases'
+                ? 'bg-[var(--wa-filter-active-bg)] text-[var(--wa-filter-active-text)] border-transparent'
+                : 'bg-[var(--wa-filter-inactive-bg)] text-[var(--wa-filter-inactive-text)] border-[var(--wa-filter-inactive-border)] hover:bg-[var(--wa-hover)]'
+            "
+          >
+            <span>Cases</span>
+            <span
+              v-if="totalOpenCasesCount > 0"
+              class="text-xs font-bold min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center"
+              :class="
+                conversationFilter === 'cases'
+                  ? 'bg-black/10 text-[var(--wa-filter-active-text)]'
+                  : 'bg-red-500 text-white'
+              "
+            >
+              {{ totalOpenCasesCount }}
+            </span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Reconnecting Banner (shows during auto-reconnect) -->
+      <div
+        v-if="isReconnecting && !isConnected"
+        class="px-4 py-2 bg-yellow-500/10 border-b border-yellow-500/20"
+      >
+        <div class="flex items-center gap-2 text-yellow-400 text-sm">
+          <div
+            class="w-4 h-4 border-2 border-yellow-400/30 border-t-yellow-400 rounded-full animate-spin"
+          ></div>
+          <span>{{ connectionError || "Reconnecting..." }}</span>
+        </div>
+      </div>
+
       <!-- Conversation List (Pure CSS Shadows) -->
-      <div 
-         ref="conversationListRef" 
-         class="flex-1 overflow-y-auto custom-scrollbar"
+      <div
+        ref="conversationListRef"
+        class="flex-1 overflow-y-auto custom-scrollbar"
       >
         <!-- Skeleton Loading with Shimmer Effect -->
-        <div v-if="isLoadingConversations && conversations.length === 0" class="space-y-0">
-          <div v-for="n in 8" :key="'skeleton-' + n" class="p-3 flex items-center gap-3 border-b border-[var(--wa-divider)]">
+        <div
+          v-if="isLoadingConversations && conversations.length === 0"
+          class="space-y-0"
+        >
+          <div
+            v-for="n in 8"
+            :key="'skeleton-' + n"
+            class="p-3 flex items-center gap-3 border-b border-[var(--wa-divider)]"
+          >
             <!-- Avatar Skeleton -->
             <div class="w-12 h-12 rounded-full skeleton-shimmer"></div>
-            
+
             <!-- Content Skeleton -->
             <div class="flex-1 space-y-2">
               <div class="flex justify-between items-center">
@@ -3806,960 +5319,2032 @@ const handleLinkClick = (e) => {
             </div>
           </div>
         </div>
-        
+
         <!-- Actual Conversations -->
-        <div 
-          v-for="chat in filteredConversations"  
+        <div
+          v-for="chat in filteredConversations"
           :key="chat.id"
           @click="selectChat(chat.id)"
           class="p-3 flex items-center gap-3 cursor-pointer transition-colors duration-150 border-b border-[var(--wa-divider)] hover:bg-[var(--wa-hover)]"
           :class="{
-            'bg-[var(--wa-active)]': activeChatId === chat.id
+            'bg-[var(--wa-active)]': activeChatId === chat.id,
           }"
         >
-           <div class="relative">
-             <div 
-               class="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold border-0"
-               :style="{ backgroundColor: chat.color }"
-             >
-               {{ chat.initials }}
-             </div>
-             <span v-if="chat.status === 'online'" class="absolute bottom-0 right-0 w-3 h-3 bg-[var(--wa-accent-green)] border-2 border-[var(--wa-bg-panel)] rounded-full"></span>
-           </div>
-            <div class="flex-1 min-w-0">
-              <div class="flex justify-between items-baseline mb-1 gap-2">
-                <h3 class="font-normal text-[16px] truncate text-[var(--wa-text-primary)] max-w-[240px] uppercase" :title="chat.name">
-                  <span v-if="chat.kode_cabang" class="font-mono text-xs mr-1" :class="chat.kode_cabang === '00' ? 'text-pink-400' : 'text-[var(--wa-accent-blue)]'">[{{ chat.kode_cabang }}]</span>
-                  {{ chat.name }}
-                </h3>
-                <span class="text-xs text-[var(--wa-text-tertiary)] flex-shrink-0">{{ chat.lastTime }}</span>
-              </div>
-              
-              <!-- Case Badges -->
-              <div v-if="chat.cases && chat.cases.some(c => c.case > 0 && (c.status || 'open') !== 'closed')" class="flex flex-wrap gap-1.5 mb-1.5">
-                  <template v-for="(cse, idx) in chat.cases" :key="idx">
-                      <div 
-                        v-if="cse.case > 0 && (cse.status || 'open') !== 'closed'"
-                        class="w-3.5 h-3.5 rounded-full ring-1 ring-black/20"
-                        :class="getCaseColor(cse.case)"
-                        :title="'Case: ' + cse.case"
-                      ></div>
-                  </template>
-              </div>
-             <div class="flex justify-between items-center">
-                <p class="text-sm text-[var(--wa-text-secondary)] truncate w-64" :class="{'font-normal text-[var(--wa-text-primary)]': chat.unread > 0}">{{ chat.lastMessage }}</p>
-                <span v-if="chat.unread > 0" class="bg-[var(--wa-accent-green)] text-black text-[11px] font-semibold px-2 py-0.5 rounded-full min-w-[20px] text-center">
-                  {{ chat.unread }}
-                </span>
-             </div>
-           </div>
+          <div class="relative">
+            <div
+              class="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold border-0"
+              :style="{ backgroundColor: chat.color }"
+            >
+              {{ chat.initials }}
+            </div>
+            <span
+              v-if="chat.status === 'online'"
+              class="absolute bottom-0 right-0 w-3 h-3 bg-[var(--wa-accent-green)] border-2 border-[var(--wa-bg-panel)] rounded-full"
+            ></span>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex justify-between items-baseline mb-1 gap-2">
+              <h3
+                class="font-normal text-[16px] truncate text-[var(--wa-text-primary)] max-w-[240px] uppercase"
+                :title="chat.name"
+              >
+                <span
+                  v-if="chat.kode_cabang"
+                  class="font-mono text-xs mr-1"
+                  :class="
+                    chat.kode_cabang === '00'
+                      ? 'text-pink-400'
+                      : 'text-[var(--wa-accent-blue)]'
+                  "
+                  >[{{ chat.kode_cabang }}]</span
+                >
+                {{ chat.name }}
+              </h3>
+              <span
+                class="text-xs text-[var(--wa-text-tertiary)] flex-shrink-0"
+                >{{ chat.lastTime }}</span
+              >
+            </div>
+
+            <!-- Case Badges -->
+            <div
+              v-if="
+                chat.cases &&
+                chat.cases.some(
+                  (c) => c.case > 0 && (c.status || 'open') !== 'closed'
+                )
+              "
+              class="flex flex-wrap gap-1.5 mb-1.5"
+            >
+              <template v-for="(cse, idx) in chat.cases" :key="idx">
+                <div
+                  v-if="cse.case > 0 && (cse.status || 'open') !== 'closed'"
+                  class="w-3.5 h-3.5 rounded-full ring-1 ring-black/20"
+                  :class="getCaseColor(cse.case)"
+                  :title="'Case: ' + cse.case"
+                ></div>
+              </template>
+            </div>
+            <div class="flex justify-between items-center">
+              <p
+                class="text-sm text-[var(--wa-text-secondary)] truncate w-64"
+                :class="{
+                  'font-normal text-[var(--wa-text-primary)]': chat.unread > 0,
+                }"
+              >
+                {{ chat.lastMessage }}
+              </p>
+              <span
+                v-if="chat.unread > 0"
+                class="bg-[var(--wa-accent-green)] text-black text-[11px] font-semibold px-2 py-0.5 rounded-full min-w-[20px] text-center"
+              >
+                {{ chat.unread }}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
-      
+
       <!-- User Profile (Self) -->
-      <div class="p-4 border-t border-[var(--wa-border)] bg-[var(--wa-bg-panel)] flex items-center justify-between gap-3">
+      <div
+        class="p-4 border-t border-[var(--wa-border)] bg-[var(--wa-bg-panel)] flex items-center justify-between gap-3"
+      >
         <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-full bg-[var(--wa-accent-green)] flex items-center justify-center text-black font-bold border-0">
-               A
+          <div
+            class="w-10 h-10 rounded-full bg-[var(--wa-accent-green)] flex items-center justify-center text-black font-bold border-0"
+          >
+            A
+          </div>
+          <div>
+            <div class="text-sm font-medium text-[var(--wa-text-primary)]">
+              MDL Agent
+              <span class="text-[var(--wa-accent-blue)] font-mono"
+                >#{{ authId }}</span
+              >
             </div>
-            <div>
-               <div class="text-sm font-medium text-[var(--wa-text-primary)]">MDL Agent <span class="text-[var(--wa-accent-blue)] font-mono">#{{ authId }}</span></div>
-               <div class="text-xs text-[var(--wa-accent-green)] flex items-center gap-1">
-                 <span class="w-1.5 h-1.5 rounded-full bg-[var(--wa-accent-green)]"></span> Online
-               </div>
+            <div
+              class="text-xs text-[var(--wa-accent-green)] flex items-center gap-1"
+            >
+              <span
+                class="w-1.5 h-1.5 rounded-full bg-[var(--wa-accent-green)]"
+              ></span>
+              Online
             </div>
+          </div>
         </div>
-        
-        <button 
-           @click="logout" 
-           title="Logout"
-           class="p-2 text-[var(--wa-icon-default)] hover:text-red-400 hover:bg-[var(--wa-hover)] rounded-lg transition-colors"
+
+        <button
+          @click="logout"
+          title="Logout"
+          class="p-2 text-[var(--wa-icon-default)] hover:text-red-400 hover:bg-[var(--wa-hover)] rounded-lg transition-colors"
         >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+            />
+          </svg>
         </button>
       </div>
     </aside>
-    
+
     <!-- Main Chat Area -->
     <!-- Mobile: Fixed on top (z-50) if active. Desktop: static flex-1. -->
-    <main 
-        class="flex flex-col bg-[var(--wa-bg-chat)] h-full overflow-x-hidden"
-        :class="{
-            'fixed inset-0 z-50 w-full chat-panel-mobile': showMobileChat && windowWidth < 768,
-            'chat-entering': isEnteringChat,
-            'hidden': !showMobileChat && windowWidth < 768,
-            'fixed top-0 right-0 bottom-0 md:left-96 z-0 !w-auto': windowWidth >= 768
-        }"
-        :style="{ 
-            transform: showMobileChat && windowWidth < 768 && !isEnteringChat && touchOffset > 0 ? `translateX(${touchOffset}px)` : '',
-            transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-        }"
+    <main
+      class="flex flex-col bg-[var(--wa-bg-chat)] h-full overflow-x-hidden"
+      :class="{
+        'fixed inset-0 z-50 w-full chat-panel-mobile':
+          showMobileChat && windowWidth < 768,
+        'chat-entering': isEnteringChat,
+        hidden: !showMobileChat && windowWidth < 768,
+        'fixed top-0 right-0 bottom-0 md:left-96 z-0 !w-auto':
+          windowWidth >= 768,
+      }"
+      :style="{
+        transform:
+          showMobileChat &&
+          windowWidth < 768 &&
+          !isEnteringChat &&
+          touchOffset > 0
+            ? `translateX(${touchOffset}px)`
+            : '',
+        transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+      }"
     >
-
-       <!-- Background Pattern (WhatsApp style) -->
-       <div class="absolute inset-0 opacity-[0.03] pointer-events-none" 
-            style="background-image: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9IndhLWJnIiB4PSIwIiB5PSIwIiB3aWR0aD0iODAiIGhlaWdodD0iODAiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiPjxwYXRoIGQ9Ik0wIDIwIEwgMjAgMCBMIDQwIDIwIEwgNjAgMCBMIDgwIDIwIiBzdHJva2U9IiNhZWJhYzEiIHN0cm9rZS13aWR0aD0iMC41IiBmaWxsPSJub25lIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI3dhLWJnKSIvPjwvc3ZnPg=='); background-size: 80px 80px;">
-       </div>
+      <!-- Background Pattern (WhatsApp style) -->
+      <div
+        class="absolute inset-0 opacity-[0.03] pointer-events-none"
+        style="
+          background-image: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9IndhLWJnIiB4PSIwIiB5PSIwIiB3aWR0aD0iODAiIGhlaWdodD0iODAiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiPjxwYXRoIGQ9Ik0wIDIwIEwgMjAgMCBMIDQwIDIwIEwgNjAgMCBMIDgwIDIwIiBzdHJva2U9IiNhZWJhYzEiIHN0cm9rZS13aWR0aD0iMC41IiBmaWxsPSJub25lIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI3dhLWJnKSIvPjwvc3ZnPg==');
+          background-size: 80px 80px;
+        "
+      ></div>
 
       <div v-if="activeConversation" class="w-full h-full relative z-10">
         <!-- Chat Loading State (when switching chats) -->
-        <div v-if="!activeConversation.messages || activeConversation.messages.length === 0" class="absolute inset-0 flex items-center justify-center z-20 bg-[var(--wa-bg-chat)]">
+        <div
+          v-if="
+            !activeConversation.messages ||
+            activeConversation.messages.length === 0
+          "
+          class="absolute inset-0 flex items-center justify-center z-20 bg-[var(--wa-bg-chat)]"
+        >
           <div class="flex flex-col items-center gap-4">
             <!-- Animated Chat Bubbles -->
             <div class="flex items-end gap-2">
-              <div class="w-12 h-8 rounded-2xl rounded-bl-sm bg-[var(--wa-bg-secondary)] skeleton-shimmer"></div>
-              <div class="w-20 h-8 rounded-2xl rounded-bl-sm bg-[var(--wa-bg-secondary)] skeleton-shimmer" style="animation-delay: 150ms;"></div>
+              <div
+                class="w-12 h-8 rounded-2xl rounded-bl-sm bg-[var(--wa-bg-secondary)] skeleton-shimmer"
+              ></div>
+              <div
+                class="w-20 h-8 rounded-2xl rounded-bl-sm bg-[var(--wa-bg-secondary)] skeleton-shimmer"
+                style="animation-delay: 150ms"
+              ></div>
             </div>
             <div class="flex items-end gap-2 -mt-2 ml-8">
-              <div class="w-16 h-8 rounded-2xl rounded-br-sm bg-indigo-600/30 skeleton-shimmer" style="animation-delay: 300ms;"></div>
+              <div
+                class="w-16 h-8 rounded-2xl rounded-br-sm bg-indigo-600/30 skeleton-shimmer"
+                style="animation-delay: 300ms"
+              ></div>
             </div>
-            <p class="text-sm text-[var(--wa-text-tertiary)] mt-2">Memuat pesan...</p>
+            <p class="text-sm text-[var(--wa-text-tertiary)] mt-2">
+              Memuat pesan...
+            </p>
           </div>
         </div>
-        
+
         <!-- Chat Header - ABSOLUTE TOP -->
-        <header 
+        <header
           class="absolute top-0 left-0 right-0 h-16 border-b flex items-center justify-between px-4 md:px-6 z-30 border-[var(--wa-border)] bg-[var(--wa-bg-panel)]"
         >
           <div class="flex items-center gap-3 flex-1 min-w-0">
-             <!-- Back Button (Mobile Only) -->
-             <button @click="backToMenu" class="md:hidden p-1 -ml-2 text-[var(--wa-icon-default)] hover:text-[var(--wa-text-primary)] flex-shrink-0">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-                </svg>
-             </button>
-             
-             <div 
-               @click="showCustomerInfo"
-               class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold border-0 flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-[var(--wa-accent-green)] transition-all"
-               :style="{ backgroundColor: activeConversation.color }"
-               title="Klik untuk info customer"
-             >
-               {{ activeConversation.initials }}
-             </div>
-             
-             <div @click="showCustomerInfo" class="min-w-0 flex-1 cursor-pointer hover:opacity-80 transition-opacity">
-               <h2 class="font-medium text-[var(--wa-text-primary)] text-base md:text-lg truncate uppercase" :title="activeConversation.name + ' - Klik untuk info'">{{ activeConversation.name }}</h2>
-               <div class="flex items-center gap-2">
-                 <p v-if="activeConversation.kode_cabang" class="text-xs font-mono text-[var(--wa-text-secondary)]">{{ activeConversation.kode_cabang }}</p>
-                 <!-- Header Case Badges -->
-                 <div v-if="activeConversation.cases && activeConversation.cases.some(c => c.case > 0 && (c.status || 'open') !== 'closed')" class="flex gap-1">
-                    <template v-for="(cse, idx) in activeConversation.cases" :key="idx">
-                        <div 
-                            v-if="cse.case > 0 && (cse.status || 'open') !== 'closed'"
-                            class="w-3 h-3 rounded-full ring-1 ring-black/20"
-                            :class="getCaseColor(cse.case)"
-                            :title="'Case: ' + cse.case"
-                        ></div>
-                    </template>
-                 </div>
-               </div>
-             </div>
-          </div>
-          
-          
-          <div class="flex items-center gap-2 text-[var(--wa-icon-default)] flex-shrink-0 relative">
-             <!-- Resolve Case Button -->
-             <div class="relative"> 
-                 <button 
-                    v-if="resolveableCases.length > 0"
-                    @click.stop="showResolveMenu = !showResolveMenu; showChatMenu = false"
-                    class="hover:text-[var(--wa-text-primary)] transition-colors p-2 rounded-full hover:bg-[var(--wa-hover)] text-green-500"
-                    title="Resolve Cases"
-                 >
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                    </svg>
-                 </button>
-                 
-                 <!-- Resolve Menu Dropdown -->
-                 <div v-if="showResolveMenu" class="absolute right-0 top-full mt-2 min-w-max bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-lg shadow-xl overflow-hidden z-20">
-                    <button 
-                        v-for="c in resolveableCases" 
-                        :key="c.case"
-                        @click="resolveCase(c.case)"
-                        class="w-full px-4 py-3 text-left hover:bg-[var(--wa-hover)] transition-colors flex items-center gap-3 text-sm text-[var(--wa-text-primary)] border-b border-[var(--wa-divider)] last:border-0"
-                        :class="{
-                            'hover:text-blue-400': c.case === 1,
-                            'hover:text-yellow-400': c.case === 2,
-                            'hover:text-red-400': c.case === 3,
-                            'hover:text-purple-400': c.case === 4
-                        }"
-                    >
-                        <!-- Generic Checklist Icon (Inherits Hover Color) -->
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                        </svg>
-                        
-                        <span>
-                            {{ getCaseLabel(c.case) }}
-                        </span>
-                    </button>
-                 </div>
-             </div>
-              <!-- Three Dots Menu Button - ACTIVE -->
-              <div class="relative">
-                <button 
-                  @click.stop="showChatMenu = !showChatMenu; showResolveMenu = false"
-                  class="hover:text-[var(--wa-text-primary)] transition-colors p-2 rounded-full hover:bg-[var(--wa-hover)]"
-                  :class="{'bg-[var(--wa-hover)] text-[var(--wa-text-primary)]': showChatMenu}"
-                  title="Manage Cases"
+            <!-- Back Button (Mobile Only) -->
+            <button
+              @click="backToMenu"
+              class="md:hidden p-1 -ml-2 text-[var(--wa-icon-default)] hover:text-[var(--wa-text-primary)] flex-shrink-0"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-6 w-6"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M15 19l-7-7 7-7"
+                />
+              </svg>
+            </button>
+
+            <div
+              @click="showCustomerInfo"
+              class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold border-0 flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-[var(--wa-accent-green)] transition-all"
+              :style="{ backgroundColor: activeConversation.color }"
+              title="Klik untuk info customer"
+            >
+              {{ activeConversation.initials }}
+            </div>
+
+            <div
+              @click="showCustomerInfo"
+              class="min-w-0 flex-1 cursor-pointer hover:opacity-80 transition-opacity"
+            >
+              <h2
+                class="font-medium text-[var(--wa-text-primary)] text-base md:text-lg truncate uppercase"
+                :title="activeConversation.name + ' - Klik untuk info'"
+              >
+                {{ activeConversation.name }}
+              </h2>
+              <div class="flex items-center gap-2">
+                <p
+                  v-if="activeConversation.kode_cabang"
+                  class="text-xs font-mono text-[var(--wa-text-secondary)]"
                 >
-                   <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                   </svg>
-               </button>
-               
-               <!-- Dropdown Menu -->
-               <div 
-                 v-if="showChatMenu" 
-                 @click.stop
-                 class="absolute right-0 top-full mt-2 min-w-max bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-lg shadow-xl overflow-hidden z-50"
-               >
-                 <!-- Selesai Option -->
-                 <!-- Check Payment Option -->
-                 <button 
-                   v-if="!isCaseOpen(1)"
-                   @click="checkPayment"
-                   :disabled="isCheckingPayment"
-                   class="w-full px-4 py-3 text-left hover:bg-[var(--wa-hover)] transition-colors flex items-center gap-3 text-sm text-[var(--wa-text-primary)] hover:text-blue-400 disabled:opacity-50 disabled:cursor-not-allowed border-b border-[var(--wa-divider)]"
-                 >
-                   <svg v-if="!isCheckingPayment" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-                   </svg>
-                   <span v-if="isCheckingPayment" class="w-5 h-5 border-2 border-slate-400 border-t-white rounded-full animate-spin"></span>
-                   <span>{{ isCheckingPayment ? 'Memproses...' : 'Check Payment' }}</span>
-                  </button>
-                  <!-- Pickup/Delivery Option -->
-                  <button 
-                    v-if="!isCaseOpen(2)"
-                    @click="pickupDelivery"
-                    :disabled="isPickupDelivery"
-                    class="w-full px-4 py-3 text-left hover:bg-[var(--wa-hover)] transition-colors flex items-center gap-3 text-sm text-[var(--wa-text-primary)] hover:text-yellow-400 disabled:opacity-50 disabled:cursor-not-allowed border-b border-[var(--wa-divider)]"
+                  {{ activeConversation.kode_cabang }}
+                </p>
+                <!-- Header Case Badges -->
+                <div
+                  v-if="
+                    activeConversation.cases &&
+                    activeConversation.cases.some(
+                      (c) => c.case > 0 && (c.status || 'open') !== 'closed'
+                    )
+                  "
+                  class="flex gap-1"
+                >
+                  <template
+                    v-for="(cse, idx) in activeConversation.cases"
+                    :key="idx"
                   >
-                    <svg v-if="!isPickupDelivery" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
-                    </svg>
-                    <span v-if="isPickupDelivery" class="w-5 h-5 border-2 border-slate-400 border-t-white rounded-full animate-spin"></span>
-                    <span>{{ isPickupDelivery ? 'Memproses...' : 'Pickup/Delivery' }}</span>
-                  </button>
-                  
-                  <!-- Request Option -->
-                  <button 
-                    v-if="!isCaseOpen(3)"
-                    @click="requestPriority"
-                    :disabled="isRequest"
-                    class="w-full px-4 py-3 text-left hover:bg-[var(--wa-hover)] transition-colors flex items-center gap-3 text-sm text-[var(--wa-text-primary)] hover:text-red-400 disabled:opacity-50 disabled:cursor-not-allowed border-b border-[var(--wa-divider)]"
+                    <div
+                      v-if="cse.case > 0 && (cse.status || 'open') !== 'closed'"
+                      class="w-3 h-3 rounded-full ring-1 ring-black/20"
+                      :class="getCaseColor(cse.case)"
+                      :title="'Case: ' + cse.case"
+                    ></div>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div
+            class="flex items-center gap-2 text-[var(--wa-icon-default)] flex-shrink-0 relative"
+          >
+            <!-- Resolve Case Button -->
+            <div class="relative">
+              <button
+                v-if="resolveableCases.length > 0"
+                @click.stop="
+                  showResolveMenu = !showResolveMenu;
+                  showChatMenu = false;
+                "
+                class="hover:text-[var(--wa-text-primary)] transition-colors p-2 rounded-full hover:bg-[var(--wa-hover)] text-green-500"
+                title="Resolve Cases"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+              </button>
+
+              <!-- Resolve Menu Dropdown -->
+              <div
+                v-if="showResolveMenu"
+                class="absolute right-0 top-full mt-2 min-w-max bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-lg shadow-xl overflow-hidden z-20"
+              >
+                <button
+                  v-for="c in resolveableCases"
+                  :key="c.case"
+                  @click="resolveCase(c.case)"
+                  class="w-full px-4 py-3 text-left hover:bg-[var(--wa-hover)] transition-colors flex items-center gap-3 text-sm text-[var(--wa-text-primary)] border-b border-[var(--wa-divider)] last:border-0"
+                  :class="{
+                    'hover:text-blue-400': c.case === 1,
+                    'hover:text-yellow-400': c.case === 2,
+                    'hover:text-red-400': c.case === 3,
+                    'hover:text-purple-400': c.case === 4,
+                  }"
+                >
+                  <!-- Generic Checklist Icon (Inherits Hover Color) -->
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
                   >
-                    <svg v-if="!isRequest" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                    </svg>
-                    <span v-if="isRequest" class="w-5 h-5 border-2 border-slate-400 border-t-white rounded-full animate-spin"></span>
-                    <span>{{ isRequest ? 'Memproses...' : 'Request' }}</span>
-                  </button>
-                   
-                   <!-- Follow Up Option -->
-                   <button 
-                     v-if="!isCaseOpen(4)"
-                     @click="followUp"
-                     :disabled="isFollowUp"
-                     class="w-full px-4 py-3 text-left hover:bg-[var(--wa-hover)] transition-colors flex items-center gap-3 text-sm text-[var(--wa-text-primary)] hover:text-purple-400 disabled:opacity-50 disabled:cursor-not-allowed border-b border-[var(--wa-divider)]"
-                   >
-                     <svg v-if="!isFollowUp" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                     </svg>
-                     <span v-if="isFollowUp" class="w-5 h-5 border-2 border-slate-400 border-t-white rounded-full animate-spin"></span>
-                     <span>{{ isFollowUp ? 'Memproses...' : 'Follow Up' }}</span>
-                   </button>
-                   
-                   <!-- Selesai Option -->
-                 <button id="btn-selesai" 
-                   v-if="activeConversation.priority > 0"
-                   @click="markAsDone"
-                   :disabled="isMarkingAsDone"
-                   class="w-full px-4 py-3 text-left hover:bg-[var(--wa-hover)] transition-colors flex items-center gap-3 text-sm text-[var(--wa-text-primary)] hover:text-green-400 disabled:opacity-50 disabled:cursor-not-allowed"
-                 >
-                   <svg v-if="!isMarkingAsDone" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                   </svg>
-                   <span v-if="isMarkingAsDone" class="w-5 h-5 border-2 border-slate-400 border-t-white rounded-full animate-spin"></span>
-                   <span>{{ isMarkingAsDone ? 'Memproses...' : 'Selesai' }}</span>
-                 </button>
-                 
-                  <!-- Reopen Option (Review Removed) -->
-               </div>
-             </div>
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+
+                  <span>
+                    {{ getCaseLabel(c.case) }}
+                  </span>
+                </button>
+              </div>
+            </div>
+            <!-- Three Dots Menu Button - ACTIVE -->
+            <div class="relative">
+              <button
+                @click.stop="
+                  showChatMenu = !showChatMenu;
+                  showResolveMenu = false;
+                "
+                class="hover:text-[var(--wa-text-primary)] transition-colors p-2 rounded-full hover:bg-[var(--wa-hover)]"
+                :class="{
+                  'bg-[var(--wa-hover)] text-[var(--wa-text-primary)]':
+                    showChatMenu,
+                }"
+                title="Manage Cases"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+                  />
+                </svg>
+              </button>
+
+              <!-- Dropdown Menu -->
+              <div
+                v-if="showChatMenu"
+                @click.stop
+                class="absolute right-0 top-full mt-2 min-w-max bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-lg shadow-xl overflow-hidden z-50"
+              >
+                <!-- Selesai Option -->
+                <!-- Check Payment Option -->
+                <button
+                  v-if="!isCaseOpen(1)"
+                  @click="checkPayment"
+                  :disabled="isCheckingPayment"
+                  class="w-full px-4 py-3 text-left hover:bg-[var(--wa-hover)] transition-colors flex items-center gap-3 text-sm text-[var(--wa-text-primary)] hover:text-blue-400 disabled:opacity-50 disabled:cursor-not-allowed border-b border-[var(--wa-divider)]"
+                >
+                  <svg
+                    v-if="!isCheckingPayment"
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"
+                    />
+                  </svg>
+                  <span
+                    v-if="isCheckingPayment"
+                    class="w-5 h-5 border-2 border-slate-400 border-t-white rounded-full animate-spin"
+                  ></span>
+                  <span>{{
+                    isCheckingPayment ? "Memproses..." : "Check Payment"
+                  }}</span>
+                </button>
+                <!-- Pickup/Delivery Option -->
+                <button
+                  v-if="!isCaseOpen(2)"
+                  @click="pickupDelivery"
+                  :disabled="isPickupDelivery"
+                  class="w-full px-4 py-3 text-left hover:bg-[var(--wa-hover)] transition-colors flex items-center gap-3 text-sm text-[var(--wa-text-primary)] hover:text-yellow-400 disabled:opacity-50 disabled:cursor-not-allowed border-b border-[var(--wa-divider)]"
+                >
+                  <svg
+                    v-if="!isPickupDelivery"
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0"
+                    />
+                  </svg>
+                  <span
+                    v-if="isPickupDelivery"
+                    class="w-5 h-5 border-2 border-slate-400 border-t-white rounded-full animate-spin"
+                  ></span>
+                  <span>{{
+                    isPickupDelivery ? "Memproses..." : "Pickup/Delivery"
+                  }}</span>
+                </button>
+
+                <!-- Request Option -->
+                <button
+                  v-if="!isCaseOpen(3)"
+                  @click="requestPriority"
+                  :disabled="isRequest"
+                  class="w-full px-4 py-3 text-left hover:bg-[var(--wa-hover)] transition-colors flex items-center gap-3 text-sm text-[var(--wa-text-primary)] hover:text-red-400 disabled:opacity-50 disabled:cursor-not-allowed border-b border-[var(--wa-divider)]"
+                >
+                  <svg
+                    v-if="!isRequest"
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
+                    />
+                  </svg>
+                  <span
+                    v-if="isRequest"
+                    class="w-5 h-5 border-2 border-slate-400 border-t-white rounded-full animate-spin"
+                  ></span>
+                  <span>{{ isRequest ? "Memproses..." : "Request" }}</span>
+                </button>
+
+                <!-- Follow Up Option -->
+                <button
+                  v-if="!isCaseOpen(4)"
+                  @click="followUp"
+                  :disabled="isFollowUp"
+                  class="w-full px-4 py-3 text-left hover:bg-[var(--wa-hover)] transition-colors flex items-center gap-3 text-sm text-[var(--wa-text-primary)] hover:text-purple-400 disabled:opacity-50 disabled:cursor-not-allowed border-b border-[var(--wa-divider)]"
+                >
+                  <svg
+                    v-if="!isFollowUp"
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  <span
+                    v-if="isFollowUp"
+                    class="w-5 h-5 border-2 border-slate-400 border-t-white rounded-full animate-spin"
+                  ></span>
+                  <span>{{ isFollowUp ? "Memproses..." : "Follow Up" }}</span>
+                </button>
+
+                <!-- Selesai Option -->
+                <button
+                  id="btn-selesai"
+                  v-if="activeConversation.priority > 0"
+                  @click="markAsDone"
+                  :disabled="isMarkingAsDone"
+                  class="w-full px-4 py-3 text-left hover:bg-[var(--wa-hover)] transition-colors flex items-center gap-3 text-sm text-[var(--wa-text-primary)] hover:text-green-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <svg
+                    v-if="!isMarkingAsDone"
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  <span
+                    v-if="isMarkingAsDone"
+                    class="w-5 h-5 border-2 border-slate-400 border-t-white rounded-full animate-spin"
+                  ></span>
+                  <span>{{
+                    isMarkingAsDone ? "Memproses..." : "Selesai"
+                  }}</span>
+                </button>
+
+                <!-- Reopen Option (Review Removed) -->
+              </div>
+            </div>
           </div>
         </header>
 
-
-        
         <!-- Messages - Scrollable Area with top and bottom padding -->
-        <div 
+        <div
           ref="chatContainer"
           class="absolute inset-0 pt-16 pb-[88px] overflow-y-auto custom-scrollbar"
         >
           <div class="p-4 space-y-2">
-            <div v-for="(msg, index) in activeConversation.messages" :key="msg.id" :id="'msg-' + msg.id" class="flex flex-col group relative">
-            
-               <!-- Date Separator -->
-               <div v-if="index === 0 || needsDateSeparator(msg, activeConversation.messages[index - 1])" class="flex items-center justify-center my-4">
-                  <div class="bg-[var(--wa-bg-panel)] text-[var(--wa-text-secondary)] text-xs font-normal px-3 py-1 rounded-lg shadow-sm">
-                     {{ formatDateSeparator(msg.rawTime) }}
-                  </div>
-               </div>
-               
-               <!-- Customer Message -->
-               <div v-if="msg.sender !== 'me'" 
-                    class="flex gap-3 max-w-[75%] items-end"
-               >
-                  <div 
-                    v-if="index === 0 || activeConversation.messages[index-1]?.sender === 'me'" 
-                    class="w-8 h-8 rounded-full flex items-center justify-center text-[10px] text-white font-bold mb-1 flex-shrink-0"
-                    :style="{ backgroundColor: activeConversation.color }"
-                  >
-                    {{ activeConversation.initials }}
-                  </div>
-                  <div v-else class="w-8"></div> <!-- Spacer -->
-                  
-                  <!-- Image Message: Transparent style -->
-                  <div v-if="msg.type === 'image'" class="rounded-lg overflow-hidden shadow-md max-w-[240px] bg-[var(--wa-bubble-incoming)]/50">
-                     <div class="relative">
-                        <img v-if="msg.media_url" :src="msg.media_url" class="w-full cursor-pointer" @click="openImageLightbox(msg.media_url)">
-                        <img v-else-if="msg.media_id" :src="`${API_BASE}/CRM/Chat/media?id=${msg.media_id}`" class="w-full cursor-pointer" @click="openImageLightbox(`${API_BASE}/CRM/Chat/media?id=${msg.media_id}`)">
-                        <div v-else class="bg-slate-900/50 flex flex-col items-center justify-center w-full h-[150px]">
-                           <span class="text-[10px] text-slate-400">Image (Protected)</span>
-                        </div>
-                        <!-- Caption & Time Overlay -->
-                        <div v-if="msg.text || msg.time" class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
-                           <p v-if="msg.text" class="text-white text-[13px] leading-tight mb-1" v-html="parseWhatsAppFormatting(msg.text)"></p>
-                           <span class="text-[10px] text-white/80 block text-right">{{ msg.time }}</span>
-                        </div>
-                     </div>
-                  </div>
-                  
-                  <!-- Sticker Message -->
-                  <div v-else-if="msg.type === 'sticker'" class="rounded-lg overflow-hidden max-w-[150px]">
-                     <img v-if="msg.media_url" :src="msg.media_url" class="w-full cursor-pointer" @click="openImageLightbox(msg.media_url)" style="background: transparent;">
-                     <img v-else-if="msg.media_id" :src="`${API_BASE}/CRM/Chat/media?id=${msg.media_id}`" class="w-full cursor-pointer" @click="openImageLightbox(`${API_BASE}/CRM/Chat/media?id=${msg.media_id}`)" style="background: transparent;">
-                     <div v-else class="bg-[var(--wa-bubble-incoming)] px-3 py-2 rounded-lg">
-                        <span class="text-2xl">🎨</span>
-                        <span class="text-[11px] text-[var(--wa-text-tertiary)] block mt-1">{{ msg.time }}</span>
-                     </div>
-                  </div>
-                  
-                  <!-- Reaction Message -->
-                  <div v-else-if="msg.type === 'reaction'" class="bg-[var(--wa-bubble-incoming)]/50 px-3 py-2 rounded-full shadow-sm flex items-center gap-2">
-                     <span class="text-xl">{{ formatReactionText(msg.text) }}</span>
-                     <span class="text-[10px] text-[var(--wa-text-tertiary)]">{{ msg.time }}</span>
-                  </div>
-                  
-                  <!-- Audio/Voice Message -->
-                  <div v-else-if="msg.type === 'audio' || msg.type === 'voice'" class="bg-[var(--wa-bubble-incoming)] rounded-lg shadow-sm px-3 py-2 max-w-[280px]">
-                     <div class="flex items-center gap-3">
-                        <span class="text-2xl">🎤</span>
-                        <audio 
-                           v-if="msg.media_url" 
-                           :src="msg.media_url" 
-                           controls 
-                           class="h-8 w-full max-w-[200px]"
-                           style="filter: invert(1) hue-rotate(180deg);"
-                        ></audio>
-                        <audio 
-                           v-else-if="msg.media_id" 
-                           :src="`${API_BASE}/CRM/Chat/media?id=${msg.media_id}`" 
-                           controls 
-                           class="h-8 w-full max-w-[200px]"
-                           style="filter: invert(1) hue-rotate(180deg);"
-                        ></audio>
-                        <span v-else class="text-xs text-[var(--wa-text-tertiary)]">Audio not available</span>
-                     </div>
-                     <div class="flex items-center justify-end mt-1">
-                        <span class="text-[10px] text-[var(--wa-text-tertiary)]">{{ msg.time }}</span>
-                     </div>
-                  </div>
-                   
-                   <!-- Video Message -->
-                   <div v-else-if="msg.type === 'video'" class="rounded-lg overflow-hidden shadow-md max-w-[280px] bg-[var(--wa-bubble-incoming)]/50">
-                      <div class="relative">
-                         <video 
-                            v-if="msg.media_url" 
-                            :src="msg.media_url" 
-                            controls 
-                            class="w-full max-h-[300px] cursor-pointer"
-                            preload="metadata"
-                         ></video>
-                         <video 
-                            v-else-if="msg.media_id" 
-                            :src="`${API_BASE}/CRM/Chat/media?id=${msg.media_id}`" 
-                            controls 
-                            class="w-full max-h-[300px] cursor-pointer"
-                            preload="metadata"
-                         ></video>
-                         <div v-else class="bg-slate-900/50 flex flex-col items-center justify-center w-full h-[150px]">
-                            <span class="text-3xl mb-2">🎥</span>
-                            <span class="text-[10px] text-slate-400">Video (Protected)</span>
-                         </div>
-                         <!-- Caption & Time Overlay -->
-                         <div v-if="msg.text || msg.time" class="bg-[var(--wa-bubble-incoming)] px-3 py-2">
-                            <p v-if="msg.text" class="text-[var(--wa-text-primary)] text-[13px] leading-tight mb-1" v-html="parseWhatsAppFormatting(msg.text)"></p>
-                            <span class="text-[10px] text-[var(--wa-text-tertiary)] block text-right">{{ msg.time }}</span>
-                         </div>
-                      </div>
-                   </div>
-                   
-                   <!-- Document Message -->
-                   <div v-else-if="msg.type === 'document'" class="bg-[var(--wa-bubble-incoming)] rounded-lg shadow-sm px-3 py-2 max-w-[280px]">
-                      <a 
-                         :href="msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`" 
-                         target="_blank"
-                         class="flex items-center gap-3 hover:opacity-80 transition-opacity"
+            <div
+              v-for="(msg, index) in activeConversation.messages"
+              :key="msg.id"
+              :id="'msg-' + msg.id"
+              class="flex flex-col group relative"
+            >
+              <!-- Date Separator -->
+              <div
+                v-if="
+                  index === 0 ||
+                  needsDateSeparator(
+                    msg,
+                    activeConversation.messages[index - 1]
+                  )
+                "
+                class="flex items-center justify-center my-4"
+              >
+                <div
+                  class="bg-[var(--wa-bg-panel)] text-[var(--wa-text-secondary)] text-xs font-normal px-3 py-1 rounded-lg shadow-sm"
+                >
+                  {{ formatDateSeparator(msg.rawTime) }}
+                </div>
+              </div>
+
+              <!-- Customer Message -->
+              <div
+                v-if="msg.sender !== 'me'"
+                class="flex gap-3 max-w-[75%] items-end"
+              >
+                <div
+                  v-if="
+                    index === 0 ||
+                    activeConversation.messages[index - 1]?.sender === 'me'
+                  "
+                  class="w-8 h-8 rounded-full flex items-center justify-center text-[10px] text-white font-bold mb-1 flex-shrink-0"
+                  :style="{ backgroundColor: activeConversation.color }"
+                >
+                  {{ activeConversation.initials }}
+                </div>
+                <div v-else class="w-8"></div>
+                <!-- Spacer -->
+
+                <!-- Image Message: Transparent style -->
+                <div
+                  v-if="msg.type === 'image'"
+                  class="rounded-lg overflow-hidden shadow-md max-w-[240px] bg-[var(--wa-bubble-incoming)]/50"
+                >
+                  <div class="relative">
+                    <img
+                      v-if="msg.media_url"
+                      :src="msg.media_url"
+                      class="w-full cursor-pointer"
+                      @click="openImageLightbox(msg.media_url)"
+                    />
+                    <img
+                      v-else-if="msg.media_id"
+                      :src="`${API_BASE}/CRM/Chat/media?id=${msg.media_id}`"
+                      class="w-full cursor-pointer"
+                      @click="
+                        openImageLightbox(
+                          `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`
+                        )
+                      "
+                    />
+                    <div
+                      v-else
+                      class="bg-slate-900/50 flex flex-col items-center justify-center w-full h-[150px]"
+                    >
+                      <span class="text-[10px] text-slate-400"
+                        >Image (Protected)</span
                       >
-                         <div class="w-10 h-10 bg-red-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
-                            <span class="text-xl">📄</span>
-                         </div>
-                         <div class="flex-1 min-w-0">
-                            <p class="text-[var(--wa-text-primary)] text-sm font-medium truncate">
-                               {{ msg.text || msg.media_caption || 'Document' }}
-                            </p>
-                            <span class="text-[10px] text-[var(--wa-text-tertiary)]">Tap to download</span>
-                         </div>
-                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[var(--wa-text-tertiary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                         </svg>
-                      </a>
-                      <div class="flex items-center justify-end mt-1">
-                         <span class="text-[10px] text-[var(--wa-text-tertiary)]">{{ msg.time }}</span>
-                      </div>
-                   </div>
-                   
-                  <!-- Location Message -->
-                  <div v-else-if="msg.type === 'location'" 
-                     class="bg-[var(--wa-bubble-incoming)] rounded-lg overflow-hidden shadow-sm max-w-[280px] cursor-pointer hover:opacity-90 transition-opacity"
-                     @click="openLocation(msg.media_url)"
+                    </div>
+                    <!-- Caption & Time Overlay -->
+                    <div
+                      v-if="msg.text || msg.time"
+                      class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2"
+                    >
+                      <p
+                        v-if="msg.text"
+                        class="text-white text-[13px] leading-tight mb-1"
+                        v-html="parseWhatsAppFormatting(msg.text)"
+                      ></p>
+                      <span
+                        class="text-[10px] text-white/80 block text-right"
+                        >{{ msg.time }}</span
+                      >
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Sticker Message -->
+                <div
+                  v-else-if="msg.type === 'sticker'"
+                  class="rounded-lg overflow-hidden max-w-[150px]"
+                >
+                  <img
+                    v-if="msg.media_url"
+                    :src="msg.media_url"
+                    class="w-full cursor-pointer"
+                    @click="openImageLightbox(msg.media_url)"
+                    style="background: transparent"
+                  />
+                  <img
+                    v-else-if="msg.media_id"
+                    :src="`${API_BASE}/CRM/Chat/media?id=${msg.media_id}`"
+                    class="w-full cursor-pointer"
+                    @click="
+                      openImageLightbox(
+                        `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`
+                      )
+                    "
+                    style="background: transparent"
+                  />
+                  <div
+                    v-else
+                    class="bg-[var(--wa-bubble-incoming)] px-3 py-2 rounded-lg"
                   >
-                     <!-- Map Preview using Static Maps or Placeholder -->
-                     <div class="w-full h-[120px] bg-gradient-to-br from-green-800/30 to-blue-900/30 flex items-center justify-center relative">
-                        <span class="text-5xl">📍</span>
-                        <div class="absolute bottom-2 right-2 bg-black/50 text-white text-[10px] px-2 py-1 rounded">
-                           <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                           </svg>
-                           Google Maps
-                        </div>
-                     </div>
-                     <!-- Location Info -->
-                     <div class="px-3 py-2">
-                        <p class="text-[var(--wa-text-primary)] text-sm leading-tight" v-html="parseWhatsAppFormatting(msg.text)"></p>
-                        <div class="flex items-center justify-between mt-1">
-                           <span v-if="msg.media_caption" class="text-[10px] text-[var(--wa-text-tertiary)]">{{ msg.media_caption }}</span>
-                           <span class="text-[11px] text-[var(--wa-text-tertiary)]">{{ msg.time }}</span>
-                        </div>
-                     </div>
+                    <span class="text-2xl">🎨</span>
+                    <span
+                      class="text-[11px] text-[var(--wa-text-tertiary)] block mt-1"
+                      >{{ msg.time }}</span
+                    >
                   </div>
-                  
-                   <!-- Text Message: WhatsApp style with inline time -->
-                   <div v-else class="bg-[var(--wa-bubble-incoming)] text-[var(--wa-text-primary)] px-3 py-1.5 rounded-lg rounded-tl-none shadow-sm max-w-full relative group/msg">
-                      <!-- Quoted Message Preview (if replying to a message) -->
-                      <div v-if="msg.quoted_message_id && findQuotedMessage(msg.quoted_message_id)" 
-                           class="bg-black/10 rounded px-2 py-1.5 mb-1.5 border-l-2 border-blue-400 cursor-pointer hover:bg-black/20"
-                           @click="scrollToMessage(msg.quoted_message_id)">
-                         <span class="text-[10px] font-medium text-blue-400 block">
-                            {{ findQuotedMessage(msg.quoted_message_id)?.sender === 'me' ? 'You' : activeConversation?.contact_name || 'Customer' }}
-                         </span>
-                         <p class="text-xs text-[var(--wa-text-secondary)] truncate">{{ getMessagePreview(findQuotedMessage(msg.quoted_message_id)) }}</p>
-                      </div>
-                      <div class="flex flex-wrap items-end gap-x-2">
-                         <p v-if="msg.text" class="leading-relaxed break-words whitespace-pre-wrap inline" v-html="parseWhatsAppFormatting(msg.text)" :style="{ fontSize: messageFontSize }"></p>
-                         <span class="text-[10px] text-[var(--wa-text-tertiary)] ml-auto whitespace-nowrap leading-[1.8]">{{ msg.time }}</span>
-                      </div>
-                      <!-- Reply button (always visible on mobile, hover on desktop) -->
-                       <button 
-                          @click="setReplyTo(msg)" 
-                          class="absolute -right-8 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] shadow-md transition-opacity hover:bg-[var(--wa-hover)] md:opacity-0 md:group-hover/msg:opacity-100"
-                          title="Reply"
-                       >
-                          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--wa-text-secondary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                </div>
+
+                <!-- Reaction Message -->
+                <div
+                  v-else-if="msg.type === 'reaction'"
+                  class="bg-[var(--wa-bubble-incoming)]/50 px-3 py-2 rounded-full shadow-sm flex items-center gap-2"
+                >
+                  <span class="text-xl">{{
+                    formatReactionText(msg.text)
+                  }}</span>
+                  <span class="text-[10px] text-[var(--wa-text-tertiary)]">{{
+                    msg.time
+                  }}</span>
+                </div>
+
+                <!-- Audio/Voice Message -->
+                <div
+                  v-else-if="msg.type === 'audio' || msg.type === 'voice'"
+                  class="bg-[var(--wa-bubble-incoming)] rounded-lg shadow-sm px-3 py-2 max-w-[280px]"
+                >
+                  <div class="flex items-center gap-3">
+                    <span class="text-2xl">🎤</span>
+                    <audio
+                      v-if="msg.media_url"
+                      :src="msg.media_url"
+                      controls
+                      class="h-8 w-full max-w-[200px]"
+                      style="filter: invert(1) hue-rotate(180deg)"
+                    ></audio>
+                    <audio
+                      v-else-if="msg.media_id"
+                      :src="`${API_BASE}/CRM/Chat/media?id=${msg.media_id}`"
+                      controls
+                      class="h-8 w-full max-w-[200px]"
+                      style="filter: invert(1) hue-rotate(180deg)"
+                    ></audio>
+                    <span v-else class="text-xs text-[var(--wa-text-tertiary)]"
+                      >Audio not available</span
+                    >
+                  </div>
+                  <div class="flex items-center justify-end mt-1">
+                    <span class="text-[10px] text-[var(--wa-text-tertiary)]">{{
+                      msg.time
+                    }}</span>
+                  </div>
+                </div>
+
+                <!-- Video Message -->
+                <div
+                  v-else-if="msg.type === 'video'"
+                  class="rounded-lg overflow-hidden shadow-md max-w-[280px] bg-[var(--wa-bubble-incoming)]/50"
+                >
+                  <div class="relative">
+                    <video
+                      v-if="msg.media_url"
+                      :src="msg.media_url"
+                      controls
+                      class="w-full max-h-[300px] cursor-pointer"
+                      preload="metadata"
+                    ></video>
+                    <video
+                      v-else-if="msg.media_id"
+                      :src="`${API_BASE}/CRM/Chat/media?id=${msg.media_id}`"
+                      controls
+                      class="w-full max-h-[300px] cursor-pointer"
+                      preload="metadata"
+                    ></video>
+                    <div
+                      v-else
+                      class="bg-slate-900/50 flex flex-col items-center justify-center w-full h-[150px]"
+                    >
+                      <span class="text-3xl mb-2">🎥</span>
+                      <span class="text-[10px] text-slate-400"
+                        >Video (Protected)</span
+                      >
+                    </div>
+                    <!-- Caption & Time Overlay -->
+                    <div
+                      v-if="msg.text || msg.time"
+                      class="bg-[var(--wa-bubble-incoming)] px-3 py-2"
+                    >
+                      <p
+                        v-if="msg.text"
+                        class="text-[var(--wa-text-primary)] text-[13px] leading-tight mb-1"
+                        v-html="parseWhatsAppFormatting(msg.text)"
+                      ></p>
+                      <span
+                        class="text-[10px] text-[var(--wa-text-tertiary)] block text-right"
+                        >{{ msg.time }}</span
+                      >
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Document Message -->
+                <div
+                  v-else-if="msg.type === 'document'"
+                  class="bg-[var(--wa-bubble-incoming)] rounded-lg shadow-sm px-3 py-2 max-w-[280px]"
+                >
+                  <a
+                    :href="
+                      msg.media_url ||
+                      `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`
+                    "
+                    target="_blank"
+                    class="flex items-center gap-3 hover:opacity-80 transition-opacity"
+                  >
+                    <div
+                      class="w-10 h-10 bg-red-500/20 rounded-lg flex items-center justify-center flex-shrink-0"
+                    >
+                      <span class="text-xl">📄</span>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <p
+                        class="text-[var(--wa-text-primary)] text-sm font-medium truncate"
+                      >
+                        {{ msg.text || msg.media_caption || "Document" }}
+                      </p>
+                      <span class="text-[10px] text-[var(--wa-text-tertiary)]"
+                        >Tap to download</span
+                      >
+                    </div>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      class="h-5 w-5 text-[var(--wa-text-tertiary)]"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                      />
+                    </svg>
+                  </a>
+                  <div class="flex items-center justify-end mt-1">
+                    <span class="text-[10px] text-[var(--wa-text-tertiary)]">{{
+                      msg.time
+                    }}</span>
+                  </div>
+                </div>
+
+                <!-- Location Message -->
+                <div
+                  v-else-if="msg.type === 'location'"
+                  class="bg-[var(--wa-bubble-incoming)] rounded-lg overflow-hidden shadow-sm max-w-[280px] cursor-pointer hover:opacity-90 transition-opacity"
+                  @click="openLocation(msg.media_url)"
+                >
+                  <!-- Map Preview using Static Maps or Placeholder -->
+                  <div
+                    class="w-full h-[120px] bg-gradient-to-br from-green-800/30 to-blue-900/30 flex items-center justify-center relative"
+                  >
+                    <span class="text-5xl">📍</span>
+                    <div
+                      class="absolute bottom-2 right-2 bg-black/50 text-white text-[10px] px-2 py-1 rounded"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="h-3 w-3 inline mr-1"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                        />
+                      </svg>
+                      Google Maps
+                    </div>
+                  </div>
+                  <!-- Location Info -->
+                  <div class="px-3 py-2">
+                    <p
+                      class="text-[var(--wa-text-primary)] text-sm leading-tight"
+                      v-html="parseWhatsAppFormatting(msg.text)"
+                    ></p>
+                    <div class="flex items-center justify-between mt-1">
+                      <span
+                        v-if="msg.media_caption"
+                        class="text-[10px] text-[var(--wa-text-tertiary)]"
+                        >{{ msg.media_caption }}</span
+                      >
+                      <span
+                        class="text-[11px] text-[var(--wa-text-tertiary)]"
+                        >{{ msg.time }}</span
+                      >
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Text Message: WhatsApp style with inline time -->
+                <div
+                  v-else
+                  class="bg-[var(--wa-bubble-incoming)] text-[var(--wa-text-primary)] px-3 py-1.5 rounded-lg rounded-tl-none shadow-sm max-w-full relative group/msg"
+                >
+                  <!-- Quoted Message Preview (if replying to a message) -->
+                  <div
+                    v-if="
+                      msg.quoted_message_id &&
+                      findQuotedMessage(msg.quoted_message_id)
+                    "
+                    class="bg-black/10 rounded px-2 py-1.5 mb-1.5 border-l-2 border-blue-400 cursor-pointer hover:bg-black/20"
+                    @click="scrollToMessage(msg.quoted_message_id)"
+                  >
+                    <span class="text-[10px] font-medium text-blue-400 block">
+                      {{
+                        findQuotedMessage(msg.quoted_message_id)?.sender ===
+                        "me"
+                          ? "You"
+                          : activeConversation?.contact_name || "Customer"
+                      }}
+                    </span>
+                    <p class="text-xs text-[var(--wa-text-secondary)] truncate">
+                      {{
+                        getMessagePreview(
+                          findQuotedMessage(msg.quoted_message_id)
+                        )
+                      }}
+                    </p>
+                  </div>
+                  <div class="flex flex-wrap items-end gap-x-2">
+                    <p
+                      v-if="msg.text"
+                      class="leading-relaxed break-words whitespace-pre-wrap inline"
+                      v-html="parseWhatsAppFormatting(msg.text)"
+                      :style="{ fontSize: messageFontSize }"
+                    ></p>
+                    <span
+                      class="text-[10px] text-[var(--wa-text-tertiary)] ml-auto whitespace-nowrap leading-[1.8]"
+                      >{{ msg.time }}</span
+                    >
+                  </div>
+                  <!-- Reply button (always visible on mobile, hover on desktop) -->
+                  <button
+                    @click="setReplyTo(msg)"
+                    class="absolute -right-8 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] shadow-md transition-opacity hover:bg-[var(--wa-hover)] md:opacity-0 md:group-hover/msg:opacity-100"
+                    title="Reply"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      class="h-4 w-4 text-[var(--wa-text-secondary)]"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"
+                      />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <!-- My Message -->
+              <div
+                v-else
+                class="flex gap-3 max-w-[75%] self-end items-end justify-end"
+              >
+                <!-- Image Message: Transparent style -->
+                <div
+                  v-if="msg.type === 'image'"
+                  class="rounded-lg overflow-hidden shadow-md max-w-[240px] bg-[var(--wa-bubble-outgoing)]/50"
+                >
+                  <div class="relative">
+                    <img
+                      v-if="msg.media_url"
+                      :src="msg.media_url"
+                      class="w-full cursor-pointer"
+                      @click="openImageLightbox(msg.media_url)"
+                    />
+                    <img
+                      v-else-if="msg.media_id"
+                      :src="`${API_BASE}/CRM/Chat/media?id=${msg.media_id}`"
+                      class="w-full cursor-pointer"
+                      @click="
+                        openImageLightbox(
+                          `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`
+                        )
+                      "
+                    />
+                    <!-- Caption, Time & Status Overlay -->
+                    <div
+                      class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2"
+                    >
+                      <p
+                        v-if="msg.text"
+                        class="text-white text-[13px] leading-tight mb-1"
+                        v-html="parseWhatsAppFormatting(msg.text)"
+                      ></p>
+                      <div class="flex items-center justify-end gap-1">
+                        <span class="text-[10px] text-white/90">{{
+                          msg.time
+                        }}</span>
+                        <!-- Status Icons -->
+                        <span
+                          v-if="msg.status === 'pending'"
+                          class="text-white/70"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-3 w-3"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                            />
                           </svg>
-                       </button>
-                   </div>
-               </div>
-               
-               <!-- My Message -->
-               <div v-else 
-                    class="flex gap-3 max-w-[75%] self-end items-end justify-end"
-               >
-                  <!-- Image Message: Transparent style -->
-                  <div v-if="msg.type === 'image'" class="rounded-lg overflow-hidden shadow-md max-w-[240px] bg-[var(--wa-bubble-outgoing)]/50">
-                     <div class="relative">
-                        <img v-if="msg.media_url" :src="msg.media_url" class="w-full cursor-pointer" @click="openImageLightbox(msg.media_url)">
-                        <img v-else-if="msg.media_id" :src="`${API_BASE}/CRM/Chat/media?id=${msg.media_id}`" class="w-full cursor-pointer" @click="openImageLightbox(`${API_BASE}/CRM/Chat/media?id=${msg.media_id}`)">
-                        <!-- Caption, Time & Status Overlay -->
-                        <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
-                           <p v-if="msg.text" class="text-white text-[13px] leading-tight mb-1" v-html="parseWhatsAppFormatting(msg.text)"></p>
-                           <div class="flex items-center justify-end gap-1">
-                              <span class="text-[10px] text-white/90">{{ msg.time }}</span>
-                              <!-- Status Icons -->
-                              <span v-if="msg.status === 'pending'" class="text-white/70">
-                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                              </span>
-                              <span v-else-if="msg.status === 'sent'" class="text-white/80">
-                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
-                              </span>
-                              <span v-else-if="msg.status === 'delivered'" class="text-white/80">
-                                 <div class="flex -space-x-1">
-                                   <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
-                                   <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
-                                 </div>
-                              </span>
-                              <span v-else-if="msg.status === 'read'" class="text-blue-300">
-                                 <div class="flex -space-x-1">
-                                   <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
-                                   <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
-                                 </div>
-                              </span>
-                              <span v-else-if="msg.status === 'failed'" class="text-red-300">
-                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                              </span>
-                           </div>
+                        </span>
+                        <span
+                          v-else-if="msg.status === 'sent'"
+                          class="text-white/80"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-3 w-3"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                          >
+                            <path
+                              fill-rule="evenodd"
+                              d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                              clip-rule="evenodd"
+                            />
+                          </svg>
+                        </span>
+                        <span
+                          v-else-if="msg.status === 'delivered'"
+                          class="text-white/80"
+                        >
+                          <div class="flex -space-x-1">
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              class="h-3 w-3"
+                              viewBox="0 0 20 20"
+                              fill="currentColor"
+                            >
+                              <path
+                                fill-rule="evenodd"
+                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                clip-rule="evenodd"
+                              />
+                            </svg>
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              class="h-3 w-3"
+                              viewBox="0 0 20 20"
+                              fill="currentColor"
+                            >
+                              <path
+                                fill-rule="evenodd"
+                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                clip-rule="evenodd"
+                              />
+                            </svg>
+                          </div>
+                        </span>
+                        <span
+                          v-else-if="msg.status === 'read'"
+                          class="text-blue-300"
+                        >
+                          <div class="flex -space-x-1">
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              class="h-3 w-3"
+                              viewBox="0 0 20 20"
+                              fill="currentColor"
+                            >
+                              <path
+                                fill-rule="evenodd"
+                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                clip-rule="evenodd"
+                              />
+                            </svg>
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              class="h-3 w-3"
+                              viewBox="0 0 20 20"
+                              fill="currentColor"
+                            >
+                              <path
+                                fill-rule="evenodd"
+                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                clip-rule="evenodd"
+                              />
+                            </svg>
+                          </div>
+                        </span>
+                        <span
+                          v-else-if="msg.status === 'failed'"
+                          class="text-red-300"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-3 w-3"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                            />
+                          </svg>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Sticker Message -->
+                <div
+                  v-else-if="msg.type === 'sticker'"
+                  class="rounded-lg overflow-hidden max-w-[150px]"
+                >
+                  <img
+                    v-if="msg.media_url"
+                    :src="msg.media_url"
+                    class="w-full cursor-pointer"
+                    @click="openImageLightbox(msg.media_url)"
+                    style="background: transparent"
+                  />
+                  <img
+                    v-else-if="msg.media_id"
+                    :src="`${API_BASE}/CRM/Chat/media?id=${msg.media_id}`"
+                    class="w-full cursor-pointer"
+                    @click="
+                      openImageLightbox(
+                        `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`
+                      )
+                    "
+                    style="background: transparent"
+                  />
+                  <div
+                    v-else
+                    class="bg-[var(--wa-bubble-outgoing)] px-3 py-2 rounded-lg"
+                  >
+                    <span class="text-2xl">🎨</span>
+                    <span class="text-[11px] text-white/70 block mt-1">{{
+                      msg.time
+                    }}</span>
+                  </div>
+                </div>
+
+                <!-- Reaction Message (rarely sent by agents, but supported) -->
+                <div
+                  v-else-if="msg.type === 'reaction'"
+                  class="bg-[var(--wa-bubble-outgoing)]/50 px-3 py-2 rounded-full shadow-sm flex items-center gap-2"
+                >
+                  <span class="text-xl">{{
+                    formatReactionText(msg.text)
+                  }}</span>
+                  <span class="text-[10px] text-white/70">{{ msg.time }}</span>
+                </div>
+
+                <!-- Text Message: WhatsApp style with inline time -->
+                <div
+                  v-else
+                  class="bg-[var(--wa-bubble-outgoing)] text-[var(--wa-bubble-out-text)] px-3 py-1.5 rounded-lg rounded-tr-none shadow-sm max-w-full"
+                >
+                  <!-- Quoted Message Preview (if replying to a message) -->
+                  <div
+                    v-if="
+                      msg.quoted_message_id &&
+                      findQuotedMessage(msg.quoted_message_id)
+                    "
+                    class="rounded px-2 py-1.5 mb-1.5 border-l-2 border-[var(--wa-accent-green)] cursor-pointer hover:opacity-80 transition-opacity bg-[var(--wa-bubble-out-quoted-bg)]"
+                    @click="scrollToMessage(msg.quoted_message_id)"
+                  >
+                    <span
+                      class="text-[10px] font-medium text-[var(--wa-accent-green)] block"
+                    >
+                      {{
+                        findQuotedMessage(msg.quoted_message_id)?.sender ===
+                        "me"
+                          ? "You"
+                          : activeConversation?.contact_name || "Customer"
+                      }}
+                    </span>
+                    <p
+                      class="text-xs truncate text-[var(--wa-bubble-out-quoted-text)]"
+                    >
+                      {{
+                        getMessagePreview(
+                          findQuotedMessage(msg.quoted_message_id)
+                        )
+                      }}
+                    </p>
+                  </div>
+                  <div class="flex flex-wrap items-end gap-x-2">
+                    <p
+                      v-if="msg.text"
+                      class="leading-relaxed break-words whitespace-pre-wrap inline"
+                      v-html="parseWhatsAppFormatting(msg.text)"
+                      :style="{ fontSize: messageFontSize }"
+                    ></p>
+                    <span
+                      class="flex items-center gap-1 ml-auto whitespace-nowrap"
+                    >
+                      <span
+                        class="text-[10px] text-[var(--wa-bubble-out-meta)] leading-[1.8]"
+                        >{{ msg.time }}</span
+                      >
+                      <!-- Status Checks -->
+                      <span v-if="msg.status" class="ml-0.5">
+                        <!-- Pending -->
+                        <svg
+                          v-if="msg.status === 'pending'"
+                          xmlns="http://www.w3.org/2000/svg"
+                          class="h-3 w-3 text-[var(--wa-bubble-out-meta)]"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        </svg>
+                        <!-- Sent (Single Tick) -->
+                        <svg
+                          v-else-if="msg.status === 'sent'"
+                          xmlns="http://www.w3.org/2000/svg"
+                          class="h-3.5 w-3.5 text-[var(--wa-bubble-out-meta)]"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M5 13l4 4L19 7"
+                          />
+                        </svg>
+                        <!-- Delivered (Double Tick) -->
+                        <div
+                          v-else-if="msg.status === 'delivered'"
+                          class="relative w-4 h-3"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="absolute left-0 top-0 h-3.5 w-3.5 text-[var(--wa-bubble-out-meta)]"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M5 13l4 4L19 7"
+                            />
+                          </svg>
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="absolute left-1.5 top-0 h-3.5 w-3.5 text-[var(--wa-bubble-out-meta)]"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M5 13l4 4L19 7"
+                            />
+                          </svg>
                         </div>
-                     </div>
+                        <!-- Read (Blue Double Tick) -->
+                        <div
+                          v-else-if="msg.status === 'read'"
+                          class="relative w-4 h-3"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="absolute left-0 top-0 h-3.5 w-3.5 text-blue-400"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M5 13l4 4L19 7"
+                            />
+                          </svg>
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="absolute left-1.5 top-0 h-3.5 w-3.5 text-blue-400"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M5 13l4 4L19 7"
+                            />
+                          </svg>
+                        </div>
+                        <!-- Failed -->
+                        <svg
+                          v-else-if="msg.status === 'failed'"
+                          xmlns="http://www.w3.org/2000/svg"
+                          class="h-3 w-3 text-red-300"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        </svg>
+                      </span>
+                    </span>
                   </div>
-                  
-                  <!-- Sticker Message -->
-                  <div v-else-if="msg.type === 'sticker'" class="rounded-lg overflow-hidden max-w-[150px]">
-                     <img v-if="msg.media_url" :src="msg.media_url" class="w-full cursor-pointer" @click="openImageLightbox(msg.media_url)" style="background: transparent;">
-                     <img v-else-if="msg.media_id" :src="`${API_BASE}/CRM/Chat/media?id=${msg.media_id}`" class="w-full cursor-pointer" @click="openImageLightbox(`${API_BASE}/CRM/Chat/media?id=${msg.media_id}`)" style="background: transparent;">
-                     <div v-else class="bg-[var(--wa-bubble-outgoing)] px-3 py-2 rounded-lg">
-                        <span class="text-2xl">🎨</span>
-                        <span class="text-[11px] text-white/70 block mt-1">{{ msg.time }}</span>
-                     </div>
-                  </div>
-                  
-                  <!-- Reaction Message (rarely sent by agents, but supported) -->
-                  <div v-else-if="msg.type === 'reaction'" class="bg-[var(--wa-bubble-outgoing)]/50 px-3 py-2 rounded-full shadow-sm flex items-center gap-2">
-                     <span class="text-xl">{{ formatReactionText(msg.text) }}</span>
-                     <span class="text-[10px] text-white/70">{{ msg.time }}</span>
-                  </div>
-                  
-                   <!-- Text Message: WhatsApp style with inline time -->
-                   <div v-else class="bg-[var(--wa-bubble-outgoing)] text-[var(--wa-bubble-out-text)] px-3 py-1.5 rounded-lg rounded-tr-none shadow-sm max-w-full">
-                      <!-- Quoted Message Preview (if replying to a message) -->
-                      <div v-if="msg.quoted_message_id && findQuotedMessage(msg.quoted_message_id)" 
-                           class="rounded px-2 py-1.5 mb-1.5 border-l-2 border-[var(--wa-accent-green)] cursor-pointer hover:opacity-80 transition-opacity bg-[var(--wa-bubble-out-quoted-bg)]"
-                           @click="scrollToMessage(msg.quoted_message_id)">
-                         <span class="text-[10px] font-medium text-[var(--wa-accent-green)] block">
-                            {{ findQuotedMessage(msg.quoted_message_id)?.sender === 'me' ? 'You' : activeConversation?.contact_name || 'Customer' }}
-                         </span>
-                         <p class="text-xs truncate text-[var(--wa-bubble-out-quoted-text)]">{{ getMessagePreview(findQuotedMessage(msg.quoted_message_id)) }}</p>
-                      </div>
-                      <div class="flex flex-wrap items-end gap-x-2">
-                         <p v-if="msg.text" class="leading-relaxed break-words whitespace-pre-wrap inline" v-html="parseWhatsAppFormatting(msg.text)" :style="{ fontSize: messageFontSize }"></p>
-                         <span class="flex items-center gap-1 ml-auto whitespace-nowrap">
-                            <span class="text-[10px] text-[var(--wa-bubble-out-meta)] leading-[1.8]">{{ msg.time }}</span>
-                            <!-- Status Checks -->
-                            <span v-if="msg.status" class="ml-0.5">
-                               <!-- Pending -->
-                               <svg v-if="msg.status === 'pending'" xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-[var(--wa-bubble-out-meta)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                               </svg>
-                               <!-- Sent (Single Tick) -->
-                               <svg v-else-if="msg.status === 'sent'" xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-[var(--wa-bubble-out-meta)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                               </svg>
-                               <!-- Delivered (Double Tick) -->
-                               <div v-else-if="msg.status === 'delivered'" class="relative w-4 h-3">
-                                  <svg xmlns="http://www.w3.org/2000/svg" class="absolute left-0 top-0 h-3.5 w-3.5 text-[var(--wa-bubble-out-meta)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                                  </svg>
-                                  <svg xmlns="http://www.w3.org/2000/svg" class="absolute left-1.5 top-0 h-3.5 w-3.5 text-[var(--wa-bubble-out-meta)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                                  </svg>
-                               </div>
-                               <!-- Read (Blue Double Tick) -->
-                               <div v-else-if="msg.status === 'read'" class="relative w-4 h-3">
-                                  <svg xmlns="http://www.w3.org/2000/svg" class="absolute left-0 top-0 h-3.5 w-3.5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                                  </svg>
-                                  <svg xmlns="http://www.w3.org/2000/svg" class="absolute left-1.5 top-0 h-3.5 w-3.5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                                  </svg>
-                               </div>
-                               <!-- Failed -->
-                               <svg v-else-if="msg.status === 'failed'" xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-red-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                            </span>
-                         </span>
-                      </div>
-                   </div>
-               </div>
-               
-             </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-        
+
         <!-- Input Area - ABSOLUTE BOTTOM -->
-        <div class="absolute bottom-0 left-0 right-0 p-4 bg-[var(--wa-header-bg)] border-t border-[var(--wa-border)] z-30">
-           
-           <!-- Case 1: Conversation Closed -->
-           <button 
-              v-if="activeConversation.status === 'closed'" 
-              @click="refreshActiveChat"
-              class="flex items-center justify-center gap-2 p-3 bg-[var(--wa-bg-tertiary)] hover:bg-[var(--wa-hover)] rounded-lg border border-[var(--wa-border)] w-full transition-all active:scale-[0.99] group"
-              title="Click to refresh chat data"
-           >
-               <div v-if="isRefreshingChat" class="w-4 h-4 border-2 border-[var(--wa-text-tertiary)] border-t-[var(--wa-accent-green)] rounded-full animate-spin"></div>
-               <template v-else>
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--wa-text-tertiary)] group-hover:text-[var(--wa-accent-green)] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
-                  <span class="text-[var(--wa-text-secondary)] text-sm font-medium group-hover:text-[var(--wa-text-primary)] transition-colors">CSW Closed - Refresh</span>
-               </template>
-           </button>
+        <div
+          class="absolute bottom-0 left-0 right-0 p-4 bg-[var(--wa-header-bg)] border-t border-[var(--wa-border)] z-30"
+        >
+          <!-- Case 1: Conversation Closed -->
+          <button
+            v-if="activeConversation.status === 'closed'"
+            @click="refreshActiveChat"
+            class="flex items-center justify-center gap-2 p-3 bg-[var(--wa-bg-tertiary)] hover:bg-[var(--wa-hover)] rounded-lg border border-[var(--wa-border)] w-full transition-all active:scale-[0.99] group"
+            title="Click to refresh chat data"
+          >
+            <div
+              v-if="isRefreshingChat"
+              class="w-4 h-4 border-2 border-[var(--wa-text-tertiary)] border-t-[var(--wa-accent-green)] rounded-full animate-spin"
+            ></div>
+            <template v-else>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-4 w-4 text-[var(--wa-text-tertiary)] group-hover:text-[var(--wa-accent-green)] transition-colors"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                />
+              </svg>
+              <span
+                class="text-[var(--wa-text-secondary)] text-sm font-medium group-hover:text-[var(--wa-text-primary)] transition-colors"
+                >CSW Closed - Refresh</span
+              >
+            </template>
+          </button>
 
-           <!-- Case 2: Active Chat Input -->
-           <div v-else>
-               <!-- Image Preview Modal -->
-               <div v-if="showImagePreview" class="absolute bottom-full left-4 right-4 mb-2 bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-xl p-4 shadow-2xl">
-                  <div class="flex flex-col gap-3">
-                     <!-- Image with close button -->
-                     <div class="relative mx-auto">
-                        <img :src="imagePreview" alt="Preview" class="w-48 h-48 object-cover rounded-lg border border-slate-600">
-                        <button @click="cancelImage" class="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1.5 shadow-lg">
-                           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                           </svg>
-                        </button>
-                     </div>
-                     
-                     <!-- Caption and Send Button Below -->
-                     <div class="flex flex-col gap-2">
-                        <input 
-                           v-model="imageCaption" 
-                           type="text" 
-                           placeholder="Add a caption (optional)..."
-                           class="bg-[var(--wa-bg-secondary)] border border-[var(--wa-border)] rounded-lg px-3 py-2 text-sm text-[var(--wa-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--wa-accent-green)]"
-                        >
-                        <button 
-                           @click="sendImage" 
-                           :disabled="isUploadingImage"
-                           class="bg-[var(--wa-accent-green)] hover:bg-[#00a884]/90 text-black px-4 py-2.5 rounded-lg text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50"
-                        >
-                           <span v-if="isUploadingImage" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                           {{ isUploadingImage ? 'Sending...' : 'Send Image' }}
-                        </button>
-                     </div>
-                  </div>
-               </div>
-                
-                <!-- Reply Preview Panel (when replying to a message) -->
-                <div v-if="replyToMessage" class="absolute bottom-full left-4 right-4 mb-2 bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-xl shadow-2xl overflow-hidden">
-                   <div class="flex items-stretch">
-                      <!-- Green accent bar -->
-                      <div class="w-1 bg-[var(--wa-accent-green)]"></div>
-                      <!-- Content -->
-                      <div class="flex-1 px-3 py-2 min-w-0">
-                         <div class="flex items-center gap-2 mb-0.5">
-                            <span class="text-xs font-medium" :class="replyToMessage.sender === 'me' ? 'text-[var(--wa-accent-green)]' : 'text-blue-400'">
-                               {{ replyToMessage.sender === 'me' ? 'You' : activeConversation?.contact_name || 'Customer' }}
-                            </span>
-                         </div>
-                         <p class="text-sm text-[var(--wa-text-secondary)] truncate">{{ getMessagePreview(replyToMessage) }}</p>
-                      </div>
-                      <!-- Close button -->
-                      <button @click="cancelReply" class="px-3 text-[var(--wa-text-tertiary)] hover:text-red-400 transition-colors">
-                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                         </svg>
-                      </button>
-                   </div>
-                </div>
-
-                <!-- Emoji Picker Panel -->
-                <div v-if="showEmojiPicker" class="absolute bottom-full left-0 right-0 mb-2 mx-4 bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-xl shadow-2xl overflow-hidden" @click.stop>
-                   <!-- Category Tabs -->
-                   <div class="flex items-center border-b border-[var(--wa-border)] px-1 py-1.5 overflow-x-auto custom-scrollbar">
-                      <!-- Recent Tab -->
-                      <button 
-                         v-if="recentEmojis.length > 0"
-                         @click="activeEmojiCategory = 'recent'"
-                         class="flex-shrink-0 p-2 rounded-lg text-xl transition-colors"
-                         :class="activeEmojiCategory === 'recent' ? 'bg-[var(--wa-accent-green)]/20 text-[var(--wa-accent-green)]' : 'text-[var(--wa-text-secondary)] hover:bg-[var(--wa-hover)]'"
-                         title="Recent"
-                      >🕐</button>
-                      
-                      <!-- Category Tabs -->
-                      <button 
-                         v-for="(category, key) in emojiCategories" 
-                         :key="key"
-                         @click="activeEmojiCategory = key"
-                         class="flex-shrink-0 p-2 rounded-lg text-xl transition-colors"
-                         :class="activeEmojiCategory === key ? 'bg-[var(--wa-accent-green)]/20 text-[var(--wa-accent-green)]' : 'text-[var(--wa-text-secondary)] hover:bg-[var(--wa-hover)]'"
-                         :title="category.title"
-                      >{{ category.label }}</button>
-                      
-                      <!-- Close Button -->
-                      <button @click="showEmojiPicker = false" class="flex-shrink-0 ml-auto p-2 text-[var(--wa-text-tertiary)] hover:text-red-400 hover:bg-[var(--wa-hover)] rounded-lg transition-colors">
-                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                         </svg>
-                      </button>
-                   </div>
-                   
-                   <!-- Emoji Grid -->
-                   <div class="h-52 overflow-y-auto custom-scrollbar p-2">
-                      <!-- Recent Emojis -->
-                      <div v-if="activeEmojiCategory === 'recent' && recentEmojis.length > 0">
-                         <p class="text-xs text-[var(--wa-text-tertiary)] mb-2 px-1">Recently Used</p>
-                         <div class="grid grid-cols-8 gap-1">
-                            <button 
-                               v-for="emoji in recentEmojis" 
-                               :key="emoji"
-                               @click="selectEmoji(emoji)"
-                               class="text-2xl p-1.5 hover:bg-[var(--wa-hover)] rounded-lg transition-colors active:scale-90"
-                            >{{ emoji }}</button>
-                         </div>
-                      </div>
-                      
-                      <!-- Category Emojis -->
-                      <div v-else-if="emojiCategories[activeEmojiCategory]">
-                         <p class="text-xs text-[var(--wa-text-tertiary)] mb-2 px-1">{{ emojiCategories[activeEmojiCategory].title }}</p>
-                         <div class="grid grid-cols-8 gap-1">
-                            <button 
-                               v-for="emoji in emojiCategories[activeEmojiCategory].emojis" 
-                               :key="emoji"
-                               @click="selectEmoji(emoji)"
-                               class="text-2xl p-1.5 hover:bg-[var(--wa-hover)] rounded-lg transition-colors active:scale-90"
-                            >{{ emoji }}</button>
-                         </div>
-                      </div>
-                   </div>
-                </div>
-
-                <!-- Quick Reply Panel (triggered by typing /) -->
-                <div v-if="showQuickReplies && filteredQuickReplies.length > 0" class="absolute bottom-full left-0 right-0 mb-2 mx-4 bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-xl shadow-2xl max-h-64 overflow-y-auto">
-                   <div class="p-2">
-                      <div class="flex items-center justify-between px-2 py-1 mb-1">
-                         <span class="text-xs font-medium text-[var(--wa-text-secondary)]">
-                            <span class="text-[var(--wa-accent-green)] font-mono">/{{ quickReplySearchQuery }}</span>
-                            <span v-if="quickReplySearchQuery"> - {{ filteredQuickReplies.length }} hasil</span>
-                            <span v-else>Quick Replies (ketik untuk filter)</span>
-                         </span>
-                         <button @click="showQuickReplies = false; messageInput = ''" class="p-1 hover:bg-[var(--wa-hover)] rounded">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--wa-text-tertiary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                         </button>
-                      </div>
-                      <div class="space-y-1">
-                         <button 
-                            v-for="qr in filteredQuickReplies" 
-                            :key="qr.id"
-                            @click="selectQuickReply(qr)"
-                            class="w-full text-left px-3 py-2 rounded-lg hover:bg-[var(--wa-hover)] transition-colors group"
-                         >
-                            <div class="flex items-center gap-2">
-                               <span class="text-xs font-mono text-[var(--wa-accent-green)]">{{ qr.shortcut }}</span>
-                               <span class="text-sm text-[var(--wa-text-primary)]">{{ qr.title }}</span>
-                            </div>
-                            <p class="text-xs text-[var(--wa-text-tertiary)] mt-0.5 line-clamp-1">{{ qr.message.substring(0, 50) }}...</p>
-                         </button>
-                      </div>
-                   </div>
-                </div>
-               
-               <div class="flex gap-2 items-end">
-                  <!-- Input Container (like WhatsApp) -->
-                  <div class="flex-1 flex items-end bg-[var(--wa-input-bg)] rounded-3xl border border-[var(--wa-border)] overflow-hidden">
-                     <input 
-                        type="file" 
-                        ref="fileInput" 
-                        @change="selectImage" 
-                        accept="image/*" 
-                        class="hidden"
-                     >
-                     
-                     <!-- Emoji Button (Left) -->
-                     <button @click.stop="toggleEmojiPicker" class="p-3 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)] transition-colors flex-shrink-0" :class="showEmojiPicker ? 'text-[var(--wa-accent-green)]' : ''" title="Emoji">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                     </button>
-
-                     <!-- Text Input (Middle - Flexible) -->
-                     <textarea 
-                        ref="messageTextarea"
-                        v-model="messageInput"
-                        @input="autoResizeTextarea"
-                        @keydown.ctrl.enter.prevent="sendMessage"
-                        placeholder="Ketik pesan..." 
-                        class="flex-1 bg-transparent text-[var(--wa-text-primary)] placeholder:text-[var(--wa-text-tertiary)] focus:outline-none resize-none py-3 text-sm overflow-y-auto min-w-0"
-                        style="max-height: 150px;"
-                        rows="1"
-                     ></textarea>
-                     
-                     <!-- Attach Button (Right) -->
-                     <button @click="openImagePicker" class="p-3 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)] transition-colors flex-shrink-0" title="Attach Image">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
-                     </button>
-                  </div>
-                  
-                  <!-- Send Button (Outside - Circle) -->
-                  <button @click="sendMessage" class="p-3 bg-[var(--wa-accent-green)] hover:bg-[#00a884]/90 text-black rounded-full transition-colors flex-shrink-0 shadow-lg">
-                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+          <!-- Case 2: Active Chat Input -->
+          <div v-else>
+            <!-- Image Preview Modal -->
+            <div
+              v-if="showImagePreview"
+              class="absolute bottom-full left-4 right-4 mb-2 bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-xl p-4 shadow-2xl"
+            >
+              <div class="flex flex-col gap-3">
+                <!-- Image with close button -->
+                <div class="relative mx-auto">
+                  <img
+                    :src="imagePreview"
+                    alt="Preview"
+                    class="w-48 h-48 object-cover rounded-lg border border-slate-600"
+                  />
+                  <button
+                    @click="cancelImage"
+                    class="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1.5 shadow-lg"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      class="h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
                   </button>
-               </div>
-           </div>
+                </div>
+
+                <!-- Caption and Send Button Below -->
+                <div class="flex flex-col gap-2">
+                  <input
+                    v-model="imageCaption"
+                    type="text"
+                    placeholder="Add a caption (optional)..."
+                    class="bg-[var(--wa-bg-secondary)] border border-[var(--wa-border)] rounded-lg px-3 py-2 text-sm text-[var(--wa-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--wa-accent-green)]"
+                  />
+                  <button
+                    @click="sendImage"
+                    :disabled="isUploadingImage"
+                    class="bg-[var(--wa-accent-green)] hover:bg-[#00a884]/90 text-black px-4 py-2.5 rounded-lg text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    <span
+                      v-if="isUploadingImage"
+                      class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"
+                    ></span>
+                    {{ isUploadingImage ? "Sending..." : "Send Image" }}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Reply Preview Panel (when replying to a message) -->
+            <div
+              v-if="replyToMessage"
+              class="absolute bottom-full left-4 right-4 mb-2 bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-xl shadow-2xl overflow-hidden"
+            >
+              <div class="flex items-stretch">
+                <!-- Green accent bar -->
+                <div class="w-1 bg-[var(--wa-accent-green)]"></div>
+                <!-- Content -->
+                <div class="flex-1 px-3 py-2 min-w-0">
+                  <div class="flex items-center gap-2 mb-0.5">
+                    <span
+                      class="text-xs font-medium"
+                      :class="
+                        replyToMessage.sender === 'me'
+                          ? 'text-[var(--wa-accent-green)]'
+                          : 'text-blue-400'
+                      "
+                    >
+                      {{
+                        replyToMessage.sender === "me"
+                          ? "You"
+                          : activeConversation?.contact_name || "Customer"
+                      }}
+                    </span>
+                  </div>
+                  <p class="text-sm text-[var(--wa-text-secondary)] truncate">
+                    {{ getMessagePreview(replyToMessage) }}
+                  </p>
+                </div>
+                <!-- Close button -->
+                <button
+                  @click="cancelReply"
+                  class="px-3 text-[var(--wa-text-tertiary)] hover:text-red-400 transition-colors"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Emoji Picker Panel -->
+            <div
+              v-if="showEmojiPicker"
+              class="absolute bottom-full left-0 right-0 mb-2 mx-4 bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-xl shadow-2xl overflow-hidden"
+              @click.stop
+            >
+              <!-- Category Tabs -->
+              <div
+                class="flex items-center border-b border-[var(--wa-border)] px-1 py-1.5 overflow-x-auto custom-scrollbar"
+              >
+                <!-- Recent Tab -->
+                <button
+                  v-if="recentEmojis.length > 0"
+                  @click="activeEmojiCategory = 'recent'"
+                  class="flex-shrink-0 p-2 rounded-lg text-xl transition-colors"
+                  :class="
+                    activeEmojiCategory === 'recent'
+                      ? 'bg-[var(--wa-accent-green)]/20 text-[var(--wa-accent-green)]'
+                      : 'text-[var(--wa-text-secondary)] hover:bg-[var(--wa-hover)]'
+                  "
+                  title="Recent"
+                >
+                  🕐
+                </button>
+
+                <!-- Category Tabs -->
+                <button
+                  v-for="(category, key) in emojiCategories"
+                  :key="key"
+                  @click="activeEmojiCategory = key"
+                  class="flex-shrink-0 p-2 rounded-lg text-xl transition-colors"
+                  :class="
+                    activeEmojiCategory === key
+                      ? 'bg-[var(--wa-accent-green)]/20 text-[var(--wa-accent-green)]'
+                      : 'text-[var(--wa-text-secondary)] hover:bg-[var(--wa-hover)]'
+                  "
+                  :title="category.title"
+                >
+                  {{ category.label }}
+                </button>
+
+                <!-- Close Button -->
+                <button
+                  @click="showEmojiPicker = false"
+                  class="flex-shrink-0 ml-auto p-2 text-[var(--wa-text-tertiary)] hover:text-red-400 hover:bg-[var(--wa-hover)] rounded-lg transition-colors"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+
+              <!-- Emoji Grid -->
+              <div class="h-52 overflow-y-auto custom-scrollbar p-2">
+                <!-- Recent Emojis -->
+                <div
+                  v-if="
+                    activeEmojiCategory === 'recent' && recentEmojis.length > 0
+                  "
+                >
+                  <p class="text-xs text-[var(--wa-text-tertiary)] mb-2 px-1">
+                    Recently Used
+                  </p>
+                  <div class="grid grid-cols-8 gap-1">
+                    <button
+                      v-for="emoji in recentEmojis"
+                      :key="emoji"
+                      @click="selectEmoji(emoji)"
+                      class="text-2xl p-1.5 hover:bg-[var(--wa-hover)] rounded-lg transition-colors active:scale-90"
+                    >
+                      {{ emoji }}
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Category Emojis -->
+                <div v-else-if="emojiCategories[activeEmojiCategory]">
+                  <p class="text-xs text-[var(--wa-text-tertiary)] mb-2 px-1">
+                    {{ emojiCategories[activeEmojiCategory].title }}
+                  </p>
+                  <div class="grid grid-cols-8 gap-1">
+                    <button
+                      v-for="emoji in emojiCategories[activeEmojiCategory]
+                        .emojis"
+                      :key="emoji"
+                      @click="selectEmoji(emoji)"
+                      class="text-2xl p-1.5 hover:bg-[var(--wa-hover)] rounded-lg transition-colors active:scale-90"
+                    >
+                      {{ emoji }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Quick Reply Panel (triggered by typing /) -->
+            <div
+              v-if="showQuickReplies && filteredQuickReplies.length > 0"
+              class="absolute bottom-full left-0 right-0 mb-2 mx-4 bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-xl shadow-2xl max-h-64 overflow-y-auto"
+            >
+              <div class="p-2">
+                <div class="flex items-center justify-between px-2 py-1 mb-1">
+                  <span
+                    class="text-xs font-medium text-[var(--wa-text-secondary)]"
+                  >
+                    <span class="text-[var(--wa-accent-green)] font-mono"
+                      >/{{ quickReplySearchQuery }}</span
+                    >
+                    <span v-if="quickReplySearchQuery">
+                      - {{ filteredQuickReplies.length }} hasil</span
+                    >
+                    <span v-else>Quick Replies (ketik untuk filter)</span>
+                  </span>
+                  <button
+                    @click="
+                      showQuickReplies = false;
+                      messageInput = '';
+                    "
+                    class="p-1 hover:bg-[var(--wa-hover)] rounded"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      class="h-4 w-4 text-[var(--wa-text-tertiary)]"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  </button>
+                </div>
+                <div class="space-y-1">
+                  <button
+                    v-for="qr in filteredQuickReplies"
+                    :key="qr.id"
+                    @click="selectQuickReply(qr)"
+                    class="w-full text-left px-3 py-2 rounded-lg hover:bg-[var(--wa-hover)] transition-colors group"
+                  >
+                    <div class="flex items-center gap-2">
+                      <span
+                        class="text-xs font-mono text-[var(--wa-accent-green)]"
+                        >{{ qr.shortcut }}</span
+                      >
+                      <span class="text-sm text-[var(--wa-text-primary)]">{{
+                        qr.title
+                      }}</span>
+                    </div>
+                    <p
+                      class="text-xs text-[var(--wa-text-tertiary)] mt-0.5 line-clamp-1"
+                    >
+                      {{ qr.message.substring(0, 50) }}...
+                    </p>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex gap-2 items-end">
+              <!-- Input Container (like WhatsApp) -->
+              <div
+                class="flex-1 flex items-end bg-[var(--wa-input-bg)] rounded-3xl border border-[var(--wa-border)] overflow-hidden"
+              >
+                <input
+                  type="file"
+                  ref="fileInput"
+                  @change="selectImage"
+                  accept="image/*"
+                  class="hidden"
+                />
+
+                <!-- Emoji Button (Left) -->
+                <button
+                  @click.stop="toggleEmojiPicker"
+                  class="p-3 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)] transition-colors flex-shrink-0"
+                  :class="
+                    showEmojiPicker ? 'text-[var(--wa-accent-green)]' : ''
+                  "
+                  title="Emoji"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-6 w-6"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                </button>
+
+                <!-- Text Input (Middle - Flexible) -->
+                <textarea
+                  ref="messageTextarea"
+                  v-model="messageInput"
+                  @input="autoResizeTextarea"
+                  @keydown.ctrl.enter.prevent="sendMessage"
+                  placeholder="Ketik pesan..."
+                  class="flex-1 bg-transparent text-[var(--wa-text-primary)] placeholder:text-[var(--wa-text-tertiary)] focus:outline-none resize-none py-3 text-sm overflow-y-auto min-w-0"
+                  style="max-height: 150px"
+                  rows="1"
+                ></textarea>
+
+                <!-- Attach Button (Right) -->
+                <button
+                  @click="openImagePicker"
+                  class="p-3 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)] transition-colors flex-shrink-0"
+                  title="Attach Image"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-6 w-6"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
+                    />
+                  </svg>
+                </button>
+              </div>
+
+              <!-- Send Button (Outside - Circle) -->
+              <button
+                @click="sendMessage"
+                class="p-3 bg-[var(--wa-accent-green)] hover:bg-[#00a884]/90 text-black rounded-full transition-colors flex-shrink-0 shadow-lg"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-6 w-6"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                >
+                  <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                </svg>
+              </button>
+            </div>
+          </div>
         </div>
-        
       </div>
-      
+
       <div v-else class="w-full h-full relative z-10 flex flex-col">
-         <div class="flex-1 flex flex-col items-center justify-center text-[var(--wa-text-tertiary)] w-full h-full">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-24 w-24 mb-4 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-            </svg>
-            <p class="text-lg text-[var(--wa-text-secondary)]">Select a conversation to start chatting</p>
-         </div>
+        <div
+          class="flex-1 flex flex-col items-center justify-center text-[var(--wa-text-tertiary)] w-full h-full"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-24 w-24 mb-4 opacity-20"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+            />
+          </svg>
+          <p class="text-lg text-[var(--wa-text-secondary)]">
+            Select a conversation to start chatting
+          </p>
+        </div>
       </div>
-      
-      
     </main>
     <!-- Exit Toast -->
-    <div v-if="showExitToast" class="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-slate-800/90 backdrop-blur text-white px-6 py-3 rounded-full shadow-xl border border-slate-700/50 z-[100] transition-opacity duration-300 pointer-events-none">
-        <span class="text-sm font-medium">Press back again to exit</span>
+    <div
+      v-if="showExitToast"
+      class="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-slate-800/90 backdrop-blur text-white px-6 py-3 rounded-full shadow-xl border border-slate-700/50 z-[100] transition-opacity duration-300 pointer-events-none"
+    >
+      <span class="text-sm font-medium">Press back again to exit</span>
     </div>
 
     <!-- Image Lightbox Modal (for viewing images in-app, Android back button friendly) -->
-    <div 
-      v-if="showImageLightbox" 
+    <div
+      v-if="showImageLightbox"
       class="fixed inset-0 bg-black z-[600] flex items-center justify-center p-2"
       @click="closeImageLightbox"
     >
       <!-- Close Button -->
-      <button 
+      <button
         @click.stop="closeImageLightbox"
         class="absolute top-2 right-2 p-2 bg-white/20 hover:bg-white/30 rounded-full text-white transition-colors z-20"
-        style="top: env(safe-area-inset-top, 8px);"
+        style="top: env(safe-area-inset-top, 8px)"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          class="h-6 w-6"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M6 18L18 6M6 6l12 12"
+          />
         </svg>
       </button>
-      
+
       <!-- Image Container -->
       <div class="w-full h-full flex items-center justify-center">
-        <img 
-          :src="lightboxImageUrl" 
+        <img
+          :src="lightboxImageUrl"
           class="block"
-          style="max-width: 95vw; max-height: 90vh; width: auto; height: auto; object-fit: contain;"
+          style="
+            max-width: 95vw;
+            max-height: 90vh;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+          "
           @click.stop
           alt="Image Preview"
-        >
+        />
       </div>
-      
+
       <!-- Hint Text -->
-      <div class="absolute bottom-2 left-1/2 transform -translate-x-1/2 text-white/50 text-xs bg-black/50 px-3 py-1 rounded-full">
+      <div
+        class="absolute bottom-2 left-1/2 transform -translate-x-1/2 text-white/50 text-xs bg-black/50 px-3 py-1 rounded-full"
+      >
         Tap anywhere or press back to close
       </div>
     </div>
 
     <!-- Settings Modal -->
-    <div v-if="showSettingsModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-[500] flex items-center justify-center p-4" @click="showSettingsModal = false">
-      <div class="bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-2xl shadow-2xl max-w-md w-full p-6" @click.stop>
+    <div
+      v-if="showSettingsModal"
+      class="fixed inset-0 bg-black/50 backdrop-blur-sm z-[500] flex items-center justify-center p-4"
+      @click="showSettingsModal = false"
+    >
+      <div
+        class="bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-2xl shadow-2xl max-w-md w-full p-6"
+        @click.stop
+      >
         <!-- Header -->
         <div class="flex items-center justify-between mb-6">
-          <h2 class="text-xl font-semibold text-[var(--wa-text-primary)]">Settings</h2>
-          <button @click="showSettingsModal = false" class="p-2 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)] hover:bg-[var(--wa-hover)] rounded-lg transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          <h2 class="text-xl font-semibold text-[var(--wa-text-primary)]">
+            Settings
+          </h2>
+          <button
+            @click="showSettingsModal = false"
+            class="p-2 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)] hover:bg-[var(--wa-hover)] rounded-lg transition-colors"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>
-        
+
         <!-- Font Size Setting -->
         <div class="space-y-4">
           <div>
-            <h3 class="text-sm font-medium text-[var(--wa-text-secondary)] mb-3">Font Size</h3>
+            <h3
+              class="text-sm font-medium text-[var(--wa-text-secondary)] mb-3"
+            >
+              Font Size
+            </h3>
             <div class="space-y-2">
               <!-- Medium Option (Default) -->
-              <button 
+              <button
                 @click="setFontSize('medium')"
                 class="w-full flex items-center justify-between p-3 rounded-lg border transition-all"
-                :class="fontSize === 'medium' ? 'border-[var(--wa-accent-green)] bg-[var(--wa-accent-green)]/10' : 'border-[var(--wa-border)] hover:bg-[var(--wa-hover)]'"
+                :class="
+                  fontSize === 'medium'
+                    ? 'border-[var(--wa-accent-green)] bg-[var(--wa-accent-green)]/10'
+                    : 'border-[var(--wa-border)] hover:bg-[var(--wa-hover)]'
+                "
               >
-                <span class="text-[var(--wa-text-primary)]" style="font-size: 14.2px;">Medium (Default)</span>
-                <svg v-if="fontSize === 'medium'" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[var(--wa-accent-green)]" viewBox="0 0 20 20" fill="currentColor">
-                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                <span
+                  class="text-[var(--wa-text-primary)]"
+                  style="font-size: 14.2px"
+                  >Medium (Default)</span
+                >
+                <svg
+                  v-if="fontSize === 'medium'"
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-5 w-5 text-[var(--wa-accent-green)]"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                    clip-rule="evenodd"
+                  />
                 </svg>
               </button>
-              
+
               <!-- Large Option -->
-              <button 
+              <button
                 @click="setFontSize('large')"
                 class="w-full flex items-center justify-between p-3 rounded-lg border transition-all"
-                :class="fontSize === 'large' ? 'border-[var(--wa-accent-green)] bg-[var(--wa-accent-green)]/10' : 'border-[var(--wa-border)] hover:bg-[var(--wa-hover)]'"
+                :class="
+                  fontSize === 'large'
+                    ? 'border-[var(--wa-accent-green)] bg-[var(--wa-accent-green)]/10'
+                    : 'border-[var(--wa-border)] hover:bg-[var(--wa-hover)]'
+                "
               >
-                <span class="text-[var(--wa-text-primary)]" style="font-size: 16px;">Large</span>
-                <svg v-if="fontSize === 'large'" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[var(--wa-accent-green)]" viewBox="0 0 20 20" fill="currentColor">
-                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                <span
+                  class="text-[var(--wa-text-primary)]"
+                  style="font-size: 16px"
+                  >Large</span
+                >
+                <svg
+                  v-if="fontSize === 'large'"
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-5 w-5 text-[var(--wa-accent-green)]"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                    clip-rule="evenodd"
+                  />
                 </svg>
               </button>
             </div>
           </div>
-          
+
           <!-- Theme Setting -->
           <div class="mt-6 pt-6 border-t border-[var(--wa-border)]">
-            <h3 class="text-sm font-medium text-[var(--wa-text-secondary)] mb-3">Theme</h3>
-            <div class="flex items-center justify-between p-3 rounded-lg border border-[var(--wa-border)]">
+            <h3
+              class="text-sm font-medium text-[var(--wa-text-secondary)] mb-3"
+            >
+              Theme
+            </h3>
+            <div
+              class="flex items-center justify-between p-3 rounded-lg border border-[var(--wa-border)]"
+            >
               <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-full bg-[var(--wa-bg-tertiary)] flex items-center justify-center">
-                  <svg v-if="theme === 'light'" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-500" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd" />
+                <div
+                  class="w-10 h-10 rounded-full bg-[var(--wa-bg-tertiary)] flex items-center justify-center"
+                >
+                  <svg
+                    v-if="theme === 'light'"
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-5 w-5 text-yellow-500"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      fill-rule="evenodd"
+                      d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"
+                      clip-rule="evenodd"
+                    />
                   </svg>
-                  <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+                  <svg
+                    v-else
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-5 w-5 text-indigo-400"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"
+                    />
                   </svg>
                 </div>
                 <div>
-                  <p class="text-[var(--wa-text-primary)] font-medium">{{ theme === 'dark' ? 'Dark Mode' : 'Light Mode' }}</p>
-                  <p class="text-xs text-[var(--wa-text-tertiary)]">Ubah tampilan aplikasi</p>
+                  <p class="text-[var(--wa-text-primary)] font-medium">
+                    {{ theme === "dark" ? "Dark Mode" : "Light Mode" }}
+                  </p>
+                  <p class="text-xs text-[var(--wa-text-tertiary)]">
+                    Ubah tampilan aplikasi
+                  </p>
                 </div>
               </div>
-              <button 
+              <button
                 @click="toggleTheme"
                 class="relative w-12 h-6 rounded-full transition-colors duration-300"
                 :class="theme === 'dark' ? 'bg-indigo-600' : 'bg-yellow-500'"
               >
-                <div 
+                <div
                   class="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300"
                   :class="theme === 'dark' ? 'left-0.5' : 'left-6'"
                 ></div>
               </button>
             </div>
           </div>
-          
+
           <!-- Notification Sound Setting -->
           <div class="mt-6 pt-6 border-t border-[var(--wa-border)]">
-            <h3 class="text-sm font-medium text-[var(--wa-text-secondary)] mb-3">Notification Sound</h3>
-            <div class="flex items-center justify-between p-3 rounded-lg border border-[var(--wa-border)]">
+            <h3
+              class="text-sm font-medium text-[var(--wa-text-secondary)] mb-3"
+            >
+              Notification Sound
+            </h3>
+            <div
+              class="flex items-center justify-between p-3 rounded-lg border border-[var(--wa-border)]"
+            >
               <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-full bg-[var(--wa-bg-tertiary)] flex items-center justify-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[var(--wa-accent-green)]" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+                <div
+                  class="w-10 h-10 rounded-full bg-[var(--wa-bg-tertiary)] flex items-center justify-center"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-5 w-5 text-[var(--wa-accent-green)]"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z"
+                    />
                   </svg>
                 </div>
                 <div>
-                  <p class="text-[var(--wa-text-primary)] font-medium">{{ notificationSoundEnabled ? 'Sound On' : 'Sound Off' }}</p>
-                  <p class="text-xs text-[var(--wa-text-tertiary)]">Bunyi saat pesan masuk</p>
+                  <p class="text-[var(--wa-text-primary)] font-medium">
+                    {{ notificationSoundEnabled ? "Sound On" : "Sound Off" }}
+                  </p>
+                  <p class="text-xs text-[var(--wa-text-tertiary)]">
+                    Bunyi saat pesan masuk
+                  </p>
                 </div>
               </div>
-              <button 
+              <button
                 @click="toggleNotificationSound"
                 class="relative w-12 h-6 rounded-full transition-colors duration-300"
-                :class="notificationSoundEnabled ? 'bg-[var(--wa-accent-green)]' : 'bg-gray-500'"
+                :class="
+                  notificationSoundEnabled
+                    ? 'bg-[var(--wa-accent-green)]'
+                    : 'bg-gray-500'
+                "
               >
-                <div 
+                <div
                   class="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300"
                   :class="notificationSoundEnabled ? 'left-6' : 'left-0.5'"
                 ></div>
@@ -4771,114 +7356,202 @@ const handleLinkClick = (e) => {
     </div>
 
     <!-- Customer Info Modal -->
-    <div 
-      v-if="showCustomerInfoModal" 
+    <div
+      v-if="showCustomerInfoModal"
       class="fixed inset-0 bg-black/50 backdrop-blur-sm z-[600] flex items-center justify-center p-4"
       @click="showCustomerInfoModal = false"
     >
-      <div 
+      <div
         class="bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-scale-in"
         @click.stop
       >
         <!-- Header -->
         <div class="flex items-center justify-between mb-6">
-          <h2 class="text-xl font-semibold text-[var(--wa-text-primary)]">Info Customer</h2>
-          <button 
-            @click="showCustomerInfoModal = false" 
+          <h2 class="text-xl font-semibold text-[var(--wa-text-primary)]">
+            Info Customer
+          </h2>
+          <button
+            @click="showCustomerInfoModal = false"
             class="p-2 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)] hover:bg-[var(--wa-hover)] rounded-lg transition-colors"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>
-        
+
         <!-- Customer Avatar -->
         <div class="flex justify-center mb-6">
-          <div 
+          <div
             class="w-20 h-20 rounded-full flex items-center justify-center text-white font-bold text-2xl shadow-lg"
             :style="{ backgroundColor: activeConversation?.color }"
           >
             {{ activeConversation?.initials }}
           </div>
         </div>
-        
+
         <!-- Customer Info -->
         <div class="space-y-4">
           <!-- Name -->
-          <div class="bg-[var(--wa-bg-secondary)] rounded-xl p-4 border border-[var(--wa-border)]">
-            <label class="text-xs text-[var(--wa-text-tertiary)] mb-1 block">Nama</label>
-            <p class="text-base font-medium text-[var(--wa-text-primary)] uppercase">{{ activeConversation?.name }}</p>
+          <div
+            class="bg-[var(--wa-bg-secondary)] rounded-xl p-4 border border-[var(--wa-border)]"
+          >
+            <label class="text-xs text-[var(--wa-text-tertiary)] mb-1 block"
+              >Nama</label
+            >
+            <p
+              class="text-base font-medium text-[var(--wa-text-primary)] uppercase"
+            >
+              {{ activeConversation?.name }}
+            </p>
           </div>
-          
+
           <!-- Phone Number -->
-          <div class="bg-[var(--wa-bg-secondary)] rounded-xl p-4 border border-[var(--wa-border)]">
-            <label class="text-xs text-[var(--wa-text-tertiary)] mb-1 block">Nomor WhatsApp</label>
+          <div
+            class="bg-[var(--wa-bg-secondary)] rounded-xl p-4 border border-[var(--wa-border)]"
+          >
+            <label class="text-xs text-[var(--wa-text-tertiary)] mb-1 block"
+              >Nomor WhatsApp</label
+            >
             <div class="flex items-center justify-between gap-3">
-              <p class="text-lg font-mono font-semibold text-[var(--wa-text-primary)]">
+              <p
+                class="text-lg font-mono font-semibold text-[var(--wa-text-primary)]"
+              >
                 {{ formatPhoneTo08(activeConversation?.wa_number) }}
               </p>
-              <button 
+              <button
                 @click="copyPhoneNumber"
                 class="flex items-center gap-2 px-4 py-2 rounded-lg transition-all flex-shrink-0"
-                :class="copiedPhone ? 'bg-green-500/20 text-green-400' : 'bg-[var(--wa-accent-green)] text-black hover:bg-[#00a884]/90'"
-  >
+                :class="
+                  copiedPhone
+                    ? 'bg-green-500/20 text-green-400'
+                    : 'bg-[var(--wa-accent-green)] text-black hover:bg-[#00a884]/90'
+                "
+              >
                 <!-- Copy Icon -->
-                <svg v-if="!copiedPhone" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                <svg
+                  v-if="!copiedPhone"
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                  />
                 </svg>
                 <!-- Check Icon -->
-                <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                <svg
+                  v-else
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M5 13l4 4L19 7"
+                  />
                 </svg>
-                <span class="text-sm font-medium">{{ copiedPhone ? 'Copied!' : 'Copy' }}</span>
+                <span class="text-sm font-medium">{{
+                  copiedPhone ? "Copied!" : "Copy"
+                }}</span>
               </button>
             </div>
           </div>
-          
+
           <!-- Branch Code (if exists) -->
-          <div v-if="activeConversation?.kode_cabang" class="bg-[var(--wa-bg-secondary)] rounded-xl p-4 border border-[var(--wa-border)]">
-            <label class="text-xs text-[var(--wa-text-tertiary)] mb-1 block">Cabang</label>
-            <p class="text-base font-mono font-semibold text-[var(--wa-text-primary)]">{{ activeConversation?.kode_cabang }}</p>
+          <div
+            v-if="activeConversation?.kode_cabang"
+            class="bg-[var(--wa-bg-secondary)] rounded-xl p-4 border border-[var(--wa-border)]"
+          >
+            <label class="text-xs text-[var(--wa-text-tertiary)] mb-1 block"
+              >Cabang</label
+            >
+            <p
+              class="text-base font-mono font-semibold text-[var(--wa-text-primary)]"
+            >
+              {{ activeConversation?.kode_cabang }}
+            </p>
           </div>
         </div>
       </div>
     </div>
 
     <!-- Duplicate Connection Modal (Blocking) -->
-    <div v-if="showDuplicateConnectionModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[999] flex items-center justify-center p-4">
-      <div class="bg-gradient-to-br from-red-950/90 to-red-900/80 border-2 border-red-600 rounded-2xl shadow-2xl max-w-md w-full p-8 text-center animate-bounce-in">
+    <div
+      v-if="showDuplicateConnectionModal"
+      class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[999] flex items-center justify-center p-4"
+    >
+      <div
+        class="bg-gradient-to-br from-red-950/90 to-red-900/80 border-2 border-red-600 rounded-2xl shadow-2xl max-w-md w-full p-8 text-center animate-bounce-in"
+      >
         <!-- Alert Icon -->
-        <div class="mx-auto w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mb-6 animate-pulse">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        <div
+          class="mx-auto w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mb-6 animate-pulse"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-12 w-12 text-red-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+            />
           </svg>
         </div>
-        
+
         <!-- Title -->
-        <h2 class="text-2xl font-bold text-white mb-3">Koneksi Duplikat Terdeteksi</h2>
-        
+        <h2 class="text-2xl font-bold text-white mb-3">
+          Koneksi Duplikat Terdeteksi
+        </h2>
+
         <!-- Message -->
         <p class="text-red-200 mb-2 leading-relaxed">
-          ID Anda (<strong>{{ authId }}</strong>) sudah terkoneksi di tab atau device lain.
+          ID Anda (<strong>{{ authId }}</strong
+          >) sudah terkoneksi di tab atau device lain.
         </p>
         <p class="text-red-300/80 text-sm mb-6">
-          Jika baru saja berpindah jaringan (WiFi/Data), tekan "Coba Lagi". Jika masalah berlanjut, logout dari device lain.
+          Jika baru saja berpindah jaringan (WiFi/Data), tekan "Coba Lagi". Jika
+          masalah berlanjut, logout dari device lain.
         </p>
-        
+
         <!-- Actions -->
         <div class="space-y-3">
           <!-- Retry Button (Primary) -->
-          <button 
-            @click="retryConnection" 
+          <button
+            @click="retryConnection"
             class="w-full bg-green-600 hover:bg-green-500 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
           >
             🔄 Coba Lagi
           </button>
-          
+
           <!-- Logout Button (Secondary) -->
-          <button 
-            @click="handleDuplicateConnection" 
+          <button
+            @click="handleDuplicateConnection"
             class="w-full bg-red-600/50 hover:bg-red-600 text-white font-medium py-2.5 px-6 rounded-xl transition-all duration-200 border border-red-500/50"
           >
             Logout & Reload
@@ -4886,63 +7559,93 @@ const handleLinkClick = (e) => {
         </div>
       </div>
     </div>
-    
+
     <!-- Internal Browser (for nalju.com links) -->
-    <div 
-      v-if="showInternalBrowser" 
+    <div
+      v-if="showInternalBrowser"
       class="fixed inset-0 z-[1000] bg-[var(--wa-bg-panel)] flex flex-col internal-browser-panel"
-      :class="{ 
+      :class="{
         'internal-browser-entering': isInternalBrowserEntering,
-        'internal-browser-exiting': isInternalBrowserExiting
+        'internal-browser-exiting': isInternalBrowserExiting,
       }"
     >
       <!-- Header -->
-      <header class="h-14 bg-[var(--wa-bg-panel)] border-b border-[var(--wa-border)] flex items-center px-4 gap-3 flex-shrink-0">
-        <button 
-          @click="closeInternalBrowser" 
+      <header
+        class="h-14 bg-[var(--wa-bg-panel)] border-b border-[var(--wa-border)] flex items-center px-4 gap-3 flex-shrink-0"
+      >
+        <button
+          @click="closeInternalBrowser"
           class="p-2 -ml-2 text-[var(--wa-icon-default)] hover:text-[var(--wa-text-primary)] hover:bg-[var(--wa-hover)] rounded-lg transition-colors"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-6 w-6"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M15 19l-7-7 7-7"
+            />
           </svg>
         </button>
-        
+
         <div class="flex-1 min-w-0">
-          <p class="text-sm text-[var(--wa-text-primary)] truncate font-medium">{{ internalBrowserUrl }}</p>
+          <p class="text-sm text-[var(--wa-text-primary)] truncate font-medium">
+            {{ internalBrowserUrl }}
+          </p>
         </div>
-        
+
         <!-- Open in External Browser -->
-        <a 
-          :href="internalBrowserUrl" 
-          target="_blank" 
+        <a
+          :href="internalBrowserUrl"
+          target="_blank"
           rel="noopener noreferrer"
           class="p-2 text-[var(--wa-icon-default)] hover:text-[var(--wa-text-primary)] hover:bg-[var(--wa-hover)] rounded-lg transition-colors"
           title="Open in browser"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+            />
           </svg>
         </a>
       </header>
-      
+
       <!-- Loading Indicator -->
-      <div v-if="isInternalBrowserLoading" class="absolute inset-0 top-14 flex items-center justify-center bg-[var(--wa-bg-chat)]">
+      <div
+        v-if="isInternalBrowserLoading"
+        class="absolute inset-0 top-14 flex items-center justify-center bg-[var(--wa-bg-chat)]"
+      >
         <div class="flex flex-col items-center gap-3">
-          <div class="w-8 h-8 border-3 border-[var(--wa-accent-green)] border-t-transparent rounded-full animate-spin"></div>
+          <div
+            class="w-8 h-8 border-3 border-[var(--wa-accent-green)] border-t-transparent rounded-full animate-spin"
+          ></div>
           <p class="text-sm text-[var(--wa-text-secondary)]">Memuat...</p>
         </div>
       </div>
-      
+
       <!-- Iframe -->
-      <iframe 
-        :src="internalBrowserUrl" 
+      <iframe
+        :src="internalBrowserUrl"
         class="flex-1 w-full border-0 bg-white"
         @load="handleInternalBrowserLoad"
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals allow-downloads"
       ></iframe>
     </div>
-
   </div>
 </template>
 
@@ -4980,7 +7683,7 @@ p del {
 }
 
 p code {
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
   background-color: rgba(15, 23, 42, 0.5);
   padding: 2px 6px;
   border-radius: 4px;
@@ -5076,7 +7779,8 @@ p a:hover {
 }
 
 @keyframes gradientShift {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0.3;
     transform: rotate(0deg);
   }
