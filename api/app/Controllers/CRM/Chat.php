@@ -200,7 +200,8 @@ class Chat extends Controller
                         media_id,
                         media_url,
                         media_caption as caption,
-                        quoted_message_id
+                        quoted_message_id,
+                        NULL as sender_code
                      FROM wa_messages_in 
                      WHERE RIGHT(REPLACE(REPLACE(phone, '+', ''), '-', ''), 10) = ?)
                     UNION ALL
@@ -215,7 +216,8 @@ class Chat extends Controller
                         NULL as media_id,
                         media_url,
                         NULL as caption,
-                        quoted_message_id
+                        quoted_message_id,
+                        sender_code
                      FROM wa_messages_out 
                      WHERE RIGHT(REPLACE(REPLACE(phone, '+', ''), '-', ''), 10) = ?)
                 ) AS combined_msgs

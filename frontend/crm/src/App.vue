@@ -6114,6 +6114,10 @@ const handleLinkClick = (e) => {
                         v-html="parseWhatsAppFormatting(msg.text)"
                       ></p>
                       <div class="flex items-center justify-end gap-1">
+                        <!-- Sender Code (e.g. ~IB) -->
+                        <span v-if="msg.sender_code" class="text-[10px] text-white/70"
+                          >~{{ msg.sender_code }}</span
+                        >
                         <span class="text-[10px] text-white/90">{{
                           msg.time
                         }}</span>
@@ -6329,6 +6333,12 @@ const handleLinkClick = (e) => {
                     <span
                       class="flex items-center gap-1 ml-auto whitespace-nowrap"
                     >
+                      <!-- Sender Code (e.g. ~IB) -->
+                      <span
+                        v-if="msg.sender_code"
+                        class="text-[10px] text-[var(--wa-bubble-out-meta)] opacity-70 leading-[1.8]"
+                        >~{{ msg.sender_code }}</span
+                      >
                       <span
                         class="text-[10px] text-[var(--wa-bubble-out-meta)] leading-[1.8]"
                         >{{ msg.time }}</span
