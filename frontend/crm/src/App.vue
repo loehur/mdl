@@ -3039,6 +3039,7 @@ const sendMessage = async () => {
       timestamp: Date.now(), // Add timestamp for duplicate detection
       status: "pending",
       quoted_message_id: replyingTo?.wamid || null, // Store quoted reference
+      sender_code: senderCode.value || localStorage.getItem("cms_chat_sender_code") || "", // Optimistic Sender Code
     };
 
     // Optimistic UI
@@ -3416,6 +3417,7 @@ const sendImage = async () => {
         minute: "2-digit",
         hour12: false,
       }),
+      sender_code: senderCode.value || localStorage.getItem("cms_chat_sender_code") || "", // Optimistic Sender Code
       rawTime: new Date().toISOString(), // FIXED: Add rawTime for proper sorting and date separator
       status: "pending",
     };

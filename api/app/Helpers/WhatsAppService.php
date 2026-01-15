@@ -785,6 +785,7 @@ class WhatsAppService
                             'text' => $content,
                             'type' => $messageType,
                             'media_url' => $mediaUrl,
+                            'sender_code' => $senderCode,
                             'time' => date('Y-m-d H:i:s'),
                             'status' => 'sent'
                         ]
