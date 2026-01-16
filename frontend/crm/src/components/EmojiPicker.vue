@@ -22,7 +22,7 @@ const emojiCategories = {
   gestures: { 
     label: "👋", 
     title: "Gestures & People", 
-    emojis: ["👋","🤚","🖐️","✋","🖖","👌","🤌","🤏","✌️","🤞","🤟","🤘","🤙","👈","👉","👆","🖕","👇","☝️","👍","👎","✊","👊","🤛","🤜","👏","🙌","👐","🤲","🤝","🙏","💪","🦾","🧠","👀","👁️","👅","👄","💋","🦷","🦴","👶","🧒","👦","👧","🧑","👱","👨","🧔","👩","🧓","👴","👵"] 
+    emojis: ["👋","🤚","🖐️","✋","🖖","👌","🤌","🤏","✌️","🤞","🤟","🤘","🤙","👈","👉","👆","🖕","👇","☝️","👍","👎","✊","👊","🤛","🤜","👏","🙌","👐","🤲","🤝","🙏","💪","🦾","🧠","👀","👁️","👅","👄","💋","🦷","🦴","👶","🧒","👦","👧","🧑","👱","👨","🧔","👩","🧓","👴","👵","🫰","🫱","🫲","🫳","🫴","🫵","🫶"] 
   },
   animals: { 
     label: "🐱", 
@@ -46,6 +46,17 @@ const emojiCategories = {
   },
 };
 
+// Convert emoji to Twemoji URL
+const getTwemojiUrl = (emoji) => {
+  // Get codepoints for the emoji
+  const codePoints = [...emoji]
+    .map(char => char.codePointAt(0).toString(16))
+    .join('-')
+    .replace(/-fe0f/g, ''); // Remove variation selector for most emojis
+  
+  return `https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/${codePoints}.svg`;
+};
+
 // Current emojis to display based on category
 const currentEmojis = computed(() => {
   if (activeCategory.value === "recent") {
@@ -64,6 +75,12 @@ const selectEmoji = (emoji) => {
 const close = () => {
   emit("update:modelValue", false);
 };
+
+// Handle image error - fallback to native emoji
+const handleImgError = (e, emoji) => {
+  e.target.style.display = 'none';
+  e.target.nextElementSibling.style.display = 'inline';
+};
 </script>
 
 <template>
@@ -78,11 +95,17 @@ const close = () => {
         v-for="(cat, key) in emojiCategories"
         :key="key"
         @click="activeCategory = key"
-        class="flex-1 py-2 text-xl hover:bg-[var(--wa-hover)] transition-colors"
+        class="flex-1 py-2 hover:bg-[var(--wa-hover)] transition-colors flex items-center justify-center"
         :class="activeCategory === key ? 'bg-[var(--wa-hover)] border-b-2 border-[var(--wa-accent-green)]' : ''"
         :title="cat.title"
       >
-        {{ cat.label }}
+        <img 
+          :src="getTwemojiUrl(cat.label)" 
+          :alt="cat.label"
+          class="w-5 h-5"
+          @error="(e) => { e.target.style.display = 'none'; e.target.nextElementSibling.style.display = 'inline'; }"
+        />
+        <span style="display: none;" class="text-xl">{{ cat.label }}</span>
       </button>
     </div>
 
@@ -93,9 +116,15 @@ const close = () => {
           v-for="emoji in currentEmojis"
           :key="emoji"
           @click="selectEmoji(emoji)"
-          class="text-2xl p-1 hover:bg-[var(--wa-hover)] rounded-lg transition-colors"
+          class="p-1.5 hover:bg-[var(--wa-hover)] rounded-lg transition-colors flex items-center justify-center"
         >
-          {{ emoji }}
+          <img 
+            :src="getTwemojiUrl(emoji)" 
+            :alt="emoji"
+            class="w-6 h-6"
+            @error="(e) => handleImgError(e, emoji)"
+          />
+          <span style="display: none;" class="text-2xl">{{ emoji }}</span>
         </button>
       </div>
       

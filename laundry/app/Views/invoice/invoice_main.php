@@ -235,6 +235,7 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
 
             if ($no == 1) {
                 $adaBayar = false;
+                $adaHistoryBayar = false; // For showing payment history (including failed)
                 echo '<div class="row p-1 mx-1">';
                 echo "<div class='col m-auto w-100 p-0 m-1' style='max-width:460;'><div class=' bg-white shadow-sm border border-info'>";
                 echo "<table class='table table-sm m-0 w-100 bg-transparent force-transparent'>";
@@ -250,7 +251,12 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
                     $arrBayar[$noref][$idKas] = $byr['jumlah'];
                     $totalBayar = array_sum($arrBayar[$noref]);
                 }
+                // adaHistoryBayar: any payment record exists (for displaying history)
                 if ($byr['ref_transaksi'] == $noref) {
+                    $adaHistoryBayar = true;
+                }
+                // adaBayar: only if payment is pending (2) or success (3), not if failed (4)
+                if ($byr['ref_transaksi'] == $noref && $byr['status_mutasi'] != 4) {
                     $adaBayar = true;
                 }
             }
@@ -563,7 +569,8 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
                 }
                 echo '</td></tr>';
 
-                if ($adaBayar == true) {
+                // Show payment history if any payment record exists (including failed)
+                if ($adaHistoryBayar == true) {
                     echo "<tr class='row" . $noref . " table-borderless'>";
                     echo "<td nowrap colspan='4' class='text-end pt-0 pb-0'>";
                     echo $showMutasi;
@@ -709,6 +716,7 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
                 }
             }
             $adaBayar = false;
+            $adaHistoryBayar = false; // For showing payment history (including failed)
             $historyBayar = [];
             foreach ($data['kasM'] as $k) {
                 if (
@@ -717,7 +725,12 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
                 ) {
                     array_push($historyBayar, $k['jumlah']);
                 }
+                // adaHistoryBayar: any payment record exists (for displaying history)
                 if ($k['ref_transaksi'] == $id) {
+                    $adaHistoryBayar = true;
+                }
+                // adaBayar: only if payment is pending (2) or success (3), not if failed (4)
+                if ($k['ref_transaksi'] == $id && $k['status_mutasi'] != 4) {
                     $adaBayar = true;
                 }
             }
@@ -775,7 +788,7 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
                                                                                                 ) ?></b></span>
                                         </td>
                                     </tr>
-                                    <?php if ($adaBayar == true) { ?>
+                                    <?php if ($adaHistoryBayar == true) { ?>
                                         <tr>
                                             <td colspan="2" align="right"><span id="historyBayar<?= $id ?>"><?= $showMutasi ?></span>
                                                 </span><span id="sisa<?= $id ?>" class="text-danger"><?= $showSisa ?></span></td>

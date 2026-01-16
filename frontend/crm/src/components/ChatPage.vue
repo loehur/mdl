@@ -43,6 +43,10 @@ const props = defineProps({
   API_BASE: {
     type: String,
     default: "https://api.nalju.com"
+  },
+  isRefreshingChat: {
+    type: Boolean,
+    default: false,
   }
 });
 
@@ -564,10 +568,7 @@ onUnmounted(() => {
                         </div>
 
                         <!-- Messages -->
-                        <div class="flex gap-3 max-w-[85%] md:max-w-[70%] overflow-hidden" :class="msg.sender === 'me' ? 'self-end justify-end' : 'self-start'">
-                             <!-- Avatar for incoming -->
-                             <div v-if="msg.sender !== 'me'" class="w-8 h-8 rounded-full flex items-center justify-center text-[10px] text-white font-bold flex-shrink-0" :style="{ backgroundColor: activeConversation.color }">{{ activeConversation.initials }}</div>
-
+                        <div class="flex max-w-[85%] md:max-w-[70%] overflow-hidden" :class="msg.sender === 'me' ? 'self-end justify-end' : 'self-start'">
                              <!-- Bubble -->
                              <div :class="[
                                'rounded-lg shadow-sm px-3 py-1.5 relative overflow-hidden',
@@ -630,6 +631,7 @@ onUnmounted(() => {
                   </div>
              </div>
 
+             <!-- Reply Preview -->
              <div v-if="replyToMessage" class="bg-[var(--wa-bg-panel)] p-2 rounded-lg border-l-4 border-[var(--wa-accent-green)] mb-2 flex justify-between items-center shadow-sm">
                   <div class="overflow-hidden">
                       <p class="text-xs font-bold text-[var(--wa-accent-green)]">{{ replyToMessage.sender === 'me' ? 'You' : activeConversation.name }}</p>
@@ -638,8 +640,40 @@ onUnmounted(() => {
                   <button @click="cancelReply" class="text-[var(--wa-text-tertiary)] hover:text-red-500"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
              </div>
 
-             <!-- Main Input -->
-             <div class="flex gap-2 items-end">
+             <!-- Case 1: CSW Closed - Show Refresh Button -->
+             <button
+               v-if="activeConversation.status === 'closed'"
+               @click="emit('refresh-active-chat')"
+               class="flex items-center justify-center gap-2 p-3 bg-[var(--wa-bg-tertiary)] hover:bg-[var(--wa-hover)] rounded-lg border border-[var(--wa-border)] w-full transition-all active:scale-[0.99] group"
+               title="CSW Expired (>23 jam). Click to refresh chat data"
+             >
+               <div
+                 v-if="isRefreshingChat"
+                 class="w-4 h-4 border-2 border-[var(--wa-text-tertiary)] border-t-[var(--wa-accent-green)] rounded-full animate-spin"
+               ></div>
+               <template v-else>
+                 <svg
+                   xmlns="http://www.w3.org/2000/svg"
+                   class="h-5 w-5 text-[var(--wa-text-tertiary)] group-hover:text-[var(--wa-accent-green)] transition-colors"
+                   fill="none"
+                   viewBox="0 0 24 24"
+                   stroke="currentColor"
+                 >
+                   <path
+                     stroke-linecap="round"
+                     stroke-linejoin="round"
+                     stroke-width="2"
+                     d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                   />
+                 </svg>
+                 <span class="text-[var(--wa-text-secondary)] text-sm font-medium group-hover:text-[var(--wa-text-primary)] transition-colors">
+                   CSW Closed - Refresh
+                 </span>
+               </template>
+             </button>
+
+             <!-- Case 2: Active Chat Input -->
+             <div v-else class="flex gap-2 items-end">
                   <!-- Attachment buttons (left side) -->
                   <div class="flex items-center gap-2">
                        <input type="file" ref="fileInput" @change="selectImage" accept="image/*" class="hidden" />

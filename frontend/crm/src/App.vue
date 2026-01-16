@@ -3638,8 +3638,10 @@ const handleLinkClick = (e) => {
       :is-entering-chat="isEnteringChat"
       :touch-offset="touchOffset"
       :API_BASE="API_BASE"
+      :is-refreshing-chat="isRefreshingChat"
       @back-to-menu="backToMenu"
       @open-image-lightbox="openImageLightbox"
+      @refresh-active-chat="refreshActiveChat"
     />
 
     <!-- Exit Toast -->
