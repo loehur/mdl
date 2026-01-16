@@ -2757,7 +2757,7 @@ const connectWebSocket = () => {
               `Waiting ${duplicateRetryDelay/1000}s for server cleanup before retry...`
             );
             
-            connectionError.value = `Menunggu koneksi lama terputus... (${attempt}/${maxDuplicateRetries})`;
+            connectionError.value = `Mencoba terhubung kembali... (${attempt}/${maxDuplicateRetries})`;
             isReconnecting.value = true;
             
             setTimeout(() => {

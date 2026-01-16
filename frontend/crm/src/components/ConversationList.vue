@@ -244,7 +244,7 @@ const parseEmoji = (text) => {
       <div class="flex items-center gap-3">
         <div class="w-10 h-10 rounded-full bg-[var(--wa-accent-green)] flex items-center justify-center text-black font-bold border-0">A</div>
         <div>
-          <div class="text-sm font-medium text-[var(--wa-text-primary)]">MDL Agent <span class="text-[var(--wa-accent-blue)] font-mono">#{{ authId }}</span></div>
+          <div class="text-sm font-medium text-[var(--wa-text-primary)]">AgentID <span class="text-[var(--wa-accent-blue)] font-mono">#{{ authId }}</span></div>
           <div class="text-xs flex items-center gap-1.5" :class="isConnected ? 'text-[var(--wa-accent-green)]' : (isReconnecting ? 'text-yellow-400' : 'text-red-400')">
             <!-- Status indicator -->
             <span v-if="isReconnecting && !isConnected" class="w-3 h-3 border-2 border-yellow-400/30 border-t-yellow-400 rounded-full animate-spin"></span>
