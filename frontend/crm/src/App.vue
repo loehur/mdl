@@ -2840,21 +2840,57 @@ const connectWebSocket = () => {
             "⚠️ WebSocket terputus. Polling backup aktif (update setiap 30 detik)";
         }
       } else {
-        // Connection failed during attempt
+        // Connection failed during attempt (isConnected was still false)
         isConnecting.value = false;
-        isReconnecting.value = false;
-        // Clear invalid session if we failed to connect (e.g. ID revoked)
-        // But be careful not to clear on transient network errors?
-        // Probably safe to let user try again or re-enter.
-        // For now, let's not clear automatically unless it's strictly Auth error (1008)
-
+        
         let msg = "Connection failed.";
+        
+        // IMPORTANT: Handle 1008 (duplicate connection) the same way as when isConnected was true
+        // This happens when server rejects BEFORE sending welcome message
         if (event.code === 1008) {
-          msg = "Access Denied: Invalid ID.";
-          localStorage.removeItem("chat_connection_id"); // Clear invalid ID
-          localStorage.removeItem("chat_connection_expiry");
-          wasConnected.value = false;
-          showLoginPrompt.value = true; // Show login immediately on auth error
+          // Check if this is a recent resume (grace period)
+          const isRecentResume = Date.now() - resumeTimestamp.value < 5000;
+          
+          if (isRecentResume) {
+            console.warn("Ignoring duplicate connection error during resume (pre-welcome). Retrying...");
+            setTimeout(() => {
+              if (!isConnected.value && authId.value) connectWebSocket();
+            }, 1500);
+            return; // Don't show error, just retry
+          } else if (duplicateRetryAttempts.value < maxDuplicateRetries) {
+            // Retry logic for duplicate connection
+            duplicateRetryAttempts.value++;
+            const attempt = duplicateRetryAttempts.value;
+            
+            console.warn(
+              `Duplicate connection detected (pre-welcome, attempt ${attempt}/${maxDuplicateRetries}). ` +
+              `Waiting ${duplicateRetryDelay/1000}s for server cleanup before retry...`
+            );
+            
+            connectionError.value = `Reconnecting... (${attempt})`;
+            isReconnecting.value = true;
+            
+            setTimeout(() => {
+              if (!isConnected.value && authId.value) {
+                console.log(`Retrying connection after duplicate error (attempt ${attempt})...`);
+                connectWebSocket();
+              }
+            }, duplicateRetryDelay);
+            return; // Don't show login yet
+          } else {
+            // All retries exhausted - show duplicate warning and logout
+            console.warn("Max duplicate retries exceeded (pre-welcome). Logging out...");
+            duplicateRetryAttempts.value = 0;
+            duplicateWarning.value = "ID Anda sudah terkoneksi di tab/device lain. Silakan login ulang atau logout dari device lain.";
+            localStorage.removeItem("cms_chat_id");
+            localStorage.removeItem("cms_chat_password");
+            localStorage.removeItem("cms_chat_expiry");
+            authId.value = "";
+            wasConnected.value = false;
+            isReconnecting.value = false;
+            showLoginPrompt.value = true;
+            return;
+          }
         } else if (
           event.code === 1006 &&
           wasConnected.value &&
@@ -2889,7 +2925,7 @@ const connectWebSocket = () => {
             }
           }, delay);
         } else {
-          // Max attempts reached or error - show login
+          // Max attempts reached or unknown error - show login
           isReconnecting.value = false;
           if (event.code === 1006) {
             msg = "Koneksi terputus. Silakan login ulang.";
