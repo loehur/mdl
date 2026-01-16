@@ -42,6 +42,48 @@ const PORT = process.env.PORT || 3003;
 const ONESIGNAL_APP_ID = process.env.ONESIGNAL_APP_ID || '';
 const ONESIGNAL_REST_API_KEY = process.env.ONESIGNAL_REST_API_KEY || '';
 
+// ============================================
+// Notification Counter per Chat (for WhatsApp-style grouping)
+// ============================================
+// Tracks how many unread notifications per groupKey
+// Used to determine when to send summary notification
+// Format: Map<groupKey, { count: number, lastSent: timestamp }>
+const notificationCounter = new Map();
+
+// Auto-cleanup: Reset counter after 5 minutes of inactivity
+// This assumes user has seen/dismissed notifications
+const COUNTER_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Get and increment notification count for a group
+ * @param {string} groupKey - The group key (e.g., chat_6281234567890)
+ * @returns {number} - Current count AFTER incrementing (1 = first message)
+ */
+function incrementNotifCount(groupKey) {
+    const now = Date.now();
+    const existing = notificationCounter.get(groupKey);
+
+    if (existing && (now - existing.lastSent) < COUNTER_TTL_MS) {
+        // Still within TTL, increment
+        existing.count++;
+        existing.lastSent = now;
+        notificationCounter.set(groupKey, existing);
+        return existing.count;
+    } else {
+        // Expired or new, start fresh
+        notificationCounter.set(groupKey, { count: 1, lastSent: now });
+        return 1;
+    }
+}
+
+/**
+ * Reset notification count for a group (when user opens chat)
+ * @param {string} groupKey - The group key
+ */
+function resetNotifCount(groupKey) {
+    notificationCounter.delete(groupKey);
+}
+
 /**
  * Send push notification via OneSignal
  * @param {object} options - Notification options
@@ -93,43 +135,38 @@ async function sendPushNotification(options) {
     }
 
     // Sanitize phone for key generation (remove non-digits) to ensure consistency
-    // This fixes issues where formatted phones (e.g. +62...) don't match unformatted ones
     const cleanPhone = phone ? String(phone).replace(/\D/g, '') : '';
     const groupKey = cleanPhone ? `chat_${cleanPhone}` : undefined;
 
-    const payload = {
+    // ============================================
+    // Track notification count for this chat
+    // ============================================
+    const notifCount = incrementNotifCount(groupKey);
+    const shouldSendSummary = notifCount >= 2; // Only send summary on 2nd message and onwards
+
+    console.log(`[OneSignal] Group ${groupKey}: notif_count = ${notifCount}, will_send_summary = ${shouldSendSummary}`);
+
+    // ============================================
+    // 1. CHILD NOTIFICATION (individual message)
+    // ============================================
+    // - TANPA android_group_summary
+    // - TANPA android_group_message
+    // - Header kecil (nomor telepon atau nama customer)
+    const childPayload = {
         app_id: ONESIGNAL_APP_ID,
-        // Force UPPERCASE to match OneSignal External IDs exactly
         include_external_user_ids: filteredUserIds.map(id => id.toUpperCase()),
-        headings: { en: title },
+        headings: { en: title }, // Nama customer (jika tersedia) atau nomor
         contents: { en: message },
 
-        // ============================================
-        // ANDROID GROUP SETTINGS (WhatsApp-style)
-        // ============================================
-        // Group Key: Notifications with same key are STACKED together
+        // Group key untuk stacking
         android_group: groupKey,
 
-        // Enable Summary Notification (collapsed group like WhatsApp)
-        android_group_summary: true,
-
-        // Summary Message: Shows on collapsed notification
-        android_group_message: { en: `$[notif_count] pesan baru dari ${title}` },
-
-        // ============================================
-        // iOS THREAD SETTINGS
-        // ============================================
+        // iOS thread
         thread_id: groupKey,
         ios_badgeType: 'Increase',
         ios_badgeCount: 1,
 
-        // ============================================
-        // ANDROID DISPLAY SETTINGS
-        // ============================================
         android_channel_id: process.env.ONESIGNAL_ANDROID_CHANNEL_ID || undefined,
-
-        // NOTE: Do NOT use 'url' parameter here!
-        // Android reads 'data.phone' via additionalData and calls window.openChatByPhone()
 
         data: {
             type: 'wa_masuk',
@@ -139,27 +176,89 @@ async function sendPushNotification(options) {
         }
     };
 
-    // Remove undefined values
-    Object.keys(payload).forEach(key => payload[key] === undefined && delete payload[key]);
+    // Remove undefined values from child payload
+    Object.keys(childPayload).forEach(key => childPayload[key] === undefined && delete childPayload[key]);
 
     try {
-        const response = await fetch('https://onesignal.com/api/v1/notifications', {
+        // Send CHILD notification (always)
+        const childResponse = await fetch('https://onesignal.com/api/v1/notifications', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Basic ${ONESIGNAL_REST_API_KEY}`
             },
-            body: JSON.stringify(payload)
+            body: JSON.stringify(childPayload)
         });
+        const childResult = await childResponse.json();
 
-        const result = await response.json();
+        let summaryResult = null;
 
-        if (result.id) {
-            console.log(`[OneSignal] ✅ Sent to ${filteredUserIds.length} user(s), group_key: ${groupKey}`);
-            return { success: true, id: result.id, recipients: filteredUserIds.length };
+        // ============================================
+        // 2. SUMMARY NOTIFICATION (only on 2nd+ message)
+        // ============================================
+        if (shouldSendSummary && childResult.id) {
+            const summaryPayload = {
+                app_id: ONESIGNAL_APP_ID,
+                include_external_user_ids: filteredUserIds.map(id => id.toUpperCase()),
+                headings: { en: title }, // Header besar: nama customer
+                contents: { en: `${notifCount} pesan baru` },
+
+                // Group key
+                android_group: groupKey,
+
+                // PENTING: Flag ini hanya untuk summary notification
+                android_group_summary: true,
+                android_group_message: { en: `${notifCount} pesan baru` },
+
+                // collapse_id agar summary REPLACE, tidak stack
+                collapse_id: `summary_${groupKey}`,
+
+                // iOS thread
+                thread_id: groupKey,
+
+                android_channel_id: process.env.ONESIGNAL_ANDROID_CHANNEL_ID || undefined,
+
+                data: {
+                    type: 'wa_masuk',
+                    phone: phone,
+                    case: caseType,
+                    is_summary: true,
+                    notif_count: notifCount,
+                    ...data
+                }
+            };
+
+            // Remove undefined values
+            Object.keys(summaryPayload).forEach(key => summaryPayload[key] === undefined && delete summaryPayload[key]);
+
+            const summaryResponse = await fetch('https://onesignal.com/api/v1/notifications', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Basic ${ONESIGNAL_REST_API_KEY}`
+                },
+                body: JSON.stringify(summaryPayload)
+            });
+            summaryResult = await summaryResponse.json();
+        }
+
+        if (childResult.id) {
+            console.log(`[OneSignal] ✅ Child sent to ${filteredUserIds.length} user(s), group_key: ${groupKey}`);
+            if (shouldSendSummary) {
+                console.log(`[OneSignal] ✅ Summary sent (count: ${notifCount}): ${summaryResult?.id ? 'OK' : 'FAILED'}`);
+            } else {
+                console.log(`[OneSignal] ⏭️ Summary skipped (first message)`);
+            }
+            return {
+                success: true,
+                childId: childResult.id,
+                summaryId: summaryResult?.id || null,
+                notifCount: notifCount,
+                recipients: filteredUserIds.length
+            };
         } else {
-            console.log('[OneSignal] ❌ Error:', result.errors || result);
-            return { success: false, error: result.errors || 'Unknown error' };
+            console.log('[OneSignal] ❌ Error:', childResult.errors || childResult);
+            return { success: false, error: childResult.errors || 'Unknown error' };
         }
     } catch (err) {
         console.error('[OneSignal] ❌ Request failed:', err.message);
