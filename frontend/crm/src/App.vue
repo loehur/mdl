@@ -2793,7 +2793,7 @@ const connectWebSocket = () => {
             30000
           );
 
-          connectionError.value = `🔄 Reconnecting...`;
+          connectionError.value = `Reconnecting...`;
           console.log(
             `Auto-reconnecting in ${delay}ms (attempt ${reconnectAttempts.value})`
           );
@@ -2842,7 +2842,7 @@ const connectWebSocket = () => {
             30000
           );
 
-          const statusMsg = `🔄 Reconnecting...`;
+          const statusMsg = `Reconnecting...`;
           msg = statusMsg;
           connectionError.value = statusMsg; // FORCE UPDATE UI
           console.log(
@@ -3045,8 +3045,8 @@ onMounted(() => {
         const reconnectDelayMs = needsDelay ? 3000 : 500; // 3s delay if recent disconnect, else quick
 
         connectionError.value = needsDelay
-          ? "🔄 Menunggu server... (jaringan berubah)"
-          : "🔄 Reconnecting...";
+          ? "Menunggu server... (jaringan berubah)"
+          : "Reconnecting...";
 
         console.log(
           `Reconnect delay: ${reconnectDelayMs}ms (recent disconnect: ${needsDelay})`
@@ -3101,8 +3101,8 @@ onMounted(() => {
       const reconnectDelayMs = needsDelay ? 3000 : 500;
 
       connectionError.value = needsDelay
-        ? "🔄 Menunggu server cleanup..."
-        : "🔄 Reconnecting...";
+        ? "Menunggu server cleanup..."
+        : "Reconnecting...";
 
       if (authId.value) {
         forceDisconnect();
@@ -3131,7 +3131,7 @@ onMounted(() => {
       reconnectAttempts.value = 0;
       reconnectDelay.value = 3000;
       isReconnecting.value = true;
-      connectionError.value = "🔄 Reconnecting...";
+      connectionError.value = "Reconnecting...";
 
       if (authId.value) {
         connectWebSocket();
@@ -3369,7 +3369,7 @@ App.addListener("appStateChange", ({ isActive }) => {
       reconnectAttempts.value = 0;
       reconnectDelay.value = 3000;
       isReconnecting.value = true;
-      connectionError.value = "🔄 Reconnecting...";
+      connectionError.value = "Reconnecting...";
 
       if (authId.value) {
         connectWebSocket();
