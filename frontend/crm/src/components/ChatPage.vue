@@ -436,11 +436,61 @@ const setReplyTo = (m) => { replyToMessage.value = m; nextTick(() => messageText
 const cancelReply = () => replyToMessage.value = null;
 
 // Watchers
+// Watch for deep changes to scroll to bottom (new messages, etc)
 watch(() => props.activeConversation, () => {
     scrollToBottom();
-     // Reset Inputs
-     messageInput.value = "";
 }, { deep: true });
+
+// Separate watcher: Only reset input when switching to a DIFFERENT conversation
+watch(() => props.activeChatId, (newId, oldId) => {
+    if (newId !== oldId) {
+        messageInput.value = "";
+        replyToMessage.value = null;
+        resetTextareaHeight();
+    }
+});
+
+// Watch messageInput for "/" command to trigger quick replies
+watch(messageInput, (newVal) => {
+  if (newVal && newVal.startsWith("/")) {
+    // Extract search query (text after "/")
+    quickReplySearchQuery.value = newVal.substring(1).trim();
+    showQuickReplies.value = true;
+
+    // Load quick replies if not loaded yet
+    if (quickReplies.value.length === 0 && !isLoadingQuickReplies.value) {
+      fetchQuickReplies();
+    }
+  } else {
+    showQuickReplies.value = false;
+    quickReplySearchQuery.value = "";
+  }
+});
+
+// Fetch quick replies from API
+const fetchQuickReplies = async () => {
+  if (isLoadingQuickReplies.value) return;
+  isLoadingQuickReplies.value = true;
+  try {
+    const res = await fetch(`${props.API_BASE}/CRM/QuickReply/getAll`).then(r => r.json());
+    if (res.status && res.data) {
+      quickReplies.value = res.data;
+    }
+  } catch (e) {
+    console.error("Failed to load quick replies:", e);
+  } finally {
+    isLoadingQuickReplies.value = false;
+  }
+};
+
+// Select a quick reply and insert into input
+const selectQuickReply = (qr) => {
+  messageInput.value = qr.message;
+  showQuickReplies.value = false;
+  quickReplySearchQuery.value = "";
+  // Trigger auto-resize after inserting quick reply text
+  nextTick(() => autoResizeTextarea());
+};
 
 onMounted(() => {
     scrollToBottom();
@@ -471,6 +521,7 @@ const handleClickOutside = () => {
     showChatMenu.value = false;
     showResolveMenu.value = false;
     showEmojiPicker.value = false;
+    showQuickReplies.value = false;
 };
 
 onUnmounted(() => {
@@ -702,6 +753,30 @@ onUnmounted(() => {
                  </span>
                </template>
              </button>
+
+             <!-- Quick Replies Popup -->
+             <div v-if="showQuickReplies" class="bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-xl shadow-2xl mb-2 max-h-60 overflow-y-auto">
+                  <div class="sticky top-0 bg-[var(--wa-bg-panel)] border-b border-[var(--wa-border)] px-3 py-2">
+                       <span class="text-xs text-[var(--wa-text-tertiary)]">💬 Quick Replies</span>
+                  </div>
+                  <div v-if="isLoadingQuickReplies" class="p-4 text-center text-[var(--wa-text-tertiary)]">
+                       <div class="w-5 h-5 border-2 border-[var(--wa-text-tertiary)] border-t-[var(--wa-accent-green)] rounded-full animate-spin mx-auto"></div>
+                  </div>
+                  <div v-else-if="filteredQuickReplies.length === 0" class="p-4 text-center text-[var(--wa-text-tertiary)] text-sm">
+                       No quick replies found
+                  </div>
+                  <div v-else>
+                       <button
+                         v-for="qr in filteredQuickReplies"
+                         :key="qr.id"
+                         @click="selectQuickReply(qr)"
+                         class="w-full px-3 py-2.5 text-left hover:bg-[var(--wa-hover)] flex items-center gap-3 border-b border-[var(--wa-border)] last:border-b-0 transition-colors"
+                       >
+                            <span class="text-[var(--wa-accent-green)] font-mono text-xs shrink-0">/{{ (qr.shortcut || '').replace(/^\//, '') }}</span>
+                            <span class="text-sm text-[var(--wa-text-primary)] truncate">{{ qr.title || qr.message }}</span>
+                       </button>
+                  </div>
+             </div>
 
              <!-- Case 2: Active Chat Input -->
              <div v-else class="flex gap-2 items-end">

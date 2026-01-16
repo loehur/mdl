@@ -2766,9 +2766,15 @@ const connectWebSocket = () => {
           setTimeout(() => {
             if (authId.value && authPassword.value && !isConnected.value) {
               connectWebSocket();
+            } else {
+              // Cannot reconnect - no credentials or already connected
+              isReconnecting.value = false;
+              connectionError.value = "";
             }
           }, delay);
         } else {
+          // Max attempts reached - stop reconnecting, fall back to polling
+          isReconnecting.value = false;
           connectionError.value =
             "⚠️ WebSocket terputus. Polling backup aktif (update setiap 30 detik)";
         }
@@ -2815,6 +2821,10 @@ const connectWebSocket = () => {
               // No ID, show login
               isReconnecting.value = false;
               showLoginPrompt.value = true;
+            } else {
+              // Already connected
+              isReconnecting.value = false;
+              connectionError.value = "";
             }
           }, delay);
         } else {
@@ -2962,8 +2972,13 @@ const resumeChatState = () => {
       // This ensures back button handler works correctly after Android resume
       if (savedMobileChat === "true" && windowWidth.value < 768) {
         showMobileChat.value = true;
+        // Re-push history state to ensure back button works after long background
+        window.history.pushState({ chatOpen: true }, "", "#chat=" + id);
       }
     }
+  } else if (activeChatId.value && showMobileChat.value && windowWidth.value < 768) {
+    // Chat already open - just ensure history state exists for back button
+    window.history.pushState({ chatOpen: true }, "", "#chat=" + activeChatId.value);
   }
 };
 
@@ -3148,6 +3163,14 @@ onMounted(() => {
   });
 
   // --- ANDROID BACK BUTTON HANDLER ---
+  // Push initial history state to prevent immediate exit on back
+  if (window.innerWidth < 768) {
+    window.history.replaceState({ appRoot: true }, "", window.location.href);
+  }
+
+  // Track last back press for double-back-to-exit
+  let lastBackPressTime = 0;
+
   window.addEventListener("popstate", (event) => {
     // If mobile chat ui is open, just close it and stay on page
     if (showMobileChat.value) {
@@ -3155,6 +3178,27 @@ onMounted(() => {
       showMobileChat.value = false;
       activeChatId.value = null;
       localStorage.removeItem("active_chat_id");
+      // Re-push state to allow another back press
+      window.history.pushState({ appRoot: true }, "", window.location.href.split('#')[0]);
+    } else if (window.innerWidth < 768) {
+      // No chat open - implement double-back-to-exit
+      const now = Date.now();
+      if (now - lastBackPressTime < 2000) {
+        // Second back press within 2 seconds - allow exit (do nothing, let default happen)
+        console.log("🔙 Android Back: Exiting app");
+        return;
+      }
+      
+      // First back press - show toast and prevent exit
+      lastBackPressTime = now;
+      console.log("🔙 Android Back: Press again to exit");
+      showExitToast.value = true;
+      setTimeout(() => {
+        showExitToast.value = false;
+      }, 2000);
+      
+      // Re-push state to stay on page
+      window.history.pushState({ appRoot: true }, "", window.location.href.split('#')[0]);
     }
   });
 
