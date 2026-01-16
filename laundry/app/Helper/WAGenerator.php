@@ -276,7 +276,7 @@ class WAGenerator extends Controller
             } 
         }
         
-        $output = "*" . strtoupper($nama_pelanggan) . "* _#" . $kode_cabang . "-" . $cs_code . "_\n" . $listNotif . "\n" . $totalText . "\n" . URL::HOST_URL . "/I/i/" . $id_pelanggan. "\n_Ketik *CEK* untuk info status laundry_";
+        $output = "*" . strtoupper($nama_pelanggan) . "* _#" . $kode_cabang . "-" . $cs_code . "_\n" . $listNotif . "\n" . $totalText . "\n" . URL::HOST_URL . "/I/" . $id_pelanggan. "\n_Ketik *CEK* untuk info status laundry_";
 
         // Post-processing
         $output = str_replace("<sup>2</sup>", "²", $output);
@@ -306,7 +306,7 @@ class WAGenerator extends Controller
             'customer' => "*" . strtoupper($nama_pelanggan) . "* _#" . $kode_cabang . "-" . $cs_code . "_",
             'order_list' => "| " . $cleanOrderList . " |",
             //'total_bill' => $cleanTotalBill,
-            'invoice_link' => URL::HOST_URL . "/I/i/" . $id_pelanggan . " _Ketik *CEK* untuk info status laundry_"
+            'invoice_link' => URL::HOST_URL . "/I/" . $id_pelanggan . " _Ketik *CEK* untuk info status laundry_"
         ];
 
         return json_encode([
@@ -396,7 +396,7 @@ class WAGenerator extends Controller
         }
 
         // Build text with actual values (no placeholders)
-        $output = "*" . strtoupper($nama_pelanggan) . "* _#" . $kode_cabang . "-" . $karyawan_code . "_ \n#" . $id_penjualan . " Selesai. \n" . $totalNotif . " \n" . URL::HOST_URL . "/I/i/" . $id_pelanggan;
+        $output = "*" . strtoupper($nama_pelanggan) . "* _#" . $kode_cabang . "-" . $karyawan_code . "_ \n#" . $id_penjualan . " Selesai. \n" . $totalNotif . " \n" . URL::HOST_URL . "/I/" . $id_pelanggan;
 
         return json_encode(['text' => $output]);
     }

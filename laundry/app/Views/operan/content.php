@@ -299,7 +299,7 @@ $idOperan = $data['idOperan'];
           $showMutasi = "";
           $userKas = "";
 
-          echo "<span class='d-none selesai" . $id . "' data-hp='" . $no_pelanggan . "'>" . strtoupper($pelanggan) . " _#" . $idCabangAsal . "-|STAFF|_ \n" . "#" . $id . " Selesai. |TOTAL| \n" . URL::HOST_URL . "/I/i/" . $f17 . "</span>";
+          echo "<span class='d-none selesai" . $id . "' data-hp='" . $no_pelanggan . "'>" . strtoupper($pelanggan) . " _#" . $idCabangAsal . "-|STAFF|_ \n" . "#" . $id . " Selesai. |TOTAL| \n" . URL::HOST_URL . "/I/" . $f17 . "</span>";
 
           if ($arrCount == $no) {
             if ($totalBayar > 0) {

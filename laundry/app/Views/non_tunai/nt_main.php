@@ -106,7 +106,7 @@ if (count($data['cek']) == 0) { ?>
     <div class="d-flex justify-content-between align-items-center">
       <!-- Left: Info -->
       <div class="flex-grow-1">
-        <a href="<?= URL::BASE_URL ?>I/i/<?= $f17 ?>" target="_blank" class="text-decoration-none">
+        <a href="<?= URL::BASE_URL ?>I/<?= $f17 ?>" target="_blank" class="text-decoration-none">
           <strong class="text-dark"><?= strtoupper($pelanggan) ?></strong>
           <i class="fas fa-external-link-alt small text-muted ms-1"></i>
         </a>

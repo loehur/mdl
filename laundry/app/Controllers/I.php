@@ -2,7 +2,13 @@
 
 class I extends Controller
 {
-   public function i($pelanggan) //invoice tagihan total
+   // Backward compatibility: /I/i/123 still works, forwards to index()
+   public function i($pelanggan)
+   {
+      return $this->index($pelanggan);
+   }
+
+   public function index($pelanggan) //invoice tagihan total
    {
       if (!is_numeric($pelanggan)) {
          exit();
@@ -259,31 +265,6 @@ class I extends Controller
    function q() //gambar qris
    {
       echo "<img style='display: block; margin-left: auto; margin-right: auto; margin-top:30px; max-width:100vw; max-height:100vh' src='" . URL::IN_ASSETS . "img/qris/qris.jpg'>";
-   }
-
-   function r($id) // reminder
-   {
-      $where = "id = " . $id;
-      $data = $this->db(0)->get_where_row('reminder', $where);
-      $t1 = strtotime($data['next_date']);
-      $t2 = strtotime(date("Y-m-d H:i:s"));
-      $diff = $t1 - $t2;
-      $dates = floor(($diff / (60 * 60)) / 24);
-
-      if ($dates > 0) {
-         $data['class'] = 'success';
-         $text_count = $dates . " Hari Lagi";
-      } elseif ($dates < 0) {
-         $data['class'] = 'danger';
-         $text_count = "Terlewat " . $dates * -1 . " Hari";
-      } else {
-         $data['class'] = 'danger';
-         $text_count = "Hari Ini";
-      }
-      $data['dates'] = $dates;
-      $data['warning'] = $text_count;
-
-      $this->view('invoice/reminder', $data);
    }
 
    public function bayar()

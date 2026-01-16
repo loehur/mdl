@@ -355,7 +355,7 @@ class WAReplies
                     // Remove duplicates - same customer may have multiple transactions
                     $unique_pelanggans_active = array_unique($id_pelanggans_active);
                     foreach ($unique_pelanggans_active as $id_pelanggan_active) {
-                        $list_link .= "https://ml.nalju.com/I/i/" . $id_pelanggan_active . "\n";
+                        $list_link .= "https://ml.nalju.com/I/" . $id_pelanggan_active . "\n";
                     }
 
                     $text = "Pak/Bu *" . $nama_pelanggan . "*,\nNota/Bon sudah kami kirimkan sebelumnya. Terima kasih 😊\n" . $list_link;
@@ -487,7 +487,7 @@ class WAReplies
                     // Remove duplicates - same customer may have multiple transactions
                     $unique_pelanggans = array_unique($id_pelanggans);
                     foreach ($unique_pelanggans as $id_pelanggan) {
-                        $list_link .= "https://ml.nalju.com/I/i/" . $id_pelanggan . "\n";
+                        $list_link .= "https://ml.nalju.com/I/" . $id_pelanggan . "\n";
                     }
 
                     if (count($listIdPenjualan) > 0 || count($listIdSelesai) > 0) {

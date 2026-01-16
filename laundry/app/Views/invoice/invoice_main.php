@@ -64,7 +64,7 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
                 <h5 class="modal-title" id="exampleModalLabel">Filter Periode</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form action="<?= URL::BASE_URL ?>I/i/<?= $dPelanggan['id_pelanggan'] ?>" method="POST">
+            <form action="<?= URL::BASE_URL ?>I/<?= $dPelanggan['id_pelanggan'] ?>" method="POST">
                 <div class="modal-body">
                     <div class="row g-2">
                         <div class="col-6">

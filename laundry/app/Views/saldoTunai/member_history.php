@@ -44,7 +44,7 @@ $tampil = 15;
     <div class="row p-1 pb-1 mx-0">
       <div class="col m-auto" style="max-width: 480px;">
         Bpk/Ibu. <span class="text-success"><b><?= strtoupper($dPelanggan['nama_pelanggan']) ?></b></span>
-        <a href="<?= URL::BASE_URL ?>I/i/<?= $dPelanggan['id_pelanggan'] ?>" class="float-right"><span class='btn btn-sm btn-warning'>Tagihan</span></a>
+        <a href="<?= URL::BASE_URL ?>I/<?= $dPelanggan['id_pelanggan'] ?>" class="float-right"><span class='btn btn-sm btn-warning'>Tagihan</span></a>
         <br><span class="text-bold">Saldo Deposit:</span> <span class="text-bold text-primary" id="sisa"></span><br><span><small>Last <?= $tampil ?> transactions, Updated: <?php echo DATE('Y-m-d') ?></small></span>
       </div>
     </div>

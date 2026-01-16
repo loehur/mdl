@@ -95,7 +95,7 @@ $labeled = false;
                   class='tambahCas bg-white rounded px-1 shadow-sm me-1' data-ref="<?= $ref ?>"
                   data-tr='id_transaksi'><span data-bs-toggle='modal' data-bs-target='#exampleModalSurcas'><i
                       class='fa fa-plus'></i></span></a><span class='bg-white rounded shadow-sm px-1 me-1'><a
-                    class='text-dark' href='<?= URL::BASE_URL . "I/i/" . $id_pelanggan ?>' target='_blank'><i
+                    class='text-dark' href='<?= URL::BASE_URL . "I/" . $id_pelanggan ?>' target='_blank'><i
                       class='fas fa-file-invoice'></i></a></span>
               </small>
             </td>
@@ -925,7 +925,7 @@ $labeled = false;
                   <div class="float-right">
                     <?= $buttonNotif_Member ?></span>
                     <span class='bg-white rounded pr-1 pl-1'><a class="text-dark"
-                        href="<?= URL::BASE_URL ?>I/i/<?= $id_pelanggan ?>" target='_blank'><i
+                        href="<?= URL::BASE_URL ?>I/<?= $id_pelanggan ?>" target='_blank'><i
                           class='fas fa-file-invoice'></i></a></span>
                     <span class='rounded bg-white border pr-1 pl-1'><?= $cs ?></span>
 
