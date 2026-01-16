@@ -2427,11 +2427,12 @@ const connectWebSocket = () => {
       connectionError.value = "";
 
       // Mark as successfully connected (for reconnect logic)
+      // Note: duplicateRetryAttempts is NOT reset here because server might
+      // immediately close with 1008 after onopen. It's reset in welcome message handler.
       wasConnected.value = true;
       isReconnecting.value = false;
       reconnectAttempts.value = 0;
       reconnectDelay.value = 3000; // Reset delay
-      duplicateRetryAttempts.value = 0; // Reset duplicate retry counter
 
       // Save session (3 days)
       const expiry = new Date().getTime() + 3 * 24 * 60 * 60 * 1000;
@@ -2460,7 +2461,12 @@ const connectWebSocket = () => {
         }
 
         // Handle Connection Welcome
+        // This is the REAL confirmation that connection is stable
+        // (server sends this only after accepting the connection)
         if (payload.type === "connection") {
+          // Reset duplicate retry counter - connection is now truly stable
+          duplicateRetryAttempts.value = 0;
+          
           if (payload.role) {
             currentUserRole.value = payload.role;
             localStorage.setItem("cms_chat_role", payload.role);
@@ -2748,7 +2754,7 @@ const connectWebSocket = () => {
               `Waiting ${duplicateRetryDelay/1000}s for server cleanup before retry...`
             );
             
-            connectionError.value = `🔄 Menunggu koneksi lama terputus... (${attempt}/${maxDuplicateRetries})`;
+            connectionError.value = `Menunggu koneksi lama terputus... (${attempt}/${maxDuplicateRetries})`;
             isReconnecting.value = true;
             
             setTimeout(() => {
