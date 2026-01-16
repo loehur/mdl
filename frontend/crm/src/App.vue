@@ -2449,6 +2449,9 @@ const connectWebSocket = () => {
     };
 
     ws.onmessage = (event) => {
+      // DEBUG: Log raw WebSocket data to confirm messages are received
+      console.log("🔌 [WS RAW]", event.data.substring(0, 200));
+      
       try {
         const payload = JSON.parse(event.data);
 
