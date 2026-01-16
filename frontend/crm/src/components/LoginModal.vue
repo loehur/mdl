@@ -21,8 +21,14 @@ const handleKeyup = (e) => {
 
 const handleLogin = () => {
   if (username.value && !props.loading) {
-    emit('login', username.value);
+    // Always emit uppercase to match OneSignal requirements
+    emit('login', username.value.toUpperCase());
   }
+};
+
+// Transform input to uppercase as user types
+const onInput = (e) => {
+  username.value = e.target.value.toUpperCase();
 };
 
 // Keep local state in sync if prop changes (optional)
@@ -93,13 +99,15 @@ watch(() => props.initialUsername, (newVal) => {
                   </svg>
                 </div>
                 <input
-                  v-model="username"
+                  :value="username"
+                  @input="onInput"
                   @keyup="handleKeyup"
                   type="text"
                   placeholder="Username"
-                  class="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl pl-12 pr-4 py-4 text-white text-lg font-medium placeholder:text-slate-500 focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 focus:bg-slate-800 transition-all"
+                  class="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl pl-12 pr-4 py-4 text-white text-lg font-medium placeholder:text-slate-500 focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 focus:bg-slate-800 transition-all uppercase"
                   :disabled="loading"
                   autofocus
+                  autocapitalize="characters"
                 />
               </div>
             </div>

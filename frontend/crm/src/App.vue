@@ -2427,12 +2427,10 @@ const connectWebSocket = () => {
       connectionError.value = "";
 
       // Mark as successfully connected (for reconnect logic)
-      // Note: duplicateRetryAttempts is NOT reset here because server might
-      // immediately close with 1008 after onopen. It's reset in welcome message handler.
+      // Note: isReconnecting, duplicateRetryAttempts, reconnectAttempts are NOT reset here
+      // because server might immediately close with 1008 after onopen.
+      // They are reset in welcome message handler to prevent banner flicker.
       wasConnected.value = true;
-      isReconnecting.value = false;
-      reconnectAttempts.value = 0;
-      reconnectDelay.value = 3000; // Reset delay
 
       // Save session (3 days)
       const expiry = new Date().getTime() + 3 * 24 * 60 * 60 * 1000;
@@ -2464,14 +2462,19 @@ const connectWebSocket = () => {
         // This is the REAL confirmation that connection is stable
         // (server sends this only after accepting the connection)
         if (payload.type === "connection") {
-          // Reset duplicate retry counter - connection is now truly stable
+          // Reset all retry counters - connection is now truly stable
           duplicateRetryAttempts.value = 0;
+          reconnectAttempts.value = 0;
+          reconnectDelay.value = 3000;
+          isReconnecting.value = false;
+          connectionError.value = ""; // Clear any error message
           
           if (payload.role) {
             currentUserRole.value = payload.role;
             localStorage.setItem("cms_chat_role", payload.role);
             console.log("User Role Set:", payload.role);
           }
+          console.log("✅ Connection stable - welcome received");
           return;
         }
 
