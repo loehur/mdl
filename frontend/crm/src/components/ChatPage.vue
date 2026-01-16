@@ -578,7 +578,18 @@ onUnmounted(() => {
                         </div>
 
                         <!-- Messages -->
-                        <div class="flex max-w-[85%] md:max-w-[70%] overflow-hidden" :class="msg.sender === 'me' ? 'self-end justify-end' : 'self-start'">
+                        <div class="flex max-w-[85%] md:max-w-[70%] items-center gap-2" :class="msg.sender === 'me' ? 'self-end flex-row-reverse' : 'self-start'">
+                             <!-- Reply Button (Left side for outgoing, Right side for incoming) -->
+                             <button 
+                               @click="setReplyTo(msg)" 
+                               class="opacity-40 hover:opacity-100 active:opacity-100 transition-opacity p-1.5 rounded-full hover:bg-[var(--wa-hover)] active:bg-[var(--wa-hover)] text-[var(--wa-text-tertiary)] hover:text-[var(--wa-accent-green)] active:text-[var(--wa-accent-green)] flex-shrink-0"
+                               title="Reply"
+                             >
+                               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                               </svg>
+                             </button>
+
                              <!-- Bubble -->
                              <div :class="[
                                'rounded-lg shadow-sm px-3 py-1.5 relative overflow-hidden',
@@ -620,9 +631,6 @@ onUnmounted(() => {
                                             </span>
                                        </div>
                                   </div>
-
-                                  <!-- Swipe Reply Button (Desktop Hover) -->
-                                  <button @click="setReplyTo(msg)" class="md:hidden absolute -right-8 top-2 text-[var(--wa-text-tertiary)]"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg></button>
                              </div>
                         </div>
                    </div>
