@@ -2757,7 +2757,7 @@ const connectWebSocket = () => {
               `Waiting ${duplicateRetryDelay/1000}s for server cleanup before retry...`
             );
             
-            connectionError.value = `Mencoba terhubung kembali... (${attempt}/${maxDuplicateRetries})`;
+            connectionError.value = `Reconnecting... (${attempt})`;
             isReconnecting.value = true;
             
             setTimeout(() => {
@@ -3054,7 +3054,7 @@ onMounted(() => {
         const reconnectDelayMs = needsDelay ? 3000 : 500; // 3s delay if recent disconnect, else quick
 
         connectionError.value = needsDelay
-          ? "Menunggu server... (jaringan berubah)"
+          ? "Reconnecting..."
           : "Reconnecting...";
 
         console.log(
@@ -3110,7 +3110,7 @@ onMounted(() => {
       const reconnectDelayMs = needsDelay ? 3000 : 500;
 
       connectionError.value = needsDelay
-        ? "Menunggu server cleanup..."
+        ? "Reconnecting..."
         : "Reconnecting...";
 
       if (authId.value) {
