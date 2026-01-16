@@ -104,13 +104,14 @@ async function sendPushNotification(options) {
         headings: { en: title },
         contents: { en: message },
 
-        // Collapse ID: Replaces the previous notification from the same user
-        collapse_id: groupKey,
+        // NO collapse_id - we want each notification to stack, not replace
+        // collapse_id was removed to allow multiple notifications per customer
 
         // Android Group: Stacks notifications visually in a group (Inbox style)
+        // Using phone-based groupKey so each customer's messages are grouped together
         android_group: groupKey,
 
-        // iOS Thread ID: Groups notifications on iOS
+        // iOS Thread ID: Groups notifications on iOS by customer
         thread_id: groupKey,
 
         // NOTE: Do NOT use 'url' parameter here!
@@ -127,8 +128,8 @@ async function sendPushNotification(options) {
         ios_badgeType: 'Increase',
         ios_badgeCount: 1,
 
-        // Android Summary Message (e.g. "5 new messages" instead of just text)
-        android_group_message: { en: "$[notif_count] new messages" }
+        // Android Summary Message (e.g. "5 new messages from CUSTOMER")
+        android_group_message: { en: `$[notif_count] messages from ${title}` }
     };
 
     // Remove undefined values
@@ -538,6 +539,22 @@ app.post('/incoming', async (req, res) => {
     // Flag to skip notification if no meaningful text content
     const hasTextContent = messageText.length > 0;
 
+    // Flag to skip push notification for non-incoming message types
+    // These are internal events/agent messages that should NOT trigger push notifications
+    const skipPushTypes = [
+        'agent_message_sent',    // Outgoing message from agent
+        'status_update',         // Message status (sent/delivered/read)
+        'case_updated',          // Case status change
+        'case_resolved',         // Case resolved
+        'conversation_read',     // Conversation marked as read
+    ];
+    const eventType = data.type || '';
+    const shouldSkipPush = skipPushTypes.includes(eventType);
+
+    if (shouldSkipPush) {
+        console.log(`[PUSH] Skipped: Event type '${eventType}' does not trigger push notification`);
+    }
+
     const caseType = parseInt(data.case || 0);
 
 
@@ -621,10 +638,11 @@ app.post('/incoming', async (req, res) => {
         console.log(`[PUSH] Offline users for push: ${offlineUserIds.join(', ') || 'none'}`);
 
         // Send Push Notification only to OFFLINE users AND only if message has text content
+        // AND only for incoming messages (not agent messages or system events)
         let pushResult = { success: false, error: 'No text content' };
         const autoReplied = data.auto_replied === true;
 
-        if (offlineUserIds.length > 0 && hasTextContent) {
+        if (offlineUserIds.length > 0 && hasTextContent && !shouldSkipPush) {
             pushResult = await sendPushNotification({
                 title: customerName,
                 message: messageText.substring(0, 100),
@@ -634,6 +652,8 @@ app.post('/incoming', async (req, res) => {
                 autoReplied: autoReplied,
                 data: { phone: customerPhone }
             });
+        } else if (shouldSkipPush) {
+            pushResult = { success: false, error: 'Skipped: agent/system event' };
         } else if (!hasTextContent) {
             console.log('[PUSH] Skipped: Message has no text content (image/sticker/etc without caption)');
         }
@@ -699,8 +719,8 @@ app.post('/incoming', async (req, res) => {
     let pushResult = { success: false, recipients: 0 };
     const autoRepliedTarget = data.auto_replied === true;
 
-    // Only send push if message has text content
-    if (pushRecipients.length > 0 && hasTextContent) {
+    // Only send push if message has text content AND is incoming (not agent/system event)
+    if (pushRecipients.length > 0 && hasTextContent && !shouldSkipPush) {
         pushResult = await sendPushNotification({
             title: customerName,
             message: messageText.substring(0, 100),
@@ -711,6 +731,8 @@ app.post('/incoming', async (req, res) => {
             data: { phone: customerPhone }
         });
         console.log(`[PUSH] Sent to ${pushRecipients.length} offline user(s) (${pushRecipients.join(',')}) for target ${targetId} (Case ${caseType}):`, pushResult.success ? '✅' : '❌');
+    } else if (shouldSkipPush) {
+        console.log(`[PUSH] Skipped: Event type '${eventType}' does not trigger push notification`);
     } else if (!hasTextContent) {
         console.log('[PUSH] Skipped: Message has no text content');
     }

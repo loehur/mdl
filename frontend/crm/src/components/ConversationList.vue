@@ -69,17 +69,50 @@ const onSearchInput = (e) => {
   emit("update:searchQuery", e.target.value);
 };
 
+// Parse WhatsApp formatting: *bold* _italic_ ~strikethrough~ ```monospace```
+const parseWhatsAppFormatting = (text) => {
+  if (!text) return '';
+  
+  // Bold: *text*
+  text = text.replace(/\*([^*]+)\*/g, '<strong>$1</strong>');
+  
+  // Italic: _text_
+  text = text.replace(/\_([^_]+)\_/g, '<em>$1</em>');
+  
+  // Strikethrough: ~text~
+  text = text.replace(/\~([^~]+)\~/g, '<del>$1</del>');
+  
+  // Monospace: ```text```
+  text = text.replace(/\`\`\`([^`]+)\`\`\`/g, '<code>$1</code>');
+  
+  return text;
+};
+
 // Parse emoji with Twemoji for consistent rendering
 const parseEmoji = (text) => {
   if (!text) return '';
-  // Escape HTML first
+  // Escape HTML first (but preserve our formatting tags)
   let escaped = text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  return twemoji.parse(escaped, {
+  
+  // Apply WhatsApp formatting
+  escaped = parseWhatsAppFormatting(escaped);
+  
+  // Then parse emoji
+  let parsed = twemoji.parse(escaped, {
     folder: 'svg',
     ext: '.svg',
     base: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/',
     className: 'twemoji-inline'
   });
+
+  // Replace i- and o- with SVG Direction Icons (Only at start of string)
+  // i- : Inbound (Arrow Down Left - Masuk)
+  parsed = parsed.replace(/^i- /, `<svg class="inline-block w-3.5 h-3.5 mr-1 text-emerald-500 align-text-bottom" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19.5 4.5l-15 15m0 0h11.25m-11.25 0V8.25" /></svg>`); // Panah Masuk (↙️)
+  
+  // o- : Outbound (Arrow Up Right - Keluar)
+  parsed = parsed.replace(/^o- /, `<svg class="inline-block w-3.5 h-3.5 mr-1 text-gray-400 align-text-bottom" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4.5 19.5l15-15m0 0H8.25m11.25 0v11.25" /></svg>`); // Panah Keluar (↗️)
+
+  return parsed;
 };
 </script>
 
@@ -218,8 +251,8 @@ const parseEmoji = (text) => {
         <div class="w-10 h-10 rounded-full bg-[var(--wa-accent-green)] flex items-center justify-center text-black font-bold border-0">A</div>
         <div>
           <div class="text-sm font-medium text-[var(--wa-text-primary)]">MDL Agent <span class="text-[var(--wa-accent-blue)] font-mono">#{{ authId }}</span></div>
-          <div class="text-xs text-[var(--wa-accent-green)] flex items-center gap-1">
-            <span class="w-1.5 h-1.5 rounded-full bg-[var(--wa-accent-green)]"></span>Online
+          <div class="text-xs flex items-center gap-1" :class="isConnected ? 'text-[var(--wa-accent-green)]' : 'text-red-400'">
+            <span class="w-1.5 h-1.5 rounded-full" :class="isConnected ? 'bg-[var(--wa-accent-green)]' : 'bg-red-400'"></span>{{ isConnected ? 'Online' : 'Offline' }}
           </div>
         </div>
       </div>

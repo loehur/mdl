@@ -450,20 +450,23 @@ const fetchUserRole = async () => {
 // OneSignal Integration for Push Notifications
 const oneSignalLogin = (userId) => {
   try {
+    // IMPORTANT: Always use UPPERCASE to match server-side OneSignal push targeting
+    const uppercaseUserId = String(userId).toUpperCase();
+    
     // For WebView: Call Android interface if available
     if (window.OneSignalInterface) {
-      window.OneSignalInterface.login(String(userId));
-      console.log("OneSignal: Logged in via Android interface:", userId);
+      window.OneSignalInterface.login(uppercaseUserId);
+      console.log("OneSignal: Logged in via Android interface:", uppercaseUserId);
     }
     // For Web: Use OneSignal Web SDK if available
     else if (window.OneSignalDeferred) {
       window.OneSignalDeferred.push(async function (OneSignal) {
-        await OneSignal.login(String(userId));
-        console.log("OneSignal: Logged in via Web SDK:", userId);
+        await OneSignal.login(uppercaseUserId);
+        console.log("OneSignal: Logged in via Web SDK:", uppercaseUserId);
       });
     } else if (window.OneSignal) {
-      window.OneSignal.login(String(userId));
-      console.log("OneSignal: Logged in:", userId);
+      window.OneSignal.login(uppercaseUserId);
+      console.log("OneSignal: Logged in:", uppercaseUserId);
     } else {
       console.log("OneSignal: Not available (running in browser without SDK)");
     }
@@ -2764,7 +2767,7 @@ const connectWebSocket = () => {
           );
 
           setTimeout(() => {
-            if (authId.value && authPassword.value && !isConnected.value) {
+            if (authId.value && !isConnected.value) {
               connectWebSocket();
             } else {
               // Cannot reconnect - no credentials or already connected
@@ -3917,56 +3920,6 @@ const handleLinkClick = (e) => {
             </div>
           </div>
 
-          <!-- Notification Sound Setting -->
-          <div class="mt-6 pt-6 border-t border-[var(--wa-border)]">
-            <h3
-              class="text-sm font-medium text-[var(--wa-text-secondary)] mb-3"
-            >
-              Notification Sound
-            </h3>
-            <div
-              class="flex items-center justify-between p-3 rounded-lg border border-[var(--wa-border)]"
-            >
-              <div class="flex items-center gap-3">
-                <div
-                  class="w-10 h-10 rounded-full bg-[var(--wa-bg-tertiary)] flex items-center justify-center"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-5 w-5 text-[var(--wa-accent-green)]"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
-                    <path
-                      d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z"
-                    />
-                  </svg>
-                </div>
-                <div>
-                  <p class="text-[var(--wa-text-primary)] font-medium">
-                    {{ notificationSoundEnabled ? "Sound On" : "Sound Off" }}
-                  </p>
-                  <p class="text-xs text-[var(--wa-text-tertiary)]">
-                    Bunyi saat pesan masuk
-                  </p>
-                </div>
-              </div>
-              <button
-                @click="toggleNotificationSound"
-                class="relative w-12 h-6 rounded-full transition-colors duration-300"
-                :class="
-                  notificationSoundEnabled
-                    ? 'bg-[var(--wa-accent-green)]'
-                    : 'bg-gray-500'
-                "
-              >
-                <div
-                  class="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300"
-                  :class="notificationSoundEnabled ? 'left-6' : 'left-0.5'"
-                ></div>
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     </div>

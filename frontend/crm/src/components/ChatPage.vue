@@ -778,8 +778,8 @@ onUnmounted(() => {
                   </div>
              </div>
 
-             <!-- Case 2: Active Chat Input -->
-             <div v-else class="flex gap-2 items-end">
+             <!-- Case 2: Active Chat Input (only when conversation is NOT closed) -->
+             <div v-if="activeConversation.status !== 'closed'" class="flex gap-2 items-end">
                   <!-- Attachment buttons (left side) -->
                   <div class="flex items-center gap-2">
                        <input type="file" ref="fileInput" @change="selectImage" accept="image/*" class="hidden" />

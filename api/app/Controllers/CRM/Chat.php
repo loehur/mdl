@@ -290,7 +290,7 @@ class Chat extends Controller
             
             // Update conversation last_message using wa_number
             $db->update('wa_conversations', [
-                'last_message' => $message,
+                'last_message' => 'o- ' . mb_substr($message, 0, 40),
                 'updated_at' => date('Y-m-d H:i:s')
             ], ['wa_number' => $phone]);
 
@@ -952,7 +952,7 @@ class Chat extends Controller
                 
                 // Update conversation
                 $db->update('wa_conversations', [
-                    'last_message' => '📷 Image',
+                    'last_message' => '� �📷 Image',
                     'updated_at' => date('Y-m-d H:i:s')
                 ], ['wa_number' => $waNumber]);
                 
