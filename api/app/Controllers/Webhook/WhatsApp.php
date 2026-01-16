@@ -646,7 +646,7 @@ class WhatsApp extends Controller
                 'last_in_at' => date('Y-m-d H:i:s'),
                 'last_message_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s'),
-                'last_message' => 'i- ' . mb_substr($lastMessage, 0, 40),
+                'last_message' => 'i- ' . mb_substr($lastMessage, 0, 50),
             ];
             
             // Only update case if not null (Append to existing list)
@@ -756,7 +756,7 @@ class WhatsApp extends Controller
             'last_in_at' => date('Y-m-d H:i:s'),
             'last_message_at' => date('Y-m-d H:i:s'),
             'updated_at' => date('Y-m-d H:i:s'),
-            'last_message' => 'i- ' . mb_substr($lastMessage, 0, 40),
+            'last_message' => 'i- ' . mb_substr($lastMessage, 0, 50),
         ];
         
         // Only set case if not null (Store as JSON List)

@@ -710,7 +710,7 @@ class WhatsAppService
             if ($conv && $conv->num_rows() > 0) {
                 // Update conversation
                 $updateData = [
-                    'last_message' => mb_substr($lastMessageText, 0, 40),
+                    'last_message' => 'o- ' . mb_substr($lastMessageText, 0, 50),
                     'last_message_at' => date('Y-m-d H:i:s'),
                     'updated_at' => date('Y-m-d H:i:s')
                 ];
@@ -723,7 +723,7 @@ class WhatsAppService
                 $convData = [
                     'wa_number' => $waNumber,
                     'status' => 'closed',
-                    'last_message' => mb_substr($lastMessageText, 0, 40),
+                    'last_message' => 'o- ' . mb_substr($lastMessageText, 0, 50),
                     'last_message_at' => date('Y-m-d H:i:s'),
                     'created_at' => date('Y-m-d H:i:s')
                 ];
