@@ -27,12 +27,12 @@ class Route extends Controller
         if (isset($url[1])) {
             if (method_exists($this->controller, $url[1])) {
                 $this->method = $url[1];
+                unset($url[1]);
             }
         }
 
-        //BUANG URL CONTROLER DAN METHOD UNTUK MENGAMBIL PARAMETER
         unset($url[0]);
-        unset($url[1]);
+        // unset($url[1]); // Moved inside the method check above
         $this->param = $url;
 
         //PANGGIL CLASS(yg sudah di panggil init/core beserta fungsi dan parameter)
