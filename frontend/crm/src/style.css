@@ -43,4 +43,20 @@ body {
   overflow: hidden;
   height: 100%;
   background-color: var(--wa-bg-primary);
+  /* Emoji font fallback for proper emoji rendering */
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif,
+    'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+}
+
+/* Ensure emoji display correctly everywhere */
+* {
+  font-family: inherit;
+}
+
+/* Twemoji inline styling for chat messages */
+.twemoji-inline {
+  height: 1.2em;
+  width: 1.2em;
+  vertical-align: -0.2em;
+  display: inline-block;
 }

@@ -2,6 +2,7 @@
 import { ref, computed, nextTick, watch, onMounted, onUnmounted } from "vue";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import EmojiPicker from "./EmojiPicker.vue";
+import twemoji from 'twemoji';
 
 const props = defineProps({
   activeConversation: {
@@ -409,6 +410,15 @@ const parseWhatsAppFormatting = (text) => {
        .replace(/_([^_]+)_/g, "<em>$1</em>") // Italic
        .replace(/~([^~]+)~/g, "<del>$1</del>") // Strike
        .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" class="text-blue-400">$1</a>'); // Links
+    
+    // Parse emojis to Twemoji images for consistent rendering
+    f = twemoji.parse(f, {
+        folder: 'svg',
+        ext: '.svg',
+        base: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/',
+        className: 'twemoji-inline'
+    });
+    
     return f;
 };
 const formatReactionText = (t) => (t || "👍").replace("Reacted: ", "").replace("Removed reaction", "👎");
