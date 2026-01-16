@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed } from "vue";
+import twemoji from 'twemoji';
 
 const props = defineProps({
   conversations: { type: Array, default: () => [] },
@@ -66,6 +67,19 @@ const clearSearch = () => {
 const onSearchInput = (e) => {
   searchQuery.value = e.target.value;
   emit("update:searchQuery", e.target.value);
+};
+
+// Parse emoji with Twemoji for consistent rendering
+const parseEmoji = (text) => {
+  if (!text) return '';
+  // Escape HTML first
+  let escaped = text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return twemoji.parse(escaped, {
+    folder: 'svg',
+    ext: '.svg',
+    base: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/',
+    className: 'twemoji-inline'
+  });
 };
 </script>
 
@@ -191,7 +205,7 @@ const onSearchInput = (e) => {
             </template>
           </div>
           <div class="flex justify-between items-center">
-            <p class="text-sm text-[var(--wa-text-secondary)] truncate w-64" :class="{ 'font-normal text-[var(--wa-text-primary)]': chat.unread > 0 }">{{ chat.lastMessage }}</p>
+            <p class="text-sm text-[var(--wa-text-secondary)] truncate w-64" :class="{ 'font-normal text-[var(--wa-text-primary)]': chat.unread > 0 }" v-html="parseEmoji(chat.lastMessage)"></p>
             <span v-if="chat.unread > 0" class="bg-[var(--wa-accent-green)] text-black text-[11px] font-semibold px-2 py-0.5 rounded-full min-w-[20px] text-center">{{ chat.unread }}</span>
           </div>
         </div>
