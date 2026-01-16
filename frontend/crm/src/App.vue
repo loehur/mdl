@@ -2356,16 +2356,22 @@ const handleIncomingMessage = (payload) => {
         selectChat(conversation.id);
       }
     } else {
+      console.log("✓ Chat is visible, scrolling to bottom. Current messages count:", conversation.messages.length);
       scrollToBottom();
       markMessagesRead(conversation.wa_number); // Use phone number, not conversation ID
     }
 
-    // Move conversation to top
+    // Move conversation to top AND force Vue reactivity
     const idx = conversations.value.findIndex((c) => c.id == conversation.id);
     if (idx > 0) {
-      conversations.value.splice(idx, 1);
-      conversations.value.unshift(conversation);
+      // Move to top: remove from current position and add to front
+      const [moved] = conversations.value.splice(idx, 1);
+      conversations.value.unshift(moved);
     }
+    
+    // FORCE REACTIVITY: Trigger Vue to detect the change by reassigning
+    // This is needed because Vue sometimes doesn't detect deep mutations
+    conversations.value = [...conversations.value];
   }
 };
 
@@ -2421,10 +2427,12 @@ const connectWebSocket = () => {
       if (socket.value && ws !== socket.value) return;
 
       clearTimeout(connTimeout);
-      console.log("WebSocket connected");
-      isConnected.value = true;
+      console.log("WebSocket connected (awaiting server confirmation...)");
+      
+      // NOTE: isConnected is NOT set to true here!
+      // Server might immediately reject with 1008 after onopen.
+      // isConnected will be set to true in welcome message handler.
       isConnecting.value = false;
-      connectionError.value = "";
 
       // Mark as successfully connected (for reconnect logic)
       // Note: isReconnecting, duplicateRetryAttempts, reconnectAttempts are NOT reset here
@@ -2462,12 +2470,15 @@ const connectWebSocket = () => {
         // This is the REAL confirmation that connection is stable
         // (server sends this only after accepting the connection)
         if (payload.type === "connection") {
+          // NOW we can safely set isConnected to true
+          isConnected.value = true;
+          connectionError.value = ""; // Clear any error message
+          
           // Reset all retry counters - connection is now truly stable
           duplicateRetryAttempts.value = 0;
           reconnectAttempts.value = 0;
           reconnectDelay.value = 3000;
           isReconnecting.value = false;
-          connectionError.value = ""; // Clear any error message
           
           if (payload.role) {
             currentUserRole.value = payload.role;
@@ -3241,8 +3252,15 @@ onMounted(() => {
 
   // Case 1: Valid session (ID + Valid Expiry)
   if (storedId && storedExpiry && now < parseInt(storedExpiry)) {
-    console.log("Restoring session for ID:", storedId);
-    authId.value = storedId;
+    // Force uppercase for OneSignal compatibility
+    const uppercaseId = storedId.toUpperCase();
+    console.log("Restoring session for ID:", uppercaseId);
+    authId.value = uppercaseId;
+
+    // Update localStorage if it was lowercase
+    if (storedId !== uppercaseId) {
+      localStorage.setItem("cms_chat_id", uppercaseId);
+    }
 
     // Renew expiry for another 3 days
     const newExpiry = new Date().getTime() + 3 * 24 * 60 * 60 * 1000;
@@ -3253,11 +3271,16 @@ onMounted(() => {
       // Restore active chat if persisted for resume
       resumeChatState();
     });
+
+    // Re-login to OneSignal with uppercase ID
+    oneSignalLogin(uppercaseId);
   }
   // Case 2: Has ID but expired - Keep ID, prompt to reconnect
   else if (storedId && storedExpiry && now >= parseInt(storedExpiry)) {
+    // Force uppercase for OneSignal compatibility
+    const uppercaseId = storedId.toUpperCase();
     console.log("Session expired. ID found, please reconnect.");
-    authId.value = storedId; // Keep the ID for convenience
+    authId.value = uppercaseId; // Keep the ID for convenience (uppercase)
     showLoginPrompt.value = true;
   }
   // Case 3: No session - Start fresh
@@ -3270,7 +3293,8 @@ onMounted(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const idParam = urlParams.get("id");
     if (idParam) {
-      authId.value = idParam;
+      // Force uppercase for OneSignal compatibility
+      authId.value = idParam.toUpperCase();
       // Auto-connect with ID from URL
       connect();
       // Clean URL
