@@ -107,12 +107,48 @@ async function sendPushNotification(options) {
         // NO collapse_id - we want each notification to stack, not replace
         // collapse_id was removed to allow multiple notifications per customer
 
-        // Android Group: Stacks notifications visually in a group (Inbox style)
-        // Using phone-based groupKey so each customer's messages are grouped together
+        // ============================================
+        // ANDROID GROUP SETTINGS (WhatsApp-style)
+        // ============================================
+        // Group Key: Notifications with same key are bundled together
         android_group: groupKey,
 
-        // iOS Thread ID: Groups notifications on iOS by customer
+        // Summary Message: Shows when notifications are collapsed (e.g. "5 pesan baru")
+        // $[notif_count] is OneSignal's magic variable for count
+        android_group_message: { en: `$[notif_count] pesan baru` },
+
+        // Summary Arg: Used in MessagingStyle for person name in summary
+        // This makes summary show: "5 messages from CUSTOMER_NAME"
+        summary_arg: title,
+
+        // Summary Arg Count: How many messages this notification represents
+        // For single incoming message, always 1
+        summary_arg_count: 1,
+
+        // ============================================
+        // iOS THREAD SETTINGS
+        // ============================================
+        // Thread ID: Groups notifications on iOS by customer
         thread_id: groupKey,
+
+        // iOS Summary Arg (similar to Android)
+        ios_category: 'MESSAGE',
+
+        // Badge settings
+        ios_badgeType: 'Increase',
+        ios_badgeCount: 1,
+
+        // ============================================
+        // ANDROID DISPLAY SETTINGS
+        // ============================================
+        // Channel ID for notification sound/vibration customization
+        android_channel_id: process.env.ONESIGNAL_ANDROID_CHANNEL_ID || undefined,
+
+        // Visibility: 1 = Public (show on lock screen like WhatsApp)
+        android_visibility: 1,
+
+        // Priority: 10 = High priority (heads-up notification)
+        priority: 10,
 
         // NOTE: Do NOT use 'url' parameter here!
         // It conflicts with Android's INotificationClickListener.
@@ -123,13 +159,7 @@ async function sendPushNotification(options) {
             phone: phone, // Keep original legacy phone format in data
             case: caseType,
             ...data
-        },
-        android_channel_id: process.env.ONESIGNAL_ANDROID_CHANNEL_ID || undefined,
-        ios_badgeType: 'Increase',
-        ios_badgeCount: 1,
-
-        // Android Summary Message (e.g. "5 new messages from CUSTOMER")
-        android_group_message: { en: `$[notif_count] messages from ${title}` }
+        }
     };
 
     // Remove undefined values
