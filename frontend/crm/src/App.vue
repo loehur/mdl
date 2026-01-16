@@ -16,6 +16,7 @@ import {
   showLoginPrompt, duplicateWarning,
   wasConnected, isReconnecting, reconnectAttempts, maxReconnectAttempts, reconnectDelay,
   resumeTimestamp, lastDisconnectTime,
+  duplicateRetryAttempts, maxDuplicateRetries, duplicateRetryDelay,
   // Conversations
   conversations, activeChatId, isLoadingConversations,
   searchQuery, conversationFilter, pendingTargetPhone, autoOpenChatOnIncoming,
@@ -2430,6 +2431,7 @@ const connectWebSocket = () => {
       isReconnecting.value = false;
       reconnectAttempts.value = 0;
       reconnectDelay.value = 3000; // Reset delay
+      duplicateRetryAttempts.value = 0; // Reset duplicate retry counter
 
       // Save session (3 days)
       const expiry = new Date().getTime() + 3 * 24 * 60 * 60 * 1000;
@@ -2732,11 +2734,38 @@ const connectWebSocket = () => {
             setTimeout(() => {
               if (!isConnected.value && authId.value) connectWebSocket();
             }, 1500);
-          } else {
-            // Duplicate connection detected - logout and show warning in login card
+          } else if (duplicateRetryAttempts.value < maxDuplicateRetries) {
+            // NETWORK SWITCH HANDLING:
+            // When network switches (WiFi <-> Mobile), the old connection may still be "alive"
+            // on the server because the server heartbeat (30s) hasn't detected it as dead yet.
+            // We retry a few times with delay to give server time to clean up the zombie connection.
+            
+            duplicateRetryAttempts.value++;
+            const attempt = duplicateRetryAttempts.value;
+            
             console.warn(
-              "Connection closed: Another connection with same ID exists. Logging out..."
+              `Duplicate connection detected (attempt ${attempt}/${maxDuplicateRetries}). ` +
+              `Waiting ${duplicateRetryDelay/1000}s for server cleanup before retry...`
             );
+            
+            connectionError.value = `🔄 Menunggu koneksi lama terputus... (${attempt}/${maxDuplicateRetries})`;
+            isReconnecting.value = true;
+            
+            setTimeout(() => {
+              if (!isConnected.value && authId.value) {
+                console.log(`Retrying connection after duplicate error (attempt ${attempt})...`);
+                connectWebSocket();
+              }
+            }, duplicateRetryDelay);
+          } else {
+            // All retries exhausted - this is likely a real duplicate connection
+            // (user is truly connected on another device/tab)
+            console.warn(
+              "Connection closed: Max duplicate retries exceeded. Another connection with same ID exists. Logging out..."
+            );
+            
+            // Reset retry counter for next time
+            duplicateRetryAttempts.value = 0;
             
             // Set warning message for login card
             duplicateWarning.value = "ID Anda sudah terkoneksi di tab/device lain. Silakan login ulang atau logout dari device lain.";

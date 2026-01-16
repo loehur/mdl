@@ -31,6 +31,13 @@ export const reconnectDelay = ref(3000);
 export const resumeTimestamp = ref(0);
 export const lastDisconnectTime = ref(0);
 
+// Duplicate Connection Retry State
+// When network switches, old connection may still be "alive" on server
+// We retry a few times before giving up and logging out
+export const duplicateRetryAttempts = ref(0);
+export const maxDuplicateRetries = 3; // Retry up to 3 times before logout
+export const duplicateRetryDelay = 5000; // 5 seconds between retries (wait for server heartbeat cleanup)
+
 // ============================================================================
 // Conversation State
 // ============================================================================
