@@ -186,13 +186,7 @@ const parseEmoji = (text) => {
       </div>
     </div>
 
-    <!-- Reconnecting Banner -->
-    <div v-if="isReconnecting && !isConnected" class="px-4 py-2 bg-yellow-500/10 border-b border-yellow-500/20">
-      <div class="flex items-center gap-2 text-yellow-400 text-sm">
-        <div class="w-4 h-4 border-2 border-yellow-400/30 border-t-yellow-400 rounded-full animate-spin"></div>
-        <span>{{ connectionError || "Reconnecting..." }}</span>
-      </div>
-    </div>
+    <!-- Reconnecting banner removed - status now shown in footer -->
 
     <!-- Conversation List -->
     <div class="flex-1 overflow-y-auto custom-scrollbar">
@@ -251,8 +245,14 @@ const parseEmoji = (text) => {
         <div class="w-10 h-10 rounded-full bg-[var(--wa-accent-green)] flex items-center justify-center text-black font-bold border-0">A</div>
         <div>
           <div class="text-sm font-medium text-[var(--wa-text-primary)]">MDL Agent <span class="text-[var(--wa-accent-blue)] font-mono">#{{ authId }}</span></div>
-          <div class="text-xs flex items-center gap-1" :class="isConnected ? 'text-[var(--wa-accent-green)]' : 'text-red-400'">
-            <span class="w-1.5 h-1.5 rounded-full" :class="isConnected ? 'bg-[var(--wa-accent-green)]' : 'bg-red-400'"></span>{{ isConnected ? 'Online' : 'Offline' }}
+          <div class="text-xs flex items-center gap-1.5" :class="isConnected ? 'text-[var(--wa-accent-green)]' : (isReconnecting ? 'text-yellow-400' : 'text-red-400')">
+            <!-- Status indicator -->
+            <span v-if="isReconnecting && !isConnected" class="w-3 h-3 border-2 border-yellow-400/30 border-t-yellow-400 rounded-full animate-spin"></span>
+            <span v-else class="w-1.5 h-1.5 rounded-full" :class="isConnected ? 'bg-[var(--wa-accent-green)]' : 'bg-red-400'"></span>
+            <!-- Status text -->
+            <span v-if="isConnected">Online</span>
+            <span v-else-if="isReconnecting">{{ connectionError || 'Reconnecting...' }}</span>
+            <span v-else>Offline</span>
           </div>
         </div>
       </div>
