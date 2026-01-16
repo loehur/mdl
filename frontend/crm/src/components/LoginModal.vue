@@ -4,6 +4,7 @@ import { ref, watch } from 'vue';
 const props = defineProps({
   loading: Boolean,
   error: String,
+  warning: String,
   initialUsername: String
 });
 
@@ -100,6 +101,19 @@ watch(() => props.initialUsername, (newVal) => {
                   :disabled="loading"
                   autofocus
                 />
+              </div>
+            </div>
+
+            <!-- Warning Message (Duplicate Connection) -->
+            <div v-if="warning" class="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-3 text-amber-400 text-sm backdrop-blur-sm">
+              <div class="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div>
+                <span class="font-semibold block mb-1">Koneksi Duplikat</span>
+                <span class="text-amber-300/80">{{ warning }}</span>
               </div>
             </div>
 

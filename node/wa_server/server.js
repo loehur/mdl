@@ -65,8 +65,8 @@ function addMessageToHistory(groupKey, message) {
     const now = Date.now();
     const existing = notificationCounter.get(groupKey);
 
-    // Truncate long messages for notification display
-    const shortMessage = message.length > 50 ? message.substring(0, 47) + '...' : message;
+    // Truncate long messages for notification display (40 chars max)
+    const shortMessage = message.length > 40 ? message.substring(0, 37) + '...' : message;
 
     if (existing && (now - existing.lastSent) < COUNTER_TTL_MS) {
         // Still within TTL, add to history
@@ -169,10 +169,8 @@ async function sendPushNotification(options) {
     // - Shows all message history separated by newlines
     // - Clean, no spam, like WhatsApp
 
-    // Format: Add count header if multiple messages
-    const notifContent = notifCount > 1
-        ? `${notifCount} pesan:\n${displayMessage}`
-        : displayMessage;
+    // Just show message list directly (no count header)
+    const notifContent = displayMessage;
 
     const payload = {
         app_id: ONESIGNAL_APP_ID,

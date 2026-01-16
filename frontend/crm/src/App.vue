@@ -13,7 +13,7 @@ import {
   // Auth
   authId, currentUserRole, userName, senderCode,
   isConnected, isConnecting, connectionError,
-  showLoginPrompt, showDuplicateConnectionModal,
+  showLoginPrompt, duplicateWarning,
   wasConnected, isReconnecting, reconnectAttempts, maxReconnectAttempts, reconnectDelay,
   resumeTimestamp, lastDisconnectTime,
   // Conversations
@@ -502,6 +502,7 @@ const oneSignalLogout = () => {
 
 const handleLogin = (username) => {
   authId.value = username;
+  duplicateWarning.value = ""; // Clear warning on new login attempt
   connect();
 };
 
@@ -513,6 +514,7 @@ const connect = async () => {
 
   isConnecting.value = true;
   connectionError.value = "";
+  duplicateWarning.value = ""; // Clear warning
 
   try {
     // Step 1: Login to Backend
@@ -633,15 +635,8 @@ watch(activeChatId, () => {
   scrollToBottom();
 });
 
-// --- Methods ---
 
-// Handle Duplicate Connection - Clear session and reload
-const handleDuplicateConnection = () => {
-  localStorage.removeItem("cms_chat_id");
-  localStorage.removeItem("cms_chat_password");
-  localStorage.removeItem("cms_chat_expiry");
-  window.location.reload();
-};
+// --- Methods ---
 
 // Parse WhatsApp Formatting to HTML
 const parseWhatsAppFormatting = (text) => {
@@ -2738,14 +2733,22 @@ const connectWebSocket = () => {
               if (!isConnected.value && authId.value) connectWebSocket();
             }, 1500);
           } else {
-            connectionError.value =
-              "⚠️ Koneksi ditutup: ID ini sudah terkoneksi di tab/device lain";
+            // Duplicate connection detected - logout and show warning in login card
             console.warn(
-              "Connection closed: Another connection with same ID exists"
+              "Connection closed: Another connection with same ID exists. Logging out..."
             );
-            // Show blocking modal - don't auto-reconnect
-            showDuplicateConnectionModal.value = true;
-            wasConnected.value = false; // Prevent auto-reconnect
+            
+            // Set warning message for login card
+            duplicateWarning.value = "ID Anda sudah terkoneksi di tab/device lain. Silakan login ulang atau logout dari device lain.";
+            
+            // Clear session and show login
+            localStorage.removeItem("cms_chat_id");
+            localStorage.removeItem("cms_chat_password");
+            localStorage.removeItem("cms_chat_expiry");
+            authId.value = "";
+            wasConnected.value = false;
+            isReconnecting.value = false;
+            showLoginPrompt.value = true;
           }
         } else if (
           wasConnected.value &&
@@ -2761,9 +2764,9 @@ const connectWebSocket = () => {
             30000
           );
 
-          connectionError.value = `🔄 Mencoba reconnect (${reconnectAttempts.value}/${maxReconnectAttempts})...`;
+          connectionError.value = `🔄 Reconnecting...`;
           console.log(
-            `Auto-reconnecting in ${delay}ms (attempt ${reconnectAttempts.value}/${maxReconnectAttempts})`
+            `Auto-reconnecting in ${delay}ms (attempt ${reconnectAttempts.value})`
           );
 
           setTimeout(() => {
@@ -2810,7 +2813,7 @@ const connectWebSocket = () => {
             30000
           );
 
-          const statusMsg = `🔄 Koneksi terputus, mencoba reconnect (${reconnectAttempts.value}/${maxReconnectAttempts})...`;
+          const statusMsg = `🔄 Reconnecting...`;
           msg = statusMsg;
           connectionError.value = statusMsg; // FORCE UPDATE UI
           console.log(
@@ -2852,33 +2855,6 @@ const connectWebSocket = () => {
   }
 };
 
-// Retry Connection - Try to reconnect without full logout (for network change scenarios)
-const retryConnection = () => {
-  console.log("Retrying connection from duplicate modal...");
-
-  // Close the duplicate modal
-  showDuplicateConnectionModal.value = false;
-
-  // Reset connection states
-  isConnected.value = false;
-  isConnecting.value = true;
-  wasConnected.value = true; // Allow reconnect attempts
-  reconnectAttempts.value = 0;
-  reconnectDelay.value = 3000;
-  isReconnecting.value = true;
-  connectionError.value = "🔄 Mencoba reconnect...";
-
-  // Force disconnect any existing socket first
-  forceDisconnect();
-
-  // Wait 3 seconds to allow server cleanup, then reconnect
-  setTimeout(() => {
-    if (authId.value && !isConnected.value) {
-      connectWebSocket();
-      fetchConversations();
-    }
-  }, 3000);
-};
 
 const handleTouchStart = (e) => {
   touchStartX.value = e.touches[0].screenX;
@@ -3028,10 +3004,7 @@ onMounted(() => {
       if (!socket.value || socket.value.readyState !== WebSocket.OPEN) {
         console.log("Socket disconnected, initiating reconnect...");
 
-        // CRITICAL FIX: Close duplicate connection modal if open (might be stale from network change)
-        showDuplicateConnectionModal.value = false;
-
-        // CRITICAL FIX: Reset reconnect state to allow fresh reconnection
+        // Reset reconnect state to allow fresh reconnection
         reconnectAttempts.value = 0;
         reconnectDelay.value = 3000;
         isReconnecting.value = true;
@@ -3083,9 +3056,6 @@ onMounted(() => {
     console.log("📱 Android Resume event received");
 
     resumeTimestamp.value = Date.now();
-
-    // Close duplicate modal if open (might be stale)
-    showDuplicateConnectionModal.value = false;
 
     // Check if socket is dead and reconnect
     if (!socket.value || socket.value.readyState !== WebSocket.OPEN) {
@@ -3645,6 +3615,7 @@ const handleLinkClick = (e) => {
       v-if="!isConnected && showLoginPrompt"
       :loading="isConnecting"
       :error="connectionError"
+      :warning="duplicateWarning"
       :initial-username="authId"
       @login="handleLogin"
     />
@@ -3686,6 +3657,7 @@ const handleLinkClick = (e) => {
       :touch-offset="touchOffset"
       :API_BASE="API_BASE"
       :is-refreshing-chat="isRefreshingChat"
+      :is-connected="isConnected"
       @back-to-menu="backToMenu"
       @open-image-lightbox="openImageLightbox"
       @refresh-active-chat="refreshActiveChat"
@@ -4065,69 +4037,7 @@ const handleLinkClick = (e) => {
       </div>
     </div>
 
-    <!-- Duplicate Connection Modal (Blocking) -->
-    <div
-      v-if="showDuplicateConnectionModal"
-      class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[999] flex items-center justify-center p-4"
-    >
-      <div
-        class="bg-gradient-to-br from-red-950/90 to-red-900/80 border-2 border-red-600 rounded-2xl shadow-2xl max-w-md w-full p-8 text-center animate-bounce-in"
-      >
-        <!-- Alert Icon -->
-        <div
-          class="mx-auto w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mb-6 animate-pulse"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-12 w-12 text-red-400"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-            />
-          </svg>
-        </div>
 
-        <!-- Title -->
-        <h2 class="text-2xl font-bold text-white mb-3">
-          Koneksi Duplikat Terdeteksi
-        </h2>
-
-        <!-- Message -->
-        <p class="text-red-200 mb-2 leading-relaxed">
-          ID Anda (<strong>{{ authId }}</strong
-          >) sudah terkoneksi di tab atau device lain.
-        </p>
-        <p class="text-red-300/80 text-sm mb-6">
-          Jika baru saja berpindah jaringan (WiFi/Data), tekan "Coba Lagi". Jika
-          masalah berlanjut, logout dari device lain.
-        </p>
-
-        <!-- Actions -->
-        <div class="space-y-3">
-          <!-- Retry Button (Primary) -->
-          <button
-            @click="retryConnection"
-            class="w-full bg-green-600 hover:bg-green-500 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
-          >
-            🔄 Coba Lagi
-          </button>
-
-          <!-- Logout Button (Secondary) -->
-          <button
-            @click="handleDuplicateConnection"
-            class="w-full bg-red-600/50 hover:bg-red-600 text-white font-medium py-2.5 px-6 rounded-xl transition-all duration-200 border border-red-500/50"
-          >
-            Logout & Reload
-          </button>
-        </div>
-      </div>
-    </div>
 
     <!-- Internal Browser (for nalju.com links) -->
     <div

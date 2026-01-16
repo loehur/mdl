@@ -107,10 +107,10 @@ const parseEmoji = (text) => {
 
   // Replace i- and o- with SVG Direction Icons (Only at start of string)
   // i- : Inbound (Arrow Down Left - Masuk)
-  parsed = parsed.replace(/^i- /, `<svg class="inline-block w-3.5 h-3.5 mr-1 text-emerald-500 align-text-bottom" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19.5 4.5l-15 15m0 0h11.25m-11.25 0V8.25" /></svg>`); // Panah Masuk (↙️)
+  parsed = parsed.replace(/^i- /, `<svg class="inline-block w-2.5 h-2.5 mr-0.5 text-emerald-500 align-text-bottom" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M19.5 4.5l-15 15m0 0h11.25m-11.25 0V8.25" /></svg>`); // Panah Masuk (↙️)
   
   // o- : Outbound (Arrow Up Right - Keluar)
-  parsed = parsed.replace(/^o- /, `<svg class="inline-block w-3.5 h-3.5 mr-1 text-gray-400 align-text-bottom" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4.5 19.5l15-15m0 0H8.25m11.25 0v11.25" /></svg>`); // Panah Keluar (↗️)
+  parsed = parsed.replace(/^o- /, `<svg class="inline-block w-2.5 h-2.5 mr-0.5 text-gray-400 align-text-bottom" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M4.5 19.5l15-15m0 0H8.25m11.25 0v11.25" /></svg>`); // Panah Keluar (↗️)
 
   return parsed;
 };

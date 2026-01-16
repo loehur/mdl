@@ -48,6 +48,10 @@ const props = defineProps({
   isRefreshingChat: {
     type: Boolean,
     default: false,
+  },
+  isConnected: {
+    type: Boolean,
+    default: true,
   }
 });
 
@@ -806,11 +810,11 @@ onUnmounted(() => {
                        </button>
                   </div>
                   <!-- Text Input -->
-                  <div class="flex-1 flex items-end bg-[var(--wa-input-bg)] rounded-3xl border border-[var(--wa-border)] overflow-hidden">
-                       <textarea ref="messageTextarea" v-model="messageInput" @input="autoResizeTextarea" @keydown.ctrl.enter.prevent="sendMessage" placeholder="Ketik pesan..." class="flex-1 bg-transparent py-3 px-4 text-sm focus:outline-none max-h-[150px] overflow-y-auto resize-none text-[var(--wa-text-primary)]" rows="1"></textarea>
+                  <div class="flex-1 flex items-end bg-[var(--wa-input-bg)] rounded-3xl border border-[var(--wa-border)] overflow-hidden" :class="{ 'opacity-50': !isConnected }">
+                       <textarea ref="messageTextarea" v-model="messageInput" @input="autoResizeTextarea" @keydown.ctrl.enter.prevent="isConnected && sendMessage()" :placeholder="isConnected ? 'Ketik pesan...' : 'Menghubungkan...'" :disabled="!isConnected" class="flex-1 bg-transparent py-3 px-4 text-sm focus:outline-none max-h-[150px] overflow-y-auto resize-none text-[var(--wa-text-primary)] disabled:cursor-not-allowed" rows="1"></textarea>
                   </div>
                   <!-- Send Button -->
-                  <button @click="sendMessage" class="p-3 bg-[var(--wa-accent-green)] rounded-full text-black shadow-lg hover:opacity-90 transition-opacity">
+                  <button @click="sendMessage" :disabled="!isConnected" class="p-3 bg-[var(--wa-accent-green)] rounded-full text-black shadow-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed">
                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
                        </svg>

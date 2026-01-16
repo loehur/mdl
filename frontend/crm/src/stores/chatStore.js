@@ -20,13 +20,13 @@ export const isConnected = ref(false);
 export const isConnecting = ref(false);
 export const connectionError = ref("");
 export const showLoginPrompt = ref(false);
-export const showDuplicateConnectionModal = ref(false);
+export const duplicateWarning = ref(""); // Warning message for duplicate connection
 
 // Reconnection State
 export const wasConnected = ref(false);
 export const isReconnecting = ref(false);
 export const reconnectAttempts = ref(0);
-export const maxReconnectAttempts = 3;
+export const maxReconnectAttempts = Infinity; // Unlimited reconnection attempts
 export const reconnectDelay = ref(3000);
 export const resumeTimestamp = ref(0);
 export const lastDisconnectTime = ref(0);
