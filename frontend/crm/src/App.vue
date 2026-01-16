@@ -2720,10 +2720,13 @@ const connectWebSocket = () => {
         }
 
         if (payload.type === "wa_masuk") {
-          // Real incoming WA message
+          // Real incoming WA message (wrapped format)
+          console.log("📨 [WS] wa_masuk received");
           handleIncomingMessage(payload.data);
-        } else if (payload.conversationId) {
-          // Fallback for direct legacy format (if any)
+        } else if (payload.conversation_id || payload.conversationId) {
+          // Direct message format (snake_case or camelCase)
+          // This is the format sent directly from server without type wrapper
+          console.log("📨 [WS] Direct message received for conversation:", payload.conversation_id || payload.conversationId);
           handleIncomingMessage(payload);
         }
       } catch (e) {
