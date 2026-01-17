@@ -53,12 +53,19 @@ class NotificationServiceExtension : INotificationServiceExtension {
                             }
                             
                             // 2. Check 'custom' JSON string (Standard OneSignal)
-                            // Format: {"i": "uuid", "a": { "phone": "..." }}
+                            // Format: {"i": "uuid", "a": { "group_id": "...", "phone": "..." }}
                             if (!matched) {
                                 val custom = extras.getString("custom")
                                 if (custom != null) {
-                                    if (custom.contains(phone?: "###")) {
+                                    Log.v(TAG, "SBN ID ${statusBarNotification.id} custom: $custom")
+                                    // Robust check: Check for groupKey or phone in the JSON string
+                                    // We look for the exact groupKey "chat_xxxx"
+                                    if (groupKey.isNotEmpty() && custom.contains(groupKey)) {
                                         matched = true
+                                        Log.i(TAG, "✅ Matched via custom payload (groupKey)")
+                                    } else if (phone.isNotEmpty() && custom.contains(phone)) {
+                                        matched = true
+                                        Log.i(TAG, "✅ Matched via custom payload (phone)")
                                     }
                                 }
                             }

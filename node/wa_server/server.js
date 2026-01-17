@@ -261,6 +261,9 @@ async function sendSilentCancelNotification(options) {
         content_available: true, // iOS Background Fetch
         priority: 10,           // High Priority
 
+        // collapse_id: Try to replace existing notification (if visible) with this silent one
+        collapse_id: groupKey,
+
         // NO contents or headings to keep it silent/data-only
 
         data: {
