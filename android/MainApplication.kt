@@ -16,7 +16,8 @@ class MainApplication : Application() {
 
     companion object {
         private const val ONESIGNAL_APP_ID = "ea86398e-163f-4f16-b227-c596272b072c"
-        private const val CHANNEL_ID = "mdl_chat_whatsapp_inbox"
+        // This MUST match the channel ID registered in OneSignal Dashboard
+        private const val CHANNEL_ID = "7bf3bcb6-e151-4e8a-ae41-fd98692b80a3"
     }
 
     private val applicationScope = CoroutineScope(Dispatchers.IO)

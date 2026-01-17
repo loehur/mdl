@@ -3790,6 +3790,7 @@ const handleLinkClick = (e) => {
       :API_BASE="API_BASE"
       :is-refreshing-chat="isRefreshingChat"
       :is-connected="isConnected"
+      :font-size="fontSize"
       @back-to-menu="backToMenu"
       @open-image-lightbox="openImageLightbox"
       @refresh-active-chat="refreshActiveChat"

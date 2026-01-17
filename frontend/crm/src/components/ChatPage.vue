@@ -52,7 +52,16 @@ const props = defineProps({
   isConnected: {
     type: Boolean,
     default: true,
+  },
+  fontSize: {
+    type: String,
+    default: "medium",
   }
+});
+
+// Computed font size class based on prop
+const messageFontClass = computed(() => {
+  return props.fontSize === 'large' ? 'text-base' : 'text-sm';
 });
 
 const emit = defineEmits([
@@ -662,7 +671,7 @@ onUnmounted(() => {
                                   <div v-if="msg.type === 'image'" class="relative max-w-sm">
                                       <img :src="msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`" @click="openImageLightbox(msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`)" class="max-h-80 object-cover cursor-pointer" />
                                       <div v-if="msg.text || msg.time" class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent p-2 text-white">
-                                           <p v-if="msg.text" class="text-sm mb-1">{{ msg.text }}</p>
+                                           <p v-if="msg.text" :class="[messageFontClass, 'mb-1']">{{ msg.text }}</p>
                                            <div class="flex justify-end items-center gap-1 text-[10px]">
                                               <span v-if="msg.sender_code">~{{ msg.sender_code }}</span>
                                               <span>{{ msg.time }}</span>
@@ -671,7 +680,7 @@ onUnmounted(() => {
                                   </div>
 
                                   <!-- Text -->
-                                  <div v-else class="text-sm text-[var(--wa-text-primary)] overflow-hidden">
+                                  <div v-else :class="[messageFontClass, 'text-[var(--wa-text-primary)] overflow-hidden']">
                                        <div class="inline">
                                             <span v-html="parseWhatsAppFormatting(msg.text)" class="whitespace-pre-wrap break-words" style="word-break: break-word; overflow-wrap: anywhere;"></span>
                                             <span class="inline-flex items-center gap-1 ml-2 align-bottom select-none float-right mt-1" style="margin-left: 8px;">
