@@ -24,10 +24,11 @@ class MainApplication : Application() {
     override fun onCreate() {
         super.onCreate()
 
-        // 🔔 Create notification channel (Android 8+)
+        // 🔔 Create notification channel BEFORE OneSignal init (Android 8+)
+        // This ensures our channel with sound is used
         createNotificationChannel()
 
-        // OneSignal logging
+        // OneSignal logging (set to WARN in production)
         OneSignal.Debug.logLevel = LogLevel.VERBOSE
 
         // OneSignal init
@@ -41,6 +42,23 @@ class MainApplication : Application() {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val manager = getSystemService(NotificationManager::class.java)
+            
+            // 🔄 DELETE existing channel first to ensure sound settings are applied
+            // Android doesn't update channel settings if channel already exists
+            // This forces recreation with latest sound configuration
+            try {
+                val existingChannel = manager.getNotificationChannel(CHANNEL_ID)
+                if (existingChannel != null) {
+                    // Check if sound is disabled on existing channel
+                    if (existingChannel.sound == null || existingChannel.importance < NotificationManager.IMPORTANCE_HIGH) {
+                        android.util.Log.d("MainApplication", "Deleting existing channel to apply new sound settings")
+                        manager.deleteNotificationChannel(CHANNEL_ID)
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("MainApplication", "Error checking existing channel: ${e.message}")
+            }
 
             val channel = NotificationChannel(
                 CHANNEL_ID,
@@ -49,11 +67,13 @@ class MainApplication : Application() {
             ).apply {
                 description = "Notifikasi pesan WhatsApp masuk ke CMS"
                 enableVibration(true)
+                vibrationPattern = longArrayOf(0, 250, 250, 250) // Vibration pattern
                 setShowBadge(true)
                 enableLights(true)
                 lightColor = android.graphics.Color.parseColor("#6366F1") // Indigo
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
                 
-                // 🔊 Set notification sound explicitly
+                // 🔊 Set notification sound explicitly using system default
                 val soundUri = Settings.System.DEFAULT_NOTIFICATION_URI
                 val audioAttributes = AudioAttributes.Builder()
                     .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
@@ -62,11 +82,17 @@ class MainApplication : Application() {
                 setSound(soundUri, audioAttributes)
             }
 
-            val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
             
-            android.util.Log.d("MainApplication", "Notification channel created: $CHANNEL_ID with sound")
+            // Log channel details for debugging
+            val createdChannel = manager.getNotificationChannel(CHANNEL_ID)
+            android.util.Log.d("MainApplication", """
+                Notification channel created/verified:
+                - ID: $CHANNEL_ID
+                - Sound: ${createdChannel?.sound}
+                - Importance: ${createdChannel?.importance}
+                - Vibration: ${createdChannel?.shouldVibrate()}
+            """.trimIndent())
         }
     }
 }
-
