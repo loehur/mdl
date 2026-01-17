@@ -196,9 +196,13 @@ async function sendPushNotification(options) {
         data: {
             type: 'wa_masuk',
             phone: phone,
+            clean_phone: cleanPhone, // Add clean phone for matching
+            phone_clean: cleanPhone, // Alternative key name
             case: caseType,
             notif_count: notifCount,
             group_id: groupKey, // Identifier for cancellation/grouping
+            chat_group: groupKey, // Alternative key name
+            collapse_id: groupKey, // Also include collapse_id in data
             ...data
         }
     };
@@ -248,10 +252,16 @@ async function sendSilentCancelNotification(options) {
         return { success: false, error: 'OneSignal not configured' };
     }
 
+    // Normalize phone: remove all non-digits for groupKey consistency
     const cleanPhone = phone ? String(phone).replace(/\D/g, '') : '';
     const groupKey = cleanPhone ? `chat_${cleanPhone}` : undefined;
 
     if (!groupKey) return { success: false, error: 'Invalid phone for group key' };
+
+    // Keep original phone format for matching (could be +628... or 628...)
+    const originalPhone = phone || '';
+
+    console.log(`[Silent Cancel] Phone: ${originalPhone}, Clean: ${cleanPhone}, GroupKey: ${groupKey}`);
 
     const payload = {
         app_id: ONESIGNAL_APP_ID,
@@ -280,12 +290,16 @@ async function sendSilentCancelNotification(options) {
         android_channel_id: process.env.ONESIGNAL_ANDROID_CHANNEL_ID || undefined,
 
         // Data payload - this is what triggers the cancellation logic
+        // Include BOTH original phone and clean phone for maximum matching compatibility
         data: {
             type: 'cancel_chat',
             group_id: groupKey,
-            phone: phone,
-            // Add clean phone for easier matching
-            clean_phone: cleanPhone
+            phone: originalPhone,           // Original format: +628117686252
+            clean_phone: cleanPhone,        // Clean format: 628117686252
+            phone_clean: cleanPhone,        // Alternative key name
+            // Also include groupKey variations for matching
+            chat_group: groupKey,
+            collapse_id: groupKey
         }
     };
 

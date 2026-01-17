@@ -23,11 +23,12 @@ class NotificationServiceExtension : INotificationServiceExtension {
 
         // Check for CANCEL command
         if (data != null && data.has("type") && data.getString("type") == "cancel_chat") {
-            val groupKey = data.optString("group_id")
-            val phone = data.optString("phone")
-            val cleanPhone = data.optString("clean_phone", phone?.replace(Regex("[^0-9]"), "") ?: "")
+            val groupKey = data.optString("group_id") ?: data.optString("chat_group") ?: data.optString("collapse_id") ?: ""
+            val phone = data.optString("phone") ?: ""
+            val cleanPhone = data.optString("clean_phone") ?: data.optString("phone_clean") ?: phone.replace(Regex("[^0-9]"), "")
             
             Log.i(TAG, "🔔 CANCEL processing for group: $groupKey, phone: $phone, cleanPhone: $cleanPhone")
+            Log.d(TAG, "Full data payload: ${data.toString()}")
 
             if (groupKey.isNotEmpty()) {
                 try {
@@ -48,19 +49,34 @@ class NotificationServiceExtension : INotificationServiceExtension {
                             
                             // Method 1: Check direct extras keys (OneSignal stores data here)
                             val extraPhone = extras.getString("phone")
-                            val extraGroupId = extras.getString("group_id")
+                            val extraGroupId = extras.getString("group_id") ?: extras.getString("chat_group") ?: extras.getString("collapse_id")
+                            val extraCleanPhone = extras.getString("clean_phone") ?: extras.getString("phone_clean")
                             
-                            if (extraPhone != null && phone != null) {
-                                // Compare both original and cleaned phone
-                                val extraCleanPhone = extraPhone.replace(Regex("[^0-9]"), "")
-                                if (extraPhone == phone || extraCleanPhone == cleanPhone) {
+                            // Match by phone (original or clean)
+                            if (extraPhone != null && phone.isNotEmpty()) {
+                                val extraPhoneClean = extraPhone.replace(Regex("[^0-9]"), "")
+                                if (extraPhone == phone || 
+                                    extraPhoneClean == cleanPhone || 
+                                    (cleanPhone.isNotEmpty() && extraPhoneClean == cleanPhone) ||
+                                    (extraPhoneClean.isNotEmpty() && extraPhoneClean == cleanPhone)) {
                                     matched = true
-                                    Log.d(TAG, "✅ Matched via direct phone extra: $extraPhone")
+                                    Log.d(TAG, "✅ Matched via direct phone extra: $extraPhone (clean: $extraPhoneClean)")
                                 }
                             }
                             
+                            // Match by clean_phone if available
+                            if (!matched && extraCleanPhone != null && cleanPhone.isNotEmpty()) {
+                                if (extraCleanPhone == cleanPhone) {
+                                    matched = true
+                                    Log.d(TAG, "✅ Matched via direct clean_phone extra: $extraCleanPhone")
+                                }
+                            }
+                            
+                            // Match by group_id
                             if (!matched && extraGroupId != null && groupKey.isNotEmpty()) {
-                                if (extraGroupId == groupKey || extraGroupId.contains(groupKey) || groupKey.contains(extraGroupId)) {
+                                if (extraGroupId == groupKey || 
+                                    extraGroupId.contains(groupKey) || 
+                                    groupKey.contains(extraGroupId)) {
                                     matched = true
                                     Log.d(TAG, "✅ Matched via direct group_id extra: $extraGroupId")
                                 }
@@ -77,20 +93,33 @@ class NotificationServiceExtension : INotificationServiceExtension {
                                         
                                         if (additionalData != null) {
                                             val customPhone = additionalData.optString("phone")
-                                            val customGroupId = additionalData.optString("group_id")
+                                            val customGroupId = additionalData.optString("group_id") ?: additionalData.optString("chat_group") ?: additionalData.optString("collapse_id")
+                                            val customCleanPhone = additionalData.optString("clean_phone") ?: additionalData.optString("phone_clean")
                                             
-                                            // Match by phone
-                                            if (customPhone.isNotEmpty() && phone != null) {
-                                                val customCleanPhone = customPhone.replace(Regex("[^0-9]"), "")
-                                                if (customPhone == phone || customCleanPhone == cleanPhone) {
+                                            // Match by phone (original or clean)
+                                            if (customPhone.isNotEmpty() && phone.isNotEmpty()) {
+                                                val customPhoneClean = customPhone.replace(Regex("[^0-9]"), "")
+                                                if (customPhone == phone || 
+                                                    customPhoneClean == cleanPhone ||
+                                                    (cleanPhone.isNotEmpty() && customPhoneClean == cleanPhone)) {
                                                     matched = true
-                                                    Log.d(TAG, "✅ Matched via custom JSON (phone): $customPhone")
+                                                    Log.d(TAG, "✅ Matched via custom JSON (phone): $customPhone (clean: $customPhoneClean)")
+                                                }
+                                            }
+                                            
+                                            // Match by clean_phone
+                                            if (!matched && customCleanPhone != null && cleanPhone.isNotEmpty()) {
+                                                if (customCleanPhone == cleanPhone) {
+                                                    matched = true
+                                                    Log.d(TAG, "✅ Matched via custom JSON (clean_phone): $customCleanPhone")
                                                 }
                                             }
                                             
                                             // Match by group_id
                                             if (!matched && customGroupId.isNotEmpty() && groupKey.isNotEmpty()) {
-                                                if (customGroupId == groupKey || customGroupId.contains(groupKey) || groupKey.contains(customGroupId)) {
+                                                if (customGroupId == groupKey || 
+                                                    customGroupId.contains(groupKey) || 
+                                                    groupKey.contains(customGroupId)) {
                                                     matched = true
                                                     Log.d(TAG, "✅ Matched via custom JSON (group_id): $customGroupId")
                                                 }
@@ -146,15 +175,64 @@ class NotificationServiceExtension : INotificationServiceExtension {
                                 notificationManager.cancel(tag, id)
                                 cancelledCount++
                             } else {
-                                // Log for debugging
-                                Log.v(TAG, "No match for SBN ID: ${statusBarNotification.id}, Tag: ${statusBarNotification.tag}, Group: ${statusBarNotification.groupKey}")
+                                // Log for debugging - show what we're comparing
+                                val debugPhone = extras.getString("phone") ?: "N/A"
+                                val debugGroup = extras.getString("group_id") ?: extras.getString("chat_group") ?: "N/A"
+                                val debugCustom = extras.getString("custom") ?: "N/A"
+                                Log.v(TAG, "No match for SBN ID: ${statusBarNotification.id}")
+                                Log.v(TAG, "  Looking for: phone=$phone, cleanPhone=$cleanPhone, groupKey=$groupKey")
+                                Log.v(TAG, "  Found in extras: phone=$debugPhone, group=$debugGroup")
+                                Log.v(TAG, "  Custom: ${if (debugCustom.length > 100) debugCustom.substring(0, 100) + "..." else debugCustom}")
                             }
                         } catch (e: Exception) {
                             Log.e(TAG, "Error checking notification ID ${statusBarNotification.id}: ${e.message}", e)
                         }
                     }
                     
-                    Log.i(TAG, "🔔 Cleanup complete. Cancelled $cancelledCount notification(s) for group: $groupKey")
+                    // If no matches found but we have phone number, try aggressive matching
+                    // This is a fallback for cases where data format doesn't match exactly
+                    if (cancelledCount == 0 && (phone.isNotEmpty() || cleanPhone.isNotEmpty())) {
+                        Log.w(TAG, "⚠️ No exact matches found. Trying aggressive phone-based cancellation...")
+                        var aggressiveCount = 0
+                        
+                        for (statusBarNotification in activeNotifications) {
+                            try {
+                                val extras = statusBarNotification.notification.extras
+                                val allExtras = extras.keySet()
+                                
+                                // Check if ANY extra contains the phone number (partial match)
+                                var foundPhone = false
+                                for (key in allExtras) {
+                                    val value = extras.get(key)?.toString() ?: ""
+                                    if (value.isNotEmpty()) {
+                                        // Check if value contains phone (original or clean)
+                                        if ((phone.isNotEmpty() && value.contains(phone)) ||
+                                            (cleanPhone.isNotEmpty() && value.contains(cleanPhone))) {
+                                            foundPhone = true
+                                            break
+                                        }
+                                    }
+                                }
+                                
+                                if (foundPhone) {
+                                    val tag = statusBarNotification.tag ?: "onesignal"
+                                    val id = statusBarNotification.id
+                                    Log.i(TAG, "❌ Aggressive cancel: ID=$id, Tag=$tag (phone match found in extras)")
+                                    notificationManager.cancel(tag, id)
+                                    aggressiveCount++
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Error in aggressive cancellation: ${e.message}")
+                            }
+                        }
+                        
+                        if (aggressiveCount > 0) {
+                            Log.i(TAG, "🔔 Aggressive cleanup: Cancelled $aggressiveCount notification(s)")
+                            cancelledCount = aggressiveCount
+                        }
+                    }
+                    
+                    Log.i(TAG, "🔔 Cleanup complete. Total cancelled: $cancelledCount notification(s) for group: $groupKey")
                      
                 } catch (e: Exception) {
                     Log.e(TAG, "Error in notification manager: ${e.message}", e)
