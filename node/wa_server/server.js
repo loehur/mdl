@@ -197,6 +197,9 @@ async function sendPushNotification(options) {
 
         android_channel_id: process.env.ONESIGNAL_ANDROID_CHANNEL_ID || undefined,
 
+        // High priority for immediate delivery (10 = normal/high priority)
+        priority: 10,
+
         // All notification content passed as DATA
         // Android app will create native notification from this
         data: {
@@ -331,7 +334,8 @@ async function sendSilentCancelNotification(options) {
         const result = await response.json();
 
         if (result.id) {
-            console.log(`[OneSignal] 🔇 Cancel sent to ${userIds.length} user(s), group: ${groupKey}`);
+            console.log(`[OneSignal] 🔇 Cancel sent to ALL ${userIds.length} user(s) (online + offline), group: ${groupKey}`);
+            console.log(`[OneSignal] Cancel recipients: ${userIds.join(', ')}`);
             return { success: true, id: result.id };
         } else {
             console.log('[OneSignal] ❌ Cancel Error:', result.errors || result);
@@ -831,12 +835,19 @@ app.post('/incoming', async (req, res) => {
         }
 
         // Check for CANCEL / ALL CLOSED signal
-        // Relax check to allow fuzzy boolean/string for all_closed
-        if ((data.all_closed === true || data.all_closed === 'true') && offlineUserIds.length > 0) {
-            console.log(`[PUSH] Triggering Silent Cancel for ${customerPhone}`);
+        // ⚠️ CRITICAL: Send cancel to ALL clients (online + offline + sender) without exception
+        // Every device needs to cancel the notification when case is closed
+        if (data.all_closed === true || data.all_closed === 'true') {
+            // Get ALL user IDs (admin + driver + crew) - NO FILTERING
+            // Include sender, include online, include offline - EVERYONE
+            const allUserIdsForCancel = [...ADMIN_IDS, ...DRIVER_IDS, ...CREW_IDS];
+            
+            console.log(`[PUSH] 🔇 Triggering Silent Cancel for ${customerPhone} to ALL ${allUserIdsForCancel.length} user(s)`);
+            console.log(`[PUSH] Cancel recipients: ${allUserIdsForCancel.join(', ')}`);
+            
             pushResult = await sendSilentCancelNotification({
                 phone: customerPhone,
-                userIds: offlineUserIds
+                userIds: allUserIdsForCancel // Send to EVERYONE without exception
             });
         }
         else if (offlineUserIds.length > 0 && hasTextContent && !shouldSkipPush) {

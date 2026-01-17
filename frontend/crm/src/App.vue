@@ -50,6 +50,7 @@ import {
 
 // Local-only state (not shared)
 let lastBackPress = 0;
+const isLoadingMessages = ref(false);
 
 
 
@@ -1359,7 +1360,12 @@ const selectChat = async (id) => {
       });
     } else {
       // No cache, wait for fetch
-      chat.messages = await fetchMessages(chat.wa_number);
+      isLoadingMessages.value = true;
+      try {
+        chat.messages = await fetchMessages(chat.wa_number);
+      } finally {
+        isLoadingMessages.value = false;
+      }
     }
 
     // Mark read in DB
@@ -3859,6 +3865,7 @@ const handleLinkClick = (e) => {
       :touch-offset="touchOffset"
       :API_BASE="API_BASE"
       :is-refreshing-chat="isRefreshingChat"
+      :is-loading-messages="isLoadingMessages"
       :is-connected="isConnected"
       :font-size="fontSize"
       @back-to-menu="backToMenu"
@@ -4306,16 +4313,20 @@ const handleLinkClick = (e) => {
         </a>
       </header>
 
-      <!-- Loading Indicator -->
+      <!-- Loading Indicator (Premium Design) -->
       <div
         v-if="isInternalBrowserLoading"
-        class="absolute inset-0 top-14 flex items-center justify-center bg-[var(--wa-bg-chat)]"
+        class="absolute inset-0 top-14 flex items-center justify-center bg-[var(--wa-bg-chat)]/80 backdrop-blur-md z-10"
       >
-        <div class="flex flex-col items-center gap-3">
-          <div
-            class="w-8 h-8 border-3 border-[var(--wa-accent-green)] border-t-transparent rounded-full animate-spin"
-          ></div>
-          <p class="text-sm text-[var(--wa-text-secondary)]">Memuat...</p>
+        <div class="flex flex-col items-center gap-4">
+          <div class="relative">
+             <div class="w-12 h-12 border-4 border-[var(--wa-accent-green)]/20 rounded-full"></div>
+             <div class="absolute top-0 left-0 w-12 h-12 border-4 border-[var(--wa-accent-green)] border-t-transparent rounded-full animate-spin"></div>
+          </div>
+          <div class="flex flex-col items-center">
+            <p class="text-base font-medium text-[var(--wa-text-primary)]">Memuat Halaman</p>
+            <p v-if="internalBrowserUrl" class="text-xs text-[var(--wa-text-tertiary)]">{{ new URL(internalBrowserUrl).hostname }}</p>
+          </div>
         </div>
       </div>
 

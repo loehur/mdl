@@ -56,6 +56,10 @@ const props = defineProps({
   fontSize: {
     type: String,
     default: "medium",
+  },
+  isLoadingMessages: {
+    type: Boolean,
+    default: false,
   }
 });
 
@@ -93,11 +97,11 @@ const copiedPhone = ref(false);
 // Chat Action Menus
 const showChatMenu = ref(false);
 const showResolveMenu = ref(false);
-const isMarkingAsDone = ref(false);
 const isCheckingPayment = ref(false);
 const isPickupDelivery = ref(false);
 const isRequest = ref(false);
 const isFollowUp = ref(false);
+const resolvingCaseId = ref(null);
 
 // Emoji & Quick Reply
 const showEmojiPicker = ref(false);
@@ -212,26 +216,6 @@ const openImageLightbox = (url) => {
 
 // --- CASE ACTIONS (API CALLS) ---
 // These update the activeConversation state which is passed by reference/prop
-const markAsDone = async () => {
-  if (!props.activeConversation || isMarkingAsDone.value) return;
-  try {
-    isMarkingAsDone.value = true;
-    showChatMenu.value = false;
-    const res = await fetch(`${props.API_BASE}/CRM/Chat/markAsDone`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone: props.activeConversation.wa_number, user_id: props.authId }),
-    }).then(r => r.json());
-
-    if (res.status) {
-      props.activeConversation.cases = [{ case: 0 }];
-    }
-  } catch (e) {
-    console.error(e);
-  } finally {
-      setTimeout(() => isMarkingAsDone.value = false, 3000);
-  }
-};
-
 const updateCase = async (caseId, loadingRef) => {
     if (!props.activeConversation || loadingRef.value) return;
     try {
@@ -263,8 +247,9 @@ const requestPriority = () => updateCase(3, isRequest);
 const followUp = () => updateCase(4, isFollowUp);
 
 const resolveCase = async (caseId) => {
-    if (!props.activeConversation) return;
+    if (!props.activeConversation || resolvingCaseId.value) return;
     try {
+        resolvingCaseId.value = caseId;
         const res = await fetch(`${props.API_BASE}/CRM/Chat/resolveCase`, {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ phone: props.activeConversation.wa_number, case: parseInt(caseId), user_id: props.authId }),
@@ -278,6 +263,7 @@ const resolveCase = async (caseId) => {
               showResolveMenu.value = false;
         }
     } catch(e) { console.error(e); }
+    finally { resolvingCaseId.value = null; }
 };
 
 // --- MESSAGE SENDING ---
@@ -594,9 +580,10 @@ onUnmounted(() => {
                         </button>
                         <div v-if="showResolveMenu" class="absolute right-0 top-full mt-2 w-44 bg-[var(--wa-bg-secondary)] rounded-xl shadow-2xl overflow-hidden z-50 py-1">
                              <button v-for="c in resolveableCases" :key="c.case" @click="resolveCase(c.case)" class="w-full px-4 py-2.5 text-left hover:bg-[var(--wa-hover)] text-sm text-[var(--wa-text-primary)] flex items-center gap-3">
-                                  <!-- Checkmark in colored circle -->
+                                  <!-- Checkmark in colored circle or Spinner -->
                                   <span class="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" :class="getCaseColor(c.case)">
-                                       <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-white" viewBox="0 0 20 20" fill="currentColor">
+                                       <div v-if="resolvingCaseId === c.case" class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                       <svg v-else xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-white" viewBox="0 0 20 20" fill="currentColor">
                                             <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
                                        </svg>
                                   </span>
@@ -609,24 +596,24 @@ onUnmounted(() => {
                         <button @click.stop="showChatMenu = !showChatMenu; showResolveMenu = false" class="hover:text-[var(--wa-text-primary)] p-2 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg></button>
                          <div v-if="showChatMenu" class="absolute right-0 top-full mt-2 w-44 bg-[var(--wa-bg-secondary)] rounded-xl shadow-2xl overflow-hidden z-50 py-1">
                                <button v-if="!isCaseOpen(1)" @click="checkPayment" :disabled="isCheckingPayment" class="w-full px-4 py-2.5 text-left hover:bg-[var(--wa-hover)] text-sm text-[var(--wa-text-primary)] flex items-center gap-3">
-                                    <span class="w-2.5 h-2.5 rounded-full bg-blue-500 flex-shrink-0"></span>
+                                    <div v-if="isCheckingPayment" class="w-3 h-3 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin flex-shrink-0"></div>
+                                    <span v-else class="w-2.5 h-2.5 rounded-full bg-blue-500 flex-shrink-0"></span>
                                     Check Payment
                                </button>
                                <button v-if="!isCaseOpen(2)" @click="pickupDelivery" :disabled="isPickupDelivery" class="w-full px-4 py-2.5 text-left hover:bg-[var(--wa-hover)] text-sm text-[var(--wa-text-primary)] flex items-center gap-3">
-                                    <span class="w-2.5 h-2.5 rounded-full bg-yellow-500 flex-shrink-0"></span>
+                                    <div v-if="isPickupDelivery" class="w-3 h-3 border-2 border-yellow-200 border-t-yellow-500 rounded-full animate-spin flex-shrink-0"></div>
+                                    <span v-else class="w-2.5 h-2.5 rounded-full bg-yellow-500 flex-shrink-0"></span>
                                     Pickup/Delivery
                                </button>
                                <button v-if="!isCaseOpen(3)" @click="requestPriority" :disabled="isRequest" class="w-full px-4 py-2.5 text-left hover:bg-[var(--wa-hover)] text-sm text-[var(--wa-text-primary)] flex items-center gap-3">
-                                    <span class="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0"></span>
+                                    <div v-if="isRequest" class="w-3 h-3 border-2 border-red-200 border-t-red-500 rounded-full animate-spin flex-shrink-0"></div>
+                                    <span v-else class="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0"></span>
                                     Request
                                </button>
                                <button v-if="!isCaseOpen(4)" @click="followUp" :disabled="isFollowUp" class="w-full px-4 py-2.5 text-left hover:bg-[var(--wa-hover)] text-sm text-[var(--wa-text-primary)] flex items-center gap-3">
-                                    <span class="w-2.5 h-2.5 rounded-full bg-purple-500 flex-shrink-0"></span>
+                                    <div v-if="isFollowUp" class="w-3 h-3 border-2 border-purple-200 border-t-purple-500 rounded-full animate-spin flex-shrink-0"></div>
+                                    <span v-else class="w-2.5 h-2.5 rounded-full bg-purple-500 flex-shrink-0"></span>
                                     Follow Up
-                               </button>
-                               <button v-if="activeConversation.priority > 0" @click="markAsDone" :disabled="isMarkingAsDone" class="w-full px-4 py-2.5 text-left hover:bg-[var(--wa-hover)] text-sm text-green-500 flex items-center gap-3 border-t border-[var(--wa-border)] mt-1 pt-2">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-2.5 h-2.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
-                                    Selesai
                                </button>
                          </div>
                     </div>
@@ -635,6 +622,13 @@ onUnmounted(() => {
 
          <!-- Messages -->
          <div ref="chatContainer" class="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar pt-4 pb-2 relative">
+              <!-- Loading Indicator Overlay -->
+              <div v-if="isLoadingMessages" class="absolute inset-0 z-20 flex items-center justify-center bg-[var(--wa-bg-chat)]/50 backdrop-blur-[1px]">
+                   <div class="bg-[var(--wa-bg-panel)] p-3 rounded-full shadow-lg border border-[var(--wa-border)]">
+                        <div class="w-6 h-6 border-2 border-[var(--wa-accent-green)] border-t-transparent rounded-full animate-spin"></div>
+                   </div>
+              </div>
+
               <div class="px-4 space-y-2 overflow-hidden">
                    <div v-for="(msg, index) in activeConversation.messages" :key="msg.id" :id="'msg-' + msg.id" class="flex flex-col relative group">
                         <!-- Date Separator -->

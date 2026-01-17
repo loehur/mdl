@@ -165,7 +165,7 @@ object NotificationHelper {
         // Note: Phone data is stored in Intent (pendingIntent) for cancellation matching
         // We also use stable notification ID (based on phone hash) for reliable cancellation
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground) // App icon
+            .setSmallIcon(R.drawable.ic_notification_bell_simple) // Bell notification icon
             .setContentTitle(title)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
@@ -210,7 +210,7 @@ object NotificationHelper {
      */
     private fun showGroupSummary(context: Context, notificationManager: NotificationManager) {
         val summaryBuilder = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_notification_bell_simple)
             .setGroup(GROUP_KEY)
             .setGroupSummary(true)
             .setAutoCancel(true)

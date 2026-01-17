@@ -45,15 +45,33 @@ class MainApplication : Application() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val manager = getSystemService(NotificationManager::class.java)
 
+            // 🔄 DELETE all other notification channels to keep only ONE channel: "MDL Cases"
+            // This ensures clean state - only our channel exists
+            try {
+                val existingChannels = manager.notificationChannels
+                for (channel in existingChannels) {
+                    // Delete ALL channels except our current one
+                    // This removes old channels like "Chat WhatsApp Masuk", "MDL Chat Channel", etc.
+                    if (channel.id != CHANNEL_ID) {
+                        android.util.Log.d("MainApplication", "Deleting old channel: ${channel.id} (${channel.name})")
+                        manager.deleteNotificationChannel(channel.id)
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("MainApplication", "Error deleting old channels: ${e.message}")
+            }
+
             // 🔄 DELETE existing channel first to ensure sound settings are applied
             // Android doesn't update channel settings if channel already exists
             // This forces recreation with latest sound configuration
             try {
                 val existingChannel = manager.getNotificationChannel(CHANNEL_ID)
                 if (existingChannel != null) {
-                    // Check if sound is disabled on existing channel
-                    if (existingChannel.sound == null || existingChannel.importance < NotificationManager.IMPORTANCE_HIGH) {
-                        android.util.Log.d("MainApplication", "Deleting existing channel to apply new sound settings")
+                    // Delete if name is different (to update name) or settings are wrong
+                    if (existingChannel.name != "MDL Cases" || 
+                        existingChannel.sound == null || 
+                        existingChannel.importance < NotificationManager.IMPORTANCE_HIGH) {
+                        android.util.Log.d("MainApplication", "Deleting existing channel to apply new name/settings")
                         manager.deleteNotificationChannel(CHANNEL_ID)
                     }
                 }
@@ -63,10 +81,10 @@ class MainApplication : Application() {
 
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Chat WhatsApp Masuk",
+                "MDL Cases",
                 NotificationManager.IMPORTANCE_HIGH // HIGH = heads-up + sound
             ).apply {
-                description = "Notifikasi pesan WhatsApp masuk ke CMS"
+                description = "Notifikasi untuk semua case dan pesan WhatsApp masuk"
                 enableVibration(true)
                 vibrationPattern = longArrayOf(0, 250, 250, 250) // Vibration pattern
                 setShowBadge(true)
