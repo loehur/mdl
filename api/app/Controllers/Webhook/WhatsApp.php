@@ -672,8 +672,8 @@ class WhatsApp extends Controller
                 $updateData['last_message'] = 'i- ' . mb_substr($lastMessage, 0, 50);
             }
             
-            // Only update case if not null (Append to existing list)
-            if ($case !== null) {
+            // Only update case if not null and not 0 (Append to existing list)
+            if ($case !== null && (int)$case !== 0) {
                 $caseList = [];
                 
                 // 1. Retrieve & Decode existing content
@@ -786,8 +786,8 @@ class WhatsApp extends Controller
             $convData['last_message'] = 'i- ' . mb_substr($lastMessage, 0, 50);
         }
         
-        // Only set case if not null (Store as JSON List)
-        if ($case !== null) {
+        // Only set case if not null and not 0 (Store as JSON List)
+        if ($case !== null && (int)$case !== 0) {
             // Initialize as Array containing the first case
             $convData['conv_case'] = json_encode([[
                 'case' => $case,
