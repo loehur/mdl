@@ -342,12 +342,15 @@ class WhatsApp extends Controller
             \Log::write("Failed data: " . json_encode($messageData), 'webhook', 'inbound_error');
             \Log::write("Table: wa_messages_in", 'webhook', 'inbound_error');
         } else {
-            // Auto Reply Processed Here (Async-ish)
+            // Process Auto-Reply and Conversation Update
             try {
 
                 if (!class_exists('\\App\\Models\\WAReplies')) {
                     require_once __DIR__ . '/../../Models/WAReplies.php';
                 }
+                
+                // STEP 1: Process auto-reply FIRST to get case value
+                // (autoreply may or may not send a message depending on cooldown/config)
                 $autoReplyResult = (new \App\Models\WAReplies())->process($phoneIn, $messageText, $waNumber);
                 
                 // Extract values from result object
@@ -363,15 +366,27 @@ class WhatsApp extends Controller
                     $currentCase = 0;
                 }
                 
-                // Get or create conversation with all updates in one call
+                // STEP 2: Get or create conversation with all updates
+                // NOTE: If autoreply was sent, saveOutboundMessage() already updated last_message to outbound.
+                // But getOrCreateConversationWithCase() will now OVERWRITE it back to inbound.
+                // 
+                // FIX: If autoreply was sent, we need to use the autoreply text as last_message
+                // so customers can see what the system replied, not just their own message.
+                $finalLastMessage = $lastMessageSummary; // Default: inbound message
+                
+                // If autoreply was sent, last_message should reflect the outbound reply
+                // We'll handle this by NOT updating last_message here if autoreply sent
+                // (saveOutboundMessage already set it correctly)
+                
                 $conversationId = $this->getOrCreateConversationWithCase(
                     $db, 
                     $waNumber, 
                     $contact_name, 
                     $assigned_user_id, 
                     $code, 
-                    $lastMessageSummary,
-                    $currentCase
+                    $lastMessageSummary, // Always set inbound first
+                    $currentCase,
+                    $autoReplied // Pass flag to skip last_message update if autoreply was sent
                 );
 
                 // DIAGNOSTIC LOG: Use Standard Log Class so it appears in logs/DATE folder
@@ -630,8 +645,10 @@ class WhatsApp extends Controller
     /**
      * Get existing conversation or create new one with case update
      * This combines conversation creation/update with case in one DB operation
+     * 
+     * @param bool $skipLastMessageUpdate If true, don't update last_message (used when autoreply already set it)
      */
-    private function getOrCreateConversationWithCase($db, $waNumber, $contactName = null, $assigned_user_id = null, $code = null, $lastMessage = null, $case = null)
+    private function getOrCreateConversationWithCase($db, $waNumber, $contactName = null, $assigned_user_id = null, $code = null, $lastMessage = null, $case = null, $skipLastMessageUpdate = false)
     {
         // Try to find existing conversation
         $existing = $db->get_where('wa_conversations', ['wa_number' => $waNumber]);
@@ -646,8 +663,14 @@ class WhatsApp extends Controller
                 'last_in_at' => date('Y-m-d H:i:s'),
                 'last_message_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s'),
-                'last_message' => 'i- ' . mb_substr($lastMessage, 0, 50),
             ];
+            
+            // Only update last_message if autoreply didn't already set it
+            // When autoreply sends a message, saveOutboundMessage() already updated last_message
+            // We don't want to overwrite it with the inbound message
+            if (!$skipLastMessageUpdate) {
+                $updateData['last_message'] = 'i- ' . mb_substr($lastMessage, 0, 50);
+            }
             
             // Only update case if not null (Append to existing list)
             if ($case !== null) {
@@ -756,8 +779,12 @@ class WhatsApp extends Controller
             'last_in_at' => date('Y-m-d H:i:s'),
             'last_message_at' => date('Y-m-d H:i:s'),
             'updated_at' => date('Y-m-d H:i:s'),
-            'last_message' => 'i- ' . mb_substr($lastMessage, 0, 50),
         ];
+        
+        // Only set last_message if autoreply didn't already set it
+        if (!$skipLastMessageUpdate) {
+            $convData['last_message'] = 'i- ' . mb_substr($lastMessage, 0, 50);
+        }
         
         // Only set case if not null (Store as JSON List)
         if ($case !== null) {

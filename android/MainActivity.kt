@@ -329,34 +329,118 @@ class MainActivity : AppCompatActivity() {
     private fun setupBackHandler() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
+                android.util.Log.d("BackHandler", "=== Back button pressed ===")
+                
                 // Priority 1: Check if WebView can go back (e.g., user visited a link)
-                // This handles the case where user clicked a link and wants to go back to chat
                 val currentUrl = webView.url ?: ""
                 val isOnMainPage = currentUrl.startsWith(WEB_URL) && !currentUrl.contains("?")
                 
+                android.util.Log.d("BackHandler", "Current URL: $currentUrl, isOnMainPage: $isOnMainPage")
+                
                 if (webView.canGoBack() && !isOnMainPage) {
-                    // If WebView has back history and we're not on main page, go back in WebView
+                    android.util.Log.d("BackHandler", "Using WebView.goBack()")
                     webView.goBack()
                     return
                 }
                 
                 // Priority 2: Let Vue app handle the back press
-                webView.evaluateJavascript("window.onAndroidBackPressed()") { result ->
-                    val status = result?.replace("\"", "") ?: ""
+                // Use a more robust check that handles stale state after long sleep
+                val jsCode = """
+                    (function() {
+                        try {
+                            // First check if function exists
+                            if (typeof window.onAndroidBackPressed === 'function') {
+                                var result = window.onAndroidBackPressed();
+                                console.log('onAndroidBackPressed returned: ' + result);
+                                return result;
+                            }
+                            
+                            // Function undefined - check localStorage for chat state (fallback after memory pressure)
+                            console.log('onAndroidBackPressed not ready, checking localStorage...');
+                            var activeChatId = localStorage.getItem('active_chat_id');
+                            var showMobileChat = localStorage.getItem('show_mobile_chat');
+                            
+                            console.log('localStorage state - activeChatId: ' + activeChatId + ', showMobileChat: ' + showMobileChat);
+                            
+                            if (activeChatId && showMobileChat === 'true') {
+                                // User was in chat - clean up storage and signal that we handled it
+                                localStorage.removeItem('active_chat_id');
+                                localStorage.removeItem('show_mobile_chat');
+                                
+                                // Try to trigger page reload to get back to menu state
+                                // This handles the case where Vue state was lost during sleep
+                                if (window.location.hash) {
+                                    window.history.replaceState({}, '', window.location.pathname);
+                                }
+                                window.location.reload();
+                                return 'chat_closed_fallback';
+                            }
+                            
+                            // No chat state found - OK to exit
+                            return 'should_exit';
+                        } catch(e) {
+                            console.error('Back handler error: ' + e);
+                            return 'error';
+                        }
+                    })();
+                """.trimIndent()
+                
+                webView.evaluateJavascript(jsCode) { result ->
+                    val status = result?.replace("\"", "")?.trim() ?: "null"
+                    android.util.Log.d("BackHandler", "JavaScript returned: $status")
 
                     runOnUiThread {
                         when (status) {
                             "should_exit" -> {
+                                android.util.Log.d("BackHandler", "Exiting app")
                                 isEnabled = false
                                 onBackPressedDispatcher.onBackPressed()
                             }
                             "chat_closed",
+                            "chat_closed_fallback",
                             "lightbox_closed",
                             "settings_closed",
-                            "internal_browser_closed" -> {}
-                            "toast_shown" -> {}
+                            "internal_browser_closed" -> {
+                                android.util.Log.d("BackHandler", "Action handled: $status")
+                                // Stay in app - action was handled
+                            }
+                            "toast_shown" -> {
+                                android.util.Log.d("BackHandler", "Toast shown, waiting for second press")
+                            }
+                            "null", "undefined", "error", "" -> {
+                                // JS function not available or error occurred
+                                // Check localStorage directly as final fallback
+                                android.util.Log.d("BackHandler", "JS error/undefined, checking localStorage directly")
+                                
+                                val storageCheckJs = """
+                                    (function() {
+                                        var chat = localStorage.getItem('active_chat_id');
+                                        var mobile = localStorage.getItem('show_mobile_chat');
+                                        if (chat && mobile === 'true') {
+                                            localStorage.removeItem('active_chat_id');
+                                            localStorage.removeItem('show_mobile_chat');
+                                            window.location.reload();
+                                            return 'reloading';
+                                        }
+                                        return 'no_chat';
+                                    })();
+                                """.trimIndent()
+                                
+                                webView.evaluateJavascript(storageCheckJs) { fallbackResult ->
+                                    val fallbackStatus = fallbackResult?.replace("\"", "") ?: ""
+                                    android.util.Log.d("BackHandler", "Fallback result: $fallbackStatus")
+                                    
+                                    runOnUiThread {
+                                        if (fallbackStatus == "no_chat") {
+                                            isEnabled = false
+                                            onBackPressedDispatcher.onBackPressed()
+                                        }
+                                        // If 'reloading', the page will reload - don't exit
+                                    }
+                                }
+                            }
                             else -> {
-                                // Fallback: try WebView back or exit
+                                android.util.Log.d("BackHandler", "Unknown status: $status, using WebView fallback")
                                 if (webView.canGoBack()) {
                                     webView.goBack()
                                 } else {

@@ -3470,6 +3470,13 @@ window.onAndroidBackPressed = () => {
 
 // Unified back button handler for both Capacitor and WebView
 function handleBackButtonPress() {
+  console.log("🔙 handleBackButtonPress called");
+  console.log("   showInternalBrowser:", showInternalBrowser.value);
+  console.log("   showImageLightbox:", showImageLightbox.value);
+  console.log("   showSettingsModal:", showSettingsModal.value);
+  console.log("   showMobileChat:", showMobileChat.value);
+  console.log("   activeChatId:", activeChatId.value);
+  
   // Priority 0: Close Internal Browser if open
   if (showInternalBrowser.value) {
     closeInternalBrowser();
@@ -3491,7 +3498,28 @@ function handleBackButtonPress() {
   // Priority 3: If chat view is open, go back to menu with animation
   // ROBUST CHECK: On mobile, if activeChatId exists, user is in chat even if showMobileChat got desynced
   const isMobile = windowWidth.value < 768;
-  const isInChatView = showMobileChat.value || (isMobile && activeChatId.value);
+  let isInChatView = showMobileChat.value || (isMobile && activeChatId.value);
+  
+  // **FALLBACK CHECK**: If Vue state appears empty but localStorage says we were in chat,
+  // this means the app lost state during long sleep. Handle it gracefully.
+  if (!isInChatView && isMobile) {
+    const savedChatId = localStorage.getItem("active_chat_id");
+    const savedMobileChat = localStorage.getItem("show_mobile_chat");
+    
+    console.log("   localStorage fallback - savedChatId:", savedChatId, "savedMobileChat:", savedMobileChat);
+    
+    if (savedChatId && savedMobileChat === "true") {
+      console.log("🔙 State lost during sleep - recovering from localStorage");
+      // Vue state was lost, but localStorage still has chat info
+      // Recover the state
+      const chatIdNum = parseInt(savedChatId);
+      if (!isNaN(chatIdNum)) {
+        activeChatId.value = chatIdNum;
+        showMobileChat.value = true;
+        isInChatView = true;
+      }
+    }
+  }
 
   if (isInChatView && activeChatId.value) {
     // SYNC FIX: Ensure showMobileChat is true before closing (in case it got desynced)
