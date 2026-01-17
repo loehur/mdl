@@ -4316,7 +4316,7 @@ const handleLinkClick = (e) => {
       <!-- Loading Indicator (Premium Design) -->
       <div
         v-if="isInternalBrowserLoading"
-        class="absolute inset-0 top-14 flex items-center justify-center bg-[var(--wa-bg-chat)]/80 backdrop-blur-md z-10"
+        class="absolute inset-0 top-14 flex items-center justify-center bg-[var(--wa-bg-chat)] backdrop-blur-md z-10"
       >
         <div class="flex flex-col items-center gap-4">
           <div class="relative">
@@ -4325,7 +4325,9 @@ const handleLinkClick = (e) => {
           </div>
           <div class="flex flex-col items-center">
             <p class="text-base font-medium text-[var(--wa-text-primary)]">Memuat Halaman</p>
-            <p v-if="internalBrowserUrl" class="text-xs text-[var(--wa-text-tertiary)]">{{ new URL(internalBrowserUrl).hostname }}</p>
+            <p v-if="internalBrowserUrl && internalBrowserUrl.startsWith('http')" class="text-xs text-[var(--wa-text-tertiary)]">
+              {{ internalBrowserUrl.split('//')[1]?.split('/')[0] || internalBrowserUrl }}
+            </p>
           </div>
         </div>
       </div>

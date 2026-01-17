@@ -220,7 +220,6 @@ const updateCase = async (caseId, loadingRef) => {
     if (!props.activeConversation || loadingRef.value) return;
     try {
         loadingRef.value = true;
-        showChatMenu.value = false;
         const res = await fetch(`${props.API_BASE}/CRM/Chat/updateCase`, {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ phone: props.activeConversation.wa_number, case: caseId, user_id: props.authId }),
@@ -236,6 +235,7 @@ const updateCase = async (caseId, loadingRef) => {
              if (!props.activeConversation.cases.some((c) => c.case === caseId && c.status === "open")) {
                 props.activeConversation.cases.push({ case: caseId, status: "open" });
              }
+             showChatMenu.value = false;
         }
     } catch(e) { console.error(e); }
     finally { setTimeout(() => loadingRef.value = false, 3000); }
