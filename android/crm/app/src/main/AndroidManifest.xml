@@ -12,7 +12,7 @@
     <uses-permission
         android:name="android.permission.READ_MEDIA_IMAGES"
         tools:ignore="PhotoAndVideoPolicy,SelectedPhotoAccess" />
-        
+
     <application
         android:name=".MainApplication"
         android:allowBackup="true"
@@ -29,10 +29,10 @@
         <!-- OneSignal Notification Channel Configuration -->
         <!-- This ensures notifications have sound on Android 8+ -->
         <!-- MUST match the channel ID registered in OneSignal Dashboard -->
-        <meta-data 
+        <meta-data
             android:name="com.onesignal.NotificationChannelId"
             android:value="7bf3bcb6-e151-4e8a-ae41-fd98692b80a3" />
-        
+
         <meta-data
             android:name="com.onesignal.NotificationAccentColor.DEFAULT"
             android:value="FF6366F1" />

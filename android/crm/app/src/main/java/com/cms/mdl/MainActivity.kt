@@ -50,7 +50,7 @@ class MainActivity : AppCompatActivity() {
         setupWebView()
         setupBackHandler()
         setupOneSignalClickListener()
-        
+
         // ⭐ Handle cold start from notification
         checkLaunchIntent(intent)
     }
@@ -58,16 +58,16 @@ class MainActivity : AppCompatActivity() {
     // ⭐ Handle when app resumes from background/sleep
     override fun onResume() {
         super.onResume()
-        
+
         if (::webView.isInitialized) {
             android.util.Log.d("MainActivity", "App resumed from background")
-            
+
             // CRITICAL FIX: After long sleep, WebView JavaScript context may be broken
             // We need to ensure:
             // 1. History state is properly set for back button
             // 2. Vue handlers are still functional
             // 3. Force reload if everything is broken
-            
+
             val jsCode = """
                 (function() {
                     try {
@@ -130,15 +130,15 @@ class MainActivity : AppCompatActivity() {
                     }
                 })();
             """.trimIndent()
-            
+
             // Use a timeout mechanism - if JS doesn't respond, WebView may be broken
             var jsResponded = false
-            
+
             webView.evaluateJavascript(jsCode) { result ->
                 jsResponded = true
                 val status = result?.replace("\"", "") ?: "null"
                 android.util.Log.d("MainActivity", "Resume JS result: $status")
-                
+
                 when {
                     status.startsWith("alive_") -> {
                         android.util.Log.d("MainActivity", "✅ WebView healthy, back button should work")
@@ -151,7 +151,7 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
             }
-            
+
             // Fallback: If JS doesn't respond within 2 seconds, WebView is likely broken
             webView.postDelayed({
                 if (!jsResponded) {
@@ -166,7 +166,7 @@ class MainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
         setIntent(intent) // Update the intent
-        
+
         intent?.let { newIntent ->
             val phone = extractPhoneFromIntent(newIntent)
             if (!phone.isNullOrEmpty()) {
@@ -194,17 +194,17 @@ class MainActivity : AppCompatActivity() {
     // ⭐ Extract phone from various possible locations in the intent
     private fun extractPhoneFromIntent(intent: Intent): String? {
         val extras = intent.extras ?: return null
-        
+
         // Method 1: Direct phone extra (from OneSignal additionalData)
-        extras.getString("phone")?.let { 
-            if (it.isNotEmpty()) return it 
+        extras.getString("phone")?.let {
+            if (it.isNotEmpty()) return it
         }
-        
+
         // Method 2: Check in nested Bundle (OneSignal sometimes nests data)
         extras.getBundle("onesignal_data")?.getString("phone")?.let {
             if (it.isNotEmpty()) return it
         }
-        
+
         // Method 3: Parse from custom data string
         extras.getString("custom")?.let { custom ->
             try {
@@ -217,7 +217,7 @@ class MainActivity : AppCompatActivity() {
                 android.util.Log.e("OneSignal", "Error parsing custom data: ${e.message}")
             }
         }
-        
+
         return null
     }
 
@@ -226,29 +226,29 @@ class MainActivity : AppCompatActivity() {
         OneSignal.Notifications.addClickListener(object : INotificationClickListener {
             override fun onClick(event: INotificationClickEvent) {
                 android.util.Log.d("OneSignal", "=== Notification Clicked ===")
-                
+
                 val notification = event.notification
                 val additionalData = notification.additionalData
-                
+
                 // Debug: Log all available data
                 android.util.Log.d("OneSignal", "Title: ${notification.title}")
                 android.util.Log.d("OneSignal", "Body: ${notification.body}")
                 android.util.Log.d("OneSignal", "AdditionalData: $additionalData")
-                
+
                 // Try to get phone from additionalData
                 var phone: String? = null
-                
+
                 if (additionalData != null) {
                     // Method 1: Direct phone key
                     phone = additionalData.optString("phone", null)
-                    
+
                     // Method 2: If phone is empty, try other keys
                     if (phone.isNullOrEmpty()) {
                         phone = additionalData.optString("wa_number", null)
                     }
                 }
-                
-                
+
+
                 if (!phone.isNullOrEmpty()) {
                     android.util.Log.d("OneSignal", "✅ Phone found: $phone")
                     runOnUiThread {
@@ -270,7 +270,7 @@ class MainActivity : AppCompatActivity() {
     private fun openChatByPhone(phone: String, retryAttempt: Int = 0) {
         val cleanPhone = phone.replace(Regex("[^0-9]"), "") // Clean phone number
         android.util.Log.d("OneSignal", "openChatByPhone attempt $retryAttempt: $cleanPhone")
-        
+
         val jsCode = """
             (function() {
                 console.log('Android calling openChatByPhone: $cleanPhone');
@@ -283,11 +283,11 @@ class MainActivity : AppCompatActivity() {
                 }
             })();
         """.trimIndent()
-        
+
         webView.evaluateJavascript(jsCode) { result ->
             val status = result?.replace("\"", "") ?: ""
             android.util.Log.d("OneSignal", "openChatByPhone result: $status")
-            
+
             // If function not ready and we haven't exceeded retries, try again
             if (status == "not_ready" && retryAttempt < 5) {
                 webView.postDelayed({
@@ -404,19 +404,19 @@ class MainActivity : AppCompatActivity() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 android.util.Log.d("BackHandler", "=== Back button pressed ===")
-                
+
                 // Priority 1: Check if WebView can go back (e.g., user visited a link)
                 val currentUrl = webView.url ?: ""
                 val isOnMainPage = currentUrl.startsWith(WEB_URL) && !currentUrl.contains("?")
-                
+
                 android.util.Log.d("BackHandler", "Current URL: $currentUrl, isOnMainPage: $isOnMainPage")
-                
+
                 if (webView.canGoBack() && !isOnMainPage) {
                     android.util.Log.d("BackHandler", "Using WebView.goBack()")
                     webView.goBack()
                     return
                 }
-                
+
                 // Priority 2: Let Vue app handle the back press
                 // Use a more robust check that handles stale state after long sleep
                 val jsCode = """
@@ -517,18 +517,18 @@ class MainActivity : AppCompatActivity() {
                         }
                     })();
                 """.trimIndent()
-                
+
                 // CRITICAL: Use timeout mechanism because evaluateJavascript may never callback
                 // if WebView is in a stale state after long sleep
                 var jsResponded = false
                 var backHandled = false
-                
+
                 // Set timeout FIRST - if JS doesn't respond in 500ms, use fallback
                 webView.postDelayed({
                     if (!jsResponded && !backHandled) {
                         android.util.Log.e("BackHandler", "⚠️ JS did not respond within 500ms, using direct fallback")
                         backHandled = true
-                        
+
                         // Direct localStorage check via simpler JS
                         val quickCheckJs = """
                             (function() {
@@ -545,11 +545,11 @@ class MainActivity : AppCompatActivity() {
                                 return 'exit';
                             })();
                         """.trimIndent()
-                        
+
                         webView.evaluateJavascript(quickCheckJs) { quickResult ->
                             val qr = quickResult?.replace("\"", "") ?: "exit"
                             android.util.Log.d("BackHandler", "Quick fallback result: $qr")
-                            
+
                             if (qr != "reload") {
                                 runOnUiThread {
                                     isEnabled = false
@@ -559,13 +559,13 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                 }, 500)
-                
+
                 webView.evaluateJavascript(jsCode) { result ->
                     if (backHandled) {
                         android.util.Log.d("BackHandler", "JS responded but timeout already handled it")
                         return@evaluateJavascript
                     }
-                    
+
                     jsResponded = true
                     val status = result?.replace("\"", "")?.trim() ?: "null"
                     android.util.Log.d("BackHandler", "JavaScript returned: $status")
@@ -596,7 +596,7 @@ class MainActivity : AppCompatActivity() {
                                 // JS function not available or error occurred
                                 // Check localStorage directly as final fallback
                                 android.util.Log.d("BackHandler", "JS error/undefined, checking localStorage directly")
-                                
+
                                 val storageCheckJs = """
                                     (function() {
                                         var chat = localStorage.getItem('active_chat_id');
@@ -612,11 +612,11 @@ class MainActivity : AppCompatActivity() {
                                         return 'no_chat';
                                     })();
                                 """.trimIndent()
-                                
+
                                 webView.evaluateJavascript(storageCheckJs) { fallbackResult ->
                                     val fallbackStatus = fallbackResult?.replace("\"", "") ?: ""
                                     android.util.Log.d("BackHandler", "Fallback result: $fallbackStatus")
-                                    
+
                                     runOnUiThread {
                                         if (fallbackStatus == "no_chat") {
                                             isEnabled = false

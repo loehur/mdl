@@ -44,7 +44,7 @@ class MainApplication : Application() {
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val manager = getSystemService(NotificationManager::class.java)
-            
+
             // 🔄 DELETE existing channel first to ensure sound settings are applied
             // Android doesn't update channel settings if channel already exists
             // This forces recreation with latest sound configuration
@@ -73,7 +73,7 @@ class MainApplication : Application() {
                 enableLights(true)
                 lightColor = android.graphics.Color.parseColor("#6366F1") // Indigo
                 lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
-                
+
                 // 🔊 Set notification sound explicitly using system default
                 val soundUri = Settings.System.DEFAULT_NOTIFICATION_URI
                 val audioAttributes = AudioAttributes.Builder()
@@ -84,7 +84,7 @@ class MainApplication : Application() {
             }
 
             manager.createNotificationChannel(channel)
-            
+
             // Log channel details for debugging
             val createdChannel = manager.getNotificationChannel(CHANNEL_ID)
             android.util.Log.d("MainApplication", """
