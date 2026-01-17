@@ -37,4 +37,33 @@ class OneSignalInterface(private val context: Context) {
         OneSignal.logout()
         Log.i(TAG, "OneSignal: User logged out")
     }
+    
+    /**
+     * Cancel notification for a specific phone number
+     * Called when user opens a chat - clears the notification for that contact
+     * Dipanggil dari JavaScript: window.OneSignalInterface.cancelNotification("6281234567890")
+     */
+    @JavascriptInterface
+    fun cancelNotification(phone: String) {
+        Log.d(TAG, "cancelNotification called for phone: $phone")
+        
+        if (phone.isNotEmpty()) {
+            val cleanPhone = phone.replace(Regex("[^0-9]"), "")
+            NotificationHelper.cancelNotification(context, cleanPhone)
+            Log.i(TAG, "Notification cancelled for: $cleanPhone")
+        } else {
+            Log.w(TAG, "cancelNotification: phone is empty")
+        }
+    }
+    
+    /**
+     * Cancel all chat notifications
+     * Dipanggil dari JavaScript: window.OneSignalInterface.cancelAllNotifications()
+     */
+    @JavascriptInterface
+    fun cancelAllNotifications() {
+        Log.d(TAG, "cancelAllNotifications called")
+        NotificationHelper.cancelAllNotifications(context)
+        Log.i(TAG, "All notifications cancelled")
+    }
 }

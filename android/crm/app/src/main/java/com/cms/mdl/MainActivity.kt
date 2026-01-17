@@ -271,6 +271,9 @@ class MainActivity : AppCompatActivity() {
         val cleanPhone = phone.replace(Regex("[^0-9]"), "") // Clean phone number
         android.util.Log.d("OneSignal", "openChatByPhone attempt $retryAttempt: $cleanPhone")
 
+        // Cancel the notification for this phone immediately
+        NotificationHelper.cancelNotification(this, cleanPhone)
+
         val jsCode = """
             (function() {
                 console.log('Android calling openChatByPhone: $cleanPhone');

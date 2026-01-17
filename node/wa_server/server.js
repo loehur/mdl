@@ -104,10 +104,12 @@ function resetNotifCount(groupKey) {
 }
 
 /**
- * Send push notification via OneSignal
+ * Send DATA-ONLY push notification via OneSignal
+ * The Android app will create native notifications from this data
+ * 
  * @param {object} options - Notification options
- * @param {string} options.title - Notification title
- * @param {string} options.message - Notification body
+ * @param {string} options.title - Notification title (sent as data, not UI)
+ * @param {string} options.message - Notification body (sent as data, not UI)
  * @param {string} options.phone - Customer phone (used as collapse_id)
  * @param {number} options.caseType - Case type (1=Payment, 2=Pickup, 3=Request, 4=FollowUp)
  * @param {object} options.data - Additional data payload
@@ -163,28 +165,30 @@ async function sendPushNotification(options) {
     const { count: notifCount, displayMessage } = addMessageToHistory(groupKey, message);
 
     // ============================================
-    // SINGLE NOTIFICATION PER CUSTOMER (WhatsApp-like)
+    // DATA-ONLY PUSH NOTIFICATION
     // ============================================
-    // - Uses collapse_id so new messages REPLACE old notification
-    // - Shows all message history separated by newlines
-    // - Clean, no spam, like WhatsApp
-
-    // Just show message list directly (no count header)
-    const notifContent = displayMessage;
+    // - No headings/contents = Android app creates native notification
+    // - content_available for iOS background delivery
+    // - All display info passed in data payload
+    // - App controls notification ID for proper cancellation
 
     const payload = {
         app_id: ONESIGNAL_APP_ID,
         include_external_user_ids: filteredUserIds.map(id => id.toUpperCase()),
-        headings: { en: title },
-        contents: { en: notifContent },
 
+        // DATA-ONLY: No UI content from OneSignal
+        // Android will use NotificationServiceExtension to create native notification
+        content_available: true, // Required for iOS background delivery
+        
+        // Minimal content for Android (will be intercepted and replaced)
+        // OneSignal requires at least empty content for Android delivery
+        contents: { en: ' ' },
+        
         // collapse_id: Same customer = REPLACE old notification (not stack)
-        // This creates WhatsApp-like behavior: 1 notification per customer
         collapse_id: groupKey,
 
         // android_group for visual grouping if multiple customers
         android_group: 'mdl_chat',
-        android_group_message: { en: '$[notif_count] chat baru' },
 
         // iOS thread
         thread_id: groupKey,
@@ -193,16 +197,34 @@ async function sendPushNotification(options) {
 
         android_channel_id: process.env.ONESIGNAL_ANDROID_CHANNEL_ID || undefined,
 
+        // All notification content passed as DATA
+        // Android app will create native notification from this
         data: {
             type: 'wa_masuk',
+            
+            // Display content for native notification
+            notif_title: title,
+            notif_body: displayMessage,
+            notif_message: message, // Original single message
+            
+            // Phone identifiers
             phone: phone,
-            clean_phone: cleanPhone, // Add clean phone for matching
-            phone_clean: cleanPhone, // Alternative key name
+            clean_phone: cleanPhone,
+            phone_clean: cleanPhone,
+            
+            // Case info
             case: caseType,
             notif_count: notifCount,
-            group_id: groupKey, // Identifier for cancellation/grouping
-            chat_group: groupKey, // Alternative key name
-            collapse_id: groupKey, // Also include collapse_id in data
+            
+            // Group/collapse identifiers for cancellation
+            group_id: groupKey,
+            chat_group: groupKey,
+            collapse_id: groupKey,
+            
+            // Timestamp for ordering
+            timestamp: Date.now(),
+            
+            // Additional data from caller
             ...data
         }
     };
@@ -210,7 +232,7 @@ async function sendPushNotification(options) {
     // Remove undefined values
     Object.keys(payload).forEach(key => payload[key] === undefined && delete payload[key]);
 
-    console.log(`[OneSignal] Group ${groupKey}: notif_count = ${notifCount}`);
+    console.log(`[OneSignal] 📤 Data-only push for ${groupKey}: count=${notifCount}, title="${title}"`);
 
     try {
         const response = await fetch('https://onesignal.com/api/v1/notifications', {
@@ -224,7 +246,7 @@ async function sendPushNotification(options) {
         const result = await response.json();
 
         if (result.id) {
-            console.log(`[OneSignal] ✅ Sent to ${filteredUserIds.length} user(s), collapse_id: ${groupKey}, count: ${notifCount}`);
+            console.log(`[OneSignal] ✅ Data-only sent to ${filteredUserIds.length} user(s), group: ${groupKey}`);
             return {
                 success: true,
                 id: result.id,
@@ -242,7 +264,8 @@ async function sendPushNotification(options) {
 }
 
 /**
- * Send SILENT push notification to trigger cancellation on device
+ * Send DATA-ONLY push to trigger notification cancellation on device
+ * Android app will use stored notificationId to cancel directly
  * @param {object} options 
  */
 async function sendSilentCancelNotification(options) {
@@ -261,42 +284,29 @@ async function sendSilentCancelNotification(options) {
     // Keep original phone format for matching (could be +628... or 628...)
     const originalPhone = phone || '';
 
-    console.log(`[Silent Cancel] Phone: ${originalPhone}, Clean: ${cleanPhone}, GroupKey: ${groupKey}`);
+    console.log(`[Cancel] 🔇 Phone: ${originalPhone}, Clean: ${cleanPhone}, GroupKey: ${groupKey}`);
 
-    // STRATEGY: Use collapse_id to REPLACE existing notification with an empty/minimal one
-    // Android will automatically replace the old notification with this new one
-    // Then we can either auto-dismiss it or make it invisible
-    
+    // DATA-ONLY cancel notification
+    // Android app will use stored notificationId to cancel the notification directly
     const payload = {
         app_id: ONESIGNAL_APP_ID,
         include_external_user_ids: userIds.map(id => id.toUpperCase()),
 
-        // iOS: Silent push
+        // Data-only for background processing
         content_available: true,
         
-        // Android: Use collapse_id to REPLACE the existing notification
-        // Send minimal content that will replace the old notification
-        // The extension will then prevent this from showing
-        contents: { en: ' ' }, // Single space - will be replaced and hidden
-        headings: { en: ' ' }, // Single space
+        // Minimal content (required for Android delivery)
+        contents: { en: ' ' },
         
-        // CRITICAL: collapse_id MUST match the original notification
-        // This tells Android to REPLACE the old notification with this new one
+        // Use same collapse_id to replace any pending notification
         collapse_id: groupKey,
         
-        // Android-specific settings (must match original notification)
-        android_group: 'mdl_chat',
-        android_channel_id: process.env.ONESIGNAL_ANDROID_CHANNEL_ID || undefined,
-        android_accent_color: 'FF6366F1',
-        
-        // Make it silent (no sound/vibration)
+        // Silent - no sound/vibration
         android_sound: null,
         ios_sound: null,
+        priority: 10,
         
-        // Low priority so it doesn't disturb
-        priority: 5, // Lower than normal notifications (10)
-        
-        // Data payload - extension will use this to prevent display
+        // Cancel command in data
         data: {
             type: 'cancel_chat',
             group_id: groupKey,
@@ -305,9 +315,7 @@ async function sendSilentCancelNotification(options) {
             phone_clean: cleanPhone,
             chat_group: groupKey,
             collapse_id: groupKey,
-            silent_cancel: true,
-            // Flag to auto-dismiss
-            auto_dismiss: true
+            timestamp: Date.now()
         }
     };
 
@@ -323,10 +331,10 @@ async function sendSilentCancelNotification(options) {
         const result = await response.json();
 
         if (result.id) {
-            console.log(`[OneSignal] 🔇 Silent Cancel sent to ${userIds.length} user(s), group: ${groupKey}`);
+            console.log(`[OneSignal] 🔇 Cancel sent to ${userIds.length} user(s), group: ${groupKey}`);
             return { success: true, id: result.id };
         } else {
-            console.log('[OneSignal] ❌ Silent Error:', result.errors || result);
+            console.log('[OneSignal] ❌ Cancel Error:', result.errors || result);
             return { success: false, error: result.errors };
         }
     } catch (err) {
