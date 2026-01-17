@@ -263,8 +263,10 @@ async function sendSilentCancelNotification(options) {
 
     console.log(`[Silent Cancel] Phone: ${originalPhone}, Clean: ${cleanPhone}, GroupKey: ${groupKey}`);
 
-    // IMPORTANT: Android requires visible content to trigger NotificationServiceExtension
-    // So we send a minimal notification that will be immediately cancelled by the extension
+    // STRATEGY: Use collapse_id to REPLACE existing notification with an empty/minimal one
+    // Android will automatically replace the old notification with this new one
+    // Then we can either auto-dismiss it or make it invisible
+    
     const payload = {
         app_id: ONESIGNAL_APP_ID,
         include_external_user_ids: userIds.map(id => id.toUpperCase()),
@@ -272,43 +274,40 @@ async function sendSilentCancelNotification(options) {
         // iOS: Silent push
         content_available: true,
         
-        // Android: Minimal visible content to trigger extension
-        // Extension will prevent this from showing and cancel related notifications
-        contents: { en: ' ' }, // Single space - minimal but visible
+        // Android: Use collapse_id to REPLACE the existing notification
+        // Send minimal content that will replace the old notification
+        // The extension will then prevent this from showing
+        contents: { en: ' ' }, // Single space - will be replaced and hidden
         headings: { en: ' ' }, // Single space
         
-        // Android-specific settings
-        android_accent_color: 'FF6366F1',
-        priority: 10,
-        
-        // collapse_id: MUST match the original notification's collapse_id
-        // This ensures Android replaces the existing notification
+        // CRITICAL: collapse_id MUST match the original notification
+        // This tells Android to REPLACE the old notification with this new one
         collapse_id: groupKey,
         
-        // Android group (should match original notification)
+        // Android-specific settings (must match original notification)
         android_group: 'mdl_chat',
-        
-        // Android channel (should match original notification)
         android_channel_id: process.env.ONESIGNAL_ANDROID_CHANNEL_ID || undefined,
+        android_accent_color: 'FF6366F1',
         
         // Make it silent (no sound/vibration)
-        // Extension will prevent display anyway
         android_sound: null,
         ios_sound: null,
-
-        // Data payload - this is what triggers the cancellation logic
-        // Include BOTH original phone and clean phone for maximum matching compatibility
+        
+        // Low priority so it doesn't disturb
+        priority: 5, // Lower than normal notifications (10)
+        
+        // Data payload - extension will use this to prevent display
         data: {
             type: 'cancel_chat',
             group_id: groupKey,
-            phone: originalPhone,           // Original format: +628117686252
-            clean_phone: cleanPhone,        // Clean format: 628117686252
-            phone_clean: cleanPhone,        // Alternative key name
-            // Also include groupKey variations for matching
+            phone: originalPhone,
+            clean_phone: cleanPhone,
+            phone_clean: cleanPhone,
             chat_group: groupKey,
             collapse_id: groupKey,
-            // Flag to indicate this is a cancel notification
-            silent_cancel: true
+            silent_cancel: true,
+            // Flag to auto-dismiss
+            auto_dismiss: true
         }
     };
 

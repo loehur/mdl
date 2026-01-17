@@ -28,9 +28,12 @@ class NotificationServiceExtension : INotificationServiceExtension {
             val extras = notification.additionalData
             if (extras != null) {
                 val keys = extras.keys()
-                Log.d(TAG, "Data keys: ${keys.joinToString(", ")}")
+                val keyList = mutableListOf<String>()
                 while (keys.hasNext()) {
-                    val key = keys.next()
+                    keyList.add(keys.next())
+                }
+                Log.d(TAG, "Data keys: ${keyList.joinToString(", ")}")
+                for (key in keyList) {
                     Log.d(TAG, "  $key = ${extras.get(key)}")
                 }
             }
@@ -313,7 +316,10 @@ class NotificationServiceExtension : INotificationServiceExtension {
             }
             
             // Prevent THIS notification from showing (Silent)
+            // Since we used collapse_id to replace the old notification,
+            // preventing this one will effectively remove the notification
             event.preventDefault()
+            Log.i(TAG, "✅ Cancel notification prevented from showing (replaced old notification)")
             return
         }
         
