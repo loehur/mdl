@@ -198,6 +198,7 @@ async function sendPushNotification(options) {
             phone: phone,
             case: caseType,
             notif_count: notifCount,
+            group_id: groupKey, // Identifier for cancellation/grouping
             ...data
         }
     };
@@ -229,6 +230,63 @@ async function sendPushNotification(options) {
         } else {
             console.log('[OneSignal] ❌ Error:', result.errors || result);
             return { success: false, error: result.errors || 'Unknown error' };
+        }
+    } catch (err) {
+        console.error('[OneSignal] ❌ Request failed:', err.message);
+        return { success: false, error: err.message };
+    }
+}
+
+/**
+ * Send SILENT push notification to trigger cancellation on device
+ * @param {object} options 
+ */
+async function sendSilentCancelNotification(options) {
+    const { phone, userIds } = options;
+
+    if (!ONESIGNAL_APP_ID || !ONESIGNAL_REST_API_KEY) {
+        return { success: false, error: 'OneSignal not configured' };
+    }
+
+    const cleanPhone = phone ? String(phone).replace(/\D/g, '') : '';
+    const groupKey = cleanPhone ? `chat_${cleanPhone}` : undefined;
+
+    if (!groupKey) return { success: false, error: 'Invalid phone for group key' };
+
+    const payload = {
+        app_id: ONESIGNAL_APP_ID,
+        include_external_user_ids: userIds.map(id => id.toUpperCase()),
+
+        // Critical for Silent Push
+        content_available: true, // iOS Background Fetch
+        priority: 10,           // High Priority
+
+        // NO contents or headings to keep it silent/data-only
+
+        data: {
+            type: 'cancel_chat',
+            group_id: groupKey,
+            phone: phone
+        }
+    };
+
+    try {
+        const response = await fetch('https://onesignal.com/api/v1/notifications', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Basic ${ONESIGNAL_REST_API_KEY}`
+            },
+            body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+
+        if (result.id) {
+            console.log(`[OneSignal] 🔇 Silent Cancel sent to ${userIds.length} user(s), group: ${groupKey}`);
+            return { success: true, id: result.id };
+        } else {
+            console.log('[OneSignal] ❌ Silent Error:', result.errors || result);
+            return { success: false, error: result.errors };
         }
     } catch (err) {
         console.error('[OneSignal] ❌ Request failed:', err.message);
@@ -718,7 +776,15 @@ app.post('/incoming', async (req, res) => {
         let pushResult = { success: false, error: 'No text content' };
         const autoReplied = data.auto_replied === true;
 
-        if (offlineUserIds.length > 0 && hasTextContent && !shouldSkipPush) {
+        // Check for CANCEL / ALL CLOSED signal
+        if (data.all_closed === true && offlineUserIds.length > 0) {
+            console.log(`[PUSH] Triggering Silent Cancel for ${customerPhone}`);
+            pushResult = await sendSilentCancelNotification({
+                phone: customerPhone,
+                userIds: offlineUserIds
+            });
+        }
+        else if (offlineUserIds.length > 0 && hasTextContent && !shouldSkipPush) {
             pushResult = await sendPushNotification({
                 title: customerName,
                 message: messageText.substring(0, 100),

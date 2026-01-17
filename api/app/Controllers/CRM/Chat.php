@@ -427,7 +427,8 @@ class Chat extends Controller
                     'phone' => $phone,
                     'case' => (int)$caseVal,
                     'target_id' => '0', // Broadcast to all
-                    'sender_id' => $userId
+                    'sender_id' => $userId,
+                    'all_closed' => true
                 ];
                 
                 
@@ -736,13 +737,23 @@ class Chat extends Controller
                     ['wa_number' => $phone]
                 );
                 
+                // Check if any open cases remain after resolution
+                $hasOpenCases = false;
+                foreach ($caseList as $c) {
+                    if (($c['status'] ?? '') === 'open') {
+                        $hasOpenCases = true;
+                        break;
+                    }
+                }
+
                 // Push WebSocket
                 $payload = [
                     'type' => 'case_resolved',
                     'phone' => $phone,
                     'case' => $targetCase,
                     'target_id' => '0', // Broadcast to all
-                    'sender_id' => $userId
+                    'sender_id' => $userId,
+                    'all_closed' => !$hasOpenCases // Flag for Silent Push (Cancel Notification)
                 ];
                 
                 \Log::write("Pushing case resolved to WebSocket: " . json_encode($payload), 'cms_ws', 'Chat');

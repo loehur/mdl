@@ -37,6 +37,10 @@
             android:name="com.onesignal.NotificationAccentColor.DEFAULT"
             android:value="FF6366F1" />
 
+        <meta-data
+            android:name="com.onesignal.NotificationServiceExtension"
+            android:value="com.cms.mdl.NotificationServiceExtension" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
