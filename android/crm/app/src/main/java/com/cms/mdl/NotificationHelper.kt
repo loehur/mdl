@@ -1,5 +1,6 @@
 package com.cms.mdl
 
+import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
@@ -21,7 +22,7 @@ object NotificationHelper {
     private const val TAG = "NotificationHelper"
     private const val PREFS_NAME = "notification_ids"
     private const val PREFS_MESSAGES = "notification_messages"
-    private const val CHANNEL_ID = "7bf3bcb6-e151-4e8a-ae41-fd98692b80a3"
+    private const val CHANNEL_ID = "mdl_cases_channel" // Simple channel ID
     private const val GROUP_KEY = "com.cms.mdl.CHAT_GROUP"
     
     // Base notification ID (we use phone hash as offset)
@@ -123,6 +124,33 @@ object NotificationHelper {
     }
     
     /**
+     * Ensure notification channel exists - create if not exists
+     */
+    private fun ensureNotificationChannel(context: Context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val channel = manager.getNotificationChannel(CHANNEL_ID)
+            
+            if (channel == null) {
+                // Create channel if not exists
+                val newChannel = NotificationChannel(
+                    CHANNEL_ID,
+                    "MDL Cases",
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "Notifikasi untuk semua case dan pesan WhatsApp masuk"
+                    enableVibration(true)
+                    setShowBadge(true)
+                    enableLights(true)
+                    lightColor = Color.parseColor("#6366F1")
+                }
+                manager.createNotificationChannel(newChannel)
+                Log.d(TAG, "✅ Created notification channel: $CHANNEL_ID")
+            }
+        }
+    }
+    
+    /**
      * Create and show a native notification
      */
     fun showNotification(
@@ -132,6 +160,9 @@ object NotificationHelper {
         body: String,
         singleMessage: String? = null
     ) {
+        // Ensure channel exists before creating notification
+        ensureNotificationChannel(context)
+        
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val notificationId = getNotificationId(cleanPhone)
         
