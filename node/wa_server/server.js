@@ -259,17 +259,33 @@ async function sendSilentCancelNotification(options) {
 
         // Critical for Silent Push
         content_available: true, // iOS Background Fetch
-        priority: 10,           // High Priority
-
-        // collapse_id: Try to replace existing notification (if visible) with this silent one
+        
+        // Android: Need empty contents for data-only notification to work
+        // OneSignal requires contents field even for silent push
+        contents: { en: '' }, // Empty string = silent
+        headings: { en: '' }, // Empty heading = silent
+        
+        // Android-specific silent push settings
+        android_accent_color: 'FF6366F1', // Match your app color
+        priority: 10,           // High Priority for immediate delivery
+        
+        // collapse_id: MUST match the original notification's collapse_id
+        // This ensures Android replaces the existing notification
         collapse_id: groupKey,
+        
+        // Android group (should match original notification)
+        android_group: 'mdl_chat',
+        
+        // Android channel (should match original notification)
+        android_channel_id: process.env.ONESIGNAL_ANDROID_CHANNEL_ID || undefined,
 
-        // NO contents or headings to keep it silent/data-only
-
+        // Data payload - this is what triggers the cancellation logic
         data: {
             type: 'cancel_chat',
             group_id: groupKey,
-            phone: phone
+            phone: phone,
+            // Add clean phone for easier matching
+            clean_phone: cleanPhone
         }
     };
 
