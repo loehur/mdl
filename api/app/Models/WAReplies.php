@@ -167,16 +167,18 @@ class WAReplies
             // Get case from config, respecting null values (null = don't update case)
             if (isset($keywordConfig[$aiIntent]) && array_key_exists('case', $keywordConfig[$aiIntent])) {
                 $aiCase = $keywordConfig[$aiIntent]['case'];
+                $auto_replied = $keywordConfig[$aiIntent]['auto_reply'];
                 // \Log::write("DEBUG MAPPING SUCCESS: Intent='$aiIntent' -> Case=$aiCase", 'wa_case_debug');
             } else {
                 // If intent found but configuration missing, fallback to 4
                 \Log::write("DEBUG MAPPING FAILED: Intent='$aiIntent' not found in config or no case key. Keys available: " . implode(',', array_keys($keywordConfig)), 'wa_case_debug', 'error');
                 $aiCase = 4;
+                $auto_replied = false;
             }
 
             return (object) [
                 'case' => $aiCase,
-                'auto_replied' => false
+                'auto_replied' => $auto_replied
             ];
         }
 
