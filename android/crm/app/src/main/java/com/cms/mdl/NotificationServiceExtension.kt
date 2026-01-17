@@ -19,7 +19,24 @@ class NotificationServiceExtension : INotificationServiceExtension {
         val data = notification.additionalData
         val context = event.context
 
-        Log.d(TAG, "Received notification data: ${data?.toString()}")
+        Log.d(TAG, "=== Notification Received ===")
+        Log.d(TAG, "Notification ID: ${notification.notificationId}")
+        Log.d(TAG, "Additional Data: ${data?.toString()}")
+        
+        // Log all extras for debugging
+        try {
+            val extras = notification.additionalData
+            if (extras != null) {
+                val keys = extras.keys()
+                Log.d(TAG, "Data keys: ${keys.joinToString(", ")}")
+                while (keys.hasNext()) {
+                    val key = keys.next()
+                    Log.d(TAG, "  $key = ${extras.get(key)}")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error logging extras: ${e.message}")
+        }
 
         // Check for CANCEL command
         if (data != null && data.has("type") && data.getString("type") == "cancel_chat") {
@@ -232,6 +249,60 @@ class NotificationServiceExtension : INotificationServiceExtension {
                         }
                     }
                     
+                    // LAST RESORT: If still no matches, try to find by checking ALL extras
+                    // for any mention of the phone number or groupKey
+                    if (cancelledCount == 0 && (groupKey.isNotEmpty() || cleanPhone.isNotEmpty())) {
+                        Log.w(TAG, "⚠️ Still no matches. Trying last resort: deep scan all extras...")
+                        var lastResortCount = 0
+                        
+                        for (statusBarNotification in activeNotifications) {
+                            try {
+                                val extras = statusBarNotification.notification.extras
+                                var shouldCancel = false
+                                
+                                // Deep scan: check every value in extras
+                                for (key in extras.keySet()) {
+                                    val value = extras.get(key)?.toString() ?: ""
+                                    
+                                    // Check if value contains our identifiers
+                                    if (value.isNotEmpty()) {
+                                        // Check for groupKey
+                                        if (groupKey.isNotEmpty() && value.contains(groupKey)) {
+                                            shouldCancel = true
+                                            Log.d(TAG, "Last resort match: found groupKey in key=$key")
+                                            break
+                                        }
+                                        
+                                        // Check for clean phone (more reliable than original phone)
+                                        if (cleanPhone.isNotEmpty() && cleanPhone.length >= 8) {
+                                            // Check if value contains the phone number
+                                            if (value.contains(cleanPhone)) {
+                                                shouldCancel = true
+                                                Log.d(TAG, "Last resort match: found cleanPhone in key=$key")
+                                                break
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                if (shouldCancel) {
+                                    val tag = statusBarNotification.tag ?: "onesignal"
+                                    val id = statusBarNotification.id
+                                    Log.i(TAG, "❌ Last resort cancel: ID=$id, Tag=$tag")
+                                    notificationManager.cancel(tag, id)
+                                    lastResortCount++
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Error in last resort cancellation: ${e.message}")
+                            }
+                        }
+                        
+                        if (lastResortCount > 0) {
+                            Log.w(TAG, "🔔 Last resort cleanup: Cancelled $lastResortCount notification(s)")
+                            cancelledCount = lastResortCount
+                        }
+                    }
+                    
                     Log.i(TAG, "🔔 Cleanup complete. Total cancelled: $cancelledCount notification(s) for group: $groupKey")
                      
                 } catch (e: Exception) {
@@ -245,5 +316,8 @@ class NotificationServiceExtension : INotificationServiceExtension {
             event.preventDefault()
             return
         }
+        
+        // If this is NOT a cancel notification, log it for debugging
+        Log.d(TAG, "Regular notification received (not cancel_chat)")
     }
 }
