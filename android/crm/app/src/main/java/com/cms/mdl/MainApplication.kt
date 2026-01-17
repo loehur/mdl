@@ -33,6 +33,8 @@ class MainApplication : Application() {
         OneSignal.Debug.logLevel = LogLevel.VERBOSE
 
         // OneSignal init
+        // NOTE: Channel is already created above, and AndroidManifest meta-data forces OneSignal to use our CHANNEL_ID
+        // No need to cleanup after init - it could interfere with notifications
         OneSignal.initWithContext(this, ONESIGNAL_APP_ID)
 
         // Request notification permission (Android 13+)
@@ -41,25 +43,47 @@ class MainApplication : Application() {
         }
     }
 
+    /**
+     * Clean up old notification channels - keep only our CHANNEL_ID
+     * Called BEFORE OneSignal init to prevent OneSignal from using old channels
+     */
+    private fun cleanupOldChannels() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val manager = getSystemService(NotificationManager::class.java)
+            
+            try {
+                val existingChannels = manager.notificationChannels
+                android.util.Log.d("MainApplication", "Found ${existingChannels.size} existing notification channels")
+                
+                var deletedCount = 0
+                for (channel in existingChannels) {
+                    // Delete ALL channels except our current one
+                    if (channel.id != CHANNEL_ID) {
+                        android.util.Log.i("MainApplication", "🗑️ Deleting old channel: ${channel.id} (${channel.name})")
+                        manager.deleteNotificationChannel(channel.id)
+                        deletedCount++
+                    } else {
+                        android.util.Log.d("MainApplication", "✅ Keeping our channel: ${channel.id} (${channel.name})")
+                    }
+                }
+                
+                if (deletedCount > 0) {
+                    android.util.Log.i("MainApplication", "✅ Cleaned up $deletedCount old notification channel(s)")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("MainApplication", "❌ Error deleting old channels: ${e.message}", e)
+            }
+        }
+    }
+    
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val manager = getSystemService(NotificationManager::class.java)
 
             // 🔄 DELETE all other notification channels to keep only ONE channel: "MDL Cases"
-            // This ensures clean state - only our channel exists
-            try {
-                val existingChannels = manager.notificationChannels
-                for (channel in existingChannels) {
-                    // Delete ALL channels except our current one
-                    // This removes old channels like "Chat WhatsApp Masuk", "MDL Chat Channel", etc.
-                    if (channel.id != CHANNEL_ID) {
-                        android.util.Log.d("MainApplication", "Deleting old channel: ${channel.id} (${channel.name})")
-                        manager.deleteNotificationChannel(channel.id)
-                    }
-                }
-            } catch (e: Exception) {
-                android.util.Log.e("MainApplication", "Error deleting old channels: ${e.message}")
-            }
+            // Android keeps channels even after app uninstall, so we must clean them up on each app start
+            // This removes old channels like "MDL Chat - Customer", "MDL Chat Channel", "Chat WhatsApp Masuk", etc.
+            cleanupOldChannels()
 
             // 🔄 DELETE existing channel first to ensure sound settings are applied
             // Android doesn't update channel settings if channel already exists
