@@ -1299,7 +1299,7 @@ const resolveCase = async (caseId) => {
   }
 };
 
-const selectChat = async (id) => {
+const selectChat = async (id, isRefresh = false) => {
   // Save current draft before switching chats
   if (activeChatId.value && messageInput.value.trim()) {
     chatDrafts.value[activeChatId.value] = messageInput.value;
@@ -1311,7 +1311,7 @@ const selectChat = async (id) => {
   activeChatId.value = id;
 
   // WhatsApp-style slide-in animation (mobile only)
-  if (window.innerWidth < 768) {
+  if (window.innerWidth < 768 && !isRefresh) {
     isEnteringChat.value = true;
     showMobileChat.value = true;
 
@@ -1386,8 +1386,8 @@ const refreshActiveChat = async () => {
     // 1. Fetch latest metadata (CSW status, etc) for all chats
     await fetchConversations();
 
-    // 2. Refresh messages for active chat
-    await selectChat(activeChatId.value);
+    // 2. Refresh messages for active chat without re-triggering entrance animation
+    await selectChat(activeChatId.value, true);
   } catch (error) {
     console.error("Failed to refresh chat", error);
   } finally {
