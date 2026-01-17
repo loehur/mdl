@@ -578,7 +578,7 @@ onUnmounted(() => {
                         <button v-if="resolveableCases.length > 0" @click.stop="showResolveMenu = !showResolveMenu; showChatMenu = false" class="hover:text-[var(--wa-text-primary)] p-2 rounded-full text-green-500">
                              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
                         </button>
-                        <div v-if="showResolveMenu" class="absolute right-0 top-full mt-2 w-44 bg-[var(--wa-bg-secondary)] rounded-xl shadow-2xl overflow-hidden z-50 py-1">
+                        <div v-if="showResolveMenu" @click.stop class="absolute right-0 top-full mt-2 w-44 bg-[var(--wa-bg-secondary)] rounded-xl shadow-2xl overflow-hidden z-50 py-1">
                              <button v-for="c in resolveableCases" :key="c.case" @click="resolveCase(c.case)" class="w-full px-4 py-2.5 text-left hover:bg-[var(--wa-hover)] text-sm text-[var(--wa-text-primary)] flex items-center gap-3">
                                   <!-- Checkmark in colored circle or Spinner -->
                                   <span class="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" :class="getCaseColor(c.case)">
@@ -594,7 +594,7 @@ onUnmounted(() => {
                     <!-- Chat Menu -->
                     <div class="relative">
                         <button @click.stop="showChatMenu = !showChatMenu; showResolveMenu = false" class="hover:text-[var(--wa-text-primary)] p-2 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg></button>
-                         <div v-if="showChatMenu" class="absolute right-0 top-full mt-2 w-44 bg-[var(--wa-bg-secondary)] rounded-xl shadow-2xl overflow-hidden z-50 py-1">
+                         <div v-if="showChatMenu" @click.stop class="absolute right-0 top-full mt-2 w-44 bg-[var(--wa-bg-secondary)] rounded-xl shadow-2xl overflow-hidden z-50 py-1">
                                <button v-if="!isCaseOpen(1)" @click="checkPayment" :disabled="isCheckingPayment" class="w-full px-4 py-2.5 text-left hover:bg-[var(--wa-hover)] text-sm text-[var(--wa-text-primary)] flex items-center gap-3">
                                     <div v-if="isCheckingPayment" class="w-3 h-3 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin flex-shrink-0"></div>
                                     <span v-else class="w-2.5 h-2.5 rounded-full bg-blue-500 flex-shrink-0"></span>
