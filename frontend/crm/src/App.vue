@@ -1321,8 +1321,9 @@ const selectChat = async (id) => {
     showMobileChat.value = true;
   }
 
-  // Persist state
-  localStorage.setItem("active_chat_id", id);
+  // Persist state - both chatId and mobileChat state for Android recovery
+  localStorage.setItem("active_chat_id", id.toString());
+  localStorage.setItem("show_mobile_chat", "true");
 
   // Push history state to handle Android back button
   if (window.innerWidth < 768) {
@@ -3042,6 +3043,31 @@ const resumeChatState = () => {
 };
 
 onMounted(() => {
+  // --- ANDROID RECOVERY MODE CHECK ---
+  // If app was reloaded due to back button recovery, ensure menu state
+  const recoveryMode = sessionStorage.getItem('android_recovery_mode');
+  const recoveryPerformed = sessionStorage.getItem('back_recovery_performed');
+  
+  if (recoveryMode === 'chat' || recoveryPerformed === 'true') {
+    console.log("📱 onMounted: Android recovery mode detected, ensuring menu state");
+    sessionStorage.removeItem('android_recovery_mode');
+    sessionStorage.removeItem('android_recovery_chat_id');
+    sessionStorage.removeItem('back_recovery_performed');
+    
+    // Ensure we start in menu state
+    showMobileChat.value = false;
+    activeChatId.value = null;
+    
+    // Clean up stale localStorage
+    localStorage.removeItem('active_chat_id');
+    localStorage.removeItem('show_mobile_chat');
+    
+    // Clear URL hash if present
+    if (window.location.hash && window.location.hash.startsWith('#chat=')) {
+      window.history.replaceState({appRoot: true}, '', window.location.pathname);
+    }
+  }
+  
   // Check for Deep Link / Notification Click (URL Param)
   const urlParams = new URLSearchParams(window.location.search);
   const deepLinkPhone = urlParams.get("phone");
@@ -3457,6 +3483,45 @@ window.onAndroidBackPressed = () => {
   return handleBackButtonPress();
 };
 
+// Helper to re-expose back handler (called from Android onResume if handler seems dead)
+window.__reExposeBackHandler = () => {
+  console.log("📱 __reExposeBackHandler called - ensuring handlers are fresh");
+  
+  // Re-assign the back handler in case it was garbage collected
+  window.onAndroidBackPressed = () => {
+    return handleBackButtonPress();
+  };
+  
+  // Also check if we need to perform recovery from CSS-based back handling
+  const recoveryPerformed = sessionStorage.getItem('back_recovery_performed');
+  if (recoveryPerformed === 'true') {
+    console.log("📱 Back recovery was performed - resetting Vue state");
+    sessionStorage.removeItem('back_recovery_performed');
+    
+    // Reset Vue state to match what CSS fallback did
+    showMobileChat.value = false;
+    activeChatId.value = null;
+    
+    // Clean up any stale localStorage
+    localStorage.removeItem('active_chat_id');
+    localStorage.removeItem('show_mobile_chat');
+  }
+  
+  // Check for Android recovery mode (set before possible reload)
+  const recoveryMode = sessionStorage.getItem('android_recovery_mode');
+  if (recoveryMode === 'chat') {
+    console.log("📱 Android recovery mode detected - user was in chat, now showing menu");
+    sessionStorage.removeItem('android_recovery_mode');
+    sessionStorage.removeItem('android_recovery_chat_id');
+    
+    // Ensure we're in menu state
+    showMobileChat.value = false;
+    activeChatId.value = null;
+  }
+  
+  return true;
+};
+
 // Unified back button handler for both Capacitor and WebView
 function handleBackButtonPress() {
   console.log("🔙 handleBackButtonPress called");
@@ -3489,20 +3554,36 @@ function handleBackButtonPress() {
   const isMobile = windowWidth.value < 768;
   let isInChatView = showMobileChat.value || (isMobile && activeChatId.value);
   
-  // **FALLBACK CHECK**: If Vue state appears empty but localStorage says we were in chat,
+  // **FALLBACK CHECK**: If Vue state appears empty but localStorage/URL says we were in chat,
   // this means the app lost state during long sleep. Handle it gracefully.
   if (!isInChatView && isMobile) {
     const savedChatId = localStorage.getItem("active_chat_id");
     const savedMobileChat = localStorage.getItem("show_mobile_chat");
+    const urlHash = window.location.hash;
+    const hashChatId = urlHash && urlHash.startsWith('#chat=') ? urlHash.replace('#chat=', '') : null;
     
-    console.log("   localStorage fallback - savedChatId:", savedChatId, "savedMobileChat:", savedMobileChat);
+    console.log("   localStorage fallback - savedChatId:", savedChatId, "savedMobileChat:", savedMobileChat, "urlHash:", urlHash);
     
-    if (savedChatId && savedMobileChat === "true") {
-      console.log("🔙 State lost during sleep - recovering from localStorage");
-      // Vue state was lost, but localStorage still has chat info
-      // Recover the state
-      const chatIdNum = parseInt(savedChatId);
+    // Check localStorage OR URL hash
+    if ((savedChatId && savedMobileChat === "true") || hashChatId) {
+      console.log("🔙 State lost during sleep - recovering from localStorage/hash");
+      
+      // Use hash chatId as priority, fallback to localStorage
+      const chatIdToUse = hashChatId || savedChatId;
+      const chatIdNum = parseInt(chatIdToUse);
+      
       if (!isNaN(chatIdNum)) {
+        // Don't try to restore Vue state - just clean up and go to menu
+        // This is more reliable than trying to restore state
+        localStorage.removeItem("active_chat_id");
+        localStorage.removeItem("show_mobile_chat");
+        
+        // Clear URL hash
+        if (urlHash) {
+          window.history.replaceState({appRoot: true}, '', window.location.pathname);
+        }
+        
+        // Set state to "we were in chat" so backToMenu works correctly
         activeChatId.value = chatIdNum;
         showMobileChat.value = true;
         isInChatView = true;

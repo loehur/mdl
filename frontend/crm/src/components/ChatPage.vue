@@ -546,6 +546,7 @@ onUnmounted(() => {
 <template>
     <!-- Main Chat Area -->
     <main
+      data-chat-panel
       class="flex flex-col bg-[var(--wa-bg-chat)] h-full overflow-x-hidden"
       :class="{
         'fixed inset-0 z-50 w-full chat-panel-mobile':

@@ -60,31 +60,105 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         
         if (::webView.isInitialized) {
-            // Notify JavaScript that app has resumed - trigger reconnection
-            android.util.Log.d("MainActivity", "App resumed from background, triggering JS reconnect")
+            android.util.Log.d("MainActivity", "App resumed from background")
+            
+            // CRITICAL FIX: After long sleep, WebView JavaScript context may be broken
+            // We need to ensure:
+            // 1. History state is properly set for back button
+            // 2. Vue handlers are still functional
+            // 3. Force reload if everything is broken
             
             val jsCode = """
                 (function() {
-                    console.log('Android: App resumed from background');
-                    
-                    // Trigger visibilitychange event manually for better compatibility
-                    if (document.visibilityState === 'visible') {
-                        // Dispatch custom event that our Vue app can listen to
+                    try {
+                        console.log('Android: App resumed from background');
+                        
+                        // STEP 1: Force-push history state to fix back button
+                        // After long sleep, history stack may be corrupted
+                        var hash = window.location.hash;
+                        var savedChatId = localStorage.getItem('active_chat_id');
+                        var savedMobileChat = localStorage.getItem('show_mobile_chat');
+                        
+                        console.log('Resume state: hash=' + hash + ', chatId=' + savedChatId + ', mobileChat=' + savedMobileChat);
+                        
+                        // If user was in chat (based on hash or localStorage), ensure history state exists
+                        if (hash && hash.startsWith('#chat=')) {
+                            // Re-push state to ensure back button works
+                            window.history.pushState({chatOpen: true, timestamp: Date.now()}, '', hash);
+                            console.log('Re-pushed history state for hash: ' + hash);
+                        } else if (savedChatId && savedMobileChat === 'true') {
+                            // Push state based on localStorage
+                            window.history.pushState({chatOpen: true, timestamp: Date.now()}, '', '#chat=' + savedChatId);
+                            console.log('Pushed history state from localStorage: #chat=' + savedChatId);
+                        }
+                        
+                        // STEP 2: Check if Vue app is still alive
+                        var isAppAlive = typeof window.onAndroidBackPressed === 'function';
+                        console.log('Vue app alive = ' + isAppAlive);
+                        
+                        if (!isAppAlive) {
+                            console.log('Vue app not ready, setting recovery flags...');
+                            
+                            if (savedChatId && savedMobileChat === 'true') {
+                                sessionStorage.setItem('android_recovery_mode', 'chat');
+                                sessionStorage.setItem('android_recovery_chat_id', savedChatId);
+                            }
+                            
+                            // Mark that we need recovery on back press
+                            window.__androidRecoveryPending = true;
+                            
+                            return 'recovery_pending';
+                        }
+                        
+                        // STEP 3: App is alive - trigger resume handlers
                         window.dispatchEvent(new CustomEvent('androidResume'));
+                        
+                        if (window.triggerReconnect) {
+                            window.triggerReconnect();
+                        }
+                        
+                        if (window.__reExposeBackHandler) {
+                            window.__reExposeBackHandler();
+                        }
+                        
+                        // STEP 4: Return alive confirmation with timestamp
+                        return 'alive_' + Date.now();
+                        
+                    } catch(e) {
+                        console.error('Resume error: ' + e);
+                        return 'error_' + e.message;
                     }
-                    
-                    // Also directly trigger reconnection if the function exists
-                    if (window.triggerReconnect) {
-                        window.triggerReconnect();
-                        return 'reconnect_triggered';
-                    }
-                    return 'event_dispatched';
                 })();
             """.trimIndent()
             
+            // Use a timeout mechanism - if JS doesn't respond, WebView may be broken
+            var jsResponded = false
+            
             webView.evaluateJavascript(jsCode) { result ->
-                android.util.Log.d("MainActivity", "Resume JS result: $result")
+                jsResponded = true
+                val status = result?.replace("\"", "") ?: "null"
+                android.util.Log.d("MainActivity", "Resume JS result: $status")
+                
+                when {
+                    status.startsWith("alive_") -> {
+                        android.util.Log.d("MainActivity", "✅ WebView healthy, back button should work")
+                    }
+                    status.startsWith("recovery_pending") -> {
+                        android.util.Log.d("MainActivity", "⚠️ Vue app stale, recovery mode active")
+                    }
+                    status.startsWith("error_") || status == "null" -> {
+                        android.util.Log.e("MainActivity", "❌ JS execution failed, may need reload")
+                    }
+                }
             }
+            
+            // Fallback: If JS doesn't respond within 2 seconds, WebView is likely broken
+            webView.postDelayed({
+                if (!jsResponded) {
+                    android.util.Log.e("MainActivity", "❌ JS did not respond within 2s, forcing reload")
+                    webView.reload()
+                }
+            }, 2000)
         }
     }
 
@@ -348,35 +422,94 @@ class MainActivity : AppCompatActivity() {
                 val jsCode = """
                     (function() {
                         try {
-                            // First check if function exists
+                            // First check if function exists AND app is responsive
                             if (typeof window.onAndroidBackPressed === 'function') {
                                 var result = window.onAndroidBackPressed();
                                 console.log('onAndroidBackPressed returned: ' + result);
                                 return result;
                             }
                             
-                            // Function undefined - check localStorage for chat state (fallback after memory pressure)
-                            console.log('onAndroidBackPressed not ready, checking localStorage...');
+                            // Function undefined - Vue state is stale after long sleep
+                            // Attempt direct DOM/state recovery without page reload
+                            console.log('onAndroidBackPressed not ready, attempting direct recovery...');
+                            
+                            // Check multiple sources for chat state
                             var activeChatId = localStorage.getItem('active_chat_id');
                             var showMobileChat = localStorage.getItem('show_mobile_chat');
+                            var urlHash = window.location.hash;
+                            var wasInChat = (activeChatId && showMobileChat === 'true') || 
+                                           (urlHash && urlHash.startsWith('#chat='));
                             
-                            console.log('localStorage state - activeChatId: ' + activeChatId + ', showMobileChat: ' + showMobileChat);
+                            console.log('State check - chatId: ' + activeChatId + ', mobileChat: ' + showMobileChat + ', hash: ' + urlHash);
                             
-                            if (activeChatId && showMobileChat === 'true') {
-                                // User was in chat - clean up storage and signal that we handled it
+                            if (wasInChat) {
+                                console.log('User was in chat, performing recovery...');
+                                
+                                // Clean up all chat state
                                 localStorage.removeItem('active_chat_id');
                                 localStorage.removeItem('show_mobile_chat');
+                                sessionStorage.removeItem('cms_active_chat_id');
+                                sessionStorage.removeItem('cms_show_mobile_chat');
                                 
-                                // Try to trigger page reload to get back to menu state
-                                // This handles the case where Vue state was lost during sleep
-                                if (window.location.hash) {
-                                    window.history.replaceState({}, '', window.location.pathname);
+                                // Clear URL hash
+                                if (urlHash) {
+                                    window.history.replaceState({appRoot: true}, '', window.location.pathname);
                                 }
+                                
+                                // Try to directly manipulate Vue app if store is accessible
+                                // This avoids a full page reload
+                                if (window.__vue_app__ && window.__vue_app__.${'$'}store) {
+                                    // Pinia/Vuex store access (if exposed)
+                                    try {
+                                        var store = window.__vue_app__.${'$'}store;
+                                        store.activeChatId = null;
+                                        store.showMobileChat = false;
+                                        console.log('Direct store manipulation successful');
+                                        return 'chat_closed_recovery';
+                                    } catch(storeErr) {
+                                        console.log('Store manipulation failed: ' + storeErr);
+                                    }
+                                }
+                                
+                                // Fallback: Hide chat panel via CSS directly (instant, no reload needed)
+                                var chatPanel = document.querySelector('[data-chat-panel]') || 
+                                               document.querySelector('.mobile-chat-panel') ||
+                                               document.querySelector('.chat-view-mobile');
+                                               
+                                if (chatPanel) {
+                                    chatPanel.style.display = 'none';
+                                    chatPanel.style.transform = 'translateX(100%)';
+                                    console.log('Chat panel hidden via CSS');
+                                }
+                                
+                                // Show conversation list
+                                var convList = document.querySelector('[data-conversation-list]') ||
+                                              document.querySelector('.conversation-list') ||
+                                              document.querySelector('.sidebar');
+                                              
+                                if (convList) {
+                                    convList.style.display = 'flex';
+                                    convList.style.transform = 'translateX(0)';
+                                    console.log('Conversation list shown via CSS');
+                                }
+                                
+                                // Set flag so Vue knows to reset when it recovers
+                                sessionStorage.setItem('back_recovery_performed', 'true');
+                                
+                                // If CSS hiding worked, don't reload
+                                if (chatPanel || convList) {
+                                    // Push history state for next back press  
+                                    window.history.pushState({appRoot: true}, '', window.location.pathname);
+                                    return 'chat_closed_css';
+                                }
+                                
+                                // Last resort: Reload, but mark as single-press success
+                                window.__backHandledBeforeReload = true;
                                 window.location.reload();
-                                return 'chat_closed_fallback';
+                                return 'chat_closed_reload';
                             }
                             
-                            // No chat state found - OK to exit
+                            // No chat state found - OK to exit app
                             return 'should_exit';
                         } catch(e) {
                             console.error('Back handler error: ' + e);
@@ -385,11 +518,60 @@ class MainActivity : AppCompatActivity() {
                     })();
                 """.trimIndent()
                 
+                // CRITICAL: Use timeout mechanism because evaluateJavascript may never callback
+                // if WebView is in a stale state after long sleep
+                var jsResponded = false
+                var backHandled = false
+                
+                // Set timeout FIRST - if JS doesn't respond in 500ms, use fallback
+                webView.postDelayed({
+                    if (!jsResponded && !backHandled) {
+                        android.util.Log.e("BackHandler", "⚠️ JS did not respond within 500ms, using direct fallback")
+                        backHandled = true
+                        
+                        // Direct localStorage check via simpler JS
+                        val quickCheckJs = """
+                            (function() {
+                                var h = window.location.hash;
+                                var c = localStorage.getItem('active_chat_id');
+                                var m = localStorage.getItem('show_mobile_chat');
+                                if ((h && h.indexOf('chat=') > -1) || (c && m === 'true')) {
+                                    localStorage.removeItem('active_chat_id');
+                                    localStorage.removeItem('show_mobile_chat');
+                                    if (h) window.history.replaceState({}, '', '/');
+                                    window.location.reload();
+                                    return 'reload';
+                                }
+                                return 'exit';
+                            })();
+                        """.trimIndent()
+                        
+                        webView.evaluateJavascript(quickCheckJs) { quickResult ->
+                            val qr = quickResult?.replace("\"", "") ?: "exit"
+                            android.util.Log.d("BackHandler", "Quick fallback result: $qr")
+                            
+                            if (qr != "reload") {
+                                runOnUiThread {
+                                    isEnabled = false
+                                    onBackPressedDispatcher.onBackPressed()
+                                }
+                            }
+                        }
+                    }
+                }, 500)
+                
                 webView.evaluateJavascript(jsCode) { result ->
+                    if (backHandled) {
+                        android.util.Log.d("BackHandler", "JS responded but timeout already handled it")
+                        return@evaluateJavascript
+                    }
+                    
+                    jsResponded = true
                     val status = result?.replace("\"", "")?.trim() ?: "null"
                     android.util.Log.d("BackHandler", "JavaScript returned: $status")
 
                     runOnUiThread {
+                        backHandled = true
                         when (status) {
                             "should_exit" -> {
                                 android.util.Log.d("BackHandler", "Exiting app")
@@ -398,6 +580,9 @@ class MainActivity : AppCompatActivity() {
                             }
                             "chat_closed",
                             "chat_closed_fallback",
+                            "chat_closed_recovery",
+                            "chat_closed_css",
+                            "chat_closed_reload",
                             "lightbox_closed",
                             "settings_closed",
                             "internal_browser_closed" -> {
@@ -416,9 +601,11 @@ class MainActivity : AppCompatActivity() {
                                     (function() {
                                         var chat = localStorage.getItem('active_chat_id');
                                         var mobile = localStorage.getItem('show_mobile_chat');
-                                        if (chat && mobile === 'true') {
+                                        var hash = window.location.hash;
+                                        if ((chat && mobile === 'true') || (hash && hash.startsWith('#chat='))) {
                                             localStorage.removeItem('active_chat_id');
                                             localStorage.removeItem('show_mobile_chat');
+                                            if (hash) window.history.replaceState({}, '', '/');
                                             window.location.reload();
                                             return 'reloading';
                                         }

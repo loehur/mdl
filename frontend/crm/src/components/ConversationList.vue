@@ -119,6 +119,7 @@ const parseEmoji = (text) => {
 <template>
   <!-- Sidebar -->
   <aside
+    data-conversation-list
     class="flex flex-col border-r border-[var(--wa-border)] bg-[var(--wa-bg-panel)] transition-all duration-300 absolute md:static z-0 h-full w-full md:w-96"
   >
     <!-- Search Header -->
