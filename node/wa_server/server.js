@@ -686,7 +686,7 @@ app.post('/incoming', async (req, res) => {
     const shouldSkipPush = skipPushTypes.includes(eventType);
 
     if (shouldSkipPush) {
-        console.log(`[PUSH] Skipped: Event type '${eventType}' does not trigger push notification`);
+        console.log(`[PUSH] Info: Event type '${eventType}' excludes standard push (Silent push still possible)`);
     }
 
     const caseType = parseInt(data.case || 0);
@@ -776,8 +776,14 @@ app.post('/incoming', async (req, res) => {
         let pushResult = { success: false, error: 'No text content' };
         const autoReplied = data.auto_replied === true;
 
+        // DEBUG: Log status of silent push triggers
+        if (data.type === 'case_resolved' || data.type === 'mark_done' || data.all_closed) {
+            console.log(`[PUSH-DEBUG] Silent Check: all_closed=${data.all_closed}, offlineUsers=${offlineUserIds.length}, phone=${customerPhone}`);
+        }
+
         // Check for CANCEL / ALL CLOSED signal
-        if (data.all_closed === true && offlineUserIds.length > 0) {
+        // Relax check to allow fuzzy boolean/string for all_closed
+        if ((data.all_closed === true || data.all_closed === 'true') && offlineUserIds.length > 0) {
             console.log(`[PUSH] Triggering Silent Cancel for ${customerPhone}`);
             pushResult = await sendSilentCancelNotification({
                 phone: customerPhone,
