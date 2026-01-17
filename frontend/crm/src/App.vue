@@ -217,17 +217,6 @@ const toggleTheme = () => {
   setTheme(newTheme);
 };
 
-// Computed font sizes for messages
-const messageFontSize = computed(() => {
-  const sizes = {
-    medium: "14.2px",
-    large: "16px",
-  };
-  return sizes[fontSize.value] || sizes.medium;
-});
-
-
-
 // Computed: Cases available to resolve based on Role
 
 
