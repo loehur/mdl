@@ -2161,7 +2161,24 @@ const handleIncomingMessage = (payload) => {
     );
 
     if (conversation) {
-      console.log(`✅ Conversation found (ID: ${conversation.id}), searching for message ID: ${message.id}`);
+      console.log(`✅ Conversation found:`, {
+        convId: conversation.id,
+        convPhone: conversation.wa_number,
+        convName: conversation.name,
+        messagesCount: conversation.messages?.length,
+        searchingMsgId: message.id,
+        searchingWamid: message.wamid,
+        payloadConvId: conversation_id,
+        payloadPhone: phone
+      });
+      
+      // DEBUG: Show all message IDs in this conversation
+      console.log("📋 All messages in conversation:", conversation.messages.map(m => ({
+        id: m.id,
+        wamid: m.wamid,
+        text: (m.text || '').substring(0, 20),
+        status: m.status
+      })));
       
       // Find and update message
       const msgIndex = conversation.messages.findIndex(
