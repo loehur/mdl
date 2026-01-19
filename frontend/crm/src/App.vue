@@ -3397,7 +3397,7 @@ onMounted(() => {
       window.history.pushState({ appRoot: true }, "", window.location.href.split('#')[0]);
     }
   });
-  */'
+  */
 
   // Load font size preference
   loadFontSize();
