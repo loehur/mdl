@@ -46,6 +46,8 @@ import {
   getAvatarColor, getCaseColor, getCaseLabel, isCaseOpen, isNativeApp,
   // Computed
   activeConversation, filteredConversations, totalUnreadCount, totalOpenCasesCount,
+  // Trigger
+  messageUpdateTrigger,
 } from "./stores/chatStore.js";
 
 // Navigation Store (Anti-SLEEP)
@@ -2188,9 +2190,12 @@ const handleIncomingMessage = (payload) => {
           conversations.value = [...conversations.value];
         }
         
-        // Step 5: Force next tick re-render
+        // Step 5: Increment trigger to force activeConversation re-compute
+        messageUpdateTrigger.value++;
+        
+        // Step 6: Force next tick re-render
         nextTick(() => {
-          console.log("✅ Status updated successfully! UI should update now.");
+          console.log("✅ Status updated successfully! Trigger incremented:", messageUpdateTrigger.value);
         });
       } else {
         // Message not found - may arrive before conversation loaded

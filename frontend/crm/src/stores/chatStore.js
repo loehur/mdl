@@ -49,8 +49,15 @@ export const conversationFilter = ref("all"); // 'all', 'unread', 'cases'
 export const pendingTargetPhone = ref(null);
 export const autoOpenChatOnIncoming = ref(false);
 
+// ⚡ CRITICAL: Force re-compute trigger for nested updates
+// Increment this when message status changes to force activeConversation to re-compute
+export const messageUpdateTrigger = ref(0);
+
 // Active conversation computed
 export const activeConversation = computed(() => {
+    // Force dependency on messageUpdateTrigger to re-compute on nested changes
+    messageUpdateTrigger.value; // eslint-disable-line no-unused-expressions
+    
     if (!activeChatId.value) return null;
     return conversations.value.find((c) => c.id === activeChatId.value) || null;
 });
