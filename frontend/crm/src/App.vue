@@ -6,7 +6,7 @@ import LoginModal from "./components/LoginModal.vue";
 import ChatPage from "./components/ChatPage.vue";
 import ConversationList from "./components/ConversationList.vue";
 
-// Import store
+// Import stores
 import {
   // API
   API_BASE,
@@ -47,6 +47,10 @@ import {
   // Computed
   activeConversation, filteredConversations, totalUnreadCount, totalOpenCasesCount,
 } from "./stores/chatStore.js";
+
+// Navigation Store (Anti-SLEEP)
+import { useNavigationStore } from "./stores/navigationStore.js";
+const navStore = useNavigationStore();
 
 // Local-only state (not shared)
 let lastBackPress = 0;
@@ -1322,13 +1326,14 @@ const selectChat = async (id, isRefresh = false) => {
     showMobileChat.value = true;
   }
 
-  // Persist state - both chatId and mobileChat state for Android recovery
-  localStorage.setItem("active_chat_id", id.toString());
-  localStorage.setItem("show_mobile_chat", "true");
+  // ✅ Save navigation state to Pinia (Anti-SLEEP)
+  navStore.navigateToChild('chat', {
+    chatId: id,
+    parentView: 'list'
+  });
 
-  // Push history state to handle Android back button
+  // Legacy: Push history state for URL hash (optional)
   if (window.innerWidth < 768) {
-    // Only on mobile
     window.history.pushState({ chatOpen: true }, "", "#chat=" + id);
   }
 
@@ -1455,6 +1460,9 @@ const backToMenu = (animated = true) => {
   } else if (activeChatId.value) {
     delete chatDrafts.value[activeChatId.value];
   }
+
+  // ✅ Update Pinia navigation state (Anti-SLEEP)
+  navStore.navigateToRoot();
 
   // Clear saved state since user explicitly wants to go back
   clearSavedChatState();
@@ -3049,26 +3057,35 @@ const resumeChatState = () => {
 };
 
 onMounted(() => {
-  // --- ANDROID RECOVERY MODE CHECK ---
-  // If app was reloaded due to back button recovery, ensure menu state
-  const recoveryMode = sessionStorage.getItem('android_recovery_mode');
-  const recoveryPerformed = sessionStorage.getItem('back_recovery_performed');
+  // ============================================
+  // 📦 RESTORE NAVIGATION STATE (Anti-SLEEP)
+  // ============================================
+  console.log("📱 App.vue onMounted - Restoring navigation state");
   
-  if (recoveryMode === 'chat' || recoveryPerformed === 'true') {
-    console.log("📱 onMounted: Android recovery mode detected, ensuring menu state");
-    sessionStorage.removeItem('android_recovery_mode');
-    sessionStorage.removeItem('android_recovery_chat_id');
-    sessionStorage.removeItem('back_recovery_performed');
-    
-    // Ensure we start in menu state
-    showMobileChat.value = false;
+  // Restore Pinia navigation state from localStorage
+  navStore.restore();
+  
+  // Sync Vue reactive state with Pinia
+  if (navStore.isChildView && navStore.activeChatId) {
+    console.log("📦 Restoring chat view:", navStore.activeChatId);
+    activeChatId.value = navStore.activeChatId;
+    showMobileChat.value = navStore.showMobileChat;
+  } else {
+    console.log("📦 Starting at root (conversation list)");
     activeChatId.value = null;
-    
-    // Clean up stale localStorage
-    localStorage.removeItem('active_chat_id');
-    localStorage.removeItem('show_mobile_chat');
-    
-    // Clear URL hash if present
+    showMobileChat.value = false;
+  }
+  
+  // Clean up legacy recovery mode flags
+  sessionStorage.removeItem('android_recovery_mode');
+  sessionStorage.removeItem('android_recovery_chat_id');
+  sessionStorage.removeItem('back_recovery_performed');
+  
+  // Clean up legacy localStorage
+  localStorage.removeItem('active_chat_id');
+  localStorage.removeItem('show_mobile_chat');
+  
+  // Clear URL hash if present
     if (window.location.hash && window.location.hash.startsWith('#chat=')) {
       window.history.replaceState({appRoot: true}, '', window.location.pathname);
     }
@@ -3491,133 +3508,108 @@ window.onAndroidBackPressed = () => {
 
 // Helper to re-expose back handler (called from Android onResume if handler seems dead)
 window.__reExposeBackHandler = () => {
-  console.log("📱 __reExposeBackHandler called - ensuring handlers are fresh");
+  console.log("📱 __reExposeBackHandler called - re-exposing handlers");
   
-  // Re-assign the back handler in case it was garbage collected
+  // Re-assign the back handler (in case it was garbage collected after long sleep)
   window.onAndroidBackPressed = () => {
     return handleBackButtonPress();
   };
   
-  // Also check if we need to perform recovery from CSS-based back handling
-  const recoveryPerformed = sessionStorage.getItem('back_recovery_performed');
-  if (recoveryPerformed === 'true') {
-    console.log("📱 Back recovery was performed - resetting Vue state");
-    sessionStorage.removeItem('back_recovery_performed');
-    
-    // Reset Vue state to match what CSS fallback did
-    showMobileChat.value = false;
+  // Restore Pinia navigation state from localStorage
+  navStore.restore();
+  
+  // Sync Vue state with Pinia
+  if (navStore.isChildView && navStore.activeChatId) {
+    activeChatId.value = navStore.activeChatId;
+    showMobileChat.value = navStore.showMobileChat;
+  } else {
     activeChatId.value = null;
-    
-    // Clean up any stale localStorage
-    localStorage.removeItem('active_chat_id');
-    localStorage.removeItem('show_mobile_chat');
+    showMobileChat.value = false;
   }
   
-  // Check for Android recovery mode (set before possible reload)
-  const recoveryMode = sessionStorage.getItem('android_recovery_mode');
-  if (recoveryMode === 'chat') {
-    console.log("📱 Android recovery mode detected - user was in chat, now showing menu");
-    sessionStorage.removeItem('android_recovery_mode');
-    sessionStorage.removeItem('android_recovery_chat_id');
-    
-    // Ensure we're in menu state
-    showMobileChat.value = false;
-    activeChatId.value = null;
-  }
-  
+  console.log("✅ Handler re-exposed and state restored");
   return true;
 };
 
-// Unified back button handler for both Capacitor and WebView
+// ============================================
+// 🔙 ANDROID BACK BUTTON HANDLER - CLEAN VERSION
+// ============================================
+// Uses Pinia Navigation Store for reliable state management
+// Handles app sleep/resume gracefully via localStorage persistence
 function handleBackButtonPress() {
-  console.log("🔙 handleBackButtonPress called");
-  console.log("   showInternalBrowser:", showInternalBrowser.value);
-  console.log("   showImageLightbox:", showImageLightbox.value);
-  console.log("   showSettingsModal:", showSettingsModal.value);
-  console.log("   showMobileChat:", showMobileChat.value);
-  console.log("   activeChatId:", activeChatId.value);
-  
-  // Priority 0: Close Internal Browser if open
+  console.log("🔙 Android Back Button Pressed");
+  console.log("📊 State:", {
+    browser: showInternalBrowser.value,
+    lightbox: showImageLightbox.value,
+    settings: showSettingsModal.value,
+    chat: showMobileChat.value,
+    chatId: activeChatId.value,
+  });
+
+  // Priority 0: Close Internal Browser
   if (showInternalBrowser.value) {
+    console.log("✅ Closing internal browser");
     closeInternalBrowser();
     return "internal_browser_closed";
   }
 
-  // Priority 1: Close Image Lightbox if open
+  // Priority 1: Close Image Lightbox
   if (showImageLightbox.value) {
+    console.log("✅ Closing lightbox");
     closeImageLightbox();
-    return "lightbox_closed"; // Return status for Android
+    return "lightbox_closed";
   }
 
-  // Priority 2: Close Settings Modal if open
+  // Priority 2: Close Settings Modal
   if (showSettingsModal.value) {
+    console.log("✅ Closing settings");
     showSettingsModal.value = false;
     return "settings_closed";
   }
 
-  // Priority 3: If chat view is open, go back to menu with animation
-  // ROBUST CHECK: On mobile, if activeChatId exists, user is in chat even if showMobileChat got desynced
+  // Priority 3: Navigate back using Pinia Store
   const isMobile = windowWidth.value < 768;
-  let isInChatView = showMobileChat.value || (isMobile && activeChatId.value);
   
-  // **FALLBACK CHECK**: If Vue state appears empty but localStorage/URL says we were in chat,
-  // this means the app lost state during long sleep. Handle it gracefully.
-  if (!isInChatView && isMobile) {
-    const savedChatId = localStorage.getItem("active_chat_id");
-    const savedMobileChat = localStorage.getItem("show_mobile_chat");
-    const urlHash = window.location.hash;
-    const hashChatId = urlHash && urlHash.startsWith('#chat=') ? urlHash.replace('#chat=', '') : null;
+  // Check if user is in a child view (chat, settings, etc)
+  if (isMobile && (showMobileChat.value || activeChatId.value)) {
+    console.log("✅ In chat view, navigating back to list");
     
-    console.log("   localStorage fallback - savedChatId:", savedChatId, "savedMobileChat:", savedMobileChat, "urlHash:", urlHash);
+    // Update Pinia state
+    navStore.navigateBack();
     
-    // Check localStorage OR URL hash
-    if ((savedChatId && savedMobileChat === "true") || hashChatId) {
-      console.log("🔙 State lost during sleep - recovering from localStorage/hash");
-      
-      // Use hash chatId as priority, fallback to localStorage
-      const chatIdToUse = hashChatId || savedChatId;
-      const chatIdNum = parseInt(chatIdToUse);
-      
-      if (!isNaN(chatIdNum)) {
-        // Don't try to restore Vue state - just clean up and go to menu
-        // This is more reliable than trying to restore state
-        localStorage.removeItem("active_chat_id");
-        localStorage.removeItem("show_mobile_chat");
-        
-        // Clear URL hash
-        if (urlHash) {
-          window.history.replaceState({appRoot: true}, '', window.location.pathname);
-        }
-        
-        // Set state to "we were in chat" so backToMenu works correctly
-        activeChatId.value = chatIdNum;
-        showMobileChat.value = true;
-        isInChatView = true;
-      }
-    }
+    // Update Vue reactive state
+    backToMenu(true); // Animated transition
+    
+    return "chat_closed";
   }
 
-  if (isInChatView && activeChatId.value) {
-    // SYNC FIX: Ensure showMobileChat is true before closing (in case it got desynced)
-    if (!showMobileChat.value && isMobile) {
-      showMobileChat.value = true;
+  // Priority 4: Check Pinia store for fallback (after app sleep)
+  if (navStore.canNavigateBack) {
+    console.log("✅ Pinia store has navigation history, going back");
+    const status = navStore.navigateBack();
+    
+    // Sync Vue state with Pinia
+    if (!navStore.isChildView) {
+      activeChatId.value = null;
+      showMobileChat.value = false;
     }
-    backToMenu(true); // Use animated back
-    return "chat_closed"; // Return status for Android
+    
+    return status;
   }
 
-  // Priority 4: If already in menu, handle double-press to exit
+  // Priority 5: Double-press to exit (at root)
   const timeNow = Date.now();
   if (timeNow - lastBackPress < 2000) {
-    // Double press -> tell Android to exit
+    console.log("🚪 Double press detected, exiting app");
     return "should_exit";
   } else {
+    console.log("⏱️ First press, showing exit toast");
     lastBackPress = timeNow;
     showExitToast.value = true;
     setTimeout(() => {
       showExitToast.value = false;
     }, 2000);
-    return "toast_shown"; // First press, show toast
+    return "toast_shown";
   }
 }
 
@@ -3700,7 +3692,24 @@ const isNaljuDomain = (url) => {
 };
 
 const openInternalBrowser = async (url) => {
-  internalBrowserUrl.value = url;
+  // ✅ FIX: Normalize URL - remove double slashes (except after protocol)
+  let normalizedUrl = url;
+  
+  try {
+    const urlObj = new URL(url);
+    // Fix path: replace multiple consecutive slashes with single slash
+    urlObj.pathname = urlObj.pathname.replace(/\/+/g, '/');
+    normalizedUrl = urlObj.toString();
+    
+    console.log('🔗 Opening internal browser:', normalizedUrl);
+    if (url !== normalizedUrl) {
+      console.warn('⚠️ URL normalized:', url, '→', normalizedUrl);
+    }
+  } catch (e) {
+    console.error('❌ Invalid URL:', url, e);
+  }
+  
+  internalBrowserUrl.value = normalizedUrl;
   isInternalBrowserLoading.value = true;
   isInternalBrowserEntering.value = true;
   showInternalBrowser.value = true;
@@ -3725,6 +3734,23 @@ const closeInternalBrowser = () => {
 
 const handleInternalBrowserLoad = () => {
   isInternalBrowserLoading.value = false;
+  console.log('✅ Internal browser loaded successfully');
+};
+
+const handleInternalBrowserError = (e) => {
+  console.error('❌ Internal browser error:', e);
+  isInternalBrowserLoading.value = false;
+  
+  // On Android, if iframe fails, offer to open in external browser
+  if (isNativeApp.value) {
+    const openExternal = confirm(
+      'Unable to load page in internal browser.\n\nOpen in external browser?'
+    );
+    if (openExternal && internalBrowserUrl.value) {
+      window.open(internalBrowserUrl.value, '_blank');
+      closeInternalBrowser();
+    }
+  }
 };
 
 // Handle link clicks - intercept nalju.com links
@@ -4332,13 +4358,15 @@ const handleLinkClick = (e) => {
         </div>
       </div>
 
-      <!-- Iframe -->
+      <!-- Iframe - Enhanced for Android WebView -->
       <iframe
         :src="internalBrowserUrl"
         class="flex-1 w-full border-0 bg-white"
         @load="handleInternalBrowserLoad"
+        @error="handleInternalBrowserError"
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals allow-downloads"
+        sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals allow-downloads allow-top-navigation-by-user-activation"
+        referrerpolicy="strict-origin-when-cross-origin"
       ></iframe>
     </div>
   </div>

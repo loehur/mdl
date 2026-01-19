@@ -22,7 +22,8 @@ object NotificationHelper {
     private const val TAG = "NotificationHelper"
     private const val PREFS_NAME = "notification_ids"
     private const val PREFS_MESSAGES = "notification_messages"
-    private const val CHANNEL_ID = "mdl_cases_channel" // Simple channel ID
+    // Use OneSignal's default channel instead of creating our own
+    private const val CHANNEL_ID = "fcm_fallback_notification_channel" // OneSignal default
     private const val GROUP_KEY = "com.cms.mdl.CHAT_GROUP"
     
     // Base notification ID (we use phone hash as offset)
@@ -124,30 +125,13 @@ object NotificationHelper {
     }
     
     /**
-     * Ensure notification channel exists - create if not exists
+     * Ensure notification channel exists - DISABLED (using OneSignal channel)
+     * OneSignal automatically creates and manages notification channels
      */
     private fun ensureNotificationChannel(context: Context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            val channel = manager.getNotificationChannel(CHANNEL_ID)
-            
-            if (channel == null) {
-                // Create channel if not exists
-                val newChannel = NotificationChannel(
-                    CHANNEL_ID,
-                    "MDL Cases",
-                    NotificationManager.IMPORTANCE_HIGH
-                ).apply {
-                    description = "Notifikasi untuk semua case dan pesan WhatsApp masuk"
-                    enableVibration(true)
-                    setShowBadge(true)
-                    enableLights(true)
-                    lightColor = Color.parseColor("#6366F1")
-                }
-                manager.createNotificationChannel(newChannel)
-                Log.d(TAG, "✅ Created notification channel: $CHANNEL_ID")
-            }
-        }
+        // DISABLED: We use OneSignal's default channel instead
+        // OneSignal creates "fcm_fallback_notification_channel" automatically
+        Log.d(TAG, "📢 Using OneSignal's notification channel: $CHANNEL_ID")
     }
     
     /**

@@ -708,9 +708,11 @@ class WhatsAppService
             $conv = $db->get_where('wa_conversations', ['wa_number' => $waNumber]);
             
             if ($conv && $conv->num_rows() > 0) {
-                // Update conversation
+                // ✅ RACE FIX: Don't update last_message here!
+                // Webhook (handleInboundMessage) will update it with correct message
+                // after checking if auto-reply was sent or not.
+                // This prevents race condition between auto-reply and inbound message.
                 $updateData = [
-                    'last_message' => 'o- ' . mb_substr($lastMessageText, 0, 50),
                     'last_message_at' => date('Y-m-d H:i:s'),
                     'updated_at' => date('Y-m-d H:i:s')
                 ];

@@ -162,7 +162,7 @@ class WhatsApp extends Controller
             $user_data = $this->getUserData($phone0);
             $assigned_user_id = $user_data->assigned_user_id ?? null;
             $code = $user_data->code ?? null;
-            $contact_name = $user_data->customer_name ?? $cleanPhone;
+            $contact_name = $user_data->customer_name ?? $contactName;
             
 
             // Extract message text EARLY for lastMessageSummary
@@ -355,7 +355,8 @@ class WhatsApp extends Controller
                 
                 // Extract values from result object
                 $currentCase = $autoReplyResult->case;
-                $autoReplied = $autoReplyResult->auto_replied ?? false;
+                $notify = $autoReplyResult->notify ?? true;
+                
                 if ($currentCase === 0){
                     $currentCase = null;
                 }
@@ -366,7 +367,6 @@ class WhatsApp extends Controller
                     $currentCase = 0;
                 }
                 
-                // STEP 2: Get or create conversation with all updates
                 // NOTE: If autoreply was sent, saveOutboundMessage() already updated last_message to outbound.
                 // But getOrCreateConversationWithCase() will now OVERWRITE it back to inbound.
                 // 
@@ -386,13 +386,13 @@ class WhatsApp extends Controller
                     $code, 
                     $lastMessageSummary, // Always set inbound first
                     $currentCase,
-                    $autoReplied // Pass flag to skip last_message update if autoreply was sent
+                    $notify // Pass flag to skip last_message update if autoreply was sent
                 );
 
                 // DIAGNOSTIC LOG: Use Standard Log Class so it appears in logs/DATE folder
                 // File will be: api/logs/{DATE}/wa_ws_debug_check.log
                 if (class_exists('\Log')) {
-                    \Log::write("Code: " . var_export($code, true) . " | AI Case: " . var_export($currentCase, true) . " | AutoReplied: " . ($autoReplied ? 'true' : 'false'), 'wa_ws_debug', 'check');
+                    \Log::write("Code: " . var_export($code, true) . " | AI Case: " . var_export($currentCase, true) . " | Notify: " . ($notify ? 'true' : 'false'), 'wa_ws_debug', 'check');
                 }
                 
                 // Fetch active cases specific for Notification Logic (Driver needs to know if Case 2 active)
@@ -421,7 +421,7 @@ class WhatsApp extends Controller
                     'contact_name' => $contact_name,
                     'case' => $currentCase, 
                     'active_cases' => $activeCases, // Send active cases list
-                    'auto_replied' => $autoReplied, // Flag for push notification logic
+                    'notify' => $notify, // Flag for push notification logic
                     'message' => [
                         'id' => $msgId, // local DB ID
                         'text' => $textBody,

@@ -23,17 +23,16 @@ class WAReplies
         return $this->waService;
     }
     /**
-     * Check if auto-reply should be sent (rate limiting / cooldown)
+     
      * @param string $waNumber Phone number
      * @param string $handler Handler name (bon, status, buka, etc)
      * @param int $cooldownMinutes Cooldown period in minutes (default: 10)
      * @return bool True if can send reply
      */
-    private function shouldReply($waNumber, $handler, $cooldownMinutes = 3)
+    private function shouldHandle($waNumber, $handler, $cooldownMinutes = 3)
     {
         $db = DB::getInstance(0);
 
-        // Query last auto-reply for this number + handler
         $sql = "SELECT created_at FROM wa_auto_reply_log 
                 WHERE phone = ? AND handler = ? 
                 ORDER BY created_at DESC LIMIT 1";
@@ -112,29 +111,23 @@ class WAReplies
                         $caseVal = 4;
                     }
 
-                    // Check if auto_reply is enabled for this handler
-                    $autoReply = $config['auto_reply'] ?? false;
+                    $notify = $config['notify'] ?? true;
+                    if (!$this->shouldHandle($waNumber, $handler)) {
+                        $matchPatterns[] = $handler;
+                        continue 2; // Skip to next handler (this handler is in cooldown)
+                    }
 
-                    // If auto_reply is false, skip handler but still return priority
-                    if ($autoReply) {
-                        // RATE LIMITING: Check if can send reply (cooldown)
-                        if (!$this->shouldReply($waNumber, $handler)) {
-                            $matchPatterns[] = $handler;
-                            continue 2; // Skip to next handler (this handler is in cooldown)
-                        }
+                    // Dynamically call handler method
+                    $handlerName = ucwords(strtolower($handler), '_');
+                    $methodName = 'handle' . $handlerName;
 
-                        // Dynamically call handler method
-                        $handlerName = ucwords(strtolower($handler), '_');
-                        $methodName = 'handle' . $handlerName;
+                    if (method_exists($this, $methodName)) {
+                        $this->$methodName($phoneIn, $waNumber, $textBody);
 
-                        if (method_exists($this, $methodName)) {
-                            $this->$methodName($phoneIn, $waNumber, $textBody);
-
-                            return (object) [
-                                'case' => $caseVal,
-                                'auto_replied' => true
-                            ];
-                        }
+                        return (object) [
+                            'case' => $caseVal,
+                            'notify' => $notify
+                        ];
                     }
                 }
             }
@@ -143,7 +136,7 @@ class WAReplies
         if ($messageLength >= 0 && $messageLength <= 7) {
             return (object) [
                 'case' => null,
-                'auto_replied' => false
+                'notify' => false
             ];
         }
 
@@ -159,33 +152,32 @@ class WAReplies
             if (in_array($aiIntent, $matchPatterns)) {
                 return (object) [
                     'case' => null,
-                    'auto_replied' => false
+                    'notify' => false
                 ];
             }
 
             // AI successfully detected intent, get case from config
             // Get case from config, respecting null values (null = don't update case)
             if (isset($keywordConfig[$aiIntent]) && array_key_exists('case', $keywordConfig[$aiIntent])) {
-                $aiCase = $keywordConfig[$aiIntent]['case'];
-                $auto_replied = $keywordConfig[$aiIntent]['auto_reply'];
-                // \Log::write("DEBUG MAPPING SUCCESS: Intent='$aiIntent' -> Case=$aiCase", 'wa_case_debug');
+                $aiCase = $keywordConfig[$aiIntent]['case'] ?? 4;
+                $notify = $keywordConfig[$aiIntent]['notify'] ?? true;
             } else {
                 // If intent found but configuration missing, fallback to 4
                 \Log::write("DEBUG MAPPING FAILED: Intent='$aiIntent' not found in config or no case key. Keys available: " . implode(',', array_keys($keywordConfig)), 'wa_case_debug', 'error');
                 $aiCase = 4;
-                $auto_replied = false;
+                $notify = true;
             }
 
             return (object) [
                 'case' => $aiCase,
-                'auto_replied' => $auto_replied
+                'notify' => $notify
             ];
         }
 
         // AI failed or returned FALSE (unknown intent) - needs manual attention
         return (object) [
             'case' => 4,
-            'auto_replied' => false
+            'notify' => false
         ];
     }
 
@@ -1231,22 +1223,16 @@ class WAReplies
 
             // Check if this is a valid intent from config
             if (isset($keywordConfig[$intent])) {
-                $config = $keywordConfig[$intent];
-                $autoReply = $config['auto_reply'] ?? false;
-
-                // Only call handler if auto_reply is enabled
-                if ($autoReply) {
                     // Check rate limiting only if we are going to reply
-                    if ($this->shouldReply($waNumber, $intent)) {
-                        $handlerName = ucwords(strtolower($intent), '_');
-                        $methodName = 'handle' . $handlerName;
+                if ($this->shouldHandle($waNumber, $intent)) {
+                    $handlerName = ucwords(strtolower($intent), '_');
+                    $methodName = 'handle' . $handlerName;
 
-                        if (method_exists($this, $methodName)) {
-                            $this->$methodName($phoneIn, $waNumber, $textBody);
-                        }
+                    if (method_exists($this, $methodName)) {
+                        $this->$methodName($phoneIn, $waNumber, $textBody);
                     }
                 }
-
+                
                 // Return intent (case will be taken from config in process())
                 // Ensure returning ARRAY as expected by process()
                 return [
