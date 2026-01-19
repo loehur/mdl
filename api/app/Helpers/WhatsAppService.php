@@ -752,7 +752,11 @@ class WhatsAppService
                 'created_at' => date('Y-m-d H:i:s')
             ];
             
+            \Log::write("⏱️ INSERTING to wa_messages_out | Time: " . microtime(true) . " | Phone: $waNumber | Content: " . mb_substr($content, 0, 50), 'webhook', 'last_message_debug');
+            
             $msgId = $db->insert('wa_messages_out', $messageData);
+            
+            \Log::write("⏱️ INSERT COMPLETE | Time: " . microtime(true) . " | MsgID: $msgId | Phone: $waNumber", 'webhook', 'last_message_debug');
             
             if (!$msgId) {
                 $dbError = $db->conn()->error ?? 'Unknown';

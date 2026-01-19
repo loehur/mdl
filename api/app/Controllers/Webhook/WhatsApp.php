@@ -351,7 +351,9 @@ class WhatsApp extends Controller
                 
                 // STEP 1: Process auto-reply FIRST to get case value
                 // (autoreply may or may not send a message depending on cooldown/config)
+                \Log::write("⏱️ START auto-reply processing | Time: " . microtime(true), 'webhook', 'last_message_debug');
                 $autoReplyResult = (new \App\Models\WAReplies())->process($phoneIn, $messageText, $waNumber);
+                \Log::write("⏱️ END auto-reply processing | Time: " . microtime(true), 'webhook', 'last_message_debug');
                 
                 // Extract values from result object
                 $currentCase = $autoReplyResult->case;
@@ -370,24 +372,35 @@ class WhatsApp extends Controller
                 // Determine final last_message with proper prefix (i- or o-)
                 $finalLastMessage = 'i- ' . mb_substr($lastMessageSummary, 0, 50); // Default: inbound
                 
-                // If auto-reply was sent (notify = false), fetch the auto-reply message
-                if ($notify === false) {
-                    // Fetch most recent outbound message (within last 3 seconds)
-                    $recentTime = date('Y-m-d H:i:s', strtotime('-3 seconds'));
-                    $recentAutoReply = $db->query(
-                        "SELECT content FROM wa_messages_out 
-                         WHERE phone = '$waNumber' 
-                         AND created_at >= '$recentTime'
-                         ORDER BY id DESC LIMIT 1"
-                    );
-                    
-                    if ($recentAutoReply && $recentAutoReply->num_rows() > 0) {
-                        $outboundMsg = $recentAutoReply->row()->content;
-                        if ($outboundMsg) {
-                            $finalLastMessage = 'o- ' . mb_substr($outboundMsg, 0, 50);
-                        }
+                // ALWAYS check if auto-reply was sent (regardless of notify flag)
+                // notify flag is ONLY for push notification, NOT for database update
+                $recentTime = date('Y-m-d H:i:s', strtotime('-3 seconds'));
+                
+                // Use ALL phone formats to match (cleanPhone, phone0, phonePlus)
+                $querySQL = "SELECT content FROM wa_messages_out 
+                     WHERE phone IN ($phoneIn) 
+                     AND created_at >= '$recentTime'
+                     ORDER BY id DESC LIMIT 1";
+                
+                \Log::write("🔍 FETCHING AUTO-REPLY | SQL: $querySQL", 'webhook', 'last_message_debug');
+                
+                $recentAutoReply = $db->query($querySQL);
+                
+                \Log::write("🔍 QUERY RESULT: " . ($recentAutoReply ? $recentAutoReply->num_rows() : 0) . " rows", 'webhook', 'last_message_debug');
+                
+                if ($recentAutoReply && $recentAutoReply->num_rows() > 0) {
+                    $outboundMsg = $recentAutoReply->row()->content;
+                    if ($outboundMsg) {
+                        $finalLastMessage = 'o- ' . mb_substr($outboundMsg, 0, 50);
+                        \Log::write("✅ AUTO-REPLY FOUND: $finalLastMessage", 'webhook', 'last_message_debug');
+                    } else {
+                        \Log::write("⚠️ AUTO-REPLY CONTENT EMPTY", 'webhook', 'last_message_debug');
                     }
+                } else {
+                    \Log::write("⚠️ NO AUTO-REPLY FOUND, using inbound message", 'webhook', 'last_message_debug');
                 }
+                
+                \Log::write("📝 FINAL LAST_MESSAGE: $finalLastMessage | Notify: " . ($notify ? 'true' : 'false'), 'webhook', 'last_message_debug');
                 
                 $conversationId = $this->getOrCreateConversationWithCase(
                     $db, 
