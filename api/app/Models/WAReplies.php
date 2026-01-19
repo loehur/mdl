@@ -82,14 +82,18 @@ class WAReplies
      * @param string $waNumber The sender's WhatsApp number (e.g. +62...)
      * @return object { ai: bool, priority: int }
      */
-    public function process($phoneIn, $textBody, $waNumber)
+    public function process($phoneIn, $textBody, $waNumber, $contactName = null, $assigned_user_id = null, $code = null, $lastMessage = null)
     {
         $textBodyToCheck = strtolower(trim($textBody ?? ''));
         $messageLength = mb_strlen($textBodyToCheck);
+        
+        // Get DB instance for conversation management
+        $db = DB::getInstance(0);
 
         // Load keyword configuration
         $keywordConfig = require __DIR__ . '/../Config/AutoReplyKeywords.php';
         $matchPatterns = [];
+        
         // Check each handler's patterns
         foreach ($keywordConfig as $handler => $config) {
             $maxLength = $config['max_length'] ?? 0;
@@ -103,7 +107,7 @@ class WAReplies
             // Check regex patterns
             foreach ($patterns as $patternIndex => $pattern) {
                 if (preg_match($pattern, $textBodyToCheck)) {
-                    // Get case from config, default to null (don't update) if not set or explicitly null
+                    // Get case from config
                     if (isset($config['case'])) {
                         $caseVal = $config['case'];
                     } else {
@@ -112,12 +116,40 @@ class WAReplies
                     }
 
                     $notify = $config['notify'] ?? true;
+                    
+                    // ========================================
+                    // 🎯 Rate limit check FIRST
+                    // ========================================
                     if (!$this->shouldHandle($waNumber, $handler)) {
                         $matchPatterns[] = $handler;
-                        continue 2; // Skip to next handler (this handler is in cooldown)
+                        
+                        // ✅ Still create conversation for inbound tracking (no case)
+                        $conversationId = $this->getOrCreateConversationWithCase(
+                            $db, $waNumber, $contactName, $assigned_user_id, $code, $lastMessage, null
+                        );
+                        
+                        return (object) [
+                            'case' => null,
+                            'notify' => false,
+                            'conversation_id' => $conversationId
+                        ];
                     }
+                    
+                    // ========================================
+                    // 🎯 CREATE/UPDATE CONVERSATION
+                    // Rate limit passed - create with case
+                    // ========================================
+                    $conversationId = $this->getOrCreateConversationWithCase(
+                        $db, 
+                        $waNumber, 
+                        $contactName, 
+                        $assigned_user_id, 
+                        $code, 
+                        $lastMessage,  // Inbound message
+                        $caseVal
+                    );
 
-                    // Dynamically call handler method
+                    // Dynamically call handler method (will send auto-reply)
                     $handlerName = ucwords(strtolower($handler), '_');
                     $methodName = 'handle' . $handlerName;
 
@@ -126,58 +158,93 @@ class WAReplies
 
                         return (object) [
                             'case' => $caseVal,
-                            'notify' => $notify
+                            'notify' => $notify,
+                            'conversation_id' => $conversationId
                         ];
                     }
                 }
             }
         }
 
+        // Short message (likely not a real query) - still create conversation!
         if ($messageLength >= 0 && $messageLength <= 7) {
+            $conversationId = $this->getOrCreateConversationWithCase(
+                $db, $waNumber, $contactName, $assigned_user_id, $code, $lastMessage, null
+            );
+            
             return (object) [
                 'case' => null,
-                'notify' => false
+                'notify' => false,
+                'conversation_id' => $conversationId
             ];
         }
 
         $aiResult = $this->handleWithAI($phoneIn, $textBody, $waNumber);
 
-        // Check if AI successfully detected a valid intent (not FALSE and not boolean false)
-        // Check if AI successfully detected a valid intent (array with intent key)
+        // Check if AI successfully detected a valid intent
         if ($aiResult && is_array($aiResult) && isset($aiResult['intent']) && strtoupper($aiResult['intent']) !== 'FALSE') {
             $aiIntent = strtoupper($aiResult['intent']);
+            $aiCase = $keywordConfig[$aiIntent]['case'] ?? 4;
+            $notify = $keywordConfig[$aiIntent]['notify'] ?? true;
 
-            // Rate limiting check (using matchedPatterns logic logic from original code if needed, but simplifying here)
-            // Original code checked if intent was in $matchPatterns (which were skipped due to rate limit)
+            // Check if this AI intent was already matched in pattern loop (and rate limited)
             if (in_array($aiIntent, $matchPatterns)) {
+                // Already rate limited by pattern match - create conversation but don't send
+                $conversationId = $this->getOrCreateConversationWithCase(
+                    $db, $waNumber, $contactName, $assigned_user_id, $code, $lastMessage, null
+                );
+                
                 return (object) [
                     'case' => null,
-                    'notify' => false
+                    'notify' => false,
+                    'conversation_id' => $conversationId
                 ];
             }
-
-            // AI successfully detected intent, get case from config
-            // Get case from config, respecting null values (null = don't update case)
-            if (isset($keywordConfig[$aiIntent]) && array_key_exists('case', $keywordConfig[$aiIntent])) {
-                $aiCase = $keywordConfig[$aiIntent]['case'] ?? 4;
-                $notify = $keywordConfig[$aiIntent]['notify'] ?? true;
-            } else {
-                // If intent found but configuration missing, fallback to 4
-                \Log::write("DEBUG MAPPING FAILED: Intent='$aiIntent' not found in config or no case key. Keys available: " . implode(',', array_keys($keywordConfig)), 'wa_case_debug', 'error');
-                $aiCase = 4;
-                $notify = true;
+            
+            // ========================================
+            // 🎯 CRITICAL: Rate limit check for AI intent!
+            // ========================================
+            if (!$this->shouldHandle($waNumber, $aiIntent)) {
+                // Rate limited - create conversation but don't send auto-reply
+                $conversationId = $this->getOrCreateConversationWithCase(
+                    $db, $waNumber, $contactName, $assigned_user_id, $code, $lastMessage, null
+                );
+                
+                return (object) [
+                    'case' => null,
+                    'notify' => false,
+                    'conversation_id' => $conversationId
+                ];
+            }
+            
+            // Rate limit passed - create conversation with AI case
+            $conversationId = $this->getOrCreateConversationWithCase(
+                $db, $waNumber, $contactName, $assigned_user_id, $code, $lastMessage, $aiCase
+            );
+            
+            // Call handler method
+            $handlerName = ucwords(strtolower($aiIntent), '_');
+            $methodName = 'handle' . $handlerName;
+            if (method_exists($this, $methodName)) {
+                $this->$methodName($phoneIn, $waNumber, $textBody);
             }
 
             return (object) [
                 'case' => $aiCase,
-                'notify' => $notify
+                'notify' => $notify,
+                'conversation_id' => $conversationId
             ];
         }
 
-        // AI failed or returned FALSE (unknown intent) - needs manual attention
+        // AI failed or unknown intent - still create conversation!
+        $conversationId = $this->getOrCreateConversationWithCase(
+            $db, $waNumber, $contactName, $assigned_user_id, $code, $lastMessage, 4
+        );
+        
         return (object) [
             'case' => 4,
-            'notify' => false
+            'notify' => false,
+            'conversation_id' => $conversationId
         ];
     }
 
@@ -1218,21 +1285,8 @@ class WAReplies
                 \Log::write("{$textBody} | {$intent} | {$reason}", 'ai', 'intent');
             }
 
-            // Rate limiting moved inside auto_reply check
-            // if (!$this->shouldReply($waNumber, $intent)) { return false; }
-
             // Check if this is a valid intent from config
             if (isset($keywordConfig[$intent])) {
-                    // Check rate limiting only if we are going to reply
-                if ($this->shouldHandle($waNumber, $intent)) {
-                    $handlerName = ucwords(strtolower($intent), '_');
-                    $methodName = 'handle' . $handlerName;
-
-                    if (method_exists($this, $methodName)) {
-                        $this->$methodName($phoneIn, $waNumber, $textBody);
-                    }
-                }
-                
                 // Return intent (case will be taken from config in process())
                 // Ensure returning ARRAY as expected by process()
                 return [
@@ -1336,5 +1390,137 @@ class WAReplies
         }
 
         throw new \Exception("OpenAI API: Invalid response structure");
+    }
+    
+    /**
+     * Get or create conversation with case management
+     * Moved from Webhook controller for better architecture
+     */
+    private function getOrCreateConversationWithCase($db, $waNumber, $contactName = null, $assigned_user_id = null, $code = null, $lastMessage = null, $case = null)
+    {
+        // Try to find existing conversation
+        $existing = $db->get_where('wa_conversations', ['wa_number' => $waNumber]);
+        
+        if ($existing->num_rows() > 0) {
+            $conv = $existing->row();           
+            $updateData = [
+                'contact_name' => $contactName,
+                'assigned_user_id' => $assigned_user_id,
+                'code' => $code,
+                'status' => 'open',
+                'last_in_at' => date('Y-m-d H:i:s'),
+                'last_message_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+                'last_message' => $lastMessage,
+            ];
+            
+            // Only update case if not null and not 0 (Append to existing list)
+            if ($case !== null && (int)$case !== 0) {
+                $caseList = [];
+                
+                // 1. Retrieve & Decode existing content
+                if (!empty($conv->conv_case)) {
+                    $decoded = json_decode($conv->conv_case, true);
+                    
+                    if (is_array($decoded)) {
+                        $isList = isset($decoded[0]);
+                        
+                        if ($isList) {
+                            $caseList = $decoded;
+                        } else {
+                            if (!empty($decoded)) {
+                                $caseList[] = $decoded;
+                            }
+                        }
+                    } elseif (is_numeric($conv->conv_case)) {
+                        $caseList[] = ['case' => (int)$conv->conv_case, 'status' => 'unknown'];
+                    }
+                }
+                
+                // 2. Check if there are other open cases (for Case 4 logic)
+                $caseExists = false;
+                $hasOtherOpenCases = false;
+                foreach ($caseList as $c) {
+                    if (isset($c['case']) && (int)$c['case'] !== 4 && ($c['status'] ?? '') === 'open') {
+                        $hasOtherOpenCases = true;
+                        break;
+                    }
+                }
+                
+                // NEW RULE: If trying to add/open Case 4 but other cases are open, SKIP
+                if ((int)$case === 4 && $hasOtherOpenCases) {
+                    // Don't add or update Case 4 - just skip case update entirely
+                } else {
+                    // Normal case processing
+                    foreach ($caseList as &$existingCase) {
+                        if (isset($existingCase['case']) && (int)$existingCase['case'] === (int)$case) {
+                            $existingCase['status'] = 'open';
+                            
+                            // Clean up extra fields
+                            if(isset($existingCase['timestamp'])) unset($existingCase['timestamp']);
+                            if(isset($existingCase['resolved_at'])) unset($existingCase['resolved_at']);
+                            if(isset($existingCase['resolved_by'])) unset($existingCase['resolved_by']);
+                            
+                            $caseExists = true;
+                            break;
+                        }
+                    }
+                    unset($existingCase); 
+                    
+                    // 3. Only append if case doesn't exist
+                    if (!$caseExists) {
+                        $caseList[] = [
+                            'case' => $case,
+                            'status' => 'open'
+                        ];
+                    }
+                    
+                    if ((int)$case !== 4) {
+                        foreach ($caseList as &$c) {
+                            if (isset($c['case']) && (int)$c['case'] === 4) {
+                                $c['status'] = 'closed';
+                                if(isset($c['timestamp'])) unset($c['timestamp']);
+                                if(isset($c['resolved_at'])) unset($c['resolved_at']);
+                                if(isset($c['resolved_by'])) unset($c['resolved_by']);
+                            }
+                        }
+                        unset($c);
+                    }
+                    
+                    $updateData['conv_case'] = json_encode($caseList);
+                }
+            }
+
+            $db->update('wa_conversations', $updateData, ['wa_number' => $waNumber]);
+            return $conv->id ?? 0;
+        }
+
+        // Create new conversation
+        $convData = [
+            'assigned_user_id' => $assigned_user_id,
+            'wa_number' => $waNumber,
+            'contact_name' => $contactName,
+            'code' => $code,
+            'status' => 'open',
+            'created_at' => date('Y-m-d H:i:s'),
+            'last_in_at' => date('Y-m-d H:i:s'),
+            'last_message_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s'),
+            'last_message' => $lastMessage,
+        ];
+        
+        // Only set case if not null and not 0
+        if ($case !== null && (int)$case !== 0) {
+            $convData['conv_case'] = json_encode([[
+                'case' => $case,
+                'status' => 'open',
+                'timestamp' => date('Y-m-d H:i:s')
+            ]]);
+        }
+
+        if($db->insert('wa_conversations', $convData)) {
+            return $db->insert_id();
+        }
+        return 0;
     }
 }
