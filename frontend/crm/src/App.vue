@@ -1350,10 +1350,7 @@ const selectChat = async (id, isRefresh = false) => {
   }
 
   // ✅ Save navigation state to Pinia (Anti-SLEEP)
-  navStore.navigateToChild('chat', {
-    chatId: id,
-    parentView: 'list'
-  });
+  // Watchers will automatically update navStore when showMobileChat/activeChatId change
 
   // Legacy: Push history state for URL hash (optional)
   if (window.innerWidth < 768) {
@@ -1485,7 +1482,7 @@ const backToMenu = (animated = true) => {
   }
 
   // ✅ Update Pinia navigation state (Anti-SLEEP)
-  navStore.navigateToRoot();
+  navStore.reset();
 
   // Clear saved state since user explicitly wants to go back
   clearSavedChatState();
@@ -3086,13 +3083,13 @@ onMounted(() => {
   console.log("📱 App.vue onMounted - Restoring navigation state");
   
   // Restore Pinia navigation state from localStorage
-  navStore.restore();
+  const restoredState = navStore.restore();
   
   // Sync Vue reactive state with Pinia
-  if (navStore.isChildView && navStore.activeChatId) {
-    console.log("📦 Restoring chat view:", navStore.activeChatId);
-    activeChatId.value = navStore.activeChatId;
-    showMobileChat.value = navStore.showMobileChat;
+  if (restoredState.current === 'chat' && restoredState.chatId) {
+    console.log("📦 Restoring chat view:", restoredState.chatId);
+    activeChatId.value = restoredState.chatId;
+    showMobileChat.value = true;
   } else {
     console.log("📦 Starting at root (conversation list)");
     activeChatId.value = null;
@@ -3611,12 +3608,12 @@ window.__reExposeBackHandler = () => {
   };
   
   // Restore Pinia navigation state from localStorage
-  navStore.restore();
+  const state = navStore.restore();
   
   // Sync Vue state with Pinia
-  if (navStore.isChildView && navStore.activeChatId) {
-    activeChatId.value = navStore.activeChatId;
-    showMobileChat.value = navStore.showMobileChat;
+  if (state.current === 'chat' && state.chatId) {
+    activeChatId.value = state.chatId;
+    showMobileChat.value = true;
   } else {
     activeChatId.value = null;
     showMobileChat.value = false;
@@ -3662,15 +3659,15 @@ function handleBackButtonPress() {
     return "settings_closed";
   }
 
-  // Priority 3: Navigate back using Pinia Store
+  // Priority 3: Navigate back from chat to list
   const isMobile = windowWidth.value < 768;
   
-  // Check if user is in a child view (chat, settings, etc)
+  // Check if user is in a child view (chat)
   if (isMobile && (showMobileChat.value || activeChatId.value)) {
     console.log("✅ In chat view, navigating back to list");
     
     // Update Pinia state
-    navStore.navigateBack();
+    navStore.reset();
     
     // Update Vue reactive state
     backToMenu(true); // Animated transition
@@ -3678,18 +3675,16 @@ function handleBackButtonPress() {
     return "chat_closed";
   }
 
-  // Priority 4: Check Pinia store for fallback (after app sleep)
-  if (navStore.canNavigateBack) {
-    console.log("✅ Pinia store has navigation history, going back");
-    const status = navStore.navigateBack();
+  // Priority 4: Check navigation state for fallback (after app sleep)
+  if (navStore.current === 'chat') {
+    console.log("✅ Pinia store shows chat active, going back");
     
-    // Sync Vue state with Pinia
-    if (!navStore.isChildView) {
-      activeChatId.value = null;
-      showMobileChat.value = false;
-    }
+    // Update both Pinia and Vue state
+    navStore.reset();
+    activeChatId.value = null;
+    showMobileChat.value = false;
     
-    return status;
+    return "chat_closed";
   }
 
   // Priority 5: Double-press to exit (at root)
