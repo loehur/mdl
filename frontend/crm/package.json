@@ -13,6 +13,7 @@
     "@capacitor/app": "^8.0.0",
     "@capacitor/camera": "^8.0.0",
     "@capacitor/core": "^8.0.0",
+    "pinia": "^3.0.4",
     "twemoji": "^14.0.2",
     "vue": "^3.5.24"
   },

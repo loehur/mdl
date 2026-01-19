@@ -3086,9 +3086,8 @@ onMounted(() => {
   localStorage.removeItem('show_mobile_chat');
   
   // Clear URL hash if present
-    if (window.location.hash && window.location.hash.startsWith('#chat=')) {
-      window.history.replaceState({appRoot: true}, '', window.location.pathname);
-    }
+  if (window.location.hash && window.location.hash.startsWith('#chat=')) {
+    window.history.replaceState({appRoot: true}, '', window.location.pathname);
   }
   
   // Check for Deep Link / Notification Click (URL Param)
