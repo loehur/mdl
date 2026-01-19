@@ -125,13 +125,35 @@ object NotificationHelper {
     }
     
     /**
-     * Ensure notification channel exists - DISABLED (using OneSignal channel)
-     * OneSignal automatically creates and manages notification channels
+     * Ensure notification channel exists
+     * Create channel if not exists (Android O+)
      */
     private fun ensureNotificationChannel(context: Context) {
-        // DISABLED: We use OneSignal's default channel instead
-        // OneSignal creates "fcm_fallback_notification_channel" automatically
-        Log.d(TAG, "📢 Using OneSignal's notification channel: $CHANNEL_ID")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            
+            // Check if channel already exists
+            val existingChannel = notificationManager.getNotificationChannel(CHANNEL_ID)
+            if (existingChannel != null) {
+                Log.d(TAG, "📢 Channel already exists: $CHANNEL_ID")
+                return
+            }
+            
+            // Create channel if not exists
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "MDL Chat Notifications",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "WhatsApp customer messages"
+                enableLights(true)
+                enableVibration(true)
+                setShowBadge(true)
+            }
+            
+            notificationManager.createNotificationChannel(channel)
+            Log.d(TAG, "✅ Notification channel created: $CHANNEL_ID")
+        }
     }
     
     /**
