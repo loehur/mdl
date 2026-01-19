@@ -778,12 +778,18 @@ app.post('/incoming', async (req, res) => {
                     }
                     // 3. Crew: Only their assignments
                     else { // role === 'crew'
-                        // Check if message is assigned to this user
-                        // Handle both possible locations of assignment_user_id
-                        const assignmentId = data.assignment_user_id || (data.data && data.data.assignment_user_id);
-
-                        if (assignmentId && String(assignmentId) === String(userId)) {
+                        // ⭐ EXCEPTION: Status updates should go to ALL users
+                        // Why: User might not be assigned but still viewing chat
+                        if (data.type === 'status_update') {
                             shouldSend = true;
+                        } else {
+                            // Check if message is assigned to this user
+                            // Handle both possible locations of assignment_user_id
+                            const assignmentId = data.assignment_user_id || (data.data && data.data.assignment_user_id);
+
+                            if (assignmentId && String(assignmentId) === String(userId)) {
+                                shouldSend = true;
+                            }
                         }
                     }
 
