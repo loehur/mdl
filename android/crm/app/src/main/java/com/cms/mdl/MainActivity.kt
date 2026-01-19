@@ -28,6 +28,17 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val WEB_URL = "https://cms.nalju.com/"
     }
+    
+    // ⭐ JavaScript Bridge for Android functions
+    inner class JSBridge {
+        @android.webkit.JavascriptInterface
+        fun exitApp() {
+            android.util.Log.d("JSBridge", "🚪 exitApp() called from JavaScript")
+            runOnUiThread {
+                finish()
+            }
+        }
+    }
 
     private val fileChooserLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -56,109 +67,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ⭐ Handle when app resumes from background/sleep
+    // PURE WEBVIEW APPROACH: Let JavaScript handle all navigation logic
     override fun onResume() {
         super.onResume()
-
+        
         if (::webView.isInitialized) {
-            android.util.Log.d("MainActivity", "App resumed from background")
-
-            // CRITICAL FIX: After long sleep, WebView JavaScript context may be broken
-            // We need to ensure:
-            // 1. History state is properly set for back button
-            // 2. Vue handlers are still functional
-            // 3. Force reload if everything is broken
-
-            val jsCode = """
-                (function() {
-                    try {
-                        console.log('Android: App resumed from background');
-                        
-                        // STEP 1: Force-push history state to fix back button
-                        // After long sleep, history stack may be corrupted
-                        var hash = window.location.hash;
-                        var savedChatId = localStorage.getItem('active_chat_id');
-                        var savedMobileChat = localStorage.getItem('show_mobile_chat');
-                        
-                        console.log('Resume state: hash=' + hash + ', chatId=' + savedChatId + ', mobileChat=' + savedMobileChat);
-                        
-                        // If user was in chat (based on hash or localStorage), ensure history state exists
-                        if (hash && hash.startsWith('#chat=')) {
-                            // Re-push state to ensure back button works
-                            window.history.pushState({chatOpen: true, timestamp: Date.now()}, '', hash);
-                            console.log('Re-pushed history state for hash: ' + hash);
-                        } else if (savedChatId && savedMobileChat === 'true') {
-                            // Push state based on localStorage
-                            window.history.pushState({chatOpen: true, timestamp: Date.now()}, '', '#chat=' + savedChatId);
-                            console.log('Pushed history state from localStorage: #chat=' + savedChatId);
-                        }
-                        
-                        // STEP 2: Check if Vue app is still alive
-                        var isAppAlive = typeof window.onAndroidBackPressed === 'function';
-                        console.log('Vue app alive = ' + isAppAlive);
-                        
-                        if (!isAppAlive) {
-                            console.log('Vue app not ready, setting recovery flags...');
-                            
-                            if (savedChatId && savedMobileChat === 'true') {
-                                sessionStorage.setItem('android_recovery_mode', 'chat');
-                                sessionStorage.setItem('android_recovery_chat_id', savedChatId);
-                            }
-                            
-                            // Mark that we need recovery on back press
-                            window.__androidRecoveryPending = true;
-                            
-                            return 'recovery_pending';
-                        }
-                        
-                        // STEP 3: App is alive - trigger resume handlers
-                        window.dispatchEvent(new CustomEvent('androidResume'));
-                        
-                        if (window.triggerReconnect) {
-                            window.triggerReconnect();
-                        }
-                        
-                        if (window.__reExposeBackHandler) {
-                            window.__reExposeBackHandler();
-                        }
-                        
-                        // STEP 4: Return alive confirmation with timestamp
-                        return 'alive_' + Date.now();
-                        
-                    } catch(e) {
-                        console.error('Resume error: ' + e);
-                        return 'error_' + e.message;
-                    }
-                })();
-            """.trimIndent()
-
-            // Use a timeout mechanism - if JS doesn't respond, WebView may be broken
-            var jsResponded = false
-
-            webView.evaluateJavascript(jsCode) { result ->
-                jsResponded = true
-                val status = result?.replace("\"", "") ?: "null"
-                android.util.Log.d("MainActivity", "Resume JS result: $status")
-
-                when {
-                    status.startsWith("alive_") -> {
-                        android.util.Log.d("MainActivity", "✅ WebView healthy, back button should work")
-                    }
-                    status.startsWith("recovery_pending") -> {
-                        android.util.Log.d("MainActivity", "⚠️ Vue app stale, recovery mode active")
-                    }
-                    status.startsWith("error_") || status == "null" -> {
-                        android.util.Log.e("MainActivity", "❌ JS execution failed, may need reload")
-                    }
-                }
-            }
-
-            // Fallback: If JS doesn't respond within 2 seconds, WebView is likely broken
-            webView.postDelayed({
-                if (!jsResponded) {
-                    android.util.Log.e("MainActivity", "❌ JS did not respond within 2s, forcing reload")
-                    webView.reload()
-                }
-            }, 2000)
+            android.util.Log.d("MainActivity", "🔄 App resumed - triggering JS handler")
+            
+            // Simply trigger JavaScript handler - let Pinia/Vue handle the rest
+            webView.evaluateJavascript("window.__ANDROID_RESUME && window.__ANDROID_RESUME()", null)
         }
     }
 
@@ -400,6 +317,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         webView.addJavascriptInterface(OneSignalInterface(this), "OneSignalInterface")
+        webView.addJavascriptInterface(JSBridge(), "Android") // For exitApp() bridge
         webView.loadUrl(WEB_URL)
     }
 
@@ -407,110 +325,10 @@ class MainActivity : AppCompatActivity() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 android.util.Log.d("BackHandler", "🔙 Back button pressed")
-
-                // Priority 1: Check if WebView can go back (external links)
-                val currentUrl = webView.url ?: ""
-                val isOnMainPage = currentUrl.startsWith(WEB_URL) && !currentUrl.contains("?")
-
-                if (webView.canGoBack() && !isOnMainPage) {
-                    android.util.Log.d("BackHandler", "📄 WebView.goBack() - external URL")
-                    webView.goBack()
-                    return
-                }
-
-                // Priority 2: Let Vue/Pinia handle navigation (CLEAN APPROACH)
-                val jsCode = """
-                    (function() {
-                        try {
-                            console.log('🔙 Android back press → JS Bridge');
-                            
-                            // Check if Vue app has exposed the handler
-                            if (typeof window.onAndroidBackPressed === 'function') {
-                                var result = window.onAndroidBackPressed();
-                                console.log('✅ Pinia/Vue handled back:', result);
-                                return result;
-                            }
-                            
-                            // Fallback: Vue app not ready (stale after sleep or initial load)
-                            console.warn('⚠️ Vue handler not ready, using localStorage fallback');
-                            
-                            // Check localStorage for navigation state
-                            var navState = localStorage.getItem('nav_state');
-                            if (navState) {
-                                try {
-                                    var state = JSON.parse(navState);
-                                    console.log('📦 Restored state:', state);
-                                    
-                                    // If user is in a child view (chat, settings, etc)
-                                    if (state.isChildView) {
-                                        // Clear child view state
-                                        localStorage.setItem('nav_state', JSON.stringify({
-                                            isChildView: false,
-                                            parentView: 'list',
-                                            timestamp: Date.now()
-                                        }));
-                                        
-                                        // Reload to reset to parent view
-                                        console.log('🔄 Reloading to parent view...');
-                                        window.location.reload();
-                                        return 'navigated_to_parent';
-                                    }
-                                } catch(e) {
-                                    console.error('Failed to parse nav_state:', e);
-                                }
-                            }
-                            
-                            // No child view state - user is at root, OK to exit
-                            console.log('✅ At root view, exit app');
-                            return 'should_exit';
-                        } catch(e) {
-                            console.error('Back handler error: ' + e);
-                            return 'error';
-                        }
-                    })();
-                """.trimIndent()
-
-                // Timeout safety: if JS doesn't respond in 800ms, exit app
-                var jsResponded = false
-                webView.postDelayed({
-                    if (!jsResponded) {
-                        android.util.Log.w("BackHandler", "⏱️ JS timeout (800ms), exiting app")
-                        runOnUiThread {
-                            isEnabled = false
-                            onBackPressedDispatcher.onBackPressed()
-                        }
-                    }
-                }, 800)
-
-                webView.evaluateJavascript(jsCode) { result ->
-                    jsResponded = true
-                    val status = result?.replace("\"", "")?.trim() ?: "null"
-                    android.util.Log.d("BackHandler", "📩 JS response: $status")
-
-                    runOnUiThread {
-                        when (status) {
-                            "should_exit" -> {
-                                // User at root view, exit app
-                                android.util.Log.d("BackHandler", "🚪 Exiting app")
-                                isEnabled = false
-                                onBackPressedDispatcher.onBackPressed()
-                            }
-                            "navigated_to_parent",
-                            "chat_closed",
-                            "settings_closed",
-                            "modal_closed" -> {
-                                // Navigation handled by Vue/Pinia - stay in app
-                                android.util.Log.d("BackHandler", "✅ $status - staying in app")
-                            }
-                            else -> {
-                                // Unknown status or error - exit safely
-                                android.util.Log.w("BackHandler", "⚠️ Unexpected status: $status, exiting")
-                                isEnabled = false
-                                onBackPressedDispatcher.onBackPressed()
-                            }
-                        }
-                    }
-                }
+                
+                // PURE WEBVIEW APPROACH: Simply trigger JavaScript handler
+                // Let Pinia/Vue decide what to do (navigate or exit)
+                webView.evaluateJavascript("window.__ANDROID_BACK && window.__ANDROID_BACK()", null)
             }
         })
     }

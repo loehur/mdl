@@ -630,6 +630,29 @@ watch(activeChatId, () => {
   scrollToBottom();
 });
 
+// ============================================
+// 🔄 SYNC NAVIGATION STATE (ANTI-SLEEP)
+// ============================================
+// Automatically update Pinia navigation store when user navigates
+// This ensures localStorage is always in sync for Android back/resume handlers
+
+watch(showMobileChat, (isInChat) => {
+  if (isInChat && activeChatId.value) {
+    // User entered chat view
+    navStore.setView('chat', activeChatId.value);
+  } else {
+    // User returned to conversation list
+    navStore.setView('home', null);
+  }
+});
+
+watch(activeChatId, (chatId) => {
+  if (chatId && showMobileChat.value) {
+    // Chat ID changed while in chat view
+    navStore.setView('chat', chatId);
+  }
+});
+
 
 // --- Methods ---
 
@@ -3221,6 +3244,83 @@ onMounted(() => {
     resumeChatState();
   });
 
+  // ============================================
+  // 🚀 ANDROID GLOBAL HANDLERS (PURE WEBVIEW)
+  // ============================================
+  // ChatGPT Solution: Android only triggers, JavaScript handles all logic
+  // Principle: "Android can kill WebView, but cannot determine navigation"
+  
+  /**
+   * __ANDROID_BACK: Called by Android when back button is pressed
+   * Logic:
+   * - If in chat view → go back to home (conversation list)
+   * - If in home view → exit app via Android.exitApp()
+   */
+  window.__ANDROID_BACK = () => {
+    console.log('🔙 __ANDROID_BACK triggered');
+    
+    if (navStore.current === 'chat' || showMobileChat.value) {
+      // User is in chat view → navigate back to home
+      console.log('📱 Navigating from chat to home');
+      
+      navStore.reset(); // Update Pinia state
+      showMobileChat.value = false; // Update Vue reactive state
+      activeChatId.value = null;
+      
+      return 'chat_closed';
+    } else {
+      // User is in home view → exit app
+      console.log('🚪 Exiting app');
+      
+      // Call Android bridge to close app
+      if (window.Android && window.Android.exitApp) {
+        window.Android.exitApp();
+      }
+      
+      return 'should_exit';
+    }
+  };
+  
+  /**
+   * __ANDROID_RESUME: Called by Android when app resumes from background/sleep
+   * Logic:
+   * - Restore navigation state from localStorage (Pinia)
+   * - Sync Vue reactive state with restored Pinia state
+   * - Reconnect WebSocket if needed
+   */
+  window.__ANDROID_RESUME = () => {
+    console.log('🔄 __ANDROID_RESUME triggered');
+    
+    // Restore Pinia state from localStorage
+    const restoredState = navStore.restore();
+    console.log('📦 Restored state:', restoredState);
+    
+    // Sync Vue reactive state with Pinia
+    if (restoredState.current === 'chat' && restoredState.chatId) {
+      console.log('📱 Restoring chat view:', restoredState.chatId);
+      showMobileChat.value = true;
+      activeChatId.value = restoredState.chatId;
+    } else {
+      console.log('🏠 Restoring home view');
+      showMobileChat.value = false;
+      activeChatId.value = null;
+    }
+    
+    // Reconnect WebSocket if disconnected
+    if (!socket.value || socket.value.readyState !== WebSocket.OPEN) {
+      console.log('🔌 Socket disconnected, reconnecting...');
+      reconnectAttempts.value = 0;
+      isReconnecting.value = true;
+      
+      if (authId.value) {
+        connectWebSocket();
+        fetchConversations();
+      }
+    }
+    
+    return 'resumed';
+  };
+  
   // --- EXPOSE GLOBAL FUNCTION FOR ANDROID ---
   // Android WebView can call: window.triggerReconnect()
   window.triggerReconnect = () => {
@@ -3263,34 +3363,30 @@ onMounted(() => {
     persistChatState();
   });
 
-  // --- ANDROID BACK BUTTON HANDLER ---
-  // Push initial history state to prevent immediate exit on back
+  // --- OLD ANDROID BACK BUTTON HANDLER (DISABLED) ---
+  // ❌ ChatGPT Solution: DO NOT use window.history / popstate for Android back
+  // ✅ Use __ANDROID_BACK global handler instead (see above)
+  /*
   if (window.innerWidth < 768) {
     window.history.replaceState({ appRoot: true }, "", window.location.href);
   }
 
-  // Track last back press for double-back-to-exit
   let lastBackPressTime = 0;
 
   window.addEventListener("popstate", (event) => {
-    // If mobile chat ui is open, just close it and stay on page
     if (showMobileChat.value) {
       console.log("🔙 Android Back: Closing chat overlay");
       showMobileChat.value = false;
       activeChatId.value = null;
       localStorage.removeItem("active_chat_id");
-      // Re-push state to allow another back press
       window.history.pushState({ appRoot: true }, "", window.location.href.split('#')[0]);
     } else if (window.innerWidth < 768) {
-      // No chat open - implement double-back-to-exit
       const now = Date.now();
       if (now - lastBackPressTime < 2000) {
-        // Second back press within 2 seconds - allow exit (do nothing, let default happen)
         console.log("🔙 Android Back: Exiting app");
         return;
       }
       
-      // First back press - show toast and prevent exit
       lastBackPressTime = now;
       console.log("🔙 Android Back: Press again to exit");
       showExitToast.value = true;
@@ -3298,10 +3394,10 @@ onMounted(() => {
         showExitToast.value = false;
       }, 2000);
       
-      // Re-push state to stay on page
       window.history.pushState({ appRoot: true }, "", window.location.href.split('#')[0]);
     }
   });
+  */'
 
   // Load font size preference
   loadFontSize();
