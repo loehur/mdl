@@ -367,16 +367,27 @@ class WhatsApp extends Controller
                     $currentCase = 0;
                 }
                 
-                // NOTE: If autoreply was sent, saveOutboundMessage() already updated last_message to outbound.
-                // But getOrCreateConversationWithCase() will now OVERWRITE it back to inbound.
-                // 
-                // FIX: If autoreply was sent, we need to use the autoreply text as last_message
-                // so customers can see what the system replied, not just their own message.
-                $finalLastMessage = $lastMessageSummary; // Default: inbound message
+                // Determine final last_message with proper prefix (i- or o-)
+                $finalLastMessage = 'i- ' . mb_substr($lastMessageSummary, 0, 50); // Default: inbound
                 
-                // If autoreply was sent, last_message should reflect the outbound reply
-                // We'll handle this by NOT updating last_message here if autoreply sent
-                // (saveOutboundMessage already set it correctly)
+                // If auto-reply was sent (notify = false), fetch the auto-reply message
+                if ($notify === false) {
+                    // Fetch most recent outbound message (within last 3 seconds)
+                    $recentTime = date('Y-m-d H:i:s', strtotime('-3 seconds'));
+                    $recentAutoReply = $db->query(
+                        "SELECT content FROM wa_messages_out 
+                         WHERE phone = '$waNumber' 
+                         AND created_at >= '$recentTime'
+                         ORDER BY id DESC LIMIT 1"
+                    );
+                    
+                    if ($recentAutoReply && $recentAutoReply->num_rows() > 0) {
+                        $outboundMsg = $recentAutoReply->row()->content;
+                        if ($outboundMsg) {
+                            $finalLastMessage = 'o- ' . mb_substr($outboundMsg, 0, 50);
+                        }
+                    }
+                }
                 
                 $conversationId = $this->getOrCreateConversationWithCase(
                     $db, 
@@ -384,9 +395,9 @@ class WhatsApp extends Controller
                     $contact_name, 
                     $assigned_user_id, 
                     $code, 
-                    $lastMessageSummary, // Always set inbound first
+                    $finalLastMessage, // With proper i- or o- prefix
                     $currentCase,
-                    $notify // Pass flag to skip last_message update if autoreply was sent
+                    false // Don't skip last_message update
                 );
 
                 // DIAGNOSTIC LOG: Use Standard Log Class so it appears in logs/DATE folder
@@ -665,11 +676,10 @@ class WhatsApp extends Controller
                 'updated_at' => date('Y-m-d H:i:s'),
             ];
             
-            // Only update last_message if autoreply didn't already set it
-            // When autoreply sends a message, saveOutboundMessage() already updated last_message
-            // We don't want to overwrite it with the inbound message
-            if (!$skipLastMessageUpdate) {
-                $updateData['last_message'] = 'i- ' . mb_substr($lastMessage, 0, 50);
+            // Only update last_message if not skipped
+            // lastMessage parameter already includes i- or o- prefix
+            if (!$skipLastMessageUpdate && $lastMessage !== null) {
+                $updateData['last_message'] = $lastMessage;
             }
             
             // Only update case if not null and not 0 (Append to existing list)
@@ -781,9 +791,10 @@ class WhatsApp extends Controller
             'updated_at' => date('Y-m-d H:i:s'),
         ];
         
-        // Only set last_message if autoreply didn't already set it
-        if (!$skipLastMessageUpdate) {
-            $convData['last_message'] = 'i- ' . mb_substr($lastMessage, 0, 50);
+        // Only set last_message if not skipped
+        // lastMessage parameter already includes i- or o- prefix
+        if (!$skipLastMessageUpdate && $lastMessage !== null) {
+            $convData['last_message'] = $lastMessage;
         }
         
         // Only set case if not null and not 0 (Store as JSON List)
