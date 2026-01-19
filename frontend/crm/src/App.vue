@@ -3281,9 +3281,9 @@ onMounted(() => {
   /**
    * __ANDROID_RESUME: Called by Android when app resumes from background/sleep
    * Logic:
-   * - Restore navigation state from localStorage (Pinia)
+   * - ONLY restore navigation state from localStorage (Pinia)
    * - Sync Vue reactive state with restored Pinia state
-   * - Reconnect WebSocket if needed
+   * - DO NOT reconnect WebSocket (let visibilitychange handler do it)
    */
   window.__ANDROID_RESUME = () => {
     console.log('🔄 __ANDROID_RESUME triggered');
@@ -3303,17 +3303,9 @@ onMounted(() => {
       activeChatId.value = null;
     }
     
-    // Reconnect WebSocket if disconnected
-    if (!socket.value || socket.value.readyState !== WebSocket.OPEN) {
-      console.log('🔌 Socket disconnected, reconnecting...');
-      reconnectAttempts.value = 0;
-      isReconnecting.value = true;
-      
-      if (authId.value) {
-        connectWebSocket();
-        fetchConversations();
-      }
-    }
+    // ⚠️ DO NOT reconnect here - visibilitychange handler will do it
+    // This prevents race condition with multiple reconnect attempts
+    console.log('✅ Navigation restored, waiting for visibilitychange to reconnect');
     
     return 'resumed';
   };
