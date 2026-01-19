@@ -3143,14 +3143,14 @@ onMounted(() => {
   // Fix for blank screen/disconnect after long backgrounding (Android sleep)
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") {
-      console.log("App resumed from background, checking connection...");
+      console.log("👁️ App became VISIBLE - checking connection...");
 
       // Update resume timestamp FIRST
       resumeTimestamp.value = Date.now();
 
       // Check if socket is dead or not connected
       if (!socket.value || socket.value.readyState !== WebSocket.OPEN) {
-        console.log("Socket disconnected, initiating reconnect...");
+        console.log("🔌 Socket disconnected, initiating reconnect...");
 
         // Reset reconnect state to allow fresh reconnection
         reconnectAttempts.value = 0;
@@ -3179,6 +3179,7 @@ onMounted(() => {
           // Delayed reconnect to allow server cleanup
           setTimeout(() => {
             if (!isConnected.value && authId.value) {
+              console.log("🔄 Attempting reconnect after delay...");
               connectWebSocket();
             }
           }, reconnectDelayMs);
@@ -3187,6 +3188,8 @@ onMounted(() => {
           isReconnecting.value = false;
           showLoginPrompt.value = true;
         }
+      } else {
+        console.log("✅ Socket already connected, no reconnect needed");
       }
 
       // Refresh data to ensure sync
@@ -3195,6 +3198,15 @@ onMounted(() => {
       // Restore active chat state if user was viewing a chat before leaving
       // This handles the case when user clicks a link and comes back
       resumeChatState();
+    } else if (document.visibilityState === "hidden") {
+      console.log("🙈 App became HIDDEN - cleaning up socket...");
+      
+      // When app is hidden, properly disconnect socket
+      // This prevents reconnect issues when app is reopened
+      if (socket.value && socket.value.readyState === WebSocket.OPEN) {
+        console.log("🔌 Force closing socket due to app hidden");
+        forceDisconnect();
+      }
     }
   });
 
@@ -3249,33 +3261,56 @@ onMounted(() => {
   
   /**
    * __ANDROID_BACK: Called by Android when back button is pressed
-   * Logic:
-   * - If in chat view → go back to home (conversation list)
-   * - If in home view → exit app via Android.exitApp()
+   * Priority order:
+   * 0. Close internal browser (if open)
+   * 1. Close image lightbox (if open)
+   * 2. Close settings modal (if open)
+   * 3. Close chat → back to conversation list
+   * 4. Exit app (if at root)
    */
   window.__ANDROID_BACK = () => {
     console.log('🔙 __ANDROID_BACK triggered');
     
+    // Priority 0: Close Internal Browser
+    if (showInternalBrowser.value) {
+      console.log('🌐 Closing internal browser');
+      closeInternalBrowser();
+      return 'internal_browser_closed';
+    }
+    
+    // Priority 1: Close Image Lightbox
+    if (showImageLightbox.value) {
+      console.log('🖼️ Closing image lightbox');
+      closeImageLightbox();
+      return 'lightbox_closed';
+    }
+    
+    // Priority 2: Close Settings Modal
+    if (showSettingsModal.value) {
+      console.log('⚙️ Closing settings modal');
+      showSettingsModal.value = false;
+      return 'settings_closed';
+    }
+    
+    // Priority 3: Navigate back from chat to list
     if (navStore.current === 'chat' || showMobileChat.value) {
-      // User is in chat view → navigate back to home
       console.log('📱 Navigating from chat to home');
       
-      navStore.reset(); // Update Pinia state
-      showMobileChat.value = false; // Update Vue reactive state
-      activeChatId.value = null;
+      // Use backToMenu() for smooth slide animation
+      backToMenu(true);
       
       return 'chat_closed';
-    } else {
-      // User is in home view → exit app
-      console.log('🚪 Exiting app');
-      
-      // Call Android bridge to close app
-      if (window.Android && window.Android.exitApp) {
-        window.Android.exitApp();
-      }
-      
-      return 'should_exit';
     }
+    
+    // Priority 4: Exit app (at root)
+    console.log('🚪 Exiting app');
+    
+    // Call Android bridge to close app
+    if (window.Android && window.Android.exitApp) {
+      window.Android.exitApp();
+    }
+    
+    return 'should_exit';
   };
   
   /**
@@ -3343,13 +3378,27 @@ onMounted(() => {
   document.addEventListener("click", handleLinkClick, true);
 
   // --- PAGE HIDE HANDLER ---
-  // Save state when page is about to be hidden (covers all navigation cases)
+  // Save state AND cleanup socket when page is hidden
   window.addEventListener("pagehide", () => {
+    console.log("📦 Page hiding - saving state and cleaning up socket");
     persistChatState();
+    
+    // Properly close socket to prevent reconnect issues
+    if (socket.value) {
+      console.log("🔌 Closing socket due to page hide");
+      forceDisconnect();
+    }
   });
 
   window.addEventListener("beforeunload", () => {
+    console.log("📦 Page unloading - saving state and cleaning up socket");
     persistChatState();
+    
+    // Properly close socket
+    if (socket.value) {
+      console.log("🔌 Closing socket due to page unload");
+      forceDisconnect();
+    }
   });
 
   // --- OLD ANDROID BACK BUTTON HANDLER (DISABLED) ---
