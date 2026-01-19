@@ -2148,8 +2148,10 @@ const handleIncomingMessage = (payload) => {
 
   // Check if this is a status update
   if (payload.type === "status_update") {
-    // ... existing status logic ...
+    console.log("🔄 Status update received:", payload);
     const { conversation_id, message, phone } = payload;
+    
+    // Find conversation
     const conversation = conversations.value.find(
       (c) =>
         (conversation_id && c.id == conversation_id) ||
@@ -2157,12 +2159,31 @@ const handleIncomingMessage = (payload) => {
     );
 
     if (conversation) {
-      const msgToUpdate = conversation.messages.find(
+      console.log(`✅ Conversation found (ID: ${conversation.id}), searching for message ID: ${message.id}`);
+      
+      // Find and update message
+      const msgIndex = conversation.messages.findIndex(
         (m) => m.id == message.id || m.wamid == message.wamid
       );
-      if (msgToUpdate) {
-        msgToUpdate.status = message.status;
+      
+      if (msgIndex !== -1) {
+        console.log(`✅ Message found at index ${msgIndex}, updating status: ${conversation.messages[msgIndex].status} → ${message.status}`);
+        
+        // ⚡ CRITICAL FIX: Trigger Vue reactivity by creating new message object
+        conversation.messages[msgIndex] = {
+          ...conversation.messages[msgIndex],
+          status: message.status
+        };
+        
+        // Force reactivity on conversations array
+        conversations.value = [...conversations.value];
+        
+        console.log("✅ Status updated successfully!");
+      } else {
+        console.warn(`⚠️ Message not found (ID: ${message.id}, WAMID: ${message.wamid})`);
       }
+    } else {
+      console.warn(`⚠️ Conversation not found (ID: ${conversation_id}, Phone: ${phone})`);
     }
     return;
   }
@@ -3088,8 +3109,32 @@ onMounted(() => {
   // Sync Vue reactive state with Pinia
   if (restoredState.current === 'chat' && restoredState.chatId) {
     console.log("📦 Restoring chat view:", restoredState.chatId);
-    activeChatId.value = restoredState.chatId;
-    showMobileChat.value = true;
+    
+    // Find conversation and restore messages
+    const conversation = conversations.value.find(
+      (c) => String(c.id) === String(restoredState.chatId)
+    );
+    
+    if (conversation) {
+      activeChatId.value = restoredState.chatId;
+      showMobileChat.value = true;
+      
+      // ✅ CRITICAL: Fetch messages if not loaded
+      if (!conversation.messages || conversation.messages.length === 0) {
+        console.log("📥 Fetching messages for restored chat:", conversation.wa_number);
+        fetchMessages(conversation.wa_number).then((msgs) => {
+          conversation.messages = msgs;
+          nextTick(() => scrollToBottom());
+        });
+      } else {
+        console.log("✅ Messages already loaded, scrolling to bottom");
+        nextTick(() => scrollToBottom());
+      }
+    } else {
+      console.warn("⚠️ Restored chat not found in conversations list");
+      activeChatId.value = null;
+      showMobileChat.value = false;
+    }
   } else {
     console.log("📦 Starting at root (conversation list)");
     activeChatId.value = null;
@@ -3330,8 +3375,32 @@ onMounted(() => {
     // Sync Vue reactive state with Pinia
     if (restoredState.current === 'chat' && restoredState.chatId) {
       console.log('📱 Restoring chat view:', restoredState.chatId);
-      showMobileChat.value = true;
-      activeChatId.value = restoredState.chatId;
+      
+      // Find conversation and restore messages
+      const conversation = conversations.value.find(
+        (c) => String(c.id) === String(restoredState.chatId)
+      );
+      
+      if (conversation) {
+        showMobileChat.value = true;
+        activeChatId.value = restoredState.chatId;
+        
+        // ✅ CRITICAL: Fetch messages if not loaded
+        if (!conversation.messages || conversation.messages.length === 0) {
+          console.log('📥 Fetching messages for restored chat:', conversation.wa_number);
+          fetchMessages(conversation.wa_number).then((msgs) => {
+            conversation.messages = msgs;
+            nextTick(() => scrollToBottom());
+          });
+        } else {
+          console.log('✅ Messages already loaded, scrolling to bottom');
+          nextTick(() => scrollToBottom());
+        }
+      } else {
+        console.warn('⚠️ Restored chat not found in conversations list');
+        showMobileChat.value = false;
+        activeChatId.value = null;
+      }
     } else {
       console.log('🏠 Restoring home view');
       showMobileChat.value = false;
