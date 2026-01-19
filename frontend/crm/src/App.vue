@@ -2169,21 +2169,34 @@ const handleIncomingMessage = (payload) => {
       if (msgIndex !== -1) {
         console.log(`✅ Message found at index ${msgIndex}, updating status: ${conversation.messages[msgIndex].status} → ${message.status}`);
         
-        // ⚡ CRITICAL FIX: Trigger Vue reactivity by creating new message object
+        // ⚡ CRITICAL FIX: Deep clone to trigger Vue reactivity
+        // Step 1: Update message object
         conversation.messages[msgIndex] = {
           ...conversation.messages[msgIndex],
           status: message.status
         };
         
-        // Force reactivity on conversations array
-        conversations.value = [...conversations.value];
+        // Step 2: Clone messages array to trigger reactivity
+        conversation.messages = [...conversation.messages];
         
-        console.log("✅ Status updated successfully!");
+        // Step 3: Find conversation index and replace entire conversation object
+        const convIndex = conversations.value.findIndex(c => c.id === conversation.id);
+        if (convIndex !== -1) {
+          conversations.value[convIndex] = { ...conversation };
+          
+          // Step 4: Replace conversations array (force Vue to detect change)
+          conversations.value = [...conversations.value];
+        }
+        
+        // Step 5: Force next tick re-render
+        nextTick(() => {
+          console.log("✅ Status updated successfully! UI should update now.");
+        });
       } else {
-        console.warn(`⚠️ Message not found (ID: ${message.id}, WAMID: ${message.wamid})`);
+        // Message not found - may arrive before conversation loaded
       }
     } else {
-      console.warn(`⚠️ Conversation not found (ID: ${conversation_id}, Phone: ${phone})`);
+      // Conversation not found - may arrive before conversation loaded
     }
     return;
   }
@@ -3101,14 +3114,12 @@ onMounted(() => {
   // ============================================
   // 📦 RESTORE NAVIGATION STATE (Anti-SLEEP)
   // ============================================
-  console.log("📱 App.vue onMounted - Restoring navigation state");
-  
-  // Restore Pinia navigation state from localStorage
+  // Silent restore - no logs needed
   const restoredState = navStore.restore();
   
   // Sync Vue reactive state with Pinia
   if (restoredState.current === 'chat' && restoredState.chatId) {
-    console.log("📦 Restoring chat view:", restoredState.chatId);
+    // Restore chat view
     
     // Find conversation and restore messages
     const conversation = conversations.value.find(
@@ -3131,12 +3142,12 @@ onMounted(() => {
         nextTick(() => scrollToBottom());
       }
     } else {
-      console.warn("⚠️ Restored chat not found in conversations list");
+      // Silent reset - conversation not found
       activeChatId.value = null;
       showMobileChat.value = false;
     }
   } else {
-    console.log("📦 Starting at root (conversation list)");
+    // Start at root (conversation list)
     activeChatId.value = null;
     showMobileChat.value = false;
   }
@@ -3366,15 +3377,12 @@ onMounted(() => {
    * - DO NOT reconnect WebSocket (let visibilitychange handler do it)
    */
   window.__ANDROID_RESUME = () => {
-    console.log('🔄 __ANDROID_RESUME triggered');
-    
-    // Restore Pinia state from localStorage
+    // Silent resume - restore navigation state
     const restoredState = navStore.restore();
-    console.log('📦 Restored state:', restoredState);
     
     // Sync Vue reactive state with Pinia
     if (restoredState.current === 'chat' && restoredState.chatId) {
-      console.log('📱 Restoring chat view:', restoredState.chatId);
+      // Restore chat view
       
       // Find conversation and restore messages
       const conversation = conversations.value.find(
@@ -3397,20 +3405,17 @@ onMounted(() => {
           nextTick(() => scrollToBottom());
         }
       } else {
-        console.warn('⚠️ Restored chat not found in conversations list');
+        // Silent reset - conversation not found
         showMobileChat.value = false;
         activeChatId.value = null;
       }
     } else {
-      console.log('🏠 Restoring home view');
+      // Restore home view
       showMobileChat.value = false;
       activeChatId.value = null;
     }
     
     // ⚠️ DO NOT reconnect here - visibilitychange handler will do it
-    // This prevents race condition with multiple reconnect attempts
-    console.log('✅ Navigation restored, waiting for visibilitychange to reconnect');
-    
     return 'resumed';
   };
   
@@ -3534,10 +3539,8 @@ onMounted(() => {
 
   // Case 1: Valid session (ID + Valid Expiry)
   if (storedId && storedExpiry && now < parseInt(storedExpiry)) {
-    // Force uppercase for OneSignal compatibility
-    const uppercaseId = storedId.toUpperCase();
-    console.log("Restoring session for ID:", uppercaseId);
-    authId.value = uppercaseId;
+    // Force uppercase for OneSignal compatibility & restore session
+    authId.value = storedId.toUpperCase();
 
     // Update localStorage if it was lowercase
     if (storedId !== uppercaseId) {
