@@ -3539,8 +3539,9 @@ onMounted(() => {
 
   // Case 1: Valid session (ID + Valid Expiry)
   if (storedId && storedExpiry && now < parseInt(storedExpiry)) {
-    // Force uppercase for OneSignal compatibility & restore session
-    authId.value = storedId.toUpperCase();
+    // Force uppercase for OneSignal compatibility
+    const uppercaseId = storedId.toUpperCase();
+    authId.value = uppercaseId;
 
     // Update localStorage if it was lowercase
     if (storedId !== uppercaseId) {
