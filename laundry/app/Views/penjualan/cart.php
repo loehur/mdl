@@ -1,6 +1,4 @@
-
 <table class="table table-sm">
-        <tbody>
           <?php
           $no = 0;
           foreach ($data['data_main'] as $a) {
@@ -117,16 +115,15 @@
             }
 
             echo "<tr class='tr" . $id . "'>";
-            echo "<td style='min-width:200px'><b>" . $kategori . "<br>" . $list_layanan . "</b><br>" . $durasi . " (" . $f12 . " Hari " . $f13 . " Jam)<br><b>" . $show_qty . "</b> " .  $show_diskon . "</td>";
-            echo "<td class='text-right'>" . $show_total . "</td>";
+            echo "<td style='min-width:200px'>" . $kategori . "<br><span class='fw-bold'>" . $list_layanan . "</span> | " . $durasi . "</td>";
+            echo "<td class='text-right'>" . $show_total . "<br><b>" . $show_qty . "</b> " .  $show_diskon . "</td>";
             echo "<td><a data-id_value='" . $id . "' class='text-danger removeRow' href='#'><i class='fas fa-times-circle'></i></a></td>";
             echo "</tr>";
             echo "<tr class='tr" . $id . "' style='background-color:aliceblue;'>";
-            echo "<td colspan='7' class='border-top-0 border-bottom-0 m-0 p-1'><a data-id_group='" . $f3 . "' data-id_penjualan='" . $id . "' class='addItem badge btn-outline-primary' data-bs-toggle='modal' data-bs-target='#exampleModal2' href='#'><i class='fas fa-plus-circle'></i> Item</a> " . $itemList . "</td>";
+            echo "<td colspan='7' class='d-none border-top-0 border-bottom-0 m-0 p-1'><a data-id_group='" . $f3 . "' data-id_penjualan='" . $id . "' class='addItem badge btn-outline-primary' data-bs-toggle='modal' data-bs-target='#exampleModal2' href='#'><i class='fas fa-plus-circle'></i> Item</a> " . $itemList . "</td>";
             echo "</tr>";
           }
           ?>
-        </tbody>
       </table>
 <!-- SCRIPT -->
 <script>

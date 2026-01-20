@@ -80,23 +80,31 @@ class Member extends Controller
       $data_operasi = ['title' => 'List Deposit Member'];
       $this->view('layout', ['data_operasi' => $data_operasi]);
       $viewData = 'member/viewRekap';
+      
+      // ✅ OPTIMIZED: Get member deposits
       $where = $this->wCabang . " AND bin = 0 GROUP BY id_pelanggan, id_harga ORDER BY saldo DESC";
       $cols = "id_pelanggan, id_harga, SUM(qty) as saldo";
       $data = $this->db(0)->get_cols_where('member', $cols, $where, 1);
+      
+      // ✅ OPTIMIZED: Get ALL usage in ONE query instead of N queries!
       $pakai = array();
-
-      foreach ($data as $a) {
-         $idPelanggan = $a['id_pelanggan'];
-         $idHarga = $a['id_harga'];
-         $where = $this->wCabang . " AND id_pelanggan = " . $idPelanggan . " AND id_harga = " . $idHarga . " AND member = 1 AND bin  = 0";
-
-         $pakai[$idPelanggan . $idHarga] = 0;
-
-         // FIX: use db(0) directly
-         $cols = "SUM(qty) as saldo";
-         $data2 = $this->db(0)->get_cols_where('sale', $cols, $where, 0);
-         if (isset($data2['saldo'])) {
-            $pakai[$idPelanggan . $idHarga] = $data2['saldo'];
+      if (count($data) > 0) {
+         $whereUsage = $this->wCabang . " AND member = 1 AND bin = 0";
+         $colsUsage = "id_pelanggan, id_harga, SUM(qty) as saldo";
+         $usageData = $this->db(0)->get_cols_where('sale', $colsUsage, $whereUsage . " GROUP BY id_pelanggan, id_harga", 1);
+         
+         // Build associative array for fast lookup
+         foreach ($usageData as $usage) {
+            $key = $usage['id_pelanggan'] . $usage['id_harga'];
+            $pakai[$key] = $usage['saldo'] ?? 0;
+         }
+         
+         // Set default 0 for members without usage
+         foreach ($data as $a) {
+            $key = $a['id_pelanggan'] . $a['id_harga'];
+            if (!isset($pakai[$key])) {
+               $pakai[$key] = 0;
+            }
          }
       }
 
@@ -105,22 +113,30 @@ class Member extends Controller
 
    public function rekapTunggal($pelanggan)
    {
+      // ✅ OPTIMIZED: Get member deposits for specific customer
       $where = $this->wCabang . " AND bin = 0 AND id_pelanggan = " . $pelanggan . " GROUP BY id_harga ORDER BY saldo DESC";
       $cols = "id_pelanggan, id_harga, SUM(qty) as saldo";
       $data = $this->db(0)->get_cols_where('member', $cols, $where, 1);
+      
+      // ✅ OPTIMIZED: Get ALL usage for this customer in ONE query
       $pakai = array();
-
-      foreach ($data as $a) {
-         $idPelanggan = $a['id_pelanggan'];
-         $idHarga = $a['id_harga'];
-         $where = $this->wCabang . " AND id_pelanggan = " . $idPelanggan . " AND id_harga = " . $idHarga . " AND member = 1 AND bin  = 0";
-         $cols = "SUM(qty) as saldo";
-
-         $pakai[$idPelanggan . $idHarga] = 0;
-         // FIX: use db(0) directly
-         $data2 = $this->db(0)->get_cols_where('sale', $cols, $where, 0);
-         if (isset($data2['saldo'])) {
-            $pakai[$idPelanggan . $idHarga] = $data2['saldo'];
+      if (count($data) > 0) {
+         $whereUsage = $this->wCabang . " AND id_pelanggan = " . $pelanggan . " AND member = 1 AND bin = 0";
+         $colsUsage = "id_harga, SUM(qty) as saldo";
+         $usageData = $this->db(0)->get_cols_where('sale', $colsUsage, $whereUsage . " GROUP BY id_harga", 1);
+         
+         // Build associative array for fast lookup
+         foreach ($usageData as $usage) {
+            $key = $pelanggan . $usage['id_harga'];
+            $pakai[$key] = $usage['saldo'] ?? 0;
+         }
+         
+         // Set default 0 for items without usage
+         foreach ($data as $a) {
+            $key = $a['id_pelanggan'] . $a['id_harga'];
+            if (!isset($pakai[$key])) {
+               $pakai[$key] = 0;
+            }
          }
       }
 

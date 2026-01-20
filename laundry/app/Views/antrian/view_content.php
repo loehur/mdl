@@ -1,10 +1,3 @@
-<style>
-  table {
-    border-radius: 15px;
-    overflow: hidden
-  }
-</style>
-
 <?php
 $kodeCabang = $this->dCabang['kode_cabang'];
 $modeView = $data['modeView'];

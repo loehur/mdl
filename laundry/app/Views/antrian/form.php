@@ -1,10 +1,3 @@
-<style>
-  table {
-    border-radius: 15px;
-    overflow: hidden
-  }
-</style>
-
 <?php $modeView = $data['modeView'];
 ?>
 <div class="position-fixed w-100 bg-light mx-1" style="z-index:1000;top:0px;height:205px">

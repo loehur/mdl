@@ -1,5 +1,5 @@
 <div class="row mt-3 mx-0">
-  <div class="col" style="max-width: 500px;">
+  <div class="col px-1" style="max-width: 500px;">
     <form class="orderProses" action="<?= URL::BASE_URL ?>Penjualan/proses" method="POST">
       <div class="row mx-0">
         <div class="col">
@@ -81,9 +81,8 @@
     </div>
   </div>
 </div>
-<div class="row mx-0 px-2">
-   <label class="form-label text-primary">List Order</label>
-  <div class="col mx-1 px-0 border shadow-sm" id="cart" style="max-width: 500px; height: 300px; overflow-y:scroll"></div>
+<div class="row mx-2 p-1 bg-primary-subtle bg-gradient">
+  <div class="col mx-0 px-0" id="cart" style="max-width: 500px; height: 200px; overflow-y:scroll"></div>
 </div>
 
 <div class="modal" id="modalPenjualan">
@@ -113,6 +112,19 @@
     </div>
   </div>
 </div>
+
+<style>
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  #cart::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Hide scrollbar for IE, Edge and Firefox */
+  #cart {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+</style>
 
 <script script src="<?= URL::EX_ASSETS ?>js/selectize.min.js"></script>
 <script>
