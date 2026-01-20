@@ -61,7 +61,7 @@ return [
         'notify' => true,
         'patterns' => [
             '/(bi*sa*|bo*le*h).*(sa*ya*|a*ku|ka*mi).*(di)?(ambi*l|je*m*pu*t)/i',
-            '/(bantu|tolong|minta|bisa).*(baju|pakaian|celana|handuk|boneka|sepatu|selimut|jaket)/i',
+            '/(bantu|tolong|minta|bisa)(?!.*(antar|jemput)).*(baju|pakaian|celana|handuk|boneka|sepatu|selimut|jaket)/i',
         ],
         'ai_prompt' => "User melakukan PERMINTAAN KHUSUS atau INSTRUKSI KHUSUS terkait laundry.\n
         TRUE jika:\n
