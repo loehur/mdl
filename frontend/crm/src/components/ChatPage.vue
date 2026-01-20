@@ -540,7 +540,15 @@ watch(() => props.activeConversation?.messages?.length, (newCount, oldCount) => 
 // Track if listener is attached
 let scrollListenerAttached = false;
 
-// Watch for chatContainer to become available
+// Remove scroll listener
+const removeScrollListener = () => {
+  if (chatContainer.value && scrollListenerAttached) {
+    chatContainer.value.removeEventListener('scroll', handleScroll);
+    scrollListenerAttached = false;
+  }
+};
+
+// Attach scroll listener
 const attachScrollListener = () => {
   if (chatContainer.value && !scrollListenerAttached) {
     chatContainer.value.addEventListener('scroll', handleScroll);
@@ -548,8 +556,14 @@ const attachScrollListener = () => {
   }
 };
 
-// Watch for activeConversation changes to attach listener
-watch(() => props.activeConversation, (newVal) => {
+// Watch for activeConversation changes to re-attach listener
+watch(() => props.activeConversation, (newVal, oldVal) => {
+  // Remove old listener when conversation changes
+  if (oldVal !== newVal) {
+    removeScrollListener();
+  }
+  
+  // Attach new listener for new conversation
   if (newVal) {
     nextTick(() => {
       attachScrollListener();
@@ -598,10 +612,7 @@ onUnmounted(() => {
     document.removeEventListener('click', handleClickOutside);
     
     // Remove scroll listener
-    if (chatContainer.value && scrollListenerAttached) {
-      chatContainer.value.removeEventListener('scroll', handleScroll);
-      scrollListenerAttached = false;
-    }
+    removeScrollListener();
 });
 
 </script>

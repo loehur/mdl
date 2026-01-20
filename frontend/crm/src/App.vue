@@ -1497,15 +1497,14 @@ const selectChat = async (id, isRefresh = false) => {
     if (chat.messages && chat.messages.length > 0) {
       scrollToBottom(); // Show cache immediately
       // Background fetch to sync and merge
-      // Background fetch to sync and merge
-      fetchMessages(chat.wa_number).then((result) => {
+      fetchMessages(chat.wa_number, 0, 20).then((result) => {
         if (result.messages.length > 0) {
           // Merge simply by combining and then Sanitizing
           // This allows the Healer to work its magic on the combined set
           const combined = [...chat.messages, ...result.messages];
           chat.messages = sanitizeMessages(combined);
           chat.hasMoreMessages = result.has_more;
-          chat.messageOffset = result.messages.length;
+          chat.messageOffset = chat.messages.length; // Total messages loaded
           scrollToBottom();
         }
       });
@@ -1513,10 +1512,10 @@ const selectChat = async (id, isRefresh = false) => {
       // No cache, wait for fetch
       isLoadingMessages.value = true;
       try {
-        const result = await fetchMessages(chat.wa_number);
+        const result = await fetchMessages(chat.wa_number, 0, 20);
         chat.messages = result.messages;
         chat.hasMoreMessages = result.has_more;
-        chat.messageOffset = result.messages.length;
+        chat.messageOffset = result.messages.length; // Initial messages loaded
       } finally {
         isLoadingMessages.value = false;
       }
@@ -1581,7 +1580,7 @@ const restoreActiveChatState = () => {
 
       // Re-fetch messages if needed
       if (!target.messages || target.messages.length === 0) {
-        fetchMessages(target.wa_number).then((result) => {
+        fetchMessages(target.wa_number, 0, 20).then((result) => {
           target.messages = result.messages;
           target.hasMoreMessages = result.has_more;
           target.messageOffset = result.messages.length;
@@ -3240,7 +3239,7 @@ onMounted(() => {
       
       // ✅ CRITICAL: Fetch messages if not loaded
       if (!conversation.messages || conversation.messages.length === 0) {
-        fetchMessages(conversation.wa_number).then((result) => {
+        fetchMessages(conversation.wa_number, 0, 20).then((result) => {
           conversation.messages = result.messages;
           conversation.hasMoreMessages = result.has_more;
           conversation.messageOffset = result.messages.length;
