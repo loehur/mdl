@@ -274,14 +274,67 @@ class DB extends DBC
 
     public function query($query)
     {
-        $query = $this->mysqli->query($query);
+        $this->checkConnection();
         try {
-            $this->mysqli->query($query);
-            return array('query' => $query, 'error' => $this->mysqli->error, 'errno' => $this->mysqli->errno);
+            $runQuery = $this->mysqli->query($query);
+            if ($runQuery) {
+                return TRUE;
+            } else {
+                error_log("DB Query Error: " . $this->mysqli->error . " | Query: " . $query);
+                return FALSE;
+            }
         } catch (\Throwable $th) {
-            return array('query' => $query, 'error' => $this->mysqli->error, 'errno' => $this->mysqli->errno);
+            error_log("DB Query Exception: " . $th->getMessage() . " | Query: " . $query);
+            return FALSE;
         }
     }
+
+    // ===== TRANSACTION METHODS =====
+    
+    public function beginTransaction()
+    {
+        $this->checkConnection();
+        try {
+            $result = $this->mysqli->begin_transaction();
+            if (!$result) {
+                error_log("DB Transaction Error: Failed to begin transaction - " . $this->mysqli->error);
+            }
+            return $result;
+        } catch (\Throwable $th) {
+            error_log("DB Transaction Exception: " . $th->getMessage());
+            return false;
+        }
+    }
+
+    public function commit()
+    {
+        try {
+            $result = $this->mysqli->commit();
+            if (!$result) {
+                error_log("DB Commit Error: Failed to commit transaction - " . $this->mysqli->error);
+            }
+            return $result;
+        } catch (\Throwable $th) {
+            error_log("DB Commit Exception: " . $th->getMessage());
+            return false;
+        }
+    }
+
+    public function rollback()
+    {
+        try {
+            $result = $this->mysqli->rollback();
+            if (!$result) {
+                error_log("DB Rollback Error: Failed to rollback transaction - " . $this->mysqli->error);
+            }
+            return $result;
+        } catch (\Throwable $th) {
+            error_log("DB Rollback Exception: " . $th->getMessage());
+            return false;
+        }
+    }
+
+    // ===== END TRANSACTION METHODS =====
 
     public function innerJoin1($table, $tb_join, $join_where)
     {

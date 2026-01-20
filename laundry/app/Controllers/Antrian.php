@@ -414,60 +414,88 @@ class Antrian extends Controller
          exit();
       }
 
-      $setOne = "id_penjualan = '" . $penjualan . "' AND jenis_operasi = " . $operasi;
-      $where = $this->wCabang . " AND " . $setOne;
-
-      $data_main = $this->db(0)->count_where('operasi', $where);
-
-      if ($data_main < 1) {
-         $data = [
-            'id_operasi' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
-            'id_cabang' => $this->id_cabang,
-            'id_penjualan' => $penjualan,
-            'jenis_operasi' => $operasi,
-            'id_user_operasi' => $karyawan,
-            'insertTime' => $GLOBALS['now']
-         ];
-         $in = $this->db(0)->insert('operasi', $data);
-         if ($in['errno'] <> 0) {
-            $this->model('Log')->write("[operasi] Insert Operasi Error: " . $in['error']);
-            echo $in['error'];
-            exit();
-         }
-      } else {
-         $this->model('Log')->write("[operasi] Operasi already exists: " . $penjualan . " - " . $operasi);
+      // ===== START TRANSACTION =====
+      // Insert operasi dan notif harus atomic (all or nothing)
+      if (!$this->db(0)->beginTransaction()) {
+         $this->model('Log')->write("[operasi] CRITICAL: Failed to start transaction for: " . $penjualan);
+         echo json_encode(['error' => 1, 'msg' => 'Gagal memulai transaction']);
+         exit();
       }
-
-      //INSERT NOTIF SELESAI TAPI NOT READY
-      $time = date('Y-m-d H:i:s');
-
-      $whereNotif = $this->wCabang . " AND no_ref = '" . $penjualan . "' AND tipe = 2";
-      $data_main = $this->db(0)->count_where('notif', $whereNotif);
+      $this->model('Log')->write("[operasi] Transaction started for: " . $penjualan);
       
-      $this->model('Log')->write("[operasi] Check existing notif - Where: " . $whereNotif . " | Count: " . $data_main);
-      
-      if ($data_main < 1) {
-         $notifData = [
-            'id_notif' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
-            'insertTime' => $time,
-            'id_cabang' => $this->id_cabang,
-            'no_ref' => $penjualan,
-            'phone' => $hp,
-            'text' => $text,
-            'state' => 'pending',
-            'tipe' => 2
-         ];
+      try {
+         $setOne = "id_penjualan = '" . $penjualan . "' AND jenis_operasi = " . $operasi;
+         $where = $this->wCabang . " AND " . $setOne;
+
+         $data_main = $this->db(0)->count_where('operasi', $where);
+
+         $operasiInserted = false;
+         if ($data_main < 1) {
+            $data = [
+               'id_operasi' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
+               'id_cabang' => $this->id_cabang,
+               'id_penjualan' => $penjualan,
+               'jenis_operasi' => $operasi,
+               'id_user_operasi' => $karyawan,
+               'insertTime' => $GLOBALS['now']
+            ];
+            $in = $this->db(0)->insert('operasi', $data);
+            if ($in['errno'] <> 0) {
+               throw new Exception("Insert Operasi Error: " . $in['error']);
+            }
+            $operasiInserted = true;
+            $this->model('Log')->write("[operasi] Insert Operasi Success - ID: " . $data['id_operasi']);
+         } else {
+            $this->model('Log')->write("[operasi] Operasi already exists: " . $penjualan . " - " . $operasi);
+         }
+
+         //INSERT NOTIF SELESAI TAPI NOT READY
+         $time = date('Y-m-d H:i:s');
+
+         $whereNotif = $this->wCabang . " AND no_ref = '" . $penjualan . "' AND tipe = 2";
+         $data_main = $this->db(0)->count_where('notif', $whereNotif);
          
-         $this->model('Log')->write("[operasi] Attempting insert notif - Phone: " . $hp . " | Ref: " . $penjualan);
+         $this->model('Log')->write("[operasi] Check existing notif - Where: " . $whereNotif . " | Count: " . $data_main);
          
-          $do = $this->db(0)->insert('notif', $notifData);
-          if ($do['errno'] <> 0) {
-             $this->model('Log')->write("[operasi] Insert Notif Error: " . $do['error'] . " | Phone: " . $hp);
-          } else {
-             $this->model('Log')->write("[operasi] Insert Notif Success - ID: " . $notifData['id_notif'] . " | Phone: " . $hp . " | State: pending");
-          }
-      } else {
-         $this->model('Log')->write("[operasi] WARNING: Notif already exists - skipped insert for: " . $penjualan);
+         $notifInserted = false;
+         if ($data_main < 1) {
+            $notifData = [
+               'id_notif' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9) . rand(0, 9),
+               'insertTime' => $time,
+               'id_cabang' => $this->id_cabang,
+               'no_ref' => $penjualan,
+               'phone' => $hp,
+               'text' => $text,
+               'state' => 'pending',
+               'tipe' => 2
+            ];
+            
+            $this->model('Log')->write("[operasi] Attempting insert notif - Phone: " . $hp . " | Ref: " . $penjualan);
+            
+            $do = $this->db(0)->insert('notif', $notifData);
+            if ($do['errno'] <> 0) {
+               throw new Exception("Insert Notif Error: " . $do['error']);
+            }
+            $notifInserted = true;
+            $this->model('Log')->write("[operasi] Insert Notif Success - ID: " . $notifData['id_notif'] . " | Phone: " . $hp . " | State: pending");
+         } else {
+            $this->model('Log')->write("[operasi] WARNING: Notif already exists - skipped insert for: " . $penjualan);
+         }
+         
+         // ===== COMMIT TRANSACTION =====
+         if (!$this->db(0)->commit()) {
+            throw new Exception("Failed to commit transaction");
+         }
+         $this->model('Log')->write("[operasi] Transaction committed successfully - Operasi: " . ($operasiInserted ? 'inserted' : 'skipped') . " | Notif: " . ($notifInserted ? 'inserted' : 'skipped'));
+         
+      } catch (Exception $e) {
+         // ===== ROLLBACK TRANSACTION =====
+         $rollbackSuccess = $this->db(0)->rollback();
+         $error_msg = "[operasi] CRITICAL: Transaction FAILED and " . ($rollbackSuccess ? "ROLLED BACK" : "ROLLBACK FAILED") . " - Error: " . $e->getMessage() . " | Ref: " . $penjualan;
+         $this->model('Log')->write($error_msg);
+         
+         echo json_encode(['error' => 1, 'msg' => 'Gagal menyimpan data: ' . $e->getMessage()]);
+         exit();
       }
 
       if (isset($_POST['rak'])) {

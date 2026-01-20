@@ -484,7 +484,7 @@ class WAReplies
                     $listIdPenjualan = []; // Items still in progress (belum ada notif selesai)
                     $listIdSelesai = [];   // Items already completed (sudah ada notif selesai)
                     foreach ($noRefs as $noRef) {
-                        $get_penjualan = $db1->query("SELECT id_penjualan, id_pelanggan FROM sale WHERE id_user_ambil = 0 AND bin = 0 AND tuntas = 0 AND no_ref = '$noRef'")->result_array();
+                        $get_penjualan = $db1->query("SELECT id_penjualan, id_pelanggan, letak FROM sale WHERE id_user_ambil = 0 AND bin = 0 AND tuntas = 0 AND no_ref = '$noRef'")->result_array();
                         $id_penjualans = array_column($get_penjualan, 'id_penjualan');
                         $id_pelanggans = array_column($get_penjualan, 'id_pelanggan');
 
@@ -496,15 +496,35 @@ class WAReplies
 
                         // Get id_penjualan that already have notif tipe 2
                         $existingNotifIds = !empty($id_penjualans) ? array_column($db1->query("SELECT no_ref FROM notif WHERE tipe = 2 AND no_ref IN ($id_penjualans_in)")->result_array(), 'no_ref') : [];
-                        // Items still in progress (belum ada notif)
-                        $sisaIDPenjualan = array_diff($id_penjualans, $existingNotifIds);
-                        if (count($sisaIDPenjualan) > 0) {
-                            array_push($listIdPenjualan, $sisaIDPenjualan);
+                        
+                        // Check each sale item: Selesai = ada notif tipe 2 DAN letak sudah terisi
+                        $completedWithLocation = [];
+                        $inProgressItems = [];
+                        
+                        foreach ($get_penjualan as $sale) {
+                            $id_penjualan = $sale['id_penjualan'];
+                            $letak = $sale['letak'] ?? '';
+                            
+                            $hasNotif = in_array($id_penjualan, $existingNotifIds);
+                            $hasLocation = !empty(trim($letak));
+                            
+                            // Selesai: ada notif DAN letak sudah terisi
+                            if ($hasNotif && $hasLocation) {
+                                $completedWithLocation[] = $id_penjualan;
+                            } else {
+                                // Dalam Pengerjaan: tidak ada notif ATAU letak masih kosong
+                                $inProgressItems[] = $id_penjualan;
+                            }
+                        }
+                        
+                        // Items still in progress
+                        if (count($inProgressItems) > 0) {
+                            array_push($listIdPenjualan, $inProgressItems);
                         }
 
-                        // Items already completed (sudah ada notif)
-                        if (count($existingNotifIds) > 0) {
-                            array_push($listIdSelesai, $existingNotifIds);
+                        // Items already completed (ada notif DAN letak terisi)
+                        if (count($completedWithLocation) > 0) {
+                            array_push($listIdSelesai, $completedWithLocation);
                         }
                     }
 

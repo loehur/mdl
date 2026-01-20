@@ -483,4 +483,62 @@ class DB extends \DBC
     {
         return $this->mysqli;
     }
+
+    // ===== TRANSACTION METHODS =====
+    
+    /**
+     * Begin database transaction
+     * @return bool Success status
+     */
+    public function beginTransaction()
+    {
+        try {
+            $result = $this->mysqli->begin_transaction();
+            if (!$result) {
+                error_log("DB Transaction Error: Failed to begin transaction - " . $this->mysqli->error);
+            }
+            return $result;
+        } catch (\Throwable $th) {
+            error_log("DB Transaction Exception: " . $th->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Commit database transaction
+     * @return bool Success status
+     */
+    public function commit()
+    {
+        try {
+            $result = $this->mysqli->commit();
+            if (!$result) {
+                error_log("DB Commit Error: Failed to commit transaction - " . $this->mysqli->error);
+            }
+            return $result;
+        } catch (\Throwable $th) {
+            error_log("DB Commit Exception: " . $th->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Rollback database transaction
+     * @return bool Success status
+     */
+    public function rollback()
+    {
+        try {
+            $result = $this->mysqli->rollback();
+            if (!$result) {
+                error_log("DB Rollback Error: Failed to rollback transaction - " . $this->mysqli->error);
+            }
+            return $result;
+        } catch (\Throwable $th) {
+            error_log("DB Rollback Exception: " . $th->getMessage());
+            return false;
+        }
+    }
+
+    // ===== END TRANSACTION METHODS =====
 }
