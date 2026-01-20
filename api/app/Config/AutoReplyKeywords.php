@@ -41,19 +41,22 @@ return [
          '/^\s*(je*m*pu*t|anta*r)\s*$/i',
       ],
       'ai_prompt' => "User MEMINTA KURIR/LAUNDRY untuk datang JEMPUT atau ANTAR, ATAU menanyakan ONGKIR.\n
-      TRUE (MINTA JEMPUT/ANTAR) - HARUS ADA PERMINTAAN/PERTANYAAN:\n
+      TRUE (MINTA JEMPUT/ANTAR) - HARUS ADA KATA PERMINTAAN/PERTANYAAN:\n
+      - Kata kunci: tolong/minta/bisa/boleh/dong/kapan/berapa + jemput/antar\n
       - tolong jemput, minta dijemput, bisa diantar?, boleh dijemput?, kapan diantar?\n
       - bisa jemput kak?, nanti bisa jemput kak?, jemput dong, antar ya dong\n
       - brp ongkirnya?, berapa ongkosnya?, brp ong nya kak?, biaya antar?\n
-      - Harus ada kata: tolong/minta/bisa/boleh/dong/kapan/berapa + jemput/antar\n
       \n
-      FALSE (BUKAN MINTA JEMPUT/ANTAR):\n
+      FALSE (BUKAN MINTA JEMPUT/ANTAR) - SANGAT PENTING:\n
+      - User yang akan MENGAMBIL SENDIRI: | mau jemput | saya jemput | aku ambil | awak jemput | nanti saya jemput |\n
       - Konfirmasi/Pemberitahuan: | baik nanti dijemput | ok sore diantar | iya nanti akan dijemput | siap dijemput |\n
-      - User sendiri yang akan melakukan: | saya jemput | aku ambil | mau jemput | awak jemput |\n
       - Hanya memberitahu jadwal tanpa permintaan: | nanti sore dijemput | besok diantar | jam 2 dijemput |\n
-      - Contoh: 'Baikla nnti sore dijemput ya kak' => FALSE (ini konfirmasi, bukan permintaan)\n
-      - Contoh: 'Ok dijemput ya' => FALSE (ini konfirmasi)\n
-      - Contoh: 'Saya jemput nanti' => FALSE"
+      - CRITICAL: 'Mau jemput' = User SENDIRI yang akan mengambil = FALSE\n
+      - CRITICAL: Jika TIDAK ada kata tolong/minta/bisa/boleh/dong/kapan/ = FALSE\n
+      - Contoh FALSE: 'Mau jemput,jgn tutup dlu' (user akan ambil sendiri, bukan minta kurir)\n
+      - Contoh FALSE: 'Baikla nnti sore dijemput ya kak' (ini konfirmasi)\n
+      - Contoh FALSE: 'Ok dijemput ya' (ini konfirmasi)\n
+      - Contoh FALSE: 'Saya jemput nanti' (user akan ambil sendiri)"
    ],
 
     'PERMINTAAN' => [
@@ -74,7 +77,8 @@ return [
         FALSE jika:\n
         - Hanya sapaan: 'halo' tanpa permintaan\n
         - Hanya tanya status: 'kapan siap?' tanpa instruksi khusus\n
-        - Minta jemput/antar: 'tolong jemput' (ini MINTA_JEMPUT_ANTAR)"
+        - Minta jemput/antar: 'tolong jemput' (ini MINTA_JEMPUT_ANTAR)\n
+        - Pemberitahuan singkat: 'Mau jemput,jgn tutup dlu' (terlalu singkat/informal)"
     ],
 
     'JAM_OPERASIONAL' => [
