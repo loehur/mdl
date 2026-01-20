@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <link rel="icon" href="<?= URL::ASSET_URL ?>icon/logo.png">
-    <title><?= URL::APP_SNAME ?></title>
+    <title><?= URL::APP_NAME ?></title>
     <meta name="viewport" content="width=410, user-scalable=no">
     <script src="<?= URL::ASSETS_URL ?>js/jquery-3.6.0.min.js"></script>
     <link rel="stylesheet" href="<?= URL::ASSETS_URL ?>plugins/bootstrap-5.3/css/bootstrap.min.css">
@@ -139,7 +139,7 @@
 <body class="login-page small" style="min-height: 496.781px;">
     <div class="login-box">
         <div class="login-logo">
-            <a href="#">MDL <span class="text-success"><?= URL::APP_SNAME ?></span></a><br>
+            <a href="#">MDL <span class="text-success"><?= URL::APP_NAME ?></span></a><br>
         </div>
         <!-- /.login-logo -->
         <div class="card border border-success rounded">

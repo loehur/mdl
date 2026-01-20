@@ -202,7 +202,7 @@ class Login extends Controller
          } else {
             $otp = rand(0, 9) . rand(0, 9) . rand(0, 9) . rand(0, 9);
             $otp_enc = $this->model("Enc")->otp($otp);
-            $text = $otp . " (" . $cek['nama_user'] . ") - " . URL::APP_SNAME;
+            $text = $otp . " (" . $cek['nama_user'] . ") - " . URL::APP_NAME;
             $hp = $cek['no_user'];
 
             $res = $this->model('WA_YCloud')->send($hp, $text);
