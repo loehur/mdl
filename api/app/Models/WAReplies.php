@@ -1124,14 +1124,13 @@ class WAReplies
                 return;
             }
 
-            // Call OpenAI API to get organization costs
-            $url = 'https://api.openai.com/v1/organization/costs';
+            // Call OpenAI API to list models (simpler endpoint to verify API key)
+            $url = 'https://api.openai.com/v1/models';
             
             $ch = curl_init($url);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_HTTPHEADER, [
                 'Authorization: Bearer ' . $apiKey,
-                'Content-Type: application/json'
             ]);
             curl_setopt($ch, CURLOPT_TIMEOUT, 15);
             
@@ -1150,23 +1149,26 @@ class WAReplies
 
             $data = json_decode($response, true);
 
+            // Debug: Log actual response
+            \Log::write("OpenAI Response - HTTP: $httpCode | Data: " . json_encode($data), 'wa_error', 'OpenAI');
+
             if ($httpCode === 200 && isset($data['data'])) {
-                // Format response
-                $costs = $data['data'];
+                // API key valid, count available models
+                $modelCount = count($data['data']);
                 
-                // Get current month's cost (assuming first item is current period)
-                if (!empty($costs) && isset($costs[0]['amount'])) {
-                    $currentCost = $costs[0]['amount'];
-                    $totalCost = $currentCost['total'] ?? 0;
-                    
-                    $text = "*OpenAI Usage*\n";
-                    $text .= "Total: $" . number_format($totalCost, 2);
-                } else {
-                    $text = "*OpenAI Usage*\nNo cost data available.";
-                }
+                // Find GPT-4 models
+                $gpt4Models = array_filter($data['data'], function($model) {
+                    return stripos($model['id'], 'gpt-4') !== false;
+                });
+                
+                $text = "*OpenAI API Status*\n";
+                $text .= "✅ Connected\n";
+                $text .= "Models: " . $modelCount . "\n";
+                $text .= "GPT-4: " . count($gpt4Models) . " models\n";
+                $text .= "\nCurrent: " . \App\Config\AI::getOpenAIModel();
             } else {
                 $errorMsg = $data['error']['message'] ?? 'Unknown error';
-                $text = "Failed: " . $errorMsg;
+                $text = "Failed: " . $errorMsg . "\nHTTP: " . $httpCode;
             }
 
             $waService->sendFreeText($waNumber, $text);
