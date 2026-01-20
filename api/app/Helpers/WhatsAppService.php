@@ -544,7 +544,7 @@ class WhatsAppService
         $localId = null;
         if ($success && isset($responseData['id'])) {
             try {
-                $localId = $this->saveOutboundMessage($payload, $responseData, $messageText, $senderCode);
+                $localId = $this->saveOutboundMessage($payload, $responseData, $messageText, $senderCode, $replyToMessageId);
             } catch (\Throwable $e) {
                 if (class_exists('\Log')) {
                     \Log::write("!! EXCEPTION saving outbound: " . $e->getMessage(), 'wa_error', 'SaveOutbound');
@@ -576,8 +576,9 @@ class WhatsAppService
      * @param array $response API response
      * @param string|null $messageText Optional pre-rendered message text (for templates)
      * @param string|null $senderCode Sender code
+     * @param string|null $quotedMessageId Quoted/reply-to message ID
      */
-    private function saveOutboundMessage($payload, $response, $messageText = null, $senderCode = null)
+    private function saveOutboundMessage($payload, $response, $messageText = null, $senderCode = null, $quotedMessageId = null)
     {       
         // Wrap everything in try-catch to prevent breaking the main flow
         try {
@@ -711,6 +712,22 @@ class WhatsAppService
             // Conversation ID check removed as we don't use ID anymore
             
             
+            // Try to get quoted message content if quotedMessageId is provided
+            $quotedMessageBody = null;
+            if ($quotedMessageId) {
+                // Try from wa_messages_in first
+                $quotedMsg = $db->get_where('wa_messages_in', ['wamid' => $quotedMessageId])->row();
+                if ($quotedMsg) {
+                    $quotedMessageBody = $quotedMsg->text ?? $quotedMsg->media_caption ?? null;
+                } else {
+                    // Try from wa_messages_out
+                    $quotedMsg = $db->get_where('wa_messages_out', ['wamid' => $quotedMessageId])->row();
+                    if ($quotedMsg) {
+                        $quotedMessageBody = $quotedMsg->content ?? null;
+                    }
+                }
+            }
+            
             // Save outbound message to wa_messages_out
             $messageData = [
                 // 'conversation_id' => $conversationId, // Removed as column deleted
@@ -722,6 +739,8 @@ class WhatsAppService
                 'template_params' => $templateParams,
                 'media_url' => $mediaUrl,
                 'sender_code' => $senderCode, // Changed from initial to sender_code
+                'quoted_message_id' => $quotedMessageId, // Reply-to message reference
+                'quoted_message_body' => $quotedMessageBody, // Quoted message content
                 'status' => 'accepted', // Initial status when API accepted
                 'created_at' => date('Y-m-d H:i:s')
             ];
@@ -762,6 +781,8 @@ class WhatsAppService
                             'type' => $messageType,
                             'media_url' => $mediaUrl,
                             'sender_code' => $senderCode,
+                            'quoted_message_id' => $quotedMessageId, // Reply-to reference
+                            'quoted_message_body' => $quotedMessageBody, // Quoted message content
                             'time' => date('Y-m-d H:i:s'),
                             'status' => 'sent'
                         ]

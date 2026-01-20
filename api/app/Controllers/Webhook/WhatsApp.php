@@ -124,10 +124,36 @@ class WhatsApp extends Controller
         
         // Extract context (quoted/reply-to message)
         $quotedMessageId = null;
-        if (isset($msg['context']['message_id'])) {
-            $quotedMessageId = $msg['context']['message_id'];
-        } elseif (isset($msg['context']['id'])) {
-            $quotedMessageId = $msg['context']['id'];
+        $quotedMessageBody = null;
+        $quotedMessageFrom = null;
+        
+        if (isset($msg['context'])) {
+            // Extract quoted message ID
+            if (isset($msg['context']['message_id'])) {
+                $quotedMessageId = $msg['context']['message_id'];
+            } elseif (isset($msg['context']['id'])) {
+                $quotedMessageId = $msg['context']['id'];
+            }
+            
+            // Extract quoted message sender (from field in context)
+            if (isset($msg['context']['from'])) {
+                $quotedMessageFrom = $msg['context']['from'];
+            }
+            
+            // Try to get quoted message content from database
+            if ($quotedMessageId) {
+                // Try from wa_messages_in first
+                $quotedMsg = $db->get_where('wa_messages_in', ['wamid' => $quotedMessageId])->row();
+                if ($quotedMsg) {
+                    $quotedMessageBody = $quotedMsg['text'] ?? $quotedMsg['media_caption'] ?? null;
+                } else {
+                    // Try from wa_messages_out
+                    $quotedMsg = $db->get_where('wa_messages_out', ['wamid' => $quotedMessageId])->row();
+                    if ($quotedMsg) {
+                        $quotedMessageBody = $quotedMsg['text_body'] ?? null;
+                    }
+                }
+            }
         }
 
         if (!$waNumber) {
@@ -323,6 +349,7 @@ class WhatsApp extends Controller
             'message_id' => $messageId,
             'wamid' => $wamid,
             'quoted_message_id' => $quotedMessageId, // Reply-to message reference
+            'quoted_message_body' => $quotedMessageBody, // Quoted message content
             'contact_name' => $contact_name,
             'status' => $status,
             'created_at' => date('Y-m-d H:i:s'),
@@ -405,6 +432,8 @@ class WhatsApp extends Controller
                         'media_url' => $mediaUrl,
                         'caption' => $mediaCaption,
                         'quoted_message_id' => $quotedMessageId, // Reply-to reference
+                        'quoted_message_body' => $quotedMessageBody, // Quoted message content
+                        'quoted_message_from' => $quotedMessageFrom, // Quoted message sender
                         'time' => date('Y-m-d H:i:s'),
                     ],
                     // Target ID logic: if assigned, send to agent. Else '0' (Broadcast)? 
