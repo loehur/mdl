@@ -261,10 +261,6 @@ const fetchConversations = async () => {
 
     // Backend returns "status": true, not "success"
     if (result.status && Array.isArray(result.data)) {
-      if (result.data.length === 0) {
-        console.log("API returned 0 conversations.");
-      }
-
       // SMART MERGE STRATEGY
       // 1. Create Map of existing convos
       const existingMap = new Map(conversations.value.map((c) => [c.id, c]));
@@ -398,16 +394,10 @@ const fetchConversations = async () => {
         });
 
         if (target) {
-          console.log("✅ Auto-opening chat from deep link:", target.name);
           pendingTargetPhone.value = null; // Clear it first to prevent re-triggering
 
           // Use selectChat to properly load messages from API
           selectChat(target.id);
-        } else {
-          console.log(
-            "⚠️ Deep link target not found in list (yet):",
-            pendingTargetPhone.value
-          );
         }
       }
     } else {
@@ -438,7 +428,6 @@ const fetchUserRole = async () => {
 
       currentUserRole.value = role;
       localStorage.setItem("cms_chat_role", role);
-      console.log("User Role Detected:", role);
     }
   } catch (e) {
     console.error("Failed to fetch roles:", e);
@@ -454,19 +443,14 @@ const oneSignalLogin = (userId) => {
     // For WebView: Call Android interface if available
     if (window.OneSignalInterface) {
       window.OneSignalInterface.login(uppercaseUserId);
-      console.log("OneSignal: Logged in via Android interface:", uppercaseUserId);
     }
     // For Web: Use OneSignal Web SDK if available
     else if (window.OneSignalDeferred) {
       window.OneSignalDeferred.push(async function (OneSignal) {
         await OneSignal.login(uppercaseUserId);
-        console.log("OneSignal: Logged in via Web SDK:", uppercaseUserId);
       });
     } else if (window.OneSignal) {
       window.OneSignal.login(uppercaseUserId);
-      console.log("OneSignal: Logged in:", uppercaseUserId);
-    } else {
-      console.log("OneSignal: Not available (running in browser without SDK)");
     }
   } catch (e) {
     console.error("OneSignal login error:", e);
@@ -478,19 +462,14 @@ const oneSignalLogout = () => {
     // For WebView: Call Android interface if available
     if (window.OneSignalInterface) {
       window.OneSignalInterface.logout();
-      console.log("OneSignal: Logged out via Android interface");
     }
     // For Web: Use OneSignal Web SDK if available
     else if (window.OneSignalDeferred) {
       window.OneSignalDeferred.push(async function (OneSignal) {
         await OneSignal.logout();
-        console.log("OneSignal: Logged out via Web SDK");
       });
     } else if (window.OneSignal) {
       window.OneSignal.logout();
-      console.log("OneSignal: Logged out");
-    } else {
-      console.log("OneSignal: Not available (running in browser without SDK)");
     }
   } catch (e) {
     console.error("OneSignal logout error:", e);
@@ -965,25 +944,15 @@ const sanitizeMessages = (messages) => {
 const fetchMessages = async (phone, offset = 0, limit = 20) => {
   try {
     // Add cache buster
-    const url = `${API_BASE}/CRM/Chat/getMessages?phone=${phone}&offset=${offset}&limit=${limit}&_t=${Date.now()}`;
-    console.log('📤 Fetching messages:', { phone, offset, limit, url });
-    
-    const response = await fetch(url);
+    const response = await fetch(
+      `${API_BASE}/CRM/Chat/getMessages?phone=${phone}&offset=${offset}&limit=${limit}&_t=${Date.now()}`
+    );
     const result = await response.json();
-    
-    console.log('📥 Backend response:', result);
 
     if (result.status) {
       // Handle both old format (array) and new format (object with messages)
       const messagesData = Array.isArray(result.data) ? result.data : (result.data?.messages || []);
       const hasMore = result.data?.has_more ?? false;
-      
-      console.log('✅ Parsed:', {
-        messageCount: messagesData.length,
-        hasMore,
-        offset: result.data?.offset,
-        total_returned: result.data?.total_returned
-      });
       
       const mappedMessages = messagesData.map((m) => ({
         id: m.id,
@@ -1021,75 +990,27 @@ const fetchMessages = async (phone, offset = 0, limit = 20) => {
 
 // Load more messages (for infinite scroll)
 const loadMoreMessages = async () => {
-  console.log('🔄 ========== loadMoreMessages called ==========');
-  console.log('📋 Entry checks:', {
-    hasActiveConversation: !!activeConversation.value,
-    isLoadingMoreMessages: isLoadingMoreMessages.value,
-    hasMoreMessages: activeConversation.value?.hasMoreMessages,
-    currentMessageCount: activeConversation.value?.messages?.length,
-    currentOffset: activeConversation.value?.messageOffset
-  });
+  if (!activeConversation.value || isLoadingMoreMessages.value) return;
+  if (!activeConversation.value.hasMoreMessages) return;
   
-  if (!activeConversation.value) {
-    console.log('❌ No active conversation');
-    return;
-  }
-  
-  if (isLoadingMoreMessages.value) {
-    console.log('⏳ Already loading... (isLoadingMoreMessages = true)');
-    return;
-  }
-  
-  if (!activeConversation.value.hasMoreMessages) {
-    console.log('🚫 No more messages to load (hasMoreMessages = false)');
-    return;
-  }
-  
-  console.log('✅ All checks passed, starting to load more messages...');
   isLoadingMoreMessages.value = true;
   
   try {
     const offset = activeConversation.value.messageOffset || activeConversation.value.messages.length;
-    console.log(`📊 Current state:`, {
-      phone: activeConversation.value.wa_number,
-      currentMessages: activeConversation.value.messages.length,
-      offset,
-      hasMoreMessages: activeConversation.value.hasMoreMessages
-    });
-    
     const result = await fetchMessages(activeConversation.value.wa_number, offset, 20);
     
-    console.log(`📦 Load result:`, {
-      newMessages: result.messages.length,
-      has_more: result.has_more
-    });
-    
     if (result.messages.length > 0) {
-      const oldLength = activeConversation.value.messages.length;
-      
       // Prepend older messages to the beginning
       activeConversation.value.messages = [...result.messages, ...activeConversation.value.messages];
       activeConversation.value.hasMoreMessages = result.has_more;
       activeConversation.value.messageOffset = offset + result.messages.length;
-      
-      console.log(`✅ SUCCESS! Loaded ${result.messages.length} more messages`);
-      console.log(`📊 New state:`, {
-        oldLength,
-        newLength: activeConversation.value.messages.length,
-        difference: activeConversation.value.messages.length - oldLength,
-        has_more: result.has_more,
-        new_offset: activeConversation.value.messageOffset
-      });
     } else {
-      console.log('⚠️ No new messages returned, setting hasMoreMessages = false');
       activeConversation.value.hasMoreMessages = false;
     }
   } catch (e) {
-    console.error("❌ Error loading more messages:", e);
+    console.error("Error loading more messages:", e);
   } finally {
     isLoadingMoreMessages.value = false;
-    console.log('✓ Loading complete, isLoadingMoreMessages set to false');
-    console.log('🏁 ========== loadMoreMessages finished ==========\n');
   }
 };
 
@@ -1142,7 +1063,6 @@ const markAsDone = async () => {
     if (res.status) {
       // Update local cases
       activeConversation.value.cases = [{ case: 0 }];
-      console.log("✓ Conversation marked as done");
 
       // ℹ️ SSE will broadcast update to all other clients automatically!
       // No manual refresh needed - real-time magic! ✨
@@ -1195,7 +1115,6 @@ const checkPayment = async () => {
       ) {
         activeConversation.value.cases.push({ case: 1, status: "open" });
       }
-      console.log("✓ Conversation marked for payment check");
     } else {
       console.error("Failed to mark for payment check:", res.message);
     }
@@ -1245,7 +1164,6 @@ const pickupDelivery = async () => {
       ) {
         activeConversation.value.cases.push({ case: 2, status: "open" });
       }
-      console.log("✓ Conversation marked for pickup/delivery");
     } else {
       console.error("Failed to mark for pickup/delivery:", res.message);
     }
@@ -1295,7 +1213,6 @@ const requestPriority = async () => {
       ) {
         activeConversation.value.cases.push({ case: 3, status: "open" });
       }
-      console.log("✓ Conversation marked as request");
     } else {
       console.error("Failed to mark as request:", res.message);
     }
@@ -1343,7 +1260,6 @@ const followUp = async () => {
       ) {
         activeConversation.value.cases.push({ case: 4, status: "open" });
       }
-      console.log("✓ Conversation marked for follow up");
     } else {
       console.error("Failed to mark for follow up:", res.message);
     }
@@ -1379,7 +1295,6 @@ const reopenConversation = async () => {
     if (res.status) {
       // Update local cases
       activeConversation.value.cases = [{ case: 4 }];
-      console.log("✓ Conversation reopened - needs attention");
     } else {
       console.error("Failed to reopen conversation:", res.message);
     }
@@ -1415,7 +1330,6 @@ const resolveCase = async (caseId) => {
         );
       }
       showResolveMenu.value = false;
-      console.log("Case resolved:", caseId);
     }
   } catch (e) {
     console.error("Error resolving case:", e);
@@ -1489,12 +1403,6 @@ const selectChat = async (id, isRefresh = false) => {
         chat.messages = result.messages;
         chat.hasMoreMessages = result.has_more;
         chat.messageOffset = result.messages.length;
-        
-        console.log('💾 Initial messages loaded for:', chat.wa_number, {
-          messageCount: chat.messages.length,
-          hasMoreMessages: chat.hasMoreMessages,
-          messageOffset: chat.messageOffset
-        });
       } finally {
         isLoadingMessages.value = false;
       }
@@ -1546,8 +1454,6 @@ const restoreActiveChatState = () => {
   const savedShowMobile = sessionStorage.getItem("cms_show_mobile_chat");
 
   if (savedChatId && !activeChatId.value) {
-    console.log("🔄 Restoring chat state:", savedChatId);
-
     // Find the conversation
     const target = conversations.value.find(
       (c) => String(c.id) === savedChatId
@@ -1920,7 +1826,7 @@ const openImagePicker = async () => {
       window.FilePickerInterface.openImagePicker();
       return; // Android will call window.onImageSelected with result
     } catch (err) {
-      console.log("Native file picker failed:", err);
+      // Fall through
     }
   }
 
@@ -1947,7 +1853,6 @@ const openImagePicker = async () => {
       }
       return;
     } catch (err) {
-      console.log("Capacitor Camera error:", err);
       // Fall through to file input
     }
   }
@@ -2252,12 +2157,8 @@ const sendImage = async () => {
 };
 
 const handleIncomingMessage = (payload) => {
-  // DEBUG: Log ALL incoming messages to see what we really get
-  console.log("📡 WS Payload:", payload);
-
   // Check if this is a status update
   if (payload.type === "status_update") {
-    console.log("🔄 Status update received:", payload);
     const { conversation_id, message, phone } = payload;
     
     // Find conversation
@@ -2293,8 +2194,6 @@ const handleIncomingMessage = (payload) => {
       );
       
       if (msgIndex !== -1) {
-        console.log(`✅ Message found at index ${msgIndex}, updating status: ${conversation.messages[msgIndex].status} → ${message.status}`);
-        
         // ⚡ CRITICAL FIX: Deep clone to trigger Vue reactivity
         // Step 1: Update message object
         conversation.messages[msgIndex] = {
@@ -2319,7 +2218,7 @@ const handleIncomingMessage = (payload) => {
         
         // Step 6: Force next tick re-render
         nextTick(() => {
-          console.log("✅ Status updated successfully! Trigger incremented:", messageUpdateTrigger.value);
+          // Status updated
         });
       } else {
         // Message not found - may arrive before conversation loaded
@@ -2333,7 +2232,6 @@ const handleIncomingMessage = (payload) => {
   // Handle priority update (Standard)
   if (payload.type === "priority_updated") {
     const { phone, priority } = payload;
-    console.log("[WebSocket] Received priority_updated:", { phone, priority });
 
     const conversation = conversations.value.find((c) => c.wa_number === phone);
 
@@ -2460,15 +2358,6 @@ const handleIncomingMessage = (payload) => {
     quoted_message_from: messageData.quoted_message_from || null, // Quote sender
   };
 
-  // DEBUG: Log every incoming message attempt
-  console.log("[handleIncomingMessage] Processing:", {
-    conversation: conversationId || phone,
-    sender: sender,
-    text: displayText,
-    id: newMsg.id,
-    source: "handleIncomingMessage",
-  });
-
   // Avoid duplicate messages if already present
   // Enhanced check: ID match OR (same sender + same text + within 2 seconds)
   const isDuplicate = conversation.messages.find((m) => {
@@ -2494,12 +2383,6 @@ const handleIncomingMessage = (payload) => {
       const time2 = new Date(newMsg.rawTime || newMsg.time).getTime();
 
       if (!isNaN(time1) && !isNaN(time2) && Math.abs(time1 - time2) < 5000) {
-        console.log(
-          "⚠️ Duplicate detected (fuzzy match):",
-          newMsg.id,
-          "matches existing:",
-          m.id
-        );
         return true;
       }
     }
@@ -2508,7 +2391,6 @@ const handleIncomingMessage = (payload) => {
   });
 
   if (!isDuplicate) {
-    console.log("✓ Adding message to conversation:", newMsg.id);
     // Simply push to array
     conversation.messages.push(newMsg);
 
@@ -2543,11 +2425,9 @@ const handleIncomingMessage = (payload) => {
         sender === "customer" &&
         windowWidth.value >= 768
       ) {
-        console.log("🔔 Auto-opening conversation:", conversation.name);
         selectChat(conversation.id);
       }
     } else {
-      console.log("✓ Chat is visible, scrolling to bottom. Current messages count:", conversation.messages.length);
       scrollToBottom();
       markMessagesRead(conversation.wa_number); // Use phone number, not conversation ID
     }
@@ -2569,7 +2449,6 @@ const handleIncomingMessage = (payload) => {
 // Force disconnect old socket before reconnecting
 const forceDisconnect = () => {
   if (socket.value) {
-    console.log("Force disconnecting old socket...");
     // Remove listeners to prevent 'onclose' from triggering UI changes
     socket.value.onopen = null;
     socket.value.onmessage = null;
@@ -2597,8 +2476,6 @@ const connectWebSocket = () => {
   // Cleanup existing socket to prevent zombies
   forceDisconnect();
 
-  console.log("Connecting to WebSocket with ID:", authId.value);
-
   try {
     // Always connect to Production Server (as per user workflow)
     const wsUrl = `wss://waserver.nalju.com?id=${authId.value.trim()}`;
@@ -2618,7 +2495,6 @@ const connectWebSocket = () => {
       if (socket.value && ws !== socket.value) return;
 
       clearTimeout(connTimeout);
-      console.log("WebSocket connected (awaiting server confirmation...)");
       
       // NOTE: isConnected is NOT set to true here!
       // Server might immediately reject with 1008 after onopen.
@@ -2640,9 +2516,6 @@ const connectWebSocket = () => {
     };
 
     ws.onmessage = (event) => {
-      // DEBUG: Log raw WebSocket data to confirm messages are received
-      console.log("🔌 [WS RAW]", event.data.substring(0, 200));
-      
       try {
         const payload = JSON.parse(event.data);
 
@@ -2677,9 +2550,7 @@ const connectWebSocket = () => {
           if (payload.role) {
             currentUserRole.value = payload.role;
             localStorage.setItem("cms_chat_role", payload.role);
-            console.log("User Role Set:", payload.role);
           }
-          console.log("✅ Connection stable - welcome received");
           return;
         }
 
@@ -2704,8 +2575,6 @@ const connectWebSocket = () => {
         // Handle Case Update (Replaces Priority Update)
         // Handle Case Update
         if (payload.type === "case_updated") {
-          console.log("[WS] case_updated received:", payload);
-
           const normalizePhone = (phone) => {
             if (!phone) return "";
             return phone.toString().replace(/\D/g, "");
@@ -2718,7 +2587,6 @@ const connectWebSocket = () => {
 
           if (conv) {
             const newC = parseInt(payload.case);
-            console.log("✓ Updating case for conversation:", conv.name, newC);
 
             if (!conv.cases) conv.cases = [];
 
@@ -2746,10 +2614,6 @@ const connectWebSocket = () => {
               conv.cases = conv.cases.filter((c) => c.case !== 0);
             }
           } else {
-            console.log(
-              "⚠️ Conversation not found for case update - reloading list:",
-              payload.phone
-            );
             fetchConversations(); // Reload to get new conversation
           }
 
@@ -2757,7 +2621,6 @@ const connectWebSocket = () => {
         }
 
         if (payload.type === "case_resolved") {
-          console.log("[WS] case_resolved received:", payload);
           const normalizePhone = (phone) => {
             if (!phone) return "";
             return phone.toString().replace(/\D/g, "");
@@ -2796,7 +2659,6 @@ const connectWebSocket = () => {
           // Skip if this message was sent by current user (use == for type safety)
           // This prevents the duplicate when server echoes our own message back
           if (senderId == authId.value) {
-            console.log("✓ Ignoring self-broadcast (already in optimistic UI)");
             return;
           }
 
@@ -2826,7 +2688,6 @@ const connectWebSocket = () => {
               existingMessage.status = messageData.status || "sent";
               if (messageData.media_url)
                 existingMessage.media_url = messageData.media_url;
-              console.log("Updated existing message:", existingMessage.id);
               // Don't add as new - already exists
             } else {
               // NEW DEFENSE: Robust Fuzzy Match
@@ -2903,8 +2764,6 @@ const connectWebSocket = () => {
                   : "You: " + messageData.text;
               conversation.lastTime = newMsg.time;
 
-              console.log("Added new message from other device:", newMsg.id);
-
               // Auto-scroll if viewing this conversation
               if (activeChatId.value == conversationId) {
                 scrollToBottom();
@@ -2916,12 +2775,10 @@ const connectWebSocket = () => {
 
         if (payload.type === "wa_masuk") {
           // Real incoming WA message (wrapped format)
-          console.log("📨 [WS] wa_masuk received");
           handleIncomingMessage(payload.data);
         } else if (payload.conversation_id || payload.conversationId) {
           // Direct message format (snake_case or camelCase)
           // This is the format sent directly from server without type wrapper
-          console.log("📨 [WS] Direct message received for conversation:", payload.conversation_id || payload.conversationId);
           handleIncomingMessage(payload);
         }
       } catch (e) {
@@ -3269,7 +3126,6 @@ onMounted(() => {
       
       // ✅ CRITICAL: Fetch messages if not loaded
       if (!conversation.messages || conversation.messages.length === 0) {
-        console.log("📥 Fetching messages for restored chat:", conversation.wa_number);
         fetchMessages(conversation.wa_number).then((result) => {
           conversation.messages = result.messages;
           conversation.hasMoreMessages = result.has_more;
@@ -3277,7 +3133,6 @@ onMounted(() => {
           nextTick(() => scrollToBottom());
         });
       } else {
-        console.log("✅ Messages already loaded, scrolling to bottom");
         nextTick(() => scrollToBottom());
       }
     } else {
@@ -3309,7 +3164,6 @@ onMounted(() => {
   const urlParams = new URLSearchParams(window.location.search);
   const deepLinkPhone = urlParams.get("phone");
   if (deepLinkPhone) {
-    console.log("🔗 Deep link detected for phone:", deepLinkPhone);
     pendingTargetPhone.value = deepLinkPhone;
     // Clean URL silently
     window.history.replaceState({}, document.title, "/");
