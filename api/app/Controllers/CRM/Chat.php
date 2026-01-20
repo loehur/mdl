@@ -21,18 +21,19 @@ class Chat extends Controller
         try {
             $db = $this->db(0);
             
-            // Auto-close expired conversations (CSW timeout > 22 hours)
-            // Rule: If last message was > 22 hours ago, close the session
+            // Auto-close expired conversations (CSW timeout > 24 hours)
+            // Rule: If last message was > 24 hours ago, close the session
             $sqlClose = "UPDATE wa_conversations 
                          SET status = 'closed' WHERE status = 'open' 
-                         AND last_in_at < (NOW() - INTERVAL 23 HOUR)";
+                         AND last_in_at < (NOW() - INTERVAL 24 HOUR)";
             $db->query($sqlClose);
             
             // Auto-delete old messages (older than 30 days)
-            $sqlDeleteIn = "DELETE FROM wa_messages_in WHERE created_at < (NOW() - INTERVAL 30 DAY)";
+            $deleteDays = 90;
+            $sqlDeleteIn = "DELETE FROM wa_messages_in WHERE created_at < (NOW() - INTERVAL $deleteDays DAY)";
             $db->query($sqlDeleteIn);
             
-            $sqlDeleteOut = "DELETE FROM wa_messages_out WHERE created_at < (NOW() - INTERVAL 30 DAY)";
+            $sqlDeleteOut = "DELETE FROM wa_messages_out WHERE created_at < (NOW() - INTERVAL $deleteDays DAY)";
             $db->query($sqlDeleteOut);
 
             // Fetch conversations
@@ -40,8 +41,9 @@ class Chat extends Controller
             // We want 'open' generally, or maybe all active
             // Modified to include kode_cabang from database using local column 'code'
             
+            $limitConversationDays = 14;
             $userId = $_GET['user_id'] ?? null;
-            $whereClause = "c.updated_at >= (NOW() - INTERVAL 14 DAY)";
+            $whereClause = "c.updated_at >= (NOW() - INTERVAL $limitConversationDays DAY)";
             
             // Get user role from database (case-insensitive like Auth.php)
             $isAdmin = false;
@@ -224,7 +226,6 @@ class Chat extends Controller
                      WHERE RIGHT(REPLACE(REPLACE(phone, '+', ''), '-', ''), 10) = ?)
                 ) AS combined_msgs
                 ORDER BY time DESC
-                LIMIT 50
             ) AS latest_msgs
             ORDER BY time ASC
         ";
