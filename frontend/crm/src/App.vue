@@ -2329,6 +2329,7 @@ const handleIncomingMessage = (payload) => {
 
   const newMsg = {
     id: messageData.id || Date.now(),
+    wamid: messageData.wamid, // WhatsApp Message ID
     text: displayText, // Use the safe display text
     type: type,
     media_id: messageData.media_id,
@@ -2347,6 +2348,9 @@ const handleIncomingMessage = (payload) => {
         }),
     rawTime: messageData.time || new Date().toISOString(), // Keep raw timestamp for date separator
     sender_code: messageData.sender_code, // Map sender_code from WebSocket payload
+    quoted_message_id: messageData.quoted_message_id || null, // Quote reference
+    quoted_message_body: messageData.quoted_message_body || null, // Quote content
+    quoted_message_from: messageData.quoted_message_from || null, // Quote sender
   };
 
   // DEBUG: Log every incoming message attempt
@@ -2772,6 +2776,10 @@ const connectWebSocket = () => {
                 }),
                 rawTime: messageData.time,
                 status: messageData.status || "sent",
+                sender_code: messageData.sender_code,
+                quoted_message_id: messageData.quoted_message_id || null,
+                quoted_message_body: messageData.quoted_message_body || null,
+                quoted_message_from: messageData.quoted_message_from || null,
               };
 
               conversation.messages.push(newMsg);

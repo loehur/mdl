@@ -278,6 +278,7 @@ const sendMessage = async () => {
       time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }),
       rawTime: new Date().toISOString(), timestamp: Date.now(), status: "pending",
       quoted_message_id: replyingTo?.wamid || null,
+      quoted_message_body: replyingTo?.text || replyingTo?.caption || null,
       sender_code: props.senderCode || localStorage.getItem("cms_chat_sender_code") || "",
     };
 
@@ -656,11 +657,15 @@ onUnmounted(() => {
                                msg.type === 'image' ? 'p-0 bg-[var(--wa-bubble-incoming)]' : '',
                                msg.sender === 'me' ? 'bg-[var(--wa-bubble-outgoing)] rounded-tr-none' : 'bg-[var(--wa-bubble-incoming)] rounded-tl-none'
                              ]">
-                                  <!-- Reply Quote -->
-                                  <div v-if="msg.quoted_message_id && findQuotedMessage(msg.quoted_message_id)" @click="scrollToMessage(msg.quoted_message_id)" class="bg-black/10 rounded px-2 py-1 mb-1 border-l-2 border-[var(--wa-accent-green)] cursor-pointer">
-                                       <span class="text-[10px] font-bold text-[var(--wa-accent-green)] block">{{ findQuotedMessage(msg.quoted_message_id).sender === 'me' ? 'You' : activeConversation.name }}</span>
-                                       <span class="text-xs truncate block">{{ getMessagePreview(findQuotedMessage(msg.quoted_message_id)) }}</span>
-                                  </div>
+                                 <!-- Reply Quote -->
+                                 <div v-if="msg.quoted_message_id" class="bg-black/10 rounded px-2 py-1 mb-1 border-l-2 border-[var(--wa-accent-green)]" :class="{ 'cursor-pointer': findQuotedMessage(msg.quoted_message_id) }" @click="findQuotedMessage(msg.quoted_message_id) && scrollToMessage(msg.quoted_message_id)">
+                                      <span class="text-[10px] font-bold text-[var(--wa-accent-green)] block">
+                                        {{ findQuotedMessage(msg.quoted_message_id)?.sender === 'me' ? 'You' : (msg.quoted_message_from ? 'Customer' : activeConversation.name) }}
+                                      </span>
+                                      <span class="text-xs truncate block text-[var(--wa-text-secondary)]">
+                                        {{ findQuotedMessage(msg.quoted_message_id) ? getMessagePreview(findQuotedMessage(msg.quoted_message_id)) : (msg.quoted_message_body || 'Message not found') }}
+                                      </span>
+                                 </div>
 
                                   <!-- Image -->
                                   <div v-if="msg.type === 'image'" class="relative max-w-sm">
