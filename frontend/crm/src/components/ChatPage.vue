@@ -551,6 +551,27 @@ watch(() => props.activeConversation?.messages?.length, (newCount, oldCount) => 
   }
 });
 
+// Track if listener is attached
+let scrollListenerAttached = false;
+
+// Watch for chatContainer to become available
+const attachScrollListener = () => {
+  if (chatContainer.value && !scrollListenerAttached) {
+    console.log('✅ Scroll listener attached to chatContainer');
+    chatContainer.value.addEventListener('scroll', handleScroll);
+    scrollListenerAttached = true;
+  }
+};
+
+// Watch for activeConversation changes to attach listener
+watch(() => props.activeConversation, (newVal) => {
+  if (newVal) {
+    nextTick(() => {
+      attachScrollListener();
+    });
+  }
+}, { immediate: true });
+
 onMounted(() => {
     scrollToBottom();
     
@@ -574,14 +595,9 @@ onMounted(() => {
     // Click outside handler to close dropdown menus
     document.addEventListener('click', handleClickOutside);
     
-    // Add scroll listener for infinite scroll (with delay to ensure DOM ready)
+    // Try to attach scroll listener
     nextTick(() => {
-      if (chatContainer.value) {
-        console.log('✅ Scroll listener attached to chatContainer');
-        chatContainer.value.addEventListener('scroll', handleScroll);
-      } else {
-        console.error('❌ chatContainer.value is null, scroll listener NOT attached');
-      }
+      attachScrollListener();
     });
 });
 
@@ -597,8 +613,10 @@ onUnmounted(() => {
     document.removeEventListener('click', handleClickOutside);
     
     // Remove scroll listener
-    if (chatContainer.value) {
+    if (chatContainer.value && scrollListenerAttached) {
+      console.log('🗑️ Removing scroll listener');
       chatContainer.value.removeEventListener('scroll', handleScroll);
+      scrollListenerAttached = false;
     }
 });
 

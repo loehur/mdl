@@ -1021,7 +1021,14 @@ const fetchMessages = async (phone, offset = 0, limit = 20) => {
 
 // Load more messages (for infinite scroll)
 const loadMoreMessages = async () => {
-  console.log('🔄 loadMoreMessages called');
+  console.log('🔄 ========== loadMoreMessages called ==========');
+  console.log('📋 Entry checks:', {
+    hasActiveConversation: !!activeConversation.value,
+    isLoadingMoreMessages: isLoadingMoreMessages.value,
+    hasMoreMessages: activeConversation.value?.hasMoreMessages,
+    currentMessageCount: activeConversation.value?.messages?.length,
+    currentOffset: activeConversation.value?.messageOffset
+  });
   
   if (!activeConversation.value) {
     console.log('❌ No active conversation');
@@ -1029,16 +1036,16 @@ const loadMoreMessages = async () => {
   }
   
   if (isLoadingMoreMessages.value) {
-    console.log('⏳ Already loading...');
+    console.log('⏳ Already loading... (isLoadingMoreMessages = true)');
     return;
   }
   
   if (!activeConversation.value.hasMoreMessages) {
-    console.log('🚫 No more messages to load');
+    console.log('🚫 No more messages to load (hasMoreMessages = false)');
     return;
   }
   
-  console.log('✅ Starting to load more messages...');
+  console.log('✅ All checks passed, starting to load more messages...');
   isLoadingMoreMessages.value = true;
   
   try {
@@ -1058,21 +1065,31 @@ const loadMoreMessages = async () => {
     });
     
     if (result.messages.length > 0) {
+      const oldLength = activeConversation.value.messages.length;
+      
       // Prepend older messages to the beginning
       activeConversation.value.messages = [...result.messages, ...activeConversation.value.messages];
       activeConversation.value.hasMoreMessages = result.has_more;
       activeConversation.value.messageOffset = offset + result.messages.length;
       
-      console.log(`✓ Loaded ${result.messages.length} more messages, has_more: ${result.has_more}, new offset: ${activeConversation.value.messageOffset}`);
+      console.log(`✅ SUCCESS! Loaded ${result.messages.length} more messages`);
+      console.log(`📊 New state:`, {
+        oldLength,
+        newLength: activeConversation.value.messages.length,
+        difference: activeConversation.value.messages.length - oldLength,
+        has_more: result.has_more,
+        new_offset: activeConversation.value.messageOffset
+      });
     } else {
-      console.log('⚠️ No new messages returned');
+      console.log('⚠️ No new messages returned, setting hasMoreMessages = false');
       activeConversation.value.hasMoreMessages = false;
     }
   } catch (e) {
-    console.error("Error loading more messages:", e);
+    console.error("❌ Error loading more messages:", e);
   } finally {
     isLoadingMoreMessages.value = false;
-    console.log('✓ Loading complete');
+    console.log('✓ Loading complete, isLoadingMoreMessages set to false');
+    console.log('🏁 ========== loadMoreMessages finished ==========\n');
   }
 };
 
