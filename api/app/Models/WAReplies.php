@@ -177,7 +177,7 @@ class WAReplies
         if ($aiResult && is_array($aiResult) && isset($aiResult['intent']) && strtoupper($aiResult['intent']) !== 'FALSE') {
             $aiIntent = strtoupper($aiResult['intent']);
             $aiCase = $keywordConfig[$aiIntent]['case'] ?? null;
-            $notify = $keywordConfig[$aiIntent]['notify'] ?? false;
+            $aiNotify = $keywordConfig[$aiIntent]['notify'] ?? false;
 
             // Check if this AI intent was already matched in pattern loop (and rate limited)
             if (in_array($aiIntent, $matchPatterns)) {
@@ -187,8 +187,8 @@ class WAReplies
                 );
                 
                 return (object) [
-                    'case' => null,
-                    'notify' => false,
+                    'case' => $aiCase,
+                    'notify' => $aiNotify,
                     'conversation_id' => $conversationId
                 ];
             }
@@ -203,8 +203,8 @@ class WAReplies
                 );
                 
                 return (object) [
-                    'case' => null,
-                    'notify' => false,
+                    'case' => $aiCase,
+                    'notify' => $aiNotify,
                     'conversation_id' => $conversationId
                 ];
             }
@@ -223,7 +223,7 @@ class WAReplies
 
             return (object) [
                 'case' => $aiCase,
-                'notify' => $notify,
+                'notify' => $aiNotify,
                 'conversation_id' => $conversationId
             ];
         }
