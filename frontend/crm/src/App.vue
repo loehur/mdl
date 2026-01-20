@@ -57,6 +57,7 @@ const navStore = useNavigationStore();
 // Local-only state (not shared)
 let lastBackPress = 0;
 const isLoadingMessages = ref(false);
+const isLoadingMoreMessages = ref(false);
 
 
 
@@ -961,16 +962,20 @@ const sanitizeMessages = (messages) => {
 };
 
 // --- Methods ---
-const fetchMessages = async (phone) => {
+const fetchMessages = async (phone, offset = 0, limit = 20) => {
   try {
     // Add cache buster
     const response = await fetch(
-      `${API_BASE}/CRM/Chat/getMessages?phone=${phone}&_t=${Date.now()}`
+      `${API_BASE}/CRM/Chat/getMessages?phone=${phone}&offset=${offset}&limit=${limit}&_t=${Date.now()}`
     );
     const result = await response.json();
 
-    if (result.status && Array.isArray(result.data)) {
-      const mappedMessages = result.data.map((m) => ({
+    if (result.status) {
+      // Handle both old format (array) and new format (object with messages)
+      const messagesData = Array.isArray(result.data) ? result.data : (result.data?.messages || []);
+      const hasMore = result.data?.has_more ?? false;
+      
+      const mappedMessages = messagesData.map((m) => ({
         id: m.id,
         wamid: m.wamid,
         text: m.text || m.caption,
@@ -993,12 +998,41 @@ const fetchMessages = async (phone) => {
       }));
 
       // Use Centralized Sanitizer
-      return sanitizeMessages(mappedMessages);
+      return {
+        messages: sanitizeMessages(mappedMessages),
+        has_more: hasMore
+      };
     }
   } catch (e) {
     console.error("Error loading messages:", e);
   }
-  return [];
+  return { messages: [], has_more: false };
+};
+
+// Load more messages (for infinite scroll)
+const loadMoreMessages = async () => {
+  if (!activeConversation.value || isLoadingMoreMessages.value) return;
+  if (!activeConversation.value.hasMoreMessages) return;
+  
+  isLoadingMoreMessages.value = true;
+  
+  try {
+    const offset = activeConversation.value.messageOffset || activeConversation.value.messages.length;
+    const result = await fetchMessages(activeConversation.value.wa_number, offset, 20);
+    
+    if (result.messages.length > 0) {
+      // Prepend older messages to the beginning
+      activeConversation.value.messages = [...result.messages, ...activeConversation.value.messages];
+      activeConversation.value.hasMoreMessages = result.has_more;
+      activeConversation.value.messageOffset = offset + result.messages.length;
+      
+      console.log(`✓ Loaded ${result.messages.length} more messages, has_more: ${result.has_more}`);
+    }
+  } catch (e) {
+    console.error("Error loading more messages:", e);
+  } finally {
+    isLoadingMoreMessages.value = false;
+  }
 };
 
 const scrollToBottom = () => {
@@ -1378,12 +1412,14 @@ const selectChat = async (id, isRefresh = false) => {
       scrollToBottom(); // Show cache immediately
       // Background fetch to sync and merge
       // Background fetch to sync and merge
-      fetchMessages(chat.wa_number).then((msgs) => {
-        if (msgs.length > 0) {
+      fetchMessages(chat.wa_number).then((result) => {
+        if (result.messages.length > 0) {
           // Merge simply by combining and then Sanitizing
           // This allows the Healer to work its magic on the combined set
-          const combined = [...chat.messages, ...msgs];
+          const combined = [...chat.messages, ...result.messages];
           chat.messages = sanitizeMessages(combined);
+          chat.hasMoreMessages = result.has_more;
+          chat.messageOffset = result.messages.length;
           scrollToBottom();
         }
       });
@@ -1391,7 +1427,10 @@ const selectChat = async (id, isRefresh = false) => {
       // No cache, wait for fetch
       isLoadingMessages.value = true;
       try {
-        chat.messages = await fetchMessages(chat.wa_number);
+        const result = await fetchMessages(chat.wa_number);
+        chat.messages = result.messages;
+        chat.hasMoreMessages = result.has_more;
+        chat.messageOffset = result.messages.length;
       } finally {
         isLoadingMessages.value = false;
       }
@@ -1458,8 +1497,10 @@ const restoreActiveChatState = () => {
 
       // Re-fetch messages if needed
       if (!target.messages || target.messages.length === 0) {
-        fetchMessages(target.wa_number).then((msgs) => {
-          target.messages = msgs;
+        fetchMessages(target.wa_number).then((result) => {
+          target.messages = result.messages;
+          target.hasMoreMessages = result.has_more;
+          target.messageOffset = result.messages.length;
           scrollToBottom();
         });
       } else {
@@ -3165,8 +3206,10 @@ onMounted(() => {
       // ✅ CRITICAL: Fetch messages if not loaded
       if (!conversation.messages || conversation.messages.length === 0) {
         console.log("📥 Fetching messages for restored chat:", conversation.wa_number);
-        fetchMessages(conversation.wa_number).then((msgs) => {
-          conversation.messages = msgs;
+        fetchMessages(conversation.wa_number).then((result) => {
+          conversation.messages = result.messages;
+          conversation.hasMoreMessages = result.has_more;
+          conversation.messageOffset = result.messages.length;
           nextTick(() => scrollToBottom());
         });
       } else {
@@ -3428,8 +3471,10 @@ onMounted(() => {
         // ✅ CRITICAL: Fetch messages if not loaded
         if (!conversation.messages || conversation.messages.length === 0) {
           console.log('📥 Fetching messages for restored chat:', conversation.wa_number);
-          fetchMessages(conversation.wa_number).then((msgs) => {
-            conversation.messages = msgs;
+          fetchMessages(conversation.wa_number).then((result) => {
+            conversation.messages = result.messages;
+            conversation.hasMoreMessages = result.has_more;
+            conversation.messageOffset = result.messages.length;
             nextTick(() => scrollToBottom());
           });
         } else {
@@ -4128,9 +4173,11 @@ const handleLinkClick = (e) => {
       :API_BASE="API_BASE"
       :is-refreshing-chat="isRefreshingChat"
       :is-loading-messages="isLoadingMessages"
+      :is-loading-more-messages="isLoadingMoreMessages"
       :is-connected="isConnected"
       :font-size="fontSize"
       @back-to-menu="backToMenu"
+      @load-more-messages="loadMoreMessages"
       @open-image-lightbox="openImageLightbox"
       @refresh-active-chat="refreshActiveChat"
     />

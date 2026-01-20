@@ -181,12 +181,23 @@ class Chat extends Controller
         $phone = $this->query('phone');
         if (!$phone) $this->error('Phone required');
 
+        // Pagination parameters
+        $offset = (int)($this->query('offset') ?? 0);
+        $limit = (int)($this->query('limit') ?? 20);
+        
+        // Safety: Max 100 per request
+        if ($limit > 100) $limit = 100;
+        if ($offset < 0) $offset = 0;
+
         $db = $this->db(0);
 
         // Normalize input phone to digits only
         $normPhone = preg_replace('/[^0-9]/', '', $phone);
         // Use last 10 digits for matching (covers local and international formats)
         $matchDigits = substr($normPhone, -10);
+
+        // Fetch limit+1 to check if there's more data
+        $fetchLimit = $limit + 1;
 
         $sql = "
             SELECT * FROM (
@@ -226,13 +237,28 @@ class Chat extends Controller
                      WHERE RIGHT(REPLACE(REPLACE(phone, '+', ''), '-', ''), 10) = ?)
                 ) AS combined_msgs
                 ORDER BY time DESC
+                LIMIT ? OFFSET ?
             ) AS latest_msgs
             ORDER BY time ASC
         ";
         
-        $messages = $db->query($sql, [$matchDigits, $matchDigits])->result();
+        $messages = $db->query($sql, [$matchDigits, $matchDigits, $fetchLimit, $offset])->result();
         
-        $this->success($messages);
+        // Check if there are more messages
+        $hasMore = count($messages) > $limit;
+        
+        // Trim to actual limit
+        if ($hasMore) {
+            array_pop($messages);
+        }
+        
+        $this->success([
+            'messages' => $messages,
+            'has_more' => $hasMore,
+            'offset' => $offset,
+            'limit' => $limit,
+            'total_returned' => count($messages)
+        ]);
     }
 
 

@@ -60,6 +60,10 @@ const props = defineProps({
   isLoadingMessages: {
     type: Boolean,
     default: false,
+  },
+  isLoadingMoreMessages: {
+    type: Boolean,
+    default: false,
   }
 });
 
@@ -73,7 +77,8 @@ const emit = defineEmits([
   "refresh-active-chat",
   "open-image-lightbox",
   "update:activeConversation", // For optimistic updates to bubble up if needed, though objects are ref passed
-  "trigger-connect" // If we need to reconnect
+  "trigger-connect", // If we need to reconnect
+  "load-more-messages" // For infinite scroll
 ]);
 
 // --- LOCAL STATE ---
@@ -492,6 +497,48 @@ const selectQuickReply = (qr) => {
   nextTick(() => autoResizeTextarea());
 };
 
+// Track previous message count for scroll restoration
+const previousMessageCount = ref(0);
+const shouldRestoreScroll = ref(false);
+const savedScrollHeight = ref(0);
+const savedScrollTop = ref(0);
+
+// Infinite scroll handler
+const handleScroll = () => {
+  if (!chatContainer.value || props.isLoadingMoreMessages) return;
+  
+  const scrollTop = chatContainer.value.scrollTop;
+  const threshold = 100; // Trigger load when 100px from top
+  
+  // Check if scrolled to near top AND has more messages
+  if (scrollTop <= threshold && props.activeConversation?.hasMoreMessages) {
+    // Save scroll position for restoration
+    previousMessageCount.value = props.activeConversation.messages?.length || 0;
+    savedScrollHeight.value = chatContainer.value.scrollHeight;
+    savedScrollTop.value = scrollTop;
+    shouldRestoreScroll.value = true;
+    
+    // Trigger load more
+    emit('load-more-messages');
+  }
+};
+
+// Watch for message count change to restore scroll position
+watch(() => props.activeConversation?.messages?.length, (newCount, oldCount) => {
+  if (shouldRestoreScroll.value && newCount > oldCount) {
+    nextTick(() => {
+      if (chatContainer.value) {
+        const newScrollHeight = chatContainer.value.scrollHeight;
+        const scrollDiff = newScrollHeight - savedScrollHeight.value;
+        chatContainer.value.scrollTop = savedScrollTop.value + scrollDiff;
+        shouldRestoreScroll.value = false;
+        
+        console.log(`✓ Scroll restored - Added ${newCount - oldCount} messages, scrollDiff: ${scrollDiff}px`);
+      }
+    });
+  }
+});
+
 onMounted(() => {
     scrollToBottom();
     
@@ -514,6 +561,11 @@ onMounted(() => {
     
     // Click outside handler to close dropdown menus
     document.addEventListener('click', handleClickOutside);
+    
+    // Add scroll listener for infinite scroll
+    if (chatContainer.value) {
+      chatContainer.value.addEventListener('scroll', handleScroll);
+    }
 });
 
 // Handle click outside to close menus
@@ -526,6 +578,11 @@ const handleClickOutside = () => {
 
 onUnmounted(() => {
     document.removeEventListener('click', handleClickOutside);
+    
+    // Remove scroll listener
+    if (chatContainer.value) {
+      chatContainer.value.removeEventListener('scroll', handleScroll);
+    }
 });
 
 </script>
@@ -623,10 +680,25 @@ onUnmounted(() => {
 
          <!-- Messages -->
          <div ref="chatContainer" class="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar pt-4 pb-2 relative">
-              <!-- Loading Indicator Overlay -->
+              <!-- Loading Indicator Overlay (initial load) -->
               <div v-if="isLoadingMessages" class="absolute inset-0 z-20 flex items-center justify-center bg-[var(--wa-bg-chat)]/50 backdrop-blur-[1px]">
                    <div class="bg-[var(--wa-bg-panel)] p-3 rounded-full shadow-lg border border-[var(--wa-border)]">
                         <div class="w-6 h-6 border-2 border-[var(--wa-accent-green)] border-t-transparent rounded-full animate-spin"></div>
+                   </div>
+              </div>
+
+              <!-- Loading More Messages Indicator (top) -->
+              <div v-if="isLoadingMoreMessages" class="sticky top-0 z-10 flex justify-center py-2">
+                   <div class="bg-[var(--wa-bg-panel)] px-3 py-1.5 rounded-full shadow-md border border-[var(--wa-border)] flex items-center gap-2">
+                        <div class="w-3 h-3 border-2 border-[var(--wa-accent-green)] border-t-transparent rounded-full animate-spin"></div>
+                        <span class="text-xs text-[var(--wa-text-secondary)]">Loading older messages...</span>
+                   </div>
+              </div>
+              
+              <!-- No More Messages Indicator -->
+              <div v-else-if="activeConversation && !activeConversation.hasMoreMessages && activeConversation.messages?.length > 0" class="sticky top-0 z-10 flex justify-center py-2">
+                   <div class="bg-[var(--wa-bg-panel)] px-3 py-1 rounded-full shadow-sm border border-[var(--wa-border)]">
+                        <span class="text-xs text-[var(--wa-text-tertiary)]">✓ All messages loaded</span>
                    </div>
               </div>
 
