@@ -142,16 +142,28 @@ class WhatsApp extends Controller
             
             // Try to get quoted message content from database
             if ($quotedMessageId) {
-                // Try from wa_messages_in first
-                $quotedMsg = $db->get_where('wa_messages_in', ['wamid' => $quotedMessageId])->row();
-                if ($quotedMsg) {
-                    $quotedMessageBody = $quotedMsg['text'] ?? $quotedMsg['media_caption'] ?? null;
-                } else {
-                    // Try from wa_messages_out
-                    $quotedMsg = $db->get_where('wa_messages_out', ['wamid' => $quotedMessageId])->row();
-                    if ($quotedMsg) {
-                        $quotedMessageBody = $quotedMsg['text_body'] ?? null;
+                try {
+                    \Log::write("📌 Quote detected - WAMID: $quotedMessageId", 'wa_quote', 'info');
+                    
+                    // Try from wa_messages_in first
+                    $result = $db->get_where('wa_messages_in', ['wamid' => $quotedMessageId]);
+                    if ($result && $result->num_rows() > 0) {
+                        $quotedMsg = $result->row();
+                        $quotedMessageBody = $quotedMsg->text ?? $quotedMsg->media_caption ?? null;
+                        \Log::write("✓ Quote found in wa_messages_in - Body: " . substr($quotedMessageBody ?? 'NULL', 0, 50), 'wa_quote', 'info');
+                    } else {
+                        // Try from wa_messages_out
+                        $result = $db->get_where('wa_messages_out', ['wamid' => $quotedMessageId]);
+                        if ($result && $result->num_rows() > 0) {
+                            $quotedMsg = $result->row();
+                            $quotedMessageBody = $quotedMsg->content ?? null;
+                            \Log::write("✓ Quote found in wa_messages_out - Body: " . substr($quotedMessageBody ?? 'NULL', 0, 50), 'wa_quote', 'info');
+                        } else {
+                            \Log::write("⚠ Quote message NOT FOUND in database - WAMID: $quotedMessageId", 'wa_quote', 'warning');
+                        }
                     }
+                } catch (\Exception $e) {
+                    \Log::write("✗ ERROR fetching quoted message - WAMID: $quotedMessageId | Error: " . $e->getMessage(), 'wa_quote', 'error');
                 }
             }
         }
@@ -348,13 +360,20 @@ class WhatsApp extends Controller
             'media_caption' => $mediaCaption,
             'message_id' => $messageId,
             'wamid' => $wamid,
-            'quoted_message_id' => $quotedMessageId, // Reply-to message reference
-            'quoted_message_body' => $quotedMessageBody, // Quoted message content
             'contact_name' => $contact_name,
             'status' => $status,
             'created_at' => date('Y-m-d H:i:s'),
         ];
         
+        // Add quoted message fields only if they exist (safe for backward compatibility)
+        // This prevents DB error if columns haven't been added yet
+        if ($quotedMessageId !== null) {
+            $messageData['quoted_message_id'] = $quotedMessageId;
+            \Log::write("💾 Saving quote reference - ID: $quotedMessageId, Body: " . substr($quotedMessageBody ?? 'NULL', 0, 30), 'wa_quote', 'info');
+        }
+        if ($quotedMessageBody !== null) {
+            $messageData['quoted_message_body'] = $quotedMessageBody;
+        }
 
         $msgId = $db->insert('wa_messages_in', $messageData);
 
@@ -364,7 +383,16 @@ class WhatsApp extends Controller
             \Log::write("✗ DB INSERT FAILED - Error ($errno): $error", 'webhook', 'inbound_error');
             \Log::write("Failed data: " . json_encode($messageData), 'webhook', 'inbound_error');
             \Log::write("Table: wa_messages_in", 'webhook', 'inbound_error');
+            
+            // Extra logging for quote-related errors
+            if ($quotedMessageId !== null) {
+                \Log::write("✗ Quote data failed to save - WAMID: $quotedMessageId", 'wa_quote', 'error');
+            }
         } else {
+            // Log successful quote save
+            if ($quotedMessageId !== null) {
+                \Log::write("✓ Quote saved successfully - MsgID: $msgId, QuotedWAMID: $quotedMessageId", 'wa_quote', 'info');
+            }
             try {
                 // ========================================
                 // 🚀 BRILLIANT ARCHITECTURE (User's Idea!)
@@ -417,6 +445,11 @@ class WhatsApp extends Controller
                     }
                 }
 
+                // Log WebSocket push with quote info
+                if ($quotedMessageId !== null) {
+                    \Log::write("📡 Pushing to WebSocket with quote - WAMID: $quotedMessageId, Body: " . substr($quotedMessageBody ?? 'NULL', 0, 30), 'wa_quote', 'info');
+                }
+                
                 $this->pushIncomingToWebSocket([
                     'conversation_id' => $conversationId,
                     'phone' => $waNumber,

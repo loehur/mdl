@@ -712,18 +712,40 @@ class WhatsAppService
             // Conversation ID check removed as we don't use ID anymore
             
             
-            // Try to get quoted message content if quotedMessageId is provided
+            // Try to get quoted message content if quotedMessageId is provided (SAFE)
             $quotedMessageBody = null;
             if ($quotedMessageId) {
-                // Try from wa_messages_in first
-                $quotedMsg = $db->get_where('wa_messages_in', ['wamid' => $quotedMessageId])->row();
-                if ($quotedMsg) {
-                    $quotedMessageBody = $quotedMsg->text ?? $quotedMsg->media_caption ?? null;
-                } else {
-                    // Try from wa_messages_out
-                    $quotedMsg = $db->get_where('wa_messages_out', ['wamid' => $quotedMessageId])->row();
-                    if ($quotedMsg) {
-                        $quotedMessageBody = $quotedMsg->content ?? null;
+                try {
+                    if (class_exists('\Log')) {
+                        \Log::write("📌 [OUTBOUND] Quote detected - WAMID: $quotedMessageId", 'wa_quote', 'info');
+                    }
+                    
+                    // Try from wa_messages_in first
+                    $result = $db->get_where('wa_messages_in', ['wamid' => $quotedMessageId]);
+                    if ($result && $result->num_rows() > 0) {
+                        $quotedMsg = $result->row();
+                        $quotedMessageBody = $quotedMsg->text ?? $quotedMsg->media_caption ?? null;
+                        if (class_exists('\Log')) {
+                            \Log::write("✓ [OUTBOUND] Quote found in wa_messages_in - Body: " . substr($quotedMessageBody ?? 'NULL', 0, 50), 'wa_quote', 'info');
+                        }
+                    } else {
+                        // Try from wa_messages_out
+                        $result = $db->get_where('wa_messages_out', ['wamid' => $quotedMessageId]);
+                        if ($result && $result->num_rows() > 0) {
+                            $quotedMsg = $result->row();
+                            $quotedMessageBody = $quotedMsg->content ?? null;
+                            if (class_exists('\Log')) {
+                                \Log::write("✓ [OUTBOUND] Quote found in wa_messages_out - Body: " . substr($quotedMessageBody ?? 'NULL', 0, 50), 'wa_quote', 'info');
+                            }
+                        } else {
+                            if (class_exists('\Log')) {
+                                \Log::write("⚠ [OUTBOUND] Quote message NOT FOUND in database - WAMID: $quotedMessageId", 'wa_quote', 'warning');
+                            }
+                        }
+                    }
+                } catch (\Exception $e) {
+                    if (class_exists('\Log')) {
+                        \Log::write("✗ [OUTBOUND] ERROR fetching quoted message - WAMID: $quotedMessageId | Error: " . $e->getMessage(), 'wa_quote', 'error');
                     }
                 }
             }
@@ -739,11 +761,20 @@ class WhatsAppService
                 'template_params' => $templateParams,
                 'media_url' => $mediaUrl,
                 'sender_code' => $senderCode, // Changed from initial to sender_code
-                'quoted_message_id' => $quotedMessageId, // Reply-to message reference
-                'quoted_message_body' => $quotedMessageBody, // Quoted message content
                 'status' => 'accepted', // Initial status when API accepted
                 'created_at' => date('Y-m-d H:i:s')
             ];
+            
+            // Add quoted message fields only if they exist (safe for backward compatibility)
+            if ($quotedMessageId !== null) {
+                $messageData['quoted_message_id'] = $quotedMessageId;
+                if (class_exists('\Log')) {
+                    \Log::write("💾 [OUTBOUND] Saving quote reference - ID: $quotedMessageId, Body: " . substr($quotedMessageBody ?? 'NULL', 0, 30), 'wa_quote', 'info');
+                }
+            }
+            if ($quotedMessageBody !== null) {
+                $messageData['quoted_message_body'] = $quotedMessageBody;
+            }
             
             $msgId = $db->insert('wa_messages_out', $messageData);
             
@@ -751,8 +782,17 @@ class WhatsAppService
                 $dbError = $db->conn()->error ?? 'Unknown';
                 if (class_exists('\Log')) {
                     \Log::write("!! INSERT FAILED to wa_messages_out | Phone: $waNumber, MsgID: $messageId | DB Error: $dbError | Data: " . json_encode($messageData), 'wa_error', 'SaveOutbound');
+                    
+                    // Extra logging for quote-related errors
+                    if ($quotedMessageId !== null) {
+                        \Log::write("✗ [OUTBOUND] Quote data failed to save - WAMID: $quotedMessageId", 'wa_quote', 'error');
+                    }
                 }
             } else {
+                // Log successful quote save
+                if ($quotedMessageId !== null && class_exists('\Log')) {
+                    \Log::write("✓ [OUTBOUND] Quote saved successfully - MsgID: $msgId, QuotedWAMID: $quotedMessageId", 'wa_quote', 'info');
+                }
                 // ====== WEBSOCKET PUSH (CENTRALIZED) ======
                 // Push to WebSocket for real-time UI update
                 // This is the SINGLE SOURCE for all outbound messages (autoreply + manual)
@@ -765,6 +805,11 @@ class WhatsAppService
                     if ($conv && $conv->num_rows() > 0) {
                         $convRow = $conv->row();
                         $conversation_id = $convRow->id ?? 0;
+                    }
+                    
+                    // Log WebSocket push with quote info
+                    if ($quotedMessageId !== null && class_exists('\Log')) {
+                        \Log::write("📡 [OUTBOUND] Pushing to WebSocket with quote - WAMID: $quotedMessageId, Body: " . substr($quotedMessageBody ?? 'NULL', 0, 30), 'wa_quote', 'info');
                     }
                     
                     $wsPayload = [
