@@ -646,7 +646,6 @@ onUnmounted(() => {
           <header class="h-16 border-b flex items-center justify-between px-4 md:px-6 z-30 border-[var(--wa-border)] bg-[var(--wa-bg-panel)] flex-shrink-0">
                <div class="flex items-center gap-3 flex-1 min-w-0">
                   <button @click="backToMenu" class="md:hidden p-1 -ml-2 text-[var(--wa-icon-default)]"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg></button>
-                  <div @click="showCustomerInfo" class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold cursor-pointer" :style="{ backgroundColor: activeConversation.color }">{{ activeConversation.initials }}</div>
                   <div @click="showCustomerInfo" class="min-w-0 flex-1 cursor-pointer">
                       <h2 class="font-medium text-[var(--wa-text-primary)] text-base md:text-lg truncate uppercase">{{ activeConversation.name }}</h2>
                       <div class="flex items-center gap-2">
@@ -942,9 +941,6 @@ onUnmounted(() => {
             <div class="flex justify-between mb-6">
                 <h2 class="text-xl font-semibold text-[var(--wa-text-primary)]">Info Customer</h2>
                 <button @click="showCustomerInfoModal = false" class="text-[var(--wa-icon-default)]">X</button>
-            </div>
-            <div class="flex justify-center mb-6">
-                <div class="w-20 h-20 rounded-full flex items-center justify-center text-white font-bold text-2xl shadow-lg" :style="{ backgroundColor: activeConversation?.color }">{{ activeConversation?.initials }}</div>
             </div>
             <div class="space-y-4">
                  <div class="bg-[var(--wa-bg-secondary)] rounded-xl p-4 border border-[var(--wa-border)]">

@@ -229,7 +229,6 @@ const parseEmoji = (text) => {
       <!-- Skeleton Loading -->
       <div v-if="isLoadingConversations && conversations.length === 0" class="space-y-0">
         <div v-for="n in 8" :key="'skeleton-' + n" class="p-3 flex items-center gap-3 border-b border-[var(--wa-divider)]">
-          <div class="w-12 h-12 rounded-full skeleton-shimmer"></div>
           <div class="flex-1 space-y-2">
             <div class="flex justify-between items-center">
               <div class="h-4 skeleton-shimmer rounded w-32"></div>
@@ -248,10 +247,6 @@ const parseEmoji = (text) => {
         class="p-3 flex items-center gap-3 cursor-pointer transition-colors duration-150 border-b border-[var(--wa-divider)] hover:bg-[var(--wa-hover)]"
         :class="{ 'bg-[var(--wa-active)]': activeChatId === chat.id }"
       >
-        <div class="relative">
-          <div class="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold border-0" :style="{ backgroundColor: chat.color }">{{ chat.initials }}</div>
-          <span v-if="chat.status === 'online'" class="absolute bottom-0 right-0 w-3 h-3 bg-[var(--wa-accent-green)] border-2 border-[var(--wa-bg-panel)] rounded-full"></span>
-        </div>
         <div class="flex-1 min-w-0">
           <div class="flex justify-between items-baseline mb-1 gap-2">
             <h3 class="font-normal text-[16px] truncate text-[var(--wa-text-primary)] max-w-[240px] uppercase" :title="chat.name">
@@ -286,7 +281,6 @@ const parseEmoji = (text) => {
     <!-- User Profile -->
     <div class="p-4 border-t border-[var(--wa-border)] bg-[var(--wa-bg-panel)] flex items-center justify-between gap-3">
       <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-full bg-[var(--wa-accent-green)] flex items-center justify-center text-black font-bold border-0">A</div>
         <div>
           <div class="text-sm font-medium text-[var(--wa-text-primary)]">AgentID <span class="text-[var(--wa-accent-blue)] font-mono">#{{ authId }}</span></div>
           <div class="text-xs flex items-center gap-1.5" :class="isConnected ? 'text-[var(--wa-accent-green)]' : (isReconnecting ? 'text-yellow-400' : 'text-red-400')">
