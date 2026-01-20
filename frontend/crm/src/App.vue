@@ -463,24 +463,93 @@ const fetchAndRestoreConversation = async (chatId) => {
     const conversationsData = result.data?.conversations || result.data || [];
 
     if (result.status && Array.isArray(conversationsData) && conversationsData.length > 0) {
-      const conv = conversationsData[0];
+      const c = conversationsData[0];
+      
+      // IMPORTANT: Apply same normalization as fetchConversations
+      const parseCases = (c) => {
+        let cases = [];
+        if (Array.isArray(c.case_history)) {
+          cases = c.case_history;
+        } else {
+          const rawCase = c.conv_case || c.case;
+          if (typeof rawCase === "string" && (rawCase.startsWith("[") || rawCase.startsWith("{"))) {
+            try {
+              const parsed = JSON.parse(rawCase);
+              if (Array.isArray(parsed)) cases = parsed;
+              else if (parsed.case) cases = [parsed];
+            } catch (e) {}
+          }
+          if (cases.length === 0 && (c.priority > 0 || c.case_val > 0)) {
+            cases = [{ case: parseInt(c.priority || c.case_val || 0) }];
+          }
+        }
+        
+        // Deduplicate cases
+        const seenCases = new Map();
+        for (const cse of cases) {
+          const caseVal = parseInt(cse.case);
+          if (isNaN(caseVal) || caseVal === 0) continue;
+          const status = cse.status || "open";
+          const normalizedCase = { ...cse, case: caseVal };
+          
+          if (!seenCases.has(caseVal)) {
+            seenCases.set(caseVal, normalizedCase);
+          } else {
+            const existing = seenCases.get(caseVal);
+            const existingStatus = existing.status || "open";
+            if (existingStatus === "closed" && status !== "closed") {
+              seenCases.set(caseVal, normalizedCase);
+            } else if (existingStatus === status) {
+              seenCases.set(caseVal, normalizedCase);
+            }
+          }
+        }
+        return Array.from(seenCases.values());
+      };
       
       // Check if already exists
-      const existingIndex = conversations.value.findIndex((c) => c.id === conv.id);
+      const existingIndex = conversations.value.findIndex((conv) => conv.id === c.id);
       
+      let convo;
       if (existingIndex >= 0) {
-        // Update existing
-        conversations.value[existingIndex] = {
-          ...conversations.value[existingIndex],
-          ...conv,
-        };
+        // Update existing with normalized data
+        convo = conversations.value[existingIndex];
+        convo.wa_number = c.wa_number;
+        convo.name = c.contact_name || c.wa_number;
+        convo.kode_cabang = c.kode_cabang;
+        convo.cases = parseCases(c);
+        convo.initials = (c.contact_name || c.wa_number || "?").substring(0, 1).toUpperCase();
+        convo.color = getAvatarColor(c.id);
+        convo.status = c.status;
+        convo.lastMessage = c.last_message || c.last_message_text || "No messages yet";
+        convo.lastTime = formatLastTime(c.last_message_time);
+        convo.lastMessageTime = c.last_message_time;
+        convo.unread = parseInt(c.unread_count) || 0;
+        convo.assignment_user_id = c.assigned_user_id;
       } else {
+        // Create new with normalized data
+        convo = {
+          id: c.id,
+          wa_number: c.wa_number,
+          name: c.contact_name || c.wa_number,
+          kode_cabang: c.kode_cabang,
+          cases: parseCases(c),
+          initials: (c.contact_name || c.wa_number || "?").substring(0, 1).toUpperCase(),
+          color: getAvatarColor(c.id),
+          status: c.status,
+          lastMessage: c.last_message || c.last_message_text || "No messages yet",
+          lastTime: formatLastTime(c.last_message_time),
+          lastMessageTime: c.last_message_time,
+          unread: parseInt(c.unread_count) || 0,
+          assignment_user_id: c.assigned_user_id,
+          messages: [],
+        };
         // Add to top of list
-        conversations.value.unshift(conv);
+        conversations.value.unshift(convo);
       }
       
-      console.log('✅ Conversation fetched and restored:', chatId);
-      selectChat(conv.id);
+      console.log('✅ Conversation fetched and restored:', chatId, convo.name);
+      selectChat(convo.id);
     } else {
       console.error('⚠️ Conversation not found in API:', chatId);
     }
