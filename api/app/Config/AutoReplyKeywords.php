@@ -139,10 +139,4 @@ return [
             '/^(saldo|cek|info)\s*(iak)$/i',
         ],
     ],
-
-    'SALDO_OPENAI' => [
-        'patterns' => [
-            '/^(saldo|cek|info)\s*(openai)$/i',
-        ],
-    ],
 ];
