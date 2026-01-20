@@ -3433,8 +3433,22 @@ onMounted(() => {
         console.log("✅ Socket already connected, no reconnect needed");
       }
 
-      // Refresh data to ensure sync
-      fetchConversations();
+      // Refresh data to ensure sync (but preserve active chat)
+      const currentActiveChatId = activeChatId.value;
+      fetchConversations().then(() => {
+        // After fetch, check if active chat is still in list
+        if (currentActiveChatId) {
+          const conversation = conversations.value.find(
+            (c) => String(c.id) === String(currentActiveChatId)
+          );
+          
+          if (!conversation) {
+            // Active chat not in fetched list, fetch it specifically
+            console.log('🔍 Active chat not in list after visibility change, fetching:', currentActiveChatId);
+            fetchAndRestoreConversation(currentActiveChatId);
+          }
+        }
+      });
 
       // Restore active chat state if user was viewing a chat before leaving
       // This handles the case when user clicks a link and comes back
@@ -3885,8 +3899,22 @@ App.addListener("appStateChange", ({ isActive }) => {
       }
     }
 
-    // Refresh conversations
-    fetchConversations();
+    // Refresh conversations (but preserve active chat if it exists)
+    const currentActiveChatId = activeChatId.value;
+    fetchConversations().then(() => {
+      // After fetch, check if active chat is still in list
+      if (currentActiveChatId) {
+        const conversation = conversations.value.find(
+          (c) => String(c.id) === String(currentActiveChatId)
+        );
+        
+        if (!conversation) {
+          // Active chat not in fetched list, fetch it specifically
+          console.log('🔍 Active chat not in list after resume, fetching:', currentActiveChatId);
+          fetchAndRestoreConversation(currentActiveChatId);
+        }
+      }
+    });
 
     // Update resume timestamp
     resumeTimestamp.value = Date.now();

@@ -123,7 +123,7 @@ class Chat extends Controller
                 SELECT 
                     c.id, 
                     c.wa_number, 
-                    c.contact_name, 
+                    COALESCE(NULLIF(c.contact_name, ''), c.wa_number) as contact_name,
                     c.status,
                     c.conv_case,
                     (
