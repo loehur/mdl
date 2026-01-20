@@ -96,26 +96,13 @@ class WAReplies
         
         // Check each handler's patterns
         foreach ($keywordConfig as $handler => $config) {
-            $maxLength = $config['max_length'] ?? 0;
             $patterns = $config['patterns'] ?? [];
-
-            // Skip if message is longer than max_length (0 = unlimited)
-            if ($maxLength > 0 && $messageLength > $maxLength) {
-                continue;
-            }
-
             // Check regex patterns
             foreach ($patterns as $patternIndex => $pattern) {
                 if (preg_match($pattern, $textBodyToCheck)) {
                     // Get case from config
-                    if (isset($config['case'])) {
-                        $caseVal = $config['case'];
-                    } else {
-                        \Log::write("Case not set for $handler", 'ai_intent', 'error');
-                        $caseVal = 4;
-                    }
-
-                    $notify = $config['notify'] ?? true;
+                    $caseVal = $config['case'] ?? null;
+                    $notify = $config['notify'] ?? false;
                     
                     // ========================================
                     // 🎯 Rate limit check FIRST
@@ -184,8 +171,8 @@ class WAReplies
         // Check if AI successfully detected a valid intent
         if ($aiResult && is_array($aiResult) && isset($aiResult['intent']) && strtoupper($aiResult['intent']) !== 'FALSE') {
             $aiIntent = strtoupper($aiResult['intent']);
-            $aiCase = $keywordConfig[$aiIntent]['case'] ?? 4;
-            $notify = $keywordConfig[$aiIntent]['notify'] ?? true;
+            $aiCase = $keywordConfig[$aiIntent]['case'] ?? null;
+            $notify = $keywordConfig[$aiIntent]['notify'] ?? false;
 
             // Check if this AI intent was already matched in pattern loop (and rate limited)
             if (in_array($aiIntent, $matchPatterns)) {
@@ -1102,6 +1089,95 @@ class WAReplies
         }
     }
 
+    function handleSaldo_openai($phoneIn, $waNumber, $textBody = '')
+    {
+        try {
+            // Authorized phones (same as IAK)
+            $hp = ['+6282170743955', '+6285277720412'];
+
+            // Normalize phone numbers for comparison
+            $phones = explode(',', $phoneIn);
+            foreach ($phones as &$p) {
+                $p = $this->normalizePhoneNumber($p);
+            }
+            
+            $cleanWaNumber = $this->normalizePhoneNumber($waNumber);
+            $phones[] = $cleanWaNumber;
+            $phones = array_unique(array_filter($phones));
+
+            // Only allowed phones can access this
+            $intersect = array_intersect($phones, $hp);
+            if (empty($intersect)) {
+                return;
+            }
+
+            // Get OpenAI API Key
+            if (!class_exists('\\App\\Config\\AI')) {
+                require_once __DIR__ . '/../Config/AI.php';
+            }
+            
+            $apiKey = \App\Config\AI::getOpenAIApiKey();
+            
+            if (empty($apiKey)) {
+                $waService = $this->getWaService();
+                $waService->sendFreeText($waNumber, "OpenAI API Key not configured.");
+                return;
+            }
+
+            // Call OpenAI API to get organization costs
+            $url = 'https://api.openai.com/v1/organization/costs';
+            
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Authorization: Bearer ' . $apiKey,
+                'Content-Type: application/json'
+            ]);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+            
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch);
+            curl_close($ch);
+
+            $waService = $this->getWaService();
+
+            if ($curlError) {
+                $text = "Error: " . $curlError;
+                $waService->sendFreeText($waNumber, $text);
+                return;
+            }
+
+            $data = json_decode($response, true);
+
+            if ($httpCode === 200 && isset($data['data'])) {
+                // Format response
+                $costs = $data['data'];
+                
+                // Get current month's cost (assuming first item is current period)
+                if (!empty($costs) && isset($costs[0]['amount'])) {
+                    $currentCost = $costs[0]['amount'];
+                    $totalCost = $currentCost['total'] ?? 0;
+                    
+                    $text = "*OpenAI Usage*\n";
+                    $text .= "Total: $" . number_format($totalCost, 2);
+                } else {
+                    $text = "*OpenAI Usage*\nNo cost data available.";
+                }
+            } else {
+                $errorMsg = $data['error']['message'] ?? 'Unknown error';
+                $text = "Failed: " . $errorMsg;
+            }
+
+            $waService->sendFreeText($waNumber, $text);
+
+        } catch (\Throwable $e) {
+            \Log::write("handleSaldo_openai ERROR: " . $e->getMessage(), 'wa_error', 'OpenAI');
+            $waService = $this->getWaService();
+            $waService->sendFreeText($waNumber, "Error: " . $e->getMessage());
+        }
+    }
+
     private function isOperatingHours()
     {
         // Load operating hours config
@@ -1487,5 +1563,39 @@ class WAReplies
             return $db->insert_id();
         }
         return 0;
+    }
+
+    /**
+     * Normalize phone number to +62 format
+     */
+    private function normalizePhoneNumber($phone)
+    {
+        if (!$phone) return null;
+        
+        // Remove non-numeric except +
+        $phone = preg_replace('/[^0-9+]/', '', $phone);
+        
+        // Handle 08... -> +628...
+        if (substr($phone, 0, 1) === '0') {
+            return '+62' . substr($phone, 1);
+        }
+        
+        // Handle 628... -> +628...
+        if (substr($phone, 0, 2) === '62') {
+            return '+' . $phone;
+        }
+        
+        // Handle 8... -> +628... (just in case)
+        if (substr($phone, 0, 1) === '8') {
+            return '+62' . $phone;
+        }
+
+        // If starts with +, return it
+        if (substr($phone, 0, 1) === '+') {
+            return $phone;
+        }
+        
+        // Default: assume it's already +62...
+        return $phone;
     }
 }

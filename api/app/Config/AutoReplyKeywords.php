@@ -1,9 +1,6 @@
 <?php 
 return [  
     'PEMBUKA' => [
-        'max_length' => 20,
-        'case' => 0,
-        'notify' => false,
         'patterns' => [
             '/^\s*(p|ping|ka*k|ba*n*g|b*a*pa*k|i*bu*k*|a*de*k|he*a*l+o|as+a*l+a*mu*a*l+a*i*ku*m|tes)\s*$/i',
             '/(pa*gi|so*re|si*a*ng|ma*la*m|ha*e*l+o+)\s*\b(ba*n*g|ka*k|pa*k|i*bu*k*|a*de*k*|a*na*k)/i',
@@ -15,9 +12,6 @@ return [
     ],
 
     'NOTA' => [
-        'max_length' => 100,
-        'case' => 0,
-        'notify' => false,
         'patterns' => [
             '/^\s*(bon|nota+|stru*k|bil+|ta*gi*ha*n|re*si)\s*$/i',
         ],
@@ -30,9 +24,6 @@ return [
     ],
 
     'STATUS' => [
-        'max_length' => 100,
-        'case' => 0,
-        'notify' => false,
         'patterns' => [
             '/^\s*(cek|sta*tu*s)\s*$/i',
         ],
@@ -44,7 +35,6 @@ return [
     ],
 
     'MINTA_JEMPUT_ANTAR' => [
-        'max_length' => 100,
         'case' => 2,
         'notify' => true,
         'patterns' => [
@@ -65,7 +55,6 @@ return [
     ],
 
     'PERMINTAAN' => [
-        'max_length' => 100,
         'case' => 3,
         'notify' => true,
         'patterns' => [
@@ -87,9 +76,6 @@ return [
     ],
 
     'JAM_OPERASIONAL' => [
-        'max_length' => 30,
-        'case' => 0,
-        'notify' => false,
         'patterns' => [
             '/(ka*pa*n|ma*si*h)\s*\b(bu*ka*|tu*tu*p)/i',
             '/(ja*m)\s*\b(be*ra*pa*)\s*\b(bu*ka*|tu*tu*p)/i',
@@ -101,9 +87,6 @@ return [
     ],
 
     'PENUTUP' => [
-        'max_length' => 20,
-        'case' => 0,
-        'notify' => false,
         'patterns' => [
             '/\bma*ka*(s|c)(i|e)*h\b/i',
             '/\bte*ri*ma*ka*si*h\b/i',
@@ -128,47 +111,38 @@ return [
     ],
 
     'REMINDER' => [
-        'max_length' => 20,
-        'case' => 0,
-        'notify' => false,
         'patterns' => [
             '/^\s*(reminder|remind|ingatkan|ingat|pengingat)\s*$/i',
         ],
     ],
 
     'KAS_LAUNDRY' => [
-        'max_length' => 20,
-        'case' => 0,
-        'notify' => false,
         'patterns' => [
             '/^\s*(kas|saldo)\s*(l(a|o)u*ndr(y|i)|resto)\s*$/i',
         ],
     ],
 
     'CEK_TOKEN' => [
-        'max_length' => 20,
-        'case' => 0,
-        'notify' => false,
         'patterns' => [
             '/^(cek|lihat|info) (token|pln) (l(a|o)u*ndr(y|i)|resto)$/i',
         ],
     ],
 
     'BELI_TOKEN' => [
-        'max_length' => 20,
-        'case' => 0,
-        'notify' => false,
         'patterns' => [
             '/^(token|pln) (l(a|o)u*ndr(y|i)|resto) \d+$/i',
         ],
     ],
 
     'SALDO_IAK' => [
-        'max_length' => 20,
-        'case' => 0,
-        'notify' => false,
         'patterns' => [
             '/^(saldo|cek|info)\s*(iak)$/i',
+        ],
+    ],
+
+    'SALDO_OPENAI' => [
+        'patterns' => [
+            '/^(saldo|cek|info)\s*(openai)$/i',
         ],
     ],
 ];
