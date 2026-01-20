@@ -410,7 +410,10 @@ const fetchConversations = async (offset = 0, limit = 20, search = '') => {
           console.log('✅ Restoring chat after conversations loaded:', chatIdToRestore);
           selectChat(conversation.id);
         } else {
-          console.log('⚠️ Could not restore chat - conversation not found:', chatIdToRestore);
+          // Conversation not in current list (maybe from search or different page)
+          // Fetch this specific conversation and add to list
+          console.log('🔍 Conversation not in list, fetching:', chatIdToRestore);
+          fetchAndRestoreConversation(chatIdToRestore);
         }
       }
 
@@ -436,6 +439,53 @@ const fetchConversations = async (offset = 0, limit = 20, search = '') => {
     console.error("Error fetching conversations:", e);
   } finally {
     isLoadingConversations.value = false; // End loading
+  }
+};
+
+// Fetch single conversation by ID and restore chat
+const fetchAndRestoreConversation = async (chatId) => {
+  try {
+    const userIdParam = authId.value ? `user_id=${authId.value}` : "";
+    const query = userIdParam
+      ? `?${userIdParam}&conversation_id=${chatId}&_t=${Date.now()}`
+      : `?conversation_id=${chatId}&_t=${Date.now()}`;
+
+    const response = await fetch(
+      `${API_BASE}/CRM/Chat/getConversations${query}`
+    );
+
+    if (!response.ok) {
+      console.error("Failed to fetch conversation:", chatId);
+      return;
+    }
+
+    const result = await response.json();
+    const conversationsData = result.data?.conversations || result.data || [];
+
+    if (result.status && Array.isArray(conversationsData) && conversationsData.length > 0) {
+      const conv = conversationsData[0];
+      
+      // Check if already exists
+      const existingIndex = conversations.value.findIndex((c) => c.id === conv.id);
+      
+      if (existingIndex >= 0) {
+        // Update existing
+        conversations.value[existingIndex] = {
+          ...conversations.value[existingIndex],
+          ...conv,
+        };
+      } else {
+        // Add to top of list
+        conversations.value.unshift(conv);
+      }
+      
+      console.log('✅ Conversation fetched and restored:', chatId);
+      selectChat(conv.id);
+    } else {
+      console.error('⚠️ Conversation not found in API:', chatId);
+    }
+  } catch (e) {
+    console.error("Error fetching conversation:", e);
   }
 };
 
