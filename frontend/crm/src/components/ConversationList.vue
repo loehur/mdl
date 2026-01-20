@@ -228,7 +228,16 @@ const parseEmoji = (text) => {
     <div ref="conversationListContainer" class="flex-1 overflow-y-auto custom-scrollbar">
       <!-- Skeleton Loading -->
       <div v-if="isLoadingConversations && conversations.length === 0" class="space-y-0">
-        <div v-for="n in 8" :key="'skeleton-' + n" class="p-3 flex items-center gap-3 border-b border-[var(--wa-divider)]">
+        <div v-for="n in 8" :key="'skeleton-' + n" class="p-3 flex items-start gap-3 border-b border-[var(--wa-divider)]">
+          <!-- Skeleton Kolom Kiri -->
+          <div class="flex flex-col items-center gap-1.5 pt-1 min-w-[42px]">
+            <div class="h-5 w-8 skeleton-shimmer rounded"></div>
+            <div class="flex gap-1">
+              <div class="w-3 h-3 skeleton-shimmer rounded-full"></div>
+              <div class="w-3 h-3 skeleton-shimmer rounded-full"></div>
+            </div>
+          </div>
+          <!-- Skeleton Kolom Kanan -->
           <div class="flex-1 space-y-2">
             <div class="flex justify-between items-center">
               <div class="h-4 skeleton-shimmer rounded w-32"></div>
@@ -244,24 +253,33 @@ const parseEmoji = (text) => {
         v-for="chat in filteredConversations"
         :key="chat.id"
         @click="selectChat(chat.id)"
-        class="p-3 flex items-center gap-3 cursor-pointer transition-colors duration-150 border-b border-[var(--wa-divider)] hover:bg-[var(--wa-hover)]"
+        class="p-3 flex items-start gap-3 cursor-pointer transition-colors duration-150 border-b border-[var(--wa-divider)] hover:bg-[var(--wa-hover)]"
         :class="{ 'bg-[var(--wa-active)]': activeChatId === chat.id }"
       >
+        <!-- Kolom Kiri: Kode Cabang + Case Badges -->
+        <div class="flex flex-col items-center justify-start gap-1.5 pt-1 min-w-[42px] flex-shrink-0">
+          <!-- Kode Cabang (tanpa []) -->
+          <div v-if="chat.kode_cabang" class="font-mono text-xs font-semibold px-2 py-0.5 rounded" :class="chat.kode_cabang === '00' ? 'text-pink-500 bg-pink-500/10' : 'text-[var(--wa-accent-blue)] bg-blue-500/10'">
+            {{ chat.kode_cabang }}
+          </div>
+          
+          <!-- Case Badges (lingkaran warna) -->
+          <div v-if="chat.cases && chat.cases.some((c) => c.case > 0 && (c.status || 'open') !== 'closed')" class="flex flex-wrap gap-1 justify-center">
+            <template v-for="(cse, idx) in chat.cases" :key="idx">
+              <div v-if="cse.case > 0 && (cse.status || 'open') !== 'closed'" class="w-3 h-3 rounded-full ring-1 ring-black/20" :class="getCaseColor(cse.case)" :title="'Case: ' + cse.case"></div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Kolom Kanan: Nama + Message -->
         <div class="flex-1 min-w-0">
           <div class="flex justify-between items-baseline mb-1 gap-2">
             <h3 class="font-normal text-[16px] truncate text-[var(--wa-text-primary)] max-w-[240px] uppercase" :title="chat.name">
-              <span v-if="chat.kode_cabang" class="font-mono text-xs mr-1" :class="chat.kode_cabang === '00' ? 'text-pink-400' : 'text-[var(--wa-accent-blue)]'">[{{ chat.kode_cabang }}]</span>
               {{ chat.name }}
             </h3>
             <span class="text-xs text-[var(--wa-text-tertiary)] flex-shrink-0">{{ chat.lastTime }}</span>
           </div>
 
-          <!-- Case Badges -->
-          <div v-if="chat.cases && chat.cases.some((c) => c.case > 0 && (c.status || 'open') !== 'closed')" class="flex flex-wrap gap-1.5 mb-1.5">
-            <template v-for="(cse, idx) in chat.cases" :key="idx">
-              <div v-if="cse.case > 0 && (cse.status || 'open') !== 'closed'" class="w-3.5 h-3.5 rounded-full ring-1 ring-black/20" :class="getCaseColor(cse.case)" :title="'Case: ' + cse.case"></div>
-            </template>
-          </div>
           <div class="flex justify-between items-center">
             <p class="text-sm text-[var(--wa-text-secondary)] truncate w-64" :class="{ 'font-normal text-[var(--wa-text-primary)]': chat.unread > 0 }" v-html="parseEmoji(chat.lastMessage)"></p>
             <span v-if="chat.unread > 0" class="bg-[var(--wa-accent-green)] text-black text-[11px] font-semibold px-2 py-0.5 rounded-full min-w-[20px] text-center">{{ chat.unread }}</span>
