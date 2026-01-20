@@ -84,7 +84,12 @@ class WAReplies
      */
     public function process($phoneIn, $textBody, $waNumber, $contactName = null, $assigned_user_id = null, $code = null, $lastMessage = null)
     {
-        $textBodyToCheck = strtolower(trim($textBody ?? ''));
+        // Strip WhatsApp formatters: * (bold), _ (italic), ~ (strikethrough), ` (monospace)
+        $textBodyToCheck = preg_replace('/[*_~`]/', '', $textBody ?? '');
+        // Strip quote prefix (> at start of line)
+        $textBodyToCheck = preg_replace('/^>\s*/m', '', $textBodyToCheck);
+        $textBodyToCheck = strtolower(trim($textBodyToCheck));       
+
         $messageLength = mb_strlen($textBodyToCheck);
         
         // Get DB instance for conversation management
