@@ -411,6 +411,12 @@ const fetchConversations = async (offset = 0, limit = 20, search = '') => {
           selectChat(conversation.id);
         } else {
           console.log('⚠️ Could not restore chat - conversation not found:', chatIdToRestore);
+          
+          // Reset to home view
+          activeChatId.value = null;
+          showMobileChat.value = false;
+          navStore.reset();
+          console.log('🏠 Navigation reset to home');
         }
       }
 
