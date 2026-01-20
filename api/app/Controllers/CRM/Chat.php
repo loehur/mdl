@@ -48,9 +48,6 @@ class Chat extends Controller
             // Search parameter
             $search = trim($_GET['search'] ?? '');
             
-            // Specific conversation ID (for restore after refresh)
-            $conversationId = (int)($_GET['conversation_id'] ?? 0);
-            
             // Safety: Max 100 per request
             if ($limit > 100) $limit = 100;
             if ($offset < 0) $offset = 0;
@@ -61,14 +58,8 @@ class Chat extends Controller
             $userId = $_GET['user_id'] ?? null;
             $whereClause = "1=1"; // Always true, untuk base condition
             
-            // Add specific conversation ID filter (highest priority)
-            if ($conversationId > 0) {
-                $whereClause .= " AND c.id = " . $conversationId;
-                // Override limit to 1 when fetching specific conversation
-                $fetchLimit = 1;
-            }
             // Add search filter if provided
-            elseif (!empty($search)) {
+            if (!empty($search)) {
                 $safSearch = $db->conn()->real_escape_string($search);
                 $whereClause .= " AND (
                     c.contact_name LIKE '%$safSearch%' 
@@ -123,7 +114,7 @@ class Chat extends Controller
                 SELECT 
                     c.id, 
                     c.wa_number, 
-                    COALESCE(NULLIF(c.contact_name, ''), c.wa_number) as contact_name,
+                    c.contact_name, 
                     c.status,
                     c.conv_case,
                     (
