@@ -213,7 +213,7 @@ class Login extends Controller
             
             // Robust check: status bisa true (boolean) atau 'success'/'sent' (string)
             $statusOk = ($res['status'] === true || $res['status'] === 'success');
-            $httpOk = ($res['code'] == 200);
+            $httpOk = (($res['http_code'] ?? 0) == 200);
             
             if ($statusOk && $httpOk) {
                // Cek apakah ada message_id dari WhatsApp API
