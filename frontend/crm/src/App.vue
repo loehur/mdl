@@ -1472,6 +1472,12 @@ const selectChat = async (id, isRefresh = false) => {
         chat.messages = result.messages;
         chat.hasMoreMessages = result.has_more;
         chat.messageOffset = result.messages.length;
+        
+        console.log('💾 Initial messages loaded for:', chat.wa_number, {
+          messageCount: chat.messages.length,
+          hasMoreMessages: chat.hasMoreMessages,
+          messageOffset: chat.messageOffset
+        });
       } finally {
         isLoadingMessages.value = false;
       }

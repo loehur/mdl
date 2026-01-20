@@ -574,10 +574,15 @@ onMounted(() => {
     // Click outside handler to close dropdown menus
     document.addEventListener('click', handleClickOutside);
     
-    // Add scroll listener for infinite scroll
-    if (chatContainer.value) {
-      chatContainer.value.addEventListener('scroll', handleScroll);
-    }
+    // Add scroll listener for infinite scroll (with delay to ensure DOM ready)
+    nextTick(() => {
+      if (chatContainer.value) {
+        console.log('✅ Scroll listener attached to chatContainer');
+        chatContainer.value.addEventListener('scroll', handleScroll);
+      } else {
+        console.error('❌ chatContainer.value is null, scroll listener NOT attached');
+      }
+    });
 });
 
 // Handle click outside to close menus
@@ -705,6 +710,16 @@ onUnmounted(() => {
                         <div class="w-3 h-3 border-2 border-[var(--wa-accent-green)] border-t-transparent rounded-full animate-spin"></div>
                         <span class="text-xs text-[var(--wa-text-secondary)]">Loading older messages...</span>
                    </div>
+              </div>
+              
+              <!-- DEBUG: Manual Load More Button (temporary) -->
+              <div v-else-if="activeConversation?.hasMoreMessages" class="sticky top-0 z-10 flex justify-center py-2">
+                   <button 
+                     @click="emit('load-more-messages')"
+                     class="bg-[var(--wa-accent-green)] text-white px-4 py-2 rounded-full shadow-md hover:opacity-90 transition-opacity flex items-center gap-2 text-sm font-medium"
+                   >
+                     ⬆️ Load 20 Older Messages
+                   </button>
               </div>
               
               <!-- No More Messages Indicator -->
