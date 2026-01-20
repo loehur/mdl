@@ -41,7 +41,7 @@ class Chat extends Controller
             // Modified to include kode_cabang from database using local column 'code'
             
             $userId = $_GET['user_id'] ?? null;
-            $whereClause = "c.updated_at >= (NOW() - INTERVAL 30 DAY)";
+            $whereClause = "c.updated_at >= (NOW() - INTERVAL 14 DAY)";
             
             // Get user role from database (case-insensitive like Auth.php)
             $isAdmin = false;
@@ -849,13 +849,6 @@ class Chat extends Controller
      */
     public function sendImage()
     {
-        // Log entry point
-        if (class_exists('\Log')) {
-            \Log::write("sendImage called", 'cms_debug', 'Chat');
-            \Log::write("FILES: " . json_encode($_FILES), 'cms_debug', 'Chat');
-            \Log::write("POST: " . json_encode($_POST), 'cms_debug', 'Chat');
-        }
-        
         try {
             // Validate file upload
             if (!isset($_FILES['image']) || $_FILES['image']['error'] !== UPLOAD_ERR_OK) {
@@ -872,10 +865,8 @@ class Chat extends Controller
                 $this->error('Missing phone number');
             }
             
-            \Log::write("Getting DB connection", 'cms_debug', 'Chat');
             $db = $this->db(0);
             
-            \Log::write("Fetching conversation for phone: $phone", 'cms_debug', 'Chat');
             // Get conversation details
             $conversation = $db->get_where('wa_conversations', ['wa_number' => $phone])->row();
             if (!$conversation) {
@@ -884,10 +875,8 @@ class Chat extends Controller
             
             $waNumber = $phone; // Alias
             
-            \Log::write("Starting image upload", 'cms_debug', 'Chat');
             // Upload image to server
             $uploaded = $this->uploadImageFile($_FILES['image']);
-            \Log::write("Upload result: " . json_encode($uploaded), 'cms_debug', 'Chat');
             if (!$uploaded['success']) {
                 $this->error($uploaded['error']);
             }
@@ -899,12 +888,8 @@ class Chat extends Controller
                 require_once __DIR__ . '/../../Helpers/WhatsAppService.php';
             }
             
-            \Log::write("Initializing WhatsAppService", 'cms_debug', 'Chat');
-            
             try {
                 $waService = new \App\Helpers\WhatsAppService();
-                $waService = new \App\Helpers\WhatsAppService();
-                \Log::write("WhatsAppService instance created successfully", 'cms_debug', 'Chat');
                 
                 // Get sender_code: 1. From POST body, 2. From database by user_id, 3. From session
                 $senderCode = $body['sender_code'] ?? null;
@@ -926,9 +911,7 @@ class Chat extends Controller
                     $senderCode = $_SESSION['mdl_crm_session']['user']['code'];
                 }
                 
-                \Log::write("Sending image to: $waNumber, URL: $mediaUrl, SenderCode: $senderCode", 'cms_debug', 'Chat');
                 $result = $waService->sendImage($waNumber, $mediaUrl, $caption, $senderCode);
-                \Log::write("WA send result: " . json_encode($result), 'cms_debug', 'Chat');
                 
             } catch (\Throwable $e) {
                 \Log::write("CRITICAL ERROR calling sendImage: " . $e->getMessage(), 'cms_error', 'Chat');

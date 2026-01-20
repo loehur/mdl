@@ -105,10 +105,7 @@ class WhatsApp extends Controller
     {
         $msg = $data['whatsappInboundMessage'] ?? [];
         
-        // DEBUG LOG: Inbound Message Start
-        if (class_exists('\Log')) {
-             \Log::write("INBOUND MSG: " . json_encode($msg), 'wa_inbound_debug', 'start');
-        }
+        // DEBUG LOG removed for performance
 
         $textBodyToCheck = $msg['text']['body'] ?? '';
         
@@ -432,11 +429,6 @@ class WhatsApp extends Controller
     {
         $url = 'https://waserver.nalju.com/incoming';
         
-        // DEBUG LOG: WS Push Start
-        if (class_exists('\Log')) {
-             \Log::write("WS PUSH START: " . json_encode($data), 'wa_ws_debug', 'push');
-        }
-        
         // Use curl to post
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -447,13 +439,9 @@ class WhatsApp extends Controller
         
         $result = curl_exec($ch);
         
-        // DEBUG LOG: WS Push Result
-        if (class_exists('\Log')) {
-             if (curl_errno($ch)) {
-                  \Log::write("WS PUSH ERROR: " . curl_error($ch), 'wa_ws_debug', 'error');
-             } else {
-                  \Log::write("WS PUSH RESULT: " . $result, 'wa_ws_debug', 'result');
-             }
+        // Keep only ERROR log
+        if (class_exists('\Log') && curl_errno($ch)) {
+             \Log::write("WS PUSH ERROR: " . curl_error($ch), 'wa_ws_debug', 'error');
         }
         
         curl_close($ch);

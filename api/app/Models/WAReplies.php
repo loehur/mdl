@@ -403,11 +403,7 @@ class WAReplies
                                     $lastQuery = method_exists($db1, 'last_query') ? $db1->last_query() : 'N/A';
                                     \Log::write("Insert Data: " . json_encode($insertData), 'webhook', 'WhatsApp');
                                 }
-                            } else {
-                                \Log::write("⚠️ API response has no text | Response: " . $apiResponse, 'wa_nota_debug');
                             }
-                        } else {
-                            \Log::write("❌ API call failed | Ref: $ref", 'wa_nota_debug');
                         }
                     }
                 } else {
@@ -728,8 +724,6 @@ class WAReplies
             $phones[] = $cleanWaNumber;
             $phones = array_unique(array_filter($phones));
 
-            \Log::write("handleReminder - phones: " . json_encode($phones), 'reminder_debug');
-
             // Build FIND_IN_SET conditions for each phone
             // This handles notif_number containing comma-separated values like "08123,08456"
             $conditions = [];
@@ -741,7 +735,6 @@ class WAReplies
             }
 
             if (empty($conditions)) {
-                \Log::write("handleReminder - no conditions, returning", 'reminder_debug');
                 $text = "Tidak ada reminder yang ditemukan.";
                 $waService->sendFreeText($waNumber, $text);
                 return;
@@ -750,19 +743,16 @@ class WAReplies
             $whereClause = implode(' OR ', $conditions);
             $sql = "SELECT * FROM reminder WHERE $whereClause";
 
-            \Log::write("handleReminder - SQL: $sql", 'reminder_debug');
-
             try {
                 $queryResult = DB::getInstance(0)->query($sql);
                 $data = $queryResult ? $queryResult->result_array() : [];
             } catch (\Throwable $qe) {
-                \Log::write("handleReminder - Query ERROR: " . $qe->getMessage(), 'reminder_debug', 'error');
+                // Keep error log for critical failures
+                \Log::write("handleReminder - Query ERROR: " . $qe->getMessage(), 'wa_error', 'Reminder');
                 $text = "Tidak ada reminder yang ditemukan.";
                 $waService->sendFreeText($waNumber, $text);
                 return;
             }
-
-            \Log::write("handleReminder - data count: " . count($data), 'reminder_debug');
 
             // Collect all matching reminders
             $reminders = [];
@@ -796,21 +786,17 @@ class WAReplies
                 }
             }
 
-            \Log::write("handleReminder - reminders count: " . count($reminders), 'reminder_debug');
-
             // Send all reminders to the requesting user
             if (!empty($reminders)) {
                 $combined_text = implode("\n\n", $reminders);
                 $res = $waService->sendFreeText($waNumber, $combined_text);
-                \Log::write("handleReminder - sent reminders, result: " . json_encode($res), 'reminder_debug');
             } else {
                 // No reminders found
                 $text = "Tidak ada reminder yang ditemukan untuk nomor Anda.";
                 $res = $waService->sendFreeText($waNumber, $text);
-                \Log::write("handleReminder - sent no-reminder msg, result: " . json_encode($res), 'reminder_debug');
             }
         } catch (\Exception $e) {
-            \Log::write("handleReminder ERROR: " . $e->getMessage(), 'reminder_debug', 'error');
+            \Log::write("handleReminder ERROR: " . $e->getMessage(), 'wa_error', 'Reminder');
             // Still try to send error message to user
             try {
                 $waService = $this->getWaService();
@@ -836,19 +822,14 @@ class WAReplies
             $phones[] = $cleanWaNumber;
             $phones = array_unique(array_filter($phones));
 
-            \Log::write("handleKas_laundry - phones: " . json_encode($phones), 'kas_debug');
-
             // Only allowed phones can access this
             $intersect = array_intersect($phones, $hp);
             if (empty($intersect)) {
-                \Log::write("handleKas_laundry - NOT authorized", 'kas_debug');
                 return;
             }
 
             $db1 = DB::getInstance(1);
             $cabangs = $db1->query("SELECT * FROM cabang")->result_array();
-
-            \Log::write("handleKas_laundry - cabang count: " . count($cabangs), 'kas_debug');
 
             $data = [];
             foreach ($cabangs as $a) {
@@ -878,8 +859,6 @@ class WAReplies
                 }
             }
 
-            \Log::write("handleKas_laundry - text: " . $text, 'kas_debug');
-
             $waService = $this->getWaService();
             if (strlen($text) > 0) {
                 $waService->sendFreeText($waNumber, $text);
@@ -887,7 +866,7 @@ class WAReplies
                 $waService->sendFreeText($waNumber, "Semua kas cabang di bawah Rp1.000.000");
             }
         } catch (\Throwable $e) {
-            \Log::write("handleKas_laundry ERROR: " . $e->getMessage(), 'kas_debug', 'error');
+            \Log::write("handleKas_laundry ERROR: " . $e->getMessage(), 'wa_error', 'Kas');
         }
     }
 
@@ -896,8 +875,6 @@ class WAReplies
         $waService = $this->getWaService();
         
         try {
-            \Log::write("handleCek_token START - textBody: $textBody", 'token_debug');
-            
             //tentukan DB berdasarkan textBody
             $bisnis = explode(" ", $textBody)[2] ?? null;
             
@@ -913,18 +890,14 @@ class WAReplies
                     $bisnis = "laundry";
                     $db = DB::getInstance(1);
                 }
-            } else {
-                $waService->sendFreeText($waNumber, "Bisnis tidak ditemukan.");
-                return;
-            }
+        } else {
+            $waService->sendFreeText($waNumber, "Bisnis tidak ditemukan.");
+            return;
+        }
 
-            \Log::write("handleCek_token - bisnis: $bisnis, DB connected", 'token_debug');
-
-            $user = $db->query("SELECT id_cabang, id_privilege FROM user WHERE no_user IN ($phoneIn)")->row_array();
-            $id_cabang = $user['id_cabang'] ?? null;
-            $id_privilege = $user['id_privilege'] ?? null;
-
-            \Log::write("handleCek_token - bisnis: $bisnis, phoneIn: $phoneIn, id_cabang: $id_cabang, id_privilege: $id_privilege", 'token_debug');
+        $user = $db->query("SELECT id_cabang, id_privilege FROM user WHERE no_user IN ($phoneIn)")->row_array();
+        $id_cabang = $user['id_cabang'] ?? null;
+        $id_privilege = $user['id_privilege'] ?? null;
 
         if ($id_cabang) {
             $db0 = DB::getInstance(0);
@@ -937,8 +910,6 @@ class WAReplies
                 $pre_list = $db0->query(
                     "SELECT * FROM prepaid_list WHERE bisnis = '$bisnis' AND id_cabang = '$id_cabang'")->result_array();
             }
-
-            \Log::write("handleCek_token - pre_list count: " . count($pre_list), 'token_debug');
 
             if (!$pre_list || count($pre_list) == 0) {
                 $waService->sendFreeText($waNumber, "Data token untuk $bisnis tidak ditemukan.");
@@ -963,12 +934,11 @@ class WAReplies
             $text = $text . "Ketik _Token {bisnis} {id}_ untuk beli. Contoh: *_Token ".$item['bisnis']. " " . $item['pre_id']. "_*";
             $waService->sendFreeText($waNumber, $text);
         } else {
-            \Log::write("handleCek_token - user not found in $bisnis DB for phone: $phoneIn", 'token_debug');
             $waService->sendFreeText($waNumber, "Nomor Anda tidak terdaftar di sistem $bisnis.");
         }
         
         } catch (\Throwable $e) {
-            \Log::write("handleCek_token ERROR: " . $e->getMessage(), 'token_debug', 'error');
+            \Log::write("handleCek_token ERROR: " . $e->getMessage(), 'wa_error', 'Token');
             $waService->sendFreeText($waNumber, "Terjadi kesalahan sistem.");
         }
     }
@@ -1103,20 +1073,15 @@ class WAReplies
             $phones[] = $cleanWaNumber;
             $phones = array_unique(array_filter($phones));
 
-            \Log::write("handleSaldo_iak - phones: " . json_encode($phones), 'iak_debug');
-
             // Only allowed phones can access this
             $intersect = array_intersect($phones, $hp);
             if (empty($intersect)) {
-                \Log::write("handleSaldo_iak - NOT authorized", 'iak_debug');
                 return;
             }
 
             // Cek saldo IAK
             $iak = new \App\Models\IAK();
             $response = $iak->check_balance();
-
-            \Log::write("handleSaldo_iak - response: " . json_encode($response), 'iak_debug');
 
             $waService = $this->getWaService();
 
@@ -1131,7 +1096,7 @@ class WAReplies
             $waService->sendFreeText($waNumber, $text);
 
         } catch (\Throwable $e) {
-            \Log::write("handleSaldo_iak ERROR: " . $e->getMessage(), 'iak_debug', 'error');
+            \Log::write("handleSaldo_iak ERROR: " . $e->getMessage(), 'wa_error', 'IAK');
             $waService = $this->getWaService();
             $waService->sendFreeText($waNumber, "Error: " . $e->getMessage());
         }
