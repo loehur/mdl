@@ -1093,7 +1093,7 @@ class WAReplies
     {
         try {
             // Authorized phones (same as IAK)
-            $hp = ['+6282170743955', '+6285277720412'];
+            $hp = ['+6281268098300', '+6285278114125'];
 
             // Normalize phone numbers for comparison
             $phones = explode(',', $phoneIn);
