@@ -432,15 +432,29 @@
               // Scenario 1: Real QR String
               showQR(qrString, total, "Customer", false, null, ref);
             } else {
-              // Scenario 2: Fallback (Random QR) - Always show if real QR missing
-              var randomQR = Array(241).join((Math.random().toString(36) + '00000000000000000').slice(2, 18)).slice(0, 240);
-              showQR(randomQR, total, "Customer", true, res, ref);
+              // Scenario 2: QRIS Maintenance - Show friendly message
+              var errorMsg = "🔧 QRIS Sedang Dalam Perbaikan\n\n";
+              errorMsg += "Mohon maaf, layanan QRIS sementara tidak tersedia.\n";
+              errorMsg += "Silakan gunakan metode pembayaran lain atau coba beberapa saat lagi.\n\n";
+              errorMsg += "Detail Teknis:\n";
+              errorMsg += JSON.stringify(res, null, 2);
+              
+              showAlert(errorMsg, "warning");
             }
           },
           error: function (xhr, status, error) {
-            // Fallback on error
-            var randomQR = Array(241).join((Math.random().toString(36) + '00000000000000000').slice(2, 18)).slice(0, 240);
-            showQR(randomQR, total, "Customer", true, { error: error, status: status }, ref);
+            // Show friendly error message
+            var errorMsg = "🔧 QRIS Sedang Dalam Perbaikan\n\n";
+            errorMsg += "Mohon maaf, sistem pembayaran QRIS sementara tidak dapat diakses.\n";
+            errorMsg += "Silakan coba lagi dalam beberapa saat atau gunakan metode pembayaran lain.\n\n";
+            errorMsg += "Detail Teknis:\n";
+            errorMsg += "Error: " + error + "\n";
+            errorMsg += "Status: " + status + "\n";
+            if (xhr.responseText) {
+              errorMsg += "\nResponse: " + xhr.responseText;
+            }
+            
+            showAlert(errorMsg, "warning");
           },
           complete: function () {
             $(btn).removeClass('disabled').prop('disabled', false);

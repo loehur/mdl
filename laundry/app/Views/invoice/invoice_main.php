@@ -1243,16 +1243,30 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
                         // Show real QR
                         showQR(qrString, total, customerName, false, null, ref);
                     } else {
-                        // Fallback: Generate random QR for dev mode
-                        var randomQR = Array(241).join((Math.random().toString(36) + '00000000000000000').slice(2, 18)).slice(0, 240);
-                        showQR(randomQR, total, customerName, true, response, ref);
+                        // QRIS Maintenance - Show friendly error message
+                        var errorMsg = "🔧 QRIS Sedang Dalam Perbaikan\n\n";
+                        errorMsg += "Mohon maaf, layanan QRIS sementara tidak tersedia.\n";
+                        errorMsg += "Silakan gunakan metode pembayaran lain atau coba beberapa saat lagi.\n\n";
+                        errorMsg += "Detail Teknis:\n";
+                        errorMsg += JSON.stringify(response, null, 2);
+                        
+                        alert(errorMsg);
                     }
                 },
                 error: function(xhr, status, error) {
                     btn.prop('disabled', false).text(originalText);
-                    // Fallback on error
-                    var randomQR = Array(241).join((Math.random().toString(36) + '00000000000000000').slice(2, 18)).slice(0, 240);
-                    showQR(randomQR, total, customerName, true, { error: error }, ref);
+                    // Show friendly error message
+                    var errorMsg = "🔧 QRIS Sedang Dalam Perbaikan\n\n";
+                    errorMsg += "Mohon maaf, sistem pembayaran QRIS sementara tidak dapat diakses.\n";
+                    errorMsg += "Silakan coba lagi dalam beberapa saat atau gunakan metode pembayaran lain.\n\n";
+                    errorMsg += "Detail Teknis:\n";
+                    errorMsg += "Error: " + error + "\n";
+                    errorMsg += "Status: " + status + "\n";
+                    if (xhr.responseText) {
+                        errorMsg += "\nResponse: " + xhr.responseText;
+                    }
+                    
+                    alert(errorMsg);
                 }
             });
         } else {
