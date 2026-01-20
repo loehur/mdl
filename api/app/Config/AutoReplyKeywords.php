@@ -70,8 +70,20 @@ return [
         'notify' => true,
         'patterns' => [
             '/(bi*sa*|bo*le*h).*(sa*ya*|a*ku|ka*mi).*(di)?(ambi*l|je*m*pu*t)/i',
+            '/(bantu|tolong|minta|bisa).*(baju|pakaian|celana|handuk|boneka|sepatu|selimut|jaket)/i',
         ],
-        'ai_prompt' => 'User melakukan permintaan khusus terkait laundry (waktu selesai dipercepat/didulukan, prioritas, ganti parfum, cara lipat) ATAU user mengkonfirmasi akan datang mengambil/menjemput sendiri laundrynya.'
+        'ai_prompt' => "User melakukan PERMINTAAN KHUSUS atau INSTRUKSI KHUSUS terkait laundry.\n
+        TRUE jika:\n
+        - Permintaan treatment khusus: | bantu dibersihkan | tolong difokusin | baju ini dicuci khusus | noda ini dihilangkan |\n
+        - Permintaan waktu/prioritas: | tolong dipercepat | didulukan ya | kapan bisa selesai | prioritas dong |\n
+        - Permintaan cara treatment: | ganti parfum | jangan pakai pelembut | lipat rapi | setrika aja |\n
+        - Konfirmasi ambil sendiri: | saya jemput nanti | aku ambil sendiri | nanti sore saya datang |\n
+        - Ada kata: bantu/tolong/minta/bisa + object laundry (baju/celana/handuk/dll)\n
+        \n
+        FALSE jika:\n
+        - Hanya sapaan: 'halo' tanpa permintaan\n
+        - Hanya tanya status: 'kapan siap?' tanpa instruksi khusus\n
+        - Minta jemput/antar: 'tolong jemput' (ini MINTA_JEMPUT_ANTAR)"
     ],
 
     'JAM_OPERASIONAL' => [
@@ -100,10 +112,19 @@ return [
             '/((hm+|ok(e*)?|sip)\s*)*(y(a*)?\s*)?(u*da*h|s*u*da*h|la+h)/i',
             '/(oh*)\s*(gi*tu+)/i',
             '/(ok|oh).*(siap|sip|ok)/i',
+            '/^reacted\s+[^\s]+$/i', // WhatsApp reactions: "Reacted ❤️", "Reacted 👍"
         ],
-        'ai_prompt' => "Penutup seperti:\n
-        | terima kasih | ok deh | siap kak | iya lah kak |\nAtau hanya mengkonfirmasi bahwa:\n
-        | sudah lunas | sudah diambil | akan menjemput | akan mengantarkan |"
+        'ai_prompt' => "User memberikan PENUTUP/CLOSING/ACKNOWLEDGMENT tanpa pertanyaan atau permintaan lanjutan.\n
+        TRUE jika:\n
+        - Ucapan terima kasih: | terima kasih | makasih | thanks | thx |\n
+        - Konfirmasi singkat: | ok deh | siap kak | iya lah kak | sudah | oke |\n
+        - Konfirmasi status: | sudah lunas | sudah diambil | akan menjemput | akan mengantarkan |\n
+        - EMOJI/REACTION SAJA: | ❤️ | 👍 | 🙏 | 👌 | ✅ | atau kata 'Reacted' + emoji |\n
+        - Single emoji tanpa text apapun\n
+        \n
+        FALSE jika:\n
+        - Ada pertanyaan (kapan? berapa? dimana?)\n
+        - Ada permintaan (tolong, minta, bisa, bantu)"
     ],
 
     'REMINDER' => [
