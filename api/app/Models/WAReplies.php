@@ -1124,8 +1124,8 @@ class WAReplies
                 return;
             }
 
-            // Call OpenAI API to list models (simpler endpoint to verify API key)
-            $url = 'https://api.openai.com/v1/models';
+            // Call OpenAI Billing API to get credit grants
+            $url = "https://api.openai.com/dashboard/billing/credit_grants";
             
             $ch = curl_init($url);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -1149,26 +1149,46 @@ class WAReplies
 
             $data = json_decode($response, true);
 
-            // Debug: Log actual response
-            \Log::write("OpenAI Response - HTTP: $httpCode | Data: " . json_encode($data), 'wa_error', 'OpenAI');
-
-            if ($httpCode === 200 && isset($data['data'])) {
-                // API key valid, count available models
-                $modelCount = count($data['data']);
+            if ($httpCode === 200) {
+                // Parse credit grants response
+                $totalGranted = $data['total_granted'] ?? 0;
+                $totalUsed = $data['total_used'] ?? 0;
+                $totalAvailable = $data['total_available'] ?? 0;
                 
-                // Find GPT-4 models
-                $gpt4Models = array_filter($data['data'], function($model) {
-                    return stripos($model['id'], 'gpt-4') !== false;
-                });
+                $text = "*OpenAI Credit Balance*\n";
+                $text .= "Total Granted: $" . number_format($totalGranted, 2) . "\n";
+                $text .= "Used: $" . number_format($totalUsed, 2) . "\n";
+                $text .= "Available: $" . number_format($totalAvailable, 2) . "\n";
                 
-                $text = "*OpenAI API Status*\n";
-                $text .= "✅ Connected\n";
-                $text .= "Models: " . $modelCount . "\n";
-                $text .= "GPT-4: " . count($gpt4Models) . " models\n";
-                $text .= "\nCurrent: " . \App\Config\AI::getOpenAIModel();
+                // Show grant details if available
+                if (isset($data['grants']) && is_array($data['grants'])) {
+                    $text .= "\n*Active Grants:*\n";
+                    foreach ($data['grants'] as $grant) {
+                        $grantAmount = $grant['grant_amount'] ?? 0;
+                        $grantUsed = $grant['used_amount'] ?? 0;
+                        $grantRemaining = $grantAmount - $grantUsed;
+                        $expiresAt = $grant['expires_at'] ?? null;
+                        
+                        if ($grantRemaining > 0) {
+                            $text .= "• $" . number_format($grantRemaining, 2);
+                            if ($expiresAt) {
+                                $expDate = date('d M Y', $expiresAt);
+                                $text .= " (exp: {$expDate})";
+                            }
+                            $text .= "\n";
+                        }
+                    }
+                }
+                
+                $text .= "\nModel: " . \App\Config\AI::getOpenAIModel();
             } else {
                 $errorMsg = $data['error']['message'] ?? 'Unknown error';
+                
+                // Debug: Log full response for troubleshooting
+                \Log::write("OpenAI Credit Error - HTTP: $httpCode | Response: " . json_encode($data), 'wa_error', 'OpenAI');
+                
                 $text = "Failed: " . $errorMsg . "\nHTTP: " . $httpCode;
+                $text .= "\n\nTry: https://platform.openai.com/account/billing";
             }
 
             $waService->sendFreeText($waNumber, $text);
