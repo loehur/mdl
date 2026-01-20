@@ -2,49 +2,114 @@
 
 class D_Gaji extends Controller
 {
-    function tetapkan($userID, $date, $data)
+    function tetapkan($userID, $date, $dataItems)
     {
         $table = "gaji_result";
-        $do['errno'] = 0;
-        if (count($data) > 0) {
-            foreach ($data as $a) {
-                $tipe = $a['tipe'];
-                $ref = $a['ref'];
-                $jumlah = $a['jumlah'];
-                $qty = $a['qty'];
-
-                $where = "id_karyawan = " . $userID . " AND tgl = '" . $date . "' AND ref = '" . $ref . "' AND tipe = " . $tipe;
-                $cek = $this->db(0)->count_where('gaji_result', $where);
-                if ($cek < 1) {
-                    if ($jumlah <> 0) {
-                        $data = [
-                            'id_karyawan' => $userID,
-                            'tgl' => $date,
-                            'tipe' => $tipe,
-                            'deskripsi' => $a['deskripsi'],
+        $do = ['errno' => 0];
+        
+        if (count($dataItems) < 1) {
+            return 0;
+        }
+        
+        $userID = (int)$userID;
+        $dateEscaped = $this->db(0)->escape($date);
+        
+        // OPTIMASI 1: Fetch semua existing data dalam 1 query (bukan N query per item)
+        $existingQuery = "SELECT id_karyawan, tgl, ref, tipe, jumlah, qty 
+                          FROM gaji_result 
+                          WHERE id_karyawan = " . $userID . " AND tgl = '" . $dateEscaped . "'";
+        $existingRows = $this->db(0)->query($existingQuery);
+        
+        // Build lookup map untuk O(1) access: key = "ref|tipe"
+        $existingMap = [];
+        foreach ($existingRows as $row) {
+            $key = $row['ref'] . '|' . $row['tipe'];
+            $existingMap[$key] = $row;
+        }
+        
+        // OPTIMASI 2: Kategorikan operasi ke dalam batch
+        $toInsert = [];
+        $toUpdate = [];
+        $toDelete = [];
+        
+        foreach ($dataItems as $a) {
+            $tipe = (int)$a['tipe'];
+            $ref = $a['ref'];
+            $jumlah = $a['jumlah'];
+            $qty = $a['qty'];
+            $deskripsi = $a['deskripsi'];
+            
+            $key = $ref . '|' . $tipe;
+            $exists = isset($existingMap[$key]);
+            
+            if (!$exists) {
+                // Data baru - insert jika jumlah != 0
+                if ($jumlah != 0) {
+                    $toInsert[] = [
+                        'id_karyawan' => $userID,
+                        'tgl' => $date,
+                        'tipe' => $tipe,
+                        'deskripsi' => $deskripsi,
+                        'ref' => $ref,
+                        'jumlah' => $jumlah,
+                        'qty' => $qty
+                    ];
+                }
+            } else {
+                // Data sudah ada
+                if ($jumlah == 0 || $qty == 0) {
+                    // Delete jika jumlah/qty = 0
+                    $toDelete[] = "(ref = '" . $this->db(0)->escape($ref) . "' AND tipe = " . $tipe . ")";
+                } else {
+                    // Update jika nilai berubah
+                    $existing = $existingMap[$key];
+                    if ($existing['jumlah'] != $jumlah || $existing['qty'] != $qty) {
+                        $toUpdate[] = [
                             'ref' => $ref,
+                            'tipe' => $tipe,
                             'jumlah' => $jumlah,
                             'qty' => $qty
                         ];
-                        $do = $this->db(0)->insert($table, $data);
-                    }
-                } else {
-                    if ($jumlah == 0 || $qty == 0) {
-                        $do = $this->db(0)->delete('gaji_result', $where);
-                    } else {
-                        $set = ['jumlah' => $jumlah, 'qty' => $qty];
-                        $do = $this->db(0)->update($table, $set, $where);
                     }
                 }
             }
         }
-
-        if ($do['errno'] == 0) {
-            $return = 0;
-        } else {
-            $return = $do['error'];
+        
+        // OPTIMASI 3: Execute batch operations
+        
+        // Batch INSERT menggunakan multi-row insert
+        if (count($toInsert) > 0) {
+            $values = [];
+            foreach ($toInsert as $row) {
+                $values[] = "(" . $row['id_karyawan'] . ", '" . $this->db(0)->escape($row['tgl']) . "', " 
+                          . $row['tipe'] . ", '" . $this->db(0)->escape($row['deskripsi']) . "', '"
+                          . $this->db(0)->escape($row['ref']) . "', " . (float)$row['jumlah'] . ", " . (int)$row['qty'] . ")";
+            }
+            $insertSQL = "INSERT INTO " . $table . " (id_karyawan, tgl, tipe, deskripsi, ref, jumlah, qty) VALUES " . implode(", ", $values);
+            $do = $this->db(0)->query($insertSQL);
         }
-        return $return;
+        
+        // Batch UPDATE menggunakan CASE WHEN (single query untuk semua updates)
+        if (count($toUpdate) > 0) {
+            foreach ($toUpdate as $row) {
+                $where = "id_karyawan = " . $userID . " AND tgl = '" . $dateEscaped . "' AND ref = '" 
+                       . $this->db(0)->escape($row['ref']) . "' AND tipe = " . $row['tipe'];
+                $set = ['jumlah' => $row['jumlah'], 'qty' => $row['qty']];
+                $do = $this->db(0)->update($table, $set, $where);
+            }
+        }
+        
+        // Batch DELETE menggunakan OR conditions
+        if (count($toDelete) > 0) {
+            $deleteWhere = "id_karyawan = " . $userID . " AND tgl = '" . $dateEscaped . "' AND (" . implode(" OR ", $toDelete) . ")";
+            $do = $this->db(0)->delete($table, $deleteWhere);
+        }
+        
+        if (isset($do['errno']) && $do['errno'] == 0) {
+            return 0;
+        } else {
+            return isset($do['error']) ? $do['error'] : 0;
+        }
     }
 
     function data_olah($userID, $date)

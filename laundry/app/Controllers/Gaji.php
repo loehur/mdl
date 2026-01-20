@@ -154,125 +154,109 @@ class Gaji extends Controller
 
    function tambah_harian_malam() {}
 
+   /**
+    * Proses tunjangan untuk satu user (HARIAN, MALAM, TUNJANGAN BULANAN)
+    * @param int $userID
+    * @param string $date Format: Y-m
+    * @return bool true jika sukses, false jika ada error
+    */
+   private function processUserTunjangan($userID, $date)
+   {
+      // Gabungkan query HARIAN dan MALAM menjadi 1 query dengan GROUP BY
+      // jenis = 1 adalah MALAM, jenis <> 1 adalah HARIAN
+      $sql = "SELECT 
+                  CASE WHEN jenis = 1 THEN 'malam' ELSE 'harian' END as tipe,
+                  COUNT(*) as qty 
+               FROM absen 
+               WHERE id_karyawan = " . (int)$userID . " 
+                  AND tanggal LIKE '" . $this->db(0)->escape($date) . "%'
+               GROUP BY CASE WHEN jenis = 1 THEN 'malam' ELSE 'harian' END";
+      
+      $absenData = $this->db(0)->query($sql);
+      
+      // Proses hasil query - convert ke array associative
+      $absenCount = ['harian' => 0, 'malam' => 0];
+      foreach ($absenData as $row) {
+         $absenCount[$row['tipe']] = (int)$row['qty'];
+      }
+      
+      // HARIAN (id_pengali = 3)
+      if ($absenCount['harian'] > 0) {
+         $result = $this->insertTunjanganIfNotExists($userID, 3, $absenCount['harian'], $date);
+         if ($result === 404) {
+            return ['success' => false, 'error' => 'HARIAN'];
+         }
+      }
+      
+      // MALAM (id_pengali = 5)
+      if ($absenCount['malam'] > 0) {
+         $result = $this->insertTunjanganIfNotExists($userID, 5, $absenCount['malam'], $date);
+         if ($result === 404) {
+            return ['success' => false, 'error' => 'MALAM'];
+         }
+      }
+      
+      // TUNJANGAN BULANAN (id_pengali = 4, qty selalu 1)
+      $result = $this->insertTunjanganIfNotExists($userID, 4, 1, $date);
+      if ($result === 404) {
+         return ['success' => false, 'error' => 'TUNJANGAN'];
+      }
+      
+      return ['success' => true];
+   }
+   
+   /**
+    * Insert tunjangan jika belum ada (menggunakan INSERT IGNORE untuk efisiensi)
+    * @param int $userID
+    * @param int $id_pengali
+    * @param int $qty
+    * @param string $date
+    * @return int 1 jika sukses, 404 jika error, "DATA SUDAH TER-SET!" jika sudah ada
+    */
+   private function insertTunjanganIfNotExists($userID, $id_pengali, $qty, $date)
+   {
+      $data = [
+         'id_karyawan' => $userID,
+         'id_pengali' => $id_pengali,
+         'qty' => $qty,
+         'tgl' => $date
+      ];
+      $where = "id_karyawan = " . (int)$userID . " AND id_pengali = " . (int)$id_pengali . " AND tgl = '" . $this->db(0)->escape($date) . "'";
+      return $this->tambahTunjangan($data, $where);
+   }
+
    public function tetapkan($mode = 0)
    {
       $date = isset($_POST['date']) ? $_POST['date'] : date('Y-m', strtotime("-1 month"));
 
       if ($mode == 1) {
-         $userID = $_POST['user_id'];
-
-         //HARIAN
-         $qty = $this->db(0)->count_where('absen', "id_karyawan = " . $userID . " AND jenis <> 1 AND tanggal LIKE '" . $date . "%'");
-         if ($qty > 0) {
-            $id_pengali = 3;
-            $data = [
-               'id_karyawan' => $userID,
-               'id_pengali' => $id_pengali,
-               'qty' => $qty,
-               'tgl' => $date
-            ];
-            $where = "id_karyawan = " . $userID . " AND id_pengali = " . $id_pengali . " AND tgl = '" . $date . "'";
-            $tambahkan_tunjangan = $this->tambahTunjangan($data, $where);
-            if ($tambahkan_tunjangan == 404) {
-               echo "ERROR INSERT HARIAN\n";
-               exit();
-            }
-         }
-
-         //MALAM
-         $qty = $this->db(0)->count_where('absen', "id_karyawan = " . $userID . " AND jenis = 1 AND tanggal LIKE '" . $date . "%'");
-         if ($qty > 0) {
-            $id_pengali = 5;
-            $data = [
-               'id_karyawan' => $userID,
-               'id_pengali' => $id_pengali,
-               'qty' => $qty,
-               'tgl' => $date
-            ];
-            $where = "id_karyawan = " . $userID . " AND id_pengali = " . $id_pengali . " AND tgl = '" . $date . "'";
-            $tambahkan_tunjangan = $this->tambahTunjangan($data, $where);
-            if ($tambahkan_tunjangan == 404) {
-               echo "ERROR INSERT MALAM\n";
-               exit();
-            }
-         }
-
-         //TUNJANGAN
-         $id_pengali = 4;
-         $data = [
-            'id_karyawan' => $userID,
-            'id_pengali' => $id_pengali,
-            'qty' => 1,
-            'tgl' => $date
-         ];
-         $where = "id_karyawan = " . $userID . " AND id_pengali = " . $id_pengali . " AND tgl = '" . $date . "'";
-         $tambahkan_tunjangan = $this->tambahTunjangan($data, $where);
-         if ($tambahkan_tunjangan == 404) {
-            echo "ERROR INSERT TUNJANGAN";
+         // Mode 1: Single user
+         $userID = (int)$_POST['user_id'];
+         
+         $result = $this->processUserTunjangan($userID, $date);
+         if (!$result['success']) {
+            echo "ERROR INSERT " . $result['error'] . "\n";
             exit();
          }
 
          $tetapkan = $this->penetapan($userID, $date);
          echo $tetapkan;
       } else {
+         // Mode 0: All active users
          $karyawan = $this->db(0)->get_cols_where("user", "id_user", "en = 1", 1);
+         
          foreach ($karyawan as $k) {
-            $userID = $k['id_user'];
-
-            //HARIAN
-            $qty = $this->db(0)->count_where('absen', "id_karyawan = " . $userID . " AND jenis <> 1 AND tanggal LIKE '" . $date . "%'");
-            if ($qty > 0) {
-               $id_pengali = 3;
-               $data = [
-                  'id_karyawan' => $userID,
-                  'id_pengali' => $id_pengali,
-                  'qty' => $qty,
-                  'tgl' => $date
-               ];
-               $where = "id_karyawan = " . $userID . " AND id_pengali = " . $id_pengali . " AND tgl = '" . $date . "'";
-               $tambahkan_tunjangan = $this->tambahTunjangan($data, $where);
-               if ($tambahkan_tunjangan == 404) {
-                  echo "ERROR INSERT HARIAN\n";
-                  exit();
-               }
-            }
-
-            //MALAM
-            $qty = $this->db(0)->count_where('absen', "id_karyawan = " . $userID . " AND jenis = 1 AND tanggal LIKE '" . $date . "%'");
-            if ($qty > 0) {
-               $id_pengali = 5;
-               $data = [
-                  'id_karyawan' => $userID,
-                  'id_pengali' => $id_pengali,
-                  'qty' => $qty,
-                  'tgl' => $date
-               ];
-               $where = "id_karyawan = " . $userID . " AND id_pengali = " . $id_pengali . " AND tgl = '" . $date . "'";
-               $tambahkan_tunjangan = $this->tambahTunjangan($data, $where);
-               if ($tambahkan_tunjangan == 404) {
-                  echo "ERROR INSERT MALAM\n";
-                  exit();
-               }
-            }
-
-
-            //TUNJANGAN
-            $id_pengali = 4;
-            $data = [
-               'id_karyawan' => $userID,
-               'id_pengali' => $id_pengali,
-               'qty' => 1,
-               'tgl' => $date
-            ];
-            $where = "id_karyawan = " . $userID . " AND id_pengali = " . $id_pengali . " AND tgl = '" . $date . "'";
-            $tambahkan_tunjangan = $this->tambahTunjangan($data, $where);
-            if ($tambahkan_tunjangan == 404) {
-               echo "ERROR INSERT TUNJANGAN\n";
+            $userID = (int)$k['id_user'];
+            
+            $result = $this->processUserTunjangan($userID, $date);
+            if (!$result['success']) {
+               echo "ERROR INSERT " . $result['error'] . " untuk user ID: " . $userID . "\n";
                exit();
             }
 
-            $tetapkan = $this->penetapan($userID, $date);
+            $this->penetapan($userID, $date);
          }
+         
          echo "PENETAPAN GAJI PERIODE " . $date . " SELESAI\n";
       }
    }
