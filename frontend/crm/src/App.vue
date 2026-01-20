@@ -988,6 +988,8 @@ const fetchMessages = async (phone) => {
         rawTime: m.time,
         status: m.status,
         sender_code: m.sender_code,
+        quoted_message_id: m.quoted_message_id || null,
+        quoted_message_body: m.quoted_message_body || null,
       }));
 
       // Use Centralized Sanitizer

@@ -201,6 +201,7 @@ class Chat extends Controller
                         media_url,
                         media_caption as caption,
                         quoted_message_id,
+                        quoted_message_body,
                         NULL as sender_code
                      FROM wa_messages_in 
                      WHERE RIGHT(REPLACE(REPLACE(phone, '+', ''), '-', ''), 10) = ?)
@@ -217,6 +218,7 @@ class Chat extends Controller
                         media_url,
                         NULL as caption,
                         quoted_message_id,
+                        quoted_message_body,
                         sender_code
                      FROM wa_messages_out 
                      WHERE RIGHT(REPLACE(REPLACE(phone, '+', ''), '-', ''), 10) = ?)
