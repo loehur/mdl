@@ -222,22 +222,17 @@ class Login extends Controller
             $waSuccess = false;
             $waMessageId = null;
             
-            // Robust check: status bisa true (boolean) atau 'success'/'sent' (string)
+            // Check: status bisa true (boolean) atau 'success'/'sent' (string)
             $statusOk = ($res['status'] === true || $res['status'] === 'success');
             $httpOk = (($res['http_code'] ?? 0) == 200);
             
             if ($statusOk && $httpOk) {
-               // Cek apakah ada message_id dari WhatsApp API
+               // Jika status true dan http 200, langsung sukses!
+               $waSuccess = true;
+               
+               // Optional: Extract message_id untuk logging (tidak wajib)
                $responseData = $res['data'] ?? [];
                $waMessageId = $responseData['id'] ?? ($responseData['message_id'] ?? null);
-               
-               // Double check: juga validasi status di data level
-               $dataStatus = $responseData['status'] ?? '';
-               $dataStatusOk = in_array($dataStatus, ['sent', 'accepted', 'queued']);
-               
-               if (!empty($waMessageId) && ($dataStatusOk || empty($dataStatus))) {
-                  $waSuccess = true;
-               }
             }
 
             if ($waSuccess) {
