@@ -58,6 +58,7 @@ const navStore = useNavigationStore();
 let lastBackPress = 0;
 const isLoadingMessages = ref(false);
 const isLoadingMoreMessages = ref(false);
+const pendingRestoreChatId = ref(null); // For restoring chat after refresh
 
 // Search debounce timer
 let searchDebounceTimer = null;
@@ -395,6 +396,23 @@ const fetchConversations = async (offset = 0, limit = 20, search = '') => {
       // Re-assign to update list order/membership
       // Re-assign to update list order/membership
       conversations.value = newOrder;
+
+      // Auto-restore chat after refresh (if pendingRestoreChatId is set)
+      if (pendingRestoreChatId.value) {
+        const chatIdToRestore = pendingRestoreChatId.value;
+        pendingRestoreChatId.value = null; // Clear it first to prevent re-triggering
+        
+        const conversation = conversations.value.find(
+          (c) => String(c.id) === String(chatIdToRestore)
+        );
+        
+        if (conversation) {
+          console.log('✅ Restoring chat after conversations loaded:', chatIdToRestore);
+          selectChat(conversation.id);
+        } else {
+          console.log('⚠️ Could not restore chat - conversation not found:', chatIdToRestore);
+        }
+      }
 
       // Auto-open chat if deep link pending
       if (pendingTargetPhone.value) {
@@ -3258,38 +3276,12 @@ onMounted(() => {
   // ============================================
   // 📦 RESTORE NAVIGATION STATE (Anti-SLEEP)
   // ============================================
-  // Silent restore - no logs needed
   const restoredState = navStore.restore();
   
-  // Sync Vue reactive state with Pinia
+  // Set pending restore chat ID - will be processed after conversations are fetched
   if (restoredState.current === 'chat' && restoredState.chatId) {
-    // Restore chat view
-    
-    // Find conversation and restore messages
-    const conversation = conversations.value.find(
-      (c) => String(c.id) === String(restoredState.chatId)
-    );
-    
-    if (conversation) {
-      activeChatId.value = restoredState.chatId;
-      showMobileChat.value = true;
-      
-      // ✅ CRITICAL: Fetch messages if not loaded
-      if (!conversation.messages || conversation.messages.length === 0) {
-        fetchMessages(conversation.wa_number, 0, 20).then((result) => {
-          conversation.messages = result.messages;
-          conversation.hasMoreMessages = result.has_more;
-          conversation.messageOffset = result.messages.length;
-          nextTick(() => scrollToBottom());
-        });
-      } else {
-        nextTick(() => scrollToBottom());
-      }
-    } else {
-      // Silent reset - conversation not found
-      activeChatId.value = null;
-      showMobileChat.value = false;
-    }
+    pendingRestoreChatId.value = restoredState.chatId;
+    console.log('📌 Pending chat restore:', restoredState.chatId);
   } else {
     // Start at root (conversation list)
     activeChatId.value = null;
