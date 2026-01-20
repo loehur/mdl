@@ -965,15 +965,25 @@ const sanitizeMessages = (messages) => {
 const fetchMessages = async (phone, offset = 0, limit = 20) => {
   try {
     // Add cache buster
-    const response = await fetch(
-      `${API_BASE}/CRM/Chat/getMessages?phone=${phone}&offset=${offset}&limit=${limit}&_t=${Date.now()}`
-    );
+    const url = `${API_BASE}/CRM/Chat/getMessages?phone=${phone}&offset=${offset}&limit=${limit}&_t=${Date.now()}`;
+    console.log('📤 Fetching messages:', { phone, offset, limit, url });
+    
+    const response = await fetch(url);
     const result = await response.json();
+    
+    console.log('📥 Backend response:', result);
 
     if (result.status) {
       // Handle both old format (array) and new format (object with messages)
       const messagesData = Array.isArray(result.data) ? result.data : (result.data?.messages || []);
       const hasMore = result.data?.has_more ?? false;
+      
+      console.log('✅ Parsed:', {
+        messageCount: messagesData.length,
+        hasMore,
+        offset: result.data?.offset,
+        total_returned: result.data?.total_returned
+      });
       
       const mappedMessages = messagesData.map((m) => ({
         id: m.id,
@@ -1011,14 +1021,41 @@ const fetchMessages = async (phone, offset = 0, limit = 20) => {
 
 // Load more messages (for infinite scroll)
 const loadMoreMessages = async () => {
-  if (!activeConversation.value || isLoadingMoreMessages.value) return;
-  if (!activeConversation.value.hasMoreMessages) return;
+  console.log('🔄 loadMoreMessages called');
   
+  if (!activeConversation.value) {
+    console.log('❌ No active conversation');
+    return;
+  }
+  
+  if (isLoadingMoreMessages.value) {
+    console.log('⏳ Already loading...');
+    return;
+  }
+  
+  if (!activeConversation.value.hasMoreMessages) {
+    console.log('🚫 No more messages to load');
+    return;
+  }
+  
+  console.log('✅ Starting to load more messages...');
   isLoadingMoreMessages.value = true;
   
   try {
     const offset = activeConversation.value.messageOffset || activeConversation.value.messages.length;
+    console.log(`📊 Current state:`, {
+      phone: activeConversation.value.wa_number,
+      currentMessages: activeConversation.value.messages.length,
+      offset,
+      hasMoreMessages: activeConversation.value.hasMoreMessages
+    });
+    
     const result = await fetchMessages(activeConversation.value.wa_number, offset, 20);
+    
+    console.log(`📦 Load result:`, {
+      newMessages: result.messages.length,
+      has_more: result.has_more
+    });
     
     if (result.messages.length > 0) {
       // Prepend older messages to the beginning
@@ -1026,12 +1063,16 @@ const loadMoreMessages = async () => {
       activeConversation.value.hasMoreMessages = result.has_more;
       activeConversation.value.messageOffset = offset + result.messages.length;
       
-      console.log(`✓ Loaded ${result.messages.length} more messages, has_more: ${result.has_more}`);
+      console.log(`✓ Loaded ${result.messages.length} more messages, has_more: ${result.has_more}, new offset: ${activeConversation.value.messageOffset}`);
+    } else {
+      console.log('⚠️ No new messages returned');
+      activeConversation.value.hasMoreMessages = false;
     }
   } catch (e) {
     console.error("Error loading more messages:", e);
   } finally {
     isLoadingMoreMessages.value = false;
+    console.log('✓ Loading complete');
   }
 };
 

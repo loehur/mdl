@@ -510,8 +510,18 @@ const handleScroll = () => {
   const scrollTop = chatContainer.value.scrollTop;
   const threshold = 100; // Trigger load when 100px from top
   
+  console.log('📜 Scroll detected:', {
+    scrollTop,
+    threshold,
+    hasMoreMessages: props.activeConversation?.hasMoreMessages,
+    messageCount: props.activeConversation?.messages?.length,
+    isLoadingMore: props.isLoadingMoreMessages
+  });
+  
   // Check if scrolled to near top AND has more messages
   if (scrollTop <= threshold && props.activeConversation?.hasMoreMessages) {
+    console.log('✅ Loading more messages...');
+    
     // Save scroll position for restoration
     previousMessageCount.value = props.activeConversation.messages?.length || 0;
     savedScrollHeight.value = chatContainer.value.scrollHeight;
@@ -520,6 +530,8 @@ const handleScroll = () => {
     
     // Trigger load more
     emit('load-more-messages');
+  } else if (scrollTop <= threshold) {
+    console.log('⚠️ At top but hasMoreMessages is:', props.activeConversation?.hasMoreMessages);
   }
 };
 
