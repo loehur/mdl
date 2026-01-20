@@ -243,7 +243,7 @@ class WAReplies
         
         return (object) [
             'case' => 4,
-            'notify' => false,
+            'notify' => true,
             'conversation_id' => $conversationId
         ];
     }
