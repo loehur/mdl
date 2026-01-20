@@ -834,7 +834,7 @@ onUnmounted(() => {
                v-if="activeConversation.status === 'closed'"
                @click="emit('refresh-active-chat')"
                :disabled="isRefreshingChat"
-               class="flex items-center justify-center gap-2 p-3 bg-[var(--wa-bg-tertiary)] hover:bg-[var(--wa-hover)] rounded-lg border border-[var(--wa-border)] w-full transition-colors active:bg-[var(--wa-active)] group min-h-[46px]"
+               class="flex items-center justify-center gap-2 p-3 bg-[var(--wa-bg-tertiary)] rounded-lg border border-[var(--wa-border)] w-full min-h-[46px]"
                title="CSW Expired (>23 jam). Click to refresh chat data"
              >
                 <div class="w-5 h-5 flex items-center justify-center flex-shrink-0">
@@ -845,7 +845,7 @@ onUnmounted(() => {
                   <svg
                     v-else
                     xmlns="http://www.w3.org/2000/svg"
-                    class="h-5 w-5 text-[var(--wa-text-tertiary)] group-hover:text-[var(--wa-accent-green)] transition-colors"
+                    class="h-5 w-5 text-[var(--wa-text-tertiary)]"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -858,7 +858,7 @@ onUnmounted(() => {
                     />
                   </svg>
                 </div>
-                <span class="text-[var(--wa-text-secondary)] text-sm font-medium group-hover:text-[var(--wa-text-primary)] transition-colors">
+                <span class="text-[var(--wa-text-secondary)] text-sm font-medium">
                   {{ isRefreshingChat ? 'Refreshing Chat...' : 'CSW Closed - Refresh' }}
                 </span>
              </button>

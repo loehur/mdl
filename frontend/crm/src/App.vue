@@ -18,7 +18,7 @@ import {
   resumeTimestamp, lastDisconnectTime,
   duplicateRetryAttempts, maxDuplicateRetries, duplicateRetryDelay,
   // Conversations
-  conversations, activeChatId, isLoadingConversations, isLoadingMoreConversations, hasMoreConversations, conversationsOffset,
+  conversations, activeChatId, isLoadingConversations, isLoadingMoreConversations, isSearching, hasMoreConversations, conversationsOffset,
   searchQuery, conversationFilter, pendingTargetPhone, autoOpenChatOnIncoming,
   // Message Input
   messageInput, chatDrafts, replyToMessage, chatContainer, messageTextarea,
@@ -1566,13 +1566,42 @@ const refreshActiveChat = async () => {
 
   isRefreshingChat.value = true;
   try {
-    // 1. Fetch latest metadata (CSW status, etc) for all chats
-    await fetchConversations();
+    // Only fetch status of current conversation (not all conversations)
+    // This prevents chat from going blank if it's from search results
+    const userIdParam = authId.value ? `user_id=${authId.value}` : "";
+    const query = userIdParam
+      ? `?${userIdParam}&conversation_id=${activeChatId.value}&_t=${Date.now()}`
+      : `?conversation_id=${activeChatId.value}&_t=${Date.now()}`;
 
-    // 2. Refresh messages for active chat without re-triggering entrance animation
-    await selectChat(activeChatId.value, true);
+    const response = await fetch(
+      `${API_BASE}/CRM/Chat/getConversations${query}`
+    );
+
+    if (response.ok) {
+      const result = await response.json();
+      const conversationsData = result.data?.conversations || result.data || [];
+
+      if (result.status && Array.isArray(conversationsData) && conversationsData.length > 0) {
+        const updatedConv = conversationsData[0];
+        
+        // Update only the status in current conversation
+        const conversation = conversations.value.find(
+          (c) => c.id === activeChatId.value
+        );
+        
+        if (conversation) {
+          conversation.status = updatedConv.status;
+          console.log('✅ CSW status updated:', updatedConv.status);
+          
+          // If CSW is now open, input will show automatically (v-if handles it)
+          if (updatedConv.status !== 'closed') {
+            console.log('✅ CSW is open, input available');
+          }
+        }
+      }
+    }
   } catch (error) {
-    console.error("Failed to refresh chat", error);
+    console.error("Failed to refresh chat status", error);
   } finally {
     setTimeout(() => {
       isRefreshingChat.value = false;
@@ -3256,6 +3285,9 @@ watch(searchQuery, (newQuery) => {
     clearTimeout(searchDebounceTimer);
   }
   
+  // Reset loading state when typing
+  isSearching.value = false;
+  
   // Reset pagination when search changes
   conversationsOffset.value = 0;
   
@@ -3272,10 +3304,15 @@ watch(searchQuery, (newQuery) => {
     return;
   }
   
-  // Debounce: wait 1000ms (1 second) after user stops typing
-  searchDebounceTimer = setTimeout(() => {
-    fetchConversations(0, 20, trimmedQuery);
-  }, 1000);
+  // Debounce: wait 500ms after user stops typing
+  searchDebounceTimer = setTimeout(async () => {
+    isSearching.value = true;
+    try {
+      await fetchConversations(0, 20, trimmedQuery);
+    } finally {
+      isSearching.value = false;
+    }
+  }, 500);
 });
 
 onMounted(() => {
@@ -4212,6 +4249,7 @@ const handleLinkClick = (e) => {
       :current-user-role="currentUserRole"
       :is-loading-conversations="isLoadingConversations"
       :is-loading-more-conversations="isLoadingMoreConversations"
+      :is-searching="isSearching"
       :has-more-conversations="hasMoreConversations"
       :is-reconnecting="isReconnecting"
       :is-connected="isConnected"

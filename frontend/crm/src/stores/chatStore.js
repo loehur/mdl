@@ -45,6 +45,7 @@ export const conversations = ref([]);
 export const activeChatId = ref(null);
 export const isLoadingConversations = ref(false);
 export const isLoadingMoreConversations = ref(false);
+export const isSearching = ref(false);
 export const hasMoreConversations = ref(true);
 export const conversationsOffset = ref(0);
 export const searchQuery = ref("");

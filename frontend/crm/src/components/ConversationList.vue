@@ -10,6 +10,7 @@ const props = defineProps({
   currentUserRole: { type: String, default: "crew" },
   isLoadingConversations: { type: Boolean, default: false },
   isLoadingMoreConversations: { type: Boolean, default: false },
+  isSearching: { type: Boolean, default: false },
   hasMoreConversations: { type: Boolean, default: true },
   isReconnecting: { type: Boolean, default: false },
   isConnected: { type: Boolean, default: true },
@@ -173,7 +174,12 @@ const parseEmoji = (text) => {
             placeholder="Search or start new chat"
             class="block w-full pl-10 pr-10 py-2.5 border border-[var(--wa-border)] rounded-lg leading-5 bg-[var(--wa-bg-tertiary)] text-[var(--wa-text-primary)] placeholder-[var(--wa-text-tertiary)] focus:outline-none focus:bg-[var(--wa-bg-tertiary)] focus:border-[var(--wa-accent-green)] focus:ring-0 sm:text-sm transition-all"
           />
-          <div v-if="searchQuery" class="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer" @click="clearSearch">
+          <!-- Searching Spinner -->
+          <div v-if="isSearching" class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+            <div class="w-4 h-4 border-2 border-[var(--wa-text-tertiary)] border-t-[var(--wa-accent-green)] rounded-full animate-spin"></div>
+          </div>
+          <!-- Clear Search Button -->
+          <div v-else-if="searchQuery" class="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer" @click="clearSearch">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500 hover:text-slate-300 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
