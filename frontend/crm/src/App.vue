@@ -59,6 +59,9 @@ let lastBackPress = 0;
 const isLoadingMessages = ref(false);
 const isLoadingMoreMessages = ref(false);
 
+// Search debounce timer
+let searchDebounceTimer = null;
+
 
 
 // Computed: Filtered Quick Replies based on search query
@@ -237,14 +240,15 @@ const toggleTheme = () => {
 // Title blinking is now handled by shouldBlinkTitle watch below (line 314)
 // to avoid conflicts between totalUnreadCount and priority-based blinking
 
-const fetchConversations = async (offset = 0, limit = 20) => {
+const fetchConversations = async (offset = 0, limit = 20, search = '') => {
   try {
     isLoadingConversations.value = true; // Start loading
 
     const userIdParam = authId.value ? `user_id=${authId.value}` : "";
+    const searchParam = search ? `&search=${encodeURIComponent(search)}` : "";
     const query = userIdParam
-      ? `?${userIdParam}&offset=${offset}&limit=${limit}&_t=${Date.now()}`
-      : `?offset=${offset}&limit=${limit}&_t=${Date.now()}`;
+      ? `?${userIdParam}&offset=${offset}&limit=${limit}${searchParam}&_t=${Date.now()}`
+      : `?offset=${offset}&limit=${limit}${searchParam}&_t=${Date.now()}`;
 
     const response = await fetch(
       `${API_BASE}/CRM/Chat/getConversations${query}`
@@ -426,9 +430,10 @@ const loadMoreConversations = async () => {
   try {
     const offset = conversationsOffset.value;
     const userIdParam = authId.value ? `user_id=${authId.value}` : "";
+    const searchParam = searchQuery.value ? `&search=${encodeURIComponent(searchQuery.value)}` : "";
     const query = userIdParam
-      ? `?${userIdParam}&offset=${offset}&limit=20&_t=${Date.now()}`
-      : `?offset=${offset}&limit=20&_t=${Date.now()}`;
+      ? `?${userIdParam}&offset=${offset}&limit=20${searchParam}&_t=${Date.now()}`
+      : `?offset=${offset}&limit=20${searchParam}&_t=${Date.now()}`;
 
     const response = await fetch(
       `${API_BASE}/CRM/Chat/getConversations${query}`
@@ -673,8 +678,9 @@ const resetPollingTimer = () => {
 
   refreshInterval.value = setInterval(() => {
     if (isConnected.value && !document.hidden) {
-      // console.log('Checking for missed updates...');
-      fetchConversations();
+      // Refresh with current search query (if any)
+      const currentSearch = searchQuery.value?.trim() || '';
+      fetchConversations(0, 20, currentSearch);
     }
   }, 30000); // 30 seconds
 };
@@ -3216,6 +3222,37 @@ const resumeChatState = () => {
     window.history.pushState({ chatOpen: true }, "", "#chat=" + activeChatId.value);
   }
 };
+
+// ============================================================================
+// Watch for search query changes (debounced server-side search)
+// ============================================================================
+watch(searchQuery, (newQuery) => {
+  // Clear existing timer
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer);
+  }
+  
+  // Reset pagination when search changes
+  conversationsOffset.value = 0;
+  
+  const trimmedQuery = (newQuery || '').trim();
+  
+  // If empty, fetch immediately without search
+  if (!trimmedQuery) {
+    fetchConversations(0, 20, '');
+    return;
+  }
+  
+  // If less than 2 characters, don't search yet
+  if (trimmedQuery.length < 2) {
+    return;
+  }
+  
+  // Debounce: wait 1000ms (1 second) after user stops typing
+  searchDebounceTimer = setTimeout(() => {
+    fetchConversations(0, 20, trimmedQuery);
+  }, 1000);
+});
 
 onMounted(() => {
   // ============================================

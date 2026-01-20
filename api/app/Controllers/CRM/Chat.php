@@ -45,6 +45,9 @@ class Chat extends Controller
             $offset = (int)($_GET['offset'] ?? 0);
             $limit = (int)($_GET['limit'] ?? 20);
             
+            // Search parameter
+            $search = trim($_GET['search'] ?? '');
+            
             // Safety: Max 100 per request
             if ($limit > 100) $limit = 100;
             if ($offset < 0) $offset = 0;
@@ -54,6 +57,16 @@ class Chat extends Controller
             
             $userId = $_GET['user_id'] ?? null;
             $whereClause = "1=1"; // Always true, untuk base condition
+            
+            // Add search filter if provided
+            if (!empty($search)) {
+                $safSearch = $db->conn()->real_escape_string($search);
+                $whereClause .= " AND (
+                    c.contact_name LIKE '%$safSearch%' 
+                    OR c.wa_number LIKE '%$safSearch%'
+                    OR COALESCE(c.code, '00') LIKE '%$safSearch%'
+                )";
+            }
             
             // Get user role from database (case-insensitive like Auth.php)
             $isAdmin = false;

@@ -66,19 +66,12 @@ export const activeConversation = computed(() => {
 });
 
 // Filtered conversations computed
+// NOTE: Search is now server-side, this only applies tab filters
 export const filteredConversations = computed(() => {
     let list = conversations.value;
 
-    // Apply search filter
-    if (searchQuery.value) {
-        const q = searchQuery.value.toLowerCase();
-        list = list.filter(
-            (c) =>
-                (c.name || "").toLowerCase().includes(q) ||
-                (c.wa_number || "").includes(q) ||
-                (c.kode_cabang || "").toLowerCase().includes(q)
-        );
-    }
+    // Search is now handled server-side in fetchConversations()
+    // No client-side search filtering needed
 
     // Apply tab filter
     if (conversationFilter.value === "unread") {
