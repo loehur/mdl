@@ -97,7 +97,6 @@ class WAReplies
 
         // Load keyword configuration
         $keywordConfig = require __DIR__ . '/../Config/AutoReplyKeywords.php';
-        $matchPatterns = [];
         
         // Check each handler's patterns
         foreach ($keywordConfig as $handler => $config) {
@@ -109,13 +108,8 @@ class WAReplies
                     $caseVal = $config['case'] ?? null;
                     $notify = $config['notify'] ?? false;
                     
-                    // ========================================
-                    // 🎯 Rate limit check FIRST
-                    // ========================================
+                    //cek rate limit
                     if (!$this->shouldHandle($waNumber, $handler)) {
-                        $matchPatterns[] = $handler;
-                        
-                        // ✅ Still create conversation for inbound tracking (no case)
                         $conversationId = $this->getOrCreateConversationWithCase(
                             $db, $waNumber, $contactName, $assigned_user_id, $code, $lastMessage, null
                         );
@@ -127,17 +121,14 @@ class WAReplies
                         ];
                     }
                     
-                    // ========================================
-                    // 🎯 CREATE/UPDATE CONVERSATION
-                    // Rate limit passed - create with case
-                    // ========================================
+                    //pass rate limit check
                     $conversationId = $this->getOrCreateConversationWithCase(
                         $db, 
                         $waNumber, 
                         $contactName, 
                         $assigned_user_id, 
                         $code, 
-                        $lastMessage,  // Inbound message
+                        $lastMessage,
                         $caseVal
                     );
 
@@ -147,13 +138,13 @@ class WAReplies
 
                     if (method_exists($this, $methodName)) {
                         $this->$methodName($phoneIn, $waNumber, $textBody);
-
-                        return (object) [
-                            'case' => $caseVal,
-                            'notify' => $notify,
-                            'conversation_id' => $conversationId
-                        ];
                     }
+
+                    return (object) [
+                        'case' => $caseVal,
+                        'notify' => $notify,
+                        'conversation_id' => $conversationId
+                    ];
                 }
             }
         }
@@ -178,23 +169,8 @@ class WAReplies
             $aiIntent = strtoupper($aiResult['intent']);
             $aiCase = $keywordConfig[$aiIntent]['case'] ?? null;
             $aiNotify = $keywordConfig[$aiIntent]['notify'] ?? false;
-
-            // Check if this AI intent was already matched in pattern loop (and rate limited)
-            if (in_array($aiIntent, $matchPatterns)) {
-                // Already rate limited by pattern match - create conversation but don't send
-                $conversationId = $this->getOrCreateConversationWithCase(
-                    $db, $waNumber, $contactName, $assigned_user_id, $code, $lastMessage, null
-                );
-                
-                return (object) [
-                    'case' => $aiCase,
-                    'notify' => $aiNotify,
-                    'conversation_id' => $conversationId
-                ];
-            }
             
-            // ========================================
-            // 🎯 CRITICAL: Rate limit check for AI intent!
+            // Rate limit check for AI intent
             // ========================================
             if (!$this->shouldHandle($waNumber, $aiIntent)) {
                 // Rate limited - create conversation but don't send auto-reply
