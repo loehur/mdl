@@ -34,25 +34,27 @@ return [
         atau yang menurut anda sangat yakin sebagai pertanyaan status/waktu selesai laundry"
     ],
 
-    'MINTA_JEMPUT_ANTAR' => [
-        'case' => 2,
-        'notify' => true,
-        'patterns' => [
-            '/^\s*(je*m*pu*t|anta*r)\s*$/i',
-        ],
-        'ai_prompt' => "User MEMINTA KURIR/LAUNDRY untuk datang JEMPUT atau ANTAR, ATAU menanyakan ONGKIR.\n
-        TRUE (MINTA JEMPUT/ANTAR):\n
-        - tolong jemput, minta dijemput, bisa diantar?, kapan diantar?\n
-        - bisa jemput kak?, nanti bisa jemput kak?, jemput dong, antar ya kak, dijemput ya\n
-        - brp ongkirnya?, berapa ongkosnya?, brp ong nya kak?, biaya antar?\n
-        \n
-        FALSE (BUKAN MINTA JEMPUT/ANTAR):\n
-        - Jika User SENDIRI yang akan melakukan tindakan (ada kata 'saya', 'aku', 'ku', 'mau', 'awak', 'awk', 'sy' + jemput/ambil/antar)\n
-        - Contoh: 'Mau jemput laundry kak' => FALSE\n
-        - Contoh: 'Saya jemput nanti' => FALSE\n
-        - Contoh: 'nanti sore awk jmpt ya' => FALSE (ini konfirmasi ambil sendiri)\n
-        - Contoh: 'awak jemput' => FALSE"
-    ],
+   'MINTA_JEMPUT_ANTAR' => [
+      'case' => 2,
+      'notify' => true,
+      'patterns' => [
+         '/^\s*(je*m*pu*t|anta*r)\s*$/i',
+      ],
+      'ai_prompt' => "User MEMINTA KURIR/LAUNDRY untuk datang JEMPUT atau ANTAR, ATAU menanyakan ONGKIR.\n
+      TRUE (MINTA JEMPUT/ANTAR) - HARUS ADA PERMINTAAN/PERTANYAAN:\n
+      - tolong jemput, minta dijemput, bisa diantar?, boleh dijemput?, kapan diantar?\n
+      - bisa jemput kak?, nanti bisa jemput kak?, jemput dong, antar ya dong\n
+      - brp ongkirnya?, berapa ongkosnya?, brp ong nya kak?, biaya antar?\n
+      - Harus ada kata: tolong/minta/bisa/boleh/dong/kapan/berapa + jemput/antar\n
+      \n
+      FALSE (BUKAN MINTA JEMPUT/ANTAR):\n
+      - Konfirmasi/Pemberitahuan: | baik nanti dijemput | ok sore diantar | iya nanti akan dijemput | siap dijemput |\n
+      - User sendiri yang akan melakukan: | saya jemput | aku ambil | mau jemput | awak jemput |\n
+      - Hanya memberitahu jadwal tanpa permintaan: | nanti sore dijemput | besok diantar | jam 2 dijemput |\n
+      - Contoh: 'Baikla nnti sore dijemput ya kak' => FALSE (ini konfirmasi, bukan permintaan)\n
+      - Contoh: 'Ok dijemput ya' => FALSE (ini konfirmasi)\n
+      - Contoh: 'Saya jemput nanti' => FALSE"
+   ],
 
     'PERMINTAAN' => [
         'case' => 3,
@@ -86,29 +88,33 @@ return [
         Contoh yang BUKAN JAM_OPERASIONAL: 'jam berapa diantar?', 'kapan dijemput?', 'antar jam brp?'"
     ],
 
-    'PENUTUP' => [
-        'patterns' => [
-            '/\bma*ka*(s|c)(i|e)*h\b/i',
-            '/\bte*ri*ma*ka*si*h\b/i',
-            '/\btha*nks\b/i',
-            '/\b(thx|tq|ty|ok)\b/i',
-            '/((hm+|ok(e*)?|sip)\s*)*(y(a*)?\s*)?(u*da*h|s*u*da*h|la+h)/i',
-            '/(oh*)\s*(gi*tu+)/i',
-            '/(ok|oh).*(siap|sip|ok)/i',
-            '/^reacted\s+[^\s]+$/i', // WhatsApp reactions: "Reacted ❤️", "Reacted 👍"
-        ],
-        'ai_prompt' => "User memberikan PENUTUP/CLOSING/ACKNOWLEDGMENT tanpa pertanyaan atau permintaan lanjutan.\n
-        TRUE jika:\n
-        - Ucapan terima kasih: | terima kasih | makasih | thanks | thx |\n
-        - Konfirmasi singkat: | ok deh | siap kak | iya lah kak | sudah | oke |\n
-        - Konfirmasi status: | sudah lunas | sudah diambil | akan menjemput | akan mengantarkan |\n
-        - EMOJI/REACTION SAJA: | ❤️ | 👍 | 🙏 | 👌 | ✅ | atau kata 'Reacted' + emoji |\n
-        - Single emoji tanpa text apapun\n
-        \n
-        FALSE jika:\n
-        - Ada pertanyaan (kapan? berapa? dimana?)\n
-        - Ada permintaan (tolong, minta, bisa, bantu)"
-    ],
+   'PENUTUP' => [
+      'patterns' => [
+         '/\bma*ka*(s|c)(i|e)*h\b/i',
+         '/\bte*ri*ma*ka*si*h\b/i',
+         '/\btha*nks\b/i',
+         '/\b(thx|tq|ty|ok)\b/i',
+         '/((hm+|ok(e*)?|sip)\s*)*(y(a*)?\s*)?(u*da*h|s*u*da*h|la+h)/i',
+         '/(oh*)\s*(gi*tu+)/i',
+         '/(ok|oh).*(siap|sip|ok)/i',
+         '/^reacted\s+[^\s]+$/i', // WhatsApp reactions: "Reacted ❤️", "Reacted 👍"
+      ],
+      'ai_prompt' => "User memberikan PENUTUP/CLOSING/ACKNOWLEDGMENT tanpa pertanyaan atau permintaan lanjutan.\n
+      TRUE jika:\n
+      - Ucapan terima kasih: | terima kasih | makasih | thanks | thx |\n
+      - Konfirmasi singkat: | ok deh | siap kak | iya lah kak | sudah | oke | baik |\n
+      - Konfirmasi status: | sudah lunas | sudah diambil |\n
+      - Konfirmasi jadwal (TANPA PERMINTAAN): | baik nanti dijemput | ok sore diantar | iya nanti saya jemput | siap dijemput ya |\n
+      - Pemberitahuan jadwal: | nanti sore dijemput | besok diantar | jam 2 dijemput ya kak |\n
+      - EMOJI/REACTION SAJA: | ❤️ | 👍 | 🙏 | 👌 | ✅ | atau kata 'Reacted' + emoji |\n
+      - Single emoji tanpa text apapun\n
+      - Kata kunci: baik/ok/iya/siap + (nanti/sore/besok/jam) + dijemput/diantar = PENUTUP\n
+      \n
+      FALSE jika:\n
+      - Ada pertanyaan (kapan? berapa? dimana? bisa?)\n
+      - Ada permintaan (tolong, minta, bisa, bantu, dong) + object\n
+      - Contoh FALSE: 'bisa dijemput?' (ini pertanyaan), 'tolong jemput' (ini permintaan)"
+   ],
 
     'REMINDER' => [
         'patterns' => [

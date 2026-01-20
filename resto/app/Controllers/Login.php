@@ -218,7 +218,30 @@ class Login extends Controller
 
             $res = $this->model('WA_YCloud')->send($hp, $text);
 
-            if ($res['status']) {
+            // ✅ VALIDASI KETAT: Pastikan WA benar-benar terkirim
+            $waSuccess = false;
+            $waMessageId = null;
+            
+            // Robust check: status bisa true (boolean) atau 'success'/'sent' (string)
+            $statusOk = ($res['status'] === true || $res['status'] === 'success');
+            $httpOk = ($res['code'] == 200);
+            
+            if ($statusOk && $httpOk) {
+               // Cek apakah ada message_id dari WhatsApp API
+               $responseData = $res['data'] ?? [];
+               $waMessageId = $responseData['id'] ?? ($responseData['message_id'] ?? null);
+               
+               // Double check: juga validasi status di data level
+               $dataStatus = $responseData['status'] ?? '';
+               $dataStatusOk = in_array($dataStatus, ['sent', 'accepted', 'queued']);
+               
+               if (!empty($waMessageId) && ($dataStatusOk || empty($dataStatus))) {
+                  $waSuccess = true;
+               }
+            }
+
+            if ($waSuccess) {
+               // WA BERHASIL TERKIRIM - Simpan ke database
                $do = $this->data('Notif')->insertOTP($res, $today, $hp_input, $text, $id_cabang);
 
                if ($do['errno'] == 0) {
@@ -232,19 +255,27 @@ class Login extends Controller
                   } else {
                      $res_f = [
                         'code' => 0,
-                        'msg' => $up['error']
+                        'msg' => "PIN gagal disimpan: " . $up['error']
                      ];
                   }
                } else {
                   $res_f = [
                      'code' => 0,
-                     'msg' => $do['error']
+                     'msg' => "Notif gagal disimpan: " . $do['error']
                   ];
                }
             } else {
+               // WA GAGAL TERKIRIM - Jangan simpan ke database
+               $errorMsg = $res['error'] ?? 'WhatsApp tidak terkirim';
+               
+               // Tambahan info jika tidak ada message_id
+               if ($res['status'] && empty($waMessageId)) {
+                  $errorMsg .= " (No Message ID from API)";
+               }
+               
                $res_f = [
                   'code' => 0,
-                  'msg' => $res['error']
+                  'msg' => "GAGAL KIRIM PIN: " . $errorMsg
                ];
             }
          }

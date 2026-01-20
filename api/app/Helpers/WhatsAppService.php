@@ -45,15 +45,6 @@ class WhatsAppService
         return substr($this->apiKey, 0, 8) . '...';
     }
     
-    /**
-     * Send free-form text message (within 23-hour CSW)
-     * 
-     * @param string $to Customer phone number (format: +628xxx)
-     * @param string $message Text message content
-     * @param string|null $replyToMessageId WAMID of message to reply to (for quoted reply)
-     * @param string|null $senderCode Sender code (e.g. AD, CR) - derived from username
-     * @return array Response from yCloud API
-     */
     public function sendFreeText($to, $message, $replyToMessageId = null, $senderCode = null)
     {
         $payload = [
@@ -75,16 +66,6 @@ class WhatsAppService
         return $this->sendRequest('/whatsapp/messages', $payload, 'POST', null, $replyToMessageId, $senderCode);
     }
     
-    /**
-     * Send template message (can be sent anytime, even outside 23-hour CSW)
-     * 
-     * @param string $to Customer phone number
-     * @param string $templateName Template name registered in WhatsApp Business
-     * @param string $language Language code (e.g., 'id', 'en')
-     * @param array $parameters Template parameters/variables
-     * @param string $messageText Optional pre-rendered message text for database storage
-     * @return array Response from yCloud API
-     */
     public function sendTemplate($to, $templateName, $language = 'id', $parameters = [], $messageText = null)
     {        
         $components = [];
@@ -437,13 +418,6 @@ class WhatsAppService
         return $diff / 3600; // Convert seconds to hours
     }
     
-    /**
-     * Check if customer is within Customer Service Window (CSW)
-     * CSW = 23 hours from last customer message
-     * 
-     * @param string $lastMessageAt Datetime of last customer message
-     * @return bool True if within CSW, false if expired
-     */
     public function isWithinCsw($lastMessageAt)
     {
         if (empty($lastMessageAt)) {
@@ -453,7 +427,7 @@ class WhatsAppService
         $now = date('Y-m-d H:i:s');
         $hoursDiff = $this->diffHours($now, $lastMessageAt);
         
-        return $hoursDiff <= 23;
+        return $hoursDiff <= 24;
     }
 
     /**

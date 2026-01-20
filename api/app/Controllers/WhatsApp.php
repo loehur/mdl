@@ -71,20 +71,6 @@ class WhatsApp extends Controller
         ], 'WhatsApp API Ready');
     }
     
-    /**
-     * Smart send - Automatically choose between free text or template based on CSW
-     * 
-     * POST /WhatsApp/send
-     * Body:
-     * {
-     *   "phone": "081234567890",
-     *   "message_mode": "free|template",
-     *   "message": "Hello customer", // For free text
-     *   "template_name": "greeting_template", // For template
-     *   "template_params": ["John", "Doe"], // Optional template parameters
-     *   "template_language": "id" // Default: id
-     * }
-     */
     public function send()
     {
         if (!$this->isPost()) {
@@ -163,7 +149,7 @@ class WhatsApp extends Controller
                         'hours_elapsed' => round($hoursElapsed, 2),
                         'last_message_at' => $lastMessageAt ?? 'No previous message',
                         'phone_sent' => $phone,
-                        'suggestion' => 'Please ask customer to send a message to WhatsApp business first, or use template mode.'
+                        'suggestion' => 'chat ke Laundry Bot dulu ya'
                     ]
                 );
             }
@@ -344,18 +330,6 @@ class WhatsApp extends Controller
         $this->success($result['data'], 'Message sent successfully');
     }
     
-    /**
-     * Send template message (can be sent anytime)
-     * 
-     * POST /WhatsApp/send-template
-     * Body:
-     * {
-     *   "phone": "081234567890",
-     *   "template_name": "greeting_template",
-     *   "template_language": "id",
-     *   "template_params": ["John", "Platinum"]
-     * }
-     */
     public function send_template()
     {
         if (!$this->isPost()) {
@@ -379,20 +353,6 @@ class WhatsApp extends Controller
         $this->success($result['data'], 'Template sent successfully');
     }
     
-    /**
-     * Send media message
-     * 
-     * POST /WhatsApp/send-media
-     * Body:
-     * {
-     *   "phone": "081234567890",
-     *   "type": "image", // image|document|video|audio
-     *   "media_url": "https://example.com/image.jpg",
-     *   "caption": "Check this out", // Optional for image/video
-     *   "filename": "document.pdf", // Optional for document
-     *   "last_message_at": "2024-12-19 18:00:00"
-     * }
-     */
     public function send_media()
     {
         if (!$this->isPost()) {
@@ -434,23 +394,6 @@ class WhatsApp extends Controller
         $this->success($result['data'], 'Media sent successfully');
     }
     
-    /**
-     * Send interactive button message
-     * 
-     * POST /WhatsApp/send-buttons
-     * Body:
-     * {
-     *   "phone": "081234567890",
-     *   "body_text": "Choose an option:",
-     *   "buttons": [
-     *     {"id": "opt1", "title": "Option 1"},
-     *     {"id": "opt2", "title": "Option 2"}
-     *   ],
-     *   "header_text": "Menu", // Optional
-     *   "footer_text": "Powered by nalju.com", // Optional
-     *   "last_message_at": "2024-12-19 18:00:00"
-     * }
-     */
     public function send_buttons()
     {
         if (!$this->isPost()) {
@@ -495,15 +438,6 @@ class WhatsApp extends Controller
         $this->success($result['data'], 'Buttons sent successfully');
     }
     
-    /**
-     * Check Customer Service Window (CSW) status
-     * 
-     * POST /WhatsApp/check-csw
-     * Body:
-     * {
-     *   "last_message_at": "2024-12-19 18:00:00"
-     * }
-     */
     public function check_csw()
     {
         if (!$this->isPost()) {
@@ -518,7 +452,7 @@ class WhatsApp extends Controller
         
         $isWithinCsw = $this->whatsappService->isWithinCsw($lastMessageAt);
         $hoursElapsed = $this->whatsappService->diffHours($now, $lastMessageAt);
-        $hoursRemaining = 23 - $hoursElapsed;
+        $hoursRemaining = 24 - $hoursElapsed;
         
         $this->success([
             'within_csw' => $isWithinCsw,
@@ -526,10 +460,10 @@ class WhatsApp extends Controller
             'current_time' => $now,
             'hours_elapsed' => round($hoursElapsed, 2),
             'hours_remaining' => $isWithinCsw ? round($hoursRemaining, 2) : 0,
-            'csw_limit_hours' => 23,
+            'csw_limit_hours' => 24,
             'can_send_free_text' => $isWithinCsw,
             'must_use_template' => !$isWithinCsw,
-            'expires_at' => date('Y-m-d H:i:s', strtotime($lastMessageAt . ' +23 hours'))
+            'expires_at' => date('Y-m-d H:i:s', strtotime($lastMessageAt . ' +24 hours'))
         ], 'CSW status retrieved');
     }
 }

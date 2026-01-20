@@ -237,9 +237,33 @@ class Login extends Controller
                // Log response lengkap untuk debugging
                $this->model('Log')->write("[req_pin] WA Response: " . json_encode($res));
 
-               if ($res['status']) {
-                  // PASTIKAN pengiriman WhatsApp BERHASIL (status=true) sebelum insert ke database
+               // ✅ VALIDASI KETAT: Pastikan WA benar-benar terkirim
+               $waSuccess = false;
+               $waMessageId = null;
+               
+               // Robust check: status bisa true (boolean) atau 'success'/'sent' (string)
+               $statusOk = ($res['status'] === true || $res['status'] === 'success');
+               $httpOk = ($res['code'] == 200);
+               
+               if ($statusOk && $httpOk) {
+                  // Cek apakah ada message_id dari WhatsApp API
+                  $responseData = $res['data'] ?? [];
+                  $waMessageId = $responseData['id'] ?? ($responseData['message_id'] ?? null);
                   
+                  // Double check: juga validasi status di data level
+                  $dataStatus = $responseData['status'] ?? '';
+                  $dataStatusOk = in_array($dataStatus, ['sent', 'accepted', 'queued']);
+                  
+                  if (!empty($waMessageId) && ($dataStatusOk || empty($dataStatus))) {
+                     $waSuccess = true;
+                     $this->model('Log')->write("[req_pin] WA Success - Message ID: $waMessageId, Status: $dataStatus");
+                  } else {
+                     $this->model('Log')->write("[req_pin] WA Response OK but validation failed - Message ID: " . ($waMessageId ?? 'null') . ", Data Status: $dataStatus");
+                  }
+               }
+
+               if ($waSuccess) {
+                  // WA BERHASIL TERKIRIM - Simpan ke database
                   $do = $this->helper('Notif')->insertOTP($res, $today, $hp_input, $otp, $id_cabang);
                   
                   // Log insert result
@@ -258,32 +282,40 @@ class Login extends Controller
                      } else {
                         $res_f = [
                            'code' => 0,
-                           'msg' => $up['error']
+                           'msg' => "PIN gagal disimpan: " . $up['error']
                         ];
                      }
                   } else {
                      $res_f = [
                         'code' => 0,
-                        'msg' => $do['error']
+                        'msg' => "Notif gagal disimpan: " . $do['error']
                      ];
                   }
                } else {
+                  // WA GAGAL TERKIRIM - Jangan simpan ke database
+                  
                   // Cek jika CSW expired
                   if (isset($res['csw_expired']) && $res['csw_expired']) {
                      $phone_sent = isset($res['phone_sent']) ? $res['phone_sent'] : 'unknown';
                      $hoursElapsed = isset($res['data']['hours_elapsed']) ? $res['data']['hours_elapsed'] : 'unknown';
                      $lastMessage = isset($res['data']['last_message_at']) ? $res['data']['last_message_at'] : 'unknown';
                      
-                     $res_f = [
-                        'code' => 0,
-                        'msg' => "CSW Expired untuk nomor {$phone_sent}. Pastikan Anda sudah mengirim pesan ke nomor WhatsApp bisnis dalam 24 jam terakhir. (Terakhir chat: {$lastMessage}, sudah {$hoursElapsed} jam yang lalu)"
-                     ];
+                     $errorMsg = "CSW Expired untuk nomor {$phone_sent}. Pastikan Anda sudah mengirim pesan ke nomor WhatsApp bisnis dalam 24 jam terakhir. (Terakhir chat: {$lastMessage}, sudah {$hoursElapsed} jam yang lalu)";
                   } else {
-                     $res_f = [
-                        'code' => 0,
-                        'msg' => $res['error']
-                     ];
+                     $errorMsg = $res['error'] ?? 'WhatsApp tidak terkirim';
+                     
+                     // Tambahan info jika tidak ada message_id
+                     if ($res['status'] && empty($waMessageId)) {
+                        $errorMsg .= " (No Message ID from API)";
+                     }
                   }
+                  
+                  $this->model('Log')->write("[req_pin] WA Failed: $errorMsg");
+                  
+                  $res_f = [
+                     'code' => 0,
+                     'msg' => "GAGAL KIRIM PIN: " . $errorMsg
+                  ];
                }
             }
          } else {
