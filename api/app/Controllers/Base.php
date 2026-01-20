@@ -15,13 +15,8 @@ class Base extends Controller
         $this->handleCors();
         
         $this->success([
-            'name' => 'MDL Backends API',
+            'name' => 'NALJU Backends API',
             'version' => '1.0.0',
-            'endpoints' => [
-                'admin' => '/Admin/{method}',
-                'base' => '/Base atau /',
-            ],
-            'base_url' => 'http://localhost/mdl/api/'
         ], 'API is running');
     }
 }
