@@ -41,9 +41,8 @@ class Chat extends Controller
             // We want 'open' generally, or maybe all active
             // Modified to include kode_cabang from database using local column 'code'
             
-            $limitConversationDays = 14;
             $userId = $_GET['user_id'] ?? null;
-            $whereClause = "c.updated_at >= (NOW() - INTERVAL $limitConversationDays DAY)";
+            $whereClause = "1=1"; // Always true, untuk base condition
             
             // Get user role from database (case-insensitive like Auth.php)
             $isAdmin = false;
@@ -107,6 +106,7 @@ class Chat extends Controller
                 FROM wa_conversations c
                 WHERE $whereClause
                 ORDER BY c.last_message_at DESC
+                LIMIT 20
             ";
     
             $query = $db->query($sql);
