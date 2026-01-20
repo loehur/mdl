@@ -247,9 +247,9 @@ class Chat extends Controller
         // Check if there are more messages
         $hasMore = count($messages) > $limit;
         
-        // Trim to actual limit
+        // Trim to actual limit (remove OLDEST message, not newest)
         if ($hasMore) {
-            array_pop($messages);
+            array_shift($messages); // Remove first (oldest) element
         }
         
         $this->success([
