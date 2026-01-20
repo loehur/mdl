@@ -30,20 +30,27 @@ class SaldoTunai extends Controller
       $saldo = [];
       $pakai = [];
 
+      // ✅ OPTIMIZED: Build saldo array from first query
       foreach ($data as $a) {
-         $idPelanggan = $a['id_client'];
-         $saldo[$idPelanggan] = $a['saldo'];
-         $where = $this->wCabang . " AND id_client = " . $idPelanggan . " AND metode_mutasi = 3 AND jenis_mutasi = 2";
-         $cols = "SUM(jumlah) as pakai";
-         $data2 = $this->db(0)->get_cols_where('kas', $cols, $where, 0);
-         if (isset($data2['pakai'])) {
-            $saldoPengurangan = $data2['pakai'];
-            $pakai[$idPelanggan] = $saldoPengurangan;
-         } else {
-            $pakai[$idPelanggan] = 0;
+         $saldo[$a['id_client']] = $a['saldo'];
+         $pakai[$a['id_client']] = 0; // Initialize
+      }
+
+      // ✅ OPTIMIZED: Get ALL usage in ONE query instead of N queries!
+      if (count($data) > 0) {
+         $wherePakai = $this->wCabang . " AND metode_mutasi = 3 AND jenis_mutasi = 2";
+         $colsPakai = "id_client, SUM(jumlah) as pakai";
+         $dataPakai = $this->db(0)->get_cols_where('kas', $colsPakai, $wherePakai . " GROUP BY id_client", 1);
+         
+         // Map usage data
+         foreach ($dataPakai as $dp) {
+            if (isset($saldo[$dp['id_client']])) {
+               $pakai[$dp['id_client']] = $dp['pakai'];
+            }
          }
       }
 
+      // ✅ OPTIMIZED: Process data3 (faster with pre-initialized array)
       foreach ($data3 as $a2) {
          $idPelanggan = $a2['id_client'];
          if (isset($pakai[$idPelanggan])) {
