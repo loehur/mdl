@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 import twemoji from 'twemoji';
 
 const props = defineProps({
@@ -9,6 +9,8 @@ const props = defineProps({
   authId: { type: String, default: "" },
   currentUserRole: { type: String, default: "crew" },
   isLoadingConversations: { type: Boolean, default: false },
+  isLoadingMoreConversations: { type: Boolean, default: false },
+  hasMoreConversations: { type: Boolean, default: true },
   isReconnecting: { type: Boolean, default: false },
   isConnected: { type: Boolean, default: true },
   connectionError: { type: String, default: "" },
@@ -23,11 +25,13 @@ const emit = defineEmits([
   "open-settings",
   "update:searchQuery",
   "update:conversationFilter",
+  "load-more-conversations",
 ]);
 
 // Local state
 const searchQuery = ref("");
 const conversationFilter = ref("all");
+const conversationListContainer = ref(null);
 
 // Methods
 const getCaseColor = (caseId) => {
@@ -87,6 +91,37 @@ const parseWhatsAppFormatting = (text) => {
   
   return text;
 };
+
+// Infinite scroll handler for conversations
+const handleScroll = () => {
+  if (!conversationListContainer.value || props.isLoadingMoreConversations) return;
+  
+  const container = conversationListContainer.value;
+  const scrollTop = container.scrollTop;
+  const scrollHeight = container.scrollHeight;
+  const clientHeight = container.clientHeight;
+  const scrollBottom = scrollHeight - scrollTop - clientHeight;
+  
+  const threshold = 100; // Trigger when 100px from bottom
+  
+  // Check if scrolled to near bottom AND has more conversations
+  if (scrollBottom <= threshold && props.hasMoreConversations) {
+    emit('load-more-conversations');
+  }
+};
+
+// Lifecycle
+onMounted(() => {
+  if (conversationListContainer.value) {
+    conversationListContainer.value.addEventListener('scroll', handleScroll);
+  }
+});
+
+onUnmounted(() => {
+  if (conversationListContainer.value) {
+    conversationListContainer.value.removeEventListener('scroll', handleScroll);
+  }
+});
 
 // Parse emoji with Twemoji for consistent rendering
 const parseEmoji = (text) => {
@@ -190,7 +225,7 @@ const parseEmoji = (text) => {
     <!-- Reconnecting banner removed - status now shown in footer -->
 
     <!-- Conversation List -->
-    <div class="flex-1 overflow-y-auto custom-scrollbar">
+    <div ref="conversationListContainer" class="flex-1 overflow-y-auto custom-scrollbar">
       <!-- Skeleton Loading -->
       <div v-if="isLoadingConversations && conversations.length === 0" class="space-y-0">
         <div v-for="n in 8" :key="'skeleton-' + n" class="p-3 flex items-center gap-3 border-b border-[var(--wa-divider)]">
@@ -236,6 +271,14 @@ const parseEmoji = (text) => {
             <p class="text-sm text-[var(--wa-text-secondary)] truncate w-64" :class="{ 'font-normal text-[var(--wa-text-primary)]': chat.unread > 0 }" v-html="parseEmoji(chat.lastMessage)"></p>
             <span v-if="chat.unread > 0" class="bg-[var(--wa-accent-green)] text-black text-[11px] font-semibold px-2 py-0.5 rounded-full min-w-[20px] text-center">{{ chat.unread }}</span>
           </div>
+        </div>
+      </div>
+      
+      <!-- Loading More Indicator -->
+      <div v-if="isLoadingMoreConversations" class="p-4 flex justify-center">
+        <div class="flex items-center gap-2 text-[var(--wa-text-secondary)]">
+          <div class="w-4 h-4 border-2 border-[var(--wa-accent-green)] border-t-transparent rounded-full animate-spin"></div>
+          <span class="text-xs">Loading more...</span>
         </div>
       </div>
     </div>

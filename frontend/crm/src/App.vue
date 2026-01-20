@@ -18,7 +18,7 @@ import {
   resumeTimestamp, lastDisconnectTime,
   duplicateRetryAttempts, maxDuplicateRetries, duplicateRetryDelay,
   // Conversations
-  conversations, activeChatId, isLoadingConversations,
+  conversations, activeChatId, isLoadingConversations, isLoadingMoreConversations, hasMoreConversations, conversationsOffset,
   searchQuery, conversationFilter, pendingTargetPhone, autoOpenChatOnIncoming,
   // Message Input
   messageInput, chatDrafts, replyToMessage, chatContainer, messageTextarea,
@@ -237,15 +237,14 @@ const toggleTheme = () => {
 // Title blinking is now handled by shouldBlinkTitle watch below (line 314)
 // to avoid conflicts between totalUnreadCount and priority-based blinking
 
-const fetchConversations = async () => {
+const fetchConversations = async (offset = 0, limit = 20) => {
   try {
     isLoadingConversations.value = true; // Start loading
 
     const userIdParam = authId.value ? `user_id=${authId.value}` : "";
-    const separator = userIdParam ? "&" : "?";
     const query = userIdParam
-      ? `?${userIdParam}${separator}_t=${Date.now()}`
-      : `?_t=${Date.now()}`;
+      ? `?${userIdParam}&offset=${offset}&limit=${limit}&_t=${Date.now()}`
+      : `?offset=${offset}&limit=${limit}&_t=${Date.now()}`;
 
     const response = await fetch(
       `${API_BASE}/CRM/Chat/getConversations${query}`
@@ -259,14 +258,22 @@ const fetchConversations = async () => {
 
     const result = await response.json();
 
+    // Backend returns new format: { conversations: [], has_more: boolean, ... }
+    const conversationsData = result.data?.conversations || result.data || [];
+    const hasMore = result.data?.has_more ?? false;
+
+    // Update pagination state
+    hasMoreConversations.value = hasMore;
+    conversationsOffset.value = offset + conversationsData.length;
+
     // Backend returns "status": true, not "success"
-    if (result.status && Array.isArray(result.data)) {
+    if (result.status && Array.isArray(conversationsData)) {
       // SMART MERGE STRATEGY
       // 1. Create Map of existing convos
       const existingMap = new Map(conversations.value.map((c) => [c.id, c]));
       const newOrder = [];
 
-      result.data.forEach((c) => {
+      conversationsData.forEach((c) => {
         // Normalizer helper for cases
         const parseCases = (c) => {
           let cases = [];
@@ -407,6 +414,113 @@ const fetchConversations = async () => {
     console.error("Error fetching conversations:", e);
   } finally {
     isLoadingConversations.value = false; // End loading
+  }
+};
+
+// Load more conversations (for infinite scroll)
+const loadMoreConversations = async () => {
+  if (!hasMoreConversations.value || isLoadingMoreConversations.value) return;
+  
+  isLoadingMoreConversations.value = true;
+  
+  try {
+    const offset = conversationsOffset.value;
+    const userIdParam = authId.value ? `user_id=${authId.value}` : "";
+    const query = userIdParam
+      ? `?${userIdParam}&offset=${offset}&limit=20&_t=${Date.now()}`
+      : `?offset=${offset}&limit=20&_t=${Date.now()}`;
+
+    const response = await fetch(
+      `${API_BASE}/CRM/Chat/getConversations${query}`
+    );
+    
+    if (!response.ok) {
+      console.error("API Error Response");
+      return;
+    }
+
+    const result = await response.json();
+    const conversationsData = result.data?.conversations || result.data || [];
+    const hasMore = result.data?.has_more ?? false;
+
+    // Update pagination state
+    hasMoreConversations.value = hasMore;
+    conversationsOffset.value = offset + conversationsData.length;
+
+    if (result.status && Array.isArray(conversationsData)) {
+      // Append new conversations to existing list
+      const newConvos = conversationsData.map((c) => {
+        const parseCases = (c) => {
+          let cases = [];
+          if (Array.isArray(c.case_history)) {
+            cases = c.case_history;
+          } else {
+            const rawCase = c.conv_case || c.case;
+            if (
+              typeof rawCase === "string" &&
+              (rawCase.startsWith("[") || rawCase.startsWith("{"))
+            ) {
+              try {
+                const parsed = JSON.parse(rawCase);
+                if (Array.isArray(parsed)) cases = parsed;
+                else if (parsed.case) cases = [parsed];
+              } catch (e) {}
+            }
+            if (cases.length === 0 && (c.priority > 0 || c.case_val > 0)) {
+              cases = [{ case: parseInt(c.priority || c.case_val || 0) }];
+            }
+          }
+
+          const dedupedCases = [];
+          const seenCases = new Map();
+          for (const cse of cases) {
+            const caseVal = parseInt(cse.case);
+            if (isNaN(caseVal) || caseVal === 0) continue;
+            const status = cse.status || "open";
+            const normalizedCase = { ...cse, case: caseVal };
+            if (!seenCases.has(caseVal)) {
+              seenCases.set(caseVal, normalizedCase);
+            } else {
+              const existing = seenCases.get(caseVal);
+              const existingStatus = existing.status || "open";
+              if (existingStatus === "closed" && status !== "closed") {
+                seenCases.set(caseVal, normalizedCase);
+              } else if (existingStatus === status) {
+                seenCases.set(caseVal, normalizedCase);
+              }
+            }
+          }
+          return Array.from(seenCases.values());
+        };
+
+        return {
+          id: c.id,
+          wa_number: c.wa_number,
+          name: c.contact_name || c.wa_number,
+          kode_cabang: c.kode_cabang,
+          cases: parseCases(c),
+          initials: (c.contact_name || c.wa_number || "?")
+            .substring(0, 1)
+            .toUpperCase(),
+          color: getAvatarColor(c.id),
+          status: c.status,
+          lastMessage:
+            c.last_message || c.last_message_text || "No messages yet",
+          lastTime: formatLastTime(c.last_message_time),
+          lastMessageTime: c.last_message_time,
+          unread: parseInt(c.unread_count) || 0,
+          assignment_user_id: c.assigned_user_id,
+          messages: [],
+        };
+      });
+      
+      // Append to existing conversations
+      conversations.value = [...conversations.value, ...newConvos];
+    }
+  } catch (e) {
+    console.error("Error loading more conversations:", e);
+  } finally {
+    isLoadingMoreConversations.value = false;
   }
 };
 
@@ -4063,6 +4177,8 @@ const handleLinkClick = (e) => {
       :auth-id="authId"
       :current-user-role="currentUserRole"
       :is-loading-conversations="isLoadingConversations"
+      :is-loading-more-conversations="isLoadingMoreConversations"
+      :has-more-conversations="hasMoreConversations"
       :is-reconnecting="isReconnecting"
       :is-connected="isConnected"
       :connection-error="connectionError"
@@ -4071,6 +4187,7 @@ const handleLinkClick = (e) => {
       :total-open-cases-count="totalOpenCasesCount"
       @select-chat="selectChat"
       @logout="logout"
+      @load-more-conversations="loadMoreConversations"
       @open-settings="showSettingsModal = true"
       @update:searchQuery="searchQuery = $event"
       @update:conversationFilter="conversationFilter = $event"

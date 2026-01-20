@@ -41,6 +41,17 @@ class Chat extends Controller
             // We want 'open' generally, or maybe all active
             // Modified to include kode_cabang from database using local column 'code'
             
+            // Pagination parameters
+            $offset = (int)($_GET['offset'] ?? 0);
+            $limit = (int)($_GET['limit'] ?? 20);
+            
+            // Safety: Max 100 per request
+            if ($limit > 100) $limit = 100;
+            if ($offset < 0) $offset = 0;
+            
+            // Fetch limit+1 to check if there's more data
+            $fetchLimit = $limit + 1;
+            
             $userId = $_GET['user_id'] ?? null;
             $whereClause = "1=1"; // Always true, untuk base condition
             
@@ -106,10 +117,10 @@ class Chat extends Controller
                 FROM wa_conversations c
                 WHERE $whereClause
                 ORDER BY c.last_message_at DESC
-                LIMIT 20
+                LIMIT ? OFFSET ?
             ";
     
-            $query = $db->query($sql);
+            $query = $db->query($sql, [$fetchLimit, $offset]);
             
             if (!$query) {
                  // DB Error checking
@@ -117,6 +128,14 @@ class Chat extends Controller
             }
 
             $conversations = $query->result();
+            
+            // Check if there are more conversations
+            $hasMore = count($conversations) > $limit;
+            
+            // Trim to actual limit (remove last element if we fetched limit+1)
+            if ($hasMore) {
+                array_pop($conversations); // For conversations, last is OK (DESC order)
+            }
             
             // Normalize Case (Handle JSON Array List)
             foreach ($conversations as &$conv) {
@@ -155,12 +174,23 @@ class Chat extends Controller
             
             // Check what we actually got
             if (empty($conversations)) {
-                $this->success([], 'Query executed but returned 0 rows. Check if table wa_conversations is empty.');
+                $this->success([
+                    'conversations' => [],
+                    'has_more' => false,
+                    'offset' => $offset,
+                    'limit' => $limit,
+                    'total_returned' => 0
+                ], 'Query executed but returned 0 rows. Check if table wa_conversations is empty.');
             }
 
-            // Return ALL data without filter to see what is happening using success method
-            // This will show up in your browser network tab -> Response
-            $this->success($conversations, 'OK');
+            // Return data with pagination info
+            $this->success([
+                'conversations' => $conversations,
+                'has_more' => $hasMore,
+                'offset' => $offset,
+                'limit' => $limit,
+                'total_returned' => count($conversations)
+            ], 'OK');
 
         } catch (\Throwable $e) {
             // Log to file for easier checking if console is hard
