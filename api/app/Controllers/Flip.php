@@ -231,7 +231,7 @@ class Flip extends Controller
         \Log::write("Token: " . ($token ? substr($token, 0, 10) . '...' : 'EMPTY'), 'flip', 'callback');
         
         if (!$this->flip->verifyCallback($token)) {
-            \Log::write("ERROR: Invalid callback token", 'flip', 'callback');
+            \Log::write("ERROR: Invalid callback token: " . $token, 'flip', 'callback');
             $this->error('Invalid callback token', 401);
         }
         
