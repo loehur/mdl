@@ -69,10 +69,17 @@ class Karyawan extends Controller
             
             // Simpan OTP ke database dengan expiry 5 menit
             $expiry = date('Y-m-d H:i:s', strtotime('+5 minutes'));
-            $this->db(0)->update('user', [
+            
+            // Log OTP yang akan disimpan
+            \Log::write("Generated OTP for User ID {$id}: '{$otp}' (length: " . strlen($otp) . ", type: " . gettype($otp) . ")", 'karyawan', 'sendOTP');
+            \Log::write("Expiry: {$expiry}", 'karyawan', 'sendOTP');
+            
+            $updateResult = $this->db(0)->update('user', [
                 'otp' => $otp,
                 'otp_active' => $expiry
             ], "id_user = {$id}");
+            
+            \Log::write("Database update result: " . ($updateResult ? 'SUCCESS' : 'FAILED'), 'karyawan', 'sendOTP');
 
             // Kirim OTP via WhatsApp API
             $sendResult = $this->sendWhatsAppOTP($wa, $otp);
@@ -94,7 +101,7 @@ class Karyawan extends Controller
             // Clear any buffered output
             ob_end_clean();
             
-            error_log("[Karyawan sendOTP Error] " . $e->getMessage());
+            \Log::write("ERROR: " . $e->getMessage(), 'karyawan', 'sendOTP');
             
             echo json_encode([
                 'status' => false,
@@ -139,11 +146,22 @@ class Karyawan extends Controller
 
             $userData = $user[0];
             
+            // Clean dan standardize OTP untuk perbandingan
+            $inputOtp = (string)trim($otp);
+            $dbOtp = (string)trim($userData['otp'] ?? '');
+            
             // Log untuk debugging
-            error_log("[Karyawan verifyOTP] User ID: {$id}, Input OTP: {$otp}, DB OTP: {$userData['otp']}, Expiry: {$userData['otp_active']}");
+            \Log::write("User ID: {$id}", 'karyawan', 'verifyOTP');
+            \Log::write("Input OTP: '{$inputOtp}' (length: " . strlen($inputOtp) . ", type: " . gettype($inputOtp) . ")", 'karyawan', 'verifyOTP');
+            \Log::write("DB OTP: '{$dbOtp}' (length: " . strlen($dbOtp) . ", type: " . gettype($dbOtp) . ")", 'karyawan', 'verifyOTP');
+            \Log::write("Expiry: {$userData['otp_active']}", 'karyawan', 'verifyOTP');
+            \Log::write("Match: " . ($inputOtp === $dbOtp ? 'YES' : 'NO'), 'karyawan', 'verifyOTP');
             
             // Cek apakah OTP cocok dan belum expired
-            if ($userData['otp'] !== $otp) {
+            if ($inputOtp !== $dbOtp) {
+                // Debug: show character codes
+                \Log::write("Input OTP hex: " . bin2hex($inputOtp), 'karyawan', 'verifyOTP');
+                \Log::write("DB OTP hex: " . bin2hex($dbOtp), 'karyawan', 'verifyOTP');
                 throw new \Exception('Kode OTP tidak valid');
             }
 
@@ -168,7 +186,7 @@ class Karyawan extends Controller
             // Clear buffer and send error
             ob_end_clean();
             
-            error_log("[Karyawan verifyOTP Error] " . $e->getMessage());
+            \Log::write("ERROR: " . $e->getMessage(), 'karyawan', 'verifyOTP');
             
             echo json_encode([
                 'status' => false,
@@ -360,8 +378,8 @@ class Karyawan extends Controller
             curl_close($ch);
             
             // Log the request and response
-            error_log("[WhatsApp OTP] Phone: {$phoneNumber}, HTTP: {$httpCode}");
-            error_log("[WhatsApp OTP] Response: " . $response);
+            \Log::write("Phone: {$phoneNumber}, HTTP: {$httpCode}", 'karyawan', 'whatsapp_otp');
+            \Log::write("Response: " . $response, 'karyawan', 'whatsapp_otp');
             
             // Handle cURL errors
             if ($curlError) {
@@ -395,7 +413,7 @@ class Karyawan extends Controller
             
         } catch (\Exception $e) {
             $errorMsg = $e->getMessage();
-            error_log("[WhatsApp OTP Exception] " . $errorMsg);
+            \Log::write("Exception: " . $errorMsg, 'karyawan', 'whatsapp_otp');
             
             return [
                 'status' => false,
