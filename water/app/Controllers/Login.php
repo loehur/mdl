@@ -260,12 +260,12 @@ class Login extends Controller
                $hp = $cek['no_user'];
 
                // Log sebelum kirim WA untuk tracking
-               $this->model('Log')->write("[req_pin] Attempting to send OTP to: $hp");
+               $this->model('Log')->write("[req_pin] Attempting to send OTP to: $hp", 'water', 'login');
                
                $res = $this->send_wa_ycloud($hp, $text);
                
                // Log response lengkap untuk debugging
-               $this->model('Log')->write("[req_pin] WA Response: " . json_encode($res));
+               $this->model('Log')->write("[req_pin] WA Response: " . json_encode($res), 'water', 'login');
 
                // ✅ VALIDASI: Pastikan WA benar-benar terkirim
                $waSuccess = false;
@@ -284,9 +284,9 @@ class Login extends Controller
                   $waMessageId = $responseData['id'] ?? ($responseData['message_id'] ?? null);
                   $dataStatus = $responseData['status'] ?? '';
                   
-                  $this->model('Log')->write("[req_pin] WA Success - Message ID: " . ($waMessageId ?: 'N/A') . ", Status: " . ($dataStatus ?: 'N/A'));
+                  $this->model('Log')->write("[req_pin] WA Success - Message ID: " . ($waMessageId ?: 'N/A') . ", Status: " . ($dataStatus ?: 'N/A'), 'water', 'login');
                } else {
-                  $this->model('Log')->write("[req_pin] WA Failed - Status: " . json_encode($res['status']) . ", HTTP Code: " . ($res['http_code'] ?? 'null'));
+                  $this->model('Log')->write("[req_pin] WA Failed - Status: " . json_encode($res['status']) . ", HTTP Code: " . ($res['http_code'] ?? 'null'), 'water', 'login');
                }
 
                if ($waSuccess) {
@@ -298,7 +298,7 @@ class Login extends Controller
                   $do = $this->data('Notif')->insertOTP($res, $today, $hp_input, $otp, $id_cabang);
                   
                   // Log insert result
-                  $this->model('Log')->write("[req_pin] Insert OTP Result - errno: {$do['errno']}, error: " . ($do['error'] ?? 'none'));
+                  $this->model('Log')->write("[req_pin] Insert OTP Result - errno: {$do['errno']}, error: " . ($do['error'] ?? 'none'), 'water', 'login');
 
                   if ($do['errno'] == 0) {
                      $up = $this->db(0)->update('user', [
@@ -341,7 +341,7 @@ class Login extends Controller
                      }
                   }
                   
-                  $this->model('Log')->write("[req_pin] WA Failed: $errorMsg");
+                  $this->model('Log')->write("[req_pin] WA Failed: $errorMsg", 'water', 'login');
                   
                   $res_f = [
                      'code' => 0,
@@ -361,7 +361,7 @@ class Login extends Controller
          // Log the exception
          if (method_exists($this, 'model')) {
             try {
-               $this->model('Log')->write("[req_pin] Exception: " . $e->getMessage() . " - Trace: " . $e->getTraceAsString());
+               $this->model('Log')->write("[req_pin] Exception: " . $e->getMessage() . " - Trace: " . $e->getTraceAsString(), 'water', 'login');
             } catch (Exception $logEx) {
                // Log gagal, tidak apa-apa
             }
@@ -420,7 +420,7 @@ class Login extends Controller
          }
          
          // Log failure details
-         $this->model('Log')->write("[Login::send_wa_ycloud] Failed via WA_YCloud - Phone: $phone, Error: $errorMsg, Code: " . ($res['code'] ?? 0));
+         $this->model('Log')->write("[Login::send_wa_ycloud] Failed via WA_YCloud - Phone: $phone, Error: $errorMsg, Code: " . ($res['code'] ?? 0), 'water', 'login');
       }
       
       return $result;

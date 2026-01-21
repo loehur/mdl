@@ -298,6 +298,7 @@ class DB extends DBC
 
     public function update($table, $set, $where)
     {
+        $this->checkConnection();
         if (is_array($set)) {
             $setParts = [];
             foreach ($set as $key => $value) {

@@ -314,10 +314,17 @@ class Login extends Controller
                   $this->model('Log')->write("[req_pin] Insert OTP Result - errno: {$do['errno']}, error: " . ($do['error'] ?? 'none'));
 
                   if ($do['errno'] == 0) {
+                     // Log sebelum update untuk debugging
+                     $this->model('Log')->write("[req_pin] Before update - OTP: " . substr($otp_enc, 0, 20) . "... | Expiry: $expiry | Where: $where");
+                     
                      $up = $this->db(0)->update('user', [
                         'otp' => $otp_enc,
                         'otp_active' => $expiry
                      ], $where);
+                     
+                     // Log hasil update
+                     $this->model('Log')->write("[req_pin] Update result - errno: {$up['errno']}, error: " . ($up['error'] ?? 'none') . " | query: " . ($up['query'] ?? 'N/A'));
+                     
                      if ($up['errno'] == 0) {
                         $res_f = [
                            'code' => 1,
