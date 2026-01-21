@@ -214,7 +214,7 @@ class Login extends Controller
          $username = $this->model("Enc")->username($hp);
          $where = "username = '" . $username . "' AND en = 1";
          $cek = $this->db(0)->get_where_row('user', $where);
-         if (isset($cek['otp_active'])) {
+         if ($cek && !empty($cek)) {
             $id_cabang = $cek['id_cabang'];
             
             // Cek apakah OTP masih valid (belum expired)
