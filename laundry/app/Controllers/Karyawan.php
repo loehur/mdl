@@ -4,8 +4,8 @@
  * Controller Karyawan
  * Menampilkan dan mengelola data karyawan dengan verifikasi OTP dan Bank Inquiry
  * 
- * VERSION 2.0 - 2026-01-21
- * - OTP Encryption: ENABLED
+ * VERSION 3.0 - 2026-01-21
+ * - OTP Encryption: CUSTOM MD5 (Simple & Reliable)
  * - OTP Expiry: 5 minutes
  * - Logging: Integrated with Log model
  */
@@ -29,6 +29,19 @@ class Karyawan extends Controller
         } catch (\Exception $e) {
             // Silent fail - jangan output apapun
         }
+    }
+
+    /**
+     * Custom OTP Encryption - Simple & Reliable
+     * Menggunakan MD5 dengan salt untuk enkripsi OTP
+     */
+    private function encryptOTP($otp)
+    {
+        // Salt untuk keamanan (bisa diganti sesuai kebutuhan)
+        $salt = 'MDL_LAUNDRY_OTP_2026';
+        
+        // Enkripsi menggunakan MD5 dengan salt
+        return md5($salt . $otp . $salt);
     }
 
     /**
@@ -88,11 +101,11 @@ class Karyawan extends Controller
             $otp = str_pad(mt_rand(0, 999999), 6, '0', STR_PAD_LEFT);
             
             // VERSION CHECK - Jika log ini muncul, berarti file sudah terupload
-            $this->log("=== KARYAWAN.PHP VERSION 2.0 - WITH ENCRYPTION ===", 'karyawan', 'sendOTP');
+            $this->log("=== KARYAWAN.PHP VERSION 3.0 - CUSTOM ENCRYPTION ===", 'karyawan', 'sendOTP');
             
-            // Enkripsi OTP (sama dengan Login)
-            $otp_enc = $this->model("Enc")->otp($otp);
-            $this->log("OTP Plain: '{$otp}' | OTP Encrypted: '{$otp_enc}'", 'karyawan', 'sendOTP');
+            // Enkripsi OTP menggunakan custom method
+            $otp_enc = $this->encryptOTP($otp);
+            $this->log("OTP Plain: '{$otp}' | OTP Encrypted: '{$otp_enc}' (length: " . strlen($otp_enc) . ")", 'karyawan', 'sendOTP');
             
             // Simpan OTP ke database dengan expiry 5 menit
             $expiry = date('Y-m-d H:i:s', strtotime('+5 minutes'));
@@ -165,8 +178,9 @@ class Karyawan extends Controller
                 throw new \Exception('Kode OTP harus 6 digit');
             }
 
-            // Enkripsi OTP input untuk perbandingan dengan database (sama dengan Login)
-            $otp_enc = $this->model("Enc")->otp($otp);
+            // Enkripsi OTP input menggunakan custom method (sama dengan sendOTP)
+            $otp_enc = $this->encryptOTP($otp);
+            $this->log("Verify OTP - Plain: '{$otp}' | Encrypted: '{$otp_enc}'", 'karyawan', 'verifyOTP');
 
             // Cek OTP di database
             $user = $this->db(0)->get_where('user', "id_user = {$id}", 1);
