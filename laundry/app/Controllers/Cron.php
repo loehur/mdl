@@ -46,9 +46,16 @@ class Cron extends Controller
             $text = $dm['text'];
             $res = $this->helper('Notif')->send_wa($hp, $text);
 
+            // Log response dari send_wa
             $apiData = $res['data']['data'] ?? $res['data'] ?? [];
             $idApi = $apiData['id'] ?? ($apiData['message_id'] ?? '');
             $statusProses = $apiData['status'] ?? 'sent';
+            
+            $log = $this->model('Log');
+            $statusText = isset($res['status']) && $res['status'] ? 'SUCCESS' : 'FAILED';
+            $idApiLog = $idApi ?: 'N/A';
+            $logMessage = "send_wa response | ID_Notif: {$id_notif} | Phone: {$hp} | Status: {$statusText} | ID_API: {$idApiLog} | Status_Proses: {$statusProses} | Response: " . json_encode($res);
+            $log->write($logMessage, 'laundry', 'cron_send_wa');
 
             if ($res['status']) {
                $set = ['state' => 'sent', 'id_api' => $idApi];
