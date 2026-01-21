@@ -298,10 +298,37 @@
     .btn-edit {
         padding: 2px 8px;
     }
+    
+    /* Selectize custom styling */
+    .selectize-input {
+        min-height: 38px;
+        padding: 6px 12px;
+        border: 1px solid #ced4da;
+        border-radius: 0.375rem;
+        font-size: 1rem;
+    }
+    .selectize-input.focus {
+        border-color: #86b7fe;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+    .selectize-dropdown {
+        border: 1px solid #ced4da;
+        border-radius: 0.375rem;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    }
+    .selectize-input input {
+        font-size: 1rem;
+    }
+    .selectize-control.single .selectize-input:after {
+        border-color: #495057 transparent transparent transparent;
+    }
 </style>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/selectize.js/0.15.2/css/selectize.bootstrap5.min.css">
 
 <script src="<?= URL::EX_ASSETS ?>js/jquery-3.6.0.min.js"></script>
 <script src="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/selectize.js/0.15.2/js/selectize.min.js"></script>
 
 <script>
 $(document).ready(function() {
@@ -311,6 +338,7 @@ $(document).ready(function() {
     var verifiedData = {};
     var bankList = []; // Store bank list from API
     var banksLoaded = false;
+    var bankSelectize = null; // Selectize instance
     
     // Load bank list from API on page load
     loadBankList();
@@ -327,27 +355,28 @@ $(document).ready(function() {
                     bankList = res.data;
                     banksLoaded = true;
                     
-                    // Populate select
-                    var $select = $('#edit_bank_code');
-                    $select.empty();
-                    $select.append('<option value="">Pilih Bank/E-Wallet</option>');
+                    // Prepare options for selectize
+                    var options = [];
                     
                     // Check if data is array or object
                     if (Array.isArray(res.data)) {
                         res.data.forEach(function(bank) {
                             var code = bank.bank_code || bank.code;
                             var name = bank.name || bank.bank_name || code.toUpperCase();
-                            $select.append('<option value="' + code + '">' + name + '</option>');
+                            options.push({ value: code, text: name });
                         });
                     } else {
                         // Object format
                         $.each(res.data, function(code, bank) {
                             var name = (typeof bank === 'object') ? (bank.name || bank.bank_name) : bank;
-                            $select.append('<option value="' + code + '">' + name + '</option>');
+                            options.push({ value: code, text: name });
                         });
                     }
                     
-                    $('#bank_status').html('<i class="fas fa-check text-success"></i> ' + $select.find('option').length - 1 + ' bank tersedia');
+                    // Initialize selectize
+                    initBankSelectize(options);
+                    
+                    $('#bank_status').html('<i class="fas fa-check text-success"></i> ' + options.length + ' bank tersedia');
                     setTimeout(function() { $('#bank_status').text(''); }, 3000);
                 } else {
                     $('#bank_status').html('<span class="text-danger"><i class="fas fa-exclamation-circle"></i> Gagal memuat bank</span>');
@@ -382,30 +411,51 @@ $(document).ready(function() {
         });
     }
     
+    function initBankSelectize(options) {
+        // Destroy existing selectize if any
+        if (bankSelectize) {
+            bankSelectize.destroy();
+        }
+        
+        // Initialize selectize with options
+        var $select = $('#edit_bank_code').selectize({
+            options: options,
+            valueField: 'value',
+            labelField: 'text',
+            searchField: 'text',
+            placeholder: 'Ketik untuk mencari bank...',
+            create: false,
+            sortField: 'text',
+            maxItems: 1,
+            allowEmptyOption: true,
+            onInitialize: function() {
+                // Add empty option
+                this.addOption({value: '', text: 'Pilih Bank/E-Wallet'});
+            }
+        });
+        
+        bankSelectize = $select[0].selectize;
+    }
+    
     // Fallback bank list if API fails
     function loadFallbackBanks() {
         var fallbackBanks = [
-            {code: 'bca', name: 'Bank BCA'},
-            {code: 'bni', name: 'Bank BNI'},
-            {code: 'bri', name: 'Bank BRI'},
-            {code: 'mandiri', name: 'Bank Mandiri'},
-            {code: 'bsi', name: 'Bank Syariah Indonesia'},
-            {code: 'cimb', name: 'CIMB Niaga'},
-            {code: 'permata', name: 'Bank Permata'},
-            {code: 'danamon', name: 'Bank Danamon'},
-            {code: 'gopay', name: 'GoPay'},
-            {code: 'ovo', name: 'OVO'},
-            {code: 'dana', name: 'DANA'},
-            {code: 'shopeepay', name: 'ShopeePay'}
+            {value: 'bca', text: 'Bank BCA'},
+            {value: 'bni', text: 'Bank BNI'},
+            {value: 'bri', text: 'Bank BRI'},
+            {value: 'mandiri', text: 'Bank Mandiri'},
+            {value: 'bsi', text: 'Bank Syariah Indonesia'},
+            {value: 'cimb', text: 'CIMB Niaga'},
+            {value: 'permata', text: 'Bank Permata'},
+            {value: 'danamon', text: 'Bank Danamon'},
+            {value: 'gopay', text: 'GoPay'},
+            {value: 'ovo', text: 'OVO'},
+            {value: 'dana', text: 'DANA'},
+            {value: 'shopeepay', text: 'ShopeePay'}
         ];
         
-        var $select = $('#edit_bank_code');
-        $select.empty();
-        $select.append('<option value="">Pilih Bank/E-Wallet</option>');
-        
-        fallbackBanks.forEach(function(bank) {
-            $select.append('<option value="' + bank.code + '">' + bank.name + '</option>');
-        });
+        // Initialize selectize with fallback banks
+        initBankSelectize(fallbackBanks);
         
         banksLoaded = true;
     }
@@ -425,13 +475,13 @@ $(document).ready(function() {
         
         // Set bank code after banks are loaded
         var savedBankCode = $btn.data('bank-code');
-        if (banksLoaded) {
-            $('#edit_bank_code').val(savedBankCode);
+        if (banksLoaded && bankSelectize) {
+            bankSelectize.setValue(savedBankCode, true);
         } else {
             // Wait for banks to load then set value
             var checkBanks = setInterval(function() {
-                if (banksLoaded) {
-                    $('#edit_bank_code').val(savedBankCode);
+                if (banksLoaded && bankSelectize) {
+                    bankSelectize.setValue(savedBankCode, true);
                     clearInterval(checkBanks);
                 }
             }, 100);
