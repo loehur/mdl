@@ -2,69 +2,48 @@
 
 class Log
 {
-    function write($text)
-    {
-        $uploads_dir = "logs/local/" . date('Y/') . date('m/');
-        $file_name = date('d');
-        $data_to_write = date('H:i') . " " . $text . "\n";
-        $file_path = $uploads_dir . $file_name;
-
-        if (!file_exists($uploads_dir)) {
-            mkdir($uploads_dir, 0777, TRUE);
-            $file_handle = fopen($file_path, 'w');
-        } else {
-            $file_handle = fopen($file_path, 'a');
-        }
-
-        fwrite($file_handle, $data_to_write);
-        fclose($file_handle);
-    }
-
     /**
-     * Log khusus untuk response API
-     * @param string $endpoint Endpoint API yang dipanggil
-     * @param mixed $request Data request yang dikirim (array atau string)
-     * @param mixed $response Data response dari API (array atau string)
-     * @param string $status Status response (success/error)
+     * Menulis log ke file
+     *
+     * @param string $text Teks yang akan ditulis ke log
+     * @param string $app Nama app (admin, webhook, laundry, dll)
+     * @param string $controller Nama controller atau modul
      */
-    function apiLog($endpoint, $request = null, $response = null, $status = 'info')
+    public static function write($text = "", $app = 'undefined', $controller = "undefined")
     {
-        // Only log errors, skip info/success logs
-        if ($status !== 'error') {
-            return;
-        }
-        
-        $uploads_dir = "logs/api/" . date('Y/') . date('m/');
-        $file_name = date('d') . ".log";
-        $file_path = $uploads_dir . $file_name;
+        try {
+            $assets_dir = "logs/". date('Y-m-d') . "/";
+            $data_to_write = date('H:i:s') . " " . $text . "\n";
+            $file_path = $assets_dir . strtolower($app) . "_" . strtolower($controller) . ".log";
 
-        // Format log entry
-        $log_entry = [
-            'timestamp' => date('Y-m-d H:i:s'),
-            'status' => strtoupper($status),
-            'endpoint' => $endpoint,
-            'request' => is_array($request) ? json_encode($request) : $request,
-            'response' => is_array($response) ? json_encode($response) : $response
-        ];
+            if (!file_exists($assets_dir)) {
+                // Directory tidak ada, buat baru
+                if (!@mkdir($assets_dir, 0755, TRUE)) {
+                    error_log("[MDL LOG FAIL] Cannot create dir: $assets_dir | Msg: $text");
+                    return;
+                }
+            }
 
-        $data_to_write = "[" . $log_entry['timestamp'] . "] ";
-        $data_to_write .= "[" . $log_entry['status'] . "] ";
-        $data_to_write .= $log_entry['endpoint'] . "\n";
-        
-        if ($request !== null) {
-            $data_to_write .= "  REQ: " . $log_entry['request'] . "\n";
-        }
-        if ($response !== null) {
-            $data_to_write .= "  RES: " . $log_entry['response'] . "\n";
-        }
-        $data_to_write .= "---\n";
+            // Hapus log yang sudah lebih dari 7 hari
+            $limit_date = date('Y-m-d', strtotime('-7 days'));
+            foreach (glob("logs/*", GLOB_ONLYDIR) as $old_dir) {
+                if (basename($old_dir) < $limit_date) {
+                    foreach (glob("$old_dir/*") as $old_file) {
+                        @unlink($old_file);
+                    }
+                    @rmdir($old_dir);
+                }
+            }
 
-        if (!file_exists($uploads_dir)) {
-            mkdir($uploads_dir, 0777, TRUE);
+            // Write log to file
+            if (@file_put_contents($file_path, $data_to_write, FILE_APPEND | LOCK_EX) === false) {
+                error_log("[MDL LOG FAIL] Cannot write to: $file_path | Msg: $text");
+            }
+            
+        } catch (Exception $e) {
+            // Fallback terakhir agar aplikasi TIDAK CRASH
+            error_log("[MDL LOG EXCEPTION] " . $e->getMessage() . " | Msg: $text");
         }
-
-        $file_handle = fopen($file_path, 'a');
-        fwrite($file_handle, $data_to_write);
-        fclose($file_handle);
     }
+
 }

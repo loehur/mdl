@@ -90,17 +90,9 @@ class NonTunai extends Controller
       
       try {
          $response = $this->model('Tokopay')->merchant();
-         $responseData = json_decode($response, true);
-         
-         // Log API response (status: 1 atau rc: 200 = success)
-         $isSuccess = ($responseData['status'] ?? 0) == 1 || ($responseData['rc'] ?? 0) == 200;
-         $status = $isSuccess ? 'success' : 'error';
-         $this->model('Log')->apiLog('Tokopay/merchant/balance', null, $response, $status);
-         
          echo $response;
       } catch (Exception $e) {
          $errorResponse = ['status' => 'error', 'message' => $e->getMessage()];
-         $this->model('Log')->apiLog('Tokopay/merchant/balance', null, $errorResponse, 'error');
          echo json_encode($errorResponse);
       }
    }
@@ -117,22 +109,9 @@ class NonTunai extends Controller
 
       try {
          $response = $this->model('Tokopay')->tarikSaldo($nominal);
-         $responseData = json_decode($response, true);
-         
-         // Log API response
-         $status = isset($responseData['status']) && $responseData['status'] === true ? 'success' : 'error';
-         
-         // Cek jika response status menggunakan code/rc yang berbeda
-         if ($status == 'error' && (isset($responseData['rc']) && $responseData['rc'] == 200)) {
-            $status = 'success';
-         }
-
-         $this->model('Log')->apiLog('Tokopay/v1/tarik-saldo', ['nominal' => $nominal], $response, $status);
-         
          echo $response;
       } catch (Exception $e) {
          $errorResponse = ['status' => 'error', 'message' => $e->getMessage()];
-         $this->model('Log')->apiLog('Tokopay/v1/tarik-saldo', ['nominal' => $nominal], $errorResponse, 'error');
          echo json_encode($errorResponse);
       }
    }
