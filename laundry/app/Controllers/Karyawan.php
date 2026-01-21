@@ -109,57 +109,72 @@ class Karyawan extends Controller
      */
     public function verifyOTP()
     {
-        header('Content-Type: application/json');
+        // Suppress any output before JSON
+        ob_start();
         
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            echo json_encode(['status' => false, 'message' => 'Invalid request']);
-            return;
+        try {
+            header('Content-Type: application/json');
+            
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                throw new \Exception('Invalid request method');
+            }
+
+            $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+            $otp = isset($_POST['otp']) ? preg_replace('/[^0-9]/', '', $_POST['otp']) : '';
+
+            if ($id < 1) {
+                throw new \Exception('ID tidak valid');
+            }
+
+            if (strlen($otp) !== 6) {
+                throw new \Exception('Kode OTP harus 6 digit');
+            }
+
+            // Cek OTP di database
+            $user = $this->db(0)->get_where('user', "id_user = {$id}", 1);
+            
+            if (empty($user)) {
+                throw new \Exception('User tidak ditemukan');
+            }
+
+            $userData = $user[0];
+            
+            // Log untuk debugging
+            error_log("[Karyawan verifyOTP] User ID: {$id}, Input OTP: {$otp}, DB OTP: {$userData['otp']}, Expiry: {$userData['otp_active']}");
+            
+            // Cek apakah OTP cocok dan belum expired
+            if ($userData['otp'] !== $otp) {
+                throw new \Exception('Kode OTP tidak valid');
+            }
+
+            $now = new DateTime();
+            $expiry = new DateTime($userData['otp_active']);
+            
+            if ($now > $expiry) {
+                throw new \Exception('Kode OTP sudah kadaluarsa');
+            }
+
+            // OTP valid - hapus OTP dari database
+            $this->db(0)->update('user', [
+                'otp' => '',
+                'otp_active' => null
+            ], "id_user = {$id}");
+
+            // Clear buffer and send success
+            ob_end_clean();
+            echo json_encode(['status' => true, 'message' => 'OTP berhasil diverifikasi']);
+            
+        } catch (\Exception $e) {
+            // Clear buffer and send error
+            ob_end_clean();
+            
+            error_log("[Karyawan verifyOTP Error] " . $e->getMessage());
+            
+            echo json_encode([
+                'status' => false,
+                'message' => $e->getMessage()
+            ]);
         }
-
-        $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
-        $otp = isset($_POST['otp']) ? preg_replace('/[^0-9]/', '', $_POST['otp']) : '';
-
-        if ($id < 1) {
-            echo json_encode(['status' => false, 'message' => 'ID tidak valid']);
-            return;
-        }
-
-        if (strlen($otp) !== 6) {
-            echo json_encode(['status' => false, 'message' => 'Kode OTP harus 6 digit']);
-            return;
-        }
-
-        // Cek OTP di database
-        $user = $this->db(0)->get_where('user', "id_user = {$id}", 1);
-        
-        if (empty($user)) {
-            echo json_encode(['status' => false, 'message' => 'User tidak ditemukan']);
-            return;
-        }
-
-        $userData = $user[0];
-        
-        // Cek apakah OTP cocok dan belum expired
-        if ($userData['otp'] !== $otp) {
-            echo json_encode(['status' => false, 'message' => 'Kode OTP tidak valid']);
-            return;
-        }
-
-        $now = new DateTime();
-        $expiry = new DateTime($userData['otp_active']);
-        
-        if ($now > $expiry) {
-            echo json_encode(['status' => false, 'message' => 'Kode OTP sudah kadaluarsa']);
-            return;
-        }
-
-        // OTP valid - hapus OTP dari database
-        $this->db(0)->update('user', [
-            'otp' => '',
-            'otp_active' => null
-        ], "id_user = {$id}");
-
-        echo json_encode(['status' => true, 'message' => 'OTP berhasil diverifikasi']);
     }
 
     /**

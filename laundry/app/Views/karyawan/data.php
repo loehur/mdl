@@ -640,6 +640,8 @@ $(document).ready(function() {
             data: { otp: otp, id: $('#edit_id').val() },
             dataType: 'json',
             success: function(res) {
+                console.log('verifyOTP Response:', res);
+                
                 if (res.status) {
                     verifiedData.wa = $('#edit_wa').val().trim();
                     currentStep = 3;
@@ -649,8 +651,34 @@ $(document).ready(function() {
                     alert(res.message || 'Kode OTP tidak valid');
                 }
             },
-            error: function() {
-                alert('Terjadi kesalahan saat verifikasi OTP');
+            error: function(xhr, status, error) {
+                console.error('verifyOTP AJAX Error:', {
+                    status: status,
+                    error: error,
+                    statusCode: xhr.status,
+                    responseText: xhr.responseText
+                });
+                
+                var errorMsg = 'Terjadi kesalahan saat verifikasi OTP';
+                
+                if (xhr.status === 0) {
+                    errorMsg = 'Tidak dapat terhubung ke server';
+                } else if (xhr.status === 404) {
+                    errorMsg = 'Endpoint tidak ditemukan (404)';
+                } else if (xhr.status >= 500) {
+                    errorMsg = 'Server error (' + xhr.status + ')';
+                } else {
+                    try {
+                        var response = JSON.parse(xhr.responseText);
+                        if (response.message) {
+                            errorMsg = response.message;
+                        }
+                    } catch(e) {
+                        errorMsg += ' (' + error + ')';
+                    }
+                }
+                
+                alert(errorMsg);
             },
             complete: function() {
                 $('#btn_next').prop('disabled', false).html('Lanjut<i class="fas fa-arrow-right ms-1"></i>');
