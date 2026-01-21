@@ -505,6 +505,27 @@ class DB extends DBC
         }
     }
 
+    /**
+     * Execute custom SQL query and return results as array
+     * @param string $query SQL query string
+     * @return array|false Array of results or FALSE on failure
+     */
+    public function query_array($query)
+    {
+        $this->checkConnection();
+        $result = $this->mysqli->query($query);
+        if ($result) {
+            $reply = [];
+            while ($row = $result->fetch_assoc()) {
+                $reply[] = $row;
+            }
+            return $reply;
+        } else {
+            error_log("DB Query Error: " . $this->mysqli->error . " | Query: " . $query);
+            return FALSE;
+        }
+    }
+
     //============================================
 
     public function sum_col_where($table, $col, $where)
