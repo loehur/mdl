@@ -10,67 +10,71 @@ class Kinerja extends Controller
 
    public function index($mode = 1)
    {
-      $operasi = [];
       $dataTanggal = [];
-      $data_main = [];
-      $data_terima = [];
-      $data_kembali = [];
+      $mode = (int)$mode; // Sanitasi mode
 
-      $view = "content";
-      if ($mode == 1) {
-         $data_operasi = ['title' => 'Karyawan - Kinerja Bulanan'];
-      } else {
-         $data_operasi = ['title' => 'Karyawan - Kinerja Harian'];
-      }
+      $data_operasi = ['title' => $mode == 1 ? 'Karyawan - Kinerja Bulanan' : 'Karyawan - Kinerja Harian'];
 
-      //KINERJA
+      // Sanitasi dan validasi input tanggal
       if (isset($_POST['m'])) {
+         $year = isset($_POST['Y']) ? preg_replace('/[^0-9]/', '', $_POST['Y']) : date('Y');
+         $month = preg_replace('/[^0-9]/', '', $_POST['m']);
+         
          if ($mode == 1) {
-            $date = $_POST['Y'] . "-" . $_POST['m'];
-            $dataTanggal = array('bulan' => $_POST['m'], 'tahun' => $_POST['Y']);
+            $date = $year . "-" . str_pad($month, 2, '0', STR_PAD_LEFT);
+            $dataTanggal = ['bulan' => $month, 'tahun' => $year];
          } else {
-            $date = $_POST['Y'] . "-" . $_POST['m'] . "-" . $_POST['d'];
-            $dataTanggal = array('tanggal' => $_POST['d'], 'bulan' => $_POST['m'], 'tahun' => $_POST['Y']);
+            $day = isset($_POST['d']) ? preg_replace('/[^0-9]/', '', $_POST['d']) : '01';
+            $date = $year . "-" . str_pad($month, 2, '0', STR_PAD_LEFT) . "-" . str_pad($day, 2, '0', STR_PAD_LEFT);
+            $dataTanggal = ['tanggal' => $day, 'bulan' => $month, 'tahun' => $year];
          }
       } else {
-         if ($mode == 1) {
-            $date = date('Y-m');
-         } else {
-            $date = date('Y-m-d');
-         }
+         $date = $mode == 1 ? date('Y-m') : date('Y-m-d');
       }
 
-      //ABSEN
-      $absen = $this->db(0)->get_cols_where('absen', 'id_karyawan, SUM(jenis IN (0,2,3)) as harian, SUM(jenis = 1) as malam', "tanggal LIKE '" . $date . "%' GROUP BY id_karyawan", 1, 'id_karyawan');
+      // Escape date untuk query
+      $escapedDate = addslashes($date);
 
-      //OPERASI
-      $where = "insertTime LIKE '" . $date . "%'";
-      $ops_data = $this->db(0)->get_where('operasi', $where, 'id_operasi');
+      // ABSEN - dengan date yang sudah di-escape
+      $absen = $this->db(0)->get_cols_where(
+         'absen',
+         'id_karyawan, SUM(jenis IN (0,2,3)) as harian, SUM(jenis = 1) as malam',
+         "tanggal LIKE '{$escapedDate}%' GROUP BY id_karyawan",
+         1,
+         'id_karyawan'
+      );
 
-      //OPERASI JOIN
+      // OPERASI JOIN - query $ops_data dihapus karena tidak terpakai
       $join_where = "operasi.id_penjualan = sale.id_penjualan";
-      $where = "sale.bin = 0 AND operasi.insertTime LIKE '" . $date . "%'";
+      $where = "sale.bin = 0 AND operasi.insertTime LIKE '{$escapedDate}%'";
       $data_main = $this->db(0)->innerJoin1_where('operasi', 'sale', $join_where, $where);
 
-      //PENERIMAAN
-      $cols = "id_user, id_cabang, COUNT(id_user) as terima";
-      $where = "insertTime LIKE '" . $date . "%' GROUP BY id_user, id_cabang";
-      $data_terima = $this->db(0)->get_cols_where('sale', $cols, $where, 1);
+      // PENERIMAAN
+      $data_terima = $this->db(0)->get_cols_where(
+         'sale',
+         'id_user, id_cabang, COUNT(id_user) as terima',
+         "insertTime LIKE '{$escapedDate}%' GROUP BY id_user, id_cabang",
+         1
+      );
 
-      //PENGAMBILAN
-      $cols = "id_user_ambil, id_cabang, COUNT(id_user_ambil) as kembali";
-      $where = "tgl_ambil LIKE '" . $date . "%' GROUP BY id_user_ambil, id_cabang";
-      $data_kembali = $this->db(0)->get_cols_where('sale', $cols, $where, 1);
+      // PENGAMBILAN
+      $data_kembali = $this->db(0)->get_cols_where(
+         'sale',
+         'id_user_ambil, id_cabang, COUNT(id_user_ambil) as kembali',
+         "tgl_ambil LIKE '{$escapedDate}%' GROUP BY id_user_ambil, id_cabang",
+         1
+      );
 
-      $karyawan = $this->db(0)->get_where("user", "en = 1 AND id_cabang = " . $_SESSION[URL::SESSID]['user']['id_cabang']);
+      // Sanitasi id_cabang dari session
+      $id_cabang = (int)($_SESSION[URL::SESSID]['user']['id_cabang'] ?? 0);
+      $karyawan = $this->db(0)->get_where("user", "en = 1 AND id_cabang = {$id_cabang}");
 
       $this->view('layout', ['data_operasi' => $data_operasi]);
 
-      $this->view('kinerja/' . $view, [
+      $this->view('kinerja/content', [
          'mode' => $mode,
          'karyawan' => $karyawan,
          'data_main' => $data_main,
-         'operasi' => $operasi,
          'dataTanggal' => $dataTanggal,
          'dTerima' => $data_terima,
          'dKembali' => $data_kembali,
