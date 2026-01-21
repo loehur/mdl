@@ -151,13 +151,14 @@ class Cron extends Controller
             $statusText = isset($res['status']) && $res['status'] ? 'SUCCESS' : 'FAILED';
             $idApiLog = $idApi ?: 'N/A';
             $logMessage = "send_wa response | ID_Notif: {$id_notif} | Phone: {$hp} | Status: {$statusText} | ID_API: {$idApiLog} | Status_Proses: {$statusProses} | Response: " . json_encode($res);
-            $log->write($logMessage, 'laundry', 'cron_send_wa');
 
             if ($res['status']) {
                $set = ['state' => 'sent', 'id_api' => $idApi];
                $where2 = "id_notif = '" . $id_notif . "'";
                $this->db(0)->update('notif', $set, $where2);
                $sent += 1;
+            }else{
+               $log->write($logMessage, 'laundry', 'cron_send_wa');
             }
          } else {
             // Expired atau CSW closed
