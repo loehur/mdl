@@ -43,47 +43,62 @@ class Karyawan extends Controller
      */
     public function sendOTP()
     {
-        header('Content-Type: application/json');
+        // Suppress any output before JSON
+        ob_start();
         
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            echo json_encode(['status' => false, 'message' => 'Invalid request']);
-            return;
-        }
+        try {
+            header('Content-Type: application/json');
+            
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                throw new \Exception('Invalid request method');
+            }
 
-        $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
-        $wa = isset($_POST['wa']) ? preg_replace('/[^0-9]/', '', $_POST['wa']) : '';
+            $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+            $wa = isset($_POST['wa']) ? preg_replace('/[^0-9]/', '', $_POST['wa']) : '';
 
-        if ($id < 1) {
-            echo json_encode(['status' => false, 'message' => 'ID tidak valid']);
-            return;
-        }
+            if ($id < 1) {
+                throw new \Exception('ID tidak valid');
+            }
 
-        if (strlen($wa) < 9 || strlen($wa) > 15) {
-            echo json_encode(['status' => false, 'message' => 'Nomor WhatsApp tidak valid']);
-            return;
-        }
+            if (strlen($wa) < 9 || strlen($wa) > 15) {
+                throw new \Exception('Nomor WhatsApp tidak valid');
+            }
 
-        // Generate OTP 6 digit
-        $otp = str_pad(mt_rand(0, 999999), 6, '0', STR_PAD_LEFT);
-        
-        // Simpan OTP ke database dengan expiry 5 menit
-        $expiry = date('Y-m-d H:i:s', strtotime('+5 minutes'));
-        $this->db(0)->update('user', [
-            'otp' => $otp,
-            'otp_active' => $expiry
-        ], "id_user = {$id}");
+            // Generate OTP 6 digit
+            $otp = str_pad(mt_rand(0, 999999), 6, '0', STR_PAD_LEFT);
+            
+            // Simpan OTP ke database dengan expiry 5 menit
+            $expiry = date('Y-m-d H:i:s', strtotime('+5 minutes'));
+            $this->db(0)->update('user', [
+                'otp' => $otp,
+                'otp_active' => $expiry
+            ], "id_user = {$id}");
 
-        // Kirim OTP via WhatsApp API
-        $sendResult = $this->sendWhatsAppOTP($wa, $otp);
-        
-        if ($sendResult['status']) {
-            echo json_encode(['status' => true, 'message' => 'OTP berhasil dikirim ke WhatsApp']);
-        } else {
-            // Tampilkan error dari API
+            // Kirim OTP via WhatsApp API
+            $sendResult = $this->sendWhatsAppOTP($wa, $otp);
+            
+            // Clear any buffered output
+            ob_end_clean();
+            
+            if ($sendResult['status']) {
+                echo json_encode(['status' => true, 'message' => 'OTP berhasil dikirim ke WhatsApp']);
+            } else {
+                // Tampilkan error dari API
+                echo json_encode([
+                    'status' => false, 
+                    'message' => 'Gagal mengirim OTP: ' . ($sendResult['error'] ?? 'Unknown error'),
+                    'api_response' => $sendResult['response'] ?? null
+                ]);
+            }
+        } catch (\Exception $e) {
+            // Clear any buffered output
+            ob_end_clean();
+            
+            error_log("[Karyawan sendOTP Error] " . $e->getMessage());
+            
             echo json_encode([
-                'status' => false, 
-                'message' => 'Gagal mengirim OTP: ' . ($sendResult['error'] ?? 'Unknown error'),
-                'api_response' => $sendResult['response'] ?? null
+                'status' => false,
+                'message' => 'Terjadi kesalahan: ' . $e->getMessage()
             ]);
         }
     }
@@ -300,57 +315,61 @@ class Karyawan extends Controller
         $message .= "⚠️ Jangan bagikan kode ini kepada siapapun.";
 
         try {
-            // Load WhatsApp helper langsung
-            $helperPath = __DIR__ . '/../../../api/app/Helpers/WhatsAppService.php';
-            $configPath = __DIR__ . '/../../../api/app/Config/WhatsApp.php';
-            $envPath = __DIR__ . '/../../../api/app/Config/Env.php';
+            // Call WhatsApp API endpoint - send_text with skip CSW
+            $apiUrl = 'https://api.nalju.com/WhatsApp/send_text';
             
-            // Load Env first if exists
-            if (file_exists($envPath) && !class_exists('Env')) {
-                require_once $envPath;
+            // Prepare payload untuk free text tanpa CSW check
+            $payload = [
+                'phone' => $phoneNumber,
+                'message' => $message,
+                'last_message_at' => date('Y-m-d H:i:s', strtotime('-1 hour')), // Waktu 1 jam lalu (tetap dalam CSW window)
+                'skip_csw_check' => true, // PENTING: Skip CSW check untuk OTP
+                'sender_code' => '00'
+            ];
+            
+            // Send request via cURL
+            $ch = curl_init($apiUrl);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Content-Type: application/json',
+                'Accept: application/json'
+            ]);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+            
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch);
+            curl_close($ch);
+            
+            // Log the request and response
+            error_log("[WhatsApp OTP] Phone: {$phoneNumber}, HTTP: {$httpCode}");
+            error_log("[WhatsApp OTP] Response: " . $response);
+            
+            // Handle cURL errors
+            if ($curlError) {
+                throw new \Exception("cURL Error: {$curlError}");
             }
             
-            if (!file_exists($helperPath)) {
-                throw new \Exception("WhatsAppService.php not found at: {$helperPath}");
+            // Parse response
+            $result = json_decode($response, true);
+            
+            if ($result === null) {
+                throw new \Exception("Invalid JSON response from API: " . substr($response, 0, 200));
             }
             
-            if (!file_exists($configPath)) {
-                throw new \Exception("WhatsApp.php config not found at: {$configPath}");
-            }
-            
-            require_once $configPath;
-            require_once $helperPath;
-            
-            $wa = new \App\Helpers\WhatsAppService();
-            $result = $wa->sendFreeText($phoneNumber, $message);
-            
-            // Log the result for debugging
-            error_log("[WhatsApp OTP] Phone: {$phoneNumber}, Result: " . json_encode($result));
-            
-            if (isset($result['success']) && $result['success']) {
+            // Check if successful
+            if (isset($result['status']) && $result['status'] === true) {
                 return [
                     'status' => true,
                     'error' => null,
                     'response' => $result['data'] ?? null
                 ];
             } else {
-                // Extract detailed error message
-                $errorMsg = 'WhatsApp API error';
-                
-                if (isset($result['error'])) {
-                    $errorMsg = $result['error'];
-                } elseif (isset($result['data']['error']['message'])) {
-                    $errorMsg = $result['data']['error']['message'];
-                } elseif (isset($result['data']['error']['code'])) {
-                    $errorMsg = 'API Error: ' . $result['data']['error']['code'];
-                }
-                
-                $httpCode = $result['http_code'] ?? 0;
-                if ($httpCode > 0) {
-                    $errorMsg .= " (HTTP {$httpCode})";
-                }
-                
-                error_log("[WhatsApp OTP Error] " . $errorMsg . " - " . json_encode($result));
+                // API returned error
+                $errorMsg = $result['message'] ?? 'WhatsApp API error';
                 
                 return [
                     'status' => false,
@@ -358,10 +377,10 @@ class Karyawan extends Controller
                     'response' => $result
                 ];
             }
+            
         } catch (\Exception $e) {
             $errorMsg = $e->getMessage();
             error_log("[WhatsApp OTP Exception] " . $errorMsg);
-            error_log("[WhatsApp OTP Exception Trace] " . $e->getTraceAsString());
             
             return [
                 'status' => false,
