@@ -180,7 +180,7 @@ class Karyawan extends Controller
         }
 
         // Call Flip API untuk bank inquiry
-        require_once __DIR__ . '/../../api/app/Models/Flip.php';
+        require_once __DIR__ . '/../../../api/app/Models/Flip.php';
         
         $flip = new \App\Models\Flip();
         $result = $flip->bankInquiry($bankCode, $accountNumber);
@@ -300,9 +300,15 @@ class Karyawan extends Controller
         $message .= "⚠️ Jangan bagikan kode ini kepada siapapun.";
 
         try {
-            // Load required files
-            $helperPath = __DIR__ . '/../../api/app/Helpers/WhatsAppService.php';
-            $configPath = __DIR__ . '/../../api/app/Config/WhatsApp.php';
+            // Load WhatsApp helper langsung
+            $helperPath = __DIR__ . '/../../../api/app/Helpers/WhatsAppService.php';
+            $configPath = __DIR__ . '/../../../api/app/Config/WhatsApp.php';
+            $envPath = __DIR__ . '/../../../api/app/Config/Env.php';
+            
+            // Load Env first if exists
+            if (file_exists($envPath) && !class_exists('Env')) {
+                require_once $envPath;
+            }
             
             if (!file_exists($helperPath)) {
                 throw new \Exception("WhatsAppService.php not found at: {$helperPath}");
@@ -312,14 +318,14 @@ class Karyawan extends Controller
                 throw new \Exception("WhatsApp.php config not found at: {$configPath}");
             }
             
-            require_once $helperPath;
             require_once $configPath;
+            require_once $helperPath;
             
             $wa = new \App\Helpers\WhatsAppService();
             $result = $wa->sendFreeText($phoneNumber, $message);
             
             // Log the result for debugging
-            error_log("[WhatsApp OTP] Result: " . json_encode($result));
+            error_log("[WhatsApp OTP] Phone: {$phoneNumber}, Result: " . json_encode($result));
             
             if (isset($result['success']) && $result['success']) {
                 return [
