@@ -13,6 +13,20 @@ class Karyawan extends Controller
     }
 
     /**
+     * Safe logging yang tidak output HTML
+     */
+    private function log($message, $category = 'karyawan', $subcategory = 'general')
+    {
+        try {
+            if (class_exists('Log')) {
+                @\Log::write($message, $category, $subcategory);
+            }
+        } catch (\Exception $e) {
+            // Silent fail - jangan output apapun
+        }
+    }
+
+    /**
      * Menampilkan daftar data karyawan
      * GET /Karyawan/data
      */
@@ -43,11 +57,12 @@ class Karyawan extends Controller
      */
     public function sendOTP()
     {
-        // Suppress any output before JSON
-        ob_start();
+        // Suppress any output before JSON AND errors
+        @ob_start();
+        @ini_set('display_errors', 0);
         
         try {
-            header('Content-Type: application/json');
+            @header('Content-Type: application/json');
             
             if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
                 throw new \Exception('Invalid request method');
@@ -71,15 +86,15 @@ class Karyawan extends Controller
             $expiry = date('Y-m-d H:i:s', strtotime('+5 minutes'));
             
             // Log OTP yang akan disimpan
-            \Log::write("Generated OTP for User ID {$id}: '{$otp}' (length: " . strlen($otp) . ", type: " . gettype($otp) . ")", 'karyawan', 'sendOTP');
-            \Log::write("Expiry: {$expiry}", 'karyawan', 'sendOTP');
+            $this->log("Generated OTP for User ID {$id}: '{$otp}' (length: " . strlen($otp) . ", type: " . gettype($otp) . ")", 'karyawan', 'sendOTP');
+            $this->log("Expiry: {$expiry}", 'karyawan', 'sendOTP');
             
             $updateResult = $this->db(0)->update('user', [
                 'otp' => $otp,
                 'otp_active' => $expiry
             ], "id_user = {$id}");
             
-            \Log::write("Database update result: " . ($updateResult ? 'SUCCESS' : 'FAILED'), 'karyawan', 'sendOTP');
+            $this->log("Database update result: " . ($updateResult ? 'SUCCESS' : 'FAILED'), 'karyawan', 'sendOTP');
 
             // Kirim OTP via WhatsApp API
             $sendResult = $this->sendWhatsAppOTP($wa, $otp);
@@ -99,9 +114,9 @@ class Karyawan extends Controller
             }
         } catch (\Exception $e) {
             // Clear any buffered output
-            ob_end_clean();
+            @ob_end_clean();
             
-            \Log::write("ERROR: " . $e->getMessage(), 'karyawan', 'sendOTP');
+            $this->log("ERROR: " . $e->getMessage(), 'karyawan', 'sendOTP');
             
             echo json_encode([
                 'status' => false,
@@ -116,11 +131,12 @@ class Karyawan extends Controller
      */
     public function verifyOTP()
     {
-        // Suppress any output before JSON
-        ob_start();
+        // Suppress any output before JSON AND errors
+        @ob_start();
+        @ini_set('display_errors', 0);
         
         try {
-            header('Content-Type: application/json');
+            @header('Content-Type: application/json');
             
             if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
                 throw new \Exception('Invalid request method');
@@ -151,17 +167,17 @@ class Karyawan extends Controller
             $dbOtp = (string)trim($userData['otp'] ?? '');
             
             // Log untuk debugging
-            \Log::write("User ID: {$id}", 'karyawan', 'verifyOTP');
-            \Log::write("Input OTP: '{$inputOtp}' (length: " . strlen($inputOtp) . ", type: " . gettype($inputOtp) . ")", 'karyawan', 'verifyOTP');
-            \Log::write("DB OTP: '{$dbOtp}' (length: " . strlen($dbOtp) . ", type: " . gettype($dbOtp) . ")", 'karyawan', 'verifyOTP');
-            \Log::write("Expiry: {$userData['otp_active']}", 'karyawan', 'verifyOTP');
-            \Log::write("Match: " . ($inputOtp === $dbOtp ? 'YES' : 'NO'), 'karyawan', 'verifyOTP');
+            $this->log("User ID: {$id}", 'karyawan', 'verifyOTP');
+            $this->log("Input OTP: '{$inputOtp}' (length: " . strlen($inputOtp) . ", type: " . gettype($inputOtp) . ")", 'karyawan', 'verifyOTP');
+            $this->log("DB OTP: '{$dbOtp}' (length: " . strlen($dbOtp) . ", type: " . gettype($dbOtp) . ")", 'karyawan', 'verifyOTP');
+            $this->log("Expiry: {$userData['otp_active']}", 'karyawan', 'verifyOTP');
+            $this->log("Match: " . ($inputOtp === $dbOtp ? 'YES' : 'NO'), 'karyawan', 'verifyOTP');
             
             // Cek apakah OTP cocok dan belum expired
             if ($inputOtp !== $dbOtp) {
                 // Debug: show character codes
-                \Log::write("Input OTP hex: " . bin2hex($inputOtp), 'karyawan', 'verifyOTP');
-                \Log::write("DB OTP hex: " . bin2hex($dbOtp), 'karyawan', 'verifyOTP');
+                $this->log("Input OTP hex: " . bin2hex($inputOtp), 'karyawan', 'verifyOTP');
+                $this->log("DB OTP hex: " . bin2hex($dbOtp), 'karyawan', 'verifyOTP');
                 throw new \Exception('Kode OTP tidak valid');
             }
 
@@ -184,9 +200,9 @@ class Karyawan extends Controller
             
         } catch (\Exception $e) {
             // Clear buffer and send error
-            ob_end_clean();
+            @ob_end_clean();
             
-            \Log::write("ERROR: " . $e->getMessage(), 'karyawan', 'verifyOTP');
+            $this->log("ERROR: " . $e->getMessage(), 'karyawan', 'verifyOTP');
             
             echo json_encode([
                 'status' => false,
@@ -378,8 +394,8 @@ class Karyawan extends Controller
             curl_close($ch);
             
             // Log the request and response
-            \Log::write("Phone: {$phoneNumber}, HTTP: {$httpCode}", 'karyawan', 'whatsapp_otp');
-            \Log::write("Response: " . $response, 'karyawan', 'whatsapp_otp');
+            $this->log("Phone: {$phoneNumber}, HTTP: {$httpCode}", 'karyawan', 'whatsapp_otp');
+            $this->log("Response: " . $response, 'karyawan', 'whatsapp_otp');
             
             // Handle cURL errors
             if ($curlError) {
@@ -413,7 +429,7 @@ class Karyawan extends Controller
             
         } catch (\Exception $e) {
             $errorMsg = $e->getMessage();
-            \Log::write("Exception: " . $errorMsg, 'karyawan', 'whatsapp_otp');
+            $this->log("Exception: " . $errorMsg, 'karyawan', 'whatsapp_otp');
             
             return [
                 'status' => false,
