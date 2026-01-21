@@ -14,7 +14,7 @@ class Cron extends Controller
       $pending += count($data);
       foreach ($data as $dm) {
          $id_notif = $dm['id_notif'];
-         $data_pending .= $data['id_cabang'] . "#" . $id_notif . ' ';
+         $data_pending .= $dm['id_cabang'] . "#" . $id_notif . ' ';
 
          $expired_bol = false;
 

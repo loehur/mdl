@@ -98,6 +98,10 @@ class WAReplies
         // Load keyword configuration
         $keywordConfig = require __DIR__ . '/../Config/AutoReplyKeywords.php';
         
+        // Simpan config lengkap untuk akses case dan notify nanti
+        $fullKeywordConfig = $keywordConfig;
+        
+        $matchPattern = [];
         // Check each handler's patterns
         foreach ($keywordConfig as $handler => $config) {
             $patterns = $config['patterns'] ?? [];
@@ -107,6 +111,11 @@ class WAReplies
                     // Get case from config
                     $caseVal = $config['case'] ?? null;
                     $notify = $config['notify'] ?? false;
+                    $matchPattern[] = $handler;
+                    
+                    // Unset matched keyword from config to optimize AI detection
+                    // AI tidak perlu cek keyword yang sudah match di regex
+                    unset($keywordConfig[$handler]);
                     
                     //cek rate limit
                     if (!$this->shouldHandle($waNumber, $handler)) {
@@ -138,13 +147,12 @@ class WAReplies
 
                     if (method_exists($this, $methodName)) {
                         $this->$methodName($phoneIn, $waNumber, $textBody);
+                        return (object) [
+                            'case' => $caseVal,
+                            'notify' => $notify,
+                            'conversation_id' => $conversationId
+                        ];
                     }
-
-                    return (object) [
-                        'case' => $caseVal,
-                        'notify' => $notify,
-                        'conversation_id' => $conversationId
-                    ];
                 }
             }
         }
@@ -162,14 +170,21 @@ class WAReplies
             ];
         }
 
-        $aiResult = $this->handleWithAI($phoneIn, $textBody, $waNumber);
+        // Pass filtered keywordConfig to AI (keywords yang sudah match di regex sudah di-unset)
+        // Ini mengoptimalkan AI detection karena AI tidak perlu cek keyword yang sudah match
+        $aiResult = $this->handleWithAI($phoneIn, $textBody, $waNumber, $keywordConfig);
 
         // Check if AI successfully detected a valid intent
         if ($aiResult && is_array($aiResult) && isset($aiResult['intent']) && strtoupper($aiResult['intent']) !== 'FALSE') {
             $aiIntent = strtoupper($aiResult['intent']);
-            $aiCase = $keywordConfig[$aiIntent]['case'] ?? null;
-            $aiNotify = $keywordConfig[$aiIntent]['notify'] ?? false;
+            // Gunakan fullKeywordConfig untuk akses case dan notify (config lengkap)
+            $aiCase = $fullKeywordConfig[$aiIntent]['case'] ?? null;
+            $aiNotify = $fullKeywordConfig[$aiIntent]['notify'] ?? false;
             
+            // Note: Tidak perlu cek in_array($aiIntent, $matchPattern) lagi
+            // karena keyword yang sudah match di regex sudah di-unset dari $keywordConfig
+            // Jadi jika AI detect intent, berarti intent tersebut belum match di regex
+
             // Rate limit check for AI intent
             // ========================================
             if (!$this->shouldHandle($waNumber, $aiIntent)) {
@@ -1173,7 +1188,7 @@ class WAReplies
         return $result;
     }
 
-    private function handleWithAI($phoneIn, $textBody, $waNumber)
+    private function handleWithAI($phoneIn, $textBody, $waNumber, $keywordConfig = null)
     {
         try {
             // Check if AI Config class exists
@@ -1194,8 +1209,11 @@ class WAReplies
         }
 
         try {
-            // Load keyword configuration to get ai_prompt for each category
-            $keywordConfig = require __DIR__ . '/../Config/AutoReplyKeywords.php';
+            // Use provided keywordConfig (already filtered) or load full config
+            // Jika keywordConfig tidak diberikan, load full config (backward compatibility)
+            if ($keywordConfig === null) {
+                $keywordConfig = require __DIR__ . '/../Config/AutoReplyKeywords.php';
+            }
 
             // Prepare AI prompt for intent classification
             $prompt = "Kamu adalah AI classifier untuk WhatsApp bot laundry. Klasifikasikan pesan berikut ke dalam SATU kategori saja:\n";
