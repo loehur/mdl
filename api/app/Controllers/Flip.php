@@ -96,21 +96,37 @@ class Flip extends Controller
             $this->error('Method not allowed', 405);
         }
         
+        \Log::write("=== Bank List Request ===", 'flip', 'banks');
+        \Log::write("Bank Code Filter: " . ($code ?? 'None'), 'flip', 'banks');
+        
         $result = $this->flip->getBankList($code);
         
+        \Log::write("API Response: " . json_encode($result), 'flip', 'banks');
+        
         if (isset($result['success']) && $result['success']) {
+            // Remove internal metadata before sending to client
+            $cleanResult = $result;
+            unset($cleanResult['success']);
+            unset($cleanResult['http_code']);
+            
+            // Count banks for logging
+            $bankCount = is_array($cleanResult) ? count($cleanResult) : 0;
+            \Log::write("Returning {$bankCount} banks to client", 'flip', 'banks');
+            
             // If single bank requested
             if ($code !== null) {
-                $this->success($result, 'Bank info retrieved successfully');
+                $this->success($cleanResult, 'Bank info retrieved successfully');
             } else {
-                $this->success($result, 'Bank list retrieved successfully');
+                // Return the bank data (array or object from Flip API)
+                $this->success($cleanResult, 'Bank list retrieved successfully');
             }
         } else {
-            $this->error(
-                $result['error'] ?? 'Failed to get bank list',
-                $result['http_code'] ?? 500,
-                $result
-            );
+            $errorMsg = $result['error'] ?? 'Failed to get bank list';
+            $httpCode = $result['http_code'] ?? 500;
+            
+            \Log::write("ERROR: {$errorMsg} (HTTP {$httpCode})", 'flip', 'banks');
+            
+            $this->error($errorMsg, $httpCode, $result);
         }
     }
 

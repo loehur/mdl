@@ -79,6 +79,7 @@ class Flip
 
     /**
      * Get list of available banks for disbursement
+     * Note: This endpoint uses v2 API as per Flip documentation
      * 
      * @param string|null $code Optional - Filter by specific bank code
      * @return array List of banks with their codes, names, and fees
@@ -90,7 +91,12 @@ class Flip
      */
     public function getBankList($code = null)
     {
-        $url = $this->baseUrl . "/general/banks";
+        // Banks endpoint uses v2 API
+        if ($this->environment === 'production') {
+            $url = "https://bigflip.id/api/v2/general/banks";
+        } else {
+            $url = "https://bigflip.id/big_sandbox_api/v2/general/banks";
+        }
         
         $params = [];
         if ($code !== null) {
@@ -147,7 +153,12 @@ class Flip
      */
     public function bankInquiry($bankCode, $accountNumber, $inquiryKey = null)
     {
-        $url = $this->baseUrl . "/disbursement/bank-account-inquiry";
+        // Account inquiry endpoint uses v2 API
+        if ($this->environment === 'production') {
+            $url = "https://bigflip.id/api/v2/disbursement/bank-account-inquiry";
+        } else {
+            $url = "https://bigflip.id/big_sandbox_api/v2/disbursement/bank-account-inquiry";
+        }
         
         $data = [
             'bank_code' => strtolower($bankCode),

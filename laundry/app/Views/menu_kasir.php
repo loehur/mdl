@@ -113,6 +113,11 @@ $menu[0] = [
         'submenu' =>
         [
             [
+                'c' => 'Karyawan/data',
+                'title' => 'Data Karyawan',
+                'txt' => 'Data',
+            ],
+            [
                 'c' => 'Absen',
                 'title' => 'Karyawan Absen',
                 'txt' => 'Absen Harian',
