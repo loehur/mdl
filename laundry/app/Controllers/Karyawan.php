@@ -398,16 +398,14 @@ class Karyawan extends Controller
         $message .= "⚠️ Jangan bagikan kode ini kepada siapapun.";
 
         try {
-            // Call WhatsApp API endpoint - send_text with skip CSW
-            $apiUrl = 'https://api.nalju.com/WhatsApp/send_text';
+            // Call WhatsApp API endpoint - menggunakan send
+            $apiUrl = 'https://api.nalju.com/WhatsApp/send';
             
-            // Prepare payload untuk free text tanpa CSW check
+            // Prepare payload untuk free text
             $payload = [
                 'phone' => $phoneNumber,
+                'message_mode' => 'free',
                 'message' => $message,
-                'last_message_at' => date('Y-m-d H:i:s', strtotime('-1 hour')), // Waktu 1 jam lalu (tetap dalam CSW window)
-                'skip_csw_check' => true, // PENTING: Skip CSW check untuk OTP
-                'sender_code' => '00'
             ];
             
             // Send request via cURL

@@ -59,15 +59,6 @@ class WhatsApp extends Controller
         $this->success([
             'name' => 'WhatsApp API',
             'version' => '1.0',
-            'provider' => 'yCloud',
-            'endpoints' => [
-                'POST /WhatsApp/send' => 'Send WhatsApp message (auto-detect mode based on CSW)',
-                'POST /WhatsApp/send-text' => 'Send free-form text (must be within CSW)',
-                'POST /WhatsApp/send-template' => 'Send template message (anytime)',
-                'POST /WhatsApp/send-media' => 'Send media (image/video/document/audio)',
-                'POST /WhatsApp/send-buttons' => 'Send interactive button message',
-                'POST /WhatsApp/check-csw' => 'Check Customer Service Window status'
-            ]
         ], 'WhatsApp API Ready');
     }
     
@@ -83,7 +74,7 @@ class WhatsApp extends Controller
         
         $phone = $body['phone'];
         $messageMode = strtolower($body['message_mode']);
-        $senderCode = $body['sender_code'] ?? null;
+        $senderCode = $body['sender_code'] ?? 'null';
         
         // Override: nomor-nomor tertentu WAJIB pakai mode 'free'
         foreach (\Env::FORBID_WA_TEMPLATE_HP as $fhp) {
@@ -93,7 +84,7 @@ class WhatsApp extends Controller
             }
         }
 
-        $lastMessageAt = null;
+        $last_in_at = null;
         
         // Normalisasi Phone
         $ph = preg_replace('/[^0-9]/', '', $phone);
@@ -105,30 +96,27 @@ class WhatsApp extends Controller
         
         $db = $this->db(0);
         
+        // WAJIB: Cek CSW dari database untuk setiap request
         try {
             // CHECK 1: Cek di wa_conversations (Source of Truth for CSW)
             $qCust = $db->query("SELECT last_in_at FROM wa_conversations WHERE wa_number IN ('$phone1', '$phone2') LIMIT 1");
             if ($qCust->num_rows() > 0) {
-                $lastMessageAt = $qCust->row()->last_in_at;
+                $last_in_at = $qCust->row()->last_in_at;
             } else {
-                // CHECK 2: Fallback ke wa_conversations (jika ada legacy data)
-                $qConv = $db->query("SELECT last_in_at FROM wa_conversations WHERE wa_number IN ('$phone1', '$phone2') ORDER BY last_in_at DESC LIMIT 1");
-                if ($qConv->num_rows() > 0) {
-                    $lastMessageAt = $qConv->row()->last_in_at;
-                }
+                $last_in_at = null;
             }
         } catch (\Exception $e) {
             // Log warning but don't crash, assume no previous message
-            $lastMessageAt = null;
+            $last_in_at = null;
         }
         
-        // Check CSW status
-        $isWithinCsw = $this->whatsappService->isWithinCsw($lastMessageAt);
+        // Check CSW status - WAJIB untuk setiap request
+        $isWithinCsw = $this->whatsappService->isWithinCsw($last_in_at);
         
         // Safely calculate hours elapsed (default to very high if no message)
         $hoursElapsed = 99999;
-        if ($lastMessageAt) {
-            $hoursElapsed = $this->whatsappService->diffHours(date('Y-m-d H:i:s'), $lastMessageAt);
+        if ($last_in_at) {
+            $hoursElapsed = $this->whatsappService->diffHours(date('Y-m-d H:i:s'), $last_in_at);
         }
         
         // Business Logic: Free text mode (CHECK CSW FIRST before sending)
@@ -138,7 +126,7 @@ class WhatsApp extends Controller
                 $this->error('Message content is required for free text mode', 400);
             }
             
-            // ✅ FIX: CHECK CSW FROM DATABASE BEFORE SENDING
+            // ✅ WAJIB: CHECK CSW FROM DATABASE BEFORE SENDING
             // Prevent unnecessary yCloud API calls when CSW is expired
             if (!$isWithinCsw) {
                 $this->error(
@@ -147,7 +135,7 @@ class WhatsApp extends Controller
                     [
                         'csw_expired' => true,
                         'hours_elapsed' => round($hoursElapsed, 2),
-                        'last_message_at' => $lastMessageAt ?? 'No previous message',
+                        'last_in_at' => $last_in_at ?? 'No previous message',
                         'phone_sent' => $phone,
                         'suggestion' => 'chat ke Laundry Bot dulu ya'
                     ]
@@ -289,181 +277,4 @@ class WhatsApp extends Controller
         $this->error('Invalid message_mode. Use "free" or "template"', 400);
     }
     
-    public function send_text()
-    {
-        if (!$this->isPost()) {
-            $this->error('Method not allowed. Use POST', 405);
-        }
-        
-        $body = $this->getBody();
-        $this->validate($body, ['phone', 'message', 'last_message_at']);
-        
-        $phone = $body['phone'];
-        $message = $body['message'];
-        $lastMessageAt = $body['last_message_at'];
-        $senderCode = $body['sender_code'] ?? null;
-        $skipCswCheck = $body['skip_csw_check'] ?? false;
-        
-        // Check CSW unless explicitly skipped
-        if (!$skipCswCheck) {
-            $isWithinCsw = $this->whatsappService->isWithinCsw($lastMessageAt);
-            if (!$isWithinCsw) {
-                $hoursElapsed = $this->whatsappService->diffHours(date('Y-m-d H:i:s'), $lastMessageAt);
-                $this->error(
-                    'CSW expired. Use template message instead.',
-                    400,
-                    [
-                        'hours_elapsed' => round($hoursElapsed, 2),
-                        'last_message_at' => $lastMessageAt
-                    ]
-                );
-            }
-        }
-        
-        // Send message
-        $result = $this->whatsappService->sendFreeText($phone, $message, null, $senderCode);
-        
-        if (!$result['success']) {
-            $this->error('Failed to send message', 500, $result);
-        }
-        
-        $this->success($result['data'], 'Message sent successfully');
-    }
-    
-    public function send_template()
-    {
-        if (!$this->isPost()) {
-            $this->error('Method not allowed. Use POST', 405);
-        }
-        
-        $body = $this->getBody();
-        $this->validate($body, ['phone', 'template_name']);
-        
-        $phone = $body['phone'];
-        $templateName = $body['template_name'];
-        $language = $body['template_language'] ?? 'id';
-        $params = $body['template_params'] ?? [];
-        
-        $result = $this->whatsappService->sendTemplate($phone, $templateName, $language, $params);
-        
-        if (!$result['success']) {
-            $this->error('Failed to send template', 500, $result);
-        }
-        
-        $this->success($result['data'], 'Template sent successfully');
-    }
-    
-    public function send_media()
-    {
-        if (!$this->isPost()) {
-            $this->error('Method not allowed. Use POST', 405);
-        }
-        
-        $body = $this->getBody();
-        $this->validate($body, ['phone', 'type', 'media_url', 'last_message_at']);
-        
-        $phone = $body['phone'];
-        $type = $body['type'];
-        $mediaUrl = $body['media_url'];
-        $caption = $body['caption'] ?? null;
-        $filename = $body['filename'] ?? null;
-        $lastMessageAt = $body['last_message_at'];
-        
-        // Validate media type
-        $validTypes = ['image', 'document', 'video', 'audio'];
-        if (!in_array($type, $validTypes)) {
-            $this->error('Invalid media type. Use: ' . implode(', ', $validTypes), 400);
-        }
-        
-        // Check CSW
-        if (!$this->whatsappService->isWithinCsw($lastMessageAt)) {
-            $hoursElapsed = $this->whatsappService->diffHours(date('Y-m-d H:i:s'), $lastMessageAt);
-            $this->error(
-                'CSW expired. Media messages require active CSW.',
-                400,
-                ['hours_elapsed' => round($hoursElapsed, 2)]
-            );
-        }
-        
-        $result = $this->whatsappService->sendMedia($phone, $type, $mediaUrl, $caption, $filename);
-        
-        if (!$result['success']) {
-            $this->error('Failed to send media', 500, $result);
-        }
-        
-        $this->success($result['data'], 'Media sent successfully');
-    }
-    
-    public function send_buttons()
-    {
-        if (!$this->isPost()) {
-            $this->error('Method not allowed. Use POST', 405);
-        }
-        
-        $body = $this->getBody();
-        $this->validate($body, ['phone', 'body_text', 'buttons', 'last_message_at']);
-        
-        $phone = $body['phone'];
-        $bodyText = $body['body_text'];
-        $buttons = $body['buttons'];
-        $headerText = $body['header_text'] ?? null;
-        $footerText = $body['footer_text'] ?? null;
-        $lastMessageAt = $body['last_message_at'];
-        
-        // Validate buttons
-        if (!is_array($buttons) || count($buttons) === 0) {
-            $this->error('Buttons must be a non-empty array', 400);
-        }
-        
-        if (count($buttons) > 3) {
-            $this->error('Maximum 3 buttons allowed', 400);
-        }
-        
-        // Check CSW
-        if (!$this->whatsappService->isWithinCsw($lastMessageAt)) {
-            $hoursElapsed = $this->whatsappService->diffHours(date('Y-m-d H:i:s'), $lastMessageAt);
-            $this->error(
-                'CSW expired. Interactive messages require active CSW.',
-                400,
-                ['hours_elapsed' => round($hoursElapsed, 2)]
-            );
-        }
-        
-        $result = $this->whatsappService->sendButtons($phone, $bodyText, $buttons, $headerText, $footerText);
-        
-        if (!$result['success']) {
-            $this->error('Failed to send buttons', 500, $result);
-        }
-        
-        $this->success($result['data'], 'Buttons sent successfully');
-    }
-    
-    public function check_csw()
-    {
-        if (!$this->isPost()) {
-            $this->error('Method not allowed. Use POST', 405);
-        }
-        
-        $body = $this->getBody();
-        $this->validate($body, ['last_message_at']);
-        
-        $lastMessageAt = $body['last_message_at'];
-        $now = date('Y-m-d H:i:s');
-        
-        $isWithinCsw = $this->whatsappService->isWithinCsw($lastMessageAt);
-        $hoursElapsed = $this->whatsappService->diffHours($now, $lastMessageAt);
-        $hoursRemaining = 24 - $hoursElapsed;
-        
-        $this->success([
-            'within_csw' => $isWithinCsw,
-            'last_message_at' => $lastMessageAt,
-            'current_time' => $now,
-            'hours_elapsed' => round($hoursElapsed, 2),
-            'hours_remaining' => $isWithinCsw ? round($hoursRemaining, 2) : 0,
-            'csw_limit_hours' => 24,
-            'can_send_free_text' => $isWithinCsw,
-            'must_use_template' => !$isWithinCsw,
-            'expires_at' => date('Y-m-d H:i:s', strtotime($lastMessageAt . ' +24 hours'))
-        ], 'CSW status retrieved');
-    }
 }
