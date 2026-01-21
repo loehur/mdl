@@ -4,15 +4,21 @@ class User extends Controller
 {
     function pin_today($username, $otp)
     {
-        $today = date("Ymd");
-        $where = "username = '" . $username . "' AND otp = '" . $otp . "' AND otp_active = '" . $today . "' AND en = 1";
+        if ($_SERVER['REMOTE_ADDR'] == '127.0.0.1' || $_SERVER['REMOTE_ADDR'] == '::1') {
+            $where = "username = '" . $username . "' AND en = 1";
+        } else {
+            // Cek OTP dan apakah belum expired (5 menit validity)
+            $now = date('Y-m-d H:i:s');
+            $where = "username = '" . $username . "' AND otp = '" . $otp . "' AND otp_active >= '" . $now . "' AND en = 1";
+        }
         return $this->db(0)->get_where_row('user', $where);
     }
 
     function pin_admin_today($otp)
     {
-        $today = date("Ymd");
-        $where = "id_privilege = 100 AND otp = '" . $otp . "' AND otp_active = '" . $today . "' AND en = 1";
+        // Cek OTP admin dan apakah belum expired (5 menit validity)
+        $now = date('Y-m-d H:i:s');
+        $where = "id_privilege = 100 AND otp = '" . $otp . "' AND otp_active >= '" . $now . "' AND en = 1";
         return $this->db(0)->count_where('user', $where);
     }
 
