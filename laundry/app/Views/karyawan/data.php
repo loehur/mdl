@@ -571,6 +571,8 @@ $(document).ready(function() {
             data: { wa: wa, id: $('#edit_id').val() },
             dataType: 'json',
             success: function(res) {
+                console.log('sendOTP Response:', res);
+                
                 if (res.status) {
                     currentStep = 2;
                     updateStepUI();
@@ -579,21 +581,42 @@ $(document).ready(function() {
                 } else {
                     // Tampilkan error message lengkap
                     var errorMsg = res.message || 'Gagal mengirim OTP';
+                    
+                    // Log detail untuk debugging
                     if (res.api_response) {
-                        console.log('API Response:', res.api_response);
-                        errorMsg += '\n\nDetail: ' + JSON.stringify(res.api_response, null, 2);
+                        console.error('WhatsApp API Response:', res.api_response);
                     }
+                    
                     alert(errorMsg);
                 }
             },
             error: function(xhr, status, error) {
+                console.error('sendOTP AJAX Error:', {
+                    status: status,
+                    error: error,
+                    statusCode: xhr.status,
+                    responseText: xhr.responseText
+                });
+                
                 var errorMsg = 'Terjadi kesalahan saat mengirim OTP';
-                try {
-                    var response = JSON.parse(xhr.responseText);
-                    if (response.message) {
-                        errorMsg = response.message;
+                
+                if (xhr.status === 0) {
+                    errorMsg = 'Tidak dapat terhubung ke server';
+                } else if (xhr.status === 404) {
+                    errorMsg = 'Endpoint tidak ditemukan (404)';
+                } else if (xhr.status >= 500) {
+                    errorMsg = 'Server error (' + xhr.status + ')';
+                } else {
+                    try {
+                        var response = JSON.parse(xhr.responseText);
+                        if (response.message) {
+                            errorMsg = response.message;
+                        }
+                    } catch(e) {
+                        errorMsg += ' (' + error + ')';
                     }
-                } catch(e) {}
+                }
+                
                 alert(errorMsg);
             },
             complete: function() {

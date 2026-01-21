@@ -300,12 +300,26 @@ class Karyawan extends Controller
         $message .= "⚠️ Jangan bagikan kode ini kepada siapapun.";
 
         try {
-            // Load WhatsAppService
-            require_once __DIR__ . '/../../api/app/Helpers/WhatsAppService.php';
-            require_once __DIR__ . '/../../api/app/Config/WhatsApp.php';
+            // Load required files
+            $helperPath = __DIR__ . '/../../api/app/Helpers/WhatsAppService.php';
+            $configPath = __DIR__ . '/../../api/app/Config/WhatsApp.php';
+            
+            if (!file_exists($helperPath)) {
+                throw new \Exception("WhatsAppService.php not found at: {$helperPath}");
+            }
+            
+            if (!file_exists($configPath)) {
+                throw new \Exception("WhatsApp.php config not found at: {$configPath}");
+            }
+            
+            require_once $helperPath;
+            require_once $configPath;
             
             $wa = new \App\Helpers\WhatsAppService();
             $result = $wa->sendFreeText($phoneNumber, $message);
+            
+            // Log the result for debugging
+            error_log("[WhatsApp OTP] Result: " . json_encode($result));
             
             if (isset($result['success']) && $result['success']) {
                 return [
@@ -314,17 +328,38 @@ class Karyawan extends Controller
                     'response' => $result['data'] ?? null
                 ];
             } else {
+                // Extract detailed error message
+                $errorMsg = 'WhatsApp API error';
+                
+                if (isset($result['error'])) {
+                    $errorMsg = $result['error'];
+                } elseif (isset($result['data']['error']['message'])) {
+                    $errorMsg = $result['data']['error']['message'];
+                } elseif (isset($result['data']['error']['code'])) {
+                    $errorMsg = 'API Error: ' . $result['data']['error']['code'];
+                }
+                
+                $httpCode = $result['http_code'] ?? 0;
+                if ($httpCode > 0) {
+                    $errorMsg .= " (HTTP {$httpCode})";
+                }
+                
+                error_log("[WhatsApp OTP Error] " . $errorMsg . " - " . json_encode($result));
+                
                 return [
                     'status' => false,
-                    'error' => $result['error'] ?? 'WhatsApp API returned error',
+                    'error' => $errorMsg,
                     'response' => $result
                 ];
             }
         } catch (\Exception $e) {
-            error_log("[WhatsApp OTP Error] " . $e->getMessage());
+            $errorMsg = $e->getMessage();
+            error_log("[WhatsApp OTP Exception] " . $errorMsg);
+            error_log("[WhatsApp OTP Exception Trace] " . $e->getTraceAsString());
+            
             return [
                 'status' => false,
-                'error' => $e->getMessage(),
+                'error' => $errorMsg,
                 'response' => null
             ];
         }
