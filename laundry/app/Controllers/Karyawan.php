@@ -3,6 +3,11 @@
 /**
  * Controller Karyawan
  * Menampilkan dan mengelola data karyawan dengan verifikasi OTP dan Bank Inquiry
+ * 
+ * VERSION 2.0 - 2026-01-21
+ * - OTP Encryption: ENABLED
+ * - OTP Expiry: 5 minutes
+ * - Logging: Integrated with Log model
  */
 class Karyawan extends Controller
 {
@@ -82,8 +87,12 @@ class Karyawan extends Controller
             // Generate OTP 6 digit
             $otp = str_pad(mt_rand(0, 999999), 6, '0', STR_PAD_LEFT);
             
+            // VERSION CHECK - Jika log ini muncul, berarti file sudah terupload
+            $this->log("=== KARYAWAN.PHP VERSION 2.0 - WITH ENCRYPTION ===", 'karyawan', 'sendOTP');
+            
             // Enkripsi OTP (sama dengan Login)
             $otp_enc = $this->model("Enc")->otp($otp);
+            $this->log("OTP Plain: '{$otp}' | OTP Encrypted: '{$otp_enc}'", 'karyawan', 'sendOTP');
             
             // Simpan OTP ke database dengan expiry 5 menit
             $expiry = date('Y-m-d H:i:s', strtotime('+5 minutes'));
