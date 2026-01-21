@@ -4,10 +4,11 @@
  * Controller Karyawan
  * Menampilkan dan mengelola data karyawan dengan verifikasi OTP dan Bank Inquiry
  * 
- * VERSION 3.0 - 2026-01-21
+ * VERSION 3.2 - 2026-01-21
  * - OTP Encryption: CUSTOM MD5 (Simple & Reliable)
  * - OTP Expiry: 5 minutes
  * - Logging: Integrated with Log model
+ * - Raw Data Logging: ENABLED
  */
 class Karyawan extends Controller
 {
@@ -101,7 +102,7 @@ class Karyawan extends Controller
             $otp = str_pad(mt_rand(0, 999999), 6, '0', STR_PAD_LEFT);
             
             // VERSION CHECK - Jika log ini muncul, berarti file sudah terupload
-            $this->log("=== KARYAWAN.PHP VERSION 3.0 - CUSTOM ENCRYPTION ===", 'karyawan', 'sendOTP');
+            $this->log("=== KARYAWAN.PHP VERSION 3.2 - RAW DATA LOG ===", 'karyawan', 'sendOTP');
             
             // Enkripsi OTP menggunakan custom method
             $otp_enc = $this->encryptOTP($otp);
@@ -184,6 +185,9 @@ class Karyawan extends Controller
 
             // Cek OTP di database
             $user = $this->db(0)->get_where('user', "id_user = {$id}", 1);
+            
+            // Log raw data dari database
+            $this->log("RAW DATA from get_where: " . json_encode($user), 'karyawan', 'verifyOTP');
             
             if (empty($user)) {
                 throw new \Exception('User tidak ditemukan');
