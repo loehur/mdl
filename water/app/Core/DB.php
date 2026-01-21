@@ -224,12 +224,25 @@ class DB extends DBC
 
     public function update($table, $set, $where)
     {
+        if (is_array($set)) {
+            $setParts = [];
+            foreach ($set as $key => $value) {
+                if (is_null($value)) {
+                    $setParts[] = "$key = NULL";
+                } else {
+                    $escapedValue = $this->mysqli->real_escape_string($value);
+                    $setParts[] = "$key = '$escapedValue'";
+                }
+            }
+            $set = implode(', ', $setParts);
+        }
+
         $query = "UPDATE $table SET $set WHERE $where";
         try {
             $this->mysqli->query($query);
             return array('query' => $query, 'error' => $this->mysqli->error, 'errno' => $this->mysqli->errno, 'db' => $this->db_name);
         } catch (\Throwable $th) {
-            return array('query' => $query, 'error' => $this->mysqli->error, 'errno' => $this->mysqli->errno, 'db' => $this->db_name);
+            return array('query' => $query, 'error' => $th->getMessage(), 'errno' => $this->mysqli->errno, 'db' => $this->db_name);
         }
     }
 
