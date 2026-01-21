@@ -174,103 +174,256 @@ class Login extends Controller
 
    function req_pin()
    {
-      $hp_input = $_POST["hp"];
-      $hp = (int) filter_var($hp_input, FILTER_SANITIZE_NUMBER_INT);
-      //cek
-
-      if (strlen($hp_input) < 10 || strlen($hp_input) > 13) {
-         $res_f = [
-            'code' => 0,
-            'msg' => "NOMOR WHATSAPP TIDAK VALID"
-         ];
-         print_r(json_encode($res_f));
-         exit();
-      }
-
-      $username = $this->model("Enc")->username($hp);
-      $where = "username = '" . $username . "' AND en = 1";
-      $today = date("Ymd");
-      $cek = $this->db(0)->get_where_row('user', $where);
-
-      if (isset($cek['otp_active'])) {
-         $id_cabang = $cek['id_cabang'];
-         if ($cek['otp_active'] == $today) {
+      try {
+         // Validasi input POST
+         if (!isset($_POST["hp"])) {
             $res_f = [
-               'code' => 1,
-               'msg' => "GUNAKAN PIN HARI INI"
+               'code' => 0,
+               'msg' => "NOMOR WHATSAPP TIDAK DITEMUKAN"
             ];
-         } else {
-            $otp = rand(0, 9) . rand(0, 9) . rand(0, 9) . rand(0, 9);
-            $otp_enc = $this->model("Enc")->otp($otp);
-            $text = $otp . " (" . $cek['nama_user'] . ") - " . URL::APP_NAME;
-            $hp = $cek['no_user'];
+            print_r(json_encode($res_f));
+            exit();
+         }
 
-            $res = $this->model('WA_YCloud')->send($hp, $text);
+         $hp_input = $_POST["hp"];
+         $hp = (int) filter_var($hp_input, FILTER_SANITIZE_NUMBER_INT);
+         //cek
 
-            // ✅ VALIDASI KETAT: Pastikan WA benar-benar terkirim
-            $waSuccess = false;
-            $waMessageId = null;
+         if (strlen($hp_input) < 10 || strlen($hp_input) > 13) {
+            $res_f = [
+               'code' => 0,
+               'msg' => "NOMOR WHATSAPP TIDAK VALID"
+            ];
+            print_r(json_encode($res_f));
+            exit();
+         }
+
+         $username = $this->model("Enc")->username($hp);
+         $where = "username = '" . $username . "' AND en = 1";
+         $cek = $this->db(0)->get_where_row('user', $where);
+         if (isset($cek['otp_active'])) {
+            $id_cabang = $cek['id_cabang'];
             
-            // Check: status bisa true (boolean) atau 'success'/'sent' (string)
-            $statusOk = ($res['status'] === true || $res['status'] === 'success');
-            $httpOk = (($res['http_code'] ?? 0) == 200);
-            
-            if ($statusOk && $httpOk) {
-               // Jika status true dan http 200, langsung sukses!
-               $waSuccess = true;
-               
-               // Optional: Extract message_id untuk logging (tidak wajib)
-               $responseData = $res['data'] ?? [];
-               $waMessageId = $responseData['id'] ?? ($responseData['message_id'] ?? null);
+            // Cek apakah OTP masih valid (belum expired)
+            $now = new DateTime();
+            $otpStillValid = false;
+            $otpExpiredTime = null;
+            if (!empty($cek['otp_active'])) {
+               try {
+                  $expiry = new DateTime($cek['otp_active']);
+                  if ($now <= $expiry) {
+                     $otpStillValid = true;
+                  } else {
+                     $otpExpiredTime = $expiry;
+                  }
+               } catch (Exception $e) {
+                  // Invalid datetime, generate new OTP
+               }
             }
+            
+            // Proteksi anti-spam: Cooldown period 30 detik setelah OTP expired
+            // Ini mencegah spam request untuk generate OTP baru setelah expired
+            $cooldownSeconds = 30;
+            
+            if ($otpStillValid) {
+               // OTP masih aktif - tidak perlu generate baru, langsung return
+               $res_f = [
+                  'code' => 1,
+                  'msg' => "GUNAKAN PIN YANG SUDAH DIKIRIM, MASIH AKTIF"
+               ];
+               // Response akan di-print di akhir function
+            } else if ($otpExpiredTime) {
+               // OTP sudah expired - cek cooldown sebelum generate baru
+               $timeSinceExpiry = $now->getTimestamp() - $otpExpiredTime->getTimestamp();
+               if ($timeSinceExpiry < $cooldownSeconds) {
+                  $remainingCooldown = $cooldownSeconds - $timeSinceExpiry;
+                  $res_f = [
+                     'code' => 0,
+                     'msg' => "Tunggu {$remainingCooldown} detik lagi sebelum request OTP baru"
+                  ];
+                  print_r(json_encode($res_f));
+                  exit();
+               }
+               
+               // Cooldown sudah lewat, bisa generate OTP baru
+               // Generate OTP 4 digit
+               $otp = str_pad(mt_rand(0, 9999), 4, '0', STR_PAD_LEFT);
+               $otp_enc = $this->model("Enc")->otp($otp);
 
-            if ($waSuccess) {
-               // WA BERHASIL TERKIRIM - Simpan ke database
-               $do = $this->data('Notif')->insertOTP($res, $today, $hp_input, $text, $id_cabang);
+               // Pesan OTP yang lebih menarik dengan informasi aktif 5 menit
+               $text = "🔐 *KODE OTP ANDA*\n\n";
+               $text .= "Kode OTP: *" . $otp . "*\n";
+               $text .= "Nama: " . $cek['nama_user'] . "\n";
+               $text .= "Aplikasi: " . URL::APP_NAME . "\n\n";
+               $text .= "⏰ *Kode OTP ini aktif selama 5 menit*\n";
+               $text .= "Jangan bagikan kode ini kepada siapapun!";
+               $hp = $cek['no_user'];
 
-               if ($do['errno'] == 0) {
-                  $set = "otp = '" . $otp_enc . "', otp_active = '" . $today . "'";
-                  $up = $this->db(0)->update('user', $set, $where);
-                  if ($up['errno'] == 0) {
-                     $res_f = [
-                        'code' => 1,
-                        'msg' => "PERMINTAAN PIN BERHASIL, AKTIF 1 HARI"
-                     ];
+               // Log sebelum kirim WA untuk tracking
+               $this->model('Log')->write("[req_pin] Attempting to send OTP to: $hp");
+               
+               $res = $this->send_wa_ycloud($hp, $text);
+               
+               // Log response lengkap untuk debugging
+               $this->model('Log')->write("[req_pin] WA Response: " . json_encode($res));
+
+               // ✅ VALIDASI: Pastikan WA benar-benar terkirim
+               $waSuccess = false;
+               $waMessageId = null;
+               
+               // Check: status bisa true (boolean) atau 'success'/'sent' (string)
+               $statusOk = ($res['status'] === true || $res['status'] === 'success');
+               $httpOk = (($res['http_code'] ?? 0) == 200);
+               
+               if ($statusOk && $httpOk) {
+                  // Jika status true dan http 200, langsung sukses!
+                  $waSuccess = true;
+                  
+                  // Optional: Extract message_id untuk logging (tidak wajib)
+                  $responseData = $res['data'] ?? [];
+                  $waMessageId = $responseData['id'] ?? ($responseData['message_id'] ?? null);
+                  $dataStatus = $responseData['status'] ?? '';
+                  
+                  $this->model('Log')->write("[req_pin] WA Success - Message ID: " . ($waMessageId ?: 'N/A') . ", Status: " . ($dataStatus ?: 'N/A'));
+               } else {
+                  $this->model('Log')->write("[req_pin] WA Failed - Status: " . json_encode($res['status']) . ", HTTP Code: " . ($res['http_code'] ?? 'null'));
+               }
+
+               if ($waSuccess) {
+                  // WA BERHASIL TERKIRIM - Simpan ke database
+                  // Generate expiry 5 menit dari sekarang
+                  $expiry = date('Y-m-d H:i:s', strtotime('+5 minutes'));
+                  $today = date("Ymd"); // Untuk insertOTP (backward compatibility)
+                  
+                  $do = $this->data('Notif')->insertOTP($res, $today, $hp_input, $otp, $id_cabang);
+                  
+                  // Log insert result
+                  $this->model('Log')->write("[req_pin] Insert OTP Result - errno: {$do['errno']}, error: " . ($do['error'] ?? 'none'));
+
+                  if ($do['errno'] == 0) {
+                     $up = $this->db(0)->update('user', [
+                        'otp' => $otp_enc,
+                        'otp_active' => $expiry
+                     ], $where);
+                     if ($up['errno'] == 0) {
+                        $res_f = [
+                           'code' => 1,
+                           'msg' => "PERMINTAAN PIN BERHASIL, AKTIF 5 MENIT"
+                        ];
+                     } else {
+                        $res_f = [
+                           'code' => 0,
+                           'msg' => "PIN gagal disimpan: " . $up['error']
+                        ];
+                     }
                   } else {
                      $res_f = [
                         'code' => 0,
-                        'msg' => "PIN gagal disimpan: " . $up['error']
+                        'msg' => "Notif gagal disimpan: " . $do['error']
                      ];
                   }
                } else {
+                  // WA GAGAL TERKIRIM - Jangan simpan ke database
+                  
+                  // Cek jika CSW expired
+                  if (isset($res['csw_expired']) && $res['csw_expired']) {
+                     $phone_sent = isset($res['phone_sent']) ? $res['phone_sent'] : 'unknown';
+                     $hoursElapsed = isset($res['data']['hours_elapsed']) ? $res['data']['hours_elapsed'] : 'unknown';
+                     $lastMessage = isset($res['data']['last_message_at']) ? $res['data']['last_message_at'] : 'unknown';
+                     
+                     $errorMsg = "CSW Expired untuk nomor {$phone_sent}. Pastikan Anda sudah mengirim pesan ke nomor WhatsApp bisnis dalam 24 jam terakhir. (Terakhir chat: {$lastMessage}, sudah {$hoursElapsed} jam yang lalu)";
+                  } else {
+                     $errorMsg = $res['error'] ?? 'WhatsApp tidak terkirim';
+                     
+                     // Tambahan info jika tidak ada message_id
+                     if ($res['status'] && empty($waMessageId)) {
+                        $errorMsg .= " (No Message ID from API)";
+                     }
+                  }
+                  
+                  $this->model('Log')->write("[req_pin] WA Failed: $errorMsg");
+                  
                   $res_f = [
                      'code' => 0,
-                     'msg' => "Notif gagal disimpan: " . $do['error']
+                     'msg' => "GAGAL KIRIM PIN: " . $errorMsg
                   ];
                }
-            } else {
-               // WA GAGAL TERKIRIM - Jangan simpan ke database
-               $errorMsg = $res['error'] ?? 'WhatsApp tidak terkirim';
-               
-               // Tambahan info jika tidak ada message_id
-               if ($res['status'] && empty($waMessageId)) {
-                  $errorMsg .= " (No Message ID from API)";
-               }
-               
-               $res_f = [
-                  'code' => 0,
-                  'msg' => "GAGAL KIRIM PIN: " . $errorMsg
-               ];
             }
-         } //ok
-      } else {
-         $_SESSION[URL::SESSID]['captcha'] = "HJFASD7FD89AS7FSDHFD68FHF7GYG7G47G7G7G674GRGVFTGB7G6R74GHG3Q789631765YGHJ7RGEYBF67";
+         } else {
+            $_SESSION[URL::SESSID]['captcha'] = "HJFASD7FD89AS7FSDHFD68FHF7GYG7G47G7G7G674GRGVFTGB7G6R74GHG3Q789631765YGHJ7RGEYBF67";
+            $res_f = [
+               'code' => 10,
+               'msg' => "NOMOR WHATSAPP TIDAK TERDAFTAR"
+            ];
+         }
+         print_r(json_encode($res_f));
+      } catch (Exception $e) {
+         // Log the exception
+         if (method_exists($this, 'model')) {
+            try {
+               $this->model('Log')->write("[req_pin] Exception: " . $e->getMessage() . " - Trace: " . $e->getTraceAsString());
+            } catch (Exception $logEx) {
+               // Log gagal, tidak apa-apa
+            }
+         }
+         
+         // Return user-friendly error
          $res_f = [
-            'code' => 10,
-            'msg' => "NOMOR WHATSAPP TIDAK TERDAFTAR"
+            'code' => 0,
+            'msg' => "TERJADI KESALAHAN SISTEM, SILAHKAN COBA LAGI"
          ];
+         print_r(json_encode($res_f));
       }
-      print_r(json_encode($res_f));
+   }
+
+   /**
+    * Kirim WhatsApp menggunakan Model WA_YCloud (Centralized via API Server)
+    * @param string $phone Nomor telepon
+    * @param string $message Pesan
+    */
+   private function send_wa_ycloud($phone, $message)
+   {
+      // Gunakan Model yang sudah kita buat untuk sentralisasi
+      // Mode 'free' agar API Server melakukan pengecekan CSW secara otomatis via Database
+      $res = $this->model('WA_YCloud')->send($phone, $message);
+      
+      $result = [
+         'status' => $res['status'],
+         'data' => $res['data'] ?? [],
+         'error' => $res['error'],
+         'csw_expired' => false,
+         'http_code' => $res['code'] ?? 0
+      ];
+      
+      // Deteksi CSW Expired dari error message atau code 400
+      if (!$res['status']) {
+         $errorMsg = $res['error'];
+         $apiData = $res['data'] ?? [];
+         
+         // Check if API returned CSW expired flag
+         if (($res['code'] ?? 0) == 400 && isset($apiData['csw_expired']) && $apiData['csw_expired']) {
+            $result['csw_expired'] = true;
+            $result['phone_sent'] = $apiData['phone_sent'] ?? $phone;
+            
+            // Include additional CSW info if available
+            if (isset($apiData['hours_elapsed'])) {
+               $result['data']['hours_elapsed'] = $apiData['hours_elapsed'];
+            }
+            if (isset($apiData['last_message_at'])) {
+               $result['data']['last_message_at'] = $apiData['last_message_at'];
+            }
+         } 
+         // Fallback: detect from error message
+         else if (($res['code'] ?? 0) == 400 || stripos($errorMsg, 'CSW') !== false || stripos($errorMsg, 'expired') !== false) {
+            $result['csw_expired'] = true;
+            $result['phone_sent'] = $phone;
+         }
+         
+         // Log failure details
+         $this->model('Log')->write("[Login::send_wa_ycloud] Failed via WA_YCloud - Phone: $phone, Error: $errorMsg, Code: " . ($res['code'] ?? 0));
+      }
+      
+      return $result;
    }
 
    public function logout()

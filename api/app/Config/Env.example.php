@@ -52,12 +52,5 @@ class Env
     const OPENAI_API_KEY = '0'; // TODO: Isi dengan API key dari platform.openai.com. Format: sk-...
     const OPENAI_MODEL = '0'; // Optional, default: gpt-4o-mini
 
-    // ============================================
-    // Flip for Business Configuration
-    // ============================================
-    const FLIP_ENV = 'sandbox'; // 'sandbox' atau 'production'
-    const FLIP_SECRET_KEY = 'YOUR_FLIP_SECRET_KEY_HERE'; // Secret Key dari dashboard Flip
-    const FLIP_VALIDATION_TOKEN = 'YOUR_FLIP_VALIDATION_TOKEN_HERE'; // Validation Token untuk callback
-
     const FORBID_WA_TEMPLATE_HP = ['8117686252', '81170706611', '85117517625', '82286901860'];
 }

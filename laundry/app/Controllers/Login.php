@@ -220,28 +220,56 @@ class Login extends Controller
             // Cek apakah OTP masih valid (belum expired)
             $now = new DateTime();
             $otpStillValid = false;
+            $otpExpiredTime = null;
             if (!empty($cek['otp_active'])) {
                try {
                   $expiry = new DateTime($cek['otp_active']);
                   if ($now <= $expiry) {
                      $otpStillValid = true;
+                  } else {
+                     $otpExpiredTime = $expiry;
                   }
                } catch (Exception $e) {
                   // Invalid datetime, generate new OTP
                }
             }
             
+            // Proteksi anti-spam: Cooldown period 30 detik setelah OTP expired
+            // Ini mencegah spam request untuk generate OTP baru setelah expired
+            $cooldownSeconds = 30;
+            
             if ($otpStillValid) {
+               // OTP masih aktif - tidak perlu generate baru, langsung return
                $res_f = [
                   'code' => 1,
                   'msg' => "GUNAKAN PIN YANG SUDAH DIKIRIM, MASIH AKTIF"
                ];
-            } else {
-               // Generate OTP 6 digit (sama dengan Karyawan)
-               $otp = str_pad(mt_rand(0, 999999), 6, '0', STR_PAD_LEFT);
+               // Response akan di-print di akhir function
+            } else if ($otpExpiredTime) {
+               // OTP sudah expired - cek cooldown sebelum generate baru
+               $timeSinceExpiry = $now->getTimestamp() - $otpExpiredTime->getTimestamp();
+               if ($timeSinceExpiry < $cooldownSeconds) {
+                  $remainingCooldown = $cooldownSeconds - $timeSinceExpiry;
+                  $res_f = [
+                     'code' => 0,
+                     'msg' => "Tunggu {$remainingCooldown} detik lagi sebelum request OTP baru"
+                  ];
+                  print_r(json_encode($res_f));
+                  exit();
+               }
+               
+               // Cooldown sudah lewat, bisa generate OTP baru
+               // Generate OTP 4 digit
+               $otp = str_pad(mt_rand(0, 9999), 4, '0', STR_PAD_LEFT);
                $otp_enc = $this->model("Enc")->otp($otp);
 
-               $text = $otp . " (" . $cek['nama_user'] . ") - LAUNDRY";
+               // Pesan OTP yang lebih menarik dengan informasi aktif 5 menit
+               $text = "🔐 *KODE OTP ANDA*\n\n";
+               $text .= "Kode OTP: *" . $otp . "*\n";
+               $text .= "Nama: " . $cek['nama_user'] . "\n";
+               $text .= "Aplikasi: LAUNDRY\n\n";
+               $text .= "⏰ *Kode OTP ini aktif selama 5 menit*\n";
+               $text .= "Jangan bagikan kode ini kepada siapapun!";
                $hp = $cek['no_user'];
 
                // Log sebelum kirim WA untuk tracking
