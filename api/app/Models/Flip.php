@@ -22,7 +22,7 @@ class Flip
      */
     private function getAuthHeader()
     {
-        return 'Basic ' . $this->secretKey;
+        return 'Basic ' . base64_encode($this->secretKey . ':');
     }
 
     /**

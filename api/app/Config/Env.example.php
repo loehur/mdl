@@ -55,7 +55,6 @@ class Env
     const FORBID_WA_TEMPLATE_HP = ['8117686252', '81170706611', '85117517625', '82286901860'];
 
     // Flip Configuration
-    const FLIP_SECRET_KEY = 'YOUR_SECRET_KEY_HERE'; // TODO: Isi dengan secret key Flip (format: base64 encoded string)
+    const FLIP_SECRET_KEY = 'YOUR_SECRET_KEY_HERE'; // TODO: Isi dengan secret key Flip
     const FLIP_API_URL = 'https://bigflip.id/big_sandbox_api/v2'; // Sandbox URL
-    // const FLIP_API_URL = 'https://bigflip.id/api/v2'; // Production URL (uncomment for production)
 }
