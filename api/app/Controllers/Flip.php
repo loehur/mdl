@@ -258,6 +258,9 @@ class Flip extends Controller
             case 'disbursement':
                 $this->handleDisbursementCallback($data);
                 break;
+            case 'transaction':
+                $this->handleTransactionCallback($data);
+                break;
             default:
                 \Log::write("Unknown callback type, data stored for review", 'flip', 'callback');
         }
@@ -275,12 +278,21 @@ class Flip extends Controller
      */
     private function detectCallbackType($data)
     {
+        // Bank inquiry callback - has inquiry_key
         if (isset($data['inquiry_key'])) {
             return 'inquiry';
         }
+        
+        // Transaction/Accept Payment callback - has bill_link or bill_link_id
+        if (isset($data['bill_link']) || isset($data['bill_link_id']) || isset($data['bill_title'])) {
+            return 'transaction';
+        }
+        
+        // Disbursement callback - has id, status, amount but no bill fields
         if (isset($data['id']) && isset($data['status']) && isset($data['amount'])) {
             return 'disbursement';
         }
+        
         return 'unknown';
     }
 
@@ -361,6 +373,70 @@ class Flip extends Controller
     }
 
     /**
+     * Handle transaction/payment callback (Accept Payment)
+     * Called when customer makes a payment to your Flip account
+     * 
+     * @param array $data Callback data from Flip
+     */
+    private function handleTransactionCallback($data)
+    {
+        $logData = [
+            'type' => 'TRANSACTION',
+            'id' => $data['id'] ?? null,
+            'bill_link' => $data['bill_link'] ?? null,
+            'bill_link_id' => $data['bill_link_id'] ?? null,
+            'bill_title' => $data['bill_title'] ?? null,
+            'sender_name' => $data['sender_name'] ?? null,
+            'sender_email' => $data['sender_email'] ?? null,
+            'sender_phone' => $data['sender_phone'] ?? null,
+            'sender_bank' => $data['sender_bank'] ?? null,
+            'sender_bank_type' => $data['sender_bank_type'] ?? null,
+            'amount' => $data['amount'] ?? null,
+            'status' => $data['status'] ?? null,
+            'created_at' => $data['created_at'] ?? null,
+            'timestamp' => date('Y-m-d H:i:s')
+        ];
+        
+        \Log::write("TRANSACTION RECEIVED: " . json_encode($logData), 'flip', 'transaction');
+        
+        // Payment details
+        $amount = number_format($data['amount'] ?? 0, 0, ',', '.');
+        $senderName = $data['sender_name'] ?? 'Unknown';
+        $senderBank = $data['sender_bank'] ?? 'N/A';
+        $billTitle = $data['bill_title'] ?? 'N/A';
+        $status = $data['status'] ?? 'UNKNOWN';
+        
+        // Status-specific logging
+        switch ($status) {
+            case 'SUCCESSFUL':
+                \Log::write("PAYMENT SUCCESS: Rp{$amount} from {$senderName} ({$senderBank}) for '{$billTitle}'", 'flip', 'transaction');
+                break;
+            case 'PENDING':
+                \Log::write("PAYMENT PENDING: Rp{$amount} from {$senderName} for '{$billTitle}'", 'flip', 'transaction');
+                break;
+            case 'CANCELLED':
+                \Log::write("PAYMENT CANCELLED: Rp{$amount} for '{$billTitle}'", 'flip', 'transaction');
+                break;
+            case 'FAILED':
+                \Log::write("PAYMENT FAILED: Rp{$amount} for '{$billTitle}'", 'flip', 'transaction');
+                break;
+            default:
+                \Log::write("PAYMENT STATUS [{$status}]: Rp{$amount} from {$senderName}", 'flip', 'transaction');
+        }
+        
+        // Log additional details if available
+        if (isset($data['sender_email']) && $data['sender_email']) {
+            \Log::write("  -> Email: " . $data['sender_email'], 'flip', 'transaction');
+        }
+        if (isset($data['sender_phone']) && $data['sender_phone']) {
+            \Log::write("  -> Phone: " . $data['sender_phone'], 'flip', 'transaction');
+        }
+        if (isset($data['unique_code']) && $data['unique_code']) {
+            \Log::write("  -> Unique Code: " . $data['unique_code'], 'flip', 'transaction');
+        }
+    }
+
+    /**
      * Get human-readable message for inquiry status
      * @param string $status
      * @return string
@@ -378,4 +454,5 @@ class Flip extends Controller
         return $messages[$status] ?? 'Inquiry completed';
     }
 }
+
 
