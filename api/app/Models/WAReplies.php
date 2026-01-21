@@ -593,7 +593,7 @@ class WAReplies
                             $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
                         }
                     } else {
-                        $text = "Pak/Bu *" . $nama_pelanggan . "*, Status Laundry sudah selesai. Terima kasih\n" . $list_link;
+                        $text = "Pak/Bu *" . $nama_pelanggan . "*, Semua Laundry sudah selesai. Terima kasih\n" . $list_link;
                         $res = $waService->sendFreeText($waNumber, $text);
                         if ($res['success']) {
                             $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
