@@ -82,6 +82,9 @@ class Karyawan extends Controller
             // Generate OTP 6 digit
             $otp = str_pad(mt_rand(0, 999999), 6, '0', STR_PAD_LEFT);
             
+            // Enkripsi OTP (sama dengan Login)
+            $otp_enc = $this->model("Enc")->otp($otp);
+            
             // Simpan OTP ke database dengan expiry 5 menit
             $expiry = date('Y-m-d H:i:s', strtotime('+5 minutes'));
             
@@ -90,7 +93,7 @@ class Karyawan extends Controller
             $this->log("Expiry: {$expiry}", 'karyawan', 'sendOTP');
             
             $updateResult = $this->db(0)->update('user', [
-                'otp' => $otp,
+                'otp' => $otp_enc,
                 'otp_active' => $expiry
             ], "id_user = {$id}");
             
@@ -153,6 +156,9 @@ class Karyawan extends Controller
                 throw new \Exception('Kode OTP harus 6 digit');
             }
 
+            // Enkripsi OTP input untuk perbandingan dengan database (sama dengan Login)
+            $otp_enc = $this->model("Enc")->otp($otp);
+
             // Cek OTP di database
             $user = $this->db(0)->get_where('user', "id_user = {$id}", 1);
             
@@ -163,7 +169,7 @@ class Karyawan extends Controller
             $userData = $user[0];
             
             // Clean dan standardize OTP untuk perbandingan
-            $inputOtp = (string)trim($otp);
+            $inputOtp = (string)trim($otp_enc);
             $dbOtp = (string)trim($userData['otp'] ?? '');
             
             // Log untuk debugging

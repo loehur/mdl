@@ -213,17 +213,32 @@ class Login extends Controller
 
          $username = $this->model("Enc")->username($hp);
          $where = "username = '" . $username . "' AND en = 1";
-         $today = date("Ymd");
          $cek = $this->db(0)->get_where_row('user', $where);
          if (isset($cek['otp_active'])) {
             $id_cabang = $cek['id_cabang'];
-            if ($cek['otp_active'] == $today) {
+            
+            // Cek apakah OTP masih valid (belum expired)
+            $now = new DateTime();
+            $otpStillValid = false;
+            if (!empty($cek['otp_active'])) {
+               try {
+                  $expiry = new DateTime($cek['otp_active']);
+                  if ($now <= $expiry) {
+                     $otpStillValid = true;
+                  }
+               } catch (Exception $e) {
+                  // Invalid datetime, generate new OTP
+               }
+            }
+            
+            if ($otpStillValid) {
                $res_f = [
                   'code' => 1,
-                  'msg' => "GUNAKAN PIN HARI INI"
+                  'msg' => "GUNAKAN PIN YANG SUDAH DIKIRIM, MASIH AKTIF"
                ];
             } else {
-               $otp = rand(0, 9) . rand(0, 9) . rand(0, 9) . rand(0, 9);
+               // Generate OTP 6 digit (sama dengan Karyawan)
+               $otp = str_pad(mt_rand(0, 999999), 6, '0', STR_PAD_LEFT);
                $otp_enc = $this->model("Enc")->otp($otp);
 
                $text = $otp . " (" . $cek['nama_user'] . ") - LAUNDRY";
@@ -261,6 +276,10 @@ class Login extends Controller
 
                if ($waSuccess) {
                   // WA BERHASIL TERKIRIM - Simpan ke database
+                  // Generate expiry 5 menit dari sekarang (sama dengan Karyawan)
+                  $expiry = date('Y-m-d H:i:s', strtotime('+5 minutes'));
+                  $today = date("Ymd"); // Untuk insertOTP (backward compatibility)
+                  
                   $do = $this->helper('Notif')->insertOTP($res, $today, $hp_input, $otp, $id_cabang);
                   
                   // Log insert result
@@ -269,12 +288,12 @@ class Login extends Controller
                   if ($do['errno'] == 0) {
                      $up = $this->db(0)->update('user', [
                         'otp' => $otp_enc,
-                        'otp_active' => $today
+                        'otp_active' => $expiry
                      ], $where);
                      if ($up['errno'] == 0) {
                         $res_f = [
                            'code' => 1,
-                           'msg' => "PERMINTAAN PIN BERHASIL, AKTIF 1 HARI"
+                           'msg' => "PERMINTAAN PIN BERHASIL, AKTIF 5 MENIT"
                         ];
                      } else {
                         $res_f = [
