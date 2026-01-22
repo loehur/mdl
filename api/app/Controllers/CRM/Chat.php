@@ -1111,5 +1111,38 @@ class Chat extends Controller
         }
     }
 
+    /**
+     * Update last_message_at for a conversation
+     * Used when opening chat from search results or loaded more conversations
+     */
+    public function updateLastMessageAt()
+    {
+        try {
+            $db = $this->db(0);
+            $body = json_decode(file_get_contents('php://input'), true);
+            
+            $phone = $body['phone'] ?? null;
+            if (!$phone) {
+                $this->error('Phone number is required');
+            }
+            
+            // Update last_message_at to current time
+            $updated = $db->update('wa_conversations', [
+                'last_message_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s')
+            ], ['wa_number' => $phone]);
+            
+            if ($updated) {
+                $this->success(['updated' => true], 'Last message time updated');
+            } else {
+                $this->error('Failed to update last message time');
+            }
+            
+        } catch (\Exception $e) {
+            \Log::write("updateLastMessageAt ERROR: " . $e->getMessage(), 'cms_error', 'Chat');
+            $this->error('Server error: ' . $e->getMessage(), 500);
+        }
+    }
+
 
 }

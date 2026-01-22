@@ -738,36 +738,6 @@ const resetPollingTimer = () => {
       // 🔄 IMPROVED: Poll even when WebSocket is disconnected (backup mechanism)
       // Only skip if user is not authenticated or page is hidden
       if (authId.value && !document.hidden) {
-        // 🚫 CRITICAL: Skip fetch if there's an active search query
-        // Why: Search can return 50+ conversations, but polling fetch only gets 20
-        // This would overwrite search results and confuse the user
-        const hasActiveSearch = searchQuery.value && searchQuery.value.trim().length > 0;
-        
-        if (hasActiveSearch) {
-          console.log('⏭️ Skipping polling fetch - active search detected');
-          return;
-        }
-        
-        // 🚫 CRITICAL: Skip fetch if user has loaded more conversations
-        // Why: User scrolled and loaded 40+ conversations, polling fetch only gets 20
-        // This would remove conversations below position 20, including possibly the active chat
-        const hasLoadedMore = conversations.value.length > 20;
-        
-        if (hasLoadedMore) {
-          console.log(`⏭️ Skipping polling fetch - user loaded ${conversations.value.length} conversations (> 20 default)`);
-          return;
-        }
-        
-        // 🚫 CRITICAL: Skip fetch if user is viewing a chat
-        // Why: User might be viewing a conversation that's not in top 20
-        // Polling would close their active chat unexpectedly
-        const hasActiveChat = activeChatId.value !== null;
-        
-        if (hasActiveChat) {
-          console.log('⏭️ Skipping polling fetch - user is viewing a chat');
-          return;
-        }
-        
         // Check if interval needs adjustment based on activity
         const optimalInterval = getOptimalInterval();
         if (optimalInterval !== currentPollingInterval.value) {
@@ -779,7 +749,7 @@ const resetPollingTimer = () => {
           return;
         }
         
-        // Normal fetch without search
+        // Fetch conversations
         fetchConversations(0, 20, '');
       }
     }, interval);
@@ -1641,6 +1611,23 @@ const selectChat = async (id, isRefresh = false) => {
 
   // Mark read in DB
   markMessagesRead(chat.wa_number);
+  
+  // Update last_message_at if opened from search or loaded more conversations
+  const hasActiveSearch = searchQuery.value && searchQuery.value.trim().length > 0;
+  const hasLoadedMore = conversations.value.length > 20;
+  
+  if (hasActiveSearch || hasLoadedMore) {
+    // Update last_message_at to current time so conversation appears at top
+    try {
+      await fetch(`${API_BASE}/CRM/Chat/updateLastMessageAt`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: chat.wa_number })
+      });
+    } catch (error) {
+      console.error('Failed to update last_message_at:', error);
+    }
+  }
   
   // Save active chat state for restoration after returning from external links
   saveActiveChatState();
