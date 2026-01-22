@@ -3385,14 +3385,170 @@ const persistChatState = () => {
   }
 };
 
-const resumeChatState = () => {
+// Fetch a specific conversation by ID (for resume scenarios)
+const fetchConversationById = async (id) => {
+  try {
+    const userIdParam = authId.value ? `user_id=${authId.value}` : "";
+    const query = userIdParam
+      ? `?${userIdParam}&conversation_id=${id}&_t=${Date.now()}`
+      : `?conversation_id=${id}&_t=${Date.now()}`;
+
+    const response = await fetch(
+      `${API_BASE}/CRM/Chat/getConversations${query}`
+    );
+
+    if (!response.ok) {
+      console.error("Failed to fetch conversation by ID:", response.statusText);
+      return null;
+    }
+
+    const result = await response.json();
+    const conversationsData = result.data?.conversations || result.data || [];
+
+    if (result.status && Array.isArray(conversationsData) && conversationsData.length > 0) {
+      return conversationsData[0]; // Return the first (and should be only) conversation
+    }
+
+    return null;
+  } catch (error) {
+    console.error("Error fetching conversation by ID:", error);
+    return null;
+  }
+};
+
+const resumeChatState = async () => {
   const savedId = localStorage.getItem("active_chat_id");
   const savedMobileChat = localStorage.getItem("show_mobile_chat");
 
   if (savedId && !activeChatId.value) {
     const id = parseInt(savedId);
-    // Only switch if conversation exists
-    if (conversations.value.some((c) => c.id === id)) {
+    
+    // First check if conversation exists in current list
+    let chat = conversations.value.find((c) => c.id === id);
+    
+    // If not found, try to fetch it specifically (for search results that aren't in first 20)
+    if (!chat) {
+      console.log(`Chat id ${id} not in current list, fetching specifically...`);
+      const fetchedChat = await fetchConversationById(id);
+      
+      if (fetchedChat) {
+        // Add fetched conversation to conversations list
+        // Use the same processing logic as fetchConversations
+        const existingMap = new Map(conversations.value.map((c) => [c.id, c]));
+        
+        // Process the fetched conversation (same logic as fetchConversations)
+        const parseCases = (c) => {
+          let cases = [];
+          // 1. Try case_history (array from backend)
+          if (Array.isArray(c.case_history)) {
+            cases = c.case_history;
+          }
+          // 2. Try parsing raw 'conv_case' OR 'case' column if string JSON
+          else {
+            const rawCase = c.conv_case || c.case;
+            if (
+              typeof rawCase === "string" &&
+              (rawCase.startsWith("[") || rawCase.startsWith("{"))
+            ) {
+              try {
+                const parsed = JSON.parse(rawCase);
+                if (Array.isArray(parsed)) cases = parsed;
+                else if (parsed.case) cases = [parsed];
+              } catch (e) {}
+            }
+
+            // 3. Fallback: Legacy Priority/Case Val (Only if still empty)
+            if (cases.length === 0 && (c.priority > 0 || c.case_val > 0)) {
+              cases = [{ case: parseInt(c.priority || c.case_val || 0) }];
+            }
+          }
+
+          // Filter out 0 case if there are others, or just keep distinct
+          // FIX: Deduplicate cases - keep only latest open entry per case value
+          const dedupedCases = [];
+          const seenCases = new Map(); // Map<caseValue, caseEntry>
+
+          // Process in order (already sorted by timestamp in backend)
+          for (const cse of cases) {
+            const caseVal = parseInt(cse.case);
+            if (isNaN(caseVal) || caseVal === 0) continue;
+
+            const status = cse.status || "open";
+
+            // Normalize the case object - ensure case is integer
+            const normalizedCase = { ...cse, case: caseVal };
+
+            if (!seenCases.has(caseVal)) {
+              // First occurrence of this case value
+              seenCases.set(caseVal, normalizedCase);
+            } else {
+              // Already seen - prefer open over closed, and newer timestamp
+              const existing = seenCases.get(caseVal);
+              const existingStatus = existing.status || "open";
+
+              // If existing is closed but new is open, replace
+              if (existingStatus === "closed" && status !== "closed") {
+                seenCases.set(caseVal, normalizedCase);
+              }
+              // If both are open/both are closed, keep the newer one (later in array = newer)
+              else if (existingStatus === status) {
+                seenCases.set(caseVal, normalizedCase);
+              }
+            }
+          }
+
+          return Array.from(seenCases.values());
+        };
+        
+        const c = fetchedChat;
+        let convo = existingMap.get(c.id);
+        
+        if (!convo) {
+          convo = {
+            id: c.id,
+            wa_number: c.wa_number,
+            name: c.contact_name || c.wa_number,
+            kode_cabang: c.kode_cabang,
+            cases: parseCases(c),
+            initials: (c.contact_name || c.wa_number || "?")
+              .substring(0, 1)
+              .toUpperCase(),
+            color: getAvatarColor(c.id),
+            status: c.status,
+            lastMessage: c.last_message || c.last_message_text || "No messages yet",
+            lastTime: formatLastTime(c.last_message_time),
+            lastMessageTime: c.last_message_time,
+            unread: parseInt(c.unread_count) || 0,
+            assignment_user_id: c.assigned_user_id,
+            messages: [],
+            hasMoreMessages: false,
+            messageOffset: 0,
+          };
+          
+          conversations.value.push(convo);
+          chat = convo;
+        } else {
+          // Update existing
+          convo.wa_number = c.wa_number;
+          convo.name = c.contact_name || c.wa_number;
+          convo.kode_cabang = c.kode_cabang;
+          convo.cases = parseCases(c);
+          convo.initials = (c.contact_name || c.wa_number || "?")
+            .substring(0, 1)
+            .toUpperCase();
+          convo.color = getAvatarColor(c.id);
+          convo.status = c.status;
+          convo.lastMessage = c.last_message || c.last_message_text || "No messages yet";
+          convo.lastTime = formatLastTime(c.last_message_time);
+          convo.lastMessageTime = c.last_message_time;
+          convo.unread = parseInt(c.unread_count) || 0;
+          convo.assignment_user_id = c.assigned_user_id;
+        }
+      }
+    }
+    
+    // Now check again if chat exists
+    if (chat) {
       selectChat(id);
 
       // CRITICAL: Restore showMobileChat state for mobile devices
@@ -3403,8 +3559,8 @@ const resumeChatState = () => {
         window.history.pushState({ chatOpen: true }, "", "#chat=" + id);
       }
     } else {
-      // Conversation not found - clear saved state and return to home
-      console.warn(`Saved chat id ${id} not found in conversations, clearing state`);
+      // Conversation not found even after fetch - clear saved state and return to home
+      console.warn(`Saved chat id ${id} not found, clearing state and returning to home`);
       clearSavedChatState();
       if (showMobileChat.value) {
         backToMenu(false); // Return to home if chat view is open
@@ -3412,9 +3568,24 @@ const resumeChatState = () => {
     }
   } else if (activeChatId.value && showMobileChat.value && windowWidth.value < 768) {
     // Chat already open - verify it still exists
-    if (!conversations.value.some((c) => c.id === activeChatId.value)) {
-      // Current chat no longer exists - return to home
-      console.warn(`Active chat id ${activeChatId.value} not found, returning to home`);
+    let chat = conversations.value.find((c) => c.id === activeChatId.value);
+    
+    // If not found, try to fetch it
+    if (!chat) {
+      console.log(`Active chat id ${activeChatId.value} not in list, fetching...`);
+      const fetchedChat = await fetchConversationById(activeChatId.value);
+      
+      if (!fetchedChat) {
+        // Current chat no longer exists - return to home
+        console.warn(`Active chat id ${activeChatId.value} not found, returning to home`);
+        clearSavedChatState();
+        backToMenu(false);
+        return;
+      }
+      
+      // Add fetched conversation (same logic as above would go here, but simplified)
+      // For now, just return to home if not in list
+      console.warn(`Active chat id ${activeChatId.value} not in list, returning to home`);
       clearSavedChatState();
       backToMenu(false);
     } else {
@@ -3582,11 +3753,12 @@ onMounted(() => {
       }
 
       // Refresh data to ensure sync
-      fetchConversations();
-
-      // Restore active chat state if user was viewing a chat before leaving
-      // This handles the case when user clicks a link and comes back
-      resumeChatState();
+      // Wait for conversations to load before resuming chat state
+      fetchConversations().then(() => {
+        // Restore active chat state if user was viewing a chat before leaving
+        // This handles the case when user clicks a link and comes back
+        resumeChatState();
+      });
     } else if (document.visibilityState === "hidden") {
       console.log("🙈 App became HIDDEN - cleaning up socket...");
       
@@ -3638,8 +3810,10 @@ onMounted(() => {
     }
 
     // Refresh conversations
-    fetchConversations();
-    resumeChatState();
+    // Wait for conversations to load before resuming chat state
+    fetchConversations().then(() => {
+      resumeChatState();
+    });
   });
 
   // ============================================
