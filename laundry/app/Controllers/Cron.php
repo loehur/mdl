@@ -170,10 +170,6 @@ class Cron extends Controller
             } else if (!$csw_open) {
                // CSW closed - tidak kirim, tetap pending untuk dicoba lagi nanti
                $csw_closed += 1;
-               $hp = $dm['phone'];
-               $log = $this->model('Log');
-               $logMessage = "CSW CLOSED | ID_Notif: {$id_notif} | Phone: {$hp} | Last_in_at: " . ($csw_last_in_at ?? 'N/A') . " | Hours_elapsed: " . ($dm['csw']['hours_elapsed'] ?? 'N/A');
-               $log->write($logMessage, 'laundry', 'cron_csw');
             }
          }
       }
