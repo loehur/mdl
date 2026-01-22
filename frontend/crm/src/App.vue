@@ -3698,6 +3698,9 @@ onMounted(() => {
     if (document.visibilityState === "visible") {
       console.log("👁️ App became VISIBLE - checking connection...");
 
+      // Clear search query on resume
+      searchQuery.value = "";
+
       // Update resume timestamp FIRST
       resumeTimestamp.value = Date.now();
 
@@ -3768,6 +3771,9 @@ onMounted(() => {
   // Handle custom event from Android MainActivity.onResume()
   window.addEventListener("androidResume", () => {
     console.log("📱 Android Resume event received");
+
+    // Clear search query on resume
+    searchQuery.value = "";
 
     resumeTimestamp.value = Date.now();
 
