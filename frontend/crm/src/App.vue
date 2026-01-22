@@ -3562,6 +3562,8 @@ const resumeChatState = async () => {
       // Conversation not found even after fetch - clear saved state and return to home
       console.warn(`Saved chat id ${id} not found, clearing state and returning to home`);
       clearSavedChatState();
+      // Clear search query when conversation not found on resume
+      searchQuery.value = "";
       if (showMobileChat.value) {
         backToMenu(false); // Return to home if chat view is open
       }
@@ -3579,6 +3581,8 @@ const resumeChatState = async () => {
         // Current chat no longer exists - return to home
         console.warn(`Active chat id ${activeChatId.value} not found, returning to home`);
         clearSavedChatState();
+        // Clear search query when conversation not found on resume
+        searchQuery.value = "";
         backToMenu(false);
         return;
       }
@@ -3587,6 +3591,8 @@ const resumeChatState = async () => {
       // For now, just return to home if not in list
       console.warn(`Active chat id ${activeChatId.value} not in list, returning to home`);
       clearSavedChatState();
+      // Clear search query when conversation not found on resume
+      searchQuery.value = "";
       backToMenu(false);
     } else {
       // Chat still exists - just ensure history state exists for back button
