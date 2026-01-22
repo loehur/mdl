@@ -1560,6 +1560,17 @@ const resolveCase = async (caseId) => {
 };
 
 const selectChat = async (id, isRefresh = false) => {
+  // Check if chat exists first before setting any state
+  const chat = conversations.value.find((c) => c.id === id);
+  if (!chat) {
+    // Chat not found - return to home page immediately
+    console.warn(`Chat with id ${id} not found, returning to home`);
+    backToMenu(false); // No animation needed
+    // Clear saved state since chat doesn't exist
+    clearSavedChatState();
+    return;
+  }
+
   // Save current draft before switching chats
   if (activeChatId.value && messageInput.value.trim()) {
     chatDrafts.value[activeChatId.value] = messageInput.value;
@@ -1596,47 +1607,43 @@ const selectChat = async (id, isRefresh = false) => {
   // Reset textarea height based on new content
   nextTick(() => autoResizeTextarea());
 
-  const chat = conversations.value.find((c) => c.id === id);
-  if (chat) {
-    // Optimistic read status
-    chat.unread = 0;
+  // Optimistic read status
+  chat.unread = 0;
 
-    // Load messages
-    // If we have cached messages, show them immediately and fetch in background
-    if (chat.messages && chat.messages.length > 0) {
-      scrollToBottom(); // Show cache immediately
-      // Background fetch to sync and merge
-      fetchMessages(chat.wa_number, 0, 20).then((result) => {
-        if (result.messages.length > 0) {
-          // Merge simply by combining and then Sanitizing
-          // This allows the Healer to work its magic on the combined set
-          const combined = [...chat.messages, ...result.messages];
-          chat.messages = sanitizeMessages(combined);
-          chat.hasMoreMessages = result.has_more;
-          chat.messageOffset = chat.messages.length; // Total messages loaded
-          scrollToBottom();
-        }
-      });
-    } else {
-      // No cache, wait for fetch
-      isLoadingMessages.value = true;
-      try {
-        const result = await fetchMessages(chat.wa_number, 0, 20);
-        chat.messages = result.messages;
+  // Load messages
+  // If we have cached messages, show them immediately and fetch in background
+  if (chat.messages && chat.messages.length > 0) {
+    scrollToBottom(); // Show cache immediately
+    // Background fetch to sync and merge
+    fetchMessages(chat.wa_number, 0, 20).then((result) => {
+      if (result.messages.length > 0) {
+        // Merge simply by combining and then Sanitizing
+        // This allows the Healer to work its magic on the combined set
+        const combined = [...chat.messages, ...result.messages];
+        chat.messages = sanitizeMessages(combined);
         chat.hasMoreMessages = result.has_more;
-        chat.messageOffset = result.messages.length; // Initial messages loaded
-      } finally {
-        isLoadingMessages.value = false;
+        chat.messageOffset = chat.messages.length; // Total messages loaded
+        scrollToBottom();
       }
+    });
+  } else {
+    // No cache, wait for fetch
+    isLoadingMessages.value = true;
+    try {
+      const result = await fetchMessages(chat.wa_number, 0, 20);
+      chat.messages = result.messages;
+      chat.hasMoreMessages = result.has_more;
+      chat.messageOffset = result.messages.length; // Initial messages loaded
+    } finally {
+      isLoadingMessages.value = false;
     }
-
-    // Mark read in DB
-    markMessagesRead(chat.wa_number);
   }
 
+  // Mark read in DB
+  markMessagesRead(chat.wa_number);
+  
   // Save active chat state for restoration after returning from external links
   saveActiveChatState();
-
   scrollToBottom();
 };
 
@@ -2445,12 +2452,38 @@ const handleIncomingMessage = (payload) => {
       );
       
       if (msgIndex !== -1) {
-        // ⚡ CRITICAL FIX: Deep clone to trigger Vue reactivity
-        // Step 1: Update message object
-        conversation.messages[msgIndex] = {
-          ...conversation.messages[msgIndex],
-          status: message.status
+        // ⚡ STATUS HIERARCHY VALIDATION
+        // Prevent downgrading status when WebSocket messages arrive out of order
+        // Status hierarchy: pending → sent → delivered → read
+        const currentStatus = conversation.messages[msgIndex].status;
+        const newStatus = message.status;
+        
+        const statusPriority = {
+          'pending': 0,
+          'sent': 1,
+          'delivered': 2,
+          'read': 3,
+          'failed': -1  // Failed status can always override
         };
+        
+        const currentPriority = statusPriority[currentStatus] || 0;
+        const newPriority = statusPriority[newStatus] || 0;
+        
+        // Only update if new status has higher priority OR is failed
+        if (newPriority >= currentPriority || newStatus === 'failed') {
+          // ⚡ CRITICAL FIX: Deep clone to trigger Vue reactivity
+          // Step 1: Update message object
+          conversation.messages[msgIndex] = {
+            ...conversation.messages[msgIndex],
+            status: newStatus
+          };
+          
+          console.log(`✅ Status updated: ${currentStatus} → ${newStatus}`);
+        } else {
+          console.log(`⏭️ Skipping status downgrade: ${currentStatus} (priority ${currentPriority}) → ${newStatus} (priority ${newPriority})`);
+          // Don't update, return early
+          return;
+        }
         
         // Step 2: Clone messages array to trigger reactivity
         conversation.messages = [...conversation.messages];
@@ -3369,10 +3402,25 @@ const resumeChatState = () => {
         // Re-push history state to ensure back button works after long background
         window.history.pushState({ chatOpen: true }, "", "#chat=" + id);
       }
+    } else {
+      // Conversation not found - clear saved state and return to home
+      console.warn(`Saved chat id ${id} not found in conversations, clearing state`);
+      clearSavedChatState();
+      if (showMobileChat.value) {
+        backToMenu(false); // Return to home if chat view is open
+      }
     }
   } else if (activeChatId.value && showMobileChat.value && windowWidth.value < 768) {
-    // Chat already open - just ensure history state exists for back button
-    window.history.pushState({ chatOpen: true }, "", "#chat=" + activeChatId.value);
+    // Chat already open - verify it still exists
+    if (!conversations.value.some((c) => c.id === activeChatId.value)) {
+      // Current chat no longer exists - return to home
+      console.warn(`Active chat id ${activeChatId.value} not found, returning to home`);
+      clearSavedChatState();
+      backToMenu(false);
+    } else {
+      // Chat still exists - just ensure history state exists for back button
+      window.history.pushState({ chatOpen: true }, "", "#chat=" + activeChatId.value);
+    }
   }
 };
 
