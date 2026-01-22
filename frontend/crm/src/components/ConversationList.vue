@@ -150,30 +150,6 @@ const parseEmoji = (text) => {
 
   return parsed;
 };
-
-// Check if CSW (Customer Service Window) is open
-// CSW is open for 24 hours after customer's last message
-const isCswOpen = (chat) => {
-  if (!chat.last_in_at) return false; // No customer message yet
-  
-  try {
-    const lastInTime = new Date(chat.last_in_at).getTime();
-    const now = Date.now();
-    const hoursDiff = (now - lastInTime) / (1000 * 60 * 60); // Convert to hours
-    
-    return hoursDiff < 24; // CSW open if less than 24 hours
-  } catch (e) {
-    return false;
-  }
-};
-
-
-// Get CSW status class (for icon color)
-const getCswStatusClass = (chat) => {
-  return isCswOpen(chat) 
-    ? 'text-green-500' // CSW Open - can send free text
-    : 'text-red-400';   // CSW Expired - template only
-};
 </script>
 
 <template>
@@ -307,22 +283,7 @@ const getCswStatusClass = (chat) => {
             <h3 class="font-normal text-[16px] truncate text-[var(--wa-text-primary)] max-w-[240px] uppercase" :title="chat.name">
               {{ chat.name }}
             </h3>
-            <div class="flex items-center gap-1 flex-shrink-0">
-              <!-- CSW Status Icon -->
-              <svg 
-                v-if="chat.last_in_at" 
-                xmlns="http://www.w3.org/2000/svg" 
-                class="h-3.5 w-3.5 transition-colors" 
-                :class="getCswStatusClass(chat)"
-                :title="isCswOpen(chat) ? 'CSW Open - dapat kirim free text' : 'CSW Expired - hanya template'"
-                fill="none" 
-                viewBox="0 0 24 24" 
-                stroke="currentColor"
-              >
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span class="text-xs text-[var(--wa-text-tertiary)]">{{ chat.lastTime }}</span>
-            </div>
+            <span class="text-xs text-[var(--wa-text-tertiary)] flex-shrink-0">{{ chat.lastTime }}</span>
           </div>
 
           <div class="flex justify-between items-center">
