@@ -70,6 +70,10 @@ let searchDebounceTimer = null;
 const lastActivityTime = ref(Date.now());
 const currentPollingInterval = ref(30000); // Start with 30s
 
+// Chat polling for sync
+const chatPollingInterval = ref(null);
+const localLastMessageAt = ref(null);
+
 // Activity events to track
 const ACTIVITY_EVENTS = ['mousedown', 'keydown', 'scroll', 'touchstart'];
 
@@ -1593,6 +1597,10 @@ const selectChat = async (id, isRefresh = false) => {
         chat.messages = sanitizeMessages(combined);
         chat.hasMoreMessages = result.has_more;
         chat.messageOffset = chat.messages.length; // Total messages loaded
+        // Update local last_message_at from conversation
+        if (chat.lastMessageTime) {
+          localLastMessageAt.value = chat.lastMessageTime;
+        }
         scrollToBottom();
       }
     });
@@ -1604,6 +1612,10 @@ const selectChat = async (id, isRefresh = false) => {
       chat.messages = result.messages;
       chat.hasMoreMessages = result.has_more;
       chat.messageOffset = result.messages.length; // Initial messages loaded
+      // Update local last_message_at from conversation
+      if (chat.lastMessageTime) {
+        localLastMessageAt.value = chat.lastMessageTime;
+      }
     } finally {
       isLoadingMessages.value = false;
     }
@@ -1632,6 +1644,74 @@ const selectChat = async (id, isRefresh = false) => {
   // Save active chat state for restoration after returning from external links
   saveActiveChatState();
   scrollToBottom();
+  
+  // Start polling to check for new messages every 5 seconds
+  startChatPolling(chat.wa_number);
+};
+
+// Start polling to check last_message_at every 5 seconds
+const startChatPolling = (phone) => {
+  // Stop any existing polling
+  stopChatPolling();
+  
+  // Get initial last_message_at from conversation
+  const chat = conversations.value.find((c) => c.wa_number === phone);
+  if (chat && chat.lastMessageTime) {
+    localLastMessageAt.value = chat.lastMessageTime;
+  }
+  
+  // Poll every 5 seconds
+  chatPollingInterval.value = setInterval(async () => {
+    if (!activeChatId.value || !phone) {
+      stopChatPolling();
+      return;
+    }
+    
+    try {
+      const response = await fetch(`${API_BASE}/CRM/Chat/getLastMessageAt?phone=${encodeURIComponent(phone)}&_t=${Date.now()}`);
+      if (response.ok) {
+        const result = await response.json();
+        const serverLastMessageAt = result.data?.last_message_at;
+        
+        // Compare with local last_message_at
+        if (serverLastMessageAt && serverLastMessageAt !== localLastMessageAt.value) {
+          console.log('🔄 Chat updated detected, fetching new messages...');
+          
+          // Update local last_message_at
+          localLastMessageAt.value = serverLastMessageAt;
+          
+          // Fetch new messages
+          const chat = conversations.value.find((c) => c.wa_number === phone);
+          if (chat) {
+            try {
+              const result = await fetchMessages(chat.wa_number, 0, 20);
+              if (result.messages.length > 0) {
+                // Merge with existing messages
+                const combined = [...chat.messages, ...result.messages];
+                chat.messages = sanitizeMessages(combined);
+                chat.hasMoreMessages = result.has_more;
+                chat.messageOffset = chat.messages.length;
+                scrollToBottom();
+              }
+            } catch (error) {
+              console.error('Failed to fetch new messages:', error);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to check last_message_at:', error);
+    }
+  }, 5000); // Poll every 5 seconds
+};
+
+// Stop chat polling
+const stopChatPolling = () => {
+  if (chatPollingInterval.value) {
+    clearInterval(chatPollingInterval.value);
+    chatPollingInterval.value = null;
+  }
+  localLastMessageAt.value = null;
 };
 
 const refreshActiveChat = async () => {
@@ -1734,6 +1814,9 @@ const clearSavedChatState = () => {
 };
 
 const backToMenu = (animated = true) => {
+  // Stop chat polling when closing chat
+  stopChatPolling();
+  
   // Save current draft before going back to menu
   if (activeChatId.value && messageInput.value.trim()) {
     chatDrafts.value[activeChatId.value] = messageInput.value;
@@ -2302,6 +2385,9 @@ onUnmounted(() => {
   if (refreshInterval.value) {
     clearInterval(refreshInterval.value);
   }
+  
+  // Stop chat polling
+  stopChatPolling();
 });
 
 const sendImage = async () => {
@@ -2676,6 +2762,11 @@ const handleIncomingMessage = (payload) => {
 
     conversation.lastMessage = displayText;
     conversation.lastTime = formatLastTime(newMsg.rawTime);
+    
+    // Update local last_message_at if this is the active chat
+    if (activeChatId.value == conversationId && newMsg.rawTime) {
+      localLastMessageAt.value = newMsg.rawTime;
+    }
 
     // Check visibility: Active ID matches AND (Desktop OR Mobile Chat View Open)
     const isChatVisible =
@@ -3063,6 +3154,11 @@ const connectWebSocket = () => {
                   ? "You: 📷 Image"
                   : "You: " + messageData.text;
               conversation.lastTime = newMsg.time;
+              
+              // Update local last_message_at if this is the active chat
+              if (activeChatId.value == conversationId && messageData.time) {
+                localLastMessageAt.value = messageData.time;
+              }
 
               // Auto-scroll if viewing this conversation
               if (activeChatId.value == conversationId) {
