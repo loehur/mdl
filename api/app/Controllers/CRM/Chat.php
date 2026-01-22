@@ -384,7 +384,8 @@ class Chat extends Controller
                 'phone' => $phone, // PRIMARY IDENTIFIER
                 'conversation_id' => $conv->id ?? 0, // Optional legacy
                 'target_id' => '0', // Broadcast to ALL agents
-                'sender_id' => $userId, 
+                'sender_id' => $userId,
+                'sender_code' => $senderCode ?? null, // Include sender_code for display
                 'message' => [
                     'id' => $data['local_id'] ?? time(),
                     'wamid' => $data['id'] ?? $data['wamid'] ?? null,
@@ -393,6 +394,7 @@ class Chat extends Controller
                     'sender' => 'me',
                     'time' => date('Y-m-d H:i:s'),
                     'status' => 'sent',
+                    'sender_code' => $senderCode ?? null, // Include sender_code in message object
                     'quoted_message_id' => $replyTo // Include quoted message reference
                 ],
                 'contact_name' => $conv->contact_name ?? '',
@@ -1035,6 +1037,7 @@ class Chat extends Controller
                     'conversation_id' => $conversation->id ?? 0,
                     'target_id' => '0',
                     'sender_id' => $userId,
+                    'sender_code' => $senderCode ?? null, // Include sender_code for display
                     'message' => [
                         'id' => $msgId,
                         'wamid' => $result['data']['wamid'] ?? null,
@@ -1043,7 +1046,8 @@ class Chat extends Controller
                         'media_url' => $mediaUrl,
                         'sender' => 'me',
                         'time' => date('Y-m-d H:i:s'),
-                        'status' => 'sent'
+                        'status' => 'sent',
+                        'sender_code' => $senderCode ?? null // Include sender_code in message object
                     ]
                 ];
                 

@@ -2980,6 +2980,10 @@ const connectWebSocket = () => {
               existingMessage.status = messageData.status || "sent";
               if (messageData.media_url)
                 existingMessage.media_url = messageData.media_url;
+              // Update sender_code if provided (from message or payload level)
+              const senderCode = messageData.sender_code ?? payload.sender_code;
+              if (senderCode !== undefined)
+                existingMessage.sender_code = senderCode;
               // Don't add as new - already exists
             } else {
               // NEW DEFENSE: Robust Fuzzy Match
@@ -3018,6 +3022,10 @@ const connectWebSocket = () => {
                 pendingMatch.status = messageData.status || "sent";
                 if (messageData.media_url)
                   pendingMatch.media_url = messageData.media_url;
+                // Update sender_code if provided (from message or payload level)
+                const senderCode = messageData.sender_code ?? payload.sender_code;
+                if (senderCode !== undefined)
+                  pendingMatch.sender_code = senderCode;
                 return; // Stop, don't add new
               }
 
@@ -3036,7 +3044,7 @@ const connectWebSocket = () => {
                 }),
                 rawTime: messageData.time,
                 status: messageData.status || "sent",
-                sender_code: messageData.sender_code,
+                sender_code: messageData.sender_code || payload.sender_code || null, // Use message sender_code or fallback to payload level
                 quoted_message_id: messageData.quoted_message_id || null,
                 quoted_message_body: messageData.quoted_message_body || null,
                 quoted_message_from: messageData.quoted_message_from || null,
