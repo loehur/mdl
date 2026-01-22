@@ -748,6 +748,26 @@ const resetPollingTimer = () => {
           return;
         }
         
+        // 🚫 CRITICAL: Skip fetch if user has loaded more conversations
+        // Why: User scrolled and loaded 40+ conversations, polling fetch only gets 20
+        // This would remove conversations below position 20, including possibly the active chat
+        const hasLoadedMore = conversations.value.length > 20;
+        
+        if (hasLoadedMore) {
+          console.log(`⏭️ Skipping polling fetch - user loaded ${conversations.value.length} conversations (> 20 default)`);
+          return;
+        }
+        
+        // 🚫 CRITICAL: Skip fetch if user is viewing a chat
+        // Why: User might be viewing a conversation that's not in top 20
+        // Polling would close their active chat unexpectedly
+        const hasActiveChat = activeChatId.value !== null;
+        
+        if (hasActiveChat) {
+          console.log('⏭️ Skipping polling fetch - user is viewing a chat');
+          return;
+        }
+        
         // Check if interval needs adjustment based on activity
         const optimalInterval = getOptimalInterval();
         if (optimalInterval !== currentPollingInterval.value) {
@@ -3373,9 +3393,16 @@ watch(searchQuery, (newQuery) => {
   
   const trimmedQuery = (newQuery || '').trim();
   
-  // If empty, fetch immediately without search
+  // If empty (search cleared), reset to home view
   if (!trimmedQuery) {
+    // Close any open chat and return to conversation list
+    activeChatId.value = null;
+    showMobileChat.value = false;
+    
+    // Fetch default 20 conversations (reset from search results)
     fetchConversations(0, 20, '');
+    
+    console.log('🔍 Search cleared - reset to home with 20 conversations');
     return;
   }
   
