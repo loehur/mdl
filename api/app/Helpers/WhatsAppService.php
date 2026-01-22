@@ -760,7 +760,7 @@ class WhatsAppService
                 'content' => $content,
                 'template_params' => $templateParams,
                 'media_url' => $mediaUrl,
-                'sender_code' => $senderCode, // Changed from initial to sender_code
+                'sender_code' => $senderCode,
                 'status' => 'accepted', // Initial status when API accepted
                 'created_at' => date('Y-m-d H:i:s')
             ];

@@ -74,7 +74,7 @@ class WhatsApp extends Controller
         
         $phone = $body['phone'];
         $messageMode = strtolower($body['message_mode']);
-        $senderCode = $body['sender_code'] ?? 'null';
+        $senderCode = $body['sender_code'] ?? null;
         
         // Override: nomor-nomor tertentu WAJIB pakai mode 'free'
         foreach (\Env::FORBID_WA_TEMPLATE_HP as $fhp) {

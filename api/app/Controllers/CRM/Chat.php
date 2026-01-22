@@ -337,7 +337,6 @@ class Chat extends Controller
         
         $wa = new \App\Helpers\WhatsAppService();
         
-        // Get sender_code: 1. From request body, 2. From database by user_id, 3. From session
         $senderCode = $body['sender_code'] ?? null;
         
         if (!$senderCode && isset($body['user_id'])) {
@@ -971,7 +970,6 @@ class Chat extends Controller
             try {
                 $waService = new \App\Helpers\WhatsAppService();
                 
-                // Get sender_code: 1. From POST body, 2. From database by user_id, 3. From session
                 $senderCode = $body['sender_code'] ?? null;
                 
                 if (!$senderCode && $userId) {
