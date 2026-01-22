@@ -367,9 +367,10 @@ class Chat extends Controller
                 ], ['id' => $res['local_id']]);
             }
             
-            // Update conversation last_message using wa_number
+            // Update conversation last_message and last_message_at using wa_number
             $db->update('wa_conversations', [
                 'last_message' => 'o- ' . mb_substr($message, 0, 50),
+                'last_message_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s')
             ], ['wa_number' => $phone]);
 
@@ -1027,6 +1028,7 @@ class Chat extends Controller
                 // Update conversation
                 $db->update('wa_conversations', [
                     'last_message' => '� �📷 Image',
+                    'last_message_at' => date('Y-m-d H:i:s'),
                     'updated_at' => date('Y-m-d H:i:s')
                 ], ['wa_number' => $waNumber]);
                 
@@ -1144,6 +1146,39 @@ class Chat extends Controller
             
         } catch (\Exception $e) {
             \Log::write("updateLastMessageAt ERROR: " . $e->getMessage(), 'cms_error', 'Chat');
+            $this->error('Server error: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Get last_message_at for a conversation
+     * Used for polling to check if conversation has new messages
+     */
+    public function getLastMessageAt()
+    {
+        try {
+            $db = $this->db(0);
+            $phone = $_GET['phone'] ?? null;
+            
+            if (!$phone) {
+                $this->error('Phone number is required');
+            }
+            
+            // Get last_message_at from conversation
+            $conversation = $db->get_where('wa_conversations', ['wa_number' => $phone])->row();
+            
+            if (!$conversation) {
+                $this->error('Conversation not found');
+            }
+            
+            $this->success([
+                'phone' => $phone,
+                'last_message_at' => $conversation->last_message_at ?? null,
+                'conversation_id' => $conversation->id ?? null
+            ], 'Last message time retrieved');
+            
+        } catch (\Exception $e) {
+            \Log::write("getLastMessageAt ERROR: " . $e->getMessage(), 'cms_error', 'Chat');
             $this->error('Server error: ' . $e->getMessage(), 500);
         }
     }
