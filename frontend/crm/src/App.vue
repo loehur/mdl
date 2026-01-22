@@ -63,6 +63,35 @@ const pendingRestoreChatId = ref(null); // For restoring chat after refresh
 // Search debounce timer
 let searchDebounceTimer = null;
 
+// ============================================
+// 🎯 SMART IDLE DETECTION
+// ============================================
+// Track last user activity for dynamic polling interval
+const lastActivityTime = ref(Date.now());
+const currentPollingInterval = ref(30000); // Start with 30s
+
+// Activity events to track
+const ACTIVITY_EVENTS = ['mousedown', 'keydown', 'scroll', 'touchstart'];
+
+// Update last activity timestamp
+const updateActivity = () => {
+  lastActivityTime.value = Date.now();
+};
+
+// Calculate optimal polling interval based on idle time
+const getOptimalInterval = () => {
+  const idleTime = Date.now() - lastActivityTime.value;
+  const MINUTE = 60 * 1000;
+  
+  if (idleTime < 2 * MINUTE) {
+    return 30000; // 30s - Active
+  } else if (idleTime < 10 * MINUTE) {
+    return 60000; // 60s - Idle
+  } else {
+    return 120000; // 120s - Very Idle
+  }
+};
+
 
 
 // Computed: Filtered Quick Replies based on search query
@@ -700,13 +729,43 @@ const resetPollingTimer = () => {
     clearInterval(refreshInterval.value);
   }
 
-  refreshInterval.value = setInterval(() => {
-    if (isConnected.value && !document.hidden) {
-      // Refresh with current search query (if any)
-      const currentSearch = searchQuery.value?.trim() || '';
-      fetchConversations(0, 20, currentSearch);
-    }
-  }, 30000); // 30 seconds
+  // 🎯 SMART POLLING: Start with initial interval
+  const startPolling = () => {
+    const interval = getOptimalInterval();
+    currentPollingInterval.value = interval;
+    
+    refreshInterval.value = setInterval(() => {
+      // 🔄 IMPROVED: Poll even when WebSocket is disconnected (backup mechanism)
+      // Only skip if user is not authenticated or page is hidden
+      if (authId.value && !document.hidden) {
+        // 🚫 CRITICAL: Skip fetch if there's an active search query
+        // Why: Search can return 50+ conversations, but polling fetch only gets 20
+        // This would overwrite search results and confuse the user
+        const hasActiveSearch = searchQuery.value && searchQuery.value.trim().length > 0;
+        
+        if (hasActiveSearch) {
+          console.log('⏭️ Skipping polling fetch - active search detected');
+          return;
+        }
+        
+        // Check if interval needs adjustment based on activity
+        const optimalInterval = getOptimalInterval();
+        if (optimalInterval !== currentPollingInterval.value) {
+          console.log(`🔄 Adjusting polling: ${currentPollingInterval.value/1000}s → ${optimalInterval/1000}s`);
+          currentPollingInterval.value = optimalInterval;
+          // Restart timer with new interval
+          clearInterval(refreshInterval.value);
+          startPolling();
+          return;
+        }
+        
+        // Normal fetch without search
+        fetchConversations(0, 20, '');
+      }
+    }, interval);
+  };
+  
+  startPolling();
 };
 
 // --- Computed ---
@@ -2709,6 +2768,9 @@ const connectWebSocket = () => {
         // This is the REAL confirmation that connection is stable
         // (server sends this only after accepting the connection)
         if (payload.type === "connection") {
+          // Check if this is a RECONNECT (not first connect)
+          const wasReconnecting = isReconnecting.value || reconnectAttempts.value > 0;
+          
           // NOW we can safely set isConnected to true
           isConnected.value = true;
           connectionError.value = ""; // Clear any error message
@@ -2723,6 +2785,24 @@ const connectWebSocket = () => {
             currentUserRole.value = payload.role;
             localStorage.setItem("cms_chat_role", payload.role);
           }
+          
+          // 🔄 AUTO-SYNC: Refresh conversations after reconnect to catch missed messages
+          // Only do this on RECONNECT (not first connect) to avoid duplicate fetch
+          if (wasReconnecting) {
+            console.log("📡 Reconnected! Syncing missed messages...");
+            // Small delay to ensure connection is stable
+            setTimeout(() => {
+              fetchConversations();
+              // Also refresh active chat messages if viewing one
+              if (activeChatId.value) {
+                const activeConv = conversations.value.find(c => c.id == activeChatId.value);
+                if (activeConv) {
+                  fetchMessages(activeConv.wa_number);
+                }
+              }
+            }, 500);
+          }
+          
           return;
         }
 
@@ -4023,6 +4103,14 @@ const logout = () => {
   // OneSignal: Logout from push notifications
   oneSignalLogout();
 };
+
+// ============================================
+// 🎯 ACTIVITY TRACKING FOR SMART IDLE DETECTION
+// ============================================
+// Track user activity to dynamically adjust polling interval
+ACTIVITY_EVENTS.forEach(eventName => {
+  window.addEventListener(eventName, updateActivity, { passive: true });
+});
 
 // Cleanup on unmount
 onUnmounted(() => {
