@@ -428,10 +428,17 @@ class WAReplies
                 ORDER BY insertTime ASC";
 
         $pendingNotifs = $db1->query($sql)->result_array();
-
+        
+        // Track which id_penjualan already have pending notifs
+        $pendingNotifIds = [];
         if (!empty($pendingNotifs)) {
             foreach ($pendingNotifs as $notif) {
                 $idNotif = $notif['id_notif'];
+                
+                // Collect no_ref from pending notifs (no_ref = id_penjualan)
+                if (!empty($notif['no_ref'])) {
+                    $pendingNotifIds[] = $notif['no_ref'];
+                }
 
                 // 🔒 LOCK: Update state to 'sending' first to prevent race condition
                 $success = $db1->update(
@@ -470,81 +477,96 @@ class WAReplies
                     $this->pushToWebSocket($payload);
                 }
             }
+        }
+        
+        // Always check sale status, even if there are pending notifs
+        // This ensures items without pending notifs are also reported
+        $cleanPhone = preg_replace('/[^0-9]/', '', $waNumber);
+        $phone0 = '0' . substr($cleanPhone, 2);
+
+        $where = "nomor_pelanggan IN ($phoneIn)";
+        $pelanggan = $db1->query("SELECT id_pelanggan, nama_pelanggan FROM pelanggan WHERE $where")->result_array();
+        $id_pelanggans = array_column($pelanggan, 'id_pelanggan');
+        $nama_pelanggans = array_column($pelanggan, 'nama_pelanggan');
+        $nama_pelanggan = strtoupper($nama_pelanggans[0] ?? ''); // fix index 0 if empty
+
+        if (empty($id_pelanggans)) {
+            $res = $waService->sendFreeText($waNumber, $this->noRegisterText);
+            if ($res['success']) {
+                $this->pushToWebSocket($this->buildWsPayload($waNumber, $this->noRegisterText, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+            }
         } else {
-            $cleanPhone = preg_replace('/[^0-9]/', '', $waNumber);
-            $phone0 = '0' . substr($cleanPhone, 2);
-
-            $where = "nomor_pelanggan IN ($phoneIn)";
-            $pelanggan = $db1->query("SELECT id_pelanggan, nama_pelanggan FROM pelanggan WHERE $where")->result_array();
-            $id_pelanggans = array_column($pelanggan, 'id_pelanggan');
-            $nama_pelanggans = array_column($pelanggan, 'nama_pelanggan');
-            $nama_pelanggan = strtoupper($nama_pelanggans[0] ?? ''); // fix index 0 if empty
-
-            if (empty($id_pelanggans)) {
-                $res = $waService->sendFreeText($waNumber, $this->noRegisterText);
+            $ids_in = implode(',', $id_pelanggans);
+            $sales = $db1->query("SELECT * FROM sale WHERE tuntas = 0 AND bin = 0 AND id_pelanggan IN ($ids_in) GROUP BY no_ref, tuntas, id_pelanggan")->result_array();
+            $noRefs = array_column($sales, 'no_ref');
+            if (empty($noRefs)) {
+                $text = 'Pak/Bu *' . $nama_pelanggan . '*, belum ada transaksi terbuka. Terima kasih';
+                $res = $waService->sendFreeText($waNumber, $text);
                 if ($res['success']) {
-                    $this->pushToWebSocket($this->buildWsPayload($waNumber, $this->noRegisterText, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+                    $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
                 }
             } else {
-                $ids_in = implode(',', $id_pelanggans);
-                $sales = $db1->query("SELECT * FROM sale WHERE tuntas = 0 AND bin = 0 AND id_pelanggan IN ($ids_in) GROUP BY no_ref, tuntas, id_pelanggan")->result_array();
-                $noRefs = array_column($sales, 'no_ref');
-                if (empty($noRefs)) {
-                    $text = 'Pak/Bu *' . $nama_pelanggan . '*, belum ada transaksi terbuka. Terima kasih';
-                    $res = $waService->sendFreeText($waNumber, $text);
-                    if ($res['success']) {
-                        $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
-                    }
-                } else {
-                    $listIdPenjualan = []; // Items still in progress (belum ada notif selesai)
-                    $listIdSelesai = [];   // Items already completed (sudah ada notif selesai)
-                    foreach ($noRefs as $noRef) {
-                        $get_penjualan = $db1->query("SELECT id_penjualan, id_pelanggan, letak FROM sale WHERE id_user_ambil = 0 AND bin = 0 AND tuntas = 0 AND no_ref = '$noRef'")->result_array();
-                        $id_penjualans = array_column($get_penjualan, 'id_penjualan');
-                        $id_pelanggans = array_column($get_penjualan, 'id_pelanggan');
+                $listIdPenjualan = []; // Items still in progress (belum ada notif selesai)
+                $listIdSelesai = [];   // Items already completed (sudah ada notif selesai)
+                $allIdPenjualan = [];  // All items for fallback display
+                foreach ($noRefs as $noRef) {
+                    $get_penjualan = $db1->query("SELECT id_penjualan, id_pelanggan, letak FROM sale WHERE id_user_ambil = 0 AND bin = 0 AND tuntas = 0 AND no_ref = '$noRef'")->result_array();
+                    $id_penjualans = array_column($get_penjualan, 'id_penjualan');
+                    $id_pelanggans = array_column($get_penjualan, 'id_pelanggan');
 
-                        // Fix for VARCHAR IDs: Quote them
-                        $quotedIds = array_map(function ($id) {
-                            return "'$id'";
-                        }, $id_penjualans);
-                        $id_penjualans_in = implode(',', $quotedIds);
+                    // Fix for VARCHAR IDs: Quote them
+                    $quotedIds = array_map(function ($id) {
+                        return "'$id'";
+                    }, $id_penjualans);
+                    $id_penjualans_in = implode(',', $quotedIds);
 
-                        // Get id_penjualan that already have notif tipe 2
-                        $existingNotifIds = !empty($id_penjualans) ? array_column($db1->query("SELECT no_ref FROM notif WHERE tipe = 2 AND no_ref IN ($id_penjualans_in)")->result_array(), 'no_ref') : [];
+                    // Get id_penjualan that already have notif tipe 2
+                    $existingNotifIds = !empty($id_penjualans) ? array_column($db1->query("SELECT no_ref FROM notif WHERE tipe = 2 AND no_ref IN ($id_penjualans_in)")->result_array(), 'no_ref') : [];
+                    
+                    // Check each sale item: Selesai = ada notif tipe 2 DAN letak sudah terisi
+                    $completedWithLocation = [];
+                    $inProgressItems = [];
+                    
+                    foreach ($get_penjualan as $sale) {
+                        $id_penjualan = $sale['id_penjualan'];
+                        $letak = $sale['letak'] ?? '';
                         
-                        // Check each sale item: Selesai = ada notif tipe 2 DAN letak sudah terisi
-                        $completedWithLocation = [];
-                        $inProgressItems = [];
-                        
-                        foreach ($get_penjualan as $sale) {
-                            $id_penjualan = $sale['id_penjualan'];
-                            $letak = $sale['letak'] ?? '';
-                            
-                            $hasNotif = in_array($id_penjualan, $existingNotifIds);
-                            $hasLocation = !empty(trim($letak));
-                            
-                            // Selesai: ada notif DAN letak sudah terisi
-                            if ($hasNotif && $hasLocation) {
-                                $completedWithLocation[] = $id_penjualan;
-                            } else {
-                                // Dalam Pengerjaan: tidak ada notif ATAU letak masih kosong
-                                $inProgressItems[] = $id_penjualan;
-                            }
+                        // Skip if this id_penjualan already has pending notif (already sent above)
+                        if (in_array($id_penjualan, $pendingNotifIds)) {
+                            continue;
                         }
                         
-                        // Items still in progress
-                        if (count($inProgressItems) > 0) {
-                            array_push($listIdPenjualan, $inProgressItems);
-                        }
-
-                        // Items already completed (ada notif DAN letak terisi)
-                        if (count($completedWithLocation) > 0) {
-                            array_push($listIdSelesai, $completedWithLocation);
+                        // Collect all id_penjualan for fallback
+                        $allIdPenjualan[] = $id_penjualan;
+                        
+                        $hasNotif = in_array($id_penjualan, $existingNotifIds);
+                        $hasLocation = !empty(trim($letak));
+                        
+                        // Selesai: ada notif DAN letak sudah terisi
+                        if ($hasNotif && $hasLocation) {
+                            $completedWithLocation[] = $id_penjualan;
+                        } else {
+                            // Dalam Pengerjaan: tidak ada notif ATAU letak masih kosong
+                            $inProgressItems[] = $id_penjualan;
                         }
                     }
+                    
+                    // Items still in progress
+                    if (count($inProgressItems) > 0) {
+                        array_push($listIdPenjualan, $inProgressItems);
+                    }
 
+                    // Items already completed (ada notif DAN letak terisi)
+                    if (count($completedWithLocation) > 0) {
+                        array_push($listIdSelesai, $completedWithLocation);
+                    }
+                }
+
+                // Only send status message if there are items that don't have pending notifs
+                if (count($listIdPenjualan) > 0 || count($listIdSelesai) > 0 || count($allIdPenjualan) > 0) {
                     $list_link = "";
                     // Remove duplicates - same customer may have multiple transactions
+                    // Use $id_pelanggans from the outer scope (line 479), not from inside the loop
                     $unique_pelanggans = array_unique($id_pelanggans);
                     foreach ($unique_pelanggans as $id_pelanggan) {
                         $list_link .= "https://ml.nalju.com/I/" . $id_pelanggan . "\n";
@@ -593,7 +615,13 @@ class WAReplies
                             $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
                         }
                     } else {
-                        $text = "Pak/Bu *" . $nama_pelanggan . "*, Semua Laundry sudah selesai. Terima kasih\n" . $list_link;
+                        // Jika semua selesai, tetap tampilkan list dengan format yang sama
+                        $statusList = [];
+                        foreach ($allIdPenjualan as $id) {
+                            $statusList[] = "#" . $id . " - Selesai";
+                        }
+                        $statusText = implode("\n", $statusList);
+                        $text = "Pak/Bu *" . $nama_pelanggan . "*,\nStatus Laundry:\n" . $statusText . "\n" . $list_link;
                         $res = $waService->sendFreeText($waNumber, $text);
                         if ($res['success']) {
                             $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
