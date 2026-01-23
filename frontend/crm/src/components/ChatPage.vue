@@ -411,7 +411,7 @@ const needsDateSeparator = (curr, prev) => {
 const parseWhatsAppFormatting = (text) => {
     if(!text) return "";
     let f = text.replace(/</g, "&lt;").replace(/>/g, "&gt;") // Escape HTML
-       .replace(/\|\s*\|/g, "\n") // Convert "| |" to newline
+       .replace(/\ |\s*\| /g, "\n") // Convert "| |" to newline
        .replace(/\*([^*]+)\*/g, "<strong>$1</strong>") // Bold
        .replace(/_([^_]+)_/g, "<em>$1</em>") // Italic
        .replace(/~([^~]+)~/g, "<del>$1</del>") // Strike
