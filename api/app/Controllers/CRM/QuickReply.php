@@ -94,6 +94,12 @@ class QuickReply extends Controller
                 'title' => 'Lokasi MDL MW',
                 'message' => "https://maps.app.goo.gl/jCfoVBwKRKkAUMHg6"
             ],            
+            [
+                'id' => 9,
+                'shortcut' => '/td-location',
+                'title' => 'Lokasi MDL TD',
+                'message' => "https://maps.app.goo.gl/P4AmsXxKBRaWdcE88"
+            ],
         ];
     }
 }
