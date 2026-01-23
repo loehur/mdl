@@ -280,7 +280,7 @@ const parseEmoji = (text) => {
         <!-- Kolom Kanan: Nama + Message -->
         <div class="flex-1 min-w-0">
           <div class="flex justify-between items-baseline mb-1 gap-2">
-            <h3 class="font-semibold text-[16px] truncate text-[var(--wa-text-primary)] opacity-90 max-w-[240px] uppercase" :title="chat.name">
+            <h3 class="text-[16px] truncate text-[var(--wa-text-primary)] opacity-90 max-w-[240px] uppercase" style="font-weight: 600;" :title="chat.name">
               {{ chat.name }}
             </h3>
             <span class="text-xs text-[var(--wa-text-tertiary)] flex-shrink-0">{{ chat.lastTime }}</span>
