@@ -215,24 +215,24 @@ const applyTheme = (themeName) => {
     root.style.setProperty("--wa-filter-inactive-border", "#e9edef");
     root.style.setProperty("--wa-filter-inactive-text", "#54656f");
   } else {
-    // Dark theme colors - Pure black like WhatsApp
-    root.style.setProperty("--wa-bg-primary", "#000000");
-    root.style.setProperty("--wa-bg-secondary", "#1a1a1a");
-    root.style.setProperty("--wa-bg-tertiary", "#2a2a2a");
-    root.style.setProperty("--wa-bg-panel", "#000000");
-    root.style.setProperty("--wa-bg-chat", "#000000"); // Chat area background
-    root.style.setProperty("--wa-border", "#3a3a3a");
+    // Dark theme colors - Soft black like WhatsApp
+    root.style.setProperty("--wa-bg-primary", "#0b141a");
+    root.style.setProperty("--wa-bg-secondary", "#1e2328");
+    root.style.setProperty("--wa-bg-tertiary", "#2a2f35");
+    root.style.setProperty("--wa-bg-panel", "#0b141a");
+    root.style.setProperty("--wa-bg-chat", "#0b141a"); // Chat area background
+    root.style.setProperty("--wa-border", "#3a3f45");
     root.style.setProperty("--wa-text-primary", "#e9edef");
     root.style.setProperty("--wa-text-secondary", "#c5c9cc");
     root.style.setProperty("--wa-text-tertiary", "#a6a8a9");
     root.style.setProperty("--wa-bubble-out", "#005c4b");
     root.style.setProperty("--wa-bubble-outgoing", "#005c4b"); // Alias
     root.style.setProperty("--wa-bubble-out-text", "#e9edef");
-    root.style.setProperty("--wa-bubble-in", "#1a1a1a");
-    root.style.setProperty("--wa-bubble-incoming", "#1a1a1a"); // Alias
+    root.style.setProperty("--wa-bubble-in", "#1e2328");
+    root.style.setProperty("--wa-bubble-incoming", "#1e2328"); // Alias
     root.style.setProperty("--wa-bubble-in-text", "#e9edef");
-    root.style.setProperty("--wa-hover", "#1a1a1a");
-    root.style.setProperty("--wa-active", "#2a2a2a");
+    root.style.setProperty("--wa-hover", "#1e2328");
+    root.style.setProperty("--wa-active", "#2a2f35");
     root.style.setProperty("--wa-bubble-out-meta", "rgba(255, 255, 255, 0.8)"); // Brighter for better contrast
     root.style.setProperty("--wa-bubble-out-quoted-bg", "rgba(0, 0, 0, 0.3)");
     root.style.setProperty(
@@ -241,19 +241,19 @@ const applyTheme = (themeName) => {
     );
     root.style.setProperty("--wa-icon-default", "#c5c9cc");
     root.style.setProperty("--wa-accent-green", "#00a884");
-    root.style.setProperty("--wa-divider", "#3a3a3a"); // More visible divider
+    root.style.setProperty("--wa-divider", "#3a3f45"); // More visible divider
     root.style.setProperty("--wa-link-color", "#53bdeb");
-    root.style.setProperty("--wa-date-badge", "#1a1a1a");
+    root.style.setProperty("--wa-date-badge", "#1e2328");
     root.style.setProperty("--wa-date-badge-text", "#c5c9cc");
-    root.style.setProperty("--wa-header-bg", "#1a1a1a");
-    root.style.setProperty("--wa-input-bg", "#2a2a2a");
-    root.style.setProperty("--wa-conversation-active", "#2a2a2a");
+    root.style.setProperty("--wa-header-bg", "#1e2328");
+    root.style.setProperty("--wa-input-bg", "#2a2f35");
+    root.style.setProperty("--wa-conversation-active", "#2a2f35");
 
     // Filter Tabs
     root.style.setProperty("--wa-filter-active-bg", "#00a884");
     root.style.setProperty("--wa-filter-active-text", "#ffffff");
-    root.style.setProperty("--wa-filter-inactive-bg", "#1a1a1a");
-    root.style.setProperty("--wa-filter-inactive-border", "#3a3a3a");
+    root.style.setProperty("--wa-filter-inactive-bg", "#1e2328");
+    root.style.setProperty("--wa-filter-inactive-border", "#3a3f45");
     root.style.setProperty("--wa-filter-inactive-text", "#c5c9cc");
   }
 };
