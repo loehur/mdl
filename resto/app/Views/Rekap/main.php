@@ -270,32 +270,6 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
         </table>
       </div>
     </div>
-
-    <hr>
-    <div class="card">
-      <div class="card-body p-0 table-responsive-sm">
-        <table class="table table-sm w-100">
-          <thead>
-            <tr>
-              <th colspan="3" class="text-secondary border-secondary">Penarikan</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php
-            $total_tarik = 0;
-            foreach ($data['kas_tarik'] as $a) {
-              $total_tarik += $a['total'];
-            }
-
-            ?>
-            <tr class="table-secondary">
-              <td><b>Total Penarikan</b></td>
-              <td class="text-right"><b>Rp<?= number_format($total_tarik) ?></b></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
   </div>
 </div>
 </div>
