@@ -280,14 +280,14 @@ const parseEmoji = (text) => {
         <!-- Kolom Kanan: Nama + Message -->
         <div class="flex-1 min-w-0">
           <div class="flex justify-between items-baseline mb-1 gap-2">
-            <h3 class="font-normal text-[16px] truncate text-[var(--wa-text-primary)] max-w-[240px] uppercase" :title="chat.name">
+            <h3 class="font-semibold text-[16px] truncate text-[var(--wa-text-primary)] opacity-90 max-w-[240px] uppercase" :title="chat.name">
               {{ chat.name }}
             </h3>
             <span class="text-xs text-[var(--wa-text-tertiary)] flex-shrink-0">{{ chat.lastTime }}</span>
           </div>
 
           <div class="flex justify-between items-center">
-            <p class="text-sm text-[var(--wa-text-secondary)] truncate w-64" :class="{ 'font-normal text-[var(--wa-text-primary)]': chat.unread > 0 }" v-html="parseEmoji(chat.lastMessage)"></p>
+            <p class="text-sm text-[var(--wa-text-secondary)] opacity-80 truncate w-64" :class="{ 'font-normal text-[var(--wa-text-primary)] opacity-90': chat.unread > 0 }" v-html="parseEmoji(chat.lastMessage)"></p>
             <span v-if="chat.unread > 0" class="bg-[var(--wa-accent-green)] text-black text-[11px] font-semibold px-2 py-0.5 rounded-full min-w-[20px] text-center">{{ chat.unread }}</span>
           </div>
         </div>
