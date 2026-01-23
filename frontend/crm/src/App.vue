@@ -222,8 +222,8 @@ const applyTheme = (themeName) => {
     root.style.setProperty("--wa-bg-panel", "#000000");
     root.style.setProperty("--wa-bg-chat", "#000000"); // Chat area background
     root.style.setProperty("--wa-border", "#3a3a3a");
-    root.style.setProperty("--wa-text-primary", "#ffffff");
-    root.style.setProperty("--wa-text-secondary", "#d1d7db");
+    root.style.setProperty("--wa-text-primary", "#e9edef");
+    root.style.setProperty("--wa-text-secondary", "#c5c9cc");
     root.style.setProperty("--wa-text-tertiary", "#a6a8a9");
     root.style.setProperty("--wa-bubble-out", "#005c4b");
     root.style.setProperty("--wa-bubble-outgoing", "#005c4b"); // Alias
@@ -239,12 +239,12 @@ const applyTheme = (themeName) => {
       "--wa-bubble-out-quoted-text",
       "rgba(255, 255, 255, 0.9)"
     );
-    root.style.setProperty("--wa-icon-default", "#d1d7db");
+    root.style.setProperty("--wa-icon-default", "#c5c9cc");
     root.style.setProperty("--wa-accent-green", "#00a884");
     root.style.setProperty("--wa-divider", "#3a3a3a"); // More visible divider
     root.style.setProperty("--wa-link-color", "#53bdeb");
     root.style.setProperty("--wa-date-badge", "#1a1a1a");
-    root.style.setProperty("--wa-date-badge-text", "#d1d7db");
+    root.style.setProperty("--wa-date-badge-text", "#c5c9cc");
     root.style.setProperty("--wa-header-bg", "#1a1a1a");
     root.style.setProperty("--wa-input-bg", "#2a2a2a");
     root.style.setProperty("--wa-conversation-active", "#2a2a2a");
@@ -254,7 +254,7 @@ const applyTheme = (themeName) => {
     root.style.setProperty("--wa-filter-active-text", "#ffffff");
     root.style.setProperty("--wa-filter-inactive-bg", "#1a1a1a");
     root.style.setProperty("--wa-filter-inactive-border", "#3a3a3a");
-    root.style.setProperty("--wa-filter-inactive-text", "#d1d7db");
+    root.style.setProperty("--wa-filter-inactive-text", "#c5c9cc");
   }
 };
 

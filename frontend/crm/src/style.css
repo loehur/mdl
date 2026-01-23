@@ -15,9 +15,9 @@
   --wa-bubble-outgoing: #005c4b;
   --wa-bubble-incoming: #1a1a1a;
 
-  /* Text Colors - Maximum Contrast */
-  --wa-text-primary: #ffffff;
-  --wa-text-secondary: #d1d7db;
+  /* Text Colors - Balanced Contrast */
+  --wa-text-primary: #e9edef;
+  --wa-text-secondary: #c5c9cc;
   --wa-text-tertiary: #a6a8a9;
 
   /* Accent Colors */
@@ -29,7 +29,7 @@
   --wa-divider: #3a3a3a;
 
   /* Icon Colors */
-  --wa-icon-default: #d1d7db;
+  --wa-icon-default: #c5c9cc;
   --wa-icon-active: #00a884;
 
   /* Hover/Active States */
