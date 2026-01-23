@@ -223,7 +223,7 @@ const parseEmoji = (text) => {
           :class="conversationFilter === 'cases' ? 'bg-[var(--wa-filter-active-bg)] text-[var(--wa-filter-active-text)] border-transparent' : 'bg-[var(--wa-filter-inactive-bg)] text-[var(--wa-filter-inactive-text)] border-[var(--wa-filter-inactive-border)] hover:bg-[var(--wa-hover)]'"
         >
           <span>Cases</span>
-          <span v-if="totalOpenCasesCount > 0" class="text-xs font-bold min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center" :class="conversationFilter === 'cases' ? 'bg-black/10 text-[var(--wa-filter-active-text)]' : 'bg-red-500 text-white'">{{ totalOpenCasesCount }}</span>
+          <span v-if="totalOpenCasesCount > 0" class="text-xs font-bold min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center" :class="conversationFilter === 'cases' ? 'bg-black/10 text-[var(--wa-filter-active-text)]' : 'bg-[var(--wa-accent-green)] text-black'">{{ totalOpenCasesCount }}</span>
         </button>
       </div>
     </div>
