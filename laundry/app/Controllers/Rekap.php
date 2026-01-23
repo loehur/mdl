@@ -83,6 +83,11 @@ class Rekap extends Controller
       $kas_keluar = [];
       $kas_tarik = [];
 
+      // Ensure $kasResult is an array before iterating
+      if (!is_array($kasResult) && !is_object($kasResult)) {
+         $kasResult = [];
+      }
+
       foreach ($kasResult as $row) {
          switch ($row['jenis_transaksi']) {
             case 1: // Pendapatan Laundry
@@ -132,7 +137,7 @@ class Rekap extends Controller
       }
       
       $gajiResult = $this->db(0)->query($gajiSql);
-      if ($gajiResult && count($gajiResult) > 0) {
+      if ($gajiResult && is_array($gajiResult) && count($gajiResult) > 0) {
          $gaji = $gajiResult[0]['total'] ?? 0;
       }
 
