@@ -75,7 +75,7 @@ class Rekap extends Controller
                  FROM kas 
                  WHERE {$whereCabang} status_mutasi <> 4 AND $kasDateCondition
                  GROUP BY jenis_transaksi, note_primary";
-      $kasResult = $this->db(0)->query($kasSql);
+      $kasResult = $this->db(0)->query_array($kasSql);
 
       // Parse combined result
       $kas_laundry = 0;
@@ -84,7 +84,7 @@ class Rekap extends Controller
       $kas_tarik = [];
 
       // Ensure $kasResult is an array before iterating
-      if (!is_array($kasResult) && !is_object($kasResult)) {
+      if (!is_array($kasResult)) {
          $kasResult = [];
       }
 
@@ -136,7 +136,7 @@ class Rekap extends Controller
                      WHERE gr.tipe = 1 AND $gajiDateCondition AND u." . str_replace(' AND ', '', $this->wCabang);
       }
       
-      $gajiResult = $this->db(0)->query($gajiSql);
+      $gajiResult = $this->db(0)->query_array($gajiSql);
       if ($gajiResult && is_array($gajiResult) && count($gajiResult) > 0) {
          $gaji = $gajiResult[0]['total'] ?? 0;
       }
