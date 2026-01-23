@@ -215,16 +215,16 @@ const applyTheme = (themeName) => {
     root.style.setProperty("--wa-filter-inactive-border", "#e9edef");
     root.style.setProperty("--wa-filter-inactive-text", "#54656f");
   } else {
-    // Dark theme colors (default) - Enhanced contrast like WhatsApp
-    root.style.setProperty("--wa-bg-primary", "#0b141a");
+    // Dark theme colors - High contrast like WhatsApp
+    root.style.setProperty("--wa-bg-primary", "#101a20");
     root.style.setProperty("--wa-bg-secondary", "#202c33");
     root.style.setProperty("--wa-bg-tertiary", "#2a3942");
-    root.style.setProperty("--wa-bg-panel", "#111b21");
+    root.style.setProperty("--wa-bg-panel", "#101a20");
     root.style.setProperty("--wa-bg-chat", "#0b141a"); // Chat area background
-    root.style.setProperty("--wa-border", "#313d45");
-    root.style.setProperty("--wa-text-primary", "#e9edef");
-    root.style.setProperty("--wa-text-secondary", "#aebac1");
-    root.style.setProperty("--wa-text-tertiary", "#8696a0");
+    root.style.setProperty("--wa-border", "#3f4a52");
+    root.style.setProperty("--wa-text-primary", "#ffffff");
+    root.style.setProperty("--wa-text-secondary", "#d1d7db");
+    root.style.setProperty("--wa-text-tertiary", "#a6a8a9");
     root.style.setProperty("--wa-bubble-out", "#005c4b");
     root.style.setProperty("--wa-bubble-outgoing", "#005c4b"); // Alias
     root.style.setProperty("--wa-bubble-out-text", "#e9edef");
@@ -232,29 +232,29 @@ const applyTheme = (themeName) => {
     root.style.setProperty("--wa-bubble-incoming", "#202c33"); // Alias
     root.style.setProperty("--wa-bubble-in-text", "#e9edef");
     root.style.setProperty("--wa-hover", "#2a3942");
-    root.style.setProperty("--wa-active", "#313d45");
-    root.style.setProperty("--wa-bubble-out-meta", "rgba(255, 255, 255, 0.7)"); // Brighter for better contrast
+    root.style.setProperty("--wa-active", "#2f3b44");
+    root.style.setProperty("--wa-bubble-out-meta", "rgba(255, 255, 255, 0.8)"); // Brighter for better contrast
     root.style.setProperty("--wa-bubble-out-quoted-bg", "rgba(0, 0, 0, 0.3)");
     root.style.setProperty(
       "--wa-bubble-out-quoted-text",
-      "rgba(255, 255, 255, 0.8)"
+      "rgba(255, 255, 255, 0.9)"
     );
-    root.style.setProperty("--wa-icon-default", "#aebac1");
+    root.style.setProperty("--wa-icon-default", "#d1d7db");
     root.style.setProperty("--wa-accent-green", "#00a884");
-    root.style.setProperty("--wa-divider", "#313d45"); // More visible divider
+    root.style.setProperty("--wa-divider", "#3f4a52"); // More visible divider
     root.style.setProperty("--wa-link-color", "#53bdeb");
     root.style.setProperty("--wa-date-badge", "#182229");
-    root.style.setProperty("--wa-date-badge-text", "#aebac1");
+    root.style.setProperty("--wa-date-badge-text", "#d1d7db");
     root.style.setProperty("--wa-header-bg", "#202c33");
     root.style.setProperty("--wa-input-bg", "#2a3942");
-    root.style.setProperty("--wa-conversation-active", "#313d45");
+    root.style.setProperty("--wa-conversation-active", "#2f3b44");
 
     // Filter Tabs
     root.style.setProperty("--wa-filter-active-bg", "#00a884");
-    root.style.setProperty("--wa-filter-active-text", "#111b21");
-    root.style.setProperty("--wa-filter-inactive-bg", "#2a3942");
-    root.style.setProperty("--wa-filter-inactive-border", "#313d45");
-    root.style.setProperty("--wa-filter-inactive-text", "#aebac1");
+    root.style.setProperty("--wa-filter-active-text", "#ffffff");
+    root.style.setProperty("--wa-filter-inactive-bg", "#202c33");
+    root.style.setProperty("--wa-filter-inactive-border", "#3f4a52");
+    root.style.setProperty("--wa-filter-inactive-text", "#d1d7db");
   }
 };
 
