@@ -76,7 +76,7 @@ const localLastMessageAt = ref(null);
 const chatPollingPhone = ref(null); // Store phone being polled
 
 // Activity events to track
-const ACTIVITY_EVENTS = ['mousedown', 'keydown', 'scroll', 'touchstart'];
+const ACTIVITY_EVENTS = ['mousedown', 'keydown', 'scroll', 'touchstart', 'touchmove'];
 
 // Update last activity timestamp
 const updateActivity = () => {
