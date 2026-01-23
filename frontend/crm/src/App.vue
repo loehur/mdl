@@ -73,6 +73,7 @@ const currentPollingInterval = ref(30000); // Start with 30s
 // Chat polling for sync
 const chatPollingInterval = ref(null);
 const localLastMessageAt = ref(null);
+const chatPollingPhone = ref(null); // Store phone being polled
 
 // Activity events to track
 const ACTIVITY_EVENTS = ['mousedown', 'keydown', 'scroll', 'touchstart'];
@@ -1654,6 +1655,9 @@ const startChatPolling = (phone) => {
   // Stop any existing polling
   stopChatPolling();
   
+  // Store phone being polled
+  chatPollingPhone.value = phone;
+  
   // Get initial last_message_at from conversation
   const chat = conversations.value.find((c) => c.wa_number === phone);
   if (chat && chat.lastMessageTime) {
@@ -1663,6 +1667,16 @@ const startChatPolling = (phone) => {
   // Poll every 5 seconds
   chatPollingInterval.value = setInterval(async () => {
     if (!activeChatId.value || !phone) {
+      stopChatPolling();
+      return;
+    }
+    
+    // Check if idle for more than 25 seconds
+    const idleTime = Date.now() - lastActivityTime.value;
+    const IDLE_THRESHOLD = 25000; // 25 seconds
+    
+    if (idleTime > IDLE_THRESHOLD) {
+      console.log('⏸️ Chat polling paused - user idle for', Math.round(idleTime / 1000), 'seconds');
       stopChatPolling();
       return;
     }
@@ -1712,6 +1726,7 @@ const stopChatPolling = () => {
     chatPollingInterval.value = null;
   }
   localLastMessageAt.value = null;
+  chatPollingPhone.value = null;
 };
 
 const refreshActiveChat = async () => {
@@ -1887,6 +1902,21 @@ watch(messageInput, (newVal) => {
   } else {
     showQuickReplies.value = false;
     quickReplySearchQuery.value = "";
+  }
+});
+
+// Watch lastActivityTime to restart chat polling when user becomes active again
+watch(lastActivityTime, () => {
+  // If chat is open and polling was stopped due to idle, restart it
+  if (activeChatId.value && chatPollingPhone.value && !chatPollingInterval.value) {
+    const idleTime = Date.now() - lastActivityTime.value;
+    const IDLE_THRESHOLD = 25000; // 25 seconds
+    
+    // Only restart if user is not idle (idle time < 25 seconds)
+    if (idleTime < IDLE_THRESHOLD) {
+      console.log('▶️ Restarting chat polling - user active again');
+      startChatPolling(chatPollingPhone.value);
+    }
   }
 });
 
