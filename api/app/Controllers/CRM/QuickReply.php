@@ -95,7 +95,7 @@ class QuickReply extends Controller
                 'message' => "https://maps.app.goo.gl/jCfoVBwKRKkAUMHg6"
             ],            
             [
-                'id' => 9,
+                'id' => 10,
                 'shortcut' => '/td-location',
                 'title' => 'Lokasi MDL TD',
                 'message' => "https://maps.app.goo.gl/P4AmsXxKBRaWdcE88"
