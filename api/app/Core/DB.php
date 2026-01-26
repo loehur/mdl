@@ -29,7 +29,7 @@ class DB extends \DBC
         $this->mysqli = new \mysqli(parent::db_host, $db_user, $db_pass, $db_name);
 
         if ($this->mysqli->connect_error) {
-            die('Connect Error (' . $this->mysqli->connect_errno . ') ' . $this->mysqli->connect_error);
+            throw new \Exception('Database connection failed: (' . $this->mysqli->connect_errno . ') ' . $this->mysqli->connect_error);
         }
 
         $this->mysqli->set_charset("utf8mb4");

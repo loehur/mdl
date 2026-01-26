@@ -30,8 +30,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
+// Helper function to set CORS headers
+function setCorsHeadersForError() {
+    $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+    $allowed_origin = 'https://nalju.com'; // Default fallback
+    
+    if ($origin) {
+        $parsed_origin = parse_url($origin);
+        $origin_host = $parsed_origin['host'] ?? '';
+        
+        // Allow nalju.com and any subdomain *.nalju.com
+        if ($origin_host === 'nalju.com' || str_ends_with(strtolower($origin_host), '.nalju.com')) {
+            $allowed_origin = $origin;
+        }
+    }
+    
+    header("Access-Control-Allow-Origin: $allowed_origin");
+    header('Access-Control-Allow-Credentials: true');
+    header('Access-Control-Max-Age: 86400');
+    header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+    header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Accept, Origin, User-Agent');
+}
+
 // Error handler to output errors as JSON (for debugging)
 set_error_handler(function($errno, $errstr, $errfile, $errline) {
+    // Clear any previous output
+    if (ob_get_level()) {
+        ob_clean();
+    }
+    
+    // Set CORS headers before sending error response
+    setCorsHeadersForError();
+    
     http_response_code(500);
     header('Content-Type: application/json');
     echo json_encode([
@@ -45,6 +75,14 @@ set_error_handler(function($errno, $errstr, $errfile, $errline) {
 });
 
 set_exception_handler(function($e) {
+    // Clear any previous output
+    if (ob_get_level()) {
+        ob_clean();
+    }
+    
+    // Set CORS headers before sending error response
+    setCorsHeadersForError();
+    
     http_response_code(500);
     header('Content-Type: application/json');
     echo json_encode([
