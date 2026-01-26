@@ -57,4 +57,15 @@ class Env
     // Flip Configuration
     const FLIP_SECRET_KEY = 'YOUR_SECRET_KEY_HERE'; // TODO: Isi dengan secret key Flip
     const FLIP_API_URL = 'https://bigflip.id/big_sandbox_api/v2'; // Sandbox URL
+
+    // =========================
+    // Payment Gateway - SuperFlash (Flash Mobile) QRIS
+    // =========================
+    // Base URL (docs):
+    // - Sandbox: https://sandbox-app.flashmobile.co.id
+    // - Live   : https://app.flashmobile.co.id
+    // Anda bisa override langsung dengan SUPERFLASH_API_URL.
+    const SUPERFLASH_API_URL = 'https://app.flashmobile.id';
+    const SUPERFLASH_CLIENT_KEY = 'YOUR_SUPERFLASH_CLIENT_KEY_HERE';
+    const SUPERFLASH_SERVER_KEY = 'YOUR_SUPERFLASH_SERVER_KEY_HERE';
 }

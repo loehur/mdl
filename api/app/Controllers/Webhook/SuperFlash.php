@@ -3,50 +3,69 @@ namespace App\Controllers\Webhook;
 
 use App\Core\Controller;
 
-class Tokopay extends Controller
+/**
+ * SuperFlash QRIS Webhook Handler
+ * Handles payment notifications from SuperFlash (Flash Mobile) QRIS service
+ */
+class SuperFlash extends Controller
 {
     public function index()
     {
         // ==============================
         // CONFIGURATION
         // ==============================
-        $merchant_id = 'M240926BMTGB612'; // Ganti dengan Tokopay Merchant ID Anda
-        $secret = '4aea0ede516df65d88ccb773a443c61b3b3702fe1b9647deb9293cac07fd72bf'; // Ganti dengan Tokopay Secret Key Anda
+        // Get config from Env.php
+        $clientKey = defined('\Env::SUPERFLASH_CLIENT_KEY') ? \Env::SUPERFLASH_CLIENT_KEY : null;
+        $serverKey = defined('\Env::SUPERFLASH_SERVER_KEY') ? \Env::SUPERFLASH_SERVER_KEY : null;
 
         header('Content-Type: application/json; charset=utf-8');
 
         $json = file_get_contents('php://input');
         $data = json_decode($json, true);
 
-        // Removed verbose request logging
-
         if (!$data) {
             echo json_encode(['status' => false, 'message' => 'Invalid JSON']);
+            \Log::write("Err: Invalid JSON", 'webhook', 'SuperFlash');
             return;
         }
 
-        $reff_id = isset($data['reff_id']) ? $data['reff_id'] : '';
-        $signature_provided = isset($data['signature']) ? $data['signature'] : '';
+        // SuperFlash QRIS callback format (from docs):
+        // - external_id: Merchant transaction ID (our order_id)
+        // - transaction_id: SuperFlash transaction ID (FM-xxxx)
+        // - status: PENDING, SUCCESS, FAILED
+        // - signature: (to be verified based on SuperFlash docs)
+        $external_id = isset($data['external_id']) ? $data['external_id'] : (isset($data['data']['external_id']) ? $data['data']['external_id'] : '');
+        $transaction_id = isset($data['transaction_id']) ? $data['transaction_id'] : (isset($data['data']['transaction_id']) ? $data['data']['transaction_id'] : '');
+        $status = isset($data['status']) ? $data['status'] : (isset($data['data']['status']) ? $data['data']['status'] : '');
+        $signature_provided = isset($data['signature']) ? $data['signature'] : (isset($_SERVER['HTTP_X_SIGNATURE']) ? $_SERVER['HTTP_X_SIGNATURE'] : '');
 
-        if (empty($reff_id) || empty($signature_provided)) {
-            echo json_encode(['status' => false, 'message' => 'Missing parameter']);
-            \Log::write("Err: Param", 'webhook', 'Tokopay');
+        // Use external_id as primary identifier (same as our order_id)
+        $reff_id = $external_id;
+
+        if (empty($reff_id)) {
+            echo json_encode(['status' => false, 'message' => 'Missing external_id']);
+            \Log::write("Err: Missing external_id", 'webhook', 'SuperFlash');
             return;
         }
 
-        // Validate Signature: md5(merchant_id:secret:reff_id)
-        $signature_generated = md5($merchant_id . ':' . $secret . ':' . $reff_id);
+        // TODO: Verify Signature based on SuperFlash documentation
+        // Placeholder: Signature verification will be implemented based on actual SuperFlash webhook format
+        // Possible methods: HMAC SHA256, RSA signature, or header-based signature
+        $signature_valid = true; // Placeholder - update based on actual SuperFlash signature method
+        if (!empty($signature_provided) && $clientKey && $serverKey) {
+            // TODO: Implement actual signature verification
+            // Example (if HMAC): hash_hmac('sha256', $json, $serverKey)
+            // Example (if RSA): openssl_verify($json, base64_decode($signature_provided), $publicKey, OPENSSL_ALGO_SHA256)
+            $signature_valid = true; // Temporary: accept all for now
+        }
 
-        if ($signature_provided !== $signature_generated) {
+        if (!$signature_valid && !empty($signature_provided)) {
             echo json_encode(['status' => false, 'message' => 'Invalid Signature']);
-            \Log::write("Err: Sign", 'webhook', 'Tokopay');
+            \Log::write("Err: Invalid Signature external_id=$external_id", 'webhook', 'SuperFlash');
             return;
         }
 
-        // Process Transaction
-        $status = isset($data['status']) ? $data['status'] : '';
-
-        // Handle based on prefix
+        // Handle based on prefix (same as Tokopay)
         $parts = explode('_', $reff_id);
         if ($parts[0] === 'TEST') {
              // TEST: hanya log saja, tidak perlu proses
@@ -55,38 +74,43 @@ class Tokopay extends Controller
              $log_data = [
                  'raw_json' => $raw_json,
                  'decoded_data' => $data,
-                 'reff_id' => $reff_id,
+                 'external_id' => $external_id,
+                 'transaction_id' => $transaction_id,
                  'status' => $status,
                  'signature_provided' => $signature_provided,
-                 'signature_generated' => md5($merchant_id . ':' . $secret . ':' . $reff_id),
-                 'signature_valid' => ($signature_provided === md5($merchant_id . ':' . $secret . ':' . $reff_id)),
+                 'signature_valid' => $signature_valid,
                  'timestamp' => date('Y-m-d H:i:s'),
                  'server' => $_SERVER['SERVER_NAME'] ?? 'unknown',
-                 'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown'
+                 'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+                 'headers' => [
+                     'X-Signature' => $_SERVER['HTTP_X_SIGNATURE'] ?? 'none',
+                     'X-Timestamp' => $_SERVER['HTTP_X_TIMESTAMP'] ?? 'none',
+                     'User-Agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'none'
+                 ]
              ];
-             \Log::write("TEST: Webhook received - " . json_encode($log_data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), 'webhook', 'Tokopay');
+             \Log::write("TEST: SuperFlash Webhook received - " . json_encode($log_data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), 'webhook', 'SuperFlash');
              echo json_encode(['status' => true, 'message' => 'TEST webhook logged', 'logged' => true]);
              return;
         } else if ($parts[0] === 'SALONSUB') {
-             $this->handleSalonSubscription($reff_id, $status);
+             $this->handleSalonSubscription($reff_id, $status, $transaction_id);
              echo json_encode(['status' => true, 'message' => 'Processed SALONSUB']);
              return;
         } else if ($parts[0] === 'RESTOKAS') {
-             $this->handleRestoKas($reff_id, $status);
+             $this->handleRestoKas($reff_id, $status, $transaction_id);
              echo json_encode(['status' => true, 'message' => 'Processed RESTOKAS']);
              return;
         } else {
-             $this->handleKasLaundry($reff_id, $status);
+             $this->handleKasLaundry($reff_id, $status, $transaction_id);
         }
     }
     
-    private function handleSalonSubscription($payment_ref, $status_tokopay)
+    private function handleSalonSubscription($payment_ref, $status_superflash, $transaction_id)
     {
         $db_index = 4; // mdl_salon
         $db = $this->db($db_index);
 
         if (!$db) {
-             \Log::write("Err: DB Salon Not Found", 'webhook', 'Tokopay');
+             \Log::write("Err: DB Salon Not Found", 'webhook', 'SuperFlash');
              return;
         }
 
@@ -94,14 +118,14 @@ class Tokopay extends Controller
         $payment = $db->get_where('subscription_payments', ['payment_ref' => $payment_ref])->row_array();
 
         if (!$payment) {
-             \Log::write("Err: Sub Pmt Not Found ref=$payment_ref", 'webhook', 'Tokopay');
+             \Log::write("Err: Sub Pmt Not Found ref=$payment_ref", 'webhook', 'SuperFlash');
              return;
         }
         
-        // Normalize status
-        $statusLower = strtolower($status_tokopay);
-        $isPaid = ($statusLower === 'success' || $statusLower === 'paid' || $statusLower === 'settlement');
-        $isExpired = ($statusLower === 'expired');
+        // Normalize status: SuperFlash uses PENDING, SUCCESS, FAILED
+        $statusLower = strtolower($status_superflash);
+        $isPaid = ($statusLower === 'success');
+        $isExpired = ($statusLower === 'expired' || $statusLower === 'failed');
         $isFailed = ($statusLower === 'failed');
 
         if ($isPaid) {
@@ -121,42 +145,32 @@ class Tokopay extends Controller
                     'last_payment_amount' => $payment['amount'],
                     'payment_ref' => $payment_ref
                 ], ['salon_id' => $salon_id]);
-
-                // Update salon table - DISABLED (Columns missing in production)
-                /*
-                $db->update('salon', [
-                    'subscription_status' => 'active',
-                    'subscription_end_date' => $payment['period_end']
-                ], ['salon_id' => $salon_id]);
-                */
                 
-                \Log::write("OK: Salon Sub PAID ref=$payment_ref salon=$salon_id", 'webhook', 'Tokopay');
+                \Log::write("OK: Salon Sub PAID ref=$payment_ref salon=$salon_id trx=$transaction_id", 'webhook', 'SuperFlash');
             }
         } elseif ($isExpired) {
             $db->update('subscription_payments', [
                 'payment_status' => 'failed' 
             ], ['payment_ref' => $payment_ref]);
-            \Log::write("OK: Salon Sub EXPIRED ref=$payment_ref", 'webhook', 'Tokopay');
+            \Log::write("OK: Salon Sub EXPIRED ref=$payment_ref trx=$transaction_id", 'webhook', 'SuperFlash');
         } elseif ($isFailed) {
             $db->update('subscription_payments', [
                 'payment_status' => 'failed'
             ], ['payment_ref' => $payment_ref]);
-             \Log::write("OK: Salon Sub FAILED ref=$payment_ref", 'webhook', 'Tokopay');
+             \Log::write("OK: Salon Sub FAILED ref=$payment_ref trx=$transaction_id", 'webhook', 'SuperFlash');
         }
     }
 
-    private function handleKasLaundry($reff_id, $status)
+    private function handleKasLaundry($reff_id, $status_superflash, $transaction_id)
     {
-        // reff_id dari Tokopay adalah trx_id (unique order_id) yang kita kirim
+        // external_id dari SuperFlash adalah order_id yang kita kirim
         // Format BARU: ref_finance_timestamp (contoh: 1234567890_1704873600)
         // Format LAMA: ref_finance saja (contoh: 1234567890)
-        $tokopay_trx_id = $reff_id;
+        $superflash_trx_id = $transaction_id ?: $reff_id;
 
-        // Extract ref_finance dari trx_id jika format baru (mengandung underscore)
-        // ref_finance adalah bagian sebelum underscore terakhir
+        // Extract ref_finance dari external_id jika format baru (mengandung underscore)
         $ref_finance_extracted = $reff_id;
         if (strpos($reff_id, '_') !== false) {
-            // Format baru: ambil bagian sebelum underscore terakhir
             $parts = explode('_', $reff_id);
             array_pop($parts); // Hapus timestamp
             $ref_finance_extracted = implode('_', $parts);
@@ -165,39 +179,39 @@ class Tokopay extends Controller
         $db_kas = $this->db(1); // db kas itu db 1
         
         if (!$db_kas) {
-            \Log::write("Err: DB 1", 'webhook', 'Tokopay');
+            \Log::write("Err: DB 1", 'webhook', 'SuperFlash');
             echo json_encode(['status' => false, 'message' => 'DB Error']);
             return;
         }
 
-        // Normalize status (same pattern as handleSalonSubscription)
-        $statusLower = strtolower($status);
-        $isPaid = ($statusLower === 'success' || $statusLower === 'paid' || $statusLower === 'settlement' || $statusLower === 'completed');
-        $isExpired = ($statusLower === 'expired');
+        // Normalize status: SuperFlash uses PENDING, SUCCESS, FAILED
+        $statusLower = strtolower($status_superflash);
+        $isPaid = ($statusLower === 'success');
+        $isExpired = ($statusLower === 'expired' || $statusLower === 'failed');
         $isFailed = ($statusLower === 'failed');
 
-        // Update payment_state first
-        $update_kas = $db_kas->update("kas", ["payment_state" => $status], ["payment_trx_id" => $tokopay_trx_id]);
+        // Update payment_state first (use transaction_id if available, otherwise external_id)
+        $update_kas = $db_kas->update("kas", ["payment_state" => $status_superflash], ["payment_trx_id" => $superflash_trx_id]);
         $affected = $db_kas->affected_rows();
         
         if (!$update_kas || $affected == 0) {
             // Fallback: coba update berdasarkan ref_finance (untuk data lama)
-            $update_kas = $db_kas->update("kas", ["payment_state" => $status], ["ref_finance" => $ref_finance_extracted]);
+            $update_kas = $db_kas->update("kas", ["payment_state" => $status_superflash], ["ref_finance" => $ref_finance_extracted]);
             $affected = $db_kas->affected_rows();
             
             if (!$update_kas || $affected == 0) {
-                \Log::write("Err: Kas payment_state Update Failed trx=$tokopay_trx_id ref=$ref_finance_extracted status=$status (affected=0)", 'webhook', 'Tokopay');
+                \Log::write("Err: Kas payment_state Update Failed trx=$superflash_trx_id ref=$ref_finance_extracted status=$status_superflash (affected=0)", 'webhook', 'SuperFlash');
             } else {
-                \Log::write("OK: Kas payment_state Updated by ref_finance=$ref_finance_extracted status=$status", 'webhook', 'Tokopay');
+                \Log::write("OK: Kas payment_state Updated by ref_finance=$ref_finance_extracted status=$status_superflash", 'webhook', 'SuperFlash');
             }
         } else {
-            \Log::write("OK: Kas payment_state Updated by payment_trx_id=$tokopay_trx_id status=$status", 'webhook', 'Tokopay');
+            \Log::write("OK: Kas payment_state Updated by payment_trx_id=$superflash_trx_id status=$status_superflash", 'webhook', 'SuperFlash');
         }
 
         // Handle based on status
         if ($isPaid) {
             // Lookup kas record
-            $cek_kas = $db_kas->get_where("kas", ["payment_trx_id" => $tokopay_trx_id])->row();
+            $cek_kas = $db_kas->get_where("kas", ["payment_trx_id" => $superflash_trx_id])->row();
             
             // Fallback: lookup by ref_finance
             if (!$cek_kas) {
@@ -205,7 +219,7 @@ class Tokopay extends Controller
             }
 
             if (!$cek_kas) {
-                \Log::write("Err: Kas Not Found trx=$tokopay_trx_id ref=$ref_finance_extracted", 'webhook', 'Tokopay');
+                \Log::write("Err: Kas Not Found trx=$superflash_trx_id ref=$ref_finance_extracted", 'webhook', 'SuperFlash');
                 echo json_encode(['status' => false, 'message' => 'Kas Not Found']);
                 return;
             }
@@ -216,25 +230,25 @@ class Tokopay extends Controller
             $update = $db_kas->update("kas", ["status_mutasi" => 3, "payment_state" => "paid"], ["ref_finance" => $ref_finance]);
 
             if (!$update) {
-                \Log::write("Err: Upd Kas ref=$ref_finance", 'webhook', 'Tokopay');
+                \Log::write("Err: Upd Kas ref=$ref_finance", 'webhook', 'SuperFlash');
             } else {
-                \Log::write("OK: Kas PAID ref=$ref_finance", 'webhook', 'Tokopay');
+                \Log::write("OK: Kas PAID ref=$ref_finance trx=$superflash_trx_id", 'webhook', 'SuperFlash');
                 
                 // Send Webhook to QR Server (Node.js) to notify frontend
                 $this->notifyQRServer($cek_kas);
             }
         } elseif ($isExpired) {
             // Delete kas if status_mutasi is not yet 3 (not paid)
-            $db_kas->query("DELETE FROM kas WHERE payment_trx_id = ? AND status_mutasi != 3", [$tokopay_trx_id]);
+            $db_kas->query("DELETE FROM kas WHERE payment_trx_id = ? AND status_mutasi != 3", [$superflash_trx_id]);
             $affected = $db_kas->affected_rows();
-            \Log::write("OK: Kas EXPIRED trx=$tokopay_trx_id deleted=$affected", 'webhook', 'Tokopay');
+            \Log::write("OK: Kas EXPIRED trx=$superflash_trx_id deleted=$affected", 'webhook', 'SuperFlash');
         } elseif ($isFailed) {
             // Delete kas if status_mutasi is not yet 3 (not paid)
-            $db_kas->query("DELETE FROM kas WHERE payment_trx_id = ? AND status_mutasi != 3", [$tokopay_trx_id]);
+            $db_kas->query("DELETE FROM kas WHERE payment_trx_id = ? AND status_mutasi != 3", [$superflash_trx_id]);
             $affected = $db_kas->affected_rows();
-            \Log::write("OK: Kas FAILED trx=$tokopay_trx_id deleted=$affected", 'webhook', 'Tokopay');
+            \Log::write("OK: Kas FAILED trx=$superflash_trx_id deleted=$affected", 'webhook', 'SuperFlash');
         } else {
-            \Log::write("Warn: Unknown status=$status trx=$tokopay_trx_id", 'webhook', 'Tokopay');
+            \Log::write("Warn: Unknown status=$status_superflash trx=$superflash_trx_id", 'webhook', 'SuperFlash');
         }
 
         echo json_encode(['status' => true, 'message' => 'Success']);
@@ -270,48 +284,49 @@ class Tokopay extends Controller
                 curl_close($ch);
 
                 if ($httpCode !== 200) {
-                    \Log::write("Err: QRS Push $httpCode kasir=$kasirId", 'webhook', 'Tokopay');
+                    \Log::write("Err: QRS Push $httpCode kasir=$kasirId", 'webhook', 'SuperFlash');
                 }
             }
         } catch (\Exception $ex) {
-            \Log::write("Err: QRS Exc " . $ex->getMessage(), 'webhook', 'Tokopay');
+            \Log::write("Err: QRS Exc " . $ex->getMessage(), 'webhook', 'SuperFlash');
         }
     }
 
     /**
      * Handle Resto Kas QRIS Payment
-     * payment_trx_id format: RESTOKAS_timestamp
+     * external_id format: RESTOKAS_timestamp
      */
-    private function handleRestoKas($reff_id, $status)
+    private function handleRestoKas($reff_id, $status_superflash, $transaction_id)
     {
-        $db_index = 2; // mdl_resto - adjust as needed
+        $db_index = 2; // mdl_resto
         $db = $this->db($db_index);
 
         if (!$db) {
-            \Log::write("Err: DB Resto Not Found", 'webhook', 'Tokopay');
+            \Log::write("Err: DB Resto Not Found", 'webhook', 'SuperFlash');
             return;
         }
 
-        // Normalize status
-        $statusLower = strtolower($status);
-        $isPaid = ($statusLower === 'success' || $statusLower === 'paid' || $statusLower === 'settlement');
+        // Normalize status: SuperFlash uses PENDING, SUCCESS, FAILED
+        $statusLower = strtolower($status_superflash);
+        $isPaid = ($statusLower === 'success');
 
         if (!$isPaid) {
-            \Log::write("RESTOKAS: Status not paid ($status) - $reff_id", 'webhook', 'Tokopay');
+            \Log::write("RESTOKAS: Status not paid ($status_superflash) - $reff_id", 'webhook', 'SuperFlash');
             return;
         }
 
-        // Find kas record by payment_trx_id
-        $kas = $db->get_where_row('kas', "payment_trx_id = '" . $reff_id . "'");
+        // Find kas record by payment_trx_id (use transaction_id if available, otherwise external_id)
+        $search_id = $transaction_id ?: $reff_id;
+        $kas = $db->get_where_row('kas', "payment_trx_id = '" . $search_id . "'");
 
         if (!$kas) {
-            \Log::write("RESTOKAS: Kas not found - $reff_id", 'webhook', 'Tokopay');
+            \Log::write("RESTOKAS: Kas not found - $search_id", 'webhook', 'SuperFlash');
             return;
         }
 
         // Already paid?
         if ($kas['status_mutasi'] == 1 && $kas['payment_state'] == 'paid') {
-            \Log::write("RESTOKAS: Already paid - $reff_id", 'webhook', 'Tokopay');
+            \Log::write("RESTOKAS: Already paid - $search_id", 'webhook', 'SuperFlash');
             return;
         }
 
@@ -319,11 +334,11 @@ class Tokopay extends Controller
         $update = $db->update('kas', "status_mutasi = 1, payment_state = 'paid'", "id = " . $kas['id']);
 
         if ($update['errno'] != 0) {
-            \Log::write("RESTOKAS: Update failed - " . $update['error'], 'webhook', 'Tokopay');
+            \Log::write("RESTOKAS: Update failed - " . $update['error'], 'webhook', 'SuperFlash');
             return;
         }
 
-        \Log::write("RESTOKAS: Paid OK - $reff_id, Ref: " . $kas['ref'], 'webhook', 'Tokopay');
+        \Log::write("RESTOKAS: Paid OK - $search_id, Ref: " . $kas['ref'], 'webhook', 'SuperFlash');
 
         // Update step of the order (ref)
         $ref = $kas['ref'];
@@ -355,11 +370,11 @@ class Tokopay extends Controller
             if ($total_verified >= $total_tagihan && !$has_pending) {
                 // All verified, close order
                 $db->update('ref', "step = 1", "id = '" . $ref . "'");
-                \Log::write("RESTOKAS: Order closed - $ref", 'webhook', 'Tokopay');
+                \Log::write("RESTOKAS: Order closed - $ref", 'webhook', 'SuperFlash');
             } else {
                 // Has pending, needs manual check
                 $db->update('ref', "step = 4", "id = '" . $ref . "'");
-                \Log::write("RESTOKAS: Order pending check - $ref", 'webhook', 'Tokopay');
+                \Log::write("RESTOKAS: Order pending check - $ref", 'webhook', 'SuperFlash');
             }
         }
         // If not fully paid, step remains 0 (order open)

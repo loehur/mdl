@@ -1,0 +1,4 @@
+
+logs/
+app/Config/Env.php
+scripts/*

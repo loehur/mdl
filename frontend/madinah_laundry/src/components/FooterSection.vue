@@ -50,7 +50,9 @@
                     <h4>Kontak Kami</h4>
                     <ul class="footer-links">
                         <li><span class="icon">📍</span> Jl. Pinang No.45A, Pekanbaru</li>
-                        <li><span class="icon">📞</span> 0811-7070-6611</li>
+                        <li><a href="https://wa.me/6281170706611" target="_blank" rel="noopener"><span class="icon">📞</span> 0811-7070-6611</a></li>
+                        <li><a href="https://wa.me/628117686252" target="_blank" rel="noopener"><span class="icon">📞</span> 0811-7686-252</a></li>
+                        <li><a href="https://wa.me/6285278114125" target="_blank" rel="noopener"><span class="icon">📞</span> 0852-7811-4125</a></li>
                         <li><span class="icon">📧</span> madinahlaundry@nalju.com</li>
                     </ul>
                 </div>
@@ -262,6 +264,19 @@ h4::after {
     display: flex;
     align-items: center;
     gap: 10px;
+}
+
+.footer-links li a {
+    color: inherit;
+    text-decoration: none;
+    transition: color 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.footer-links li a:hover {
+    color: var(--color-primary);
 }
 
 .hours-card {
