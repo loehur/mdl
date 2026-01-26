@@ -34,6 +34,21 @@ return [
         atau yang menurut anda sangat yakin sebagai pertanyaan status/waktu selesai laundry"
     ],
 
+    'CEK_HARGA' => [
+        'patterns' => [
+            '/^\s*(harga|price)\s*$/i',
+        ],
+        'ai_prompt' => "User menanyakan harga/biaya laundry PER ITEM atau PER KILO, seperti:\n
+        | berapa harga? | berapa biaya? | harga berapa? | biaya berapa? |\n
+        | berapa harga baju? | berapa harga celana? | berapa harga handuk? | berapa harga boneka? | berapa harga sepatu? | berapa harga selimut? | berapa harga jaket? |\n
+        | berapa harga per kilo? | berapa biaya per kg? | harga per kilo berapa? |\n
+        PENTING: \n
+        - Jika user bertanya 'berapa' + (harga/biaya) + (item laundry atau per kilo) = CEK_HARGA\n
+        - Jika user bertanya 'berapa' + (ongkir/ongkos/biaya antar/biaya jemput) = BUKAN CEK_HARGA, itu adalah MINTA_JEMPUT_ANTAR\n
+        - Jika user bertanya 'berapa' + (berat) = BUKAN CEK_HARGA, itu mungkin NOTA atau pertanyaan lain\n
+        atau yang menurut anda sangat yakin sebagai pertanyaan harga/biaya laundry PER ITEM atau PER KILO"
+    ],
+
    'MINTA_JEMPUT_ANTAR' => [
       'case' => 2,
       'notify' => true,
