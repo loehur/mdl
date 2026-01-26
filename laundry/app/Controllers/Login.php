@@ -354,7 +354,7 @@ class Login extends Controller
                      $hoursElapsed = isset($res['data']['hours_elapsed']) ? $res['data']['hours_elapsed'] : 'unknown';
                      $lastMessage = isset($res['data']['last_message_at']) ? $res['data']['last_message_at'] : 'unknown';
                      
-                     $errorMsg = "CSW Expired untuk nomor {$phone_sent}. Pastikan Anda sudah mengirim pesan ke nomor WhatsApp bisnis dalam 24 jam terakhir. (Terakhir chat: {$lastMessage}, sudah {$hoursElapsed} jam yang lalu)";
+                     $errorMsg = "CSW Expired untuk nomor {$phone_sent}. Pastikan Anda sudah mengirim pesan ke nomor WhatsApp bisnis dalam 24 jam terakhir.";
                   } else {
                      $errorMsg = $res['error'] ?? 'WhatsApp tidak terkirim';
                      
@@ -465,7 +465,7 @@ class Login extends Controller
                      $hoursElapsed = isset($res['data']['hours_elapsed']) ? $res['data']['hours_elapsed'] : 'unknown';
                      $lastMessage = isset($res['data']['last_message_at']) ? $res['data']['last_message_at'] : 'unknown';
                      
-                     $errorMsg = "CSW Expired untuk nomor {$phone_sent}. Pastikan Anda sudah mengirim pesan ke nomor WhatsApp bisnis dalam 24 jam terakhir. (Terakhir chat: {$lastMessage}, sudah {$hoursElapsed} jam yang lalu)";
+                     $errorMsg = "CSW Expired untuk nomor {$phone_sent}. Pastikan Anda sudah mengirim pesan ke nomor WhatsApp bisnis dalam 24 jam terakhir.";
                   } else {
                      $errorMsg = $res['error'] ?? 'WhatsApp tidak terkirim';
                      

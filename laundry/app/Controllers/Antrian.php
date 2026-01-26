@@ -396,7 +396,9 @@ class Antrian extends Controller
       }
       $hp = $pelanggan['nomor_pelanggan'];
       
-      if (empty($hp)) {
+      // NOTE: empty() treats 0/"0" as empty; we still want the process to continue
+      // even if phone is "0". Only block when truly missing/blank.
+      if ($hp === null || trim((string)$hp) === '') {
          $this->model('Log')->write("[operasi] ERROR: Customer phone empty - ID Pelanggan: " . $id_pelanggan);
          echo "Error: Nomor HP pelanggan kosong";
          exit();

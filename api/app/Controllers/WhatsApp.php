@@ -72,7 +72,17 @@ class WhatsApp extends Controller
         
         $this->validate($body, ['phone', 'message_mode']);
         
-        $phone = $body['phone'];
+        $phone = (string) $body['phone'];
+
+        // Fail fast: reject too-short phone numbers
+        $phoneDigits = preg_replace('/[^0-9]/', '', $phone);
+        if (strlen($phoneDigits) < 8) {
+            $this->error('Invalid phone number. Phone length must be at least 8 digits.', 400, [
+                'phone' => $phone,
+                'phone_digits' => $phoneDigits
+            ]);
+        }
+        
         $messageMode = strtolower($body['message_mode']);
         $senderCode = $body['sender_code'] ?? null;
         

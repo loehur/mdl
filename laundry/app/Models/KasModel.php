@@ -41,12 +41,12 @@ class KasModel extends Controller
             }
         }
 
-        arsort($data_rekap);
+        ksort($data_rekap);
         $ref_f = (date('Y') - 2024) . date('mdHis') . rand(0, 9) . rand(0, 9) . $id_cabang;
 
         foreach ($data_rekap as $key => $value) {
             if ($use_bayar && $dibayar == 0) {
-                return "Pembayaran 0 tidak dilanjutkan";
+                return "0";
             }
 
             $xNoref = $key;
