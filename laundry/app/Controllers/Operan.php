@@ -172,31 +172,49 @@ class Operan extends Controller
          exit();
       };
 
-      $setOne = "id_penjualan = '" . $penjualan . "' AND jenis_operasi = " . $operasi;
-      $where = "id_cabang = " . $idCabang . " AND " . $setOne;
-      $data_main = $this->db(0)->count_where('operasi', $where);
+      // ===== START TRANSACTION =====
+      // Insert operasi, update sale, dan insert notif harus atomic (all or nothing)
+      if (!$this->db(0)->beginTransaction()) {
+         $this->writeLog('operasiOperan', 'ERROR', 'Failed to start transaction', [
+            'penjualan' => $penjualan
+         ]);
+         echo "Gagal memulai transaction";
+         exit();
+      }
+      $this->writeLog('operasiOperan', 'INFO', 'Transaction started', [
+         'penjualan' => $penjualan
+      ]);
+      
+      try {
+         $setOne = "id_penjualan = '" . $penjualan . "' AND jenis_operasi = " . $operasi;
+         $where = "id_cabang = " . $idCabang . " AND " . $setOne;
+         $data_main = $this->db(0)->count_where('operasi', $where);
 
-      if ($data_main < 1) {
-         // INSERT OPERASI
-         $data = [
-            'id_operasi' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
-            'id_cabang' => $idCabang,
-            'id_penjualan' => $penjualan,
-            'jenis_operasi' => $operasi,
-            'id_user_operasi' => $karyawan,
-            'insertTime' => $GLOBALS['now']
-         ];
-         $in = $this->db(0)->insert('operasi', $data);
-         if ($in['errno'] <> 0) {
-            $this->writeLog('operasiOperan', 'ERROR', 'Gagal insert ke tabel operasi', [
-               'error_no' => $in['errno'],
-               'error_msg' => $in['error'],
-               'data' => $data,
+         $operasiInserted = false;
+         if ($data_main < 1) {
+            // INSERT OPERASI
+            $data = [
+               'id_operasi' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
+               'id_cabang' => $idCabang,
+               'id_penjualan' => $penjualan,
+               'jenis_operasi' => $operasi,
+               'id_user_operasi' => $karyawan,
+               'insertTime' => $GLOBALS['now']
+            ];
+            $in = $this->db(0)->insert('operasi', $data);
+            if ($in['errno'] <> 0) {
+               throw new \Exception("Insert Operasi Error: " . $in['error']);
+            }
+            $operasiInserted = true;
+            $this->writeLog('operasiOperan', 'INFO', 'Insert Operasi Success', [
+               'id_operasi' => $data['id_operasi'],
+               'penjualan' => $penjualan
+            ]);
+         } else {
+            $this->writeLog('operasiOperan', 'INFO', 'Operasi already exists', [
                'penjualan' => $penjualan,
                'operasi' => $operasi
             ]);
-            echo $in['error'];
-            exit();
          }
 
          // UPDATE SALE
@@ -204,43 +222,71 @@ class Operan extends Controller
             'pack' => $pack,
             'hanger' => $hanger
          ];
-         $where = "id_cabang = " . $idCabang . " AND id_penjualan = '" . $penjualan . "'";
-         $up = $this->db(0)->update('sale', $set, $where);
+         $whereSale = "id_cabang = " . $idCabang . " AND id_penjualan = '" . $penjualan . "'";
+         $up = $this->db(0)->update('sale', $set, $whereSale);
          if ($up['errno'] <> 0) {
-            $this->writeLog('operasiOperan', 'ERROR', 'Gagal update tabel sale', [
-               'error_no' => $up['errno'],
-               'error_msg' => $up['error'],
-               'set_data' => $set,
-               'where_clause' => $where,
-               'penjualan' => $penjualan,
-            ]);
-            echo $up['error'];
-            exit();
+            throw new \Exception("Update Sale Error: " . $up['error']);
          }
+         $this->writeLog('operasiOperan', 'INFO', 'Update Sale Success', [
+            'penjualan' => $penjualan,
+            'pack' => $pack,
+            'hanger' => $hanger
+         ]);
 
          // INSERT NOTIF SELESAI TAPI NOT READY
          $time = date('Y-m-d H:i:s');
-         $dataNotif = [
-            'id_notif' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
-            'insertTime' => $time,
-            'id_cabang' => $idCabang,
-            'no_ref' => $penjualan,
-            'phone' => $hp,
-            'text' => $text,
-            'state' => 'queue',
-            'tipe' => 2
-         ];
-         $inNotif = $this->db(0)->insert('notif', $dataNotif);
-         if ($inNotif['errno'] <> 0) {
-            $this->writeLog('operasiOperan', 'ERROR', 'Gagal insert ke tabel notif', [
-               'error_no' => $inNotif['errno'],
-               'error_msg' => $inNotif['error'],
-               'data' => $dataNotif,
+         
+         $whereNotif = "id_cabang = " . $idCabang . " AND no_ref = '" . $penjualan . "' AND tipe = 2";
+         $data_main_notif = $this->db(0)->count_where('notif', $whereNotif);
+         
+         $notifInserted = false;
+         if ($data_main_notif < 1) {
+            $dataNotif = [
+               'id_notif' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9) . rand(0, 9),
+               'insertTime' => $time,
+               'id_cabang' => $idCabang,
+               'no_ref' => $penjualan,
+               'phone' => $hp,
+               'text' => $text,
+               'state' => 'queue',
+               'tipe' => 2
+            ];
+            $inNotif = $this->db(0)->insert('notif', $dataNotif);
+            if ($inNotif['errno'] <> 0) {
+               throw new \Exception("Insert Notif Error: " . $inNotif['error']);
+            }
+            $notifInserted = true;
+            $this->writeLog('operasiOperan', 'INFO', 'Insert Notif Success', [
+               'id_notif' => $dataNotif['id_notif'],
+               'penjualan' => $penjualan,
+               'phone' => $hp
+            ]);
+         } else {
+            $this->writeLog('operasiOperan', 'INFO', 'Notif already exists - skipped insert', [
                'penjualan' => $penjualan
             ]);
-            echo $inNotif['error'];
-            exit();
          }
+         
+         // ===== COMMIT TRANSACTION =====
+         if (!$this->db(0)->commit()) {
+            throw new \Exception("Failed to commit transaction");
+         }
+         $this->writeLog('operasiOperan', 'INFO', 'Transaction committed successfully', [
+            'penjualan' => $penjualan,
+            'operasi' => $operasiInserted ? 'inserted' : 'skipped',
+            'notif' => $notifInserted ? 'inserted' : 'skipped'
+         ]);
+         
+      } catch (\Exception $e) {
+         // ===== ROLLBACK TRANSACTION =====
+         $rollbackSuccess = $this->db(0)->rollback();
+         $error_msg = "CRITICAL: Transaction FAILED and " . ($rollbackSuccess ? "ROLLED BACK" : "ROLLBACK FAILED") . " - Error: " . $e->getMessage();
+         $this->writeLog('operasiOperan', 'ERROR', $error_msg, [
+            'penjualan' => $penjualan,
+            'exception' => $e->getMessage()
+         ]);
+         echo "Error: " . $e->getMessage();
+         exit();
       }
    }
 
