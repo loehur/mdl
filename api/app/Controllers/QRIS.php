@@ -35,6 +35,10 @@ class QRIS extends Controller
 
         if (!$this->isPost()) {
             $this->error('Method not allowed', 405);
+        }else{
+            $input = $this->getBody();
+            print_r($input);
+            exit;
         }
 
         try {
