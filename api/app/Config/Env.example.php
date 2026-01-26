@@ -61,6 +61,15 @@ class Env
     // =========================
     // Payment Gateway - SuperFlash (Flash Mobile) QRIS
     // =========================
-    const SUPERFLASH_CLIENT_KEY = 'YOUR_SUPERFLASH_CLIENT_KEY_HERE'; // TODO: Isi dengan client key dari SuperFlash
+    const SUPERFLASH_CLIENT_KEY = 'YOUR_SUPERFLASH_CLIENT_KEY_HERE';
     const SUPERFLASH_SERVER_KEY = 'YOUR_SUPERFLASH_SERVER_KEY_HERE';
+    // Optional: Custom API URL for QRIS (defaults to app.flashmobile.co.id / sandbox-app.flashmobile.co.id)
+    // const SUPERFLASH_API_URL = 'https://app.flashmobile.co.id';
+
+    // =========================
+    // Payment Gateway - SuperFlash (Flash Mobile) Transfer
+    // =========================
+    // Uses same CLIENT_KEY and SERVER_KEY as QRIS above
+    // Optional: Custom API URL for Transfer (defaults to secure.flashmobile.id / sandbox-secure.flashmobile.id)
+    // const SUPERFLASH_TRANSFER_API_URL = 'https://secure.flashmobile.id';
 }

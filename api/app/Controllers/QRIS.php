@@ -47,7 +47,7 @@ class QRIS extends Controller
             }
 
             if (empty($input['order_id'])) {
-                $this->error('order_id atau external_id wajib diisi', 400);
+                $this->error('order_id wajib diisi', 400);
             }
 
             // Initialize SuperFlash model
