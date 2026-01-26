@@ -34,7 +34,7 @@ return [
         atau yang menurut anda sangat yakin sebagai pertanyaan status/waktu selesai laundry"
     ],
 
-    'CEK_HARGA' => [
+    'HARGA' => [
         'patterns' => [
             '/^\s*(harga|price)\s*$/i',
         ],
