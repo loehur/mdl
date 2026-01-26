@@ -117,7 +117,6 @@ class Operan extends Controller
       $idCabang = $_POST['idCabang'] ?? 0;
       $pack = $_POST['pack'] ?? '';
       $hanger = $_POST['hanger'] ?? '';
-      $text = $_POST['text'] ?? '';
 
       // Log semua input untuk debugging
       $inputContext = [
@@ -146,43 +145,20 @@ class Operan extends Controller
          exit();
       }
 
-      $nm_karyawan = $users['nama_user'];
-      $karyawan_code = strtoupper(substr($nm_karyawan, 0, 2)) . substr($karyawan, -1);
-
-      $text = str_replace("|STAFF|", $karyawan_code, $text);
-
-      // Ambil data penjualan untuk menghitung TOTAL
-      $saleData = $this->db(0)->get_where_row("sale", "id_penjualan = '" . $penjualan . "' AND id_cabang = " . $idCabang);
-      if ($saleData) {
-         $harga = floatval($saleData['harga'] ?? 0);
-         $qty = floatval($saleData['qty'] ?? 0);
-         $min_order = floatval($saleData['min_order'] ?? 0);
-         $diskon_qty = floatval($saleData['diskon_qty'] ?? 0);
-         $member = intval($saleData['member'] ?? 0);
-         
-         // Hitung qty real (minimal order)
-         $qty_real = ($qty < $min_order) ? $min_order : $qty;
-         
-         // Hitung total dengan diskon
-         if ($member == 0) {
-            if ($diskon_qty > 0) {
-               $total = ($harga * $qty_real) - (($harga * $qty_real) * ($diskon_qty / 100));
-            } else {
-               $total = $harga * $qty_real;
-            }
-            $totalFormatted = "Rp" . number_format($total, 0, ',', '.');
-         } else {
-            $totalFormatted = "MEMBER";
-         }
-         
-         $text = str_replace("|TOTAL|", $totalFormatted, $text);
-      } else {
-         // Jika data sale tidak ditemukan, hapus placeholder
-         $text = str_replace("|TOTAL|", "", $text);
-         $this->writeLog('operasiOperan', 'WARNING', 'Data sale tidak ditemukan untuk menghitung TOTAL', [
+      // Generate text using WAGenerator (text sudah final, tidak perlu replace lagi)
+      $waGen = $this->helper('WAGenerator');
+      $jsonText = $waGen->get_selesai_text($penjualan, $karyawan);
+      $objText = json_decode($jsonText, true);
+      $text = $objText['text'] ?? "";
+      
+      if (empty($text)) {
+         $this->writeLog('operasiOperan', 'ERROR', 'Generated text empty', [
             'penjualan' => $penjualan,
-            'idCabang' => $idCabang
+            'karyawan' => $karyawan,
+            'jsonText' => $jsonText
          ]);
+         echo "Error: Text notifikasi kosong";
+         exit();
       }
 
       if ($idCabang == 0 || strlen($hp) == 0) {
