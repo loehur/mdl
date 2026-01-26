@@ -61,11 +61,6 @@ class Env
     // =========================
     // Payment Gateway - SuperFlash (Flash Mobile) QRIS
     // =========================
-    // Base URL (docs):
-    // - Sandbox: https://sandbox-app.flashmobile.co.id
-    // - Live   : https://app.flashmobile.co.id
-    // Anda bisa override langsung dengan SUPERFLASH_API_URL.
-    const SUPERFLASH_API_URL = 'https://app.flashmobile.id';
-    const SUPERFLASH_CLIENT_KEY = 'YOUR_SUPERFLASH_CLIENT_KEY_HERE';
+    const SUPERFLASH_CLIENT_KEY = 'YOUR_SUPERFLASH_CLIENT_KEY_HERE'; // TODO: Isi dengan client key dari SuperFlash
     const SUPERFLASH_SERVER_KEY = 'YOUR_SUPERFLASH_SERVER_KEY_HERE';
 }

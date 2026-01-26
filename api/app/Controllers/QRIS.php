@@ -35,10 +35,6 @@ class QRIS extends Controller
 
         if (!$this->isPost()) {
             $this->error('Method not allowed', 405);
-        }else{
-            $input = $this->getBody();
-            print_r($input);
-            exit;
         }
 
         try {
@@ -50,7 +46,7 @@ class QRIS extends Controller
                 $this->error('Amount is required', 400);
             }
 
-            if (empty($input['order_id']) && empty($input['external_id'])) {
+            if (empty($input['order_id'])) {
                 $this->error('order_id atau external_id wajib diisi', 400);
             }
 
@@ -60,7 +56,7 @@ class QRIS extends Controller
             // Generate QRIS
             $result = $superflash->generateQRIS([
                 'amount' => $input['amount'],
-                'external_id' => $input['order_id'] ?? null,
+                'external_id' => $input['order_id'],
                 'terminal_id' => $input['terminal_id'] ?? null,
                 'customer_name' => $input['customer_name'] ?? null,
                 'customer_email' => $input['customer_email'] ?? null,

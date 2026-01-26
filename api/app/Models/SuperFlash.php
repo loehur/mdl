@@ -56,16 +56,12 @@ class SuperFlash
      */
     private function resolveBaseUrl()
     {
-        if (defined('\Env::SUPERFLASH_API_URL') && \Env::SUPERFLASH_API_URL) {
-            return rtrim(\Env::SUPERFLASH_API_URL, '/');
-        }
-
         $isProd = false;
         if (class_exists('\Env') && method_exists('\Env', 'isProduction')) {
             $isProd = \Env::isProduction();
         }
 
-        return $isProd ? 'https://app.flashmobile.co.id' : 'https://sandbox-app.flashmobile.co.id';
+        return $isProd ? 'https://app.flashmobile.id' : 'https://sandbox-app.flashmobile.id';
     }
 
     /**
@@ -290,7 +286,7 @@ class SuperFlash
     public function generateQRIS($params)
     {
         $amount = (int)($params['amount'] ?? 0);
-        $externalId = $params['external_id'] ?? ($params['order_id'] ?? null);
+        $externalId = $params['external_id'];
         $terminalId = $params['terminal_id'] ?? ($params['terminal'] ?? $externalId);
 
         $description = (string)($params['description'] ?? '');
