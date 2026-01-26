@@ -419,7 +419,7 @@ class WAReplies
         $waService = $this->getWaService();
 
         $db1 = DB::getInstance(1);
-        $limitTime = date('Y-m-d H:i:s', strtotime('-48 hours'));
+        $limitTime = date('Y-m-d H:i:s', strtotime('-72 hours'));
 
         $sql = "SELECT * FROM notif 
                 WHERE tipe = 2 AND state = 'pending' 
