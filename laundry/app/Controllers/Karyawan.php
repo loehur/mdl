@@ -303,8 +303,8 @@ class Karyawan extends Controller
         try {
             @header('Content-Type: application/json');
             
-            // Ambil daftar bank dari database db(100)
-            $banks = $this->db(100)->get('banks', 1);
+            // Ambil daftar bank dari database db(100) - ambil semua tanpa indexing
+            $banks = $this->db(100)->get('banks');
             
             // Clear any buffered output
             ob_end_clean();
