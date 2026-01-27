@@ -443,7 +443,7 @@ const getMessagePreview = (m) => {
 };
 // Check if message is plain text (no media type)
 const isPlainTextMessage = (msg) => {
-    return !msg.type || msg.type === 'text' || msg.type === '';
+    return !msg.type || msg.type === 'text' || msg.type === '' || msg.type === 'template';
 };
 const findQuotedMessage = (id) => props.activeConversation?.messages?.find(m => m.wamid === id || m.id === id);
 const scrollToMessage = (id) => {
@@ -761,7 +761,7 @@ onUnmounted(() => {
                              <!-- Bubble -->
                              <div :class="[
                                'rounded-lg shadow-sm relative overflow-hidden',
-                               isPlainTextMessage(msg) ? 'px-3 py-1.5' : 'p-0.5',
+                               isPlainTextMessage(msg) ? 'p-1.5' : 'p-0.5',
                                msg.sender === 'me' ? 'bg-[var(--wa-bubble-outgoing)] rounded-tr-none' : 'bg-[var(--wa-bubble-incoming)] rounded-tl-none'
                              ]">
                                  <!-- Reply Quote -->
