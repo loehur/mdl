@@ -89,8 +89,10 @@ class NonTunai extends Controller
       header('Content-Type: application/json');
       
       try {
-         $response = $this->model('Tokopay')->merchant();
-         echo $response;
+         $this->helper('QRISApi');
+         $qrisApi = new QRISApi();
+         $response = $qrisApi->getBalance();
+         echo json_encode($response);
       } catch (Exception $e) {
          $errorResponse = ['status' => 'error', 'message' => $e->getMessage()];
          echo json_encode($errorResponse);
@@ -108,8 +110,10 @@ class NonTunai extends Controller
       }
 
       try {
-         $response = $this->model('Tokopay')->tarikSaldo($nominal);
-         echo $response;
+         $this->helper('QRISApi');
+         $qrisApi = new QRISApi();
+         $response = $qrisApi->withdraw($nominal);
+         echo json_encode($response);
       } catch (Exception $e) {
          $errorResponse = ['status' => 'error', 'message' => $e->getMessage()];
          echo json_encode($errorResponse);

@@ -248,10 +248,11 @@ trait Attributes
                
                if ($nominal_check > 0) {
                   try {
-                     // Cek status ke TokoPay
-                     $tokopay = $this->model('Tokopay');
-                     $res = $tokopay->checkStatus($payment_trx_id, $nominal_check, 'QRIS');
-                     $status_data = json_decode($res, true);
+                     // Cek status ke API QRIS
+                     $this->helper('QRISApi');
+                     $qrisApi = new QRISApi();
+                     $res = $qrisApi->checkStatus($payment_trx_id, $nominal_check, 'QRIS');
+                     $status_data = is_array($res) ? $res : json_decode($res, true);
                      
                      // Log response untuk debugging
                      if (!$is_public) {
@@ -306,11 +307,13 @@ trait Attributes
                      if (!empty($status_trx) && !$isPaid) {
                         if (in_array($status_trx, ['success', 'paid', 'settlement', 'capture'])) {
                            $isPaid = true;
-                        } elseif (in_array($status_trx, ['expired', 'cancelled', 'cancel', 'timeout'])) {
+                        } elseif (in_array($status_trx, ['expired', 'cancelled', 'cancel', 'timeout', 'failed', 'fail'])) {
                            $isExpired = true;
                         }
                      }
                      
+                     // LOGIKA UTAMA:
+                     // 1. Jika sudah PAID → update database dan return paid
                      if ($isPaid) {
                         // Update kas sebagai paid
                         $update_result = $this->db(0)->update('kas', [
@@ -332,16 +335,19 @@ trait Attributes
                         exit();
                      }
                      
+                     // 2. Jika EXPIRED/FAILED → generate QR baru
                      if ($isExpired) {
-                        // Status expired di TokoPay, lanjut generate QR baru
+                        // Status expired/failed di TokoPay, lanjut generate QR baru
                         if (!$is_public) {
-                           $this->model('Log')->write("[payment_gateway_order] Payment expired in TokoPay for ref: $ref_finance, status: $status_trx - generating new QR");
+                           $this->model('Log')->write("[payment_gateway_order] Payment expired/failed in TokoPay for ref: $ref_finance, status: $status_trx - generating new QR");
                         }
                         // Lanjut generate QR baru (tidak exit)
-                     } elseif (!empty($status_trx)) {
-                        // Status masih pending di TokoPay, return QR yang ada
+                     } 
+                     // 3. Jika masih PENDING atau status lain yang bukan expired → gunakan QR yang ada
+                     elseif (!empty($status_trx)) {
+                        // Status masih pending/aktif di TokoPay (belum expired/failed), return QR yang ada
                         if (!$is_public) {
-                           $this->model('Log')->write("[payment_gateway_order] Payment still pending in TokoPay for ref: $ref_finance, status: $status_trx - returning existing QR");
+                           $this->model('Log')->write("[payment_gateway_order] Payment still active in TokoPay for ref: $ref_finance, status: $status_trx - returning existing QR");
                         }
                         echo json_encode([
                            'status' => $payment_state ?: 'pending',
@@ -349,7 +355,9 @@ trait Attributes
                            'trx_id' => $ref_finance
                         ]);
                         exit();
-                     } else {
+                     } 
+                     // 4. Jika tidak ada status atau response tidak valid → generate QR baru (fallback)
+                     else {
                         // Response tidak valid atau tidak ada status, log dan lanjut generate QR baru
                         if (!$is_public) {
                            $this->model('Log')->write("[payment_gateway_order] Invalid TokoPay response for ref: $ref_finance - no status found, generating new QR");
@@ -390,12 +398,15 @@ trait Attributes
       $ref_id = $ref_finance;
 
       if ($gateway == 'tokopay') {
-         // Generate unique order_id untuk Tokopay (ref_finance + timestamp)
+         // Generate unique order_id untuk QRIS (ref_finance + timestamp)
          // Ini memungkinkan generate QR baru jika expired, tanpa duplicate order error
          $unique_order_id = $ref_finance . '_' . time();
          
-         $res = $this->model('Tokopay')->createOrder($nominal, $unique_order_id, 'QRIS');
-         $data = json_decode($res, true);
+         // Panggil API QRIS untuk generate QR
+         $this->helper('QRISApi');
+         $qrisApi = new QRISApi();
+         $res = $qrisApi->generate($nominal, $unique_order_id, 'QRIS');
+         $data = is_array($res) ? $res : json_decode($res, true);
 
          if (isset($data['status']) && $data['status']) {
             // PENTING: Gunakan unique_order_id yang kita kirim, BUKAN trx_id dari response Tokopay
@@ -543,8 +554,22 @@ trait Attributes
       $gateway = defined('URL::PAYMENT_GATEWAY') ? URL::PAYMENT_GATEWAY : 'midtrans';
 
       if ($gateway == 'tokopay') {
-         $status = $this->model('Tokopay')->checkStatus($ref_finance, $kas['jumlah']);
-         $data = json_decode($status, true);
+         $this->helper('QRISApi');
+         $qrisApi = new QRISApi();
+         $statusResponse = $qrisApi->checkStatus($ref_finance, $kas['jumlah'], 'QRIS');
+         // Convert API response to TokoPay format for compatibility
+         if (is_array($statusResponse)) {
+            // API returns array, convert to TokoPay format
+            $status_detail = isset($statusResponse['status_detail']) ? $statusResponse['status_detail'] : ($statusResponse['status'] ?? 'pending');
+            $data = [
+               'status' => true,
+               'data' => [
+                  'status' => $status_detail
+               ]
+            ];
+         } else {
+            $data = json_decode($statusResponse, true);
+         }
 
          $isPaid = false;
          if (isset($data['data']['status'])) {

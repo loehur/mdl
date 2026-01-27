@@ -3,77 +3,81 @@
 namespace App\Controllers;
 
 use App\Core\Controller;
-use App\Models\SuperFlash as SuperFlashModel;
+use App\Models\Tokopay;
 
 /**
  * QRIS Controller
- * Handles QRIS payment operations via SuperFlash payment gateway
+ * Handles TokoPay QRIS payment gateway operations
  */
 class QRIS extends Controller
 {
     /**
-     * Generate QRIS Code
+     * Generate QRIS payment
      * Endpoint: /QRIS/generate
      * Method: POST
-     * 
-     * Request Body:
-     * {
-     *   "amount": 100000,
-     *   "order_id": "ORD-123456",          // maps to external_id
-     *   "terminal_id": "TERMINAL-01",      // optional, defaults to order_id/external_id
-     *   "customer_name": "John Doe",
-     *   "customer_email": "john@example.com",
-     *   "customer_phone": "081234567890",
-     *   "description": "Payment for Order #123456",
-     *   "session_time": 10,                // minutes (preferred)
-     *   "expired_at": "2026-01-26 12:00:00"// optional fallback to compute session_time
-     * }
+     * Parameters:
+     *   - nominal (int): Amount in Rupiah
+     *   - ref_id (string): Reference ID for the transaction
+     *   - metode (string, optional): Payment method, default 'QRIS'
      */
     public function generate()
     {
         $this->handleCors();
 
         if (!$this->isPost()) {
-            $this->error('Method not allowed', 405);
+            $this->error('Method not allowed. Use POST', 405);
         }
 
         try {
-            // Get request body
-            $input = $this->getBody();
-
-            // Validate required fields
-            if (empty($input['amount'])) {
-                $this->error('Amount is required', 400);
-            }
-
-            if (empty($input['order_id'])) {
-                $this->error('order_id wajib diisi', 400);
-            }
-
-            // Initialize SuperFlash model
-            $superflash = new SuperFlashModel();
+            $body = $this->getBody();
             
-            // Generate QRIS
-            $result = $superflash->generateQRIS([
-                'amount' => $input['amount'],
-                'external_id' => $input['order_id'],
-                'terminal_id' => $input['terminal_id'] ?? null,
-                'customer_name' => $input['customer_name'] ?? null,
-                'customer_email' => $input['customer_email'] ?? null,
-                'customer_phone' => $input['customer_phone'] ?? null,
-                'description' => $input['description'] ?? null,
-                'expired_at' => $input['expired_at'] ?? null,
-                'session_time' => $input['session_time'] ?? null,
-                // Also allow spec field names directly if caller wants
-                'fullname' => $input['fullname'] ?? null,
-                'email' => $input['email'] ?? null,
-                'phone_number' => $input['phone_number'] ?? null,
-            ]);
+            $nominal = isset($body['nominal']) ? intval($body['nominal']) : 0;
+            $ref_id = isset($body['ref_id']) ? trim($body['ref_id']) : '';
+            $metode = isset($body['metode']) ? trim($body['metode']) : 'QRIS';
 
-            if ($result['status']) {
-                $this->success($result['data'], 'QRIS generated successfully');
+            // Validation
+            if ($nominal <= 0) {
+                $this->error('Nominal tidak valid. Minimal 1 Rupiah', 400);
+            }
+
+            if (empty($ref_id)) {
+                $this->error('ref_id tidak boleh kosong', 400);
+            }
+
+            if (strtoupper($metode) !== 'QRIS') {
+                $this->error('Hanya menerima metode QRIS', 400);
+            }
+
+            // Generate unique order_id (ref_id + timestamp)
+            $unique_order_id = $ref_id . '_' . time();
+
+            // Call TokoPay API
+            $tokopay = new Tokopay();
+            $response = $tokopay->createOrder($nominal, $unique_order_id, $metode);
+            $data = json_decode($response, true);
+
+            if (isset($data['status']) && $data['status']) {
+                $qr_string = '';
+                if (isset($data['data']['qr_string']) && !empty($data['data']['qr_string'])) {
+                    $qr_string = $data['data']['qr_string'];
+                } elseif (isset($data['qr_string']) && !empty($data['qr_string'])) {
+                    $qr_string = $data['qr_string'];
+                }
+
+                if (empty($qr_string)) {
+                    $this->error('QR String tidak ditemukan dari TokoPay', 500);
+                }
+
+                $this->success([
+                    'qr_string' => $qr_string,
+                    'trx_id' => $unique_order_id,
+                    'ref_id' => $ref_id,
+                    'nominal' => $nominal,
+                    'metode' => $metode
+                ], 'QRIS berhasil di-generate');
             } else {
-                $this->error($result['message'], $result['http_code'] ?? 500, $result['data']);
+                $errorMsg = isset($data['message']) ? $data['message'] : 'Gagal generate QRIS dari TokoPay';
+                $this->error($errorMsg, 500, $data);
             }
         } catch (\Exception $e) {
             $this->error('Internal Server Error: ' . $e->getMessage(), 500);
@@ -81,75 +85,177 @@ class QRIS extends Controller
     }
 
     /**
-     * Check QRIS Payment Status
-     * Endpoint: /QRIS/status/{transaction_id}
+     * Check payment status
+     * Endpoint: /QRIS/status
      * Method: GET
-     * 
-     * URL Parameters:
-     * - transaction_id: transaction_id dari response SuperFlash (format biasanya: FM-xxxx)
+     * Parameters:
+     *   - ref_id (string): Reference ID or transaction ID
+     *   - nominal (int): Amount in Rupiah
+     *   - metode (string, optional): Payment method, default 'QRIS'
      */
-    public function status($transactionId = null)
+    public function status()
     {
         $this->handleCors();
 
         if (!$this->isGet()) {
-            $this->error('Method not allowed', 405);
+            $this->error('Method not allowed. Use GET', 405);
         }
 
         try {
-            // Validate transaction_id
-            if (empty($transactionId)) {
-                $this->error('Transaction ID is required', 400);
+            $ref_id = isset($_GET['ref_id']) ? trim($_GET['ref_id']) : '';
+            $nominal = isset($_GET['nominal']) ? intval($_GET['nominal']) : 0;
+            $metode = isset($_GET['metode']) ? trim($_GET['metode']) : 'QRIS';
+
+            // Validation
+            if (empty($ref_id)) {
+                $this->error('ref_id tidak boleh kosong', 400);
             }
 
-            // Initialize SuperFlash model
-            $superflash = new SuperFlashModel();
-            
-            // Check payment status
-            $result = $superflash->checkPaymentStatus($transactionId);
-
-            if ($result['status']) {
-                $this->success($result['data'], 'Payment status retrieved successfully');
-            } else {
-                $this->error($result['message'], $result['http_code'] ?? 500, $result['data']);
+            if ($nominal <= 0) {
+                $this->error('Nominal tidak valid', 400);
             }
+
+            if (strtoupper($metode) !== 'QRIS') {
+                $this->error('Hanya menerima metode QRIS', 400);
+            }
+
+            // Call TokoPay API
+            $tokopay = new Tokopay();
+            $response = $tokopay->checkStatus($ref_id, $nominal, $metode);
+            $data = json_decode($response, true);
+
+            // Check for connection error
+            if (isset($data['status']) && $data['status'] === false && isset($data['message'])) {
+                $this->error('Gagal cek status ke TokoPay: ' . $data['message'], 500);
+            }
+
+            // Parse status from response
+            $status_trx = '';
+            $isPaid = false;
+            $isExpired = false;
+
+            // Check various possible response structures
+            if (isset($data['status'])) {
+                $status_val = $data['status'];
+                if ($status_val === true || $status_val === 1 || $status_val === 'true' || strtolower($status_val) === 'success') {
+                    if (isset($data['data'])) {
+                        if (isset($data['data']['status_pembayaran'])) {
+                            $status_trx = strtolower($data['data']['status_pembayaran']);
+                        } elseif (isset($data['data']['status'])) {
+                            $status_trx = strtolower($data['data']['status']);
+                        } else {
+                            $isPaid = true;
+                        }
+                    } else {
+                        $isPaid = true;
+                    }
+                }
+            }
+
+            // Check inside 'data' object
+            if (empty($status_trx) && !$isPaid && isset($data['data'])) {
+                if (isset($data['data']['status_pembayaran'])) {
+                    $status_trx = strtolower($data['data']['status_pembayaran']);
+                } elseif (isset($data['data']['status'])) {
+                    $status_trx = strtolower($data['data']['status']);
+                }
+            }
+
+            // Check at root level
+            if (empty($status_trx) && !$isPaid) {
+                if (isset($data['status_pembayaran'])) {
+                    $status_trx = strtolower($data['status_pembayaran']);
+                } elseif (isset($data['status']) && is_string($data['status'])) {
+                    $status_trx = strtolower($data['status']);
+                }
+            }
+
+            // Determine payment status
+            if (!empty($status_trx) && !$isPaid) {
+                if (in_array($status_trx, ['success', 'paid', 'settlement', 'capture'])) {
+                    $isPaid = true;
+                } elseif (in_array($status_trx, ['expired', 'cancelled', 'cancel', 'timeout', 'failed', 'fail'])) {
+                    $isExpired = true;
+                }
+            }
+
+            $this->success([
+                'ref_id' => $ref_id,
+                'nominal' => $nominal,
+                'status' => $isPaid ? 'paid' : ($isExpired ? 'expired' : 'pending'),
+                'status_detail' => $status_trx ?: 'unknown',
+                'raw_response' => $data
+            ], 'Status pembayaran berhasil diambil');
         } catch (\Exception $e) {
             $this->error('Internal Server Error: ' . $e->getMessage(), 500);
         }
     }
 
     /**
-     * Webhook handler for payment notifications
-     * Endpoint: /QRIS/webhook
-     * Method: POST
-     * 
-     * This endpoint will be called by SuperFlash when payment status changes
+     * Check merchant balance
+     * Endpoint: /QRIS/balance
+     * Method: GET
      */
-    public function webhook()
+    public function balance()
+    {
+        $this->handleCors();
+
+        if (!$this->isGet()) {
+            $this->error('Method not allowed. Use GET', 405);
+        }
+
+        try {
+            $tokopay = new Tokopay();
+            $response = $tokopay->getMerchantBalance();
+            $data = json_decode($response, true);
+
+            if (isset($data['status']) && $data['status'] === false) {
+                $errorMsg = isset($data['message']) ? $data['message'] : 'Gagal mengambil saldo dari TokoPay';
+                $this->error($errorMsg, 500, $data);
+            }
+
+            $this->success($data, 'Saldo berhasil diambil');
+        } catch (\Exception $e) {
+            $this->error('Internal Server Error: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Withdraw balance (tarik saldo)
+     * Endpoint: /QRIS/withdraw
+     * Method: POST
+     * Parameters:
+     *   - nominal (int): Amount to withdraw in Rupiah (minimum 10,000)
+     */
+    public function withdraw()
     {
         $this->handleCors();
 
         if (!$this->isPost()) {
-            $this->error('Method not allowed', 405);
+            $this->error('Method not allowed. Use POST', 405);
         }
 
         try {
-            // Get webhook payload
-            $payload = $this->getBody();
-            
-            // TODO: Verify webhook signature/authentication based on SuperFlash docs
-            
-            // Log webhook for debugging
-            error_log('SuperFlash Webhook: ' . json_encode($payload));
+            $body = $this->getBody();
+            $nominal = isset($body['nominal']) ? intval($body['nominal']) : 0;
 
-            // TODO: Process webhook based on payment status
-            // Example: Update order status in database
-            
-            // Return success response
-            $this->success(['received' => true], 'Webhook received');
-            
+            // Validation
+            if ($nominal < 10000) {
+                $this->error('Minimal penarikan Rp 10.000', 400);
+            }
+
+            // Call TokoPay API
+            $tokopay = new Tokopay();
+            $response = $tokopay->tarikSaldo($nominal);
+            $data = json_decode($response, true);
+
+            // Check for connection error
+            if (isset($data['status']) && $data['status'] === false && isset($data['message'])) {
+                $this->error('Gagal tarik saldo ke TokoPay: ' . $data['message'], 500);
+            }
+
+            $this->success($data, 'Permintaan penarikan saldo berhasil dikirim');
         } catch (\Exception $e) {
-            error_log('SuperFlash Webhook Error: ' . $e->getMessage());
             $this->error('Internal Server Error: ' . $e->getMessage(), 500);
         }
     }

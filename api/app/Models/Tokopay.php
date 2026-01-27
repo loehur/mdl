@@ -105,4 +105,48 @@ class Tokopay
         
         return $response;
     }
+
+    /**
+     * Tarik saldo (withdraw balance)
+     */
+    public function tarikSaldo($nominal)
+    {
+        $mid = $this->merchantId;
+        $secret = $this->secretKey;
+        $signature = md5("$mid:$secret:$nominal");
+        
+        $data = [
+            'merchant_id' => $mid,
+            'nominal' => $nominal,
+            'signature' => $signature
+        ];
+
+        $curl = curl_init();
+        curl_setopt_array($curl, array(
+            CURLOPT_URL => $this->apiUrl . '/v1/tarik-saldo',
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_ENCODING => '',
+            CURLOPT_MAXREDIRS => 10,
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            CURLOPT_CUSTOMREQUEST => 'POST',
+            CURLOPT_POSTFIELDS => json_encode($data),
+            CURLOPT_HTTPHEADER => array(
+                'Content-Type: application/json'
+            ),
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => false,
+        ));
+        
+        $response = curl_exec($curl);
+        $error = curl_error($curl);
+        curl_close($curl);
+        
+        if ($error) {
+            return json_encode(['status' => false, 'message' => 'Connection Error: ' . $error, 'error_msg' => $error]);
+        }
+        
+        return $response;
+    }
 }

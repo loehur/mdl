@@ -1133,6 +1133,94 @@ class WAReplies
         }
     }
 
+    function handleSaldo_tokopay($phoneIn, $waNumber, $textBody = '')
+    {
+        try {
+            $hp = ['081268098300', '085278114125'];
+
+            // Parse phone numbers and check authorization
+            $phones = array_map(function ($p) {
+                return trim($p, "' ");
+            }, explode(',', $phoneIn));
+            $cleanWaNumber = preg_replace('/[^0-9]/', '', $waNumber);
+            $phone0 = '0' . substr($cleanWaNumber, 2);
+            $phones[] = $phone0;
+            $phones[] = $cleanWaNumber;
+            $phones = array_unique(array_filter($phones));
+
+            // Only allowed phones can access this
+            $intersect = array_intersect($phones, $hp);
+            if (empty($intersect)) {
+                return;
+            }
+
+            // Cek saldo TokoPay menggunakan endpoint QRIS
+            $apiUrl = 'https://api.nalju.com/QRIS/balance';
+            
+            $curl = curl_init();
+            curl_setopt_array($curl, [
+                CURLOPT_URL => $apiUrl,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_ENCODING => '',
+                CURLOPT_MAXREDIRS => 10,
+                CURLOPT_TIMEOUT => 30,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                CURLOPT_CUSTOMREQUEST => 'GET',
+                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_SSL_VERIFYHOST => false,
+            ]);
+            
+            $response = curl_exec($curl);
+            $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($curl);
+            curl_close($curl);
+
+            $waService = $this->getWaService();
+
+            if ($curlError) {
+                $text = "Error: Gagal menghubungi API QRIS. " . $curlError;
+                $waService->sendFreeText($waNumber, $text);
+                return;
+            }
+
+            $data = json_decode($response, true);
+
+            if ($httpCode === 200 && isset($data['status']) && $data['status'] === true) {
+                // Parse balance from API response
+                $balance = null;
+                
+                // Try different possible response structures
+                if (isset($data['data']['balance'])) {
+                    $balance = $data['data']['balance'];
+                } elseif (isset($data['data']['saldo'])) {
+                    $balance = $data['data']['saldo'];
+                } elseif (isset($data['data']['data']['balance'])) {
+                    $balance = $data['data']['data']['balance'];
+                } elseif (isset($data['balance'])) {
+                    $balance = $data['balance'];
+                }
+
+                if ($balance !== null) {
+                    $text = "Saldo TokoPay: Rp " . number_format($balance, 0, ',', '.');
+                } else {
+                    // If balance not found, show raw response for debugging
+                    $text = "Saldo TokoPay:\n" . json_encode($data, JSON_PRETTY_PRINT);
+                }
+            } else {
+                $message = $data['message'] ?? ($data['data']['message'] ?? 'Unknown error');
+                $text = "Gagal mengambil saldo TokoPay: " . $message;
+            }
+
+            $waService->sendFreeText($waNumber, $text);
+
+        } catch (\Throwable $e) {
+            \Log::write("handleSaldo_tokopay ERROR: " . $e->getMessage(), 'wa_error', 'Tokopay');
+            $waService = $this->getWaService();
+            $waService->sendFreeText($waNumber, "Error: " . $e->getMessage());
+        }
+    }
+
     private function isOperatingHours()
     {
         // Load operating hours config

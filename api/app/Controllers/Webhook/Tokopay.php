@@ -223,16 +223,11 @@ class Tokopay extends Controller
                 // Send Webhook to QR Server (Node.js) to notify frontend
                 $this->notifyQRServer($cek_kas);
             }
-        } elseif ($isExpired) {
+        } elseif ($isExpired || $isFailed) {
             // Delete kas if status_mutasi is not yet 3 (not paid)
             $db_kas->query("DELETE FROM kas WHERE payment_trx_id = ? AND status_mutasi != 3", [$tokopay_trx_id]);
             $affected = $db_kas->affected_rows();
             \Log::write("OK: Kas EXPIRED trx=$tokopay_trx_id deleted=$affected", 'webhook', 'Tokopay');
-        } elseif ($isFailed) {
-            // Delete kas if status_mutasi is not yet 3 (not paid)
-            $db_kas->query("DELETE FROM kas WHERE payment_trx_id = ? AND status_mutasi != 3", [$tokopay_trx_id]);
-            $affected = $db_kas->affected_rows();
-            \Log::write("OK: Kas FAILED trx=$tokopay_trx_id deleted=$affected", 'webhook', 'Tokopay');
         } else {
             \Log::write("Warn: Unknown status=$status trx=$tokopay_trx_id", 'webhook', 'Tokopay');
         }

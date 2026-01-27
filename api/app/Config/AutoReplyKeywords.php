@@ -164,4 +164,10 @@ return [
             '/^(saldo|cek|info)\s*(iak)$/i',
         ],
     ],
+
+    'SALDO_TOKOPAY' => [
+        'patterns' => [
+            '/^(saldo|cek|info)\s*(tokopay)$/i',
+        ],
+    ],
 ];

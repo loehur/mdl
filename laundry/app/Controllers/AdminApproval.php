@@ -57,8 +57,10 @@ class AdminApproval extends Controller
       header('Content-Type: application/json');
       
       try {
-         $response = $this->model('Tokopay')->merchant();
-         echo $response;
+         $this->helper('QRISApi');
+         $qrisApi = new QRISApi();
+         $response = $qrisApi->getBalance();
+         echo json_encode($response);
       } catch (Exception $e) {
          echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
       }
