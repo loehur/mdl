@@ -257,6 +257,8 @@ async function sendPushNotification(options) {
         console.log('[OneSignal] Sending request...');
         console.log('[OneSignal] APP_ID:', ONESIGNAL_APP_ID.substring(0, 8) + '...');
         console.log('[OneSignal] REST_API_KEY length:', ONESIGNAL_REST_API_KEY.length);
+        console.log('[OneSignal] Auth header format:', authHeader.substring(0, 10) + '...' + authHeader.substring(authHeader.length - 5));
+        console.log('[OneSignal] Auth header starts with "Key ":', authHeader.startsWith('Key '));
         
         const response = await fetch('https://onesignal.com/api/v1/notifications', {
             method: 'POST',
@@ -271,6 +273,7 @@ async function sendPushNotification(options) {
         
         // Log response status for debugging
         console.log('[OneSignal] Response status:', response.status);
+        console.log('[OneSignal] Response headers:', Object.fromEntries(response.headers.entries()));
         
         if (result.id) {
             console.log(`[OneSignal] ✅ Data-only sent to ${filteredUserIds.length} user(s), group: ${groupKey}`);
