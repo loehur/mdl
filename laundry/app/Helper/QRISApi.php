@@ -140,19 +140,31 @@ class QRISApi
                     'qr_string' => $decoded['data']['qr_string']
                 ];
             } 
-            // 2. Check for status endpoint (has ref_id, nominal, or status)
-            elseif (isset($decoded['data']['ref_id']) || isset($decoded['data']['nominal']) || isset($decoded['data']['status'])) {
+            // 2. Check for status endpoint (has ref_id, nominal, status, atau status_detail)
+            elseif (isset($decoded['data']['ref_id']) || isset($decoded['data']['nominal']) || isset($decoded['data']['status']) || isset($decoded['data']['status_detail'])) {
                 // For status endpoint - API mengembalikan status di data.status
                 // Pastikan selalu ada status, default 'pending' jika tidak ada
-                $status_from_data = isset($decoded['data']['status']) ? strtolower($decoded['data']['status']) : 'pending';
-                $status_detail = isset($decoded['data']['status_detail']) ? strtolower($decoded['data']['status_detail']) : $status_from_data;
+                $status_from_data = 'pending';
+                $status_detail = 'pending';
+                
+                // Prioritaskan status_detail jika ada
+                if (isset($decoded['data']['status_detail']) && !empty($decoded['data']['status_detail']) && $decoded['data']['status_detail'] !== 'unknown') {
+                    $status_detail = strtolower($decoded['data']['status_detail']);
+                    $status_from_data = $status_detail;
+                }
+                // Jika tidak ada status_detail, gunakan status
+                elseif (isset($decoded['data']['status']) && !empty($decoded['data']['status']) && $decoded['data']['status'] !== 'unknown') {
+                    $status_from_data = strtolower($decoded['data']['status']);
+                    $status_detail = $status_from_data;
+                }
                 
                 // Jika status kosong atau tidak jelas, default ke 'pending'
-                if (empty($status_from_data) || $status_from_data === 'unknown') {
+                if (empty($status_from_data) || $status_from_data === 'unknown' || $status_from_data === '') {
                     $status_from_data = 'pending';
                     $status_detail = 'pending';
                 }
                 
+                // PASTIKAN selalu return dengan status yang jelas
                 return [
                     'status' => true,
                     'data' => [

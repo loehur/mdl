@@ -207,12 +207,28 @@ trait Attributes
       $gateway = defined('URL::PAYMENT_GATEWAY') ? URL::PAYMENT_GATEWAY : 'tokopay';
       if ($is_public) $gateway = 'tokopay'; 
 
-      $where = "ref_finance = '" . $ref_finance . "'";
+      // PENTING: Bersihkan ref_finance dari timestamp jika ada (untuk menghindari double)
+      // ref_finance seharusnya hanya ID transaksi, bukan dengan timestamp
+      $clean_ref_finance = $ref_finance;
+      if (strpos($ref_finance, '_') !== false) {
+         $parts = explode('_', $ref_finance);
+         $last_part = end($parts);
+         // Jika bagian terakhir adalah timestamp (10 digit angka), ambil hanya ref asli
+         if (is_numeric($last_part) && strlen($last_part) == 10) {
+            array_pop($parts);
+            $clean_ref_finance = implode('_', $parts);
+         }
+      }
+
+      $where = "ref_finance = '" . $clean_ref_finance . "'";
       if (!$is_public && isset($this->wCabang) && !empty($this->wCabang)) {
          $where = $this->wCabang . " AND " . $where;
       }
           
       $kas = $this->db(0)->get_where_row('kas', $where);
+      
+      // Update ref_finance dengan yang bersih untuk digunakan selanjutnya
+      $ref_finance = $clean_ref_finance;
       if ($kas && $kas['status_mutasi'] == 3) {
          echo json_encode(['status' => 'paid']);
          exit();
@@ -263,53 +279,50 @@ trait Attributes
                      $status_trx = '';
                      $isPaid = false;
                      $isExpired = false;
+                     $hasValidResponse = false;
                      
-                     // Cek apakah response menunjukkan success (bisa berupa boolean true atau string)
-                     if (isset($status_data['status'])) {
-                        $status_val = $status_data['status'];
-                        if ($status_val === true || $status_val === 1 || $status_val === 'true' || strtolower($status_val) === 'success') {
-                           // Response menunjukkan success, cek lebih detail di data
-                           if (isset($status_data['data'])) {
-                              if (isset($status_data['data']['status_pembayaran'])) {
-                                 $status_trx = strtolower($status_data['data']['status_pembayaran']);
-                              } elseif (isset($status_data['data']['status'])) {
-                                 $status_trx = strtolower($status_data['data']['status']);
-                              } else {
-                                 // Jika status root = success tapi tidak ada detail, anggap paid
-                                 $isPaid = true;
-                              }
-                           } else {
-                              // Status root = success dan tidak ada data object, anggap paid
-                              $isPaid = true;
-                           }
-                        }
+                     // PENTING: Cek status_detail dulu (dari helper QRISApi)
+                     if (isset($status_data['status_detail']) && !empty($status_data['status_detail'])) {
+                        $status_trx = strtolower($status_data['status_detail']);
+                        $hasValidResponse = true;
                      }
-                     
-                     // Jika belum ketemu, cek di dalam 'data' object
-                     if (empty($status_trx) && !$isPaid && isset($status_data['data'])) {
-                        if (isset($status_data['data']['status_pembayaran'])) {
-                           $status_trx = strtolower($status_data['data']['status_pembayaran']);
-                        } elseif (isset($status_data['data']['status'])) {
-                           $status_trx = strtolower($status_data['data']['status']);
-                        }
+                     // Cek status di data object (prioritas utama)
+                     elseif (isset($status_data['data']['status_detail']) && !empty($status_data['data']['status_detail'])) {
+                        $status_trx = strtolower($status_data['data']['status_detail']);
+                        $hasValidResponse = true;
                      }
-                     
-                     // Jika masih belum ketemu, cek di root level
-                     if (empty($status_trx) && !$isPaid) {
-                        if (isset($status_data['status_pembayaran'])) {
-                           $status_trx = strtolower($status_data['status_pembayaran']);
-                        } elseif (isset($status_data['status']) && is_string($status_data['status'])) {
-                           $status_trx = strtolower($status_data['status']);
-                        }
+                     elseif (isset($status_data['data']['status_pembayaran']) && !empty($status_data['data']['status_pembayaran'])) {
+                        $status_trx = strtolower($status_data['data']['status_pembayaran']);
+                        $hasValidResponse = true;
+                     }
+                     elseif (isset($status_data['data']['status']) && !empty($status_data['data']['status'])) {
+                        $status_trx = strtolower($status_data['data']['status']);
+                        $hasValidResponse = true;
+                     }
+                     // Cek status di root level
+                     elseif (isset($status_data['status']) && is_string($status_data['status']) && !empty($status_data['status'])) {
+                        $status_trx = strtolower($status_data['status']);
+                        $hasValidResponse = true;
+                     }
+                     // Jika response valid (status = true) tapi tidak ada status detail, anggap pending
+                     elseif (isset($status_data['status']) && ($status_data['status'] === true || $status_data['status'] === 1)) {
+                        // Response valid tapi tidak ada status detail, anggap pending
+                        $status_trx = 'pending';
+                        $hasValidResponse = true;
                      }
                      
                      // Cek apakah sudah paid berdasarkan status_trx
-                     if (!empty($status_trx) && !$isPaid) {
+                     if (!empty($status_trx)) {
                         if (in_array($status_trx, ['success', 'paid', 'settlement', 'capture'])) {
                            $isPaid = true;
                         } elseif (in_array($status_trx, ['expired', 'cancelled', 'cancel', 'timeout', 'failed', 'fail'])) {
                            $isExpired = true;
                         }
+                     }
+                     
+                     // Log untuk debugging
+                     if (!$is_public) {
+                        $this->model('Log')->write("[payment_gateway_order] Status check result for ref: $ref_finance - status_trx: $status_trx, isPaid: " . ($isPaid ? 'true' : 'false') . ", isExpired: " . ($isExpired ? 'true' : 'false') . ", hasValidResponse: " . ($hasValidResponse ? 'true' : 'false'));
                      }
                      
                      // LOGIKA UTAMA:
@@ -344,7 +357,7 @@ trait Attributes
                         // Lanjut generate QR baru (tidak exit)
                      } 
                      // 3. Jika masih PENDING atau status lain yang bukan expired → gunakan QR yang ada
-                     elseif (!empty($status_trx)) {
+                     elseif (!empty($status_trx) && !$isExpired) {
                         // Status masih pending/aktif di TokoPay (belum expired/failed), return QR yang ada
                         if (!$is_public) {
                            $this->model('Log')->write("[payment_gateway_order] Payment still active in TokoPay for ref: $ref_finance, status: $status_trx - returning existing QR");
@@ -352,27 +365,28 @@ trait Attributes
                         echo json_encode([
                            'status' => $payment_state ?: 'pending',
                            'qr_string' => $payment_qr_string,
-                           'trx_id' => $ref_finance
+                           'trx_id' => $payment_trx_id ?: $ref_finance
                         ]);
                         exit();
                      } 
                      // 4. Jika response valid tapi tidak ada status detail → anggap pending dan return QR yang ada
-                     elseif (isset($status_data['status']) && $status_data['status'] !== false) {
-                        // Response valid dari API (status = true), meskipun tidak ada status detail
+                     elseif ($hasValidResponse || (isset($status_data['status']) && $status_data['status'] !== false)) {
+                        // Response valid dari API, meskipun tidak ada status detail yang jelas
                         // Anggap pending dan return QR yang ada (lebih aman daripada generate baru)
                         if (!$is_public) {
-                           $this->model('Log')->write("[payment_gateway_order] Valid API response but no status detail for ref: $ref_finance - assuming pending, returning existing QR");
+                           $this->model('Log')->write("[payment_gateway_order] Valid API response for ref: $ref_finance - assuming pending, returning existing QR. Status: " . ($status_trx ?: 'unknown'));
                         }
                         echo json_encode([
                            'status' => $payment_state ?: 'pending',
                            'qr_string' => $payment_qr_string,
-                           'trx_id' => $ref_finance
+                           'trx_id' => $payment_trx_id ?: $ref_finance
                         ]);
                         exit();
                      }
                      // 5. Jika response tidak valid atau error → generate QR baru (fallback)
                      else {
                         // Response tidak valid atau error, log dan lanjut generate QR baru
+                        // Hanya generate jika benar-benar error atau response tidak valid
                         if (!$is_public) {
                            $this->model('Log')->write("[payment_gateway_order] Invalid/error TokoPay response for ref: $ref_finance - generating new QR. Response: " . json_encode($status_data));
                         }
@@ -413,7 +427,11 @@ trait Attributes
 
       if ($gateway == 'tokopay') {
          // Generate unique order_id untuk QRIS (ref_finance + timestamp)
-         // Ini memungkinkan generate QR baru jika expired, tanpa duplicate order error
+         // PENTING: ref_finance dari parameter sudah bersih (dari database kas.ref_finance)
+         // JANGAN gunakan payment_trx_id karena sudah mengandung timestamp dari generate sebelumnya
+         // Pastikan selalu gunakan ref_finance yang bersih untuk menghindari double timestamp
+         
+         // Generate unique order_id dengan ref_finance yang bersih
          $unique_order_id = $ref_finance . '_' . time();
          
          // Panggil API QRIS untuk generate QR

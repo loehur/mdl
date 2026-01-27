@@ -48,8 +48,21 @@ class QRIS extends Controller
                 $this->error('Hanya menerima metode QRIS', 400);
             }
 
-            // Generate unique order_id (ref_id + timestamp)
-            $unique_order_id = $ref_id . '_' . time();
+            // PENTING: Bersihkan ref_id dari timestamp jika ada (untuk menghindari double)
+            // ref_id seharusnya hanya ID transaksi, bukan dengan timestamp
+            $clean_ref_id = $ref_id;
+            if (strpos($ref_id, '_') !== false) {
+                $parts = explode('_', $ref_id);
+                $last_part = end($parts);
+                // Jika bagian terakhir adalah timestamp (10 digit angka), ambil hanya ref asli
+                if (is_numeric($last_part) && strlen($last_part) == 10) {
+                    array_pop($parts);
+                    $clean_ref_id = implode('_', $parts);
+                }
+            }
+
+            // Generate unique order_id dengan ref_id yang bersih
+            $unique_order_id = $clean_ref_id . '_' . time();
 
             // Call TokoPay API
             $tokopay = new Tokopay();
