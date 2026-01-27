@@ -59,7 +59,7 @@ class Karyawan extends Controller
         // Ambil data karyawan aktif di cabang ini
         $karyawan = $this->db(0)->get_cols_where(
             'user',
-            'id_user, nama_user, no_user, nama_lengkap, bank_code, bank_name, bank_account_name, bank_account_number',
+            'id_user, nama_user, no_user, bank_code, bank_account_name, bank_account_number',
             "en = 1 AND id_cabang = {$id_cabang}",
             1
         );
@@ -355,9 +355,7 @@ class Karyawan extends Controller
 
         // Ambil data yang akan disimpan (no_user tidak termasuk karena tidak bisa diedit)
         $data = [
-            'nama_lengkap' => isset($_POST['nama_lengkap']) ? trim($_POST['nama_lengkap']) : '',
             'bank_code' => isset($_POST['bank_code']) ? strtolower(trim($_POST['bank_code'])) : '',
-            'bank_name' => isset($_POST['bank_name']) ? trim($_POST['bank_name']) : '',
             'bank_account_name' => isset($_POST['bank_account_name']) ? trim($_POST['bank_account_name']) : '',
             'bank_account_number' => isset($_POST['bank_account_number']) ? preg_replace('/[^0-9]/', '', $_POST['bank_account_number']) : ''
         ];

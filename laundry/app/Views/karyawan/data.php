@@ -14,11 +14,9 @@
                                 <th class="text-center" style="width: 40px;">#</th>
                                 <th>Panggilan</th>
                                 <th>WA Number</th>
-                                <th>Nama Lengkap</th>
-                                <th>Bank/E-Wallet</th>
-                                <th>Nama Bank/E-Wallet</th>
+                                <th>Kode Bank</th>
                                 <th>Nama Pemilik</th>
-                                <th>No. Rekening/E-Wallet</th>
+                                <th>No. Rekening</th>
                                 <th class="text-center" style="width: 60px;">Aksi</th>
                             </tr>
                         </thead>
@@ -28,11 +26,9 @@
                             foreach ($data['karyawan'] as $row) {
                                 $no++;
                                 $id = $row['id_user'];
-                                $panggilan = $row['nama_user'] ?? '';
+                                 $panggilan = $row['nama_user'] ?? '';
                                 $wa_number = $row['no_user'] ?? '';
-                                $nama_lengkap = $row['nama_lengkap'] ?? '';
                                 $bank_code = $row['bank_code'] ?? '';
-                                $bank_name = $row['bank_name'] ?? '';
                                 $bank_account_name = $row['bank_account_name'] ?? '';
                                 $bank_account_number = $row['bank_account_number'] ?? '';
                             ?>
@@ -40,9 +36,7 @@
                                     <td class="text-center"><?= $no ?></td>
                                     <td><?= $panggilan ?: '<span class="text-muted">-</span>' ?></td>
                                     <td><?= $wa_number ?: '<span class="text-muted">-</span>' ?></td>
-                                    <td><?= $nama_lengkap ?: '<span class="text-muted">-</span>' ?></td>
                                     <td><?= strtoupper($bank_code) ?: '<span class="text-muted">-</span>' ?></td>
-                                    <td><?= $bank_name ?: '<span class="text-muted">-</span>' ?></td>
                                     <td><?= strtoupper($bank_account_name) ?: '<span class="text-muted">-</span>' ?></td>
                                     <td><?= $bank_account_number ?: '<span class="text-muted">-</span>' ?></td>
                                     <td class="text-center">
@@ -50,9 +44,7 @@
                                             data-id="<?= $id ?>"
                                             data-panggilan="<?= htmlspecialchars($panggilan) ?>"
                                             data-wa="<?= htmlspecialchars($wa_number) ?>"
-                                            data-nama="<?= htmlspecialchars($nama_lengkap) ?>"
                                             data-bank-code="<?= htmlspecialchars($bank_code) ?>"
-                                            data-bank-name="<?= htmlspecialchars($bank_name) ?>"
                                             data-bank-account-name="<?= htmlspecialchars($bank_account_name) ?>"
                                             data-bank-account-number="<?= htmlspecialchars($bank_account_number) ?>">
                                             <i class="fas fa-edit"></i>
@@ -63,7 +55,7 @@
                             
                             <?php if (count($data['karyawan']) == 0) { ?>
                                 <tr>
-                                    <td colspan="9" class="text-center text-muted py-4">
+                                    <td colspan="7" class="text-center text-muted py-4">
                                         <i class="fas fa-info-circle me-2"></i>Tidak ada data karyawan
                                     </td>
                                 </tr>
@@ -133,10 +125,6 @@
                                 <input type="text" class="form-control bg-light" id="edit_wa" readonly>
                             </div>
                             <small class="text-muted"><i class="fas fa-lock me-1"></i>Tidak dapat diubah, digunakan untuk verifikasi OTP</small>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Nama Lengkap</label>
-                            <input type="text" class="form-control" id="edit_nama_lengkap" placeholder="Nama Lengkap">
                         </div>
                         <div class="col-12"><hr></div>
                         <div class="col-md-4">
@@ -221,10 +209,6 @@
                                 <tr>
                                     <td width="40%">WhatsApp</td>
                                     <td><strong id="confirm_wa"></strong> <i class="fas fa-check-circle text-success"></i></td>
-                                </tr>
-                                <tr>
-                                    <td>Nama Lengkap</td>
-                                    <td><strong id="confirm_nama"></strong></td>
                                 </tr>
                                 <tr>
                                     <td>Bank/E-Wallet</td>
@@ -470,7 +454,6 @@ $(document).ready(function() {
         $('#edit_id').val($btn.data('id'));
         $('#info_panggilan').text($btn.data('panggilan'));
         $('#edit_wa').val($btn.data('wa'));
-        $('#edit_nama_lengkap').val($btn.data('nama'));
         $('#edit_bank_account_number').val($btn.data('bank-account-number'));
         
         // Set bank code after banks are loaded
@@ -721,12 +704,11 @@ $(document).ready(function() {
                     
                     // Prepare confirmation
                     $('#confirm_wa').text('+62' + verifiedData.wa);
-                    $('#confirm_nama').text($('#edit_nama_lengkap').val() || '-');
                     $('#confirm_bank').text(verifiedData.bank_name);
                     $('#confirm_rekening').text(accountNumber);
                     $('#confirm_pemilik').text(res.data.account_holder);
                     
-                    verifiedData.nama_lengkap = $('#edit_nama_lengkap').val();
+
                 } else {
                     $('#bank_verify_error').text(res.message || 'Gagal memverifikasi rekening').show();
                 }
@@ -746,9 +728,7 @@ $(document).ready(function() {
             method: 'POST',
             data: {
                 id: $('#edit_id').val(),
-                nama_lengkap: verifiedData.nama_lengkap,
                 bank_code: verifiedData.bank_code,
-                bank_name: verifiedData.bank_name,
                 bank_account_name: verifiedData.bank_account_name,
                 bank_account_number: verifiedData.bank_account_number
             },
