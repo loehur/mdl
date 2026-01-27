@@ -440,30 +440,17 @@ trait Attributes
                exit();
             }
 
-            if (isset($data['data']['status']) && (strtolower($data['data']['status']) == 'success' || strtolower($data['data']['status']) == 'paid')) {
-               $update = $this->db(0)->update('kas', ['status_mutasi' => 3, 'payment_state' => 'paid'], "ref_finance = '$ref_finance'");
-               if ($update['errno'] <> 0) {
-                  if (!$is_public) $this->model('Log')->write('[payment_gateway_order] Update Kas Error: ' . $update['error']);
-                  echo json_encode(['status' => 'error', 'msg' => 'DB Update Error']);
-                  exit();
-               }
-               
-               // Ambil ref_transaksi untuk update state sales
-               $kasInfo = $this->db(0)->get_where_row('kas', "ref_finance = '$ref_finance'");
-               if ($kasInfo) {
-                   $this->updateSalesState($kasInfo['ref_transaksi']);
-               }
-               
-               echo json_encode(['status' => 'paid']);
-               exit();
-            } else {
-               echo json_encode([
-                  'status' => $data['status'],
-                  'qr_string' => $qr_string,
-                  'trx_id' => $trx_id
-               ]);
-               exit();
-            }
+            // PENTING: Jangan cek status paid saat generate QRIS
+            // Status 'success' di response generate berarti order berhasil dibuat, BUKAN pembayaran sudah paid
+            // Status paid hanya dicek di payment_gateway_status_logic, bukan di sini saat generate
+            // Langsung return QR string dengan status pending
+            
+            echo json_encode([
+               'status' => 'pending',
+               'qr_string' => $qr_string,
+               'trx_id' => $trx_id
+            ]);
+            exit();
          } else {
             if (!$is_public) $this->model('Log')->write("[payment_gateway_order] API Failed: " . json_encode($data));
             echo json_encode(['status' => 'error', 'msg' => $data]);

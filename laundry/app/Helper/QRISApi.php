@@ -129,11 +129,11 @@ class QRISApi
             // Convert to format compatible with old TokoPay response
             if (isset($decoded['data']['qr_string'])) {
                 // For generate endpoint - return in TokoPay format
+                // JANGAN tambahkan 'status' => 'success' di data karena akan dianggap paid
                 return [
                     'status' => true,
                     'data' => [
-                        'qr_string' => $decoded['data']['qr_string'],
-                        'status' => 'success'
+                        'qr_string' => $decoded['data']['qr_string']
                     ],
                     'qr_string' => $decoded['data']['qr_string']
                 ];
