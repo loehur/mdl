@@ -127,6 +127,8 @@ class QRISApi
         if (isset($decoded['status']) && $decoded['status'] === true && isset($decoded['data'])) {
             // API returns {status: true, message: "...", data: {...}}
             // Convert to format compatible with old TokoPay response
+            
+            // 1. Check for generate endpoint (has qr_string)
             if (isset($decoded['data']['qr_string'])) {
                 // For generate endpoint - return in TokoPay format
                 // JANGAN tambahkan 'status' => 'success' di data karena akan dianggap paid
@@ -137,9 +139,38 @@ class QRISApi
                     ],
                     'qr_string' => $decoded['data']['qr_string']
                 ];
-            } elseif (isset($decoded['data']['status']) || isset($decoded['data']['status_detail'])) {
-                // For status endpoint - return in TokoPay format
-                $status_detail = $decoded['data']['status_detail'] ?? $decoded['data']['status'] ?? 'pending';
+            } 
+            // 2. Check for status endpoint (has ref_id, nominal, or status)
+            elseif (isset($decoded['data']['ref_id']) || isset($decoded['data']['nominal']) || isset($decoded['data']['status'])) {
+                // For status endpoint - API mengembalikan status di data.status
+                // Pastikan selalu ada status, default 'pending' jika tidak ada
+                $status_from_data = isset($decoded['data']['status']) ? strtolower($decoded['data']['status']) : 'pending';
+                $status_detail = isset($decoded['data']['status_detail']) ? strtolower($decoded['data']['status_detail']) : $status_from_data;
+                
+                // Jika status kosong atau tidak jelas, default ke 'pending'
+                if (empty($status_from_data) || $status_from_data === 'unknown') {
+                    $status_from_data = 'pending';
+                    $status_detail = 'pending';
+                }
+                
+                return [
+                    'status' => true,
+                    'data' => [
+                        'status' => $status_from_data,
+                        'status_pembayaran' => $status_from_data,
+                        'status_detail' => $status_detail
+                    ],
+                    'status' => $status_from_data,
+                    'status_detail' => $status_detail
+                ];
+            } 
+            // 3. Check for status_detail only
+            elseif (isset($decoded['data']['status_detail'])) {
+                // Fallback jika hanya ada status_detail
+                $status_detail = strtolower($decoded['data']['status_detail']);
+                if (empty($status_detail) || $status_detail === 'unknown') {
+                    $status_detail = 'pending';
+                }
                 return [
                     'status' => true,
                     'data' => [
@@ -149,7 +180,9 @@ class QRISApi
                     'status' => $status_detail,
                     'status_detail' => $status_detail
                 ];
-            } else {
+            } 
+            // 4. For other endpoints (balance, withdraw)
+            else {
                 // For other endpoints (balance, withdraw), return data directly wrapped in TokoPay format
                 return [
                     'status' => true,

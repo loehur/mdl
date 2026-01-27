@@ -356,11 +356,25 @@ trait Attributes
                         ]);
                         exit();
                      } 
-                     // 4. Jika tidak ada status atau response tidak valid → generate QR baru (fallback)
-                     else {
-                        // Response tidak valid atau tidak ada status, log dan lanjut generate QR baru
+                     // 4. Jika response valid tapi tidak ada status detail → anggap pending dan return QR yang ada
+                     elseif (isset($status_data['status']) && $status_data['status'] !== false) {
+                        // Response valid dari API (status = true), meskipun tidak ada status detail
+                        // Anggap pending dan return QR yang ada (lebih aman daripada generate baru)
                         if (!$is_public) {
-                           $this->model('Log')->write("[payment_gateway_order] Invalid TokoPay response for ref: $ref_finance - no status found, generating new QR");
+                           $this->model('Log')->write("[payment_gateway_order] Valid API response but no status detail for ref: $ref_finance - assuming pending, returning existing QR");
+                        }
+                        echo json_encode([
+                           'status' => $payment_state ?: 'pending',
+                           'qr_string' => $payment_qr_string,
+                           'trx_id' => $ref_finance
+                        ]);
+                        exit();
+                     }
+                     // 5. Jika response tidak valid atau error → generate QR baru (fallback)
+                     else {
+                        // Response tidak valid atau error, log dan lanjut generate QR baru
+                        if (!$is_public) {
+                           $this->model('Log')->write("[payment_gateway_order] Invalid/error TokoPay response for ref: $ref_finance - generating new QR. Response: " . json_encode($status_data));
                         }
                         // Lanjut generate QR baru (tidak exit)
                      }
