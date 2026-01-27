@@ -39,8 +39,12 @@ const PORT = process.env.PORT || 3003;
 // ============================================
 // OneSignal Configuration
 // ============================================
-const ONESIGNAL_APP_ID = process.env.ONESIGNAL_APP_ID || '';
-const ONESIGNAL_REST_API_KEY = process.env.ONESIGNAL_REST_API_KEY || '';
+const ONESIGNAL_APP_ID = (process.env.ONESIGNAL_APP_ID || '').trim();
+const ONESIGNAL_REST_API_KEY = (process.env.ONESIGNAL_REST_API_KEY || '').trim();
+
+// Debug: Log OneSignal config (mask sensitive data)
+console.log('[OneSignal Config] APP_ID:', ONESIGNAL_APP_ID ? `${ONESIGNAL_APP_ID.substring(0, 8)}...` : 'NOT SET');
+console.log('[OneSignal Config] REST_API_KEY:', ONESIGNAL_REST_API_KEY ? `${ONESIGNAL_REST_API_KEY.substring(0, 8)}...` : 'NOT SET');
 
 // ============================================
 // Notification Counter per Chat (for WhatsApp-style grouping)
@@ -237,17 +241,37 @@ async function sendPushNotification(options) {
 
     console.log(`[OneSignal] 📤 Data-only push for ${groupKey}: count=${notifCount}, title="${title}"`);
 
+    // Validate API key before sending
+    if (!ONESIGNAL_REST_API_KEY || ONESIGNAL_REST_API_KEY === 'your-onesignal-rest-api-key' || ONESIGNAL_REST_API_KEY.length < 20) {
+        console.log('[OneSignal] ❌ Invalid REST_API_KEY - check .env file');
+        console.log('[OneSignal] ❌ REST_API_KEY length:', ONESIGNAL_REST_API_KEY ? ONESIGNAL_REST_API_KEY.length : 0);
+        return { success: false, error: 'Invalid REST_API_KEY - check .env file' };
+    }
+
     try {
+        // OneSignal REST API uses "Key" format, not "Basic"
+        // Format: Authorization: Key <rest_api_key>
+        // See: https://documentation.onesignal.com/reference/create-notification
+        const authHeader = `Key ${ONESIGNAL_REST_API_KEY}`;
+        
+        console.log('[OneSignal] Sending request...');
+        console.log('[OneSignal] APP_ID:', ONESIGNAL_APP_ID.substring(0, 8) + '...');
+        console.log('[OneSignal] REST_API_KEY length:', ONESIGNAL_REST_API_KEY.length);
+        
         const response = await fetch('https://onesignal.com/api/v1/notifications', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Basic ${ONESIGNAL_REST_API_KEY}`
+                'Authorization': authHeader
             },
             body: JSON.stringify(payload)
         });
+        
         const result = await response.json();
-
+        
+        // Log response status for debugging
+        console.log('[OneSignal] Response status:', response.status);
+        
         if (result.id) {
             console.log(`[OneSignal] ✅ Data-only sent to ${filteredUserIds.length} user(s), group: ${groupKey}`);
             return {
@@ -258,6 +282,9 @@ async function sendPushNotification(options) {
             };
         } else {
             console.log('[OneSignal] ❌ Error:', result.errors || result);
+            if (result.errors) {
+                console.log('[OneSignal] ❌ Error details:', JSON.stringify(result.errors, null, 2));
+            }
             return { success: false, error: result.errors || 'Unknown error' };
         }
     } catch (err) {
@@ -288,6 +315,12 @@ async function sendSilentCancelNotification(options) {
     const originalPhone = phone || '';
 
     console.log(`[Cancel] 🔇 Phone: ${originalPhone}, Clean: ${cleanPhone}, GroupKey: ${groupKey}`);
+
+    // Validate API key before sending
+    if (!ONESIGNAL_REST_API_KEY || ONESIGNAL_REST_API_KEY === 'your-onesignal-rest-api-key' || ONESIGNAL_REST_API_KEY.length < 20) {
+        console.log('[OneSignal Cancel] ❌ Invalid REST_API_KEY');
+        return { success: false, error: 'Invalid REST_API_KEY' };
+    }
 
     // DATA-ONLY cancel notification
     // Android app will use stored notificationId to cancel the notification directly
@@ -323,15 +356,20 @@ async function sendSilentCancelNotification(options) {
     };
 
     try {
+        // OneSignal REST API uses "Key" format, not "Basic"
+        const authHeader = `Key ${ONESIGNAL_REST_API_KEY}`;
+        
         const response = await fetch('https://onesignal.com/api/v1/notifications', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Basic ${ONESIGNAL_REST_API_KEY}`
+                'Authorization': authHeader
             },
             body: JSON.stringify(payload)
         });
         const result = await response.json();
+        
+        console.log('[OneSignal Cancel] Response status:', response.status);
 
         if (result.id) {
             console.log(`[OneSignal] 🔇 Cancel sent to ALL ${userIds.length} user(s) (online + offline), group: ${groupKey}`);
