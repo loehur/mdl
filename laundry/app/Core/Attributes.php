@@ -253,55 +253,114 @@ trait Attributes
                      $res = $tokopay->checkStatus($payment_trx_id, $nominal_check, 'QRIS');
                      $status_data = json_decode($res, true);
                      
-                     // Jika response tidak valid atau error, lanjut generate QR baru
-                     if (!isset($status_data['data']['status'])) {
-                        if (!$is_public) $this->model('Log')->write("[payment_gateway_order] Invalid TokoPay response for ref: $ref_finance");
-                        // Lanjut generate QR baru (tidak exit)
-                     } else {
-                        // Cek apakah sudah paid
-                        $isPaid = false;
-                        $statusLower = strtolower($status_data['data']['status']);
-                        if ($statusLower == 'success' || $statusLower == 'paid') {
-                           $isPaid = true;
-                        }
-                        
-                        if ($isPaid) {
-                           // Update kas sebagai paid
-                           $this->db(0)->update('kas', [
-                              'status_mutasi' => 3,
-                              'payment_state' => 'paid'
-                           ], "ref_finance = '$ref_finance'");
-                           
-                           // Update sales state jika perlu
-                           if (isset($kas['ref_transaksi'])) {
-                              $this->updateSalesState($kas['ref_transaksi']);
+                     // Log response untuk debugging
+                     if (!$is_public) {
+                        $this->model('Log')->write("[payment_gateway_order] TokoPay checkStatus response for ref: $ref_finance, trx_id: $payment_trx_id - Full response: " . json_encode($status_data));
+                     }
+                     
+                     // Cek berbagai kemungkinan struktur response TokoPay
+                     $status_trx = '';
+                     $isPaid = false;
+                     $isExpired = false;
+                     
+                     // Cek apakah response menunjukkan success (bisa berupa boolean true atau string)
+                     if (isset($status_data['status'])) {
+                        $status_val = $status_data['status'];
+                        if ($status_val === true || $status_val === 1 || $status_val === 'true' || strtolower($status_val) === 'success') {
+                           // Response menunjukkan success, cek lebih detail di data
+                           if (isset($status_data['data'])) {
+                              if (isset($status_data['data']['status_pembayaran'])) {
+                                 $status_trx = strtolower($status_data['data']['status_pembayaran']);
+                              } elseif (isset($status_data['data']['status'])) {
+                                 $status_trx = strtolower($status_data['data']['status']);
+                              } else {
+                                 // Jika status root = success tapi tidak ada detail, anggap paid
+                                 $isPaid = true;
+                              }
+                           } else {
+                              // Status root = success dan tidak ada data object, anggap paid
+                              $isPaid = true;
                            }
-                           
-                           echo json_encode(['status' => 'paid']);
-                           exit();
                         }
-                        
-                        // Cek apakah expired/cancelled di TokoPay
-                        $isExpired = false;
-                        // Status yang dianggap expired: expired, cancelled, cancel, timeout
-                        if (in_array($statusLower, ['expired', 'cancelled', 'cancel', 'timeout'])) {
+                     }
+                     
+                     // Jika belum ketemu, cek di dalam 'data' object
+                     if (empty($status_trx) && !$isPaid && isset($status_data['data'])) {
+                        if (isset($status_data['data']['status_pembayaran'])) {
+                           $status_trx = strtolower($status_data['data']['status_pembayaran']);
+                        } elseif (isset($status_data['data']['status'])) {
+                           $status_trx = strtolower($status_data['data']['status']);
+                        }
+                     }
+                     
+                     // Jika masih belum ketemu, cek di root level
+                     if (empty($status_trx) && !$isPaid) {
+                        if (isset($status_data['status_pembayaran'])) {
+                           $status_trx = strtolower($status_data['status_pembayaran']);
+                        } elseif (isset($status_data['status']) && is_string($status_data['status'])) {
+                           $status_trx = strtolower($status_data['status']);
+                        }
+                     }
+                     
+                     // Cek apakah sudah paid berdasarkan status_trx
+                     if (!empty($status_trx) && !$isPaid) {
+                        if (in_array($status_trx, ['success', 'paid', 'settlement', 'capture'])) {
+                           $isPaid = true;
+                        } elseif (in_array($status_trx, ['expired', 'cancelled', 'cancel', 'timeout'])) {
                            $isExpired = true;
                         }
+                     }
+                     
+                     if ($isPaid) {
+                        // Update kas sebagai paid
+                        $update_result = $this->db(0)->update('kas', [
+                           'status_mutasi' => 3,
+                           'payment_state' => 'paid'
+                        ], "ref_finance = '$ref_finance'");
                         
-                        if (!$isExpired) {
-                           // Status masih pending di TokoPay, return QR yang ada
-                           echo json_encode([
-                              'status' => $payment_state ?: 'pending',
-                              'qr_string' => $payment_qr_string,
-                              'trx_id' => $ref_finance
-                           ]);
-                           exit();
+                        if (!$is_public) {
+                           $this->model('Log')->write("[payment_gateway_order] Payment already paid in TokoPay for ref: $ref_finance, status: $status_trx, update_result: " . ($update_result['errno'] == 0 ? 'success' : $update_result['error']));
                         }
-                        // Jika benar-benar expired di TokoPay, lanjut generate QR baru (tidak exit)
+                        
+                        // Update sales state jika perlu
+                        if (isset($kas['ref_transaksi'])) {
+                           $this->updateSalesState($kas['ref_transaksi']);
+                        }
+                        
+                        // Pastikan exit dengan benar
+                        echo json_encode(['status' => 'paid']);
+                        exit();
+                     }
+                     
+                     if ($isExpired) {
+                        // Status expired di TokoPay, lanjut generate QR baru
+                        if (!$is_public) {
+                           $this->model('Log')->write("[payment_gateway_order] Payment expired in TokoPay for ref: $ref_finance, status: $status_trx - generating new QR");
+                        }
+                        // Lanjut generate QR baru (tidak exit)
+                     } elseif (!empty($status_trx)) {
+                        // Status masih pending di TokoPay, return QR yang ada
+                        if (!$is_public) {
+                           $this->model('Log')->write("[payment_gateway_order] Payment still pending in TokoPay for ref: $ref_finance, status: $status_trx - returning existing QR");
+                        }
+                        echo json_encode([
+                           'status' => $payment_state ?: 'pending',
+                           'qr_string' => $payment_qr_string,
+                           'trx_id' => $ref_finance
+                        ]);
+                        exit();
+                     } else {
+                        // Response tidak valid atau tidak ada status, log dan lanjut generate QR baru
+                        if (!$is_public) {
+                           $this->model('Log')->write("[payment_gateway_order] Invalid TokoPay response for ref: $ref_finance - no status found, generating new QR");
+                        }
+                        // Lanjut generate QR baru (tidak exit)
                      }
                   } catch (Exception $e) {
                      // Jika terjadi error saat cek TokoPay, log dan lanjut generate QR baru
-                     if (!$is_public) $this->model('Log')->write("[payment_gateway_order] Error checking TokoPay status: " . $e->getMessage());
+                     if (!$is_public) {
+                        $this->model('Log')->write("[payment_gateway_order] Error checking TokoPay status for ref: $ref_finance - " . $e->getMessage() . " - generating new QR");
+                     }
                      // Lanjut generate QR baru (tidak exit)
                   }
                }
