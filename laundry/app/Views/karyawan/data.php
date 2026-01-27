@@ -105,11 +105,6 @@
                         <div class="step-line"></div>
                         <div class="step-item" id="step3-indicator">
                             <div class="step-circle">3</div>
-                            <small>Verifikasi Bank</small>
-                        </div>
-                        <div class="step-line"></div>
-                        <div class="step-item" id="step4-indicator">
-                            <div class="step-circle">4</div>
                             <small>Selesai</small>
                         </div>
                     </div>
@@ -128,15 +123,27 @@
                         </div>
                         <div class="col-12"><hr></div>
                         <div class="col-md-4">
-                            <label class="form-label">Kode Bank/E-Wallet <span class="text-danger">*</span></label>
+                            <label class="form-label">Kode Bank <span class="text-danger">*</span></label>
                             <select class="form-select" id="edit_bank_code">
                                 <option value="">Memuat daftar bank...</option>
                             </select>
                             <small class="text-muted" id="bank_status"></small>
                         </div>
                         <div class="col-md-8">
-                            <label class="form-label">No Rekening/E-Wallet <span class="text-danger">*</span></label>
+                            <label class="form-label">No Rekening <span class="text-danger">*</span></label>
                             <input type="text" class="form-control" id="edit_bank_account_number" placeholder="1234567890 atau No HP E-Wallet">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Nama Lengkap <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="edit_bank_account_name" placeholder="Sesuai buku tabungan">
+                        </div>
+                        <div class="col-12 mt-3">
+                            <div class="alert alert-warning py-2 mb-0" style="font-size: 0.85rem;">
+                                <ul class="mb-0 ps-3">
+                                    <li>Pastikan data rekening dan nama pemilik benar</li>
+                                    <li>Jika rekening bukan atas nama karyawan, Madinah Laundry tidak bertanggung jawab jika suatu saat terjadi perselisihan</li>
+                                </ul>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -163,41 +170,8 @@
                     </div>
                 </div>
 
+                <!-- Step 3: Konfirmasi & Simpan -->
                 <div id="step3" class="step-content" style="display: none;">
-                    <div class="text-center mb-4">
-                        <i class="fas fa-university text-primary" style="font-size: 4rem;"></i>
-                        <h5 class="mt-2">Verifikasi Rekening Bank/E-Wallet</h5>
-                        <p class="text-muted">Memverifikasi data rekening/e-wallet...</p>
-                    </div>
-                    <div class="card">
-                        <div class="card-body">
-                            <div id="bank_verify_loading" class="text-center py-4">
-                                <div class="spinner-border text-primary" role="status"></div>
-                                <p class="mt-2">Sedang memverifikasi rekening...</p>
-                            </div>
-                            <div id="bank_verify_result" style="display: none;">
-                                <table class="table table-sm mb-0">
-                                    <tr>
-                                        <td width="40%">Bank/E-Wallet</td>
-                                        <td><strong id="result_bank_name"></strong></td>
-                                    </tr>
-                                    <tr>
-                                        <td>No. Rekening/E-Wallet</td>
-                                        <td><strong id="result_account_number"></strong></td>
-                                    </tr>
-                                    <tr>
-                                        <td>Nama Pemilik</td>
-                                        <td><strong id="result_account_holder" class="text-success"></strong></td>
-                                    </tr>
-                                </table>
-                            </div>
-                            <div id="bank_verify_error" class="alert alert-danger" style="display: none;"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Step 4: Konfirmasi & Simpan -->
-                <div id="step4" class="step-content" style="display: none;">
                     <div class="text-center mb-4">
                         <i class="fas fa-check-circle text-success" style="font-size: 4rem;"></i>
                         <h5 class="mt-2">Konfirmasi Data</h5>
@@ -211,16 +185,16 @@
                                     <td><strong id="confirm_wa"></strong> <i class="fas fa-check-circle text-success"></i></td>
                                 </tr>
                                 <tr>
-                                    <td>Bank/E-Wallet</td>
+                                    <td>Kode Bank</td>
                                     <td><strong id="confirm_bank"></strong></td>
                                 </tr>
                                 <tr>
-                                    <td>No. Rekening/E-Wallet</td>
+                                    <td>No Rekening</td>
                                     <td><strong id="confirm_rekening"></strong></td>
                                 </tr>
                                 <tr>
-                                    <td>Nama Pemilik Rekening</td>
-                                    <td><strong id="confirm_pemilik" class="text-success"></strong> <i class="fas fa-check-circle text-success"></i></td>
+                                    <td>Nama Lengkap</td>
+                                    <td><strong id="confirm_pemilik" class="text-success"></strong></td>
                                 </tr>
                             </table>
                         </div>
@@ -229,9 +203,6 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                <button type="button" class="btn btn-outline-primary" id="btn_prev" style="display: none;">
-                    <i class="fas fa-arrow-left me-1"></i>Kembali
-                </button>
                 <button type="button" class="btn btn-primary" id="btn_next">
                     Lanjut<i class="fas fa-arrow-right ms-1"></i>
                 </button>
@@ -317,7 +288,7 @@
 <script>
 $(document).ready(function() {
     var currentStep = 1;
-    var maxStep = 4;
+    var maxStep = 3;
     var otpCountdown = null;
     var verifiedData = {};
     var bankList = []; // Store bank list from API
@@ -454,6 +425,7 @@ $(document).ready(function() {
         $('#edit_id').val($btn.data('id'));
         $('#info_panggilan').text($btn.data('panggilan'));
         $('#edit_wa').val($btn.data('wa'));
+        $('#edit_bank_account_name').val($btn.data('bank-account-name'));
         $('#edit_bank_account_number').val($btn.data('bank-account-number'));
         
         // Set bank code after banks are loaded
@@ -484,6 +456,7 @@ $(document).ready(function() {
             var wa = $('#edit_wa').val().trim();
             var bankCode = $('#edit_bank_code').val();
             var bankAccount = $('#edit_bank_account_number').val().trim();
+            var bankAccountName = $('#edit_bank_account_name').val().trim();
             
             if (!wa) {
                 alert('Nomor WhatsApp wajib diisi');
@@ -497,16 +470,16 @@ $(document).ready(function() {
                 alert('Nomor rekening wajib diisi');
                 return;
             }
+            if (!bankAccountName) {
+                alert('Nama pemilik rekening wajib diisi');
+                return;
+            }
             
             // Send OTP
             sendOTP(wa);
         } else if (currentStep === 2) {
             // Verify OTP
             verifyOTP();
-        } else if (currentStep === 3) {
-            // Already verified, go to step 4
-            currentStep = 4;
-            updateStepUI();
         }
     });
     
@@ -540,9 +513,8 @@ $(document).ready(function() {
         }
         
         // Update buttons
-        $('#btn_prev').toggle(currentStep > 1 && currentStep < 4);
-        $('#btn_next').toggle(currentStep < 4);
-        $('#btn_save').toggle(currentStep === 4);
+        $('#btn_next').toggle(currentStep < 3);
+        $('#btn_save').toggle(currentStep === 3);
     }
     
     function sendOTP(wa) {
@@ -629,7 +601,22 @@ $(document).ready(function() {
                     verifiedData.wa = $('#edit_wa').val().trim();
                     currentStep = 3;
                     updateStepUI();
-                    verifyBank();
+                    
+                    // Populate confirmation
+                    var bankCode = $('#edit_bank_code').val();
+                    var bankName = $('#edit_bank_code option:selected').text();
+                    var bankAccount = $('#edit_bank_account_number').val().trim();
+                    var bankAccountName = $('#edit_bank_account_name').val().trim();
+                    
+                    $('#confirm_wa').text('+62' + verifiedData.wa);
+                    $('#confirm_bank').text(bankName);
+                    $('#confirm_rekening').text(bankAccount);
+                    $('#confirm_pemilik').text(bankAccountName);
+                    
+                    // Stash for saving
+                    verifiedData.bank_code = bankCode;
+                    verifiedData.bank_account_number = bankAccount;
+                    verifiedData.bank_account_name = bankAccountName;
                 } else {
                     alert(res.message || 'Kode OTP tidak valid');
                 }
@@ -669,56 +656,7 @@ $(document).ready(function() {
         });
     }
     
-    function verifyBank() {
-        var bankCode = $('#edit_bank_code').val();
-        var accountNumber = $('#edit_bank_account_number').val().trim();
-        
-        $('#bank_verify_loading').show();
-        $('#bank_verify_result').hide();
-        $('#bank_verify_error').hide();
-        $('#btn_next').prop('disabled', true);
-        
-        $.ajax({
-            url: '<?= URL::BASE_URL ?>Karyawan/verifyBank',
-            method: 'POST',
-            data: { 
-                bank_code: bankCode, 
-                account_number: accountNumber,
-                id: $('#edit_id').val()
-            },
-            dataType: 'json',
-            success: function(res) {
-                $('#bank_verify_loading').hide();
-                
-                if (res.status) {
-                    verifiedData.bank_code = bankCode;
-                    verifiedData.bank_name = res.data.bank_name || $('#edit_bank_code option:selected').text();
-                    verifiedData.bank_account_number = accountNumber;
-                    verifiedData.bank_account_name = res.data.account_holder;
-                    
-                    $('#result_bank_name').text(verifiedData.bank_name);
-                    $('#result_account_number').text(accountNumber);
-                    $('#result_account_holder').text(res.data.account_holder);
-                    $('#bank_verify_result').show();
-                    $('#btn_next').prop('disabled', false);
-                    
-                    // Prepare confirmation
-                    $('#confirm_wa').text('+62' + verifiedData.wa);
-                    $('#confirm_bank').text(verifiedData.bank_name);
-                    $('#confirm_rekening').text(accountNumber);
-                    $('#confirm_pemilik').text(res.data.account_holder);
-                    
 
-                } else {
-                    $('#bank_verify_error').text(res.message || 'Gagal memverifikasi rekening').show();
-                }
-            },
-            error: function() {
-                $('#bank_verify_loading').hide();
-                $('#bank_verify_error').text('Terjadi kesalahan saat verifikasi rekening').show();
-            }
-        });
-    }
     
     function saveData() {
         $('#btn_save').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Menyimpan...');
