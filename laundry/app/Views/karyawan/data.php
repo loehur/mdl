@@ -115,10 +115,7 @@
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label class="form-label">Nomor WhatsApp</label>
-                            <div class="input-group">
-                                <span class="input-group-text">+62</span>
-                                <input type="text" class="form-control bg-light" id="edit_wa" readonly>
-                            </div>
+                            <input type="text" class="form-control bg-light" id="edit_wa" readonly>
                             <small class="text-muted"><i class="fas fa-lock me-1"></i>Tidak dapat diubah, digunakan untuk verifikasi OTP</small>
                         </div>
                         <div class="col-12"><hr></div>
@@ -531,7 +528,7 @@ $(document).ready(function() {
                 if (res.status) {
                     currentStep = 2;
                     updateStepUI();
-                    $('#otp_wa_display').text('+62' + wa);
+                    $('#otp_wa_display').text(wa);
                     startOTPCountdown();
                 } else {
                     // Tampilkan error message lengkap
@@ -608,7 +605,7 @@ $(document).ready(function() {
                     var bankAccount = $('#edit_bank_account_number').val().trim();
                     var bankAccountName = $('#edit_bank_account_name').val().trim();
                     
-                    $('#confirm_wa').text('+62' + verifiedData.wa);
+                    $('#confirm_wa').text(verifiedData.wa);
                     $('#confirm_bank').text(bankName);
                     $('#confirm_rekening').text(bankAccount);
                     $('#confirm_pemilik').text(bankAccountName);
