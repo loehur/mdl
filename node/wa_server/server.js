@@ -833,7 +833,25 @@ app.post('/incoming', async (req, res) => {
         // Send Push Notification only to OFFLINE users AND only if message has text content
         // AND only for incoming messages (not agent messages or system events)
         let pushResult = { success: false, error: 'No text content' };
-        const notify = data.notify !== false;
+        
+        // DEBUG: Log notify value and type
+        console.log(`[PUSH-DEBUG] notify value: ${data.notify}, type: ${typeof data.notify}, case: ${caseType}`);
+        
+        // Normalize notify: handle string "true"/"false", boolean true/false, undefined/null
+        let notify = true; // Default to true
+        if (data.notify !== undefined && data.notify !== null) {
+            if (typeof data.notify === 'boolean') {
+                notify = data.notify;
+            } else if (typeof data.notify === 'string') {
+                // Handle string "true"/"false"
+                notify = data.notify.toLowerCase() === 'true' || data.notify === '1';
+            } else if (typeof data.notify === 'number') {
+                // Handle 1/0
+                notify = data.notify === 1;
+            }
+        }
+        
+        console.log(`[PUSH-DEBUG] Final notify value: ${notify} (boolean: ${typeof notify === 'boolean'})`);
 
         // DEBUG: Log status of silent push triggers
         if (data.type === 'case_resolved' || data.type === 'mark_done' || data.all_closed) {
@@ -931,7 +949,25 @@ app.post('/incoming', async (req, res) => {
     pushRecipients = [...new Set(pushRecipients)];
 
     let pushResult = { success: false, recipients: 0 };
-    const notify = data.notify !== false;
+    
+    // DEBUG: Log notify value and type
+    console.log(`[PUSH-DEBUG] notify value: ${data.notify}, type: ${typeof data.notify}, case: ${caseType}`);
+    
+    // Normalize notify: handle string "true"/"false", boolean true/false, undefined/null
+    let notify = true; // Default to true
+    if (data.notify !== undefined && data.notify !== null) {
+        if (typeof data.notify === 'boolean') {
+            notify = data.notify;
+        } else if (typeof data.notify === 'string') {
+            // Handle string "true"/"false"
+            notify = data.notify.toLowerCase() === 'true' || data.notify === '1';
+        } else if (typeof data.notify === 'number') {
+            // Handle 1/0
+            notify = data.notify === 1;
+        }
+    }
+    
+    console.log(`[PUSH-DEBUG] Final notify value: ${notify} (boolean: ${typeof notify === 'boolean'})`);
 
     // Only send push if message has text content AND is incoming (not agent/system event)
     if (pushRecipients.length > 0 && hasTextContent && !shouldSkipPush) {

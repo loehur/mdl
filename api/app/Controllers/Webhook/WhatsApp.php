@@ -425,6 +425,9 @@ class WhatsApp extends Controller
                 $notify = $autoReplyResult->notify ?? true;
                 $conversationId = $autoReplyResult->conversation_id ?? 0;
                 
+                // DEBUG: Log notify value for debugging
+                \Log::write("DEBUG notify: value=" . var_export($notify, true) . ", type=" . gettype($notify) . ", case=" . $currentCase, 'webhook', 'notify_debug');
+                
                 // Fetch active cases specific for Notification Logic (Driver needs to know if Case 2 active)
                 $activeCases = [];
                 $freshConv = $db->get_where('wa_conversations', ['id' => $conversationId])->row();
@@ -450,13 +453,16 @@ class WhatsApp extends Controller
                     \Log::write("📡 Pushing to WebSocket with quote - WAMID: $quotedMessageId, Body: " . substr($quotedMessageBody ?? 'NULL', 0, 30), 'wa_quote', 'info');
                 }
                 
+                // Ensure notify is boolean (not string or other type)
+                $notifyBool = (bool)$notify;
+                
                 $this->pushIncomingToWebSocket([
                     'conversation_id' => $conversationId,
                     'phone' => $waNumber,
                     'contact_name' => $contact_name,
                     'case' => $currentCase, 
                     'active_cases' => $activeCases, // Send active cases list
-                    'notify' => $notify, // Flag for push notification logic
+                    'notify' => $notifyBool, // Flag for push notification logic (explicit boolean)
                     'message' => [
                         'id' => $msgId, // local DB ID
                         'text' => $textBody,
