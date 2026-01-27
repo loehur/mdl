@@ -291,6 +291,51 @@ class Karyawan extends Controller
     }
 
     /**
+     * Get list of banks from database
+     * GET /Karyawan/getBanks
+     */
+    public function getBanks()
+    {
+        header('Content-Type: application/json');
+        
+        try {
+            // Ambil daftar bank dari database db(100)
+            $banks = $this->db(100)->get('banks', 1);
+            
+            if (empty($banks)) {
+                echo json_encode([
+                    'status' => false,
+                    'message' => 'Tidak ada data bank',
+                    'data' => []
+                ]);
+                return;
+            }
+            
+            // Format data bank untuk frontend
+            $bankList = [];
+            foreach ($banks as $bank) {
+                $bankList[] = [
+                    'code' => $bank['bank_code'] ?? '',
+                    'name' => $bank['name'] ?? ''
+                ];
+            }
+            
+            echo json_encode([
+                'status' => true,
+                'message' => 'Success',
+                'data' => $bankList
+            ]);
+            
+        } catch (\Exception $e) {
+            echo json_encode([
+                'status' => false,
+                'message' => 'Error: ' . $e->getMessage(),
+                'data' => []
+            ]);
+        }
+    }
+    
+    /**
      * Kirim OTP via WhatsApp API
      * @param string $phoneNumber Nomor telepon (tanpa +62)
      * @param string $otp Kode OTP

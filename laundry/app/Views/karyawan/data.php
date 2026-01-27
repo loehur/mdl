@@ -85,6 +85,13 @@
             <div class="modal-body">
                 <input type="hidden" id="edit_id">
                 
+                <!-- Alert Container - untuk menampilkan pesan error/success -->
+                <div id="modal_alert" class="alert alert-dismissible fade d-none" role="alert" style="margin-bottom: 1rem;">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <span id="modal_alert_message"></span>
+                    <button type="button" class="btn-close" onclick="hideModalAlert()"></button>
+                </div>
+                
                 <!-- Info Karyawan -->
                 <div class="alert alert-info mb-3">
                     <strong id="info_panggilan"></strong>
@@ -292,6 +299,54 @@ $(document).ready(function() {
     var banksLoaded = false;
     var bankSelectize = null; // Selectize instance
     
+    // ✅ FUNCTION: Show modal alert (inline notification)
+    function showModalAlert(message, type = 'danger') {
+        var $alert = $('#modal_alert');
+        var $message = $('#modal_alert_message');
+        var iconClass = 'fa-info-circle';
+        
+        // Remove previous alert classes
+        $alert.removeClass('alert-success alert-danger alert-warning alert-info');
+        
+        // Set icon and class based on type
+        if (type === 'success') {
+            $alert.addClass('alert-success');
+            iconClass = 'fa-check-circle';
+        } else if (type === 'danger' || type === 'error') {
+            $alert.addClass('alert-danger');
+            iconClass = 'fa-exclamation-circle';
+        } else if (type === 'warning') {
+            $alert.addClass('alert-warning');
+            iconClass = 'fa-exclamation-triangle';
+        } else {
+            $alert.addClass('alert-info');
+            iconClass = 'fa-info-circle';
+        }
+        
+        // Update icon
+        $alert.find('i.fas').attr('class', 'fas ' + iconClass + ' me-2');
+        
+        // Set message and show
+        $message.html(message);
+        $alert.removeClass('d-none').addClass('show');
+        
+        // Auto hide after 5 seconds (only for success messages)
+        if (type === 'success') {
+            setTimeout(function() {
+                hideModalAlert();
+            }, 5000);
+        }
+    }
+    
+    // ✅ FUNCTION: Hide modal alert
+    function hideModalAlert() {
+        $('#modal_alert').removeClass('show').addClass('d-none');
+    }
+    
+    // Make functions global so they can be called from onclick attribute
+    window.showModalAlert = showModalAlert;
+    window.hideModalAlert = hideModalAlert;
+    
     // Load bank list from API on page load
     loadBankList();
     
@@ -299,7 +354,7 @@ $(document).ready(function() {
         $('#bank_status').html('<i class="fas fa-spinner fa-spin"></i> Memuat daftar bank...');
         
         $.ajax({
-            url: 'https://api.nalju.com/Flip/banks',
+            url: '<?= URL::BASE_URL ?>Karyawan/getBanks',
             method: 'GET',
             dataType: 'json',
             success: function(res) {
@@ -310,20 +365,12 @@ $(document).ready(function() {
                     // Prepare options for selectize
                     var options = [];
                     
-                    // Check if data is array or object
-                    if (Array.isArray(res.data)) {
-                        res.data.forEach(function(bank) {
-                            var code = bank.bank_code || bank.code;
-                            var name = bank.name || bank.bank_name || code.toUpperCase();
-                            options.push({ value: code, text: name });
-                        });
-                    } else {
-                        // Object format
-                        $.each(res.data, function(code, bank) {
-                            var name = (typeof bank === 'object') ? (bank.name || bank.bank_name) : bank;
-                            options.push({ value: code, text: name });
-                        });
-                    }
+                    // Data dari database sudah dalam format array
+                    res.data.forEach(function(bank) {
+                        var code = bank.code || bank.bank_code;
+                        var name = bank.name || code.toUpperCase();
+                        options.push({ value: code, text: name });
+                    });
                     
                     // Initialize selectize
                     initBankSelectize(options);
@@ -345,7 +392,7 @@ $(document).ready(function() {
                 
                 var errorMsg = 'Error: ' + error;
                 if (xhr.status === 0) {
-                    errorMsg = 'Tidak dapat terhubung ke server (CORS/Network issue)';
+                    errorMsg = 'Tidak dapat terhubung ke server';
                 } else if (xhr.status === 404) {
                     errorMsg = 'Endpoint tidak ditemukan (404)';
                 } else if (xhr.status >= 500) {
@@ -418,6 +465,9 @@ $(document).ready(function() {
         currentStep = 1;
         verifiedData = {};
         
+        // Hide any previous alerts
+        hideModalAlert();
+        
         // Populate form
         $('#edit_id').val($btn.data('id'));
         $('#info_panggilan').text($btn.data('panggilan'));
@@ -456,21 +506,24 @@ $(document).ready(function() {
             var bankAccountName = $('#edit_bank_account_name').val().trim();
             
             if (!wa) {
-                alert('Nomor WhatsApp wajib diisi');
+                showModalAlert('Nomor WhatsApp wajib diisi', 'warning');
                 return;
             }
             if (!bankCode) {
-                alert('Pilih bank terlebih dahulu');
+                showModalAlert('Pilih bank terlebih dahulu', 'warning');
                 return;
             }
             if (!bankAccount) {
-                alert('Nomor rekening wajib diisi');
+                showModalAlert('Nomor rekening wajib diisi', 'warning');
                 return;
             }
             if (!bankAccountName) {
-                alert('Nama pemilik rekening wajib diisi');
+                showModalAlert('Nama pemilik rekening wajib diisi', 'warning');
                 return;
             }
+            
+            // Hide any previous alerts before proceeding
+            hideModalAlert();
             
             // Send OTP
             sendOTP(wa);
@@ -530,6 +583,7 @@ $(document).ready(function() {
                     updateStepUI();
                     $('#otp_wa_display').text(wa);
                     startOTPCountdown();
+                    hideModalAlert(); // Hide alert saat sukses pindah step
                 } else {
                     // Tampilkan error message lengkap
                     var errorMsg = res.message || 'Gagal mengirim OTP';
@@ -539,7 +593,7 @@ $(document).ready(function() {
                         console.error('WhatsApp API Response:', res.api_response);
                     }
                     
-                    alert(errorMsg);
+                    showModalAlert(errorMsg, 'danger');
                 }
             },
             error: function(xhr, status, error) {
@@ -569,7 +623,7 @@ $(document).ready(function() {
                     }
                 }
                 
-                alert(errorMsg);
+                showModalAlert(errorMsg, 'danger');
             },
             complete: function() {
                 $('#btn_next').prop('disabled', false).html('Lanjut<i class="fas fa-arrow-right ms-1"></i>');
@@ -580,9 +634,12 @@ $(document).ready(function() {
     function verifyOTP() {
         var otp = $('#otp_code').val().trim();
         if (!otp || otp.length !== 6) {
-            alert('Masukkan 6 digit kode OTP');
+            showModalAlert('Masukkan 6 digit kode OTP', 'warning');
             return;
         }
+        
+        // Hide previous alerts
+        hideModalAlert();
         
         $('#btn_next').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Memverifikasi...');
         
@@ -598,6 +655,7 @@ $(document).ready(function() {
                     verifiedData.wa = $('#edit_wa').val().trim();
                     currentStep = 3;
                     updateStepUI();
+                    hideModalAlert(); // Hide alert saat sukses
                     
                     // Populate confirmation
                     var bankCode = $('#edit_bank_code').val();
@@ -615,7 +673,7 @@ $(document).ready(function() {
                     verifiedData.bank_account_number = bankAccount;
                     verifiedData.bank_account_name = bankAccountName;
                 } else {
-                    alert(res.message || 'Kode OTP tidak valid');
+                    showModalAlert(res.message || 'Kode OTP tidak valid', 'danger');
                 }
             },
             error: function(xhr, status, error) {
@@ -645,7 +703,7 @@ $(document).ready(function() {
                     }
                 }
                 
-                alert(errorMsg);
+                showModalAlert(errorMsg, 'danger');
             },
             complete: function() {
                 $('#btn_next').prop('disabled', false).html('Lanjut<i class="fas fa-arrow-right ms-1"></i>');
@@ -656,6 +714,9 @@ $(document).ready(function() {
 
     
     function saveData() {
+        // Hide previous alerts
+        hideModalAlert();
+        
         $('#btn_save').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Menyimpan...');
         
         $.ajax({
@@ -670,14 +731,17 @@ $(document).ready(function() {
             dataType: 'json',
             success: function(res) {
                 if (res.status) {
-                    alert('Data berhasil disimpan!');
-                    location.reload();
+                    showModalAlert('Data berhasil disimpan! Halaman akan di-refresh...', 'success');
+                    // Reload after showing success message
+                    setTimeout(function() {
+                        location.reload();
+                    }, 1500);
                 } else {
-                    alert(res.message || 'Gagal menyimpan data');
+                    showModalAlert(res.message || 'Gagal menyimpan data', 'danger');
                 }
             },
             error: function() {
-                alert('Terjadi kesalahan saat menyimpan data');
+                showModalAlert('Terjadi kesalahan saat menyimpan data', 'danger');
             },
             complete: function() {
                 $('#btn_save').prop('disabled', false).html('<i class="fas fa-save me-1"></i>Simpan Data');
