@@ -1190,8 +1190,7 @@ class WAReplies
                 // Handle complex structure with available and held balance
                 if (isset($data['data']['data']['saldo_tersedia'])) {
                     $d = $data['data']['data'];
-                    $text = "*Saldo TokoPay (" . ($d['nama_toko'] ?? 'Madinah Laundry') . ")*\n";
-                    $text .= "Tersedia: Rp " . number_format($d['saldo_tersedia'], 0, ',', '.') . "\n";
+                    $text = "Tersedia: Rp " . number_format($d['saldo_tersedia'], 0, ',', '.') . "\n";
                     $text .= "Tertahan: Rp " . number_format($d['saldo_tertahan'] ?? 0, 0, ',', '.');
                 } else {
                     // Fallback to simpler balance structures
