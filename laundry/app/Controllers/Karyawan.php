@@ -56,30 +56,23 @@ class Karyawan extends Controller
         // Ambil id_cabang dari session
         $id_cabang = (int)($_SESSION[URL::SESSID]['user']['id_cabang'] ?? 0);
 
-        // Ambil data karyawan dengan JOIN ke tabel banks untuk mendapatkan nama bank
-        $db = $this->db(0);
+        // Ambil data karyawan aktif di cabang ini
+        $karyawan = $this->db(0)->get_cols_where(
+            'user',
+            'id_user, nama_user, no_user, bank_code, bank_account_name, bank_account_number',
+            "en = 1 AND id_cabang = {$id_cabang}",
+            1
+        );
         
-        // JOIN dengan database 100 (banks table)
-        $query = "SELECT 
-                    u.id_user, 
-                    u.nama_user, 
-                    u.no_user, 
-                    u.bank_code,
-                    u.bank_account_name, 
-                    u.bank_account_number,
-                    b.name as bank_name
-                  FROM user u
-                  LEFT JOIN laundry_100.banks b ON u.bank_code = b.bank_code
-                  WHERE u.en = 1 AND u.id_cabang = {$id_cabang}";
+        // Ambil daftar banks untuk mapping bank_code -> bank_name
+        $banks = $this->db(100)->get('banks', 'bank_code'); // Indexed by bank_code
         
-        $result = $db->query($query);
-        $karyawan = [];
-        
-        if ($result && $result->num_rows() > 0) {
-            while ($row = $result->fetch_assoc()) {
-                $karyawan[] = $row;
-            }
+        // Map nama bank ke setiap karyawan
+        foreach ($karyawan as &$row) {
+            $bankCode = $row['bank_code'] ?? '';
+            $row['bank_name'] = $banks[$bankCode]['name'] ?? '';
         }
+        unset($row); // Break reference
 
         $this->view('layout', ['data_operasi' => $data_operasi]);
         $this->view('karyawan/data', [
