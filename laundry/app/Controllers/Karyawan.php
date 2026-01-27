@@ -296,11 +296,18 @@ class Karyawan extends Controller
      */
     public function getBanks()
     {
-        header('Content-Type: application/json');
+        // Suppress any output before JSON
+        @ob_start();
+        @ini_set('display_errors', 0);
         
         try {
+            @header('Content-Type: application/json');
+            
             // Ambil daftar bank dari database db(100)
             $banks = $this->db(100)->get('banks', 1);
+            
+            // Clear any buffered output
+            ob_end_clean();
             
             if (empty($banks)) {
                 echo json_encode([
@@ -327,6 +334,9 @@ class Karyawan extends Controller
             ]);
             
         } catch (\Exception $e) {
+            // Clear any buffered output
+            @ob_end_clean();
+            
             echo json_encode([
                 'status' => false,
                 'message' => 'Error: ' . $e->getMessage(),

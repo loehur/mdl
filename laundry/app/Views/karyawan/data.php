@@ -358,6 +358,8 @@ $(document).ready(function() {
             method: 'GET',
             dataType: 'json',
             success: function(res) {
+                console.log('getBanks Response:', res); // Debug
+                
                 if (res.status && res.data) {
                     bankList = res.data;
                     banksLoaded = true;
@@ -389,6 +391,9 @@ $(document).ready(function() {
                     statusCode: xhr.status,
                     responseText: xhr.responseText
                 });
+                
+                // Log raw response untuk debugging
+                console.error('Raw Response:', xhr.responseText);
                 
                 var errorMsg = 'Error: ' + error;
                 if (xhr.status === 0) {
