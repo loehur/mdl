@@ -249,16 +249,16 @@ async function sendPushNotification(options) {
     }
 
     try {
-        // OneSignal REST API uses "Key" format, not "Basic"
-        // Format: Authorization: Key <rest_api_key>
-        // See: https://documentation.onesignal.com/reference/create-notification
-        const authHeader = `Key ${ONESIGNAL_REST_API_KEY}`;
+        // OneSignal REST API uses "key" format (lowercase), not "Basic"
+        // Format: Authorization: key <rest_api_key>
+        // See: https://documentation.onesignal.com/docs/en/keys-and-ids#app-api-key
+        const authHeader = `key ${ONESIGNAL_REST_API_KEY}`;
         
         console.log('[OneSignal] Sending request...');
         console.log('[OneSignal] APP_ID:', ONESIGNAL_APP_ID.substring(0, 8) + '...');
         console.log('[OneSignal] REST_API_KEY length:', ONESIGNAL_REST_API_KEY.length);
         console.log('[OneSignal] Auth header format:', authHeader.substring(0, 10) + '...' + authHeader.substring(authHeader.length - 5));
-        console.log('[OneSignal] Auth header starts with "Key ":', authHeader.startsWith('Key '));
+        console.log('[OneSignal] Auth header starts with "key ":', authHeader.startsWith('key '));
         
         const response = await fetch('https://onesignal.com/api/v1/notifications', {
             method: 'POST',
@@ -359,8 +359,8 @@ async function sendSilentCancelNotification(options) {
     };
 
     try {
-        // OneSignal REST API uses "Key" format, not "Basic"
-        const authHeader = `Key ${ONESIGNAL_REST_API_KEY}`;
+        // OneSignal REST API uses "key" format (lowercase), not "Basic"
+        const authHeader = `key ${ONESIGNAL_REST_API_KEY}`;
         
         const response = await fetch('https://onesignal.com/api/v1/notifications', {
             method: 'POST',
