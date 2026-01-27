@@ -441,6 +441,10 @@ const getMessagePreview = (m) => {
     if(m.type === 'image') return "📷 Image";
     return (m.text || m.caption || "").substring(0, 60);
 };
+// Check if message is plain text (no media type)
+const isPlainTextMessage = (msg) => {
+    return !msg.type || msg.type === 'text' || msg.type === '';
+};
 const findQuotedMessage = (id) => props.activeConversation?.messages?.find(m => m.wamid === id || m.id === id);
 const scrollToMessage = (id) => {
     const el = document.getElementById("msg-" + id); // assumes ID
@@ -756,13 +760,19 @@ onUnmounted(() => {
 
                              <!-- Bubble -->
                              <div :class="[
-                               'rounded-lg shadow-sm px-3 py-1.5 relative overflow-hidden',
-                               msg.type === 'image' ? 'p-0 bg-[var(--wa-bubble-incoming)]' : '',
-                               msg.type === 'location' ? 'p-0' : '',
+                               'rounded-lg shadow-sm relative overflow-hidden',
+                               isPlainTextMessage(msg) ? 'px-3 py-1.5' : 'p-0.5',
                                msg.sender === 'me' ? 'bg-[var(--wa-bubble-outgoing)] rounded-tr-none' : 'bg-[var(--wa-bubble-incoming)] rounded-tl-none'
                              ]">
                                  <!-- Reply Quote -->
-                                 <div v-if="msg.quoted_message_id" class="bg-black/10 rounded px-2 py-1 mb-1 border-l-2 border-[var(--wa-accent-green)]" :class="{ 'cursor-pointer': findQuotedMessage(msg.quoted_message_id) }" @click="findQuotedMessage(msg.quoted_message_id) && scrollToMessage(msg.quoted_message_id)">
+                                 <div 
+                                   v-if="msg.quoted_message_id" 
+                                   :class="[
+                                     'bg-black/10 rounded px-2 py-1 border-l-2 border-[var(--wa-accent-green)]',
+                                     isPlainTextMessage(msg) ? 'mb-1' : 'mb-0.5',
+                                     findQuotedMessage(msg.quoted_message_id) ? 'cursor-pointer' : ''
+                                   ]" 
+                                   @click="findQuotedMessage(msg.quoted_message_id) && scrollToMessage(msg.quoted_message_id)">
                                       <span class="text-[10px] font-bold text-[var(--wa-accent-green)] block">
                                         {{ findQuotedMessage(msg.quoted_message_id)?.sender === 'me' ? 'You' : (msg.quoted_message_from ? 'Customer' : activeConversation.name) }}
                                       </span>
@@ -785,7 +795,7 @@ onUnmounted(() => {
 
                                   <!-- Location -->
                                   <div v-else-if="msg.type === 'location'" class="relative max-w-sm" :class="{ 'cursor-pointer': msg.media_url }" @click="msg.media_url && openLocation(msg.media_url)">
-                                      <div class="bg-gradient-to-br from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4" :class="{ 'hover:bg-gradient-to-br hover:from-green-100 hover:to-blue-100 dark:hover:from-green-900/30 dark:hover:to-blue-900/30 transition-colors': msg.media_url }">
+                                      <div class="bg-gradient-to-br from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 border border-green-200 dark:border-green-800 rounded-lg p-1.5" :class="{ 'hover:bg-gradient-to-br hover:from-green-100 hover:to-blue-100 dark:hover:from-green-900/30 dark:hover:to-blue-900/30 transition-colors': msg.media_url }">
                                            <div class="flex items-start gap-3">
                                                 <div class="flex-shrink-0">
                                                      <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-red-500" fill="currentColor" viewBox="0 0 24 24">
