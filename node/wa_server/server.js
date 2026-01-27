@@ -3,7 +3,19 @@ const express = require('express');
 const http = require('http');
 const https = require('https'); // Add https module support
 const cors = require('cors');
-require('dotenv').config();
+const path = require('path');
+
+// Load .env file explicitly with path
+const dotenv = require('dotenv');
+const envPath = path.resolve(__dirname, '.env');
+const result = dotenv.config({ path: envPath });
+
+if (result.error) {
+    console.error('[ENV] ❌ Error loading .env file:', result.error);
+    console.error('[ENV] Looking for .env at:', envPath);
+} else {
+    console.log('[ENV] ✅ .env file loaded successfully from:', envPath);
+}
 
 const app = express();
 app.use(express.json());
@@ -14,7 +26,7 @@ app.use(express.urlencoded({ extended: true }));
 // ============================================
 // Defaults or from env
 const allowedOrigins = process.env.AllowedOrigins
-    ? process.env.AllowedOrigins.split(',')
+    ? process.env.AllowedOrigins.split(',').map(origin => origin.trim()).filter(origin => origin.length > 0)
     : ['http://localhost', 'https://ml.nalju.com', 'https://cms.nalju.com', 'http://localhost:8081'];
 
 app.use(cors({
@@ -45,6 +57,17 @@ const ONESIGNAL_REST_API_KEY = (process.env.ONESIGNAL_REST_API_KEY || '').trim()
 // Debug: Log OneSignal config (mask sensitive data)
 console.log('[OneSignal Config] APP_ID:', ONESIGNAL_APP_ID ? `${ONESIGNAL_APP_ID.substring(0, 8)}...` : 'NOT SET');
 console.log('[OneSignal Config] REST_API_KEY:', ONESIGNAL_REST_API_KEY ? `${ONESIGNAL_REST_API_KEY.substring(0, 8)}...` : 'NOT SET');
+console.log('[OneSignal Config] REST_API_KEY length:', ONESIGNAL_REST_API_KEY ? ONESIGNAL_REST_API_KEY.length : 0);
+console.log('[OneSignal Config] REST_API_KEY from env:', process.env.ONESIGNAL_REST_API_KEY ? `${process.env.ONESIGNAL_REST_API_KEY.substring(0, 8)}...` : 'NOT SET IN PROCESS.ENV');
+
+// Validate OneSignal config on startup
+if (!ONESIGNAL_APP_ID || !ONESIGNAL_REST_API_KEY) {
+    console.error('[OneSignal Config] ❌ WARNING: OneSignal credentials not properly configured!');
+    console.error('[OneSignal Config] APP_ID:', ONESIGNAL_APP_ID || 'MISSING');
+    console.error('[OneSignal Config] REST_API_KEY:', ONESIGNAL_REST_API_KEY ? 'SET (length: ' + ONESIGNAL_REST_API_KEY.length + ')' : 'MISSING');
+} else {
+    console.log('[OneSignal Config] ✅ OneSignal credentials loaded successfully');
+}
 
 // ============================================
 // Notification Counter per Chat (for WhatsApp-style grouping)
@@ -260,7 +283,7 @@ async function sendPushNotification(options) {
         console.log('[OneSignal] Auth header format:', authHeader.substring(0, 10) + '...' + authHeader.substring(authHeader.length - 5));
         console.log('[OneSignal] Auth header starts with "key ":', authHeader.startsWith('key '));
         
-        const response = await fetch('https://onesignal.com/api/v1/notifications', {
+        const response = await fetch('https://api.onesignal.com/notifications?c=push', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -362,7 +385,7 @@ async function sendSilentCancelNotification(options) {
         // OneSignal REST API uses "key" format (lowercase), not "Basic"
         const authHeader = `key ${ONESIGNAL_REST_API_KEY}`;
         
-        const response = await fetch('https://onesignal.com/api/v1/notifications', {
+        const response = await fetch('https://api.onesignal.com/notifications?c=push', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
