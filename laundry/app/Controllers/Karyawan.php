@@ -298,11 +298,6 @@ class Karyawan extends Controller
      */
     private function sendWhatsAppOTP($phoneNumber, $otp)
     {
-        // Format nomor: tambahkan 62 di depan jika belum ada
-        if (substr($phoneNumber, 0, 2) !== '62') {
-            $phoneNumber = '62' . $phoneNumber;
-        }
-
         // Compose message - sama seperti di Login/req_pin
         $message = "🔐 *Kode OTP Verifikasi*\n\n";
         $message .= "Kode OTP Anda: *{$otp}*\n\n";

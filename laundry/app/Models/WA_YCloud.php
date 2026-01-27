@@ -45,6 +45,11 @@ class WA_YCloud extends DB
             $data['message_mode'] = 'free';
         }
 
+        // Log payload untuk debugging
+        if (class_exists('Log')) {
+            @\Log::write("[WA_YCloud] Sending to API - Phone: $phone, Mode: " . ($data['message_mode'] ?? 'unknown') . ", Payload: " . json_encode($data), 'whatsapp', 'model');
+        }
+
         $ch = curl_init($this->local_api_url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
@@ -59,6 +64,11 @@ class WA_YCloud extends DB
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $error = curl_error($ch);
         curl_close($ch);
+        
+        // Log response untuk debugging
+        if (class_exists('Log')) {
+            @\Log::write("[WA_YCloud] API Response - HTTP: $httpCode, Response: " . substr($response, 0, 500), 'whatsapp', 'model');
+        }
 
         // 3. Parse Response
         $status = false;
