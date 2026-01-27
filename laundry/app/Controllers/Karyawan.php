@@ -303,82 +303,69 @@ class Karyawan extends Controller
             $phoneNumber = '62' . $phoneNumber;
         }
 
-        // Compose message
+        // Compose message - sama seperti di Login/req_pin
         $message = "🔐 *Kode OTP Verifikasi*\n\n";
         $message .= "Kode OTP Anda: *{$otp}*\n\n";
         $message .= "Kode ini berlaku selama 5 menit.\n";
         $message .= "⚠️ Jangan bagikan kode ini kepada siapapun.";
 
-        try {
-            // Call WhatsApp API endpoint - menggunakan send
-            $apiUrl = 'https://api.nalju.com/WhatsApp/send';
+        // Log sebelum kirim WA untuk tracking
+        $this->log("[sendWhatsAppOTP] Attempting to send OTP to: {$phoneNumber}", 'karyawan', 'whatsapp_otp');
+        
+        // ✅ GUNAKAN WA_YCloud MODEL - SEPERTI DI Login::req_pin
+        // Model ini akan otomatis mengecek CSW dan menggunakan template jika CSW expired
+        $res = $this->model('WA_YCloud')->send($phoneNumber, $message);
+        
+        // Log response lengkap untuk debugging
+        $this->log("[sendWhatsAppOTP] WA Response: " . json_encode($res), 'karyawan', 'whatsapp_otp');
+
+        // ✅ VALIDASI: Pastikan WA benar-benar terkirim
+        $waSuccess = false;
+        $waMessageId = null;
+        $errorMessage = null;
+        
+        // Check: status bisa true (boolean) atau 'success'/'sent' (string)
+        $statusOk = ($res['status'] === true || $res['status'] === 'success');
+        $httpOk = (($res['code'] ?? 0) == 200);
+        
+        if ($statusOk && $httpOk) {
+            // Jika status true dan http 200, langsung sukses!
+            $waSuccess = true;
             
-            // Prepare payload untuk free text
-            $payload = [
-                'phone' => $phoneNumber,
-                'message_mode' => 'free',
-                'message' => $message,
-            ];
+            // Optional: Extract message_id untuk logging (tidak wajib)
+            $responseData = $res['data'] ?? [];
+            $waMessageId = $responseData['id'] ?? ($responseData['message_id'] ?? null);
+            $dataStatus = $responseData['status'] ?? '';
             
-            // Send request via cURL
-            $ch = curl_init($apiUrl);
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'Content-Type: application/json',
-                'Accept: application/json'
-            ]);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+            $this->log("[sendWhatsAppOTP] WA Success - Message ID: " . ($waMessageId ?: 'N/A') . ", Status: " . ($dataStatus ?: 'N/A'), 'karyawan', 'whatsapp_otp');
+        } else {
+            $this->log("[sendWhatsAppOTP] WA Failed - Status: " . json_encode($res['status']) . ", HTTP Code: " . ($res['code'] ?? 'null'), 'karyawan', 'whatsapp_otp');
             
-            $response = curl_exec($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $curlError = curl_error($ch);
-            curl_close($ch);
+            // Extract error message
+            $errorMessage = $res['error'] ?? 'Unknown error';
             
-            // Log the request and response
-            $this->log("Phone: {$phoneNumber}, HTTP: {$httpCode}", 'karyawan', 'whatsapp_otp');
-            $this->log("Response: " . $response, 'karyawan', 'whatsapp_otp');
-            
-            // Handle cURL errors
-            if ($curlError) {
-                throw new \Exception("cURL Error: {$curlError}");
-            }
-            
-            // Parse response
-            $result = json_decode($response, true);
-            
-            if ($result === null) {
-                throw new \Exception("Invalid JSON response from API: " . substr($response, 0, 200));
-            }
-            
-            // Check if successful
-            if (isset($result['status']) && $result['status'] === true) {
-                return [
-                    'status' => true,
-                    'error' => null,
-                    'response' => $result['data'] ?? null
-                ];
-            } else {
-                // API returned error
-                $errorMsg = $result['message'] ?? 'WhatsApp API error';
+            // Jika CSW expired, berikan pesan yang jelas
+            $apiData = $res['data'] ?? [];
+            if (($res['code'] ?? 0) == 400 && isset($apiData['csw_expired']) && $apiData['csw_expired']) {
+                $hoursElapsed = $apiData['hours_elapsed'] ?? 'N/A';
+                $lastMessageAt = $apiData['last_message_at'] ?? 'N/A';
+                $errorMessage = "Customer Service Window (CSW) expired. Last message: {$lastMessageAt} ({$hoursElapsed} hours ago). Cannot send free text message.";
                 
-                return [
-                    'status' => false,
-                    'error' => $errorMsg,
-                    'response' => $result
-                ];
+                $this->log("[sendWhatsAppOTP] CSW Expired - Hours: {$hoursElapsed}, Last Message: {$lastMessageAt}", 'karyawan', 'whatsapp_otp');
             }
-            
-        } catch (\Exception $e) {
-            $errorMsg = $e->getMessage();
-            $this->log("Exception: " . $errorMsg, 'karyawan', 'whatsapp_otp');
-            
+        }
+
+        if ($waSuccess) {
+            return [
+                'status' => true,
+                'error' => null,
+                'response' => $res['data'] ?? null
+            ];
+        } else {
             return [
                 'status' => false,
-                'error' => $errorMsg,
-                'response' => null
+                'error' => $errorMessage,
+                'response' => $res
             ];
         }
     }
