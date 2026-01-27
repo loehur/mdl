@@ -421,21 +421,22 @@ $(document).ready(function() {
             bankSelectize.destroy();
         }
         
+        // Prepend empty option untuk placeholder (akan selalu di atas)
+        var allOptions = [
+            {value: '', text: 'Pilih Bank/E-Wallet'}
+        ].concat(options);
+        
         // Initialize selectize with options
         var $select = $('#edit_bank_code').selectize({
-            options: options,
+            options: allOptions,
             valueField: 'value',
             labelField: 'text',
             searchField: 'text',
             placeholder: 'Ketik untuk mencari bank...',
             create: false,
-            sortField: 'text',
+            sortField: null, // Disable sorting agar urutan tetap seperti array
             maxItems: 1,
-            allowEmptyOption: true,
-            onInitialize: function() {
-                // Add empty option
-                this.addOption({value: '', text: 'Pilih Bank/E-Wallet'});
-            }
+            allowEmptyOption: true
         });
         
         bankSelectize = $select[0].selectize;

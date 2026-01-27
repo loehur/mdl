@@ -327,6 +327,11 @@ class Karyawan extends Controller
                 ];
             }
             
+            // Sort banks alphabetically by name
+            usort($bankList, function($a, $b) {
+                return strcmp($a['name'], $b['name']);
+            });
+            
             echo json_encode([
                 'status' => true,
                 'message' => 'Success',
