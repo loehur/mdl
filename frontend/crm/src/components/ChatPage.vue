@@ -219,6 +219,14 @@ const openImageLightbox = (url) => {
     emit('open-image-lightbox', url);
 };
 
+const openLocation = (url) => {
+    if (url && (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('maps.google.com'))) {
+        // Ensure it's a full URL
+        const fullUrl = url.startsWith('http') ? url : `https://${url}`;
+        window.open(fullUrl, '_blank');
+    }
+};
+
 // --- CASE ACTIONS (API CALLS) ---
 // These update the activeConversation state which is passed by reference/prop
 const updateCase = async (caseId, loadingRef) => {
@@ -750,6 +758,7 @@ onUnmounted(() => {
                              <div :class="[
                                'rounded-lg shadow-sm px-3 py-1.5 relative overflow-hidden',
                                msg.type === 'image' ? 'p-0 bg-[var(--wa-bubble-incoming)]' : '',
+                               msg.type === 'location' ? 'p-0' : '',
                                msg.sender === 'me' ? 'bg-[var(--wa-bubble-outgoing)] rounded-tr-none' : 'bg-[var(--wa-bubble-incoming)] rounded-tl-none'
                              ]">
                                  <!-- Reply Quote -->
@@ -770,6 +779,33 @@ onUnmounted(() => {
                                            <div class="flex justify-end items-center gap-1 text-[10px]">
                                               <span v-if="msg.sender_code">~{{ msg.sender_code }}</span>
                                               <span>{{ msg.time }}</span>
+                                           </div>
+                                      </div>
+                                  </div>
+
+                                  <!-- Location -->
+                                  <div v-else-if="msg.type === 'location'" class="relative max-w-sm" :class="{ 'cursor-pointer': msg.media_url }" @click="msg.media_url && openLocation(msg.media_url)">
+                                      <div class="bg-gradient-to-br from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4" :class="{ 'hover:bg-gradient-to-br hover:from-green-100 hover:to-blue-100 dark:hover:from-green-900/30 dark:hover:to-blue-900/30 transition-colors': msg.media_url }">
+                                           <div class="flex items-start gap-3">
+                                                <div class="flex-shrink-0">
+                                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-red-500" fill="currentColor" viewBox="0 0 24 24">
+                                                          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                                                     </svg>
+                                                </div>
+                                                <div class="flex-1 min-w-0">
+                                                     <p v-if="msg.text" :class="[messageFontClass, 'text-[var(--wa-text-primary)] font-medium mb-1']">{{ msg.text }}</p>
+                                                     <p v-if="msg.media_caption" class="text-xs text-[var(--wa-text-secondary)] font-mono mb-2">{{ msg.media_caption }}</p>
+                                                     <div class="flex items-center gap-2 text-xs text-[var(--wa-text-tertiary)]">
+                                                          <span class="text-blue-500 hover:text-blue-600 font-medium">Buka di Google Maps</span>
+                                                          <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                                          </svg>
+                                                     </div>
+                                                </div>
+                                           </div>
+                                           <div v-if="msg.time || msg.sender_code" class="flex justify-end items-center gap-1 text-[10px] mt-2 pt-2 border-t border-green-200 dark:border-green-800">
+                                                <span v-if="msg.sender_code" class="text-[var(--wa-text-tertiary)]">~{{ msg.sender_code }}</span>
+                                                <span class="text-[var(--wa-text-tertiary)]">{{ msg.time }}</span>
                                            </div>
                                       </div>
                                   </div>

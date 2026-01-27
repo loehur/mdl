@@ -275,7 +275,7 @@ const toggleTheme = () => {
 // Title blinking is now handled by shouldBlinkTitle watch below (line 314)
 // to avoid conflicts between totalUnreadCount and priority-based blinking
 
-const fetchConversations = async (offset = 0, limit = 20, search = '') => {
+const fetchConversations = async (offset = 0, limit = 27, search = '') => {
   try {
     isLoadingConversations.value = true; // Start loading
 
@@ -490,8 +490,8 @@ const loadMoreConversations = async () => {
     const userIdParam = authId.value ? `user_id=${authId.value}` : "";
     const searchParam = searchQuery.value ? `&search=${encodeURIComponent(searchQuery.value)}` : "";
     const query = userIdParam
-      ? `?${userIdParam}&offset=${offset}&limit=20${searchParam}&_t=${Date.now()}`
-      : `?offset=${offset}&limit=20${searchParam}&_t=${Date.now()}`;
+      ? `?${userIdParam}&offset=${offset}&limit=27${searchParam}&_t=${Date.now()}`
+      : `?offset=${offset}&limit=27${searchParam}&_t=${Date.now()}`;
 
     const response = await fetch(
       `${API_BASE}/CRM/Chat/getConversations${query}`
@@ -755,7 +755,7 @@ const resetPollingTimer = () => {
         }
         
         // Fetch conversations
-        fetchConversations(0, 20, '');
+        fetchConversations(0, 27, '');
       }
     }, interval);
   };
@@ -4511,13 +4511,6 @@ window.addEventListener("focus", () => {
     isTitleRed.value = false;
   }
 });
-
-// Open location in Google Maps
-const openLocation = (mapUrl) => {
-  if (mapUrl) {
-    window.open(mapUrl, "_blank");
-  }
-};
 
 // Image Lightbox Functions (for in-app image viewing)
 const openImageLightbox = (imageUrl) => {
