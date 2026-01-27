@@ -14,7 +14,7 @@
                                 <th class="text-center" style="width: 40px;">#</th>
                                 <th>Panggilan</th>
                                 <th>WA Number</th>
-                                <th>Kode Bank</th>
+                                <th>Nama Bank</th>
                                 <th>Nama Pemilik</th>
                                 <th>No. Rekening</th>
                                 <th class="text-center" style="width: 60px;">Aksi</th>
@@ -29,6 +29,7 @@
                                  $panggilan = $row['nama_user'] ?? '';
                                 $wa_number = $row['no_user'] ?? '';
                                 $bank_code = $row['bank_code'] ?? '';
+                                $bank_name = $row['bank_name'] ?? '';
                                 $bank_account_name = $row['bank_account_name'] ?? '';
                                 $bank_account_number = $row['bank_account_number'] ?? '';
                             ?>
@@ -36,7 +37,7 @@
                                     <td class="text-center"><?= $no ?></td>
                                     <td><?= $panggilan ?: '<span class="text-muted">-</span>' ?></td>
                                     <td><?= $wa_number ?: '<span class="text-muted">-</span>' ?></td>
-                                    <td><?= strtoupper($bank_code) ?: '<span class="text-muted">-</span>' ?></td>
+                                    <td><?= $bank_name ?: '<span class="text-muted">-</span>' ?></td>
                                     <td><?= strtoupper($bank_account_name) ?: '<span class="text-muted">-</span>' ?></td>
                                     <td><?= $bank_account_number ?: '<span class="text-muted">-</span>' ?></td>
                                     <td class="text-center">
@@ -422,9 +423,7 @@ $(document).ready(function() {
         }
         
         // Prepend empty option untuk placeholder (akan selalu di atas)
-        var allOptions = [
-            {value: '', text: 'Pilih Bank/E-Wallet'}
-        ].concat(options);
+        var allOptions = [].concat(options);
         
         // Initialize selectize with options
         var $select = $('#edit_bank_code').selectize({

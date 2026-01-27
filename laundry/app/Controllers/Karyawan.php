@@ -56,13 +56,30 @@ class Karyawan extends Controller
         // Ambil id_cabang dari session
         $id_cabang = (int)($_SESSION[URL::SESSID]['user']['id_cabang'] ?? 0);
 
-        // Ambil data karyawan aktif di cabang ini
-        $karyawan = $this->db(0)->get_cols_where(
-            'user',
-            'id_user, nama_user, no_user, bank_code, bank_account_name, bank_account_number',
-            "en = 1 AND id_cabang = {$id_cabang}",
-            1
-        );
+        // Ambil data karyawan dengan JOIN ke tabel banks untuk mendapatkan nama bank
+        $db = $this->db(0);
+        
+        // JOIN dengan database 100 (banks table)
+        $query = "SELECT 
+                    u.id_user, 
+                    u.nama_user, 
+                    u.no_user, 
+                    u.bank_code,
+                    u.bank_account_name, 
+                    u.bank_account_number,
+                    b.name as bank_name
+                  FROM user u
+                  LEFT JOIN laundry_100.banks b ON u.bank_code = b.bank_code
+                  WHERE u.en = 1 AND u.id_cabang = {$id_cabang}";
+        
+        $result = $db->query($query);
+        $karyawan = [];
+        
+        if ($result && $result->num_rows() > 0) {
+            while ($row = $result->fetch_assoc()) {
+                $karyawan[] = $row;
+            }
+        }
 
         $this->view('layout', ['data_operasi' => $data_operasi]);
         $this->view('karyawan/data', [
@@ -96,6 +113,41 @@ class Karyawan extends Controller
 
             if (strlen($wa) < 9 || strlen($wa) > 15) {
                 throw new \Exception('Nomor WhatsApp tidak valid');
+            }
+
+            // ✅ CEK OTP COOLDOWN - Prevent spam OTP requests
+            // Ambil data OTP yang ada di database untuk user ini
+            $userData = $this->db(0)->get_where_row('user', "id_user = {$id}");
+            
+            if ($userData && !empty($userData['otp_active'])) {
+                $now = new \DateTime();
+                try {
+                    $expiry = new \DateTime($userData['otp_active']);
+                    
+                    // Cek apakah OTP masih aktif (belum expired)
+                    if ($now <= $expiry) {
+                        // OTP masih valid - tidak boleh request lagi
+                        $remainingMinutes = ceil(($expiry->getTimestamp() - $now->getTimestamp()) / 60);
+                        throw new \Exception("OTP masih aktif. Gunakan kode OTP yang sudah dikirim. Berlaku {$remainingMinutes} menit lagi.");
+                    }
+                    
+                    // OTP sudah expired - cek cooldown 30 detik sebelum kirim baru
+                    $cooldownSeconds = 30;
+                    $timeSinceExpiry = $now->getTimestamp() - $expiry->getTimestamp();
+                    
+                    if ($timeSinceExpiry < $cooldownSeconds) {
+                        $remainingCooldown = $cooldownSeconds - $timeSinceExpiry;
+                        throw new \Exception("Tunggu {$remainingCooldown} detik lagi sebelum request OTP baru");
+                    }
+                    
+                } catch (\Exception $e) {
+                    // Jika error parsing datetime atau error custom dari cooldown check
+                    if (strpos($e->getMessage(), 'OTP') !== false || strpos($e->getMessage(), 'Tunggu') !== false) {
+                        // Re-throw untuk cooldown/active OTP errors
+                        throw $e;
+                    }
+                    // Untuk parsing error, lanjutkan generate OTP baru
+                }
             }
 
             // Generate OTP 6 digit
