@@ -325,6 +325,11 @@ trait Attributes
                         $this->model('Log')->write("[payment_gateway_order] Status check result for ref: $ref_finance - status_trx: $status_trx, isPaid: " . ($isPaid ? 'true' : 'false') . ", isExpired: " . ($isExpired ? 'true' : 'false') . ", hasValidResponse: " . ($hasValidResponse ? 'true' : 'false'));
                      }
                      
+                     // VALIDASI KETAT: Generate QR baru HANYA jika semua kondisi terpenuhi:
+                     // 1. ✓ Sudah lebih dari 5 menit (sudah dicek sebelumnya)
+                     // 2. ✓ Status di database belum success (sudah dicek di awal dengan status_mutasi == 3)
+                     // 3. ✓ Status dari TokoPay adalah expired/cancel/failed
+                     
                      // LOGIKA UTAMA:
                      // 1. Jika sudah PAID → update database dan return paid
                      if ($isPaid) {
@@ -348,11 +353,14 @@ trait Attributes
                         exit();
                      }
                      
-                     // 2. Jika EXPIRED/FAILED → generate QR baru
-                     if ($isExpired) {
-                        // Status expired/failed di TokoPay, lanjut generate QR baru
+                     // 2. HANYA jika EXPIRED/FAILED/CANCEL dari TokoPay → generate QR baru
+                     if ($isExpired && $hasValidResponse) {
+                        // Semua kondisi terpenuhi:
+                        // - Sudah lebih dari 5 menit ✓
+                        // - Status di database belum success ✓ (sudah dicek di awal)
+                        // - Status dari TokoPay adalah expired/cancel/failed ✓
                         if (!$is_public) {
-                           $this->model('Log')->write("[payment_gateway_order] Payment expired/failed in TokoPay for ref: $ref_finance, status: $status_trx - generating new QR");
+                           $this->model('Log')->write("[payment_gateway_order] VALIDATED: Payment expired/failed in TokoPay for ref: $ref_finance, status: $status_trx - generating new QR");
                         }
                         // Lanjut generate QR baru (tidak exit)
                      } 
@@ -372,9 +380,9 @@ trait Attributes
                      // 4. Jika response valid tapi tidak ada status detail → anggap pending dan return QR yang ada
                      elseif ($hasValidResponse || (isset($status_data['status']) && $status_data['status'] !== false)) {
                         // Response valid dari API, meskipun tidak ada status detail yang jelas
-                        // Anggap pending dan return QR yang ada (lebih aman daripada generate baru)
+                        // Anggap pending dan return QR yang ada (TIDAK generate baru karena tidak ada konfirmasi expired)
                         if (!$is_public) {
-                           $this->model('Log')->write("[payment_gateway_order] Valid API response for ref: $ref_finance - assuming pending, returning existing QR. Status: " . ($status_trx ?: 'unknown'));
+                           $this->model('Log')->write("[payment_gateway_order] Valid API response but no clear expired status for ref: $ref_finance - returning existing QR. Status: " . ($status_trx ?: 'unknown'));
                         }
                         echo json_encode([
                            'status' => $payment_state ?: 'pending',
@@ -383,25 +391,49 @@ trait Attributes
                         ]);
                         exit();
                      }
-                     // 5. Jika response tidak valid atau error → generate QR baru (fallback)
+                     // 5. Jika response tidak valid atau error → TIDAK generate QR baru, return QR yang ada
                      else {
-                        // Response tidak valid atau error, log dan lanjut generate QR baru
-                        // Hanya generate jika benar-benar error atau response tidak valid
+                        // Response tidak valid atau error, TIDAK generate QR baru karena tidak ada konfirmasi expired
+                        // Lebih aman return QR yang ada daripada generate baru tanpa konfirmasi
                         if (!$is_public) {
-                           $this->model('Log')->write("[payment_gateway_order] Invalid/error TokoPay response for ref: $ref_finance - generating new QR. Response: " . json_encode($status_data));
+                           $this->model('Log')->write("[payment_gateway_order] Invalid/error TokoPay response for ref: $ref_finance - NOT generating new QR (no expired confirmation). Returning existing QR. Response: " . json_encode($status_data));
                         }
-                        // Lanjut generate QR baru (tidak exit)
+                        // Return QR yang ada, TIDAK generate baru
+                        echo json_encode([
+                           'status' => $payment_state ?: 'pending',
+                           'qr_string' => $payment_qr_string,
+                           'trx_id' => $payment_trx_id ?: $ref_finance
+                        ]);
+                        exit();
                      }
                   } catch (Exception $e) {
-                     // Jika terjadi error saat cek TokoPay, log dan lanjut generate QR baru
+                     // Jika terjadi error saat cek TokoPay, TIDAK generate QR baru
+                     // Return QR yang ada karena tidak ada konfirmasi expired dari TokoPay
                      if (!$is_public) {
-                        $this->model('Log')->write("[payment_gateway_order] Error checking TokoPay status for ref: $ref_finance - " . $e->getMessage() . " - generating new QR");
+                        $this->model('Log')->write("[payment_gateway_order] Error checking TokoPay status for ref: $ref_finance - " . $e->getMessage() . " - NOT generating new QR (no expired confirmation). Returning existing QR");
                      }
-                     // Lanjut generate QR baru (tidak exit)
+                     // Return QR yang ada, TIDAK generate baru
+                     echo json_encode([
+                        'status' => $payment_state ?: 'pending',
+                        'qr_string' => $payment_qr_string,
+                        'trx_id' => $payment_trx_id ?: $ref_finance
+                     ]);
+                     exit();
                   }
                }
             }
-            // Jika sudah > 5 menit dan tidak ada payment_trx_id atau bukan tokopay, lanjut generate QR baru (tidak exit)
+            // Jika sudah > 5 menit tapi tidak ada payment_trx_id atau bukan tokopay
+            // TIDAK generate QR baru karena tidak ada konfirmasi expired dari TokoPay
+            // Return QR yang ada untuk menghindari generate tanpa validasi
+            if (!$is_public) {
+               $this->model('Log')->write("[payment_gateway_order] QR > 5 minutes but no payment_trx_id or not tokopay for ref: $ref_finance - NOT generating new QR (no expired confirmation). Returning existing QR");
+            }
+            echo json_encode([
+               'status' => $payment_state ?: 'pending',
+               'qr_string' => $payment_qr_string,
+               'trx_id' => $payment_trx_id ?: $ref_finance
+            ]);
+            exit();
          }
       }
 

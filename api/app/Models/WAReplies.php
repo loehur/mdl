@@ -1187,25 +1187,31 @@ class WAReplies
             $data = json_decode($response, true);
 
             if ($httpCode === 200 && isset($data['status']) && $data['status'] === true) {
-                // Parse balance from API response
-                $balance = null;
-                
-                // Try different possible response structures
-                if (isset($data['data']['balance'])) {
-                    $balance = $data['data']['balance'];
-                } elseif (isset($data['data']['saldo'])) {
-                    $balance = $data['data']['saldo'];
-                } elseif (isset($data['data']['data']['balance'])) {
-                    $balance = $data['data']['data']['balance'];
-                } elseif (isset($data['balance'])) {
-                    $balance = $data['balance'];
-                }
-
-                if ($balance !== null) {
-                    $text = "Saldo TokoPay: Rp " . number_format($balance, 0, ',', '.');
+                // Handle complex structure with available and held balance
+                if (isset($data['data']['data']['saldo_tersedia'])) {
+                    $d = $data['data']['data'];
+                    $text = "*Saldo TokoPay (" . ($d['nama_toko'] ?? 'Madinah Laundry') . ")*\n";
+                    $text .= "Tersedia: Rp " . number_format($d['saldo_tersedia'], 0, ',', '.') . "\n";
+                    $text .= "Tertahan: Rp " . number_format($d['saldo_tertahan'] ?? 0, 0, ',', '.');
                 } else {
-                    // If balance not found, show raw response for debugging
-                    $text = "Saldo TokoPay:\n" . json_encode($data, JSON_PRETTY_PRINT);
+                    // Fallback to simpler balance structures
+                    $balance = null;
+                    if (isset($data['data']['balance'])) {
+                        $balance = $data['data']['balance'];
+                    } elseif (isset($data['data']['saldo'])) {
+                        $balance = $data['data']['saldo'];
+                    } elseif (isset($data['data']['data']['balance'])) {
+                        $balance = $data['data']['data']['balance'];
+                    } elseif (isset($data['balance'])) {
+                        $balance = $data['balance'];
+                    }
+
+                    if ($balance !== null) {
+                        $text = "Saldo TokoPay: Rp " . number_format($balance, 0, ',', '.');
+                    } else {
+                        // If still not found, show minimal info or raw for debugging
+                        $text = "Saldo TokoPay: Data tidak ditemukan.\n" . json_encode($data);
+                    }
                 }
             } else {
                 $message = $data['message'] ?? ($data['data']['message'] ?? 'Unknown error');
