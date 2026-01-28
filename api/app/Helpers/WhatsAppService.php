@@ -641,6 +641,21 @@ class WhatsAppService
                     ? "Template: " . ($payload['template']['name'] ?? '') 
                     : "Media: $messageType";
             }
+            
+            // Check if message is private (for last_message formatting)
+            $contentLower = mb_strtolower($content ?? '');
+            $messageTextLower = mb_strtolower($messageText ?? '');
+            $lastMessageTextLower = mb_strtolower($lastMessageText ?? '');
+            
+            $isPrivateForLastMessage = false;
+            if (stripos($contentLower, 'kode otp') !== false || 
+                stripos($contentLower, 'salary slip') !== false ||
+                stripos($messageTextLower, 'kode otp') !== false || 
+                stripos($messageTextLower, 'salary slip') !== false ||
+                stripos($lastMessageTextLower, 'kode otp') !== false || 
+                stripos($lastMessageTextLower, 'salary slip') !== false) {
+                $isPrivateForLastMessage = true;
+            }
 
             // Load DB class if not already loaded
             if (!class_exists('\\App\\Core\\DB')) {
@@ -686,8 +701,16 @@ class WhatsAppService
                 // ✅ RACE FIX: ALWAYS update last_message with outbound message!
                 // This ensures outbound messages (auto-reply or manual) update last_message
                 // AFTER inbound message is saved, preventing race condition
+                
+                // Format last_message based on private status
+                if ($isPrivateForLastMessage) {
+                    $lastMessageDisplay = 'o- 🔒 _Private Chat_';
+                } else {
+                    $lastMessageDisplay = 'o- ' . mb_substr($lastMessageText, 0, 50);
+                }
+                
                 $updateData = [
-                    'last_message' => 'o- ' . mb_substr($lastMessageText, 0, 50),
+                    'last_message' => $lastMessageDisplay,
                     'last_message_at' => date('Y-m-d H:i:s'),
                     'updated_at' => date('Y-m-d H:i:s')
                 ];
@@ -697,10 +720,18 @@ class WhatsAppService
                 $db->update('wa_conversations', $updateData, ['wa_number' => $waNumber]);
             } else {
                 // Create new conversation
+                
+                // Format last_message based on private status
+                if ($isPrivateForLastMessage) {
+                    $lastMessageDisplay = 'o- 🔒 _Private Chat_';
+                } else {
+                    $lastMessageDisplay = 'o- ' . mb_substr($lastMessageText, 0, 50);
+                }
+                
                 $convData = [
                     'wa_number' => $waNumber,
                     'status' => 'closed',
-                    'last_message' => 'o- ' . mb_substr($lastMessageText, 0, 50),
+                    'last_message' => $lastMessageDisplay,
                     'last_message_at' => date('Y-m-d H:i:s'),
                     'created_at' => date('Y-m-d H:i:s')
                 ];

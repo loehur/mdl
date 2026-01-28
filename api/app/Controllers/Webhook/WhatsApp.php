@@ -240,6 +240,16 @@ class WhatsApp extends Controller
                 ];
                  $lastMessageSummary = $typeLabels[$messageType] ?? "[$messageType]";
             }
+            
+            // Check if message is private (for last_message formatting)
+            $isPrivateForLastMessage = false;
+            if (!empty($lastMessageSummary)) {
+                $lastMessageSummaryLower = mb_strtolower($lastMessageSummary);
+                if (stripos($lastMessageSummaryLower, 'kode otp') !== false || 
+                    stripos($lastMessageSummaryLower, 'salary slip') !== false) {
+                    $isPrivateForLastMessage = true;
+                }
+            }
 
         } catch (\Exception $e) {
             \Log::write("Error processing user data: " . $e->getMessage(), 'webhook', 'WhatsApp');
@@ -409,7 +419,12 @@ class WhatsApp extends Controller
                     require_once __DIR__ . '/../../Models/WAReplies.php';
                 }
                 
-                $lastMessage = 'i- ' . mb_substr($lastMessageSummary, 0, 50);
+                // Format last_message based on private status
+                if ($isPrivateForLastMessage) {
+                    $lastMessage = 'i- 🔒 _Private Chat_';
+                } else {
+                    $lastMessage = 'i- ' . mb_substr($lastMessageSummary, 0, 50);
+                }
                 
                 $autoReplyResult = (new \App\Models\WAReplies())->process(
                     $phoneIn, 
