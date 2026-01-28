@@ -240,7 +240,7 @@ class Doku
             'validityPeriod' => $expiredTime,
             'additionalInfo' => [
                 'postalCode' => '12345',
-                'feeType' => 'OUR'
+                'feeType' => 'O'  // O=OUR (merchant pays fee), B=BEN, S=SHA
             ]
         ];
 
