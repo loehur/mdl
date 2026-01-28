@@ -926,17 +926,22 @@ class WAReplies
             $user = null;
             $id_cabang = 0;
             
-            // Coba cari di db(1) dulu
-            $users = $db1->query("SELECT id_user, nama_user, id_cabang FROM user WHERE no_user IN ($phoneInStr) LIMIT 1")->result_array();
-            if (!empty($users)) {
-                $user = $users[0];
-                $id_cabang = $user['id_cabang'] ?? 0;
-            } else {
-                // Jika tidak ada di db(1), coba cari di db(0)
-                $users = $db0->query("SELECT id_user, nama_user FROM user WHERE no_user IN ($phoneInStr) LIMIT 1")->result_array();
+            try {
+                // Coba cari di db(1) dulu
+                $users = $db1->query("SELECT id_user, nama_user, id_cabang FROM user WHERE no_user IN ($phoneInStr) LIMIT 1")->result_array();
                 if (!empty($users)) {
                     $user = $users[0];
+                    $id_cabang = $user['id_cabang'] ?? 0;
+                } else {
+                    // Jika tidak ada di db(1), coba cari di db(0)
+                    $users = $db0->query("SELECT id_user, nama_user FROM user WHERE no_user IN ($phoneInStr) LIMIT 1")->result_array();
+                    if (!empty($users)) {
+                        $user = $users[0];
+                    }
                 }
+            } catch (\Throwable $e) {
+                \Log::write("handleSlip_gaji: Query user failed - " . $e->getMessage() . " | SQL: SELECT id_user, nama_user, id_cabang FROM user WHERE no_user IN ($phoneInStr) LIMIT 1", 'wa_error', 'SlipGaji');
+                throw $e;
             }
             
             if (!$user || !isset($user['id_user'])) {
@@ -951,11 +956,16 @@ class WAReplies
             $nama_cabang = 'Cabang';
             $kode_cabang = '';
             if ($id_cabang > 0) {
-                $cabangs = $db1->query("SELECT nama, kode_cabang FROM cabang WHERE id_cabang = " . (int)$id_cabang)->result_array();
-                if (!empty($cabangs)) {
-                    $cabang = $cabangs[0];
-                    $nama_cabang = $cabang['nama'] ?? 'Cabang';
-                    $kode_cabang = $cabang['kode_cabang'] ?? '';
+                try {
+                    $cabangs = $db1->query("SELECT nama, kode_cabang FROM cabang WHERE id_cabang = " . (int)$id_cabang)->result_array();
+                    if (!empty($cabangs)) {
+                        $cabang = $cabangs[0];
+                        $nama_cabang = $cabang['nama'] ?? 'Cabang';
+                        $kode_cabang = $cabang['kode_cabang'] ?? '';
+                    }
+                } catch (\Throwable $e) {
+                    \Log::write("handleSlip_gaji: Query cabang failed - " . $e->getMessage(), 'wa_error', 'SlipGaji');
+                    // Continue dengan default values
                 }
             }
 
@@ -971,8 +981,13 @@ class WAReplies
             $dateOn = $date;
 
             // Query data gaji_result dari db(0) - sudah ada $db0 dari atas
-            $gajiQuery = "SELECT * FROM gaji_result WHERE tgl = '" . $db0->escape($date) . "' AND id_karyawan = " . $id_user . " ORDER BY tipe ASC";
-            $gajiResults = $db0->query($gajiQuery)->result_array();
+            try {
+                $gajiQuery = "SELECT * FROM gaji_result WHERE tgl = '" . $db0->escape($date) . "' AND id_karyawan = " . $id_user . " ORDER BY tipe ASC";
+                $gajiResults = $db0->query($gajiQuery)->result_array();
+            } catch (\Throwable $e) {
+                \Log::write("handleSlip_gaji: Query gaji_result failed - " . $e->getMessage() . " | Query: " . $gajiQuery, 'wa_error', 'SlipGaji');
+                throw $e;
+            }
 
             if (empty($gajiResults)) {
                 $waService->sendFreeText($waNumber, "Belum ada data gaji untuk periode " . $date . ".\nSilakan hubungi admin untuk penetapan gaji.");
@@ -1029,12 +1044,16 @@ class WAReplies
             if (method_exists($e, 'getTraceAsString')) {
                 $errorMsg .= "\nStack: " . $e->getTraceAsString();
             }
+            // Log dengan detail lengkap
             \Log::write($errorMsg, 'wa_error', 'SlipGaji');
+            
+            // Log juga phone number untuk debugging
+            \Log::write("handleSlip_gaji: phoneIn=$phoneIn, waNumber=$waNumber", 'wa_error', 'SlipGaji');
             
             try {
                 $waService = $this->getWaService();
                 $waService->sendFreeText($waNumber, "Maaf, terjadi kesalahan saat mengambil data slip gaji.\nSilakan hubungi admin.");
-            } catch (\Exception $e2) {
+            } catch (\Throwable $e2) {
                 \Log::write("handleSlip_gaji: Failed to send error message - " . $e2->getMessage(), 'wa_error', 'SlipGaji');
             }
         }
