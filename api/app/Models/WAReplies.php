@@ -992,7 +992,7 @@ class WAReplies
             }
 
             if (empty($gajiResults)) {
-                $waService->sendFreeText($waNumber, "Belum ada data gaji untuk periode " . $date . ".\nSilakan hubungi admin untuk penetapan gaji.");
+                $waService->sendFreeText($waNumber, "Belum ada data gaji untuk periode " . $date . ".\nSilakan tunggu penetapan gaji.");
                 return;
             }
 
@@ -1021,7 +1021,6 @@ class WAReplies
                     $vGaji = "-Rp" . number_format($jGaji, 0, ',', '.');
                 }
 
-                $text .= $ref . "\n";
                 $text .= $deskripsi . "\n";
                 $text .= $qty . " x " . $vGaji . "\n";
                 $text .= "\n";
@@ -1032,9 +1031,7 @@ class WAReplies
             $text .= "────────────────\n";
             $text .= "Total Gaji: Rp" . number_format($totalGaji, 0, ',', '.') . "\n";
             $text .= "Total Potongan: -Rp" . number_format($totalPot, 0, ',', '.') . "\n";
-            $text .= "*Gaji Diterima: Rp" . number_format($totalTer, 0, ',', '.') . "*\n";
-            $text .= "\n";
-            $text .= "Terima Kasih";
+            $text .= "*Gaji Diterima: Rp" . number_format($totalTer, 0, ',', '.');
 
             // Kirim pesan
             $res = $waService->sendFreeText($waNumber, $text);
