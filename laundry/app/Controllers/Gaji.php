@@ -384,7 +384,7 @@ class Gaji extends Controller
          die('Tidak ada data payroll untuk periode ' . $period);
       }
 
-      // Header CSV - format asli dengan semua kolom
+      // Header CSV - format asli dengan semua kolom (sama persis)
       $csv = "No,Bank Tujuan,Nomor Rekening Tujuan,Nominal,Berita Transfer (Opsional),Email Penerima (Opsional),Nama Penerima (Opsional),ID Unik Transaksi (Opsional),Berita Transfer Tambahan (Opsional)\n";
 
       $no = 1;
@@ -412,16 +412,25 @@ class Gaji extends Controller
             continue;
          }
 
-         // Format data sesuai format asli: No,Bank Tujuan,Nomor Rekening Tujuan,Nominal,Berita Transfer,Email,Nama,ID Unik,Berita Tambahan
+         // Format data sesuai header (urutan kolom harus sama persis):
+         // 1. No
+         // 2. Bank Tujuan
+         // 3. Nomor Rekening Tujuan
+         // 4. Nominal
+         // 5. Berita Transfer (Opsional)
+         // 6. Email Penerima (Opsional)
+         // 7. Nama Penerima (Opsional)
+         // 8. ID Unik Transaksi (Opsional)
+         // 9. Berita Transfer Tambahan (Opsional)
          $csv .= $no . ",";
          $csv .= $flip_code . ",";
          $csv .= $bank_acc_number . ",";
-         $csv .= number_format($amount, 0, '', '') . ","; // Nominal tanpa koma
+         $csv .= number_format($amount, 0, '', '') . ","; // Nominal (harus diisi)
          $csv .= ","; // Berita Transfer (Opsional) - kosong
          $csv .= ","; // Email Penerima (Opsional) - kosong
-         $csv .= $bank_acc_name . ","; // Nama Penerima
+         $csv .= $bank_acc_name . ","; // Nama Penerima (Opsional) - diisi dengan nama dari payroll
          $csv .= ","; // ID Unik Transaksi (Opsional) - kosong
-         $csv .= $id_payroll . "\n"; // Berita Transfer Tambahan = ID_PAYROLL
+         $csv .= $id_payroll . "\n"; // Berita Transfer Tambahan (Opsional) - diisi dengan ID_PAYROLL
 
          $no++;
       }
