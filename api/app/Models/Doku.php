@@ -188,10 +188,10 @@ class Doku
      * Generate symmetric signature for SNAP API calls
      * Formula: HMAC_SHA512(clientSecret, stringToSign)
      * stringToSign = HTTPMethod + ":" + EndpointUrl + ":" + AccessToken + ":" + Lowercase(HexEncode(SHA-256(minify(RequestBody)))) + ":" + TimeStamp
-     * @see https://developers.doku.com/accept-payments/direct-api/snap/integration-guide/qris
-     * EndpointUrl = full URL (e.g. https://api-sandbox.doku.com/snap-adapter/b2b/v1.0/qr/qr-mpm-generate)
+     * @see https://developers.doku.com/getting-started-with-doku-api/signature-component/snap/symmetric-signature
+     * EndpointUrl = path only (e.g. /snap-adapter/b2b/v1.0/qr/qr-mpm-generate), not full URL
      */
-    private function generateSignature($httpMethod, $endpointUrl, $accessToken, $requestBody, $timestamp)
+    private function generateSignature($httpMethod, $endpointPath, $accessToken, $requestBody, $timestamp)
     {
         // Minify JSON (remove whitespace) - must match exactly what we send
         $decoded = json_decode($requestBody);
@@ -201,8 +201,8 @@ class Doku
         $hashedBody = hash('sha256', $minifiedBody);
         $lowercaseHash = strtolower($hashedBody);
 
-        // Create string to sign (EndpointUrl = full URL per common DOKU implementations)
-        $stringToSign = $httpMethod . ':' . $endpointUrl . ':' . $accessToken . ':' . $lowercaseHash . ':' . $timestamp;
+        // Create string to sign (EndpointUrl = path only per Doku docs)
+        $stringToSign = $httpMethod . ':' . $endpointPath . ':' . $accessToken . ':' . $lowercaseHash . ':' . $timestamp;
 
         // HMAC SHA-512 with clientSecret, raw binary then base64
         $signature = base64_encode(hash_hmac('sha512', $stringToSign, $this->clientSecret, true));
@@ -257,12 +257,10 @@ class Doku
 
         $requestBodyJson = json_encode($requestBody);
 
-        // API endpoint - signature uses FULL URL per DOKU convention
         $path = '/snap-adapter/b2b/v1.0/qr/qr-mpm-generate';
         $url = $this->apiUrl . $path;
-
-        // Generate signature (EndpointUrl = full URL)
-        $signature = $this->generateSignature('POST', $url, $accessToken, $requestBodyJson, $timestamp);
+        // Signature uses path only, not full URL (per Doku symmetric signature docs)
+        $signature = $this->generateSignature('POST', $path, $accessToken, $requestBodyJson, $timestamp);
 
         // Headers
         $headers = [
@@ -339,7 +337,7 @@ class Doku
 
         $path = '/snap-adapter/b2b/v1.0/qr/qr-mpm-query';
         $url = $this->apiUrl . $path;
-        $signature = $this->generateSignature('POST', $url, $accessToken, $requestBodyJson, $timestamp);
+        $signature = $this->generateSignature('POST', $path, $accessToken, $requestBodyJson, $timestamp);
 
         // Headers
         $headers = [
