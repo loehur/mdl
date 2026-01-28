@@ -391,17 +391,17 @@ $totalTerima = 0;
       <div id="print">
         <table class="table table-sm" style="min-width: 300px;">
           <tr>
-            <td colspan="2"><b><?= $this->dCabang['nama'] ?> - <?= $this->dCabang['kode_cabang'] ?></b></td>
+            <td colspan="2" class="text-center"><b><?= $this->dCabang['nama'] ?> - <?= $this->dCabang['kode_cabang'] ?></b></td>
           </tr>
           <tr>
-            <td colspan="2">-- SALARY SLIP --</td>
+            <td colspan="2" class="text-center">-- SALARY SLIP --</td>
           </tr>
           <tr id="dashRow"><td colspan="2"></td></tr>
           <tr>
-            <td colspan="2"><b><?= strtoupper($nama_user) ?></b></td>
+            <td colspan="2" class="text-center"><b><?= strtoupper($nama_user) ?></b></td>
           </tr>
           <tr>
-            <td colspan="2">Periode: <?= $dateOn ?></td>
+            <td colspan="2" class="text-center">Periode: <?= $dateOn ?></td>
           </tr>
           <tr id="dashRow"><td colspan="2"></td></tr>
 
@@ -422,7 +422,7 @@ $totalTerima = 0;
           </tr>
           <tr id="dashRow"><td colspan="2"></td></tr>
           <tr>
-            <td colspan="2">Terima Kasih</td>
+            <td colspan="2" class="text-center">Terima Kasih</td>
           </tr>
         </table>
       </div>
