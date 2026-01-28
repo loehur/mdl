@@ -796,7 +796,7 @@ onUnmounted(() => {
                    </div>
               </div>
 
-              <div class="px-4 space-y-2 overflow-hidden">
+              <div class="px-4 space-y-1 overflow-hidden">
                    <div v-for="(msg, index) in activeConversation.messages" :key="msg.id" :id="'msg-' + msg.id" class="flex flex-col relative group">
                         <!-- Date Separator -->
                         <div v-if="index === 0 || needsDateSeparator(msg, activeConversation.messages[index-1])" class="flex justify-center my-4">
@@ -864,8 +864,8 @@ onUnmounted(() => {
                                                 </svg>
                                                 <span>Private</span>
                                            </div>
-                                           <p v-if="msg.text && !shouldHideMessage(msg)" :class="[messageFontClass, 'mb-1']">{{ msg.text }}</p>
-                                           <p v-else-if="msg.text && shouldHideMessage(msg)" class="text-xs italic mb-1">🔒 Pesan ini bersifat private</p>
+                                           <p v-if="msg.text && !shouldHideMessage(msg)" :class="[messageFontClass, 'mb-1 leading-tight']" style="line-height: 1.3;">{{ msg.text }}</p>
+                                           <p v-else-if="msg.text && shouldHideMessage(msg)" class="text-xs italic mb-1 leading-tight" style="line-height: 1.3;">🔒 Pesan ini bersifat private</p>
                                            <div class="flex justify-end items-center gap-1 text-[10px]">
                                               <span v-if="msg.sender_code">~{{ msg.sender_code }}</span>
                                               <span>{{ msg.time }}</span>
@@ -911,8 +911,8 @@ onUnmounted(() => {
                                                  <span>Private</span>
                                             </span>
                                             <!-- Message content - hidden if private and not admin -->
-                                            <span v-if="!shouldHideMessage(msg)" v-html="parseWhatsAppFormatting(msg.text)" class="whitespace-pre-wrap break-words" style="word-break: break-word; overflow-wrap: anywhere;"></span>
-                                            <span v-else class="text-[var(--wa-text-tertiary)] italic text-sm">
+                                            <span v-if="!shouldHideMessage(msg)" v-html="parseWhatsAppFormatting(msg.text)" class="whitespace-pre-wrap break-words leading-tight" style="word-break: break-word; overflow-wrap: anywhere; line-height: 1.3;"></span>
+                                            <span v-else class="text-[var(--wa-text-tertiary)] italic text-sm leading-tight" style="line-height: 1.3;">
                                                  🔒 Pesan ini bersifat private
                                             </span>
                                             <span class="inline-flex items-center gap-1 ml-2 align-bottom select-none float-right mt-1" style="margin-left: 8px;">
