@@ -54,7 +54,7 @@ class Doku
 
         $headers = [
             'Client-Id: ' . $this->clientId,
-            'Request-Timestamp: ' . $timestamp,
+            'X-TIMESTAMP: ' . $timestamp,
             'Signature: ' . $signature,
             'Content-Type: application/json'
         ];
@@ -115,7 +115,7 @@ class Doku
 
         $headers = [
             'Client-Id: ' . $this->clientId,
-            'Request-Timestamp: ' . $timestamp,
+            'X-TIMESTAMP: ' . $timestamp,
             'Signature: ' . $signature,
             'Content-Type: application/json'
         ];
