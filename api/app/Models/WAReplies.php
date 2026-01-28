@@ -982,8 +982,8 @@ class WAReplies
 
             // Query data gaji_result dari db(0) - sudah ada $db0 dari atas
             try {
-                $gajiQuery = "SELECT * FROM gaji_result WHERE tgl = '" . $db0->escape($date) . "' AND id_karyawan = " . $id_user . " ORDER BY tipe ASC";
-                $gajiResults = $db0->query($gajiQuery)->result_array();
+                $gajiQuery = "SELECT * FROM gaji_result WHERE tgl = ? AND id_karyawan = ? ORDER BY tipe ASC";
+                $gajiResults = $db0->query($gajiQuery, [$date, $id_user])->result_array();
             } catch (\Throwable $e) {
                 \Log::write("handleSlip_gaji: Query gaji_result failed - " . $e->getMessage() . " | Query: " . $gajiQuery, 'wa_error', 'SlipGaji');
                 throw $e;
