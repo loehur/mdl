@@ -430,6 +430,9 @@ $totalTerima = 0;
       <button type="button" class="btn btn-primary btn-sm" id="btnPrintGaji">
         <i class="fas fa-print me-1"></i> Print Slip Gaji
       </button>
+      <button type="button" class="btn btn-success btn-sm ms-1" id="btnAddToPayroll" title="Tarik total gaji diterima ke tabel payroll">
+        <i class="fas fa-plus me-1"></i> Add to Payroll
+      </button>
       <div id="print">
         <table>
           <tr>
@@ -636,6 +639,40 @@ $totalTerima = 0;
           $("div#tes").html(res);
         }
       },
+    });
+  });
+
+  $('#btnAddToPayroll').on('click', function() {
+    var btn = $(this);
+    var originalHtml = btn.html();
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Menambah...');
+    $.ajax({
+      url: '<?= URL::BASE_URL ?>Gaji/add_to_payroll',
+      type: 'POST',
+      data: {
+        user_id: '<?= (int)$data['user']['id'] ?>',
+        date: '<?= $dateOn ?>'
+      },
+      dataType: 'json',
+      success: function(res) {
+        if (res && res.ok) {
+          btn.html('<i class="fas fa-check me-1"></i> Ditambah');
+          setTimeout(function() { btn.html(originalHtml); btn.prop('disabled', false); }, 2000);
+          alert(res.msg + (res.amount ? ' Rp' + Number(res.amount).toLocaleString('id-ID') : ''));
+        } else {
+          btn.html(originalHtml).prop('disabled', false);
+          alert(res && res.msg ? res.msg : 'Gagal menambah ke payroll.');
+        }
+      },
+      error: function(xhr) {
+        btn.html(originalHtml).prop('disabled', false);
+        var msg = 'Gagal request.';
+        try {
+          var j = JSON.parse(xhr.responseText);
+          if (j && j.msg) msg = j.msg;
+        } catch (e) {}
+        alert(msg);
+      }
     });
   });
 
