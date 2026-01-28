@@ -17,70 +17,72 @@ foreach ($this->user as $uc) {
 ?>
 
 <div class="content">
-  <div class="card mb-2 sticky-top">
-    <div class="card-body p-2">
-      <button id="tetapkan_all" class="btn btn-success btn-sm w-100 mb-2">Tetapkan Seluruh Karyawan</button>
-      <div id="info" class="alert alert-light mb-2"></div>
-      <form action="<?= URL::BASE_URL; ?>Gaji" method="POST">
-        <div class="row g-2 align-items-end">
-          <div class="col-md-3">
-            <select name="user_id" class="form-control form-control-sm karyawan" style="width: 100%;" required>
-              <option value="" selected disabled>Karyawan</option>
-              <?php if (count($this->user) > 0) {
-                foreach ($this->user as $a) { ?>
-                  <option <?php if ($data['user']['id'] == $a['id_user']) {
-                            echo "selected";
-                          } ?> id="<?= $a['id_user'] ?>" value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
-              <?php }
-              } ?>
-            </select>
-          </div>
-          <div class="col-auto">
-            <select name="m" class="form-control form-control-sm">
-              <option value="01" <?= $currentMonth == '01' ? 'selected' : '' ?>>01</option>
-              <option value="02" <?= $currentMonth == '02' ? 'selected' : '' ?>>02</option>
-              <option value="03" <?= $currentMonth == '03' ? 'selected' : '' ?>>03</option>
-              <option value="04" <?= $currentMonth == '04' ? 'selected' : '' ?>>04</option>
-              <option value="05" <?= $currentMonth == '05' ? 'selected' : '' ?>>05</option>
-              <option value="06" <?= $currentMonth == '06' ? 'selected' : '' ?>>06</option>
-              <option value="07" <?= $currentMonth == '07' ? 'selected' : '' ?>>07</option>
-              <option value="08" <?= $currentMonth == '08' ? 'selected' : '' ?>>08</option>
-              <option value="09" <?= $currentMonth == '09' ? 'selected' : '' ?>>09</option>
-              <option value="10" <?= $currentMonth == '10' ? 'selected' : '' ?>>10</option>
-              <option value="11" <?= $currentMonth == '11' ? 'selected' : '' ?>>11</option>
-              <option value="12" <?= $currentMonth == '12' ? 'selected' : '' ?>>12</option>
-            </select>
-          </div>
-          <div class="col-auto">
-            <?php
-            $year = date('Y');
-            $oldYear = 2021;
-            ?>
-            <select name="Y" class="form-control form-control-sm">
-              <?php while ($year >= $oldYear) { ?>
-                <option value="<?= $year ?>" <?= $currentYear == $year ? 'selected' : '' ?>><?= $year ?></option>
-              <?php $year--; } ?>
-            </select>
-          </div>
-          <div class="col-auto">
-            <button type="submit" class="btn btn-success btn-sm">Cek</button>
-          </div>
-          <div class="col-auto">
-            <?php if ($nama_user <> '') { ?>
-              <div class="btn-group">
-                <button type="button" class="btn btn-sm btn-dark dropdown-toggle" data-bs-toggle="dropdown">
-                  Set Gaji
-                </button>
-                <div class="dropdown-menu">
-                  <a class="dropdown-item" href="#exampleModal" data-bs-toggle="modal">FEE Layanan Laundry</a>
-                  <a class="dropdown-item" href="#exampleModal1" data-bs-toggle="modal">FEE Pengali</a>
-                  <a class="dropdown-item" href="#exampleModal2" data-bs-toggle="modal">QTY Pengali</a>
+  <div class="container-fluid px-3">
+    <div class="card mb-2 sticky-top" style="max-width: 900px;">
+      <div class="card-body p-2">
+        <button id="tetapkan_all" class="btn btn-success btn-sm w-100 mb-2">Tetapkan Seluruh Karyawan</button>
+        <div id="info" class="alert alert-light mb-2"></div>
+        <form action="<?= URL::BASE_URL; ?>Gaji" method="POST">
+          <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+              <select name="user_id" class="form-control form-control-sm karyawan" style="width: 100%;" required>
+                <option value="" selected disabled>Karyawan</option>
+                <?php if (count($this->user) > 0) {
+                  foreach ($this->user as $a) { ?>
+                    <option <?php if ($data['user']['id'] == $a['id_user']) {
+                              echo "selected";
+                            } ?> id="<?= $a['id_user'] ?>" value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
+                <?php }
+                } ?>
+              </select>
+            </div>
+            <div class="col-auto">
+              <select name="m" class="form-control form-control-sm">
+                <option value="01" <?= $currentMonth == '01' ? 'selected' : '' ?>>01</option>
+                <option value="02" <?= $currentMonth == '02' ? 'selected' : '' ?>>02</option>
+                <option value="03" <?= $currentMonth == '03' ? 'selected' : '' ?>>03</option>
+                <option value="04" <?= $currentMonth == '04' ? 'selected' : '' ?>>04</option>
+                <option value="05" <?= $currentMonth == '05' ? 'selected' : '' ?>>05</option>
+                <option value="06" <?= $currentMonth == '06' ? 'selected' : '' ?>>06</option>
+                <option value="07" <?= $currentMonth == '07' ? 'selected' : '' ?>>07</option>
+                <option value="08" <?= $currentMonth == '08' ? 'selected' : '' ?>>08</option>
+                <option value="09" <?= $currentMonth == '09' ? 'selected' : '' ?>>09</option>
+                <option value="10" <?= $currentMonth == '10' ? 'selected' : '' ?>>10</option>
+                <option value="11" <?= $currentMonth == '11' ? 'selected' : '' ?>>11</option>
+                <option value="12" <?= $currentMonth == '12' ? 'selected' : '' ?>>12</option>
+              </select>
+            </div>
+            <div class="col-auto">
+              <?php
+              $year = date('Y');
+              $oldYear = 2021;
+              ?>
+              <select name="Y" class="form-control form-control-sm">
+                <?php while ($year >= $oldYear) { ?>
+                  <option value="<?= $year ?>" <?= $currentYear == $year ? 'selected' : '' ?>><?= $year ?></option>
+                <?php $year--; } ?>
+              </select>
+            </div>
+            <div class="col-auto">
+              <button type="submit" class="btn btn-success btn-sm">Cek</button>
+            </div>
+            <div class="col-auto">
+              <?php if ($nama_user <> '') { ?>
+                <div class="btn-group">
+                  <button type="button" class="btn btn-sm btn-dark dropdown-toggle" data-bs-toggle="dropdown">
+                    Set Gaji
+                  </button>
+                  <div class="dropdown-menu">
+                    <a class="dropdown-item" href="#exampleModal" data-bs-toggle="modal">FEE Layanan Laundry</a>
+                    <a class="dropdown-item" href="#exampleModal1" data-bs-toggle="modal">FEE Pengali</a>
+                    <a class="dropdown-item" href="#exampleModal2" data-bs-toggle="modal">QTY Pengali</a>
+                  </div>
                 </div>
-              </div>
-            <?php } ?>
+              <?php } ?>
+            </div>
           </div>
-        </div>
-      </form>
+        </form>
+      </div>
     </div>
   </div>
 </div>
@@ -109,11 +111,12 @@ $totalPotong = 0;
 $totalTerima = 0;
 ?>
 
-<div class="row g-2">
-  <?php if ($nama_user <> '' && $intervalDate < 60) { ?>
-    <div class="col-auto">
-      <div class="card">
-        <div class="card-body p-2">
+<div class="container-fluid px-3">
+  <div class="row g-2 align-items-start">
+    <?php if ($nama_user <> '' && $intervalDate < 60) { ?>
+      <div class="col-auto">
+        <div class="card" style="min-width: 500px;">
+          <div class="card-body p-2">
             <?php
             echo '<table class="table table-sm m-0 w-100" style="min-width: 300px;">';
             echo '<tbody>';
@@ -359,12 +362,12 @@ $totalTerima = 0;
             echo '</tbody>';
             echo '</table>';
             ?>
+          </div>
         </div>
       </div>
-    </div>
-  <?php } ?>
+    <?php } ?>
 
-  <?php
+    <?php
   $tr_gaji = "";
   $totalGaji = 0;
   $totalPot = 0;
@@ -386,7 +389,7 @@ $totalTerima = 0;
 
   <?php if ($nama_user <> "") { ?>
     <div class="col-auto" id="tes">
-      <div class="card bg-white">
+      <div class="card bg-white" style="min-width: 300px;">
         <div class="card-body p-2">
           <div class="d-flex gap-2 mb-2">
             <button type="button" class="btn btn-primary btn-sm" id="btnPrintGaji">
@@ -438,6 +441,7 @@ $totalTerima = 0;
       </div>
     </div>
   <?php } ?>
+  </div>
 </div>
 
 <div class="modal" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
