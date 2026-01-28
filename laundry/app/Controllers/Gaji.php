@@ -366,7 +366,8 @@ class Gaji extends Controller
    /**
     * Export CSV Flip: export data payroll ke format CSV Flip
     * GET: period (YYYY-MM)
-    * Format CSV: No,Bank Tujuan,Nomor Rekening Tujuan,Nominal,Berita Transfer (Opsional),Email Penerima (Opsional),Nama Penerima (Opsional),ID Unik Transaksi (Opsional),Berita Transfer Tambahan (Opsional)
+    * Format CSV: Bank Tujuan,Nomor Rekening Tujuan,Nama Penerima
+    * Hanya export data yang lengkap (ada bank_code, bank_acc_number, dan bank_acc_name)
     */
    public function export_csv_flip()
    {
@@ -383,39 +384,35 @@ class Gaji extends Controller
          die('Tidak ada data payroll untuk periode ' . $period);
       }
 
-      // Header CSV
-      $csv = "No,Bank Tujuan,Nomor Rekening Tujuan,Nominal,Berita Transfer (Opsional),Email Penerima (Opsional),Nama Penerima (Opsional),ID Unik Transaksi (Opsional),Berita Transfer Tambahan (Opsional)\n";
+      // Header CSV - hanya 3 kolom
+      $csv = "Bank Tujuan,Nomor Rekening Tujuan,Nama Penerima\n";
 
-      $no = 1;
       foreach ($payrolls as $p) {
          $bank_code = isset($p['bank_code']) ? trim($p['bank_code']) : '';
          $bank_acc_number = isset($p['bank_acc_number']) ? trim($p['bank_acc_number']) : '';
          $bank_acc_name = isset($p['bank_acc_name']) ? trim($p['bank_acc_name']) : '';
-         $amount = isset($p['amount']) ? (float)$p['amount'] : 0;
-         $id_payroll = isset($p['id']) ? (int)$p['id'] : 0;
+
+         // Skip jika data tidak lengkap
+         if (empty($bank_code) || empty($bank_acc_number) || empty($bank_acc_name)) {
+            continue;
+         }
 
          // Ambil flip_code dari tabel banks di db(100) berdasarkan bank_code
          $flip_code = '';
-         if (!empty($bank_code)) {
-            $bank = $this->db(100)->get_where_row('banks', "bank_code = '" . $this->db(100)->escape($bank_code) . "'");
-            if ($bank && isset($bank['flip_code'])) {
-               $flip_code = trim($bank['flip_code']);
-            }
+         $bank = $this->db(100)->get_where_row('banks', "bank_code = '" . $this->db(100)->escape($bank_code) . "'");
+         if ($bank && isset($bank['flip_code'])) {
+            $flip_code = trim($bank['flip_code']);
          }
 
-         // Format data sesuai contoh: No,{flip_code},nomor_rekening,nama_penerima,nominal,,,,{ID_PAYROLL}
-         // Berdasarkan contoh: 6,{flip_code},45545454,ANDI SETIA,50000,,,,{ID_PAYROLL}
-         // Sepertinya kolom "Berita Transfer" berisi nama penerima
-         $csv .= $no . ",";
+         // Skip jika flip_code tidak ditemukan
+         if (empty($flip_code)) {
+            continue;
+         }
+
+         // Format data: Bank Tujuan,Nomor Rekening Tujuan,Nama Penerima
          $csv .= $flip_code . ",";
          $csv .= $bank_acc_number . ",";
-         $csv .= $bank_acc_name . ","; // Berita Transfer
-         $csv .= number_format($amount, 0, '', '') . ","; // Nominal tanpa koma
-         $csv .= ",,"; // Email Penerima, Nama Penerima (kosong)
-         $csv .= ","; // ID Unik Transaksi (kosong)
-         $csv .= $id_payroll . "\n"; // Berita Transfer Tambahan = ID_PAYROLL
-
-         $no++;
+         $csv .= $bank_acc_name . "\n";
       }
 
       // Set header untuk download CSV
