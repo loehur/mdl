@@ -929,8 +929,8 @@ class WAReplies
             $id_cabang = 0;
             
             try {
-                // Coba cari di db(1) dulu (laundry database)
-                $users = $dbLaundry->query("SELECT id_user, nama_user, id_cabang FROM user WHERE no_user IN ($phoneInStr) LIMIT 1")->result_array();
+                // Coba cari di db(1) dulu (laundry database) - ambil juga data bank
+                $users = $dbLaundry->query("SELECT id_user, nama_user, id_cabang, bank_code, bank_account_number, bank_account_name FROM user WHERE no_user IN ($phoneInStr) LIMIT 1")->result_array();
                 if (!empty($users)) {
                     $user = $users[0];
                     $id_cabang = $user['id_cabang'] ?? 0;
@@ -953,6 +953,28 @@ class WAReplies
             
             $id_user = (int)$user['id_user'];
             $nama_user = $user['nama_user'] ?? 'Karyawan';
+            
+            // Ambil data rekening bank dari user (db(1))
+            $bank_code = trim($user['bank_code'] ?? '');
+            $bank_account_number = trim($user['bank_account_number'] ?? '');
+            $bank_account_name = trim($user['bank_account_name'] ?? '');
+            
+            // Cek apakah data rekening lengkap
+            $rekeningLengkap = !empty($bank_code) && !empty($bank_account_number) && !empty($bank_account_name);
+            
+            // Ambil nama bank dari tabel banks di db(0) jika bank_code ada
+            $nama_bank = '';
+            if ($rekeningLengkap && !empty($bank_code)) {
+                try {
+                    $banks = $dbMain->query("SELECT name FROM banks WHERE bank_code = ? LIMIT 1", [$bank_code])->result_array();
+                    if (!empty($banks)) {
+                        $nama_bank = $banks[0]['name'] ?? '';
+                    }
+                } catch (\Throwable $e) {
+                    \Log::write("handleSlip_gaji: Query banks failed - " . $e->getMessage(), 'wa_error', 'SlipGaji');
+                    // Continue tanpa nama bank
+                }
+            }
 
             // Ambil data cabang untuk nama cabang (dari db(1) - laundry database)
             $nama_cabang = 'Cabang';
@@ -1022,16 +1044,32 @@ class WAReplies
                 }
 
                 $text .= $deskripsi . "\n";
-                $text .= $qty . " x " . $vGaji . "\n";
+                $text .= $qty . "x " . $vGaji . "\n";
                 $text .= "\n";
             }
 
             $totalTer = $totalGaji - $totalPot;
 
             $text .= "────────────────\n";
-            $text .= "Total Gaji: Rp" . number_format($totalGaji, 0, ',', '.') . "\n";
-            $text .= "Total Potongan: -Rp" . number_format($totalPot, 0, ',', '.') . "\n";
-            $text .= "*Gaji Diterima: Rp" . number_format($totalTer, 0, ',', '.');
+            $text .= "Total: Rp" . number_format($totalGaji, 0, ',', '.') . "\n";
+            $text .= "Potongan: -Rp" . number_format($totalPot, 0, ',', '.') . "\n";
+            $text .= "*Diterima: Rp" . number_format($totalTer, 0, ',', '.')."*\n";
+            $text .= "\n";
+            
+            // Tambahkan informasi rekening pencairan
+            $text .= "────────────────\n";
+            $text .= "*Pencairan:*\n";
+            if ($rekeningLengkap) {
+                // Data rekening lengkap - tampilkan informasi bank
+                $text .= $nama_bank ?: "Bank\n";
+                $text .= $bank_account_number . "\n";
+                $text .= "*" . $bank_account_name . "*\n";
+            } else {
+                // Data rekening tidak lengkap - tampilkan Cash
+                $text .= "*Cash*\n";
+            }
+            $text .= "\n";
+            $text .= "Terima Kasih";
 
             // Kirim pesan
             $res = $waService->sendFreeText($waNumber, $text);
