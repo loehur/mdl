@@ -8,9 +8,17 @@ namespace App\Models;
  */
 class Tokopay
 {
-    private $merchantId = 'M240926BMTGB612';
-    private $secretKey = '4aea0ede516df65d88ccb773a443c61b3b3702fe1b9647deb9293cac07fd72bf';
-    private $apiUrl = "https://api.tokopay.id";
+    private $merchantId;
+    private $secretKey;
+    private $apiUrl;
+
+    public function __construct()
+    {
+        // Load credentials from Env config class
+        $this->merchantId = \Env::TOKOPAY_MERCHANT_ID;
+        $this->secretKey = \Env::TOKOPAY_SECRET_KEY;
+        $this->apiUrl = \Env::TOKOPAY_API_URL;
+    }
 
     /**
      * Create a payment order

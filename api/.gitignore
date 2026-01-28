@@ -1,4 +1,12 @@
 
+# Environment variables (sensitive credentials)
+.env
+
+# Log files
 logs/
+
+# Config files
 app/Config/Env.php
+
+# Scripts
 scripts/*
