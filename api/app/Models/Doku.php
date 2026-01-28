@@ -59,9 +59,6 @@ class Doku
         // Sign with SHA256
         openssl_sign($stringToSign, $signatureBinary, $pkeyId, OPENSSL_ALGO_SHA256);
         $signature = base64_encode($signatureBinary);
-        
-        // Free key resource
-        openssl_free_key($pkeyId);
 
         $data = [
             'grantType' => 'client_credentials'
@@ -135,9 +132,6 @@ class Doku
         // Sign with SHA256
         openssl_sign($stringToSign, $signatureBinary, $pkeyId, OPENSSL_ALGO_SHA256);
         $signature = base64_encode($signatureBinary);
-        
-        // Free key resource
-        openssl_free_key($pkeyId);
 
         $data = [
             'grantType' => 'client_credentials'
