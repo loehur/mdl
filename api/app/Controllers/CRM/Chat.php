@@ -43,7 +43,7 @@ class Chat extends Controller
             
             // Pagination parameters
             $offset = (int)($_GET['offset'] ?? 0);
-            $limit = (int)($_GET['limit'] ?? 27);
+            $limit = (int)($_GET['limit'] ?? 30);
             
             // Search parameter
             $search = trim($_GET['search'] ?? '');

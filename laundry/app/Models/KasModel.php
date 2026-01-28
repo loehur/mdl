@@ -97,7 +97,7 @@ class KasModel extends Controller
             }
 
             $jt = $tipe == "M" ? 3 : 1;
-            $setOne = "ref_transaksi = '" . $ref . "' AND jumlah = " . $jumlah;
+            $setOne = "ref_transaksi = '" . $ref . "' AND metode_mutasi = " . $metode . " AND jenis_mutasi = " . $jenis_mutasi . " AND status_mutasi = " . $status_mutasi . " AND jumlah = " . $jumlah;
             $wCabang = "id_cabang = " . $id_cabang;
             $where = $wCabang . " AND " . $setOne;
             $data_main = $this->db(0)->count_where('kas', $where);

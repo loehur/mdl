@@ -275,7 +275,7 @@ const toggleTheme = () => {
 // Title blinking is now handled by shouldBlinkTitle watch below (line 314)
 // to avoid conflicts between totalUnreadCount and priority-based blinking
 
-const fetchConversations = async (offset = 0, limit = 27, search = '') => {
+const fetchConversations = async (offset = 0, limit = 30, search = '') => {
   try {
     isLoadingConversations.value = true; // Start loading
 
@@ -490,8 +490,8 @@ const loadMoreConversations = async () => {
     const userIdParam = authId.value ? `user_id=${authId.value}` : "";
     const searchParam = searchQuery.value ? `&search=${encodeURIComponent(searchQuery.value)}` : "";
     const query = userIdParam
-      ? `?${userIdParam}&offset=${offset}&limit=27${searchParam}&_t=${Date.now()}`
-      : `?offset=${offset}&limit=27${searchParam}&_t=${Date.now()}`;
+      ? `?${userIdParam}&offset=${offset}&limit=30${searchParam}&_t=${Date.now()}`
+      : `?offset=${offset}&limit=30${searchParam}&_t=${Date.now()}`;
 
     const response = await fetch(
       `${API_BASE}/CRM/Chat/getConversations${query}`
@@ -755,7 +755,7 @@ const resetPollingTimer = () => {
         }
         
         // Fetch conversations
-        fetchConversations(0, 27, '');
+        fetchConversations(0, 30, '');
       }
     }, interval);
   };
@@ -1626,10 +1626,14 @@ const selectChat = async (id, isRefresh = false) => {
   markMessagesRead(chat.wa_number);
   
   // Update last_message_at if opened from search or loaded more conversations
+  // Only update if:
+  // 1. There's an active search, OR
+  // 2. Conversation position is beyond the initial fetch (position > 30)
   const hasActiveSearch = searchQuery.value && searchQuery.value.trim().length > 0;
-  const hasLoadedMore = conversations.value.length > 20;
+  const chatPosition = conversations.value.findIndex((c) => c.id === id);
+  const isBeyondInitialFetch = chatPosition > 29; // Position 31+ (0-indexed)
   
-  if (hasActiveSearch || hasLoadedMore) {
+  if (hasActiveSearch || isBeyondInitialFetch) {
     // Update last_message_at to current time so conversation appears at top
     try {
       await fetch(`${API_BASE}/CRM/Chat/updateLastMessageAt`, {
@@ -1637,6 +1641,7 @@ const selectChat = async (id, isRefresh = false) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: chat.wa_number })
       });
+      console.log(`✅ Updated last_message_at for chat at position ${chatPosition + 1}`);
     } catch (error) {
       console.error('Failed to update last_message_at:', error);
     }
