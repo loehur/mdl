@@ -1019,10 +1019,7 @@ class WAReplies
             }
 
             // Format slip gaji
-            $text = "*" . strtoupper($nama_cabang) . " - " . $kode_cabang . "*\n";
-            $text .= "*-- SALARY SLIP --*\n";
-            $text .= "\n";
-            $text .= "*" . strtoupper($nama_user) . "*\n";
+            $text = "*" . strtoupper($nama_user) . "*\n";
             $text .= "Periode: *" . $dateOn . "*\n";
             $text .= "────────────────\n\n";
 
@@ -1058,18 +1055,16 @@ class WAReplies
             
             // Tambahkan informasi rekening pencairan
             $text .= "────────────────\n";
-            $text .= "*Pencairan:*\n";
+            $text .= "Pencairan:\n";
             if ($rekeningLengkap) {
                 // Data rekening lengkap - tampilkan informasi bank
                 $text .= $nama_bank ?: "Bank\n";
                 $text .= $bank_account_number . "\n";
-                $text .= "*" . $bank_account_name . "*\n";
+                $text .= "*" . $bank_account_name . "*";
             } else {
                 // Data rekening tidak lengkap - tampilkan Cash
-                $text .= "*Cash*\n";
+                $text .= "*Cash*";
             }
-            $text .= "\n";
-            $text .= "Terima Kasih";
 
             // Kirim pesan
             $res = $waService->sendFreeText($waNumber, $text);
