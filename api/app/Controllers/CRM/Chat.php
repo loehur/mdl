@@ -266,7 +266,8 @@ class Chat extends Controller
                         media_caption as caption,
                         quoted_message_id,
                         quoted_message_body,
-                        NULL as sender_code
+                        NULL as sender_code,
+                        0 as private
                      FROM wa_messages_in 
                      WHERE RIGHT(REPLACE(REPLACE(phone, '+', ''), '-', ''), 10) = ?)
                     UNION ALL
@@ -283,7 +284,8 @@ class Chat extends Controller
                         NULL as caption,
                         quoted_message_id,
                         quoted_message_body,
-                        sender_code
+                        sender_code,
+                        COALESCE(private, 0) as private
                      FROM wa_messages_out 
                      WHERE RIGHT(REPLACE(REPLACE(phone, '+', ''), '-', ''), 10) = ?)
                 ) AS combined_msgs

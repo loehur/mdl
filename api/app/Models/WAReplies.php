@@ -1019,7 +1019,10 @@ class WAReplies
             }
 
             // Format slip gaji
-            $text = "*" . strtoupper($nama_user) . "*\n";
+            $text = "*" . strtoupper($nama_cabang) . " - " . $kode_cabang . "*\n";
+            $text .= "*-- SALARY SLIP --*\n";
+            $text .= "\n";
+            $text .= "*" . strtoupper($nama_user) . "*\n";
             $text .= "Periode: *" . $dateOn . "*\n";
             $text .= "────────────────\n\n";
 

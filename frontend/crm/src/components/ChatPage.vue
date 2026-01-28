@@ -148,6 +148,16 @@ const resolveableCases = computed(() => {
   return [];
 });
 
+// Check if user is admin
+const isAdmin = computed(() => {
+  return props.currentUserRole === "admin";
+});
+
+// Check if message should be hidden (private and not admin)
+const shouldHideMessage = (msg) => {
+  return msg.private === 1 && !isAdmin.value;
+};
+
 const filteredQuickReplies = computed(() => {
   if (!quickReplySearchQuery.value) return quickReplies.value;
   const q = quickReplySearchQuery.value.toLowerCase();
@@ -783,9 +793,30 @@ onUnmounted(() => {
 
                                   <!-- Image -->
                                   <div v-if="msg.type === 'image'" class="relative max-w-sm">
-                                      <img :src="msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`" @click="openImageLightbox(msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`)" class="max-h-80 object-cover cursor-pointer" />
+                                      <!-- Blur image if private and not admin -->
+                                      <div v-if="shouldHideMessage(msg)" class="relative">
+                                           <img :src="msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`" class="max-h-80 object-cover blur-md" />
+                                           <div class="absolute inset-0 flex items-center justify-center bg-black/30">
+                                                <div class="text-center text-white p-4">
+                                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                                     </svg>
+                                                     <p class="text-sm font-medium">Pesan Private</p>
+                                                     <p class="text-xs mt-1">Hanya admin yang dapat melihat</p>
+                                                </div>
+                                           </div>
+                                      </div>
+                                      <img v-else :src="msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`" @click="openImageLightbox(msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`)" class="max-h-80 object-cover cursor-pointer" />
                                       <div v-if="msg.text || msg.time" class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent p-2 text-white">
-                                           <p v-if="msg.text" :class="[messageFontClass, 'mb-1']">{{ msg.text }}</p>
+                                           <!-- Private indicator for image -->
+                                           <div v-if="msg.private === 1" class="flex items-center gap-1 text-xs text-amber-300 mb-1">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                                </svg>
+                                                <span class="font-medium">Private</span>
+                                           </div>
+                                           <p v-if="msg.text && !shouldHideMessage(msg)" :class="[messageFontClass, 'mb-1']">{{ msg.text }}</p>
+                                           <p v-else-if="msg.text && shouldHideMessage(msg)" class="text-xs italic mb-1">🔒 Pesan ini bersifat private</p>
                                            <div class="flex justify-end items-center gap-1 text-[10px]">
                                               <span v-if="msg.sender_code">~{{ msg.sender_code }}</span>
                                               <span>{{ msg.time }}</span>
@@ -823,7 +854,18 @@ onUnmounted(() => {
                                   <!-- Text -->
                                   <div v-else :class="[messageFontClass, 'text-[var(--wa-text-primary)] overflow-hidden']">
                                        <div class="inline">
-                                            <span v-html="parseWhatsAppFormatting(msg.text)" class="whitespace-pre-wrap break-words" style="word-break: break-word; overflow-wrap: anywhere;"></span>
+                                            <!-- Private message indicator -->
+                                            <span v-if="msg.private === 1" class="inline-flex items-center gap-1 text-xs text-amber-500 mb-1 mr-2">
+                                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                                 </svg>
+                                                 <span class="font-medium">Private</span>
+                                            </span>
+                                            <!-- Message content - hidden if private and not admin -->
+                                            <span v-if="!shouldHideMessage(msg)" v-html="parseWhatsAppFormatting(msg.text)" class="whitespace-pre-wrap break-words" style="word-break: break-word; overflow-wrap: anywhere;"></span>
+                                            <span v-else class="text-[var(--wa-text-tertiary)] italic text-sm">
+                                                 🔒 Pesan ini bersifat private dan hanya dapat dilihat oleh admin
+                                            </span>
                                             <span class="inline-flex items-center gap-1 ml-2 align-bottom select-none float-right mt-1" style="margin-left: 8px;">
                                                  <span v-if="msg.sender_code" class="text-[10px] text-[var(--wa-bubble-out-meta)] opacity-70">~{{ msg.sender_code }}</span>
                                                  <span class="text-[10px] text-[var(--wa-text-tertiary)]">{{ msg.time }}</span>

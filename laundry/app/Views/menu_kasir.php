@@ -115,7 +115,7 @@ $menu[0] = [
             [
                 'c' => 'Karyawan/data',
                 'title' => 'Data Karyawan',
-                'txt' => 'Data',
+                'txt' => 'Data Rekening',
             ],
             [
                 'c' => 'Absen',

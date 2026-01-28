@@ -750,6 +750,23 @@ class WhatsAppService
                 }
             }
             
+            // Check if message contains sensitive keywords (case-insensitive)
+            // Check after lastMessageText is determined
+            $isPrivate = false;
+            $contentLower = mb_strtolower($content ?? '');
+            $messageTextLower = mb_strtolower($messageText ?? '');
+            $lastMessageTextLower = mb_strtolower($lastMessageText ?? '');
+            
+            // Check for "kode otp" or "salary slip" in content, messageText, or lastMessageText
+            if (stripos($contentLower, 'kode otp') !== false || 
+                stripos($contentLower, 'salary slip') !== false ||
+                stripos($messageTextLower, 'kode otp') !== false || 
+                stripos($messageTextLower, 'salary slip') !== false ||
+                stripos($lastMessageTextLower, 'kode otp') !== false || 
+                stripos($lastMessageTextLower, 'salary slip') !== false) {
+                $isPrivate = true;
+            }
+            
             // Save outbound message to wa_messages_out
             $messageData = [
                 // 'conversation_id' => $conversationId, // Removed as column deleted
@@ -762,6 +779,7 @@ class WhatsAppService
                 'media_url' => $mediaUrl,
                 'sender_code' => $senderCode,
                 'status' => 'accepted', // Initial status when API accepted
+                'private' => $isPrivate ? 1 : 0, // Set private flag if contains sensitive keywords
                 'created_at' => date('Y-m-d H:i:s')
             ];
             
