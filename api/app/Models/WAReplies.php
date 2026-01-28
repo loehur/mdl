@@ -920,21 +920,23 @@ class WAReplies
             }, $phones)) . "'";
 
             // Cari user di db(1) berdasarkan nomor HP, jika tidak ada coba db(0)
-            $db1 = DB::getInstance(1);
-            $db0 = DB::getInstance(0);
+            // db(1) = mdl_laundry (database laundry)
+            // db(0) = mdl_main (database central)
+            $dbLaundry = DB::getInstance(1); // Database laundry
+            $dbMain = DB::getInstance(0); // Database main/central
             
             $user = null;
             $id_cabang = 0;
             
             try {
-                // Coba cari di db(1) dulu
-                $users = $db1->query("SELECT id_user, nama_user, id_cabang FROM user WHERE no_user IN ($phoneInStr) LIMIT 1")->result_array();
+                // Coba cari di db(1) dulu (laundry database)
+                $users = $dbLaundry->query("SELECT id_user, nama_user, id_cabang FROM user WHERE no_user IN ($phoneInStr) LIMIT 1")->result_array();
                 if (!empty($users)) {
                     $user = $users[0];
                     $id_cabang = $user['id_cabang'] ?? 0;
                 } else {
-                    // Jika tidak ada di db(1), coba cari di db(0)
-                    $users = $db0->query("SELECT id_user, nama_user FROM user WHERE no_user IN ($phoneInStr) LIMIT 1")->result_array();
+                    // Jika tidak ada di db(1), coba cari di db(0) (central database)
+                    $users = $dbMain->query("SELECT id_user, nama_user FROM user WHERE no_user IN ($phoneInStr) LIMIT 1")->result_array();
                     if (!empty($users)) {
                         $user = $users[0];
                     }
@@ -952,12 +954,12 @@ class WAReplies
             $id_user = (int)$user['id_user'];
             $nama_user = $user['nama_user'] ?? 'Karyawan';
 
-            // Ambil data cabang untuk nama cabang (dari db(1))
+            // Ambil data cabang untuk nama cabang (dari db(1) - laundry database)
             $nama_cabang = 'Cabang';
             $kode_cabang = '';
             if ($id_cabang > 0) {
                 try {
-                    $cabangs = $db1->query("SELECT nama, kode_cabang FROM cabang WHERE id_cabang = " . (int)$id_cabang)->result_array();
+                    $cabangs = $dbLaundry->query("SELECT nama, kode_cabang FROM cabang WHERE id_cabang = " . (int)$id_cabang)->result_array();
                     if (!empty($cabangs)) {
                         $cabang = $cabangs[0];
                         $nama_cabang = $cabang['nama'] ?? 'Cabang';
@@ -980,12 +982,12 @@ class WAReplies
             }
             $dateOn = $date;
 
-            // Query data gaji_result dari db(0) - sudah ada $db0 dari atas
+            // Query data gaji_result dari db(1) - database laundry (bukan db(0))
             try {
                 $gajiQuery = "SELECT * FROM gaji_result WHERE tgl = ? AND id_karyawan = ? ORDER BY tipe ASC";
-                $gajiResults = $db0->query($gajiQuery, [$date, $id_user])->result_array();
+                $gajiResults = $dbLaundry->query($gajiQuery, [$date, $id_user])->result_array();
             } catch (\Throwable $e) {
-                \Log::write("handleSlip_gaji: Query gaji_result failed - " . $e->getMessage() . " | Query: " . $gajiQuery, 'wa_error', 'SlipGaji');
+                \Log::write("handleSlip_gaji: Query gaji_result failed - " . $e->getMessage() . " | Query: " . $gajiQuery . " | Date: $date | ID User: $id_user", 'wa_error', 'SlipGaji');
                 throw $e;
             }
 
