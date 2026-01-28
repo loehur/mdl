@@ -19,7 +19,7 @@ foreach ($this->user as $uc) {
 <div class="content">
   <div class="container-fluid">
     <div class="row">
-      <div class="col-auto">
+      <div class="col">
         <div class="card mb-1">
           <div class="content sticky-top pl-1 pr-2">
             <button id="tetapkan_all" class="form-control btn-success form-control-sm my-1">Tetapkan Seluruh Karyawan</button>
