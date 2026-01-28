@@ -18,7 +18,10 @@ class D_Gaji extends Controller
         $existingQuery = "SELECT id_karyawan, tgl, ref, tipe, jumlah, qty 
                           FROM gaji_result 
                           WHERE id_karyawan = " . $userID . " AND tgl = '" . $dateEscaped . "'";
-        $existingRows = $this->db(0)->query($existingQuery);
+        $existingRows = $this->db(0)->query_array($existingQuery);
+        if (!is_array($existingRows)) {
+            $existingRows = [];
+        }
         
         // Build lookup map untuk O(1) access: key = "ref|tipe"
         $existingMap = [];

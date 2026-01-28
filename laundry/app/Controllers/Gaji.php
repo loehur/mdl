@@ -172,7 +172,10 @@ class Gaji extends Controller
                   AND tanggal LIKE '" . $this->db(0)->escape($date) . "%'
                GROUP BY CASE WHEN jenis = 1 THEN 'malam' ELSE 'harian' END";
       
-      $absenData = $this->db(0)->query($sql);
+      $absenData = $this->db(0)->query_array($sql);
+      if (!is_array($absenData)) {
+         $absenData = [];
+      }
       
       // Proses hasil query - convert ke array associative
       $absenCount = ['harian' => 0, 'malam' => 0];
