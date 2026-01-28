@@ -820,22 +820,22 @@ onUnmounted(() => {
                              <!-- Bubble -->
                              <div :class="[
                                'rounded-lg shadow-sm relative overflow-hidden',
-                               isPlainTextMessage(msg) ? 'px-2.5 py-1.5' : 'p-0.5',
+                               isPlainTextMessage(msg) ? 'px-2.5 py-1' : 'p-0.5',
                                msg.sender === 'me' ? 'bg-[var(--wa-bubble-outgoing)] rounded-tr-none' : 'bg-[var(--wa-bubble-incoming)] rounded-tl-none'
                              ]">
                                  <!-- Reply Quote -->
                                  <div 
                                    v-if="msg.quoted_message_id" 
                                    :class="[
-                                     'bg-black/10 rounded px-2 py-1 border-l-2 border-[var(--wa-accent-green)]',
-                                     isPlainTextMessage(msg) ? 'mb-1' : 'mb-0.5',
+                                     'bg-black/10 rounded px-2 py-0.5 border-l-2 border-[var(--wa-accent-green)]',
+                                     isPlainTextMessage(msg) ? 'mb-0.5' : 'mb-0.5',
                                      findQuotedMessage(msg.quoted_message_id) ? 'cursor-pointer' : ''
                                    ]" 
                                    @click="findQuotedMessage(msg.quoted_message_id) && scrollToMessage(msg.quoted_message_id)">
-                                      <span class="text-[10px] font-bold text-[var(--wa-accent-green)] block">
+                                      <span class="text-[10px] font-bold text-[var(--wa-accent-green)] block leading-none" style="line-height: 1.1;">
                                         {{ findQuotedMessage(msg.quoted_message_id)?.sender === 'me' ? 'You' : (msg.quoted_message_from ? 'Customer' : activeConversation.name) }}
                                       </span>
-                                      <span class="text-xs truncate block text-[var(--wa-text-secondary)]">
+                                      <span class="text-xs truncate block text-[var(--wa-text-secondary)] leading-none" style="line-height: 1.1;">
                                         {{ findQuotedMessage(msg.quoted_message_id) ? getMessagePreview(findQuotedMessage(msg.quoted_message_id)) : (msg.quoted_message_body || 'Message not found') }}
                                       </span>
                                  </div>
@@ -858,14 +858,14 @@ onUnmounted(() => {
                                       <img v-else :src="msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`" @click="openImageLightbox(msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`)" class="max-h-80 object-cover cursor-pointer" />
                                       <div v-if="msg.text || msg.time" class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent p-2 text-white">
                                            <!-- Private indicator for image - always show if private -->
-                                           <div v-if="isPrivateMessage(msg)" class="flex items-center gap-1 text-xs font-semibold text-amber-300 mb-1 px-2 py-0.5 bg-black/40 rounded-full backdrop-blur-sm">
+                                           <div v-if="isPrivateMessage(msg)" class="flex items-center gap-1 text-xs font-semibold text-amber-300 mb-0.5 px-2 py-0.5 bg-black/40 rounded-full backdrop-blur-sm">
                                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                                                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                                                 </svg>
                                                 <span>Private</span>
                                            </div>
-                                           <p v-if="msg.text && !shouldHideMessage(msg)" :class="[messageFontClass, 'mb-1 leading-tight']" style="line-height: 1.3;">{{ msg.text }}</p>
-                                           <p v-else-if="msg.text && shouldHideMessage(msg)" class="text-xs italic mb-1 leading-tight" style="line-height: 1.3;">🔒 Pesan ini bersifat private</p>
+                                           <p v-if="msg.text && !shouldHideMessage(msg)" :class="[messageFontClass, 'mb-0.5 leading-none']" style="line-height: 1.15;">{{ msg.text }}</p>
+                                           <p v-else-if="msg.text && shouldHideMessage(msg)" class="text-xs italic mb-0.5 leading-none" style="line-height: 1.15;">🔒 Pesan ini bersifat private</p>
                                            <div class="flex justify-end items-center gap-1 text-[10px]">
                                               <span v-if="msg.sender_code">~{{ msg.sender_code }}</span>
                                               <span>{{ msg.time }}</span>
@@ -875,7 +875,7 @@ onUnmounted(() => {
 
                                   <!-- Location -->
                                   <div v-else-if="msg.type === 'location'" class="relative max-w-sm" :class="{ 'cursor-pointer': msg.media_url }" @click="msg.media_url && openLocation(msg.media_url)">
-                                      <div class="bg-gradient-to-br from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 border border-green-200 dark:border-green-800 rounded-lg p-1.5" :class="{ 'hover:bg-gradient-to-br hover:from-green-100 hover:to-blue-100 dark:hover:from-green-900/30 dark:hover:to-blue-900/30 transition-colors': msg.media_url }">
+                                      <div class="bg-gradient-to-br from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 border border-green-200 dark:border-green-800 rounded-lg p-1" :class="{ 'hover:bg-gradient-to-br hover:from-green-100 hover:to-blue-100 dark:hover:from-green-900/30 dark:hover:to-blue-900/30 transition-colors': msg.media_url }">
                                            <div class="flex items-start gap-3">
                                                 <div class="flex-shrink-0">
                                                      <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-red-500" fill="currentColor" viewBox="0 0 24 24">
@@ -883,8 +883,8 @@ onUnmounted(() => {
                                                      </svg>
                                                 </div>
                                                 <div class="flex-1 min-w-0">
-                                                     <p v-if="msg.text" :class="[messageFontClass, 'text-[var(--wa-text-primary)] font-medium mb-1']">{{ msg.text }}</p>
-                                                     <p v-if="msg.media_caption" class="text-xs text-[var(--wa-text-secondary)] font-mono mb-2">{{ msg.media_caption }}</p>
+                                                     <p v-if="msg.text" :class="[messageFontClass, 'text-[var(--wa-text-primary)] font-medium mb-0.5 leading-none']" style="line-height: 1.15;">{{ msg.text }}</p>
+                                                     <p v-if="msg.media_caption" class="text-xs text-[var(--wa-text-secondary)] font-mono mb-1 leading-none" style="line-height: 1.15;">{{ msg.media_caption }}</p>
                                                      <div class="flex items-center gap-2 text-xs text-[var(--wa-text-tertiary)]">
                                                           <span class="text-blue-500 hover:text-blue-600 font-medium">Buka di Google Maps</span>
                                                           <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -893,7 +893,7 @@ onUnmounted(() => {
                                                      </div>
                                                 </div>
                                            </div>
-                                           <div v-if="msg.time || msg.sender_code" class="flex justify-end items-center gap-1 text-[10px] mt-2 pt-2 border-t border-green-200 dark:border-green-800">
+                                           <div v-if="msg.time || msg.sender_code" class="flex justify-end items-center gap-1 text-[10px] mt-1 pt-1 border-t border-green-200 dark:border-green-800">
                                                 <span v-if="msg.sender_code" class="text-[var(--wa-text-tertiary)]">~{{ msg.sender_code }}</span>
                                                 <span class="text-[var(--wa-text-tertiary)]">{{ msg.time }}</span>
                                            </div>
@@ -904,18 +904,18 @@ onUnmounted(() => {
                                   <div v-else :class="[messageFontClass, 'text-[var(--wa-text-primary)] overflow-hidden']">
                                        <div class="inline">
                                             <!-- Private message indicator - always show if private -->
-                                            <span v-if="isPrivateMessage(msg)" class="inline-flex items-center gap-1 text-xs font-semibold text-amber-600 dark:text-amber-400 mb-1 mr-2 px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 rounded-full border border-amber-300 dark:border-amber-700">
+                                            <span v-if="isPrivateMessage(msg)" class="inline-flex items-center gap-1 text-xs font-semibold text-amber-600 dark:text-amber-400 mb-0.5 mr-2 px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 rounded-full border border-amber-300 dark:border-amber-700">
                                                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                                                       <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                                                  </svg>
                                                  <span>Private</span>
                                             </span>
                                             <!-- Message content - hidden if private and not admin -->
-                                            <span v-if="!shouldHideMessage(msg)" v-html="parseWhatsAppFormatting(msg.text)" class="whitespace-pre-wrap break-words leading-tight" style="word-break: break-word; overflow-wrap: anywhere; line-height: 1.3;"></span>
-                                            <span v-else class="text-[var(--wa-text-tertiary)] italic text-sm leading-tight" style="line-height: 1.3;">
+                                            <span v-if="!shouldHideMessage(msg)" v-html="parseWhatsAppFormatting(msg.text)" class="whitespace-pre-wrap break-words leading-none" style="word-break: break-word; overflow-wrap: anywhere; line-height: 1.15;"></span>
+                                            <span v-else class="text-[var(--wa-text-tertiary)] italic text-sm leading-none" style="line-height: 1.15;">
                                                  🔒 Pesan ini bersifat private
                                             </span>
-                                            <span class="inline-flex items-center gap-1 ml-2 align-bottom select-none float-right mt-1" style="margin-left: 8px;">
+                                            <span class="inline-flex items-center gap-1 ml-2 align-bottom select-none float-right mt-0.5" style="margin-left: 8px;">
                                                  <span v-if="msg.sender_code" class="text-[10px] text-[var(--wa-bubble-out-meta)] opacity-70">~{{ msg.sender_code }}</span>
                                                  <span class="text-[10px] text-[var(--wa-text-tertiary)]">{{ msg.time }}</span>
                                                  <!-- Status Icon for outgoing -->

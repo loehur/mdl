@@ -683,13 +683,13 @@ class WAReplies
         }
 
         $variations = [
-            "Madinah Laundry buka {$daysStr}, dari pukul {$openTime} - {$closeTime}. 🕐\nAda yang bisa kami bantu? 😊",
-            "Kami buka {$daysStr} pukul {$openTime} - {$closeTime}. ⏰\nAda yang ingin ditanyakan? 🙏",
-            "Jam operasional: {$openTime} - {$closeTime} ({$daysStr}) 📍\nAda yang bisa dibantu? 😊",
-            "Buka {$daysStr} jam {$openTime} sampai {$closeTime} ya! 😊\nSilakan, ada yang perlu dibantu? 🙏",
-            "Kami melayani dari jam {$openTime} sampai {$closeTime} 🕐\nAda yang bisa kami bantu hari ini? 😊",
-            "Operasional {$daysStr} pukul {$openTime} - {$closeTime} 😊\nSilakan, ada yang ditanyakan? 👋",
-            "Buka {$daysStr}, jam {$openTime} sampai {$closeTime} 👍\nAda yang bisa dibantu? 😊"
+            "Madinah Laundry buka {$daysStr}, dari pukul {$openTime} - {$closeTime}. 🕐😊",
+            "Kami buka {$daysStr} pukul {$openTime} - {$closeTime}. ⏰🙏",
+            "Jam operasional: {$openTime} - {$closeTime} ({$daysStr}) 📍😊",
+            "Buka {$daysStr} jam {$openTime} sampai {$closeTime} ya! 😊🙏",
+            "Kami melayani dari jam {$openTime} sampai {$closeTime} 🕐😊",
+            "Operasional {$daysStr} pukul {$openTime} - {$closeTime} 😊👋",
+            "Buka {$daysStr}, jam {$openTime} sampai {$closeTime} 👍😊"
         ];
 
         $text = $holidayPrefix . $variations[array_rand($variations)];
@@ -1061,8 +1061,8 @@ class WAReplies
             $text .= "Pencairan:\n";
             if ($rekeningLengkap) {
                 // Data rekening lengkap - tampilkan informasi bank
-                $text .= $nama_bank ?: "Bank\n";
-                $text .= $bank_account_number . "\n";
+                $text .= "*" . $nama_bank . "* \n";
+                $text .= "*" . $bank_account_number . "* \n";
                 $text .= "*" . $bank_account_name . "*";
             } else {
                 // Data rekening tidak lengkap - tampilkan Cash
