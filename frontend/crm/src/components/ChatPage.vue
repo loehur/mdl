@@ -913,7 +913,7 @@ onUnmounted(() => {
                                             <!-- Message content - hidden if private and not admin -->
                                             <span v-if="!shouldHideMessage(msg)" v-html="parseWhatsAppFormatting(msg.text)" class="whitespace-pre-wrap break-words" style="word-break: break-word; overflow-wrap: anywhere;"></span>
                                             <span v-else class="text-[var(--wa-text-tertiary)] italic text-sm">
-                                                 🔒 Pesan ini bersifat private dan hanya dapat dilihat oleh admin
+                                                 🔒 Pesan ini bersifat private
                                             </span>
                                             <span class="inline-flex items-center gap-1 ml-2 align-bottom select-none float-right mt-1" style="margin-left: 8px;">
                                                  <span v-if="msg.sender_code" class="text-[10px] text-[var(--wa-bubble-out-meta)] opacity-70">~{{ msg.sender_code }}</span>
