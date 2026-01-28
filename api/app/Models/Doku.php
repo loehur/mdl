@@ -153,8 +153,8 @@ class Doku
             'terminalId' => $terminalId,
             'validityPeriod' => $expiredTime,
             'additionalInfo' => [
-                'postalCode' => '12190',
-                'feeType' => '1'
+                'postalCode' => '12345',
+                'feeType' => 'OUR'
             ]
         ];
 
