@@ -153,9 +153,15 @@ const isAdmin = computed(() => {
   return props.currentUserRole === "admin";
 });
 
+// Check if message is private (flexible check for string "1" or integer 1)
+const isPrivateMessage = (msg) => {
+  if (!msg || msg.private === undefined || msg.private === null) return false;
+  return msg.private == 1 || msg.private === 1 || parseInt(msg.private) === 1 || String(msg.private) === '1';
+};
+
 // Check if message should be hidden (private and not admin)
 const shouldHideMessage = (msg) => {
-  return msg.private === 1 && !isAdmin.value;
+  return isPrivateMessage(msg) && !isAdmin.value;
 };
 
 const filteredQuickReplies = computed(() => {
@@ -808,12 +814,12 @@ onUnmounted(() => {
                                       </div>
                                       <img v-else :src="msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`" @click="openImageLightbox(msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`)" class="max-h-80 object-cover cursor-pointer" />
                                       <div v-if="msg.text || msg.time" class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent p-2 text-white">
-                                           <!-- Private indicator for image -->
-                                           <div v-if="msg.private === 1" class="flex items-center gap-1 text-xs text-amber-300 mb-1">
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                           <!-- Private indicator for image - always show if private -->
+                                           <div v-if="isPrivateMessage(msg)" class="flex items-center gap-1 text-xs font-semibold text-amber-300 mb-1 px-2 py-0.5 bg-black/40 rounded-full backdrop-blur-sm">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                                                 </svg>
-                                                <span class="font-medium">Private</span>
+                                                <span>Private</span>
                                            </div>
                                            <p v-if="msg.text && !shouldHideMessage(msg)" :class="[messageFontClass, 'mb-1']">{{ msg.text }}</p>
                                            <p v-else-if="msg.text && shouldHideMessage(msg)" class="text-xs italic mb-1">🔒 Pesan ini bersifat private</p>
@@ -854,12 +860,12 @@ onUnmounted(() => {
                                   <!-- Text -->
                                   <div v-else :class="[messageFontClass, 'text-[var(--wa-text-primary)] overflow-hidden']">
                                        <div class="inline">
-                                            <!-- Private message indicator -->
-                                            <span v-if="msg.private === 1" class="inline-flex items-center gap-1 text-xs text-amber-500 mb-1 mr-2">
-                                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                            <!-- Private message indicator - always show if private -->
+                                            <span v-if="isPrivateMessage(msg)" class="inline-flex items-center gap-1 text-xs font-semibold text-amber-600 dark:text-amber-400 mb-1 mr-2 px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 rounded-full border border-amber-300 dark:border-amber-700">
+                                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                                                  </svg>
-                                                 <span class="font-medium">Private</span>
+                                                 <span>Private</span>
                                             </span>
                                             <!-- Message content - hidden if private and not admin -->
                                             <span v-if="!shouldHideMessage(msg)" v-html="parseWhatsAppFormatting(msg.text)" class="whitespace-pre-wrap break-words" style="word-break: break-word; overflow-wrap: anywhere;"></span>

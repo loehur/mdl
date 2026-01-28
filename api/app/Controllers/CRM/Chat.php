@@ -297,6 +297,16 @@ class Chat extends Controller
         
         $messages = $db->query($sql, [$matchDigits, $matchDigits, $fetchLimit, $offset])->result();
         
+        // Normalize private field to integer (0 or 1) for consistent frontend handling
+        foreach ($messages as &$msg) {
+            if (isset($msg->private)) {
+                $msg->private = (int)$msg->private;
+            } else {
+                $msg->private = 0;
+            }
+        }
+        unset($msg); // Break reference
+        
         // Check if there are more messages
         $hasMore = count($messages) > $limit;
         
