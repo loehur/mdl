@@ -384,9 +384,8 @@ class Gaji extends Controller
          die('Tidak ada data payroll untuk periode ' . $period);
       }
 
-      // Header CSV - format Flip (tanpa kolom No, karena Flip tidak menerima kolom No)
-      // Format header sesuai dokumentasi Flip
-      $csv = "Bank Tujuan,Nomor Rekening Tujuan,Nominal,Berita Transfer,Email Penerima,Nama Penerima,ID Unik Transaksi,Berita Transfer Tambahan\n";
+      // Header CSV - format asli dengan semua kolom (tanpa kolom No)
+      $csv = "Bank Tujuan,Nomor Rekening Tujuan,Nominal,Berita Transfer (Opsional),Email Penerima (Opsional),Nama Penerima (Opsional),ID Unik Transaksi (Opsional),Berita Transfer Tambahan (Opsional)\n";
 
       foreach ($payrolls as $p) {
          $bank_code = isset($p['bank_code']) ? trim($p['bank_code']) : '';
@@ -412,7 +411,7 @@ class Gaji extends Controller
             continue;
          }
 
-         // Format data sesuai header Flip (tanpa kolom No):
+         // Format data sesuai header (urutan kolom tanpa No):
          // 1. Bank Tujuan
          // 2. Nomor Rekening Tujuan
          // 3. Nominal
