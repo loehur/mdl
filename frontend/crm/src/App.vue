@@ -1152,27 +1152,40 @@ const fetchMessages = async (phone, offset = 0, limit = 20) => {
       const messagesData = Array.isArray(result.data) ? result.data : (result.data?.messages || []);
       const hasMore = result.data?.has_more ?? false;
       
-      const mappedMessages = messagesData.map((m) => ({
-        id: m.id,
-        wamid: m.wamid,
-        text: m.text || m.caption,
-        type: m.type,
-        media_id: m.media_id,
-        media_url: m.media_url,
-        sender: m.sender,
-        time: m.time
-          ? new Date(m.time).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: false,
-            })
-          : "",
-        rawTime: m.time,
-        status: m.status,
-        sender_code: m.sender_code,
-        quoted_message_id: m.quoted_message_id || null,
-        quoted_message_body: m.quoted_message_body || null,
-      }));
+      const mappedMessages = messagesData.map((m) => {
+        // Debug: Log messages with private field
+        if (m.private !== undefined && m.private !== null) {
+          console.log('[fetchMessages] Message with private:', {
+            id: m.id,
+            private: m.private,
+            type: typeof m.private,
+            text: (m.text || m.caption)?.substring(0, 50)
+          });
+        }
+        
+        return {
+          id: m.id,
+          wamid: m.wamid,
+          text: m.text || m.caption,
+          type: m.type,
+          media_id: m.media_id,
+          media_url: m.media_url,
+          sender: m.sender,
+          time: m.time
+            ? new Date(m.time).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: false,
+              })
+            : "",
+          rawTime: m.time,
+          status: m.status,
+          private: m.private !== undefined ? (typeof m.private === 'number' ? m.private : parseInt(m.private) || 0) : 0, // Include private field
+          sender_code: m.sender_code,
+          quoted_message_id: m.quoted_message_id || null,
+          quoted_message_body: m.quoted_message_body || null,
+        };
+      });
 
       // Use Centralized Sanitizer
       return {

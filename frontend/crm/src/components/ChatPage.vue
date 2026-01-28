@@ -155,28 +155,51 @@ const isAdmin = computed(() => {
 
 // Check if message is private (flexible check for string "1" or integer 1)
 const isPrivateMessage = (msg) => {
-  if (!msg) return false;
+  if (!msg) {
+    console.log('[Private Check] ❌ No message object');
+    return false;
+  }
   
-  // Debug logging (remove in production)
-  if (msg.private !== undefined && msg.private !== null && msg.private !== 0) {
+  // Debug logging - log ALL messages to see what we're getting
+  const privateVal = msg.private;
+  
+  // Only log if message contains sensitive keywords or has private field
+  const hasSensitiveKeyword = msg.text && (
+    msg.text.toLowerCase().includes('kode otp') || 
+    msg.text.toLowerCase().includes('salary slip')
+  );
+  
+  if (hasSensitiveKeyword || privateVal !== undefined) {
     console.log('[Private Check]', {
       id: msg.id,
-      private: msg.private,
-      type: typeof msg.private,
+      private: privateVal,
+      type: typeof privateVal,
+      hasPrivate: 'private' in msg,
+      keys: Object.keys(msg).slice(0, 10), // First 10 keys only
       text: msg.text?.substring(0, 50)
     });
   }
   
   // Check if private field exists and is truthy
-  const privateVal = msg.private;
-  if (privateVal === undefined || privateVal === null) return false;
+  if (privateVal === undefined || privateVal === null) {
+    if (hasSensitiveKeyword) {
+      console.log('[Private Check] ⚠️ No private field found for sensitive message ID:', msg.id);
+    }
+    return false;
+  }
   
   // Check various formats: 1, "1", true, etc.
-  return privateVal == 1 || 
-         privateVal === 1 || 
-         parseInt(privateVal) === 1 || 
-         String(privateVal) === '1' ||
-         privateVal === true;
+  const isPrivate = privateVal == 1 || 
+                    privateVal === 1 || 
+                    parseInt(privateVal) === 1 || 
+                    String(privateVal) === '1' ||
+                    privateVal === true;
+  
+  if (isPrivate) {
+    console.log('[Private Check] ✅ Message is PRIVATE - ID:', msg.id, 'Value:', privateVal, 'Type:', typeof privateVal);
+  }
+  
+  return isPrivate;
 };
 
 // Check if message should be hidden (private and not admin)
