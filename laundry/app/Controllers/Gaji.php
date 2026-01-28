@@ -432,8 +432,8 @@ class Gaji extends Controller
             "Gaji " . $period, // Berita Transfer (Opsional) - DIISI karena Flip membutuhkan ini
             '', // Email Penerima (Opsional) - kosong
             $bank_acc_name, // Nama Penerima (Opsional) - diisi dengan nama dari payroll
-            '', // ID Unik Transaksi (Opsional) - kosong
-            $id_payroll // Berita Transfer Tambahan (Opsional) - diisi dengan ID_PAYROLL
+            $id_payroll, // ID Unik Transaksi (Opsional) - diisi dengan ID_PAYROLL
+            '' // Berita Transfer Tambahan (Opsional) - kosong
          ];
          
          // Join dengan koma dan tambahkan newline
