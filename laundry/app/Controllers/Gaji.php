@@ -417,7 +417,7 @@ class Gaji extends Controller
          // 2. Bank Tujuan
          // 3. Nomor Rekening Tujuan
          // 4. Nominal
-         // 5. Berita Transfer (Opsional)
+         // 5. Berita Transfer (Opsional) - HARUS DIISI (meskipun opsional, Flip membutuhkan ini)
          // 6. Email Penerima (Opsional)
          // 7. Nama Penerima (Opsional)
          // 8. ID Unik Transaksi (Opsional)
@@ -426,7 +426,7 @@ class Gaji extends Controller
          $csv .= $flip_code . ",";
          $csv .= $bank_acc_number . ",";
          $csv .= number_format($amount, 0, '', '') . ","; // Nominal (harus diisi)
-         $csv .= ","; // Berita Transfer (Opsional) - kosong
+         $csv .= "Gaji " . $period . ","; // Berita Transfer (Opsional) - DIISI dengan "Gaji YYYY-MM" karena Flip membutuhkan ini
          $csv .= ","; // Email Penerima (Opsional) - kosong
          $csv .= $bank_acc_name . ","; // Nama Penerima (Opsional) - diisi dengan nama dari payroll
          $csv .= ","; // ID Unik Transaksi (Opsional) - kosong
