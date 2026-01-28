@@ -366,7 +366,7 @@ class Gaji extends Controller
    /**
     * Export CSV Flip: export data payroll ke format CSV Flip
     * GET: period (YYYY-MM)
-    * Format CSV: Bank Tujuan,Nomor Rekening Tujuan,Nama Penerima
+    * Format CSV: No,Bank Tujuan,Nomor Rekening Tujuan,Nominal,Berita Transfer (Opsional),Email Penerima (Opsional),Nama Penerima (Opsional),ID Unik Transaksi (Opsional),Berita Transfer Tambahan (Opsional)
     * Hanya export data yang lengkap (ada bank_code, bank_acc_number, dan bank_acc_name)
     */
    public function export_csv_flip()
@@ -384,15 +384,18 @@ class Gaji extends Controller
          die('Tidak ada data payroll untuk periode ' . $period);
       }
 
-      // Header CSV - hanya 3 kolom
-      $csv = "Bank Tujuan,Nomor Rekening Tujuan,Nama Penerima\n";
+      // Header CSV - format asli dengan semua kolom
+      $csv = "No,Bank Tujuan,Nomor Rekening Tujuan,Nominal,Berita Transfer (Opsional),Email Penerima (Opsional),Nama Penerima (Opsional),ID Unik Transaksi (Opsional),Berita Transfer Tambahan (Opsional)\n";
 
+      $no = 1;
       foreach ($payrolls as $p) {
          $bank_code = isset($p['bank_code']) ? trim($p['bank_code']) : '';
          $bank_acc_number = isset($p['bank_acc_number']) ? trim($p['bank_acc_number']) : '';
          $bank_acc_name = isset($p['bank_acc_name']) ? trim($p['bank_acc_name']) : '';
+         $amount = isset($p['amount']) ? (float)$p['amount'] : 0;
+         $id_payroll = isset($p['id']) ? (int)$p['id'] : 0;
 
-         // Skip jika data tidak lengkap
+         // Skip jika data tidak lengkap (bank_code, bank_acc_number, atau bank_acc_name kosong)
          if (empty($bank_code) || empty($bank_acc_number) || empty($bank_acc_name)) {
             continue;
          }
@@ -409,10 +412,18 @@ class Gaji extends Controller
             continue;
          }
 
-         // Format data: Bank Tujuan,Nomor Rekening Tujuan,Nama Penerima
+         // Format data sesuai format asli: No,Bank Tujuan,Nomor Rekening Tujuan,Nominal,Berita Transfer,Email,Nama,ID Unik,Berita Tambahan
+         $csv .= $no . ",";
          $csv .= $flip_code . ",";
          $csv .= $bank_acc_number . ",";
-         $csv .= $bank_acc_name . "\n";
+         $csv .= number_format($amount, 0, '', '') . ","; // Nominal tanpa koma
+         $csv .= ","; // Berita Transfer (Opsional) - kosong
+         $csv .= ","; // Email Penerima (Opsional) - kosong
+         $csv .= $bank_acc_name . ","; // Nama Penerima
+         $csv .= ","; // ID Unik Transaksi (Opsional) - kosong
+         $csv .= $id_payroll . "\n"; // Berita Transfer Tambahan = ID_PAYROLL
+
+         $no++;
       }
 
       // Set header untuk download CSV
