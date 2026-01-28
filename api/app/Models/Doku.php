@@ -43,12 +43,9 @@ class Doku
         // Timestamp in ISO-8601 UTC format (YYYY-MM-DDTHH:mm:ssZ)
         $timestamp = gmdate('Y-m-d\TH:i:s\Z');
         
-        // Generate Request ID (unique identifier)
-        $requestId = substr(str_replace('.', '', microtime(true)), 0, 32);
-        
         // Generate signature for token request
-        // Formula: HMAC_SHA256(clientSecret, Client-Id + "|" + Request-Id + "|" + Request-Timestamp)
-        $stringToSign = $this->clientId . '|' . $requestId . '|' . $timestamp;
+        // Formula: HMAC_SHA256(clientSecret, Client-Id|Timestamp)
+        $stringToSign = $this->clientId . '|' . $timestamp;
         $signature = base64_encode(hash_hmac('sha256', $stringToSign, $this->clientSecret, true));
 
         $data = [
@@ -107,12 +104,9 @@ class Doku
         // Timestamp in ISO-8601 UTC format (YYYY-MM-DDTHH:mm:ssZ)
         $timestamp = gmdate('Y-m-d\TH:i:s\Z');
         
-        // Generate Request ID (unique identifier)
-        $requestId = substr(str_replace('.', '', microtime(true)), 0, 32);
-        
         // Generate signature for token request
-        // Formula: HMAC_SHA256(clientSecret, Client-Id + "|" + Request-Id + "|" + Request-Timestamp)
-        $stringToSign = $this->clientId . '|' . $requestId . '|' . $timestamp;
+        // Formula: HMAC_SHA256(clientSecret, Client-Id|Timestamp)
+        $stringToSign = $this->clientId . '|' . $timestamp;
         $signature = base64_encode(hash_hmac('sha256', $stringToSign, $this->clientSecret, true));
 
         $data = [
@@ -151,7 +145,6 @@ class Doku
             'request' => [
                 'url' => $this->tokenUrl,
                 'client_id' => $this->clientId,
-                'request_id' => $requestId,
                 'timestamp' => $timestamp,
                 'string_to_sign' => $stringToSign,
                 'signature' => $signature,
