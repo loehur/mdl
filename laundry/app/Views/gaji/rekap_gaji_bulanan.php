@@ -602,10 +602,31 @@ $totalTerima = 0;
   </div>
 </div>
 
+<!-- Toast container -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1100;">
+  <div id="gajiToast" class="toast align-items-center text-white border-0" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="d-flex">
+      <div class="toast-body"></div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>
+  </div>
+</div>
+
 <!-- SCRIPT -->
 <script src="<?= URL::EX_ASSETS ?>plugins/select2/select2.min.js"></script>
 
 <script>
+  function showToast(msg, type) {
+    type = type || 'info';
+    var bg = { success: 'bg-success', danger: 'bg-danger', warning: 'bg-warning', info: 'bg-primary' }[type] || 'bg-primary';
+    var toastEl = document.getElementById('gajiToast');
+    var toastBody = toastEl.querySelector('.toast-body');
+    toastEl.className = 'toast align-items-center text-white border-0 ' + bg;
+    toastBody.textContent = msg;
+    var t = new bootstrap.Toast(toastEl, { delay: 4500 });
+    t.show();
+  }
+
   $("form.jq").on("submit", function(e) {
     e.preventDefault();
     $.ajax({
@@ -616,7 +637,7 @@ $totalTerima = 0;
         if (response == 1) {
           location.reload(true);
         } else {
-          alert(response);
+          showToast(response, 'warning');
         }
       },
     });
@@ -658,10 +679,10 @@ $totalTerima = 0;
         if (res && res.ok) {
           btn.html('<i class="fas fa-check me-1"></i> Ditambah');
           setTimeout(function() { btn.html(originalHtml); btn.prop('disabled', false); }, 2000);
-          alert(res.msg + (res.amount ? ' Rp' + Number(res.amount).toLocaleString('id-ID') : ''));
+          showToast(res.msg + (res.amount ? ' Rp' + Number(res.amount).toLocaleString('id-ID') : ''), 'success');
         } else {
           btn.html(originalHtml).prop('disabled', false);
-          alert(res && res.msg ? res.msg : 'Gagal menambah ke payroll.');
+          showToast(res && res.msg ? res.msg : 'Gagal menambah ke payroll.', 'danger');
         }
       },
       error: function(xhr) {
@@ -671,7 +692,7 @@ $totalTerima = 0;
           var j = JSON.parse(xhr.responseText);
           if (j && j.msg) msg = j.msg;
         } catch (e) {}
-        alert(msg);
+        showToast(msg, 'danger');
       }
     });
   });
@@ -750,7 +771,7 @@ $totalTerima = 0;
     var printText = lines.join('');
     
     if (!printText) {
-      alert('Tidak ada data untuk dicetak');
+      showToast('Tidak ada data untuk dicetak', 'warning');
       return;
     }
     
@@ -773,7 +794,7 @@ $totalTerima = 0;
     .then(function(res) {
       console.log('Print server response:', res.status);
       if (!res.ok) {
-        alert('Gagal print: ' + res.status);
+        showToast('Gagal print: ' + res.status, 'danger');
       } else {
         // Success feedback
         btn.html('<i class="fas fa-check"></i> Printed!');
@@ -787,7 +808,7 @@ $totalTerima = 0;
     })
     .catch(function(err) {
       console.error('Print error:', err);
-      alert('Gagal mengirim ke printer. Pastikan print server berjalan di localhost:3000');
+      showToast('Gagal mengirim ke printer. Pastikan print server berjalan di localhost:3000', 'danger');
       btn.prop('disabled', false).html(originalHtml);
     });
   });
