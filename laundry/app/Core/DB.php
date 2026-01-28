@@ -45,6 +45,20 @@ class DB extends DBC
         }
     }
 
+    /**
+     * Escape string for use in SQL
+     * @param string|null $str
+     * @return string
+     */
+    public function escape($str)
+    {
+        $this->checkConnection();
+        if ($str === null) {
+            return '';
+        }
+        return $this->mysqli->real_escape_string((string) $str);
+    }
+
     public function get($table, $index = "", $group = 0)
     {
         $this->checkConnection();
