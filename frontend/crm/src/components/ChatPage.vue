@@ -796,7 +796,7 @@ onUnmounted(() => {
                    </div>
               </div>
 
-              <div class="px-4 space-y-1 overflow-hidden">
+              <div class="px-4 space-y-2 overflow-hidden">
                    <div v-for="(msg, index) in activeConversation.messages" :key="msg.id" :id="'msg-' + msg.id" class="flex flex-col relative group">
                         <!-- Date Separator -->
                         <div v-if="index === 0 || needsDateSeparator(msg, activeConversation.messages[index-1])" class="flex justify-center my-4">
@@ -832,10 +832,10 @@ onUnmounted(() => {
                                      findQuotedMessage(msg.quoted_message_id) ? 'cursor-pointer' : ''
                                    ]" 
                                    @click="findQuotedMessage(msg.quoted_message_id) && scrollToMessage(msg.quoted_message_id)">
-                                      <span class="text-[10px] font-bold text-[var(--wa-accent-green)] block leading-none" style="line-height: 1.1;">
+                                      <span class="text-[10px] font-bold text-[var(--wa-accent-green)] block leading-none" style="line-height: 1.05;">
                                         {{ findQuotedMessage(msg.quoted_message_id)?.sender === 'me' ? 'You' : (msg.quoted_message_from ? 'Customer' : activeConversation.name) }}
                                       </span>
-                                      <span class="text-xs truncate block text-[var(--wa-text-secondary)] leading-none" style="line-height: 1.1;">
+                                      <span class="text-xs truncate block text-[var(--wa-text-secondary)] leading-none" style="line-height: 1.05;">
                                         {{ findQuotedMessage(msg.quoted_message_id) ? getMessagePreview(findQuotedMessage(msg.quoted_message_id)) : (msg.quoted_message_body || 'Message not found') }}
                                       </span>
                                  </div>
@@ -864,8 +864,8 @@ onUnmounted(() => {
                                                 </svg>
                                                 <span>Private</span>
                                            </div>
-                                           <p v-if="msg.text && !shouldHideMessage(msg)" :class="[messageFontClass, 'mb-0.5 leading-none']" style="line-height: 1.15;">{{ msg.text }}</p>
-                                           <p v-else-if="msg.text && shouldHideMessage(msg)" class="text-xs italic mb-0.5 leading-none" style="line-height: 1.15;">🔒 Pesan ini bersifat private</p>
+                                           <p v-if="msg.text && !shouldHideMessage(msg)" :class="[messageFontClass, 'mb-0.5 leading-none']" style="line-height: 1.1;">{{ msg.text }}</p>
+                                           <p v-else-if="msg.text && shouldHideMessage(msg)" class="text-xs italic mb-0.5 leading-none" style="line-height: 1.1;">🔒 Pesan ini bersifat private</p>
                                            <div class="flex justify-end items-center gap-1 text-[10px]">
                                               <span v-if="msg.sender_code">~{{ msg.sender_code }}</span>
                                               <span>{{ msg.time }}</span>
@@ -883,8 +883,8 @@ onUnmounted(() => {
                                                      </svg>
                                                 </div>
                                                 <div class="flex-1 min-w-0">
-                                                     <p v-if="msg.text" :class="[messageFontClass, 'text-[var(--wa-text-primary)] font-medium mb-0.5 leading-none']" style="line-height: 1.15;">{{ msg.text }}</p>
-                                                     <p v-if="msg.media_caption" class="text-xs text-[var(--wa-text-secondary)] font-mono mb-1 leading-none" style="line-height: 1.15;">{{ msg.media_caption }}</p>
+                                                     <p v-if="msg.text" :class="[messageFontClass, 'text-[var(--wa-text-primary)] font-medium mb-0.5 leading-none']" style="line-height: 1.1;">{{ msg.text }}</p>
+                                                     <p v-if="msg.media_caption" class="text-xs text-[var(--wa-text-secondary)] font-mono mb-1 leading-none" style="line-height: 1.1;">{{ msg.media_caption }}</p>
                                                      <div class="flex items-center gap-2 text-xs text-[var(--wa-text-tertiary)]">
                                                           <span class="text-blue-500 hover:text-blue-600 font-medium">Buka di Google Maps</span>
                                                           <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -911,8 +911,8 @@ onUnmounted(() => {
                                                  <span>Private</span>
                                             </span>
                                             <!-- Message content - hidden if private and not admin -->
-                                            <span v-if="!shouldHideMessage(msg)" v-html="parseWhatsAppFormatting(msg.text)" class="whitespace-pre-wrap break-words leading-none" style="word-break: break-word; overflow-wrap: anywhere; line-height: 1.15;"></span>
-                                            <span v-else class="text-[var(--wa-text-tertiary)] italic text-sm leading-none" style="line-height: 1.15;">
+                                            <span v-if="!shouldHideMessage(msg)" v-html="parseWhatsAppFormatting(msg.text)" class="whitespace-pre-wrap break-words leading-none" style="word-break: break-word; overflow-wrap: anywhere; line-height: 1.1;"></span>
+                                            <span v-else class="text-[var(--wa-text-tertiary)] italic text-sm leading-none" style="line-height: 1.1;">
                                                  🔒 Pesan ini bersifat private
                                             </span>
                                             <span class="inline-flex items-center gap-1 ml-2 align-bottom select-none float-right mt-0.5" style="margin-left: 8px;">
