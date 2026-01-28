@@ -198,4 +198,24 @@ class QRIS_Doku extends Controller
             $this->error('Internal Server Error: ' . $e->getMessage(), 500);
         }
     }
+
+    /**
+     * Debug B2B Token Authentication
+     * Endpoint: /QRIS_Doku/debug_token
+     * Method: GET
+     * Returns detailed token request/response for troubleshooting
+     */
+    public function debug_token()
+    {
+        $this->handleCors();
+
+        try {
+            $doku = new Doku();
+            $debug = $doku->getAccessTokenDebug();
+            
+            $this->success($debug, 'Debug info for B2B token authentication');
+        } catch (\Exception $e) {
+            $this->error('Internal Server Error: ' . $e->getMessage(), 500);
+        }
+    }
 }

@@ -99,6 +99,75 @@ class Doku
     }
 
     /**
+     * Debug method - Get access token with full request/response details
+     * Use this to troubleshoot authentication issues
+     */
+    public function getAccessTokenDebug()
+    {
+        // Timestamp in ISO-8601 UTC format (YYYY-MM-DDTHH:mm:ssZ)
+        $timestamp = gmdate('Y-m-d\TH:i:s\Z');
+        
+        // Generate Request ID (unique identifier)
+        $requestId = substr(str_replace('.', '', microtime(true)), 0, 32);
+        
+        // Generate signature for token request
+        // Formula: HMAC_SHA256(clientSecret, Client-Id + "|" + Request-Id + "|" + Request-Timestamp)
+        $stringToSign = $this->clientId . '|' . $requestId . '|' . $timestamp;
+        $signature = base64_encode(hash_hmac('sha256', $stringToSign, $this->clientSecret, true));
+
+        $data = [
+            'grantType' => 'client_credentials'
+        ];
+
+        $headers = [
+            'X-CLIENT-KEY: ' . $this->clientId,
+            'X-TIMESTAMP: ' . $timestamp,
+            'X-SIGNATURE: ' . $signature,
+            'Content-Type: application/json'
+        ];
+
+        $curl = curl_init();
+        curl_setopt_array($curl, [
+            CURLOPT_URL => $this->tokenUrl,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_ENCODING => '',
+            CURLOPT_MAXREDIRS => 10,
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            CURLOPT_CUSTOMREQUEST => 'POST',
+            CURLOPT_POSTFIELDS => json_encode($data),
+            CURLOPT_HTTPHEADER => $headers,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => false,
+        ]);
+
+        $response = curl_exec($curl);
+        $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        $error = curl_error($curl);
+        curl_close($curl);
+
+        return [
+            'request' => [
+                'url' => $this->tokenUrl,
+                'client_id' => $this->clientId,
+                'request_id' => $requestId,
+                'timestamp' => $timestamp,
+                'string_to_sign' => $stringToSign,
+                'signature' => $signature,
+                'body' => $data,
+                'headers' => $headers
+            ],
+            'response' => [
+                'http_code' => $httpCode,
+                'body' => json_decode($response, true),
+                'raw' => $response,
+                'error' => $error
+            ]
+        ];
+    }
+
+    /**
      * Generate symmetric signature for API calls
      * Formula: HMAC_SHA512(clientSecret, HTTPMethod + ":" + EndpointUrl + ":" + AccessToken + ":" + Lowercase(HexEncode(SHA-256(minify(RequestBody)))) + ":" + TimeStamp)
      */
