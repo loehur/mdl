@@ -919,31 +919,60 @@ class WAReplies
                 return addslashes($p);
             }, $phones)) . "'";
 
-            // Cari user di db(1) berdasarkan nomor HP
+            // Cari user di db(1) berdasarkan nomor HP, jika tidak ada coba db(0)
             $db1 = DB::getInstance(1);
-            $user = $db1->query("SELECT id_user, nama_user, id_cabang FROM user WHERE no_user IN ($phoneInStr) LIMIT 1")->row_array();
+            $db0 = DB::getInstance(0);
+            
+            $user = null;
+            $id_cabang = 0;
+            
+            // Coba cari di db(1) dulu
+            $users = $db1->query("SELECT id_user, nama_user, id_cabang FROM user WHERE no_user IN ($phoneInStr) LIMIT 1")->result_array();
+            if (!empty($users)) {
+                $user = $users[0];
+                $id_cabang = $user['id_cabang'] ?? 0;
+            } else {
+                // Jika tidak ada di db(1), coba cari di db(0)
+                $users = $db0->query("SELECT id_user, nama_user FROM user WHERE no_user IN ($phoneInStr) LIMIT 1")->result_array();
+                if (!empty($users)) {
+                    $user = $users[0];
+                }
+            }
             
             if (!$user || !isset($user['id_user'])) {
                 $waService->sendFreeText($waNumber, "Nomor Anda tidak terdaftar sebagai karyawan.");
                 return;
             }
-
+            
             $id_user = (int)$user['id_user'];
             $nama_user = $user['nama_user'] ?? 'Karyawan';
-            $id_cabang = $user['id_cabang'] ?? 0;
 
-            // Ambil data cabang untuk nama cabang
-            $cabang = $db1->query("SELECT nama, kode_cabang FROM cabang WHERE id_cabang = " . (int)$id_cabang)->row_array();
-            $nama_cabang = $cabang['nama'] ?? 'Cabang';
-            $kode_cabang = $cabang['kode_cabang'] ?? '';
+            // Ambil data cabang untuk nama cabang (dari db(1))
+            $nama_cabang = 'Cabang';
+            $kode_cabang = '';
+            if ($id_cabang > 0) {
+                $cabangs = $db1->query("SELECT nama, kode_cabang FROM cabang WHERE id_cabang = " . (int)$id_cabang)->result_array();
+                if (!empty($cabangs)) {
+                    $cabang = $cabangs[0];
+                    $nama_cabang = $cabang['nama'] ?? 'Cabang';
+                    $kode_cabang = $cabang['kode_cabang'] ?? '';
+                }
+            }
 
-            // Periode bulan ini (YYYY-MM)
-            $date = date('Y-m');
+            // Tentukan periode berdasarkan tanggal hari ini
+            $hariIni = (int)date('d');
+            if ($hariIni >= 1 && $hariIni <= 5) {
+                // Jika tanggal 1-5, gunakan bulan lalu
+                $date = date('Y-m', strtotime('-1 month'));
+            } else {
+                // Jika tanggal > 5, gunakan bulan ini
+                $date = date('Y-m');
+            }
             $dateOn = $date;
 
-            // Query data gaji_result dari db(0)
-            $db0 = DB::getInstance(0);
-            $gajiResults = $db0->query("SELECT * FROM gaji_result WHERE tgl = '" . $db0->escape($date) . "' AND id_karyawan = " . $id_user . " ORDER BY tipe ASC")->result_array();
+            // Query data gaji_result dari db(0) - sudah ada $db0 dari atas
+            $gajiQuery = "SELECT * FROM gaji_result WHERE tgl = '" . $db0->escape($date) . "' AND id_karyawan = " . $id_user . " ORDER BY tipe ASC";
+            $gajiResults = $db0->query($gajiQuery)->result_array();
 
             if (empty($gajiResults)) {
                 $waService->sendFreeText($waNumber, "Belum ada data gaji untuk periode " . $date . ".\nSilakan hubungi admin untuk penetapan gaji.");
@@ -955,19 +984,19 @@ class WAReplies
             $text .= "*-- SALARY SLIP --*\n";
             $text .= "\n";
             $text .= "*" . strtoupper($nama_user) . "*\n";
-            $text .= "Periode: " . $dateOn . "\n";
+            $text .= "Periode: *" . $dateOn . "*\n";
             $text .= "────────────────\n\n";
 
             $totalGaji = 0;
             $totalPot = 0;
 
             foreach ($gajiResults as $gf) {
-                $jGaji = (float)$gf['jumlah'];
+                $jGaji = (float)($gf['jumlah'] ?? 0);
                 $ref = $gf['ref'] ?? '';
                 $deskripsi = $gf['deskripsi'] ?? '';
-                $qty = $gf['qty'] ?? 0;
+                $qty = (int)($gf['qty'] ?? 0);
 
-                if ((int)$gf['tipe'] == 1) {
+                if ((int)($gf['tipe'] ?? 0) == 1) {
                     $totalGaji += $jGaji;
                     $vGaji = "Rp" . number_format($jGaji, 0, ',', '.');
                 } else {
@@ -996,12 +1025,17 @@ class WAReplies
                 $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
             }
         } catch (\Throwable $e) {
-            \Log::write("handleSlip_gaji ERROR: " . $e->getMessage(), 'wa_error', 'SlipGaji');
+            $errorMsg = "handleSlip_gaji ERROR: " . $e->getMessage() . "\nFile: " . $e->getFile() . ":" . $e->getLine();
+            if (method_exists($e, 'getTraceAsString')) {
+                $errorMsg .= "\nStack: " . $e->getTraceAsString();
+            }
+            \Log::write($errorMsg, 'wa_error', 'SlipGaji');
+            
             try {
                 $waService = $this->getWaService();
-                $waService->sendFreeText($waNumber, "Maaf, terjadi kesalahan saat mengambil data slip gaji.");
+                $waService->sendFreeText($waNumber, "Maaf, terjadi kesalahan saat mengambil data slip gaji.\nSilakan hubungi admin.");
             } catch (\Exception $e2) {
-                // Ignore
+                \Log::write("handleSlip_gaji: Failed to send error message - " . $e2->getMessage(), 'wa_error', 'SlipGaji');
             }
         }
     }
