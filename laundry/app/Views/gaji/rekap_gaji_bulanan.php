@@ -17,105 +17,70 @@ foreach ($this->user as $uc) {
 ?>
 
 <div class="content">
-  <div class="container-fluid">
-    <div class="row">
-      <div class="col">
-        <div class="card mb-1">
-          <div class="content sticky-top pl-1 pr-2">
-            <button id="tetapkan_all" class="form-control btn-success form-control-sm my-1">Tetapkan Seluruh Karyawan</button>
-            <div id="info" class="alert alert-light m-auto"></div>
-            <form action="<?= URL::BASE_URL; ?>Gaji" method="POST">
-              <table class="w-100 mt-2">
-                <tr>
-                  <td>
-                    <select name="user_id" class="form-control form-control-sm karyawan" style="width: 100%;" required>
-                      <option value="" selected disabled>Karyawan</option>
-                      <?php if (count($this->user) > 0) {
-                        foreach ($this->user as $a) { ?>
-                          <option <?php if ($data['user']['id'] == $a['id_user']) {
-                                    echo "selected";
-                                  } ?> id="<?= $a['id_user'] ?>" value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
-                      <?php }
-                      } ?>
-                    </select>
-                  </td>
-                  <td>
-                    <select name="m" class="form-control form-control-sm" style="width: auto;">
-                      <option class="text-right" value="01" <?php if ($currentMonth == '01') {
-                                                              echo 'selected';
-                                                            } ?>>01</option>
-                      <option class="text-right" value="02" <?php if ($currentMonth == '02') {
-                                                              echo 'selected';
-                                                            } ?>>02</option>
-                      <option class="text-right" value="03" <?php if ($currentMonth == '03') {
-                                                              echo 'selected';
-                                                            } ?>>03</option>
-                      <option class="text-right" value="04" <?php if ($currentMonth == '04') {
-                                                              echo 'selected';
-                                                            } ?>>04</option>
-                      <option class="text-right" value="05" <?php if ($currentMonth == '05') {
-                                                              echo 'selected';
-                                                            } ?>>05</option>
-                      <option class="text-right" value="06" <?php if ($currentMonth == '06') {
-                                                              echo 'selected';
-                                                            } ?>>06</option>
-                      <option class="text-right" value="07" <?php if ($currentMonth == '07') {
-                                                              echo 'selected';
-                                                            } ?>>07</option>
-                      <option class="text-right" value="08" <?php if ($currentMonth == '08') {
-                                                              echo 'selected';
-                                                            } ?>>08</option>
-                      <option class="text-right" value="09" <?php if ($currentMonth == '09') {
-                                                              echo 'selected';
-                                                            } ?>>09</option>
-                      <option class="text-right" value="10" <?php if ($currentMonth == '10') {
-                                                              echo 'selected';
-                                                            } ?>>10</option>
-                      <option class="text-right" value="11" <?php if ($currentMonth == '11') {
-                                                              echo 'selected';
-                                                            } ?>>11</option>
-                      <option class="text-right" value="12" <?php if ($currentMonth == '12') {
-                                                              echo 'selected';
-                                                            } ?>>12</option>
-                    </select>
-                  </td>
-                  <td>
-                    <?php
-                    $year = date('Y');
-                    $oldYear = 2021;
-                    ?>
-                    <select name="Y" class="form-control form-control-sm" style="width: auto;">
-                      <?php
-                      while ($year >= $oldYear) { ?>
-                        <option class="text-right" value="<?= $year ?>" <?php if ($currentYear == $year) {
-                                                                          echo 'selected';
-                                                                        } ?>><?= $year ?></option>
-                      <?php
-                        $year--;
-                      } ?>
-                    </select>
-                  </td>
-                  <td><button class="form-control btn-success form-control-sm m-1 p-1 bg-light">Cek</button></td>
-                  <td>
-                    <?php if ($nama_user <> '') { ?>
-                      <div class="btn-group ml-2">
-                        <button type="button" class="btn btn-sm btn-dark dropdown-toggle" id="dropdownMenuButton1" data-bs-toggle="dropdown" aria-expanded="false">
-                          Set Gaji
-                        </button>
-                        <div class="dropdown-menu" aria-labelledby="dropdownMenuButton1">
-                          <a class="dropdown-item" href="#exampleModal" data-bs-toggle="modal">FEE Layanan Laundry</a>
-                          <a class="dropdown-item" href="#exampleModal1" data-bs-toggle="modal">FEE Pengali</a>
-                          <a class="dropdown-item" href="#exampleModal2" data-bs-toggle="modal">QTY Pengali</a>
-                        </div>
-                      </div>
-                    <?php } ?>
-                  </td>
-                </tr>
-              </table>
-            </form>
+  <div class="card mb-2 sticky-top">
+    <div class="card-body p-2">
+      <button id="tetapkan_all" class="btn btn-success btn-sm w-100 mb-2">Tetapkan Seluruh Karyawan</button>
+      <div id="info" class="alert alert-light mb-2"></div>
+      <form action="<?= URL::BASE_URL; ?>Gaji" method="POST">
+        <div class="row g-2 align-items-end">
+          <div class="col-md-3">
+            <select name="user_id" class="form-control form-control-sm karyawan" style="width: 100%;" required>
+              <option value="" selected disabled>Karyawan</option>
+              <?php if (count($this->user) > 0) {
+                foreach ($this->user as $a) { ?>
+                  <option <?php if ($data['user']['id'] == $a['id_user']) {
+                            echo "selected";
+                          } ?> id="<?= $a['id_user'] ?>" value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
+              <?php }
+              } ?>
+            </select>
+          </div>
+          <div class="col-auto">
+            <select name="m" class="form-control form-control-sm">
+              <option value="01" <?= $currentMonth == '01' ? 'selected' : '' ?>>01</option>
+              <option value="02" <?= $currentMonth == '02' ? 'selected' : '' ?>>02</option>
+              <option value="03" <?= $currentMonth == '03' ? 'selected' : '' ?>>03</option>
+              <option value="04" <?= $currentMonth == '04' ? 'selected' : '' ?>>04</option>
+              <option value="05" <?= $currentMonth == '05' ? 'selected' : '' ?>>05</option>
+              <option value="06" <?= $currentMonth == '06' ? 'selected' : '' ?>>06</option>
+              <option value="07" <?= $currentMonth == '07' ? 'selected' : '' ?>>07</option>
+              <option value="08" <?= $currentMonth == '08' ? 'selected' : '' ?>>08</option>
+              <option value="09" <?= $currentMonth == '09' ? 'selected' : '' ?>>09</option>
+              <option value="10" <?= $currentMonth == '10' ? 'selected' : '' ?>>10</option>
+              <option value="11" <?= $currentMonth == '11' ? 'selected' : '' ?>>11</option>
+              <option value="12" <?= $currentMonth == '12' ? 'selected' : '' ?>>12</option>
+            </select>
+          </div>
+          <div class="col-auto">
+            <?php
+            $year = date('Y');
+            $oldYear = 2021;
+            ?>
+            <select name="Y" class="form-control form-control-sm">
+              <?php while ($year >= $oldYear) { ?>
+                <option value="<?= $year ?>" <?= $currentYear == $year ? 'selected' : '' ?>><?= $year ?></option>
+              <?php $year--; } ?>
+            </select>
+          </div>
+          <div class="col-auto">
+            <button type="submit" class="btn btn-success btn-sm">Cek</button>
+          </div>
+          <div class="col-auto">
+            <?php if ($nama_user <> '') { ?>
+              <div class="btn-group">
+                <button type="button" class="btn btn-sm btn-dark dropdown-toggle" data-bs-toggle="dropdown">
+                  Set Gaji
+                </button>
+                <div class="dropdown-menu">
+                  <a class="dropdown-item" href="#exampleModal" data-bs-toggle="modal">FEE Layanan Laundry</a>
+                  <a class="dropdown-item" href="#exampleModal1" data-bs-toggle="modal">FEE Pengali</a>
+                  <a class="dropdown-item" href="#exampleModal2" data-bs-toggle="modal">QTY Pengali</a>
+                </div>
+              </div>
+            <?php } ?>
           </div>
         </div>
-      </div>
+      </form>
     </div>
   </div>
 </div>
@@ -144,16 +109,12 @@ $totalPotong = 0;
 $totalTerima = 0;
 ?>
 
-<div class="row ml-1">
+<div class="row g-2">
   <?php if ($nama_user <> '' && $intervalDate < 60) { ?>
-    <div class="col p-1">
-      <div class="content">
-        <div class="container-fluid">
-          <div class="row">
+    <div class="col-auto">
+      <div class="card">
+        <div class="card-body p-2">
             <?php
-            echo '<div class="col-auto">';
-            echo '<div class="card">';
-
             echo '<table class="table table-sm m-0 w-100" style="min-width: 300px;">';
             echo '<tbody>';
 
@@ -397,9 +358,7 @@ $totalTerima = 0;
 
             echo '</tbody>';
             echo '</table>';
-            echo '</div></div>';
             ?>
-          </div>
         </div>
       </div>
     </div>
@@ -426,14 +385,18 @@ $totalTerima = 0;
   ?>
 
   <?php if ($nama_user <> "") { ?>
-    <div class="col p-1 bg-white mr-4 mt-1" id="tes">
-      <button type="button" class="btn btn-primary btn-sm" id="btnPrintGaji">
-        <i class="fas fa-print me-1"></i> Print Slip Gaji
-      </button>
-      <button type="button" class="btn btn-success btn-sm ms-1" id="btnAddToPayroll" title="Tarik total gaji diterima ke tabel payroll">
-        <i class="fas fa-plus me-1"></i> Add to Payroll
-      </button>
-      <div id="print">
+    <div class="col-auto" id="tes">
+      <div class="card bg-white">
+        <div class="card-body p-2">
+          <div class="d-flex gap-2 mb-2">
+            <button type="button" class="btn btn-primary btn-sm" id="btnPrintGaji">
+              <i class="fas fa-print me-1"></i> Print Slip Gaji
+            </button>
+            <button type="button" class="btn btn-success btn-sm" id="btnAddToPayroll" title="Tarik total gaji diterima ke tabel payroll">
+              <i class="fas fa-plus me-1"></i> Add to Payroll
+            </button>
+          </div>
+          <div id="print" class="d-none">
         <table>
           <tr>
             <td><b><?= $this->dCabang['nama'] ?> - <?= $this->dCabang['kode_cabang'] ?></b></td>
@@ -470,6 +433,8 @@ $totalTerima = 0;
             <td>Terima Kasih</td>
           </tr>
         </table>
+          </div>
+        </div>
       </div>
     </div>
   <?php } ?>
