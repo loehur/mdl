@@ -40,12 +40,16 @@ class Doku
             return $this->accessToken;
         }
 
+        // Timestamp in ISO-8601 UTC format (YYYY-MM-DDTHH:mm:ssZ)
         $timestamp = gmdate('Y-m-d\TH:i:s\Z');
         
+        // Generate Request ID (unique identifier)
+        $requestId = substr(str_replace('.', '', microtime(true)), 0, 32);
+        
         // Generate signature for token request
-        // Formula: HMAC_SHA512(clientSecret, clientId + "|" + timestamp)
-        $stringToSign = $this->clientId . '|' . $timestamp;
-        $signature = base64_encode(hash_hmac('sha512', $stringToSign, $this->clientSecret, true));
+        // Formula: HMAC_SHA256(clientSecret, Client-Id + "|" + Request-Id + "|" + Request-Timestamp)
+        $stringToSign = $this->clientId . '|' . $requestId . '|' . $timestamp;
+        $signature = base64_encode(hash_hmac('sha256', $stringToSign, $this->clientSecret, true));
 
         $data = [
             'grantType' => 'client_credentials'
@@ -87,7 +91,7 @@ class Doku
         if (isset($result['accessToken'])) {
             $this->accessToken = $result['accessToken'];
             // Token typically expires in 15 minutes (900 seconds)
-            $this->tokenExpiry = time() + (isset($result['expiresIn']) ? $result['expiresIn'] : 900);
+            $this->tokenExpiry = time() + (isset($result['expiresIn']) ? intval($result['expiresIn']) : 900);
             return $this->accessToken;
         }
 
@@ -130,8 +134,8 @@ class Doku
         // Generate request ID (numeric string, unique per day)
         $requestId = substr(str_replace('.', '', microtime(true)), 0, 32);
         
-        // Current timestamp
-        $timestamp = gmdate('Y-m-d\TH:i:sP');
+        // Current timestamp in ISO-8601 UTC format
+        $timestamp = gmdate('Y-m-d\TH:i:s\Z');
         
         // Set default expiry time if not provided (30 days from now)
         if (!$expiredTime) {
@@ -149,8 +153,8 @@ class Doku
             'terminalId' => $terminalId,
             'validityPeriod' => $expiredTime,
             'additionalInfo' => [
-                'postalCode' => '12345',
-                'feeType' => 'OUR'
+                'postalCode' => '12190',
+                'feeType' => '1'
             ]
         ];
 
@@ -215,8 +219,8 @@ class Doku
         // Generate request ID (numeric string, unique per day)
         $requestId = substr(str_replace('.', '', microtime(true)), 0, 32);
         
-        // Current timestamp
-        $timestamp = gmdate('Y-m-d\TH:i:sP');
+        // Current timestamp in ISO-8601 UTC format
+        $timestamp = gmdate('Y-m-d\TH:i:s\Z');
 
         // Request body
         $requestBody = [
