@@ -267,7 +267,7 @@ class Chat extends Controller
                         quoted_message_id,
                         quoted_message_body,
                         NULL as sender_code,
-                        0 as private
+                        0 as `private`
                      FROM wa_messages_in 
                      WHERE RIGHT(REPLACE(REPLACE(phone, '+', ''), '-', ''), 10) = ?)
                     UNION ALL
@@ -285,7 +285,7 @@ class Chat extends Controller
                         quoted_message_id,
                         quoted_message_body,
                         sender_code,
-                        COALESCE(private, 0) as private
+                        COALESCE(`private`, 0) as `private`
                      FROM wa_messages_out 
                      WHERE RIGHT(REPLACE(REPLACE(phone, '+', ''), '-', ''), 10) = ?)
                 ) AS combined_msgs
@@ -295,14 +295,29 @@ class Chat extends Controller
             ORDER BY time ASC
         ";
         
-        $messages = $db->query($sql, [$matchDigits, $matchDigits, $fetchLimit, $offset])->result();
+        // Use result_array() instead of result() to get arrays directly
+        $messages = $db->query($sql, [$matchDigits, $matchDigits, $fetchLimit, $offset])->result_array();
         
         // Normalize private field to integer (0 or 1) for consistent frontend handling
         foreach ($messages as &$msg) {
-            if (isset($msg->private)) {
-                $msg->private = (int)$msg->private;
+            // Debug: Log all message keys to see what we're getting
+            if (isset($msg['text']) && (stripos($msg['text'], 'kode otp') !== false || stripos($msg['text'], 'salary slip') !== false)) {
+                \Log::write("Message keys: " . implode(', ', array_keys($msg)), 'crm', 'chat');
+            }
+            
+            // Ensure private field exists and is integer
+            // Handle both array key access and potential null values
+            $privateValue = $msg['private'] ?? $msg['`private`'] ?? null;
+            
+            if ($privateValue !== null && $privateValue !== '' && $privateValue !== false) {
+                $msg['private'] = (int)$privateValue;
             } else {
-                $msg->private = 0;
+                $msg['private'] = 0;
+            }
+            
+            // Debug: Log messages with private = 1
+            if ($msg['private'] == 1) {
+                \Log::write("Private message found - ID: " . ($msg['id'] ?? 'N/A') . ", Private: " . $msg['private'] . ", Text preview: " . substr($msg['text'] ?? '', 0, 50), 'crm', 'chat');
             }
         }
         unset($msg); // Break reference

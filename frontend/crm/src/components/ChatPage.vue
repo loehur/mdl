@@ -155,8 +155,28 @@ const isAdmin = computed(() => {
 
 // Check if message is private (flexible check for string "1" or integer 1)
 const isPrivateMessage = (msg) => {
-  if (!msg || msg.private === undefined || msg.private === null) return false;
-  return msg.private == 1 || msg.private === 1 || parseInt(msg.private) === 1 || String(msg.private) === '1';
+  if (!msg) return false;
+  
+  // Debug logging (remove in production)
+  if (msg.private !== undefined && msg.private !== null && msg.private !== 0) {
+    console.log('[Private Check]', {
+      id: msg.id,
+      private: msg.private,
+      type: typeof msg.private,
+      text: msg.text?.substring(0, 50)
+    });
+  }
+  
+  // Check if private field exists and is truthy
+  const privateVal = msg.private;
+  if (privateVal === undefined || privateVal === null) return false;
+  
+  // Check various formats: 1, "1", true, etc.
+  return privateVal == 1 || 
+         privateVal === 1 || 
+         parseInt(privateVal) === 1 || 
+         String(privateVal) === '1' ||
+         privateVal === true;
 };
 
 // Check if message should be hidden (private and not admin)
