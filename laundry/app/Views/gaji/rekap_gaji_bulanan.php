@@ -388,7 +388,7 @@ $totalTerima = 0;
           <i class="fas fa-plus me-1"></i> Add to Payroll
         </button>
       </div>
-      <div id="print" class="d-none">
+      <div id="print">
         <table>
           <tr>
             <td><b><?= $this->dCabang['nama'] ?> - <?= $this->dCabang['kode_cabang'] ?></b></td>
