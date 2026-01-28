@@ -44,9 +44,24 @@ class Doku
         $timestamp = gmdate('Y-m-d\TH:i:s\Z');
         
         // Generate signature for token request
-        // Formula: HMAC_SHA256(clientSecret, Client-Id|Timestamp)
+        // Formula: SHA256withRSA(privateKey, Client-Id|Timestamp)
         $stringToSign = $this->clientId . '|' . $timestamp;
-        $signature = base64_encode(hash_hmac('sha256', $stringToSign, $this->clientSecret, true));
+        
+        // Load private key
+        $privateKeyPath = __DIR__ . '/../../doku_private.key';
+        $privateKey = file_get_contents($privateKeyPath);
+        $pkeyId = openssl_pkey_get_private($privateKey);
+        
+        if ($pkeyId === false) {
+            return json_encode(['status' => false, 'message' => 'Failed to load private key']);
+        }
+        
+        // Sign with SHA256
+        openssl_sign($stringToSign, $signatureBinary, $pkeyId, OPENSSL_ALGO_SHA256);
+        $signature = base64_encode($signatureBinary);
+        
+        // Free key resource
+        openssl_free_key($pkeyId);
 
         $data = [
             'grantType' => 'client_credentials'
@@ -105,9 +120,24 @@ class Doku
         $timestamp = gmdate('Y-m-d\TH:i:s\Z');
         
         // Generate signature for token request
-        // Formula: HMAC_SHA256(clientSecret, Client-Id|Timestamp)
+        // Formula: SHA256withRSA(privateKey, Client-Id|Timestamp)
         $stringToSign = $this->clientId . '|' . $timestamp;
-        $signature = base64_encode(hash_hmac('sha256', $stringToSign, $this->clientSecret, true));
+        
+        // Load private key
+        $privateKeyPath = __DIR__ . '/../../doku_private.key';
+        $privateKey = file_get_contents($privateKeyPath);
+        $pkeyId = openssl_pkey_get_private($privateKey);
+        
+        if ($pkeyId === false) {
+            return ['error' => 'Failed to load private key'];
+        }
+        
+        // Sign with SHA256
+        openssl_sign($stringToSign, $signatureBinary, $pkeyId, OPENSSL_ALGO_SHA256);
+        $signature = base64_encode($signatureBinary);
+        
+        // Free key resource
+        openssl_free_key($pkeyId);
 
         $data = [
             'grantType' => 'client_credentials'
