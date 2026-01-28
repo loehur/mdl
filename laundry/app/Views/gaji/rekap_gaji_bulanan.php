@@ -373,7 +373,7 @@ $totalTerima = 0;
       $vGaji = "-Rp" . number_format($gf['jumlah']);
     }
 
-    $tr_gaji = $tr_gaji . "<tr><td>" . $gf['ref'] . "<br>" . $gf['deskripsi'] . "</td><td>" . $gf['qty'] . "<br>" . $vGaji . "</td></tr>";
+    $tr_gaji = $tr_gaji . "<tr><td>" . $gf['ref'] . "<br>" . $gf['deskripsi'] . "</td><td class='text-right'>" . $gf['qty'] . "<br>" . $vGaji . "</td></tr>";
   }
   $totalTer = $totalGaji - $totalPot;
   ?>
@@ -389,40 +389,40 @@ $totalTerima = 0;
         </button>
       </div>
       <div id="print">
-        <table>
+        <table class="table table-sm" style="min-width: 300px;">
           <tr>
-            <td><b><?= $this->dCabang['nama'] ?> - <?= $this->dCabang['kode_cabang'] ?></b></td>
+            <td colspan="2"><b><?= $this->dCabang['nama'] ?> - <?= $this->dCabang['kode_cabang'] ?></b></td>
           </tr>
           <tr>
-            <td>-- SALARY SLIP --</td>
+            <td colspan="2">-- SALARY SLIP --</td>
           </tr>
-          <tr id="dashRow"><td></td></tr>
+          <tr id="dashRow"><td colspan="2"></td></tr>
           <tr>
-            <td><b><?= strtoupper($nama_user) ?></b></td>
+            <td colspan="2"><b><?= strtoupper($nama_user) ?></b></td>
           </tr>
           <tr>
-            <td>Periode: <?= $dateOn ?></td>
+            <td colspan="2">Periode: <?= $dateOn ?></td>
           </tr>
-          <tr id="dashRow"><td></td></tr>
+          <tr id="dashRow"><td colspan="2"></td></tr>
 
           <?= $tr_gaji ?>
 
-          <tr id="dashRow"><td></td></tr>
+          <tr id="dashRow"><td colspan="2"></td></tr>
           <tr>
             <td>Total Gaji</td>
-            <td>Rp<?= number_format($totalGaji) ?></td>
+            <td class="text-right">Rp<?= number_format($totalGaji) ?></td>
           </tr>
           <tr>
             <td>Total Potongan</td>
-            <td>-Rp<?= number_format($totalPot) ?></td>
+            <td class="text-right">-Rp<?= number_format($totalPot) ?></td>
           </tr>
           <tr>
             <td>Gaji Diterima</td>
-            <td><b>Rp<?= number_format($totalTer) ?></b></td>
+            <td class="text-right"><b>Rp<?= number_format($totalTer) ?></b></td>
           </tr>
-          <tr id="dashRow"><td></td></tr>
+          <tr id="dashRow"><td colspan="2"></td></tr>
           <tr>
-            <td>Terima Kasih</td>
+            <td colspan="2">Terima Kasih</td>
           </tr>
         </table>
       </div>
