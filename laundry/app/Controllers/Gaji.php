@@ -422,15 +422,22 @@ class Gaji extends Controller
          // 7. Nama Penerima (Opsional)
          // 8. ID Unik Transaksi (Opsional)
          // 9. Berita Transfer Tambahan (Opsional)
-         $csv .= $no . ",";
-         $csv .= $flip_code . ",";
-         $csv .= $bank_acc_number . ",";
-         $csv .= number_format($amount, 0, '', '') . ","; // Nominal (harus diisi)
-         $csv .= "Gaji " . $period . ","; // Berita Transfer (Opsional) - DIISI dengan "Gaji YYYY-MM" karena Flip membutuhkan ini
-         $csv .= ","; // Email Penerima (Opsional) - kosong
-         $csv .= $bank_acc_name . ","; // Nama Penerima (Opsional) - diisi dengan nama dari payroll
-         $csv .= ","; // ID Unik Transaksi (Opsional) - kosong
-         $csv .= $id_payroll . "\n"; // Berita Transfer Tambahan (Opsional) - diisi dengan ID_PAYROLL
+         
+         // Buat array untuk setiap baris (akan di-join dengan koma)
+         $row = [
+            $no,
+            $flip_code,
+            $bank_acc_number,
+            number_format($amount, 0, '', ''), // Nominal (harus diisi)
+            "Gaji " . $period, // Berita Transfer (Opsional) - DIISI karena Flip membutuhkan ini
+            '', // Email Penerima (Opsional) - kosong
+            $bank_acc_name, // Nama Penerima (Opsional) - diisi dengan nama dari payroll
+            '', // ID Unik Transaksi (Opsional) - kosong
+            $id_payroll // Berita Transfer Tambahan (Opsional) - diisi dengan ID_PAYROLL
+         ];
+         
+         // Join dengan koma dan tambahkan newline
+         $csv .= implode(',', $row) . "\n";
 
          $no++;
       }
@@ -442,8 +449,10 @@ class Gaji extends Controller
       header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
       header('Pragma: public');
       
-      // Output CSV
-      echo "\xEF\xBB\xBF"; // UTF-8 BOM untuk Excel
+      // Convert line endings dari LF ke CRLF (Windows format seperti template Flip)
+      $csv = str_replace("\n", "\r\n", $csv);
+      
+      // Output CSV (TANPA BOM karena Flip tidak menerima BOM)
       echo $csv;
       exit();
    }
