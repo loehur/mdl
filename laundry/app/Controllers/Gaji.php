@@ -319,10 +319,28 @@ class Gaji extends Controller
       $bank_acc_number = isset($user['bank_account_number']) ? trim($user['bank_account_number']) : '';
       $bank_acc_name = isset($user['bank_account_name']) ? trim($user['bank_account_name']) : '';
 
-      // Cek duplikat: sudah ada payroll untuk employee_id + period (period sudah valid Y-m)
-      $exists = $this->db(100)->count_where('payroll', "employee_id = " . $userID . " AND period = '" . $period . "'");
-      if ($exists > 0) {
-         echo json_encode(['ok' => false, 'msg' => 'Payroll periode ' . $period . ' untuk karyawan ini sudah ada.']);
+      // Cek sudah ada payroll untuk employee_id + period
+      $existing = $this->db(100)->get_where_row('payroll', "employee_id = " . $userID . " AND period = '" . $period . "'");
+      if ($existing) {
+         if (isset($existing['state']) && strtolower($existing['state']) === 'paid') {
+            echo json_encode(['ok' => false, 'msg' => 'Payroll periode ' . $period . ' untuk karyawan ini sudah dibayar.']);
+            return;
+         }
+         // State belum paid: update amount & rekening
+         $set = [
+            'amount' => $amount,
+            'bank_code' => $bank_code,
+            'bank_acc_number' => $bank_acc_number,
+            'bank_acc_name' => $bank_acc_name,
+            'state' => 'pending'
+         ];
+         $where = "employee_id = " . $userID . " AND period = '" . $period . "'";
+         $do = $this->db(100)->update('payroll', $set, $where);
+         if (isset($do['errno']) && $do['errno'] == 0) {
+            echo json_encode(['ok' => true, 'msg' => 'Payroll periode ' . $period . ' berhasil diperbarui.', 'amount' => $amount]);
+         } else {
+            echo json_encode(['ok' => false, 'msg' => 'Gagal update: ' . (isset($do['error']) ? $do['error'] : 'Unknown')]);
+         }
          return;
       }
 
