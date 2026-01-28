@@ -18,7 +18,12 @@ foreach ($this->user as $uc) {
 
 <div class="row g-2 mb-2">
   <div class="col-12">
-    <button id="tetapkan_all" class="btn btn-success btn-sm mb-2">Tetapkan Seluruh Karyawan</button>
+    <div class="d-flex gap-2 mb-2">
+      <button id="tetapkan_all" class="btn btn-success btn-sm">Tetapkan Semua</button>
+      <button id="export_csv_flip" class="btn btn-info btn-sm">
+        <i class="fas fa-file-csv me-1"></i> Export CSV Flip
+      </button>
+    </div>
     <div id="info" class="alert alert-light mb-2"></div>
     <form action="<?= URL::BASE_URL; ?>Gaji" method="POST">
       <div class="row g-2 align-items-end">
@@ -665,6 +670,21 @@ $totalTerima = 0;
         $("#info").html(res);
       },
     });
+  });
+
+  $('#export_csv_flip').on('click', function() {
+    var btn = $(this);
+    var originalHtml = btn.html();
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Exporting...');
+    
+    // Redirect ke endpoint export dengan period
+    var period = '<?= $dateOn ?>';
+    window.location.href = '<?= URL::BASE_URL ?>Gaji/export_csv_flip?period=' + period;
+    
+    // Re-enable button after a delay
+    setTimeout(function() {
+      btn.html(originalHtml).prop('disabled', false);
+    }, 2000);
   });
 
   var WindowObject;

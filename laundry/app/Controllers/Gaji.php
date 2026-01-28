@@ -362,4 +362,72 @@ class Gaji extends Controller
          echo json_encode(['ok' => false, 'msg' => 'Gagal simpan: ' . (isset($do['error']) ? $do['error'] : 'Unknown')]);
       }
    }
+
+   /**
+    * Export CSV Flip: export data payroll ke format CSV Flip
+    * GET: period (YYYY-MM)
+    * Format CSV: No,Bank Tujuan,Nomor Rekening Tujuan,Nominal,Berita Transfer (Opsional),Email Penerima (Opsional),Nama Penerima (Opsional),ID Unik Transaksi (Opsional),Berita Transfer Tambahan (Opsional)
+    */
+   public function export_csv_flip()
+   {
+      $period = isset($_GET['period']) ? trim($_GET['period']) : date('Y-m');
+      
+      if (!preg_match('/^\d{4}-\d{2}$/', $period)) {
+         die('Periode tidak valid. Gunakan format YYYY-MM');
+      }
+
+      // Query payroll dari db(100) berdasarkan period dan business='laundry'
+      $payrolls = $this->db(100)->get_where('payroll', "period = '" . $this->db(100)->escape($period) . "' AND business = 'laundry' AND state = 'pending'");
+      
+      if (empty($payrolls)) {
+         die('Tidak ada data payroll untuk periode ' . $period);
+      }
+
+      // Header CSV
+      $csv = "No,Bank Tujuan,Nomor Rekening Tujuan,Nominal,Berita Transfer (Opsional),Email Penerima (Opsional),Nama Penerima (Opsional),ID Unik Transaksi (Opsional),Berita Transfer Tambahan (Opsional)\n";
+
+      $no = 1;
+      foreach ($payrolls as $p) {
+         $bank_code = isset($p['bank_code']) ? trim($p['bank_code']) : '';
+         $bank_acc_number = isset($p['bank_acc_number']) ? trim($p['bank_acc_number']) : '';
+         $bank_acc_name = isset($p['bank_acc_name']) ? trim($p['bank_acc_name']) : '';
+         $amount = isset($p['amount']) ? (float)$p['amount'] : 0;
+         $id_payroll = isset($p['id']) ? (int)$p['id'] : 0;
+
+         // Ambil flip_code dari tabel banks di db(100) berdasarkan bank_code
+         $flip_code = '';
+         if (!empty($bank_code)) {
+            $bank = $this->db(100)->get_where_row('banks', "bank_code = '" . $this->db(100)->escape($bank_code) . "'");
+            if ($bank && isset($bank['flip_code'])) {
+               $flip_code = trim($bank['flip_code']);
+            }
+         }
+
+         // Format data sesuai contoh: No,{flip_code},nomor_rekening,nama_penerima,nominal,,,,{ID_PAYROLL}
+         // Berdasarkan contoh: 6,{flip_code},45545454,ANDI SETIA,50000,,,,{ID_PAYROLL}
+         // Sepertinya kolom "Berita Transfer" berisi nama penerima
+         $csv .= $no . ",";
+         $csv .= $flip_code . ",";
+         $csv .= $bank_acc_number . ",";
+         $csv .= $bank_acc_name . ","; // Berita Transfer
+         $csv .= number_format($amount, 0, '', '') . ","; // Nominal tanpa koma
+         $csv .= ",,"; // Email Penerima, Nama Penerima (kosong)
+         $csv .= ","; // ID Unik Transaksi (kosong)
+         $csv .= $id_payroll . "\n"; // Berita Transfer Tambahan = ID_PAYROLL
+
+         $no++;
+      }
+
+      // Set header untuk download CSV
+      $filename = 'payroll_flip_' . $period . '.csv';
+      header('Content-Type: text/csv; charset=utf-8');
+      header('Content-Disposition: attachment; filename="' . $filename . '"');
+      header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+      header('Pragma: public');
+      
+      // Output CSV
+      echo "\xEF\xBB\xBF"; // UTF-8 BOM untuk Excel
+      echo $csv;
+      exit();
+   }
 }
