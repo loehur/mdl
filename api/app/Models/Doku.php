@@ -185,24 +185,28 @@ class Doku
     }
 
     /**
-     * Generate symmetric signature for API calls
-     * Formula: HMAC_SHA512(clientSecret, HTTPMethod + ":" + EndpointUrl + ":" + AccessToken + ":" + Lowercase(HexEncode(SHA-256(minify(RequestBody)))) + ":" + TimeStamp)
+     * Generate symmetric signature for SNAP API calls
+     * Formula: HMAC_SHA512(clientSecret, stringToSign)
+     * stringToSign = HTTPMethod + ":" + EndpointUrl + ":" + AccessToken + ":" + Lowercase(HexEncode(SHA-256(minify(RequestBody)))) + ":" + TimeStamp
+     * @see https://developers.doku.com/accept-payments/direct-api/snap/integration-guide/qris
+     * EndpointUrl = full URL (e.g. https://api-sandbox.doku.com/snap-adapter/b2b/v1.0/qr/qr-mpm-generate)
      */
     private function generateSignature($httpMethod, $endpointUrl, $accessToken, $requestBody, $timestamp)
     {
-        // Minify JSON (remove whitespace)
-        $minifiedBody = json_encode(json_decode($requestBody));
-        
-        // Generate SHA-256 hash of request body
+        // Minify JSON (remove whitespace) - must match exactly what we send
+        $decoded = json_decode($requestBody);
+        $minifiedBody = $decoded !== null ? json_encode($decoded) : $requestBody;
+
+        // SHA-256 of minified body, then hex encode, then lowercase
         $hashedBody = hash('sha256', $minifiedBody);
         $lowercaseHash = strtolower($hashedBody);
-        
-        // Create string to sign
+
+        // Create string to sign (EndpointUrl = full URL per common DOKU implementations)
         $stringToSign = $httpMethod . ':' . $endpointUrl . ':' . $accessToken . ':' . $lowercaseHash . ':' . $timestamp;
-        
-        // Generate HMAC SHA-512 signature
+
+        // HMAC SHA-512 with clientSecret, raw binary then base64
         $signature = base64_encode(hash_hmac('sha512', $stringToSign, $this->clientSecret, true));
-        
+
         return $signature;
     }
 
@@ -217,18 +221,25 @@ class Doku
             return $accessToken; // Return error
         }
 
-        // Generate request ID (numeric string, unique per day)
-        $requestId = substr(str_replace('.', '', microtime(true)), 0, 32);
-        
-        // Current timestamp in ISO-8601 UTC format
-        $timestamp = gmdate('Y-m-d\TH:i:s\Z');
-        
-        // Set default expiry time if not provided (30 days from now)
+        // Generate request ID (numeric string, unique per day) - doc example: 41807553358950093184162180797837
+        $requestId = str_replace('.', '', number_format(microtime(true) * 10000, 0, '', ''));
+        if (strlen($requestId) > 32) {
+            $requestId = substr($requestId, -32);
+        }
+        $requestId = str_pad($requestId, 32, '0', STR_PAD_LEFT);
+
+        // X-TIMESTAMP: "Client's current local time" per doc - format YYYY-MM-DDTHH:mm:ss+07:00 (WIB)
+        $tz = new \DateTimeZone('Asia/Jakarta');
+        $now = new \DateTime('now', $tz);
+        $timestamp = $now->format('Y-m-d\TH:i:sP');
+
+        // validityPeriod: ISO 8601, default 30 days. Doc example: 2025-11-30T19:27:15+07:00
         if (!$expiredTime) {
-            $expiredTime = gmdate('Y-m-d\TH:i:sP', strtotime('+30 days'));
+            $expire = (new \DateTime('now', $tz))->modify('+30 days');
+            $expiredTime = $expire->format('Y-m-d\TH:i:sP');
         }
 
-        // Request body
+        // Request body - doc: additionalInfo requires postalCode and feeType (1 = No Tips)
         $requestBody = [
             'partnerReferenceNo' => $partnerReferenceNo,
             'amount' => [
@@ -239,18 +250,19 @@ class Doku
             'terminalId' => $terminalId,
             'validityPeriod' => $expiredTime,
             'additionalInfo' => [
-                'postalCode' => '28125'
+                'postalCode' => '28125',
+                'feeType' => '1'   // 1 = No Tips (mandatory per doc)
             ]
         ];
 
         $requestBodyJson = json_encode($requestBody);
-        
-        // API endpoint
-        $endpoint = '/snap-adapter/b2b/v1.0/qr/qr-mpm-generate';
-        $url = $this->apiUrl . $endpoint;
-        
-        // Generate signature
-        $signature = $this->generateSignature('POST', $endpoint, $accessToken, $requestBodyJson, $timestamp);
+
+        // API endpoint - signature uses FULL URL per DOKU convention
+        $path = '/snap-adapter/b2b/v1.0/qr/qr-mpm-generate';
+        $url = $this->apiUrl . $path;
+
+        // Generate signature (EndpointUrl = full URL)
+        $signature = $this->generateSignature('POST', $url, $accessToken, $requestBodyJson, $timestamp);
 
         // Headers
         $headers = [
@@ -302,31 +314,32 @@ class Doku
         }
 
         // Generate request ID (numeric string, unique per day)
-        $requestId = substr(str_replace('.', '', microtime(true)), 0, 32);
-        
-        // Current timestamp in ISO-8601 UTC format
-        $timestamp = gmdate('Y-m-d\TH:i:s\Z');
+        $requestId = str_replace('.', '', number_format(microtime(true) * 10000, 0, '', ''));
+        if (strlen($requestId) > 32) {
+            $requestId = substr($requestId, -32);
+        }
+        $requestId = str_pad($requestId, 32, '0', STR_PAD_LEFT);
 
-        // Request body
+        // X-TIMESTAMP: "Client's current local time" per doc (same as Generate)
+        $tz = new \DateTimeZone('Asia/Jakarta');
+        $now = new \DateTime('now', $tz);
+        $timestamp = $now->format('Y-m-d\TH:i:sP');
+
+        // Request body - doc: originalReferenceNo, originalPartnerReferenceNo, serviceCode, merchantId
         $requestBody = [
             'originalPartnerReferenceNo' => $originalPartnerReferenceNo,
             'serviceCode' => $serviceCode,
             'merchantId' => $this->merchantId
         ];
-
-        // Add originalReferenceNo if provided
         if ($originalReferenceNo) {
             $requestBody['originalReferenceNo'] = $originalReferenceNo;
         }
 
         $requestBodyJson = json_encode($requestBody);
-        
-        // API endpoint
-        $endpoint = '/snap-adapter/b2b/v1.0/qr/qr-mpm-query';
-        $url = $this->apiUrl . $endpoint;
-        
-        // Generate signature
-        $signature = $this->generateSignature('POST', $endpoint, $accessToken, $requestBodyJson, $timestamp);
+
+        $path = '/snap-adapter/b2b/v1.0/qr/qr-mpm-query';
+        $url = $this->apiUrl . $path;
+        $signature = $this->generateSignature('POST', $url, $accessToken, $requestBodyJson, $timestamp);
 
         // Headers
         $headers = [

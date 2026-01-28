@@ -70,7 +70,9 @@ class QRIS_Doku extends Controller
             }
 
             // Check for successful response
-            if (isset($data['responseCode']) && $data['responseCode'] === '2002700') {
+            // Doc: Generate QRIS success = 2004700; some env may return 2002700
+            $successCodes = ['2004700', '2002700'];
+            if (isset($data['responseCode']) && in_array($data['responseCode'], $successCodes, true)) {
                 // Success - QRIS generated
                 $qrContent = isset($data['qrContent']) ? $data['qrContent'] : '';
                 
