@@ -901,6 +901,111 @@ class WAReplies
         }
     }
 
+    function handleSlip_gaji($phoneIn, $waNumber, $textBody = '')
+    {
+        $waService = $this->getWaService();
+        
+        try {
+            // Parse phone numbers
+            $phones = array_map(function ($p) {
+                return trim($p, "' ");
+            }, explode(',', $phoneIn));
+            $cleanWaNumber = preg_replace('/[^0-9]/', '', $waNumber);
+            $phone0 = '0' . substr($cleanWaNumber, 2);
+            $phones[] = $phone0;
+            $phones[] = $cleanWaNumber;
+            $phones = array_unique(array_filter($phones));
+            $phoneInStr = "'" . implode("','", array_map(function($p) {
+                return addslashes($p);
+            }, $phones)) . "'";
+
+            // Cari user di db(1) berdasarkan nomor HP
+            $db1 = DB::getInstance(1);
+            $user = $db1->query("SELECT id_user, nama_user, id_cabang FROM user WHERE no_user IN ($phoneInStr) LIMIT 1")->row_array();
+            
+            if (!$user || !isset($user['id_user'])) {
+                $waService->sendFreeText($waNumber, "Nomor Anda tidak terdaftar sebagai karyawan.");
+                return;
+            }
+
+            $id_user = (int)$user['id_user'];
+            $nama_user = $user['nama_user'] ?? 'Karyawan';
+            $id_cabang = $user['id_cabang'] ?? 0;
+
+            // Ambil data cabang untuk nama cabang
+            $cabang = $db1->query("SELECT nama, kode_cabang FROM cabang WHERE id_cabang = " . (int)$id_cabang)->row_array();
+            $nama_cabang = $cabang['nama'] ?? 'Cabang';
+            $kode_cabang = $cabang['kode_cabang'] ?? '';
+
+            // Periode bulan ini (YYYY-MM)
+            $date = date('Y-m');
+            $dateOn = $date;
+
+            // Query data gaji_result dari db(0)
+            $db0 = DB::getInstance(0);
+            $gajiResults = $db0->query("SELECT * FROM gaji_result WHERE tgl = '" . $db0->escape($date) . "' AND id_karyawan = " . $id_user . " ORDER BY tipe ASC")->result_array();
+
+            if (empty($gajiResults)) {
+                $waService->sendFreeText($waNumber, "Belum ada data gaji untuk periode " . $date . ".\nSilakan hubungi admin untuk penetapan gaji.");
+                return;
+            }
+
+            // Format slip gaji
+            $text = "*" . strtoupper($nama_cabang) . " - " . $kode_cabang . "*\n";
+            $text .= "*-- SALARY SLIP --*\n";
+            $text .= "\n";
+            $text .= "*" . strtoupper($nama_user) . "*\n";
+            $text .= "Periode: " . $dateOn . "\n";
+            $text .= "────────────────\n\n";
+
+            $totalGaji = 0;
+            $totalPot = 0;
+
+            foreach ($gajiResults as $gf) {
+                $jGaji = (float)$gf['jumlah'];
+                $ref = $gf['ref'] ?? '';
+                $deskripsi = $gf['deskripsi'] ?? '';
+                $qty = $gf['qty'] ?? 0;
+
+                if ((int)$gf['tipe'] == 1) {
+                    $totalGaji += $jGaji;
+                    $vGaji = "Rp" . number_format($jGaji, 0, ',', '.');
+                } else {
+                    $totalPot += $jGaji;
+                    $vGaji = "-Rp" . number_format($jGaji, 0, ',', '.');
+                }
+
+                $text .= $ref . "\n";
+                $text .= $deskripsi . "\n";
+                $text .= $qty . " x " . $vGaji . "\n";
+                $text .= "\n";
+            }
+
+            $totalTer = $totalGaji - $totalPot;
+
+            $text .= "────────────────\n";
+            $text .= "Total Gaji: Rp" . number_format($totalGaji, 0, ',', '.') . "\n";
+            $text .= "Total Potongan: -Rp" . number_format($totalPot, 0, ',', '.') . "\n";
+            $text .= "*Gaji Diterima: Rp" . number_format($totalTer, 0, ',', '.') . "*\n";
+            $text .= "\n";
+            $text .= "Terima Kasih";
+
+            // Kirim pesan
+            $res = $waService->sendFreeText($waNumber, $text);
+            if ($res['success']) {
+                $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+            }
+        } catch (\Throwable $e) {
+            \Log::write("handleSlip_gaji ERROR: " . $e->getMessage(), 'wa_error', 'SlipGaji');
+            try {
+                $waService = $this->getWaService();
+                $waService->sendFreeText($waNumber, "Maaf, terjadi kesalahan saat mengambil data slip gaji.");
+            } catch (\Exception $e2) {
+                // Ignore
+            }
+        }
+    }
+
     function handleCek_token($phoneIn, $waNumber, $textBody = '')
     {
         $waService = $this->getWaService();

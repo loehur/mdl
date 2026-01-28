@@ -170,4 +170,10 @@ return [
             '/^(saldo|cek|info)\s*(tokopay)$/i',
         ],
     ],
+
+    'SLIP_GAJI' => [
+        'patterns' => [
+            '/^(slip|gaji|slip gaji)$/i',
+        ],
+    ],
 ];
