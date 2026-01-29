@@ -18,13 +18,6 @@ foreach ($this->user as $uc) {
 
 <div class="row g-2 mb-2">
   <div class="col-12">
-    <div class="d-flex gap-2 mb-2">
-      <button id="tetapkan_all" class="btn btn-success btn-sm">Tetapkan Semua</button>
-      <button id="export_csv_flip" class="btn btn-info btn-sm">
-        <i class="fas fa-file-csv me-1"></i> Export CSV Flip
-      </button>
-    </div>
-    <div id="info" class="alert alert-light mb-2"></div>
     <form action="<?= URL::BASE_URL; ?>Gaji" method="POST">
       <div class="row g-2 align-items-end">
         <div class="col-md-3">
@@ -655,36 +648,6 @@ $totalTerima = 0;
         showToast(msg, 'danger');
       }
     });
-  });
-
-  $("button#tetapkan_all").click(function() {
-    $(".loaderDiv").fadeIn("fast");
-    $.ajax({
-      url: '<?= URL::BASE_URL ?>Gaji/tetapkan',
-      data: {
-        date: '<?= $dateOn ?>'
-      },
-      type: "POST",
-      success: function(res) {
-        $(".loaderDiv").fadeOut("slow");
-        $("#info").html(res);
-      },
-    });
-  });
-
-  $('#export_csv_flip').on('click', function() {
-    var btn = $(this);
-    var originalHtml = btn.html();
-    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Exporting...');
-    
-    // Redirect ke endpoint export dengan period
-    var period = '<?= $dateOn ?>';
-    window.location.href = '<?= URL::BASE_URL ?>Gaji/export_csv_flip?period=' + period;
-    
-    // Re-enable button after a delay
-    setTimeout(function() {
-      btn.html(originalHtml).prop('disabled', false);
-    }, 2000);
   });
 
   var WindowObject;
