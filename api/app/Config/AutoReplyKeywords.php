@@ -170,6 +170,12 @@ return [
             '/^(saldo|cek|info)\s*(tokopay)$/i',
         ],
     ],
+    
+    'TARIK_SALDO_TOKOPAY' => [
+        'patterns' => [
+            '/^(tarik|wd)\s*(tokopay)$/i',
+        ],
+    ],
 
     'SLIP_GAJI' => [
         'patterns' => [

@@ -84,41 +84,7 @@ class NonTunai extends Controller
       return 0;
    }
 
-   public function tokopayBalance()
-   {
-      header('Content-Type: application/json');
-      
-      try {
-         $this->helper('QRISApi');
-         $qrisApi = new QRISApi();
-         $response = $qrisApi->getBalance();
-         echo json_encode($response);
-      } catch (Exception $e) {
-         $errorResponse = ['status' => 'error', 'message' => $e->getMessage()];
-         echo json_encode($errorResponse);
-      }
-   }
-   public function withdraw()
-   {
-      header('Content-Type: application/json');
-      
-      $nominal = isset($_POST['nominal']) ? intval($_POST['nominal']) : 0;
-      
-      if ($nominal < 10000) {
-         echo json_encode(['status' => 'error', 'message' => 'Minimal penarikan Rp 10.000']);
-         return;
-      }
 
-      try {
-         $this->helper('QRISApi');
-         $qrisApi = new QRISApi();
-         $response = $qrisApi->withdraw($nominal);
-         echo json_encode($response);
-      } catch (Exception $e) {
-         $errorResponse = ['status' => 'error', 'message' => $e->getMessage()];
-         echo json_encode($errorResponse);
-      }
-   }
    
    private function pushToWebSocket($data)
    {

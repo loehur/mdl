@@ -1419,6 +1419,104 @@ class WAReplies
         }
     }
 
+     function handleTarik_saldo_tokopay($phoneIn, $waNumber, $textBody = '')
+    {
+        try {
+            $hp = ['081268098300', '085278114125'];
+
+            // Parse phone numbers and check authorization
+            $phones = array_map(function ($p) {
+                return trim($p, "' ");
+            }, explode(',', $phoneIn));
+            $cleanWaNumber = preg_replace('/[^0-9]/', '', $waNumber);
+            $phone0 = '0' . substr($cleanWaNumber, 2);
+            $phones[] = $phone0;
+            $phones[] = $cleanWaNumber;
+            $phones = array_unique(array_filter($phones));
+
+            // Only allowed phones can access this
+            $intersect = array_intersect($phones, $hp);
+            if (empty($intersect)) {
+                return;
+            }
+
+            $waService = $this->getWaService();
+            
+            // Extract amount from text body
+            // Format expected: "tarik tokopay 50000" or "wd tokopay 50000"
+            $parts = preg_split('/\s+/', $textBody);
+            $amount = isset($parts[2]) ? intval($parts[2]) : 0;
+            
+            // Validate amount
+            if ($amount < 10000) {
+                $text = "Gagal: Minimal penarikan Rp 10.000";
+                $waService->sendFreeText($waNumber, $text);
+                return;
+            }
+
+            // Call QRIS withdraw endpoint
+            $apiUrl = 'https://api.nalju.com/QRIS/withdraw';
+            
+            $curl = curl_init();
+            curl_setopt_array($curl, [
+                CURLOPT_URL => $apiUrl,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_ENCODING => '',
+                CURLOPT_MAXREDIRS => 10,
+                CURLOPT_TIMEOUT => 30,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                CURLOPT_CUSTOMREQUEST => 'POST',
+                CURLOPT_POSTFIELDS => json_encode(['nominal' => $amount]),
+                CURLOPT_HTTPHEADER => [
+                    'Content-Type: application/json'
+                ],
+                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_SSL_VERIFYHOST => false,
+            ]);
+            
+            $response = curl_exec($curl);
+            $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($curl);
+            curl_close($curl);
+
+            if ($curlError) {
+                $text = "Error: Gagal menghubungi API QRIS. " . $curlError;
+                $waService->sendFreeText($waNumber, $text);
+                return;
+            }
+
+            $data = json_decode($response, true);
+
+            // Check Tokopay response format
+            // Success: {"status": 1, "rc": 200, "message": "Penarikan berhasil di teruskan ke operator..."}
+            // Error: {"status": 0, "rc": 500, "error_msg": "Saldo tidak cukup"}
+            
+            if (isset($data['status']) && $data['status'] == 1 && isset($data['rc']) && $data['rc'] == 200) {
+                // Success response
+                $amountFormatted = number_format($amount, 0, ',', '.');
+                $message = $data['message'] ?? 'Penarikan berhasil diproses';
+                
+                $text = "✅ *Penarikan Saldo TokoPay*\n\n";
+                $text .= "Nominal: *Rp " . $amountFormatted . "*\n";
+                $text .= "Tujuan: *SEABANK*\n\n";
+                $text .= $message;
+            } else {
+                // Error response
+                $errorMsg = $data['error_msg'] ?? ($data['message'] ?? 'Terjadi kesalahan');
+                $text = "❌ *Gagal Penarikan Saldo*\n\n";
+                $text .= $errorMsg;
+            }
+
+            $waService->sendFreeText($waNumber, $text);
+
+        } catch (\Throwable $e) {
+            \Log::write("handleTarik_saldo_tokopay ERROR: " . $e->getMessage(), 'wa_error', 'Tokopay');
+            $waService = $this->getWaService();
+            $waService->sendFreeText($waNumber, "Error: " . $e->getMessage());
+        }
+    }
+
     private function isOperatingHours()
     {
         // Load operating hours config
