@@ -128,7 +128,7 @@ if ($this->id_cabang > 0) {
         'submenu' => [
             [
                 'c' => '@Gaji',
-                'title' => 'Gaji Bulanan - Rekap',
+                'title' => 'Gaji Bulanan',
                 'txt' => 'Gaji Bulanan'
             ],
             [
