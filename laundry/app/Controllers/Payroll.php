@@ -217,8 +217,8 @@ class Payroll extends Controller
             $amount = isset($p['amount']) ? (float)$p['amount'] : 0;
             $id_payroll = isset($p['id']) ? (int)$p['id'] : 0;
 
-            // Skip jika data tidak lengkap (bank_code, bank_acc_number, atau bank_acc_name kosong)
-            if (empty($bank_code) || empty($bank_acc_number) || empty($bank_acc_name)) {
+            // Skip jika data tidak lengkap (Bank, No. Rekening, atau Nama Penerima kosong)
+            if (empty(trim($bank_code)) || empty(trim($bank_acc_number)) || empty(trim($bank_acc_name))) {
                 continue;
             }
 
@@ -249,6 +249,10 @@ class Payroll extends Controller
             
             $csv .= implode(',', $row) . "\n";
             $no++;
+        }
+
+        if ($no === 1) {
+            die('Gagal Export: Tidak ada data approved dengan rincian rekening lengkap.');
         }
 
         // Set header untuk download CSV

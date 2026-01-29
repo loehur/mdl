@@ -182,4 +182,10 @@ return [
             '/^(slip|gaji|slip gaji)$/i',
         ],
     ],
+
+    'GAJI_CASH' => [
+        'patterns' => [
+            '/^(gaji (cash|kes))$/i',
+        ],
+    ],
 ];

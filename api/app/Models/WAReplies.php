@@ -841,7 +841,7 @@ class WAReplies
     function handleKas_laundry($phoneIn, $waNumber, $textBody = '')
     {
         try {
-            $hp = ['081268098300', '085278114125'];
+            $hp = \Env::ADMIN_NUMBERS;
 
             // Parse phone numbers and check authorization
             $phones = array_map(function ($p) {
@@ -1106,6 +1106,93 @@ class WAReplies
         }
     }
 
+    function handleGaji_cash($phoneIn, $waNumber, $textBody = '')
+    {
+        $waService = $this->getWaService();
+        
+        try {
+            $hp = \Env::ADMIN_NUMBERS;
+
+            // Parse phone numbers and check authorization
+            $phones = array_map(function ($p) {
+                return trim($p, "' ");
+            }, explode(',', $phoneIn));
+            $cleanWaNumber = preg_replace('/[^0-9]/', '', $waNumber);
+            $phone0 = '0' . substr($cleanWaNumber, 2);
+            $phones[] = $phone0;
+            $phones[] = $cleanWaNumber;
+            $phones = array_unique(array_filter($phones));
+
+            // Only allowed phones can access this
+            $intersect = array_intersect($phones, $hp);
+            if (empty($intersect)) {
+                return;
+            }
+
+            // Tentukan periode berdasarkan tanggal hari ini (sama dengan handleSlip_gaji)
+            $hariIni = (int)date('d');
+            if ($hariIni >= 1 && $hariIni <= 5) {
+                // Jika tanggal 1-5, gunakan bulan lalu
+                $period = date('Y-m', strtotime('-1 month'));
+            } else {
+                // Jika tanggal > 5, gunakan bulan ini
+                $period = date('Y-m');
+            }
+
+            $dbMain = DB::getInstance(0);
+            
+            // Query payroll approved dengan bank_code kosong (Cash) dari db(0)
+            $cashPayrolls = $dbMain->query(
+                "SELECT id, employee_id, amount, state FROM payroll WHERE period = ? AND business = 'laundry' AND state = 'approved' AND (bank_code = '' OR bank_code IS NULL)",
+                [$period]
+            )->result_array();
+
+            if (empty($cashPayrolls)) {
+                $waService->sendFreeText($waNumber, "Tidak ada data gaji cash untuk periode " . $period);
+                return;
+            }
+
+            // Build message
+            $text = "*GAJI CASH - PERIODE " . strtoupper($period) . "*\n";
+            $text .= "────────────────\n";
+            $text .= "Status: APPROVED ✅\n\n";
+
+            $total = 0;
+            $count = 0;
+
+            foreach ($cashPayrolls as $p) {
+                $employeeId = (int)$p['employee_id'];
+                $amount = (float)$p['amount'];
+                $payrollId = (int)$p['id'];
+
+                // Ambil nama karyawan dari db(0) - tabel user
+                $user = $dbMain->query("SELECT nama_user FROM user WHERE id_user = ? LIMIT 1", [$employeeId])->row_array();
+                $namaUser = $user['nama_user'] ?? 'Unknown';
+
+                $count++;
+                $total += $amount;
+
+                $text .= $count . ". *" . strtoupper($namaUser) . "*\n";
+                $text .= "   ID: #" . $payrollId . "\n";
+                $text .= "   Rp" . number_format($amount, 0, ',', '.') . "\n\n";
+            }
+
+            $text .= "────────────────\n";
+            $text .= "*Total Cash:* Rp" . number_format($total, 0, ',', '.') . "\n";
+            $text .= "*Jumlah:* " . $count . " orang";
+
+            $res = $waService->sendFreeText($waNumber, $text);
+            if ($res['success']) {
+                $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+            }
+
+        } catch (\Throwable $e) {
+            \Log::write("handleGaji_cash ERROR: " . $e->getMessage(), 'wa_error', 'GajiCash');
+            $waService->sendFreeText($waNumber, "Maaf, terjadi kesalahan saat mengambil data gaji cash.");
+        }
+    }
+
+
     function handleCek_token($phoneIn, $waNumber, $textBody = '')
     {
         $waService = $this->getWaService();
@@ -1297,7 +1384,7 @@ class WAReplies
     function handleSaldo_iak($phoneIn, $waNumber, $textBody = '')
     {
         try {
-            $hp = ['081268098300', '085278114125'];
+            $hp = \Env::ADMIN_NUMBERS;
 
             // Parse phone numbers and check authorization
             $phones = array_map(function ($p) {
@@ -1341,7 +1428,7 @@ class WAReplies
     function handleSaldo_tokopay($phoneIn, $waNumber, $textBody = '')
     {
         try {
-            $hp = ['081268098300', '085278114125'];
+            $hp = \Env::ADMIN_NUMBERS;
 
             // Parse phone numbers and check authorization
             $phones = array_map(function ($p) {
@@ -1434,7 +1521,7 @@ class WAReplies
      function handleTarik_tokopay($phoneIn, $waNumber, $textBody = '')
     {
         try {
-            $hp = ['081268098300', '085278114125'];
+            $hp = \Env::ADMIN_NUMBERS;
 
             // Parse phone numbers and check authorization
             $phones = array_map(function ($p) {
