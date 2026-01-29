@@ -128,24 +128,25 @@
                         </div>
                         <div class="col-12"><hr></div>
                         <div class="col-md-4">
-                            <label class="form-label">Kode Bank <span class="text-danger">*</span></label>
+                            <label class="form-label">Kode Bank <small class="text-muted">(Opsional)</small></label>
                             <select class="form-select" id="edit_bank_code">
                                 <option value="">Memuat daftar bank...</option>
                             </select>
                             <small class="text-muted" id="bank_status"></small>
                         </div>
                         <div class="col-md-8">
-                            <label class="form-label">No Rekening <span class="text-danger">*</span></label>
+                            <label class="form-label">No Rekening <small class="text-muted">(Opsional)</small></label>
                             <input type="text" class="form-control" id="edit_bank_account_number" placeholder="1234567890 atau No HP E-Wallet">
                         </div>
                         <div class="col-12">
-                            <label class="form-label">Nama Lengkap <span class="text-danger">*</span></label>
+                            <label class="form-label">Nama Lengkap <small class="text-muted">(Opsional)</small></label>
                             <input type="text" class="form-control" id="edit_bank_account_name" placeholder="Sesuai buku tabungan">
                         </div>
                         <div class="col-12 mt-3">
-                            <div class="alert alert-warning py-2 mb-0" style="font-size: 0.85rem;">
+                            <div class="alert alert-info py-2 mb-0" style="font-size: 0.85rem;">
                                 <ul class="mb-0 ps-3">
-                                    <li>Pastikan data rekening dan nama pemilik benar</li>
+                                    <li>Data bank dapat dikosongkan jika pembayaran dilakukan secara cash</li>
+                                    <li>Jika diisi, pastikan data rekening dan nama pemilik benar</li>
                                     <li>Jika rekening bukan atas nama karyawan, Madinah Laundry tidak bertanggung jawab jika suatu saat terjadi perselisihan</li>
                                 </ul>
                             </div>
@@ -514,18 +515,8 @@ $(document).ready(function() {
                 showModalAlert('Nomor WhatsApp wajib diisi', 'warning');
                 return;
             }
-            if (!bankCode) {
-                showModalAlert('Pilih bank terlebih dahulu', 'warning');
-                return;
-            }
-            if (!bankAccount) {
-                showModalAlert('Nomor rekening wajib diisi', 'warning');
-                return;
-            }
-            if (!bankAccountName) {
-                showModalAlert('Nama pemilik rekening wajib diisi', 'warning');
-                return;
-            }
+            // Validasi bank dihapus - field bank sekarang opsional
+            // Jika salah satu field bank kosong, backend akan mengosongkan semua field bank
             
             // Hide any previous alerts before proceeding
             hideModalAlert();

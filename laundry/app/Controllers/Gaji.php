@@ -315,9 +315,17 @@ class Gaji extends Controller
 
       // Rekening dari user db(0): bank_code, bank_account_number, bank_account_name
       $period = $date; // YYYY-MM
-      $bank_code = isset($user['bank_code']) ? trim($user['bank_code']) : '';
-      $bank_acc_number = isset($user['bank_account_number']) ? trim($user['bank_account_number']) : '';
-      $bank_acc_name = isset($user['bank_account_name']) ? trim($user['bank_account_name']) : '';
+      
+      // Jika bank_code kosong/null, set Cash dan kosongkan rekening
+      if (empty($user['bank_code'])) {
+         $bank_code = '';
+         $bank_acc_number = '';
+         $bank_acc_name = '';
+      } else {
+         $bank_code = trim($user['bank_code']);
+         $bank_acc_number = isset($user['bank_account_number']) ? trim($user['bank_account_number']) : '';
+         $bank_acc_name = isset($user['bank_account_name']) ? trim($user['bank_account_name']) : '';
+      }
 
       // Cek sudah ada payroll untuk employee_id + period
       $existing = $this->db(100)->get_where_row('payroll', "employee_id = " . $userID . " AND period = '" . $period . "'");
@@ -429,7 +437,7 @@ class Gaji extends Controller
             $flip_code,
             $bank_acc_number,
             number_format($amount, 0, '', ''), // Nominal (harus diisi)
-            "Gaji " . $period, // Berita Transfer (Opsional) - DIISI karena Flip membutuhkan ini
+            $id_payroll . "-" . $period, // Berita Transfer (Opsional) - DIISI karena Flip membutuhkan ini
             '', // Email Penerima (Opsional) - kosong
             $bank_acc_name, // Nama Penerima (Opsional) - diisi dengan nama dari payroll
             $id_payroll, // ID Unik Transaksi (Opsional) - diisi dengan ID_PAYROLL

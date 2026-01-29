@@ -111,12 +111,6 @@ if ($this->id_cabang > 0) {
         ];
     }
 
-    $rekapSubmenu[] = [
-        'c' => '@Gaji',
-        'title' => 'Gaji Bulanan - Rekap',
-        'txt' => 'Gaji Bulanan'
-    ];
-
     $rekapMenu = [
         'c' => '#',
         'title' => 'Rekap',
@@ -125,6 +119,28 @@ if ($this->id_cabang > 0) {
         'submenu' => $rekapSubmenu
     ];
     
+    // Menu Gaji dengan submenu
+    $gajiMenu = [
+        'c' => '#',
+        'title' => 'Gaji',
+        'icon' => 'fas fa-money-bill-wave',
+        'txt' => 'Gaji',
+        'submenu' => [
+            [
+                'c' => '@Gaji',
+                'title' => 'Gaji Bulanan - Rekap',
+                'txt' => 'Gaji Bulanan'
+            ],
+            [
+                'c' => '@Payroll',
+                'title' => 'Payroll Management',
+                'txt' => 'Payroll'
+            ]
+        ]
+    ];
+    
     // Insert Rekap menu at index 1 (after Approval)
     array_splice($menu[1], 1, 0, [$rekapMenu]);
+    // Insert Gaji menu at index 2 (after Rekap)
+    array_splice($menu[1], 2, 0, [$gajiMenu]);
 }

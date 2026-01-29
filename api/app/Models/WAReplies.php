@@ -1014,7 +1014,7 @@ class WAReplies
             }
 
             if (empty($gajiResults)) {
-                $waService->sendFreeText($waNumber, "Belum ada data gaji untuk periode " . $date . ".\nSilakan tunggu penetapan gaji.");
+                $waService->sendFreeText($waNumber, "Belum ada data untuk periode " . $date . ".\nSilakan tunggu penetapan gaji.");
                 return;
             }
 

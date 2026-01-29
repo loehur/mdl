@@ -313,16 +313,23 @@ class Karyawan extends Controller
         }
 
         // Ambil data yang akan disimpan (no_user tidak termasuk karena tidak bisa diedit)
-        $data = [
-            'bank_code' => isset($_POST['bank_code']) ? strtolower(trim($_POST['bank_code'])) : '',
-            'bank_account_name' => isset($_POST['bank_account_name']) ? trim($_POST['bank_account_name']) : '',
-            'bank_account_number' => isset($_POST['bank_account_number']) ? preg_replace('/[^0-9]/', '', $_POST['bank_account_number']) : ''
-        ];
+        $bank_code = isset($_POST['bank_code']) ? strtolower(trim($_POST['bank_code'])) : '';
+        $bank_account_name = isset($_POST['bank_account_name']) ? trim($_POST['bank_account_name']) : '';
+        $bank_account_number = isset($_POST['bank_account_number']) ? preg_replace('/[^0-9]/', '', $_POST['bank_account_number']) : '';
 
-        // Validasi
-        if (empty($data['bank_code']) || empty($data['bank_account_number'])) {
-            echo json_encode(['status' => false, 'message' => 'Data bank/e-wallet wajib diisi']);
-            return;
+        // Jika salah satu field bank kosong, kosongkan semua field bank (untuk konsistensi)
+        if (empty($bank_code) || empty($bank_account_number) || empty($bank_account_name)) {
+            $data = [
+                'bank_code' => '',
+                'bank_account_name' => '',
+                'bank_account_number' => ''
+            ];
+        } else {
+            $data = [
+                'bank_code' => $bank_code,
+                'bank_account_name' => $bank_account_name,
+                'bank_account_number' => $bank_account_number
+            ];
         }
 
         // Update database
