@@ -65,7 +65,7 @@ foreach ($this->user as $uc) {
         <div class="col-auto">
           <?php if ($nama_user <> '') { ?>
             <div class="btn-group">
-              <button type="button" class="btn btn-sm btn-dark dropdown-toggle" data-bs-toggle="dropdown">
+              <button type="button" class="btn btn-sm btn-warning dropdown-toggle" data-bs-toggle="dropdown">
                 Set Gaji
               </button>
               <div class="dropdown-menu">
@@ -114,7 +114,7 @@ $totalTerima = 0;
 
             echo "<tr>";
             echo "<td colspan='3' class='pb-3'><span>" . strtoupper($nama_user) . " - <b>" . $this->dCabang['kode_cabang'] . "</b></span></td>";
-            echo "<td class='text-right'><a href='#' id='tetapkan' class='btn badge badge-primary'>Tetapkan</a></td>";
+            echo "<td class='text-right'><a href='#' id='tetapkan' class='btn btn-sm btn-danger'>Tetapkan</a></td>";
             echo "</tr>";
 
             foreach ($r as $userID => $arrJenisJual) {
@@ -379,11 +379,8 @@ $totalTerima = 0;
   <?php if ($nama_user <> "") { ?>
     <div class="col-auto" id="tes">
       <div class="d-flex gap-2 mb-2">
-        <button type="button" class="btn btn-primary btn-sm" id="btnPrintGaji">
+        <button type="button" class="btn btn-dark btn-sm" id="btnPrintGaji">
           <i class="fas fa-print me-1"></i> Print Slip Gaji
-        </button>
-        <button type="button" class="btn btn-success btn-sm" id="btnAddToPayroll" title="Tarik total gaji diterima ke tabel payroll">
-          <i class="fas fa-plus me-1"></i> Add to Payroll
         </button>
       </div>
       <div id="print">
@@ -613,40 +610,6 @@ $totalTerima = 0;
           $("div#tes").html(res);
         }
       },
-    });
-  });
-
-  $('#btnAddToPayroll').on('click', function() {
-    var btn = $(this);
-    var originalHtml = btn.html();
-    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Menambah...');
-    $.ajax({
-      url: '<?= URL::BASE_URL ?>Gaji/add_to_payroll',
-      type: 'POST',
-      data: {
-        user_id: '<?= (int)$data['user']['id'] ?>',
-        date: '<?= $dateOn ?>'
-      },
-      dataType: 'json',
-      success: function(res) {
-        if (res && res.ok) {
-          btn.html('<i class="fas fa-check me-1"></i> Ditambah');
-          setTimeout(function() { btn.html(originalHtml); btn.prop('disabled', false); }, 2000);
-          showToast(res.msg + (res.amount ? ' Rp' + Number(res.amount).toLocaleString('id-ID') : ''), 'success');
-        } else {
-          btn.html(originalHtml).prop('disabled', false);
-          showToast(res && res.msg ? res.msg : 'Gagal menambah ke payroll.', 'danger');
-        }
-      },
-      error: function(xhr) {
-        btn.html(originalHtml).prop('disabled', false);
-        var msg = 'Gagal request.';
-        try {
-          var j = JSON.parse(xhr.responseText);
-          if (j && j.msg) msg = j.msg;
-        } catch (e) {}
-        showToast(msg, 'danger');
-      }
     });
   });
 
