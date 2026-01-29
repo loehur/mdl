@@ -904,7 +904,7 @@ $labeled = false;
     $buttonNotif_Member = "<a href='#' data-ref='" . $id . "' class='sendNotifMember bg-white rounded px-1 mr-1'><i class='fab fa-whatsapp'></i> <span id='notif" . $id . "'></span></a>";
     foreach ($data['notif_member'] as $notif) {
       if ($notif['no_ref'] == $id) {
-        $stNotif = "<b>" . ucwords($notif['proses']) . "</b> " . ucwords($notif['state']);
+        $stNotif = "<b>" . ucwords($notif['state']) . "</b>";
         $buttonNotif_Member = "<span class='bg-white rounded px-1 mr-1'><i class='fab fa-whatsapp'></i> " . $stNotif . "</span>";
       }
     }

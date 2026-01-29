@@ -168,7 +168,7 @@ function showBarangDetail(res) {
   listHtml += '<br><small class="text-success fw-bold">Rp' + numberFormat(hargaMain) + unit + '</small>';
   listHtml += '</div>';
   listHtml += '<div class="d-flex align-items-center gap-2">';
-  listHtml += '<input type="number" class="form-control form-control-sm text-center" style="width:60px" value="1" min="1" id="qtyMain">';
+  listHtml += '<input type="number" class="form-control form-control-sm text-center" style="width:70px" value="1" min="0.1" step="0.1" id="qtyMain">';
   listHtml += '<button type="button" class="btn btn-sm btn-success addToCartMainNew">';
   listHtml += '<i class="fas fa-plus"></i>';
   listHtml += '</button>';
@@ -185,7 +185,7 @@ function showBarangDetail(res) {
       listHtml += '<br><small class="text-success ps-3">Rp' + numberFormat(subHarga) + unit + '</small>';
       listHtml += '</div>';
       listHtml += '<div class="d-flex align-items-center gap-2">';
-      listHtml += '<input type="number" class="form-control form-control-sm text-center qtySub" style="width:60px" value="1" min="1">';
+      listHtml += '<input type="number" class="form-control form-control-sm text-center qtySub" style="width:70px" value="1" min="0.1" step="0.1">';
       listHtml += '<button type="button" class="btn btn-sm btn-outline-success addToCartSub" data-id="' + item.id + '">';
       listHtml += '<i class="fas fa-plus"></i>';
       listHtml += '</button>';
@@ -235,7 +235,7 @@ function calculateTotal() {
   var total = 0;
   $('.cart-item').each(function() {
     var harga = parseFloat($(this).data('harga')) || 0;
-    var qty = parseInt($(this).data('qty')) || 0;
+    var qty = parseFloat($(this).data('qty')) || 0;
     total += harga * qty;
   });
   

@@ -82,7 +82,7 @@
                           $margin = $item['margin'] ?? 0;
                           $displayPrice = $item['price'] + $margin;
                         ?>
-                        <div class="text-muted small"><?= $item['qty'] ?> x Rp<?= number_format($displayPrice) ?></div>
+                        <div class="text-muted small"><?= rtrim(rtrim(number_format($item['qty'], 1, ',', '.'), '0'), ',') ?> x Rp<?= number_format($displayPrice) ?></div>
                       </td>
                       <td class="text-end pe-3 py-1 align-middle">
                         <span class="fw-bold">Rp<?= number_format($displayPrice * $item['qty']) ?></span>
@@ -307,7 +307,7 @@
                     </tr>
                     <tr>
                         <td>
-                             <?= $item['qty'] ?> x <?= number_format($price) ?>
+                             <?= rtrim(rtrim(number_format($item['qty'], 1, ',', '.'), '0'), ',') ?> x <?= number_format($price) ?>
                         </td>
                         <td style="text-align: right;"><?= number_format($subtotal) ?></td>
                     </tr>

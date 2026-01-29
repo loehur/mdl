@@ -26,7 +26,7 @@
           <?php } ?>
           <br>
           <small class="text-muted">
-            <?= $item['qty'] ?> x Rp<?= number_format($hargaJual) ?>
+            <?= rtrim(rtrim(number_format($item['qty'], 1, ',', '.'), '0'), ',') ?> x Rp<?= number_format($hargaJual) ?>
           </small>
         </div>
         <div class="d-flex align-items-center gap-2">

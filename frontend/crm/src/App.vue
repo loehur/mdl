@@ -5135,7 +5135,7 @@ const handleLinkClick = (e) => {
               >Cabang</label
             >
             <p
-              class="text-base font-mono font-semibold text-[var(--wa-text-primary)]"
+              class="text-base font-bold text-[var(--wa-text-primary)]"
             >
               {{ activeConversation?.kode_cabang }}
             </p>

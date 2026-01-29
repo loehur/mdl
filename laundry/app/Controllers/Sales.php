@@ -135,7 +135,7 @@ class Sales extends Controller
       
       $id_barang = $_POST['id_barang'] ?? 0;
       $id_sub = $_POST['id_sub'] ?? 0;
-      $qty = intval($_POST['qty'] ?? 1);
+      $qty = floatval($_POST['qty'] ?? 1);
       
       // Initialize cart session if not exists
       if (!isset($_SESSION['sales_cart'])) {
@@ -208,7 +208,7 @@ class Sales extends Controller
       ob_start(); // Capture any unexpected output
       
       $id_barang = $_POST['id_barang'] ?? 0;
-      $qty = intval($_POST['qty'] ?? 1);
+      $qty = floatval($_POST['qty'] ?? 1);
       
       if (!isset($_SESSION['sales_cart'])) {
          $_SESSION['sales_cart'] = [];

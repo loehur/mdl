@@ -265,7 +265,7 @@ const parseEmoji = (text) => {
         <!-- Kolom Kiri: Kode Cabang + Case Badges -->
         <div class="flex flex-col items-center justify-start gap-1.5 pt-1 min-w-[42px] flex-shrink-0">
           <!-- Kode Cabang (tanpa []) -->
-          <div v-if="chat.kode_cabang" class="font-mono text-xs font-semibold px-2 py-0.5 rounded" :class="chat.kode_cabang === '00' ? 'text-pink-500 bg-pink-500/10' : 'text-[var(--wa-accent-blue)] bg-blue-500/10'">
+          <div v-if="chat.kode_cabang" class="text-xs font-bold px-2 py-0.5 rounded" :class="chat.kode_cabang === '00' ? 'text-pink-500 bg-pink-500/10' : 'text-[var(--wa-accent-blue)] bg-blue-500/10'">
             {{ chat.kode_cabang }}
           </div>
           
