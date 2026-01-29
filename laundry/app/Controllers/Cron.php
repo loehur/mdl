@@ -66,6 +66,7 @@ class Cron extends Controller
       $pending += count($data);
       foreach ($data as $dm) {
          $id_notif = $dm['id_notif'];
+         $tipe = $dm['tipe'];
          $data_pending .= $dm['id_cabang'] . "#" . $id_notif . ' ';
 
          $expired_bol = false;
@@ -81,7 +82,7 @@ class Cron extends Controller
 
          // Cek apakah transaksi sudah tuntas (sudah diambil customer)
          $no_ref = $dm['no_ref'] ?? '';
-         if (!empty($no_ref)) {
+         if (!empty($no_ref) && ($tipe == 1 || $tipe == 2)) {
             $saleCheck = $this->db(0)->get_where_row("sale", "id_penjualan = '" . $no_ref . "'");
             if ($saleCheck && (intval($saleCheck['tuntas'] ?? 0) == 1 || intval($saleCheck['id_user_ambil'] ?? 0) != 0)) {
                // Transaksi sudah tuntas, tidak perlu kirim WA lagi
