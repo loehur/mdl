@@ -117,54 +117,131 @@
     </div>
 </div>
 
+<!-- Confirmation Modal -->
+<div class="modal fade" id="confirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title font-weight-bold">Konfirmasi</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body py-4">
+                <p id="confirmMessage" class="mb-0 fs-5 text-muted"></p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-primary px-4" id="confirmBtn">Ya, Lanjutkan</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Secure Approve All Modal -->
+<div class="modal fade" id="secureApproveModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold text-warning"><i class="fas fa-exclamation-triangle me-2"></i>Konfirmasi Ekstra</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body py-3">
+                <p class="mb-3 text-muted fs-6">
+                    Anda akan meng-approve <strong>SEMUA</strong> payroll draft periode <span class="fw-bold text-dark current-period-text"></span>. Tindakan ini tidak dapat dibatalkan.
+                </p>
+                <div class="form-group mb-0">
+                    <label class="small text-uppercase fw-bold text-muted mb-1">Ketik "approve" untuk melanjutkan:</label>
+                    <input type="text" id="approveAllSecret" class="form-control form-control-lg text-center" placeholder="approve" autocomplete="off">
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-warning px-4 fw-bold" id="confirmApproveAllBtn" disabled>Approve Sekarang</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 2000;">
+    <div id="statusToast" class="toast align-items-center text-white border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex p-1">
+            <div class="toast-body fs-6 fw-medium"></div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+
 <script src="<?= URL::EX_ASSETS ?>js/jquery-3.6.0.min.js"></script>
 <script src="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/js/bootstrap.bundle.min.js"></script>
 
 <script>
 $(document).ready(function() {
     const currentPeriod = '<?= $data['period'] ?>';
+    const confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
+    const secureModal = new bootstrap.Modal(document.getElementById('secureApproveModal'));
+    const statusToast = new bootstrap.Toast(document.getElementById('statusToast'));
+
+    function showToast(msg, type = 'success') {
+        const bg = type === 'success' ? 'bg-success' : (type === 'error' ? 'bg-danger' : 'bg-info');
+        $('#statusToast').removeClass('bg-success bg-danger bg-info').addClass(bg);
+        $('#statusToast .toast-body').html(msg);
+        statusToast.show();
+    }
+
+    function askConfirm(msg, callback) {
+        $('#confirmMessage').text(msg);
+        $('#confirmBtn').off('click').on('click', function() {
+            confirmModal.hide();
+            callback();
+        });
+        confirmModal.show();
+    }
 
     // Bulk Add to Payroll
     $('#btnBulkAdd, #btnBulkAddEmpty').click(function() {
-        if (!confirm('Tambahkan SEMUA karyawan aktif ke payroll periode ' + currentPeriod + '?')) {
-            return;
-        }
-
         const $btn = $(this);
-        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Processing...');
-
-        $.ajax({
-            url: '<?= URL::BASE_URL ?>Payroll/add_bulk',
-            method: 'POST',
-            data: { date: currentPeriod },
-            dataType: 'json',
-            success: function(res) {
-                if (res.ok) {
-                    alert('✅ ' + res.msg);
-                    location.reload();
-                } else {
-                    alert('❌ Error: ' + res.msg);
+        askConfirm('Tambahkan SEMUA karyawan aktif ke payroll periode ' + currentPeriod + '?', function() {
+            $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Processing...');
+            $.ajax({
+                url: '<?= URL::BASE_URL ?>Payroll/add_bulk',
+                method: 'POST',
+                data: { date: currentPeriod },
+                dataType: 'json',
+                success: function(res) {
+                    if (res.ok) {
+                        showToast('✅ ' + res.msg);
+                        setTimeout(() => location.reload(), 1500);
+                    } else {
+                        showToast('❌ Error: ' + res.msg, 'error');
+                        $btn.prop('disabled', false).html('<i class="fas fa-users me-1"></i>Add All to Payroll');
+                    }
+                },
+                error: function() {
+                    showToast('❌ Terjadi kesalahan server', 'error');
+                    $btn.prop('disabled', false).html('<i class="fas fa-users me-1"></i>Add All to Payroll');
                 }
-            },
-            error: function(xhr) {
-                console.error('Error:', xhr.responseText);
-                alert('❌ Terjadi kesalahan saat menambahkan ke payroll');
-            },
-            complete: function() {
-                $btn.prop('disabled', false).html('<i class="fas fa-users me-1"></i>Add All to Payroll');
-            }
+            });
         });
     });
 
-    // Approve All Payroll (draft -> approved)
+    // Approve All Flow
     $('#btnApproveAll').click(function() {
-        if (!confirm('Approve SEMUA payroll dengan status DRAFT untuk periode ' + currentPeriod + '?\n\nSetelah di-approve, data tidak bisa diubah lagi.')) {
-            return;
-        }
+        $('.current-period-text').text(currentPeriod);
+        $('#approveAllSecret').val('');
+        $('#confirmApproveAllBtn').prop('disabled', true);
+        secureModal.show();
+    });
 
-        const $btn = $(this);
-        const originalHtml = $btn.html();
-        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Processing...');
+    $('#approveAllSecret').on('input', function() {
+        $('#confirmApproveAllBtn').prop('disabled', $(this).val().toLowerCase() !== 'approve');
+    });
+
+    $('#confirmApproveAllBtn').click(function() {
+        const $btnTrigger = $('#btnApproveAll');
+        const originalHtml = $btnTrigger.html();
+        
+        secureModal.hide();
+        $btnTrigger.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Approving...');
 
         $.ajax({
             url: '<?= URL::BASE_URL ?>Payroll/approve_all',
@@ -173,17 +250,16 @@ $(document).ready(function() {
             dataType: 'json',
             success: function(res) {
                 if (res.ok) {
-                    alert('✅ ' + res.msg);
-                    location.reload();
+                    showToast('✅ ' + res.msg);
+                    setTimeout(() => location.reload(), 1500);
                 } else {
-                    alert('❌ Error: ' + res.msg);
+                    showToast('❌ Error: ' + res.msg, 'error');
+                    $btnTrigger.prop('disabled', false).html(originalHtml);
                 }
             },
             error: function() {
-                alert('❌ Terjadi kesalahan');
-            },
-            complete: function() {
-                $btn.prop('disabled', false).html(originalHtml);
+                showToast('❌ Terjadi kesalahan server', 'error');
+                $btnTrigger.prop('disabled', false).html(originalHtml);
             }
         });
     });
@@ -197,33 +273,29 @@ $(document).ready(function() {
     $('.btn-delete').click(function() {
         const payrollId = $(this).data('id');
         const employeeName = $(this).data('name');
+        const $btnCol = $(this);
 
-        if (!confirm('Hapus payroll untuk ' + employeeName + '?\n\nPeringatan: Data tidak dapat dikembalikan!')) {
-            return;
-        }
-
-        const $btn = $(this);
-        $btn.prop('disabled', true);
-
-        $.ajax({
-            url: '<?= URL::BASE_URL ?>Payroll/delete',
-            method: 'POST',
-            data: { payroll_id: payrollId },
-            dataType: 'json',
-            success: function(res) {
-                if (res.ok) {
-                    alert('✅ ' + res.msg);
-                    location.reload();
-                } else {
-                    alert('❌ Error: ' + res.msg);
+        askConfirm('Hapus payroll untuk ' + employeeName + '? Peringatan: Data tidak dapat dikembalikan!', function() {
+            $btnCol.prop('disabled', true);
+            $.ajax({
+                url: '<?= URL::BASE_URL ?>Payroll/delete',
+                method: 'POST',
+                data: { payroll_id: payrollId },
+                dataType: 'json',
+                success: function(res) {
+                    if (res.ok) {
+                        showToast('✅ ' + res.msg);
+                        setTimeout(() => location.reload(), 1200);
+                    } else {
+                        showToast('❌ Error: ' + res.msg, 'error');
+                        $btnCol.prop('disabled', false);
+                    }
+                },
+                error: function() {
+                    showToast('❌ Terjadi kesalahan server', 'error');
+                    $btnCol.prop('disabled', false);
                 }
-            },
-            error: function() {
-                alert('❌ Terjadi kesalahan');
-            },
-            complete: function() {
-                $btn.prop('disabled', false);
-            }
+            });
         });
     });
 });
@@ -235,5 +307,12 @@ $(document).ready(function() {
 }
 .table td, .table th {
     vertical-align: middle;
+}
+.modal-content {
+    border: none;
+    border-radius: 12px;
+}
+.toast {
+    border-radius: 10px;
 }
 </style>
