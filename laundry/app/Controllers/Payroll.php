@@ -25,7 +25,7 @@ class Payroll extends Controller
         }
 
         // Ambil data payroll dari db(100) untuk business='laundry' dan periode tertentu
-        $payrolls = $this->db(100)->get_where('payroll', "period = '" . $this->db(100)->escape($period) . "' AND business = 'laundry'", 1);
+        $payrolls = $this->db(100)->get_where('payroll', "period = '" . $this->db(100)->escape($period) . "' AND business = 'laundry'");
         
         // Jika ada data, ambil info karyawan dari db(0)
         $payrollData = [];
