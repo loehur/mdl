@@ -266,48 +266,6 @@ class Payroll extends Controller
     }
 
     /**
-     * Approve payroll (draft -> approved)
-     * POST: payroll_id
-     */
-    public function approve()
-    {
-        if (!headers_sent()) {
-            header('Content-Type: application/json; charset=utf-8');
-        }
-
-        $payroll_id = isset($_POST['payroll_id']) ? (int)$_POST['payroll_id'] : 0;
-
-        if ($payroll_id < 1) {
-            echo json_encode(['ok' => false, 'msg' => 'Payroll ID tidak valid']);
-            return;
-        }
-
-        // Cekstate current
-        $payroll = $this->db(100)->get_where_row('payroll', "id = " . $payroll_id);
-        if (!$payroll) {
-            echo json_encode(['ok' => false, 'msg' => 'Payroll tidak ditemukan']);
-            return;
-        }
-
-        $currentState = isset($payroll['state']) ? strtolower($payroll['state']) : '';
-        
-        if ($currentState !== 'draft') {
-            echo json_encode(['ok' => false, 'msg' => 'Hanya payroll dengan status DRAFT yang bisa di-approve']);
-            return;
-        }
-
-        $set = ['state' => 'approved'];
-        $where = "id = " . $payroll_id;
-        $do = $this->db(100)->update('payroll', $set, $where);
-
-        if (isset($do['errno']) && $do['errno'] == 0) {
-            echo json_encode(['ok' => true, 'msg' => 'Payroll berhasil di-approve']);
-        } else {
-            echo json_encode(['ok' => false, 'msg' => 'Gagal approve payroll']);
-        }
-    }
-
-    /**
      * Approve all payroll drafts for a period (draft -> approved)
      * POST: period (YYYY-MM)
      */
@@ -359,39 +317,5 @@ class Payroll extends Controller
             'success' => $success,
             'failed' => $failed
         ]);
-    }
-
-    /**
-     * Delete payroll entry
-     * POST: payroll_id
-     */
-    public function delete()
-    {
-        if (!headers_sent()) {
-            header('Content-Type: application/json; charset=utf-8');
-        }
-
-        $payroll_id = isset($_POST['payroll_id']) ? (int)$_POST['payroll_id'] : 0;
-
-        if ($payroll_id < 1) {
-            echo json_encode(['ok' => false, 'msg' => 'Payroll ID tidak valid']);
-            return;
-        }
-
-        // Cek apakah sudah approved
-        $payroll = $this->db(100)->get_where_row('payroll', "id = " . $payroll_id);
-        if ($payroll && isset($payroll['state']) && strtolower($payroll['state']) === 'approved') {
-            echo json_encode(['ok' => false, 'msg' => 'Tidak dapat menghapus payroll yang sudah di-approve']);
-            return;
-        }
-
-        $where = "id = " . $payroll_id;
-        $do = $this->db(100)->delete('payroll', $where);
-
-        if (isset($do['errno']) && $do['errno'] == 0) {
-            echo json_encode(['ok' => true, 'msg' => 'Payroll berhasil dihapus']);
-        } else {
-            echo json_encode(['ok' => false, 'msg' => 'Gagal menghapus payroll']);
-        }
     }
 }

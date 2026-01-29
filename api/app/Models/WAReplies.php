@@ -954,12 +954,23 @@ class WAReplies
             $id_user = (int)$user['id_user'];
             $nama_user = $user['nama_user'] ?? 'Karyawan';
             
-            // Ambil data rekening bank dari user (db(1))
-            $bank_code = trim($user['bank_code'] ?? '');
-            $bank_account_number = trim($user['bank_account_number'] ?? '');
-            $bank_account_name = trim($user['bank_account_name'] ?? '');
+            // Ambil data rekening pencairan dari tabel payroll (db(0))
+            $payroll = $dbMain->query("SELECT id, state, bank_code, bank_acc_number, bank_acc_name FROM payroll WHERE employee_id = ? AND period = ? AND business = 'laundry' LIMIT 1", [$id_user, $date])->row_array();
+            $p_id = $payroll['id'] ?? '-';
+            $p_state = strtoupper($payroll['state'] ?? 'PENDING');
             
-            // Cek apakah data rekening lengkap
+            if ($payroll) {
+                $bank_code = trim($payroll['bank_code'] ?? '');
+                $bank_account_number = trim($payroll['bank_acc_number'] ?? '');
+                $bank_account_name = trim($payroll['bank_acc_name'] ?? '');
+            } else {
+                // Fallback ke data user (db(1))
+                $bank_code = trim($user['bank_code'] ?? '');
+                $bank_account_number = trim($user['bank_account_number'] ?? '');
+                $bank_account_name = trim($user['bank_account_name'] ?? '');
+            }
+            
+            // Cek apakah data rekening lengkap (untuk menentukan Cash atau Bank)
             $rekeningLengkap = !empty($bank_code) && !empty($bank_account_number) && !empty($bank_account_name);
             
             // Ambil nama bank dari tabel banks di db(0) jika bank_code ada
@@ -1020,10 +1031,11 @@ class WAReplies
 
             // Format slip gaji
             $text = "*" . strtoupper($nama_cabang) . " - " . $kode_cabang . "*\n";
-            $text .= "*-- SALARY SLIP --*\n";
+            $text .= "*-- SALARY SLIP [".$p_state."] --*\n";
             $text .= "\n";
             $text .= "*" . strtoupper($nama_user) . "*\n";
             $text .= "Periode: *" . $dateOn . "*\n";
+            $text .= "ID Payroll: *#" . $p_id . "*\n";
             $text .= "────────────────\n\n";
 
             $totalGaji = 0;

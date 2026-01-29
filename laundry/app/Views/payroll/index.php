@@ -51,7 +51,6 @@
                                 <th>No. Rekening</th>
                                 <th>Nama Pemilik</th>
                                 <th class="text-center">Status</th>
-                                <th class="text-center" style="width: 100px;">Aksi</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -75,18 +74,6 @@
                                     <td class="text-center">
                                         <span class="badge bg-<?= $statusClass ?>"><?= $statusText ?></span>
                                     </td>
-                                    <td class="text-center">
-                                        <?php if ($state === 'draft') { ?>
-                                            <button type="button" class="btn btn-sm btn-danger btn-delete" 
-                                                data-id="<?= $p['id'] ?>"
-                                                data-name="<?= htmlspecialchars($p['employee_name']) ?>"
-                                                title="Delete">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        <?php } else { ?>
-                                            <span class="text-muted">-</span>
-                                        <?php } ?>
-                                    </td>
                                 </tr>
                             <?php
                                     $no++;
@@ -94,7 +81,7 @@
                             } else {
                             ?>
                                 <tr>
-                                    <td colspan="9" class="text-center text-muted py-4">
+                                    <td colspan="8" class="text-center text-muted py-4">
                                         <i class="fas fa-info-circle me-2"></i>Tidak ada data payroll untuk periode <?= $data['period'] ?>
                                         <br><br>
                                         <button type="button" class="btn btn-sm btn-primary" id="btnBulkAddEmpty">
@@ -268,35 +255,6 @@ $(document).ready(function() {
     $('#btnExportCSV').click(function() {
         window.location.href = '<?= URL::BASE_URL ?>Payroll/export_csv_flip?period=' + currentPeriod;
     });
-
-    // Delete Payroll
-    $('.btn-delete').click(function() {
-        const payrollId = $(this).data('id');
-        const employeeName = $(this).data('name');
-        const $btnCol = $(this);
-
-        askConfirm('Hapus payroll untuk ' + employeeName + '? Peringatan: Data tidak dapat dikembalikan!', function() {
-            $btnCol.prop('disabled', true);
-            $.ajax({
-                url: '<?= URL::BASE_URL ?>Payroll/delete',
-                method: 'POST',
-                data: { payroll_id: payrollId },
-                dataType: 'json',
-                success: function(res) {
-                    if (res.ok) {
-                        showToast('✅ ' + res.msg);
-                        setTimeout(() => location.reload(), 1200);
-                    } else {
-                        showToast('❌ Error: ' + res.msg, 'error');
-                        $btnCol.prop('disabled', false);
-                    }
-                },
-                error: function() {
-                    showToast('❌ Terjadi kesalahan server', 'error');
-                    $btnCol.prop('disabled', false);
-                }
-            });
-        });
     });
 });
 </script>
