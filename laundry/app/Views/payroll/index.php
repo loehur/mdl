@@ -69,9 +69,9 @@
                                     <td><?= htmlspecialchars($p['employee_name']) ?></td>
                                     <td><?= $p['period'] ?></td>
                                     <td class="text-end">Rp <?= number_format($p['amount'], 0, ',', '.') ?></td>
-                                    <td><?= strtoupper(htmlspecialchars($p['bank_code'])) ?></td>
-                                    <td><?= htmlspecialchars($p['bank_acc_number']) ?></td>
-                                    <td><?= strtoupper(htmlspecialchars($p['bank_acc_name'])) ?></td>
+                                    <td><?= !empty($p['bank_code']) ? strtoupper(htmlspecialchars($p['bank_code'])) : '<span class="badge bg-secondary">CASH</span>' ?></td>
+                                    <td><?= !empty($p['bank_acc_number']) ? htmlspecialchars($p['bank_acc_number']) : '<span class="text-muted">-</span>' ?></td>
+                                    <td><?= !empty($p['bank_acc_name']) ? strtoupper(htmlspecialchars($p['bank_acc_name'])) : '<span class="text-muted">-</span>' ?></td>
                                     <td class="text-center">
                                         <span class="badge bg-<?= $statusClass ?>"><?= $statusText ?></span>
                                     </td>
