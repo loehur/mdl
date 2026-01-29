@@ -587,7 +587,7 @@ $(document).ready(function() {
                     currentStep = 2;
                     updateStepUI();
                     $('#otp_wa_display').text(wa);
-                    startOTPCountdown();
+                    startOTPCountdown(); // Default 60 detik untuk OTP baru
                     hideModalAlert(); // Hide alert saat sukses pindah step
                 } else {
                     // Tampilkan error message lengkap
@@ -598,7 +598,22 @@ $(document).ready(function() {
                         console.error('WhatsApp API Response:', res.api_response);
                     }
                     
-                    showModalAlert(errorMsg, 'danger');
+                    // ✅ FIX: Jika OTP masih aktif, tetap lanjutkan ke step 2 (input OTP)
+                    // User masih bisa menggunakan OTP yang sudah dikirim sebelumnya
+                    if (errorMsg.indexOf('OTP masih aktif') !== -1 || errorMsg.indexOf('Gunakan kode OTP yang sudah dikirim') !== -1) {
+                        // OTP masih aktif - lanjutkan ke step 2 agar user bisa input OTP
+                        currentStep = 2;
+                        updateStepUI();
+                        $('#otp_wa_display').text(wa);
+                        // Ekstrak waktu tersisa dari pesan error dan gunakan untuk countdown
+                        var remainingMinutes = extractRemainingMinutes(errorMsg);
+                        startOTPCountdown(remainingMinutes);
+                        // Tampilkan warning (bukan error) karena ini bukan error yang menghalangi
+                        showModalAlert(errorMsg, 'warning');
+                    } else {
+                        // Error lainnya - tetap di step 1
+                        showModalAlert(errorMsg, 'danger');
+                    }
                 }
             },
             error: function(xhr, status, error) {
@@ -628,7 +643,21 @@ $(document).ready(function() {
                     }
                 }
                 
-                showModalAlert(errorMsg, 'danger');
+                // ✅ FIX: Jika OTP masih aktif, tetap lanjutkan ke step 2 (input OTP)
+                if (errorMsg.indexOf('OTP masih aktif') !== -1 || errorMsg.indexOf('Gunakan kode OTP yang sudah dikirim') !== -1) {
+                    // OTP masih aktif - lanjutkan ke step 2 agar user bisa input OTP
+                    currentStep = 2;
+                    updateStepUI();
+                    $('#otp_wa_display').text(wa);
+                    // Ekstrak waktu tersisa dari pesan error dan gunakan untuk countdown
+                    var remainingMinutes = extractRemainingMinutes(errorMsg);
+                    startOTPCountdown(remainingMinutes);
+                    // Tampilkan warning (bukan error) karena ini bukan error yang menghalangi
+                    showModalAlert(errorMsg, 'warning');
+                } else {
+                    // Error lainnya - tetap di step 1
+                    showModalAlert(errorMsg, 'danger');
+                }
             },
             complete: function() {
                 $('#btn_next').prop('disabled', false).html('Lanjut<i class="fas fa-arrow-right ms-1"></i>');
@@ -754,8 +783,10 @@ $(document).ready(function() {
         });
     }
     
-    function startOTPCountdown() {
-        var seconds = 60;
+    function startOTPCountdown(remainingMinutes) {
+        // Jika remainingMinutes tidak diberikan, gunakan default 60 detik
+        // Jika diberikan, konversi menit ke detik (minimum 10 detik untuk UX)
+        var seconds = remainingMinutes ? Math.max(10, remainingMinutes * 60) : 60;
         $('#otp_countdown').text(seconds);
         $('#btn_resend_otp').prop('disabled', true);
         
@@ -770,6 +801,17 @@ $(document).ready(function() {
                 $('#btn_resend_otp').prop('disabled', false).html('Kirim ulang OTP');
             }
         }, 1000);
+    }
+    
+    // Helper function untuk mengekstrak menit tersisa dari pesan error
+    function extractRemainingMinutes(errorMsg) {
+        if (!errorMsg) return null;
+        // Cari pola "Berlaku X menit lagi" atau "X menit lagi"
+        var match = errorMsg.match(/(\d+)\s*menit\s*lagi/i);
+        if (match && match[1]) {
+            return parseInt(match[1]);
+        }
+        return null;
     }
     
     // Resend OTP
