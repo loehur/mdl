@@ -171,11 +171,11 @@ return [
         ],
     ],
     
-    'TARIK_SALDO_TOKOPAY' => [
+    'TARIK_TOKOPAY' => [
         'patterns' => [
-            '/^(tarik|wd)\s*(tokopay)$/i',
+            '/^(tarik|wd)\s*(tokopay) \d+$/i',
         ],
-    ],
+    ],  
 
     'SLIP_GAJI' => [
         'patterns' => [

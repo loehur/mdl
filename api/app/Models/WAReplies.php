@@ -1419,7 +1419,7 @@ class WAReplies
         }
     }
 
-     function handleTarik_saldo_tokopay($phoneIn, $waNumber, $textBody = '')
+     function handleTarik_tokopay($phoneIn, $waNumber, $textBody = '')
     {
         try {
             $hp = ['081268098300', '085278114125'];
