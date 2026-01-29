@@ -23,7 +23,7 @@ class Gaji extends Controller
          $bulan = ['bulan' => date('m'), 'tahun' => date('Y')];
       }
 
-      $data_operasi = ['title' => 'Gaji Bulanan - Rekap'];
+      $data_operasi = ['title' => 'Gaji Bulanan'];
       $data = $this->helper("D_Gaji")->data_olah($userID, $date);
       $data['tanggal'] = $bulan;
       $data['user']['id'] = $userID;
@@ -328,48 +328,52 @@ class Gaji extends Controller
       }
 
       // Cek sudah ada payroll untuk employee_id + period
-      $existing = $this->db(100)->get_where_row('payroll', "employee_id = " . $userID . " AND period = '" . $period . "'");
-      if ($existing) {
-         if (isset($existing['state']) && strtolower($existing['state']) === 'paid') {
-            echo json_encode(['ok' => false, 'msg' => 'Payroll periode ' . $period . ' untuk karyawan ini sudah dibayar.']);
-            return;
-         }
-         // State belum paid: update amount & rekening
-         $set = [
-            'amount' => $amount,
-            'bank_code' => $bank_code,
-            'bank_acc_number' => $bank_acc_number,
-            'bank_acc_name' => $bank_acc_name,
-            'state' => 'pending'
-         ];
-         $where = "employee_id = " . $userID . " AND period = '" . $period . "'";
-         $do = $this->db(100)->update('payroll', $set, $where);
-         if (isset($do['errno']) && $do['errno'] == 0) {
-            echo json_encode(['ok' => true, 'msg' => 'Payroll periode ' . $period . ' berhasil diperbarui.', 'amount' => $amount]);
-         } else {
-            echo json_encode(['ok' => false, 'msg' => 'Gagal update: ' . (isset($do['error']) ? $do['error'] : 'Unknown')]);
-         }
+   $existing = $this->db(100)->get_where_row('payroll', "employee_id = " . $userID . " AND period = '" . $period . "'");
+   if ($existing) {
+      $currentState = isset($existing['state']) ? strtolower($existing['state']) : '';
+      
+      // Jika sudah approved, tidak bisa update
+      if ($currentState === 'approved') {
+         echo json_encode(['ok' => false, 'msg' => 'Payroll periode ' . $period . ' untuk karyawan ini sudah di-approve. Tidak bisa diubah lagi.']);
          return;
       }
-
-      $row = [
-         'employee_id' => $userID,
-         'period' => $period,
+      
+      // State masih draft: update amount & rekening
+      $set = [
          'amount' => $amount,
          'bank_code' => $bank_code,
          'bank_acc_number' => $bank_acc_number,
          'bank_acc_name' => $bank_acc_name,
-         'business' => 'laundry',
-         'state' => 'pending'
+         'state' => 'draft'
       ];
-
-      $do = $this->db(100)->insert('payroll', $row);
+      $where = "employee_id = " . $userID . " AND period = '" . $period . "'";
+      $do = $this->db(100)->update('payroll', $set, $where);
       if (isset($do['errno']) && $do['errno'] == 0) {
-         echo json_encode(['ok' => true, 'msg' => 'Berhasil ditambahkan ke payroll.', 'amount' => $amount]);
+         echo json_encode(['ok' => true, 'msg' => 'Payroll periode ' . $period . ' berhasil diperbarui.', 'amount' => $amount]);
       } else {
-         echo json_encode(['ok' => false, 'msg' => 'Gagal simpan: ' . (isset($do['error']) ? $do['error'] : 'Unknown')]);
+         echo json_encode(['ok' => false, 'msg' => 'Gagal update: ' . (isset($do['error']) ? $do['error'] : 'Unknown')]);
       }
+      return;
    }
+
+   $row = [
+      'employee_id' => $userID,
+      'period' => $period,
+      'amount' => $amount,
+      'bank_code' => $bank_code,
+      'bank_acc_number' => $bank_acc_number,
+      'bank_acc_name' => $bank_acc_name,
+      'business' => 'laundry',
+      'state' => 'draft'
+   ];
+
+   $do = $this->db(100)->insert('payroll', $row);
+   if (isset($do['errno']) && $do['errno'] == 0) {
+      echo json_encode(['ok' => true, 'msg' => 'Berhasil ditambahkan ke payroll.', 'amount' => $amount]);
+   } else {
+      echo json_encode(['ok' => false, 'msg' => 'Gagal simpan: ' . (isset($do['error']) ? $do['error'] : 'Unknown')]);
+   }
+}
 
    /**
     * Export CSV Flip: export data payroll ke format CSV Flip

@@ -22,6 +22,9 @@
                             <button type="button" class="btn btn-primary" id="btnBulkAdd">
                                 <i class="fas fa-users me-1"></i>Add All to Payroll
                             </button>
+                            <button type="button" class="btn btn-warning" id="btnApproveAll">
+                                <i class="fas fa-check-circle me-1"></i>Approve All
+                            </button>
                             <button type="button" class="btn btn-success" id="btnExportCSV" 
                                 <?= empty($data['payrolls']) ? 'disabled' : '' ?>>
                                 <i class="fas fa-file-csv me-1"></i>Export CSV Flip
@@ -56,7 +59,9 @@
                             if (!empty($data['payrolls'])) {
                                 $no = 1;
                                 foreach ($data['payrolls'] as $p) {
-                                    $statusClass = strtolower($p['state']) === 'paid' ? 'success' : 'warning';
+                                    $state = strtolower($p['state']);
+                                    // draft=secondary, approved=success
+                                    $statusClass = $state === 'approved' ? 'success' : 'secondary';
                                     $statusText = strtoupper($p['state']);
                             ?>
                                 <tr>
@@ -71,13 +76,7 @@
                                         <span class="badge bg-<?= $statusClass ?>"><?= $statusText ?></span>
                                     </td>
                                     <td class="text-center">
-                                        <?php if (strtolower($p['state']) === 'pending') { ?>
-                                            <button type="button" class="btn btn-sm btn-success btn-mark-paid" 
-                                                data-id="<?= $p['id'] ?>"
-                                                data-name="<?= htmlspecialchars($p['employee_name']) ?>"
-                                                title="Mark as Paid">
-                                                <i class="fas fa-check"></i>
-                                            </button>
+                                        <?php if ($state === 'draft') { ?>
                                             <button type="button" class="btn btn-sm btn-danger btn-delete" 
                                                 data-id="<?= $p['id'] ?>"
                                                 data-name="<?= htmlspecialchars($p['employee_name']) ?>"
@@ -111,7 +110,7 @@
             <div class="card-footer bg-light">
                 <small class="text-muted">
                     <i class="fas fa-info-circle me-1"></i>
-                    <strong>Pending:</strong> Belum dibayar | <strong>Paid:</strong> Sudah dibayar
+                    <strong>Draft:</strong> Baru dibuat, masih bisa diedit | <strong>Approved:</strong> Sudah di-approve, siap export
                 </small>
             </div>
         </div>
@@ -157,27 +156,20 @@ $(document).ready(function() {
         });
     });
 
-    // Export CSV Flip
-    $('#btnExportCSV').click(function() {
-        window.location.href = '<?= URL::BASE_URL ?>Payroll/export_csv_flip?period=' + currentPeriod;
-    });
-
-    // Mark as Paid
-    $('.btn-mark-paid').click(function() {
-        const payrollId = $(this).data('id');
-        const employeeName = $(this).data('name');
-
-        if (!confirm('Tandai payroll untuk ' + employeeName + ' sebagai PAID?')) {
+    // Approve All Payroll (draft -> approved)
+    $('#btnApproveAll').click(function() {
+        if (!confirm('Approve SEMUA payroll dengan status DRAFT untuk periode ' + currentPeriod + '?\n\nSetelah di-approve, data tidak bisa diubah lagi.')) {
             return;
         }
 
         const $btn = $(this);
-        $btn.prop('disabled', true);
+        const originalHtml = $btn.html();
+        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Processing...');
 
         $.ajax({
-            url: '<?= URL::BASE_URL ?>Payroll/mark_as_paid',
+            url: '<?= URL::BASE_URL ?>Payroll/approve_all',
             method: 'POST',
-            data: { payroll_id: payrollId },
+            data: { period: currentPeriod },
             dataType: 'json',
             success: function(res) {
                 if (res.ok) {
@@ -191,9 +183,14 @@ $(document).ready(function() {
                 alert('❌ Terjadi kesalahan');
             },
             complete: function() {
-                $btn.prop('disabled', false);
+                $btn.prop('disabled', false).html(originalHtml);
             }
         });
+    });
+
+    // Export CSV Flip
+    $('#btnExportCSV').click(function() {
+        window.location.href = '<?= URL::BASE_URL ?>Payroll/export_csv_flip?period=' + currentPeriod;
     });
 
     // Delete Payroll

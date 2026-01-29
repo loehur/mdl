@@ -124,17 +124,21 @@ class Payroll extends Controller
         // Cek sudah ada payroll untuk employee_id + period
         $existing = $this->db(100)->get_where_row('payroll', "employee_id = " . $userID . " AND period = '" . $period . "'");
         if ($existing) {
-            if (isset($existing['state']) && strtolower($existing['state']) === 'paid') {
-                echo json_encode(['ok' => false, 'msg' => 'Payroll periode ' . $period . ' untuk karyawan ini sudah dibayar.']);
+            $currentState = isset($existing['state']) ? strtolower($existing['state']) : '';
+            
+            // Jika sudah approved, tidak bisa update
+            if ($currentState === 'approved') {
+                echo json_encode(['ok' => false, 'msg' => 'Payroll periode ' . $period . ' untuk karyawan ini sudah di-approve. Tidak bisa diubah lagi.']);
                 return;
             }
-            // State belum paid: update amount & rekening
+            
+            // State masih draft: update amount & rekening
             $set = [
                 'amount' => $amount,
                 'bank_code' => $bank_code,
                 'bank_acc_number' => $bank_acc_number,
                 'bank_acc_name' => $bank_acc_name,
-                'state' => 'pending'
+                'state' => 'draft'
             ];
             $where = "employee_id = " . $userID . " AND period = '" . $period . "'";
             $do = $this->db(100)->update('payroll', $set, $where);
@@ -154,7 +158,7 @@ class Payroll extends Controller
             'bank_acc_number' => $bank_acc_number,
             'bank_acc_name' => $bank_acc_name,
             'business' => 'laundry',
-            'state' => 'pending'
+            'state' => 'draft'
         ];
 
         $do = $this->db(100)->insert('payroll', $row);
@@ -198,11 +202,14 @@ class Payroll extends Controller
         foreach ($karyawan as $k) {
             $userID = (int)$k['id_user'];
             
-            // Cek apakah sudah dibayar
+            // Cek apakah sudah approved
             $existing = $this->db(100)->get_where_row('payroll', "employee_id = " . $userID . " AND period = '" . $date . "'");
-            if ($existing && isset($existing['state']) && strtolower($existing['state']) === 'paid') {
-                $skipped++;
-                continue;
+            if ($existing) {
+                $currentState = isset($existing['state']) ? strtolower($existing['state']) : '';
+                if ($currentState === 'approved') {
+                    $skipped++;
+                    continue;
+                }
             }
 
             // Ambil data user
@@ -248,7 +255,7 @@ class Payroll extends Controller
                     'bank_code' => $bank_code,
                     'bank_acc_number' => $bank_acc_number,
                     'bank_acc_name' => $bank_acc_name,
-                    'state' => 'pending'
+                    'state' => 'draft'
                 ];
                 $where = "employee_id = " . $userID . " AND period = '" . $date . "'";
                 $do = $this->db(100)->update('payroll', $set, $where);
@@ -261,7 +268,7 @@ class Payroll extends Controller
                     'bank_acc_number' => $bank_acc_number,
                     'bank_acc_name' => $bank_acc_name,
                     'business' => 'laundry',
-                    'state' => 'pending'
+                    'state' => 'draft'
                 ];
                 $do = $this->db(100)->insert('payroll', $row);
             }
@@ -301,7 +308,8 @@ class Payroll extends Controller
         }
 
         // Query payroll dari db(100) berdasarkan period dan business='laundry'
-        $payrolls = $this->db(100)->get_where('payroll', "period = '" . $this->db(100)->escape($period) . "' AND business = 'laundry' AND state = 'pending'");
+        // Hanya export yang sudah approved
+        $payrolls = $this->db(100)->get_where('payroll', "period = '" . $this->db(100)->escape($period) . "' AND business = 'laundry' AND state = 'approved'");
         
         if (empty($payrolls)) {
             die('Tidak ada data payroll untuk periode ' . $period);
@@ -367,10 +375,10 @@ class Payroll extends Controller
     }
 
     /**
-     * Mark payroll as paid
+     * Approve payroll (draft -> approved)
      * POST: payroll_id
      */
-    public function mark_as_paid()
+    public function approve()
     {
         if (!headers_sent()) {
             header('Content-Type: application/json; charset=utf-8');
@@ -383,15 +391,83 @@ class Payroll extends Controller
             return;
         }
 
-        $set = ['state' => 'paid'];
+        // Cekstate current
+        $payroll = $this->db(100)->get_where_row('payroll', "id = " . $payroll_id);
+        if (!$payroll) {
+            echo json_encode(['ok' => false, 'msg' => 'Payroll tidak ditemukan']);
+            return;
+        }
+
+        $currentState = isset($payroll['state']) ? strtolower($payroll['state']) : '';
+        
+        if ($currentState !== 'draft') {
+            echo json_encode(['ok' => false, 'msg' => 'Hanya payroll dengan status DRAFT yang bisa di-approve']);
+            return;
+        }
+
+        $set = ['state' => 'approved'];
         $where = "id = " . $payroll_id;
         $do = $this->db(100)->update('payroll', $set, $where);
 
         if (isset($do['errno']) && $do['errno'] == 0) {
-            echo json_encode(['ok' => true, 'msg' => 'Status berhasil diubah menjadi PAID']);
+            echo json_encode(['ok' => true, 'msg' => 'Payroll berhasil di-approve']);
         } else {
-            echo json_encode(['ok' => false, 'msg' => 'Gagal update status']);
+            echo json_encode(['ok' => false, 'msg' => 'Gagal approve payroll']);
         }
+    }
+
+    /**
+     * Approve all payroll drafts for a period (draft -> approved)
+     * POST: period (YYYY-MM)
+     */
+    public function approve_all()
+    {
+        if (!headers_sent()) {
+            header('Content-Type: application/json; charset=utf-8');
+        }
+
+        $period = isset($_POST['period']) ? trim($_POST['period']) : '';
+
+        if (!preg_match('/^\d{4}-\d{2}$/', $period)) {
+            echo json_encode(['ok' => false, 'msg' => 'Periode tidak valid. Gunakan format YYYY-MM']);
+            return;
+        }
+
+        // Ambil semua payroll dengan state='draft' untuk periode ini
+        $drafts = $this->db(100)->get_where('payroll', "period = '" . $this->db(100)->escape($period) . "' AND business = 'laundry' AND state = 'draft'");
+
+        if (empty($drafts)) {
+            echo json_encode(['ok' => false, 'msg' => 'Tidak ada payroll dengan status DRAFT untuk periode ' . $period]);
+            return;
+        }
+
+        $success = 0;
+        $failed = 0;
+
+        foreach ($drafts as $d) {
+            $payroll_id = (int)$d['id'];
+            $set = ['state' => 'approved'];
+            $where = "id = " . $payroll_id;
+            $do = $this->db(100)->update('payroll', $set, $where);
+
+            if (isset($do['errno']) && $do['errno'] == 0) {
+                $success++;
+            } else {
+                $failed++;
+            }
+        }
+
+        $msg = "Berhasil approve: $success";
+        if ($failed > 0) {
+            $msg .= ", Gagal: $failed";
+        }
+
+        echo json_encode([
+            'ok' => true,
+            'msg' => $msg,
+            'success' => $success,
+            'failed' => $failed
+        ]);
     }
 
     /**
@@ -411,10 +487,10 @@ class Payroll extends Controller
             return;
         }
 
-        // Cek apakah sudah dibayar
+        // Cek apakah sudah approved
         $payroll = $this->db(100)->get_where_row('payroll', "id = " . $payroll_id);
-        if ($payroll && isset($payroll['state']) && strtolower($payroll['state']) === 'paid') {
-            echo json_encode(['ok' => false, 'msg' => 'Tidak dapat menghapus payroll yang sudah dibayar']);
+        if ($payroll && isset($payroll['state']) && strtolower($payroll['state']) === 'approved') {
+            echo json_encode(['ok' => false, 'msg' => 'Tidak dapat menghapus payroll yang sudah di-approve']);
             return;
         }
 
