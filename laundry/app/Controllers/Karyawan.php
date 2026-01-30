@@ -147,28 +147,37 @@ class Karyawan extends Controller
             $otp = str_pad(mt_rand(0, 999999), 6, '0', STR_PAD_LEFT);
             
             // VERSION CHECK - Jika log ini muncul, berarti file sudah terupload
-            $this->log("=== KARYAWAN.PHP VERSION 3.3 - FIXED ARRAY KEY ===", 'karyawan', 'sendOTP');
+            $this->log("=== KARYAWAN.PHP VERSION 3.4 - FIX CSW CLOSED OTP UPDATE ===", 'karyawan', 'sendOTP');
             
             // Enkripsi OTP menggunakan custom method
             $otp_enc = $this->encryptOTP($otp);
             $this->log("OTP Plain: '{$otp}' | OTP Encrypted: '{$otp_enc}' (length: " . strlen($otp_enc) . ")", 'karyawan', 'sendOTP');
             
-            // Simpan OTP ke database dengan expiry 5 menit
+            // Generate expiry 5 menit dari sekarang (untuk digunakan nanti setelah WA sukses)
             $expiry = date('Y-m-d H:i:s', strtotime('+5 minutes'));
             
-            // Log OTP yang akan disimpan
+            // Log OTP yang akan dikirim
             $this->log("Generated OTP for User ID {$id}: '{$otp}' (length: " . strlen($otp) . ", type: " . gettype($otp) . ")", 'karyawan', 'sendOTP');
-            $this->log("Expiry: {$expiry}", 'karyawan', 'sendOTP');
+            $this->log("Expiry will be: {$expiry}", 'karyawan', 'sendOTP');
             
-            $updateResult = $this->db(0)->update('user', [
-                'otp' => $otp_enc,
-                'otp_active' => $expiry
-            ], "id_user = {$id}");
-            
-            $this->log("Database update result: " . ($updateResult ? 'SUCCESS' : 'FAILED'), 'karyawan', 'sendOTP');
-
-            // Kirim OTP via WhatsApp API
+            // ✅ PENTING: Kirim OTP via WhatsApp API TERLEBIH DAHULU
+            // Jangan update database dulu, karena jika CSW closed maka OTP tidak akan terkirim
+            // dan user harus menunggu 5 menit untuk tidak ada gunanya
             $sendResult = $this->sendWhatsAppOTP($wa, $otp);
+            
+            // ✅ HANYA update database JIKA WhatsApp berhasil terkirim
+            if ($sendResult['status']) {
+                $updateResult = $this->db(0)->update('user', [
+                    'otp' => $otp_enc,
+                    'otp_active' => $expiry
+                ], "id_user = {$id}");
+                
+                $this->log("WhatsApp sent successfully. Database update result: " . ($updateResult ? 'SUCCESS' : 'FAILED'), 'karyawan', 'sendOTP');
+            } else {
+                // WhatsApp gagal terkirim (kemungkinan CSW closed)
+                // TIDAK update OTP ke database, sehingga user bisa langsung retry tanpa menunggu 5 menit
+                $this->log("WhatsApp failed to send. Database NOT updated to avoid unnecessary 5-minute wait.", 'karyawan', 'sendOTP');
+            }
             
             // Clear any buffered output
             ob_end_clean();
