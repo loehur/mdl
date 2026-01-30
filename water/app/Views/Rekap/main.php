@@ -161,6 +161,20 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
                                                     } ?>>12</option>
             </select>
           </td>
+          <td>
+            <label>Tahun</label>
+            <select name="y" class="form-control">
+              <?php 
+              // Generate year options from 2025 to current year
+              $startYear = 2025;
+              $endYear = (int)date('Y');
+              for ($year = $endYear; $year >= $startYear; $year--) {
+                $selected = ($currentYear == $year) ? 'selected' : '';
+                echo "<option value='$year' $selected>$year</option>";
+              }
+              ?>
+            </select>
+          </td>
           <td style="vertical-align: bottom;">
             <button class="btn btn-outline-success w-100">Cek</button>
           </td>
