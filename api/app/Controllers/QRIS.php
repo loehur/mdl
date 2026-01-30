@@ -147,49 +147,50 @@ class QRIS extends Controller
             $isPaid = false;
             $isExpired = false;
 
-            // Check various possible response structures
-            if (isset($data['status'])) {
-                $status_val = $data['status'];
-                if ($status_val === true || $status_val === 1 || $status_val === 'true' || strtolower($status_val) === 'success') {
-                    if (isset($data['data'])) {
-                        if (isset($data['data']['status_pembayaran'])) {
-                            $status_trx = strtolower($data['data']['status_pembayaran']);
-                        } elseif (isset($data['data']['status'])) {
-                            $status_trx = strtolower($data['data']['status']);
-                        } else {
-                            $isPaid = true;
-                        }
-                    } else {
-                        $isPaid = true;
+            // PERBAIKAN KRITIS: Jangan langsung set isPaid=true hanya karena status=true
+            // status=true hanya berarti API call berhasil, BUKAN berarti pembayaran sudah lunas
+            // Hanya set isPaid=true jika ada konfirmasi eksplisit dari status pembayaran
+
+            // Check inside 'data' object first (highest priority)
+            if (isset($data['data'])) {
+                if (isset($data['data']['status_pembayaran']) && !empty($data['data']['status_pembayaran'])) {
+                    $status_trx = strtolower(trim($data['data']['status_pembayaran']));
+                } elseif (isset($data['data']['status']) && !empty($data['data']['status']) && is_string($data['data']['status'])) {
+                    $status_trx = strtolower(trim($data['data']['status']));
+                } elseif (isset($data['data']['status_detail']) && !empty($data['data']['status_detail'])) {
+                    $status_trx = strtolower(trim($data['data']['status_detail']));
+                }
+            }
+
+            // Check at root level (lower priority)
+            if (empty($status_trx)) {
+                if (isset($data['status_pembayaran']) && !empty($data['status_pembayaran'])) {
+                    $status_trx = strtolower(trim($data['status_pembayaran']));
+                } elseif (isset($data['status_detail']) && !empty($data['status_detail'])) {
+                    $status_trx = strtolower(trim($data['status_detail']));
+                } elseif (isset($data['status']) && is_string($data['status']) && !empty($data['status'])) {
+                    // Hanya gunakan jika string dan bukan boolean/numeric
+                    $status_val = strtolower(trim($data['status']));
+                    // Hanya assign jika bukan 'true' atau '1'
+                    if (!in_array($status_val, ['true', '1'])) {
+                        $status_trx = $status_val;
                     }
                 }
             }
 
-            // Check inside 'data' object
-            if (empty($status_trx) && !$isPaid && isset($data['data'])) {
-                if (isset($data['data']['status_pembayaran'])) {
-                    $status_trx = strtolower($data['data']['status_pembayaran']);
-                } elseif (isset($data['data']['status'])) {
-                    $status_trx = strtolower($data['data']['status']);
-                }
+            // Jika tidak ada status apapun yang ditemukan, anggap pending
+            if (empty($status_trx)) {
+                $status_trx = 'pending';
             }
 
-            // Check at root level
-            if (empty($status_trx) && !$isPaid) {
-                if (isset($data['status_pembayaran'])) {
-                    $status_trx = strtolower($data['status_pembayaran']);
-                } elseif (isset($data['status']) && is_string($data['status'])) {
-                    $status_trx = strtolower($data['status']);
-                }
-            }
-
-            // Determine payment status
-            if (!empty($status_trx) && !$isPaid) {
-                if (in_array($status_trx, ['success', 'paid', 'settlement', 'capture'])) {
+            // Determine payment status based on explicit status values
+            if (!empty($status_trx)) {
+                if (in_array($status_trx, ['success', 'paid', 'settlement', 'capture', 'completed'])) {
                     $isPaid = true;
-                } elseif (in_array($status_trx, ['expired', 'cancelled', 'cancel', 'timeout', 'failed', 'fail'])) {
+                } elseif (in_array($status_trx, ['expired', 'cancelled', 'cancel', 'timeout', 'failed', 'fail', 'failure'])) {
                     $isExpired = true;
                 }
+                // Else: status adalah 'pending', 'waiting', 'unpaid', atau lainnya → tetap pending
             }
 
             $this->success([

@@ -143,28 +143,33 @@ class QRISApi
             // 2. Check for status endpoint (has ref_id, nominal, status, atau status_detail)
             elseif (isset($decoded['data']['ref_id']) || isset($decoded['data']['nominal']) || isset($decoded['data']['status']) || isset($decoded['data']['status_detail'])) {
                 // For status endpoint - API mengembalikan status di data.status
-                // Pastikan selalu ada status, default 'pending' jika tidak ada
+                // PERBAIKAN KRITIS: Default ke 'pending', HANYA ubah jika ada status eksplisit yang jelas
                 $status_from_data = 'pending';
                 $status_detail = 'pending';
                 
-                // Prioritaskan status_detail jika ada
-                if (isset($decoded['data']['status_detail']) && !empty($decoded['data']['status_detail']) && $decoded['data']['status_detail'] !== 'unknown') {
-                    $status_detail = strtolower($decoded['data']['status_detail']);
-                    $status_from_data = $status_detail;
+                // Prioritaskan status_detail jika ada dan BUKAN kosong/unknown/boolean
+                if (isset($decoded['data']['status_detail']) && !empty($decoded['data']['status_detail'])) {
+                    $temp_status = strtolower(trim($decoded['data']['status_detail']));
+                    // HANYA gunakan jika bukan 'unknown', 'true', '1' atau nilai boolean
+                    if (!in_array($temp_status, ['unknown', 'true', '1', '']) && !is_bool($decoded['data']['status_detail'])) {
+                        $status_detail = $temp_status;
+                        $status_from_data = $status_detail;
+                    }
                 }
-                // Jika tidak ada status_detail, gunakan status
-                elseif (isset($decoded['data']['status']) && !empty($decoded['data']['status']) && $decoded['data']['status'] !== 'unknown') {
-                    $status_from_data = strtolower($decoded['data']['status']);
-                    $status_detail = $status_from_data;
+                // Jika tidak ada status_detail valid, cek status
+                if ($status_from_data === 'pending' && isset($decoded['data']['status']) && !empty($decoded['data']['status'])) {
+                    // PENTING: Pastikan status adalah string, BUKAN boolean atau numeric
+                    if (is_string($decoded['data']['status'])) {
+                        $temp_status = strtolower(trim($decoded['data']['status']));
+                        // HANYA gunakan jika bukan 'unknown', 'true', '1'
+                        if (!in_array($temp_status, ['unknown', 'true', '1', ''])) {
+                            $status_from_data = $temp_status;
+                            $status_detail = $status_from_data;
+                        }
+                    }
                 }
                 
-                // Jika status kosong atau tidak jelas, default ke 'pending'
-                if (empty($status_from_data) || $status_from_data === 'unknown' || $status_from_data === '') {
-                    $status_from_data = 'pending';
-                    $status_detail = 'pending';
-                }
-                
-                // PASTIKAN selalu return dengan status yang jelas
+                // PASTIKAN selalu return dengan status yang jelas (default 'pending' jika tidak ada status valid)
                 return [
                     'status' => true,
                     'data' => [
@@ -172,7 +177,6 @@ class QRISApi
                         'status_pembayaran' => $status_from_data,
                         'status_detail' => $status_detail
                     ],
-                    'status' => $status_from_data,
                     'status_detail' => $status_detail
                 ];
             } 
