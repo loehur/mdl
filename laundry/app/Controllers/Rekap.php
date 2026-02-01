@@ -121,9 +121,10 @@ class Rekap extends Controller
       $cost_post = $this->db(100)->sum_col_where('postpaid', 'price', $where_prepost);
       $prepost_cost = $cost_pre + $cost_post;
 
-      // OPTIMIZED: Gaji Karyawan - single query with JOIN
+      // Gaji Karyawan - single query with JOIN
+      // Note: tgl in gaji_result stores 'YYYY-MM' format
       $gaji = 0;
-      $gajiDateCondition = $isDaily ? "tgl = '$today'" : "DATE_FORMAT(tgl, '%Y-%m') = '$today'";
+      $gajiDateCondition = "tgl = '$today'";
       
       if ($whereCabang == '') {
          // All branches
