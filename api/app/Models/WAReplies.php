@@ -1166,9 +1166,9 @@ class WAReplies
 
             $dbMain = DB::getInstance(0);
             
-            // Query payroll approved dengan bank_code kosong (Cash) dari db(0)
+            // Query payroll draft & approved dengan bank_code kosong (Cash) dari db(0)
             $cashPayrolls = $dbMain->query(
-                "SELECT id, employee_id, amount, state FROM payroll WHERE period = ? AND business = 'laundry' AND (bank_code = '' OR bank_code IS NULL)",
+                "SELECT id, employee_id, amount, state FROM payroll WHERE period = ? AND business = 'laundry' AND state IN ('approved', 'draft') AND (bank_code = '' OR bank_code IS NULL)",
                 [$period]
             )->result_array();
 
@@ -1177,10 +1177,16 @@ class WAReplies
                 return;
             }
 
+            $draftCount = 0;
+            foreach ($cashPayrolls as $p) {
+                if (strtolower($p['state'] ?? '') === 'draft') $draftCount++;
+            }
+            $statusLabel = $draftCount === 0 ? "Status: APPROVED ✅" : ($draftCount === count($cashPayrolls) ? "Status: DRAFT (belum disetujui)" : "Status: DRAFT & APPROVED");
+
             // Build message
             $text = "*GAJI CASH - PERIODE " . strtoupper($period) . "*\n";
             $text .= "────────────────\n";
-            $text .= "Status: APPROVED ✅\n\n";
+            $text .= $statusLabel . "\n\n";
 
             $total = 0;
             $count = 0;
@@ -1189,6 +1195,7 @@ class WAReplies
                 $employeeId = (int)$p['employee_id'];
                 $amount = (float)$p['amount'];
                 $payrollId = (int)$p['id'];
+                $pState = strtoupper($p['state'] ?? '');
 
                 // Ambil nama karyawan dari db(0) - tabel user
                 $user = $dbMain->query("SELECT nama_user FROM user WHERE id_user = ? LIMIT 1", [$employeeId])->row_array();
@@ -1198,7 +1205,7 @@ class WAReplies
                 $total += $amount;
 
                 $text .= $count . ". *" . strtoupper($namaUser) . "*\n";
-                $text .= "   ID: #" . $payrollId . "\n";
+                $text .= "   ID: #" . $payrollId . " | " . $pState . "\n";
                 $text .= "   Rp" . number_format($amount, 0, ',', '.') . "\n\n";
             }
 
