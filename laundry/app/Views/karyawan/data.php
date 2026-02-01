@@ -367,7 +367,7 @@ $(document).ready(function() {
                     banksLoaded = true;
                     
                     // Opsi kosong SELALU di awal (filter duplikat dari API yang bisa di tengah karena sort)
-                    var options = [{ value: '', text: 'Tanpa Bank' }];
+                    var options = [{ value: '', text: 'Cash' }];
                     
                     // Data dari database - skip entry kosong agar tidak duplikat
                     res.data.forEach(function(bank) {
@@ -446,7 +446,7 @@ $(document).ready(function() {
     // Fallback bank list if API fails
     function loadFallbackBanks() {
         var fallbackBanks = [
-            {value: '', text: 'Tanpa Bank'},
+            {value: '', text: 'Cash'},
             {value: 'bca', text: 'Bank BCA'},
             {value: 'bni', text: 'Bank BNI'},
             {value: 'bri', text: 'Bank BRI'},
@@ -686,7 +686,7 @@ $(document).ready(function() {
                     
                     // Populate confirmation
                     var bankCode = $('#edit_bank_code').val() || '';
-                    var bankName = bankCode ? ($('#edit_bank_code option[value="' + bankCode + '"]').text() || bankCode) : '-';
+                    var bankName = bankCode ? ($('#edit_bank_code option[value="' + bankCode + '"]').text() || bankCode) : 'Cash';
                     var bankAccount = $('#edit_bank_account_number').val().trim();
                     var bankAccountName = $('#edit_bank_account_name').val().trim();
                     
