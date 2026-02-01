@@ -367,7 +367,7 @@ $(document).ready(function() {
                     banksLoaded = true;
                     
                     // Prepare options for selectize - opsi "Tanpa Bank" di awal untuk bisa dikosongkan
-                    var options = [{ value: '', text: 'Tanpa Bank' }];
+                    var options = [{ value: '', text: '-' }];
                     
                     // Data dari database sudah dalam format array
                     res.data.forEach(function(bank) {
