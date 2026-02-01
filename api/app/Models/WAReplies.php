@@ -1078,7 +1078,7 @@ class WAReplies
             $text = "*" . strtoupper($nama_cabang) . " - " . $kode_cabang . "*\n";
             $text .= "*-- SALARY SLIP [".$p_state."] --*\n";
             $text .= "\n";
-            $text .= "*" . strtoupper($nama_user) . "*\n";
+            $text .= "*" . strtoupper($nama_user) . "* #" . $id_user . "\n";
             $text .= "Periode: *" . $dateOn . "*\n";
             $text .= "ID Payroll: *#" . $p_id . "*\n";
             $text .= "────────────────\n\n";
