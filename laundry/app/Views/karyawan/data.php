@@ -366,8 +366,8 @@ $(document).ready(function() {
                     bankList = res.data;
                     banksLoaded = true;
                     
-                    // Prepare options for selectize
-                    var options = [];
+                    // Prepare options for selectize - opsi "Tanpa Bank" di awal untuk bisa dikosongkan
+                    var options = [{ value: '', text: 'Tanpa Bank' }];
                     
                     // Data dari database sudah dalam format array
                     res.data.forEach(function(bank) {
@@ -445,6 +445,7 @@ $(document).ready(function() {
     // Fallback bank list if API fails
     function loadFallbackBanks() {
         var fallbackBanks = [
+            {value: '', text: '-'},
             {value: 'bca', text: 'Bank BCA'},
             {value: 'bni', text: 'Bank BNI'},
             {value: 'bri', text: 'Bank BRI'},
@@ -683,8 +684,8 @@ $(document).ready(function() {
                     hideModalAlert(); // Hide alert saat sukses
                     
                     // Populate confirmation
-                    var bankCode = $('#edit_bank_code').val();
-                    var bankName = $('#edit_bank_code option:selected').text();
+                    var bankCode = $('#edit_bank_code').val() || '';
+                    var bankName = bankCode ? ($('#edit_bank_code option[value="' + bankCode + '"]').text() || bankCode) : 'Tanpa Bank';
                     var bankAccount = $('#edit_bank_account_number').val().trim();
                     var bankAccountName = $('#edit_bank_account_name').val().trim();
                     
