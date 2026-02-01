@@ -283,6 +283,10 @@
     .selectize-control.single .selectize-input:after {
         border-color: #495057 transparent transparent transparent;
     }
+    /* Semua opsi dropdown rata kiri */
+    .selectize-dropdown-content .option {
+        text-align: left !important;
+    }
 </style>
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/selectize.js/0.15.2/css/selectize.bootstrap5.min.css">
