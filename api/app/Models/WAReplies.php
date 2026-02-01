@@ -903,8 +903,26 @@ class WAReplies
 
     function handleSlip_gaji($phoneIn, $waNumber, $textBody = '')
     {
-        $waService = $this->getWaService();
-        
+        $waService = null;
+        $sendErrorToWa = function ($msg) use (&$waService, $waNumber) {
+            try {
+                if (!$waService) {
+                    $waService = $this->getWaService();
+                }
+                if ($waService) {
+                    $waService->sendFreeText($waNumber, $msg);
+                }
+            } catch (\Throwable $ex) {
+                \Log::write("handleSlip_gaji: Failed to send error message - " . $ex->getMessage(), 'wa_error', 'SlipGaji');
+            }
+        };
+
+        try {
+            $waService = $this->getWaService();
+        } catch (\Throwable $e) {
+            \Log::write("handleSlip_gaji: getWaService failed - " . $e->getMessage(), 'wa_error', 'SlipGaji');
+        }
+
         try {
             // Parse phone numbers
             $phones = array_map(function ($p) {
@@ -918,6 +936,15 @@ class WAReplies
             $phoneInStr = "'" . implode("','", array_map(function($p) {
                 return addslashes($p);
             }, $phones)) . "'";
+
+            // Tentukan periode berdasarkan tanggal hari ini (harus di awal, dipakai query payroll & gaji_result)
+            $hariIni = (int)date('d');
+            if ($hariIni >= 1 && $hariIni <= 5) {
+                $date = date('Y-m', strtotime('-1 month'));
+            } else {
+                $date = date('Y-m');
+            }
+            $dateOn = $date;
 
             // Cari user di db(1) berdasarkan nomor HP, jika tidak ada coba db(0)
             // db(1) = mdl_laundry (database laundry)
@@ -998,22 +1025,11 @@ class WAReplies
                         $nama_cabang = $cabang['nama'] ?? 'Cabang';
                         $kode_cabang = $cabang['kode_cabang'] ?? '';
                     }
-                } catch (\Throwable $e) {
-                    \Log::write("handleSlip_gaji: Query cabang failed - " . $e->getMessage(), 'wa_error', 'SlipGaji');
+            } catch (\Throwable $e) {
+                \Log::write("handleSlip_gaji: Query cabang failed - " . $e->getMessage(), 'wa_error', 'SlipGaji');
                     // Continue dengan default values
                 }
             }
-
-            // Tentukan periode berdasarkan tanggal hari ini
-            $hariIni = (int)date('d');
-            if ($hariIni >= 1 && $hariIni <= 5) {
-                // Jika tanggal 1-5, gunakan bulan lalu
-                $date = date('Y-m', strtotime('-1 month'));
-            } else {
-                // Jika tanggal > 5, gunakan bulan ini
-                $date = date('Y-m');
-            }
-            $dateOn = $date;
 
             // Query data gaji_result dari db(1) - database laundry (bukan db(0))
             try {
@@ -1091,25 +1107,34 @@ class WAReplies
             if (method_exists($e, 'getTraceAsString')) {
                 $errorMsg .= "\nStack: " . $e->getTraceAsString();
             }
-            // Log dengan detail lengkap
             \Log::write($errorMsg, 'wa_error', 'SlipGaji');
-            
-            // Log juga phone number untuk debugging
             \Log::write("handleSlip_gaji: phoneIn=$phoneIn, waNumber=$waNumber", 'wa_error', 'SlipGaji');
-            
-            try {
-                $waService = $this->getWaService();
-                $waService->sendFreeText($waNumber, "Maaf, terjadi kesalahan saat mengambil data slip gaji.\nSilakan hubungi admin.");
-            } catch (\Throwable $e2) {
-                \Log::write("handleSlip_gaji: Failed to send error message - " . $e2->getMessage(), 'wa_error', 'SlipGaji');
-            }
+            $sendErrorToWa("Maaf, terjadi kesalahan saat mengambil data slip gaji.\nSilakan hubungi admin.");
         }
     }
 
     function handleGaji_cash($phoneIn, $waNumber, $textBody = '')
     {
-        $waService = $this->getWaService();
-        
+        $waService = null;
+        $sendErrorToWa = function ($msg) use (&$waService, $waNumber) {
+            try {
+                if (!$waService) {
+                    $waService = $this->getWaService();
+                }
+                if ($waService) {
+                    $waService->sendFreeText($waNumber, $msg);
+                }
+            } catch (\Throwable $ex) {
+                \Log::write("handleGaji_cash: Failed to send error message - " . $ex->getMessage(), 'wa_error', 'GajiCash');
+            }
+        };
+
+        try {
+            $waService = $this->getWaService();
+        } catch (\Throwable $e) {
+            \Log::write("handleGaji_cash: getWaService failed - " . $e->getMessage(), 'wa_error', 'GajiCash');
+        }
+
         try {
             $hp = \Env::ADMIN_NUMBERS;
 
@@ -1188,7 +1213,7 @@ class WAReplies
 
         } catch (\Throwable $e) {
             \Log::write("handleGaji_cash ERROR: " . $e->getMessage(), 'wa_error', 'GajiCash');
-            $waService->sendFreeText($waNumber, "Maaf, terjadi kesalahan saat mengambil data gaji cash.");
+            $sendErrorToWa("Maaf, terjadi kesalahan saat mengambil data gaji cash.\nSilakan hubungi admin.");
         }
     }
 
