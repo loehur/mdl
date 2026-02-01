@@ -1234,9 +1234,8 @@ class WAReplies
                 $count++;
                 $total += $amount;
 
-                $text .= $count . ". *" . strtoupper($namaUser) . "*\n";
-                $text .= "   ID: #" . $payrollId . " | " . $pState . "\n";
-                $text .= "   Rp" . number_format($amount, 0, ',', '.') . "\n\n";
+                $text .= "*" . strtoupper($namaUser) . "* #" . $employeeId . "\n";
+                $text .= "   Rp" . number_format($amount, 0, ',', '.') . " - " . $pState . "\n\n";
             }
 
             $text .= "────────────────\n";
