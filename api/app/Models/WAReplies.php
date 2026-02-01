@@ -957,17 +957,19 @@ class WAReplies
             try {
                 // User dari db(1) - laundry database
                 $users = $dbLaundry->query("SELECT id_user, nama_user, id_cabang, bank_code, bank_account_number, bank_account_name FROM user WHERE no_user IN ($phoneInStr) LIMIT 1")->result_array();
-                if (!empty($users)) {
-                    $user = $users[0];
-                    $id_cabang = $user['id_cabang'] ?? 0;
+                if (empty($users)) {
+                    $sendErrorToWa("Maaf, nomor tidak terdaftar sebagai karyawan Madinah Laundry.");
+                    return;
                 }
+                $user = $users[0];
+                $id_cabang = $user['id_cabang'] ?? 0;
             } catch (\Throwable $e) {
                 \Log::write("handleSlip_gaji: Query user failed - " . $e->getMessage() . " | SQL: SELECT id_user, nama_user, id_cabang FROM user WHERE no_user IN ($phoneInStr) LIMIT 1", 'wa_error', 'SlipGaji');
                 throw $e;
             }
             
             if (!$user || !isset($user['id_user'])) {
-                $waService->sendFreeText($waNumber, "Nomor Anda tidak terdaftar sebagai karyawan.");
+                $sendErrorToWa("Maaf, nomor tidak terdaftar sebagai karyawan Madinah Laundry.");
                 return;
             }
             

@@ -168,13 +168,20 @@ $(document).ready(function() {
     const currentPeriod = '<?= $data['period'] ?>';
     const confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
     const secureModal = new bootstrap.Modal(document.getElementById('secureApproveModal'));
-    const statusToast = new bootstrap.Toast(document.getElementById('statusToast'));
+    var toastEl = document.getElementById('statusToast');
+    if (toastEl) window.statusToastInstance = new bootstrap.Toast(toastEl);
 
     function showToast(msg, type = 'success') {
-        const bg = type === 'success' ? 'bg-success' : (type === 'error' ? 'bg-danger' : 'bg-info');
-        $('#statusToast').removeClass('bg-success bg-danger bg-info').addClass(bg);
-        $('#statusToast .toast-body').html(msg);
-        statusToast.show();
+        var el = document.getElementById('statusToast');
+        if (!el) return;
+        var bg = type === 'success' ? 'bg-success' : (type === 'error' ? 'bg-danger' : 'bg-info');
+        $(el).removeClass('bg-success bg-danger bg-info').addClass(bg);
+        $(el).find('.toast-body').html(msg);
+        try {
+            (window.statusToastInstance || new bootstrap.Toast(el)).show();
+        } catch (e) {
+            console.warn('Toast show failed', e);
+        }
     }
 
     function askConfirm(msg, callback) {
@@ -253,9 +260,49 @@ $(document).ready(function() {
         });
     });
 
-    // Export CSV Flip
+    // Export CSV Flip - via fetch agar error tampil di toast, bukan buka halaman baru
     $('#btnExportCSV').click(function() {
-        window.location.href = '<?= URL::BASE_URL ?>Payroll/export_csv_flip?period=' + currentPeriod;
+        var $btn = $(this);
+        var originalHtml = $btn.html();
+        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Export...');
+        var url = '<?= URL::BASE_URL ?>Payroll/export_csv_flip?period=' + encodeURIComponent(currentPeriod);
+        fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function(res) {
+                var ct = res.headers.get('Content-Type') || '';
+                if (!res.ok) {
+                    return res.text().then(function(t) {
+                        try {
+                            var j = JSON.parse(t);
+                            throw (j.msg || j.message || t);
+                        } catch (e) {
+                            if (typeof e === 'string') throw e;
+                            throw t || 'Export gagal';
+                        }
+                    });
+                }
+                if (ct.indexOf('application/json') !== -1) {
+                    return res.json().then(function(j) {
+                        throw (j.msg || j.message || 'Export gagal');
+                    });
+                }
+                return res.blob();
+            })
+            .then(function(blob) {
+                var a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = 'payroll_flip_' + currentPeriod + '.csv';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(a.href);
+                showToast('✅ Export CSV berhasil didownload');
+            })
+            .catch(function(err) {
+                showToast('❌ ' + (err || 'Terjadi kesalahan saat export'), 'error');
+            })
+            .finally(function() {
+                $btn.prop('disabled', false).html(originalHtml);
+            });
     });
 });
 </script>

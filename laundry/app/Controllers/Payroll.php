@@ -206,9 +206,17 @@ class Payroll extends Controller
      */
     public function export_csv_flip()
     {
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+
         $period = isset($_GET['period']) ? trim($_GET['period']) : date('Y-m');
         
         if (!preg_match('/^\d{4}-\d{2}$/', $period)) {
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                http_response_code(400);
+                echo json_encode(['ok' => false, 'msg' => 'Periode tidak valid. Gunakan format YYYY-MM']);
+                return;
+            }
             die('Periode tidak valid. Gunakan format YYYY-MM');
         }
 
@@ -217,6 +225,12 @@ class Payroll extends Controller
         $payrolls = $this->db(100)->get_where('payroll', "period = '" . $this->db(100)->escape($period) . "' AND business = 'laundry' AND state = 'approved'");
         
         if (empty($payrolls)) {
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                http_response_code(400);
+                echo json_encode(['ok' => false, 'msg' => 'Tidak ada data payroll untuk periode ' . $period]);
+                return;
+            }
             die('Tidak ada data payroll untuk periode ' . $period);
         }
 
@@ -266,6 +280,12 @@ class Payroll extends Controller
         }
 
         if ($no === 1) {
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                http_response_code(400);
+                echo json_encode(['ok' => false, 'msg' => 'Tidak ada data approved dengan rincian rekening lengkap. Pastikan bank/rekening terisi.']);
+                return;
+            }
             die('Gagal Export: Tidak ada data approved dengan rincian rekening lengkap.');
         }
 
