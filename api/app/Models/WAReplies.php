@@ -29,7 +29,7 @@ class WAReplies
      * @param int $cooldownMinutes Cooldown period in minutes (default: 10)
      * @return bool True if can send reply
      */
-    private function shouldHandle($waNumber, $handler, $cooldownMinutes = 3)
+    private function shouldHandle($waNumber, $handler, $cooldownMinutes = 1)
     {
         $db = DB::getInstance(0);
 
@@ -1235,7 +1235,7 @@ class WAReplies
                 $total += $amount;
 
                 $text .= "*" . strtoupper($namaUser) . "* #" . $employeeId . "\n";
-                $text .= "   Rp" . number_format($amount, 0, ',', '.') . " - " . $pState . "\n\n";
+                $text .= "Rp" . number_format($amount, 0, ',', '.') . " - " . $pState . "\n\n";
             }
 
             $text .= "────────────────\n";
