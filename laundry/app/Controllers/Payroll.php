@@ -51,12 +51,26 @@ class Payroll extends Controller
         // Ambil daftar karyawan aktif untuk bulk add to payroll
         $karyawan = $this->db(0)->get_cols_where('user', 'id_user, nama_user', 'en = 1', 1);
 
+        $total_amount = array_sum(array_column($payrollData, 'amount'));
+        $total_cash = 0;
+        $total_transfer = 0;
+        foreach ($payrollData as $p) {
+            $amt = (float)($p['amount'] ?? 0);
+            if (empty(trim($p['bank_code'] ?? ''))) {
+                $total_cash += $amt;
+            } else {
+                $total_transfer += $amt;
+            }
+        }
+
         $this->view('layout', ['data_operasi' => $data_operasi]);
         $this->view('payroll/index', [
             'period' => $period,
             'payrolls' => $payrollData,
             'karyawan' => $karyawan,
-            'total_amount' => array_sum(array_column($payrollData, 'amount'))
+            'total_amount' => $total_amount,
+            'total_cash' => $total_cash,
+            'total_transfer' => $total_transfer
         ]);
     }
 

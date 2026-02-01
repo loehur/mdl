@@ -32,9 +32,11 @@
                         </div>
                     </div>
                     <div class="col-md-4 text-end">
-                        <h5 class="mb-0">
-                            Total: <span class="badge bg-success">Rp <?= number_format($data['total_amount'], 0, ',', '.') ?></span>
-                        </h5>
+                        <div class="d-flex flex-column align-items-end gap-1">
+                            <div class="small text-muted">Total: <span class="badge bg-success">Rp <?= number_format($data['total_amount'] ?? 0, 0, ',', '.') ?></span></div>
+                            <div class="small">Cash (bank kosong): <span class="badge bg-secondary">Rp <?= number_format($data['total_cash'] ?? 0, 0, ',', '.') ?></span></div>
+                            <div class="small">Transfer: <span class="badge bg-primary">Rp <?= number_format($data['total_transfer'] ?? 0, 0, ',', '.') ?></span></div>
+                        </div>
                     </div>
                 </div>
 
