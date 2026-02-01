@@ -1072,9 +1072,9 @@ class WAReplies
             $totalTer = $totalGaji - $totalPot;
 
             $text .= "────────────────\n";
-            $text .= "Total: Rp" . number_format($totalGaji, 0, ',', '.') . "\n";
+            $text .= "*Total: Rp" . number_format($totalGaji, 0, ',', '.') . "*\n";
             $text .= "Potongan: -Rp" . number_format($totalPot, 0, ',', '.') . "\n";
-            $text .= "*Diterima: Rp" . number_format($totalTer, 0, ',', '.')."*\n";
+            $text .= "Diterima: Rp" . number_format($totalTer, 0, ',', '.')."\n";
             $text .= "\n";
             
             // Tambahkan informasi rekening pencairan
@@ -1084,7 +1084,7 @@ class WAReplies
                 // Data rekening lengkap - tampilkan informasi bank
                 $text .= "*" . $nama_bank . "* \n";
                 $text .= "*" . $bank_account_number . "* \n";
-                $text .= "*" . $bank_account_name . "*";
+                $text .= "*" . strtoupper($bank_account_name) . "*";
             } else {
                 // Data rekening tidak lengkap - tampilkan Cash
                 $text .= "*Cash*";
