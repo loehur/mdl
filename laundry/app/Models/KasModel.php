@@ -66,6 +66,9 @@ class KasModel extends Controller
             } else {
                 $jumlah = $value;
             }
+            
+            // Ensure jumlah is integer to prevent floating point precision issues
+            $jumlah = intval(round($jumlah));
 
             if ($metode == 3) {
                 $q_cr = "id_client = '$id_pelanggan' AND jenis_transaksi = 6 AND jenis_mutasi = 1 AND status_mutasi = 3";

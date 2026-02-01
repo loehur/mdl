@@ -330,6 +330,8 @@ $labeled = false;
               } else {
                 $total = ($f7 * $qty_real);
               }
+              // Round to prevent floating point precision issues (e.g., 49999.9999 -> 50000)
+              $total = round($total);
             } else {
               $total = 0;
             }
@@ -584,8 +586,9 @@ $labeled = false;
           if ($totalBayar > 0) {
             $enHapus = false;
           }
-          $sisaTagihan = intval($subTotal) - $dibayar;
-          $sisaTagihanFinal = intval($subTotal) - $totalBayar;
+          // Use round() to handle any remaining floating point issues
+          $sisaTagihan = intval(round($subTotal)) - intval($dibayar);
+          $sisaTagihanFinal = intval(round($subTotal)) - intval($totalBayar);
           echo "<span class='d-none' id='member" . $ref . "'>" . $countMember[$ref] . "</span>";
 
           $buttonHapus = "";
@@ -867,10 +870,10 @@ $labeled = false;
     $totalBayar = array_sum($historyBayar);
     $dibayar_M = array_sum($hisDibayar);
     $showSisa = "";
-    $sisa = $harga;
+    $sisa = intval($harga);
     $lunas[$ref] = false;
     $enHapus = true;
-    $sisa = $harga - $dibayar_M;
+    $sisa = intval($harga) - intval($dibayar_M);
 
     if ($dibayar_M > 0) {
       $enHapus = false;

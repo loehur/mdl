@@ -225,6 +225,8 @@ $idOperan = $data['idOperan'];
           $total = 0;
           if ($diskon_qty > 0) {
             $total = ($f7 * $qty_real) - (($f7 * $qty_real) * ($diskon_qty / 100));
+            // Round to prevent floating point precision issues
+            $total = round($total);
           } else {
             $total = ($f7 * $qty_real);
           }
@@ -305,7 +307,8 @@ $idOperan = $data['idOperan'];
             if ($totalBayar > 0) {
               $enHapus = false;
             }
-            $sisaTagihan = intval($subTotal) - $totalBayar;
+            // Use round() to handle floating point precision issues
+            $sisaTagihan = intval(round($subTotal)) - intval($totalBayar);
             $textPoin = "";
             if (isset($arrTotalPoin[$noref]) && $arrTotalPoin[$noref] > 0) {
               $textPoin = "Poin (+" . $arrTotalPoin[$noref] . ")";

@@ -478,6 +478,8 @@ if (count($data['data_main']) == 0) {
               } else {
                 $total = ($f7 * $qty_real);
               }
+              // Round to prevent floating point precision issues
+              $total = round($total);
             } else {
               $total = 0;
             }
@@ -582,7 +584,8 @@ if (count($data['data_main']) == 0) {
             }
           }
 
-          $sisaTagihan = intval($subTotal) - $totalBayar;
+          // Use round() to handle floating point precision issues
+          $sisaTagihan = intval(round($subTotal)) - intval($totalBayar);
 
           echo "<tr class='row" . $ref . " d-none'>";
           echo "<td class='text-center'><span class='d-none'>" . $pelanggan . "</span></td>";

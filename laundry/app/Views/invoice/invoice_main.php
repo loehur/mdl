@@ -375,6 +375,8 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
                 } else {
                     $total = $f7 * $qty_real;
                 }
+                // Round to prevent floating point precision issues (e.g., 49999.9999 -> 50000)
+                $total = round($total);
             } else {
                 $total = 0;
             }
@@ -546,7 +548,8 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
                 }
 
                 $Rtotal_dibayar = $Rtotal_dibayar + $totalBayar;
-                $sisaTagihan = intval($subTotal) - $totalBayar;
+                // Use round() to handle floating point precision issues
+                $sisaTagihan = intval(round($subTotal)) - intval($totalBayar);
                 if ($sisaTagihan < 1) {
                     $lunas = true;
                 }
@@ -736,20 +739,20 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
             }
 
             $statusBayar = '';
-            $totalBayar = array_sum($historyBayar);
+            $totalBayar = intval(array_sum($historyBayar));
             $showSisa = '';
-            $sisa = $harga;
+            $sisa = intval($harga);
             $lunas = false;
             $enHapus = true;
             if ($totalBayar > 0) {
                 $enHapus = false;
-                if ($totalBayar >= $harga) {
+                if ($totalBayar >= $sisa) {
                     $lunas = true;
                     $statusBayar =
                         "<b><i class='fas fa-check text-success'></i></b>";
                     $sisa = 0;
                 } else {
-                    $sisa = $harga - $totalBayar;
+                    $sisa = intval($harga) - $totalBayar;
                     $showSisa =
                         "<b><i class='fas fa-exclamation-circle'></i> Sisa Rp" .
                         number_format($sisa) .

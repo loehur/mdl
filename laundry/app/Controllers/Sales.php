@@ -60,8 +60,9 @@ class Sales extends Controller
                $allPaid = false;
             }
          }
-         $group['total_paid'] = $totalPaid;
-         $group['sisa'] = $group['total'] - $totalPaid;
+         $group['total_paid'] = intval($totalPaid);
+         // Use intval to prevent floating point precision issues (e.g., sisa = 0.9999 -> 1)
+         $group['sisa'] = intval(round($group['total'])) - intval($totalPaid);
          
          // Self-healing: Jika sudah lunas tapi masih muncul (state=0), update jadi state=1
          if ($group['sisa'] <= 0 && $allPaid && count($group['payments']) > 0) {
@@ -1006,8 +1007,9 @@ class Sales extends Controller
          foreach ($payments as $payment) {
             $totalPaid += ($payment['jumlah'] ?? 0);
          }
-         $group['total_paid'] = $totalPaid;
-         $group['sisa'] = $group['total'] - $totalPaid;
+         $group['total_paid'] = intval($totalPaid);
+         // Use intval to prevent floating point precision issues
+         $group['sisa'] = intval(round($group['total'])) - intval($totalPaid);
       }
       unset($group);
       

@@ -387,6 +387,8 @@ $modeView = $data['modeView'];
         } else {
           $total = ($f7 * $qty_real);
         }
+        // Round to prevent floating point precision issues
+        $total = round($total);
       } else {
         $total = 0;
       }
@@ -488,7 +490,8 @@ $modeView = $data['modeView'];
           }
         }
 
-        $sisaTagihan = intval($subTotal) - $totalBayar;
+        // Use round() to handle floating point precision issues
+        $sisaTagihan = intval(round($subTotal)) - intval($totalBayar);
         echo "<span class='d-none' id='member" . $urutRef . "'>" . $countMember . "</span>";
 
         if ($sisaTagihan < 1) {

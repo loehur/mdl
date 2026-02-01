@@ -268,9 +268,10 @@
                 $enHapus = false;
               }
 
-              $sisaTagihan = $subTotal - $totalBayar;
+              // Use round() to handle floating point precision issues
+              $sisaTagihan = intval(round($subTotal)) - intval($totalBayar);
               $showSisa = "";
-              if ($sisaTagihan < $subTotal && $sisaTagihan > 0) {
+              if ($sisaTagihan < intval(round($subTotal)) && $sisaTagihan > 0) {
                 $showSisa = "(Sisa Rp" . $sisaTagihan . ")";
               }
 

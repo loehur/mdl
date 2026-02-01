@@ -132,12 +132,12 @@ foreach ($this->pelanggan as $dp) {
     $dibayar_M = array_sum($hisDibayar);
 
     $showSisa = "";
-    $sisa = $harga;
+    $sisa = intval($harga);
     $lunas = false;
     $enHapus = true;
     if ($totalBayar > 0) {
       $enHapus = false;
-      if ($totalBayar >= $harga) {
+      if ($totalBayar >= $sisa) {
         $lunas = true;
         $statusBayar = "<b><i class='fas fa-check-circle text-success'></i></b>";
       } else {
@@ -147,7 +147,7 @@ foreach ($this->pelanggan as $dp) {
       $lunas = false;
     }
 
-    $sisa = $harga - $dibayar_M;
+    $sisa = intval($harga) - intval($dibayar_M);
 
     if ($dibayar_M > 0 && $sisa > 0) {
       $showSisa = "<b><i class='fas fa-exclamation-circle'></i> Sisa Rp" . number_format($sisa) . "</b>";
