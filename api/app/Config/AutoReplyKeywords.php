@@ -179,7 +179,7 @@ return [
 
     'SLIP_GAJI' => [
         'patterns' => [
-            '/^(slip|gaji|slip gaji)$/i',
+            '/^(slip|gaji)$/i',
         ],
     ],
 

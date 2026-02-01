@@ -903,6 +903,34 @@ class WAReplies
 
     function handleSlip_gaji($phoneIn, $waNumber, $textBody = '')
     {
+        $parts = preg_split('/\s+/', $textBody);
+        $id_user = isset($parts[1]) ? intval($parts[1]) : null;
+
+        if($id_user != null) {
+            $hp = \Env::ADMIN_NUMBERS;
+
+            // Parse phone numbers and check authorization
+            $phones = array_map(function ($p) {
+                return trim($p, "' ");
+            }, explode(',', $phoneIn));
+            $cleanWaNumber = preg_replace('/[^0-9]/', '', $waNumber);
+            $phone0 = '0' . substr($cleanWaNumber, 2);
+            $phones[] = $phone0;
+            $phones[] = $cleanWaNumber;
+            $phones = array_unique(array_filter($phones));
+
+            // Only allowed phones can access this
+            $intersect = array_intersect($phones, $hp);
+            if (empty($intersect)) {
+                return;
+            }
+            
+            // Admin dengan ID user spesifik - langsung ambil data user by ID, tidak pakai nomor
+            $skipPhoneCheck = true;
+        } else {
+            $skipPhoneCheck = false;
+        }
+
         $waService = null;
         $sendErrorToWa = function ($msg) use (&$waService, $waNumber) {
             try {
@@ -955,8 +983,14 @@ class WAReplies
             $id_cabang = 0;
             
             try {
-                // User dari db(1) - laundry database
-                $users = $dbLaundry->query("SELECT id_user, nama_user, id_cabang, bank_code, bank_account_number, bank_account_name FROM user WHERE no_user IN ($phoneInStr) LIMIT 1")->result_array();
+                if ($skipPhoneCheck && $id_user !== null) {
+                    // Admin request dengan ID user spesifik - ambil langsung by ID
+                    $users = $dbLaundry->query("SELECT id_user, nama_user, id_cabang, bank_code, bank_account_number, bank_account_name FROM user WHERE id_user = ?", [$id_user])->result_array();
+                } else {
+                    // User biasa - cari by nomor HP
+                    $users = $dbLaundry->query("SELECT id_user, nama_user, id_cabang, bank_code, bank_account_number, bank_account_name FROM user WHERE no_user IN ($phoneInStr) LIMIT 1")->result_array();
+                }
+                
                 if (empty($users)) {
                     $sendErrorToWa("Maaf, nomor tidak terdaftar sebagai karyawan Madinah Laundry.");
                     return;
