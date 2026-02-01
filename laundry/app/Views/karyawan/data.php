@@ -366,15 +366,16 @@ $(document).ready(function() {
                     bankList = res.data;
                     banksLoaded = true;
                     
-                    // Opsi kosong SELALU di awal (filter duplikat dari API yang bisa di tengah karena sort)
-                    var options = [{ value: '', text: 'Cash' }];
+                    // Opsi Cash SELALU di awal - pakai sortOrder agar selectize tidak urutkan abjad
+                    var options = [{ value: '', text: 'Cash', sortOrder: 0 }];
+                    var order = 1;
                     
                     // Data dari database - skip entry kosong agar tidak duplikat
                     res.data.forEach(function(bank) {
                         var code = (bank.code || bank.bank_code || '').toString().trim();
                         if (!code) return; // skip entry kosong
                         var name = bank.name || code.toUpperCase();
-                        options.push({ value: code, text: name });
+                        options.push({ value: code, text: name, sortOrder: order++ });
                     });
                     
                     // Initialize selectize
@@ -427,7 +428,7 @@ $(document).ready(function() {
         // Prepend empty option untuk placeholder (akan selalu di atas)
         var allOptions = [].concat(options);
         
-        // Initialize selectize with options
+        // Initialize selectize - sortField: sortOrder agar Cash (0) selalu paling atas
         var $select = $('#edit_bank_code').selectize({
             options: allOptions,
             valueField: 'value',
@@ -435,7 +436,7 @@ $(document).ready(function() {
             searchField: 'text',
             placeholder: 'Ketik untuk mencari bank...',
             create: false,
-            sortField: null, // Disable sorting agar urutan tetap seperti array
+            sortField: 'sortOrder',
             maxItems: 1,
             allowEmptyOption: true
         });
@@ -446,19 +447,19 @@ $(document).ready(function() {
     // Fallback bank list if API fails
     function loadFallbackBanks() {
         var fallbackBanks = [
-            {value: '', text: 'Cash'},
-            {value: 'bca', text: 'Bank BCA'},
-            {value: 'bni', text: 'Bank BNI'},
-            {value: 'bri', text: 'Bank BRI'},
-            {value: 'mandiri', text: 'Bank Mandiri'},
-            {value: 'bsi', text: 'Bank Syariah Indonesia'},
-            {value: 'cimb', text: 'CIMB Niaga'},
-            {value: 'permata', text: 'Bank Permata'},
-            {value: 'danamon', text: 'Bank Danamon'},
-            {value: 'gopay', text: 'GoPay'},
-            {value: 'ovo', text: 'OVO'},
-            {value: 'dana', text: 'DANA'},
-            {value: 'shopeepay', text: 'ShopeePay'}
+            {value: '', text: 'Cash', sortOrder: 0},
+            {value: 'bca', text: 'Bank BCA', sortOrder: 1},
+            {value: 'bni', text: 'Bank BNI', sortOrder: 2},
+            {value: 'bri', text: 'Bank BRI', sortOrder: 3},
+            {value: 'mandiri', text: 'Bank Mandiri', sortOrder: 4},
+            {value: 'bsi', text: 'Bank Syariah Indonesia', sortOrder: 5},
+            {value: 'cimb', text: 'CIMB Niaga', sortOrder: 6},
+            {value: 'permata', text: 'Bank Permata', sortOrder: 7},
+            {value: 'danamon', text: 'Bank Danamon', sortOrder: 8},
+            {value: 'gopay', text: 'GoPay', sortOrder: 9},
+            {value: 'ovo', text: 'OVO', sortOrder: 10},
+            {value: 'dana', text: 'DANA', sortOrder: 11},
+            {value: 'shopeepay', text: 'ShopeePay', sortOrder: 12}
         ];
         
         // Initialize selectize with fallback banks
