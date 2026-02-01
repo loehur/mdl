@@ -1168,7 +1168,7 @@ class WAReplies
             
             // Query payroll approved dengan bank_code kosong (Cash) dari db(0)
             $cashPayrolls = $dbMain->query(
-                "SELECT id, employee_id, amount, state FROM payroll WHERE period = ? AND business = 'laundry' AND state = 'approved' AND (bank_code = '' OR bank_code IS NULL)",
+                "SELECT id, employee_id, amount, state FROM payroll WHERE period = ? AND business = 'laundry' AND (bank_code = '' OR bank_code IS NULL)",
                 [$period]
             )->result_array();
 
