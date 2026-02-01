@@ -366,12 +366,13 @@ $(document).ready(function() {
                     bankList = res.data;
                     banksLoaded = true;
                     
-                    // Prepare options for selectize - opsi "Tanpa Bank" di awal untuk bisa dikosongkan
-                    var options = [{ value: '', text: '-' }];
+                    // Opsi kosong SELALU di awal (filter duplikat dari API yang bisa di tengah karena sort)
+                    var options = [{ value: '', text: 'Tanpa Bank' }];
                     
-                    // Data dari database sudah dalam format array
+                    // Data dari database - skip entry kosong agar tidak duplikat
                     res.data.forEach(function(bank) {
-                        var code = bank.code || bank.bank_code;
+                        var code = (bank.code || bank.bank_code || '').toString().trim();
+                        if (!code) return; // skip entry kosong
                         var name = bank.name || code.toUpperCase();
                         options.push({ value: code, text: name });
                     });
@@ -445,7 +446,7 @@ $(document).ready(function() {
     // Fallback bank list if API fails
     function loadFallbackBanks() {
         var fallbackBanks = [
-            {value: '', text: '-'},
+            {value: '', text: 'Tanpa Bank'},
             {value: 'bca', text: 'Bank BCA'},
             {value: 'bni', text: 'Bank BNI'},
             {value: 'bri', text: 'Bank BRI'},

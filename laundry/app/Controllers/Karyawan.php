@@ -379,12 +379,14 @@ class Karyawan extends Controller
                 return;
             }
             
-            // Format data bank untuk frontend
+            // Format data bank untuk frontend - skip entry kosong (opsi kosong ditambah di frontend)
             $bankList = [];
             foreach ($banks as $bank) {
+                $code = trim($bank['bank_code'] ?? '');
+                if ($code === '') continue; // skip agar tidak duplikat di tengah list
                 $bankList[] = [
-                    'code' => $bank['bank_code'] ?? '',
-                    'name' => $bank['name'] ?? ''
+                    'code' => $code,
+                    'name' => $bank['name'] ?? $code
                 ];
             }
             
