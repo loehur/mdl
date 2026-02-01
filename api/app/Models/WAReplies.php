@@ -946,27 +946,20 @@ class WAReplies
             }
             $dateOn = $date;
 
-            // Cari user di db(1) berdasarkan nomor HP, jika tidak ada coba db(0)
-            // db(1) = mdl_laundry (database laundry)
-            // db(0) = mdl_main (database central)
-            $dbLaundry = DB::getInstance(1); // Database laundry
-            $dbMain = DB::getInstance(0); // Database main/central
+            // db(0) = mdl_main (central) → payroll
+            // db(1) = mdl_laundry → user, cabang, gaji_result, banks
+            $dbMain = DB::getInstance(0);   // db(0) untuk payroll saja
+            $dbLaundry = DB::getInstance(1); // db(1) untuk tabel lainnya
             
             $user = null;
             $id_cabang = 0;
             
             try {
-                // Coba cari di db(1) dulu (laundry database) - ambil juga data bank
+                // User dari db(1) - laundry database
                 $users = $dbLaundry->query("SELECT id_user, nama_user, id_cabang, bank_code, bank_account_number, bank_account_name FROM user WHERE no_user IN ($phoneInStr) LIMIT 1")->result_array();
                 if (!empty($users)) {
                     $user = $users[0];
                     $id_cabang = $user['id_cabang'] ?? 0;
-                } else {
-                    // Jika tidak ada di db(1), coba cari di db(0) (central database)
-                    $users = $dbMain->query("SELECT id_user, nama_user FROM user WHERE no_user IN ($phoneInStr) LIMIT 1")->result_array();
-                    if (!empty($users)) {
-                        $user = $users[0];
-                    }
                 }
             } catch (\Throwable $e) {
                 \Log::write("handleSlip_gaji: Query user failed - " . $e->getMessage() . " | SQL: SELECT id_user, nama_user, id_cabang FROM user WHERE no_user IN ($phoneInStr) LIMIT 1", 'wa_error', 'SlipGaji');
@@ -1164,9 +1157,10 @@ class WAReplies
                 $period = date('Y-m');
             }
 
-            $dbMain = DB::getInstance(0);
-            
-            // Query payroll draft & approved dengan bank_code kosong (Cash) dari db(0)
+            $dbMain = DB::getInstance(0);   // db(0) untuk payroll
+            $dbLaundry = DB::getInstance(1); // db(1) untuk tabel lainnya
+
+            // Query payroll dari db(0) - draft & approved dengan bank_code kosong (Cash)
             $cashPayrolls = $dbMain->query(
                 "SELECT id, employee_id, amount, state FROM payroll WHERE period = ? AND business = 'laundry' AND state IN ('approved', 'draft') AND (bank_code = '' OR bank_code IS NULL)",
                 [$period]
@@ -1197,8 +1191,8 @@ class WAReplies
                 $payrollId = (int)$p['id'];
                 $pState = strtoupper($p['state'] ?? '');
 
-                // Ambil nama karyawan dari db(0) - tabel user
-                $user = $dbMain->query("SELECT nama_user FROM user WHERE id_user = ? LIMIT 1", [$employeeId])->row_array();
+                // Ambil nama karyawan dari db(1) - tabel user
+                $user = $dbLaundry->query("SELECT nama_user FROM user WHERE id_user = ? LIMIT 1", [$employeeId])->row_array();
                 $namaUser = $user['nama_user'] ?? 'Unknown';
 
                 $count++;
