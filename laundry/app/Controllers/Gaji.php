@@ -42,6 +42,7 @@ class Gaji extends Controller
       $bonus_target = $_POST['bonus_target'];
       $max_target = $_POST['max_target'];
 
+      $data_main = $this->db(0)->count_where('gaji_laundry', "id_karyawan = " . $id_user . " AND jenis_penjualan = " . $penjualan . " AND id_layanan = " . $id_layanan);
       if ($data_main < 1) {
          $data = [
             'id_karyawan' => $id_user,

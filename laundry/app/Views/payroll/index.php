@@ -255,7 +255,6 @@ $(document).ready(function() {
     $('#btnExportCSV').click(function() {
         window.location.href = '<?= URL::BASE_URL ?>Payroll/export_csv_flip?period=' + currentPeriod;
     });
-    });
 });
 </script>
 
