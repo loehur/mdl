@@ -689,16 +689,21 @@ $(document).ready(function() {
                     updateStepUI();
                     hideModalAlert(); // Hide alert saat sukses
                     
-                    // Populate confirmation
+                    // Populate confirmation - jika salah satu kosong, jadi kosong semua (Cash)
                     var bankCode = $('#edit_bank_code').val() || '';
-                    var bankName = bankCode ? ($('#edit_bank_code option[value="' + bankCode + '"]').text() || bankCode) : 'Cash';
                     var bankAccount = $('#edit_bank_account_number').val().trim();
                     var bankAccountName = $('#edit_bank_account_name').val().trim();
+                    if (!bankCode || !bankAccount || !bankAccountName) {
+                        bankCode = '';
+                        bankAccount = '';
+                        bankAccountName = '';
+                    }
+                    var bankName = bankCode ? ($('#edit_bank_code option[value="' + bankCode + '"]').text() || bankCode) : 'Cash';
                     
                     $('#confirm_wa').text(verifiedData.wa);
                     $('#confirm_bank').text(bankName);
-                    $('#confirm_rekening').text(bankAccount);
-                    $('#confirm_pemilik').text(bankAccountName);
+                    $('#confirm_rekening').text(bankAccount || '-');
+                    $('#confirm_pemilik').text(bankAccountName || '-');
                     
                     // Stash for saving
                     verifiedData.bank_code = bankCode;
