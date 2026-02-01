@@ -179,7 +179,7 @@ return [
 
     'SLIP_GAJI' => [
         'patterns' => [
-            '/^slip$/i',
+            '/^slip(\s+\d+)?$/i',  // "slip" atau "slip 123" (spasi + angka berapa digit)
         ],
     ],
 
