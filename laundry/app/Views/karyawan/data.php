@@ -685,7 +685,7 @@ $(document).ready(function() {
                     
                     // Populate confirmation
                     var bankCode = $('#edit_bank_code').val() || '';
-                    var bankName = bankCode ? ($('#edit_bank_code option[value="' + bankCode + '"]').text() || bankCode) : 'Tanpa Bank';
+                    var bankName = bankCode ? ($('#edit_bank_code option[value="' + bankCode + '"]').text() || bankCode) : '-';
                     var bankAccount = $('#edit_bank_account_number').val().trim();
                     var bankAccountName = $('#edit_bank_account_name').val().trim();
                     
