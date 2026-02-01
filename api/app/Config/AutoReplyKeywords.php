@@ -179,13 +179,13 @@ return [
 
     'SLIP_GAJI' => [
         'patterns' => [
-            '/^(slip|gaji)$/i',
+            '/^slip$/i',
         ],
     ],
 
     'GAJI_CASH' => [
         'patterns' => [
-            '/^(gaji (cash|kes))$/i',
+            '/^gaji cash$/i',
         ],
     ],
 ];
