@@ -142,6 +142,18 @@ class QRIS extends Controller
                 $this->error('Gagal cek status ke TokoPay: ' . $data['message'], 500);
             }
 
+            // Jika order tidak ditemukan / tidak ada data transaksi, JANGAN anggap paid - return pending
+            if (empty($data) || (isset($data['data']) && !is_array($data['data']))) {
+                $this->success([
+                    'ref_id' => $ref_id,
+                    'nominal' => $nominal,
+                    'status' => 'pending',
+                    'status_detail' => 'pending',
+                    'raw_response' => $data
+                ], 'Status pembayaran berhasil diambil');
+                return;
+            }
+
             // Parse status from response
             $status_trx = '';
             $isPaid = false;

@@ -605,9 +605,19 @@ trait Attributes
       $gateway = defined('URL::PAYMENT_GATEWAY') ? URL::PAYMENT_GATEWAY : 'midtrans';
 
       if ($gateway == 'tokopay') {
+         // PENTING: Untuk QRIS, cek status HANYA jika QR pernah digenerate (ada payment_trx_id).
+         // Tanpa payment_trx_id, order belum pernah dibuat di TokoPay - jangan panggil API
+         // karena bisa mengembalikan respons salah dan salah anggap "paid".
+         $payment_trx_id = isset($kas['payment_trx_id']) ? trim($kas['payment_trx_id']) : '';
+         if (empty($payment_trx_id)) {
+            // QR belum pernah digenerate = user belum lihat kode QR, pasti masih pending
+            echo json_encode(['status' => 'PENDING', 'msg' => 'Silakan klik tombol untuk melihat kode QR terlebih dahulu']);
+            exit();
+         }
+         // Gunakan payment_trx_id (order_id yang dikirim ke TokoPay), BUKAN ref_finance
          $this->helper('QRISApi');
          $qrisApi = new QRISApi();
-         $statusResponse = $qrisApi->checkStatus($ref_finance, $kas['jumlah'], 'QRIS');
+         $statusResponse = $qrisApi->checkStatus($payment_trx_id, $kas['jumlah'], 'QRIS');
          // Convert API response to TokoPay format for compatibility
          if (is_array($statusResponse)) {
             // API returns array, convert to TokoPay format
@@ -622,12 +632,12 @@ trait Attributes
             $data = json_decode($statusResponse, true);
          }
 
-         $isPaid = false;
-         if (isset($data['data']['status'])) {
-            if (strtolower($data['data']['status']) == 'success' || strtolower($data['data']['status']) == 'paid') {
-               $isPaid = true;
-            }
+         // HANYA anggap paid jika status eksplisit dari API (bukan hanya response sukses)
+         $status_detail = isset($statusResponse['status_detail']) ? strtolower(trim($statusResponse['status_detail'])) : '';
+         if (empty($status_detail) && isset($data['data']['status'])) {
+            $status_detail = is_string($data['data']['status']) ? strtolower(trim($data['data']['status'])) : '';
          }
+         $isPaid = in_array($status_detail, ['success', 'paid', 'settlement', 'capture', 'completed'], true);
 
          if ($isPaid) {
             $update = $this->db(0)->update('kas', ['status_mutasi' => 3], "ref_finance = '$ref_finance'");

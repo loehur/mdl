@@ -842,9 +842,10 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
             </td>
             <td class='text-end'><button class="btn btn-sm btn-white">Rp<?= number_format($fh['total']) ?></button></td>
             <td class="text-end">
+                <?php $isQRIS = (isset($fh['note']) && strtoupper($fh['note']) === 'QRIS'); ?>
                 <button type='button' class='btn btn-light btn-sm tokopayOrder text-primary' data-ref='<?= $fh['ref_finance'] ?>'
                   data-total='<?= (int) $fh['total'] ?>'
-                  data-note='<?= $fh['note'] ?>'>Cek Status</button>
+                  data-note='<?= $fh['note'] ?>'><?= $isQRIS ? 'Scan QR' : 'Cek Status' ?></button>
                 <?php if ($fh['status'] != 3) { ?>
                 <button type='button' class='btn btn-sm btn-link text-danger cancelPayment p-0 ms-1' 
                     data-ref='<?= $fh['ref_finance'] ?>'
@@ -1212,7 +1213,7 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
         });
     });
 
-    // Cek Status Pembayaran (Mirroring Operasi logic)
+    // Tombol pembayaran: QRIS = ambil/tampilkan QR dulu, Non-QRIS = cek status
     $('.tokopayOrder').on('click', function(e) {
         e.preventDefault();
         var ref = $(this).data('ref');
@@ -1220,11 +1221,12 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
         var total = $(this).data('total');
         var btn = $(this);
         var originalText = btn.text();
+        var isQRIS = note && note.toUpperCase() === 'QRIS';
         
-        btn.prop('disabled', true).text('Checking...');
+        btn.prop('disabled', true).text(isQRIS ? 'Memuat QR...' : 'Checking...');
 
-        if (note && note.toUpperCase() === 'QRIS') {
-            // QRIS: Call payment_gateway_order to get QR string (same as Operasi view)
+        if (isQRIS) {
+            // QRIS: Selalu panggil payment_gateway_order untuk dapat QR string (bukan cek status)
             $.ajax({
                 url: '<?= URL::BASE_URL ?>I/payment_gateway_order/' + ref + '?nominal=' + total + '&metode=' + encodeURIComponent(note),
                 type: 'GET',
