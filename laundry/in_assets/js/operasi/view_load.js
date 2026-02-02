@@ -367,7 +367,11 @@
             }, 3000);
 
           } else {
-            showAlert("Status: " + (res.status || "Unknown") + "\nSilahkan cek ulang beberapa saat lagi.", "info");
+            var msg = (res.msg || "Silahkan cek ulang beberapa saat lagi.");
+            if (res.status === 'PENDING' && msg.indexOf('lihat kode QR') !== -1) {
+              msg = "Silakan buka kode QR terlebih dahulu (klik tombol QRIS di riwayat), lalu scan dan bayar. Setelah itu baru cek status.";
+            }
+            showAlert("Status: " + (res.status || "Unknown") + "\n" + msg, "info");
             $(btn).html(originalHtml);
             $(btn).removeClass('disabled').prop('disabled', false);
           }
@@ -400,7 +404,7 @@
           type: "GET",
           beforeSend: function () {
             $(btn).addClass('disabled').prop('disabled', true);
-            $(btn).html('<i class="fas fa-spinner fa-spin"></i>');
+            $(btn).html('<i class="fas fa-spinner fa-spin"></i> Memuat QR...');
           },
           success: function (response) {
             // Try to parse JSON if it's a string

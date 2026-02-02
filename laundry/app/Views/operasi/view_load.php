@@ -1061,9 +1061,10 @@ $labeled = false;
             </td>
             <td class=''>
               <?php if ((int) $fh['status'] === 2) { ?>
+                <?php $isQRIS = !empty($fh['note']) && strtoupper($fh['note']) === 'QRIS'; ?>
                 <button type='button' class='btn btn-warning btn-sm tokopayOrder' data-ref='<?= $fh['ref_finance'] ?>'
                   data-total='<?= (int) $fh['total'] ?>'
-                  data-note='<?= $fh['note'] ?>'><?= !empty($fh['note']) ? $fh['note'] : 'Cek' ?></button>
+                  data-note='<?= $fh['note'] ?>'><?= $isQRIS ? 'Scan QR' : (!empty($fh['note']) ? $fh['note'] : 'Cek') ?></button>
               <?php } else {
                 echo $fh['note'];
               } ?>

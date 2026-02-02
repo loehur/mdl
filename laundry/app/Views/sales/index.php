@@ -665,7 +665,11 @@
           btn.removeClass('btn-warning').addClass('btn-success').html('<i class="fas fa-check"></i> PAID');
           location.reload();
         } else {
-          showSalesAlert('Status: ' + (res.status || 'Unknown') + '\nSilahkan cek ulang beberapa saat lagi.', 'error');
+          var msg = (res.msg || 'Silahkan cek ulang beberapa saat lagi.');
+          if (res.status === 'PENDING' && msg.indexOf('lihat kode QR') !== -1) {
+            msg = 'Silakan buka kode QR terlebih dahulu (klik tombol QR di riwayat), lalu scan dan bayar. Setelah itu baru cek status.';
+          }
+          showSalesAlert('Status: ' + (res.status || 'Unknown') + '\n' + msg, 'error');
           btn.prop('disabled', false).html(originalHtml);
         }
       },
