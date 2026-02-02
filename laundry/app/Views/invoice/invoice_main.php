@@ -1080,14 +1080,38 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
               </button>
             </div>
           </div>
-        </div>
-      </div>
     </div>
+  </div>
+</div>
+
+    <!-- Toast container (fixed bottom-right) -->
+    <div id="invoiceToastContainer" class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 9999;"></div>
 
     <script>
     var nonTunaiGuide = <?= json_encode($data['nonTunaiGuide'] ?? []) ?>;
     var customerName = '<?= addslashes($dPelanggan['nama_pelanggan']) ?>';
     var currentQRData = { qrString: '', total: 0, nama: '', ref_id: '' };
+
+    // Toast helper: type = 'success'|'info'|'warning'|'error'
+    function showToast(type, message) {
+        var container = document.getElementById('invoiceToastContainer');
+        if (!container) return;
+        var bg = type === 'error' ? 'danger' : (type === 'success' ? 'success' : (type === 'warning' ? 'warning' : 'info'));
+        var icon = type === 'error' ? 'fa-exclamation-circle' : (type === 'success' ? 'fa-check-circle' : (type === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle'));
+        var id = 'toast-' + Date.now();
+        var html = '<div id="' + id + '" class="toast align-items-center text-bg-' + bg + ' border-0" role="alert">' +
+            '<div class="d-flex">' +
+            '<div class="toast-body"><i class="fas ' + icon + ' me-2"></i>' + (message || '').replace(/\n/g, '<br>') + '</div>' +
+            '<button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>' +
+            '</div></div>';
+        container.insertAdjacentHTML('beforeend', html);
+        var el = document.getElementById(id);
+        if (el && typeof bootstrap !== 'undefined' && bootstrap.Toast) {
+            var t = new bootstrap.Toast(el, { delay: 4500 });
+            el.addEventListener('hidden.bs.toast', function() { el.remove(); });
+            t.show();
+        }
+    }
 
     // Copy to clipboard helper
     function copyToClipboard(text, btn) {
@@ -1100,7 +1124,7 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
                 $(btn).removeClass('btn-success').addClass(originalHtml.includes('danger') ? 'btn-outline-danger' : 'btn-outline-secondary');
             }, 1500);
         }).catch(function() {
-            alert('Gagal menyalin. Silakan copy manual.');
+            showToast('error', 'Gagal menyalin. Silakan copy manual.');
         });
     }
 
@@ -1183,7 +1207,7 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
         var data = currentQRData;
 
         if (!data || !data.ref_id) {
-            alert('Data transaksi tidak ditemukan.');
+            showToast('warning', 'Data transaksi tidak ditemukan.');
             return;
         }
 
@@ -1202,12 +1226,13 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
                         location.reload();
                     }, 1500);
                 } else {
-                    alert('Status: ' + (response.status || 'Unknown') + '\nSilahkan cek ulang beberapa saat lagi.');
+                    var msg = (response.msg || 'Silahkan cek ulang beberapa saat lagi.');
+                    showToast('info', 'Status: ' + (response.status || 'Unknown') + '. ' + msg);
                     btn.prop('disabled', false).html(originalHtml);
                 }
             },
             error: function() {
-                alert('Gagal mengecek status.');
+                showToast('error', 'Gagal mengecek status.');
                 btn.prop('disabled', false).html(originalHtml);
             }
         });
@@ -1249,29 +1274,14 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
                         showQR(qrString, total, customerName, false, null, ref);
                     } else {
                         // QRIS Maintenance - Show friendly error message
-                        var errorMsg = "🔧 QRIS Sedang Dalam Perbaikan\n\n";
-                        errorMsg += "Mohon maaf, layanan QRIS sementara tidak tersedia.\n";
-                        errorMsg += "Silakan gunakan metode pembayaran lain atau coba beberapa saat lagi.\n\n";
-                        errorMsg += "Detail Teknis:\n";
-                        errorMsg += JSON.stringify(response, null, 2);
-                        
-                        alert(errorMsg);
+                        var errorMsg = "QRIS sedang dalam perbaikan. Mohon maaf, layanan sementara tidak tersedia. Silakan gunakan metode pembayaran lain atau coba beberapa saat lagi.";
+                        showToast('warning', errorMsg);
                     }
                 },
                 error: function(xhr, status, error) {
                     btn.prop('disabled', false).text(originalText);
-                    // Show friendly error message
-                    var errorMsg = "🔧 QRIS Sedang Dalam Perbaikan\n\n";
-                    errorMsg += "Mohon maaf, sistem pembayaran QRIS sementara tidak dapat diakses.\n";
-                    errorMsg += "Silakan coba lagi dalam beberapa saat atau gunakan metode pembayaran lain.\n\n";
-                    errorMsg += "Detail Teknis:\n";
-                    errorMsg += "Error: " + error + "\n";
-                    errorMsg += "Status: " + status + "\n";
-                    if (xhr.responseText) {
-                        errorMsg += "\nResponse: " + xhr.responseText;
-                    }
-                    
-                    alert(errorMsg);
+                    var errorMsg = "QRIS sementara tidak dapat diakses. Silakan coba lagi atau gunakan metode pembayaran lain.";
+                    showToast('error', errorMsg);
                 }
             });
         } else {
