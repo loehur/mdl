@@ -101,6 +101,11 @@ class PayBill extends Controller
             $update = $this->db(0)->update('postpaid', $set, ['ref_id' => $ref_id]);
             if ($update) {
                 $msg .= $dt['description'] . " - PAY - " . $a['message'] . "\n";
+                // Kirim WA jika pembayaran gagal (tr_status 3 = pending/failed)
+                if ($tr_status == 3) {
+                    $alert = $dt['description'] . " - PAY GAGAL - " . $message . " (RC:" . $rc . ")";
+                    $this->sendWaNotif($this->waPrivate, $alert);
+                }
             } else {
                 $alert = "POSTPAID ERROR - Update postpaid failed";
                 $msg .= $alert . "\n";
@@ -207,10 +212,12 @@ class PayBill extends Controller
                     $ref_id = $a['ref_id'];
 
                     if ($a['tr_status'] == 3) {
-                        // Cek status karena sudah pernah dibayar
-                        $output .= $this->cek_after_bayar($ref_id, $dt, $a, $month);
+                        // tr_status 3 = pending/failed. Retry bayar (bukan cek status) agar:
+                        // - jika gagal (saldo tidak cukup): retry + kirim WA saat gagal lagi
+                        // - jika pending: post_pay bisa return status terbaru
+                        $output .= $this->bayar_after_cek($ref_id, $dt, $a, $month);
                     } else {
-                        // Bayar karena sudah pernah di cek
+                        // Bayar karena sudah pernah di cek (tr_status 0)
                         $output .= $this->bayar_after_cek($ref_id, $dt, $a, $month);
                     }
                 }
