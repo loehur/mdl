@@ -101,11 +101,8 @@ class PayBill extends Controller
             $update = $this->db(0)->update('postpaid', $set, ['ref_id' => $ref_id]);
             if ($update) {
                 $msg .= $dt['description'] . " - PAY - " . $a['message'] . "\n";
-                // Kirim WA jika pembayaran gagal (tr_status 3 = pending/failed)
-                if ($tr_status == 3) {
-                    $alert = $dt['description'] . " - PAY GAGAL - " . $message . " (RC:" . $rc . ")";
-                    $this->sendWaNotif($this->waPrivate, $alert);
-                }
+                $alert = $dt['description'] . " - PAY - " . $message . " (RC:" . $rc . ")";
+                $this->sendWaNotif($this->waPrivate, $alert);
             } else {
                 $alert = "POSTPAID ERROR - Update postpaid failed";
                 $msg .= $alert . "\n";
