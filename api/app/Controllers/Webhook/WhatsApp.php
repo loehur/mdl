@@ -2,6 +2,7 @@
 
 namespace App\Controllers\Webhook;
 
+use App\Config\Env;
 use App\Core\Controller;
 
 /**
@@ -241,15 +242,8 @@ class WhatsApp extends Controller
                  $lastMessageSummary = $typeLabels[$messageType] ?? "[$messageType]";
             }
             
-            // Check if message is private (for last_message formatting)
-            $isPrivateForLastMessage = false;
-            if (!empty($lastMessageSummary)) {
-                $lastMessageSummaryLower = mb_strtolower($lastMessageSummary);
-                if (stripos($lastMessageSummaryLower, 'kode otp') !== false || 
-                    stripos($lastMessageSummaryLower, 'salary slip') !== false) {
-                    $isPrivateForLastMessage = true;
-                }
-            }
+            // Check if message is private (for last_message formatting, uses Env::WA_PRIVATE_WORDS)
+            $isPrivateForLastMessage = Env::textContainsPrivateWord($lastMessageSummary);
 
         } catch (\Exception $e) {
             \Log::write("Error processing user data: " . $e->getMessage(), 'webhook', 'WhatsApp');

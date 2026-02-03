@@ -2,6 +2,7 @@
 
 namespace App\Helpers;
 
+use App\Config\Env;
 use App\Config\WhatsApp as WhatsAppConfig;
 
 /**
@@ -643,19 +644,9 @@ class WhatsAppService
             }
             
             // Check if message is private (for last_message formatting)
-            $contentLower = mb_strtolower($content ?? '');
-            $messageTextLower = mb_strtolower($messageText ?? '');
-            $lastMessageTextLower = mb_strtolower($lastMessageText ?? '');
-            
-            $isPrivateForLastMessage = false;
-            if (stripos($contentLower, 'kode otp') !== false || 
-                stripos($contentLower, 'salary slip') !== false ||
-                stripos($messageTextLower, 'kode otp') !== false || 
-                stripos($messageTextLower, 'salary slip') !== false ||
-                stripos($lastMessageTextLower, 'kode otp') !== false || 
-                stripos($lastMessageTextLower, 'salary slip') !== false) {
-                $isPrivateForLastMessage = true;
-            }
+            $isPrivateForLastMessage = Env::textContainsPrivateWord($content)
+                || Env::textContainsPrivateWord($messageText)
+                || Env::textContainsPrivateWord($lastMessageText);
 
             // Load DB class if not already loaded
             if (!class_exists('\\App\\Core\\DB')) {
@@ -781,22 +772,10 @@ class WhatsAppService
                 }
             }
             
-            // Check if message contains sensitive keywords (case-insensitive)
-            // Check after lastMessageText is determined
-            $isPrivate = false;
-            $contentLower = mb_strtolower($content ?? '');
-            $messageTextLower = mb_strtolower($messageText ?? '');
-            $lastMessageTextLower = mb_strtolower($lastMessageText ?? '');
-            
-            // Check for "kode otp" or "salary slip" in content, messageText, or lastMessageText
-            if (stripos($contentLower, 'kode otp') !== false || 
-                stripos($contentLower, 'salary slip') !== false ||
-                stripos($messageTextLower, 'kode otp') !== false || 
-                stripos($messageTextLower, 'salary slip') !== false ||
-                stripos($lastMessageTextLower, 'kode otp') !== false || 
-                stripos($lastMessageTextLower, 'salary slip') !== false) {
-                $isPrivate = true;
-            }
+            // Check if message contains sensitive keywords (from Env::WA_PRIVATE_WORDS)
+            $isPrivate = Env::textContainsPrivateWord($content)
+                || Env::textContainsPrivateWord($messageText)
+                || Env::textContainsPrivateWord($lastMessageText);
             
             // Save outbound message to wa_messages_out
             $messageData = [

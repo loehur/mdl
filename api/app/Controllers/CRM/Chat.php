@@ -2,6 +2,7 @@
 
 namespace App\Controllers\CRM;
 
+use App\Config\Env;
 use App\Core\Controller;
 
 class Chat extends Controller
@@ -301,7 +302,7 @@ class Chat extends Controller
         // Normalize private field to integer (0 or 1) for consistent frontend handling
         foreach ($messages as &$msg) {
             // Debug: Log all message keys to see what we're getting
-            if (isset($msg['text']) && (stripos($msg['text'], 'kode otp') !== false || stripos($msg['text'], 'salary slip') !== false)) {
+            if (isset($msg['text']) && Env::textContainsPrivateWord($msg['text'])) {
                 \Log::write("Message keys: " . implode(', ', array_keys($msg)), 'crm', 'chat');
             }
             

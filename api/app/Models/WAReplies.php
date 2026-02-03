@@ -1211,10 +1211,10 @@ class WAReplies
             foreach ($cashPayrolls as $p) {
                 if (strtolower($p['state'] ?? '') === 'draft') $draftCount++;
             }
-            $statusLabel = $draftCount === 0 ? "Status: APPROVED ✅" : ($draftCount === count($cashPayrolls) ? "Status: DRAFT (belum disetujui)" : "Status: DRAFT & APPROVED");
+            $statusLabel = $draftCount === 0 ? "Status: APPROVED ✅" : ($draftCount === count($cashPayrolls) ? "Status: DRAFT 🟨" : "Status: DRAFT & APPROVED 🟡");
 
             // Build message
-            $text = "*GAJI CASH - PERIODE " . strtoupper($period) . "*\n";
+            $text = "*GAJI CASH - " . strtoupper($period) . "*\n";
             $text .= "────────────────\n";
             $text .= $statusLabel . "\n\n";
 
@@ -1227,6 +1227,8 @@ class WAReplies
                 $payrollId = (int)$p['id'];
                 $pState = strtoupper($p['state'] ?? '');
 
+                $simState = $pState == 'APPROVED' ? '✅' : ($pState == 'DRAFT' ? '🟨' : '🟡');
+
                 // Ambil nama karyawan dari db(1) - tabel user
                 $user = $dbLaundry->query("SELECT nama_user FROM user WHERE id_user = ? LIMIT 1", [$employeeId])->row_array();
                 $namaUser = $user['nama_user'] ?? 'Unknown';
@@ -1234,8 +1236,8 @@ class WAReplies
                 $count++;
                 $total += $amount;
 
-                $text .= "*" . strtoupper($namaUser) . "* #" . $employeeId . "\n";
-                $text .= "Rp" . number_format($amount, 0, ',', '.') . " - " . $pState . "\n\n";
+                $text .= $simState . " *" . strtoupper($namaUser) . "* #" . $employeeId . "\n";
+                $text .= "Rp" . number_format($amount, 0, ',', '.') . "\n\n";
             }
 
             $text .= "────────────────\n";
