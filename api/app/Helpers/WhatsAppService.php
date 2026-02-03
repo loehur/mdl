@@ -2,7 +2,6 @@
 
 namespace App\Helpers;
 
-use App\Config\Env;
 use App\Config\WhatsApp as WhatsAppConfig;
 
 /**
@@ -644,9 +643,9 @@ class WhatsAppService
             }
             
             // Check if message is private (for last_message formatting)
-            $isPrivateForLastMessage = Env::textContainsPrivateWord($content)
-                || Env::textContainsPrivateWord($messageText)
-                || Env::textContainsPrivateWord($lastMessageText);
+            $isPrivateForLastMessage = \Env::textContainsPrivateWord($content)
+                || \Env::textContainsPrivateWord($messageText)
+                || \Env::textContainsPrivateWord($lastMessageText);
 
             // Load DB class if not already loaded
             if (!class_exists('\\App\\Core\\DB')) {
@@ -773,9 +772,9 @@ class WhatsAppService
             }
             
             // Check if message contains sensitive keywords (from Env::WA_PRIVATE_WORDS)
-            $isPrivate = Env::textContainsPrivateWord($content)
-                || Env::textContainsPrivateWord($messageText)
-                || Env::textContainsPrivateWord($lastMessageText);
+            $isPrivate = \Env::textContainsPrivateWord($content)
+                || \Env::textContainsPrivateWord($messageText)
+                || \Env::textContainsPrivateWord($lastMessageText);
             
             // Save outbound message to wa_messages_out
             $messageData = [
