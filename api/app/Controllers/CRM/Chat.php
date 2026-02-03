@@ -300,11 +300,6 @@ class Chat extends Controller
         
         // Normalize private field to integer (0 or 1) for consistent frontend handling
         foreach ($messages as &$msg) {
-            // Debug: Log all message keys to see what we're getting
-            if (isset($msg['text']) && \Env::textContainsPrivateWord($msg['text'])) {
-                \Log::write("Message keys: " . implode(', ', array_keys($msg)), 'crm', 'chat');
-            }
-            
             // Ensure private field exists and is integer
             // Handle both array key access and potential null values
             $privateValue = $msg['private'] ?? $msg['`private`'] ?? null;
