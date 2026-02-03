@@ -643,9 +643,16 @@ class WhatsAppService
             }
             
             // Check if message is private (for last_message formatting)
-            $isPrivateForLastMessage = \Env::textContainsPrivateWord($content)
-                || \Env::textContainsPrivateWord($messageText)
-                || \Env::textContainsPrivateWord($lastMessageText);
+            $isPrivateForLastMessage = false;
+            try {
+                if (class_exists('Env', false)) {
+                    $isPrivateForLastMessage = \Env::textContainsPrivateWord($content ?? '')
+                        || \Env::textContainsPrivateWord($messageText ?? '')
+                        || \Env::textContainsPrivateWord($lastMessageText ?? '');
+                }
+            } catch (\Throwable $e) {
+                // Jangan gagalkan simpan chat jika cek private error
+            }
 
             // Load DB class if not already loaded
             if (!class_exists('\\App\\Core\\DB')) {
@@ -772,10 +779,17 @@ class WhatsAppService
             }
             
             // Check if message contains sensitive keywords (from Env::WA_PRIVATE_WORDS)
-            $isPrivate = \Env::textContainsPrivateWord($content)
-                || \Env::textContainsPrivateWord($messageText)
-                || \Env::textContainsPrivateWord($lastMessageText);
-            
+            $isPrivate = false;
+            try {
+                if (class_exists('Env', false)) {
+                    $isPrivate = \Env::textContainsPrivateWord($content ?? '')
+                        || \Env::textContainsPrivateWord($messageText ?? '')
+                        || \Env::textContainsPrivateWord($lastMessageText ?? '');
+                }
+            } catch (\Throwable $e) {
+                // Jangan gagalkan simpan chat jika cek private error
+            }
+
             // Save outbound message to wa_messages_out
             $messageData = [
                 // 'conversation_id' => $conversationId, // Removed as column deleted

@@ -242,10 +242,21 @@ class WhatsApp extends Controller
             }
             
             // Check if message is private (for last_message formatting, uses Env::WA_PRIVATE_WORDS)
-            $isPrivateForLastMessage = \Env::textContainsPrivateWord($lastMessageSummary);
+            $isPrivateForLastMessage = false;
+            try {
+                if (class_exists('Env', false)) {
+                    $isPrivateForLastMessage = \Env::textContainsPrivateWord($lastMessageSummary ?? '');
+                }
+            } catch (\Throwable $e) {
+                // Jangan gagalkan simpan chat jika cek private error
+            }
 
         } catch (\Exception $e) {
             \Log::write("Error processing user data: " . $e->getMessage(), 'webhook', 'WhatsApp');
+        }
+
+        if (!isset($isPrivateForLastMessage)) {
+            $isPrivateForLastMessage = false;
         }
 
         $textBody = null;
