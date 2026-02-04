@@ -116,105 +116,19 @@ class QRISApi
         if ($error) {
             return [
                 'status' => false,
-                'message' => 'Connection Error: ' . $error,
-                'error_msg' => $error
+                'message' => 'Connection Error: ' . $error
             ];
         }
         
         $decoded = json_decode($response, true);
         
-        // Handle API response format
-        if (isset($decoded['status']) && $decoded['status'] === true && isset($decoded['data'])) {
-            // API returns {status: true, message: "...", data: {...}}
-            // Convert to format compatible with old TokoPay response
-            
-            // 1. Check for generate endpoint (has qr_string)
-            if (isset($decoded['data']['qr_string'])) {
-                // For generate endpoint - return in TokoPay format
-                // JANGAN tambahkan 'status' => 'success' di data karena akan dianggap paid
-                return [
-                    'status' => true,
-                    'data' => [
-                        'qr_string' => $decoded['data']['qr_string']
-                    ],
-                    'qr_string' => $decoded['data']['qr_string']
-                ];
-            } 
-            // 2. Check for status endpoint (has ref_id, nominal, status, atau status_detail)
-            elseif (isset($decoded['data']['ref_id']) || isset($decoded['data']['nominal']) || isset($decoded['data']['status']) || isset($decoded['data']['status_detail'])) {
-                // For status endpoint - API mengembalikan status di data.status
-                // PERBAIKAN KRITIS: Default ke 'pending', HANYA ubah jika ada status eksplisit yang jelas
-                $status_from_data = 'pending';
-                $status_detail = 'pending';
-                
-                // Prioritaskan status_detail jika ada dan BUKAN kosong/unknown/boolean
-                if (isset($decoded['data']['status_detail']) && !empty($decoded['data']['status_detail'])) {
-                    $temp_status = strtolower(trim($decoded['data']['status_detail']));
-                    // HANYA gunakan jika bukan 'unknown', 'true', '1' atau nilai boolean
-                    if (!in_array($temp_status, ['unknown', 'true', '1', '']) && !is_bool($decoded['data']['status_detail'])) {
-                        $status_detail = $temp_status;
-                        $status_from_data = $status_detail;
-                    }
-                }
-                // Jika tidak ada status_detail valid, cek status
-                if ($status_from_data === 'pending' && isset($decoded['data']['status']) && !empty($decoded['data']['status'])) {
-                    // PENTING: Pastikan status adalah string, BUKAN boolean atau numeric
-                    if (is_string($decoded['data']['status'])) {
-                        $temp_status = strtolower(trim($decoded['data']['status']));
-                        // HANYA gunakan jika bukan 'unknown', 'true', '1'
-                        if (!in_array($temp_status, ['unknown', 'true', '1', ''])) {
-                            $status_from_data = $temp_status;
-                            $status_detail = $status_from_data;
-                        }
-                    }
-                }
-                
-                // PASTIKAN selalu return dengan status yang jelas (default 'pending' jika tidak ada status valid)
-                return [
-                    'status' => true,
-                    'data' => [
-                        'status' => $status_from_data,
-                        'status_pembayaran' => $status_from_data,
-                        'status_detail' => $status_detail
-                    ],
-                    'status_detail' => $status_detail
-                ];
-            } 
-            // 3. Check for status_detail only
-            elseif (isset($decoded['data']['status_detail'])) {
-                // Fallback jika hanya ada status_detail
-                $status_detail = strtolower($decoded['data']['status_detail']);
-                if (empty($status_detail) || $status_detail === 'unknown') {
-                    $status_detail = 'pending';
-                }
-                return [
-                    'status' => true,
-                    'data' => [
-                        'status' => $status_detail,
-                        'status_pembayaran' => $status_detail
-                    ],
-                    'status' => $status_detail,
-                    'status_detail' => $status_detail
-                ];
-            } 
-            // 4. For other endpoints (balance, withdraw)
-            else {
-                // For other endpoints (balance, withdraw), return data directly wrapped in TokoPay format
-                return [
-                    'status' => true,
-                    'data' => $decoded['data']
-                ];
-            }
-        } elseif (isset($decoded['status']) && $decoded['status'] === false) {
-            // API error response
-            return [
-                'status' => false,
-                'message' => $decoded['message'] ?? 'API Error',
-                'data' => $decoded['data'] ?? null
-            ];
-        }
+        // API sekarang sudah return format sederhana:
+        // Generate: {status, trx_id, ref_id, qr_string}
+        // Status: {status, trx_id, ref_id, payment_status}
+        // Error: {status, message}
         
-        // Fallback: return decoded response as-is
+        // Return as-is, sudah dalam format yang benar
         return $decoded ?: ['status' => false, 'message' => 'Invalid response'];
     }
+
 }

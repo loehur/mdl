@@ -1091,6 +1091,7 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
     var nonTunaiGuide = <?= json_encode($data['nonTunaiGuide'] ?? []) ?>;
     var customerName = '<?= addslashes($dPelanggan['nama_pelanggan']) ?>';
     var currentQRData = { qrString: '', total: 0, nama: '', ref_id: '' };
+    var invoiceQRPollInterval = null;
 
     // Toast helper: type = 'success'|'info'|'warning'|'error'
     function showToast(type, message) {
@@ -1195,6 +1196,31 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
                 devLabel.classList.add('d-none');
             }
         }
+
+        // Polling status dari DB setiap 3 detik
+        function stopInvoiceQRPoll() {
+            if (invoiceQRPollInterval) {
+                clearInterval(invoiceQRPollInterval);
+                invoiceQRPollInterval = null;
+            }
+        }
+        function doPoll() {
+            $.getJSON('<?= URL::BASE_URL ?>I/payment_gateway_status_poll/' + ref_id).done(function(res) {
+                if (res.status === 'PAID') {
+                    stopInvoiceQRPoll();
+                    $('#qrcode').html('<div class="text-success text-center"><i class="fas fa-check-circle fa-5x"></i><h3 class="mt-2">LUNAS/PAID</h3></div>');
+                    $('#btnCekStatusQR').removeClass('btn-warning').addClass('btn-success').html('<i class="fas fa-check"></i> PAID');
+                    setTimeout(function() { location.reload(); }, 1500);
+                }
+            });
+        }
+        if (invoiceQRPollInterval) { stopInvoiceQRPoll(); }
+        modalEl.addEventListener('shown.bs.modal', function() {
+            stopInvoiceQRPoll();
+            invoiceQRPollInterval = setInterval(doPoll, 3000);
+            doPoll();
+        }, { once: true });
+        modalEl.addEventListener('hidden.bs.modal', stopInvoiceQRPoll, { once: true });
 
         // Show modal
         var modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);

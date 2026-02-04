@@ -167,6 +167,11 @@ class Operasi extends Controller
       $this->payment_gateway_status_logic($ref_finance, false);
    }
 
+   public function payment_gateway_status_poll($ref_finance)
+   {
+      $this->payment_gateway_status_db($ref_finance, false);
+   }
+
    public function bayarMulti($karyawan, $idPelanggan, $metode = 2, $note = "")
    {
       $rekap = isset($_POST['rekap']) ? $_POST['rekap'][0] : [];

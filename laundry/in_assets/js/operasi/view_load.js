@@ -180,6 +180,7 @@
       nama: "",
       ref_id: ""
     };
+    var operasiQRPollInterval = null;
 
     window.showQR = function (text, total, nama, isDev, devRes, ref_id) {
       var modalEl = document.getElementById("modalQR");
@@ -250,6 +251,46 @@
             // Silently ignore - QR display server is optional
           });
       }
+
+      // Polling status dari DB setiap 3 detik (hanya untuk QRIS, bukan dev mode)
+      function stopOperasiQRPoll() {
+        if (operasiQRPollInterval) {
+          clearInterval(operasiQRPollInterval);
+          operasiQRPollInterval = null;
+        }
+      }
+      function doPoll() {
+        $.getJSON(BASE_URL + "Operasi/payment_gateway_status_poll/" + ref_id).done(function (res) {
+          if (res.status === "PAID") {
+            stopOperasiQRPoll();
+            $("#qrcode").html('<div class="text-success text-center"><i class="fas fa-check-circle fa-5x"></i><h3 class="mt-2">LUNAS/PAID</h3></div>');
+            $("#btnCekStatusQR").removeClass("btn-warning").addClass("btn-success").html('<i class="fas fa-check"></i> PAID');
+            setTimeout(function () {
+              var modalEl2 = document.getElementById("modalQR");
+              if (modalEl2 && window.bootstrap && bootstrap.Modal) {
+                var mFn = bootstrap.Modal.getInstance(modalEl2);
+                if (mFn) mFn.hide();
+              }
+              if (typeof load_data_operasi === "function" && id_pelanggan) {
+                load_data_operasi(id_pelanggan);
+              } else if (typeof loadDiv === "function") {
+                loadDiv();
+              } else {
+                location.reload();
+              }
+            }, 2000);
+          }
+        });
+      }
+      if (operasiQRPollInterval) stopOperasiQRPoll();
+      modalEl.addEventListener("shown.bs.modal", function () {
+        if (!isDev && ref_id) {
+          stopOperasiQRPoll();
+          operasiQRPollInterval = setInterval(doPoll, 3000);
+          doPoll();
+        }
+      }, { once: true });
+      modalEl.addEventListener("hidden.bs.modal", stopOperasiQRPoll, { once: true });
 
       // Show Modal
       try {

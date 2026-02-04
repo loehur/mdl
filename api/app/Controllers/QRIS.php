@@ -25,7 +25,13 @@ class QRIS extends Controller
         $this->handleCors();
 
         if (!$this->isPost()) {
-            $this->error('Method not allowed. Use POST', 405);
+            header('Content-Type: application/json');
+            http_response_code(405);
+            echo json_encode([
+                'status' => false,
+                'message' => 'Method not allowed. Use POST'
+            ]);
+            exit;
         }
 
         try {
@@ -37,15 +43,33 @@ class QRIS extends Controller
 
             // Validation
             if ($nominal <= 0) {
-                $this->error('Nominal tidak valid. Minimal 1 Rupiah', 400);
+                header('Content-Type: application/json');
+                http_response_code(400);
+                echo json_encode([
+                    'status' => false,
+                    'message' => 'Nominal tidak valid. Minimal 1 Rupiah'
+                ]);
+                exit;
             }
 
             if (empty($ref_id)) {
-                $this->error('ref_id tidak boleh kosong', 400);
+                header('Content-Type: application/json');
+                http_response_code(400);
+                echo json_encode([
+                    'status' => false,
+                    'message' => 'ref_id tidak boleh kosong'
+                ]);
+                exit;
             }
 
             if (strtoupper($metode) !== 'QRIS') {
-                $this->error('Hanya menerima metode QRIS', 400);
+                header('Content-Type: application/json');
+                http_response_code(400);
+                echo json_encode([
+                    'status' => false,
+                    'message' => 'Hanya menerima metode QRIS'
+                ]);
+                exit;
             }
 
             // PENTING: Bersihkan ref_id dari timestamp jika ada (untuk menghindari double)
@@ -78,22 +102,43 @@ class QRIS extends Controller
                 }
 
                 if (empty($qr_string)) {
-                    $this->error('QR String tidak ditemukan dari TokoPay', 500);
+                    header('Content-Type: application/json');
+                    http_response_code(500);
+                    echo json_encode([
+                        'status' => false,
+                        'message' => 'QR String tidak ditemukan dari TokoPay'
+                    ]);
+                    exit;
                 }
 
-                $this->success([
-                    'qr_string' => $qr_string,
+                // Simplified response
+                header('Content-Type: application/json');
+                http_response_code(200);
+                echo json_encode([
+                    'status' => true,
                     'trx_id' => $unique_order_id,
                     'ref_id' => $ref_id,
-                    'nominal' => $nominal,
-                    'metode' => $metode
-                ], 'QRIS berhasil di-generate');
+                    'qr_string' => $qr_string
+                ]);
+                exit;
             } else {
                 $errorMsg = isset($data['message']) ? $data['message'] : 'Gagal generate QRIS dari TokoPay';
-                $this->error($errorMsg, 500, $data);
+                header('Content-Type: application/json');
+                http_response_code(500);
+                echo json_encode([
+                    'status' => false,
+                    'message' => $errorMsg
+                ]);
+                exit;
             }
         } catch (\Exception $e) {
-            $this->error('Internal Server Error: ' . $e->getMessage(), 500);
+            header('Content-Type: application/json');
+            http_response_code(500);
+            echo json_encode([
+                'status' => false,
+                'message' => 'Internal Server Error: ' . $e->getMessage()
+            ]);
+            exit;
         }
     }
 
@@ -111,7 +156,13 @@ class QRIS extends Controller
         $this->handleCors();
 
         if (!$this->isGet()) {
-            $this->error('Method not allowed. Use GET', 405);
+            header('Content-Type: application/json');
+            http_response_code(405);
+            echo json_encode([
+                'status' => false,
+                'message' => 'Method not allowed. Use GET'
+            ]);
+            exit;
         }
 
         try {
@@ -121,15 +172,33 @@ class QRIS extends Controller
 
             // Validation
             if (empty($ref_id)) {
-                $this->error('ref_id tidak boleh kosong', 400);
+                header('Content-Type: application/json');
+                http_response_code(400);
+                echo json_encode([
+                    'status' => false,
+                    'message' => 'ref_id tidak boleh kosong'
+                ]);
+                exit;
             }
 
             if ($nominal <= 0) {
-                $this->error('Nominal tidak valid', 400);
+                header('Content-Type: application/json');
+                http_response_code(400);
+                echo json_encode([
+                    'status' => false,
+                    'message' => 'Nominal tidak valid'
+                ]);
+                exit;
             }
 
             if (strtoupper($metode) !== 'QRIS') {
-                $this->error('Hanya menerima metode QRIS', 400);
+                header('Content-Type: application/json');
+                http_response_code(400);
+                echo json_encode([
+                    'status' => false,
+                    'message' => 'Hanya menerima metode QRIS'
+                ]);
+                exit;
             }
 
             // Call TokoPay API
@@ -139,29 +208,33 @@ class QRIS extends Controller
 
             // Check for connection error
             if (isset($data['status']) && $data['status'] === false && isset($data['message'])) {
-                $this->error('Gagal cek status ke TokoPay: ' . $data['message'], 500);
+                header('Content-Type: application/json');
+                http_response_code(500);
+                echo json_encode([
+                    'status' => false,
+                    'message' => 'Gagal cek status ke TokoPay: ' . $data['message']
+                ]);
+                exit;
             }
 
-            // Jika order tidak ditemukan / tidak ada data transaksi, JANGAN anggap paid - return pending
+            // Jika order tidak ditemukan / tidak ada data transaksi, return pending
             if (empty($data) || (isset($data['data']) && !is_array($data['data']))) {
-                $this->success([
+                header('Content-Type: application/json');
+                http_response_code(200);
+                echo json_encode([
+                    'status' => true,
+                    'trx_id' => $ref_id,
                     'ref_id' => $ref_id,
-                    'nominal' => $nominal,
-                    'status' => 'pending',
-                    'status_detail' => 'pending',
-                    'raw_response' => $data
-                ], 'Status pembayaran berhasil diambil');
-                return;
+                    'payment_status' => 'pending',
+                    'trx_status' => 'not_found'
+                ]);
+                exit;
             }
 
             // Parse status from response
             $status_trx = '';
             $isPaid = false;
             $isExpired = false;
-
-            // PERBAIKAN KRITIS: Jangan langsung set isPaid=true hanya karena status=true
-            // status=true hanya berarti API call berhasil, BUKAN berarti pembayaran sudah lunas
-            // Hanya set isPaid=true jika ada konfirmasi eksplisit dari status pembayaran
 
             // Check inside 'data' object first (highest priority)
             if (isset($data['data'])) {
@@ -197,23 +270,32 @@ class QRIS extends Controller
 
             // Determine payment status based on explicit status values
             if (!empty($status_trx)) {
-                if (in_array($status_trx, ['success', 'paid', 'settlement', 'capture', 'completed'])) {
+                if (in_array($status_trx, \Env::QRIS_STATUS_SUCCESS)) {
                     $isPaid = true;
-                } elseif (in_array($status_trx, ['expired', 'cancelled', 'cancel', 'timeout', 'failed', 'fail', 'failure'])) {
+                } elseif (in_array($status_trx, \Env::QRIS_STATUS_EXPIRED)) {
                     $isExpired = true;
                 }
-                // Else: status adalah 'pending', 'waiting', 'unpaid', atau lainnya → tetap pending
             }
 
-            $this->success([
+            // Simplified response
+            header('Content-Type: application/json');
+            http_response_code(200);
+            echo json_encode([
+                'status' => true,
+                'trx_id' => $ref_id,
                 'ref_id' => $ref_id,
-                'nominal' => $nominal,
-                'status' => $isPaid ? 'paid' : ($isExpired ? 'expired' : 'pending'),
-                'status_detail' => $status_trx ?: 'unknown',
-                'raw_response' => $data
-            ], 'Status pembayaran berhasil diambil');
+                'payment_status' => $isPaid ? 'paid' : ($isExpired ? 'expired' : 'pending'),
+                'trx_status' => $status_trx ?: 'unknown'
+            ]);
+            exit;
         } catch (\Exception $e) {
-            $this->error('Internal Server Error: ' . $e->getMessage(), 500);
+            header('Content-Type: application/json');
+            http_response_code(500);
+            echo json_encode([
+                'status' => false,
+                'message' => 'Internal Server Error: ' . $e->getMessage()
+            ]);
+            exit;
         }
     }
 

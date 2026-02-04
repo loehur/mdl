@@ -567,7 +567,9 @@
   
   // Show QR modal
   var currentQRString = '';
+  var salesQRPollInterval = null;
   function showSalesQR(qrString, total, ref) {
+    if (salesQRPollInterval) { clearInterval(salesQRPollInterval); salesQRPollInterval = null; }
     currentQRString = qrString; // Simpan string QR
     
     $('#salesQRRef').text('#' + ref);
@@ -606,6 +608,31 @@
     
     var modalEl = document.getElementById('modalSalesQR');
     var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    
+    // Polling status dari DB setiap 3 detik
+    function stopSalesQRPoll() {
+      if (salesQRPollInterval) {
+        clearInterval(salesQRPollInterval);
+        salesQRPollInterval = null;
+      }
+    }
+    function doPoll() {
+      $.getJSON('<?= URL::BASE_URL ?>Operasi/payment_gateway_status_poll/' + ref).done(function(res) {
+        if (res.status === 'PAID') {
+          stopSalesQRPoll();
+          $('#salesQRCode').html('<div class="text-success text-center"><i class="fas fa-check-circle fa-5x"></i><h3 class="mt-2">PAID</h3></div>');
+          $('#btnSalesCekStatusQR').removeClass('btn-warning').addClass('btn-success').html('<i class="fas fa-check"></i> PAID');
+          setTimeout(function() { location.reload(); }, 1500);
+        }
+      });
+    }
+    modalEl.addEventListener('shown.bs.modal', function() {
+      stopSalesQRPoll();
+      salesQRPollInterval = setInterval(doPoll, 3000);
+      doPoll(); // Cek sekali langsung
+    }, { once: true });
+    modalEl.addEventListener('hidden.bs.modal', stopSalesQRPoll, { once: true });
+    
     modal.show();
   }
   

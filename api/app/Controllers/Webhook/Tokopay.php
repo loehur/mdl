@@ -98,14 +98,15 @@ class Tokopay extends Controller
              return;
         }
         
-        // Normalize status
+        // Normalize status (gunakan constant dari Env agar sejalan dengan QRIS endpoint)
         $statusLower = strtolower($status_tokopay);
-        $isPaid = ($statusLower === 'success' || $statusLower === 'paid' || $statusLower === 'settlement');
-        $isExpired = ($statusLower === 'expired');
+        $isPaid = in_array($statusLower, \Env::QRIS_STATUS_SUCCESS);
+        $isExpired = in_array($statusLower, \Env::QRIS_STATUS_EXPIRED);
         $isFailed = ($statusLower === 'failed');
 
         if ($isPaid) {
-            if ($payment['payment_status'] !== 'paid' && $payment['payment_status'] !== 'success') {
+            $dbStatus = strtolower($payment['payment_status'] ?? '');
+            if (!in_array($dbStatus, \Env::QRIS_STATUS_SUCCESS)) {
                 // Update payment status - Use success for ENUM consistency
                 $db->update('subscription_payments', [
                     'payment_status' => 'success'
@@ -170,10 +171,10 @@ class Tokopay extends Controller
             return;
         }
 
-        // Normalize status (same pattern as handleSalonSubscription)
+        // Normalize status (gunakan constant dari Env agar sejalan dengan QRIS endpoint)
         $statusLower = strtolower($status);
-        $isPaid = ($statusLower === 'success' || $statusLower === 'paid' || $statusLower === 'settlement' || $statusLower === 'completed');
-        $isExpired = ($statusLower === 'expired');
+        $isPaid = in_array($statusLower, \Env::QRIS_STATUS_SUCCESS);
+        $isExpired = in_array($statusLower, \Env::QRIS_STATUS_EXPIRED);
         $isFailed = ($statusLower === 'failed');
 
         // Update payment_state first
@@ -287,9 +288,9 @@ class Tokopay extends Controller
             return;
         }
 
-        // Normalize status
+        // Normalize status (gunakan constant dari Env agar sejalan dengan QRIS endpoint)
         $statusLower = strtolower($status);
-        $isPaid = ($statusLower === 'success' || $statusLower === 'paid' || $statusLower === 'settlement');
+        $isPaid = in_array($statusLower, \Env::QRIS_STATUS_SUCCESS);
 
         if (!$isPaid) {
             \Log::write("RESTOKAS: Status not paid ($status) - $reff_id", 'webhook', 'Tokopay');

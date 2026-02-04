@@ -306,6 +306,11 @@ class I extends Controller
       $this->payment_gateway_status_logic($ref_finance, true);
    }
 
+   public function payment_gateway_status_poll($ref_finance)
+   {
+      $this->payment_gateway_status_db($ref_finance, true);
+   }
+
    public function cancel_payment($ref_finance)
    {
       // Check if transaction exists
