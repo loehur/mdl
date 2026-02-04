@@ -247,20 +247,16 @@ class QRIS extends Controller
                 }
             }
 
-            // Check at root level (lower priority)
+            // Check at root level (lower priority) - HATI-HATI: root "status" = "Success" 
+            // dari TokoPay berarti API call berhasil, BUKAN status pembayaran!
+            // Jangan pernah pakai root status untuk payment status.
             if (empty($status_trx)) {
                 if (isset($data['status_pembayaran']) && !empty($data['status_pembayaran'])) {
                     $status_trx = strtolower(trim($data['status_pembayaran']));
                 } elseif (isset($data['status_detail']) && !empty($data['status_detail'])) {
                     $status_trx = strtolower(trim($data['status_detail']));
-                } elseif (isset($data['status']) && is_string($data['status']) && !empty($data['status'])) {
-                    // Hanya gunakan jika string dan bukan boolean/numeric
-                    $status_val = strtolower(trim($data['status']));
-                    // Hanya assign jika bukan 'true' atau '1'
-                    if (!in_array($status_val, ['true', '1'])) {
-                        $status_trx = $status_val;
-                    }
                 }
+                // JANGAN pakai data['status'] - di TokoPay itu = "Success" (API ok), bukan status bayar
             }
 
             // Jika tidak ada status apapun yang ditemukan, anggap pending

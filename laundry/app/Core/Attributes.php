@@ -294,9 +294,6 @@ trait Attributes
                         } elseif (isset($status_data['data']['status']) && !empty($status_data['data']['status'])) {
                            $status_trx = strtolower($status_data['data']['status']);
                            $hasValidResponse = true;
-                        } elseif (isset($status_data['status']) && is_string($status_data['status']) && !empty($status_data['status'])) {
-                           $status_trx = strtolower($status_data['status']);
-                           $hasValidResponse = true;
                         } elseif (isset($status_data['status']) && ($status_data['status'] === true || $status_data['status'] === 1)) {
                            $status_trx = 'pending';
                            $hasValidResponse = true;
