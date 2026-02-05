@@ -187,15 +187,25 @@
                     </div>
                 </div>
 
-                <!-- Ringkasan per Layanan -->
-                <div class="px-4 py-3 bg-white border-b border-gray-100">
-                    <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Ringkasan per Layanan</h4>
-                    <div class="flex flex-wrap gap-2">
+                <!-- Ringkasan per Layanan (Collapsible) -->
+                <div class="px-4 py-2 bg-white border-b border-gray-100">
+                    <button 
+                        @click="summaryExpanded = !summaryExpanded" 
+                        class="w-full flex items-center justify-between text-left py-1 hover:bg-gray-50 -mx-2 px-2 rounded transition"
+                    >
+                        <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                            Ringkasan per Layanan ({{ Object.keys(selectedStat.statsByStep).length }})
+                        </h4>
+                        <svg class="w-4 h-4 text-gray-400 transition-transform" :class="{ 'rotate-180': summaryExpanded }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </button>
+                    <div v-show="summaryExpanded" class="mt-2 flex flex-wrap gap-1.5">
                         <div v-for="(service, name) in selectedStat.statsByStep" :key="name" 
-                             class="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm flex items-center gap-3">
-                           <span class="font-medium text-gray-700">{{ name }}</span>
-                           <span class="bg-pink-100 text-pink-700 px-2 py-0.5 rounded text-xs font-bold">{{ service.count }}x</span>
-                           <span class="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-bold">{{ formatNumber(service.totalFee) }} Poin</span>
+                             class="px-2 py-1 bg-gray-50 border border-gray-100 rounded text-xs flex items-center gap-2">
+                           <span class="text-gray-700 truncate max-w-[120px]">{{ name }}</span>
+                           <span class="bg-pink-100 text-pink-700 px-1.5 py-0.5 rounded font-bold shrink-0">{{ service.count }}x</span>
+                           <span class="bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-bold shrink-0">{{ formatNumber(service.totalFee) }} Poin</span>
                         </div>
                         <div v-if="Object.keys(selectedStat.statsByStep).length === 0" class="text-xs text-gray-400 italic">Belum ada data.</div>
                     </div>
@@ -326,6 +336,7 @@ const stats = ref([]);
 const selectedStat = ref(null);
 const workers = ref([]);
 const syncing = ref(false);
+const summaryExpanded = ref(false);
 
 // Default: This Month
 const today = new Date();
@@ -546,6 +557,7 @@ function viewDetails(stat) {
     // Sort tasks by date desc
     stat.tasks.sort((a,b) => new Date(b.date) - new Date(a.date));
     selectedStat.value = stat;
+    summaryExpanded.value = false; // Reset collapse saat buka detail baru
 }
 
 onMounted(async () => {
