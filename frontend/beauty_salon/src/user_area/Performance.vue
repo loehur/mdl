@@ -5,7 +5,7 @@
       <!-- Title -->
       <div>
         <h1 class="text-xl md:text-2xl font-bold text-gray-800">Kinerja Terapis</h1>
-        <p class="text-xs md:text-sm text-gray-500">Statistik pekerjaan dan poin terapis (Maksimal rentang 31 hari)</p>
+        <p class="text-xs md:text-sm text-gray-500">Statistik berdasarkan tanggal selesai order (Maksimal rentang 31 hari)</p>
       </div>
       
       <!-- Filter Section -->
@@ -430,7 +430,13 @@ async function fetchData() {
     
     loading.value = true;
     try {
-        const res = await fetch('/api/Beauty_Salon/Orders');
+        // Filter by completed_at (tanggal selesai order) - bukan order_date atau booking_date
+        const params = new URLSearchParams({
+            start_date: filters.startDate,
+            end_date: filters.endDate,
+            date_by: 'completed_at'
+        });
+        const res = await fetch('/api/Beauty_Salon/Orders?' + params.toString());
         const d = await res.json();
         
         if (d.success) {
@@ -458,17 +464,21 @@ function processStats(orders) {
         };
     });
 
+    // API sudah filter by completed_at, tapi kita tetap validasi di frontend
     const start = new Date(filters.startDate);
     const end = new Date(filters.endDate);
     end.setHours(23, 59, 59);
 
     orders.forEach(order => {
-        const oDateStr = order.order_date || order.created_at;
+        // Gunakan completed_at (tanggal selesai order) - bukan order_date atau booking_date
+        const oDateStr = order.completed_at || order.order_date || order.created_at;
         if (!oDateStr) return;
         const oDate = new Date(oDateStr); 
         
         if (oDate < start || oDate > end) return;
         if (order.status === 'cancelled') return;
+        // Hanya order yang selesai (completed) yang masuk kinerja
+        if (order.status !== 'completed') return;
 
         (order.order_items || []).forEach(item => {
              (item.work_steps || []).forEach(step => {

@@ -22,6 +22,9 @@ class Orders extends Controller
 
             // Get filter from query string
             $status = $_GET['status'] ?? 'all';
+            $start_date = $_GET['start_date'] ?? null;
+            $end_date = $_GET['end_date'] ?? null;
+            $date_by = $_GET['date_by'] ?? null; // 'completed_at' | 'order_date' | 'created_at'
             
             $sql = "SELECT o.*, c.nama as customer_name, c.no_hp as customer_phone, 
                     u.name as created_by_name
@@ -37,7 +40,15 @@ class Orders extends Controller
                 $params[] = $status;
             }
             
-            $sql .= " ORDER BY o.order_date DESC";
+            // Filter by date range (untuk halaman Performance: berdasarkan tanggal selesai order)
+            if ($start_date && $end_date) {
+                $dateColumn = ($date_by === 'order_date') ? 'o.order_date' : (($date_by === 'created_at') ? 'o.created_at' : 'o.completed_at');
+                $sql .= " AND o.status = 'completed' AND {$dateColumn} IS NOT NULL AND DATE({$dateColumn}) >= ? AND DATE({$dateColumn}) <= ?";
+                $params[] = $start_date;
+                $params[] = $end_date;
+            }
+            
+            $sql .= " ORDER BY o.completed_at DESC, o.order_date DESC";
 
             $orders = $this->db($this->db_index)
                 ->query($sql, $params)
