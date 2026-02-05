@@ -110,7 +110,7 @@
                               <div class="font-medium">{{ item.product_name }}</div>
                               <div class="text-xs text-gray-500 ml-2">
                                   <div v-for="step in item.work_steps" :key="step.step_id || step.id">
-                                     • {{ step.name || step.step_name }} <span v-if="step.worker_id" class="text-gray-400">(Worker #{{ step.worker_id }})</span>
+                                     • {{ step.name || step.step_name }} <span v-if="step.worker_id" class="text-pink-600 font-medium">({{ getWorkerName(step.worker_id) }})</span>
                                   </div>
                               </div>
                           </div>
@@ -161,13 +161,24 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, computed } from 'vue';
 
 const loading = ref(true);
 const orders = ref([]);
 const selectedOrder = ref(null);
+const therapists = ref([]);
 const toast = reactive({ show: false, message: '', type: 'success' });
 const salonInfo = ref({ nama_salon: 'MDL BEAUTY SALON', alamat_salon: 'Jakarta' });
+
+const workerNameMap = computed(() => {
+    const m = {};
+    therapists.value.forEach(t => { m[t.id] = t.nama || ('Terapis #' + t.id); });
+    return m;
+});
+
+function getWorkerName(workerId) {
+    return workerNameMap.value[workerId] || (workerId ? 'Terapis #' + workerId : '-');
+}
 
 function showToast(message, type = 'success') {
   toast.message = message;
@@ -178,6 +189,11 @@ function showToast(message, type = 'success') {
 
 onMounted(async () => {
     try {
+        // Fetch therapists untuk mapping worker_id -> nama
+        const resTherapists = await fetch('/api/Beauty_Salon/Therapists');
+        const dTherapists = await resTherapists.json();
+        if (dTherapists.success) therapists.value = dTherapists.data;
+
         // Fetch COMPLETED orders
         const res = await fetch('/api/Beauty_Salon/Orders?status=completed');
         const d = await res.json();
