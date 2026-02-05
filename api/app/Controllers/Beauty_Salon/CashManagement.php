@@ -77,18 +77,19 @@ class CashManagement extends Controller
                 ->row_array();
             $totalExpense += $getSumValue($expenseTransactions);
             
-            // Calculate total transfers out
+            // Calculate total transfers out (money LEAVING this account)
+            // transfer_from = this account means we are the SOURCE, money goes OUT → expense
             $transferOutTransactions = $this->db($this->db_index)
                 ->query("SELECT COALESCE(SUM(amount), 0) as total FROM cash_transactions WHERE salon_id = ? AND transaction_type = 'transfer' AND transfer_from = ?", [$salon_id, $cash_source])
                 ->row_array();
             $totalExpense += $getSumValue($transferOutTransactions);
             
-             // Calculate total transfers in
-             // Note: 'income' type transactions are general, but transfers have specific source/dest
-             $transferInTransactions = $this->db($this->db_index)
+            // Calculate total transfers in (money ENTERING this account)
+            // transfer_to = this account means we are the DESTINATION, money comes IN → income
+            $transferInTransactions = $this->db($this->db_index)
                 ->query("SELECT COALESCE(SUM(amount), 0) as total FROM cash_transactions WHERE salon_id = ? AND transaction_type = 'transfer' AND transfer_to = ?", [$salon_id, $cash_source])
                 ->row_array();
-             $totalIncome += $getSumValue($transferInTransactions);
+            $totalIncome += $getSumValue($transferInTransactions);
 
             $currentBalance = $totalIncome - $totalExpense;
 

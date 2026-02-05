@@ -142,8 +142,8 @@
               <td class="px-6 py-3 text-gray-600 text-xs">
                 {{ trx.category_name || '-' }}
               </td>
-              <td class="px-6 py-3 text-right font-bold" :class="getAmountClass(trx.transaction_type)">
-                {{ formatAmount(trx.transaction_type, trx.amount) }}
+              <td class="px-6 py-3 text-right font-bold" :class="getAmountClassForTrx(trx)">
+                {{ formatAmountForTrx(trx) }}
               </td>
               <td class="px-6 py-3 text-center">
                 <!-- Action Buttons -->
@@ -1103,6 +1103,26 @@ function formatDate(dStr) {
 function formatAmount(type, amount) {
   const prefix = type === 'expense' ? '- ' : type === 'income' ? '+ ' : '';
   return prefix + formatCurrency(amount);
+}
+
+// Format amount for transaction with correct sign for transfers (from Kas Besar view)
+function formatAmountForTrx(trx) {
+  if (trx.transaction_type === 'transfer') {
+    const viewCash = filterCash.value || 'main'; // Default to Kas Besar perspective
+    const isOutflow = (viewCash === 'main' && trx.transfer_from === 'main') || (viewCash === 'cashier' && trx.transfer_from === 'cashier');
+    const prefix = isOutflow ? '- ' : '+ ';
+    return prefix + formatCurrency(trx.amount);
+  }
+  return formatAmount(trx.transaction_type, trx.amount);
+}
+
+function getAmountClassForTrx(trx) {
+  if (trx.transaction_type === 'transfer') {
+    const viewCash = filterCash.value || 'main';
+    const isOutflow = (viewCash === 'main' && trx.transfer_from === 'main') || (viewCash === 'cashier' && trx.transfer_from === 'cashier');
+    return isOutflow ? 'text-red-600' : 'text-green-600';
+  }
+  return getAmountClass(trx.transaction_type);
 }
 
 function getTypeBadge(type) {
