@@ -26,11 +26,12 @@ class Orders extends Controller
             $end_date = $_GET['end_date'] ?? null;
             $date_by = $_GET['date_by'] ?? null; // 'completed_at' | 'order_date' | 'created_at'
             
+            // LEFT JOIN agar order tetap muncul meskipun customer/user terhapus atau created_by null
             $sql = "SELECT o.*, c.nama as customer_name, c.no_hp as customer_phone, 
                     u.name as created_by_name
                     FROM orders o
-                    JOIN customers c ON o.customer_id = c.id
-                    JOIN users u ON o.created_by = u.id
+                    LEFT JOIN customers c ON o.customer_id = c.id
+                    LEFT JOIN users u ON o.created_by = u.id
                     WHERE o.salon_id = ?";
             
             $params = [$salon_id];
@@ -48,7 +49,8 @@ class Orders extends Controller
                 $params[] = $end_date;
             }
             
-            $sql .= " ORDER BY o.completed_at DESC, o.order_date DESC";
+            // Pending/booking dulu, lalu completed. Untuk pending: urutkan by booking_date/order_date
+            $sql .= " ORDER BY (o.status = 'pending') DESC, COALESCE(o.booking_date, o.order_date) DESC, o.completed_at DESC";
 
             $orders = $this->db($this->db_index)
                 ->query($sql, $params)
