@@ -3,8 +3,8 @@
     <!-- Header -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 px-6 py-4 flex items-center justify-between">
       <div>
-        <h2 class="text-lg font-bold text-gray-800">Arsip Order Selesai</h2>
-        <p class="text-sm text-gray-500">Riwayat transaksi yang telah diselesaikan</p>
+        <h2 class="text-lg font-bold text-gray-800">Arsip Order</h2>
+        <p class="text-sm text-gray-500">Riwayat order selesai dan dibatalkan</p>
       </div>
       <div class="flex gap-2">
          <!-- Date Filter Placeholder -->
@@ -37,20 +37,25 @@
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-50">
-            <tr v-for="order in orders" :key="order.id" class="hover:bg-gray-50/50 transition">
-              <td class="px-6 py-4 font-mono text-gray-500">#{{ order.id }}</td>
-              <td class="px-6 py-4 text-gray-700">
-                <div>{{ formatDate(order.completed_at) }}</div>
-                <div class="text-xs text-gray-400">{{ formatTime(order.completed_at) }}</div>
+            <tr v-for="order in orders" :key="order.id" 
+                class="transition"
+                :class="order.status === 'cancelled' ? 'bg-red-50/50 hover:bg-red-50' : 'hover:bg-gray-50/50'">
+              <td class="px-6 py-4 font-mono" :class="order.status === 'cancelled' ? 'text-gray-400' : 'text-gray-500'">
+                #{{ order.id }}
+                <span v-if="order.status === 'cancelled'" class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-red-700">Dibatalkan</span>
               </td>
-              <td class="px-6 py-4">
-                <div class="font-medium text-gray-900">{{ order.customer_name }}</div>
+              <td class="px-6 py-4" :class="order.status === 'cancelled' ? 'text-gray-500' : 'text-gray-700'">
+                <div>{{ formatDate(order.completed_at || order.updated_at) }}</div>
+                <div class="text-xs text-gray-400">{{ formatTime(order.completed_at || order.updated_at) }}</div>
+              </td>
+              <td class="px-6 py-4" :class="order.status === 'cancelled' ? 'opacity-70' : ''">
+                <div class="font-medium" :class="order.status === 'cancelled' ? 'text-gray-600 line-through' : 'text-gray-900'">{{ order.customer_name }}</div>
                 <div class="text-xs text-gray-500">{{ order.customer_phone }}</div>
               </td>
-              <td class="px-6 py-4 text-gray-600 max-w-xs truncate">
+              <td class="px-6 py-4 max-w-xs truncate" :class="order.status === 'cancelled' ? 'text-gray-500 line-through' : 'text-gray-600'">
                  {{ order.order_items.map(i => i.product_name).join(', ') }}
               </td>
-              <td class="px-6 py-4 font-bold text-gray-800">
+              <td class="px-6 py-4 font-bold" :class="order.status === 'cancelled' ? 'text-gray-500' : 'text-gray-800'">
                 Rp {{ formatNumber(order.total_price) }}
               </td>
               <td class="px-6 py-4">
@@ -66,7 +71,7 @@
                  </div>
               </td>
               <td class="px-6 py-4 text-right space-x-2">
-                <button @click="printReceipt(order)" class="text-gray-600 hover:text-gray-800 font-medium text-xs inline-flex items-center gap-1">
+                <button v-if="order.status === 'completed'" @click="printReceipt(order)" class="text-gray-600 hover:text-gray-800 font-medium text-xs inline-flex items-center gap-1">
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
                   Cetak
                 </button>
@@ -81,9 +86,16 @@
     <!-- Detail Modal -->
     <Teleport to="body">
        <div v-if="selectedOrder" class="fixed inset-0 z-[1001] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" @click.self="selectedOrder = null">
-          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
-              <div class="px-6 py-4 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
-                  <h3 class="font-bold text-lg text-gray-800">Detail Order #{{ selectedOrder.id }}</h3>
+          <div class="rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]"
+               :class="selectedOrder.status === 'cancelled' ? 'bg-gray-50 border-2 border-dashed border-red-200' : 'bg-white'">
+              <!-- Banner Dibatalkan -->
+              <div v-if="selectedOrder.status === 'cancelled'" class="bg-red-100 border-b border-red-200 px-6 py-3 flex items-center gap-2">
+                <svg class="w-5 h-5 text-red-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                <span class="font-bold text-red-700 uppercase tracking-wider">Order Dibatalkan</span>
+              </div>
+              <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center"
+                   :class="selectedOrder.status === 'cancelled' ? 'bg-gray-100' : 'bg-gray-50'">
+                  <h3 class="font-bold text-lg" :class="selectedOrder.status === 'cancelled' ? 'text-gray-500' : 'text-gray-800'">Detail Order #{{ selectedOrder.id }}</h3>
                   <button @click="selectedOrder = null" class="text-gray-400 hover:text-gray-600">✕</button>
               </div>
               <div class="p-6 overflow-y-auto space-y-4">
@@ -95,9 +107,9 @@
                         <div class="text-sm text-gray-500">{{ selectedOrder.customer_phone }}</div>
                      </div>
                      <div class="text-right">
-                        <div class="text-xs text-gray-500 uppercase font-bold">Tanggal Selesai</div>
-                        <div class="font-medium">{{ formatDate(selectedOrder.completed_at) }}</div>
-                        <div class="text-xs text-gray-500">{{ formatTime(selectedOrder.completed_at) }}</div>
+                        <div class="text-xs text-gray-500 uppercase font-bold">{{ selectedOrder.status === 'cancelled' ? 'Tanggal Dibatalkan' : 'Tanggal Selesai' }}</div>
+                        <div class="font-medium">{{ formatDate(selectedOrder.completed_at || selectedOrder.updated_at) }}</div>
+                        <div class="text-xs text-gray-500">{{ formatTime(selectedOrder.completed_at || selectedOrder.updated_at) }}</div>
                      </div>
                   </div>
 
@@ -139,11 +151,15 @@
                       </div>
                   </div>
                   
-                  <!-- Print Button -->
-                  <button @click="printReceipt(selectedOrder)" class="w-full mt-4 py-3 bg-gradient-to-r from-gray-700 to-gray-900 hover:from-gray-800 hover:to-black text-white rounded-xl font-medium transition-all flex items-center justify-center gap-2 shadow-lg">
+                  <!-- Print Button (hanya untuk order selesai) -->
+                  <button v-if="selectedOrder.status === 'completed'" @click="printReceipt(selectedOrder)" class="w-full mt-4 py-3 bg-gradient-to-r from-gray-700 to-gray-900 hover:from-gray-800 hover:to-black text-white rounded-xl font-medium transition-all flex items-center justify-center gap-2 shadow-lg">
                       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
                       Cetak Nota
                   </button>
+                  <div v-else class="w-full mt-4 py-3 bg-red-50 border border-red-200 rounded-xl flex items-center justify-center gap-2">
+                      <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                      <span class="text-sm font-medium text-red-600">Order dibatalkan — tidak dapat dicetak</span>
+                  </div>
               </div>
           </div>
        </div>
@@ -194,16 +210,18 @@ onMounted(async () => {
         const dTherapists = await resTherapists.json();
         if (dTherapists.success) therapists.value = dTherapists.data;
 
-        // Fetch COMPLETED orders
-        const res = await fetch('/api/Beauty_Salon/Orders?status=completed');
+        // Fetch COMPLETED dan CANCELLED orders
+        const res = await fetch('/api/Beauty_Salon/Orders?status=all');
         const d = await res.json();
         if (d.success) {
-            // Sort by completed_at descending (newest first)
-            orders.value = d.data.sort((a, b) => {
-                const dateA = new Date(a.completed_at || 0);
-                const dateB = new Date(b.completed_at || 0);
-                return dateB - dateA;
-            });
+            // Filter: hanya completed dan cancelled, sort by completed_at/updated_at
+            orders.value = d.data
+                .filter(o => o.status === 'completed' || o.status === 'cancelled')
+                .sort((a, b) => {
+                    const dateA = new Date(a.completed_at || a.updated_at || 0);
+                    const dateB = new Date(b.completed_at || b.updated_at || 0);
+                    return dateB - dateA;
+                });
         }
     } catch (e) {
         console.error(e);
