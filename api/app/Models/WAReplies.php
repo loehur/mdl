@@ -687,7 +687,6 @@ class WAReplies
             "Kami buka {$daysStr} pukul {$openTime} - {$closeTime}. ⏰🙏",
             "Jam operasional: {$openTime} - {$closeTime} ({$daysStr}) 📍😊",
             "Buka {$daysStr} jam {$openTime} sampai {$closeTime} ya! 😊🙏",
-            "Kami melayani dari jam {$openTime} sampai {$closeTime} 🕐😊",
             "Operasional {$daysStr} pukul {$openTime} - {$closeTime} 😊👋",
             "Buka {$daysStr}, jam {$openTime} sampai {$closeTime} 👍😊"
         ];
@@ -724,10 +723,10 @@ class WAReplies
         }
 
         $variations = [
-            "Mohon maaf, kami sedang tutup. Kami buka {$daysStr} pukul {$openTime}-{$closeTime}. Silakan tinggalkan pesan, nanti akan kami balas saat jam kerja. Terima kasih 🙏",
-            "Mohon Maaf, kami sedang di luar jam operasional. Kami buka {$daysStr} jam {$openTime}-{$closeTime}. Tinggalkan pesan saja ya, nanti kami respon saat buka 😊",
-            "Halo! Saat ini kami sudah tutup. Jam buka kami: {$daysStr} {$openTime}-{$closeTime}. Silakan tinggalkan pesan, kami akan membalas saat jam kerja. Terima kasih 🙏",
-            "Mohon maaf, kami di luar jam operasional. Buka lagi: {$daysStr} pukul {$openTime}-{$closeTime}. Silakan tinggalkan pesan Anda, nanti akan kami balas saat jam kerja. Terima kasih 😊"
+            "Mohon maaf, kami sedang tutup. Kami buka {$daysStr} pukul {$openTime}-{$closeTime}. 🙏",
+            "Mohon Maaf, kami sedang di luar jam operasional. Kami buka {$daysStr} jam {$openTime}-{$closeTime}. 😊",
+            "Maaf, Saat ini kami sudah tutup. Kami buka {$daysStr} {$openTime}-{$closeTime}. 🙏",
+            "Mohon maaf, kami di luar jam operasional. Buka {$daysStr} pukul {$openTime}-{$closeTime}. 😊"
         ];
 
         $text = $variations[array_rand($variations)];
