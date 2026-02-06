@@ -43,6 +43,8 @@
               <td class="px-6 py-4 font-mono" :class="order.status === 'cancelled' ? 'text-gray-400' : 'text-gray-500'">
                 #{{ order.id }}
                 <span v-if="order.status === 'cancelled'" class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-red-700">Dibatalkan</span>
+                <span v-if="order.booking_date" class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-pink-100 text-pink-700" title="Via Booking">📅 Booking</span>
+                <span v-else class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600" title="Order Langsung">Langsung</span>
               </td>
               <td class="px-6 py-4" :class="order.status === 'cancelled' ? 'text-gray-500' : 'text-gray-700'">
                 <div>{{ formatDate(order.completed_at || order.updated_at) }}</div>
@@ -99,6 +101,18 @@
                   <button @click="selectedOrder = null" class="text-gray-400 hover:text-gray-600">✕</button>
               </div>
               <div class="p-6 overflow-y-auto space-y-4">
+                  <!-- Tipe Order: Booking vs Langsung -->
+                  <div class="flex items-center gap-2 p-3 rounded-lg" :class="selectedOrder.booking_date ? 'bg-pink-50 border border-pink-100' : 'bg-gray-50 border border-gray-100'">
+                    <span v-if="selectedOrder.booking_date" class="text-sm font-medium text-pink-700 flex items-center gap-2">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                      Via Booking — {{ new Date(selectedOrder.booking_date).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) }}
+                    </span>
+                    <span v-else class="text-sm font-medium text-gray-600 flex items-center gap-2">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                      Order Langsung (Tanpa Booking)
+                    </span>
+                  </div>
+
                   <!-- Cust Info -->
                   <div class="flex justify-between items-start">
                      <div>
