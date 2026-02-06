@@ -137,6 +137,7 @@ class Penjualan extends Controller
       $cabang_pelanggan = $dp['id_cabang'];
 
       $saldo = 0;
+      $usedMemberQty = []; // Track pemakaian saldo member per id_harga dalam loop ini (agar tidak minus)
       foreach ($data as $a) {
          $saldo = 0;
          $id = $a['id_penjualan'];
@@ -180,16 +181,18 @@ class Penjualan extends Controller
             $total = 0;
          }
 
-         // FIX: use db(0) directly for saldoMember
+         // Saldo member: total - sudah terpakai di DB - sudah terpakai dalam loop ini
          $where_member = "bin = 0 AND id_pelanggan = $pelanggan AND id_harga = $idHarga";
          $saldoManual = $this->db(0)->get_cols_where('member', 'SUM(qty) as saldo', $where_member, 0)['saldo'] ?? 0;
-         
          $where_sale = $this->wCabang . " AND id_pelanggan = $pelanggan AND member = 1 AND bin = 0 AND id_harga = $idHarga";
          $saldoPengurangan = $this->db(0)->get_cols_where('sale', 'SUM(qty) as saldo', $where_sale, 0)['saldo'] ?? 0;
-         
-         $saldo = $saldoManual - $saldoPengurangan;
+         $usedInLoop = $usedMemberQty[$idHarga] ?? 0;
+         $saldo = $saldoManual - $saldoPengurangan - $usedInLoop;
+
+         // Hanya pakai member jika saldo cukup (jangan sampai minus)
          if ($saldo >= $qty) {
-            $set = "id_pelanggan = " . $pelanggan . ", no_ref = " . $no_ref . ", pelanggan = '" . $nama_pelanggan . "', member = 1, diskon_partner = " . $disc_p . ", total = " . $total . ", id_user = " . $id_penerima;
+            $usedMemberQty[$idHarga] = $usedInLoop + $qty;
+            $set = "id_pelanggan = " . $pelanggan . ", no_ref = " . $no_ref . ", pelanggan = '" . $nama_pelanggan . "', member = 1, diskon_partner = " . $disc_p . ", total = 0, id_user = " . $id_penerima;
             $whereSet = "id_penjualan = '" . $id . "'";
             $this->db(0)->update('sale', $set, $whereSet);
          }
@@ -205,7 +208,8 @@ class Penjualan extends Controller
             }
          }
          $where_update = "id_penjualan = '" . $id . "'";
-         $set = $reset_diskon . "id_pelanggan = " . $pelanggan . ", pelanggan = '" . $nama_pelanggan . "', diskon_partner = " . $disc_p . ", total = " . $total . ", no_ref = " . $no_ref . ", id_user = " . $id_penerima;
+         $totalForUpdate = ($saldo >= $qty) ? 0 : $total;
+         $set = $reset_diskon . "id_pelanggan = " . $pelanggan . ", pelanggan = '" . $nama_pelanggan . "', diskon_partner = " . $disc_p . ", total = " . $totalForUpdate . ", no_ref = " . $no_ref . ", id_user = " . $id_penerima;
          $this->db(0)->update('sale', $set, $where_update);
       }
 
