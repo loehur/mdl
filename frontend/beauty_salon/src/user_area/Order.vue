@@ -56,9 +56,19 @@
     </div>
     
     <div v-else-if="filteredOrders.length" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-      <div v-for="order in filteredOrders" :key="order.id" class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow group">
+      <div v-for="order in filteredOrders" :key="order.id" 
+           class="rounded-xl overflow-hidden transition-shadow group"
+           :class="order.status === 'cancelled' 
+             ? 'bg-gray-50 border-2 border-dashed border-red-200' 
+             : 'bg-white shadow-sm border border-gray-100 hover:shadow-md'">
+        <!-- Banner Dibatalkan -->
+        <div v-if="order.status === 'cancelled'" class="bg-red-100 border-b border-red-200 px-4 py-2 flex items-center gap-2">
+          <svg class="w-4 h-4 text-red-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+          <span class="text-xs font-bold text-red-700 uppercase tracking-wider">Order Dibatalkan</span>
+        </div>
         <!-- Card Header -->
-        <div class="p-5 border-b border-gray-50 bg-gradient-to-r from-gray-50 to-white flex justify-between items-start">
+        <div class="p-5 border-b border-gray-50 flex justify-between items-start"
+             :class="order.status === 'cancelled' ? 'bg-gray-100' : 'bg-gradient-to-r from-gray-50 to-white'">
           <div>
             <div class="font-bold text-gray-800 text-lg">{{ order.customer_name }}</div>
             <div class="text-sm text-gray-500 mt-1 flex items-center gap-2">
@@ -76,7 +86,7 @@
         </div>
 
         <!-- Order Items & Progress -->
-        <div class="p-5 space-y-4">
+        <div class="p-5 space-y-4" :class="{ 'opacity-60': order.status === 'cancelled' }">
            <div v-for="(item, itemIndex) in order.order_items" :key="itemIndex" class="space-y-2">
               <!-- Item Header -->
               <div class="font-medium text-gray-800 flex justify-between items-center">
@@ -174,6 +184,12 @@
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
                 Cetak Nota
             </button>
+        </div>
+        <div class="p-3 bg-red-50 border-t border-red-100" v-if="order.status === 'cancelled'">
+            <span class="text-xs font-medium text-red-600 flex items-center justify-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                Order ini telah dibatalkan
+            </span>
         </div>
       </div>
     </div>
