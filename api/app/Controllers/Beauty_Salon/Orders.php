@@ -41,10 +41,16 @@ class Orders extends Controller
                 $params[] = $status;
             }
             
-            // Filter by date range (untuk halaman Performance: berdasarkan tanggal selesai order)
+            // Filter by date range
             if ($start_date && $end_date) {
-                $dateColumn = ($date_by === 'order_date') ? 'o.order_date' : (($date_by === 'created_at') ? 'o.created_at' : 'o.completed_at');
-                $sql .= " AND o.status = 'completed' AND {$dateColumn} IS NOT NULL AND DATE({$dateColumn}) >= ? AND DATE({$dateColumn}) <= ?";
+                $for_archive = isset($_GET['archive']) && $_GET['archive'];
+                if ($for_archive) {
+                    // Arsip: completed + cancelled, pakai COALESCE(completed_at, updated_at)
+                    $sql .= " AND o.status IN ('completed', 'cancelled') AND DATE(COALESCE(o.completed_at, o.updated_at)) >= ? AND DATE(COALESCE(o.completed_at, o.updated_at)) <= ?";
+                } else {
+                    $dateColumn = ($date_by === 'order_date') ? 'o.order_date' : (($date_by === 'created_at') ? 'o.created_at' : 'o.completed_at');
+                    $sql .= " AND o.status = 'completed' AND {$dateColumn} IS NOT NULL AND DATE({$dateColumn}) >= ? AND DATE({$dateColumn}) <= ?";
+                }
                 $params[] = $start_date;
                 $params[] = $end_date;
             }
@@ -286,6 +292,39 @@ class Orders extends Controller
 
             if (!$existing) {
                 $this->error('Order tidak ditemukan', 404);
+            }
+
+            // Validasi sebelum ubah ke completed
+            if ($body['status'] === 'completed') {
+                if ($existing['status'] !== 'pending') {
+                    $this->error('Hanya order pending yang dapat diselesaikan.', 400);
+                }
+
+                $order_items = json_decode($existing['order_items'], true) ?: [];
+                $total_price = (float)($existing['total_price'] ?? 0);
+
+                // 1. Validasi work steps: semua step layanan harus selesai dan punya worker
+                foreach ($order_items as $item) {
+                    if (!empty($item['item_id'])) continue; // Skip inventory
+                    $steps = $item['work_steps'] ?? [];
+                    if (empty($steps)) continue;
+                    foreach ($steps as $idx => $step) {
+                        if (($step['status'] ?? '') !== 'completed') {
+                            $this->error('Semua langkah kerja harus berstatus Selesai sebelum order dapat diselesaikan.', 400);
+                        }
+                        if (empty($step['worker_id'])) {
+                            $this->error('Semua langkah kerja harus memiliki Terapis yang bertugas.', 400);
+                        }
+                    }
+                }
+
+                // 2. Validasi pembayaran: total harus sesuai tagihan
+                $pay_cash = isset($body['pay_cash']) ? (float)$body['pay_cash'] : 0;
+                $pay_non_cash = isset($body['pay_non_cash']) ? (float)$body['pay_non_cash'] : 0;
+                $total_paid = $pay_cash + $pay_non_cash;
+                if (abs($total_paid - $total_price) > 0.01) {
+                    $this->error('Total pembayaran harus sama dengan tagihan (Rp ' . number_format($total_price, 0, ',', '.') . ').', 400);
+                }
             }
 
             $data = [

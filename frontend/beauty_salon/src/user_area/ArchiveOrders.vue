@@ -6,8 +6,22 @@
         <h2 class="text-lg font-bold text-gray-800">Arsip Order</h2>
         <p class="text-sm text-gray-500">Riwayat order selesai dan dibatalkan</p>
       </div>
-      <div class="flex gap-2">
-         <!-- Date Filter Placeholder -->
+      <div class="flex gap-2 items-center flex-wrap">
+        <form @submit.prevent="applyFilter" class="flex flex-wrap items-center gap-2">
+          <div class="flex items-center gap-2">
+            <label class="text-xs text-gray-500">Dari</label>
+            <input v-model="dateFrom" type="date" class="rounded-lg border border-gray-200 px-3 py-1.5 text-sm focus:ring-2 focus:ring-pink-500 focus:border-pink-500" />
+          </div>
+          <div class="flex items-center gap-2">
+            <label class="text-xs text-gray-500">Sampai</label>
+            <input v-model="dateTo" type="date" class="rounded-lg border border-gray-200 px-3 py-1.5 text-sm focus:ring-2 focus:ring-pink-500 focus:border-pink-500" />
+          </div>
+          <button type="submit" class="px-4 py-1.5 bg-pink-600 hover:bg-pink-700 text-white text-sm font-medium rounded-lg transition">
+            Filter
+          </button>
+          <span class="text-xs text-gray-400">Maks. 7 hari</span>
+        </form>
+        <span v-if="filterError" class="text-xs text-red-600">{{ filterError }}</span>
       </div>
     </div>
 
@@ -205,6 +219,71 @@ const selectedOrder = ref(null);
 const therapists = ref([]);
 const toast = reactive({ show: false, message: '', type: 'success' });
 const salonInfo = ref({ nama_salon: 'MDL BEAUTY SALON', alamat_salon: 'Jakarta' });
+const filterError = ref('');
+
+function getDefaultDateRange() {
+  const end = new Date();
+  const start = new Date();
+  start.setDate(start.getDate() - 6);
+  return {
+    from: start.toISOString().slice(0, 10),
+    to: end.toISOString().slice(0, 10)
+  };
+}
+
+const dateFrom = ref(getDefaultDateRange().from);
+const dateTo = ref(getDefaultDateRange().to);
+
+function daysBetween(d1, d2) {
+  const a = new Date(d1);
+  const b = new Date(d2);
+  return Math.ceil((b - a) / (1000 * 60 * 60 * 24)) + 1;
+}
+
+async function fetchOrders() {
+  loading.value = true;
+  filterError.value = '';
+  try {
+    const resTherapists = await fetch('/api/Beauty_Salon/Therapists');
+    const dTherapists = await resTherapists.json();
+    if (dTherapists.success) therapists.value = dTherapists.data;
+
+    const url = `/api/Beauty_Salon/Orders?status=all&archive=1&start_date=${dateFrom.value}&end_date=${dateTo.value}`;
+    const res = await fetch(url);
+    const d = await res.json();
+    if (d.success) {
+      orders.value = (d.data || []).sort((a, b) => {
+        const dateA = new Date(a.completed_at || a.updated_at || 0);
+        const dateB = new Date(b.completed_at || b.updated_at || 0);
+        return dateB - dateA;
+      });
+    }
+  } catch (e) {
+    console.error(e);
+  } finally {
+    loading.value = false;
+  }
+}
+
+function applyFilter() {
+  const from = dateFrom.value;
+  const to = dateTo.value;
+  if (!from || !to) {
+    filterError.value = 'Pilih tanggal awal dan akhir.';
+    return;
+  }
+  if (new Date(from) > new Date(to)) {
+    filterError.value = 'Tanggal awal tidak boleh lebih besar dari tanggal akhir.';
+    return;
+  }
+  const days = daysBetween(from, to);
+  if (days > 7) {
+    filterError.value = 'Rentang maksimal 7 hari.';
+    return;
+  }
+  filterError.value = '';
+  fetchOrders();
+}
 
 const workerNameMap = computed(() => {
     const m = {};
@@ -223,31 +302,8 @@ function showToast(message, type = 'success') {
   setTimeout(() => toast.show = false, 3000);
 }
 
-onMounted(async () => {
-    try {
-        // Fetch therapists untuk mapping worker_id -> nama
-        const resTherapists = await fetch('/api/Beauty_Salon/Therapists');
-        const dTherapists = await resTherapists.json();
-        if (dTherapists.success) therapists.value = dTherapists.data;
-
-        // Fetch COMPLETED dan CANCELLED orders
-        const res = await fetch('/api/Beauty_Salon/Orders?status=all');
-        const d = await res.json();
-        if (d.success) {
-            // Filter: hanya completed dan cancelled, sort by completed_at/updated_at
-            orders.value = d.data
-                .filter(o => o.status === 'completed' || o.status === 'cancelled')
-                .sort((a, b) => {
-                    const dateA = new Date(a.completed_at || a.updated_at || 0);
-                    const dateB = new Date(b.completed_at || b.updated_at || 0);
-                    return dateB - dateA;
-                });
-        }
-    } catch (e) {
-        console.error(e);
-    } finally {
-        loading.value = false;
-    }
+onMounted(() => {
+    fetchOrders();
 });
 
 function viewDetail(order) {
