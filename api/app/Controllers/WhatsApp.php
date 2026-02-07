@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Core\Controller;
 use App\Helpers\WhatsAppService;
+use App\Helpers\FonnteService;
 
 /**
  * WhatsApp Controller
@@ -230,9 +231,34 @@ class WhatsApp extends Controller
                 // If free text failed, continue to template fallback below
             }
             
-            // CSW expired or free text failed - use template
+            // CSW expired or free text failed - try Fonnte first, then fallback to template
+            $messageText = $body['message'] ?? '';
+            $decodedMsg = json_decode($messageText, true);
+            if ($decodedMsg && isset($decodedMsg['text'])) {
+                $messageText = $decodedMsg['text'];
+            }
 
-            //tambahkan keamanan pastikan dikirim hanya menerima domain ip server ip 194.233.94.47
+            if (!empty($messageText)) {
+                $fonnte = new FonnteService();
+                $fonnteResult = $fonnte->sendMessage($phone, $messageText);
+                if ($fonnteResult['success']) {
+                    $this->success([
+                        'message_id' => $fonnteResult['data']['id'][0] ?? null,
+                        'requestid' => $fonnteResult['data']['requestid'] ?? null,
+                        'status' => $fonnteResult['data']['process'] ?? 'pending',
+                        'mode' => 'fonnte',
+                        'to' => $phone,
+                        'csw_status' => [
+                            'within_csw' => false,
+                            'hours_elapsed' => round($hoursElapsed, 2),
+                            'note' => 'Sent via Fonnte because CSW expired',
+                        ],
+                    ], 'WhatsApp message sent via Fonnte');
+                }
+                \Log::write('Fonnte send failed, falling back to template: ' . ($fonnteResult['error'] ?? 'unknown'), 'whatsapp', 'api');
+            }
+
+            // Fonnte failed or no message - use template
             $this->validateIpWhitelist();
 
             // Validate template name (template_params can be empty array)
@@ -279,7 +305,7 @@ class WhatsApp extends Controller
                 'csw_status' => [
                     'within_csw' => $isWithinCsw,
                     'hours_elapsed' => round($hoursElapsed, 2),
-                    'note' => 'Template used because CSW expired or free text unavailable'
+                    'note' => 'Template used because CSW expired, Fonnte failed, or free text unavailable'
                 ]
             ], 'WhatsApp template sent successfully');
         }
