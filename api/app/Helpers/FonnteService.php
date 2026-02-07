@@ -61,6 +61,9 @@ class FonnteService
         if (isset($options['countryCode'])) {
             $postFields['countryCode'] = (string) $options['countryCode'];
         }
+        if (isset($options['inboxid']) && is_numeric($options['inboxid'])) {
+            $postFields['inboxid'] = (int) $options['inboxid'];
+        }
 
         $response = $this->callApi($postFields);
 
