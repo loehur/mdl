@@ -74,6 +74,21 @@ const formatRupiah = (n) => {
   return new Intl.NumberFormat('id-ID', { style: 'decimal', minimumFractionDigits: 0 }).format(n);
 };
 
+const formatDateIndonesia = (dateStr) => {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    const day = d.getDate();
+    const month = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'][d.getMonth()];
+    const year = d.getFullYear();
+    const h = String(d.getHours()).padStart(2, '0');
+    const m = String(d.getMinutes()).padStart(2, '0');
+    return `${day} ${month} ${year}, ${h}:${m}`;
+  } catch {
+    return '';
+  }
+};
+
 watch(
   () => [props.show, props.custId],
   ([show, custId]) => {
@@ -148,9 +163,12 @@ watch(
               :key="item.ref_finance"
               class="bg-[var(--wa-bg-secondary)] rounded-xl p-4 border border-[var(--wa-border)]"
             >
-              <p class="text-xs text-[var(--wa-text-tertiary)] mb-3">
-                {{ item.jenis_bill }} • {{ item.note }} • {{ item.karyawan }}
-              </p>
+              <div class="flex justify-between items-baseline gap-2 mb-3">
+                <p class="text-xs text-[var(--wa-text-tertiary)]">
+                  {{ item.jenis_bill }} • {{ item.note }} • {{ item.karyawan }}
+                </p>
+                <span class="text-xs text-[var(--wa-text-secondary)] whitespace-nowrap text-right">{{ formatDateIndonesia(item.insertTime) }}</span>
+              </div>
               <div class="flex items-center justify-between gap-3">
                 <button
                   @click="tolak(item)"

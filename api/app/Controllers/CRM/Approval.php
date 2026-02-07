@@ -29,7 +29,7 @@ class Approval extends Controller
 
         $db = $this->db(1);
 
-        $sql = "SELECT k.ref_finance, k.note, k.id_user, k.id_client, k.jenis_transaksi, SUM(k.jumlah) as total
+        $sql = "SELECT k.ref_finance, k.note, k.id_user, k.id_client, k.jenis_transaksi, SUM(k.jumlah) as total, MAX(k.insertTime) as insertTime
                 FROM kas k
                 WHERE k.id_client = ? AND k.metode_mutasi = 2 AND k.status_mutasi = 2 AND k.ref_finance <> ''
                 GROUP BY k.ref_finance
@@ -72,6 +72,7 @@ class Approval extends Controller
                 'total' => (float) $a['total'],
                 'pelanggan' => $pelanggan,
                 'karyawan' => $karyawan,
+                'insertTime' => $a['insertTime'] ?? null,
             ];
         }
 
