@@ -268,10 +268,6 @@ const parseEmoji = (text) => {
           <div v-if="chat.kode_cabang" class="text-xs font-bold px-2 py-0.5 rounded" :class="chat.kode_cabang === '00' ? 'text-pink-500 bg-pink-500/10' : 'text-[var(--wa-accent-blue)] bg-blue-500/10'">
             {{ chat.kode_cabang }}
           </div>
-          <!-- Cust ID (pelanggan) -->
-          <a v-if="chat.cust_id" :href="'https://ml.nalju.com/I/' + chat.cust_id" target="_blank" rel="noopener" class="text-[10px] text-[var(--wa-text-tertiary)] hover:text-[var(--wa-accent-green)]" :title="'ID Pelanggan: ' + chat.cust_id">
-            #{{ chat.cust_id }}
-          </a>
           
           <!-- Case Badges (lingkaran warna) -->
           <div v-if="chat.cases && chat.cases.some((c) => c.case > 0 && (c.status || 'open') !== 'closed')" class="flex flex-wrap gap-1 justify-center">

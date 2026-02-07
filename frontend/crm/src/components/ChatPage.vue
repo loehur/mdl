@@ -739,7 +739,7 @@ onUnmounted(() => {
                       <h2 class="font-medium text-[var(--wa-text-primary)] text-base md:text-lg truncate uppercase">{{ activeConversation.name }}</h2>
                       <div class="flex items-center gap-2 flex-wrap">
                         <span v-if="activeConversation.kode_cabang" class="text-xs font-bold text-[var(--wa-text-secondary)]">{{ activeConversation.kode_cabang }}</span>
-                        <a v-if="activeConversation.cust_id" :href="'https://ml.nalju.com/I/' + activeConversation.cust_id" target="_blank" rel="noopener" class="text-xs text-[var(--wa-text-tertiary)] hover:text-[var(--wa-accent-green)]" :title="'ID Pelanggan: ' + activeConversation.cust_id">#{{ activeConversation.cust_id }}</a>
+                        <span v-if="activeConversation.cust_id" class="text-xs text-[var(--wa-text-tertiary)]">#{{ activeConversation.cust_id }}</span>
                            <div v-if="activeConversation.cases" class="flex gap-1">
                                 <template v-for="(cse, idx) in activeConversation.cases" :key="idx">
                                     <div v-if="cse.case > 0 && (cse.status || 'open') !== 'closed'" class="w-3 h-3 rounded-full" :class="getCaseColor(cse.case)"></div>
