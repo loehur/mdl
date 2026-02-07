@@ -5,6 +5,7 @@ import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import LoginModal from "./components/LoginModal.vue";
 import ChatPage from "./components/ChatPage.vue";
 import ConversationList from "./components/ConversationList.vue";
+import ApprovalModal from "./components/ApprovalModal.vue";
 
 // Import stores
 import {
@@ -31,6 +32,7 @@ import {
   touchStartX, touchStartY, touchOffset, isDragging, minSwipeDistance, showExitToast,
   // UI - Menus & Modals
   showChatMenu, showResolveMenu, showSettingsModal, showCustomerInfoModal,
+  showApprovalModal, approvalCustId, approvalCustomerName,
   showImageLightbox, lightboxImageUrl, showQuickReplies,
   showInternalBrowser, internalBrowserUrl, isInternalBrowserEntering, isInternalBrowserExiting, isInternalBrowserLoading,
   // Loading States
@@ -4778,6 +4780,7 @@ const handleLinkClick = (e) => {
       @open-image-lightbox="openImageLightbox"
       @refresh-active-chat="refreshActiveChat"
       @open-internal-browser="openInternalBrowser"
+      @open-approval="(custId) => { approvalCustId = custId; approvalCustomerName = activeConversation?.name ?? ''; showApprovalModal = true; }"
     />
 
     <!-- Exit Toast -->
@@ -5172,7 +5175,14 @@ const handleLinkClick = (e) => {
       </div>
     </div>
 
-
+    <!-- Approval Modal (List Pembayaran NonTunai) -->
+    <ApprovalModal
+      :show="showApprovalModal"
+      :cust-id="approvalCustId"
+      :customer-name="approvalCustomerName"
+      :api-base="API_BASE"
+      @close="showApprovalModal = false; approvalCustId = null; approvalCustomerName = ''"
+    />
 
     <!-- Internal Browser (for nalju.com links) -->
     <div

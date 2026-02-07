@@ -80,6 +80,7 @@ const emit = defineEmits([
   "trigger-connect", // If we need to reconnect
   "load-more-messages", // For infinite scroll
   "open-internal-browser", // Open URL in internal browser (ml.nalju.com)
+  "open-approval", // Tampilkan list pembayaran (cust_id)
 ]);
 
 // --- LOCAL STATE ---
@@ -276,6 +277,13 @@ const openInvoice = () => {
         const url = `https://ml.nalju.com/I/${props.activeConversation.cust_id}`;
         emit('open-internal-browser', url);
         showCustomerInfoModal.value = false;
+    }
+};
+
+const openApproval = () => {
+    if (props.activeConversation?.cust_id) {
+        showCustomerInfoModal.value = false;
+        emit('open-approval', props.activeConversation.cust_id);
     }
 };
 
@@ -1102,14 +1110,25 @@ onUnmounted(() => {
                           <button @click="copyPhoneNumber" class="text-[var(--wa-accent-green)] text-sm font-bold">{{ copiedPhone ? 'Copied!' : 'Copy' }}</button>
                       </div>
                  </div>
-                 <button
-                   @click="openInvoice"
-                   :disabled="!activeConversation?.cust_id"
-                   class="w-full py-3 px-4 font-bold rounded-xl transition-opacity"
-                   :class="activeConversation?.cust_id ? 'bg-[var(--wa-accent-green)] text-black hover:opacity-90 cursor-pointer' : 'bg-[var(--wa-bg-tertiary)] text-[var(--wa-text-tertiary)] cursor-not-allowed opacity-60'"
-                 >
-                   Invoice
-                 </button>
+                 <div class="flex gap-3">
+                   <button
+                     @click="openInvoice"
+                     :disabled="!activeConversation?.cust_id"
+                     class="flex-1 py-3 px-4 font-bold rounded-xl transition-opacity"
+                     :class="activeConversation?.cust_id ? 'bg-[var(--wa-accent-green)] text-black hover:opacity-90 cursor-pointer' : 'bg-[var(--wa-bg-tertiary)] text-[var(--wa-text-tertiary)] cursor-not-allowed opacity-60'"
+                   >
+                     Invoice
+                   </button>
+                   <button
+                     v-if="currentUserRole === 'admin'"
+                     @click="openApproval"
+                     :disabled="!activeConversation?.cust_id"
+                     class="flex-1 py-3 px-4 font-bold rounded-xl transition-opacity"
+                     :class="activeConversation?.cust_id ? 'bg-[var(--wa-accent-blue)] text-white hover:opacity-90 cursor-pointer' : 'bg-[var(--wa-bg-tertiary)] text-[var(--wa-text-tertiary)] cursor-not-allowed opacity-60'"
+                   >
+                     Approval
+                   </button>
+                 </div>
             </div>
         </div>
     </div>
