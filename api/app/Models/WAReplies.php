@@ -82,7 +82,7 @@ class WAReplies
      * @param string $waNumber The sender's WhatsApp number (e.g. +62...)
      * @return object { ai: bool, priority: int }
      */
-    public function process($phoneIn, $textBody, $waNumber, $contactName = null, $assigned_user_id = null, $code = null, $lastMessage = null)
+    public function process($phoneIn, $textBody, $waNumber, $contactName = null, $assigned_user_id = null, $code = null, $lastMessage = null, $cust_id = null)
     {
         // Strip WhatsApp formatters: * (bold), _ (italic), ~ (strikethrough), ` (monospace)
         $textBodyToCheck = preg_replace('/[*_~`]/', '', $textBody ?? '');
@@ -120,7 +120,7 @@ class WAReplies
                     //cek rate limit
                     if (!$this->shouldHandle($waNumber, $handler)) {
                         $conversationId = $this->getOrCreateConversationWithCase(
-                            $db, $waNumber, $contactName, $assigned_user_id, $code, $lastMessage, null
+                            $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
                         );
                         
                         return (object) [
@@ -137,6 +137,7 @@ class WAReplies
                         $contactName, 
                         $assigned_user_id, 
                         $code, 
+                        $cust_id,
                         $lastMessage,
                         $caseVal
                     );
@@ -160,7 +161,7 @@ class WAReplies
         // Short message (likely not a real query) - still create conversation!
         if ($messageLength >= 0 && $messageLength <= 7) {
             $conversationId = $this->getOrCreateConversationWithCase(
-                $db, $waNumber, $contactName, $assigned_user_id, $code, $lastMessage, null
+                $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
             );
             
             return (object) [
@@ -190,7 +191,7 @@ class WAReplies
             if (!$this->shouldHandle($waNumber, $aiIntent)) {
                 // Rate limited - create conversation but don't send auto-reply
                 $conversationId = $this->getOrCreateConversationWithCase(
-                    $db, $waNumber, $contactName, $assigned_user_id, $code, $lastMessage, null
+                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
                 );
                 
                 return (object) [
@@ -202,7 +203,7 @@ class WAReplies
             
             // Rate limit passed - create conversation with AI case
             $conversationId = $this->getOrCreateConversationWithCase(
-                $db, $waNumber, $contactName, $assigned_user_id, $code, $lastMessage, $aiCase
+                $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, $aiCase
             );
             
             // Call handler method
@@ -221,7 +222,7 @@ class WAReplies
 
         // AI failed or unknown intent - still create conversation!
         $conversationId = $this->getOrCreateConversationWithCase(
-            $db, $waNumber, $contactName, $assigned_user_id, $code, $lastMessage, 4
+            $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
         );
         
         return (object) [
@@ -1940,7 +1941,7 @@ class WAReplies
      * Get or create conversation with case management
      * Moved from Webhook controller for better architecture
      */
-    private function getOrCreateConversationWithCase($db, $waNumber, $contactName = null, $assigned_user_id = null, $code = null, $lastMessage = null, $case = null)
+    private function getOrCreateConversationWithCase($db, $waNumber, $contactName = null, $assigned_user_id = null, $code = null, $cust_id = null, $lastMessage = null, $case = null)
     {
         // Try to find existing conversation
         $existing = $db->get_where('wa_conversations', ['wa_number' => $waNumber]);
@@ -1951,6 +1952,7 @@ class WAReplies
                 'contact_name' => $contactName,
                 'assigned_user_id' => $assigned_user_id,
                 'code' => $code,
+                'cust_id' => $cust_id,
                 'status' => 'open',
                 'last_in_at' => date('Y-m-d H:i:s'),
                 'last_message_at' => date('Y-m-d H:i:s'),
@@ -2045,6 +2047,7 @@ class WAReplies
             'wa_number' => $waNumber,
             'contact_name' => $contactName,
             'code' => $code,
+            'cust_id' => $cust_id,
             'status' => 'open',
             'created_at' => date('Y-m-d H:i:s'),
             'last_in_at' => date('Y-m-d H:i:s'),

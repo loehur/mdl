@@ -689,6 +689,7 @@ class WhatsAppService
             $userData = $this->getUserData($waNumber);
             $contactName = $userData['contact_name'] ?? null;
             $code = $userData['code'] ?? null;
+            $cust_id = $userData['cust_id'] ?? null;
             
             // Get or create conversation (NO CUSTOMER CREATION on Outbound)
             // Try find customer
@@ -713,6 +714,7 @@ class WhatsAppService
                 ];
                 if ($contactName) $updateData['contact_name'] = $contactName;
                 if ($code) $updateData['code'] = $code;
+                if ($cust_id !== null) $updateData['cust_id'] = $cust_id;
                 
                 $db->update('wa_conversations', $updateData, ['wa_number' => $waNumber]);
             } else {
@@ -734,6 +736,7 @@ class WhatsAppService
                 ];
                 if ($contactName) $convData['contact_name'] = $contactName;
                 if ($code) $convData['code'] = $code;
+                if ($cust_id !== null) $convData['cust_id'] = $cust_id;
                 
                 $db->insert('wa_conversations', $convData);
             }
@@ -1016,7 +1019,8 @@ class WhatsAppService
             $result = [
                 'contact_name' => $customer->nama_pelanggan,
                 'assigned_user_id' => null,
-                'code' => null
+                'code' => null,
+                'cust_id' => $customer->id_pelanggan,
             ];
             
             $last_sale = $db->query("SELECT * FROM sale WHERE id_pelanggan = " . $customer->id_pelanggan . " ORDER BY insertTime DESC LIMIT 1")->row();

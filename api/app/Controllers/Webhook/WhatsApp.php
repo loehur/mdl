@@ -195,9 +195,10 @@ class WhatsApp extends Controller
 
             //cari assigned_user_id
             $user_data = $this->getUserData($phone0);
-            $assigned_user_id = $user_data->assigned_user_id ?? null;
-            $code = $user_data->code ?? null;
-            $contact_name = $user_data->customer_name ?? $contactName;
+            $assigned_user_id = $user_data ? ($user_data->assigned_user_id ?? null) : null;
+            $code = $user_data ? ($user_data->code ?? null) : null;
+            $cust_id = $user_data ? ($user_data->cust_id ?? null) : null;
+            $contact_name = $user_data ? ($user_data->customer_name ?? $contactName) : $contactName;
             
 
             // Extract message text EARLY for lastMessageSummary
@@ -437,7 +438,8 @@ class WhatsApp extends Controller
                     $contact_name,
                     $assigned_user_id,
                     $code,
-                    $lastMessage
+                    $lastMessage,
+                    $cust_id
                 );
                 
                 $currentCase = $autoReplyResult->case;
@@ -733,6 +735,7 @@ class WhatsApp extends Controller
         
         if ($customer) {
             $return->customer_name = $customer->nama_pelanggan;
+            $return->cust_id = $customer->id_pelanggan; // id_pelanggan from pelanggan (same source as code)
         } else {
             return null;
         }
