@@ -148,45 +148,33 @@ watch(
               :key="item.ref_finance"
               class="bg-[var(--wa-bg-secondary)] rounded-xl p-4 border border-[var(--wa-border)]"
             >
-              <div class="flex justify-between items-start gap-3">
-                <div class="flex-1 min-w-0">
-                  <a
-                    :href="'https://ml.nalju.com/I/' + item.id_client"
-                    target="_blank"
-                    rel="noopener"
-                    class="font-semibold text-[var(--wa-text-primary)] hover:text-[var(--wa-accent-green)] truncate block"
-                  >
-                    {{ item.pelanggan }}
-                  </a>
-                  <p class="text-xs text-[var(--wa-text-tertiary)] mt-0.5">
-                    {{ item.jenis_bill }} • {{ item.note }} • {{ item.karyawan }}
-                  </p>
-                </div>
-                <div class="flex items-center gap-2 flex-shrink-0">
-                  <span class="font-bold text-[var(--wa-accent-green)] text-sm whitespace-nowrap">{{ formatRupiah(item.total) }}</span>
-                  <button
-                    @click="tolak(item)"
-                    :disabled="actionLoading === item.ref_finance"
-                    class="p-2 rounded-lg border border-red-500/50 text-red-400 hover:bg-red-500/10 disabled:opacity-50"
-                    title="Tolak"
-                  >
-                    <svg v-if="actionLoading !== item.ref_finance" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                    <div v-else class="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin"></div>
-                  </button>
-                  <button
-                    @click="terima(item)"
-                    :disabled="actionLoading === item.ref_finance"
-                    class="p-2 rounded-lg bg-[var(--wa-accent-green)] text-black hover:opacity-90 disabled:opacity-50"
-                    title="Terima"
-                  >
-                    <svg v-if="actionLoading !== item.ref_finance" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                    </svg>
-                    <div v-else class="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
-                  </button>
-                </div>
+              <p class="text-xs text-[var(--wa-text-tertiary)] mb-3">
+                {{ item.jenis_bill }} • {{ item.note }} • {{ item.karyawan }}
+              </p>
+              <div class="flex items-center justify-between gap-3">
+                <button
+                  @click="tolak(item)"
+                  :disabled="actionLoading === item.ref_finance"
+                  class="p-2 rounded-lg border border-red-500/50 text-red-400 hover:bg-red-500/10 disabled:opacity-50 flex-shrink-0"
+                  title="Tolak"
+                >
+                  <svg v-if="actionLoading !== item.ref_finance" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  <div v-else class="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin"></div>
+                </button>
+                <span class="font-bold text-[var(--wa-accent-green)] text-sm flex-1 text-center">{{ formatRupiah(item.total) }}</span>
+                <button
+                  @click="terima(item)"
+                  :disabled="actionLoading === item.ref_finance"
+                  class="p-2 rounded-lg bg-[var(--wa-accent-green)] text-black hover:opacity-90 disabled:opacity-50 flex-shrink-0"
+                  title="Terima"
+                >
+                  <svg v-if="actionLoading !== item.ref_finance" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  <div v-else class="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
+                </button>
               </div>
             </div>
           </div>
