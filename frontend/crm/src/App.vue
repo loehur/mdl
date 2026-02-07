@@ -385,6 +385,7 @@ const fetchConversations = async (offset = 0, limit = 30, search = '') => {
           convo.wa_number = c.wa_number;
           convo.name = c.contact_name || c.wa_number;
           convo.kode_cabang = c.kode_cabang;
+          convo.cust_id = c.cust_id;
           // convo.priority = parseInt(c.priority) || 0; // Legacy ignored
           convo.cases = parseCases(c); // New Array
 
@@ -407,6 +408,7 @@ const fetchConversations = async (offset = 0, limit = 30, search = '') => {
             wa_number: c.wa_number,
             name: c.contact_name || c.wa_number,
             kode_cabang: c.kode_cabang,
+            cust_id: c.cust_id,
             // priority: parseInt(c.priority) || 0,
             cases: parseCases(c),
 
@@ -561,6 +563,7 @@ const loadMoreConversations = async () => {
           wa_number: c.wa_number,
           name: c.contact_name || c.wa_number,
           kode_cabang: c.kode_cabang,
+          cust_id: c.cust_id,
           cases: parseCases(c),
           initials: (c.contact_name || c.wa_number || "?")
             .substring(0, 1)
@@ -2678,6 +2681,7 @@ const handleIncomingMessage = (payload) => {
       wa_number: phone, // ✅ Add wa_number
       name: name || payload.phone || "Unknown User",
       kode_cabang: payload.kode_cabang || "00", // Set from payload
+      cust_id: payload.cust_id || null,
       // priority: parseInt(payload.priority) || 0, // Legacy
       cases: [{ case: parseInt(payload.case || payload.priority || 0) }], // Initialize cases
       initials: (name || payload.phone || "?").substring(0, 1).toUpperCase(),
@@ -2691,6 +2695,9 @@ const handleIncomingMessage = (payload) => {
     // Update existing conversation details if available
     if (payload.kode_cabang) {
       conversation.kode_cabang = payload.kode_cabang;
+    }
+    if (payload.cust_id !== undefined) {
+      conversation.cust_id = payload.cust_id;
     }
     if (payload.priority !== undefined) {
       conversation.priority = parseInt(payload.priority) || 0;
@@ -3648,6 +3655,7 @@ const resumeChatState = async () => {
             wa_number: c.wa_number,
             name: c.contact_name || c.wa_number,
             kode_cabang: c.kode_cabang,
+            cust_id: c.cust_id,
             cases: parseCases(c),
             initials: (c.contact_name || c.wa_number || "?")
               .substring(0, 1)
@@ -3671,6 +3679,7 @@ const resumeChatState = async () => {
           convo.wa_number = c.wa_number;
           convo.name = c.contact_name || c.wa_number;
           convo.kode_cabang = c.kode_cabang;
+          convo.cust_id = c.cust_id;
           convo.cases = parseCases(c);
           convo.initials = (c.contact_name || c.wa_number || "?")
             .substring(0, 1)
@@ -4768,6 +4777,7 @@ const handleLinkClick = (e) => {
       @load-more-messages="loadMoreMessages"
       @open-image-lightbox="openImageLightbox"
       @refresh-active-chat="refreshActiveChat"
+      @open-internal-browser="openInternalBrowser"
     />
 
     <!-- Exit Toast -->
@@ -5139,6 +5149,24 @@ const handleLinkClick = (e) => {
             >
               {{ activeConversation?.kode_cabang }}
             </p>
+          </div>
+
+          <!-- ID Pelanggan (if exists) -->
+          <div
+            v-if="activeConversation?.cust_id"
+            class="bg-[var(--wa-bg-secondary)] rounded-xl p-4 border border-[var(--wa-border)]"
+          >
+            <label class="text-xs text-[var(--wa-text-tertiary)] mb-1 block"
+              >ID Pelanggan</label
+            >
+            <a
+              :href="'https://ml.nalju.com/I/' + activeConversation.cust_id"
+              target="_blank"
+              rel="noopener"
+              class="text-base font-bold text-[var(--wa-accent-green)] hover:underline"
+            >
+              #{{ activeConversation.cust_id }}
+            </a>
           </div>
         </div>
       </div>

@@ -500,7 +500,8 @@ class WhatsApp extends Controller
                     // Using '0' guarantees it pops up for everyone (Realtime solution)
                     // But let's stick to original logic: if assigned, target specific.
                     'target_id' => $assigned_user_id ? (string)$assigned_user_id : '0',
-                    'kode_cabang' => $code
+                    'kode_cabang' => $code,
+                    'cust_id' => $cust_id
                 ]);
                 
 

@@ -78,7 +78,8 @@ const emit = defineEmits([
   "open-image-lightbox",
   "update:activeConversation", // For optimistic updates to bubble up if needed, though objects are ref passed
   "trigger-connect", // If we need to reconnect
-  "load-more-messages" // For infinite scroll
+  "load-more-messages", // For infinite scroll
+  "open-internal-browser", // Open URL in internal browser (ml.nalju.com)
 ]);
 
 // --- LOCAL STATE ---
@@ -268,6 +269,14 @@ const copyPhoneNumber = () => {
 // --- HANDLERS ---
 const showCustomerInfo = () => {
     showCustomerInfoModal.value = true;
+};
+
+const openInvoice = () => {
+    if (props.activeConversation?.cust_id) {
+        const url = `https://ml.nalju.com/I/${props.activeConversation.cust_id}`;
+        emit('open-internal-browser', url);
+        showCustomerInfoModal.value = false;
+    }
 };
 
 const backToMenu = () => {
@@ -720,8 +729,9 @@ onUnmounted(() => {
                   <button @click="backToMenu" class="md:hidden p-1 -ml-2 text-[var(--wa-icon-default)]"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg></button>
                   <div @click="showCustomerInfo" class="min-w-0 flex-1 cursor-pointer">
                       <h2 class="font-medium text-[var(--wa-text-primary)] text-base md:text-lg truncate uppercase">{{ activeConversation.name }}</h2>
-                      <div class="flex items-center gap-2">
+                      <div class="flex items-center gap-2 flex-wrap">
                         <span v-if="activeConversation.kode_cabang" class="text-xs font-bold text-[var(--wa-text-secondary)]">{{ activeConversation.kode_cabang }}</span>
+                        <a v-if="activeConversation.cust_id" :href="'https://ml.nalju.com/I/' + activeConversation.cust_id" target="_blank" rel="noopener" class="text-xs text-[var(--wa-text-tertiary)] hover:text-[var(--wa-accent-green)]" :title="'ID Pelanggan: ' + activeConversation.cust_id">#{{ activeConversation.cust_id }}</a>
                            <div v-if="activeConversation.cases" class="flex gap-1">
                                 <template v-for="(cse, idx) in activeConversation.cases" :key="idx">
                                     <div v-if="cse.case > 0 && (cse.status || 'open') !== 'closed'" class="w-3 h-3 rounded-full" :class="getCaseColor(cse.case)"></div>
@@ -1092,6 +1102,14 @@ onUnmounted(() => {
                           <button @click="copyPhoneNumber" class="text-[var(--wa-accent-green)] text-sm font-bold">{{ copiedPhone ? 'Copied!' : 'Copy' }}</button>
                       </div>
                  </div>
+                 <button
+                   @click="openInvoice"
+                   :disabled="!activeConversation?.cust_id"
+                   class="w-full py-3 px-4 font-bold rounded-xl transition-opacity"
+                   :class="activeConversation?.cust_id ? 'bg-[var(--wa-accent-green)] text-black hover:opacity-90 cursor-pointer' : 'bg-[var(--wa-bg-tertiary)] text-[var(--wa-text-tertiary)] cursor-not-allowed opacity-60'"
+                 >
+                   Invoice
+                 </button>
             </div>
         </div>
     </div>

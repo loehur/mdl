@@ -134,7 +134,8 @@ class Chat extends Controller
                     c.last_message as last_message,
                     c.last_message_at as last_message_time,
                     c.assigned_user_id,
-                    COALESCE(c.code, '00') as kode_cabang
+                    COALESCE(c.code, '00') as kode_cabang,
+                    c.cust_id
                 FROM wa_conversations c
                 WHERE $whereClause
                 ORDER BY c.last_message_at DESC

@@ -262,12 +262,16 @@ const parseEmoji = (text) => {
         class="p-3 flex items-start gap-3 cursor-pointer transition-colors duration-150 border-b border-[var(--wa-divider)] hover:bg-[var(--wa-hover)]"
         :class="{ 'bg-[var(--wa-active)]': activeChatId === chat.id }"
       >
-        <!-- Kolom Kiri: Kode Cabang + Case Badges -->
+        <!-- Kolom Kiri: Kode Cabang + Cust ID + Case Badges -->
         <div class="flex flex-col items-center justify-start gap-1.5 pt-1 min-w-[42px] flex-shrink-0">
           <!-- Kode Cabang (tanpa []) -->
           <div v-if="chat.kode_cabang" class="text-xs font-bold px-2 py-0.5 rounded" :class="chat.kode_cabang === '00' ? 'text-pink-500 bg-pink-500/10' : 'text-[var(--wa-accent-blue)] bg-blue-500/10'">
             {{ chat.kode_cabang }}
           </div>
+          <!-- Cust ID (pelanggan) -->
+          <a v-if="chat.cust_id" :href="'https://ml.nalju.com/I/' + chat.cust_id" target="_blank" rel="noopener" class="text-[10px] text-[var(--wa-text-tertiary)] hover:text-[var(--wa-accent-green)]" :title="'ID Pelanggan: ' + chat.cust_id">
+            #{{ chat.cust_id }}
+          </a>
           
           <!-- Case Badges (lingkaran warna) -->
           <div v-if="chat.cases && chat.cases.some((c) => c.case > 0 && (c.status || 'open') !== 'closed')" class="flex flex-wrap gap-1 justify-center">
