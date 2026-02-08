@@ -570,9 +570,41 @@ class WAReplies
             return;
         }
 
-        $id_pelanggan = $pelanggan[0]['id_pelanggan'];
-        $nama_pelanggan = strtoupper($pelanggan[0]['nama_pelanggan'] ?? 'PELANGGAN');
-        $id_cabang = (int) ($pelanggan[0]['id_cabang'] ?? 0);
+        $id_pelanggans = array_column($pelanggan, 'id_pelanggan');
+        $ids_in = implode(',', $id_pelanggans);
+
+        // Cari id_pelanggan dari sales yang tuntas=0 dulu (sama seperti handleNota)
+        $sales = $db->query("SELECT * FROM sale WHERE tuntas = 0 AND bin = 0 AND id_pelanggan IN ($ids_in) GROUP BY no_ref, tuntas, id_pelanggan ORDER BY insertTime DESC")->result_array();
+        $id_pelanggans_from_sale = array_unique(array_column($sales, 'id_pelanggan'));
+
+        // Juga cek member lunas=0
+        $members = $db->query("SELECT id_pelanggan FROM member WHERE bin = 0 AND id_pelanggan IN ($ids_in) AND lunas = 0")->result_array();
+        $id_pelanggans_from_member = array_unique(array_column($members, 'id_pelanggan'));
+
+        $id_pelanggans_to_check = array_unique(array_merge($id_pelanggans_from_sale, $id_pelanggans_from_member));
+        if (empty($id_pelanggans_to_check)) {
+            $id_pelanggan = $id_pelanggans[0];
+            $nama_pelanggan = strtoupper($pelanggan[array_search($id_pelanggan, $id_pelanggans)]['nama_pelanggan'] ?? 'PELANGGAN');
+            $id_cabang = (int) ($pelanggan[array_search($id_pelanggan, $id_pelanggans)]['id_cabang'] ?? 0);
+            $link = "https://ml.nalju.com/I/" . $id_pelanggan;
+            $text = "Pak/Bu *" . $nama_pelanggan . "*, belum ada tagihan terbuka. Terima kasih 😊\n" . $link;
+            $res = $waService->sendFreeText($waNumber, $text);
+            if ($res['success']) {
+                $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+            }
+            return;
+        }
+
+        $id_pelanggan = array_values($id_pelanggans_to_check)[0];
+        $pelangganRow = null;
+        foreach ($pelanggan as $p) {
+            if ($p['id_pelanggan'] == $id_pelanggan) {
+                $pelangganRow = $p;
+                break;
+            }
+        }
+        $nama_pelanggan = strtoupper($pelangganRow['nama_pelanggan'] ?? 'PELANGGAN');
+        $id_cabang = (int) ($pelangganRow['id_cabang'] ?? 0);
 
         $lookup = $this->loadTagihanLookups($db);
         $lines = [];
