@@ -444,7 +444,7 @@ class WAReplies
                 ],
                 [
                     'role' => 'user',
-                    'content' => "DATA HARGA LAUNDRY (urutkan sort DESC, 3 teratas = paling populer):\n\n" . $priceDataText . "\n\n---\n\nPertanyaan customer: " . $textBody . "\n\nJawab berdasarkan data di atas. Jika pertanyaan tidak spesifik, tampilkan 3 harga teratas."
+                    'content' => "DATA HARGA LAUNDRY (urutkan sort DESC, 5 teratas = paling populer):\n\n" . $priceDataText . "\n\n---\n\nPertanyaan customer: " . $textBody . "\n\nJawab berdasarkan data di atas. Jika pertanyaan tidak spesifik, tampilkan 5 harga teratas."
                 ]
             ];
 
