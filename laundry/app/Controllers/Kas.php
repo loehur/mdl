@@ -83,7 +83,7 @@ class Kas extends Controller
 
       if ($data_main < 1) {
          $data = [
-            'id_kas' => (date('Y') - 2020) . substr(str_shuffle(str_repeat('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 5)), 0, 5),
+            'id_kas' => (date('Y') - 2020) . substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 6),
             'id_cabang' => $this->id_cabang,
             'jenis_mutasi' => 2,
             'jenis_transaksi' => 2,
@@ -125,7 +125,7 @@ class Kas extends Controller
 
       if ($data_main < 1) {
          $data = [
-            'id_kas' => (date('Y') - 2020) . substr(str_shuffle(str_repeat('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 5)), 0, 5),
+            'id_kas' => (date('Y') - 2020) . substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 6),
             'id_cabang' => $this->id_cabang,
             'jenis_mutasi' => 2,
             'jenis_transaksi' => 4,

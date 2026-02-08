@@ -429,7 +429,7 @@ class Sales extends Controller
           
           // Insert ke tabel kas
           $dataKas = [
-             'id_kas' => (date('Y') - 2020) . substr(str_shuffle(str_repeat('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 5)), 0, 5),
+             'id_kas' => (date('Y') - 2020) . substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 6),
              'id_cabang' => $id_cabang,
              'id_user' => $karyawan,
              'ref_transaksi' => $ref,

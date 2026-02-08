@@ -72,7 +72,7 @@ class Kas_Besar extends Controller
       $status_mutasi = 3;
 
       $data = [
-         'id_kas' => (date('Y') - 2020) . substr(str_shuffle(str_repeat('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 5)), 0, 5),
+         'id_kas' => (date('Y') - 2020) . substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 6),
          'id_cabang' => $this->id_cabang,
          'jenis_mutasi' => 2, // Keluar
          'jenis_transaksi' => 8, // Pengeluaran
@@ -103,7 +103,7 @@ class Kas_Besar extends Controller
       $metode = $_POST['metode'] ?? 2;
 
       $data = [
-         'id_kas' => (date('Y') - 2020) . substr(str_shuffle(str_repeat('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 5)), 0, 5),
+         'id_kas' => (date('Y') - 2020) . substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 6),
          'id_cabang' => $this->id_cabang,
          'jenis_mutasi' => 1, // Masuk
          'jenis_transaksi' => 9, // Modal/Pemasukan lain
