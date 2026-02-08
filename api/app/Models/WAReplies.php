@@ -415,6 +415,363 @@ class WAReplies
         }
     }
 
+    /**
+     * Handle intent TAGIHAN - balas rincian tagihan dengan item detail (seperti I.php view)
+     * Menggunakan db(1) = mdl_laundry
+     */
+    /**
+     * Handle intent HARGA - ambil list harga dari db(1), AI jawab pertanyaan harga berdasarkan data
+     * Sumber data: sama dengan view SetHarga (harga, item_group, layanan, durasi, penjualan_jenis, satuan)
+     */
+    private function handleHarga($phoneIn, $waNumber, $textBody = '')
+    {
+        $waService = $this->getWaService();
+
+        $priceDataText = $this->loadHargaDataForAI();
+        if (empty($priceDataText)) {
+            return; // Tidak ada data, CS yang akan membalas manual
+        }
+
+        try {
+            if (!class_exists('\\App\\Config\\AI') || !\App\Config\AI::isEnabled()) {
+                return; // AI tidak aktif, CS yang akan membalas manual
+            }
+
+            $messages = [
+                [
+                    'role' => 'system',
+                    'content' => "Kamu adalah asisten harga laundry. Jawab HANYA berdasarkan data harga yang diberikan. Fokus pada apa yang ditanya customer. Jawab singkat, jelas, dan ramah. Jangan jawab hal yang tidak ditanya. Format: teks biasa, gunakan * untuk bold jika perlu."
+                ],
+                [
+                    'role' => 'user',
+                    'content' => "DATA HARGA LAUNDRY (dari database):\n\n" . $priceDataText . "\n\n---\n\nPertanyaan customer: " . $textBody . "\n\nJawab pertanyaan di atas berdasarkan data harga di atas saja."
+                ]
+            ];
+
+            $answer = $this->executeOpenAIRequestWithMessages($messages, 400);
+            $text = trim($answer);
+            if (empty($text)) {
+                return; // AI tidak bisa jawab, CS yang akan membalas manual
+            }
+
+            $res = $waService->sendFreeText($waNumber, $text);
+            if ($res['success']) {
+                $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+            }
+        } catch (\Exception $e) {
+            if (class_exists('\Log')) {
+                \Log::write("handleHarga ERROR: " . $e->getMessage(), 'wa_error', 'Harga');
+            }
+            return; // Error, CS yang akan membalas manual
+        }
+    }
+
+    /**
+     * Load harga data dari db(1) - format sama SetHarga view
+     * Return: text untuk context AI
+     */
+    private function loadHargaDataForAI()
+    {
+        $db = DB::getInstance(1);
+
+        $itemGroup = [];
+        foreach ($db->query("SELECT id_item_group, item_kategori FROM item_group")->result_array() as $r) {
+            $itemGroup[$r['id_item_group']] = $r['item_kategori'] ?? '';
+        }
+        $penjualan = [];
+        foreach ($db->query("SELECT id_penjualan_jenis, penjualan_jenis, id_satuan FROM penjualan_jenis")->result_array() as $r) {
+            $penjualan[$r['id_penjualan_jenis']] = ['nama' => $r['penjualan_jenis'] ?? '', 'id_satuan' => (int) ($r['id_satuan'] ?? 0)];
+        }
+        $satuan = [];
+        foreach ($db->query("SELECT id_satuan, nama_satuan FROM satuan")->result_array() as $r) {
+            $satuan[$r['id_satuan']] = $r['nama_satuan'] ?? '';
+        }
+        $durasi = [];
+        foreach ($db->query("SELECT id_durasi, durasi FROM durasi")->result_array() as $r) {
+            $durasi[$r['id_durasi']] = $r['durasi'] ?? '';
+        }
+        $layanan = [];
+        foreach ($db->query("SELECT id_layanan, layanan FROM layanan")->result_array() as $r) {
+            $layanan[$r['id_layanan']] = $r['layanan'] ?? '';
+        }
+
+        $rows = $db->query(
+            "SELECT h.id_penjualan_jenis, h.id_item_group, h.list_layanan, h.id_durasi, h.harga, h.harga_b, h.min_order, h.hari, h.jam FROM harga h ORDER BY h.id_penjualan_jenis, h.id_item_group, h.list_layanan, h.id_durasi"
+        )->result_array();
+
+        if (empty($rows)) {
+            return '';
+        }
+
+        $lines = [];
+        $currentJenis = '';
+        foreach ($rows as $r) {
+            $idPj = $r['id_penjualan_jenis'];
+            $pj = $penjualan[$idPj] ?? null;
+            $namaJenis = $pj ? $pj['nama'] : 'Layanan';
+            $idSatuan = $pj ? $pj['id_satuan'] : 0;
+            $unit = $satuan[$idSatuan] ?? '';
+
+            if ($namaJenis !== $currentJenis) {
+                $currentJenis = $namaJenis;
+                $lines[] = "\n=== " . strtoupper($namaJenis) . " (per " . $unit . ") ===";
+            }
+
+            $kategori = $itemGroup[$r['id_item_group']] ?? 'Item';
+            $listL = @unserialize($r['list_layanan'] ?? '');
+            $layananParts = [];
+            if (is_array($listL)) {
+                foreach ($listL as $lid) {
+                    if (!empty($layanan[$lid])) {
+                        $layananParts[] = $layanan[$lid];
+                    }
+                }
+            }
+            $layananStr = !empty($layananParts) ? implode(' + ', $layananParts) : '-';
+            $durasiStr = $durasi[$r['id_durasi']] ?? '';
+            $harga = (int) ($r['harga'] ?? 0);
+            $hargaB = (int) ($r['harga_b'] ?? 0);
+            $minOrder = (int) ($r['min_order'] ?? 0);
+            $hari = (int) ($r['hari'] ?? 0);
+            $jam = (int) ($r['jam'] ?? 0);
+
+            $line = "- {$kategori} | {$layananStr} | {$durasiStr} | Rp " . number_format($harga, 0, ',', '.') . "/{$unit}";
+            if ($hargaB > 0) {
+                $line .= " (B: Rp " . number_format($hargaB, 0, ',', '.') . ")";
+            }
+            if ($minOrder > 0) {
+                $line .= " | Min order: {$minOrder}{$unit}";
+            }
+            if ($hari > 0 || $jam > 0) {
+                $line .= " | {$hari}h {$jam}j";
+            }
+            $lines[] = $line;
+        }
+
+        return trim(implode("\n", $lines));
+    }
+
+    private function handleTagihan($phoneIn, $waNumber, $textBody = '')
+    {
+        $waService = $this->getWaService();
+        $db = DB::getInstance(1);
+
+        $where = "nomor_pelanggan IN ($phoneIn)";
+        $pelanggan = $db->query("SELECT id_pelanggan, nama_pelanggan, id_cabang FROM pelanggan WHERE $where")->result_array();
+
+        if (empty($pelanggan)) {
+            $res = $waService->sendFreeText($waNumber, $this->noRegisterText);
+            if ($res['success']) {
+                $this->pushToWebSocket($this->buildWsPayload($waNumber, $this->noRegisterText, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+            }
+            return;
+        }
+
+        $id_pelanggan = $pelanggan[0]['id_pelanggan'];
+        $nama_pelanggan = strtoupper($pelanggan[0]['nama_pelanggan'] ?? 'PELANGGAN');
+        $id_cabang = (int) ($pelanggan[0]['id_cabang'] ?? 0);
+
+        $lookup = $this->loadTagihanLookups($db);
+        $lines = [];
+        $totalTagihan = 0;
+
+        // 1. Sale - ambil item per baris (sama seperti I.php)
+        $saleRows = $db->query(
+            "SELECT id_penjualan, no_ref, id_item_group, id_penjualan_jenis, id_durasi, list_layanan, qty, harga, min_order, diskon_qty, diskon_partner, member, insertTime FROM sale WHERE id_pelanggan = ? AND bin = 0 AND tuntas = 0 ORDER BY no_ref, insertTime",
+            [$id_pelanggan]
+        )->result_array();
+
+        $byRef = [];
+        foreach ($saleRows as $row) {
+            $byRef[$row['no_ref']][] = $row;
+        }
+
+        foreach ($byRef as $noRef => $items) {
+            $subTotal = 0;
+            $itemLines = [];
+
+            foreach ($items as $s) {
+                $line = $this->formatSaleItemForTagihan($s, $lookup);
+                if ($line) {
+                    $itemLines[] = $line['text'];
+                    $subTotal += $line['total'];
+                }
+            }
+
+            $surcasRows = $db->query(
+                "SELECT sc.jumlah, sj.surcas_jenis FROM surcas sc LEFT JOIN surcas_jenis sj ON sc.id_jenis_surcas = sj.id_surcas_jenis WHERE sc.id_cabang = ? AND sc.no_ref = ?",
+                [$id_cabang, $noRef]
+            )->result_array();
+            foreach ($surcasRows as $sc) {
+                $j = (int) ($sc['jumlah'] ?? 0);
+                $subTotal += $j;
+                $itemLines[] = "   + " . ($sc['surcas_jenis'] ?? 'Surcharge') . ": Rp " . number_format($j, 0, ',', '.');
+            }
+
+            $payments = $db->query(
+                "SELECT COALESCE(SUM(jumlah), 0) as bayar FROM kas WHERE id_cabang = ? AND jenis_transaksi = 1 AND ref_transaksi = ? AND status_mutasi = 3",
+                [$id_cabang, $noRef]
+            )->row();
+            $bayar = (int) ($payments->bayar ?? 0);
+            $sisa = max(0, $subTotal - $bayar);
+            $totalTagihan += $sisa;
+
+            $block = "📋 *" . $noRef . "*\n" . implode("\n", $itemLines) . "\n   _Subtotal: Rp " . number_format($subTotal, 0, ',', '.') . "_";
+            if ($bayar > 0) {
+                $block .= "\n   Sudah bayar: Rp " . number_format($bayar, 0, ',', '.');
+            }
+            $block .= "\n   *Sisa: Rp " . number_format($sisa, 0, ',', '.') . "*";
+            $lines[] = $block;
+        }
+
+        // 2. Member (lunas=0) - dengan rincian paket
+        $members = $db->query(
+            "SELECT m.id_member, m.id_harga, m.harga, m.qty, m.insertTime FROM member m WHERE m.id_cabang = ? AND m.bin = 0 AND m.id_pelanggan = ? AND m.lunas = 0 ORDER BY m.id_member DESC",
+            [$id_cabang, $id_pelanggan]
+        )->result_array();
+
+        foreach ($members as $mem) {
+            $id_member = $mem['id_member'];
+            $total = (int) ($mem['harga'] ?? 0);
+
+            $payments = $db->query(
+                "SELECT COALESCE(SUM(jumlah), 0) as bayar FROM kas WHERE id_cabang = ? AND jenis_transaksi = 3 AND ref_transaksi = ? AND status_mutasi = 3",
+                [$id_cabang, $id_member]
+            )->row();
+            $bayar = (int) ($payments->bayar ?? 0);
+            if ($bayar >= $total) {
+                continue;
+            }
+            $sisa = max(0, $total - $bayar);
+            $totalTagihan += $sisa;
+
+            $detail = $this->formatMemberItemForTagihan($mem, $lookup);
+            $block = "📋 *Member #" . $id_member . "*\n   " . $detail . "\n   Total: Rp " . number_format($total, 0, ',', '.');
+            if ($bayar > 0) {
+                $block .= "\n   Sudah bayar: Rp " . number_format($bayar, 0, ',', '.');
+            }
+            $block .= "\n   *Sisa: Rp " . number_format($sisa, 0, ',', '.') . "*";
+            $lines[] = $block;
+        }
+
+        $link = "https://ml.nalju.com/I/" . $id_pelanggan;
+
+        if (empty($lines)) {
+            $text = "Pak/Bu *" . $nama_pelanggan . "*, belum ada tagihan terbuka. Terima kasih 😊\n" . $link;
+        } else {
+            $text = "*" . $nama_pelanggan . "*\nRincian Tagihan:\n\n" . implode("\n\n", $lines) . "\n\n*Total Tagihan: Rp " . number_format($totalTagihan, 0, ',', '.') . "*\n\n" . $link;
+        }
+
+        $res = $waService->sendFreeText($waNumber, $text);
+        if ($res['success']) {
+            $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+        }
+    }
+
+    private function loadTagihanLookups($db)
+    {
+        $itemGroup = [];
+        foreach ($db->query("SELECT id_item_group, item_kategori FROM item_group")->result_array() as $r) {
+            $itemGroup[$r['id_item_group']] = $r['item_kategori'] ?? '';
+        }
+        $penjualan = [];
+        foreach ($db->query("SELECT id_penjualan_jenis, id_satuan FROM penjualan_jenis")->result_array() as $r) {
+            $penjualan[$r['id_penjualan_jenis']] = (int) ($r['id_satuan'] ?? 0);
+        }
+        $satuan = [];
+        foreach ($db->query("SELECT id_satuan, nama_satuan FROM satuan")->result_array() as $r) {
+            $satuan[$r['id_satuan']] = $r['nama_satuan'] ?? '';
+        }
+        $durasi = [];
+        foreach ($db->query("SELECT id_durasi, durasi FROM durasi")->result_array() as $r) {
+            $durasi[$r['id_durasi']] = $r['durasi'] ?? '';
+        }
+        $layanan = [];
+        foreach ($db->query("SELECT id_layanan, layanan FROM layanan")->result_array() as $r) {
+            $layanan[$r['id_layanan']] = $r['layanan'] ?? '';
+        }
+        $harga = [];
+        foreach ($db->query("SELECT id_harga, id_penjualan_jenis, id_item_group, list_layanan, id_durasi FROM harga")->result_array() as $r) {
+            $harga[$r['id_harga']] = $r;
+        }
+        return compact('itemGroup', 'penjualan', 'satuan', 'durasi', 'layanan', 'harga');
+    }
+
+    private function formatSaleItemForTagihan($s, $lookup)
+    {
+        $member = (int) ($s['member'] ?? 0);
+        if ($member === 1) {
+            return null;
+        }
+        $kategori = $lookup['itemGroup'][$s['id_item_group']] ?? 'Item';
+        $idSatuan = $lookup['penjualan'][$s['id_penjualan_jenis']] ?? 0;
+        $satuan = $lookup['satuan'][$idSatuan] ?? '';
+        $qty = (int) ($s['qty'] ?? 0);
+        $minOrder = (int) ($s['min_order'] ?? 1);
+        $qtyReal = max($qty, $minOrder);
+        $harga = (int) ($s['harga'] ?? 0);
+        $total = $harga * $qtyReal;
+
+        $dQty = (float) ($s['diskon_qty'] ?? 0);
+        $dPartner = (float) ($s['diskon_partner'] ?? 0);
+        if ($dQty > 0) {
+            $total = $total - $total * ($dQty / 100);
+        }
+        if ($dPartner > 0) {
+            $total = $total - $total * ($dPartner / 100);
+        }
+        $total = (int) round($total);
+
+        $layananNames = [];
+        $listLayanan = @unserialize($s['list_layanan'] ?? '');
+        if (is_array($listLayanan)) {
+            foreach ($listLayanan as $lid) {
+                if (!empty($lookup['layanan'][$lid])) {
+                    $layananNames[] = $lookup['layanan'][$lid];
+                }
+            }
+        }
+        $layananStr = !empty($layananNames) ? ' (' . implode(', ', $layananNames) . ')' : '';
+        $durasi = $lookup['durasi'][$s['id_durasi']] ?? '';
+        $durasiStr = $durasi ? " {$durasi}" : '';
+
+        $qtyShow = $qty . $satuan;
+        if ($minOrder > 0 && $qty < $minOrder) {
+            $qtyShow .= " (Min. {$minOrder}{$satuan})";
+        }
+        $text = "#{$s['id_penjualan']} - {$kategori} {$qtyShow}{$layananStr}{$durasiStr} = Rp " . number_format($total, 0, ',', '.');
+        return ['text' => "   " . $text, 'total' => $total];
+    }
+
+    private function formatMemberItemForTagihan($mem, $lookup)
+    {
+        $idHarga = $mem['id_harga'] ?? 0;
+        $h = $lookup['harga'][$idHarga] ?? null;
+        $kategori = '';
+        $layananParts = [];
+        $durasi = '';
+        $unit = '';
+        if ($h) {
+            $kategori = $lookup['itemGroup'][$h['id_item_group']] ?? '';
+            $durasi = $lookup['durasi'][$h['id_durasi']] ?? '';
+            $idPj = $h['id_penjualan_jenis'] ?? 0;
+            $idSatuan = $lookup['penjualan'][$idPj] ?? 0;
+            $unit = $lookup['satuan'][$idSatuan] ?? '';
+            $listL = @unserialize($h['list_layanan'] ?? '');
+            if (is_array($listL)) {
+                foreach ($listL as $lid) {
+                    if (!empty($lookup['layanan'][$lid])) {
+                        $layananParts[] = $lookup['layanan'][$lid];
+                    }
+                }
+            }
+        }
+        $qty = (int) ($mem['qty'] ?? 0);
+        $layananStr = !empty($layananParts) ? implode(' * ', $layananParts) : 'Paket';
+        $detail = "Topup Paket: " . ($kategori ?: 'Member') . ($layananStr ? " * {$layananStr}" : '') . ($durasi ? " * {$durasi}" : '') . " - {$qty}{$unit}";
+        return $detail;
+    }
+
     private function handleStatus($phoneIn, $waNumber, $textBody = '')
     {
         $waService = $this->getWaService();
@@ -1934,6 +2291,68 @@ class WAReplies
             return trim($response['choices'][0]['message']['content']);
         }
 
+        throw new \Exception("OpenAI API: Invalid response structure");
+    }
+
+    /**
+     * Call OpenAI with messages array (system + user) and custom max_tokens
+     * @param array $messages [['role'=>'system','content'=>...], ['role'=>'user','content'=>...]]
+     * @param int $maxTokens
+     * @return string
+     */
+    private function executeOpenAIRequestWithMessages($messages, $maxTokens = 400)
+    {
+        if (!class_exists('\\App\\Config\\AI')) {
+            require_once __DIR__ . '/../Config/AI.php';
+        }
+        $apiKey = (method_exists('\\App\\Config\\AI', 'getOpenAIApiKey')) ? \App\Config\AI::getOpenAIApiKey() : ((method_exists('\\App\\Config\\AI', 'getApiKey')) ? \App\Config\AI::getApiKey() : '');
+        $temperature = \App\Config\AI::getTemperature();
+        $timeout = \App\Config\AI::getTimeout();
+        $model = 'gpt-4o-mini';
+
+        $data = [
+            'model' => $model,
+            'messages' => $messages,
+            'temperature' => $temperature,
+            'max_tokens' => $maxTokens,
+        ];
+
+        $ch = curl_init('https://api.openai.com/v1/chat/completions');
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $apiKey
+        ]);
+        curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+
+        $result = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($result === false) {
+            throw new \Exception("OpenAI API cURL error: {$curlError}");
+        }
+        if ($httpCode !== 200) {
+            $errorMsg = "OpenAI API error: HTTP {$httpCode}";
+            if ($result) {
+                $errorData = json_decode($result, true);
+                if (isset($errorData['error']['message'])) {
+                    $errorMsg .= " - " . $errorData['error']['message'];
+                }
+            }
+            throw new \Exception($errorMsg);
+        }
+
+        $response = json_decode($result, true);
+        if (isset($response['choices'][0]['message']['content'])) {
+            return trim($response['choices'][0]['message']['content']);
+        }
         throw new \Exception("OpenAI API: Invalid response structure");
     }
     

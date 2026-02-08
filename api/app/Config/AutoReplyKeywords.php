@@ -13,14 +13,23 @@ return [
 
     'NOTA' => [
         'patterns' => [
-            '/^\s*(bon|nota+|stru*k|bil+|ta*gi*ha*n|re*si)\s*$/i',
+            '/^\s*(bon|nota)\s*$/i',
         ],
-        'ai_prompt' => "User meminta:\n
-        | bon | nota | struk | tagihan | bukti terima |\n
-        ATAU user menanyakan TOTAL/BIAYA laundrynya, seperti:\n
-        | berapa total punya saya? | berapa biaya laundry saya? | totalnya berapa? | berapa tagihan? |\n
-        Jika user bertanya 'berapa' + (total/biaya/tagihan/berat) = NOTA\n
-        atau yang menurut anda sangat yakin sebagai permintaan nota/bon/informasi tagihan"
+        'ai_prompt' => "User meminta BON/NOTA/STRUK (dokumen bukti terima) sebagai fisik/cetak, seperti:\n
+        | bon | nota | struk | bukti terima | minta bon | minta nota | minta struk |\n
+        \n
+        FALSE (BUKAN NOTA) - PENTING:\n
+        - User menanya 'berapa total?' / 'berapa biaya?' / 'total berapa?' / 'brapa total strika tadi?' = itu TAGIHAN (tanya jumlah uang), BUKAN permintaan bon/nota = FALSE"
+    ],
+
+    'TAGIHAN' => [
+        'patterns' => [
+            '/^\s*(bill|tagihan)\s*$/i',
+        ],
+        'ai_prompt' => "User menanyakan TOTAL BIAYA/TAGIHAN laundry (jumlah uang yang harus dibayar), seperti:\n
+        | berapa total punya saya? | brapa total strika/cuci tadi? | totalnya berapa? | berapa tagihan? | berapa biaya laundry saya? |\n
+        | total berapa kak? | brp total? | berapa total cuci? | berapa biayanya? |\n
+        Jika user bertanya 'berapa' + (total/biaya/tagihan) atau (total/biaya) + 'berapa' = TAGIHAN"
     ],
 
     'STATUS' => [
@@ -102,9 +111,12 @@ return [
             '/(ja*m)\s*\b(be*ra*pa*)\s*\b(bu*ka*|tu*tu*p)/i',
         ],
         'ai_prompt' => "User HANYA menanyakan jam operasional TOKO (buka/tutup), seperti:\n
-        | jam berapa buka? | kapan tutup? | masih buka? | sudah tutup? |\n
-        PENTING: Jika ada kata 'antar' atau 'jemput' dalam pesan = BUKAN JAM_OPERASIONAL, itu adalah MINTA_JEMPUT_ANTAR.\n
-        Contoh yang BUKAN JAM_OPERASIONAL: 'jam berapa diantar?', 'kapan dijemput?', 'antar jam brp?'"
+        | jam berapa buka? | kapan tutup? | masih buka? | sudah tutup? | jam operasional? | jam buka berapa? |\n
+        \n
+        FALSE (BUKAN JAM_OPERASIONAL) - PENTING:\n
+        - 'Jam berapa?' / 'Jam brp?' / 'Jam brp kak?' TANPA kata buka/tutup/operasional = user menanya WAKTU SAAT INI, bukan jam buka toko = FALSE\n
+        - Jika ada kata 'antar' atau 'jemput' = BUKAN JAM_OPERASIONAL, itu adalah MINTA_JEMPUT_ANTAR\n
+        - Contoh FALSE: 'jam berapa?', 'jam brp kak?', 'jam berapa diantar?', 'kapan dijemput?', 'antar jam brp?'"
     ],
 
    'PENUTUP' => [
