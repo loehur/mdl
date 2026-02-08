@@ -272,7 +272,9 @@ class WAGenerator extends Controller
         if (!empty($saldo)) {
             $totalText .= "\n";
             foreach ($saldo as $key => $val) {
-                $totalText .= "M" . $key . " " . $val . " | ";
+                if(floatval($val) > 0) {
+                    $totalText .= "M" . $key . " " . $val . " | ";
+                }
             } 
         }
         
