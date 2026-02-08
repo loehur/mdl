@@ -6,6 +6,8 @@ class Penjualan extends Controller
    {
       $this->session_cek();
       $this->operating_data();
+      // Ambil harga ulang dengan is_active = 1 (tidak pakai dari operating_data)
+      $this->harga = $this->db(0)->get_where_order('harga', 'is_active = 1', 'sort ASC');
    }
 
    public function index()

@@ -496,7 +496,7 @@ class WAReplies
         }
 
         $rows = $db->query(
-            "SELECT h.id_penjualan_jenis, h.id_item_group, h.list_layanan, h.id_durasi, h.harga, h.harga_b, h.min_order, h.hari, h.jam FROM harga h ORDER BY h.id_penjualan_jenis, h.id_item_group, h.list_layanan, h.id_durasi"
+            "SELECT h.id_penjualan_jenis, h.id_item_group, h.list_layanan, h.id_durasi, h.harga, h.harga_b, h.min_order, h.hari, h.jam FROM harga h WHERE h.is_active = 1 ORDER BY h.id_penjualan_jenis, h.id_item_group, h.list_layanan, h.id_durasi"
         )->result_array();
 
         if (empty($rows)) {
