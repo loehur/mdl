@@ -45,7 +45,8 @@ class SetHarga extends Controller
             'list_layanan' => $layanan,
             'id_durasi' => $durasi,
             'harga' => $_POST['f4'],
-            'min_order' => $_POST['f5']
+            'min_order' => $_POST['f5'],
+            'is_active' => 1
          ];
          $query = $this->db(0)->insert($this->table, $data);
          if ($query) {
@@ -79,9 +80,12 @@ class SetHarga extends Controller
          case "5":
             $col = "min_order";
             break;
+         case "7":
+            $col = "is_active";
+            break;
       }
 
-      $set = $col . " = '" . $value . "'";
+      $set = ($col === "is_active") ? ($col . " = " . intval($value)) : ($col . " = '" . $value . "'");
       $where = "id_harga = " . $id;
       $query = $this->db(0)->update($this->table, $set, $where);
       if ($query['errno'] == 0) {

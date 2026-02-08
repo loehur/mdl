@@ -33,6 +33,7 @@ foreach ($this->dSatuan as $a) {
                   <th class="text-right">Rp/<?= $satuan ?> (A)</th>
                   <th class="text-right">Rp/<?= $satuan ?> (B)</th>
                   <th>Min Order</th>
+                  <th class="text-center">Aktif</th>
                   <th class="text-right">Used</th>
                   <th class="text-right">ID</th>
                 </tr>
@@ -56,6 +57,7 @@ foreach ($this->dSatuan as $a) {
                   $f7 = $a['jam'];
                   $f8 = $a['sort'];
                   $f9 = $a['min_order'];
+                  $f10 = isset($a['is_active']) ? (int) $a['is_active'] : 1;
 
                   $IDkategori = $f2;
                   if ($IDkategori == $IDkategoriBefore) {
@@ -97,6 +99,8 @@ foreach ($this->dSatuan as $a) {
                   echo "<td class='text-right'>Rp<span class='cell' data-mode='1' data-id_value='" . $id . "' data-value='" . $f5 . "'>" . $f5 . "</span></td>";
                   echo "<td class='text-right'>Rp<span class='cell' data-mode='6' data-id_value='" . $id . "' data-value='" . $f5_b . "'>" . $f5_b . "</span></td>";
                   echo "<td class='text-right'><span class='cell' data-mode='5' data-id_value='" . $id . "' data-value='" . $f9 . "'>" . $f9 . "</span></td>";
+                  $iconActive = $f10 == 1 ? '<i class="fas fa-check text-success"></i>' : '<i class="fas fa-times text-muted"></i>';
+                  echo "<td class='text-center'><span class='cell-is-active' data-id_value='" . $id . "' data-value='" . $f10 . "' style='cursor:pointer' title='Klik untuk ubah'>" . $iconActive . "</span></td>";
                   echo "<td class='text-right'> <span>" . $f8 . "</span></td>";
                   echo "<td class='text-right'>" . $id . "</td>";
                   echo "</tr>";
@@ -246,6 +250,25 @@ foreach ($this->dSatuan as $a) {
             click = 0;
           },
         });
+      }
+    });
+  });
+
+  $(".cell-is-active").on("click", function() {
+    var span = $(this);
+    var id_value = span.attr("data-id_value");
+    var currentVal = parseInt(span.attr("data-value")) || 0;
+    var newVal = currentVal == 1 ? 0 : 1;
+    var iconHtml = newVal == 1 ? '<i class="fas fa-check text-success"></i>' : '<i class="fas fa-times text-muted"></i>';
+
+    $.ajax({
+      url: '<?= URL::BASE_URL ?>SetHarga/updateCell',
+      data: { id: id_value, value: newVal, mode: '7' },
+      type: 'POST',
+      dataType: 'html',
+      success: function() {
+        span.attr("data-value", newVal);
+        span.html(iconHtml);
       }
     });
   });
