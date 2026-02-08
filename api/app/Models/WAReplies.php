@@ -440,11 +440,11 @@ class WAReplies
             $messages = [
                 [
                     'role' => 'system',
-                    'content' => "Kamu adalah asisten harga laundry. Jawab HANYA berdasarkan data harga yang diberikan. Fokus pada apa yang ditanya customer. Jawab singkat, jelas, dan ramah. Jangan jawab hal yang tidak ditanya. Format: teks biasa, gunakan * untuk bold jika perlu."
+                    'content' => "Kamu adalah asisten harga laundry. Jawab HANYA berdasarkan data harga yang diberikan. Data sudah diurutkan: item dengan sort tertinggi di atas (3 teratas = paling sering dipakai).\n\n- Jika pertanyaan customer JELAS dan SPESIFIK (misal: harga baju cuci kilat, berapa celana reguler): jawab fokus pada yang ditanya.\n- Jika pertanyaan BELUM JELAS atau TIDAK SPESIFIK (misal: berapa harganya, harga laundry, info harga): jawab dengan menampilkan 3 harga teratas dari data (3 item pertama, sort tertinggi).\n\nJawab singkat, jelas, ramah. Format: teks biasa, gunakan * untuk bold jika perlu."
                 ],
                 [
                     'role' => 'user',
-                    'content' => "DATA HARGA LAUNDRY (dari database):\n\n" . $priceDataText . "\n\n---\n\nPertanyaan customer: " . $textBody . "\n\nJawab pertanyaan di atas berdasarkan data harga di atas saja."
+                    'content' => "DATA HARGA LAUNDRY (urutkan sort DESC, 3 teratas = paling populer):\n\n" . $priceDataText . "\n\n---\n\nPertanyaan customer: " . $textBody . "\n\nJawab berdasarkan data di atas. Jika pertanyaan tidak spesifik, tampilkan 3 harga teratas."
                 ]
             ];
 
@@ -496,7 +496,11 @@ class WAReplies
         }
 
         $rows = $db->query(
-            "SELECT h.id_penjualan_jenis, h.id_item_group, h.list_layanan, h.id_durasi, h.harga, h.harga_b, h.min_order, h.hari, h.jam FROM harga h WHERE h.is_active = 1 ORDER BY h.id_penjualan_jenis, h.id_item_group, h.list_layanan, h.id_durasi"
+            "SELECT h.id_penjualan_jenis, h.id_item_group, h.list_layanan, h.id_durasi, h.harga, h.harga_b, h.min_order, h.hari, h.jam, h.sort 
+             FROM harga h 
+             INNER JOIN durasi d ON h.id_durasi = d.id_durasi 
+             WHERE h.is_active = 1 AND d.durasi IN ('Reguler', 'Ekspres', 'Kilat') 
+             ORDER BY h.sort DESC, h.id_penjualan_jenis, h.id_item_group, h.list_layanan, h.id_durasi"
         )->result_array();
 
         if (empty($rows)) {
