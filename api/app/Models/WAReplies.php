@@ -440,7 +440,7 @@ class WAReplies
             $messages = [
                 [
                     'role' => 'system',
-                    'content' => "Kamu adalah asisten harga laundry. Jawab HANYA berdasarkan data harga yang diberikan.\n\nPENTING - URUTAN: Item dalam data SUDAH diurutkan by sort (paling sering dipakai). Baris PERTAMA = nomor 1, baris kedua = 2, dst. JANGAN ubah urutan, JANGAN sort ulang by harga. Tampilkan sesuai urutan yang diberikan.\n\n- Jika pertanyaan JELAS/SPESIFIK: jawab fokus pada yang ditanya.\n- Jika pertanyaan BELUM JELAS: tampilkan 5 harga teratas = BARIS PERTAMA dari data (jangan urutkan ulang by harga).\n\nJawab singkat, jelas, ramah. Format: teks biasa, gunakan * untuk bold jika perlu."
+                    'content' => "Kamu adalah asisten harga laundry. Jawab HANYA berdasarkan data harga yang diberikan.\n\nPENTING - URUTAN: Item dalam data SUDAH diurutkan by sort (paling sering dipakai). Baris PERTAMA = nomor 1, baris kedua = 2, dst. JANGAN ubah urutan, JANGAN sort ulang by harga. Tampilkan sesuai urutan yang diberikan.\n\n- Jika pertanyaan JELAS/SPESIFIK: jawab fokus pada yang ditanya.\n- Jika pertanyaan BELUM JELAS: tampilkan 5 harga teratas = BARIS PERTAMA dari data (jangan urutkan ulang by harga).\n\nFORMAT WHATSAPP agar menarik:\n- Gunakan *teks* untuk bold (judul, nominal)\n- Gunakan _teks_ untuk italic (penekanan)\n- Boleh gunakan emoji secukupnya (📋 ✨ 💰) untuk mempercantik\n- Beri line break antar item agar mudah dibaca\n- Tutup dengan kalimat ramah dan ajakan bertanya lebih lanjut"
                 ],
                 [
                     'role' => 'user',
@@ -496,7 +496,7 @@ class WAReplies
         }
 
         $rows = $db->query(
-            "SELECT h.id_penjualan_jenis, h.id_item_group, h.list_layanan, h.id_durasi, h.harga, h.harga_b, h.min_order, h.hari, h.jam, h.sort 
+            "SELECT h.id_penjualan_jenis, h.id_item_group, h.list_layanan, h.id_durasi, h.harga, h.min_order, h.hari, h.jam, h.sort 
              FROM harga h 
              INNER JOIN durasi d ON h.id_durasi = d.id_durasi 
              WHERE h.is_active = 1 AND d.durasi IN ('Reguler', 'Ekspres', 'Kilat') 
@@ -536,16 +536,12 @@ class WAReplies
             $layananStr = !empty($layananParts) ? implode(' + ', $layananParts) : '-';
             $durasiStr = $durasi[$r['id_durasi']] ?? '';
             $harga = (int) ($r['harga'] ?? 0);
-            $hargaB = (int) ($r['harga_b'] ?? 0);
             $minOrder = (int) ($r['min_order'] ?? 0);
             $hari = (int) ($r['hari'] ?? 0);
             $jam = (int) ($r['jam'] ?? 0);
 
             $prefix = $lineNum <= 10 ? "{$lineNum}. " : "- ";
             $line = $prefix . "{$kategori} | {$layananStr} | {$durasiStr} | Rp " . number_format($harga, 0, ',', '.') . "/{$unit}";
-            if ($hargaB > 0) {
-                $line .= " (B: Rp " . number_format($hargaB, 0, ',', '.') . ")";
-            }
             if ($minOrder > 0) {
                 $line .= " | Min order: {$minOrder}{$unit}";
             }
