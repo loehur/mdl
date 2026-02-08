@@ -440,11 +440,11 @@ class WAReplies
             $messages = [
                 [
                     'role' => 'system',
-                    'content' => "Kamu adalah asisten harga laundry. Jawab HANYA berdasarkan data harga yang diberikan. Data sudah diurutkan: item dengan sort tertinggi di atas (3 teratas = paling sering dipakai).\n\n- Jika pertanyaan customer JELAS dan SPESIFIK (misal: harga baju cuci kilat, berapa celana reguler): jawab fokus pada yang ditanya.\n- Jika pertanyaan BELUM JELAS atau TIDAK SPESIFIK (misal: berapa harganya, harga laundry, info harga): jawab dengan menampilkan 3 harga teratas dari data (3 item pertama, sort tertinggi).\n\nJawab singkat, jelas, ramah. Format: teks biasa, gunakan * untuk bold jika perlu."
+                    'content' => "Kamu adalah asisten harga laundry. Jawab HANYA berdasarkan data harga yang diberikan.\n\nPENTING - URUTAN: Item dalam data SUDAH diurutkan by sort (paling sering dipakai). Baris PERTAMA = nomor 1, baris kedua = 2, dst. JANGAN ubah urutan, JANGAN sort ulang by harga. Tampilkan sesuai urutan yang diberikan.\n\n- Jika pertanyaan JELAS/SPESIFIK: jawab fokus pada yang ditanya.\n- Jika pertanyaan BELUM JELAS: tampilkan 5 harga teratas = BARIS PERTAMA dari data (jangan urutkan ulang by harga).\n\nJawab singkat, jelas, ramah. Format: teks biasa, gunakan * untuk bold jika perlu."
                 ],
                 [
                     'role' => 'user',
-                    'content' => "DATA HARGA LAUNDRY (urutkan sort DESC, 5 teratas = paling populer):\n\n" . $priceDataText . "\n\n---\n\nPertanyaan customer: " . $textBody . "\n\nJawab berdasarkan data di atas. Jika pertanyaan tidak spesifik, tampilkan 5 harga teratas."
+                    'content' => "DATA HARGA LAUNDRY (urutan SUDAH BENAR - baris pertama = sort tertinggi/paling populer, JANGAN sort ulang by harga):\n\n" . $priceDataText . "\n\n---\n\nPertanyaan customer: " . $textBody . "\n\nJawab berdasarkan data di atas. Jika tidak spesifik, tampilkan 5 BARIS PERTAMA sesuai urutan data (jangan ubah urutan)."
                 ]
             ];
 
@@ -509,7 +509,9 @@ class WAReplies
 
         $lines = [];
         $currentJenis = '';
+        $lineNum = 0;
         foreach ($rows as $r) {
+            $lineNum++;
             $idPj = $r['id_penjualan_jenis'];
             $pj = $penjualan[$idPj] ?? null;
             $namaJenis = $pj ? $pj['nama'] : 'Layanan';
@@ -539,7 +541,8 @@ class WAReplies
             $hari = (int) ($r['hari'] ?? 0);
             $jam = (int) ($r['jam'] ?? 0);
 
-            $line = "- {$kategori} | {$layananStr} | {$durasiStr} | Rp " . number_format($harga, 0, ',', '.') . "/{$unit}";
+            $prefix = $lineNum <= 10 ? "{$lineNum}. " : "- ";
+            $line = $prefix . "{$kategori} | {$layananStr} | {$durasiStr} | Rp " . number_format($harga, 0, ',', '.') . "/{$unit}";
             if ($hargaB > 0) {
                 $line .= " (B: Rp " . number_format($hargaB, 0, ',', '.') . ")";
             }
