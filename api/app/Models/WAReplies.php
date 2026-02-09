@@ -697,7 +697,7 @@ class WAReplies
         if (empty($lines)) {
             $text = "Pak/Bu *" . $nama_pelanggan . "*, belum ada tagihan terbuka. Terima kasih 😊\n" . $link;
         } else {
-            $text = "*" . $nama_pelanggan . "*\nRincian Tagihan:\n\n" . implode("\n\n", $lines) . "\n\n*Total Tagihan: Rp " . number_format($totalTagihan, 0, ',', '.') . "*\n\n" . $link;
+            $text = "*" . $nama_pelanggan . "*\nRincian Tagihan:\n\n" . implode("\n\n", $lines) . "\n\n*Total Tagihan: Rp " . number_format($totalTagihan, 0, ',', '.') . "*\n" . $link;
         }
 
         $res = $waService->sendFreeText($waNumber, $text);
@@ -738,9 +738,6 @@ class WAReplies
     private function formatSaleItemForTagihan($s, $lookup)
     {
         $member = (int) ($s['member'] ?? 0);
-        if ($member === 1) {
-            return null;
-        }
         $kategori = $lookup['itemGroup'][$s['id_item_group']] ?? 'Item';
         $idSatuan = $lookup['penjualan'][$s['id_penjualan_jenis']] ?? 0;
         $satuan = $lookup['satuan'][$idSatuan] ?? '';
@@ -752,13 +749,17 @@ class WAReplies
 
         $dQty = (float) ($s['diskon_qty'] ?? 0);
         $dPartner = (float) ($s['diskon_partner'] ?? 0);
-        if ($dQty > 0) {
-            $total = $total - $total * ($dQty / 100);
+        if ($member === 1) {
+            $total = 0;
+        } else {
+            if ($dQty > 0) {
+                $total = $total - $total * ($dQty / 100);
+            }
+            if ($dPartner > 0) {
+                $total = $total - $total * ($dPartner / 100);
+            }
+            $total = (int) round($total);
         }
-        if ($dPartner > 0) {
-            $total = $total - $total * ($dPartner / 100);
-        }
-        $total = (int) round($total);
 
         $layananNames = [];
         $listLayanan = @unserialize($s['list_layanan'] ?? '');
@@ -777,7 +778,8 @@ class WAReplies
         if ($minOrder > 0 && $qty < $minOrder) {
             $qtyShow .= " (Min. {$minOrder}{$satuan})";
         }
-        $text = "#{$s['id_penjualan']} - {$kategori} {$qtyShow}{$layananStr}{$durasiStr} = Rp " . number_format($total, 0, ',', '.');
+        $pricePart = ($member === 1) ? 'Member' : 'Rp ' . number_format($total, 0, ',', '.');
+        $text = "#{$s['id_penjualan']} | {$kategori} {$qtyShow}{$layananStr}{$durasiStr} | {$pricePart}";
         return ['text' => $text, 'total' => $total];
     }
 
