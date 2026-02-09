@@ -86,6 +86,11 @@ class Stok extends Controller
         }
         unset($b);
         
+        // 5. Urutkan dari stok terbanyak
+        usort($barang, function($a, $b) {
+            return ($b['stok'] ?? 0) <=> ($a['stok'] ?? 0);
+        });
+        
         $data_operasi = ['title' => 'Stok Barang'];
         $this->view('layout', ['data_operasi' => $data_operasi]);
         $this->view('stok/index', [
