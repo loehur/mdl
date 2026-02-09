@@ -783,6 +783,88 @@ class Sales extends Controller
       echo json_encode($response);
    }
    
+   // Terima Pakai - terima + pakai sekaligus (hanya untuk source_id != 0, dengan transaction)
+   public function terimaPakai()
+   {
+      if (ob_get_length()) ob_clean();
+      ob_start();
+      
+      $response = ['status' => 'error', 'message' => 'Unknown error'];
+      
+      try {
+          $ref = $_POST['ref'] ?? '';
+          $id_cabang = $_SESSION[URL::SESSID]['user']['id_cabang'] ?? 0;
+          
+          if (empty($ref)) {
+             throw new Exception('Ref tidak valid');
+          }
+          
+          // Cek apakah ref ada di barang_mutasi
+          $items = $this->db(0)->get_where('barang_mutasi', "ref = '$ref'");
+          
+          if (empty($items)) {
+             throw new Exception('Data nota tidak ditemukan');
+          }
+          
+          $first = $items[0];
+          $sourceId = (int)($first['source_id'] ?? 0);
+          $targetId = (int)($first['target_id'] ?? 0);
+          
+          // Hanya untuk transfer dari cabang lain (source_id != 0, bukan dari supplier)
+          if ($sourceId == 0) {
+             throw new Exception('Terima Pakai hanya untuk barang dari transfer cabang (bukan supplier)');
+          }
+          
+          // Cek apakah type = 2 (transfer)
+          if ($first['type'] != 2) {
+             throw new Exception('Nota ini bukan transfer barang');
+          }
+          
+          // Cek apakah cabang saat ini adalah target
+          if ($targetId != $id_cabang) {
+             throw new Exception('Anda bukan cabang penerima barang ini');
+          }
+          
+          // Cek tidak ada pembayaran
+          $payments = $this->db(0)->get_where('kas', "ref_transaksi = '$ref' AND jenis_transaksi = 7");
+          if (!empty($payments)) {
+             throw new Exception('Tidak dapat Terima Pakai nota yang sudah memiliki riwayat pembayaran');
+          }
+          
+          // SQL Transaction
+          if (!$this->db(0)->beginTransaction()) {
+             throw new Exception('Gagal memulai transaksi');
+          }
+          
+          try {
+             // Update type = 3 (pakai), state = 0
+             $update = $this->db(0)->update('barang_mutasi', ['type' => 3, 'state' => 0], "ref = '$ref'");
+             
+             if (isset($update['errno']) && $update['errno'] != 0) {
+                throw new Exception($update['error'] ?? 'Gagal update barang_mutasi');
+             }
+             
+             if (!$this->db(0)->commit()) {
+                throw new Exception('Gagal commit transaksi');
+             }
+             
+             $response = ['status' => 'success', 'message' => 'Barang berhasil diterima dan dipakai'];
+             $this->model('Log')->write("[Sales::terimaPakai] Ref: $ref, Terima Pakai OK");
+             
+          } catch (\Throwable $e) {
+             $this->db(0)->rollback();
+             throw $e;
+          }
+      } catch (\Throwable $e) {
+          $this->model('Log')->write("[Sales::terimaPakai] Error: " . $e->getMessage());
+          $response = ['status' => 'error', 'message' => $e->getMessage()];
+      }
+      
+      ob_end_clean();
+      if (!headers_sent()) header('Content-Type: application/json');
+      echo json_encode($response);
+   }
+   
    // Piutang - ubah state = 3 (piutang)
    public function piutang()
    {

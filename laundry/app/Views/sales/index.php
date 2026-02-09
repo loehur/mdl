@@ -12,6 +12,12 @@
   #modalTransfer .modal-content {
     overflow: visible !important;
   }
+  
+  .btnTerimaPakai:hover {
+    transform: scale(1.02);
+    box-shadow: 0 6px 20px rgba(255,107,53,0.5) !important;
+    color: white !important;
+  }
 </style>
 
 <!-- Selectize CSS removed (404) -->
@@ -169,10 +175,15 @@
                       $kodeCabangSource = $sourceCabang['kode_cabang'] ?? 'N/A';
                   }
               ?>
-                <div class="d-grid">
+                <div class="d-grid gap-2">
                   <button type="button" class="btn btn-success btnTerimaBarang" data-ref="<?= $ref ?>" data-source="<?= $kodeCabangSource ?>">
                     <i class="fas fa-check-circle me-2"></i>Terima barang dari <strong><?= $kodeCabangSource ?></strong>
                   </button>
+                  <?php if ($sourceId != 0) { ?>
+                  <button type="button" class="btn btnTerimaPakai fw-bold shadow" style="background: linear-gradient(135deg, #ff6b35 0%, #f7931e 50%, #ffc107 100%); color: white; border: none; font-size: 1rem; transition: transform 0.2s, box-shadow 0.2s;" data-ref="<?= $ref ?>" data-source="<?= $kodeCabangSource ?>">
+                    <i class="fas fa-bolt me-2"></i>Terima Pakai
+                  </button>
+                  <?php } ?>
                 </div>
               <?php 
                 } else {
@@ -939,6 +950,56 @@
     modal.show();
   });
   
+  // ========== TERIMA PAKAI (TERIMA + PAKAI SEKALIGUS, source_id != 0) ==========
+  var terimaPakaiNotaRef = '';
+  
+  $(document).on('click', '.btnTerimaPakai', function() {
+    terimaPakaiNotaRef = $(this).data('ref');
+    var sourceCabang = $(this).data('source');
+    
+    $('#terimaPakaiRef').text('#' + terimaPakaiNotaRef);
+    $('#terimaPakaiSource').text(sourceCabang);
+    
+    var modalEl = document.getElementById('modalTerimaPakai');
+    var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+  });
+  
+  $(document).on('click', '#btnKonfirmasiTerimaPakai', function() {
+    var btn = $(this);
+    var originalHtml = btn.html();
+    
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Memproses...');
+   
+    $.ajax({
+      url: '<?= URL::BASE_URL ?>Sales/terimaPakai',
+      type: 'POST',
+      dataType: 'json',
+      data: {
+        ref: terimaPakaiNotaRef
+      },
+      success: function(res) {
+        var modalEl = document.getElementById('modalTerimaPakai');
+        var modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+        
+        if (res.status === 'success') {
+          showSalesAlert(res.message || 'Barang berhasil diterima dan dipakai', 'success');
+          setTimeout(function() {
+            location.reload();
+          }, 1500);
+        } else {
+          showSalesAlert(res.message || 'Gagal memproses', 'error');
+          btn.prop('disabled', false).html(originalHtml);
+        }
+      },
+      error: function(xhr, status, error) {
+        showSalesAlert('Error: ' + error, 'error');
+        btn.prop('disabled', false).html(originalHtml);
+      }
+    });
+  });
+  
   // Konfirmasi terima barang
   $(document).on('click', '#btnKonfirmasiTerimaBarang', function() {
     var btn = $(this);
@@ -1273,6 +1334,36 @@
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
         <button type="button" class="btn btn-primary" id="btnKonfirmasiTransfer">
           <i class="fas fa-exchange-alt me-1"></i>Transfer
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Terima Pakai -->
+<div class="modal fade" id="modalTerimaPakai" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header text-white py-2" style="background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);">
+        <h6 class="modal-title"><i class="fas fa-bolt me-2"></i>Terima Pakai</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center py-4">
+        <i class="fas fa-bolt text-warning fa-3x mb-3"></i>
+        <p class="mb-2">Terima dan langsung pakai semua barang dari:</p>
+        <p class="fw-bold fs-5 mb-2" id="terimaPakaiSource"></p>
+        <div class="bg-light rounded p-2 mb-3">
+          <small class="text-muted">No. Ref</small><br>
+          <strong id="terimaPakaiRef"></strong>
+        </div>
+        <p class="text-warning small mt-2 mb-0">
+          <i class="fas fa-info-circle me-1"></i>Barang akan diterima dan langsung diubah ke status Pakai (Type=3)
+        </p>
+      </div>
+      <div class="modal-footer justify-content-center py-2">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+        <button type="button" class="btn fw-bold text-white" id="btnKonfirmasiTerimaPakai" style="background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);">
+          <i class="fas fa-bolt me-1"></i>Terima Pakai
         </button>
       </div>
     </div>
