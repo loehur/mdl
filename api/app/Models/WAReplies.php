@@ -611,8 +611,9 @@ class WAReplies
         $totalTagihan = 0;
 
         // 1. Sale - ambil item per baris (sama seperti I.php)
+        // Urutan sama seperti I.php: id_penjualan DESC agar id item yang tampil selaras dengan invoice
         $saleRows = $db->query(
-            "SELECT id_penjualan, no_ref, id_item_group, id_penjualan_jenis, id_durasi, list_layanan, qty, harga, min_order, diskon_qty, diskon_partner, member, insertTime FROM sale WHERE id_pelanggan = ? AND bin = 0 AND tuntas = 0 ORDER BY no_ref, insertTime",
+            "SELECT id_penjualan, no_ref, id_item_group, id_penjualan_jenis, id_durasi, list_layanan, qty, harga, min_order, diskon_qty, diskon_partner, member, insertTime FROM sale WHERE id_pelanggan = ? AND bin = 0 AND tuntas = 0 ORDER BY no_ref, id_penjualan DESC",
             [$id_pelanggan]
         )->result_array();
 
@@ -640,22 +641,23 @@ class WAReplies
             foreach ($surcasRows as $sc) {
                 $j = (int) ($sc['jumlah'] ?? 0);
                 $subTotal += $j;
-                $itemLines[] = "   + " . ($sc['surcas_jenis'] ?? 'Surcharge') . ": Rp " . number_format($j, 0, ',', '.');
+                $itemLines[] = "+ " . ($sc['surcas_jenis'] ?? 'Surcharge') . ": Rp " . number_format($j, 0, ',', '.');
             }
 
+            // Sama seperti I.php invoice: hitung pembayaran dengan status_mutasi <> 4 (exclude failed only)
             $payments = $db->query(
-                "SELECT COALESCE(SUM(jumlah), 0) as bayar FROM kas WHERE id_cabang = ? AND jenis_transaksi = 1 AND ref_transaksi = ? AND status_mutasi = 3",
+                "SELECT COALESCE(SUM(jumlah), 0) as bayar FROM kas WHERE id_cabang = ? AND jenis_transaksi = 1 AND ref_transaksi = ? AND status_mutasi <> 4",
                 [$id_cabang, $noRef]
             )->row();
             $bayar = (int) ($payments->bayar ?? 0);
             $sisa = max(0, $subTotal - $bayar);
             $totalTagihan += $sisa;
 
-            $block = "📋 *" . $noRef . "*\n" . implode("\n", $itemLines) . "\n   _Subtotal: Rp " . number_format($subTotal, 0, ',', '.') . "_";
+            $block = "📋 *" . $noRef . "*\n" . implode("\n", $itemLines) . "\n_Subtotal: Rp " . number_format($subTotal, 0, ',', '.') . "_";
             if ($bayar > 0) {
-                $block .= "\n   Sudah bayar: Rp " . number_format($bayar, 0, ',', '.');
+                $block .= "\nSudah bayar: Rp " . number_format($bayar, 0, ',', '.');
             }
-            $block .= "\n   *Sisa: Rp " . number_format($sisa, 0, ',', '.') . "*";
+            $block .= "\n*Sisa: Rp " . number_format($sisa, 0, ',', '.') . "*";
             $lines[] = $block;
         }
 
@@ -669,6 +671,7 @@ class WAReplies
             $id_member = $mem['id_member'];
             $total = (int) ($mem['harga'] ?? 0);
 
+            // Sama seperti I.php invoice (line 726-727): untuk member hanya hitung status_mutasi = 3
             $payments = $db->query(
                 "SELECT COALESCE(SUM(jumlah), 0) as bayar FROM kas WHERE id_cabang = ? AND jenis_transaksi = 3 AND ref_transaksi = ? AND status_mutasi = 3",
                 [$id_cabang, $id_member]
@@ -681,11 +684,11 @@ class WAReplies
             $totalTagihan += $sisa;
 
             $detail = $this->formatMemberItemForTagihan($mem, $lookup);
-            $block = "📋 *Member #" . $id_member . "*\n   " . $detail . "\n   Total: Rp " . number_format($total, 0, ',', '.');
+            $block = "📋 *Member #" . $id_member . "*\n" . $detail . "\nTotal: Rp " . number_format($total, 0, ',', '.');
             if ($bayar > 0) {
-                $block .= "\n   Sudah bayar: Rp " . number_format($bayar, 0, ',', '.');
+                $block .= "\nSudah bayar: Rp " . number_format($bayar, 0, ',', '.');
             }
-            $block .= "\n   *Sisa: Rp " . number_format($sisa, 0, ',', '.') . "*";
+            $block .= "\n*Sisa: Rp " . number_format($sisa, 0, ',', '.') . "*";
             $lines[] = $block;
         }
 
@@ -775,7 +778,7 @@ class WAReplies
             $qtyShow .= " (Min. {$minOrder}{$satuan})";
         }
         $text = "#{$s['id_penjualan']} - {$kategori} {$qtyShow}{$layananStr}{$durasiStr} = Rp " . number_format($total, 0, ',', '.');
-        return ['text' => "   " . $text, 'total' => $total];
+        return ['text' => $text, 'total' => $total];
     }
 
     private function formatMemberItemForTagihan($mem, $lookup)
