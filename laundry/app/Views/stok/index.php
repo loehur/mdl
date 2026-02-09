@@ -15,12 +15,6 @@
     <div class="card-body p-0" style="height: 80vh; overflow-y: auto;">
       <div class="table-responsive">
         <table class="table table-hover table-striped mb-0 align-middle" id="tableStok">
-          <thead class="bg-light">
-            <tr>
-              <th class="ps-3 py-3">Nama Barang</th>
-              <th class="text-end pe-3 py-3" style="width: 120px;">Stok</th>
-            </tr>
-          </thead>
           <tbody>
             <?php if (empty($data['barang'])) { ?>
               <tr>
