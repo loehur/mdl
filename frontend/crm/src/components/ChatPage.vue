@@ -101,6 +101,10 @@ const imageCaption = ref("");
 const showCustomerInfoModal = ref(false);
 const copiedPhone = ref(false);
 
+// Quoted Message Detail Modal (tap untuk lihat pesan lengkap)
+const showQuotedMessageModal = ref(false);
+const quotedMessageToShow = ref(null);
+
 // Chat Action Menus
 const showChatMenu = ref(false);
 const showResolveMenu = ref(false);
@@ -522,12 +526,39 @@ const isPlainTextMessage = (msg) => {
     return !msg.type || msg.type === 'text' || msg.type === '' || msg.type === 'template' || msg.type === 'button' || msg.type === 'reaction';
 };
 const findQuotedMessage = (id) => props.activeConversation?.messages?.find(m => m.wamid === id || m.id === id);
-const scrollToMessage = (id) => {
-    const el = document.getElementById("msg-" + id); // assumes ID
-    if(el) el.scrollIntoView({behavior: "smooth", block: "center"});
+const scrollToMessage = (idOrMsg) => {
+    const id = typeof idOrMsg === 'object' && idOrMsg?.id != null ? idOrMsg.id : idOrMsg;
+    const el = document.getElementById("msg-" + id);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
 };
 const setReplyTo = (m) => { replyToMessage.value = m; nextTick(() => messageTextarea.value?.focus()); };
 const cancelReply = () => replyToMessage.value = null;
+
+/** Buka modal pesan quoted reply lengkap + scroll ke pesan jika ditemukan */
+const openQuotedMessageDetail = (msg) => {
+    if (!msg?.quoted_message_id) return;
+    const quoted = findQuotedMessage(msg.quoted_message_id);
+    quotedMessageToShow.value = quoted ? {
+        full: quoted,
+        text: quoted.text || quoted.caption || '',
+        type: quoted.type || 'text',
+        sender: quoted.sender,
+        fromName: quoted.sender === 'me' ? 'You' : (msg.quoted_message_from || props.activeConversation?.name || 'Customer'),
+        media_url: quoted.media_url,
+        media_id: quoted.media_id,
+    } : {
+        full: null,
+        text: msg.quoted_message_body || 'Message not found',
+        type: 'text',
+        fromName: msg.quoted_message_from || props.activeConversation?.name || 'Customer',
+    };
+    showQuotedMessageModal.value = true;
+    if (quoted) scrollToMessage(quoted);
+};
+const closeQuotedMessageDetail = () => {
+    showQuotedMessageModal.value = false;
+    quotedMessageToShow.value = null;
+};
 
 // Watchers
 // Watch for deep changes to scroll to bottom (new messages, etc)
@@ -841,21 +872,18 @@ onUnmounted(() => {
                                isPlainTextMessage(msg) ? 'px-2.5 py-1' : 'p-0.5',
                                msg.sender === 'me' ? 'bg-[var(--wa-bubble-outgoing)] rounded-tr-none' : 'bg-[var(--wa-bubble-incoming)] rounded-tl-none'
                              ]">
-                                 <!-- Reply Quote -->
+                                 <!-- Reply Quote - klik untuk lihat pesan lengkap -->
                                  <div 
                                    v-if="msg.quoted_message_id" 
-                                   :class="[
-                                     'bg-black/10 rounded px-2 py-0.5 border-l-2 border-[var(--wa-accent-green)]',
-                                     isPlainTextMessage(msg) ? 'mb-0.5' : 'mb-0.5',
-                                     findQuotedMessage(msg.quoted_message_id) ? 'cursor-pointer' : ''
-                                   ]" 
-                                   @click="findQuotedMessage(msg.quoted_message_id) && scrollToMessage(msg.quoted_message_id)">
+                                   class="bg-black/10 rounded px-2 py-0.5 border-l-2 border-[var(--wa-accent-green)] mb-0.5 cursor-pointer hover:bg-black/15 active:bg-black/20 transition-colors"
+                                   @click="openQuotedMessageDetail(msg)">
                                       <span class="text-[10px] font-bold text-[var(--wa-accent-green)] block leading-none" style="line-height: 1.05;">
                                         {{ findQuotedMessage(msg.quoted_message_id)?.sender === 'me' ? 'You' : (msg.quoted_message_from ? 'Customer' : activeConversation.name) }}
                                       </span>
                                       <span class="text-xs truncate block text-[var(--wa-text-secondary)] leading-none" style="line-height: 1.05;">
                                         {{ findQuotedMessage(msg.quoted_message_id) ? getMessagePreview(findQuotedMessage(msg.quoted_message_id)) : (msg.quoted_message_body || 'Message not found') }}
                                       </span>
+                                      <span class="text-[9px] text-[var(--wa-text-tertiary)] italic block mt-0.5">Tap untuk lihat lengkap</span>
                                  </div>
 
                                   <!-- Image -->
@@ -1090,6 +1118,26 @@ onUnmounted(() => {
            <svg xmlns="http://www.w3.org/2000/svg" class="h-24 w-24 opacity-20 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12z" /></svg>
            <p class="text-lg">Select a conversation to start chatting</p>
       </div>
+
+     <!-- Quoted Message Detail Modal -->
+    <div v-if="showQuotedMessageModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-[600] flex items-center justify-center p-4" @click="closeQuotedMessageDetail">
+        <div v-if="quotedMessageToShow" class="bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-2xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col" @click.stop>
+            <div class="flex justify-between items-center p-4 border-b border-[var(--wa-border)]">
+                <h2 class="text-lg font-semibold text-[var(--wa-text-primary)]">Pesan yang di-reply</h2>
+                <button @click="closeQuotedMessageDetail" class="p-1 rounded-full hover:bg-[var(--wa-hover)] text-[var(--wa-icon-default)]">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            </div>
+            <div class="p-4 overflow-y-auto flex-1">
+                <p class="text-xs font-bold text-[var(--wa-accent-green)] mb-1">{{ quotedMessageToShow.fromName }}</p>
+                <div v-if="quotedMessageToShow.type === 'image' && (quotedMessageToShow.media_url || quotedMessageToShow.media_id)" class="space-y-2">
+                    <img :src="quotedMessageToShow.media_url || `${API_BASE}/CRM/Chat/media?id=${quotedMessageToShow.media_id}`" class="max-w-full max-h-64 object-contain rounded-lg border border-[var(--wa-border)]" />
+                    <p v-if="quotedMessageToShow.text" class="text-sm text-[var(--wa-text-primary)] whitespace-pre-wrap break-words" v-html="parseWhatsAppFormatting(quotedMessageToShow.text)"></p>
+                </div>
+                <p v-else class="text-sm text-[var(--wa-text-primary)] whitespace-pre-wrap break-words" v-html="parseWhatsAppFormatting(quotedMessageToShow.text)"></p>
+            </div>
+        </div>
+    </div>
 
      <!-- Customer Info Modal -->
     <div v-if="showCustomerInfoModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-[600] flex items-center justify-center p-4" @click="showCustomerInfoModal = false">
