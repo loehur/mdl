@@ -779,7 +779,7 @@ class WAReplies
             $qtyShow .= " (Min. {$minOrder}{$satuan})";
         }
         $pricePart = ($member === 1) ? 'Member' : 'Rp ' . number_format($total, 0, ',', '.');
-        $text = "#{$s['id_penjualan']} | {$kategori} {$qtyShow}{$layananStr}{$durasiStr} | {$pricePart}";
+        $text = "#{$s['id_penjualan']} - {$kategori} {$qtyShow}{$layananStr}{$durasiStr} | {$pricePart}";
         return ['text' => $text, 'total' => $total];
     }
 
