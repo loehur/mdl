@@ -831,17 +831,40 @@ class Sales extends Controller
              throw new Exception('Tidak dapat Terima Pakai nota yang sudah memiliki riwayat pembayaran');
           }
           
-          // SQL Transaction
+          // SQL Transaction - terima dulu (stok masuk), baru pakai
           if (!$this->db(0)->beginTransaction()) {
              throw new Exception('Gagal memulai transaksi');
           }
           
           try {
-             // Update type = 3 (pakai), state = 0
-             $update = $this->db(0)->update('barang_mutasi', ['type' => 3, 'state' => 0], "ref = '$ref'");
+             // 1. Terima dulu: state = 1 (barang masuk stok cabang)
+             $update1 = $this->db(0)->update('barang_mutasi', ['state' => 1], "ref = '$ref'");
+             if (isset($update1['errno']) && $update1['errno'] != 0) {
+                throw new Exception($update1['error'] ?? 'Gagal terima barang');
+             }
              
-             if (isset($update['errno']) && $update['errno'] != 0) {
-                throw new Exception($update['error'] ?? 'Gagal update barang_mutasi');
+             // 2. Pakai: INSERT baru satu-satu tiap item dengan type=3 (seperti function pakai)
+             $id_user = $_SESSION[URL::SESSID]['user']['id_user'] ?? 0;
+             $ref_pakai = $ref . '_P';
+             
+             foreach ($items as $item) {
+                $data = [
+                   'type' => 3,
+                   'ref' => $ref_pakai,
+                   'id_barang' => $item['id_barang'],
+                   'source_id' => $id_cabang,
+                   'target_id' => 0,
+                   'denom' => $item['denom'] ?? 1,
+                   'price' => $item['price'] ?? 0,
+                   'qty' => $item['qty'],
+                   'margin' => $item['margin'] ?? 0,
+                   'state' => 0,
+                   'id_user' => $id_user
+                ];
+                $insert = $this->db(0)->insert('barang_mutasi', $data);
+                if (isset($insert['errno']) && $insert['errno'] != 0) {
+                   throw new Exception($insert['error'] ?? 'Gagal insert pakai: ' . ($item['id_barang'] ?? ''));
+                }
              }
              
              if (!$this->db(0)->commit()) {
