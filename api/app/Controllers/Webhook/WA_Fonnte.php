@@ -71,7 +71,12 @@ class WA_Fonnte extends Controller
                 $replyText = ''; // Cooldown - tidak kirim untuk hindari spam
             }
         } else {
-            $this->sendReply($sender, $replyText, $inboxid);
+            $waNumber = $this->normalizeWaNumber($sender);
+            if ($waNumber && $this->shouldHandle($waNumber, 'FORWARD', 1)) {
+                $this->sendReply($sender, $replyText, $inboxid);
+            } else {
+                $replyText = ''; // Cooldown - hindari spam
+            }
         }
 
         echo json_encode(['status' => 'ok', 'reply' => $replyText]);
