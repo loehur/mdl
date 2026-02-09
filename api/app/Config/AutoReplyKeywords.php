@@ -110,13 +110,18 @@ return [
             '/(ka*pa*n|ma*si*h)\s*\b(bu*ka*|tu*tu*p)/i',
             '/(ja*m)\s*\b(be*ra*pa*)\s*\b(bu*ka*|tu*tu*p)/i',
         ],
-        'ai_prompt' => "User HANYA menanyakan jam operasional TOKO (buka/tutup), seperti:\n
-        | jam berapa buka? | kapan tutup? | masih buka? | sudah tutup? | jam operasional? | jam buka berapa? |\n
+        'ai_prompt' => "User menanyakan jam operasional TOKO (buka/tutup), seperti:\n
+        | jam berapa buka? | jam berapa tutup? | kapan tutup? | masih buka? | sudah tutup? | jam operasional? | jam buka berapa? |\n
+        | besok pagi buka jam berapa? | besok buka jam brp ya? | nanti sore buka jam berapa? | untuk besok pagi buka jam brp ya? |\n
+        \n
+        TRUE (JAM_OPERASIONAL) - PENTING:\n
+        - JIKA ada kata BUKA/TUTUP/OPERASIONAL dalam konteks jam = JAM_OPERASIONAL\n
+        - 'buka jam berapa', 'jam berapa buka', 'besok buka jam brp', 'untuk besok pagi buka jam brp ya' = JAM_OPERASIONAL (tanya jam buka toko)\n
         \n
         FALSE (BUKAN JAM_OPERASIONAL) - PENTING:\n
-        - 'Jam berapa?' / 'Jam brp?' / 'Jam brp kak?' TANPA kata buka/tutup/operasional = user menanya WAKTU SAAT INI, bukan jam buka toko = FALSE\n
-        - Jika ada kata 'antar' atau 'jemput' = BUKAN JAM_OPERASIONAL, itu adalah MINTA_JEMPUT_ANTAR\n
-        - Contoh FALSE: 'jam berapa?', 'jam brp kak?', 'jam berapa diantar?', 'kapan dijemput?', 'antar jam brp?'"
+        - 'Jam berapa?' / 'Jam brp?' TANPA kata buka/tutup/operasional sama sekali = user menanya WAKTU SAAT INI = FALSE\n
+        - Jika ada kata 'antar' atau 'jemput' = MINTA_JEMPUT_ANTAR\n
+        - Contoh FALSE: 'jam berapa?', 'jam brp kak?' (tanpa buka/tutup) | 'jam berapa diantar?', 'kapan dijemput?'"
     ],
 
    'PENUTUP' => [
