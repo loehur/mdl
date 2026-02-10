@@ -2047,27 +2047,34 @@ class WAReplies
 
             $data = json_decode($response, true);
 
-            // Check Tokopay response format
-            // Success: {"status": 1, "rc": 200, "message": "Penarikan berhasil di teruskan ke operator..."}
-            // Error: {"status": 0, "rc": 500, "error_msg": "Saldo tidak cukup"}
-            
-            if (isset($data['status']) && $data['status'] == 1 && isset($data['rc']) && $data['rc'] == 200) {
-                // Success response
+            // Format Tokopay: Sukses = status 1, rc 200, "message". Gagal = status 0, "error_msg"
+            $isSuccess = isset($data['status']) && (int) $data['status'] === 1;
+            $replyText = '';
+
+            if ($data === null || $data === false) {
+                $replyText = "❌ *Gagal Penarikan Saldo*\n\nRespon API tidak valid.";
+            } elseif ($isSuccess) {
                 $amountFormatted = number_format($amount, 0, ',', '.');
-                $message = $data['message'] ?? 'Penarikan berhasil diproses';
-                
-                $text = "✅ *Penarikan Saldo TokoPay*\n\n";
-                $text .= "Nominal: *Rp " . $amountFormatted . "*\n";
-                $text .= "Tujuan: *SEABANK*\n\n";
-                $text .= $message;
+                $message = isset($data['message']) && trim((string) $data['message']) !== ''
+                    ? trim($data['message'])
+                    : 'Penarikan berhasil diproses. Silakan hubungi customer service jika perlu.';
+                $replyText = "✅ *Penarikan Saldo TokoPay*\n\n";
+                $replyText .= "Nominal: *Rp " . $amountFormatted . "*\n";
+                $replyText .= "Tujuan: *SEABANK*\n\n";
+                $replyText .= $message;
             } else {
-                // Error response
-                $errorMsg = $data['error_msg'] ?? ($data['message'] ?? 'Terjadi kesalahan');
-                $text = "❌ *Gagal Penarikan Saldo*\n\n";
-                $text .= $errorMsg;
+                $errorMsg = null;
+                if (isset($data['error_msg']) && trim((string) $data['error_msg']) !== '') {
+                    $errorMsg = trim($data['error_msg']);
+                } elseif (isset($data['message']) && trim((string) $data['message']) !== '') {
+                    $errorMsg = trim($data['message']);
+                } elseif (isset($data['error']) && trim((string) $data['error']) !== '') {
+                    $errorMsg = trim($data['error']);
+                }
+                $replyText = "❌ *Gagal Penarikan Saldo*\n\n" . ($errorMsg ?: 'Terjadi kesalahan. Silakan coba lagi atau hubungi customer service.');
             }
 
-            $waService->sendFreeText($waNumber, $text);
+            $waService->sendFreeText($waNumber, $replyText);
 
         } catch (\Throwable $e) {
             \Log::write("handleTarik_saldo_tokopay ERROR: " . $e->getMessage(), 'wa_error', 'Tokopay');
