@@ -741,10 +741,11 @@ class WAReplies
         $kategori = $lookup['itemGroup'][$s['id_item_group']] ?? 'Item';
         $idSatuan = $lookup['penjualan'][$s['id_penjualan_jenis']] ?? 0;
         $satuan = $lookup['satuan'][$idSatuan] ?? '';
-        $qty = (int) ($s['qty'] ?? 0);
-        $minOrder = (int) ($s['min_order'] ?? 1);
+        // Gunakan float agar decimal (mis. 11.2kg) tidak terpotong seperti I.php
+        $qty = (float) ($s['qty'] ?? 0);
+        $minOrder = (float) ($s['min_order'] ?? 1);
         $qtyReal = max($qty, $minOrder);
-        $harga = (int) ($s['harga'] ?? 0);
+        $harga = (float) ($s['harga'] ?? 0);
         $total = $harga * $qtyReal;
 
         $dQty = (float) ($s['diskon_qty'] ?? 0);
@@ -774,9 +775,12 @@ class WAReplies
         $durasi = $lookup['durasi'][$s['id_durasi']] ?? '';
         $durasiStr = $durasi ? " {$durasi}" : '';
 
-        $qtyShow = $qty . $satuan;
+        // Tampilkan qty dengan decimal jika ada (11.2kg bukan 11kg)
+        $qtyDisplay = (abs($qty - round($qty)) < 0.001) ? (string) (int) round($qty) : rtrim(rtrim(sprintf('%.2f', $qty), '0'), '.');
+        $qtyShow = $qtyDisplay . $satuan;
         if ($minOrder > 0 && $qty < $minOrder) {
-            $qtyShow .= " (Min. {$minOrder}{$satuan})";
+            $minDisplay = (abs($minOrder - round($minOrder)) < 0.001) ? (string) (int) round($minOrder) : rtrim(rtrim(sprintf('%.2f', $minOrder), '0'), '.');
+            $qtyShow .= " (Min. {$minDisplay}{$satuan})";
         }
         $pricePart = ($member === 1) ? 'Member' : 'Rp ' . number_format($total, 0, ',', '.');
         $text = "#{$s['id_penjualan']} - {$kategori} {$qtyShow}{$layananStr}{$durasiStr} | {$pricePart}";

@@ -184,11 +184,18 @@ class Operasi extends Controller
 
    public function ganti_operasi()
    {
-      $karyawan = $_POST['f1'];
-      $id = $_POST['id'];
+      if ((int) ($this->id_privilege ?? 0) !== 100) {
+         echo 'Unauthorized: Hanya admin yang dapat mengubah penyelesai.';
+         return;
+      }
 
+      $karyawan = $_POST['f1'];
+      $id = $_POST['id'] ?? '';
+
+      // id_operasi bisa alfanumerik (mis. 51681407012 atau A168070), harus di-quote agar tidak error "Truncated incorrect DOUBLE value"
+      $idEsc = $this->db(0)->escape(trim((string) $id));
       $set = ['id_user_operasi' => $karyawan];
-      $where = $this->wCabang . " AND id_operasi = " . $id;
+      $where = $this->wCabang . " AND id_operasi = '" . $idEsc . "'";
       $in = $this->db(0)->update('operasi', $set, $where); // Changed to db(0)
       if ($in['errno'] <> 0) {
          $this->model('Log')->write("[ganti_operasi] Update Operasi Error: " . $in['error']);
