@@ -1080,7 +1080,10 @@ const sanitizeMessages = (messages) => {
     }
 
     // Fuzzy Check (The "Healer")
-    if (!existing) {
+    // IMPORTANT: Never merge media messages (image, video, audio, etc.) - each media should be a separate bubble.
+    // When customer sends multiple images at once, they have same timestamp + empty text and would incorrectly merge.
+    const isMediaMessage = (m) => ['image', 'video', 'audio', 'document', 'sticker'].includes(m?.type);
+    if (!existing && !isMediaMessage(msg)) {
       const normalize = (str) =>
         String(str || "")
           .replace(/\s+/g, " ")
@@ -1092,6 +1095,8 @@ const sanitizeMessages = (messages) => {
       // We iterate result array which contains 'kept' messages
       for (let i = result.length - 1; i >= 0 && i >= result.length - 10; i--) {
         const cand = result[i];
+        // Skip if candidate is media - don't merge media into text or vice versa
+        if (isMediaMessage(cand)) continue;
         if (cand.sender === msg.sender && normalize(cand.text) === msgText) {
           const candTime = new Date(cand.rawTime || cand.time).getTime();
           if (Math.abs(candTime - msgTime) < 5000) {
