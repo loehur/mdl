@@ -32,7 +32,7 @@ class WAReplies
     private function shouldHandle($waNumber, $handler, $cooldownMinutes = 1)
     {
         $db = DB::getInstance(0);
-        $provider = 'a';
+        $provider = 'A';
 
         $sql = "SELECT created_at FROM wa_auto_reply_log 
                 WHERE phone = ? AND handler = ? AND provider = ? 

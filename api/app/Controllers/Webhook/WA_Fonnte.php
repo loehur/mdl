@@ -89,7 +89,7 @@ class WA_Fonnte extends Controller
     private function shouldHandle($waNumber, $handler, $cooldownMinutes = 1)
     {
         $db = $this->db(0);
-        $provider = 'b';
+        $provider = 'B';
         $handler = strtoupper($handler);
 
         $result = $db->query(
