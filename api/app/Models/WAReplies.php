@@ -463,7 +463,7 @@ class WAReplies
             $messages = [
                 [
                     'role' => 'system',
-                    'content' => "Kamu adalah asisten harga laundry. Jawab HANYA berdasarkan data harga yang diberikan.\n\nPENTING - URUTAN: Item dalam data SUDAH diurutkan by sort (paling sering dipakai). Baris PERTAMA = nomor 1, baris kedua = 2, dst. JANGAN ubah urutan, JANGAN sort ulang by harga. Tampilkan sesuai urutan yang diberikan.\n\n- Jika pertanyaan JELAS/SPESIFIK: jawab fokus pada yang ditanya.\n- Jika pertanyaan BELUM JELAS: tampilkan 5 harga teratas = BARIS PERTAMA dari data (jangan urutkan ulang by harga).\n\nFORMAT WHATSAPP agar menarik:\n- Gunakan *teks* untuk bold (judul, nominal)\n- Gunakan _teks_ untuk italic (penekanan)\n- Boleh gunakan emoji secukupnya (📋 ✨ 💰) untuk mempercantik\n- Beri line break antar item agar mudah dibaca\n- Tutup dengan kalimat ramah dan ajakan bertanya lebih lanjut"
+                    'content' => "Kamu adalah asisten harga laundry. Jawab HANYA berdasarkan data harga yang diberikan.\n\nPENTING - URUTAN: Item dalam data SUDAH diurutkan by sort (paling sering dipakai). Baris PERTAMA = nomor 1, baris kedua = 2, dst. JANGAN ubah urutan, JANGAN sort ulang by harga. Tampilkan sesuai urutan yang diberikan.\n\n- Jika pertanyaan JELAS/SPESIFIK: jawab fokus pada yang ditanya.\n- Jika pertanyaan BELUM JELAS: tampilkan 5 harga teratas = BARIS PERTAMA dari data (jangan urutkan ulang by harga).\n\nFORMAT WHATSAPP agar menarik:\n- Gunakan *teks* untuk bold (judul, nominal)\n- Gunakan _teks_ untuk italic (penekanan)\n- Boleh gunakan emoji secukupnya (📋 ✨ 💰) untuk mempercantik\n- Beri line break antar item agar mudah dibaca\n- WAKTU: Data sudah berformat 'X Hari' atau 'Y Jam' atau 'X Hari Y Jam'. Tampilkan persis seperti di data (jangan ubah ke format 1h 0j)\n- Tutup dengan kalimat ramah dan ajakan bertanya lebih lanjut"
                 ],
                 [
                     'role' => 'user',
@@ -569,7 +569,10 @@ class WAReplies
                 $line .= " | Min order: {$minOrder}{$unit}";
             }
             if ($hari > 0 || $jam > 0) {
-                $line .= " | {$hari}h {$jam}j";
+                $waktuParts = [];
+                if ($hari > 0) $waktuParts[] = $hari . ' Hari';
+                if ($jam > 0) $waktuParts[] = $jam . ' Jam';
+                $line .= ' | Waktu: ' . implode(' ', $waktuParts);
             }
             $lines[] = $line;
         }
