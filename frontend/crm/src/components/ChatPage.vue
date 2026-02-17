@@ -97,6 +97,25 @@ const selectedImage = ref(null);
 const isUploadingImage = ref(false);
 const imageCaption = ref("");
 
+// Audio playback
+const playingAudioId = ref(null);
+const audioRefsMap = new Map();
+const setAudioRef = (msgId, el) => {
+  if (el) audioRefsMap.set(msgId, el);
+  else audioRefsMap.delete(msgId);
+};
+const toggleAudioPlay = (msgId) => {
+  const el = audioRefsMap.get(msgId);
+  if (!el) return;
+  if (playingAudioId.value === msgId) {
+    el.pause();
+  } else {
+    // Pause any other playing audio
+    audioRefsMap.forEach((a, id) => { if (id !== msgId) a.pause(); });
+    el.play();
+  }
+};
+
 // Customer Info Modal State (Local to ChatPage)
 const showCustomerInfoModal = ref(false);
 const copiedPhone = ref(false);
@@ -519,6 +538,7 @@ const formatReactionText = (t) => (t || "👍").replace("Reacted: ", "").replace
 const getMessagePreview = (m) => {
     if(!m) return "";
     if(m.type === 'image') return "📷 Image";
+    if(m.type === 'audio') return "🎵 Audio";
     return (m.text || m.caption || "").substring(0, 60);
 };
 // Check if message is plain text (no media type)
@@ -916,6 +936,40 @@ onUnmounted(() => {
                                               <span v-if="msg.sender_code">~{{ msg.sender_code }}</span>
                                               <span>{{ msg.time }}</span>
                                            </div>
+                                      </div>
+                                  </div>
+
+                                  <!-- Audio -->
+                                  <div v-else-if="msg.type === 'audio'" class="relative min-w-[200px] max-w-[280px]">
+                                      <div class="flex items-center gap-3 p-2 rounded-lg bg-black/10 dark:bg-black/20">
+                                          <button
+                                            type="button"
+                                            @click="toggleAudioPlay(msg.id)"
+                                            class="flex-shrink-0 w-10 h-10 rounded-full bg-[var(--wa-accent-green)] text-white flex items-center justify-center hover:opacity-90 active:scale-95 transition-all"
+                                            :title="playingAudioId === msg.id ? 'Pause' : 'Play'"
+                                          >
+                                            <svg v-if="playingAudioId !== msg.id" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                                                <path d="M8 5v14l11-7z"/>
+                                            </svg>
+                                            <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+                                                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+                                            </svg>
+                                          </button>
+                                          <div class="flex-1 min-w-0">
+                                              <audio
+                                                :ref="el => setAudioRef(msg.id, el)"
+                                                :src="msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`"
+                                                @play="playingAudioId = msg.id"
+                                                @pause="playingAudioId = playingAudioId === msg.id ? null : playingAudioId"
+                                                @ended="playingAudioId = playingAudioId === msg.id ? null : playingAudioId"
+                                                preload="metadata"
+                                              ></audio>
+                                              <p class="text-xs text-[var(--wa-text-secondary)]">Voice message</p>
+                                              <div v-if="msg.time || msg.sender_code" class="flex justify-end items-center gap-1 text-[10px] mt-0.5 text-[var(--wa-text-tertiary)]">
+                                                  <span v-if="msg.sender_code">~{{ msg.sender_code }}</span>
+                                                  <span>{{ msg.time }}</span>
+                                              </div>
+                                          </div>
                                       </div>
                                   </div>
 

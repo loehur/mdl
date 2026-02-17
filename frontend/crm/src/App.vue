@@ -2004,20 +2004,6 @@ const findQuotedMessage = (quotedMessageId) => {
   );
 };
 
-// Get short preview of message for quoted display
-const getMessagePreview = (msg) => {
-  if (!msg) return "";
-  if (msg.type === "image") return "📷 Image";
-  if (msg.type === "video") return "🎥 Video";
-  if (msg.type === "audio" || msg.type === "voice") return "🎤 Voice";
-  if (msg.type === "document") return "📄 Document";
-  if (msg.type === "location") return "📍 Location";
-  if (msg.type === "sticker") return "🎨 Sticker";
-  const text = msg.text || msg.caption || "";
-  return text.length > 60 ? text.substring(0, 60) + "..." : text;
-  return text.length > 60 ? text.substring(0, 60) + "..." : text;
-};
-
 // --- Swipe to Reply Logic (Android/Touch) ---
 const swipeReplyState = ref({
   startX: 0,
