@@ -10,18 +10,22 @@ class Kasbon extends Controller
 
    public function insert()
    {
-      $karyawan = $_POST['f1'];
-      $jumlah = $_POST['f2'];
-      $pembuat = $_POST['f3'];
+      $karyawan = intval($_POST['f1'] ?? 0);
+      $jumlah = intval($_POST['f2'] ?? 0);
+      $pembuat = intval($_POST['f3'] ?? 0);
       $today = date('Y-m-d');
-      $metode = $_POST['metode'];
-      $note = $_POST['note'];
+      $metode = intval($_POST['metode'] ?? 1);
+      $note = $_POST['note'] ?? '';
 
       if ($metode == 1) {
          $sm = 3;
       } else {
          $sm = 2;
       }
+
+      // Cek duplicate (double-click) - transaksi sama dalam 5 detik terakhir
+      $where_dup = $this->wCabang . " AND jenis_transaksi = 5 AND jenis_mutasi = 2 AND jumlah = $jumlah AND id_user = $pembuat AND id_client = $karyawan AND insertTime >= DATE_SUB(NOW(), INTERVAL 5 SECOND)";
+      $data_main = $this->db(0)->count_where('kas', $where_dup);
 
       $ref_f = date('YmdHis') . rand(0, 9) . rand(0, 9) . rand(0, 9);
       if ($data_main < 1) {
@@ -39,9 +43,17 @@ class Kasbon extends Controller
             'note' => $note,
             'ref_finance' => $ref_f
          ];
-         print_r($this->db(0)->insert('kas', $data));
+         $do = $this->db(0)->insert('kas', $data);
+         if ($do['errno'] == 0) {
+            echo 1;
+         } else {
+            $this->model('Log')->write("[Kasbon::insert] Error: " . ($do['error'] ?? '') . " | Query: " . ($do['query'] ?? ''));
+            header('HTTP/1.1 500 Internal Server Error');
+            echo json_encode(['error' => 'Gagal menyimpan kasbon.']);
+         }
       } else {
-         echo "Tidak dapat Cashbon 2x/Hari";
+         header('HTTP/1.1 409 Conflict');
+         echo json_encode(['error' => 'Transaksi sudah terinput. Jangan double-click.']);
       }
    }
 

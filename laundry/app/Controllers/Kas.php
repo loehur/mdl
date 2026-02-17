@@ -71,15 +71,20 @@ class Kas extends Controller
    public function insert()
    {
       //PENARIKAN
-      $keterangan = $_POST['f1'];
-      $jumlah = $_POST['f2'];
-      $penarik = $_POST['f3'];
+      $keterangan = $_POST['f1'] ?? '';
+      $jumlah = intval($_POST['f2'] ?? 0);
+      $penarik = intval($_POST['f3'] ?? 0);
       $today = date('Y-m-d');
       $status_mutasi = 2;
 
       if ($this->id_privilege == 100) {
          $status_mutasi = 3;
       }
+
+      // Cek duplicate (double-click) - transaksi sama dalam 5 detik terakhir
+      $note_esc = $this->db(0)->escape($keterangan);
+      $where_dup = $this->wCabang . " AND jenis_transaksi = 2 AND jenis_mutasi = 2 AND jumlah = $jumlah AND id_user = $penarik AND note = '$note_esc' AND insertTime >= DATE_SUB(NOW(), INTERVAL 5 SECOND)";
+      $data_main = $this->db(0)->count_where('kas', $where_dup);
 
       if ($data_main < 1) {
          $data = [
@@ -100,28 +105,35 @@ class Kas extends Controller
             echo 1;
          } else {
             $this->model('Log')->write("[Kas::insert] Error: " . $do['error'] . " | Query: " . $do['query']);
+            echo 0;
          }
       } else {
-         echo "Duplicate Entry!";
+         header('HTTP/1.1 409 Conflict');
+         echo json_encode(['error' => 'Transaksi sudah terinput. Jangan double-click.']);
       }
    }
 
    public function insert_pengeluaran()
    {
-      $keterangan = $_POST['f1'];
-      $jumlah = $_POST['f2'];
-      $penarik = $_POST['f3'];
+      $keterangan = $_POST['f1'] ?? '';
+      $jumlah = intval($_POST['f2'] ?? 0);
+      $penarik = intval($_POST['f3'] ?? 0);
       $today = date('Y-m-d');
-      $jenis = $_POST['f1a'];
+      $jenis = $_POST['f1a'] ?? '';
 
       $jenisEXP = explode("<explode>", $jenis);
-      $id_jenis = $jenisEXP[0];
-      $jenis = $jenisEXP[1];
+      $id_jenis = isset($jenisEXP[0]) ? intval($jenisEXP[0]) : 0;
+      $jenis = $jenisEXP[1] ?? '';
 
       $status_mutasi = 2;
       if ($this->id_privilege == 100) {
          $status_mutasi = 3;
       }
+
+      // Cek duplicate (double-click) - transaksi sama dalam 5 detik terakhir
+      $note_esc = $this->db(0)->escape($keterangan);
+      $where_dup = $this->wCabang . " AND jenis_transaksi = 4 AND jenis_mutasi = 2 AND jumlah = $jumlah AND id_user = $penarik AND ref_transaksi = '$id_jenis' AND note = '$note_esc' AND insertTime >= DATE_SUB(NOW(), INTERVAL 5 SECOND)";
+      $data_main = $this->db(0)->count_where('kas', $where_dup);
 
       if ($data_main < 1) {
          $data = [
@@ -139,9 +151,16 @@ class Kas extends Controller
             'ref_transaksi' => $id_jenis
          ];
          $do = $this->db(0)->insert('kas', $data);
-         if ($do['errno'] <> 0) {
+         if ($do['errno'] == 0) {
+            echo 1;
+         } else {
             $this->model('Log')->write("[Kas::insert_pengeluaran] Error: " . $do['error'] . " | Query: " . $do['query']);
+            header('HTTP/1.1 500 Internal Server Error');
+            echo json_encode(['error' => 'Gagal menyimpan pengeluaran.']);
          }
+      } else {
+         header('HTTP/1.1 409 Conflict');
+         echo json_encode(['error' => 'Transaksi sudah terinput. Jangan double-click.']);
       }
    }
 }

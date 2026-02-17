@@ -214,7 +214,9 @@
         <form action="<?= URL::BASE_URL; ?>Kas/insert_pengeluaran" method="POST">
           <div class="card-body">
             <div class="form-group">
-              <input type="text" name='kas' class="form-control text-center text-bold saldoKas" id="exampleInputEmail1" readonly>
+              <label class="small text-muted">Saldo Kas</label>
+              <div class="form-control text-center text-bold saldoKas py-2" style="font-size:1.1rem;background:#f8f9fa;">Rp <?= number_format($kas); ?></div>
+              <input type="hidden" name='kas' class="saldoKasHidden" value="<?= $kas ?>">
             </div>
             <div class="form-group" id="jenisKeluar">
               <label for="exampleInputEmail1">Jenis Pengeluaran</label>
@@ -238,7 +240,8 @@
             </div>
             <div class="form-group">
               <label for="exampleInputEmail1">Jumlah Rp</label>
-              <input type="number" name="f2" min="1000" class="form-control jumlahTarik" id="exampleInputEmail1" placeholder="" required>
+              <input type="number" name="f2" min="1000" class="form-control jumlahTarik jumlahPengeluaran" placeholder="" required>
+              <small class="text-success mt-1 d-block"><strong>Jumlah:</strong> <span class="liveAmount">Rp 0</span></small>
             </div>
             <div class="form-group">
               <label for="exampleInputEmail1">Keterangan/Banyak</label>
@@ -284,11 +287,14 @@
         <form action="<?= URL::BASE_URL; ?>Kas/insert" method="POST">
           <div class="card-body">
             <div class="form-group">
-              <input type="text" name='kas' class="form-control text-center text-bold saldoKas" id="exampleInputEmail1" readonly>
+              <label class="small text-muted">Saldo Kas</label>
+              <div class="form-control text-center text-bold saldoKas py-2" style="font-size:1.1rem;background:#f8f9fa;">Rp <?= number_format($kas); ?></div>
+              <input type="hidden" name='kas' class="saldoKasHidden" value="<?= $kas ?>">
             </div>
             <div class="form-group">
               <label for="exampleInputEmail1">Jumlah Rp</label>
-              <input type="number" name="f2" min="1000" class="form-control jumlahTarik" id="exampleInputEmail1" placeholder="" required>
+              <input type="number" name="f2" min="1000" class="form-control jumlahTarik jumlahPenarikan" placeholder="" required>
+              <small class="text-success mt-1 d-block"><strong>Jumlah:</strong> <span class="liveAmount">Rp 0</span></small>
             </div>
             <div class="form-group">
               <label for="exampleInputEmail1">Keterangan</label>
@@ -333,7 +339,9 @@
         <form action="<?= URL::BASE_URL; ?>Kasbon/insert" method="POST">
           <div class="card-body">
             <div class="form-group">
-              <input type="text" name='kas' class="form-control text-center text-bold saldoKas" id="exampleInputEmail1" readonly>
+              <label class="small text-muted">Saldo Kas</label>
+              <div class="form-control text-center text-bold saldoKas py-2" style="font-size:1.1rem;background:#f8f9fa;">Rp <?= number_format($kas); ?></div>
+              <input type="hidden" name='kas' class="saldoKasHidden" value="<?= $kas ?>">
             </div>
             <div class="form-group">
               <label for="exampleInputEmail1">Karyawan Kasbon</label>
@@ -348,7 +356,8 @@
             </div>
             <div class="form-group">
               <label for="exampleInputEmail1">Jumlah</label>
-              <input type="number" name="f2" min="1000" class="form-control jumlahTarik" id="exampleInputEmail1" placeholder="" required>
+              <input type="number" name="f2" min="1000" class="form-control jumlahTarik jumlahKasbon" placeholder="" required>
+              <small class="text-success mt-1 d-block"><strong>Jumlah:</strong> <span class="liveAmount">Rp 0</span></small>
             </div>
             <div class="form-group">
               <label for="exampleInputEmail1">Metode</label>
@@ -403,23 +412,59 @@
 <script>
   var saldoKas = <?= $kas ?>;
 
+  function formatRupiah(num) {
+    return 'Rp ' + new Intl.NumberFormat('id-ID', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(num || 0);
+  }
+
   $(document).ready(function() {
     selectList();
     $("div#nTunai").hide();
-    $('input.saldoKas').val(formatter.format(saldoKas));
+
+    $('.saldoKas').each(function() {
+      $(this).text(formatRupiah(saldoKas));
+    });
+    $('.saldoKasHidden').val(saldoKas);
+    $('.liveAmount').text('Rp 0');
+
+    $('.modal button[type="submit"]').each(function() {
+      $(this).data('original-text', $(this).html());
+    });
   });
 
   $("form").on("submit", function(e) {
     e.preventDefault();
+    var $form = $(this);
+    var $btn = $form.find('button[type="submit"]');
+    $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Memproses...');
+
     $.ajax({
-      url: $(this).attr('action'),
-      data: $(this).serialize(),
-      type: $(this).attr("method"),
+      url: $form.attr('action'),
+      data: $form.serialize(),
+      type: $form.attr("method"),
       success: function(res) {
-        location.reload(true);
+        if (res == 1 || res === 1 || res === '1') {
+          location.reload(true);
+        } else {
+          $btn.prop('disabled', false).html($btn.data('original-text') || 'Submit');
+        }
       },
+      error: function(xhr) {
+        $btn.prop('disabled', false).html($btn.data('original-text') || $btn.text().replace('Memproses...', '').trim());
+        var msg = 'Terjadi kesalahan. Coba lagi.';
+        if (xhr.status === 409) {
+          try {
+            var r = JSON.parse(xhr.responseText);
+            msg = r.error || msg;
+          } catch (e) {}
+        }
+        alert(msg);
+      }
     });
   });
+
 
   $("select.metodeBayar").on("keyup change", function() {
     if ($(this).val() == 2) {
@@ -429,32 +474,37 @@
     }
   });
 
-  $("input.jumlahTarik").on("keyup change", function() {
-    if ($(this).val() > 0) {
-      saldoKas = <?= $kas ?>;
-      var potong = $(this).val();
-      var sisaKas = parseInt(saldoKas) - parseInt(potong);
+  $("input.jumlahTarik").on("input keyup change", function() {
+    var potong = parseInt($(this).val()) || 0;
+    var sisaKas = saldoKas - potong;
 
-      $('input.saldoKas').val(formatter.format(sisaKas));
-      if (sisaKas < 0) {
-        $('input.saldoKas').addClass('text-danger');
-      } else {
-        $('input.saldoKas').removeClass('text-danger');
-      }
+    $(this).closest('form').find('.saldoKas').text(formatRupiah(sisaKas));
+    $(this).closest('form').find('.saldoKasHidden').val(sisaKas);
+
+    if (sisaKas < 0) {
+      $(this).closest('form').find('.saldoKas').addClass('text-danger').removeClass('text-success');
     } else {
-      $('input.saldoKas').val(formatter.format(saldoKas));
-      $('input.saldoKas').removeClass('text-danger');
+      $(this).closest('form').find('.saldoKas').removeClass('text-danger').addClass('text-success');
     }
+
+    $(this).siblings('small').find('.liveAmount').text(formatRupiah(potong));
   });
 
-  $("button.dropdown-toggle").focus(function() {
-    $('input.saldoKas').val(formatter.format(saldoKas));
-    $('input.saldoKas').removeClass('text-danger');
+  $("button.dropdown-toggle").on("click", function() {
+    saldoKas = <?= $kas ?>;
+    $('.saldoKas').each(function() {
+      $(this).text(formatRupiah(saldoKas)).removeClass('text-danger').addClass('text-success');
+    });
+    $('.saldoKasHidden').val(saldoKas);
+    $('.liveAmount').text('Rp 0');
+    $('input.jumlahTarik').val('');
   });
 
-  var formatter = new Intl.NumberFormat('en-ID', {
-    style: 'currency',
-    currency: 'IDR',
+  $('.modal').on('show.bs.modal', function() {
+    saldoKas = <?= $kas ?>;
+    $(this).find('.saldoKas').text(formatRupiah(saldoKas)).removeClass('text-danger').addClass('text-success');
+    $(this).find('.saldoKasHidden').val(saldoKas);
+    $(this).find('.liveAmount').text('Rp 0');
   });
 
   function selectList() {
