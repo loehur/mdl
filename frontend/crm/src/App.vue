@@ -1747,14 +1747,14 @@ const startChatPolling = (phone) => {
   }, 5000); // Poll every 5 seconds
 };
 
-// Stop chat polling
+// Stop chat polling (keeps chatPollingPhone so we can restart when user becomes active again)
 const stopChatPolling = () => {
   if (chatPollingInterval.value) {
     clearInterval(chatPollingInterval.value);
     chatPollingInterval.value = null;
   }
   localLastMessageAt.value = null;
-  chatPollingPhone.value = null;
+  // Don't clear chatPollingPhone - needed for restart when user becomes active after idle
 };
 
 const refreshActiveChat = async () => {
@@ -4513,6 +4513,8 @@ const logout = () => {
 ACTIVITY_EVENTS.forEach(eventName => {
   window.addEventListener(eventName, updateActivity, { passive: true });
 });
+// When user switches back to tab, treat as activity (restart chat polling if was paused)
+window.addEventListener("focus", updateActivity);
 
 // Cleanup on unmount
 onUnmounted(() => {
@@ -4520,6 +4522,7 @@ onUnmounted(() => {
     clearInterval(titleBlinkInterval.value);
     document.title = originalTitle;
   }
+  window.removeEventListener("focus", updateActivity);
 });
 
 // Stop blinking when window is focused
