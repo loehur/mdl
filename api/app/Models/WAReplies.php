@@ -32,12 +32,13 @@ class WAReplies
     private function shouldHandle($waNumber, $handler, $cooldownMinutes = 1)
     {
         $db = DB::getInstance(0);
+        $provider = 'a';
 
         $sql = "SELECT created_at FROM wa_auto_reply_log 
-                WHERE phone = ? AND handler = ? 
+                WHERE phone = ? AND handler = ? AND provider = ? 
                 ORDER BY created_at DESC LIMIT 1";
 
-        $result = $db->query($sql, [$waNumber, $handler]);
+        $result = $db->query($sql, [$waNumber, $handler, $provider]);
 
         if ($result && $result->num_rows() > 0) {
             $lastReply = $result->row()->created_at;
@@ -52,21 +53,23 @@ class WAReplies
         // Update jika sudah ada, insert jika belum
         $existing = $db->get_where('wa_auto_reply_log', [
             'phone' => $waNumber,
-            'handler' => $handler
+            'handler' => $handler,
+            'provider' => $provider
         ])->row();
 
         if ($existing) {
             // Update created_at jika record sudah ada
             $db->update(
                 'wa_auto_reply_log',
-                ['created_at' => date('Y-m-d H:i:s')],
-                ['phone' => $waNumber, 'handler' => $handler]
+                ['created_at' => date('Y-m-d H:i:s'), 'provider' => $provider],
+                ['phone' => $waNumber, 'handler' => $handler, 'provider' => $provider]
             );
         } else {
             // Insert baru jika belum ada
             $db->insert('wa_auto_reply_log', [
                 'phone' => $waNumber,
                 'handler' => $handler,
+                'provider' => $provider,
                 'created_at' => date('Y-m-d H:i:s')
             ]);
         }

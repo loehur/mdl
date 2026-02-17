@@ -89,10 +89,11 @@ class WA_Fonnte extends Controller
     private function shouldHandle($waNumber, $handler, $cooldownMinutes = 1)
     {
         $db = $this->db(0);
+        $provider = 'b';
 
         $result = $db->query(
-            "SELECT created_at FROM wa_auto_reply_log WHERE phone = ? AND handler = ? ORDER BY created_at DESC LIMIT 1",
-            [$waNumber, $handler]
+            "SELECT created_at FROM wa_auto_reply_log WHERE phone = ? AND handler = ? AND provider = ? ORDER BY created_at DESC LIMIT 1",
+            [$waNumber, $handler, $provider]
         );
 
         if ($result && $result->num_rows() > 0) {
@@ -104,16 +105,17 @@ class WA_Fonnte extends Controller
         }
 
         $existing = $db->query(
-            "SELECT * FROM wa_auto_reply_log WHERE phone = ? AND handler = ? LIMIT 1",
-            [$waNumber, $handler]
+            "SELECT * FROM wa_auto_reply_log WHERE phone = ? AND handler = ? AND provider = ? LIMIT 1",
+            [$waNumber, $handler, $provider]
         )->row();
 
         if ($existing) {
-            $db->update('wa_auto_reply_log', ['created_at' => date('Y-m-d H:i:s')], ['phone' => $waNumber, 'handler' => $handler]);
+            $db->update('wa_auto_reply_log', ['created_at' => date('Y-m-d H:i:s'), 'provider' => $provider], ['phone' => $waNumber, 'handler' => $handler, 'provider' => $provider]);
         } else {
             $db->insert('wa_auto_reply_log', [
                 'phone' => $waNumber,
                 'handler' => $handler,
+                'provider' => $provider,
                 'created_at' => date('Y-m-d H:i:s'),
             ]);
         }
