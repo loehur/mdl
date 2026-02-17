@@ -416,6 +416,29 @@ class WAReplies
     }
 
     /**
+     * Handle intent REKENING - balas data rekening pembayaran dan QRIS
+     */
+    private function handleRekening($phoneIn, $waNumber, $textBody = '')
+    {
+        $waService = $this->getWaService();
+
+        $text = "Berikut *Rekening Pembayaran* Madinah Laundry:\n\n" .
+            "QRIS\nhttps://ml.nalju.com/I/q\n\n" .
+            "BRI 327901031534535\n" .
+            "BCA 8455103793\n" .
+            "BTNs 7132077419\n" .
+            "SEABANK 901799867052\n" .
+            "SHOPEE/GOPAY/DANA 081268098300\n\n" .
+            "a.n. LUHUR GUNAWAN\n\n" .
+            "Terima kasih 😊";
+
+        $res = $waService->sendFreeText($waNumber, $text);
+        if ($res['success']) {
+            $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+        }
+    }
+
+    /**
      * Handle intent TAGIHAN - balas rincian tagihan dengan item detail (seperti I.php view)
      * Menggunakan db(1) = mdl_laundry
      */

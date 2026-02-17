@@ -264,7 +264,8 @@ class I extends Controller
 
    function q() //gambar qris
    {
-      echo "<img style='display: block; margin-left: auto; margin-right: auto; margin-top:30px; max-width:100vw; max-height:100vh' src='" . URL::IN_ASSETS . "img/qris/qris.jpg'>";
+      $qrisUrl = URL::IN_ASSETS . 'img/qris/qris.jpg';
+      $this->view('qris/qris', ['qris_url' => $qrisUrl]);
    }
 
    public function bayar()

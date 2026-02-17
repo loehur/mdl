@@ -22,6 +22,25 @@ return [
         - User menanya 'berapa total?' / 'berapa biaya?' / 'total berapa?' / 'brapa total strika tadi?' = itu TAGIHAN (tanya jumlah uang), BUKAN permintaan bon/nota = FALSE"
     ],
 
+    'REKENING' => [
+        'patterns' => [
+            '/\b(rekening|rek|norek|no\s*rek)\b/i',
+            '/\b(qris|qr\s*is)\b/i',
+            '/\b(transfer|tf|bayar)\s*(ke|ke\s*mana|kemana|dimana)\b/i',
+            '/\b(ke\s*mana|kemana|dimana)\s*(transfer|bayar)\b/i',
+        ],
+        'ai_prompt' => "User menanyakan REKENING PEMBAYARAN atau meminta QRIS untuk pembayaran laundry.\n
+        TRUE (REKENING) - contoh:\n
+        | rekening? | no rek? | nomor rekening? | minta rekening | rekening pembayaran? |\n
+        | QRIS? | minta QRIS | QRIS pembayaran | link QRIS |\n
+        | transfer ke mana? | bayar ke mana? | mau transfer ke mana? | nomor untuk transfer? |\n
+        | BCA/BRI/BNI rekeningnya? | nomor rekening BCA? |\n
+        \n
+        FALSE (BUKAN REKENING):\n
+        - User bertanya total tagihan (berapa total?) = TAGIHAN\n
+        - User minta bon/nota = NOTA"
+    ],
+
     'TAGIHAN' => [
         'patterns' => [
             '/^\s*(bill|tagihan)\s*$/i',
@@ -35,12 +54,25 @@ return [
     'STATUS' => [
         'patterns' => [
             '/^\s*(cek|sta*tu*s)\s*$/i',
+            '/\b(sudah|dah+)\s*sia+p+\b/i',
+            '/\bsia+p+\s*(kak|bang|pak|bu|ya)?\s*$/i',
+            '/atas\s+nama\s+.+\s*(udah|sudah)\s*\??/i',
         ],
-        'ai_prompt' => "User menanyakan status/progress laundry atau kapan selesai, seperti:\n
+        'ai_prompt' => "User menanyakan ATAU memberitahu status/progress laundry, seperti:\n
+        PERTANYAAN status:\n
         | sudah selesai? | bisa diambil? | kapan siap? | jam berapa siap? | sudah jadi? | jam berapa selesai? |\n
         | sudah bisa diambil? | kapan bisa diambil? | siapnya kapan? | siapnya jam berapa? |\n
-        PENTING: Jika user bertanya 'kapan' atau 'jam berapa' + (siap/selesai/jadi/bisa diambil) = STATUS\n
-        atau yang menurut anda sangat yakin sebagai pertanyaan status/waktu selesai laundry"
+        | atas nama IVAN udah? | atas nama X sudah? | laundry [nama] udah? | punya [nama] sudah? |\n
+        \n
+        KONFIRMASI/PEMBERITAHUAN status (sudah siap):\n
+        | sudah siap | dah siap | dahh siapp | siapp kak | siap kak | sudah jadi | ready |\n
+        | kak dahh siapp kak | dah siapp | sudah siap kak |\n
+        \n
+        PENTING:\n
+        - Jika user bertanya 'kapan' atau 'jam berapa' + (siap/selesai/jadi/bisa diambil) = STATUS\n
+        - Jika user bertanya 'atas nama [nama] udah/sudah?' = STATUS (tanya status laundry atas nama tertentu)\n
+        - Jika user memberitahu/konfirmasi 'sudah siap' / 'dah siap' / 'siapp' / 'dahh siapp' = STATUS\n
+        - atau yang menurut anda sangat yakin sebagai pertanyaan/pemberitahuan status laundry"
     ],
 
     'HARGA' => [
