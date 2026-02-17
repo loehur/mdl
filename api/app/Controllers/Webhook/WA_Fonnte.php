@@ -90,6 +90,7 @@ class WA_Fonnte extends Controller
     {
         $db = $this->db(0);
         $provider = 'b';
+        $handler = strtoupper($handler);
 
         $result = $db->query(
             "SELECT created_at FROM wa_auto_reply_log WHERE phone = ? AND handler = ? AND provider = ? ORDER BY created_at DESC LIMIT 1",
