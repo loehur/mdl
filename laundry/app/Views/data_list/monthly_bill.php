@@ -17,8 +17,7 @@
                 <tr>
                   <th class="text-right">#</th>
                   <th>Code</th>
-                  <th>Customer ID</th>
-                  <th>Cabang</th>
+                  <th class="text-start">Customer ID</th>
                   <th>Description</th>
                   <th>Last Bill</th>
                   <th>Status</th>
@@ -28,24 +27,18 @@
               <tbody>
                 <?php
                 $no = 0;
-                $cabangMap = [];
-                foreach ($data['data_cabang'] as $c) {
-                  $cabangMap[$c['id_cabang']] = $c['kode_cabang'];
-                }
                 foreach ($data['data_main'] as $a) {
                   $id = $a['bill_id'];
                   $no++;
-                  $kodeCabang = $cabangMap[$a['id_cabang']] ?? $a['id_cabang'];
                   $lastBill = !empty($a['last_bill']) ? $a['last_bill'] : '-';
                   $enLabel = ($a['en'] == 1) ? 'Enabled' : 'Disabled';
                   echo "<tr>";
                   echo "<td class='text-right'>" . $no . "</td>";
                   echo "<td><span class='cell' data-mode='1' data-id_value='" . $id . "' data-value='" . htmlspecialchars($a['code']) . "'>" . htmlspecialchars($a['code']) . "</span></td>";
-                  echo "<td><span class='cell' data-mode='2' data-id_value='" . $id . "' data-value='" . htmlspecialchars($a['customer_id']) . "'>" . htmlspecialchars($a['customer_id']) . "</span></td>";
-                  echo "<td><span class='cell' data-mode='3' data-id_value='" . $id . "' data-value='" . $a['id_cabang'] . "'>" . htmlspecialchars($kodeCabang) . "</span></td>";
-                  echo "<td><span class='cell' data-mode='4' data-id_value='" . $id . "' data-value='" . htmlspecialchars($a['description']) . "'>" . htmlspecialchars($a['description']) . "</span></td>";
+                  echo "<td class='text-start'><span class='cell' data-mode='2' data-id_value='" . $id . "' data-value='" . htmlspecialchars($a['customer_id']) . "'>" . htmlspecialchars($a['customer_id']) . "</span></td>";
+                  echo "<td><span class='cell' data-mode='3' data-id_value='" . $id . "' data-value='" . htmlspecialchars($a['description']) . "'>" . htmlspecialchars($a['description']) . "</span></td>";
                   echo "<td>" . $lastBill . "</td>";
-                  echo "<td><span class='cell' data-mode='5' data-id_value='" . $id . "' data-value='" . $a['en'] . "'>" . $enLabel . "</span></td>";
+                  echo "<td><span class='cell' data-mode='4' data-id_value='" . $id . "' data-value='" . $a['en'] . "'>" . $enLabel . "</span></td>";
                   echo "<td><button type='button' class='btn btn-sm btn-danger btn-delete' data-id='" . $id . "'>Hapus</button></td>";
                   echo "</tr>";
                 }
@@ -72,15 +65,6 @@
                   <div class="mb-2">
                     <label class="form-label">Customer ID</label>
                     <input type="text" name="customer_id" class="form-control form-control-sm" placeholder="No. meter / ID pelanggan" required>
-                  </div>
-                  <div class="mb-2">
-                    <label class="form-label">Cabang</label>
-                    <select name="id_cabang" class="form-control form-control-sm" required>
-                      <option value="" disabled selected>-- Pilih Kode Cabang --</option>
-                      <?php foreach ($data['data_cabang'] as $c) { ?>
-                        <option value="<?= $c['id_cabang'] ?>"><?= htmlspecialchars($c['kode_cabang']) ?> - <?= htmlspecialchars($c['alamat'] ?? '') ?></option>
-                      <?php } ?>
-                    </select>
                   </div>
                   <div class="mb-2">
                     <label class="form-label">Description</label>
@@ -152,10 +136,7 @@ $(document).ready(function() {
     var span = $(this);
     var valHtml = $(this).html();
 
-    if (mode == 3) {
-      span.html('<select id="value_" required><?php foreach ($data['data_cabang'] as $c) { ?><option value="<?= $c['id_cabang'] ?>"><?= addslashes($c['kode_cabang']) ?></option><?php } ?></select>');
-      $("#value_").val(value);
-    } else if (mode == 5) {
+    if (mode == 4) {
       var opts = [{v:0,l:'Disabled'},{v:1,l:'Enabled'}];
       var h = '<select id="value_" required>';
       for (var i = 0; i < opts.length; i++) {

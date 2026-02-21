@@ -17,16 +17,13 @@ class MonthlyBill extends Controller
         $data_operasi = ['title' => 'Monthly Bill'];
 
         $table = 'postpaid_list';
-        $where = "bisnis = 'laundry'";
-        $order = 'code ASC, id_cabang ASC';
+        $id_cabang = (int)$this->id_cabang;
+        $where = "bisnis = 'laundry' AND id_cabang = $id_cabang";
+        $order = 'code ASC';
         $data_main = $this->db(100)->get_where_order($table, $where, $order);
-        $data_cabang = $this->db(0)->get('cabang');
 
         $this->view('layout', ['data_operasi' => $data_operasi]);
-        $this->view('data_list/monthly_bill', [
-            'data_main' => $data_main,
-            'data_cabang' => $data_cabang
-        ]);
+        $this->view('data_list/monthly_bill', ['data_main' => $data_main]);
     }
 
     public function insert()
@@ -38,7 +35,7 @@ class MonthlyBill extends Controller
             'bisnis' => 'laundry',
             'code' => $_POST['code'],
             'customer_id' => $_POST['customer_id'],
-            'id_cabang' => (int)$_POST['id_cabang'],
+            'id_cabang' => (int)$this->id_cabang,
             'description' => $_POST['description'],
             'last_bill' => null,
             'en' => 1
@@ -66,10 +63,8 @@ class MonthlyBill extends Controller
         } elseif ($mode == 2) {
             $kolom = 'customer_id';
         } elseif ($mode == 3) {
-            $kolom = 'id_cabang';
-        } elseif ($mode == 4) {
             $kolom = 'description';
-        } elseif ($mode == 5) {
+        } elseif ($mode == 4) {
             $kolom = 'en';
         }
 
@@ -78,12 +73,12 @@ class MonthlyBill extends Controller
             return;
         }
 
-        if ($kolom == 'id_cabang' || $kolom == 'en') {
+        if ($kolom == 'en') {
             $value = (int)$value;
         }
 
         $set = [$kolom => $value];
-        $where = "bill_id = $id AND bisnis = 'laundry'";
+        $where = "bill_id = $id AND bisnis = 'laundry' AND id_cabang = " . (int)$this->id_cabang;
         $up = $this->db(100)->update($table, $set, $where);
         if ($up['errno'] == 0) {
             echo 0;
@@ -97,7 +92,7 @@ class MonthlyBill extends Controller
         $this->session_cek(1);
         $id = (int)$_POST['id'];
         $table = 'postpaid_list';
-        $where = "bill_id = $id AND bisnis = 'laundry'";
+        $where = "bill_id = $id AND bisnis = 'laundry' AND id_cabang = " . (int)$this->id_cabang;
         $del = $this->db(100)->delete($table, $where);
         if ($del['errno'] == 0) {
             echo 0;
