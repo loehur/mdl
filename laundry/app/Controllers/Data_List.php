@@ -446,7 +446,7 @@ class Data_List extends Controller
                $this->model('Log')->write("[updateCell/barang_sub] Row: " . (empty($row) ? 'NOT FOUND' : 'id_barang=' . ($row['id_barang'] ?? '') . ' qty=' . ($row['qty'] ?? '')), 'laundry', 'Data_List');
                if ($row && isset($row['id_barang']) && isset($row['qty'])) {
                   $id_barang = intval($row['id_barang']);
-                  $qty_esc = $this->db(0)->escape($row['qty']);
+                  $qty_num = floatval($row['qty']);
                   $barang = $this->db(0)->get_where_row('barang_data', "id_barang = $id_barang");
                   if ($barang && isset($barang['brand']) && isset($barang['model'])) {
                      $brand = $this->db(0)->escape($barang['brand']);
@@ -456,12 +456,13 @@ class Data_List extends Controller
                      foreach ($all_barang as $b) {
                         $ids[] = intval($b['id_barang']);
                      }
+                     $qty_cond = "ABS(qty - $qty_num) < 0.0001";
                      $where = !empty($ids)
-                        ? "id_barang IN (" . implode(',', $ids) . ") AND qty = '$qty_esc'"
-                        : "id_barang = $id_barang AND qty = '$qty_esc'";
+                        ? "id_barang IN (" . implode(',', $ids) . ") AND $qty_cond"
+                        : "id_barang = $id_barang AND $qty_cond";
                      $this->model('Log')->write("[updateCell/barang_sub] where=" . $where . " ids=" . implode(',', $ids), 'laundry', 'Data_List');
                   } else {
-                     $where = "id_barang = $id_barang AND qty = '$qty_esc'";
+                     $where = "id_barang = $id_barang AND ABS(qty - $qty_num) < 0.0001";
                   }
                } else {
                   $where = "id = '$id_esc'";
