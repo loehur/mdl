@@ -397,7 +397,7 @@ class Data_List extends Controller
                $row = $this->db(0)->get_where_row($table, "id = " . intval($id));
                if ($row && isset($row['id_barang']) && isset($row['qty'])) {
                   $id_barang = intval($row['id_barang']);
-                  $qty = $this->db(0)->escape($row['qty']);
+                  $qty_num = floatval($row['qty']);
                   $barang = $this->db(0)->get_where_row('barang_data', "id_barang = $id_barang");
                   if ($barang && isset($barang['brand']) && isset($barang['model'])) {
                      $brand = $this->db(0)->escape($barang['brand']);
@@ -408,16 +408,17 @@ class Data_List extends Controller
                         $ids[] = intval($b['id_barang']);
                      }
                      if (!empty($ids)) {
-                        $where = "id_barang IN (" . implode(',', $ids) . ") AND qty = '$qty'";
+                        $where = "id_barang IN (" . implode(',', $ids) . ") AND qty = " . $qty_num;
                      } else {
-                        $where = "id = " . intval($id);
+                        $where = "id_barang = $id_barang AND qty = " . $qty_num;
                      }
                   } else {
-                     $where = "id_barang = $id_barang AND qty = '$qty'";
+                     $where = "id_barang = $id_barang AND qty = " . $qty_num;
                   }
                } else {
                   $where = "id = " . intval($id);
                }
+               $value = preg_replace('/[^0-9.-]/', '', $value);
             } else {
                $where = "id = " . intval($id);
             }
