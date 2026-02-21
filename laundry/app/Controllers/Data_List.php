@@ -388,7 +388,6 @@ class Data_List extends Controller
             $id_raw = trim($_POST['id'] ?? '');
             $id = $id_raw;
             $mode = $_POST['mode'];
-            $debug = ['id' => $id, 'mode' => $mode, 'value' => $value, 'POST' => $_POST];
             switch ($mode) {
                case 1: $col = 'id_barang'; break; // Master
                case 2: $col = 'nama'; break;
@@ -400,26 +399,18 @@ class Data_List extends Controller
             if ($mode == 4) {
                $id_esc = $this->db(0)->escape($id);
                $row = $this->db(0)->get_where_row($table, "id = '$id_esc'");
-               $debug['row'] = $row;
                if ($row && isset($row['id_barang']) && isset($row['qty'])) {
                   $id_barang = intval($row['id_barang']);
                   $qty_num = floatval($row['qty']);
-                  $debug['id_barang'] = $id_barang;
-                  $debug['qty_num'] = $qty_num;
                   $barang = $this->db(0)->get_where_row('barang_data', "id_barang = $id_barang");
-                  $debug['barang'] = $barang;
                   if ($barang && isset($barang['brand']) && isset($barang['model'])) {
                      $brand = $this->db(0)->escape($barang['brand']);
                      $model = $this->db(0)->escape($barang['model']);
-                     $debug['brand'] = $brand;
-                     $debug['model'] = $model;
                      $all_barang = $this->db(0)->get_where('barang_data', "brand = '$brand' AND model = '$model'");
                      $ids = [];
                      foreach ($all_barang as $b) {
                         $ids[] = intval($b['id_barang']);
                      }
-                     $debug['all_barang_count'] = count($all_barang);
-                     $debug['ids'] = $ids;
                      if (!empty($ids)) {
                         $where = "id_barang IN (" . implode(',', $ids) . ") AND qty = " . $qty_num;
                      } else {
@@ -428,32 +419,21 @@ class Data_List extends Controller
                   } else {
                      $where = "id_barang = $id_barang AND qty = " . $qty_num;
                   }
-                  $debug['where'] = $where;
                } else {
                   $where = "id = '$id_esc'";
-                  $debug['where'] = $where;
-                  $debug['note'] = 'row empty or missing id_barang/qty';
                }
                $value = preg_replace('/[^0-9.-]/', '', $value);
-               $debug['value_sanitized'] = $value;
             } else {
                $id_esc = $this->db(0)->escape($id);
                $where = "id = '$id_esc'";
-               $debug['where'] = $where;
             }
             $set = [ $col => $value ];
-            $debug['set'] = $set;
             $up = $this->db(0)->update($table, $set, $where);
-            $debug['query'] = $up['query'] ?? '';
-            $debug['affected_rows'] = $up['affected_rows'] ?? -1;
-            $debug['errno'] = $up['errno'] ?? -1;
-            $debug['error'] = $up['error'] ?? '';
             $resp = [
                'ok' => ($up['errno'] == 0 ? 1 : 0),
-               'error' => $up['errno'] != 0 ? $up['error'] : '',
-               'debug' => $debug
+               'error' => $up['errno'] != 0 ? $up['error'] : ''
             ];
-            echo json_encode($resp, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+            echo json_encode($resp);
             exit();
             break;
       }
