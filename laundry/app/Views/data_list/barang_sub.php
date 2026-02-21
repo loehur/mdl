@@ -34,7 +34,6 @@ foreach ($masterList as $m) {
             <table class="table table-sm table-striped" id="dtTable">
               <thead>
                 <tr>
-                  <th>ID Barang</th>
                   <th>Master Barang</th>
                   <th>Nama Sub</th>
                   <th>Qty</th>
@@ -50,7 +49,6 @@ foreach ($masterList as $m) {
                   $id_attr = htmlspecialchars((string)$id, ENT_QUOTES, 'UTF-8');
                   
                   echo "<tr>";
-                  echo "<td>" . intval($a['id_barang']) . "</td>";
                   echo "<td><span class='text-uppercase' data-mode='1' data-id_value='" . $id_attr . "' data-value='" . $a['id_barang'] . "'>" . $masterName . "</span></td>";
                   echo "<td><span class='editable text-uppercase' data-mode='2' data-id_value='" . $id_attr . "' data-value='" . htmlspecialchars($a['nama'] ?? '', ENT_QUOTES, 'UTF-8') . "'>" . $a['nama'] . "</span></td>";
                   echo "<td><span class='editable' data-mode='3' data-id_value='" . $id_attr . "' data-value='" . $a['qty'] . "'>" . $a['qty'] . "</span></td>";

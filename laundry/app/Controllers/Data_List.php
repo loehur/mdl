@@ -430,7 +430,6 @@ class Data_List extends Controller
             $id = $id_raw;
             $mode = intval($_POST['mode'] ?? 0);
             $value = $_POST['value'] ?? '';
-            $this->model('Log')->write("[updateCell/barang_sub] POST id=" . $id . " value=" . $value . " mode=" . $mode, 'laundry', 'Data_List');
             switch ($mode) {
                case 1: $col = 'id_barang'; break;
                case 2: $col = 'nama'; break;
@@ -443,7 +442,6 @@ class Data_List extends Controller
             if ($mode == 4) {
                $id_esc = $this->db(0)->escape($id);
                $row = $this->db(0)->get_where_row($table, "id = '$id_esc'");
-               $this->model('Log')->write("[updateCell/barang_sub] Row: " . (empty($row) ? 'NOT FOUND' : 'id_barang=' . ($row['id_barang'] ?? '') . ' qty=' . ($row['qty'] ?? '')), 'laundry', 'Data_List');
                if ($row && isset($row['id_barang']) && isset($row['qty'])) {
                   $id_barang = intval($row['id_barang']);
                   $qty_num = floatval($row['qty']);
@@ -460,7 +458,6 @@ class Data_List extends Controller
                      $where = !empty($ids)
                         ? "id_barang IN (" . implode(',', $ids) . ") AND $qty_cond"
                         : "id_barang = $id_barang AND $qty_cond";
-                     $this->model('Log')->write("[updateCell/barang_sub] where=" . $where . " ids=" . implode(',', $ids), 'laundry', 'Data_List');
                   } else {
                      $where = "id_barang = $id_barang AND ABS(qty - $qty_num) < 0.0001";
                   }
@@ -474,7 +471,6 @@ class Data_List extends Controller
             }
             $set = [$col => $value];
             $up = $this->db(0)->update($table, $set, $where);
-            $this->model('Log')->write("[updateCell/barang_sub] Update: errno=" . ($up['errno'] ?? '') . " affected=" . ($up['affected_rows'] ?? '') . " error=" . ($up['error'] ?? ''), 'laundry', 'Data_List');
             $resp = [
                'ok' => ($up['errno'] == 0 ? 1 : 0),
                'error' => $up['errno'] != 0 ? ($up['error'] ?? '') : ''
@@ -520,59 +516,6 @@ class Data_List extends Controller
    public function synchrone()
    {
       $this->dataSynchrone($_SESSION[URL::SESSID]['user']['id_user']);
-   }
-
-   /**
-    * Cek data barang_sub untuk debug - akses via: Data_List/checkQty?id=2480.6
-    * Menampilkan: row asal, barang_data (brand+model), semua barang_sub dengan id_barang sama brand+model, dan hasil query WHERE
-    */
-   public function checkQty()
-   {
-      $this->session_cek(1);
-      $id = trim($_GET['id'] ?? '');
-      if (!$id) {
-         header('Content-Type: application/json');
-         echo json_encode(['error' => 'Parameter id required, contoh: Data_List/checkQty?id=2480.6']);
-         return;
-      }
-      $id_esc = $this->db(0)->escape($id);
-      $row = $this->db(0)->get_where_row('barang_sub', "id = '$id_esc'");
-      if (empty($row)) {
-         header('Content-Type: application/json');
-         echo json_encode(['error' => 'Barang_sub tidak ditemukan', 'id' => $id]);
-         return;
-      }
-      $id_barang = intval($row['id_barang']);
-      $qty_raw = $row['qty'];
-      $qty_esc = $this->db(0)->escape($qty_raw);
-      $barang = $this->db(0)->get_where_row('barang_data', "id_barang = $id_barang");
-      $ids = [];
-      if ($barang && isset($barang['brand']) && isset($barang['model'])) {
-         $brand = $this->db(0)->escape($barang['brand']);
-         $model = $this->db(0)->escape($barang['model']);
-         $all_barang = $this->db(0)->get_where('barang_data', "brand = '$brand' AND model = '$model'");
-         foreach ($all_barang as $b) {
-            $ids[] = intval($b['id_barang']);
-         }
-      } else {
-         $ids = [$id_barang];
-      }
-      $where = "id_barang IN (" . implode(',', $ids) . ") AND qty = '$qty_esc'";
-      $matched = $this->db(0)->get_where('barang_sub', $where);
-      $all_same_ids = implode(',', $ids);
-      $all_in_range = $this->db(0)->get_where('barang_sub', "id_barang IN ($all_same_ids)");
-      header('Content-Type: application/json; charset=utf-8');
-      echo json_encode([
-         'row_asal' => $row,
-         'barang_data' => $barang ?: null,
-         'ids_barang_sama' => $ids,
-         'qty_raw' => $qty_raw,
-         'qty_esc' => $qty_esc,
-         'where_clause' => $where,
-         'query_matched_count' => count($matched),
-         'matched_rows' => $matched,
-         'all_barang_sub_dalam_ids' => $all_in_range
-      ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
    }
 
    public function delete($page)
