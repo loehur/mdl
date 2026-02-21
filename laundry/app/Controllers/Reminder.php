@@ -17,7 +17,7 @@ class Reminder extends Controller
         $data_operasi = ['title' => 'Reminder'];
 
         $table = 'reminder';
-        $order = 'next_date ASC';
+        $order = 'name ASC';
         $data_main = $this->db(100)->get_order($table, $order);
 
         $this->view('layout', ['data_operasi' => $data_operasi]);

@@ -132,7 +132,9 @@
 
 <script>
 $(document).ready(function() {
-  new DataTable('#dtTable');
+  new DataTable('#dtTable', {
+    order: [[1, 'asc']]
+  });
 
   $("#formAdd").on("submit", function(e) {
     e.preventDefault();
