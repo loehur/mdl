@@ -181,7 +181,7 @@ $(document).ready(function() {
     });
   });
 
-  $(".cell").on('dblclick', function() {
+  $(document).on('dblclick', '.cell', function() {
     var id_value = $(this).attr('data-id_value');
     var value = $(this).attr('data-value');
     var mode = $(this).attr('data-mode');
