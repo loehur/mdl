@@ -243,9 +243,10 @@ class WhatsApp extends Controller
             }
             
             // Check if message is private (for last_message formatting, uses Env::WA_PRIVATE_WORDS)
+            // IMPORTANT: Use \Env (global namespace) - class_exists('Env') in namespaced file looks for App\Controllers\Webhook\Env!
             $isPrivateForLastMessage = false;
             try {
-                if (class_exists('Env', false)) {
+                if (class_exists('\Env', false)) {
                     $isPrivateForLastMessage = \Env::textContainsPrivateWord($lastMessageSummary ?? '');
                 }
             } catch (\Throwable $e) {

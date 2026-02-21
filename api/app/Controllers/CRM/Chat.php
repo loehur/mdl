@@ -1029,7 +1029,7 @@ class Chat extends Controller
                 // Check if caption contains WA_PRIVATE_WORDS (case-insensitive)
                 $isPrivate = false;
                 try {
-                    if (class_exists('Env', false)) {
+                    if (class_exists('\Env', false)) {
                         $isPrivate = \Env::textContainsPrivateWord($caption ?? '');
                     }
                 } catch (\Throwable $e) {

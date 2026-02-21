@@ -643,9 +643,10 @@ class WhatsAppService
             }
             
             // Check if message is private (for last_message formatting)
+            // IMPORTANT: Use \Env (global namespace) - class_exists('Env') in namespaced file looks for App\Helpers\Env!
             $isPrivateForLastMessage = false;
             try {
-                if (class_exists('Env', false)) {
+                if (class_exists('\Env', false)) {
                     $isPrivateForLastMessage = \Env::textContainsPrivateWord($content ?? '')
                         || \Env::textContainsPrivateWord($messageText ?? '')
                         || \Env::textContainsPrivateWord($lastMessageText ?? '');
@@ -782,12 +783,15 @@ class WhatsAppService
             }
             
             // Check if message contains sensitive keywords (from Env::WA_PRIVATE_WORDS)
+            // IMPORTANT: Use \Env (global namespace) - class_exists('Env') in namespaced file looks for App\Helpers\Env!
             $isPrivate = false;
             try {
-                if (class_exists('Env', false)) {
+                if (class_exists('\Env', false)) {
+                    $templateName = $payload['template']['name'] ?? '';
                     $isPrivate = \Env::textContainsPrivateWord($content ?? '')
                         || \Env::textContainsPrivateWord($messageText ?? '')
-                        || \Env::textContainsPrivateWord($lastMessageText ?? '');
+                        || \Env::textContainsPrivateWord($lastMessageText ?? '')
+                        || \Env::textContainsPrivateWord($templateName);
                 }
             } catch (\Throwable $e) {
                 // Jangan gagalkan simpan chat jika cek private error
