@@ -388,14 +388,20 @@ class Data_List extends Controller
                case 9: $col = 'state'; break;
             }
             // Saat edit Price atau Margin, update semua barang dengan Brand dan Model yang sama
+            $ids_barang_sama = [];
             if ($mode == 5 || $mode == 6) {
                $row = $this->db(0)->get_where_row($table, "id_barang = " . intval($id));
                if ($row && isset($row['brand']) && isset($row['model'])) {
                   $brand = $this->db(0)->escape($row['brand']);
                   $model = $this->db(0)->escape($row['model']);
                   $where = "brand = '$brand' AND model = '$model'";
+                  $all_barang = $this->db(0)->get_where('barang_data', $where);
+                  foreach ($all_barang as $b) {
+                     $ids_barang_sama[] = intval($b['id_barang']);
+                  }
                } else {
                   $where = "id_barang = " . intval($id);
+                  $ids_barang_sama = [intval($id)];
                }
             } else {
                $where = "id_barang = " . intval($id);
@@ -404,6 +410,11 @@ class Data_List extends Controller
                $col => $value
             ];
             $up = $this->db(0)->update($table, $set, $where);
+            if ($up['errno'] == 0 && $mode == 5 && !empty($ids_barang_sama)) {
+               $where_sub = "id_barang IN (" . implode(',', $ids_barang_sama) . ")";
+               $val_clean = preg_replace('/[^0-9.-]/', '', $value);
+               $this->db(0)->update('barang_sub', ['price' => $val_clean], $where_sub);
+            }
             echo $up['errno'] == 0 ? 0 : $up['error'];
             exit();
             break;
