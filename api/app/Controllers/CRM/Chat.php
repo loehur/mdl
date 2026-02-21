@@ -1026,6 +1026,16 @@ class Chat extends Controller
             }
             
             if ($result['success']) {
+                // Check if caption contains WA_PRIVATE_WORDS (case-insensitive)
+                $isPrivate = false;
+                try {
+                    if (class_exists('Env', false)) {
+                        $isPrivate = \Env::textContainsPrivateWord($caption ?? '');
+                    }
+                } catch (\Throwable $e) {
+                    // Jangan gagalkan simpan chat jika cek private error
+                }
+
                 // Save to database
                 $messageData = [
                     'phone' => $waNumber,
@@ -1035,6 +1045,7 @@ class Chat extends Controller
                     'message_id' => $result['data']['id'] ?? null,
                     'wamid' => $result['data']['wamid'] ?? null,
                     'status' => 'sent',
+                    'private' => $isPrivate ? 1 : 0,
                     'created_at' => date('Y-m-d H:i:s')
                 ];
                 
@@ -1048,9 +1059,10 @@ class Chat extends Controller
                      $db->update('wa_messages_out', ['status' => 'sent'], ['id' => $msgId]);
                 }
                 
-                // Update conversation
+                // Update conversation (last_message: private chat jika caption sensitif)
+                $lastMsgDisplay = $isPrivate ? 'o- 🔒 _Private Chat_' : 'o- 📷 Image';
                 $db->update('wa_conversations', [
-                    'last_message' => '� �📷 Image',
+                    'last_message' => $lastMsgDisplay,
                     'last_message_at' => date('Y-m-d H:i:s'),
                     'updated_at' => date('Y-m-d H:i:s')
                 ], ['wa_number' => $waNumber]);

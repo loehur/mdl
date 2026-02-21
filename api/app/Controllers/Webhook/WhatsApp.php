@@ -364,7 +364,6 @@ class WhatsApp extends Controller
         }
 
         // Step 4: Save message to wa_messages_in
-
         $messageData = [
             'phone' => $waNumber,
             'type' => $messageType,
