@@ -15,7 +15,7 @@ class PrepaidList extends Controller
     public function index()
     {
         $this->session_cek(1);
-        $data_operasi = ['title' => 'Prepaid List'];
+        $data_operasi = ['title' => 'Prepaid'];
 
         $table = 'prepaid_list';
         $id_cabang = (int)$this->id_cabang;
