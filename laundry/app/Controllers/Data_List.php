@@ -220,13 +220,37 @@ class Data_List extends Controller
          case "barang_sub":
             $this->session_cek(1);
             $table = 'barang_sub';
-            $data = [
-                'id_barang' => $_POST['f_master'],
-                'nama' => $_POST['f_nama'],
-                'qty' => $_POST['f_qty'],
-                'price' => $_POST['f_price']
-            ];
-            $this->db(0)->insert($table, $data);
+            $id_barang = intval($_POST['f_master']);
+            $nama = $_POST['f_nama'];
+            $qty = $_POST['f_qty'];
+            $price = $_POST['f_price'];
+            // Cek brand dan model dari id_barang yang dipilih
+            $barang = $this->db(0)->get_where_row('barang_data', "id_barang = $id_barang");
+            if ($barang && isset($barang['brand']) && isset($barang['model'])) {
+               $brand = $this->db(0)->escape($barang['brand']);
+               $model = $this->db(0)->escape($barang['model']);
+               $all_barang = $this->db(0)->get_where('barang_data', "brand = '$brand' AND model = '$model'");
+               $qty_esc = $this->db(0)->escape($qty);
+               foreach ($all_barang as $b) {
+                  $bid = intval($b['id_barang']);
+                  $exists = $this->db(0)->count_where($table, "id_barang = $bid AND qty = '$qty_esc'");
+                  if ($exists < 1) {
+                     $this->db(0)->insert($table, [
+                        'id_barang' => $bid,
+                        'nama' => $nama,
+                        'qty' => $qty,
+                        'price' => $price
+                     ]);
+                  }
+               }
+            } else {
+               $this->db(0)->insert($table, [
+                  'id_barang' => $id_barang,
+                  'nama' => $nama,
+                  'qty' => $qty,
+                  'price' => $price
+               ]);
+            }
             break;
       }
    }
@@ -337,7 +361,19 @@ class Data_List extends Controller
                case 8: $col = 'sort'; break;
                case 9: $col = 'state'; break;
             }
-            $where = "id_barang = $id";
+            // Saat edit Price, update semua barang dengan Brand dan Model yang sama
+            if ($mode == 5) {
+               $row = $this->db(0)->get_where_row($table, "id_barang = " . intval($id));
+               if ($row && isset($row['brand']) && isset($row['model'])) {
+                  $brand = $this->db(0)->escape($row['brand']);
+                  $model = $this->db(0)->escape($row['model']);
+                  $where = "brand = '$brand' AND model = '$model'";
+               } else {
+                  $where = "id_barang = " . intval($id);
+               }
+            } else {
+               $where = "id_barang = " . intval($id);
+            }
             $set = [
                $col => $value
             ];
@@ -355,7 +391,36 @@ class Data_List extends Controller
                case 3: $col = 'qty'; break;
                case 4: $col = 'price'; break;
             }
-            $where = "id = $id";
+            // Saat edit Price: cek brand+model dari id_barang, cari semua id_barang dengan brand+model sama,
+            // lalu update semua barang_sub dengan id_barang tersebut yang qty-nya sama
+            if ($mode == 4) {
+               $row = $this->db(0)->get_where_row($table, "id = " . intval($id));
+               if ($row && isset($row['id_barang']) && isset($row['qty'])) {
+                  $id_barang = intval($row['id_barang']);
+                  $qty = $this->db(0)->escape($row['qty']);
+                  $barang = $this->db(0)->get_where_row('barang_data', "id_barang = $id_barang");
+                  if ($barang && isset($barang['brand']) && isset($barang['model'])) {
+                     $brand = $this->db(0)->escape($barang['brand']);
+                     $model = $this->db(0)->escape($barang['model']);
+                     $all_barang = $this->db(0)->get_where('barang_data', "brand = '$brand' AND model = '$model'");
+                     $ids = [];
+                     foreach ($all_barang as $b) {
+                        $ids[] = intval($b['id_barang']);
+                     }
+                     if (!empty($ids)) {
+                        $where = "id_barang IN (" . implode(',', $ids) . ") AND qty = '$qty'";
+                     } else {
+                        $where = "id = " . intval($id);
+                     }
+                  } else {
+                     $where = "id_barang = $id_barang AND qty = '$qty'";
+                  }
+               } else {
+                  $where = "id = " . intval($id);
+               }
+            } else {
+               $where = "id = " . intval($id);
+            }
             $set = [ $col => $value ];
             $up = $this->db(0)->update($table, $set, $where);
             echo $up['errno'] == 0 ? 0 : $up['error'];
