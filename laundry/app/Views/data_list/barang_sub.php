@@ -44,7 +44,7 @@ foreach ($masterList as $m) {
               <tbody>
                 <?php
                 foreach ($data['data_main'] as $a) {
-                  $id = $a['id'];
+                  $id = intval($a['id'] ?? 0);
                   $masterName = $masterMap[$a['id_barang']] ?? $a['id_barang'];
                   
                   echo "<tr>";
@@ -184,7 +184,7 @@ foreach ($masterList as $m) {
       if (click != 1) return;
 
       var span = $(this);
-      var id_value = span.attr('data-id_value');
+      var id_value = parseInt(span.attr('data-id_value'), 10) || 0;
       var value = span.attr('data-value');
       var mode = span.attr('data-mode');
       var value_before = value;

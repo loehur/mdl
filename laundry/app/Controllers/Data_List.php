@@ -258,7 +258,7 @@ class Data_List extends Controller
    public function updateCell($page)
    {
       $table  = $page;
-      $id = $_POST['id'];
+      $id = $_POST['id'] ?? '';
       $value = $_POST['value'];
       $mode = $_POST['mode'];
 
@@ -385,6 +385,7 @@ class Data_List extends Controller
             $this->session_cek(1);
             header('Content-Type: application/json; charset=utf-8');
             $table = "barang_sub";
+            $id = intval($id);
             $mode = $_POST['mode'];
             $debug = ['id' => $id, 'mode' => $mode, 'value' => $value, 'POST' => $_POST];
             switch ($mode) {
