@@ -74,6 +74,11 @@ $menu[1] = [
                 'c' => '@MonthlyBill',
                 'title' => 'Monthly Bill',
                 'txt' => 'Monthly Bill'
+            ],
+            [
+                'c' => '@Reminder',
+                'title' => 'Reminder',
+                'txt' => 'Reminder'
             ]
         ]
     ],
