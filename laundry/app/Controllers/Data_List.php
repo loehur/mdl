@@ -428,21 +428,25 @@ class Data_List extends Controller
             $table = "barang_sub";
             $id_raw = trim($_POST['id'] ?? '');
             $id = $id_raw;
-            $mode = $_POST['mode'];
+            $mode = intval($_POST['mode'] ?? 0);
+            $value = $_POST['value'] ?? '';
+            $this->model('Log')->write("[updateCell/barang_sub] POST id=" . $id . " value=" . $value . " mode=" . $mode, 'laundry', 'Data_List');
             switch ($mode) {
-               case 1: $col = 'id_barang'; break; // Master
+               case 1: $col = 'id_barang'; break;
                case 2: $col = 'nama'; break;
                case 3: $col = 'qty'; break;
                case 4: $col = 'price'; break;
+               default:
+                  echo json_encode(['ok' => 0, 'error' => 'Mode tidak valid']);
+                  exit();
             }
-            // Saat edit Price: cek brand+model dari id_barang, cari semua id_barang dengan brand+model sama,
-            // lalu update semua barang_sub dengan id_barang tersebut yang qty-nya sama
             if ($mode == 4) {
                $id_esc = $this->db(0)->escape($id);
                $row = $this->db(0)->get_where_row($table, "id = '$id_esc'");
+               $this->model('Log')->write("[updateCell/barang_sub] Row: " . (empty($row) ? 'NOT FOUND' : 'id_barang=' . ($row['id_barang'] ?? '') . ' qty=' . ($row['qty'] ?? '')), 'laundry', 'Data_List');
                if ($row && isset($row['id_barang']) && isset($row['qty'])) {
                   $id_barang = intval($row['id_barang']);
-                  $qty_num = floatval($row['qty']);
+                  $qty_esc = $this->db(0)->escape($row['qty']);
                   $barang = $this->db(0)->get_where_row('barang_data', "id_barang = $id_barang");
                   if ($barang && isset($barang['brand']) && isset($barang['model'])) {
                      $brand = $this->db(0)->escape($barang['brand']);
@@ -452,13 +456,12 @@ class Data_List extends Controller
                      foreach ($all_barang as $b) {
                         $ids[] = intval($b['id_barang']);
                      }
-                     if (!empty($ids)) {
-                        $where = "id_barang IN (" . implode(',', $ids) . ") AND qty = " . $qty_num;
-                     } else {
-                        $where = "id_barang = $id_barang AND qty = " . $qty_num;
-                     }
+                     $where = !empty($ids)
+                        ? "id_barang IN (" . implode(',', $ids) . ") AND qty = '$qty_esc'"
+                        : "id_barang = $id_barang AND qty = '$qty_esc'";
+                     $this->model('Log')->write("[updateCell/barang_sub] where=" . $where . " ids=" . implode(',', $ids), 'laundry', 'Data_List');
                   } else {
-                     $where = "id_barang = $id_barang AND qty = " . $qty_num;
+                     $where = "id_barang = $id_barang AND qty = '$qty_esc'";
                   }
                } else {
                   $where = "id = '$id_esc'";
@@ -468,11 +471,12 @@ class Data_List extends Controller
                $id_esc = $this->db(0)->escape($id);
                $where = "id = '$id_esc'";
             }
-            $set = [ $col => $value ];
+            $set = [$col => $value];
             $up = $this->db(0)->update($table, $set, $where);
+            $this->model('Log')->write("[updateCell/barang_sub] Update: errno=" . ($up['errno'] ?? '') . " affected=" . ($up['affected_rows'] ?? '') . " error=" . ($up['error'] ?? ''), 'laundry', 'Data_List');
             $resp = [
                'ok' => ($up['errno'] == 0 ? 1 : 0),
-               'error' => $up['errno'] != 0 ? $up['error'] : ''
+               'error' => $up['errno'] != 0 ? ($up['error'] ?? '') : ''
             ];
             echo json_encode($resp);
             exit();
