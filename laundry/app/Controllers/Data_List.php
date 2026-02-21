@@ -220,11 +220,17 @@ class Data_List extends Controller
          case "barang_sub":
             $this->session_cek(1);
             $table = 'barang_sub';
-            $id_barang = intval($_POST['f_master']);
-            $nama = $_POST['f_nama'];
-            $qty = $_POST['f_qty'];
-            $price = $_POST['f_price'];
-            // Cek brand dan model dari id_barang yang dipilih
+            $id_barang = intval($_POST['f_master'] ?? 0);
+            $nama = $_POST['f_nama'] ?? '';
+            $qty = floatval($_POST['f_qty'] ?? 0);
+            $price = preg_replace('/[^0-9.-]/', '', $_POST['f_price'] ?? 0);
+            if ($id_barang < 1 || $nama === '' || $qty <= 0) {
+               header('Content-Type: application/json');
+               http_response_code(400);
+               echo json_encode(['ok' => 0, 'error' => 'Data tidak lengkap']);
+               exit();
+            }
+            $id_val = $id_barang * 10 + $qty;
             $barang = $this->db(0)->get_where_row('barang_data', "id_barang = $id_barang");
             if ($barang && isset($barang['brand']) && isset($barang['model'])) {
                $brand = $this->db(0)->escape($barang['brand']);
@@ -235,22 +241,42 @@ class Data_List extends Controller
                   $bid = intval($b['id_barang']);
                   $exists = $this->db(0)->count_where($table, "id_barang = $bid AND qty = '$qty_esc'");
                   if ($exists < 1) {
-                     $this->db(0)->insert($table, [
+                     $sub_id = $bid * 10 + $qty;
+                     $do = $this->db(0)->insert($table, [
+                        'id' => $sub_id,
                         'id_barang' => $bid,
                         'nama' => $nama,
                         'qty' => $qty,
                         'price' => $price
                      ]);
+                     if (isset($do['errno']) && $do['errno'] != 0) {
+                        $this->model('Log')->write("[Data_List::insert/barang_sub] Error: " . ($do['error'] ?? '') . " | Query: " . ($do['query'] ?? ''));
+                        header('Content-Type: application/json');
+                        http_response_code(500);
+                        echo json_encode(['ok' => 0, 'error' => $do['error'] ?? 'Insert gagal']);
+                        exit();
+                     }
                   }
                }
             } else {
-               $this->db(0)->insert($table, [
+               $do = $this->db(0)->insert($table, [
+                  'id' => $id_val,
                   'id_barang' => $id_barang,
                   'nama' => $nama,
                   'qty' => $qty,
                   'price' => $price
                ]);
+               if (isset($do['errno']) && $do['errno'] != 0) {
+                  $this->model('Log')->write("[Data_List::insert/barang_sub] Error: " . ($do['error'] ?? '') . " | Query: " . ($do['query'] ?? ''));
+                  header('Content-Type: application/json');
+                  http_response_code(500);
+                  echo json_encode(['ok' => 0, 'error' => $do['error'] ?? 'Insert gagal']);
+                  exit();
+               }
             }
+            header('Content-Type: application/json');
+            echo json_encode(['ok' => 1]);
+            exit();
             break;
       }
    }

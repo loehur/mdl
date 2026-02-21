@@ -19,7 +19,7 @@ foreach ($masterList as $m) {
 
         <div class="card">
           <div class="card-header">
-            <button type="button" class="btn btn-sm btn-primary float-right" data-bs-toggle="modal" data-bs-target="#modalAdd">
+            <button type="button" class="btn btn-sm btn-primary float-right" id="btnTambahSubBarang">
               Tambah Sub Barang
             </button>
           </div>
@@ -79,7 +79,7 @@ foreach ($masterList as $m) {
           <form action="<?= URL::BASE_URL; ?>Data_List/insert/barang_sub" method="POST">
             <div class="form-group mb-2">
               <label>Master Barang</label>
-              <select name="f_master" class="form-control" required style="width: 100%;">
+              <select id="f_master_select" class="form-control" required style="width: 100%;">
                 <?php foreach($masterList as $m) { 
                     $label = $m['brand'] . ' ' . $m['model'];
                     if(!empty($m['description'])) $label .= ' (' . $m['description'] . ')';
@@ -87,6 +87,7 @@ foreach ($masterList as $m) {
                    <option value="<?= $m['id_barang'] ?>"><?= strtoupper($label) ?></option>
                 <?php } ?>
               </select>
+              <input type="hidden" name="f_master" id="f_master_hidden">
             </div>
             <div class="form-group mb-2">
               <label>Nama Sub Barang</label>
@@ -157,21 +158,49 @@ foreach ($masterList as $m) {
         stateDuration: -1
       });
       
-      // Selectize for modal
-      $('select[name="f_master"]').selectize();
+      // Selectize for modal - sync value ke hidden input
+      $('#f_master_select').selectize({
+        onChange: function(val) { $('#f_master_hidden').val(val || ''); }
+      });
+      $('#f_master_hidden').val($('#f_master_select').val() || '');
+
+      // Buka modal Tambah via JS (hindari konflik data-bs-toggle)
+      $('#btnTambahSubBarang').on('click', function() {
+        var modalEl = document.getElementById('modalAdd');
+        if (modalEl && typeof bootstrap !== 'undefined') {
+          var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+          modal.show();
+        } else {
+          $('#modalAdd').modal('show');
+        }
+      });
     });
 
     $("form").on("submit", function(e) {
       e.preventDefault();
+      var $form = $(this);
+      if ($form.attr('action') && $form.attr('action').indexOf('barang_sub') !== -1) {
+        var $sel = $('#f_master_select');
+        if ($sel.length && $sel[0].selectize) {
+          $('#f_master_hidden').val($sel[0].selectize.getValue() || '');
+        }
+      }
+      var isBarangSub = $form.attr('action') && $form.attr('action').indexOf('barang_sub') !== -1;
       $.ajax({
-        url: $(this).attr('action'),
-        data: $(this).serialize(),
-        type: $(this).attr("method"),
-        success: function() {
+        url: $form.attr('action'),
+        data: $form.serialize(),
+        type: $form.attr("method"),
+        dataType: isBarangSub ? 'json' : 'text',
+        success: function(res) {
+          if (isBarangSub && res && res.ok === 0 && res.error) {
+            alert(res.error);
+            return;
+          }
           location.reload(true);
         },
         error: function(xhr, status, error) {
-            alert("Error: " + error);
+          var msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : error;
+          alert("Error: " + msg);
         }
       });
     });
