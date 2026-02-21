@@ -249,7 +249,7 @@ class Data_List extends Controller
                         'qty' => $qty,
                         'price' => $price
                      ]);
-                     if (isset($do['errno']) && $do['errno'] != 0) {
+                     if (isset($do['errno']) && $do['errno'] != 0 && $do['errno'] != 1062) {
                         $this->model('Log')->write("[Data_List::insert/barang_sub] Error: " . ($do['error'] ?? '') . " | Query: " . ($do['query'] ?? ''));
                         header('Content-Type: application/json');
                         http_response_code(500);
@@ -266,7 +266,7 @@ class Data_List extends Controller
                   'qty' => $qty,
                   'price' => $price
                ]);
-               if (isset($do['errno']) && $do['errno'] != 0) {
+               if (isset($do['errno']) && $do['errno'] != 0 && $do['errno'] != 1062) {
                   $this->model('Log')->write("[Data_List::insert/barang_sub] Error: " . ($do['error'] ?? '') . " | Query: " . ($do['query'] ?? ''));
                   header('Content-Type: application/json');
                   http_response_code(500);
