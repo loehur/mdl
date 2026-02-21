@@ -162,7 +162,8 @@ $(document).ready(function() {
           dataType: 'html',
           success: function(response) {
             if (response == '0') {
-              location.reload(true);
+              span.attr('data-value', value_after);
+              span.html(mode == 4 ? (value_after == '1' ? 'Enabled' : 'Disabled') : $('<div/>').text(value_after).html());
             } else {
               span.html(valHtml);
               alert(response);

@@ -219,7 +219,8 @@ $(document).ready(function() {
           dataType: 'html',
           success: function(response) {
             if (response == '0') {
-              location.reload(true);
+              span.attr('data-value', value_after);
+              span.html(value_after === '' ? '-' : $('<div/>').text(value_after).html());
             } else {
               span.html(valHtml);
               alert(response);
