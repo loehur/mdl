@@ -643,17 +643,7 @@ class WhatsAppService
             }
             
             // Check if message is private (for last_message formatting)
-            // IMPORTANT: Use \Env (global namespace) - class_exists('Env') in namespaced file looks for App\Helpers\Env!
-            $isPrivateForLastMessage = false;
-            try {
-                if (class_exists('\Env', false)) {
-                    $isPrivateForLastMessage = \Env::textContainsPrivateWord($content ?? '')
-                        || \Env::textContainsPrivateWord($messageText ?? '')
-                        || \Env::textContainsPrivateWord($lastMessageText ?? '');
-                }
-            } catch (\Throwable $e) {
-                // Jangan gagalkan simpan chat jika cek private error
-            }
+            $isPrivateForLastMessage = $this->checkPrivateWords($content ?? '', $messageText ?? '', $lastMessageText ?? '', 'last_message', '');
 
             // Load DB class if not already loaded
             if (!class_exists('\\App\\Core\\DB')) {
@@ -783,19 +773,8 @@ class WhatsAppService
             }
             
             // Check if message contains sensitive keywords (from Env::WA_PRIVATE_WORDS)
-            // IMPORTANT: Use \Env (global namespace) - class_exists('Env') in namespaced file looks for App\Helpers\Env!
-            $isPrivate = false;
-            try {
-                if (class_exists('\Env', false)) {
-                    $templateName = $payload['template']['name'] ?? '';
-                    $isPrivate = \Env::textContainsPrivateWord($content ?? '')
-                        || \Env::textContainsPrivateWord($messageText ?? '')
-                        || \Env::textContainsPrivateWord($lastMessageText ?? '')
-                        || \Env::textContainsPrivateWord($templateName);
-                }
-            } catch (\Throwable $e) {
-                // Jangan gagalkan simpan chat jika cek private error
-            }
+            $templateName = $payload['template']['name'] ?? '';
+            $isPrivate = $this->checkPrivateWords($content ?? '', $messageText ?? '', $lastMessageText ?? '', 'db_insert', $templateName);
 
             // Save outbound message to wa_messages_out
             $messageData = [
@@ -921,6 +900,86 @@ class WhatsAppService
                 error_log("saveOutboundMessage error: $errorMsg at $errorFile:$errorLine");
             }
         }
+    }
+
+    /**
+     * Cek apakah teks mengandung WA_PRIVATE_WORDS (kode otp, salary slip, gaji cash).
+     * Dengan logging lengkap dan fallback jika Env class tidak ter-load.
+     * @param string $content
+     * @param string|null $messageText
+     * @param string|null $lastMessageText
+     * @param string $context Untuk log (last_message / db_insert)
+     * @param string $extraText Template name atau teks tambahan
+     * @return bool
+     */
+    private function checkPrivateWords($content, $messageText, $lastMessageText, $context = '', $extraText = '')
+    {
+        $words = ['kode otp', 'salary slip', 'gaji cash'];
+        $textsToCheck = array_filter([$content, $messageText, $lastMessageText, $extraText], function ($t) {
+            return $t !== null && $t !== '';
+        });
+
+        $isPrivate = false;
+        $envLoaded = false;
+        $envClass = null;
+
+        try {
+            // 1. Coba load Env jika belum ada (global namespace)
+            if (!class_exists('\Env', false)) {
+                $envPath = __DIR__ . '/../Config/Env.php';
+                if (file_exists($envPath)) {
+                    require_once $envPath;
+                }
+            }
+            $envLoaded = class_exists('\Env', false);
+            $envClass = $envLoaded ? '\Env' : 'NOT_FOUND';
+
+            if ($envLoaded && method_exists('\Env', 'textContainsPrivateWord')) {
+                foreach ($textsToCheck as $t) {
+                    if (\Env::textContainsPrivateWord($t)) {
+                        $isPrivate = true;
+                        break;
+                    }
+                }
+            } else {
+                // 2. Fallback: inline check (tidak tergantung Env)
+                $lower = function ($s) {
+                    return mb_strtolower((string) $s);
+                };
+                foreach ($textsToCheck as $t) {
+                    $tLower = $lower($t);
+                    foreach ($words as $w) {
+                        if ($w !== '' && mb_strpos($tLower, $lower($w)) !== false) {
+                            $isPrivate = true;
+                            break 2;
+                        }
+                    }
+                }
+            }
+
+            // Log untuk debugging
+            if (class_exists('\Log')) {
+                $contentPreview = substr((string) $content, 0, 80);
+                \Log::write("[WA_PRIVATE] context=$context | Env=$envClass | isPrivate=" . ($isPrivate ? '1' : '0') . " | content_preview=" . $contentPreview, 'wa_private', 'debug');
+                if (!$envLoaded) {
+                    \Log::write("[WA_PRIVATE] WARNING: Env class NOT loaded, using inline fallback. Check namespace/require.", 'wa_private', 'warning');
+                }
+            }
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write("[WA_PRIVATE] ERROR: " . $e->getMessage() . " | File: " . $e->getFile() . ":" . $e->getLine(), 'wa_private', 'error');
+            }
+            // Fallback inline on error
+            $tLower = mb_strtolower((string) $content . (string) $messageText . (string) $lastMessageText);
+            foreach ($words as $w) {
+                if ($w !== '' && mb_strpos($tLower, mb_strtolower($w)) !== false) {
+                    $isPrivate = true;
+                    break;
+                }
+            }
+        }
+
+        return $isPrivate;
     }
     
 
