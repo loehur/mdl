@@ -42,7 +42,7 @@
                   echo "<td><span class='cell' data-mode='5' data-id_value='" . $id . "' data-value='" . htmlspecialchars($a['cycle_type']) . "'>" . htmlspecialchars($a['cycle_type']) . "</span></td>";
                   echo "<td><span class='cell' data-mode='6' data-id_value='" . $id . "' data-value='" . $a['range'] . "'>" . $a['range'] . "</span></td>";
                   echo "<td><span class='cell' data-mode='7' data-id_value='" . $id . "' data-value='" . htmlspecialchars($a['notif_number']) . "'>" . htmlspecialchars($a['notif_number']) . "</span></td>";
-                  echo "<td><button type='button' class='btn btn-sm btn-danger btn-delete' data-id='" . $id . "'>Hapus</button></td>";
+                  echo "<td><button type='button' class='btn btn-sm btn-danger btn-delete' data-id='" . $id . "' data-name='" . htmlspecialchars($a['name']) . "'>Hapus</button></td>";
                   echo "</tr>";
                 }
                 ?>
@@ -59,7 +59,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
               </div>
               <div class="modal-body">
-                Yakin ingin menghapus data ini?
+                Yakin ingin menghapus <strong id="deleteItemName"></strong>?
               </div>
               <div class="modal-footer">
                 <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Batal</button>
@@ -111,10 +111,6 @@
                       <input type="number" name="range" class="form-control form-control-sm" placeholder="7" min="1" required>
                     </div>
                   </div>
-                  <div class="mb-2">
-                    <label class="form-label">Notif Number</label>
-                    <input type="text" name="notif_number" class="form-control form-control-sm" placeholder="085278114125,081268098300">
-                  </div>
                 </form>
               </div>
               <div class="modal-footer">
@@ -159,6 +155,8 @@ $(document).ready(function() {
   $(document).on("click", ".btn-delete", function(e) {
     e.preventDefault();
     deleteId = $(this).data('id');
+    var name = $(this).data('name') || '(tanpa nama)';
+    $("#deleteItemName").text(name);
     var modal = new bootstrap.Modal(document.getElementById('confirmDeleteModal'));
     modal.show();
   });
