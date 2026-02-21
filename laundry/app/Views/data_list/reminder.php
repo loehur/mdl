@@ -51,6 +51,24 @@
           </div>
         </div>
 
+        <div class="modal" id="confirmDeleteModal" tabindex="-1">
+          <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title">Konfirmasi Hapus</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              <div class="modal-body">
+                Yakin ingin menghapus data ini?
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-sm btn-danger" id="btnConfirmDelete">Hapus</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="modal" id="addModal" tabindex="-1">
           <div class="modal-dialog modal-lg">
             <div class="modal-content">
@@ -137,16 +155,24 @@ $(document).ready(function() {
     });
   });
 
-  $(".btn-delete").on("click", function() {
-    if (!confirm("Yakin hapus data ini?")) return;
-    var id = $(this).data('id');
+  var deleteId = null;
+  $(document).on("click", ".btn-delete", function(e) {
+    e.preventDefault();
+    deleteId = $(this).data('id');
+    var modal = new bootstrap.Modal(document.getElementById('confirmDeleteModal'));
+    modal.show();
+  });
+
+  $("#btnConfirmDelete").on("click", function() {
+    if (!deleteId) return;
     $.ajax({
       url: "<?= URL::BASE_URL ?>Reminder/delete",
-      data: { id: id },
+      data: { id: deleteId },
       type: "POST",
       dataType: 'html',
       success: function(response) {
         if (response == '0') {
+          bootstrap.Modal.getInstance(document.getElementById('confirmDeleteModal')).hide();
           location.reload(true);
         } else {
           alert(response);
