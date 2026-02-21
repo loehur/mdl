@@ -66,6 +66,19 @@ $menu[1] = [
     ],
     [
         'c' => '#',
+        'title' => 'Tools',
+        'icon' => 'fas fa-tools',
+        'txt' => 'Tools',
+        'submenu' => [
+            [
+                'c' => '@MonthlyBill',
+                'title' => 'Monthly Bill',
+                'txt' => 'Monthly Bill'
+            ]
+        ]
+    ],
+    [
+        'c' => '#',
         'title' => 'System Ops',
         'icon' => 'fas fa-cogs',
         'txt' => 'System Ops',

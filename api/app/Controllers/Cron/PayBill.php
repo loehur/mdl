@@ -28,6 +28,24 @@ class PayBill extends Controller
     }
 
     /**
+     * Verifikasi bahwa pembayaran tagihan BENAR-BENAR sukses sebelum update last_bill.
+     * Harus memenuhi: tr_status=1, response_code sukses, dan data customer valid.
+     */
+    private function isPaymentSuccessForLastBill($d, $a, $rc, $tr_status)
+    {
+        if ($tr_status != 1) {
+            return false;
+        }
+        $successCodes = ['00', '01', '10', '34', '40'];
+        if (!in_array((string)$rc, $successCodes)) {
+            return false;
+        }
+        $customerId = $d['hp'] ?? $a['customer_id'] ?? null;
+        $code = $d['code'] ?? $a['code'] ?? null;
+        return !empty($customerId) && !empty($code);
+    }
+
+    /**
      * Send WhatsApp notification
      */
     private function sendWaNotif($phone, $message)
@@ -75,9 +93,11 @@ class PayBill extends Controller
                     break;
             }
 
-            if ($tr_status == 1) {
+            if ($this->isPaymentSuccessForLastBill($d, $a, $rc, $tr_status)) {
+                $customerId = $d['hp'] ?? $a['customer_id'];
+                $code = $d['code'] ?? $a['code'];
                 $set = ['last_bill' => $month];
-                $update = $this->db(0)->update('postpaid_list', $set, ['customer_id' => $d['hp'], 'code' => $d['code']]);
+                $update = $this->db(0)->update('postpaid_list', $set, ['customer_id' => $customerId, 'code' => $code]);
                 if ($update) {
                     $msg .= $dt['description'] . " - POSTPAID LIST - " . $message . "\n";
                 } else {
@@ -141,9 +161,11 @@ class PayBill extends Controller
             $noref = isset($d['noref']) ? $d['noref'] : $a['noref'];
             $tr_status = isset($d['status']) ? $d['status'] : $a['tr_status'];
 
-            if ($tr_status == 1) {
+            if ($this->isPaymentSuccessForLastBill($d, $a, $rc, $tr_status)) {
+                $customerId = $d['hp'] ?? $a['customer_id'];
+                $code = $d['code'] ?? $a['code'];
                 $set = ['last_bill' => $month];
-                $update = $this->db(0)->update('postpaid_list', $set, ['customer_id' => $d['hp'], 'code' => $d['code']]);
+                $update = $this->db(0)->update('postpaid_list', $set, ['customer_id' => $customerId, 'code' => $code]);
                 if ($update) {
                     $msg .= $dt['description'] . " - POSTPAID LIST - " . $message . "\n";
                 } else {
@@ -231,15 +253,23 @@ class PayBill extends Controller
                             case "10":
                             case "34":
                             case "40":
-                                // SUDAH DIBAYAR
-                                $set = ['last_bill' => $month];
-                                $update = $this->db(0)->update('postpaid_list', $set, ['customer_id' => $customer_id, 'code' => $code]);
-                                if ($update) {
-                                    $output .= $dt['description'] . " " . $d['message'] . "\n";
-                                } else {
-                                    $alert = "POSTPAID - DB ERROR - Update postpaid_list failed";
+                                // SUDAH DIBAYAR - verifikasi response cocok dengan data yang dicek
+                                $resHp = $d['hp'] ?? $customer_id;
+                                $resCode = $d['code'] ?? $code;
+                                if (empty($resHp) || empty($resCode) || $resHp != $customer_id || $resCode != $code) {
+                                    $alert = "POSTPAID - SUDAH DIBAYAR data mismatch (hp/code)";
                                     $output .= $alert . "\n";
                                     $this->sendWaNotif($this->waPrivate, $alert);
+                                } else {
+                                    $set = ['last_bill' => $month];
+                                    $update = $this->db(0)->update('postpaid_list', $set, ['customer_id' => $customer_id, 'code' => $code]);
+                                    if ($update) {
+                                        $output .= $dt['description'] . " " . $d['message'] . "\n";
+                                    } else {
+                                        $alert = "POSTPAID - DB ERROR - Update postpaid_list failed";
+                                        $output .= $alert . "\n";
+                                        $this->sendWaNotif($this->waPrivate, $alert);
+                                    }
                                 }
                                 break;
                                 
