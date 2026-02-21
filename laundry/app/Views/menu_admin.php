@@ -79,6 +79,11 @@ $menu[1] = [
                 'c' => '@Reminder',
                 'title' => 'Reminder',
                 'txt' => 'Reminder'
+            ],
+            [
+                'c' => '@PrepaidList',
+                'title' => 'Prepaid',
+                'txt' => 'Prepaid'
             ]
         ]
     ],
