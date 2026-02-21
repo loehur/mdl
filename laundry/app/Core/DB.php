@@ -231,7 +231,7 @@ class DB extends DBC
     public function insert($table, $data)
     {
         $this->checkConnection();
-        $columns = implode(', ', array_keys($data));
+        $columns = '`' . implode('`, `', array_keys($data)) . '`';
         $escapedValues = array_map(function ($value) {
             if (is_string($value)) {
                 return "'" . $this->mysqli->real_escape_string($value) . "'";
@@ -254,7 +254,7 @@ class DB extends DBC
     public function insertIgnore($table, $data)
     {
         $this->checkConnection();
-        $columns = implode(', ', array_keys($data));
+        $columns = '`' . implode('`, `', array_keys($data)) . '`';
         $escapedValues = array_map(function ($value) {
             if (is_string($value)) {
                 return "'" . $this->mysqli->real_escape_string($value) . "'";
@@ -277,7 +277,7 @@ class DB extends DBC
     public function insertReplace($table, $data)
     {
         $this->checkConnection();
-        $columns = implode(', ', array_keys($data));
+        $columns = '`' . implode('`, `', array_keys($data)) . '`';
         $escapedValues = array_map(function ($value) {
             if (is_string($value)) {
                 return "'" . $this->mysqli->real_escape_string($value) . "'";
@@ -317,10 +317,10 @@ class DB extends DBC
             $setParts = [];
             foreach ($set as $key => $value) {
                 if (is_null($value)) {
-                    $setParts[] = "$key = NULL";
+                    $setParts[] = "`$key` = NULL";
                 } else {
                     $escapedValue = $this->mysqli->real_escape_string($value);
-                    $setParts[] = "$key = '$escapedValue'";
+                    $setParts[] = "`$key` = '$escapedValue'";
                 }
             }
             $set = implode(', ', $setParts);
