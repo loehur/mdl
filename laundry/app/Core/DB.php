@@ -329,9 +329,10 @@ class DB extends DBC
         $query = "UPDATE $table SET $set WHERE $where";
         try {
             $this->mysqli->query($query);
-            return array('query' => $query, 'error' => $this->mysqli->error, 'errno' => $this->mysqli->errno, 'db' => $this->db_name);
+            $affected = $this->mysqli->affected_rows;
+            return array('query' => $query, 'error' => $this->mysqli->error, 'errno' => $this->mysqli->errno, 'db' => $this->db_name, 'affected_rows' => $affected);
         } catch (\Throwable $th) {
-            return array('query' => $query, 'error' => $th->getMessage(), 'errno' => $this->mysqli->errno, 'db' => $this->db_name);
+            return array('query' => $query, 'error' => $th->getMessage(), 'errno' => $this->mysqli->errno, 'db' => $this->db_name, 'affected_rows' => -1);
         }
     }
 

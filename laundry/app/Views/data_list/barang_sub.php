@@ -64,6 +64,12 @@ foreach ($masterList as $m) {
         </div>
       </div>
     </div>
+    <div class="col-12 mt-2">
+      <div class="card border-warning" id="debugLogCard">
+        <div class="card-header py-1"><small><strong>Debug Log (updateCell)</strong></small></div>
+        <div class="card-body py-1" id="debugLog" style="font-size:11px; max-height:200px; overflow:auto; white-space:pre-wrap;"></div>
+      </div>
+    </div>
   </div>
 
   <!-- Modal Add -->
@@ -206,31 +212,64 @@ foreach ($masterList as $m) {
               'mode': mode
             },
             type: 'POST',
+            dataType: 'json',
             success: function(response) {
-               if(mode == 4) {
-                   // Format number display
-                   var formatted = new Intl.NumberFormat('id-ID').format(value_after);
-                   span.html(formatted);
-                   span.attr('data-value', value_after);
-                   click = 0;
-               } else if (mode == 1) {
-                   span.html(mapMaster[value_after] || value_after);
-                   span.attr('data-value', value_after);
-                   click = 0;
+               var res;
+               try {
+                 res = (typeof response === 'string') ? JSON.parse(response) : response;
+               } catch (e) {
+                 console.error('[barang_sub updateCell] JSON parse error:', e, 'Response:', response);
+                 $('#debugLog').text('JSON Parse Error\nResponse: ' + (typeof response === 'string' ? response.substring(0,500) : JSON.stringify(response)));
+                 alert('Invalid response: ' + (response ? response.substring(0,200) : 'empty'));
+                 span.html(value_before);
+                 click = 0;
+                 return;
+               }
+               console.log('[barang_sub updateCell] Response:', res);
+               if (res.debug) {
+                 console.log('[barang_sub updateCell] Debug:', res.debug);
+                 console.log('[barang_sub updateCell] Query:', res.debug.query);
+                 console.log('[barang_sub updateCell] Affected rows:', res.debug.affected_rows);
+                 console.log('[barang_sub updateCell] Error:', res.debug.error);
+                 var logText = 'OK: ' + res.ok + ' | Affected: ' + (res.debug.affected_rows ?? '-') + ' | Errno: ' + (res.debug.errno ?? '-') + '\n';
+                 logText += 'Query: ' + (res.debug.query || '-') + '\n';
+                 logText += 'Where: ' + (res.debug.where || '-') + '\n';
+                 logText += 'Error: ' + (res.debug.error || '-') + '\n';
+                 logText += 'Full: ' + JSON.stringify(res.debug, null, 2);
+                 $('#debugLog').text(logText);
+               }
+               if (res.ok) {
+                 if(mode == 4) {
+                     var formatted = new Intl.NumberFormat('id-ID').format(value_after);
+                     span.html(formatted);
+                     span.attr('data-value', value_after);
+                     click = 0;
+                 } else if (mode == 1) {
+                     span.html(mapMaster[value_after] || value_after);
+                     span.attr('data-value', value_after);
+                     click = 0;
+                 } else {
+                    span.html(value_after);
+                    span.attr('data-value', value_after);
+                    click = 0;
+                 }
                } else {
-                  span.html(value_after);
-                  span.attr('data-value', value_after);
-                  click = 0;
+                 var msg = 'Update gagal: ' + (res.error || 'Unknown error') + '\n\nDebug: ' + JSON.stringify(res.debug, null, 2);
+                 console.error('[barang_sub updateCell]', msg);
+                 alert(msg);
+                 if (mode == 1) span.html(mapMaster[value_before] || value_before);
+                 else span.html(value_before);
+                 click = 0;
                }
             },
-            error: function() {
-                 if (mode == 1) {
-                    span.html(mapMaster[value_before] || value_before);
-                 } else {
-                    span.html(value_before);
-                 }
-                click = 0;
-                alert('Update failed');
+            error: function(xhr, status, err) {
+                 console.error('[barang_sub updateCell] AJAX error:', status, err, xhr.responseText);
+                 var msg = 'AJAX Error: ' + status + '\n' + err + '\nResponse: ' + xhr.responseText;
+                 $('#debugLog').text('AJAX ERROR\n' + msg);
+                 alert(msg);
+                 if (mode == 1) span.html(mapMaster[value_before] || value_before);
+                 else span.html(value_before);
+                 click = 0;
             }
           });
       }
