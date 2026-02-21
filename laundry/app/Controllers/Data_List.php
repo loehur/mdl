@@ -521,6 +521,59 @@ class Data_List extends Controller
       $this->dataSynchrone($_SESSION[URL::SESSID]['user']['id_user']);
    }
 
+   /**
+    * Cek data barang_sub untuk debug - akses via: Data_List/checkQty?id=2480.6
+    * Menampilkan: row asal, barang_data (brand+model), semua barang_sub dengan id_barang sama brand+model, dan hasil query WHERE
+    */
+   public function checkQty()
+   {
+      $this->session_cek(1);
+      $id = trim($_GET['id'] ?? '');
+      if (!$id) {
+         header('Content-Type: application/json');
+         echo json_encode(['error' => 'Parameter id required, contoh: Data_List/checkQty?id=2480.6']);
+         return;
+      }
+      $id_esc = $this->db(0)->escape($id);
+      $row = $this->db(0)->get_where_row('barang_sub', "id = '$id_esc'");
+      if (empty($row)) {
+         header('Content-Type: application/json');
+         echo json_encode(['error' => 'Barang_sub tidak ditemukan', 'id' => $id]);
+         return;
+      }
+      $id_barang = intval($row['id_barang']);
+      $qty_raw = $row['qty'];
+      $qty_esc = $this->db(0)->escape($qty_raw);
+      $barang = $this->db(0)->get_where_row('barang_data', "id_barang = $id_barang");
+      $ids = [];
+      if ($barang && isset($barang['brand']) && isset($barang['model'])) {
+         $brand = $this->db(0)->escape($barang['brand']);
+         $model = $this->db(0)->escape($barang['model']);
+         $all_barang = $this->db(0)->get_where('barang_data', "brand = '$brand' AND model = '$model'");
+         foreach ($all_barang as $b) {
+            $ids[] = intval($b['id_barang']);
+         }
+      } else {
+         $ids = [$id_barang];
+      }
+      $where = "id_barang IN (" . implode(',', $ids) . ") AND qty = '$qty_esc'";
+      $matched = $this->db(0)->get_where('barang_sub', $where);
+      $all_same_ids = implode(',', $ids);
+      $all_in_range = $this->db(0)->get_where('barang_sub', "id_barang IN ($all_same_ids)");
+      header('Content-Type: application/json; charset=utf-8');
+      echo json_encode([
+         'row_asal' => $row,
+         'barang_data' => $barang ?: null,
+         'ids_barang_sama' => $ids,
+         'qty_raw' => $qty_raw,
+         'qty_esc' => $qty_esc,
+         'where_clause' => $where,
+         'query_matched_count' => count($matched),
+         'matched_rows' => $matched,
+         'all_barang_sub_dalam_ids' => $all_in_range
+      ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+   }
+
    public function delete($page)
    {
       $this->session_cek(1);
