@@ -375,7 +375,11 @@ class Data_List extends Controller
          case "barang":
             $this->session_cek(1);
             $table = "barang_data";
-            $mode = $_POST['mode'];
+            $mode = intval($_POST['mode'] ?? 0);
+            $value = $_POST['value'] ?? '';
+            if ($mode == 5 || $mode == 6) {
+               $value = preg_replace('/[^0-9.-]/', '', $value);
+            }
             switch ($mode) {
                case 1: $col = 'code'; break;
                case 2: $col = 'brand'; break;
@@ -386,11 +390,14 @@ class Data_List extends Controller
                case 7: $col = 'unit'; break;
                case 8: $col = 'sort'; break;
                case 9: $col = 'state'; break;
+               default:
+                  echo 'Mode tidak valid';
+                  exit();
             }
-            // Saat edit Price atau Margin, update semua barang dengan Brand dan Model yang sama
+            $id_int = intval($id);
             $ids_barang_sama = [];
             if ($mode == 5 || $mode == 6) {
-               $row = $this->db(0)->get_where_row($table, "id_barang = " . intval($id));
+               $row = $this->db(0)->get_where_row($table, "id_barang = $id_int");
                if ($row && isset($row['brand']) && isset($row['model'])) {
                   $brand = $this->db(0)->escape($row['brand']);
                   $model = $this->db(0)->escape($row['model']);
@@ -400,22 +407,19 @@ class Data_List extends Controller
                      $ids_barang_sama[] = intval($b['id_barang']);
                   }
                } else {
-                  $where = "id_barang = " . intval($id);
-                  $ids_barang_sama = [intval($id)];
+                  $where = "id_barang = $id_int";
+                  $ids_barang_sama = [$id_int];
                }
             } else {
-               $where = "id_barang = " . intval($id);
+               $where = "id_barang = $id_int";
             }
-            $set = [
-               $col => $value
-            ];
+            $set = [$col => $value];
             $up = $this->db(0)->update($table, $set, $where);
             if ($up['errno'] == 0 && $mode == 5 && !empty($ids_barang_sama)) {
                $where_sub = "id_barang IN (" . implode(',', $ids_barang_sama) . ")";
-               $val_clean = preg_replace('/[^0-9.-]/', '', $value);
-               $this->db(0)->update('barang_sub', ['price' => $val_clean], $where_sub);
+               $this->db(0)->update('barang_sub', ['price' => $value], $where_sub);
             }
-            echo $up['errno'] == 0 ? 0 : $up['error'];
+            echo $up['errno'] == 0 ? '0' : $up['error'];
             exit();
             break;
          case "barang_sub":

@@ -218,16 +218,23 @@ foreach ($satuanList as $s) {
             },
             type: 'POST',
             success: function(response) {
+               if (response !== '0' && response !== 0) {
+                 alert('Update gagal: ' + response);
+                 if (mode == 7) span.html(mapSatuan[value_before] || value_before);
+                 else span.html(value_before);
+                 click = 0;
+                 return;
+               }
                location.reload(true);
             },
-            error: function() {
+            error: function(xhr) {
                  if (mode == 7) {
                     span.html(mapSatuan[value_before] || value_before);
                  } else {
                     span.html(value_before);
                  }
                 click = 0;
-                alert('Update failed');
+                alert('Update failed: ' + (xhr.responseText || xhr.statusText || 'Unknown error'));
             }
           });
       });
