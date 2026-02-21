@@ -385,7 +385,8 @@ class Data_List extends Controller
             $this->session_cek(1);
             header('Content-Type: application/json; charset=utf-8');
             $table = "barang_sub";
-            $id = intval($id);
+            $id_raw = trim($_POST['id'] ?? '');
+            $id = $id_raw;
             $mode = $_POST['mode'];
             $debug = ['id' => $id, 'mode' => $mode, 'value' => $value, 'POST' => $_POST];
             switch ($mode) {
@@ -397,7 +398,8 @@ class Data_List extends Controller
             // Saat edit Price: cek brand+model dari id_barang, cari semua id_barang dengan brand+model sama,
             // lalu update semua barang_sub dengan id_barang tersebut yang qty-nya sama
             if ($mode == 4) {
-               $row = $this->db(0)->get_where_row($table, "id = " . intval($id));
+               $id_esc = $this->db(0)->escape($id);
+               $row = $this->db(0)->get_where_row($table, "id = '$id_esc'");
                $debug['row'] = $row;
                if ($row && isset($row['id_barang']) && isset($row['qty'])) {
                   $id_barang = intval($row['id_barang']);
@@ -428,14 +430,15 @@ class Data_List extends Controller
                   }
                   $debug['where'] = $where;
                } else {
-                  $where = "id = " . intval($id);
+                  $where = "id = '$id_esc'";
                   $debug['where'] = $where;
                   $debug['note'] = 'row empty or missing id_barang/qty';
                }
                $value = preg_replace('/[^0-9.-]/', '', $value);
                $debug['value_sanitized'] = $value;
             } else {
-               $where = "id = " . intval($id);
+               $id_esc = $this->db(0)->escape($id);
+               $where = "id = '$id_esc'";
                $debug['where'] = $where;
             }
             $set = [ $col => $value ];
@@ -501,7 +504,8 @@ class Data_List extends Controller
          $where = "id_barang = $id";
          $this->db(0)->delete('barang_data', $where);
       } else if ($page == 'barang_sub') {
-         $where = "id = $id";
+         $id_esc = $this->db(0)->escape(trim($id));
+         $where = "id = '$id_esc'";
          $this->db(0)->delete('barang_sub', $where);
       }
    }

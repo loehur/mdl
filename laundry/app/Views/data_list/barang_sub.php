@@ -44,16 +44,17 @@ foreach ($masterList as $m) {
               <tbody>
                 <?php
                 foreach ($data['data_main'] as $a) {
-                  $id = intval($a['id'] ?? 0);
+                  $id = $a['id'] ?? 0;
                   $masterName = $masterMap[$a['id_barang']] ?? $a['id_barang'];
+                  $id_attr = htmlspecialchars((string)$id, ENT_QUOTES, 'UTF-8');
                   
                   echo "<tr>";
-                  echo "<td><span class='text-uppercase' data-mode='1' data-id_value='" . $id . "' data-value='" . $a['id_barang'] . "'>" . $masterName . "</span></td>";
-                  echo "<td><span class='editable text-uppercase' data-mode='2' data-id_value='" . $id . "' data-value='" . $a['nama'] . "'>" . $a['nama'] . "</span></td>";
-                  echo "<td><span class='editable' data-mode='3' data-id_value='" . $id . "' data-value='" . $a['qty'] . "'>" . $a['qty'] . "</span></td>";
-                  echo "<td><span class='editable' data-mode='4' data-id_value='" . $id . "' data-value='" . $a['price'] . "'>" . number_format($a['price']) . "</span></td>";
+                  echo "<td><span class='text-uppercase' data-mode='1' data-id_value='" . $id_attr . "' data-value='" . $a['id_barang'] . "'>" . $masterName . "</span></td>";
+                  echo "<td><span class='editable text-uppercase' data-mode='2' data-id_value='" . $id_attr . "' data-value='" . htmlspecialchars($a['nama'] ?? '', ENT_QUOTES, 'UTF-8') . "'>" . $a['nama'] . "</span></td>";
+                  echo "<td><span class='editable' data-mode='3' data-id_value='" . $id_attr . "' data-value='" . $a['qty'] . "'>" . $a['qty'] . "</span></td>";
+                  echo "<td><span class='editable' data-mode='4' data-id_value='" . $id_attr . "' data-value='" . $a['price'] . "'>" . number_format($a['price']) . "</span></td>";
                   echo "<td>
-                          <button class='btn btn-xs btn-danger delete-btn' data-id='" . $id . "'><i class='fas fa-trash'></i></button>
+                          <button class='btn btn-xs btn-danger delete-btn' data-id='" . $id_attr . "'><i class='fas fa-trash'></i></button>
                         </td>";
                   echo "</tr>";
                 }
@@ -184,7 +185,7 @@ foreach ($masterList as $m) {
       if (click != 1) return;
 
       var span = $(this);
-      var id_value = parseInt(span.attr('data-id_value'), 10) || 0;
+      var id_value = span.attr('data-id_value');
       var value = span.attr('data-value');
       var mode = span.attr('data-mode');
       var value_before = value;
