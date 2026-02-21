@@ -142,7 +142,10 @@ foreach ($satuanList as $s) {
     var mapSatuan = <?= json_encode($satuanMap) ?>;
 
     $(document).ready(function() {
-      new DataTable('#dtTable');
+      new DataTable('#dtTable', {
+        stateSave: true,
+        stateDuration: -1
+      });
     });
 
     $("form").on("submit", function(e) {
@@ -215,17 +218,7 @@ foreach ($satuanList as $s) {
             },
             type: 'POST',
             success: function(response) {
-               if(mode == 5) {
-                   location.reload(); 
-               } else if (mode == 7) {
-                   span.html(mapSatuan[value_after] || value_after);
-                   span.attr('data-value', value_after);
-                   click = 0;
-               } else {
-                  span.html(value_after);
-                  span.attr('data-value', value_after);
-                  click = 0;
-               }
+               location.reload(true);
             },
             error: function() {
                  if (mode == 7) {
@@ -277,6 +270,9 @@ foreach ($satuanList as $s) {
               'mode': 9 // Mode 9 is State
             },
             type: 'POST',
+            success: function() {
+                location.reload(true);
+            },
             error: function() {
                 // Revert on error
                 alert('Gagal mengubah status');

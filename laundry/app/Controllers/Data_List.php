@@ -361,8 +361,8 @@ class Data_List extends Controller
                case 8: $col = 'sort'; break;
                case 9: $col = 'state'; break;
             }
-            // Saat edit Price, update semua barang dengan Brand dan Model yang sama
-            if ($mode == 5) {
+            // Saat edit Price atau Margin, update semua barang dengan Brand dan Model yang sama
+            if ($mode == 5 || $mode == 6) {
                $row = $this->db(0)->get_where_row($table, "id_barang = " . intval($id));
                if ($row && isset($row['brand']) && isset($row['model'])) {
                   $brand = $this->db(0)->escape($row['brand']);
