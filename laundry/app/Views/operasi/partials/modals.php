@@ -285,11 +285,11 @@
                   </tr>
                   <tr>
                     <td>Jumlah Bayar</td>
-                    <td colspan="2" class="pb-1"><input id="bayarBill" name="dibayarBill" class="text-right form form-control form-control-sm" type="number" min="1" value="" required /></td>
+                    <td colspan="2" class="pb-1"><input id="bayarBill" name="dibayarBill" class="text-right form form-control form-control-sm input-jumlah-bayar" type="text" inputmode="numeric" placeholder="0" value="" required /></td>
                   </tr>
                   <tr>
                     <td>Kembalian</td>
-                    <td colspan="2"><input id='kembalianBill' name="kembalianBill" class="text-right form form-control form-control-sm" type="number" readonly /></td>
+                    <td colspan="2"><input id='kembalianBill' name="kembalianBill" class="text-right form form-control form-control-sm" type="text" readonly placeholder="0" /></td>
                   </tr>
                   <tr>
                     <td class="pe-3 pt-3"><button data-bs-dismiss="offcanvas" type="button" class="btn btn-secondary bg-gradient w-100">Batal</button></td>

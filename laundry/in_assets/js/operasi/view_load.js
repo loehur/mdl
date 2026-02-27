@@ -657,7 +657,7 @@
         noteBill,
       data: {
         rekap: window.json_rekap,
-        dibayar: $("input#bayarBill").val(),
+        dibayar: parseRupiahInput($("input#bayarBill").val()),
       },
       type: $(this).attr("method"),
       beforeSend: function () {
@@ -911,7 +911,7 @@
   });
 
   $("a.bayarPasMulti").on("click", function (e) {
-    $("input#bayarBill").val(window.totalBill);
+    $("input#bayarBill").val(formatRupiahInput(window.totalBill));
     bayarBill();
   });
 
@@ -1100,17 +1100,39 @@
     }
   };
 
+  // Helper: format nominal dengan pemisah ribuan (titik) - e.g. 10000 -> "10.000"
+  function formatRupiahInput(val) {
+    var num = String(val || "").replace(/\D/g, "");
+    if (num === "") return "";
+    return num.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  }
+  // Helper: parse nominal dari format tampilan - e.g. "10.000" -> 10000
+  function parseRupiahInput(val) {
+    return parseInt(String(val || "").replace(/\D/g, "") || 0, 10);
+  }
+
+  $("input#bayarBill").on("input", function () {
+    var $el = $(this);
+    var digitsOnly = $el.val().replace(/\D/g, "");
+    var formatted = formatRupiahInput(digitsOnly);
+    if ($el.val() !== formatted) {
+      $el.val(formatted);
+      this.setSelectionRange(formatted.length, formatted.length);
+    }
+    bayarBill();
+  });
+
   $("input#bayarBill").on("keyup change", function () {
     bayarBill();
   });
 
   function bayarBill() {
-    var dibayar = parseInt($("input#bayarBill").val());
-    var kembalian = parseInt(dibayar) - parseInt(window.totalBill);
+    var dibayar = parseRupiahInput($("input#bayarBill").val());
+    var kembalian = dibayar - parseInt(window.totalBill || 0, 10);
     if (kembalian > 0) {
-      $("input#kembalianBill").val(kembalian);
+      $("input#kembalianBill").val(formatRupiahInput(kembalian));
     } else {
-      $("input#kembalianBill").val(0);
+      $("input#kembalianBill").val(formatRupiahInput(0));
     }
   }
 
