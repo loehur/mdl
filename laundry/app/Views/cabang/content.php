@@ -76,6 +76,14 @@
                     <?= $log['area_name'] ?>
                 </div>
             </div>
+            <div class="row">
+                <div class="col px-1 mb-1">
+                    <div class="form-floating">
+                        <input type="number" class="form-control shadow-none" name="rent" value="<?= $log['rent'] ?? '' ?>" id="floatingRent" placeholder="0" min="0" step="1">
+                        <label for="floatingRent">Rent</label>
+                    </div>
+                </div>
+            </div>
             <div class="row mt-1 border-top pt-2">
                 <div class="col px-1 mb-1">
                     <button type="submit" class="btn btn-success w-100">Simpan Lokasi</button>

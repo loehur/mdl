@@ -18,6 +18,7 @@
                   <th>Alamat</th>
                   <th>Area</th>
                   <th>Phone</th>
+                  <th>Rent</th>
                 </tr>
               </thead>
               <tbody>
@@ -30,6 +31,7 @@
                   $phone = isset($a['phone_number']) ? $a['phone_number'] : '';
                   $phoneDisp = strlen($phone) > 0 ? $phone : '[ ]';
                   $pmode = isset($a['print_mode']) ? $a['print_mode'] : 'bluetooth';
+                  $rent = isset($a['rent']) ? $a['rent'] : 0;
                   foreach ($this->dKota as $a) {
                     if ($a['id_kota'] == $id_kota) {
                       $kota = $a['nama_kota'];
@@ -41,6 +43,7 @@
                   echo "<td><span class='cell' data-mode='2' data-id_value='" . $id . "' data-value='" . $alamat . "'>" . $alamat . "</span></td>";
                   echo "<td><span class='cell' data-mode='3' data-id_value='" . $id . "' data-value='" . $id_kota . "'>" . $kota . "</span></td>";
                   echo "<td><span class='cell' data-mode='4' data-id_value='" . $id . "' data-value='" . $phone . "' title='Double click to edit'>" . $phoneDisp . "</span></td>";
+                  echo "<td><span class='cell' data-mode='6' data-id_value='" . $id . "' data-value='" . $rent . "' title='Double click to edit'>" . number_format($rent) . "</span></td>";
                   echo "</tr>";
                 }
                 ?>
@@ -78,16 +81,12 @@
                       <input type="text" name="phone_number" class="form-control form-control-sm" placeholder="" required>
                     </div>
                     <div class="form-group">
-                      <label for="exampleInputEmail1">Print Mode</label>
-                      <select name="print_mode" class="form-control form-control-sm" required>
-                        <option value="esc/pos">esc/pos</option>
-                        <option value="bluetooth">bluetooth</option>
-                        <option value="server">server</option>
-                      </select>
-                    </div>
-                    <div class="form-group">
                       <label for="exampleInputEmail1">Kode Cabang</label>
                       <input type="text" name="kode_cabang" class="form-control form-control-sm" placeholder="" required>
+                    </div>
+                    <div class="form-group">
+                      <label for="exampleInputEmail1">Rent</label>
+                      <input type="number" name="rent" class="form-control form-control-sm" placeholder="0" min="0" step="1" value="0">
                     </div>
                   </div>
               </div>
@@ -152,6 +151,8 @@
       var valHtml = $(this).html();
       if (mode == 3) {
         span.html('<select id="value_" required><option value="' + value + '" selected>' + valHtml + '</option><?php foreach ($this->dKota as $a) { ?><option value="<?= $a['id_kota'] ?>"><?= $a['nama_kota'] ?></option><?php } ?></select>');
+      } else if (mode == 6) {
+        span.html("<input type='number' id='value_' value='" + value + "' min='0' step='1'>");
       } else if (mode == 5) {
         var opts = ['esc/pos', 'bluetooth', 'server'];
         var h = '<select id="value_" required>';

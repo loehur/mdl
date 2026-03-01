@@ -99,7 +99,10 @@ class Rekap extends Controller
             case 3: // Member
                $kas_member += $row['total'];
                break;
-            case 4: // Pengeluaran
+            case 4: // Pengeluaran kasir
+               $kas_keluar[] = ['note_primary' => $row['note_primary'], 'total' => $row['total']];
+               break;
+            case 8: // Pengeluaran Kas Besar (termasuk rent id 17)
                $kas_keluar[] = ['note_primary' => $row['note_primary'], 'total' => $row['total']];
                break;
          }
@@ -155,6 +158,53 @@ class Rekap extends Controller
       $barang_pakai = 0;
       if ($barangPakaiResult && is_array($barangPakaiResult) && count($barangPakaiResult) > 0) {
          $barang_pakai = intval($barangPakaiResult[0]['total'] ?? 0);
+      }
+
+      // Auto-isi pengeluaran Kas Besar (id 17) saat cek Rekap bulanan - jumlah dari rent tabel cabang
+      if (!$isDaily) {
+         $id_pengeluaran = 17;
+         $tgl_pertama = $today . '-01';
+         $itemPengeluaran = $this->db(0)->get_where_row('item_pengeluaran', "id_item_pengeluaran = '$id_pengeluaran'");
+         $jenis_nama = $itemPengeluaran['item_pengeluaran'] ?? 'Rekap Bulanan';
+
+         $listCabang = [];
+         if ($config['useCabang']) {
+            $cabang = $this->db(0)->get_where_row('cabang', "id_cabang = " . $this->id_cabang);
+            $listCabang = $cabang ? [$cabang] : [];
+         } else {
+            $listCabang = $this->db(0)->get('cabang');
+            if (!is_array($listCabang)) $listCabang = [];
+         }
+
+         foreach ($listCabang as $cabang) {
+            $id_cabang = $cabang['id_cabang'];
+            $rent = intval($cabang['rent'] ?? 0);
+            if ($rent <= 0) continue;
+
+            $whereCek = "jenis_transaksi = 8 AND ref_transaksi = '$id_pengeluaran' AND id_cabang = $id_cabang AND DATE_FORMAT(insertTime, '%Y-%m') = '$today'";
+            $ada = $this->db(0)->count_where('kas', $whereCek);
+            if ($ada < 1) {
+               $dataKas = [
+                  'id_kas' => (date('Y') - 2020) . substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 6),
+                  'id_cabang' => $id_cabang,
+                  'jenis_mutasi' => 2,
+                  'jenis_transaksi' => 8,
+                  'metode_mutasi' => 2,
+                  'note' => 'Auto dari Rekap ' . $today . ' (rent)',
+                  'note_primary' => $jenis_nama,
+                  'status_mutasi' => 3,
+                  'jumlah' => $rent,
+                  'id_user' => $_SESSION[URL::SESSID]['user']['id_user'],
+                  'id_client' => 0,
+                  'ref_transaksi' => $id_pengeluaran,
+                  'insertTime' => $tgl_pertama . ' 00:00:00'
+               ];
+               $do = $this->db(0)->insert('kas', $dataKas);
+               if ($do['errno'] != 0) {
+                  $this->model('Log')->write("[Rekap::i] Auto insert Kas Besar error: " . ($do['error'] ?? '') . " | Query: " . ($do['query'] ?? ''));
+               }
+            }
+         }
       }
 
       $this->view('layout', ['data_operasi' => $data_operasi]);

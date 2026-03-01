@@ -27,7 +27,8 @@ class Cabang_List extends Controller
          'alamat' => $_POST["alamat"],
          'kode_cabang' => $_POST["kode_cabang"],
          'phone_number' => $_POST["phone_number"],
-         'print_mode' => $_POST["print_mode"]
+         'print_mode' => 'server',
+         'rent' => $_POST["rent"] ?? 0
       ];
       $in = $this->db(0)->insert($table, $data);
       if ($in['errno'] == 0) {
@@ -83,6 +84,8 @@ class Cabang_List extends Controller
          $kolom = "phone_number";
       } else if ($mode == 5) {
          $kolom = "print_mode";
+      } else if ($mode == 6) {
+         $kolom = "rent";
       } else {
          $kolom = "id_kota";
       }
