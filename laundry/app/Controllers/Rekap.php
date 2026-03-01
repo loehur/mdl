@@ -118,10 +118,10 @@ class Rekap extends Controller
          ? "DATE(insertTime) = '$today'" 
          : "DATE_FORMAT(insertTime, '%Y-%m') = '$today'";
       
-      $kasSql = "SELECT jenis_transaksi, note_primary, SUM(jumlah) as total 
+      $kasSql = "SELECT jenis_transaksi, ref_transaksi, note_primary, SUM(jumlah) as total 
                  FROM kas 
                  WHERE {$whereCabang} status_mutasi <> 4 AND $kasDateCondition
-                 GROUP BY jenis_transaksi, note_primary";
+                 GROUP BY jenis_transaksi, ref_transaksi, note_primary";
       $kasResult = $this->db(0)->query_array($kasSql);
 
       // Parse combined result
@@ -129,6 +129,7 @@ class Rekap extends Controller
       $kas_member = 0;
       $kas_keluar = [];
       $kas_tarik = [];
+      $rent_total = 0; // Gabungkan semua rent (ref 102) jadi satu
 
       // Ensure $kasResult is an array before iterating
       if (!is_array($kasResult)) {
@@ -151,28 +152,33 @@ class Rekap extends Controller
                break;
             case 8: // Pengeluaran Kas Besar (termasuk rent id 102)
             case '8': // MySQL bisa return string
-               $kas_keluar[] = ['note_primary' => $row['note_primary'], 'total' => $row['total']];
+               $ref = intval($row['ref_transaksi'] ?? 0);
+               if ($ref == 102) {
+                  $rent_total += $row['total'];
+               } else {
+                  $kas_keluar[] = ['note_primary' => $row['note_primary'], 'total' => $row['total']];
+               }
                break;
          }
       }
 
-      // Fallback: rent dari cabang jika belum ada di kas_keluar (bulanan) - jamin tampil meski insert gagal
-      if (!$isDaily && isset($listCabang) && isset($jenis_nama)) {
+      // Rent (ref 102): satu entri dengan nama dari item_pengeluaran
+      if ($rent_total > 0) {
+         $itemRent = $this->db(0)->get_where_row('item_pengeluaran', "id_item_pengeluaran = '102'");
+         $rent_nama = $itemRent['item_pengeluaran'] ?? 'Rekap Bulanan';
+         $kas_keluar[] = ['note_primary' => $rent_nama, 'total' => $rent_total];
+      }
+
+      // Fallback: rent dari cabang jika belum ada (bulanan) - jamin tampil meski insert gagal
+      if (!$isDaily && isset($listCabang) && $rent_total == 0) {
          $total_rent = 0;
          foreach ($listCabang as $c) {
             $total_rent += intval($c['rent'] ?? 0);
          }
          if ($total_rent > 0) {
-            $ada_rent = false;
-            foreach ($kas_keluar as $kk) {
-               if (isset($kk['note_primary']) && trim($kk['note_primary']) === trim($jenis_nama)) {
-                  $ada_rent = true;
-                  break;
-               }
-            }
-            if (!$ada_rent) {
-               $kas_keluar[] = ['note_primary' => $jenis_nama, 'total' => $total_rent];
-            }
+            $itemRent = $this->db(0)->get_where_row('item_pengeluaran', "id_item_pengeluaran = '102'");
+            $rent_nama = $itemRent['item_pengeluaran'] ?? 'Rekap Bulanan';
+            $kas_keluar[] = ['note_primary' => $rent_nama, 'total' => $total_rent];
          }
       }
 
