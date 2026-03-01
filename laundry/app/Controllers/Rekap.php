@@ -142,6 +142,21 @@ class Rekap extends Controller
          $gaji = $gajiResult[0]['total'] ?? 0;
       }
 
+      // Barang Pakai - dari Sales (barang_mutasi type=3), hanya modal (price*qty) tanpa margin
+      $barangPakaiDateCondition = $isDaily 
+         ? "DATE(created_at) = '$today'" 
+         : "DATE_FORMAT(created_at, '%Y-%m') = '$today'";
+      $barangPakaiWhere = "type = 3 AND $barangPakaiDateCondition";
+      if ($whereCabang != '') {
+         $barangPakaiWhere = "source_id = " . $this->id_cabang . " AND " . $barangPakaiWhere;
+      }
+      $barangPakaiSql = "SELECT COALESCE(SUM(price * qty), 0) as total FROM barang_mutasi WHERE $barangPakaiWhere";
+      $barangPakaiResult = $this->db(0)->query_array($barangPakaiSql);
+      $barang_pakai = 0;
+      if ($barangPakaiResult && is_array($barangPakaiResult) && count($barangPakaiResult) > 0) {
+         $barang_pakai = intval($barangPakaiResult[0]['total'] ?? 0);
+      }
+
       $this->view('layout', ['data_operasi' => $data_operasi]);
       $this->view('rekap/rekap', [
          'data_main' => $data_main,
@@ -155,7 +170,8 @@ class Rekap extends Controller
          'kas_keluar' => $kas_keluar,
          'kas_tarik' => $kas_tarik,
          'prepost_cost' => $prepost_cost,
-         'gaji' => $gaji
+         'gaji' => $gaji,
+         'barang_pakai' => $barang_pakai
       ]);
    }
 
