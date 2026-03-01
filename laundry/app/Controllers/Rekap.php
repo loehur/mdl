@@ -150,8 +150,29 @@ class Rekap extends Controller
                $kas_keluar[] = ['note_primary' => $row['note_primary'], 'total' => $row['total']];
                break;
             case 8: // Pengeluaran Kas Besar (termasuk rent id 102)
+            case '8': // MySQL bisa return string
                $kas_keluar[] = ['note_primary' => $row['note_primary'], 'total' => $row['total']];
                break;
+         }
+      }
+
+      // Fallback: rent dari cabang jika belum ada di kas_keluar (bulanan) - jamin tampil meski insert gagal
+      if (!$isDaily && isset($listCabang) && isset($jenis_nama)) {
+         $total_rent = 0;
+         foreach ($listCabang as $c) {
+            $total_rent += intval($c['rent'] ?? 0);
+         }
+         if ($total_rent > 0) {
+            $ada_rent = false;
+            foreach ($kas_keluar as $kk) {
+               if (isset($kk['note_primary']) && trim($kk['note_primary']) === trim($jenis_nama)) {
+                  $ada_rent = true;
+                  break;
+               }
+            }
+            if (!$ada_rent) {
+               $kas_keluar[] = ['note_primary' => $jenis_nama, 'total' => $total_rent];
+            }
          }
       }
 
