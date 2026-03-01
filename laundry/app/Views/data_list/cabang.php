@@ -18,7 +18,7 @@
                   <th>Alamat</th>
                   <th>Area</th>
                   <th>Phone</th>
-                  <th>Rent</th>
+                  <th class="text-end">Rent</th>
                 </tr>
               </thead>
               <tbody>
@@ -43,7 +43,7 @@
                   echo "<td><span class='cell' data-mode='2' data-id_value='" . $id . "' data-value='" . $alamat . "'>" . $alamat . "</span></td>";
                   echo "<td><span class='cell' data-mode='3' data-id_value='" . $id . "' data-value='" . $id_kota . "'>" . $kota . "</span></td>";
                   echo "<td><span class='cell' data-mode='4' data-id_value='" . $id . "' data-value='" . $phone . "' title='Double click to edit'>" . $phoneDisp . "</span></td>";
-                  echo "<td><span class='cell' data-mode='6' data-id_value='" . $id . "' data-value='" . $rent . "' title='Double click to edit'>" . number_format($rent) . "</span></td>";
+                  echo "<td class='text-end'><span class='cell' data-mode='6' data-id_value='" . $id . "' data-value='" . $rent . "' title='Double click to edit'>" . number_format($rent) . "</span></td>";
                   echo "</tr>";
                 }
                 ?>
