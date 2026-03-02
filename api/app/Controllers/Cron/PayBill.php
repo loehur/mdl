@@ -29,15 +29,18 @@ class PayBill extends Controller
 
     /**
      * Verifikasi bahwa pembayaran tagihan BENAR-BENAR sukses sebelum update last_bill.
-     * Harus memenuhi: tr_status=1, response_code sukses, dan data customer valid.
+     * Hanya response_code 00 (PAYMENT SUCCESS) yang boleh update last_bill.
+     * Ref: https://api.iak.id/api/postpaid/response-code
+     * - 00 = PAYMENT/INQUIRY SUCCESS (satu-satunya status Success)
+     * - 01,10,34,40 = Failed (jangan update last_bill, pembayaran belum berhasil)
      */
     private function isPaymentSuccessForLastBill($d, $a, $rc, $tr_status)
     {
         if ($tr_status != 1) {
             return false;
         }
-        $successCodes = ['00', '01', '10', '34', '40'];
-        if (!in_array((string)$rc, $successCodes)) {
+        // Hanya 00 = PAYMENT SUCCESS yang boleh update last_bill
+        if ((string)$rc !== '00') {
             return false;
         }
         $customerId = $d['hp'] ?? $a['customer_id'] ?? null;
@@ -250,10 +253,10 @@ class PayBill extends Controller
                     if (isset($d['response_code'])) {
                         switch ($d['response_code']) {
                             case "01":
-                            case "10":
                             case "34":
                             case "40":
-                                // SUDAH DIBAYAR - verifikasi response cocok dengan data yang dicek
+                                // SUDAH DIBAYAR (invoice/bill sudah dibayar) - boleh update last_bill
+                                // Catatan: 10 = BILL IS NOT AVAILABLE (tagihan belum tersedia) - JANGAN update
                                 $resHp = $d['hp'] ?? $customer_id;
                                 $resCode = $d['code'] ?? $code;
                                 if (empty($resHp) || empty($resCode) || $resHp != $customer_id || $resCode != $code) {
@@ -271,6 +274,11 @@ class PayBill extends Controller
                                         $this->sendWaNotif($this->waPrivate, $alert);
                                     }
                                 }
+                                break;
+
+                            case "10":
+                                // BILL IS NOT AVAILABLE - tagihan belum tersedia, JANGAN update last_bill
+                                $output .= $dt['description'] . " - " . ($d['message'] ?? 'Tagihan belum tersedia, coba lagi nanti') . "\n";
                                 break;
                                 
                             case "00":
