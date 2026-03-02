@@ -66,6 +66,8 @@ class MonthlyBill extends Controller
             $kolom = 'description';
         } elseif ($mode == 4) {
             $kolom = 'en';
+        } elseif ($mode == 5) {
+            $kolom = 'last_bill';
         }
 
         if (empty($kolom)) {
@@ -75,6 +77,10 @@ class MonthlyBill extends Controller
 
         if ($kolom == 'en') {
             $value = (int)$value;
+        }
+        if ($kolom == 'last_bill') {
+            $value = trim($value);
+            $value = ($value === '' || $value === '-') ? null : $value;
         }
 
         $set = [$kolom => $value];

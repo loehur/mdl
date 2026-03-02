@@ -37,7 +37,7 @@
                   echo "<td><span class='cell' data-mode='1' data-id_value='" . $id . "' data-value='" . htmlspecialchars($a['code']) . "'>" . htmlspecialchars($a['code']) . "</span></td>";
                   echo "<td class='text-start'><span class='cell' data-mode='2' data-id_value='" . $id . "' data-value='" . htmlspecialchars($a['customer_id']) . "'>" . htmlspecialchars($a['customer_id']) . "</span></td>";
                   echo "<td><span class='cell' data-mode='3' data-id_value='" . $id . "' data-value='" . htmlspecialchars($a['description']) . "'>" . htmlspecialchars($a['description']) . "</span></td>";
-                  echo "<td>" . $lastBill . "</td>";
+                  echo "<td><span class='cell' data-mode='5' data-id_value='" . $id . "' data-value='" . htmlspecialchars($a['last_bill'] ?? '') . "'>" . $lastBill . "</span></td>";
                   echo "<td><span class='cell' data-mode='4' data-id_value='" . $id . "' data-value='" . $a['en'] . "'>" . $enLabel . "</span></td>";
                   echo "<td><button type='button' class='btn btn-sm btn-danger btn-delete' data-id='" . $id . "'>Hapus</button></td>";
                   echo "</tr>";
@@ -146,7 +146,8 @@ $(document).ready(function() {
       span.html(h);
       $("#value_").val(value);
     } else {
-      span.html("<input type='text' id='value_' class='form-control form-control-sm' value='" + $('<div/>').text(value).html() + "'>");
+      var ph = (mode == 5) ? " placeholder='YYYYMM'" : "";
+      span.html("<input type='text' id='value_' class='form-control form-control-sm' value='" + $('<div/>').text(value).html() + "'" + ph + ">");
     }
 
     $("#value_").focus();
@@ -163,7 +164,8 @@ $(document).ready(function() {
           success: function(response) {
             if (response == '0') {
               span.attr('data-value', value_after);
-              span.html(mode == 4 ? (value_after == '1' ? 'Enabled' : 'Disabled') : $('<div/>').text(value_after).html());
+              var display = (mode == 4) ? (value_after == '1' ? 'Enabled' : 'Disabled') : (mode == 5) ? (value_after ? $('<div/>').text(value_after).html() : '-') : $('<div/>').text(value_after).html();
+              span.html(display);
             } else {
               span.html(valHtml);
               alert(response);
