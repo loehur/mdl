@@ -480,7 +480,7 @@ class WAReplies
                 return;
             }
 
-            $catatan = "\n\n_Catatan:_\nPengisian Kuota Paket harus dibayar dimuka,\nkuota tidak ada batas masa berlaku";
+            $catatan = "\n\n_Catatan:_\n- Pembayaran harus dimuka/deposit\n- Kuota berlaku selamanya\n- Kuota tidak dapat direfund";
             $text .= $catatan;
 
             $res = $waService->sendFreeText($waNumber, $text);
