@@ -480,7 +480,7 @@ class WAReplies
                 return;
             }
 
-            $catatan = "\n\n_Catatan:_\n- Pembayaran harus dimuka/deposit\n- Kuota berlaku selamanya\n- Kuota tidak dapat direfund";
+            $catatan = "\n\n_Catatan:_\n- Pembayaran dimuka/deposit\n- Kuota berlaku selamanya\n- Kuota tidak dapat direfund";
             $text .= $catatan;
 
             $res = $waService->sendFreeText($waNumber, $text);
