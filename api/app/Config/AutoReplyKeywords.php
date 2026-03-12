@@ -90,6 +90,20 @@ return [
         atau yang menurut anda sangat yakin sebagai pertanyaan harga/biaya laundry PER ITEM atau PER KILO"
     ],
 
+    'HARGA_PAKET' => [
+        'patterns' => [
+            // TODO: tambah pattern sesuai kebutuhan
+        ],
+        'ai_prompt' => "User menanyakan HARGA PAKET, HARGA MEMBER, atau HARGA PAKET BULANAN laundry.\n
+        TRUE (HARGA_PAKET) - contoh:\n
+        | berapa harga paket? | harga paket berapa? | paket laundry berapa? | daftar harga paket? |\n
+        | berapa harga member? | harga member berapa? | biaya jadi member? |\n
+        | berapa harga paket bulanan? | paket bulanan berapa? | langganan bulanan berapa? | harga langganan? |\n
+        | paket cuci bulanan? | member paket berapa? |\n
+        \n
+        PENTING: Jika user bertanya harga PER ITEM atau PER KILO (baju, celana, per kg) = HARGA (bukan HARGA_PAKET)"
+    ],
+
    'MINTA_JEMPUT_ANTAR' => [
       'case' => 2,
       'notify' => true,

@@ -446,6 +446,142 @@ class WAReplies
      * Menggunakan db(1) = mdl_laundry
      */
     /**
+     * Handle intent HARGA_PAKET - harga paket/member/langganan bulanan laundry
+     * Data dari tabel harga_paket (db 1), urut by nama harga dan qty
+     */
+    private function handleHarga_Paket($phoneIn, $waNumber, $textBody = '')
+    {
+        $waService = $this->getWaService();
+
+        $priceDataText = $this->loadHargaPaketDataForAI();
+        if (empty($priceDataText)) {
+            return; // Tidak ada data, CS yang akan membalas manual
+        }
+
+        try {
+            if (!class_exists('\\App\\Config\\AI') || !\App\Config\AI::isEnabled()) {
+                return; // AI tidak aktif, CS yang akan membalas manual
+            }
+
+            $messages = [
+                [
+                    'role' => 'system',
+                    'content' => "Kamu adalah asisten harga paket/member laundry. Jawab HANYA berdasarkan data yang diberikan.\n\nPENTING:\n- Data SUDAH diurutkan by nama paket (id_harga) dan qty. JANGAN ubah urutan.\n- Jika customer menanya SPESIFIK (misal: paket kiloan 30kg, member cuci setrika): jawab fokus pada yang ditanya.\n- Jika customer TIDAK spesifik (harga paket?, harga member?, paket bulanan?): tampilkan SEMUA data namun SERINGKAS mungkin - gunakan format ringkas, grup by nama paket, tampilkan qty dan harga dalam format padat.\n\nFORMAT WHATSAPP:\n- Gunakan *teks* untuk bold (judul, nominal)\n- Gunakan _teks_ untuk italic\n- Boleh emoji secukupnya (📦 💰)\n- Beri line break agar mudah dibaca\n- Tutup dengan kalimat ramah"
+                ],
+                [
+                    'role' => 'user',
+                    'content' => "DATA HARGA PAKET/MEMBER LAUNDRY (urutan by nama paket, qty - JANGAN sort ulang):\n\n" . $priceDataText . "\n\n---\n\nPertanyaan customer: " . $textBody . "\n\nJawab berdasarkan data di atas. Jika tidak spesifik, tampilkan SEMUA namun SERINGKAS mungkin."
+                ]
+            ];
+
+            $answer = $this->executeOpenAIRequestWithMessages($messages, 600);
+            $text = trim($answer);
+            if (empty($text)) {
+                return;
+            }
+
+            $res = $waService->sendFreeText($waNumber, $text);
+            if ($res['success']) {
+                $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+            }
+        } catch (\Exception $e) {
+            if (class_exists('\Log')) {
+                \Log::write("handleHarga_Paket ERROR: " . $e->getMessage(), 'wa_error', 'HargaPaket');
+            }
+            return;
+        }
+    }
+
+    /**
+     * Load harga paket dari db(1) - format untuk AI
+     * Urut by id_harga (nama paket), qty
+     */
+    private function loadHargaPaketDataForAI()
+    {
+        $db = DB::getInstance(1);
+
+        $itemGroup = [];
+        foreach ($db->query("SELECT id_item_group, item_kategori FROM item_group")->result_array() as $r) {
+            $itemGroup[$r['id_item_group']] = $r['item_kategori'] ?? '';
+        }
+        $penjualan = [];
+        foreach ($db->query("SELECT id_penjualan_jenis, penjualan_jenis, id_satuan FROM penjualan_jenis")->result_array() as $r) {
+            $penjualan[$r['id_penjualan_jenis']] = ['nama' => $r['penjualan_jenis'] ?? '', 'id_satuan' => (int) ($r['id_satuan'] ?? 0)];
+        }
+        $satuan = [];
+        foreach ($db->query("SELECT id_satuan, nama_satuan FROM satuan")->result_array() as $r) {
+            $satuan[$r['id_satuan']] = $r['nama_satuan'] ?? '';
+        }
+        $durasi = [];
+        foreach ($db->query("SELECT id_durasi, durasi FROM durasi")->result_array() as $r) {
+            $durasi[$r['id_durasi']] = $r['durasi'] ?? '';
+        }
+        $layanan = [];
+        foreach ($db->query("SELECT id_layanan, layanan FROM layanan")->result_array() as $r) {
+            $layanan[$r['id_layanan']] = $r['layanan'] ?? '';
+        }
+
+        $rows = $db->query(
+            "SELECT hp.id_harga, hp.qty, hp.harga 
+             FROM harga_paket hp 
+             INNER JOIN harga h ON hp.id_harga = h.id_harga 
+             ORDER BY hp.id_harga ASC, hp.qty ASC"
+        )->result_array();
+
+        if (empty($rows)) {
+            return '';
+        }
+
+        $hargaCache = [];
+        $lines = [];
+        $currentNama = '';
+
+        foreach ($rows as $r) {
+            $idHarga = (int) ($r['id_harga'] ?? 0);
+            $qty = (int) ($r['qty'] ?? 0);
+            $harga = (int) ($r['harga'] ?? 0);
+
+            if (!isset($hargaCache[$idHarga])) {
+                $hRows = $db->query("SELECT id_item_group, id_penjualan_jenis, list_layanan, id_durasi FROM harga WHERE id_harga = " . (int) $idHarga)->result_array();
+                if (empty($hRows)) {
+                    continue;
+                }
+                $h = $hRows[0];
+                $kategori = $itemGroup[$h['id_item_group'] ?? 0] ?? 'Item';
+                $listL = @unserialize($h['list_layanan'] ?? '');
+                $layananParts = [];
+                if (is_array($listL)) {
+                    foreach ($listL as $lid) {
+                        if (!empty($layanan[$lid])) {
+                            $layananParts[] = $layanan[$lid];
+                        }
+                    }
+                }
+                $layananStr = !empty($layananParts) ? implode(' + ', $layananParts) : '-';
+                $durasiStr = $durasi[$h['id_durasi'] ?? 0] ?? '';
+                $pj = $penjualan[$h['id_penjualan_jenis'] ?? 0] ?? null;
+                $idSatuan = $pj['id_satuan'] ?? 0;
+                $unit = $satuan[$idSatuan] ?? '';
+                $hargaCache[$idHarga] = ['nama' => "{$kategori} | {$layananStr} | {$durasiStr}", 'unit' => $unit];
+            }
+
+            $cache = $hargaCache[$idHarga];
+            $nama = $cache['nama'];
+            $unit = $cache['unit'];
+
+            if ($nama !== $currentNama) {
+                $currentNama = $nama;
+                $lines[] = "\n=== " . strtoupper($nama) . " ({$unit}) ===";
+            }
+
+            $qtyUnit = $qty . $unit;
+            $lines[] = "  {$qtyUnit}: Rp " . number_format($harga, 0, ',', '.');
+        }
+
+        return trim(implode("\n", $lines));
+    }
+
+    /**
      * Handle intent HARGA - ambil list harga dari db(1), AI jawab pertanyaan harga berdasarkan data
      * Sumber data: sama dengan view SetHarga (harga, item_group, layanan, durasi, penjualan_jenis, satuan)
      */
@@ -1123,6 +1259,10 @@ class WAReplies
         ];
 
         $text = $holidayPrefix . $variations[array_rand($variations)];
+        $upcomingHolidays = $this->getUpcomingHolidaysMessage($config);
+        if ($upcomingHolidays !== '') {
+            $text .= $upcomingHolidays;
+        }
         $res = $waService->sendFreeText($waNumber, $text);
         if ($res['success']) {
             $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
@@ -1161,6 +1301,10 @@ class WAReplies
         ];
 
         $text = $variations[array_rand($variations)];
+        $upcomingHolidays = $this->getUpcomingHolidaysMessage($config);
+        if ($upcomingHolidays !== '') {
+            $text .= $upcomingHolidays;
+        }
         $res = $waService->sendFreeText($waNumber, $text);
         if ($res['success']) {
             $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
@@ -2147,6 +2291,84 @@ class WAReplies
         }
 
         return true; // Within operating hours
+    }
+
+    /**
+     * Cek libur dalam 7 hari ke depan, return teks info untuk customer (atau string kosong jika tidak ada)
+     * Rentang tanggal diformat ringkas (17-25 Maret 2026), tanggal terpisah tetap di-list
+     */
+    private function getUpcomingHolidaysMessage(array $config): string
+    {
+        $holidays = $config['holidays'] ?? [];
+        if (empty($holidays)) {
+            return '';
+        }
+
+        $now = new \DateTime('now', new \DateTimeZone($config['timezone']));
+        $upcoming = [];
+        for ($i = 1; $i <= 7; $i++) {
+            $check = clone $now;
+            $check->modify("+{$i} day");
+            $dateStr = $check->format('Y-m-d');
+            if (in_array($dateStr, $holidays)) {
+                $upcoming[] = $dateStr;
+            }
+        }
+
+        if (empty($upcoming)) {
+            return '';
+        }
+
+        sort($upcoming);
+        $monthNames = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+
+        // Kelompokkan tanggal berurutan menjadi rentang
+        $groups = [];
+        $currentGroup = [$upcoming[0]];
+        for ($i = 1; $i < count($upcoming); $i++) {
+            $prev = new \DateTime($upcoming[$i - 1]);
+            $curr = new \DateTime($upcoming[$i]);
+            $diff = (int) $prev->diff($curr)->days;
+            if ($diff === 1) {
+                $currentGroup[] = $upcoming[$i];
+            } else {
+                $groups[] = $currentGroup;
+                $currentGroup = [$upcoming[$i]];
+            }
+        }
+        $groups[] = $currentGroup;
+
+        $formatted = [];
+        foreach ($groups as $group) {
+            if (count($group) === 1) {
+                $p = explode('-', $group[0]);
+                $formatted[] = (int) $p[2] . ' ' . ($monthNames[(int) $p[1]] ?? $p[1]) . ' ' . $p[0];
+            } else {
+                $start = explode('-', $group[0]);
+                $end = explode('-', $group[count($group) - 1]);
+                $sD = (int) $start[2];
+                $eD = (int) $end[2];
+                $sM = (int) $start[1];
+                $eM = (int) $end[1];
+                $sY = $start[0];
+                $eY = $end[0];
+                if ($sM === $eM && $sY === $eY) {
+                    $formatted[] = "{$sD}-{$eD} " . ($monthNames[$sM] ?? $sM) . " {$sY}";
+                } elseif ($sY === $eY) {
+                    $formatted[] = "{$sD} " . ($monthNames[$sM] ?? $sM) . " - {$eD} " . ($monthNames[$eM] ?? $eM) . " {$sY}";
+                } else {
+                    $formatted[] = "{$sD} " . ($monthNames[$sM] ?? $sM) . " {$sY} - {$eD} " . ($monthNames[$eM] ?? $eM) . " {$eY}";
+                }
+            }
+        }
+
+        $dateList = implode(', ', $formatted);
+        $variations = [
+            "\n\nInfo: Kami libur {$dateList}. 🙏",
+            "\n\nCatatan: {$dateList} kami tutup. 😊",
+            "\n\nMohon dicatat, kami libur {$dateList}. 🙏",
+        ];
+        return $variations[array_rand($variations)];
     }
 
     private function buildWsPayload($waNumber, $text, $msgId = null, $wamid = null, $timestamp = null)

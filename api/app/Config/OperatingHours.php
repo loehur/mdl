@@ -43,8 +43,38 @@ return [
     'timezone' => $envHours['timezone'] ?? 'Asia/Jakarta',
     
     // Hari libur khusus (format: 'Y-m-d')
-    'holidays' => $envHours['holidays'] ?? [],
+    'holidays' => array_values(array_unique(array_merge(
+        $envHours['holidays'] ?? [],
+        expandHolidayRanges($envHours['holiday_ranges'] ?? [])
+    ))),
 ];
+
+/**
+ * Mengembangkan rentang tanggal libur menjadi array tanggal individual
+ * Format holiday_ranges: [['start' => '2026-03-17', 'end' => '2026-03-25'], ...]
+ */
+function expandHolidayRanges(array $ranges): array
+{
+    $dates = [];
+    foreach ($ranges as $range) {
+        $start = $range['start'] ?? $range[0] ?? null;
+        $end = $range['end'] ?? $range[1] ?? null;
+        if (!$start || !$end) {
+            continue;
+        }
+        try {
+            $current = new \DateTime($start);
+            $endDate = new \DateTime($end);
+            while ($current <= $endDate) {
+                $dates[] = $current->format('Y-m-d');
+                $current->modify('+1 day');
+            }
+        } catch (\Exception $e) {
+            // Skip invalid range
+        }
+    }
+    return $dates;
+}
 
 /*
 =============================================================================
@@ -61,6 +91,10 @@ const OPERATING_HOURS = [
     'holidays' => [
         // '2025-01-01', // Tahun Baru
         // '2025-12-25', // Natal
+    ],
+    // Libur dengan rentang tanggal
+    'holiday_ranges' => [
+        // ['start' => '2026-03-17', 'end' => '2026-03-25'], // Libur Hari Raya
     ],
 ];
 
