@@ -466,11 +466,11 @@ class WAReplies
             $messages = [
                 [
                     'role' => 'system',
-                    'content' => "Kamu adalah asisten harga paket/member laundry. Jawab HANYA berdasarkan data yang diberikan.\n\nPENTING:\n- Data SUDAH diurutkan by nama paket (id_harga) dan qty. JANGAN ubah urutan.\n- Jika customer menanya SPESIFIK (misal: paket kiloan 30kg, member cuci setrika): jawab fokus pada yang ditanya.\n- Jika customer TIDAK spesifik (harga paket?, harga member?, paket bulanan?): tampilkan SEMUA data namun SERINGKAS mungkin - gunakan format ringkas, grup by nama paket, tampilkan qty dan harga dalam format padat.\n\nFORMAT WHATSAPP:\n- Gunakan *teks* untuk bold (judul, nominal)\n- Gunakan _teks_ untuk italic\n- Boleh emoji secukupnya (📦 💰)\n- Beri line break agar mudah dibaca\n- Tutup dengan kalimat ramah"
+                    'content' => "Kamu adalah asisten harga paket/member laundry. Jawab HANYA berdasarkan data yang diberikan.\n\nPENTING - FILTER LAYANAN (SANGAT PENTING):\n- Kolom layanan di data: 'Cuci + Setrika' = cuci DAN setrika, 'Setrika' = setrika saja.\n- Jika customer tanya 'cuci setrika' / 'cuci setrika saja': TAMPILKAN HANYA paket yang layanan = 'Cuci + Setrika'. JANGAN tampilkan paket 'Setrika' saja.\n- Jika customer tanya 'setrika saja': tampilkan HANYA paket 'Setrika' saja.\n- Jika customer tanya layanan lain (cuci saja, dll): filter sesuai yang ditanya. HANYA tampilkan yang PERSIS sesuai.\n\nURUTAN & FORMAT:\n- Data SUDAH diurutkan. JANGAN ubah urutan.\n- Jika SPESIFIK: tampilkan HANYA yang match (filter ketat).\n- Jika TIDAK spesifik (harga paket?, harga member?): tampilkan SEMUA namun ringkas.\n\nFORMAT WHATSAPP: *bold*, _italic_, emoji secukupnya, line break, tutup ramah."
                 ],
                 [
                     'role' => 'user',
-                    'content' => "DATA HARGA PAKET/MEMBER LAUNDRY (urutan by nama paket, qty - JANGAN sort ulang):\n\n" . $priceDataText . "\n\n---\n\nPertanyaan customer: " . $textBody . "\n\nJawab berdasarkan data di atas. Jika tidak spesifik, tampilkan SEMUA namun SERINGKAS mungkin."
+                    'content' => "DATA HARGA PAKET/MEMBER LAUNDRY:\n\n" . $priceDataText . "\n\n---\n\nPertanyaan customer: " . $textBody . "\n\nJawab berdasarkan data. Jika customer tanya layanan spesifik (cuci setrika, setrika saja, dll), TAMPILKAN HANYA paket yang PERSIS match - jangan sertakan paket layanan lain."
                 ]
             ];
 
@@ -568,6 +568,11 @@ class WAReplies
             $cache = $hargaCache[$idHarga];
             $nama = $cache['nama'];
             $unit = $cache['unit'];
+
+            // Jangan tampilkan paket yang nama mengandung -D
+            if (strpos($nama, '-D') !== false) {
+                continue;
+            }
 
             if ($nama !== $currentNama) {
                 $currentNama = $nama;
