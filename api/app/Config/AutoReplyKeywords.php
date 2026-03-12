@@ -102,8 +102,11 @@ return [
         | paket cuci bulanan? | member paket berapa? |\n
         | berapa harga deposit member? | harga deposit member berapa? | deposit member berapa? |\n
         | berapa harga deposit paket? | harga deposit paket berapa? | deposit paket berapa? |\n
+        | ada paket bulanan? setrika aja | paket setrika aja berapa? | ada paket cuci setrika? | paket bulanan cuci setrika? |\n
         \n
-        PENTING: Jika user bertanya harga PER ITEM atau PER KILO (baju, celana, per kg) = HARGA (bukan HARGA_PAKET)"
+        PENTING:\n
+        - Jika user tanya paket/member/langganan + spesifikasi layanan (setrika aja, cuci setrika, cuci saja) = HARGA_PAKET (bukan PERMINTAAN). 'Setrika aja' di sini = jenis paket yang ditanya, bukan instruksi treatment.\n
+        - Jika user bertanya harga PER ITEM atau PER KILO (baju, celana, per kg) = HARGA (bukan HARGA_PAKET)"
     ],
 
    'MINTA_JEMPUT_ANTAR' => [
@@ -142,9 +145,13 @@ return [
         TRUE jika:\n
         - Permintaan treatment khusus: | bantu dibersihkan | tolong difokusin | baju ini dicuci khusus | noda ini dihilangkan |\n
         - Permintaan waktu/prioritas: | tolong dipercepat | didulukan ya | kapan bisa selesai | prioritas dong |\n
-        - Permintaan cara treatment: | ganti parfum | jangan pakai pelembut | lipat rapi | setrika aja |\n
+        - Permintaan cara treatment (untuk order yang sudah ada): | ganti parfum | jangan pakai pelembut | lipat rapi | setrika aja (instruksi untuk baju yang sudah di laundry) |\n
         - Konfirmasi ambil sendiri: | saya jemput nanti | aku ambil sendiri | nanti sore saya datang |\n
         - Ada kata: bantu/tolong/minta/bisa + object laundry (baju/celana/handuk/dll)\n
+        \n
+        FALSE jika (BUKAN PERMINTAAN - ini HARGA_PAKET):\n
+        - User TANYA harga paket/member/langganan + spesifikasi layanan: | ada paket bulanan? setrika aja | paket setrika aja berapa? | ada paket cuci setrika? | paket bulanan cuci setrika? |\n
+        - 'Setrika aja' / 'cuci setrika' setelah tanya paket = spesifikasi JENIS paket yang ditanya, bukan instruksi treatment = HARGA_PAKET\n
         \n
         FALSE jika:\n
         - Hanya sapaan: 'halo' tanpa permintaan\n
