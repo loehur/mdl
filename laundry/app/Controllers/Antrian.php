@@ -799,8 +799,15 @@ class Antrian extends Controller
 
       $dateNow = date('Y-m-d H:i:s');
       $set = ['tgl_ambil' => $dateNow, 'id_user_ambil' => $karyawan];
+
+      // Jika rak (letak) masih kosong, isi dengan 00
       $setOne = "id_penjualan = '" . $id . "'";
       $where = $this->wCabang . " AND " . $setOne;
+      $row = $this->db(0)->get_where_row('sale', $where);
+      if ($row && (trim($row['letak'] ?? '') === '')) {
+         $set['letak'] = '00';
+      }
+
        $up = $this->db(0)->update('sale', $set, $where);
        if ($up['errno'] <> 0) {
           $this->model('Log')->write("[ambil] Update Sale (Ambil) Error: " . $up['error']);

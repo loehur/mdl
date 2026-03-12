@@ -480,6 +480,9 @@ class WAReplies
                 return;
             }
 
+            $catatan = "\n\n_Catatan:_\nPengisian Kuota Paket harus dibayar dimuka,\nkuota tidak ada batas masa berlaku";
+            $text .= $catatan;
+
             $res = $waService->sendFreeText($waNumber, $text);
             if ($res['success']) {
                 $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
