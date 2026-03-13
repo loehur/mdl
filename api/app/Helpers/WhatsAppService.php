@@ -502,70 +502,82 @@ class WhatsAppService
     private function sendRequest($endpoint, $payload, $method = 'POST', $messageText = null, $replyToMessageId = null, $senderCode = null)
     {
         $url = $this->baseUrl . $endpoint;
-        
-        // Removed verbose request logging
-        
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json',
-            'X-API-Key: ' . $this->apiKey
-        ]);
-        
-        // Set timeout
-        curl_setopt($ch, CURLOPT_TIMEOUT, 15);         
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);  
-        
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $error = curl_error($ch);
-        curl_close($ch);
-        
-        // Log only errors to reduce verbosity
-        
-        if ($error) {
-            if (class_exists('\Log')) {
-                \Log::write("!! CURL ERROR: $error", 'wa_error', 'SendRequest');
+        $maxAttempts = 3;
+
+        for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Content-Type: application/json',
+                'X-API-Key: ' . $this->apiKey
+            ]);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $error = curl_error($ch);
+            curl_close($ch);
+
+            $responseData = $response ? json_decode($response, true) : null;
+            $success = $httpCode >= 200 && $httpCode < 300;
+
+            // Retry hanya untuk: CURL error, 5xx, atau 0 (no response)
+            $shouldRetry = false;
+            if ($error) {
+                $shouldRetry = true;
+            } elseif ($httpCode >= 500 || $httpCode == 0) {
+                $shouldRetry = true;
             }
-            return [
-                'success' => false,
-                'error' => $error,
-                'http_code' => $httpCode
-            ];
-        }
-        
-        $responseData = json_decode($response, true);
-        $success = $httpCode >= 200 && $httpCode < 300;
-        
-        // Save outbound message to database if successful
-        // Wrapped in try-catch to absolutely prevent breaking the response
-        $localId = null;
-        if ($success && isset($responseData['id'])) {
-            try {
-                $localId = $this->saveOutboundMessage($payload, $responseData, $messageText, $senderCode, $replyToMessageId);
-            } catch (\Throwable $e) {
+            // Jangan retry 4xx (client error) - tidak akan berubah
+
+            if ($success && isset($responseData['id'])) {
+                $localId = null;
+                try {
+                    $localId = $this->saveOutboundMessage($payload, $responseData, $messageText, $senderCode, $replyToMessageId);
+                } catch (\Throwable $e) {
+                    if (class_exists('\Log')) {
+                        \Log::write("!! EXCEPTION saving outbound: " . $e->getMessage(), 'wa_error', 'SaveOutbound');
+                    }
+                }
+                return [
+                    'success' => true,
+                    'http_code' => $httpCode,
+                    'data' => $responseData,
+                    'local_id' => $localId,
+                    'raw_response' => $response
+                ];
+            }
+
+            $to = $payload['to'] ?? 'unknown';
+
+            if ($shouldRetry && $attempt < $maxAttempts) {
                 if (class_exists('\Log')) {
-                    \Log::write("!! EXCEPTION saving outbound: " . $e->getMessage(), 'wa_error', 'SaveOutbound');
+                    \Log::write("!! Send FAIL (attempt $attempt/$maxAttempts) to $to: " . ($error ?: "HTTP $httpCode") . " - retrying in 1.5s...", 'wa_error', 'SendRequest');
                 }
-                // Silently catch any error - don't let it affect the API response
-                if (function_exists('error_log')) {
-                    error_log("saveOutboundMessage exception: " . $e->getMessage());
+                usleep(1500000); // 1.5 sec
+            } else {
+                if (class_exists('\Log')) {
+                    \Log::write("!! Send FAIL to $to after $attempt attempt(s): " . ($error ?: "HTTP $httpCode") . " | " . json_encode($responseData), 'wa_error', 'SendRequest');
                 }
-            }
-        } else {
-             if (class_exists('\Log')) {
-                \Log::write("!! API FAIL or NO ID: " . json_encode($responseData), 'wa_error', 'SendRequest');
+                return [
+                    'success' => false,
+                    'error' => $error ?: 'API error',
+                    'http_code' => $httpCode,
+                    'data' => $responseData,
+                    'raw_response' => $response
+                ];
             }
         }
-        
+
         return [
-            'success' => $success,
-            'http_code' => $httpCode,
-            'data' => $responseData,
-            'local_id' => $localId, // Expose ID to controller
-            'raw_response' => $response
+            'success' => false,
+            'error' => 'Max retries exceeded',
+            'http_code' => $httpCode ?? 0,
+            'data' => $responseData ?? null,
+            'raw_response' => $response ?? ''
         ];
     }
     

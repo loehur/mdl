@@ -8,6 +8,8 @@ class WAReplies
 {
     private $waService = null;
     private $noRegisterText = 'Mohon Maaf, nomor Anda belum terdaftar di Madinah Laundry. Terima kasih';
+    /** @var string|null Nama handler saat ini (untuk log saat send gagal) */
+    private $currentHandler = null;
 
     /**
      * Get WhatsApp Service instance (lazy loading)
@@ -22,8 +24,29 @@ class WAReplies
         }
         return $this->waService;
     }
+
     /**
-     
+     * Kirim autoreply via WA + push WebSocket. Log jika gagal (untuk debug "intent benar tapi balasan tidak ada").
+     * @param string $waNumber
+     * @param string $text
+     * @return array Response dari sendFreeText
+     */
+    private function sendAutoreplyText($waNumber, $text)
+    {
+        $res = $this->getWaService()->sendFreeText($waNumber, $text);
+        if ($res['success']) {
+            $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+        } else {
+            $handler = $this->currentHandler ?? 'unknown';
+            if (class_exists('\Log')) {
+                $err = $res['error'] ?? ('HTTP ' . ($res['http_code'] ?? 'unknown'));
+                \Log::write("✗ Autoreply [$handler] FAILED to send to $waNumber: $err", 'wa_error', 'Autoreply');
+            }
+        }
+        return $res;
+    }
+
+    /**
      * @param string $waNumber Phone number
      * @param string $handler Handler name (bon, status, buka, etc)
      * @param int $cooldownMinutes Cooldown period in minutes (default: 10)
@@ -150,6 +173,7 @@ class WAReplies
                     $methodName = 'handle' . $handlerName;
 
                     if (method_exists($this, $methodName)) {
+                        $this->currentHandler = $handler;
                         $this->$methodName($phoneIn, $waNumber, $textBody);
                         return (object) [
                             'case' => $caseVal,
@@ -213,6 +237,7 @@ class WAReplies
             $handlerName = ucwords(strtolower($aiIntent), '_');
             $methodName = 'handle' . $handlerName;
             if (method_exists($this, $methodName)) {
+                $this->currentHandler = $aiIntent;
                 $this->$methodName($phoneIn, $waNumber, $textBody);
             }
 
@@ -1221,8 +1246,6 @@ class WAReplies
 
     function handleJam_buka($phoneIn, $waNumber, $textBody = '')
     {
-        $waService = $this->getWaService();
-
         // Load operating hours config untuk dynamic response
         $config = require __DIR__ . '/../Config/OperatingHours.php';
         $openHour = str_pad($config['open_hour'], 2, '0', STR_PAD_LEFT);
@@ -1271,16 +1294,11 @@ class WAReplies
         if ($upcomingHolidays !== '') {
             $text .= $upcomingHolidays;
         }
-        $res = $waService->sendFreeText($waNumber, $text);
-        if ($res['success']) {
-            $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
-        }
+        $this->sendAutoreplyText($waNumber, $text);
     }
 
     function handleJam_tutup($phoneIn, $waNumber, $textBody = '')
     {
-        $waService = $this->getWaService();
-
         // Load operating hours config untuk dynamic response
         $config = require __DIR__ . '/../Config/OperatingHours.php';
         $openHour = str_pad($config['open_hour'], 2, '0', STR_PAD_LEFT);
@@ -1313,10 +1331,7 @@ class WAReplies
         if ($upcomingHolidays !== '') {
             $text .= $upcomingHolidays;
         }
-        $res = $waService->sendFreeText($waNumber, $text);
-        if ($res['success']) {
-            $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
-        }
+        $this->sendAutoreplyText($waNumber, $text);
     }
 
     function handleReminder($phoneIn, $waNumber, $textBody = '')

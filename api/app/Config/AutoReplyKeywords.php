@@ -164,17 +164,29 @@ return [
         'patterns' => [
             '/(ka*pa*n|ma*si*h)\s*\b(bu*ka*|tu*tu*p)/i',
             '/(ja*m)\s*\b(be*ra*pa*)\s*\b(bu*ka*|tu*tu*p)/i',
+            // "buka sampai kapan?", "tutup jam berapa?", "sampai jam berapa buka?"
+            '/\b(bu*ka*|tu*tu*p)\s*(sa*mpa*i|sampe)\s*(ka*pa*n|ja*m\s*be*ra*pa*)?/i',
+            '/\b(sa*mpa*i|sampe)\s*(ka*pa*n|ja*m\s*be*ra*pa*)\s*(bu*ka*|tu*tu*p)?/i',
+            '/\b(ja*m)\s*(o*pe*ra*sio*na*l|bu*ka*|tu*tu*p)/i',
+            // "kapan terakhir terima kain/laundry?", "terakhir terima jam berapa?"
+            '/\b(ka*pa*n)\s*(te*ra*khir)\s*(te*ri*ma*)\s*(ka*in|ba*ju|la*u*ndr(y|i)|cu*ci)?/i',
+            '/\b(te*ra*khir)\s*(te*ri*ma*)\s*(ka*in|ba*ju|la*u*ndr(y|i)|ja*m)?/i',
+            // "masih terima kain/baju/laundry?", "masih terima kak?"
+            '/\b(ma*si*h)\s*(te*ri*ma*)\s*(ka*in|ba*ju|la*u*ndr(y|i)|cu*ci|ka*k|ya)?/i',
         ],
-        'ai_prompt' => "User menanyakan jam operasional TOKO (buka/tutup), seperti:\n
+        'ai_prompt' => "User menanyakan jam operasional TOKO (buka/tutup) ATAU batas terima laundry, seperti:\n
         | jam berapa buka? | jam berapa tutup? | kapan tutup? | masih buka? | sudah tutup? | jam operasional? | jam buka berapa? |\n
         | besok pagi buka jam berapa? | besok buka jam brp ya? | nanti sore buka jam berapa? | untuk besok pagi buka jam brp ya? |\n
+        | kapan terakhir terima kain? | kapan terakhir terima laundry? | terakhir terima jam berapa? |\n
+        | masih terima kain kak? | masih terima baju? | masih terima laundry? | masih terima kak? |\n
         \n
         TRUE (JAM_OPERASIONAL) - PENTING:\n
         - JIKA ada kata BUKA/TUTUP/OPERASIONAL dalam konteks jam = JAM_OPERASIONAL\n
-        - 'buka jam berapa', 'jam berapa buka', 'besok buka jam brp', 'untuk besok pagi buka jam brp ya' = JAM_OPERASIONAL (tanya jam buka toko)\n
+        - JIKA user tanya 'kapan terakhir terima' / 'terakhir terima jam berapa' = tanya batas waktu terima laundry = JAM_OPERASIONAL\n
+        - JIKA user tanya 'masih terima kain/baju/laundry' = tanya apakah masih buka terima = JAM_OPERASIONAL\n
         \n
         FALSE (BUKAN JAM_OPERASIONAL) - PENTING:\n
-        - 'Jam berapa?' / 'Jam brp?' TANPA kata buka/tutup/operasional sama sekali = user menanya WAKTU SAAT INI = FALSE\n
+        - 'Jam berapa?' / 'Jam brp?' TANPA kata buka/tutup/operasional/terima sama sekali = user menanya WAKTU SAAT INI = FALSE\n
         - Jika ada kata 'antar' atau 'jemput' = MINTA_JEMPUT_ANTAR\n
         - Contoh FALSE: 'jam berapa?', 'jam brp kak?' (tanpa buka/tutup) | 'jam berapa diantar?', 'kapan dijemput?'"
     ],
