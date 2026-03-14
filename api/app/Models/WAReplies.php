@@ -48,13 +48,7 @@ class WAReplies
      */
     private function sendAutoreplyText($waNumber, $text)
     {
-        if (class_exists('\Log')) {
-            \Log::write("[SEND] sendAutoreplyText START | phone=$waNumber | handler=" . ($this->currentHandler ?? '?'), 'wa_autoreply', 'trace');
-        }
         $res = $this->getWaService()->sendFreeText($waNumber, $text);
-        if (class_exists('\Log')) {
-            \Log::write("[SEND] sendFreeText RESULT | success=" . ($res['success'] ? '1' : '0') . " | error=" . ($res['error'] ?? '') . " | http=" . ($res['http_code'] ?? ''), 'wa_autoreply', 'trace');
-        }
         if ($res['success']) {
             $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
         } else {
@@ -139,10 +133,6 @@ class WAReplies
 
         $messageLength = mb_strlen($textBodyToCheck);
 
-        if (class_exists('\Log')) {
-            \Log::write("[1] process() START | phone=$waNumber | text=" . substr($textBodyToCheck, 0, 80) . " | len=$messageLength", 'wa_autoreply', 'trace');
-        }
-        
         // Get DB instance for conversation management
         $db = DB::getInstance(0);
 
@@ -159,9 +149,6 @@ class WAReplies
             // Check regex patterns
             foreach ($patterns as $patternIndex => $pattern) {
                 if (preg_match($pattern, $textBodyToCheck)) {
-                    if (class_exists('\Log')) {
-                        \Log::write("[2] REGEX MATCH | handler=$handler | pattern#$patternIndex", 'wa_autoreply', 'trace');
-                    }
                     // Get case from config
                     $caseVal = $config['case'] ?? null;
                     $notify = $config['notify'] ?? false;
@@ -173,9 +160,6 @@ class WAReplies
                     
                     //cek rate limit
                     if (!$this->shouldHandle($waNumber, $handler)) {
-                        if (class_exists('\Log')) {
-                            \Log::write("[3] RATE LIMIT BLOCK | handler=$handler | phone=$waNumber", 'wa_autoreply', 'trace');
-                        }
                         $conversationId = $this->getOrCreateConversationWithCase(
                             $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
                         );
@@ -204,23 +188,13 @@ class WAReplies
                     $methodName = 'handle' . $handlerName;
 
                     if (method_exists($this, $methodName)) {
-                        if (class_exists('\Log')) {
-                            \Log::write("[4] CALLING HANDLER | method=$methodName", 'wa_autoreply', 'trace');
-                        }
                         $this->currentHandler = $handler;
                         $this->$methodName($phoneIn, $waNumber, $textBody);
-                        if (class_exists('\Log')) {
-                            \Log::write("[5] HANDLER DONE | method=$methodName", 'wa_autoreply', 'trace');
-                        }
                         return (object) [
                             'case' => $caseVal,
                             'notify' => $notify,
                             'conversation_id' => $conversationId
                         ];
-                    } else {
-                        if (class_exists('\Log')) {
-                            \Log::write("[!] HANDLER NOT FOUND | method=$methodName | handler=$handler", 'wa_autoreply', 'trace');
-                        }
                     }
                 }
             }
@@ -228,9 +202,6 @@ class WAReplies
 
         // Short message (likely not a real query) - still create conversation!
         if ($messageLength >= 0 && $messageLength <= 7) {
-            if (class_exists('\Log')) {
-                \Log::write("[6] SHORT MESSAGE BYPASS | len=$messageLength <= 7", 'wa_autoreply', 'trace');
-            }
             $conversationId = $this->getOrCreateConversationWithCase(
                 $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
             );
@@ -244,13 +215,7 @@ class WAReplies
 
         // Pass filtered keywordConfig to AI (keywords yang sudah match di regex sudah di-unset)
         // Ini mengoptimalkan AI detection karena AI tidak perlu cek keyword yang sudah match
-        if (class_exists('\Log')) {
-            \Log::write("[7] NO REGEX MATCH, calling AI", 'wa_autoreply', 'trace');
-        }
         $aiResult = $this->handleWithAI($phoneIn, $textBody, $waNumber, $keywordConfig);
-        if (class_exists('\Log')) {
-            \Log::write("[8] AI RESULT | " . json_encode($aiResult), 'wa_autoreply', 'trace');
-        }
 
         // Check if AI successfully detected a valid intent
         if ($aiResult && is_array($aiResult) && isset($aiResult['intent']) && strtoupper($aiResult['intent']) !== 'FALSE') {
@@ -266,9 +231,6 @@ class WAReplies
             // Rate limit check for AI intent
             // ========================================
             if (!$this->shouldHandle($waNumber, $aiIntent)) {
-                if (class_exists('\Log')) {
-                    \Log::write("[9] AI RATE LIMIT BLOCK | intent=$aiIntent", 'wa_autoreply', 'trace');
-                }
                 // Rate limited - create conversation but don't send auto-reply
                 $conversationId = $this->getOrCreateConversationWithCase(
                     $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
@@ -290,15 +252,8 @@ class WAReplies
             $handlerName = ucwords(strtolower($aiIntent), '_');
             $methodName = 'handle' . $handlerName;
             if (method_exists($this, $methodName)) {
-                if (class_exists('\Log')) {
-                    \Log::write("[10] AI HANDLER CALL | method=$methodName", 'wa_autoreply', 'trace');
-                }
                 $this->currentHandler = $aiIntent;
                 $this->$methodName($phoneIn, $waNumber, $textBody);
-            } else {
-                if (class_exists('\Log')) {
-                    \Log::write("[!] AI HANDLER NOT FOUND | method=$methodName | intent=$aiIntent", 'wa_autoreply', 'trace');
-                }
             }
 
             return (object) [
@@ -309,9 +264,6 @@ class WAReplies
         }
 
         // AI failed or unknown intent - still create conversation!
-        if (class_exists('\Log')) {
-            \Log::write("[11] AI FAIL/UNKNOWN | fallback case=4", 'wa_autoreply', 'trace');
-        }
         $conversationId = $this->getOrCreateConversationWithCase(
             $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
         );
@@ -1297,39 +1249,19 @@ class WAReplies
 
     function handleJam_operasional($phoneIn, $waNumber, $textBody = '')
     {
-        if (class_exists('\Log')) {
-            \Log::write("[JAM_OP] handleJam_operasional ENTER | phone=$waNumber", 'wa_autoreply', 'trace');
-        }
-        try {
-            $isOpen = $this->isOperatingHours();
-            if (class_exists('\Log')) {
-                \Log::write("[JAM_OP] isOperatingHours=" . ($isOpen ? 'true' : 'false'), 'wa_autoreply', 'trace');
-            }
-            if ($isOpen) {
-                $this->handleJam_buka($phoneIn, $waNumber);
-            } else {
-                $this->handleJam_tutup($phoneIn, $waNumber);
-            }
-        } catch (\Throwable $e) {
-            if (class_exists('\Log')) {
-                \Log::write("[JAM_OP] EXCEPTION: " . $e->getMessage() . " | " . $e->getFile() . ":" . $e->getLine(), 'wa_autoreply', 'trace');
-                \Log::write("[JAM_OP] STACK: " . $e->getTraceAsString(), 'wa_autoreply', 'trace');
-            }
-            throw $e;
+        $isOpen = $this->isOperatingHours();
+        if ($isOpen) {
+            $this->handleJam_buka($phoneIn, $waNumber);
+        } else {
+            $this->handleJam_tutup($phoneIn, $waNumber);
         }
     }
 
     function handleJam_buka($phoneIn, $waNumber, $textBody = '')
     {
-        if (class_exists('\Log')) {
-            \Log::write("[JAM_OP] handleJam_buka ENTER", 'wa_autoreply', 'trace');
-        }
         try {
             $config = require __DIR__ . '/../Config/OperatingHours.php';
         } catch (\Throwable $e) {
-            if (class_exists('\Log')) {
-                \Log::write("[JAM_OP] CONFIG ERROR: " . $e->getMessage(), 'wa_autoreply', 'trace');
-            }
             $this->sendAutoreplyText($waNumber, "Madinah Laundry buka setiap hari, pukul 07.00 - 21.00. Terima kasih 😊");
             return;
         }
@@ -1349,6 +1281,17 @@ class WAReplies
             $daysStr = "Senin-Sabtu";
         } else {
             $daysStr = "setiap hari";
+        }
+
+        // Jika "setiap hari" dan ada libur 10 hari ke depan, tambahkan pengecualian
+        $upcomingHolidays = '';
+        try {
+            $upcomingHolidays = $this->getUpcomingHolidaysMessage($config);
+            if ($upcomingHolidays !== '' && $daysStr === 'setiap hari') {
+                $daysStr = 'setiap hari kecuali pada hari libur khusus';
+            }
+        } catch (\Throwable $e) {
+            // ignore
         }
 
         // Check if today is a holiday
@@ -1375,33 +1318,17 @@ class WAReplies
         ];
 
         $text = $holidayPrefix . $variations[array_rand($variations)];
-        try {
-            $upcomingHolidays = $this->getUpcomingHolidaysMessage($config);
-            if ($upcomingHolidays !== '') {
-                $text .= $upcomingHolidays;
-            }
-        } catch (\Throwable $e) {
-            if (class_exists('\Log')) {
-                \Log::write("[JAM_OP] getUpcomingHolidays ERROR: " . $e->getMessage(), 'wa_autoreply', 'trace');
-            }
-        }
-        if (class_exists('\Log')) {
-            \Log::write("[JAM_OP] handleJam_buka SEND | len=" . strlen($text), 'wa_autoreply', 'trace');
+        if ($upcomingHolidays !== '') {
+            $text .= $upcomingHolidays;
         }
         $this->sendAutoreplyText($waNumber, $text);
     }
 
     function handleJam_tutup($phoneIn, $waNumber, $textBody = '')
     {
-        if (class_exists('\Log')) {
-            \Log::write("[JAM_OP] handleJam_tutup ENTER", 'wa_autoreply', 'trace');
-        }
         try {
             $config = require __DIR__ . '/../Config/OperatingHours.php';
         } catch (\Throwable $e) {
-            if (class_exists('\Log')) {
-                \Log::write("[JAM_OP] CONFIG ERROR: " . $e->getMessage(), 'wa_autoreply', 'trace');
-            }
             $this->sendAutoreplyText($waNumber, "Mohon maaf, kami sedang tutup. Buka setiap hari pukul 07.00-21.00. Terima kasih 🙏");
             return;
         }
@@ -1423,6 +1350,17 @@ class WAReplies
             $daysStr = "setiap hari";
         }
 
+        // Jika "setiap hari" dan ada libur 10 hari ke depan, tambahkan pengecualian
+        $upcomingHolidays = '';
+        try {
+            $upcomingHolidays = $this->getUpcomingHolidaysMessage($config);
+            if ($upcomingHolidays !== '' && $daysStr === 'setiap hari') {
+                $daysStr = 'setiap hari kecuali pada hari libur khusus';
+            }
+        } catch (\Throwable $e) {
+            // ignore
+        }
+
         $variations = [
             "Mohon maaf, kami sedang tutup. Kami buka {$daysStr} pukul {$openTime}-{$closeTime}. 🙏",
             "Mohon Maaf, kami sedang di luar jam operasional. Kami buka {$daysStr} jam {$openTime}-{$closeTime}. 😊",
@@ -1431,18 +1369,8 @@ class WAReplies
         ];
 
         $text = $variations[array_rand($variations)];
-        try {
-            $upcomingHolidays = $this->getUpcomingHolidaysMessage($config);
-            if ($upcomingHolidays !== '') {
-                $text .= $upcomingHolidays;
-            }
-        } catch (\Throwable $e) {
-            if (class_exists('\Log')) {
-                \Log::write("[JAM_OP] getUpcomingHolidays ERROR: " . $e->getMessage(), 'wa_autoreply', 'trace');
-            }
-        }
-        if (class_exists('\Log')) {
-            \Log::write("[JAM_OP] handleJam_tutup SEND | len=" . strlen($text), 'wa_autoreply', 'trace');
+        if ($upcomingHolidays !== '') {
+            $text .= $upcomingHolidays;
         }
         $this->sendAutoreplyText($waNumber, $text);
     }
@@ -2462,11 +2390,15 @@ class WAReplies
             return '';
         }
 
-        $dateList = implode(', ', $formatted);
+        // Tampilkan dalam format list (setiap tanggal libur per baris)
+        $listItems = array_map(function ($item) {
+            return '• *' . $item . '*';
+        }, $formatted);
+        $dateList = "\n" . implode("\n", $listItems);
         $variations = [
-            "\n\nInfo: Kami libur {$dateList}. 🙏",
-            "\n\nCatatan: {$dateList} kami tutup. 😊",
-            "\n\nMohon dicatat, kami libur {$dateList}. 🙏",
+            "\n\nInfo: Kami libur pada tanggal berikut:{$dateList}\n🙏",
+            "\n\nCatatan: Kami tutup pada tanggal berikut:{$dateList}\n😊",
+            "\n\nMohon dicatat, kami libur pada tanggal berikut:{$dateList}\n🙏",
         ];
         return $variations[array_rand($variations)];
     }
