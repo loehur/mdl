@@ -1262,7 +1262,7 @@ class WAReplies
         try {
             $config = require __DIR__ . '/../Config/OperatingHours.php';
         } catch (\Throwable $e) {
-            $this->sendAutoreplyText($waNumber, "Madinah Laundry buka setiap hari, pukul *07.00 - 21.00*. Terima kasih 😊");
+            $this->sendAutoreplyText($waNumber, "Madinah Laundry buka setiap hari, pukul *07.00 s.d. 21.00*. Terima kasih 😊");
             return;
         }
         $openHour = str_pad($config['open_hour'], 2, '0', STR_PAD_LEFT);
@@ -1309,7 +1309,7 @@ class WAReplies
         }
 
         // Jam operasional di depan, tebal di WhatsApp
-        $timeBold = "*{$openTime} - {$closeTime}*";
+        $timeBold = "*{$openTime} s.d. {$closeTime}*";
         $variations = [
             "Jam operasional {$timeBold}, {$daysStr}. 🕐😊",
             "Kami buka jam {$timeBold} ({$daysStr}). ⏰🙏",
@@ -1331,7 +1331,7 @@ class WAReplies
         try {
             $config = require __DIR__ . '/../Config/OperatingHours.php';
         } catch (\Throwable $e) {
-            $this->sendAutoreplyText($waNumber, "Mohon maaf, kami sedang tutup. Buka setiap hari pukul *07.00-21.00*. Terima kasih 🙏");
+            $this->sendAutoreplyText($waNumber, "Mohon maaf, kami sedang tutup. Buka setiap hari pukul *07.00 s.d. 21.00*. Terima kasih 🙏");
             return;
         }
         $openHour = str_pad($config['open_hour'], 2, '0', STR_PAD_LEFT);
@@ -1364,7 +1364,7 @@ class WAReplies
         }
 
         // Jam operasional di depan, tebal di WhatsApp
-        $timeBold = "*{$openTime}-{$closeTime}*";
+        $timeBold = "*{$openTime} s.d. {$closeTime}*";
         $variations = [
             "Mohon maaf, kami sedang tutup. Jam operasional {$timeBold}, {$daysStr}. 🙏",
             "Mohon maaf, kami di luar jam operasional. Buka jam {$timeBold}, {$daysStr}. 😊",
