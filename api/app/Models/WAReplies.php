@@ -48,7 +48,13 @@ class WAReplies
      */
     private function sendAutoreplyText($waNumber, $text)
     {
+        if (class_exists('\Log')) {
+            \Log::write("[SEND] sendAutoreplyText START | phone=$waNumber | handler=" . ($this->currentHandler ?? '?'), 'wa_autoreply', 'trace');
+        }
         $res = $this->getWaService()->sendFreeText($waNumber, $text);
+        if (class_exists('\Log')) {
+            \Log::write("[SEND] sendFreeText RESULT | success=" . ($res['success'] ? '1' : '0') . " | error=" . ($res['error'] ?? '') . " | http=" . ($res['http_code'] ?? ''), 'wa_autoreply', 'trace');
+        }
         if ($res['success']) {
             $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
         } else {
@@ -132,6 +138,10 @@ class WAReplies
         $textBodyToCheck = strtolower(trim($textBodyToCheck));       
 
         $messageLength = mb_strlen($textBodyToCheck);
+
+        if (class_exists('\Log')) {
+            \Log::write("[1] process() START | phone=$waNumber | text=" . substr($textBodyToCheck, 0, 80) . " | len=$messageLength", 'wa_autoreply', 'trace');
+        }
         
         // Get DB instance for conversation management
         $db = DB::getInstance(0);
@@ -149,6 +159,9 @@ class WAReplies
             // Check regex patterns
             foreach ($patterns as $patternIndex => $pattern) {
                 if (preg_match($pattern, $textBodyToCheck)) {
+                    if (class_exists('\Log')) {
+                        \Log::write("[2] REGEX MATCH | handler=$handler | pattern#$patternIndex", 'wa_autoreply', 'trace');
+                    }
                     // Get case from config
                     $caseVal = $config['case'] ?? null;
                     $notify = $config['notify'] ?? false;
@@ -160,6 +173,9 @@ class WAReplies
                     
                     //cek rate limit
                     if (!$this->shouldHandle($waNumber, $handler)) {
+                        if (class_exists('\Log')) {
+                            \Log::write("[3] RATE LIMIT BLOCK | handler=$handler | phone=$waNumber", 'wa_autoreply', 'trace');
+                        }
                         $conversationId = $this->getOrCreateConversationWithCase(
                             $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
                         );
@@ -188,13 +204,23 @@ class WAReplies
                     $methodName = 'handle' . $handlerName;
 
                     if (method_exists($this, $methodName)) {
+                        if (class_exists('\Log')) {
+                            \Log::write("[4] CALLING HANDLER | method=$methodName", 'wa_autoreply', 'trace');
+                        }
                         $this->currentHandler = $handler;
                         $this->$methodName($phoneIn, $waNumber, $textBody);
+                        if (class_exists('\Log')) {
+                            \Log::write("[5] HANDLER DONE | method=$methodName", 'wa_autoreply', 'trace');
+                        }
                         return (object) [
                             'case' => $caseVal,
                             'notify' => $notify,
                             'conversation_id' => $conversationId
                         ];
+                    } else {
+                        if (class_exists('\Log')) {
+                            \Log::write("[!] HANDLER NOT FOUND | method=$methodName | handler=$handler", 'wa_autoreply', 'trace');
+                        }
                     }
                 }
             }
@@ -202,6 +228,9 @@ class WAReplies
 
         // Short message (likely not a real query) - still create conversation!
         if ($messageLength >= 0 && $messageLength <= 7) {
+            if (class_exists('\Log')) {
+                \Log::write("[6] SHORT MESSAGE BYPASS | len=$messageLength <= 7", 'wa_autoreply', 'trace');
+            }
             $conversationId = $this->getOrCreateConversationWithCase(
                 $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
             );
@@ -215,7 +244,13 @@ class WAReplies
 
         // Pass filtered keywordConfig to AI (keywords yang sudah match di regex sudah di-unset)
         // Ini mengoptimalkan AI detection karena AI tidak perlu cek keyword yang sudah match
+        if (class_exists('\Log')) {
+            \Log::write("[7] NO REGEX MATCH, calling AI", 'wa_autoreply', 'trace');
+        }
         $aiResult = $this->handleWithAI($phoneIn, $textBody, $waNumber, $keywordConfig);
+        if (class_exists('\Log')) {
+            \Log::write("[8] AI RESULT | " . json_encode($aiResult), 'wa_autoreply', 'trace');
+        }
 
         // Check if AI successfully detected a valid intent
         if ($aiResult && is_array($aiResult) && isset($aiResult['intent']) && strtoupper($aiResult['intent']) !== 'FALSE') {
@@ -231,6 +266,9 @@ class WAReplies
             // Rate limit check for AI intent
             // ========================================
             if (!$this->shouldHandle($waNumber, $aiIntent)) {
+                if (class_exists('\Log')) {
+                    \Log::write("[9] AI RATE LIMIT BLOCK | intent=$aiIntent", 'wa_autoreply', 'trace');
+                }
                 // Rate limited - create conversation but don't send auto-reply
                 $conversationId = $this->getOrCreateConversationWithCase(
                     $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
@@ -252,8 +290,15 @@ class WAReplies
             $handlerName = ucwords(strtolower($aiIntent), '_');
             $methodName = 'handle' . $handlerName;
             if (method_exists($this, $methodName)) {
+                if (class_exists('\Log')) {
+                    \Log::write("[10] AI HANDLER CALL | method=$methodName", 'wa_autoreply', 'trace');
+                }
                 $this->currentHandler = $aiIntent;
                 $this->$methodName($phoneIn, $waNumber, $textBody);
+            } else {
+                if (class_exists('\Log')) {
+                    \Log::write("[!] AI HANDLER NOT FOUND | method=$methodName | intent=$aiIntent", 'wa_autoreply', 'trace');
+                }
             }
 
             return (object) [
@@ -264,6 +309,9 @@ class WAReplies
         }
 
         // AI failed or unknown intent - still create conversation!
+        if (class_exists('\Log')) {
+            \Log::write("[11] AI FAIL/UNKNOWN | fallback case=4", 'wa_autoreply', 'trace');
+        }
         $conversationId = $this->getOrCreateConversationWithCase(
             $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
         );
@@ -1249,6 +1297,9 @@ class WAReplies
 
     function handleJam_operasional($phoneIn, $waNumber, $textBody = '')
     {
+        if (class_exists('\Log')) {
+            \Log::write("[JAM_OP] handleJam_operasional ENTER | phone=$waNumber", 'wa_autoreply', 'trace');
+        }
         // Cek apakah sedang buka atau tutup
         if ($this->isOperatingHours()) {
             // Sedang buka, kasih tahu jam operasional
@@ -1309,6 +1360,9 @@ class WAReplies
         if ($upcomingHolidays !== '') {
             $text .= $upcomingHolidays;
         }
+        if (class_exists('\Log')) {
+            \Log::write("[JAM_OP] handleJam_buka SEND | len=" . strlen($text), 'wa_autoreply', 'trace');
+        }
         $this->sendAutoreplyText($waNumber, $text);
     }
 
@@ -1345,6 +1399,9 @@ class WAReplies
         $upcomingHolidays = $this->getUpcomingHolidaysMessage($config);
         if ($upcomingHolidays !== '') {
             $text .= $upcomingHolidays;
+        }
+        if (class_exists('\Log')) {
+            \Log::write("[JAM_OP] handleJam_tutup SEND | len=" . strlen($text), 'wa_autoreply', 'trace');
         }
         $this->sendAutoreplyText($waNumber, $text);
     }
