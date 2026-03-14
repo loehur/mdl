@@ -1300,20 +1300,35 @@ class WAReplies
         if (class_exists('\Log')) {
             \Log::write("[JAM_OP] handleJam_operasional ENTER | phone=$waNumber", 'wa_autoreply', 'trace');
         }
-        // Cek apakah sedang buka atau tutup
-        if ($this->isOperatingHours()) {
-            // Sedang buka, kasih tahu jam operasional
-            $this->handleJam_buka($phoneIn, $waNumber);
-        } else {
-            // Sedang tutup, kasih tahu bahwa sudah tutup
-            $this->handleJam_tutup($phoneIn, $waNumber);
+        try {
+            $isOpen = $this->isOperatingHours();
+            if (class_exists('\Log')) {
+                \Log::write("[JAM_OP] isOperatingHours=" . ($isOpen ? 'true' : 'false'), 'wa_autoreply', 'trace');
+            }
+            if ($isOpen) {
+                $this->handleJam_buka($phoneIn, $waNumber);
+            } else {
+                $this->handleJam_tutup($phoneIn, $waNumber);
+            }
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write("[JAM_OP] EXCEPTION: " . $e->getMessage() . " | " . $e->getFile() . ":" . $e->getLine(), 'wa_autoreply', 'trace');
+                \Log::write("[JAM_OP] STACK: " . $e->getTraceAsString(), 'wa_autoreply', 'trace');
+            }
+            throw $e;
         }
     }
 
     function handleJam_buka($phoneIn, $waNumber, $textBody = '')
     {
+        if (class_exists('\Log')) {
+            \Log::write("[JAM_OP] handleJam_buka ENTER", 'wa_autoreply', 'trace');
+        }
         // Load operating hours config untuk dynamic response
         $config = require __DIR__ . '/../Config/OperatingHours.php';
+        if (class_exists('\Log')) {
+            \Log::write("[JAM_OP] handleJam_buka config loaded", 'wa_autoreply', 'trace');
+        }
         $openHour = str_pad($config['open_hour'], 2, '0', STR_PAD_LEFT);
         $openMin = str_pad($config['open_minute'], 2, '0', STR_PAD_LEFT);
         $closeHour = str_pad($config['close_hour'], 2, '0', STR_PAD_LEFT);
@@ -1368,6 +1383,9 @@ class WAReplies
 
     function handleJam_tutup($phoneIn, $waNumber, $textBody = '')
     {
+        if (class_exists('\Log')) {
+            \Log::write("[JAM_OP] handleJam_tutup ENTER", 'wa_autoreply', 'trace');
+        }
         // Load operating hours config untuk dynamic response
         $config = require __DIR__ . '/../Config/OperatingHours.php';
         $openHour = str_pad($config['open_hour'], 2, '0', STR_PAD_LEFT);
