@@ -1324,8 +1324,21 @@ class WAReplies
         if (class_exists('\Log')) {
             \Log::write("[JAM_OP] handleJam_buka ENTER", 'wa_autoreply', 'trace');
         }
-        // Load operating hours config untuk dynamic response
-        $config = require __DIR__ . '/../Config/OperatingHours.php';
+        try {
+            $configPath = __DIR__ . '/../Config/OperatingHours.php';
+            if (!file_exists($configPath)) {
+                throw new \Exception("OperatingHours.php not found: $configPath");
+            }
+            $config = require $configPath;
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write("[JAM_OP] CONFIG ERROR: " . $e->getMessage() . " | " . $e->getFile() . ":" . $e->getLine(), 'wa_autoreply', 'trace');
+            }
+            // Fallback: kirim balasan sederhana jika config gagal
+            $fallbackText = "Madinah Laundry buka setiap hari, pukul 07.00 - 21.00. Terima kasih 😊";
+            $this->sendAutoreplyText($waNumber, $fallbackText);
+            return;
+        }
         if (class_exists('\Log')) {
             \Log::write("[JAM_OP] handleJam_buka config loaded", 'wa_autoreply', 'trace');
         }
@@ -1371,9 +1384,15 @@ class WAReplies
         ];
 
         $text = $holidayPrefix . $variations[array_rand($variations)];
-        $upcomingHolidays = $this->getUpcomingHolidaysMessage($config);
-        if ($upcomingHolidays !== '') {
-            $text .= $upcomingHolidays;
+        try {
+            $upcomingHolidays = $this->getUpcomingHolidaysMessage($config);
+            if ($upcomingHolidays !== '') {
+                $text .= $upcomingHolidays;
+            }
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write("[JAM_OP] getUpcomingHolidays ERROR: " . $e->getMessage(), 'wa_autoreply', 'trace');
+            }
         }
         if (class_exists('\Log')) {
             \Log::write("[JAM_OP] handleJam_buka SEND | len=" . strlen($text), 'wa_autoreply', 'trace');
@@ -1386,8 +1405,21 @@ class WAReplies
         if (class_exists('\Log')) {
             \Log::write("[JAM_OP] handleJam_tutup ENTER", 'wa_autoreply', 'trace');
         }
+        try {
+            $configPath = __DIR__ . '/../Config/OperatingHours.php';
+            if (!file_exists($configPath)) {
+                throw new \Exception("OperatingHours.php not found: $configPath");
+            }
+            $config = require $configPath;
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write("[JAM_OP] CONFIG ERROR (tutup): " . $e->getMessage(), 'wa_autoreply', 'trace');
+            }
+            $fallbackText = "Mohon maaf, kami sedang tutup. Buka setiap hari pukul 07.00-21.00. Terima kasih 🙏";
+            $this->sendAutoreplyText($waNumber, $fallbackText);
+            return;
+        }
         // Load operating hours config untuk dynamic response
-        $config = require __DIR__ . '/../Config/OperatingHours.php';
         $openHour = str_pad($config['open_hour'], 2, '0', STR_PAD_LEFT);
         $openMin = str_pad($config['open_minute'], 2, '0', STR_PAD_LEFT);
         $closeHour = str_pad($config['close_hour'], 2, '0', STR_PAD_LEFT);
@@ -1414,9 +1446,15 @@ class WAReplies
         ];
 
         $text = $variations[array_rand($variations)];
-        $upcomingHolidays = $this->getUpcomingHolidaysMessage($config);
-        if ($upcomingHolidays !== '') {
-            $text .= $upcomingHolidays;
+        try {
+            $upcomingHolidays = $this->getUpcomingHolidaysMessage($config);
+            if ($upcomingHolidays !== '') {
+                $text .= $upcomingHolidays;
+            }
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write("[JAM_OP] getUpcomingHolidays ERROR: " . $e->getMessage(), 'wa_autoreply', 'trace');
+            }
         }
         if (class_exists('\Log')) {
             \Log::write("[JAM_OP] handleJam_tutup SEND | len=" . strlen($text), 'wa_autoreply', 'trace');
