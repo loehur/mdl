@@ -2477,23 +2477,24 @@ class WAReplies
         $formatted = [];
         foreach ($groups as $group) {
             if (count($group) === 1) {
-                $p = explode('-', $group[0]);
-                $formatted[] = (int) $p[2] . ' ' . ($monthNames[(int) $p[1]] ?? $p[1]) . ' ' . $p[0];
+                $dt = new \DateTime($group[0]);
+                $formatted[] = (int) $dt->format('d') . ' ' . $monthNames[(int) $dt->format('n')] . ' ' . $dt->format('Y');
             } else {
-                $start = explode('-', $group[0]);
-                $end = explode('-', $group[count($group) - 1]);
-                $sD = (int) $start[2];
-                $eD = (int) $end[2];
-                $sM = (int) $start[1];
-                $eM = (int) $end[1];
-                $sY = $start[0];
-                $eY = $end[0];
+                $startDt = new \DateTime($group[0]);
+                $endDt = new \DateTime($group[count($group) - 1]);
+                $sD = (int) $startDt->format('d');
+                $eD = (int) $endDt->format('d');
+                $sM = (int) $startDt->format('n'); // 1-12
+                $eM = (int) $endDt->format('n');
+                $sY = $startDt->format('Y');
+                $eY = $endDt->format('Y');
                 if ($sM === $eM && $sY === $eY) {
-                    $formatted[] = "{$sD}-{$eD} " . ($monthNames[$sM] ?? $sM) . " {$sY}";
+                    $formatted[] = "{$sD}-{$eD} " . $monthNames[$sM] . " {$sY}";
                 } elseif ($sY === $eY) {
-                    $formatted[] = "{$sD} " . ($monthNames[$sM] ?? $sM) . " - {$eD} " . ($monthNames[$eM] ?? $eM) . " {$sY}";
+                    // Rentang beda bulan (satu tahun): "17 Maret - 25 April 2026"
+                    $formatted[] = "{$sD} " . $monthNames[$sM] . " - {$eD} " . $monthNames[$eM] . " {$eY}";
                 } else {
-                    $formatted[] = "{$sD} " . ($monthNames[$sM] ?? $sM) . " {$sY} - {$eD} " . ($monthNames[$eM] ?? $eM) . " {$eY}";
+                    $formatted[] = "{$sD} " . $monthNames[$sM] . " {$sY} - {$eD} " . $monthNames[$eM] . " {$eY}";
                 }
             }
         }
