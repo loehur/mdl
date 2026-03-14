@@ -26,6 +26,28 @@ if (defined('OPERATING_HOURS')) {
     $envHours = Env::operating_hours;
 }
 
+// Define function BEFORE return (dipanggil di 'holidays' array)
+if (!function_exists('expandHolidayRanges')) {
+    function expandHolidayRanges(array $ranges): array
+    {
+        $dates = [];
+        foreach ($ranges as $range) {
+            $start = $range['start'] ?? $range[0] ?? null;
+            $end = $range['end'] ?? $range[1] ?? null;
+            if (!$start || !$end) continue;
+            try {
+                $current = new \DateTime($start);
+                $endDate = new \DateTime($end);
+                while ($current <= $endDate) {
+                    $dates[] = $current->format('Y-m-d');
+                    $current->modify('+1 day');
+                }
+            } catch (\Exception $e) {}
+        }
+        return $dates;
+    }
+}
+
 // Default configuration (will be overridden by Env.php if set)
 return [
     // Jam buka (24-hour format)
@@ -48,57 +70,3 @@ return [
         expandHolidayRanges($envHours['holiday_ranges'] ?? [])
     ))),
 ];
-
-/**
- * Mengembangkan rentang tanggal libur menjadi array tanggal individual
- * Format holiday_ranges: [['start' => '2026-03-17', 'end' => '2026-03-25'], ...]
- */
-if (!function_exists('expandHolidayRanges')) {
-function expandHolidayRanges(array $ranges): array
-{
-    $dates = [];
-    foreach ($ranges as $range) {
-        $start = $range['start'] ?? $range[0] ?? null;
-        $end = $range['end'] ?? $range[1] ?? null;
-        if (!$start || !$end) {
-            continue;
-        }
-        try {
-            $current = new \DateTime($start);
-            $endDate = new \DateTime($end);
-            while ($current <= $endDate) {
-                $dates[] = $current->format('Y-m-d');
-                $current->modify('+1 day');
-            }
-        } catch (\Exception $e) {
-            // Skip invalid range
-        }
-    }
-    return $dates;
-}
-}
-
-/*
-=============================================================================
-TAMBAHKAN KONFIGURASI INI DI Config/Env.php:
-=============================================================================
-
-const OPERATING_HOURS = [
-    'open_hour' => 7,      // Buka jam 07:00
-    'open_minute' => 0,
-    'close_hour' => 21,    // Tutup jam 21:00
-    'close_minute' => 0,
-    'working_days' => [1, 2, 3, 4, 5, 6, 7], // Senin - Minggu
-    'timezone' => 'Asia/Jakarta',
-    'holidays' => [
-        // '2025-01-01', // Tahun Baru
-        // '2025-12-25', // Natal
-    ],
-    // Libur dengan rentang tanggal
-    'holiday_ranges' => [
-        // ['start' => '2026-03-17', 'end' => '2026-03-25'], // Libur Hari Raya
-    ],
-];
-
-=============================================================================
-*/
