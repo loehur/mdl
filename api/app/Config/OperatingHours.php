@@ -53,6 +53,7 @@ return [
  * Mengembangkan rentang tanggal libur menjadi array tanggal individual
  * Format holiday_ranges: [['start' => '2026-03-17', 'end' => '2026-03-25'], ...]
  */
+if (!function_exists('expandHolidayRanges')) {
 function expandHolidayRanges(array $ranges): array
 {
     $dates = [];
@@ -74,6 +75,7 @@ function expandHolidayRanges(array $ranges): array
         }
     }
     return $dates;
+}
 }
 
 /*

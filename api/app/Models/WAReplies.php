@@ -1325,22 +1325,13 @@ class WAReplies
             \Log::write("[JAM_OP] handleJam_buka ENTER", 'wa_autoreply', 'trace');
         }
         try {
-            $configPath = __DIR__ . '/../Config/OperatingHours.php';
-            if (!file_exists($configPath)) {
-                throw new \Exception("OperatingHours.php not found: $configPath");
-            }
-            $config = require $configPath;
+            $config = require __DIR__ . '/../Config/OperatingHours.php';
         } catch (\Throwable $e) {
             if (class_exists('\Log')) {
-                \Log::write("[JAM_OP] CONFIG ERROR: " . $e->getMessage() . " | " . $e->getFile() . ":" . $e->getLine(), 'wa_autoreply', 'trace');
+                \Log::write("[JAM_OP] CONFIG ERROR: " . $e->getMessage(), 'wa_autoreply', 'trace');
             }
-            // Fallback: kirim balasan sederhana jika config gagal
-            $fallbackText = "Madinah Laundry buka setiap hari, pukul 07.00 - 21.00. Terima kasih 😊";
-            $this->sendAutoreplyText($waNumber, $fallbackText);
+            $this->sendAutoreplyText($waNumber, "Madinah Laundry buka setiap hari, pukul 07.00 - 21.00. Terima kasih 😊");
             return;
-        }
-        if (class_exists('\Log')) {
-            \Log::write("[JAM_OP] handleJam_buka config loaded", 'wa_autoreply', 'trace');
         }
         $openHour = str_pad($config['open_hour'], 2, '0', STR_PAD_LEFT);
         $openMin = str_pad($config['open_minute'], 2, '0', STR_PAD_LEFT);
@@ -1406,20 +1397,14 @@ class WAReplies
             \Log::write("[JAM_OP] handleJam_tutup ENTER", 'wa_autoreply', 'trace');
         }
         try {
-            $configPath = __DIR__ . '/../Config/OperatingHours.php';
-            if (!file_exists($configPath)) {
-                throw new \Exception("OperatingHours.php not found: $configPath");
-            }
-            $config = require $configPath;
+            $config = require __DIR__ . '/../Config/OperatingHours.php';
         } catch (\Throwable $e) {
             if (class_exists('\Log')) {
-                \Log::write("[JAM_OP] CONFIG ERROR (tutup): " . $e->getMessage(), 'wa_autoreply', 'trace');
+                \Log::write("[JAM_OP] CONFIG ERROR: " . $e->getMessage(), 'wa_autoreply', 'trace');
             }
-            $fallbackText = "Mohon maaf, kami sedang tutup. Buka setiap hari pukul 07.00-21.00. Terima kasih 🙏";
-            $this->sendAutoreplyText($waNumber, $fallbackText);
+            $this->sendAutoreplyText($waNumber, "Mohon maaf, kami sedang tutup. Buka setiap hari pukul 07.00-21.00. Terima kasih 🙏");
             return;
         }
-        // Load operating hours config untuk dynamic response
         $openHour = str_pad($config['open_hour'], 2, '0', STR_PAD_LEFT);
         $openMin = str_pad($config['open_minute'], 2, '0', STR_PAD_LEFT);
         $closeHour = str_pad($config['close_hour'], 2, '0', STR_PAD_LEFT);
