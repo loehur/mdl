@@ -1363,14 +1363,28 @@ class WAReplies
             // ignore
         }
 
+        // Cek apakah hari ini libur (untuk pesan khusus)
+        $now = new \DateTime('now', new \DateTimeZone($config['timezone']));
+        $currentDate = $now->format('Y-m-d');
+        $isHoliday = in_array($currentDate, $config['holidays']);
+
         // Jam operasional di depan, tebal di WhatsApp
         $timeBold = "*{$openTime} s.d. {$closeTime}*";
-        $variations = [
-            "Mohon maaf, kami sedang tutup. Jam operasional {$timeBold}, {$daysStr}. 🙏",
-            "Mohon maaf, kami di luar jam operasional. Buka jam {$timeBold}, {$daysStr}. 😊",
-            "Maaf, saat ini kami sudah tutup. Jam buka {$timeBold}, {$daysStr}. 🙏",
-            "Mohon maaf, kami tutup. Buka jam {$timeBold}, {$daysStr}. 😊"
-        ];
+        if ($isHoliday) {
+            $variations = [
+                "Mohon maaf, hari ini kami libur. Jam operasional {$timeBold}, {$daysStr}. 🙏",
+                "Mohon maaf, hari ini kami tutup (libur khusus). Buka jam {$timeBold}, {$daysStr}. 😊",
+                "Maaf, hari ini kami libur. Jam buka {$timeBold}, {$daysStr}. 🙏",
+                "Mohon maaf, hari ini kami libur. Buka jam {$timeBold}, {$daysStr}. 😊"
+            ];
+        } else {
+            $variations = [
+                "Mohon maaf, kami sedang tutup. Jam operasional {$timeBold}, {$daysStr}. 🙏",
+                "Mohon maaf, kami di luar jam operasional. Buka jam {$timeBold}, {$daysStr}. 😊",
+                "Maaf, saat ini kami sudah tutup. Jam buka {$timeBold}, {$daysStr}. 🙏",
+                "Mohon maaf, kami tutup. Buka jam {$timeBold}, {$daysStr}. 😊"
+            ];
+        }
 
         $text = $variations[array_rand($variations)];
         if ($upcomingHolidays !== '') {
