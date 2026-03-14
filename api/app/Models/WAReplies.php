@@ -1308,13 +1308,14 @@ class WAReplies
             $holidayPrefix = $holidayPrefixes[array_rand($holidayPrefixes)];
         }
 
+        // Jam operasional di depan agar lebih jelas
         $variations = [
-            "Madinah Laundry buka {$daysStr}, dari pukul {$openTime} - {$closeTime}. 🕐😊",
-            "Kami buka {$daysStr} pukul {$openTime} - {$closeTime}. ⏰🙏",
-            "Jam operasional: {$openTime} - {$closeTime} ({$daysStr}) 📍😊",
-            "Buka {$daysStr} jam {$openTime} sampai {$closeTime} ya! 😊🙏",
-            "Operasional {$daysStr} pukul {$openTime} - {$closeTime} 😊👋",
-            "Buka {$daysStr}, jam {$openTime} sampai {$closeTime} 👍😊"
+            "Jam operasional {$openTime} - {$closeTime}, {$daysStr}. 🕐😊",
+            "Kami buka jam {$openTime} - {$closeTime} ({$daysStr}). ⏰🙏",
+            "Buka jam {$openTime} - {$closeTime}, {$daysStr}. 📍😊",
+            "Operasional jam {$openTime} - {$closeTime}, {$daysStr}. 😊🙏",
+            "Madinah Laundry buka jam {$openTime} - {$closeTime}, {$daysStr}. 👍😊",
+            "Jam buka {$openTime} - {$closeTime}, {$daysStr}. 😊👋"
         ];
 
         $text = $holidayPrefix . $variations[array_rand($variations)];
@@ -1361,11 +1362,12 @@ class WAReplies
             // ignore
         }
 
+        // Jam operasional di depan agar lebih jelas
         $variations = [
-            "Mohon maaf, kami sedang tutup. Kami buka {$daysStr} pukul {$openTime}-{$closeTime}. 🙏",
-            "Mohon Maaf, kami sedang di luar jam operasional. Kami buka {$daysStr} jam {$openTime}-{$closeTime}. 😊",
-            "Maaf, Saat ini kami sudah tutup. Kami buka {$daysStr} {$openTime}-{$closeTime}. 🙏",
-            "Mohon maaf, kami di luar jam operasional. Buka {$daysStr} pukul {$openTime}-{$closeTime}. 😊"
+            "Mohon maaf, kami sedang tutup. Jam operasional {$openTime}-{$closeTime}, {$daysStr}. 🙏",
+            "Mohon maaf, kami di luar jam operasional. Buka jam {$openTime}-{$closeTime}, {$daysStr}. 😊",
+            "Maaf, saat ini kami sudah tutup. Jam buka {$openTime}-{$closeTime}, {$daysStr}. 🙏",
+            "Mohon maaf, kami tutup. Buka jam {$openTime}-{$closeTime}, {$daysStr}. 😊"
         ];
 
         $text = $variations[array_rand($variations)];
@@ -2395,10 +2397,11 @@ class WAReplies
             return '• *' . $item . '*';
         }, $formatted);
         $dateList = "\n" . implode("\n", $listItems);
+        // Penutup dengan emoji agar terlihat rapi
         $variations = [
-            "\n\nInfo: Kami libur pada tanggal berikut:{$dateList}\n🙏",
-            "\n\nCatatan: Kami tutup pada tanggal berikut:{$dateList}\n😊",
-            "\n\nMohon dicatat, kami libur pada tanggal berikut:{$dateList}\n🙏",
+            "\n\nInfo: Kami libur pada tanggal berikut:{$dateList}\n\nTerima kasih 🙏",
+            "\n\nCatatan: Kami tutup pada tanggal berikut:{$dateList}\n\nTerima kasih 😊",
+            "\n\nMohon dicatat, kami libur pada tanggal berikut:{$dateList}\n\nTerima kasih 🙏",
         ];
         return $variations[array_rand($variations)];
     }
