@@ -10,12 +10,27 @@ class WAReplies
     private $noRegisterText = 'Mohon Maaf, nomor Anda belum terdaftar di Madinah Laundry. Terima kasih';
     /** @var string|null Nama handler saat ini (untuk log saat send gagal) */
     private $currentHandler = null;
+    /** @var object|null Custom sender (FonnteReplyAdapter) - bila set, pakai ini instead of YCloud */
+    private $customSender = null;
+
+    /**
+     * Set custom sender untuk Fonnte (bila webhook dari Fonnte, bukan YCloud)
+     * @param object $adapter Instance FonnteReplyAdapter
+     */
+    public function setCustomSender($adapter)
+    {
+        $this->customSender = $adapter;
+    }
 
     /**
      * Get WhatsApp Service instance (lazy loading)
+     * Bila setCustomSender() dipanggil, return adapter tersebut
      */
     private function getWaService()
     {
+        if ($this->customSender !== null) {
+            return $this->customSender;
+        }
         if ($this->waService === null) {
             if (!class_exists('\\App\\Helpers\\WhatsAppService')) {
                 require_once __DIR__ . '/../Helpers/WhatsAppService.php';
