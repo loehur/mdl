@@ -64,11 +64,8 @@ return [
     // Timezone
     'timezone' => $envHours['timezone'] ?? 'Asia/Jakarta',
     
-    // Hari libur khusus (format: 'Y-m-d')
-    'holidays' => array_values(array_unique(array_merge(
-        $envHours['holidays'] ?? [],
-        expandHolidayRanges($envHours['holiday_ranges'] ?? [])
-    ))),
+    // Hari libur (hanya dari holiday_ranges, di-expand untuk cek tanggal)
+    'holidays' => array_values(array_unique(expandHolidayRanges($envHours['holiday_ranges'] ?? []))),
     // Rentang libur asli (untuk format display yang benar saat beda bulan)
     'holiday_ranges' => $envHours['holiday_ranges'] ?? [],
 ];

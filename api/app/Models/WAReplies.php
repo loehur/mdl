@@ -2441,12 +2441,8 @@ class WAReplies
         $windowEnd->modify('+10 days');
         $formatted = [];
 
-        // 1. Format holiday_ranges yang overlap dengan 10 hari ke depan (tampilkan rentang penuh, bulan benar)
+        // Hanya gunakan holiday_ranges (rentang libur)
         $holidayRanges = $config['holiday_ranges'] ?? [];
-        $datesFromRanges = [];
-        if (function_exists('expandHolidayRanges')) {
-            $datesFromRanges = expandHolidayRanges($holidayRanges);
-        }
         foreach ($holidayRanges as $range) {
             $start = $range['start'] ?? $range[0] ?? null;
             $end = $range['end'] ?? $range[1] ?? null;
@@ -2460,45 +2456,6 @@ class WAReplies
                 if ($endDt < $tomorrow || $startDt > $windowEnd) continue;
                 $formatted[] = $this->formatHolidayRange($startDt, $endDt, $monthNames);
             } catch (\Exception $e) {}
-        }
-
-        // 2. Tanggal tunggal (bukan dari rentang) yang ada dalam 10 hari ke depan
-        $holidays = $config['holidays'] ?? [];
-        $upcoming = [];
-        for ($i = 1; $i <= 10; $i++) {
-            $check = clone $now;
-            $check->modify("+{$i} day");
-            $dateStr = $check->format('Y-m-d');
-            if (in_array($dateStr, $holidays) && !in_array($dateStr, $datesFromRanges)) {
-                $upcoming[] = $dateStr;
-            }
-        }
-        if (!empty($upcoming)) {
-            sort($upcoming);
-            $groups = [];
-            $currentGroup = [$upcoming[0]];
-            for ($i = 1; $i < count($upcoming); $i++) {
-                $prev = new \DateTime($upcoming[$i - 1]);
-                $curr = new \DateTime($upcoming[$i]);
-                $diff = (int) $prev->diff($curr)->days;
-                if ($diff === 1) {
-                    $currentGroup[] = $upcoming[$i];
-                } else {
-                    $groups[] = $currentGroup;
-                    $currentGroup = [$upcoming[$i]];
-                }
-            }
-            $groups[] = $currentGroup;
-            foreach ($groups as $group) {
-                if (count($group) === 1) {
-                    $dt = new \DateTime($group[0]);
-                    $formatted[] = (int) $dt->format('d') . ' ' . $monthNames[(int) $dt->format('n')] . ' ' . $dt->format('Y');
-                } else {
-                    $startDt = new \DateTime($group[0]);
-                    $endDt = new \DateTime($group[count($group) - 1]);
-                    $formatted[] = $this->formatHolidayRange($startDt, $endDt, $monthNames);
-                }
-            }
         }
 
         if (empty($formatted)) {
@@ -2516,6 +2473,7 @@ class WAReplies
 
     /**
      * Format rentang tanggal libur (handle beda bulan/tahun dengan benar)
+     * Jika start = end (tanggal sama), tampilkan format tunggal: "1 Januari 2026"
      */
     private function formatHolidayRange(\DateTime $startDt, \DateTime $endDt, array $monthNames): string
     {
@@ -2525,6 +2483,10 @@ class WAReplies
         $eM = (int) $endDt->format('n');
         $sY = $startDt->format('Y');
         $eY = $endDt->format('Y');
+        // Tanggal sama: "1 Januari 2026"
+        if ($startDt->format('Y-m-d') === $endDt->format('Y-m-d')) {
+            return "{$sD} " . $monthNames[$sM] . " {$sY}";
+        }
         if ($sM === $eM && $sY === $eY) {
             return "{$sD}-{$eD} " . $monthNames[$sM] . " {$sY}";
         }
