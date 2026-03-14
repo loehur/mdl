@@ -1262,7 +1262,7 @@ class WAReplies
         try {
             $config = require __DIR__ . '/../Config/OperatingHours.php';
         } catch (\Throwable $e) {
-            $this->sendAutoreplyText($waNumber, "Madinah Laundry buka setiap hari, pukul 07.00 - 21.00. Terima kasih 😊");
+            $this->sendAutoreplyText($waNumber, "Madinah Laundry buka setiap hari, pukul *07.00 - 21.00*. Terima kasih 😊");
             return;
         }
         $openHour = str_pad($config['open_hour'], 2, '0', STR_PAD_LEFT);
@@ -1308,14 +1308,15 @@ class WAReplies
             $holidayPrefix = $holidayPrefixes[array_rand($holidayPrefixes)];
         }
 
-        // Jam operasional di depan agar lebih jelas
+        // Jam operasional di depan, tebal di WhatsApp
+        $timeBold = "*{$openTime} - {$closeTime}*";
         $variations = [
-            "Jam operasional {$openTime} - {$closeTime}, {$daysStr}. 🕐😊",
-            "Kami buka jam {$openTime} - {$closeTime} ({$daysStr}). ⏰🙏",
-            "Buka jam {$openTime} - {$closeTime}, {$daysStr}. 📍😊",
-            "Operasional jam {$openTime} - {$closeTime}, {$daysStr}. 😊🙏",
-            "Madinah Laundry buka jam {$openTime} - {$closeTime}, {$daysStr}. 👍😊",
-            "Jam buka {$openTime} - {$closeTime}, {$daysStr}. 😊👋"
+            "Jam operasional {$timeBold}, {$daysStr}. 🕐😊",
+            "Kami buka jam {$timeBold} ({$daysStr}). ⏰🙏",
+            "Buka jam {$timeBold}, {$daysStr}. 📍😊",
+            "Operasional jam {$timeBold}, {$daysStr}. 😊🙏",
+            "Madinah Laundry buka jam {$timeBold}, {$daysStr}. 👍😊",
+            "Jam buka {$timeBold}, {$daysStr}. 😊👋"
         ];
 
         $text = $holidayPrefix . $variations[array_rand($variations)];
@@ -1330,7 +1331,7 @@ class WAReplies
         try {
             $config = require __DIR__ . '/../Config/OperatingHours.php';
         } catch (\Throwable $e) {
-            $this->sendAutoreplyText($waNumber, "Mohon maaf, kami sedang tutup. Buka setiap hari pukul 07.00-21.00. Terima kasih 🙏");
+            $this->sendAutoreplyText($waNumber, "Mohon maaf, kami sedang tutup. Buka setiap hari pukul *07.00-21.00*. Terima kasih 🙏");
             return;
         }
         $openHour = str_pad($config['open_hour'], 2, '0', STR_PAD_LEFT);
@@ -1362,12 +1363,13 @@ class WAReplies
             // ignore
         }
 
-        // Jam operasional di depan agar lebih jelas
+        // Jam operasional di depan, tebal di WhatsApp
+        $timeBold = "*{$openTime}-{$closeTime}*";
         $variations = [
-            "Mohon maaf, kami sedang tutup. Jam operasional {$openTime}-{$closeTime}, {$daysStr}. 🙏",
-            "Mohon maaf, kami di luar jam operasional. Buka jam {$openTime}-{$closeTime}, {$daysStr}. 😊",
-            "Maaf, saat ini kami sudah tutup. Jam buka {$openTime}-{$closeTime}, {$daysStr}. 🙏",
-            "Mohon maaf, kami tutup. Buka jam {$openTime}-{$closeTime}, {$daysStr}. 😊"
+            "Mohon maaf, kami sedang tutup. Jam operasional {$timeBold}, {$daysStr}. 🙏",
+            "Mohon maaf, kami di luar jam operasional. Buka jam {$timeBold}, {$daysStr}. 😊",
+            "Maaf, saat ini kami sudah tutup. Jam buka {$timeBold}, {$daysStr}. 🙏",
+            "Mohon maaf, kami tutup. Buka jam {$timeBold}, {$daysStr}. 😊"
         ];
 
         $text = $variations[array_rand($variations)];
