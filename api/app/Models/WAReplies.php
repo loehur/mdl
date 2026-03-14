@@ -2430,7 +2430,7 @@ class WAReplies
     }
 
     /**
-     * Cek libur dalam 7 hari ke depan, return teks info untuk customer (atau string kosong jika tidak ada)
+     * Cek libur dalam 10 hari ke depan, return teks info untuk customer (atau string kosong jika tidak ada)
      * Rentang tanggal diformat ringkas (17-25 Maret 2026), tanggal terpisah tetap di-list
      */
     private function getUpcomingHolidaysMessage(array $config): string
@@ -2442,7 +2442,7 @@ class WAReplies
 
         $now = new \DateTime('now', new \DateTimeZone($config['timezone']));
         $upcoming = [];
-        for ($i = 1; $i <= 7; $i++) {
+        for ($i = 1; $i <= 10; $i++) {
             $check = clone $now;
             $check->modify("+{$i} day");
             $dateStr = $check->format('Y-m-d');
