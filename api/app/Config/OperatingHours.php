@@ -69,4 +69,6 @@ return [
         $envHours['holidays'] ?? [],
         expandHolidayRanges($envHours['holiday_ranges'] ?? [])
     ))),
+    // Rentang libur asli (untuk format display yang benar saat beda bulan)
+    'holiday_ranges' => $envHours['holiday_ranges'] ?? [],
 ];

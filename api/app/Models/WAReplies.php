@@ -2431,72 +2431,78 @@ class WAReplies
 
     /**
      * Cek libur dalam 10 hari ke depan, return teks info untuk customer (atau string kosong jika tidak ada)
-     * Rentang tanggal diformat ringkas (17-25 Maret 2026), tanggal terpisah tetap di-list
+     * Rentang tanggal diformat ringkas (17 Maret - 25 April 2026), rentang beda bulan ditampilkan lengkap
      */
     private function getUpcomingHolidaysMessage(array $config): string
     {
-        $holidays = $config['holidays'] ?? [];
-        if (empty($holidays)) {
-            return '';
+        $monthNames = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+        $now = new \DateTime('now', new \DateTimeZone($config['timezone']));
+        $windowEnd = clone $now;
+        $windowEnd->modify('+10 days');
+        $formatted = [];
+
+        // 1. Format holiday_ranges yang overlap dengan 10 hari ke depan (tampilkan rentang penuh, bulan benar)
+        $holidayRanges = $config['holiday_ranges'] ?? [];
+        $datesFromRanges = [];
+        if (function_exists('expandHolidayRanges')) {
+            $datesFromRanges = expandHolidayRanges($holidayRanges);
+        }
+        foreach ($holidayRanges as $range) {
+            $start = $range['start'] ?? $range[0] ?? null;
+            $end = $range['end'] ?? $range[1] ?? null;
+            if (!$start || !$end) continue;
+            try {
+                $startDt = new \DateTime($start);
+                $endDt = new \DateTime($end);
+                // Overlap jika: rentang berpotongan dengan [besok, today+10]
+                $tomorrow = clone $now;
+                $tomorrow->modify('+1 day');
+                if ($endDt < $tomorrow || $startDt > $windowEnd) continue;
+                $formatted[] = $this->formatHolidayRange($startDt, $endDt, $monthNames);
+            } catch (\Exception $e) {}
         }
 
-        $now = new \DateTime('now', new \DateTimeZone($config['timezone']));
+        // 2. Tanggal tunggal (bukan dari rentang) yang ada dalam 10 hari ke depan
+        $holidays = $config['holidays'] ?? [];
         $upcoming = [];
         for ($i = 1; $i <= 10; $i++) {
             $check = clone $now;
             $check->modify("+{$i} day");
             $dateStr = $check->format('Y-m-d');
-            if (in_array($dateStr, $holidays)) {
+            if (in_array($dateStr, $holidays) && !in_array($dateStr, $datesFromRanges)) {
                 $upcoming[] = $dateStr;
             }
         }
-
-        if (empty($upcoming)) {
-            return '';
-        }
-
-        sort($upcoming);
-        $monthNames = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
-
-        // Kelompokkan tanggal berurutan menjadi rentang
-        $groups = [];
-        $currentGroup = [$upcoming[0]];
-        for ($i = 1; $i < count($upcoming); $i++) {
-            $prev = new \DateTime($upcoming[$i - 1]);
-            $curr = new \DateTime($upcoming[$i]);
-            $diff = (int) $prev->diff($curr)->days;
-            if ($diff === 1) {
-                $currentGroup[] = $upcoming[$i];
-            } else {
-                $groups[] = $currentGroup;
-                $currentGroup = [$upcoming[$i]];
-            }
-        }
-        $groups[] = $currentGroup;
-
-        $formatted = [];
-        foreach ($groups as $group) {
-            if (count($group) === 1) {
-                $dt = new \DateTime($group[0]);
-                $formatted[] = (int) $dt->format('d') . ' ' . $monthNames[(int) $dt->format('n')] . ' ' . $dt->format('Y');
-            } else {
-                $startDt = new \DateTime($group[0]);
-                $endDt = new \DateTime($group[count($group) - 1]);
-                $sD = (int) $startDt->format('d');
-                $eD = (int) $endDt->format('d');
-                $sM = (int) $startDt->format('n'); // 1-12
-                $eM = (int) $endDt->format('n');
-                $sY = $startDt->format('Y');
-                $eY = $endDt->format('Y');
-                if ($sM === $eM && $sY === $eY) {
-                    $formatted[] = "{$sD}-{$eD} " . $monthNames[$sM] . " {$sY}";
-                } elseif ($sY === $eY) {
-                    // Rentang beda bulan (satu tahun): "17 Maret - 25 April 2026"
-                    $formatted[] = "{$sD} " . $monthNames[$sM] . " - {$eD} " . $monthNames[$eM] . " {$eY}";
+        if (!empty($upcoming)) {
+            sort($upcoming);
+            $groups = [];
+            $currentGroup = [$upcoming[0]];
+            for ($i = 1; $i < count($upcoming); $i++) {
+                $prev = new \DateTime($upcoming[$i - 1]);
+                $curr = new \DateTime($upcoming[$i]);
+                $diff = (int) $prev->diff($curr)->days;
+                if ($diff === 1) {
+                    $currentGroup[] = $upcoming[$i];
                 } else {
-                    $formatted[] = "{$sD} " . $monthNames[$sM] . " {$sY} - {$eD} " . $monthNames[$eM] . " {$eY}";
+                    $groups[] = $currentGroup;
+                    $currentGroup = [$upcoming[$i]];
                 }
             }
+            $groups[] = $currentGroup;
+            foreach ($groups as $group) {
+                if (count($group) === 1) {
+                    $dt = new \DateTime($group[0]);
+                    $formatted[] = (int) $dt->format('d') . ' ' . $monthNames[(int) $dt->format('n')] . ' ' . $dt->format('Y');
+                } else {
+                    $startDt = new \DateTime($group[0]);
+                    $endDt = new \DateTime($group[count($group) - 1]);
+                    $formatted[] = $this->formatHolidayRange($startDt, $endDt, $monthNames);
+                }
+            }
+        }
+
+        if (empty($formatted)) {
+            return '';
         }
 
         $dateList = implode(', ', $formatted);
@@ -2506,6 +2512,26 @@ class WAReplies
             "\n\nMohon dicatat, kami libur {$dateList}. 🙏",
         ];
         return $variations[array_rand($variations)];
+    }
+
+    /**
+     * Format rentang tanggal libur (handle beda bulan/tahun dengan benar)
+     */
+    private function formatHolidayRange(\DateTime $startDt, \DateTime $endDt, array $monthNames): string
+    {
+        $sD = (int) $startDt->format('d');
+        $eD = (int) $endDt->format('d');
+        $sM = (int) $startDt->format('n');
+        $eM = (int) $endDt->format('n');
+        $sY = $startDt->format('Y');
+        $eY = $endDt->format('Y');
+        if ($sM === $eM && $sY === $eY) {
+            return "{$sD}-{$eD} " . $monthNames[$sM] . " {$sY}";
+        }
+        if ($sY === $eY) {
+            return "{$sD} " . $monthNames[$sM] . " - {$eD} " . $monthNames[$eM] . " {$eY}";
+        }
+        return "{$sD} " . $monthNames[$sM] . " {$sY} - {$eD} " . $monthNames[$eM] . " {$eY}";
     }
 
     private function buildWsPayload($waNumber, $text, $msgId = null, $wamid = null, $timestamp = null)
