@@ -72,6 +72,9 @@ return [
         - Jika user bertanya 'kapan' atau 'jam berapa' + (siap/selesai/jadi/bisa diambil) = STATUS\n
         - Jika user bertanya 'atas nama [nama] udah/sudah?' = STATUS (tanya status laundry atas nama tertentu)\n
         - Jika user memberitahu/konfirmasi 'sudah siap' / 'dah siap' / 'siapp' / 'dahh siapp' = STATUS\n
+        \n
+        FALSE (BUKAN STATUS) - CRITICAL:\n
+        - 'Masih bisa siap gak?' / 'masih bisa siap?' + konteks mau bawa/antar laundry = user BELUM antar laundry, tanya AVAILABILITAS (masih terima/proses?) = JAM_OPERASIONAL. Contoh: | masih bisa siap gak kk mau bawa sprei | masih bisa siap mau antar |\n
         - atau yang menurut anda sangat yakin sebagai pertanyaan/pemberitahuan status laundry"
     ],
 
@@ -180,19 +183,28 @@ return [
             '/\b(ma*si*h)\s*(te*ri*ma*)\s*(ka*in|ba*ju|la*u*ndr(y|i)|cu*ci|ka*k|ya)?/i',
             // "masih bisa antar laundry?", "masih bisa antar?", "masih bisa jemput?"
             '/\b(ma*si*h)\s*(bi*sa*)\s*(anta*r|je*m*pu*t)\s*(la*u*ndr(y|i)|cu*ci)?/i',
+            // "liburnya kapan?", "kapan libur?", "hari libur?"
+            '/\b(liburnya|libur)\s*(kapan|hari)?/i',
+            '/\b(kapan)\s*(libur)/i',
+            // "masih bisa siap gak mau bawa sprei?", "masih bisa siap mau antar?"
+            '/\b(ma*si*h)\s*(bi*sa*)\s*sia+p+\s*(gak|ga|g)?/i',
         ],
-        'ai_prompt' => "User menanyakan jam operasional TOKO (buka/tutup) ATAU batas terima laundry, seperti:\n
+        'ai_prompt' => "User menanyakan jam operasional TOKO (buka/tutup) ATAU batas terima laundry ATAU jadwal libur, seperti:\n
         | jam berapa buka? | jam berapa tutup? | kapan tutup? | masih buka? | sudah tutup? | jam operasional? | jam buka berapa? |\n
+        | liburnya kapan? | kapan libur? | hari libur apa? | libur hari apa? |\n
         | besok pagi buka jam berapa? | besok buka jam brp ya? | nanti sore buka jam berapa? | untuk besok pagi buka jam brp ya? |\n
         | kapan terakhir terima kain? | kapan terakhir terima laundry? | terakhir terima jam berapa? |\n
         | masih terima kain kak? | masih terima baju? | masih terima laundry? | masih terima kak? |\n
         | masih bisa antar laundry? | masih bisa antar? | masih bisa jemput? | = tanya AVAILABILITAS (masih buka/bisa layani) = JAM_OPERASIONAL\n
+        | masih bisa siap gak kk mau bawa sprei? | masih bisa siap mau antar? | = user BELUM antar laundry, tanya apakah masih terima/proses = JAM_OPERASIONAL\n
         \n
         TRUE (JAM_OPERASIONAL) - PENTING:\n
         - JIKA ada kata BUKA/TUTUP/OPERASIONAL dalam konteks jam = JAM_OPERASIONAL\n
         - JIKA user tanya 'kapan terakhir terima' / 'terakhir terima jam berapa' = tanya batas waktu terima laundry = JAM_OPERASIONAL\n
         - JIKA user tanya 'masih terima kain/baju/laundry' = tanya apakah masih buka terima = JAM_OPERASIONAL\n
         - JIKA user tanya 'masih bisa antar/jemput' = tanya availabilitas operasional (masih buka layanan antar?) = JAM_OPERASIONAL. Kata 'masih' membedakan dari permintaan.\n
+        - JIKA user tanya 'liburnya kapan?' / 'kapan libur?' / 'hari libur?' = tanya jadwal tutup/libur toko = JAM_OPERASIONAL\n
+        - JIKA user tanya 'masih bisa siap?' + konteks mau bawa/antar laundry = user BELUM antar, tanya availabilitas (masih terima/proses?) = JAM_OPERASIONAL. Bukan STATUS (status = tanya order yang SUDAH ada).\n
         \n
         FALSE (BUKAN JAM_OPERASIONAL) - PENTING:\n
         - 'Jam berapa?' / 'Jam brp?' TANPA kata buka/tutup/operasional/terima sama sekali = user menanya WAKTU SAAT INI = FALSE\n
