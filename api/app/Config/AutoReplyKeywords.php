@@ -4,10 +4,11 @@ return [
         'patterns' => [
             '/^\s*(p|ping|ka*k|ba*n*g|b*a*pa*k|i*bu*k*|a*de*k|he*a*l+o|as+a*l+a*mu*a*l+a*i*ku*m|tes)\s*$/i',
             '/(pa*gi|so*re|si*a*ng|ma*la*m|ha*e*l+o+)\s*\b(ba*n*g|ka*k|pa*k|i*bu*k*|a*de*k*|a*na*k)/i',
+            '/^\s*(assalamu|asalamu)/i',  // Assalamualaikum, Asalamualaikum kak, dll
             '/^\s*.\s*$/i',
         ],
         'ai_prompt' => "User HANYA memberi sapaan awal singkat tanpa permintaan/isi pesan lain.\n
-        Contoh: | halo | hai | ping | pagi | siang | malam | sore | kak | bang | pak | bu |\n
+        Contoh: | halo | hai | ping | pagi | siang | malam | sore | kak | bang | pak | bu | assalamualaikum | assalamualaikum kak |\n
         PENTING: JIKA sapaan diikuti kalimat permintaan (misal: 'Bang, baju dulukan', 'Kak, jemput ya'), ini BUKAN PEMBUKA."
     ],
 

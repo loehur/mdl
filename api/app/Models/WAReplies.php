@@ -486,16 +486,20 @@ class WAReplies
      */
     private function handlePembuka($phoneIn, $waNumber, $textBody = '')
     {
+        $textLower = strtolower(trim($textBody ?? ''));
+        $isSalam = preg_match('/assalamu|asalamu|salam\b/i', $textLower);
+
         try {
             if (!class_exists('\\App\\Config\\AI') || !\App\Config\AI::isEnabled()) {
-                $this->sendAutoreplyText($waNumber, "Halo! Ada yang bisa kami bantu? 😊");
+                $fallback = $isSalam ? "Waalaikumussalam! Ada yang bisa kami bantu? 😊" : "Halo! Ada yang bisa kami bantu? 😊";
+                $this->sendAutoreplyText($waNumber, $fallback);
                 return;
             }
 
             $messages = [
                 [
                     'role' => 'system',
-                    'content' => "Kamu adalah customer service Madinah Laundry. Balas sapaan pembuka dari customer dengan ramah dan singkat.\n\nPENTING:\n- Sesuaikan balasan dengan kalimat pembuka customer (halo, pagi, siang, malam, kak, bang, dll)\n- Gunakan tone ramah dan profesional\n- Maksimal 2-3 kalimat\n- Boleh gunakan emoji secukupnya (😊 🙏)\n- Tutup dengan tawaran bantuan (Ada yang bisa kami bantu?)\n- Format WhatsApp: *bold* untuk penekanan jika perlu"
+                    'content' => "Kamu adalah customer service Madinah Laundry. Balas sapaan pembuka dari customer dengan ramah dan singkat.\n\nPENTING - WAJIB:\n- Jika customer mengucap Assalamualaikum / Asalamualaikum / Salam: WAJIB balas dengan Waalaikumussalam (atau Waalaikumussalam warahmatullahi wabarakatuh) terlebih dahulu, baru tawaran bantuan.\n- Contoh: \"Assalamualaikum kak\" -> \"Waalaikumussalam kak! Ada yang bisa kami bantu? 😊\"\n\nPENTING:\n- Sesuaikan balasan dengan kalimat pembuka customer (halo, pagi, siang, malam, kak, bang, dll)\n- Gunakan tone ramah dan profesional\n- Maksimal 2-3 kalimat\n- Boleh gunakan emoji secukupnya (😊 🙏)\n- Tutup dengan tawaran bantuan (Ada yang bisa kami bantu?)\n- Format WhatsApp: *bold* untuk penekanan jika perlu"
                 ],
                 [
                     'role' => 'user',
@@ -506,7 +510,8 @@ class WAReplies
             $answer = $this->executeOpenAIRequestWithMessages($messages, 150);
             $text = trim($answer);
             if (empty($text)) {
-                $this->sendAutoreplyText($waNumber, "Halo! Ada yang bisa kami bantu? 😊");
+                $fallback = $isSalam ? "Waalaikumussalam! Ada yang bisa kami bantu? 😊" : "Halo! Ada yang bisa kami bantu? 😊";
+                $this->sendAutoreplyText($waNumber, $fallback);
                 return;
             }
 
@@ -515,7 +520,8 @@ class WAReplies
             if (class_exists('\Log')) {
                 \Log::write("handlePembuka ERROR: " . $e->getMessage(), 'wa_error', 'Pembuka');
             }
-            $this->sendAutoreplyText($waNumber, "Halo! Ada yang bisa kami bantu? 😊");
+            $fallback = $isSalam ? "Waalaikumussalam! Ada yang bisa kami bantu? 😊" : "Halo! Ada yang bisa kami bantu? 😊";
+            $this->sendAutoreplyText($waNumber, $fallback);
         }
     }
 
