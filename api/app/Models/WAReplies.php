@@ -588,6 +588,13 @@ class WAReplies
      */
     private function handlePenutup($phoneIn, $waNumber, $textBody = '')
     {
+        $textLower = trim(strtolower($textBody ?? ''));
+        // Acknowledgment biasa (ok deh, ok, baik, siap) tanpa jemput/antar -> balas langsung, tanpa AI
+        if (preg_match('/^(ok|oke|baik|sip|siap)(\s+deh)?\s*[.!]?$/i', $textLower) && !preg_match('/jemput|antar|ambil/i', $textLower)) {
+            $this->sendAutoreplyText($waNumber, "Terima kasih! 😊");
+            return;
+        }
+
         try {
             if (!class_exists('\\App\\Config\\AI') || !\App\Config\AI::isEnabled()) {
                 $this->sendAutoreplyText($waNumber, "Terima kasih! Semoga harinya menyenangkan 😊");
@@ -597,11 +604,11 @@ class WAReplies
             $messages = [
                 [
                     'role' => 'system',
-                    'content' => "Kamu adalah customer service Madinah Laundry. Balas penutup/acknowledgment dari customer dengan ramah dan sesuai konteks.\n\nJENIS PENUTUP:\n1. Ucapan terima kasih (makasih, thanks) -> balas dengan sama-sama, terima kasih kembali\n2. Konfirmasi jadwal (ok dijemput, baik nanti diantar) -> balas terima kasih, konfirmasi siap melayani\n3. KONFIRMASI PEMBAYARAN/TRANSFER (sudah transfer, telah mengirimkan ke rekening, sudah bayar) -> balas dengan ucapan terima kasih, konfirmasi akan dicek, mohon ditunggu konfirmasi penerimaan\n4. Pemberitahuan akan jemput/antar (nanti saya jemput, aku ambil nanti, akan saya antar, mau jemput) -> balas singkat: \"baik, ditunggu\" atau \"siap, ditunggu ya\" atau sejenisnya. JANGAN ucapkan terima kasih.\n\nPENTING:\n- Sesuaikan balasan dengan kalimat penutup customer\n- Untuk konfirmasi pembayaran: ucapkan terima kasih, sampaikan akan dicek, mohon ditunggu\n- Untuk pemberitahuan jemput/antar: balas singkat \"baik, ditunggu\" atau sejenisnya saja, TANPA terima kasih\n- Maksimal 2-3 kalimat\n- Gunakan tone ramah dan profesional\n- Boleh gunakan emoji secukupnya (😊 🙏 ✅)\n- Format WhatsApp: *bold* untuk penekanan jika perlu"
+                    'content' => "Kamu adalah customer service Madinah Laundry. Balas penutup/acknowledgment dari customer dengan ramah dan sesuai konteks.\n\nJENIS PENUTUP:\n1. Ucapan terima kasih (makasih, thanks) -> balas sama-sama, terima kasih kembali\n2. Konfirmasi singkat/acknowledgment (ok deh, ok, baik, siap, oke) -> balas \"Terima kasih!\" atau \"Siap!\" atau \"Baik, sama-sama!\" - JANGAN balas \"ditunggu\"\n3. Konfirmasi jadwal (ok dijemput, baik nanti diantar) -> balas terima kasih, konfirmasi siap melayani\n4. KONFIRMASI PEMBAYARAN/TRANSFER (sudah transfer, telah mengirimkan ke rekening) -> balas singkat \"baik, terima kasih\"\n5. Pemberitahuan akan jemput/antar (nanti saya jemput, aku ambil nanti, akan saya antar, mau jemput) -> balas \"baik, ditunggu\" atau \"siap, ditunggu ya\"\n\nCRITICAL - JANGAN SALAH:\n- \"Ok deh\" / \"Ok\" / \"Baik\" / \"Siap\" (tanpa kata jemput/antar/ambil) = acknowledgment biasa -> balas \"Terima kasih!\" atau \"Siap!\" - BUKAN \"Baik, ditunggu ya\"\n- \"Baik, ditunggu ya\" HANYA untuk pesan yang eksplisit menyebut jemput/antar/ambil (misal: nanti saya jemput, aku ambil)\n- Maksimal 2 kalimat, singkat"
                 ],
                 [
                     'role' => 'user',
-                    'content' => "Pesan penutup dari customer: \"{$textBody}\"\n\nBalas sebagai CS laundry. Sesuaikan dengan jenis penutup (terima kasih / konfirmasi jadwal / konfirmasi pembayaran / pemberitahuan jemput-antar)."
+                    'content' => "Pesan penutup dari customer: \"{$textBody}\"\n\nBalas sebagai CS laundry. PENTING: Jika pesan hanya 'ok deh', 'ok', 'baik', 'siap' (acknowledgment biasa) -> balas 'Terima kasih!' atau 'Siap!' - JANGAN 'Baik, ditunggu ya'. 'Ditunggu' hanya untuk pemberitahuan jemput/antar."
                 ]
             ];
 
