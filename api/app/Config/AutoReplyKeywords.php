@@ -59,6 +59,8 @@ return [
         'patterns' => [
             '/^\s*(cek|sta*tu*s)\s*$/i',
             '/\b(sudah|dah+|dh)\s*sia+p+\b/i',  // dh = singkatan dah/sudah (kain ku dh siap?)
+            '/\b(udah|sudah|dah|dh)\s*bisa\s*(di\s*)?ambil/i',  // udh bisa di ambil baju sy?
+            '/\bbisa\s*(di\s*)?ambil\s*\??/i',  // bisa diambil? / bisa di ambil?
             '/\bsia+p+\s*(kak|bang|pak|bu|ya)?\s*$/i',
             '/atas\s+nama\s+.+\s*(udah|sudah)\s*\??/i',
         ],
@@ -224,8 +226,8 @@ return [
          '/\bte*ri*ma*ka*si*h\b/i',
          '/\btha*nks\b/i',
          '/\b(thx|tq|ty|ok)\b/i',
-         // udah/sudah/dah - JANGAN match jika diikuti "siap" (itu tanya status = STATUS)
-         '/((hm+|ok(e*)?|sip)\s*)*(y(a*)?\s*)?(u*da*h|s*u*da*h|la+h)(?!\s*siap)/i',
+         // udah/sudah/dah - JANGAN match jika diikuti "siap" atau "bisa diambil" (itu tanya status = STATUS)
+         '/((hm+|ok(e*)?|sip)\s*)*(y(a*)?\s*)?(u*da*h|s*u*da*h|la+h)(?!\s*siap)(?!\s*bisa\s*(di\s*)?ambil)/i',
          '/(oh*)\s*(gi*tu+)/i',
          '/(ok|oh).*(siap|sip|ok)/i',
          '/^reacted\s+[^\s]+$/i', // WhatsApp reactions: "Reacted ❤️", "Reacted 👍"
