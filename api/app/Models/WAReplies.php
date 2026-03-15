@@ -523,6 +523,22 @@ class WAReplies
     private function handlePembuka($phoneIn, $waNumber, $textBody = '')
     {
         $textLower = strtolower(trim($textBody ?? ''));
+        $textStripped = preg_replace('/[\s\x{200B}-\x{200D}\x{FEFF}]/u', '', $textLower); // strip spaces, zero-width chars
+        $len = mb_strlen($textStripped);
+
+        $haloVariants = [
+            "Halo kak, ada yang bisa dibantu? 😊",
+            "Halo, ada yang ingin ditanyakan? 😊",
+            "Halo dengan Madinah Laundry, ada yang bisa dibantu? 😊",
+            "Halo! Ada yang bisa kami bantu? 😊",
+        ];
+
+        // Pesan sangat singkat/tidak jelas (P, ., 1-2 huruf) -> balas sambutan standar (bervariasi)
+        if ($len <= 2 || preg_match('/^[\.\,\!\?\-\s]+$/u', $textStripped)) {
+            $this->sendAutoreplyText($waNumber, $haloVariants[array_rand($haloVariants)]);
+            return;
+        }
+
         $isSalam = preg_match('/assalamu|asalamu|salam\b/i', $textLower);
         $hasOtherIntent = preg_match('/siap|dah|udah|bisa|jemput|antar|berapa|harga|transfer|bayar/i', $textLower);
 
@@ -566,8 +582,9 @@ class WAReplies
 
             $answer = $this->executeOpenAIRequestWithMessages($messages, 150);
             $text = trim($answer);
-            if (empty($text)) {
-                $fallback = $isSalam ? "Waalaikumussalam! Ada yang bisa kami bantu? 😊" : "Halo! Ada yang bisa kami bantu? 😊";
+            // Jika AI return kosong atau terlalu singkat/tidak jelas (1-2 huruf) -> pakai fallback
+            if (empty($text) || mb_strlen($text) <= 2) {
+                $fallback = $isSalam ? "Waalaikumussalam! Ada yang bisa kami bantu? 😊" : $haloVariants[array_rand($haloVariants)];
                 $this->sendAutoreplyText($waNumber, $fallback);
                 return;
             }
@@ -577,7 +594,7 @@ class WAReplies
             if (class_exists('\Log')) {
                 \Log::write("handlePembuka ERROR: " . $e->getMessage(), 'wa_error', 'Pembuka');
             }
-            $fallback = $isSalam ? "Waalaikumussalam! Ada yang bisa kami bantu? 😊" : "Halo! Ada yang bisa kami bantu? 😊";
+            $fallback = $isSalam ? "Waalaikumussalam! Ada yang bisa kami bantu? 😊" : $haloVariants[array_rand($haloVariants)];
             $this->sendAutoreplyText($waNumber, $fallback);
         }
     }
