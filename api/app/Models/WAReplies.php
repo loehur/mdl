@@ -482,6 +482,83 @@ class WAReplies
     }
 
     /**
+     * Handle intent PEMBUKA - balas sapaan pembuka dengan AI sebagai customer service laundry
+     */
+    private function handlePembuka($phoneIn, $waNumber, $textBody = '')
+    {
+        try {
+            if (!class_exists('\\App\\Config\\AI') || !\App\Config\AI::isEnabled()) {
+                $this->sendAutoreplyText($waNumber, "Halo! Ada yang bisa kami bantu? 😊");
+                return;
+            }
+
+            $messages = [
+                [
+                    'role' => 'system',
+                    'content' => "Kamu adalah customer service Madinah Laundry. Balas sapaan pembuka dari customer dengan ramah dan singkat.\n\nPENTING:\n- Sesuaikan balasan dengan kalimat pembuka customer (halo, pagi, siang, malam, kak, bang, dll)\n- Gunakan tone ramah dan profesional\n- Maksimal 2-3 kalimat\n- Boleh gunakan emoji secukupnya (😊 🙏)\n- Tutup dengan tawaran bantuan (Ada yang bisa kami bantu?)\n- Format WhatsApp: *bold* untuk penekanan jika perlu"
+                ],
+                [
+                    'role' => 'user',
+                    'content' => "Pesan pembuka dari customer: \"{$textBody}\"\n\nBalas sebagai CS laundry. Singkat dan ramah."
+                ]
+            ];
+
+            $answer = $this->executeOpenAIRequestWithMessages($messages, 150);
+            $text = trim($answer);
+            if (empty($text)) {
+                $this->sendAutoreplyText($waNumber, "Halo! Ada yang bisa kami bantu? 😊");
+                return;
+            }
+
+            $this->sendAutoreplyText($waNumber, $text);
+        } catch (\Exception $e) {
+            if (class_exists('\Log')) {
+                \Log::write("handlePembuka ERROR: " . $e->getMessage(), 'wa_error', 'Pembuka');
+            }
+            $this->sendAutoreplyText($waNumber, "Halo! Ada yang bisa kami bantu? 😊");
+        }
+    }
+
+    /**
+     * Handle intent PENUTUP - balas penutup/konfirmasi dengan AI sebagai customer service laundry
+     * Termasuk konfirmasi pembayaran/transfer
+     */
+    private function handlePenutup($phoneIn, $waNumber, $textBody = '')
+    {
+        try {
+            if (!class_exists('\\App\\Config\\AI') || !\App\Config\AI::isEnabled()) {
+                $this->sendAutoreplyText($waNumber, "Terima kasih! Semoga harinya menyenangkan 😊");
+                return;
+            }
+
+            $messages = [
+                [
+                    'role' => 'system',
+                    'content' => "Kamu adalah customer service Madinah Laundry. Balas penutup/acknowledgment dari customer dengan ramah dan sesuai konteks.\n\nJENIS PENUTUP:\n1. Ucapan terima kasih (makasih, thanks) -> balas dengan sama-sama, terima kasih kembali\n2. Konfirmasi jadwal (ok dijemput, baik nanti diantar) -> balas terima kasih, konfirmasi siap melayani\n3. KONFIRMASI PEMBAYARAN/TRANSFER (sudah transfer, telah mengirimkan ke rekening, sudah bayar) -> balas dengan ucapan terima kasih, konfirmasi akan dicek, mohon ditunggu konfirmasi penerimaan\n4. Pemberitahuan akan jemput/antar (nanti saya jemput, aku ambil nanti, akan saya antar, mau jemput) -> balas singkat: \"baik, ditunggu\" atau \"siap, ditunggu ya\" atau sejenisnya. JANGAN ucapkan terima kasih.\n\nPENTING:\n- Sesuaikan balasan dengan kalimat penutup customer\n- Untuk konfirmasi pembayaran: ucapkan terima kasih, sampaikan akan dicek, mohon ditunggu\n- Untuk pemberitahuan jemput/antar: balas singkat \"baik, ditunggu\" atau sejenisnya saja, TANPA terima kasih\n- Maksimal 2-3 kalimat\n- Gunakan tone ramah dan profesional\n- Boleh gunakan emoji secukupnya (😊 🙏 ✅)\n- Format WhatsApp: *bold* untuk penekanan jika perlu"
+                ],
+                [
+                    'role' => 'user',
+                    'content' => "Pesan penutup dari customer: \"{$textBody}\"\n\nBalas sebagai CS laundry. Sesuaikan dengan jenis penutup (terima kasih / konfirmasi jadwal / konfirmasi pembayaran / pemberitahuan jemput-antar)."
+                ]
+            ];
+
+            $answer = $this->executeOpenAIRequestWithMessages($messages, 150);
+            $text = trim($answer);
+            if (empty($text)) {
+                $this->sendAutoreplyText($waNumber, "Terima kasih! Semoga harinya menyenangkan 😊");
+                return;
+            }
+
+            $this->sendAutoreplyText($waNumber, $text);
+        } catch (\Exception $e) {
+            if (class_exists('\Log')) {
+                \Log::write("handlePenutup ERROR: " . $e->getMessage(), 'wa_error', 'Penutup');
+            }
+            $this->sendAutoreplyText($waNumber, "Terima kasih! Semoga harinya menyenangkan 😊");
+        }
+    }
+
+    /**
      * Handle intent TAGIHAN - balas rincian tagihan dengan item detail (seperti I.php view)
      * Menggunakan db(1) = mdl_laundry
      */

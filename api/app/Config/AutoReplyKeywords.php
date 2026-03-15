@@ -38,7 +38,8 @@ return [
         \n
         FALSE (BUKAN REKENING):\n
         - User bertanya total tagihan (berapa total?) = TAGIHAN\n
-        - User minta bon/nota = NOTA"
+        - User minta bon/nota = NOTA\n
+        - CRITICAL: User memberitahu/pemberitahuan bahwa SUDAH transfer/mengirim = BUKAN REKENING, itu PENUTUP. Contoh: | telah berhasil mengirimkan ke rekening | sudah transfer | sudah bayar | sudah kirim |"
     ],
 
     'TAGIHAN' => [
@@ -222,14 +223,19 @@ return [
          '/(oh*)\s*(gi*tu+)/i',
          '/(ok|oh).*(siap|sip|ok)/i',
          '/^reacted\s+[^\s]+$/i', // WhatsApp reactions: "Reacted ❤️", "Reacted 👍"
+         // Pemberitahuan akan jemput/antar: "nanti saya jemput", "aku ambil nanti", "akan diantar"
+         '/(saya|aku|awak)\s+(jemput|ambil)\s*(nanti|ya|kak)?/i',
+         '/(nanti|besok|akan)\s+(saya|aku)?\s*(jemput|antar|diantar|dijemput)/i',
       ],
       'ai_prompt' => "User memberikan PENUTUP/CLOSING/ACKNOWLEDGMENT tanpa pertanyaan atau permintaan lanjutan.\n
       TRUE jika:\n
       - Ucapan terima kasih: | terima kasih | makasih | thanks | thx |\n
       - Konfirmasi singkat: | ok deh | siap kak | iya lah kak | sudah | oke | baik |\n
       - Konfirmasi status: | sudah lunas | sudah diambil |\n
+      - Konfirmasi transfer/pembayaran sudah dilakukan: | telah berhasil mengirimkan ke rekening | sudah transfer | sudah bayar | sudah kirim | saya sudah transfer ke rekening kamu |\n
       - Konfirmasi jadwal (TANPA PERMINTAAN): | baik nanti dijemput | ok sore diantar | iya nanti saya jemput | siap dijemput ya |\n
       - Pemberitahuan jadwal: | nanti sore dijemput | besok diantar | jam 2 dijemput ya kak |\n
+      - Pemberitahuan akan jemput/antar laundry: | nanti saya jemput | aku ambil nanti | akan saya antar | mau jemput | besok saya jemput | nanti diantar | (user MEMBERITAHU akan jemput/antar, bukan permintaan) = PENUTUP\n
       - EMOJI/REACTION SAJA: | ❤️ | 👍 | 🙏 | 👌 | ✅ | atau kata 'Reacted' + emoji |\n
       - Single emoji tanpa text apapun\n
       - Kata kunci: baik/ok/iya/siap + (nanti/sore/besok/jam) + dijemput/diantar = PENUTUP\n
