@@ -7,7 +7,7 @@ use App\Core\Controller;
 /**
  * CleanKas Controller
  * Menghapus record kas QRIS yang expired (belum dibayar > 1 jam)
- * Kondisi: note QRIS, status_mutasi <> 3, id_client = 0, insertTime > 1 jam
+ * Kondisi: note QRIS, metode_mutasi = 2, status_mutasi <> 3, id_client = 0, insertTime > 1 jam
  */
 class CleanKas extends Controller
 {
@@ -24,8 +24,8 @@ class CleanKas extends Controller
             return;
         }
 
-        // Kondisi: note QRIS, status_mutasi <> 3, id_client = 0, insertTime > 1 jam
-        $where = "UPPER(note) = 'QRIS' AND status_mutasi <> 3 AND id_client = 0 AND insertTime < DATE_SUB(NOW(), INTERVAL 1 HOUR)";
+        // Kondisi: note QRIS, metode_mutasi = 2, status_mutasi <> 3, id_client = 0, insertTime > 1 jam
+        $where = "UPPER(note) = 'QRIS' AND metode_mutasi = 2 AND status_mutasi <> 3 AND id_client = 0 AND insertTime < DATE_SUB(NOW(), INTERVAL 1 HOUR)";
 
         try {
             // Hitung dulu sebelum hapus
