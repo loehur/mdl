@@ -58,7 +58,7 @@ return [
     'STATUS' => [
         'patterns' => [
             '/^\s*(cek|sta*tu*s)\s*$/i',
-            '/\b(sudah|dah+)\s*sia+p+\b/i',
+            '/\b(sudah|dah+|dh)\s*sia+p+\b/i',  // dh = singkatan dah/sudah (kain ku dh siap?)
             '/\bsia+p+\s*(kak|bang|pak|bu|ya)?\s*$/i',
             '/atas\s+nama\s+.+\s*(udah|sudah)\s*\??/i',
         ],
@@ -224,7 +224,8 @@ return [
          '/\bte*ri*ma*ka*si*h\b/i',
          '/\btha*nks\b/i',
          '/\b(thx|tq|ty|ok)\b/i',
-         '/((hm+|ok(e*)?|sip)\s*)*(y(a*)?\s*)?(u*da*h|s*u*da*h|la+h)/i',
+         // udah/sudah/dah - JANGAN match jika diikuti "siap" (itu tanya status = STATUS)
+         '/((hm+|ok(e*)?|sip)\s*)*(y(a*)?\s*)?(u*da*h|s*u*da*h|la+h)(?!\s*siap)/i',
          '/(oh*)\s*(gi*tu+)/i',
          '/(ok|oh).*(siap|sip|ok)/i',
          '/^reacted\s+[^\s]+$/i', // WhatsApp reactions: "Reacted ❤️", "Reacted 👍"
