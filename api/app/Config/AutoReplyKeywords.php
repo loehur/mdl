@@ -95,17 +95,21 @@ return [
             // TODO: tambah pattern sesuai kebutuhan
         ],
         'ai_prompt' => "User menanyakan HARGA PAKET, HARGA MEMBER, HARGA PAKET BULANAN, HARGA DEPOSIT MEMBER, atau HARGA DEPOSIT PAKET laundry.\n
-        TRUE (HARGA_PAKET) - contoh:\n
+        TRUE (HARGA_PAKET) - HARUS ADA kata paket/member/langganan/deposit:\n
         | berapa harga paket? | harga paket berapa? | paket laundry berapa? | daftar harga paket? |\n
         | berapa harga member? | harga member berapa? | biaya jadi member? |\n
         | berapa harga paket bulanan? | paket bulanan berapa? | langganan bulanan berapa? | harga langganan? |\n
         | paket cuci bulanan? | member paket berapa? |\n
         | berapa harga deposit member? | harga deposit member berapa? | deposit member berapa? |\n
         | berapa harga deposit paket? | harga deposit paket berapa? | deposit paket berapa? |\n
-        | ada paket bulanan? setrika aja | paket setrika aja berapa? | ada paket cuci setrika? | paket bulanan cuci setrika? |\n
+        | paket setrika aja berapa? | paket bulanan setrika? | paket member setrika? | ada paket bulanan? setrika aja | paket cuci setrika berapa? |\n
+        \n
+        CRITICAL - FALSE (BUKAN HARGA_PAKET):\n
+        - 'Setrika aja' / 'Setrika aj' / 'Setrika saja' TANPA kata paket/member/langganan = BUKAN HARGA_PAKET. Ini bisa instruksi treatment atau pernyataan lain.\n
+        - Contoh FALSE: | Setrika aja | Denosa Setrika aja loh | Setrika aj | setrika aja kak | = BUKAN tanya paket.\n
+        - HARGA_PAKET HANYA jika user BERTANYA dengan kata paket/member/langganan, misal: paket setrika aja, paket bulanan setrika, paket member setrika.\n
         \n
         PENTING:\n
-        - Jika user tanya paket/member/langganan + spesifikasi layanan (setrika aja, cuci setrika, cuci saja) = HARGA_PAKET (bukan PERMINTAAN). 'Setrika aja' di sini = jenis paket yang ditanya, bukan instruksi treatment.\n
         - Jika user bertanya harga PER ITEM atau PER KILO (baju, celana, per kg) = HARGA (bukan HARGA_PAKET)"
     ],
 
