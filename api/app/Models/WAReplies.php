@@ -116,6 +116,30 @@ class WAReplies
     }
 
     /**
+     * Kirim balasan salam/sapaan dulu jika pesan mengandung sapaan + intent lain.
+     * Dipanggil sebelum handler lain (STATUS, dll) agar intent dijalankan satu per satu: PEMBUKA dulu, baru handler lain.
+     * @return bool True jika sudah mengirim greeting
+     */
+    private function sendGreetingReplyFirst($waNumber, $textBody)
+    {
+        $textLower = strtolower(trim($textBody ?? ''));
+        if (mb_strlen($textLower) < 10) {
+            return false;
+        }
+        $hasGreeting = preg_match('/^(assalamu|asalamu|salam|halo|hai|pagi|siang|sore|malam)\b/i', $textLower)
+            || preg_match('/\b(pagi|siang|sore|malam)\s*(kak|bang|pak|bu|adek)/i', $textLower);
+        $hasOtherIntent = preg_match('/siap|dah|udah|bisa|jemput|antar|berapa|harga|transfer|bayar|cek|status/i', $textLower);
+        if (!$hasGreeting || !$hasOtherIntent) {
+            return false;
+        }
+        $isSalam = preg_match('/assalamu|asalamu|salam\b/i', $textLower);
+        $suffix = preg_match('/\b(kak|bang|pak|bu|dek)\b/i', $textLower) ? ' kak!' : '!';
+        $reply = $isSalam ? "Waalaikumsalam" . $suffix : (preg_match('/pagi/i', $textLower) ? "Pagi" . $suffix : (preg_match('/siang/i', $textLower) ? "Siang" . $suffix : (preg_match('/sore/i', $textLower) ? "Sore" . $suffix : (preg_match('/malam/i', $textLower) ? "Malam" . $suffix : "Halo" . $suffix))));
+        $this->sendAutoreplyText($waNumber, $reply);
+        return true;
+    }
+
+    /**
      * Process inbound message text and perform actions
      * 
      * @param string $phoneIn CSV string of phone numbers properly quoted for SQL IN clause
@@ -149,6 +173,10 @@ class WAReplies
             // Check regex patterns
             foreach ($patterns as $patternIndex => $pattern) {
                 if (preg_match($pattern, $textBodyToCheck)) {
+                    // REKENING pattern match tapi pesan konfirmasi pembayaran (sudah transfer) = PENUTUP, skip REKENING
+                    if ($handler === 'REKENING' && preg_match('/(telah berhasil mengirimkan|sudah transfer|sudah bayar|sudah kirim|sudah mengirim)/i', $textBodyToCheck)) {
+                        continue;
+                    }
                     // Get case from config
                     $caseVal = $config['case'] ?? null;
                     $notify = $config['notify'] ?? false;
@@ -189,6 +217,10 @@ class WAReplies
 
                     if (method_exists($this, $methodName)) {
                         $this->currentHandler = $handler;
+                        // Jika handler BUKAN PEMBUKA dan pesan ada sapaan+intent lain: kirim sapaan dulu, baru handler (satu per satu)
+                        if ($handler !== 'PEMBUKA') {
+                            $this->sendGreetingReplyFirst($waNumber, $textBody);
+                        }
                         $this->$methodName($phoneIn, $waNumber, $textBody);
                         return (object) [
                             'case' => $caseVal,
@@ -253,6 +285,10 @@ class WAReplies
             $methodName = 'handle' . $handlerName;
             if (method_exists($this, $methodName)) {
                 $this->currentHandler = $aiIntent;
+                // Jika handler BUKAN PEMBUKA dan pesan ada sapaan+intent lain: kirim sapaan dulu, baru handler (satu per satu)
+                if ($aiIntent !== 'PEMBUKA') {
+                    $this->sendGreetingReplyFirst($waNumber, $textBody);
+                }
                 $this->$methodName($phoneIn, $waNumber, $textBody);
             }
 
@@ -488,8 +524,29 @@ class WAReplies
     {
         $textLower = strtolower(trim($textBody ?? ''));
         $isSalam = preg_match('/assalamu|asalamu|salam\b/i', $textLower);
+        $hasOtherIntent = preg_match('/siap|dah|udah|bisa|jemput|antar|berapa|harga|transfer|bayar/i', $textLower);
 
         try {
+            // Jika pesan mengandung intent lain (status, jemput, dll), cukup balas salam/sapaan saja lalu trigger handler lain
+            if ($hasOtherIntent && mb_strlen($textLower) > 15) {
+                $reply = $isSalam ? "Waalaikumsalam!" : (preg_match('/pagi/i', $textLower) ? "Pagi!" : (preg_match('/siang|sore|malam/i', $textLower) ? "Siang!" : "Halo!"));
+                $this->sendAutoreplyText($waNumber, $reply);
+                // Trigger handler yang sesuai untuk membalas pertanyaan (STATUS, MINTA_JEMPUT_ANTAR, dll)
+                $keywordConfig = require __DIR__ . '/../Config/AutoReplyKeywords.php';
+                unset($keywordConfig['PEMBUKA']); // Skip PEMBUKA agar AI pilih intent lain
+                $aiResult = $this->handleWithAI($phoneIn, $textBody, $waNumber, $keywordConfig);
+                if ($aiResult && isset($aiResult['intent']) && strtoupper($aiResult['intent']) !== 'FALSE') {
+                    $aiIntent = strtoupper($aiResult['intent']);
+                    $handlerName = ucwords(strtolower($aiIntent), '_');
+                    $methodName = 'handle' . $handlerName;
+                    if (method_exists($this, $methodName) && $methodName !== 'handlePembuka') {
+                        $this->currentHandler = $aiIntent;
+                        $this->$methodName($phoneIn, $waNumber, $textBody);
+                    }
+                }
+                return;
+            }
+
             if (!class_exists('\\App\\Config\\AI') || !\App\Config\AI::isEnabled()) {
                 $fallback = $isSalam ? "Waalaikumussalam! Ada yang bisa kami bantu? 😊" : "Halo! Ada yang bisa kami bantu? 😊";
                 $this->sendAutoreplyText($waNumber, $fallback);
@@ -499,7 +556,7 @@ class WAReplies
             $messages = [
                 [
                     'role' => 'system',
-                    'content' => "Kamu adalah customer service Madinah Laundry. Balas sapaan pembuka dari customer dengan ramah dan singkat.\n\nPENTING - WAJIB:\n- Jika customer mengucap Assalamualaikum / Asalamualaikum / Salam: WAJIB balas dengan Waalaikumussalam terlebih dahulu. Jika pesan HANYA sapaan (tanpa pertanyaan/permintaan), baru tambah tawaran bantuan.\n- Contoh: \"Assalamualaikum kak\" (hanya sapaan) -> \"Waalaikumussalam kak! Ada yang bisa kami bantu? 😊\"\n\nCRITICAL - PEMBUKA + INTENT LAIN:\n- Jika pesan mengandung sapaan SEKALIGUS pertanyaan/permintaan (misal: 'pagi kak, kain ku dah siap?', 'halo bang, bisa jemput?'), balas HANYA dengan sapaan saja (pagi juga, halo juga, dll). JANGAN tanya 'ada yang bisa dibantu' - handler lain akan memproses pertanyaannya.\n- Contoh: \"pagi kak, kain ku dah siap?\" -> \"Pagi kak!\" atau \"Pagi juga kak!\" (singkat, tanpa tawaran bantuan)\n\nPENTING:\n- Sesuaikan balasan dengan kalimat pembuka customer (halo, pagi, siang, malam, kak, bang, dll)\n- Jika HANYA sapaan tanpa pertanyaan: tutup dengan tawaran bantuan (Ada yang bisa kami bantu?)\n- Jika sapaan + pertanyaan/permintaan: cukup balas sapaan saja, tanpa tawaran bantuan\n- Maksimal 2-3 kalimat\n- Boleh gunakan emoji secukupnya (😊 🙏)\n- Format WhatsApp: *bold* untuk penekanan jika perlu"
+                    'content' => "Kamu adalah customer service Madinah Laundry. Balas HANYA sapaan pembuka dari customer. JANGAN jawab pertanyaan/permintaan lain.\n\nCRITICAL - JANGAN JAWAB PERTANYAAN:\n- Jika pesan mengandung sapaan + pertanyaan/permintaan (misal: 'Assalamualaikum, kain ku dah siap?', 'pagi kak, bisa jemput?'), balas CUKUP salam/sapaan saja. JANGAN tulis tentang status, kain siap, jemput, harga, dll. Handler STATUS/ lain yang akan membalas pertanyaannya.\n- Contoh: \"Assalamualaikum, kain ku dah siap?\" -> \"Waalaikumsalam!\" atau \"Waalaikumsalam kak!\" (HANYA itu, tidak ada info status)\n- Contoh: \"pagi kak, bisa jemput?\" -> \"Pagi kak!\" atau \"Pagi juga kak!\" (HANYA itu)\n\nPENTING - WAJIB:\n- Assalamualaikum: balas Waalaikumsalam (atau Waalaikumussalam). Jika HANYA sapaan: tambah tawaran bantuan. Jika ada pertanyaan lain: JANGAN tambah apa-apa.\n- Sesuaikan balasan dengan sapaan (halo, pagi, siang, malam, kak, bang)\n- Maksimal 1-2 kalimat. Singkat.\n- Boleh emoji secukupnya (😊 🙏)"
                 ],
                 [
                     'role' => 'user',

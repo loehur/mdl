@@ -5,7 +5,8 @@ return [
             '/^\s*(p|ping|ka*k|ba*n*g|b*a*pa*k|i*bu*k*|a*de*k|he*a*l+o|as+a*l+a*mu*a*l+a*i*ku*m|tes)\s*$/i',
             // Sapaan pagi/sore/siang/malam + kak/bang - HANYA jika tidak diikuti pertanyaan/permintaan
             '/(pa*gi|so*re|si*a*ng|ma*la*m|ha*e*l+o+)\s*\b(ba*n*g|ka*k|pa*k|i*bu*k*|a*de*k*|a*na*k)\s*[,.]?\s*$/i',
-            '/^\s*(assalamu|asalamu)/i',  // Assalamualaikum, Asalamualaikum kak, dll
+            // Assalamualaikum - HANYA jika tidak diikuti pertanyaan/permintaan (misal: "assalamualaikum, kain dah siap?" -> STATUS)
+            '/^\s*(assalamu|asalamu)[^,]*\s*$/i',
             '/^\s*.\s*$/i',
         ],
         'ai_prompt' => "User HANYA memberi sapaan awal singkat tanpa permintaan/isi pesan lain.\n
@@ -217,6 +218,8 @@ return [
 
    'PENUTUP' => [
       'patterns' => [
+         // Konfirmasi pembayaran/transfer - HARUS sebelum REKENING dicek (via process exception)
+         '/(telah berhasil mengirimkan|sudah transfer|sudah bayar|sudah kirim|sudah mengirim)\s*(ke\s*)?(rekening|rek)?/i',
          '/\bma*ka*(s|c)(i|e)*h\b/i',
          '/\bte*ri*ma*ka*si*h\b/i',
          '/\btha*nks\b/i',
