@@ -188,6 +188,9 @@ class WAReplies
                     
                     //cek rate limit
                     if (!$this->shouldHandle($waNumber, $handler)) {
+                        if (class_exists('\Log')) {
+                            \Log::write("SKIP [{$handler}] rate limited | phone: {$waNumber} | msg: " . mb_substr($textBody ?? '', 0, 80), 'wa_replies', 'rate_limit');
+                        }
                         $conversationId = $this->getOrCreateConversationWithCase(
                             $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
                         );
@@ -263,6 +266,9 @@ class WAReplies
             // Rate limit check for AI intent
             // ========================================
             if (!$this->shouldHandle($waNumber, $aiIntent)) {
+                if (class_exists('\Log')) {
+                    \Log::write("SKIP [{$aiIntent}] rate limited (AI) | phone: {$waNumber} | msg: " . mb_substr($textBody ?? '', 0, 80), 'wa_replies', 'rate_limit');
+                }
                 // Rate limited - create conversation but don't send auto-reply
                 $conversationId = $this->getOrCreateConversationWithCase(
                     $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
