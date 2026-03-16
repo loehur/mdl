@@ -148,6 +148,21 @@ class WAReplies
     }
 
     /**
+     * Balasan acknowledgment (ok/siap) variatif sesuai sapaan.
+     */
+    private function getRandomSiapReply($sapaan)
+    {
+        $replies = [
+            "Siap {$sapaan} 😊",
+            "Oke {$sapaan} 😊",
+            "Baik {$sapaan} 😊",
+            "Sip {$sapaan} 😊",
+            "Ok {$sapaan} 😊",
+        ];
+        return $replies[array_rand($replies)];
+    }
+
+    /**
      * Kalimat pendek ambigu (mis. closed order, order closed): tetap intent PENUTUP tapi jangan dibalas AI.
      * @return bool True jika pesan ambigu dan tidak boleh dibalas
      */
@@ -616,7 +631,15 @@ class WAReplies
 
         // Regex quick path: pesan singkat (P, ., 1-2 huruf) -> singkat & santai
         if ($len <= 2 || preg_match('/^[\.\,\!\?\-\s]+$/u', $textStripped)) {
-            $haloShort = ["Halo {$sapaan}, ada yang bisa dibantu? 😊", "Halo {$sapaan} 😊"];
+            $haloShort = [
+                "ya {$sapaan}, ada yang bisa dibantu? 😊",
+                "Halo {$sapaan} 😊",
+                "iya {$sapaan}, ada yang ingin ditanyakan? 😊",
+                "iya {$sapaan}, ada yang mau ditanyakan? 😊",
+                "Halo {$sapaan}, ada yang bisa kami bantu? 😊",
+                "ya {$sapaan} 😊",
+                "Halo {$sapaan}, ada yang ingin ditanyakan? 😊",
+            ];
             $this->sendAutoreplyText($waNumber, $haloShort[array_rand($haloShort)]);
             return;
         }
@@ -700,10 +723,21 @@ class WAReplies
         $contactName = $this->getContactNameForGreeting($waNumber);
         $sapaan = $this->getSapaanFromName($contactName);
 
-        // Regex quick path: terimakasih/makasih (termasuk "oke makasih kak", "ok makasih") -> sama-sama (sesuai sapaan)
+        // Regex quick path: terimakasih/makasih (termasuk "oke makasih kak", "ok makasih") -> variatif (sesuai sapaan)
         if (preg_match('/^(terima\s*kasih|terimakasih|makasih|mksh|thanks|thx|tq)(\s+(kak|bang|pak|bu))?\s*[.!]?$/i', $textLower)
             || preg_match('/^(ok|oke)\s*[,.]?\s*(makasih|terimakasih|thanks|thx)(\s+(kak|bang|pak|bu))?\s*[.!]?$/i', $textLower)) {
-            $this->sendAutoreplyText($waNumber, "Sama-sama {$sapaan} 😊");
+            $terimakasihReplies = [
+                "Sama-sama {$sapaan} 😊",
+                "Baik {$sapaan}, sama-sama 😊",
+                "Oke {$sapaan}, sama-sama 😊",
+                "Sama-sama ya {$sapaan} 😊",
+                "Terima kasih juga {$sapaan} 😊",
+                "Senang bisa membantu {$sapaan} 😊",
+                "Dengan senang hati {$sapaan} 😊",
+                "Terima kasih kembali {$sapaan} 😊",
+            ];
+            $reply = $terimakasihReplies[array_rand($terimakasihReplies)];
+            $this->sendAutoreplyText($waNumber, $reply);
             return;
         }
 
@@ -715,7 +749,7 @@ class WAReplies
 
         // Regex quick path: ok/baik/siap (acknowledgment) tanpa jemput/antar
         if (preg_match('/^(ok|oke|baik|sip|siap)(\s+deh)?\s*[.!]?$/i', $textLower) && !preg_match('/jemput|antar|ambil/i', $textLower)) {
-            $this->sendAutoreplyText($waNumber, "Siap {$sapaan} 😊");
+            $this->sendAutoreplyText($waNumber, $this->getRandomSiapReply($sapaan));
             return;
         }
 
@@ -725,7 +759,7 @@ class WAReplies
 
         try {
             if (!class_exists('\\App\\Config\\AI') || !\App\Config\AI::isEnabled()) {
-                $this->sendAutoreplyText($waNumber, "Siap {$sapaan} 😊");
+                $this->sendAutoreplyText($waNumber, $this->getRandomSiapReply($sapaan));
                 return;
             }
 
@@ -743,14 +777,14 @@ class WAReplies
             $answer = $this->executeOpenAIRequestWithMessages($messages, 100);
             $text = trim(str_replace('!', '', $answer));
             if (empty($text) || mb_strlen($text) <= 2) {
-                $this->sendAutoreplyText($waNumber, "Siap {$sapaan} 😊");
+                $this->sendAutoreplyText($waNumber, $this->getRandomSiapReply($sapaan));
                 return;
             }
             // Hilangkan "ditunggu ya" / "di tunggu" jika AI tetap mengeluarkan
             $text = preg_replace('/,?\s*(di\s*)?tunggu\s*(ya\s*)?(kak|bang|pak|bu)?\s*[.!]?/i', '', $text);
             $text = trim(preg_replace('/\s+/', ' ', $text));
             if ($text === '' || $text === ',') {
-                $text = "Siap {$sapaan} 😊";
+                $text = $this->getRandomSiapReply($sapaan);
             }
 
             $this->sendAutoreplyText($waNumber, $text);
@@ -758,7 +792,7 @@ class WAReplies
             if (class_exists('\Log')) {
                 \Log::write("handlePenutup ERROR: " . $e->getMessage(), 'wa_error', 'Penutup');
             }
-            $this->sendAutoreplyText($waNumber, "Siap {$sapaan} 😊");
+            $this->sendAutoreplyText($waNumber, $this->getRandomSiapReply($sapaan));
         }
     }
 
