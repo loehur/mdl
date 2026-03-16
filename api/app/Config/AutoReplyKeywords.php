@@ -11,7 +11,8 @@ return [
         ],
         'ai_prompt' => "User HANYA memberi sapaan awal singkat tanpa permintaan/isi pesan lain.\n
         Contoh: | halo | hai | ping | pagi | siang | malam | sore | kak | bang | pak | bu | assalamualaikum | assalamualaikum kak |\n
-        PENTING: JIKA sapaan diikuti kalimat permintaan (misal: 'Bang, baju dulukan', 'Kak, jemput ya'), ini BUKAN PEMBUKA."
+        PENTING: JIKA sapaan diikuti kalimat permintaan (misal: 'Bang, baju dulukan', 'Kak, jemput ya'), ini BUKAN PEMBUKA.\n
+        CRITICAL: Pesan mengandung tanda tanya (?) = PERTANYAAN = BUKAN PEMBUKA. Contoh: 'Berarti sudah masuk kak?'"
     ],
 
     'NOTA' => [
@@ -59,6 +60,7 @@ return [
         'patterns' => [
             '/^\s*(cek|sta*tu*s)\s*$/i',
             '/\b(sudah|dah+|dh)\s*sia+p+\b/i',  // dh = singkatan dah/sudah (kain ku dh siap?)
+            '/\b(sudah|udah|dah|dh)\s*selesai/i',  // sudah selesai laundry nya kak?
             '/\b(udah|sudah|dah|dh)\s*bisa\s*(di\s*)?ambil/i',  // udh bisa di ambil baju sy?
             '/\bbisa\s*(di\s*)?ambil\s*\??/i',  // bisa diambil? / bisa di ambil?
             '/\bsia+p+\s*(kak|bang|pak|bu|ya)?\s*$/i',
@@ -127,6 +129,10 @@ return [
       'notify' => true,
       'patterns' => [
          '/^\s*(je*m*pu*t|anta*r)\s*$/i',
+         // Permintaan antar/jemput: "antar aja", "klo udh selesai antar aja", "selesai antar ya"
+         '/\b(antar|jemput)\s*(aja|ya)\s*$/i',
+         '/(klo|kalau)\s*(udh|udah|sudah)?\s*selesai\s*(antar|jemput)/i',
+         '/\b(selesai|udh|udah|sudah)\s+(antar|jemput)\s*(aja|ya)?/i',
       ],
       'ai_prompt' => "User MEMINTA KURIR/LAUNDRY untuk datang JEMPUT atau ANTAR, ATAU menanyakan ONGKIR.\n
       TRUE (MINTA JEMPUT/ANTAR) - HARUS ADA KATA PERMINTAAN/PERTANYAAN:\n
@@ -225,15 +231,14 @@ return [
          '/\bma*ka*(s|c)(i|e)*h\b/i',
          '/\bte*ri*ma*ka*si*h\b/i',
          '/\btha*nks\b/i',
-         '/\b(thx|tq|ty|ok)\b/i',
+         '/\b(thx|tq|ty|ok|gpp)\b/i',
+         '/\b(gak|ga)\s*apa\s*apa\b/i',
          // udah/sudah/dah - JANGAN match jika diikuti "siap" atau "bisa diambil" (itu tanya status = STATUS)
          '/((hm+|ok(e*)?|sip)\s*)*(y(a*)?\s*)?(u*da*h|s*u*da*h|la+h)(?!\s*siap)(?!\s*bisa\s*(di\s*)?ambil)/i',
          '/(oh*)\s*(gi*tu+)/i',
          '/(ok|oh).*(siap|sip|ok)/i',
          '/^reacted\s+[^\s]+$/i', // WhatsApp reactions: "Reacted ❤️", "Reacted 👍"
-         // Pemberitahuan akan jemput/antar: "nanti saya jemput", "aku ambil nanti", "akan diantar"
-         '/(saya|aku|awak)\s+(jemput|ambil)\s*(nanti|ya|kak)?/i',
-         '/(nanti|besok|akan)\s+(saya|aku)?\s*(jemput|antar|diantar|dijemput)/i',
+         // JANGAN match: nanti saya jemput, nanti saya ambil, akan saya antar, nanti saya antar, akan mengambil - itu BUKAN intent (user memberitahu akan ambil/antar sendiri)
       ],
       'ai_prompt' => "User memberikan PENUTUP/CLOSING/ACKNOWLEDGMENT tanpa pertanyaan atau permintaan lanjutan.\n
       TRUE jika:\n
@@ -241,17 +246,20 @@ return [
       - Konfirmasi singkat: | ok deh | siap kak | iya lah kak | sudah | oke | baik |\n
       - Konfirmasi status: | sudah lunas | sudah diambil |\n
       - Konfirmasi transfer/pembayaran sudah dilakukan: | telah berhasil mengirimkan ke rekening | sudah transfer | sudah bayar | sudah kirim | saya sudah transfer ke rekening kamu |\n
-      - Konfirmasi jadwal (TANPA PERMINTAAN): | baik nanti dijemput | ok sore diantar | iya nanti saya jemput | siap dijemput ya |\n
+      - Konfirmasi jadwal (TANPA PERMINTAAN): | baik nanti dijemput | ok sore diantar | siap dijemput ya |\n
       - Pemberitahuan jadwal: | nanti sore dijemput | besok diantar | jam 2 dijemput ya kak |\n
-      - Pemberitahuan akan jemput/antar laundry: | nanti saya jemput | aku ambil nanti | akan saya antar | mau jemput | besok saya jemput | nanti diantar | (user MEMBERITAHU akan jemput/antar, bukan permintaan) = PENUTUP\n
       - EMOJI/REACTION SAJA: | ❤️ | 👍 | 🙏 | 👌 | ✅ | atau kata 'Reacted' + emoji |\n
-      - Single emoji tanpa text apapun\n
       - Kata kunci: baik/ok/iya/siap + (nanti/sore/besok/jam) + dijemput/diantar = PENUTUP\n
       \n
+      FALSE (BUKAN PENUTUP) - CRITICAL:\n
+      - Pemberitahuan user akan ambil/antar SENDIRI = BUKAN intent apapun: | akan menjemput | nanti saya jemput | nanti saya ambil | akan saya antar | nanti saya antar | akan mengambil | mau jemput | besok saya jemput | nanti saya antar |\n
+      \n
       FALSE jika:\n
+      - CRITICAL: Pesan mengandung tanda tanya (?) = PERTANYAAN = BUKAN PENUTUP. Contoh: 'Berarti sudah masuk kak?' 'Apakah sudah siap?'\n
       - Ada pertanyaan (kapan? berapa? dimana? bisa?)\n
       - Ada permintaan (tolong, minta, bisa, bantu, dong) + object\n
-      - Contoh FALSE: 'bisa dijemput?' (ini pertanyaan), 'tolong jemput' (ini permintaan)"
+      - Pemberitahuan akan ambil/antar sendiri: 'nanti saya jemput', 'akan saya antar', 'nanti saya ambil', 'akan mengambil' = BUKAN PENUTUP\n
+      - Contoh FALSE: 'bisa dijemput?' (pertanyaan), 'Berarti sudah masuk kak?' (pertanyaan), 'tolong jemput' (permintaan), 'nanti saya jemput' (bukan intent)"
    ],
 
     'REMINDER' => [

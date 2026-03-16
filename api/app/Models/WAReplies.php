@@ -135,15 +135,27 @@ class WAReplies
     }
 
     /**
-     * Ambil sapaan (pak/bu/kak) dari nama untuk quick reply regex.
+     * Ambil sapaan dari nama: pak/bu hanya jika nama mengandung ibu/bu atau pak/bapak/bpk.
+     * Jika tidak, gunakan kak/kakak/bg/bang.
      */
     private function getSapaanFromName($contactName)
     {
         $n = strtolower(trim($contactName ?? ''));
         if ($n === '') return 'kak';
-        if (preg_match('/^(ibu|bu)\s+/', $n) || preg_match('/\b(ibu|bu)\s+/', $n)) return 'bu';
-        if (preg_match('/^(bapak|pak)\s+/', $n) || preg_match('/\b(bapak|pak)\s+/', $n)) return 'pak';
-        return 'kak';
+        if (preg_match('/\b(ibu|bu)\b/', $n)) return 'bu';
+        if (preg_match('/\b(bapak|pak|bpk)\b/', $n)) return 'pak';
+        return 'kak'; // default: kak/kakak/bg/bang (pakai kak)
+    }
+
+    /**
+     * Kalimat pendek ambigu (mis. closed order, order closed): tetap intent PENUTUP tapi jangan dibalas AI.
+     * @return bool True jika pesan ambigu dan tidak boleh dibalas
+     */
+    private function isAmbiguousPenutupShortPhrase($text)
+    {
+        $t = strtolower(trim($text ?? ''));
+        if ($t === '') return false;
+        return preg_match('/\bclosed\s*order\b/i', $t) || preg_match('/\border\s*closed\b/i', $t);
     }
 
     /**
@@ -166,7 +178,7 @@ class WAReplies
         $contactName = $this->getContactNameForGreeting($waNumber);
         $sapaan = $this->getSapaanFromName($contactName);
         $isSalam = preg_match('/assalamu|asalamu|salam\b/i', $textLower);
-        $reply = $isSalam ? "Waalaikumsalam {$sapaan}!" : (preg_match('/pagi/i', $textLower) ? "Pagi {$sapaan}!" : (preg_match('/siang/i', $textLower) ? "Siang {$sapaan}!" : (preg_match('/sore/i', $textLower) ? "Sore {$sapaan}!" : (preg_match('/malam/i', $textLower) ? "Malam {$sapaan}!" : "Halo {$sapaan}!"))));
+        $reply = $isSalam ? "Waalaikumsalam {$sapaan}" : (preg_match('/pagi/i', $textLower) ? "Pagi {$sapaan}" : (preg_match('/siang/i', $textLower) ? "Siang {$sapaan}" : (preg_match('/sore/i', $textLower) ? "Sore {$sapaan}" : (preg_match('/malam/i', $textLower) ? "Malam {$sapaan}" : "Halo {$sapaan}"))));
         $this->sendAutoreplyText($waNumber, $reply);
         return true;
     }
@@ -208,6 +220,10 @@ class WAReplies
                 if (preg_match($pattern, $textBodyToCheck)) {
                     // REKENING pattern match tapi pesan konfirmasi pembayaran (sudah transfer) = PENUTUP, skip REKENING
                     if ($handler === 'REKENING' && preg_match('/(telah berhasil mengirimkan|sudah transfer|sudah bayar|sudah kirim|sudah mengirim)/i', $textBodyToCheck)) {
+                        continue;
+                    }
+                    // Pertanyaan (mengandung ?) TIDAK boleh masuk PEMBUKA atau PENUTUP
+                    if (($handler === 'PEMBUKA' || $handler === 'PENUTUP') && strpos($textBody ?? '', '?') !== false) {
                         continue;
                     }
                     // Get case from config
@@ -253,6 +269,14 @@ class WAReplies
 
                     if (method_exists($this, $methodName)) {
                         $this->currentHandler = $handler;
+                        // Kalimat PENUTUP ambigu (closed order, dll): tetap intent PENUTUP tapi jangan dibalas AI
+                        if ($handler === 'PENUTUP' && $this->isAmbiguousPenutupShortPhrase($textBodyToCheck)) {
+                            return (object) [
+                                'case' => $caseVal,
+                                'notify' => $notify,
+                                'conversation_id' => $conversationId
+                            ];
+                        }
                         // Jika handler BUKAN PEMBUKA dan pesan ada sapaan+intent lain: kirim sapaan dulu, baru handler (satu per satu)
                         if ($handler !== 'PEMBUKA') {
                             $this->sendGreetingReplyFirst($waNumber, $textBody);
@@ -288,6 +312,19 @@ class WAReplies
         // Check if AI successfully detected a valid intent
         if ($aiResult && is_array($aiResult) && isset($aiResult['intent']) && strtoupper($aiResult['intent']) !== 'FALSE') {
             $aiIntent = strtoupper($aiResult['intent']);
+            // Pertanyaan (mengandung ?) TIDAK boleh masuk PEMBUKA atau PENUTUP - treat sebagai unknown
+            $isQuestion = strpos($textBody ?? '', '?') !== false;
+            if ($isQuestion && in_array($aiIntent, ['PEMBUKA', 'PENUTUP'])) {
+                $conversationId = $this->getOrCreateConversationWithCase(
+                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
+                );
+                return (object) [
+                    'case' => null,
+                    'notify' => false,
+                    'conversation_id' => $conversationId
+                ];
+            }
+
             // Gunakan fullKeywordConfig untuk akses case dan notify (config lengkap)
             $aiCase = $fullKeywordConfig[$aiIntent]['case'] ?? null;
             $aiNotify = $fullKeywordConfig[$aiIntent]['notify'] ?? false;
@@ -318,12 +355,20 @@ class WAReplies
             $conversationId = $this->getOrCreateConversationWithCase(
                 $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, $aiCase
             );
-            
+
             // Call handler method
             $handlerName = ucwords(strtolower($aiIntent), '_');
             $methodName = 'handle' . $handlerName;
             if (method_exists($this, $methodName)) {
                 $this->currentHandler = $aiIntent;
+                // Kalimat PENUTUP ambigu (closed order, dll): tetap intent PENUTUP tapi jangan dibalas AI
+                if ($aiIntent === 'PENUTUP' && $this->isAmbiguousPenutupShortPhrase($textBodyToCheck)) {
+                    return (object) [
+                        'case' => $aiCase,
+                        'notify' => $aiNotify,
+                        'conversation_id' => $conversationId
+                    ];
+                }
                 // Jika handler BUKAN PEMBUKA dan pesan ada sapaan+intent lain: kirim sapaan dulu, baru handler (satu per satu)
                 if ($aiIntent !== 'PEMBUKA') {
                     $this->sendGreetingReplyFirst($waNumber, $textBody);
@@ -571,7 +616,7 @@ class WAReplies
 
         // Regex quick path: pesan singkat (P, ., 1-2 huruf) -> singkat & santai
         if ($len <= 2 || preg_match('/^[\.\,\!\?\-\s]+$/u', $textStripped)) {
-            $haloShort = ["Halo {$sapaan}, ada yang bisa dibantu? 😊", "Halo {$sapaan}! 😊"];
+            $haloShort = ["Halo {$sapaan}, ada yang bisa dibantu? 😊", "Halo {$sapaan} 😊"];
             $this->sendAutoreplyText($waNumber, $haloShort[array_rand($haloShort)]);
             return;
         }
@@ -579,7 +624,7 @@ class WAReplies
         // Regex quick path: sapaan + intent lain -> salam singkat lalu trigger handler lain
         if ($hasOtherIntent) {
             $isSalam = preg_match('/assalamu|asalamu|salam\b/i', $textLower);
-            $reply = $isSalam ? "Waalaikumsalam {$sapaan}!" : (preg_match('/pagi/i', $textLower) ? "Pagi {$sapaan}!" : (preg_match('/siang|sore|malam/i', $textLower) ? "Siang {$sapaan}!" : "Halo {$sapaan}!"));
+            $reply = $isSalam ? "Waalaikumsalam {$sapaan}" : (preg_match('/pagi/i', $textLower) ? "Pagi {$sapaan}" : (preg_match('/siang|sore|malam/i', $textLower) ? "Siang {$sapaan}" : "Halo {$sapaan}"));
             $this->sendAutoreplyText($waNumber, $reply);
             $keywordConfig = require __DIR__ . '/../Config/AutoReplyKeywords.php';
             unset($keywordConfig['PEMBUKA']);
@@ -597,19 +642,19 @@ class WAReplies
         }
 
         $sapaanHint = $contactName !== ''
-            ? "Nama customer: \"{$contactName}\". Analisa nama untuk pilih sapaan: pak/bu (nama dewasa jelas), kak/kakak/bang (nama muda/umum). Jika nama membingungkan, pakai kak/kakak."
+            ? "Nama customer: \"{$contactName}\". Aturan sapaan: HANYA jika nama mengandung ibu/bu -> pakai bu. HANYA jika nama mengandung pak/bapak/bpk -> pakai pak. Jika TIDAK mengandung itu, pakai kak/kakak/bg/bang."
             : "Nama customer tidak tersedia. Pakai sapaan kak/kakak.";
 
         try {
             if (!class_exists('\\App\\Config\\AI') || !\App\Config\AI::isEnabled()) {
-                $this->sendAutoreplyText($waNumber, "Halo {$sapaan}! 😊");
+                $this->sendAutoreplyText($waNumber, "Halo {$sapaan} 😊");
                 return;
             }
 
             $messages = [
                 [
                     'role' => 'system',
-                    'content' => "Kamu adalah customer service Madinah Laundry. Balas HANYA sapaan pembuka dari customer. JANGAN jawab pertanyaan/permintaan lain.\n\nCRITICAL - SINGKAT & SANTAI:\n- Balas PENDEK (1 kalimat, max 8-10 kata). Jangan formal. Santai tapi ramah.\n- Contoh singkat: \"Halo kak! Ada yang bisa dibantu?\" \"Pagi bu! 😊\" \"Waalaikumsalam pak!\"\n- JANGAN kalimat panjang seperti \"Ada yang dapat kami bantu hari ini?\" - terlalu formal.\n\nCRITICAL - JANGAN JAWAB PERTANYAAN:\n- Jika pesan mengandung sapaan + pertanyaan (misal: 'Assalamualaikum, kain ku dah siap?'), balas CUKUP salam saja. Handler lain yang jawab pertanyaannya.\n- Contoh: \"Assalamualaikum, kain ku dah siap?\" -> \"Waalaikumsalam pak!\" (HANYA itu)\n\nPENTING:\n- Assalamualaikum -> Waalaikumsalam + sapaan. Halo/pagi/siang/malam -> sesuaikan + sapaan.\n- Gunakan pak/bu/kak/bang dari nama customer. JANGAN sebut nama. JANGAN kata 'Anda'.\n- Boleh singkatan umum: siap, oke. JANGAN pakai 'mk'. Santai, tidak formal, tetap ramah."
+                    'content' => "Kamu adalah customer service Madinah Laundry. Balas HANYA sapaan pembuka dari customer. JANGAN jawab pertanyaan/permintaan lain.\n\nCRITICAL - SINGKAT & SANTAI:\n- Balas PENDEK (1 kalimat, max 8-10 kata). Jangan formal. Santai tapi ramah.\n- Contoh singkat: \"Halo kak, ada yang bisa dibantu?\" \"Pagi bu 😊\" \"Waalaikumsalam pak\"\n- JANGAN kalimat panjang. JANGAN pakai tanda seru (!).\n\nCRITICAL - JANGAN JAWAB PERTANYAAN:\n- Jika pesan mengandung sapaan + pertanyaan (misal: 'Assalamualaikum, kain ku dah siap?'), balas CUKUP salam saja. Handler lain yang jawab pertanyaannya.\n- Contoh: \"Assalamualaikum, kain ku dah siap?\" -> \"Waalaikumsalam pak\" (HANYA itu)\n\nPENTING:\n- Assalamualaikum -> Waalaikumsalam + sapaan. Halo/pagi/siang/malam -> sesuaikan + sapaan.\n- Sapaan: HANYA jika nama ada ibu/bu -> bu. HANYA jika nama ada pak/bapak/bpk -> pak. Jika tidak, pakai kak/kakak/bg/bang. JANGAN sebut nama. JANGAN kata 'Anda'.\n- Boleh singkatan umum: siap, oke. JANGAN pakai 'mk'. JANGAN pakai tanda seru (!). Santai, tidak formal, tetap ramah."
                 ],
                 [
                     'role' => 'user',
@@ -618,9 +663,9 @@ class WAReplies
             ];
 
             $answer = $this->executeOpenAIRequestWithMessages($messages, 120);
-            $text = trim($answer);
+            $text = trim(str_replace('!', '', $answer));
             if (empty($text) || mb_strlen($text) <= 2) {
-                $this->sendAutoreplyText($waNumber, "Halo {$sapaan}! 😊");
+                $this->sendAutoreplyText($waNumber, "Halo {$sapaan} 😊");
                 return;
             }
 
@@ -629,7 +674,7 @@ class WAReplies
             if (class_exists('\Log')) {
                 \Log::write("handlePembuka ERROR: " . $e->getMessage(), 'wa_error', 'Pembuka');
             }
-            $this->sendAutoreplyText($waNumber, "Halo {$sapaan}! 😊");
+            $this->sendAutoreplyText($waNumber, "Halo {$sapaan} 😊");
         }
     }
 
@@ -640,36 +685,54 @@ class WAReplies
     private function handlePenutup($phoneIn, $waNumber, $textBody = '')
     {
         $textLower = trim(strtolower($textBody ?? ''));
+        $textTrimmed = trim($textBody ?? '');
+
+        // Regex quick path: reaction (Reacted: 👍) atau emoji saja (👍 ❤️ 😊) -> balas emoji ramah saja
+        if (preg_match('/^reacted\s*:?\s*.+$/i', $textTrimmed)) {
+            $this->sendAutoreplyText($waNumber, '😊');
+            return;
+        }
+        if (mb_strlen($textTrimmed) <= 6 && preg_match('/^[^\p{L}\p{N}]+$/u', $textTrimmed) && $textTrimmed !== '') {
+            $this->sendAutoreplyText($waNumber, '😊');
+            return;
+        }
+
         $contactName = $this->getContactNameForGreeting($waNumber);
         $sapaan = $this->getSapaanFromName($contactName);
 
         // Regex quick path: terimakasih/makasih (termasuk "oke makasih kak", "ok makasih") -> sama-sama (sesuai sapaan)
         if (preg_match('/^(terima\s*kasih|terimakasih|makasih|mksh|thanks|thx|tq)(\s+(kak|bang|pak|bu))?\s*[.!]?$/i', $textLower)
             || preg_match('/^(ok|oke)\s*[,.]?\s*(makasih|terimakasih|thanks|thx)(\s+(kak|bang|pak|bu))?\s*[.!]?$/i', $textLower)) {
-            $this->sendAutoreplyText($waNumber, "Sama-sama {$sapaan}! 😊");
+            $this->sendAutoreplyText($waNumber, "Sama-sama {$sapaan} 😊");
+            return;
+        }
+
+        // Regex quick path: gpp/gak apa-apa (acknowledgment singkat) -> balas emoji ramah saja
+        if (preg_match('/^(gpp|gak\s*apa\s*apa|ga\s*apa\s*apa)(\s+(kak|bang|pak|bu))?\s*[.\s]*$/i', $textLower)) {
+            $this->sendAutoreplyText($waNumber, '😊');
             return;
         }
 
         // Regex quick path: ok/baik/siap (acknowledgment) tanpa jemput/antar
         if (preg_match('/^(ok|oke|baik|sip|siap)(\s+deh)?\s*[.!]?$/i', $textLower) && !preg_match('/jemput|antar|ambil/i', $textLower)) {
-            $this->sendAutoreplyText($waNumber, "Siap {$sapaan}! 😊");
+            $this->sendAutoreplyText($waNumber, "Siap {$sapaan} 😊");
             return;
         }
 
         $sapaanHint = $contactName !== ''
-            ? "Nama customer: \"{$contactName}\". Analisa nama untuk pilih sapaan: pak/bu (nama dewasa jelas), kak/kakak/bang (nama muda/umum). Jika nama membingungkan, pakai kak/kakak."
+            ? "Nama customer: \"{$contactName}\". Aturan sapaan: HANYA jika nama mengandung ibu/bu -> pakai bu. HANYA jika nama mengandung pak/bapak/bpk -> pakai pak. Jika TIDAK mengandung itu, pakai kak/kakak/bg/bang."
             : "Nama customer tidak tersedia. Pakai sapaan kak/kakak.";
 
         try {
             if (!class_exists('\\App\\Config\\AI') || !\App\Config\AI::isEnabled()) {
-                $this->sendAutoreplyText($waNumber, "Siap {$sapaan}! 😊");
+                $this->sendAutoreplyText($waNumber, "Siap {$sapaan} 😊");
                 return;
             }
 
             $messages = [
                 [
                     'role' => 'system',
-                    'content' => "Kamu adalah customer service Madinah Laundry. Balas penutup/acknowledgment dari customer.\n\nCRITICAL - SINGKAT & SANTAI:\n- Balas PENDEK (max 1 kalimat, 5-8 kata). Jangan formal. Santai tapi ramah.\n- Contoh singkat: \"Sama-sama kak!\" \"Siap bu!\" \"Oke, ditunggu ya\"\n- JANGAN kalimat panjang seperti \"Terima kasih atas kepercayaannya, semoga harinya menyenangkan\" - terlalu formal.\n- JANGAN pakai singkatan 'mk' atau 'mksh' - aneh dan tidak umum.\n\nJENIS PENUTUP:\n1. Terimakasih/makasih/thanks (termasuk \"oke makasih\", \"ok makasih\") -> balas SESUAI NAMA: sama-sama bang/bu/kak, terimakasih juga pak. JANGAN balas \"Siap, mk!\" atau \"Siap, mksh!\" - itu salah konteks.\n2. Ok/baik/siap (acknowledgment) -> balas \"Siap!\" atau \"Oke!\" - singkat\n3. Konfirmasi transfer -> \"Siap kak\" atau \"Oke, terima kasih\"\n4. Pemberitahuan jemput/antar -> \"Siap, ditunggu ya\" atau \"Oke ditunggu\"\n5. Keluhan/feedback -> \"Terima kasih masukannya kak, siap kami perbaiki\"\n\nPENTING:\n- Gunakan pak/bu/kak/bang dari nama. JANGAN sebut nama. JANGAN kata 'Anda'.\n- Santai, tidak formal, tetap ramah. JANGAN pakai 'mk' atau 'mksh'."
+                    'content' => "Kamu adalah customer service Madinah Laundry. Balas penutup/acknowledgment dari customer.\n\nCRITICAL - SINGKAT & SANTAI:\n- Balas PENDEK (max 1 kalimat, 5-8 kata). Jangan formal. Santai tapi ramah.\n- Contoh singkat: \"Sama-sama kak\" \"Siap bu\" \"Oke\"\n- JANGAN kalimat panjang. JANGAN pakai tanda seru (!). JANGAN pakai singkatan 'mk' atau 'mksh'.\n- JANGAN PERNAH gunakan kata \"ditunggu\" atau \"di tunggu\" atau \"ditunggu ya\" - HILANGKAN dari semua balasan.\n\nJENIS PENUTUP:\n1. Terimakasih/makasih/thanks -> balas SESUAI NAMA: sama-sama bang/bu/kak, terimakasih juga pak.\n2. Ok/baik/siap (acknowledgment) -> balas \"Siap\" atau \"Oke\" - singkat\n3. Konfirmasi transfer -> \"Siap kak\" atau \"Oke, terima kasih\"\n4. Pemberitahuan jemput/antar (nanti saya jemput, aku ambil) -> balas \"Siap\" atau \"Oke\" - JANGAN \"ditunggu ya\"\n5. Keluhan/feedback -> \"Terima kasih masukannya kak, siap kami perbaiki\"\n\nPENTING:\n- Sapaan: HANYA jika nama ada ibu/bu -> bu. HANYA jika nama ada pak/bapak/bpk -> pak. Jika tidak, pakai kak/kakak/bg/bang. JANGAN sebut nama. JANGAN kata 'Anda'.\n- JANGAN pakai \"ditunggu\" / \"di tunggu\" / \"ditunggu ya\" dalam bentuk apapun.\n- JANGAN pakai tanda seru (!).\n- Jika RAGU atau tidak yakin apa yang harus dibalas (misal: gpp kak, gak apa-apa), balas HANYA emoji ramah saja: 😊 atau 👍"
                 ],
                 [
                     'role' => 'user',
@@ -678,10 +741,16 @@ class WAReplies
             ];
 
             $answer = $this->executeOpenAIRequestWithMessages($messages, 100);
-            $text = trim($answer);
+            $text = trim(str_replace('!', '', $answer));
             if (empty($text) || mb_strlen($text) <= 2) {
-                $this->sendAutoreplyText($waNumber, "Siap {$sapaan}! 😊");
+                $this->sendAutoreplyText($waNumber, "Siap {$sapaan} 😊");
                 return;
+            }
+            // Hilangkan "ditunggu ya" / "di tunggu" jika AI tetap mengeluarkan
+            $text = preg_replace('/,?\s*(di\s*)?tunggu\s*(ya\s*)?(kak|bang|pak|bu)?\s*[.!]?/i', '', $text);
+            $text = trim(preg_replace('/\s+/', ' ', $text));
+            if ($text === '' || $text === ',') {
+                $text = "Siap {$sapaan} 😊";
             }
 
             $this->sendAutoreplyText($waNumber, $text);
@@ -689,7 +758,7 @@ class WAReplies
             if (class_exists('\Log')) {
                 \Log::write("handlePenutup ERROR: " . $e->getMessage(), 'wa_error', 'Penutup');
             }
-            $this->sendAutoreplyText($waNumber, "Siap {$sapaan}! 😊");
+            $this->sendAutoreplyText($waNumber, "Siap {$sapaan} 😊");
         }
     }
 
