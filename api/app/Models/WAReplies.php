@@ -135,6 +135,18 @@ class WAReplies
     }
 
     /**
+     * Ambil sapaan (pak/bu/kak) dari nama untuk quick reply regex.
+     */
+    private function getSapaanFromName($contactName)
+    {
+        $n = strtolower(trim($contactName ?? ''));
+        if ($n === '') return 'kak';
+        if (preg_match('/^(ibu|bu)\s+/', $n) || preg_match('/\b(ibu|bu)\s+/', $n)) return 'bu';
+        if (preg_match('/^(bapak|pak)\s+/', $n) || preg_match('/\b(bapak|pak)\s+/', $n)) return 'pak';
+        return 'kak';
+    }
+
+    /**
      * Kirim balasan salam/sapaan dulu jika pesan mengandung sapaan + intent lain.
      * Dipanggil sebelum handler lain (STATUS, dll) agar intent dijalankan satu per satu: PEMBUKA dulu, baru handler lain.
      * @return bool True jika sudah mengirim greeting
@@ -151,9 +163,10 @@ class WAReplies
         if (!$hasGreeting || !$hasOtherIntent) {
             return false;
         }
+        $contactName = $this->getContactNameForGreeting($waNumber);
+        $sapaan = $this->getSapaanFromName($contactName);
         $isSalam = preg_match('/assalamu|asalamu|salam\b/i', $textLower);
-        $suffix = preg_match('/\b(kak|bang|pak|bu|dek)\b/i', $textLower) ? ' kak!' : '!';
-        $reply = $isSalam ? "Waalaikumsalam" . $suffix : (preg_match('/pagi/i', $textLower) ? "Pagi" . $suffix : (preg_match('/siang/i', $textLower) ? "Siang" . $suffix : (preg_match('/sore/i', $textLower) ? "Sore" . $suffix : (preg_match('/malam/i', $textLower) ? "Malam" . $suffix : "Halo" . $suffix))));
+        $reply = $isSalam ? "Waalaikumsalam {$sapaan}!" : (preg_match('/pagi/i', $textLower) ? "Pagi {$sapaan}!" : (preg_match('/siang/i', $textLower) ? "Siang {$sapaan}!" : (preg_match('/sore/i', $textLower) ? "Sore {$sapaan}!" : (preg_match('/malam/i', $textLower) ? "Malam {$sapaan}!" : "Halo {$sapaan}!"))));
         $this->sendAutoreplyText($waNumber, $reply);
         return true;
     }
@@ -549,16 +562,47 @@ class WAReplies
     private function handlePembuka($phoneIn, $waNumber, $textBody = '')
     {
         $textLower = strtolower(trim($textBody ?? ''));
+        $textStripped = preg_replace('/[\s\x{200B}-\x{200D}\x{FEFF}]/u', '', $textLower);
+        $len = mb_strlen($textStripped);
         $hasOtherIntent = preg_match('/siap|dah|udah|bisa|jemput|antar|berapa|harga|transfer|bayar/i', $textLower) && mb_strlen($textLower) > 15;
 
         $contactName = $this->getContactNameForGreeting($waNumber);
+        $sapaan = $this->getSapaanFromName($contactName);
+
+        // Regex quick path: pesan singkat (P, ., 1-2 huruf) -> singkat & santai
+        if ($len <= 2 || preg_match('/^[\.\,\!\?\-\s]+$/u', $textStripped)) {
+            $haloShort = ["Halo {$sapaan}, ada yang bisa dibantu? 😊", "Halo {$sapaan}! 😊"];
+            $this->sendAutoreplyText($waNumber, $haloShort[array_rand($haloShort)]);
+            return;
+        }
+
+        // Regex quick path: sapaan + intent lain -> salam singkat lalu trigger handler lain
+        if ($hasOtherIntent) {
+            $isSalam = preg_match('/assalamu|asalamu|salam\b/i', $textLower);
+            $reply = $isSalam ? "Waalaikumsalam {$sapaan}!" : (preg_match('/pagi/i', $textLower) ? "Pagi {$sapaan}!" : (preg_match('/siang|sore|malam/i', $textLower) ? "Siang {$sapaan}!" : "Halo {$sapaan}!"));
+            $this->sendAutoreplyText($waNumber, $reply);
+            $keywordConfig = require __DIR__ . '/../Config/AutoReplyKeywords.php';
+            unset($keywordConfig['PEMBUKA']);
+            $aiResult = $this->handleWithAI($phoneIn, $textBody, $waNumber, $keywordConfig);
+            if ($aiResult && isset($aiResult['intent']) && strtoupper($aiResult['intent']) !== 'FALSE') {
+                $aiIntent = strtoupper($aiResult['intent']);
+                $handlerName = ucwords(strtolower($aiIntent), '_');
+                $methodName = 'handle' . $handlerName;
+                if (method_exists($this, $methodName) && $methodName !== 'handlePembuka') {
+                    $this->currentHandler = $aiIntent;
+                    $this->$methodName($phoneIn, $waNumber, $textBody);
+                }
+            }
+            return;
+        }
+
         $sapaanHint = $contactName !== ''
             ? "Nama customer: \"{$contactName}\". Analisa nama untuk pilih sapaan: pak/bu (nama dewasa jelas), kak/kakak/bang (nama muda/umum). Jika nama membingungkan, pakai kak/kakak."
             : "Nama customer tidak tersedia. Pakai sapaan kak/kakak.";
 
         try {
             if (!class_exists('\\App\\Config\\AI') || !\App\Config\AI::isEnabled()) {
-                $this->sendAutoreplyText($waNumber, "Halo 😊");
+                $this->sendAutoreplyText($waNumber, "Halo {$sapaan}! 😊");
                 return;
             }
 
@@ -576,32 +620,16 @@ class WAReplies
             $answer = $this->executeOpenAIRequestWithMessages($messages, 120);
             $text = trim($answer);
             if (empty($text) || mb_strlen($text) <= 2) {
-                $this->sendAutoreplyText($waNumber, "Halo 😊");
+                $this->sendAutoreplyText($waNumber, "Halo {$sapaan}! 😊");
                 return;
             }
 
             $this->sendAutoreplyText($waNumber, $text);
-
-            // Jika ada intent lain (status, jemput, dll), trigger handler untuk jawab pertanyaannya
-            if ($hasOtherIntent) {
-                $keywordConfig = require __DIR__ . '/../Config/AutoReplyKeywords.php';
-                unset($keywordConfig['PEMBUKA']);
-                $aiResult = $this->handleWithAI($phoneIn, $textBody, $waNumber, $keywordConfig);
-                if ($aiResult && isset($aiResult['intent']) && strtoupper($aiResult['intent']) !== 'FALSE') {
-                    $aiIntent = strtoupper($aiResult['intent']);
-                    $handlerName = ucwords(strtolower($aiIntent), '_');
-                    $methodName = 'handle' . $handlerName;
-                    if (method_exists($this, $methodName) && $methodName !== 'handlePembuka') {
-                        $this->currentHandler = $aiIntent;
-                        $this->$methodName($phoneIn, $waNumber, $textBody);
-                    }
-                }
-            }
         } catch (\Exception $e) {
             if (class_exists('\Log')) {
                 \Log::write("handlePembuka ERROR: " . $e->getMessage(), 'wa_error', 'Pembuka');
             }
-            $this->sendAutoreplyText($waNumber, "Halo 😊");
+            $this->sendAutoreplyText($waNumber, "Halo {$sapaan}! 😊");
         }
     }
 
@@ -611,14 +639,29 @@ class WAReplies
      */
     private function handlePenutup($phoneIn, $waNumber, $textBody = '')
     {
+        $textLower = trim(strtolower($textBody ?? ''));
         $contactName = $this->getContactNameForGreeting($waNumber);
+        $sapaan = $this->getSapaanFromName($contactName);
+
+        // Regex quick path: terimakasih/makasih -> sama-sama (sesuai sapaan)
+        if (preg_match('/^(terima\s*kasih|terimakasih|makasih|mksh|thanks|thx|tq)\s*[.!]?$/i', $textLower)) {
+            $this->sendAutoreplyText($waNumber, "Sama-sama {$sapaan}! 😊");
+            return;
+        }
+
+        // Regex quick path: ok/baik/siap (acknowledgment) tanpa jemput/antar
+        if (preg_match('/^(ok|oke|baik|sip|siap)(\s+deh)?\s*[.!]?$/i', $textLower) && !preg_match('/jemput|antar|ambil/i', $textLower)) {
+            $this->sendAutoreplyText($waNumber, "Siap {$sapaan}! 😊");
+            return;
+        }
+
         $sapaanHint = $contactName !== ''
             ? "Nama customer: \"{$contactName}\". Analisa nama untuk pilih sapaan: pak/bu (nama dewasa jelas), kak/kakak/bang (nama muda/umum). Jika nama membingungkan, pakai kak/kakak."
             : "Nama customer tidak tersedia. Pakai sapaan kak/kakak.";
 
         try {
             if (!class_exists('\\App\\Config\\AI') || !\App\Config\AI::isEnabled()) {
-                $this->sendAutoreplyText($waNumber, "Siap 😊");
+                $this->sendAutoreplyText($waNumber, "Siap {$sapaan}! 😊");
                 return;
             }
 
@@ -636,7 +679,7 @@ class WAReplies
             $answer = $this->executeOpenAIRequestWithMessages($messages, 100);
             $text = trim($answer);
             if (empty($text) || mb_strlen($text) <= 2) {
-                $this->sendAutoreplyText($waNumber, "Siap 😊");
+                $this->sendAutoreplyText($waNumber, "Siap {$sapaan}! 😊");
                 return;
             }
 
@@ -645,7 +688,7 @@ class WAReplies
             if (class_exists('\Log')) {
                 \Log::write("handlePenutup ERROR: " . $e->getMessage(), 'wa_error', 'Penutup');
             }
-            $this->sendAutoreplyText($waNumber, "Siap 😊");
+            $this->sendAutoreplyText($waNumber, "Siap {$sapaan}! 😊");
         }
     }
 
