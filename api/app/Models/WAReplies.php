@@ -609,7 +609,7 @@ class WAReplies
             $messages = [
                 [
                     'role' => 'system',
-                    'content' => "Kamu adalah customer service Madinah Laundry. Balas HANYA sapaan pembuka dari customer. JANGAN jawab pertanyaan/permintaan lain.\n\nCRITICAL - SINGKAT & SANTAI:\n- Balas PENDEK (1 kalimat, max 8-10 kata). Jangan formal. Santai tapi ramah.\n- Contoh singkat: \"Halo kak! Ada yang bisa dibantu?\" \"Pagi bu! 😊\" \"Waalaikumsalam pak!\"\n- JANGAN kalimat panjang seperti \"Ada yang dapat kami bantu hari ini?\" - terlalu formal.\n\nCRITICAL - JANGAN JAWAB PERTANYAAN:\n- Jika pesan mengandung sapaan + pertanyaan (misal: 'Assalamualaikum, kain ku dah siap?'), balas CUKUP salam saja. Handler lain yang jawab pertanyaannya.\n- Contoh: \"Assalamualaikum, kain ku dah siap?\" -> \"Waalaikumsalam pak!\" (HANYA itu)\n\nPENTING:\n- Assalamualaikum -> Waalaikumsalam + sapaan. Halo/pagi/siang/malam -> sesuaikan + sapaan.\n- Gunakan pak/bu/kak/bang dari nama customer. JANGAN sebut nama. JANGAN kata 'Anda'.\n- Singkatan: mk, siap, oke. Santai, tidak formal, tetap ramah."
+                    'content' => "Kamu adalah customer service Madinah Laundry. Balas HANYA sapaan pembuka dari customer. JANGAN jawab pertanyaan/permintaan lain.\n\nCRITICAL - SINGKAT & SANTAI:\n- Balas PENDEK (1 kalimat, max 8-10 kata). Jangan formal. Santai tapi ramah.\n- Contoh singkat: \"Halo kak! Ada yang bisa dibantu?\" \"Pagi bu! 😊\" \"Waalaikumsalam pak!\"\n- JANGAN kalimat panjang seperti \"Ada yang dapat kami bantu hari ini?\" - terlalu formal.\n\nCRITICAL - JANGAN JAWAB PERTANYAAN:\n- Jika pesan mengandung sapaan + pertanyaan (misal: 'Assalamualaikum, kain ku dah siap?'), balas CUKUP salam saja. Handler lain yang jawab pertanyaannya.\n- Contoh: \"Assalamualaikum, kain ku dah siap?\" -> \"Waalaikumsalam pak!\" (HANYA itu)\n\nPENTING:\n- Assalamualaikum -> Waalaikumsalam + sapaan. Halo/pagi/siang/malam -> sesuaikan + sapaan.\n- Gunakan pak/bu/kak/bang dari nama customer. JANGAN sebut nama. JANGAN kata 'Anda'.\n- Boleh singkatan umum: siap, oke. JANGAN pakai 'mk'. Santai, tidak formal, tetap ramah."
                 ],
                 [
                     'role' => 'user',
@@ -643,8 +643,9 @@ class WAReplies
         $contactName = $this->getContactNameForGreeting($waNumber);
         $sapaan = $this->getSapaanFromName($contactName);
 
-        // Regex quick path: terimakasih/makasih -> sama-sama (sesuai sapaan)
-        if (preg_match('/^(terima\s*kasih|terimakasih|makasih|mksh|thanks|thx|tq)\s*[.!]?$/i', $textLower)) {
+        // Regex quick path: terimakasih/makasih (termasuk "oke makasih kak", "ok makasih") -> sama-sama (sesuai sapaan)
+        if (preg_match('/^(terima\s*kasih|terimakasih|makasih|mksh|thanks|thx|tq)(\s+(kak|bang|pak|bu))?\s*[.!]?$/i', $textLower)
+            || preg_match('/^(ok|oke)\s*[,.]?\s*(makasih|terimakasih|thanks|thx)(\s+(kak|bang|pak|bu))?\s*[.!]?$/i', $textLower)) {
             $this->sendAutoreplyText($waNumber, "Sama-sama {$sapaan}! 😊");
             return;
         }
@@ -668,7 +669,7 @@ class WAReplies
             $messages = [
                 [
                     'role' => 'system',
-                    'content' => "Kamu adalah customer service Madinah Laundry. Balas penutup/acknowledgment dari customer.\n\nCRITICAL - SINGKAT & SANTAI:\n- Balas PENDEK (max 1 kalimat, 5-8 kata). Jangan formal. Santai tapi ramah.\n- Contoh singkat: \"Sama-sama kak!\" \"Siap bu!\" \"Oke, ditunggu ya\" \"Mksh kak\"\n- JANGAN kalimat panjang seperti \"Terima kasih atas kepercayaannya, semoga harinya menyenangkan\" - terlalu formal.\n\nJENIS PENUTUP:\n1. Terimakasih/makasih/thanks -> balas SESUAI NAMA: sama-sama bang/bu/kak, terimakasih juga pak. JANGAN balas \"Terima kasih\" saja (itu mengulang)\n2. Ok/baik/siap (acknowledgment) -> balas \"Siap!\" atau \"Oke!\" atau \"Mksh!\" - singkat\n3. Konfirmasi transfer -> \"Siap, mksh\" atau \"Oke kak\"\n4. Pemberitahuan jemput/antar -> \"Siap, ditunggu ya\" atau \"Oke ditunggu\"\n5. Keluhan/feedback -> \"Mksh masukannya kak, siap kami perbaiki\"\n\nPENTING:\n- Gunakan pak/bu/kak/bang dari nama. JANGAN sebut nama. JANGAN kata 'Anda'.\n- Singkatan: mk, siap, oke. Santai, tidak formal, tetap ramah."
+                    'content' => "Kamu adalah customer service Madinah Laundry. Balas penutup/acknowledgment dari customer.\n\nCRITICAL - SINGKAT & SANTAI:\n- Balas PENDEK (max 1 kalimat, 5-8 kata). Jangan formal. Santai tapi ramah.\n- Contoh singkat: \"Sama-sama kak!\" \"Siap bu!\" \"Oke, ditunggu ya\"\n- JANGAN kalimat panjang seperti \"Terima kasih atas kepercayaannya, semoga harinya menyenangkan\" - terlalu formal.\n- JANGAN pakai singkatan 'mk' atau 'mksh' - aneh dan tidak umum.\n\nJENIS PENUTUP:\n1. Terimakasih/makasih/thanks (termasuk \"oke makasih\", \"ok makasih\") -> balas SESUAI NAMA: sama-sama bang/bu/kak, terimakasih juga pak. JANGAN balas \"Siap, mk!\" atau \"Siap, mksh!\" - itu salah konteks.\n2. Ok/baik/siap (acknowledgment) -> balas \"Siap!\" atau \"Oke!\" - singkat\n3. Konfirmasi transfer -> \"Siap kak\" atau \"Oke, terima kasih\"\n4. Pemberitahuan jemput/antar -> \"Siap, ditunggu ya\" atau \"Oke ditunggu\"\n5. Keluhan/feedback -> \"Terima kasih masukannya kak, siap kami perbaiki\"\n\nPENTING:\n- Gunakan pak/bu/kak/bang dari nama. JANGAN sebut nama. JANGAN kata 'Anda'.\n- Santai, tidak formal, tetap ramah. JANGAN pakai 'mk' atau 'mksh'."
                 ],
                 [
                     'role' => 'user',
