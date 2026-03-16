@@ -10,6 +10,8 @@ class WAReplies
     private $noRegisterText = 'Mohon Maaf, nomor Anda belum terdaftar di Madinah Laundry. Terima kasih';
     /** @var string|null Nama handler saat ini (untuk log saat send gagal) */
     private $currentHandler = null;
+    /** @var string|null Nama contact dari process() untuk sapaan AI (pak/bu/kak) */
+    private $currentContactName = null;
     /** @var object|null Custom sender (FonnteReplyAdapter) - bila set, pakai ini instead of YCloud */
     private $customSender = null;
 
@@ -116,6 +118,23 @@ class WAReplies
     }
 
     /**
+     * Ambil nama contact untuk sapaan AI (pak/bu/kak/bang).
+     * Prioritas: currentContactName dari process(), lalu wa_conversations.contact_name.
+     * @param string $waNumber Nomor WhatsApp
+     * @return string Nama atau kosong (AI pakai kak jika kosong/membingungkan)
+     */
+    private function getContactNameForGreeting($waNumber)
+    {
+        $name = trim($this->currentContactName ?? '');
+        if ($name !== '') {
+            return $name;
+        }
+        $db = DB::getInstance(0);
+        $conv = $db->get_where('wa_conversations', ['wa_number' => $waNumber])->row();
+        return $conv ? trim($conv->contact_name ?? '') : '';
+    }
+
+    /**
      * Kirim balasan salam/sapaan dulu jika pesan mengandung sapaan + intent lain.
      * Dipanggil sebelum handler lain (STATUS, dll) agar intent dijalankan satu per satu: PEMBUKA dulu, baru handler lain.
      * @return bool True jika sudah mengirim greeting
@@ -149,6 +168,7 @@ class WAReplies
      */
     public function process($phoneIn, $textBody, $waNumber, $contactName = null, $assigned_user_id = null, $code = null, $lastMessage = null, $cust_id = null)
     {
+        $this->currentContactName = $contactName;
         // Strip WhatsApp formatters: * (bold), _ (italic), ~ (strikethrough), ` (monospace)
         $textBodyToCheck = preg_replace('/[*_~`]/', '', $textBody ?? '');
         // Strip quote prefix (> at start of line)
@@ -575,14 +595,19 @@ class WAReplies
                 return;
             }
 
+            $contactName = $this->getContactNameForGreeting($waNumber);
+            $sapaanHint = $contactName !== ''
+                ? "Nama customer: \"{$contactName}\". Analisa nama untuk pilih sapaan: pak/bu (nama dewasa jelas), kak/kakak/bang (nama muda/umum). Jika nama membingungkan atau tidak jelas, pakai kak/kakak."
+                : "Nama customer tidak tersedia. Pakai sapaan kak/kakak.";
+
             $messages = [
                 [
                     'role' => 'system',
-                    'content' => "Kamu adalah customer service Madinah Laundry. Balas HANYA sapaan pembuka dari customer. JANGAN jawab pertanyaan/permintaan lain.\n\nCRITICAL - JANGAN JAWAB PERTANYAAN:\n- Jika pesan mengandung sapaan + pertanyaan/permintaan (misal: 'Assalamualaikum, kain ku dah siap?', 'pagi kak, bisa jemput?'), balas CUKUP salam/sapaan saja. JANGAN tulis tentang status, kain siap, jemput, harga, dll. Handler STATUS/ lain yang akan membalas pertanyaannya.\n- Contoh: \"Assalamualaikum, kain ku dah siap?\" -> \"Waalaikumsalam!\" atau \"Waalaikumsalam kak!\" (HANYA itu, tidak ada info status)\n- Contoh: \"pagi kak, bisa jemput?\" -> \"Pagi kak!\" atau \"Pagi juga kak!\" (HANYA itu)\n\nPENTING - WAJIB:\n- Assalamualaikum: balas Waalaikumsalam (atau Waalaikumussalam). Jika HANYA sapaan: tambah tawaran bantuan. Jika ada pertanyaan lain: JANGAN tambah apa-apa.\n- Sesuaikan balasan dengan sapaan (halo, pagi, siang, malam, kak, bang)\n- Maksimal 1-2 kalimat. Singkat.\n- Boleh emoji secukupnya (😊 🙏)"
+                    'content' => "Kamu adalah customer service Madinah Laundry. Balas HANYA sapaan pembuka dari customer. JANGAN jawab pertanyaan/permintaan lain.\n\nCRITICAL - JANGAN JAWAB PERTANYAAN:\n- Jika pesan mengandung sapaan + pertanyaan/permintaan (misal: 'Assalamualaikum, kain ku dah siap?', 'pagi kak, bisa jemput?'), balas CUKUP salam/sapaan saja. JANGAN tulis tentang status, kain siap, jemput, harga, dll. Handler STATUS/ lain yang akan membalas pertanyaannya.\n- Contoh: \"Assalamualaikum, kain ku dah siap?\" -> \"Waalaikumsalam!\" atau \"Waalaikumsalam kak!\" (HANYA itu, tidak ada info status)\n- Contoh: \"pagi kak, bisa jemput?\" -> \"Pagi kak!\" atau \"Pagi juga kak!\" (HANYA itu)\n\nPENTING - WAJIB:\n- Assalamualaikum: balas Waalaikumsalam (atau Waalaikumussalam). Jika HANYA sapaan: tambah tawaran bantuan. Jika ada pertanyaan lain: JANGAN tambah apa-apa.\n- Sesuaikan balasan dengan sapaan (halo, pagi, siang, malam, kak, bang)\n- Maksimal 1-2 kalimat. Singkat.\n- Boleh emoji secukupnya (😊 🙏)\n\nCRITICAL - SAPAAN:\n- Gunakan pak/bu/kak/kakak/bang berdasarkan analisa nama customer. JANGAN sebut nama customer di balasan.\n- JANGAN PERNAH gunakan kata 'Anda'. Ganti dengan pak/bu/kak/bang.\n\nGAYA CHAT:\n- Singkatkan kata agar terlihat seperti chat manusia: mk/mksh (makasih), siap/sip, oke/ok, gpp (gak papa), dll. Hindari kalimat formal panjang.\n- Jangan terlalu formal. Santai tapi tetap ramah."
                 ],
                 [
                     'role' => 'user',
-                    'content' => "Pesan pembuka dari customer: \"{$textBody}\"\n\nBalas sebagai CS laundry. Singkat dan ramah."
+                    'content' => "{$sapaanHint}\n\nPesan pembuka dari customer: \"{$textBody}\"\n\nBalas sebagai CS laundry. Singkat seperti chat manusia (boleh singkatan: mk, siap, oke). JANGAN sebut nama customer."
                 ]
             ];
 
@@ -624,14 +649,19 @@ class WAReplies
                 return;
             }
 
+            $contactName = $this->getContactNameForGreeting($waNumber);
+            $sapaanHint = $contactName !== ''
+                ? "Nama customer: \"{$contactName}\". Analisa nama untuk pilih sapaan: pak/bu (nama dewasa jelas), kak/kakak/bang (nama muda/umum). Jika nama membingungkan atau tidak jelas, pakai kak/kakak."
+                : "Nama customer tidak tersedia. Pakai sapaan kak/kakak.";
+
             $messages = [
                 [
                     'role' => 'system',
-                    'content' => "Kamu adalah customer service Madinah Laundry. Balas penutup/acknowledgment dari customer dengan ramah dan sesuai konteks.\n\nJENIS PENUTUP:\n1. Ucapan terima kasih (makasih, thanks) -> balas sama-sama, terima kasih kembali\n2. Konfirmasi singkat/acknowledgment (ok deh, ok, baik, siap, oke) -> balas \"Terima kasih!\" atau \"Siap!\" atau \"Baik, sama-sama!\" - JANGAN balas \"ditunggu\"\n3. Konfirmasi jadwal (ok dijemput, baik nanti diantar) -> balas terima kasih, konfirmasi siap melayani\n4. KONFIRMASI PEMBAYARAN/TRANSFER (sudah transfer, telah mengirimkan ke rekening) -> balas singkat \"baik, terima kasih\"\n5. Pemberitahuan akan jemput/antar (nanti saya jemput, aku ambil nanti, akan saya antar, mau jemput) -> balas \"baik, ditunggu\" atau \"siap, ditunggu ya\"\n\nCRITICAL - JANGAN SALAH:\n- \"Ok deh\" / \"Ok\" / \"Baik\" / \"Siap\" (tanpa kata jemput/antar/ambil) = acknowledgment biasa -> balas \"Terima kasih!\" atau \"Siap!\" - BUKAN \"Baik, ditunggu ya\"\n- \"Baik, ditunggu ya\" HANYA untuk pesan yang eksplisit menyebut jemput/antar/ambil (misal: nanti saya jemput, aku ambil)\n- Maksimal 2 kalimat, singkat"
+                    'content' => "Kamu adalah customer service Madinah Laundry. Balas penutup/acknowledgment dari customer dengan ramah dan sesuai konteks.\n\nJENIS PENUTUP:\n1. Ucapan terima kasih (makasih, thanks) -> balas sama-sama, terima kasih kembali\n2. Konfirmasi singkat/acknowledgment (ok deh, ok, baik, siap, oke) -> balas \"Terima kasih!\" atau \"Siap!\" atau \"Baik, sama-sama!\" - JANGAN balas \"ditunggu\"\n3. Konfirmasi jadwal (ok dijemput, baik nanti diantar) -> balas terima kasih, konfirmasi siap melayani\n4. KONFIRMASI PEMBAYARAN/TRANSFER (sudah transfer, telah mengirimkan ke rekening) -> balas singkat \"baik, terima kasih\"\n5. Pemberitahuan akan jemput/antar (nanti saya jemput, aku ambil nanti, akan saya antar, mau jemput) -> balas \"baik, ditunggu\" atau \"siap, ditunggu ya\"\n6. Keluhan/feedback (tolong perhatikan, jangan asal gosok, dll) -> balas terima kasih atas masukan, siap diperbaiki\n\nCRITICAL - JANGAN SALAH:\n- \"Ok deh\" / \"Ok\" / \"Baik\" / \"Siap\" (tanpa kata jemput/antar/ambil) = acknowledgment biasa -> balas \"Terima kasih!\" atau \"Siap!\" - BUKAN \"Baik, ditunggu ya\"\n- \"Baik, ditunggu ya\" HANYA untuk pesan yang eksplisit menyebut jemput/antar/ambil (misal: nanti saya jemput, aku ambil)\n- Maksimal 2 kalimat, singkat\n\nCRITICAL - SAPAAN:\n- JANGAN PERNAH gunakan kata 'Anda'. Ganti dengan pak/bu/kak/bang sesuai nama customer.\n- JANGAN sebut nama customer di balasan.\n\nGAYA CHAT:\n- Singkatkan kata agar terlihat seperti chat manusia: mk/mksh (makasih), siap/sip, oke/ok, gpp (gak papa), ditunggu ya, dll. Hindari kalimat formal panjang.\n- Jangan terlalu formal. Santai tapi tetap ramah."
                 ],
                 [
                     'role' => 'user',
-                    'content' => "Pesan penutup dari customer: \"{$textBody}\"\n\nBalas sebagai CS laundry. PENTING: Jika pesan hanya 'ok deh', 'ok', 'baik', 'siap' (acknowledgment biasa) -> balas 'Terima kasih!' atau 'Siap!' - JANGAN 'Baik, ditunggu ya'. 'Ditunggu' hanya untuk pemberitahuan jemput/antar."
+                    'content' => "{$sapaanHint}\n\nPesan penutup dari customer: \"{$textBody}\"\n\nBalas sebagai CS laundry. Singkat seperti chat manusia (boleh singkatan: mk, siap, oke). PENTING: Jika pesan hanya 'ok deh', 'ok', 'baik', 'siap' (acknowledgment biasa) -> balas 'Terima kasih!' atau 'Siap!' - JANGAN 'Baik, ditunggu ya'. 'Ditunggu' hanya untuk pemberitahuan jemput/antar. JANGAN sebut nama customer."
                 ]
             ];
 
