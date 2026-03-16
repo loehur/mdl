@@ -12,6 +12,8 @@ class WAReplies
     private $currentHandler = null;
     /** @var string|null Nama contact dari process() untuk sapaan AI (pak/bu/kak) */
     private $currentContactName = null;
+    /** @var array Cache sapaan AI per nama (nama => kak/bang) untuk hindari panggilan berulang */
+    private $sapaanAiCache = [];
     /** @var object|null Custom sender (FonnteReplyAdapter) - bila set, pakai ini instead of YCloud */
     private $customSender = null;
 
@@ -135,8 +137,8 @@ class WAReplies
     }
 
     /**
-     * Ambil sapaan dari nama: pak/bu hanya jika nama mengandung ibu/bu atau pak/bapak/bpk.
-     * Jika tidak, gunakan kak/kakak/bg/bang.
+     * Ambil sapaan dari nama. Deteksi eksplisit: ibu/bu, bapak/pak, kak, bg/bang.
+     * Jika tidak jelas, AI pilih kak atau bang dari nama.
      */
     private function getSapaanFromName($contactName)
     {
@@ -144,7 +146,43 @@ class WAReplies
         if ($n === '') return 'kak';
         if (preg_match('/\b(ibu|bu)\b/', $n)) return 'bu';
         if (preg_match('/\b(bapak|pak|bpk)\b/', $n)) return 'pak';
-        return 'kak'; // default: kak/kakak/bg/bang (pakai kak)
+        if (preg_match('/\b(bg|bang)\b/', $n)) return 'bang';
+        if (preg_match('/\b(kak|kakak)\b/', $n)) return 'kak';
+
+        // Tidak ada yang cocok: AI identifikasi dari nama, pilih kak atau bang
+        $cacheKey = $n;
+        if (isset($this->sapaanAiCache[$cacheKey])) {
+            return $this->sapaanAiCache[$cacheKey];
+        }
+        $sapaan = $this->detectSapaanFromNameWithAI($n);
+        $this->sapaanAiCache[$cacheKey] = $sapaan;
+        return $sapaan;
+    }
+
+    /**
+     * AI pilih sapaan kak atau bang dari nama Indonesia.
+     * @return string 'kak' atau 'bang'
+     */
+    private function detectSapaanFromNameWithAI($contactName)
+    {
+        try {
+            if (!class_exists('\\App\\Config\\AI') || !\App\Config\AI::isEnabled()) {
+                return 'kak';
+            }
+            $firstName = trim(preg_split('/\s+/', $contactName, 2)[0] ?? '') ?: $contactName;
+            $messages = [
+                ['role' => 'system', 'content' => "Kamu classifier. Dari nama depan Indonesia, pilih sapaan: 'kak' (perempuan/neutral) atau 'bang' (laki-laki). Jawab HANYA satu kata: kak atau bang."],
+                ['role' => 'user', 'content' => "Nama: {$firstName}"],
+            ];
+            $answer = trim(strtolower($this->executeOpenAIRequestWithMessages($messages, 10)));
+            if ($answer === 'bang') return 'bang';
+            return 'kak';
+        } catch (\Exception $e) {
+            if (class_exists('\Log')) {
+                \Log::write("detectSapaanFromNameWithAI: " . $e->getMessage(), 'wa_replies', 'sapaan');
+            }
+            return 'kak';
+        }
     }
 
     /**
