@@ -254,6 +254,7 @@ return [
       FALSE (BUKAN PENUTUP) - CRITICAL:\n
       - Pemberitahuan user akan ambil/antar SENDIRI = BUKAN intent apapun: | akan menjemput | nanti saya jemput | nanti saya ambil | akan saya antar | nanti saya antar | akan mengambil | mau jemput | besok saya jemput | nanti saya antar |\n
       - KOMPLAIN/KELUHAN = BUKAN PENUTUP, biarkan CS manusia: | salah hitung | komplain | keluhan | ada salah | kurang bayar | kelebihan bayar | salah tagihan | salah total | salah jumlah |\n
+      - PERMINTAAN/INSTRUKSI = BUKAN PENUTUP, biarkan CS manusia: | bisa sy ambil | letak aj dikursi | letakkan di | taruh di | tolong letak | minta letak | saya ambil | aku jemput |\n
       \n
       FALSE jika:\n
       - CRITICAL: Pesan mengandung tanda tanya (?) = PERTANYAAN = BUKAN PENUTUP. Contoh: 'Berarti sudah masuk kak?' 'Apakah sudah siap?'\n

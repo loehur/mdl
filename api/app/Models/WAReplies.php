@@ -264,6 +264,29 @@ class WAReplies
         // Simpan config lengkap untuk akses case dan notify nanti
         $fullKeywordConfig = $keywordConfig;
 
+        // Permintaan/instruksi: jangan auto-reply, biarkan CS manusia yang merespon
+        $permintaanPatterns = [
+            '/\b(bisa|tolong|minta)\s*(sy|saya|aku)\s*(ambil|jemput)\b/i',
+            '/\b(sy|saya|aku)\s*(ambil|jemput)\b/i',
+            '/\bletak\s*(aj|aja)?\s*(di|di\s*kursi|dikursi)\b/i',
+            '/\bletakkan\s*(di|di\s*kursi)\b/i',
+            '/\btaruh\s*(aj|aja)?\s*(di)\b/i',
+            '/\bsimpan\s*(di|di\s*kursi)\b/i',
+            '/\b(tolong|minta)\s*letak/i',
+        ];
+        foreach ($permintaanPatterns as $pp) {
+            if (preg_match($pp, $textBodyToCheck)) {
+                $conversationId = $this->getOrCreateConversationWithCase(
+                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
+                );
+                return (object) [
+                    'case' => null,
+                    'notify' => true,
+                    'conversation_id' => $conversationId
+                ];
+            }
+        }
+
         // Komplain/keluhan: jangan auto-reply, biarkan CS manusia yang merespon
         $complaintPatterns = [
             '/\bsalah\s*hitung\b/i',
