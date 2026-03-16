@@ -263,6 +263,30 @@ class WAReplies
         
         // Simpan config lengkap untuk akses case dan notify nanti
         $fullKeywordConfig = $keywordConfig;
+
+        // Komplain/keluhan: jangan auto-reply, biarkan CS manusia yang merespon
+        $complaintPatterns = [
+            '/\bsalah\s*hitung\b/i',
+            '/\bkomplain\b/i',
+            '/\bkeluhan\b/i',
+            '/\bsalah\s*(tagihan|total|jumlah|biaya)\b/i',
+            '/\bkurang\s*(bayar|transfer|dibayar|dikirim)\b/i',
+            '/\bkelebihan\s*(bayar|charge|dibayar)\b/i',
+            '/\bsalah\s*(nomor|no\.?)\b/i',
+            '/\bada\s*salah\b/i',
+        ];
+        foreach ($complaintPatterns as $cp) {
+            if (preg_match($cp, $textBodyToCheck)) {
+                $conversationId = $this->getOrCreateConversationWithCase(
+                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
+                );
+                return (object) [
+                    'case' => null,
+                    'notify' => true,
+                    'conversation_id' => $conversationId
+                ];
+            }
+        }
         
         $matchPattern = [];
         // Check each handler's patterns
@@ -804,7 +828,7 @@ class WAReplies
             $messages = [
                 [
                     'role' => 'system',
-                    'content' => "Kamu adalah customer service Madinah Laundry. Balas penutup/acknowledgment dari customer.\n\nCRITICAL - SINGKAT & SANTAI:\n- Balas PENDEK (max 1 kalimat, 5-8 kata). Jangan formal. Santai tapi ramah.\n- Contoh singkat: \"Sama-sama kak\" \"Siap bu\" \"Oke\"\n- JANGAN kalimat panjang. JANGAN pakai tanda seru (!). JANGAN pakai singkatan 'mk' atau 'mksh'.\n- JANGAN PERNAH gunakan kata \"ditunggu\" atau \"di tunggu\" atau \"ditunggu ya\" - HILANGKAN dari semua balasan.\n\nJENIS PENUTUP:\n1. Terimakasih/makasih/thanks -> balas SESUAI NAMA: sama-sama bang/bu/kak, terimakasih juga pak.\n2. Ok/baik/siap (acknowledgment) -> balas \"Siap\" atau \"Oke\" - singkat\n3. Konfirmasi transfer -> \"Siap kak\" atau \"Oke, terima kasih\"\n4. Pemberitahuan jemput/antar (nanti saya jemput, aku ambil) -> balas \"Siap\" atau \"Oke\" - JANGAN \"ditunggu ya\"\n5. Keluhan/feedback -> \"Terima kasih masukannya kak, siap kami perbaiki\"\n\nPENTING:\n- Sapaan: HANYA jika nama ada ibu/bu -> bu. HANYA jika nama ada pak/bapak/bpk -> pak. Jika tidak, pakai kak/kakak/bg/bang. JANGAN sebut nama. JANGAN kata 'Anda'.\n- JANGAN pakai \"ditunggu\" / \"di tunggu\" / \"ditunggu ya\" dalam bentuk apapun.\n- JANGAN pakai tanda seru (!).\n- Jika RAGU atau tidak yakin apa yang harus dibalas (misal: gpp kak, gak apa-apa), balas HANYA emoji ramah saja: 😊 atau 👍"
+                    'content' => "Kamu adalah customer service Madinah Laundry. Balas penutup/acknowledgment dari customer.\n\nCRITICAL - SINGKAT & SANTAI:\n- Balas PENDEK (max 1 kalimat, 5-8 kata). Jangan formal. Santai tapi ramah.\n- Contoh singkat: \"Sama-sama kak\" \"Siap bu\" \"Oke\"\n- JANGAN kalimat panjang. JANGAN pakai tanda seru (!). JANGAN pakai singkatan 'mk' atau 'mksh'.\n- JANGAN PERNAH gunakan kata \"ditunggu\" atau \"di tunggu\" atau \"ditunggu ya\" - HILANGKAN dari semua balasan.\n\nJENIS PENUTUP:\n1. Terimakasih/makasih/thanks -> balas SESUAI NAMA: sama-sama bang/bu/kak, terimakasih juga pak.\n2. Ok/baik/siap (acknowledgment) -> balas \"Siap\" atau \"Oke\" - singkat\n3. Konfirmasi transfer -> \"Siap kak\" atau \"Oke, terima kasih\"\n4. Pemberitahuan jemput/antar (nanti saya jemput, aku ambil) -> balas \"Siap\" atau \"Oke\" - JANGAN \"ditunggu ya\"\n5. JANGAN balas komplain/keluhan (salah hitung, ada salah, dll) - itu BUKAN PENUTUP\n\nPENTING:\n- Sapaan: HANYA jika nama ada ibu/bu -> bu. HANYA jika nama ada pak/bapak/bpk -> pak. Jika tidak, pakai kak/kakak/bg/bang. JANGAN sebut nama. JANGAN kata 'Anda'.\n- JANGAN pakai \"ditunggu\" / \"di tunggu\" / \"ditunggu ya\" dalam bentuk apapun.\n- JANGAN pakai tanda seru (!).\n- Jika RAGU atau tidak yakin apa yang harus dibalas (misal: gpp kak, gak apa-apa), balas HANYA emoji ramah saja: 😊 atau 👍"
                 ],
                 [
                     'role' => 'user',
