@@ -12,6 +12,7 @@ return [
         'ai_prompt' => "User HANYA memberi sapaan awal singkat tanpa permintaan/isi pesan lain.\n
         Contoh: | halo | hai | ping | pagi | siang | malam | sore | kak | bang | pak | bu | assalamualaikum | assalamualaikum kak |\n
         PENTING: JIKA sapaan diikuti kalimat permintaan (misal: 'Bang, baju dulukan', 'Kak, jemput ya'), ini BUKAN PEMBUKA.\n
+        PENTING: Jika sapaan + permintaan bill/tagihan (bisa kirimkan bill, kirim tagihan, minta bill) = TAGIHAN, bukan PEMBUKA.\n
         CRITICAL: Pesan mengandung tanda tanya (?) = PERTANYAAN = BUKAN PEMBUKA. Contoh: 'Berarti sudah masuk kak?'"
     ],
 
@@ -49,11 +50,17 @@ return [
     'TAGIHAN' => [
         'patterns' => [
             '/^\s*(bill|tagihan)\s*$/i',
+            // Permintaan kirim bill/tagihan: "bisa kirimkan bill saya", "kirim tagihan", "minta bill"
+            '/\b(kirim|kirimkan|minta|tolong)\s*(bill|tagihan)\s*(saya|ku|punya)?/i',
+            '/\b(bisa|boleh)\s*(kirim|kirimkan)?\s*(bill|tagihan)/i',
+            '/\b(bill|tagihan)\s*(saya|ku|punya)?\s*(kirim|kirimkan)?/i',
         ],
-        'ai_prompt' => "User menanyakan TOTAL BIAYA/TAGIHAN laundry (jumlah uang yang harus dibayar), seperti:\n
+        'ai_prompt' => "User menanyakan TOTAL BIAYA/TAGIHAN laundry (jumlah uang yang harus dibayar) ATAU meminta dikirimkan bill/tagihan, seperti:\n
         | berapa total punya saya? | brapa total strika/cuci tadi? | totalnya berapa? | berapa tagihan? | berapa biaya laundry saya? |\n
         | total berapa kak? | brp total? | berapa total cuci? | berapa biayanya? |\n
-        Jika user bertanya 'berapa' + (total/biaya/tagihan) atau (total/biaya) + 'berapa' = TAGIHAN"
+        | bisa kirimkan bill saya | halo kak bisa kirimkan bill saya | kirim tagihan | minta bill | kirimkan tagihan saya |\n
+        Jika user bertanya 'berapa' + (total/biaya/tagihan) atau (total/biaya) + 'berapa' = TAGIHAN\n
+        Jika user minta/bisa kirimkan bill/tagihan = TAGIHAN (permintaan bill/tagihan)"
     ],
 
     'STATUS' => [
