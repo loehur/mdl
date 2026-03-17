@@ -309,8 +309,9 @@ class WAReplies
             }
         }
 
-        // "masih bisa/bs terima kain?" -> konfirmasi ke petugas + jam operasional (PRIORITAS, sebelum handler lain)
-        $masihBisaTerimaPattern = '/\bmasih\s*(bisa|bs|bis|b\s*s)\s*(terima|trima|antar|masukin|masuk)\s*(kain|baju|laundry|cuci)?/i';
+        // "masih/msh bisa/bs terima kain?" -> konfirmasi ke petugas + jam operasional (PRIORITAS, sebelum handler lain)
+        // BEDA dengan "masih buka?" yang jawab "masih buka kak/bang"
+        $masihBisaTerimaPattern = '/\b(masih|msh|mash)\s*(bisa|bs|bis|b\s*s)\s*(terima|trima|antar|masukin|masuk)\s*(kain|baju|laundry|cuci)?/i';
         if (preg_match($masihBisaTerimaPattern, $textBodyToCheck)) {
             if ($this->shouldHandle($waNumber, 'JAM_OPERASIONAL')) {
                 $this->currentHandler = 'JAM_OPERASIONAL';
@@ -1679,7 +1680,7 @@ class WAReplies
     {
         $t = strtolower(trim($textBody ?? ''));
         $konfirmasiIntro = null;
-        if ($forceKonfirmasiIntro || preg_match('/\bmasih\s*(bisa|bs)\s*(terima|antar|masukin|masuk)\s*(kain|baju|laundry|cuci)?/i', $t)) {
+        if ($forceKonfirmasiIntro || preg_match('/\b(masih|msh|mash)\s*(bisa|bs|bis|b\s*s)\s*(terima|trima|antar|masukin|masuk)\s*(kain|baju|laundry|cuci)?/i', $t)) {
             $contactName = $this->getContactNameForGreeting($waNumber);
             $sapaan = $this->getSapaanFromName($contactName);
             $konfirmasiReplies = [
@@ -1775,8 +1776,8 @@ class WAReplies
             $sapaan = $this->getSapaanFromName($contactName);
             try {
                 $messages = [
-                    ['role' => 'system', 'content' => "Kamu customer service Madinah Laundry. Customer bertanya jam operasional (masih buka/buka ga).\n\nTugas: buat SATU kalimat pembuka singkat (max 8 kata) yang menjawab pertanyaan mereka, diakhiri koma. Gunakan sapaan: bang/bu/kak/pak sesuai yang diberikan.\n\nContoh: \"Laundry masih buka bang,\" atau \"Masih buka kak,\" atau \"Iya bu, masih buka,\"\n\nPENTING: Hanya output kalimat pembuka saja, diakhiri koma. JANGAN tambah info jam. JANGAN pakai tanda seru (!). JANGAN PERNAH sebut nama customer dalam balasan (gunakan hanya untuk identifikasi sapaan)."],
-                    ['role' => 'user', 'content' => "Nama customer: \"{$contactName}\". Sapaan: {$sapaan}. Pesan customer: \"{$textBody}\"\n\nBalasan baku yang akan mengikuti: \"{$textBaku}\"\n\nBuat HANYA kalimat pembuka singkat (diakhiri koma)."],
+                    ['role' => 'system', 'content' => "Kamu customer service Madinah Laundry. Customer bertanya 'masih buka?' / 'buka ga?' (bukan 'masih bisa terima kain').\n\nTugas: buat SATU kalimat pembuka singkat (max 8 kata) yang menjawab 'masih buka', diakhiri koma.\n\nWAJIB: Gunakan HANYA sapaan yang diberikan. Format: \"Masih buka {sapaan},\" atau \"Iya {sapaan}, masih buka,\"\n\nContoh jika sapaan=kak: \"Masih buka kak,\" atau \"Iya kak, masih buka,\"\nContoh jika sapaan=bang: \"Masih buka bang,\" atau \"Iya bang, masih buka,\"\nContoh jika sapaan=bu: \"Masih buka bu,\" atau \"Iya bu, masih buka,\"\n\nPENTING: Pakai PERSIS sapaan yang diberikan. Hanya output kalimat pembuka, diakhiri koma. JANGAN tambah info jam. JANGAN pakai tanda seru (!). JANGAN sebut nama customer."],
+                    ['role' => 'user', 'content' => "Sapaan yang WAJIB dipakai: {$sapaan}\nNama customer: \"{$contactName}\"\nPesan customer: \"{$textBody}\"\n\nBalasan baku yang mengikuti: \"{$textBaku}\"\n\nBuat HANYA kalimat pembuka singkat (diakhiri koma). Gunakan sapaan: {$sapaan}"],
                 ];
                 $intro = trim($this->executeOpenAIRequestWithMessages($messages, 50));
                 if (!empty($intro) && mb_strlen($intro) > 2) {

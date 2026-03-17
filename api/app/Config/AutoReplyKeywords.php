@@ -197,6 +197,8 @@ return [
             '/\b(te*ra*khir)\s*(te*ri*ma*)\s*(ka*in|ba*ju|la*u*ndr(y|i)|ja*m)?/i',
             // "masih terima kain/baju/laundry?", "masih terima kak?"
             '/\b(ma*si*h)\s*(te*ri*ma*)\s*(ka*in|ba*ju|la*u*ndr(y|i)|cu*ci|ka*k|ya)?/i',
+            // "masih/msh bisa/bs terima kain?" (sistem jawab konfirmasi ke petugas dulu)
+            '/\b(masih|msh|mash)\s*(bisa|bs|bis)\s*(terima|trima|antar|masukin|masuk)\s*(kain|baju|laundry|cuci)?/i',
             // "masih bisa antar laundry?", "masih bisa antar?", "masih bisa jemput?"
             '/\b(ma*si*h)\s*(bi*sa*)\s*(anta*r|je*m*pu*t)\s*(la*u*ndr(y|i)|cu*ci)?/i',
             // "liburnya kapan?", "kapan libur?", "hari libur?"
@@ -208,8 +210,9 @@ return [
             // "masih bisa siap gak mau bawa sprei?", "masih bisa siap mau antar?"
             '/\b(ma*si*h)\s*(bi*sa*)\s*sia+p+\s*(gak|ga|g)?/i',
         ],
-        'ai_prompt' => "User menanyakan jam operasional TOKO (buka/tutup) ATAU batas terima laundry ATAU jadwal libur, seperti:\n
-        | jam berapa buka? | jam berapa tutup? | kapan tutup? | masih buka? | sudah tutup? | jam operasional? | jam buka berapa? |\n
+        'ai_prompt' => "User menanyakan jam operasional TOKO (buka/tutup) ATAU batas terima laundry ATAU jadwal libur.\n
+        DUA JENIS (keduanya JAM_OPERASIONAL, sistem bedakan jawaban): (A) 'masih buka?' = jawab 'masih buka kak/bang'. (B) 'masih bisa terima kain?' / 'msh bs terima kain?' = jawab konfirmasi ke petugas dulu.\n
+        | jam berapa buka? | jam berapa tutup? | kapan tutup? | masih buka? | masih bukak? | sudah tutup? | jam operasional? | jam buka berapa? |\n
         | liburnya kapan? | kapan libur? | hari libur apa? | libur hari apa? | tutup tgl berapa? | tutup tanggal brp? | libur tgl berapa? |\n
         | besok pagi buka jam berapa? | besok buka jam brp ya? | nanti sore buka jam berapa? | untuk besok pagi buka jam brp ya? |\n
         | kapan terakhir terima kain? | kapan terakhir terima laundry? | terakhir terima jam berapa? |\n
