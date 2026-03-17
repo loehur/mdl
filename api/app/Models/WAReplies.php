@@ -771,7 +771,7 @@ class WAReplies
             $messages = [
                 [
                     'role' => 'system',
-                    'content' => "Kamu adalah customer service Madinah Laundry. Balas HANYA sapaan pembuka dari customer. JANGAN jawab pertanyaan/permintaan lain.\n\nCRITICAL - SINGKAT & SANTAI:\n- Balas PENDEK (1 kalimat, max 8-10 kata). Jangan formal. Santai tapi ramah.\n- Contoh singkat: \"Halo kak, ada yang bisa dibantu?\" \"Pagi bu 😊\" \"Waalaikumsalam pak\"\n- JANGAN kalimat panjang. JANGAN pakai tanda seru (!).\n\nCRITICAL - JANGAN JAWAB PERTANYAAN:\n- Jika pesan mengandung sapaan + pertanyaan (misal: 'Assalamualaikum, kain ku dah siap?'), balas CUKUP salam saja. Handler lain yang jawab pertanyaannya.\n- Contoh: \"Assalamualaikum, kain ku dah siap?\" -> \"Waalaikumsalam pak\" (HANYA itu)\n\nPENTING:\n- Assalamualaikum -> Waalaikumsalam + sapaan. Halo/pagi/siang/malam -> sesuaikan + sapaan.\n- Sapaan: HANYA jika nama ada ibu/bu -> bu. HANYA jika nama ada pak/bapak/bpk -> pak. Jika tidak, pakai kak/kakak/bg/bang. JANGAN sebut nama. JANGAN kata 'Anda'.\n- Boleh singkatan umum: siap, oke. JANGAN pakai 'mk'. JANGAN pakai tanda seru (!). Santai, tidak formal, tetap ramah."
+                    'content' => "Kamu adalah customer service Madinah Laundry. Balas HANYA sapaan pembuka dari customer. JANGAN jawab pertanyaan/permintaan lain.\n\nCRITICAL - SINGKAT & SANTAI:\n- Balas PENDEK (1 kalimat, max 8-10 kata). Jangan formal. Santai tapi ramah.\n- Contoh singkat: \"Halo kak, ada yang bisa dibantu?\" \"Pagi bu 😊\" \"Waalaikumsalam pak\"\n- JANGAN kalimat panjang. JANGAN pakai tanda seru (!).\n\nCRITICAL - JANGAN PERNAH sebut nama customer dalam balasan (gunakan hanya untuk identifikasi sapaan).\n\nCRITICAL - JANGAN JAWAB PERTANYAAN:\n- Jika pesan mengandung sapaan + pertanyaan (misal: 'Assalamualaikum, kain ku dah siap?'), balas CUKUP salam saja. Handler lain yang jawab pertanyaannya.\n- Contoh: \"Assalamualaikum, kain ku dah siap?\" -> \"Waalaikumsalam pak\" (HANYA itu)\n\nPENTING:\n- Assalamualaikum -> Waalaikumsalam + sapaan. Halo/pagi/siang/malam -> sesuaikan + sapaan.\n- Sapaan: HANYA jika nama ada ibu/bu -> bu. HANYA jika nama ada pak/bapak/bpk -> pak. Jika tidak, pakai kak/kakak/bg/bang. JANGAN sebut nama. JANGAN kata 'Anda'.\n- Boleh singkatan umum: siap, oke. JANGAN pakai 'mk'. JANGAN pakai tanda seru (!). Santai, tidak formal, tetap ramah."
                 ],
                 [
                     'role' => 'user',
@@ -860,7 +860,7 @@ class WAReplies
             $messages = [
                 [
                     'role' => 'system',
-                    'content' => "Kamu adalah customer service Madinah Laundry. Balas penutup/acknowledgment dari customer.\n\nCRITICAL - SINGKAT & SANTAI:\n- Balas PENDEK (max 1 kalimat, 5-8 kata). Jangan formal. Santai tapi ramah.\n- Contoh singkat: \"Sama-sama kak\" \"Siap bu\" \"Oke\"\n- JANGAN kalimat panjang. JANGAN pakai tanda seru (!). JANGAN pakai singkatan 'mk' atau 'mksh'.\n- JANGAN PERNAH gunakan kata \"ditunggu\" atau \"di tunggu\" atau \"ditunggu ya\" - HILANGKAN dari semua balasan.\n\nJENIS PENUTUP:\n1. Terimakasih/makasih/thanks -> balas SESUAI NAMA: sama-sama bang/bu/kak, terimakasih juga pak.\n2. Ok/baik/siap (acknowledgment) -> balas \"Siap\" atau \"Oke\" - singkat\n3. Konfirmasi transfer -> \"Siap kak\" atau \"Oke, terima kasih\"\n4. Pemberitahuan jemput/antar (nanti saya jemput, aku ambil) -> balas \"Siap\" atau \"Oke\" - JANGAN \"ditunggu ya\"\n5. JANGAN balas komplain/keluhan (salah hitung, ada salah, dll) - itu BUKAN PENUTUP\n\nPENTING:\n- Sapaan: HANYA jika nama ada ibu/bu -> bu. HANYA jika nama ada pak/bapak/bpk -> pak. Jika tidak, pakai kak/kakak/bg/bang. JANGAN sebut nama. JANGAN kata 'Anda'.\n- JANGAN pakai \"ditunggu\" / \"di tunggu\" / \"ditunggu ya\" dalam bentuk apapun.\n- JANGAN pakai tanda seru (!).\n- Jika RAGU atau tidak yakin apa yang harus dibalas (misal: gpp kak, gak apa-apa), balas HANYA emoji ramah saja: 😊 atau 👍"
+                    'content' => "Kamu adalah customer service Madinah Laundry. Balas penutup/acknowledgment dari customer.\n\nCRITICAL - SINGKAT & SANTAI:\n- Balas PENDEK (max 1 kalimat, 5-8 kata). Jangan formal. Santai tapi ramah.\n- Contoh singkat: \"Sama-sama kak\" \"Siap bu\" \"Oke\"\n- JANGAN kalimat panjang. JANGAN pakai tanda seru (!). JANGAN pakai singkatan 'mk' atau 'mksh'.\n- JANGAN PERNAH gunakan kata \"ditunggu\" atau \"di tunggu\" atau \"ditunggu ya\" - HILANGKAN dari semua balasan.\n- JANGAN PERNAH sebut nama customer dalam balasan (gunakan hanya untuk identifikasi sapaan).\n\nJENIS PENUTUP:\n1. Terimakasih/makasih/thanks -> balas sama-sama bang/bu/kak, terimakasih juga pak.\n2. Ok/baik/siap (acknowledgment) -> balas \"Siap\" atau \"Oke\" - singkat\n3. Konfirmasi transfer -> \"Siap kak\" atau \"Oke, terima kasih\"\n4. Pemberitahuan jemput/antar (nanti saya jemput, aku ambil) -> balas \"Siap\" atau \"Oke\" - JANGAN \"ditunggu ya\"\n5. JANGAN balas komplain/keluhan (salah hitung, ada salah, dll) - itu BUKAN PENUTUP\n\nPENTING:\n- Sapaan: HANYA jika nama ada ibu/bu -> bu. HANYA jika nama ada pak/bapak/bpk -> pak. Jika tidak, pakai kak/kakak/bg/bang. JANGAN sebut nama. JANGAN kata 'Anda'.\n- JANGAN pakai \"ditunggu\" / \"di tunggu\" / \"ditunggu ya\" dalam bentuk apapun.\n- JANGAN pakai tanda seru (!).\n- Jika RAGU atau tidak yakin apa yang harus dibalas (misal: gpp kak, gak apa-apa), balas HANYA emoji ramah saja: 😊 atau 👍"
                 ],
                 [
                     'role' => 'user',
@@ -1660,7 +1660,7 @@ class WAReplies
     {
         $isOpen = $this->isOperatingHours();
         if ($isOpen) {
-            $this->handleJam_buka($phoneIn, $waNumber);
+            $this->handleJam_buka($phoneIn, $waNumber, $textBody);
         } else {
             $this->handleJam_tutup($phoneIn, $waNumber);
         }
@@ -1728,11 +1728,48 @@ class WAReplies
             "Jam buka {$timeBold}, {$daysStr}. 😊👋"
         ];
 
-        $text = $holidayPrefix . $variations[array_rand($variations)];
+        $textBaku = $holidayPrefix . $variations[array_rand($variations)];
         if ($upcomingHolidays !== '') {
-            $text .= $upcomingHolidays;
+            $textBaku .= $upcomingHolidays;
         }
-        $this->sendAutoreplyText($waNumber, $text);
+
+        // Hanya jika customer bertanya: tambah kalimat pembuka (AI) + sapaan
+        $isQuestion = $this->isJamOperasionalQuestion($textBody);
+        if ($isQuestion && class_exists('\\App\\Config\\AI') && \App\Config\AI::isEnabled()) {
+            $contactName = $this->getContactNameForGreeting($waNumber);
+            $sapaan = $this->getSapaanFromName($contactName);
+            try {
+                $messages = [
+                    ['role' => 'system', 'content' => "Kamu customer service Madinah Laundry. Customer bertanya jam operasional (masih buka/buka ga).\n\nTugas: buat SATU kalimat pembuka singkat (max 8 kata) yang menjawab pertanyaan mereka, diakhiri koma. Gunakan sapaan: bang/bu/kak/pak sesuai yang diberikan.\n\nContoh: \"Laundry masih buka bang,\" atau \"Masih buka kak,\" atau \"Iya bu, masih buka,\"\n\nPENTING: Hanya output kalimat pembuka saja, diakhiri koma. JANGAN tambah info jam. JANGAN pakai tanda seru (!). JANGAN PERNAH sebut nama customer dalam balasan (gunakan hanya untuk identifikasi sapaan)."],
+                    ['role' => 'user', 'content' => "Nama customer: \"{$contactName}\". Sapaan: {$sapaan}. Pesan customer: \"{$textBody}\"\n\nBalasan baku yang akan mengikuti: \"{$textBaku}\"\n\nBuat HANYA kalimat pembuka singkat (diakhiri koma)."],
+                ];
+                $intro = trim($this->executeOpenAIRequestWithMessages($messages, 50));
+                if (!empty($intro) && mb_strlen($intro) > 2) {
+                    $intro = preg_replace('/!+$/', '', $intro);
+                    if (mb_substr($intro, -1) !== ',') {
+                        $intro .= ',';
+                    }
+                    $textBaku = $intro . "\n\n" . $textBaku;
+                }
+            } catch (\Exception $e) {
+                // Fallback: tetap pakai balasan baku saja
+            }
+        }
+
+        $this->sendAutoreplyText($waNumber, $textBaku);
+    }
+
+    /**
+     * Cek apakah pesan mengandung pertanyaan jam operasional (masih buka, buka ga, dll)
+     */
+    private function isJamOperasionalQuestion($textBody)
+    {
+        $t = strtolower(trim($textBody ?? ''));
+        if ($t === '') return false;
+        if (strpos($textBody ?? '', '?') !== false) return true;
+        return preg_match('/\b(masih|apa|apakah|kapan|jam\s*br?p?|berapa)\s*(buka|buat)/i', $t)
+            || preg_match('/\b(buka|buat)\s*(ga|gak|g\?|tidak|nggak|nya)\b/i', $t)
+            || preg_match('/\bmasih\s*(buka|buat|laundry|loundry)/i', $t);
     }
 
     function handleJam_tutup($phoneIn, $waNumber, $textBody = '')
