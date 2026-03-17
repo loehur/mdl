@@ -178,9 +178,6 @@ class WAReplies
             if ($answer === 'bang') return 'bang';
             return 'kak';
         } catch (\Exception $e) {
-            if (class_exists('\Log')) {
-                \Log::write("detectSapaanFromNameWithAI: " . $e->getMessage(), 'wa_replies', 'sapaan');
-            }
             return 'kak';
         }
     }
@@ -336,7 +333,7 @@ class WAReplies
                     $matchPattern[] = $handler;
 
                     if (class_exists('\Log')) {
-                        \Log::write(mb_substr($textBody ?? '', 0, 100) . " | {$handler} | regex", 'ai', 'intent');
+                        \Log::write(mb_substr($textBody ?? '', 0, 100) . " | {$handler} | regex", 'wa', 'intent');
                     }
                     
                     // Unset matched keyword from config to optimize AI detection
@@ -345,9 +342,6 @@ class WAReplies
                     
                     //cek rate limit
                     if (!$this->shouldHandle($waNumber, $handler)) {
-                        if (class_exists('\Log')) {
-                            \Log::write("SKIP [{$handler}] rate limited | phone: {$waNumber} | msg: " . mb_substr($textBody ?? '', 0, 80), 'wa_replies', 'rate_limit');
-                        }
                         $conversationId = $this->getOrCreateConversationWithCase(
                             $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
                         );
@@ -450,9 +444,6 @@ class WAReplies
             // Rate limit check for AI intent
             // ========================================
             if (!$this->shouldHandle($waNumber, $aiIntent)) {
-                if (class_exists('\Log')) {
-                    \Log::write("SKIP [{$aiIntent}] rate limited (AI) | phone: {$waNumber} | msg: " . mb_substr($textBody ?? '', 0, 80), 'wa_replies', 'rate_limit');
-                }
                 // Rate limited - create conversation but don't send auto-reply
                 $conversationId = $this->getOrCreateConversationWithCase(
                     $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
@@ -559,7 +550,7 @@ class WAReplies
 
                 $updated = $db1->update('notif', $updateData, ['id_notif' => $notif['id_notif']]);
                 if (!$updated) {
-                    \Log::write("FAILED to update DB for Notif #$idNotif (Error: " . $db1->conn()->error . ")", 'wa_replies', 'PendingNotifs');
+                    \Log::write("FAILED to update Notif #$idNotif - " . $db1->conn()->error, 'wa_error', 'Notif');
                 }
 
                 // Broadcast to WebSocket
@@ -660,9 +651,7 @@ class WAReplies
                                         $errorMsg = json_encode($conn->error_list);
                                     }
 
-                                    // Try to get last query if available in wrapper
-                                    $lastQuery = method_exists($db1, 'last_query') ? $db1->last_query() : 'N/A';
-                                    \Log::write("Insert Data: " . json_encode($insertData), 'webhook', 'WhatsApp');
+                                    \Log::write("Notif insert FAILED - Error: $errorMsg | Data: " . json_encode($insertData), 'wa_error', 'Notif');
                                 }
                             }
                         }
@@ -1501,7 +1490,7 @@ class WAReplies
 
                 $updated = $db1->update('notif', $updateData, ['id_notif' => $notif['id_notif']]);
                 if (!$updated) {
-                    \Log::write("FAILED to update DB for Notif #$idNotif (Error: " . $db1->conn()->error . ")", 'wa_replies', 'PendingNotifs');
+                    \Log::write("FAILED to update Notif #$idNotif - " . $db1->conn()->error, 'wa_error', 'Notif');
                 }
 
                 // Broadcast to WebSocket with future timestamp
@@ -2982,7 +2971,7 @@ class WAReplies
 
             // Log: text | intent | reason
             if (class_exists('\Log')) {
-                \Log::write("{$textBody} | {$intent} | {$reason}", 'ai', 'intent');
+                \Log::write("{$textBody} | {$intent} | {$reason}", 'wa', 'intent');
             }
 
             // Check if this is a valid intent from config
@@ -2999,7 +2988,7 @@ class WAReplies
             return false;
         } catch (\Exception $e) {
             if (class_exists('\Log')) {
-                \Log::write("AI ERROR: " . $e->getMessage(), 'ai', 'error');
+                \Log::write("AI ERROR: " . $e->getMessage(), 'wa_error', 'AI');
             }
             return false;
         }

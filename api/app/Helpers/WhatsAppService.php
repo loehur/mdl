@@ -750,37 +750,19 @@ class WhatsAppService
             $quotedMessageBody = null;
             if ($quotedMessageId) {
                 try {
-                    if (class_exists('\Log')) {
-                        \Log::write("📌 [OUTBOUND] Quote detected - WAMID: $quotedMessageId", 'wa_quote', 'info');
-                    }
-                    
-                    // Try from wa_messages_in first
                     $result = $db->get_where('wa_messages_in', ['wamid' => $quotedMessageId]);
                     if ($result && $result->num_rows() > 0) {
                         $quotedMsg = $result->row();
                         $quotedMessageBody = $quotedMsg->text ?? $quotedMsg->media_caption ?? null;
-                        if (class_exists('\Log')) {
-                            \Log::write("✓ [OUTBOUND] Quote found in wa_messages_in - Body: " . substr($quotedMessageBody ?? 'NULL', 0, 50), 'wa_quote', 'info');
-                        }
                     } else {
-                        // Try from wa_messages_out
                         $result = $db->get_where('wa_messages_out', ['wamid' => $quotedMessageId]);
                         if ($result && $result->num_rows() > 0) {
                             $quotedMsg = $result->row();
                             $quotedMessageBody = $quotedMsg->content ?? null;
-                            if (class_exists('\Log')) {
-                                \Log::write("✓ [OUTBOUND] Quote found in wa_messages_out - Body: " . substr($quotedMessageBody ?? 'NULL', 0, 50), 'wa_quote', 'info');
-                            }
-                        } else {
-                            if (class_exists('\Log')) {
-                                \Log::write("⚠ [OUTBOUND] Quote message NOT FOUND in database - WAMID: $quotedMessageId", 'wa_quote', 'warning');
-                            }
                         }
                     }
                 } catch (\Exception $e) {
-                    if (class_exists('\Log')) {
-                        \Log::write("✗ [OUTBOUND] ERROR fetching quoted message - WAMID: $quotedMessageId | Error: " . $e->getMessage(), 'wa_quote', 'error');
-                    }
+                    \Log::write("ERROR fetching quoted message - WAMID: $quotedMessageId | " . $e->getMessage(), 'wa_error', 'Quote');
                 }
             }
             
@@ -807,9 +789,6 @@ class WhatsAppService
             // Add quoted message fields only if they exist (safe for backward compatibility)
             if ($quotedMessageId !== null) {
                 $messageData['quoted_message_id'] = $quotedMessageId;
-                if (class_exists('\Log')) {
-                    \Log::write("💾 [OUTBOUND] Saving quote reference - ID: $quotedMessageId, Body: " . substr($quotedMessageBody ?? 'NULL', 0, 30), 'wa_quote', 'info');
-                }
             }
             if ($quotedMessageBody !== null) {
                 $messageData['quoted_message_body'] = $quotedMessageBody;
@@ -819,19 +798,8 @@ class WhatsAppService
             
             if (!$msgId) {
                 $dbError = $db->conn()->error ?? 'Unknown';
-                if (class_exists('\Log')) {
-                    \Log::write("!! INSERT FAILED to wa_messages_out | Phone: $waNumber, MsgID: $messageId | DB Error: $dbError | Data: " . json_encode($messageData), 'wa_error', 'SaveOutbound');
-                    
-                    // Extra logging for quote-related errors
-                    if ($quotedMessageId !== null) {
-                        \Log::write("✗ [OUTBOUND] Quote data failed to save - WAMID: $quotedMessageId", 'wa_quote', 'error');
-                    }
-                }
+                \Log::write("INSERT FAILED wa_messages_out | Phone: $waNumber | DB Error: $dbError | Data: " . json_encode($messageData), 'wa_error', 'SaveOutbound');
             } else {
-                // Log successful quote save
-                if ($quotedMessageId !== null && class_exists('\Log')) {
-                    \Log::write("✓ [OUTBOUND] Quote saved successfully - MsgID: $msgId, QuotedWAMID: $quotedMessageId", 'wa_quote', 'info');
-                }
                 // ====== WEBSOCKET PUSH (CENTRALIZED) ======
                 // Push to WebSocket for real-time UI update
                 // This is the SINGLE SOURCE for all outbound messages (autoreply + manual)
@@ -847,10 +815,7 @@ class WhatsAppService
                     }
                     
                     // Log WebSocket push with quote info
-                    if ($quotedMessageId !== null && class_exists('\Log')) {
-                        \Log::write("📡 [OUTBOUND] Pushing to WebSocket with quote - WAMID: $quotedMessageId, Body: " . substr($quotedMessageBody ?? 'NULL', 0, 30), 'wa_quote', 'info');
-                    }
-                    
+
                     $wsPayload = [
                         'type' => 'agent_message_sent',
                         'conversation_id' => $conversation_id,
@@ -887,7 +852,7 @@ class WhatsAppService
                 } catch (\Throwable $wsError) {
                     // Silently fail - don't break main flow
                     if (class_exists('\Log')) {
-                        \Log::write("!! WebSocket push failed: " . $wsError->getMessage(), 'wa_error', 'WebSocket');
+                        \Log::write("WebSocket push failed: " . $wsError->getMessage(), 'wa_error', 'WebSocket');
                     }
                 }
             }
@@ -969,18 +934,8 @@ class WhatsAppService
                 }
             }
 
-            // Log untuk debugging
-            if (class_exists('\Log')) {
-                $contentPreview = substr((string) $content, 0, 80);
-                \Log::write("[WA_PRIVATE] context=$context | Env=$envClass | isPrivate=" . ($isPrivate ? '1' : '0') . " | content_preview=" . $contentPreview, 'wa_private', 'debug');
-                if (!$envLoaded) {
-                    \Log::write("[WA_PRIVATE] WARNING: Env class NOT loaded, using inline fallback. Check namespace/require.", 'wa_private', 'warning');
-                }
-            }
         } catch (\Throwable $e) {
-            if (class_exists('\Log')) {
-                \Log::write("[WA_PRIVATE] ERROR: " . $e->getMessage() . " | File: " . $e->getFile() . ":" . $e->getLine(), 'wa_private', 'error');
-            }
+            \Log::write("WA_PRIVATE check ERROR: " . $e->getMessage(), 'wa_error', 'Private');
             // Fallback inline on error
             $tLower = mb_strtolower((string) $content . (string) $messageText . (string) $lastMessageText);
             foreach ($words as $w) {

@@ -48,7 +48,7 @@ class WhatsApp extends Controller
             exit;
         }
 
-        \Log::write("✗ Verification FAILED", 'webhook', 'WhatsApp');
+        \Log::write("Verification FAILED", 'wa_error', 'Webhook');
         http_response_code(403);
         exit;
     }
@@ -62,7 +62,7 @@ class WhatsApp extends Controller
         $data = json_decode($json, true);
 
         if (!$data) {
-            \Log::write("ERROR: Invalid JSON", 'webhook', 'WhatsApp');
+            \Log::write("Invalid JSON", 'wa_error', 'Webhook');
             http_response_code(200);
             exit;
         }
@@ -87,10 +87,10 @@ class WhatsApp extends Controller
                     break;
 
                 default:
-                    \Log::write("Unknown event: $eventType", 'webhook', 'WhatsApp');
+                    \Log::write("Unknown event: $eventType", 'wa_error', 'Webhook');
             }
         } catch (\Exception $e) {
-            \Log::write("EXCEPTION: " . $e->getMessage(), 'webhook', 'WhatsApp');
+            \Log::write("EXCEPTION: " . $e->getMessage(), 'wa_error', 'Webhook');
         }
 
         http_response_code(200);
@@ -110,7 +110,7 @@ class WhatsApp extends Controller
         $textBodyToCheck = $msg['text']['body'] ?? '';
         
         if (empty($msg)) {
-            \Log::write("ERROR: No whatsappInboundMessage", 'wa_inbound', 'error');
+            \Log::write("No whatsappInboundMessage", 'wa_error', 'Webhook');
             return;
         }
 
@@ -143,33 +143,27 @@ class WhatsApp extends Controller
             // Try to get quoted message content from database
             if ($quotedMessageId) {
                 try {
-                    \Log::write("📌 Quote detected - WAMID: $quotedMessageId", 'wa_quote', 'info');
-                    
                     // Try from wa_messages_in first
                     $result = $db->get_where('wa_messages_in', ['wamid' => $quotedMessageId]);
                     if ($result && $result->num_rows() > 0) {
                         $quotedMsg = $result->row();
                         $quotedMessageBody = $quotedMsg->text ?? $quotedMsg->media_caption ?? null;
-                        \Log::write("✓ Quote found in wa_messages_in - Body: " . substr($quotedMessageBody ?? 'NULL', 0, 50), 'wa_quote', 'info');
                     } else {
                         // Try from wa_messages_out
                         $result = $db->get_where('wa_messages_out', ['wamid' => $quotedMessageId]);
                         if ($result && $result->num_rows() > 0) {
                             $quotedMsg = $result->row();
                             $quotedMessageBody = $quotedMsg->content ?? null;
-                            \Log::write("✓ Quote found in wa_messages_out - Body: " . substr($quotedMessageBody ?? 'NULL', 0, 50), 'wa_quote', 'info');
-                        } else {
-                            \Log::write("⚠ Quote message NOT FOUND in database - WAMID: $quotedMessageId", 'wa_quote', 'warning');
                         }
                     }
                 } catch (\Exception $e) {
-                    \Log::write("✗ ERROR fetching quoted message - WAMID: $quotedMessageId | Error: " . $e->getMessage(), 'wa_quote', 'error');
+                    \Log::write("ERROR fetching quoted message - WAMID: $quotedMessageId | " . $e->getMessage(), 'wa_error', 'Quote');
                 }
             }
         }
 
         if (!$waNumber) {
-            \Log::write("ERROR: No 'from' number", 'wa_inbound', 'error');
+            \Log::write("No 'from' number", 'wa_error', 'Webhook');
             return;
         }
 
@@ -177,9 +171,6 @@ class WhatsApp extends Controller
         if ($messageId) {
             $dupe = $db->get_where('wa_messages_in', ['message_id' => $messageId])->row();
             if ($dupe) {
-                if ($messageType === 'button') {
-                    \Log::write("SKIP: Duplicate button message $messageId", 'wa_inbound', 'debug');
-                }
                 return;
             }
         }
@@ -254,7 +245,7 @@ class WhatsApp extends Controller
             }
 
         } catch (\Exception $e) {
-            \Log::write("Error processing user data: " . $e->getMessage(), 'webhook', 'WhatsApp');
+            \Log::write("Error processing user data: " . $e->getMessage(), 'wa_error', 'Webhook');
         }
 
         if (!isset($isPrivateForLastMessage)) {
@@ -330,12 +321,12 @@ class WhatsApp extends Controller
                             $mediaUrl = $savedUrl;
                         } else {
                             // Download failed but don't block message save
-                            \Log::write("Media download failed for ID: $mediaId, using direct URL fallback", 'webhook', 'WhatsApp');
+                            \Log::write("Media download failed for ID: $mediaId", 'wa_error', 'Webhook');
                             $mediaUrl = $mediaUrlDirect; // Use direct URL as fallback
                         }
                     } catch (\Throwable $e) {
                         // Catch ANY error (including PHP 8 errors) and continue
-                        \Log::write("Media download exception: " . $e->getMessage(), 'webhook', 'WhatsApp');
+                        \Log::write("Media download exception: " . $e->getMessage(), 'wa_error', 'Webhook');
                         $mediaUrl = $mediaUrlDirect; // Use direct URL as fallback
                     }
                 }
@@ -384,7 +375,6 @@ class WhatsApp extends Controller
         // This prevents DB error if columns haven't been added yet
         if ($quotedMessageId !== null) {
             $messageData['quoted_message_id'] = $quotedMessageId;
-            \Log::write("💾 Saving quote reference - ID: $quotedMessageId, Body: " . substr($quotedMessageBody ?? 'NULL', 0, 30), 'wa_quote', 'info');
         }
         if ($quotedMessageBody !== null) {
             $messageData['quoted_message_body'] = $quotedMessageBody;
@@ -395,19 +385,8 @@ class WhatsApp extends Controller
         if (!$msgId) {
             $error = $db->conn()->error;
             $errno = $db->conn()->errno;
-            \Log::write("✗ DB INSERT FAILED - Error ($errno): $error", 'webhook', 'inbound_error');
-            \Log::write("Failed data: " . json_encode($messageData), 'webhook', 'inbound_error');
-            \Log::write("Table: wa_messages_in", 'webhook', 'inbound_error');
-            
-            // Extra logging for quote-related errors
-            if ($quotedMessageId !== null) {
-                \Log::write("✗ Quote data failed to save - WAMID: $quotedMessageId", 'wa_quote', 'error');
-            }
+            \Log::write("DB INSERT FAILED wa_messages_in - Error ($errno): $error | Data: " . json_encode($messageData), 'wa_error', 'Inbound');
         } else {
-            // Log successful quote save
-            if ($quotedMessageId !== null) {
-                \Log::write("✓ Quote saved successfully - MsgID: $msgId, QuotedWAMID: $quotedMessageId", 'wa_quote', 'info');
-            }
             try {
                 // ========================================
                 // 🚀 BRILLIANT ARCHITECTURE (User's Idea!)
@@ -446,9 +425,6 @@ class WhatsApp extends Controller
                 $notify = $autoReplyResult->notify ?? true;
                 $conversationId = $autoReplyResult->conversation_id ?? 0;
                 
-                // DEBUG: Log notify value for debugging
-                \Log::write("DEBUG notify: value=" . var_export($notify, true) . ", type=" . gettype($notify) . ", case=" . $currentCase, 'webhook', 'notify_debug');
-                
                 // Fetch active cases specific for Notification Logic (Driver needs to know if Case 2 active)
                 $activeCases = [];
                 $freshConv = $db->get_where('wa_conversations', ['id' => $conversationId])->row();
@@ -469,11 +445,6 @@ class WhatsApp extends Controller
                     }
                 }
 
-                // Log WebSocket push with quote info
-                if ($quotedMessageId !== null) {
-                    \Log::write("📡 Pushing to WebSocket with quote - WAMID: $quotedMessageId, Body: " . substr($quotedMessageBody ?? 'NULL', 0, 30), 'wa_quote', 'info');
-                }
-                
                 // Ensure notify is boolean (not string or other type)
                 $notifyBool = (bool)$notify;
                 
@@ -506,8 +477,7 @@ class WhatsApp extends Controller
                 
 
             } catch (\Exception $e) {
-                \Log::write("✗ Error in auto-reply/conversation: " . $e->getMessage(), 'webhook', 'error');
-                \Log::write("Stack trace: " . $e->getTraceAsString(), 'webhook', 'error');
+                \Log::write("Error in auto-reply/conversation: " . $e->getMessage() . " | " . $e->getTraceAsString(), 'wa_error', 'AutoReply');
             }
         }
     }
@@ -529,9 +499,8 @@ class WhatsApp extends Controller
         
         $result = curl_exec($ch);
         
-        // Keep only ERROR log
         if (class_exists('\Log') && curl_errno($ch)) {
-             \Log::write("WS PUSH ERROR: " . curl_error($ch), 'wa_ws_debug', 'error');
+             \Log::write("WS PUSH ERROR: " . curl_error($ch), 'wa_error', 'WebSocket');
         }
         
         curl_close($ch);
@@ -546,7 +515,7 @@ class WhatsApp extends Controller
     {
         $statusUpdate = $data['whatsappMessageStatusUpdate'] ?? [];
         if (empty($statusUpdate)) {
-            \Log::write("ERROR: No whatsappMessageStatusUpdate", 'webhook', 'WhatsApp');
+            \Log::write("No whatsappMessageStatusUpdate", 'wa_error', 'Webhook');
             return;
         }
 
@@ -617,7 +586,7 @@ class WhatsApp extends Controller
     {
         $message = $data['whatsappMessage'] ?? [];
         if (empty($message)) {
-            \Log::write("ERROR: No whatsappMessage in message.updated event", 'webhook', 'WhatsApp');
+            \Log::write("No whatsappMessage in message.updated event", 'wa_error', 'Webhook');
             return;
         }
 
@@ -626,7 +595,7 @@ class WhatsApp extends Controller
         $status = $message['status'] ?? null;
 
         if (!$wamid && !$messageId) {
-            \Log::write("ERROR: No wamid or message_id in message.updated event", 'webhook', 'WhatsApp');
+            \Log::write("No wamid or message_id in message.updated event", 'wa_error', 'Webhook');
             return;
         }
 

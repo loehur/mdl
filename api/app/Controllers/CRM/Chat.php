@@ -311,10 +311,6 @@ class Chat extends Controller
                 $msg['private'] = 0;
             }
             
-            // Debug: Log messages with private = 1
-            if ($msg['private'] == 1) {
-                \Log::write("Private message found - ID: " . ($msg['id'] ?? 'N/A') . ", Private: " . $msg['private'] . ", Text preview: " . substr($msg['text'] ?? '', 0, 50), 'crm', 'chat');
-            }
         }
         unset($msg); // Break reference
         
@@ -537,7 +533,6 @@ class Chat extends Controller
                 ];
                 
                 
-                \Log::write("Pushing case update to WebSocket: " . json_encode($payload), 'cms_ws', 'Chat');
                 $this->pushToWebSocket($payload);
                 
                 $this->success(['case' => (int)$caseVal], 'Conversation marked as done');
@@ -664,7 +659,6 @@ class Chat extends Controller
                     'sender_id' => $userId
                 ];
                 
-                \Log::write("Pushing case update to WebSocket: " . json_encode($payload), 'cms_ws', 'Chat');
                 $this->pushToWebSocket($payload);
                 
                 // ⭐ SPECIAL: Push notification to DRIVERS when Case 2 (Pickup/Delivery) is added
@@ -678,7 +672,6 @@ class Chat extends Controller
                         'message' => "📦 Pickup/Delivery request from $contactName"
                     ];
                     
-                    \Log::write("Pushing Case 2 notification to drivers: " . json_encode($driverPayload), 'cms_ws', 'Chat');
                     $this->pushToWebSocket($driverPayload);
                 }
                 
@@ -757,7 +750,6 @@ class Chat extends Controller
                     'sender_id' => $userId
                 ];
                 
-                \Log::write("Pushing case update to WebSocket: " . json_encode($payload), 'cms_ws', 'Chat');
                 $this->pushToWebSocket($payload);
                 
                 $this->success(['case' => 4], 'Conversation reopened - needs attention');
@@ -861,7 +853,6 @@ class Chat extends Controller
                     'all_closed' => !$hasOpenCases // Flag for Silent Push (Cancel Notification)
                 ];
                 
-                \Log::write("Pushing case resolved to WebSocket: " . json_encode($payload), 'cms_ws', 'Chat');
                 $this->pushToWebSocket($payload);
                 
                 $this->success(['case' => $targetCase], 'Case resolved successfully');
@@ -924,7 +915,6 @@ class Chat extends Controller
         
         // Log payload for debugging
         if (class_exists('\Log')) {
-            \Log::write("WS Push: " . json_encode($data), 'cms_ws');
         }
 
         $ch = curl_init($url);
