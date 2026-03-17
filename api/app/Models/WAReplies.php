@@ -161,6 +161,7 @@ class WAReplies
 
     /**
      * AI pilih sapaan kak atau bang dari nama Indonesia.
+     * Kalau ragu, utamakan kak.
      * @return string 'kak' atau 'bang'
      */
     private function detectSapaanFromNameWithAI($contactName)
@@ -171,7 +172,7 @@ class WAReplies
             }
             $firstName = trim(preg_split('/\s+/', $contactName, 2)[0] ?? '') ?: $contactName;
             $messages = [
-                ['role' => 'system', 'content' => "Kamu classifier. Dari nama depan Indonesia, pilih sapaan: 'kak' (perempuan/neutral) atau 'bang' (laki-laki). Jawab HANYA satu kata: kak atau bang."],
+                ['role' => 'system', 'content' => "Kamu classifier sapaan Indonesia. Dari nama depan, pilih: 'kak' (perempuan/neutral) atau 'bang' (laki-laki).\n\nAturan:\n- Nama khas perempuan (Siti, Dewi, Ani, Rina, dll) -> kak\n- Nama khas laki-laki (Budi, Bambang, Ahmad, Rudi, dll) -> bang\n- Nama netral/tidak jelas (Dian, Wawan, dsb) -> utamakan kak\n- Ragu atau nama singkat/tidak dikenal -> utamakan kak\n\nPENTING: Jika ragu antara kak dan bang, pilih kak.\n\nJawab HANYA satu kata: kak atau bang."],
                 ['role' => 'user', 'content' => "Nama: {$firstName}"],
             ];
             $answer = trim(strtolower($this->executeOpenAIRequestWithMessages($messages, 10)));
