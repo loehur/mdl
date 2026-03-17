@@ -307,6 +307,24 @@ class WAReplies
                 ];
             }
         }
+
+        // "masih bisa/bs terima kain?" -> konfirmasi ke petugas + jam operasional (PRIORITAS, sebelum handler lain)
+        $masihBisaTerimaPattern = '/\bmasih\s*(bisa|bs|bis|b\s*s)\s*(terima|trima|antar|masukin|masuk)\s*(kain|baju|laundry|cuci)?/i';
+        if (preg_match($masihBisaTerimaPattern, $textBodyToCheck)) {
+            if ($this->shouldHandle($waNumber, 'JAM_OPERASIONAL')) {
+                $this->currentHandler = 'JAM_OPERASIONAL';
+                $this->handleJam_operasional($phoneIn, $waNumber, $textBody ?? '', true);
+            }
+            $conversationId = $this->getOrCreateConversationWithCase(
+                $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage,
+                $fullKeywordConfig['JAM_OPERASIONAL']['case'] ?? null
+            );
+            return (object) [
+                'case' => $fullKeywordConfig['JAM_OPERASIONAL']['case'] ?? null,
+                'notify' => $fullKeywordConfig['JAM_OPERASIONAL']['notify'] ?? false,
+                'conversation_id' => $conversationId
+            ];
+        }
         
         $matchPattern = [];
         // Check each handler's patterns
@@ -1656,11 +1674,11 @@ class WAReplies
         }
     }
 
-    function handleJam_operasional($phoneIn, $waNumber, $textBody = '')
+    function handleJam_operasional($phoneIn, $waNumber, $textBody = '', $forceKonfirmasiIntro = false)
     {
         $t = strtolower(trim($textBody ?? ''));
-        // "masih bisa terima kain? masih bisa antar? masih bisa masukin kain?" -> perlu konfirmasi ke petugas
-        if (preg_match('/\bmasih\s*bisa\s*(terima|antar|masukin|masuk)\s*(kain|baju|laundry|cuci)?/i', $t)) {
+        $konfirmasiIntro = null;
+        if ($forceKonfirmasiIntro || preg_match('/\bmasih\s*(bisa|bs)\s*(terima|antar|masukin|masuk)\s*(kain|baju|laundry|cuci)?/i', $t)) {
             $contactName = $this->getContactNameForGreeting($waNumber);
             $sapaan = $this->getSapaanFromName($contactName);
             $konfirmasiReplies = [
@@ -1669,19 +1687,19 @@ class WAReplies
                 "Tunggu ya {$sapaan}, kami konfirmasi ke kasir dulu ya {$sapaan} 😊",
                 "Tunggu ya {$sapaan}, kami cek ke petugas dulu ya {$sapaan} 😊",
             ];
-            $this->sendAutoreplyText($waNumber, $konfirmasiReplies[array_rand($konfirmasiReplies)]);
-            return;
+            $konfirmasiIntro = $konfirmasiReplies[array_rand($konfirmasiReplies)];
         }
 
         $isOpen = $this->isOperatingHours();
         if ($isOpen) {
-            $this->handleJam_buka($phoneIn, $waNumber, $textBody);
+            $this->handleJam_buka($phoneIn, $waNumber, $textBody, $konfirmasiIntro);
         } else {
-            $this->handleJam_tutup($phoneIn, $waNumber);
+            // Jam tutup: jawaban baku saja (tanpa konfirmasi intro)
+            $this->handleJam_tutup($phoneIn, $waNumber, $textBody, null);
         }
     }
 
-    function handleJam_buka($phoneIn, $waNumber, $textBody = '')
+    function handleJam_buka($phoneIn, $waNumber, $textBody = '', $customIntro = null)
     {
         try {
             $config = require __DIR__ . '/../Config/OperatingHours.php';
@@ -1748,9 +1766,10 @@ class WAReplies
             $textBaku .= $upcomingHolidays;
         }
 
-        // Hanya jika customer bertanya: tambah kalimat pembuka (AI) + sapaan
-        $isQuestion = $this->isJamOperasionalQuestion($textBody);
-        if ($isQuestion && class_exists('\\App\\Config\\AI') && \App\Config\AI::isEnabled()) {
+        // Custom intro (konfirmasi ke petugas) atau AI intro untuk pertanyaan jam operasional
+        if (!empty($customIntro)) {
+            $textBaku = $customIntro . "\n\n" . $textBaku;
+        } elseif (($isQuestion = $this->isJamOperasionalQuestion($textBody)) && class_exists('\\App\\Config\\AI') && \App\Config\AI::isEnabled()) {
             $contactName = $this->getContactNameForGreeting($waNumber);
             $sapaan = $this->getSapaanFromName($contactName);
             try {
@@ -1787,7 +1806,7 @@ class WAReplies
             || preg_match('/\bmasih\s*(buka|buat|laundry|loundry)/i', $t);
     }
 
-    function handleJam_tutup($phoneIn, $waNumber, $textBody = '')
+    function handleJam_tutup($phoneIn, $waNumber, $textBody = '', $customIntro = null)
     {
         try {
             $config = require __DIR__ . '/../Config/OperatingHours.php';
@@ -1850,6 +1869,9 @@ class WAReplies
         $text = $variations[array_rand($variations)];
         if ($upcomingHolidays !== '') {
             $text .= $upcomingHolidays;
+        }
+        if (!empty($customIntro)) {
+            $text = $customIntro . "\n\n" . $text;
         }
         $this->sendAutoreplyText($waNumber, $text);
     }
