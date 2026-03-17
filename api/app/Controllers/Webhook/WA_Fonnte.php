@@ -13,7 +13,7 @@ use App\Core\Controller;
 class WA_Fonnte extends Controller
 {
     private const NO_REGISTER_TEXT = 'Mohon Maaf, nomor Anda belum terdaftar di Madinah Laundry. Terima kasih';
-    private const DEFAULT_REPLY = "Mohon maaf, whatsapp ini tidak dapat membalas pesan 🙏🏻.\n\nSilahkan kirimkan pesan ke\n*Madinah Laundry (CS)*\n💬 wa.me/6281170706611\n\nTerimakasih 😊";
+    private const DEFAULT_REPLY = "Mohon maaf jika respon lambat 🙏🏻.\n\nBila berkenan kirimkan pesan ke\n*Madinah Laundry (CS)*\n💬 wa.me/6281170706611\n\nTerimakasih 😊";
 
     public function index()
     {
