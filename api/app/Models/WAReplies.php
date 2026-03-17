@@ -7,7 +7,20 @@ use App\Core\DB;
 class WAReplies
 {
     private $waService = null;
-    private $noRegisterText = 'Mohon Maaf, nomor Anda belum terdaftar di Madinah Laundry. Terima kasih';
+    private $noRegisterTextVariations = [
+        'Maaf kak, nomor ini belum terdaftar di sistem Madinah Laundry. Terima kasih 🙏',
+        'Mohon maaf kak, nomor Anda belum terdaftar di sistem kami. Silakan daftar di kasir ya 😊',
+        'Maaf kak, nomor ini tidak ditemukan di database Madinah Laundry. Terima kasih 🙏',
+        'Mohon maaf kak, nomor belum terdaftar di data kami. Silakan daftarkan di cabang terdekat. Terima kasih 😊',
+        'Maaf kak, nomor ini belum ada di sistem Madinah Laundry. Terima kasih 🙏',
+        'Mohon maaf kak, nomor Anda belum terdaftar di sistem Madinah Laundry. Silakan daftar di kasir ya 😊',
+        'Maaf kak, nomor ini tidak terdaftar di database kami. Terima kasih 🙏',
+    ];
+
+    private function getNoRegisterText()
+    {
+        return $this->noRegisterTextVariations[array_rand($this->noRegisterTextVariations)];
+    }
     /** @var string|null Nama handler saat ini (untuk log saat send gagal) */
     private $currentHandler = null;
     /** @var string|null Nama contact dari process() untuk sapaan AI (pak/bu/kak) */
@@ -590,9 +603,10 @@ class WAReplies
             // Check if customer exists BEFORE accessing array
             if (empty($id_pelanggans)) {
                 // Customer NOT registered - send message and exit
-                $res = $waService->sendFreeText($waNumber, $this->noRegisterText);
+                $noRegText = $this->getNoRegisterText();
+                $res = $waService->sendFreeText($waNumber, $noRegText);
                 if ($res['success']) {
-                    $this->pushToWebSocket($this->buildWsPayload($waNumber, $this->noRegisterText, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+                    $this->pushToWebSocket($this->buildWsPayload($waNumber, $noRegText, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
                 }
                 return;
             }
@@ -1207,9 +1221,10 @@ class WAReplies
         $pelanggan = $db->query("SELECT id_pelanggan, nama_pelanggan, id_cabang FROM pelanggan WHERE $where")->result_array();
 
         if (empty($pelanggan)) {
-            $res = $waService->sendFreeText($waNumber, $this->noRegisterText);
+            $noRegText = $this->getNoRegisterText();
+            $res = $waService->sendFreeText($waNumber, $noRegText);
             if ($res['success']) {
-                $this->pushToWebSocket($this->buildWsPayload($waNumber, $this->noRegisterText, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+                $this->pushToWebSocket($this->buildWsPayload($waNumber, $noRegText, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
             }
             return;
         }
@@ -1537,9 +1552,10 @@ class WAReplies
         $nama_pelanggan = strtoupper($nama_pelanggans[0] ?? ''); // fix index 0 if empty
 
         if (empty($id_pelanggans)) {
-            $res = $waService->sendFreeText($waNumber, $this->noRegisterText);
+            $noRegText = $this->getNoRegisterText();
+            $res = $waService->sendFreeText($waNumber, $noRegText);
             if ($res['success']) {
-                $this->pushToWebSocket($this->buildWsPayload($waNumber, $this->noRegisterText, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+                $this->pushToWebSocket($this->buildWsPayload($waNumber, $noRegText, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
             }
         } else {
             $ids_in = implode(',', $id_pelanggans);
