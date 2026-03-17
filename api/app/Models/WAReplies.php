@@ -146,7 +146,8 @@ class WAReplies
         if ($n === '') return 'kak';
         if (preg_match('/\b(ibu|bu)\b/', $n)) return 'bu';
         if (preg_match('/\b(bapak|pak|bpk)\b/', $n)) return 'pak';
-        if (preg_match('/\b(bg|bang)\b/', $n)) return 'bang';
+        // bg/bang: sebagai kata ATAU di awal nama (BG ALIM, BGALIM, bg. alim)
+        if (preg_match('/\b(bg|bang)\b|^bg/i', $n)) return 'bang';
         if (preg_match('/\b(kak|kakak)\b/', $n)) return 'kak';
 
         // Tidak ada yang cocok: AI identifikasi dari nama, pilih kak atau bang
@@ -172,7 +173,7 @@ class WAReplies
             }
             $firstName = trim(preg_split('/\s+/', $contactName, 2)[0] ?? '') ?: $contactName;
             $messages = [
-                ['role' => 'system', 'content' => "Kamu classifier sapaan Indonesia. Dari nama depan, pilih: 'kak' (perempuan/neutral) atau 'bang' (laki-laki).\n\nAturan:\n- Nama khas perempuan (Siti, Dewi, Ani, Rina, dll) -> kak\n- Nama khas laki-laki (Budi, Bambang, Ahmad, Rudi, dll) -> bang\n- Nama netral/tidak jelas (Dian, Wawan, dsb) -> utamakan kak\n- Ragu atau nama singkat/tidak dikenal -> utamakan kak\n\nPENTING: Jika ragu antara kak dan bang, pilih kak.\n\nJawab HANYA satu kata: kak atau bang."],
+                ['role' => 'system', 'content' => "Kamu classifier sapaan Indonesia. Dari nama depan, pilih: 'kak' (perempuan/neutral) atau 'bang' (laki-laki).\n\nAturan:\n- Nama khas perempuan (Siti, Dewi, Ani, Rina, dll) -> kak\n- Nama khas laki-laki (Budi, Bambang, Ahmad, Rudi, Alim, dll) -> bang\n- Nama netral/tidak jelas (Dian, Wawan, dsb) -> utamakan kak\n- Ragu atau nama singkat/tidak dikenal -> utamakan kak\n\nPENTING: Jika ragu antara kak dan bang, pilih kak.\n\nJawab HANYA satu kata: kak atau bang."],
                 ['role' => 'user', 'content' => "Nama: {$firstName}"],
             ];
             $answer = trim(strtolower($this->executeOpenAIRequestWithMessages($messages, 10)));
@@ -220,9 +221,10 @@ class WAReplies
         if (mb_strlen($textLower) < 10) {
             return false;
         }
-        $hasGreeting = preg_match('/^(assalamu|asalamu|salam|halo|hai|pagi|siang|sore|malam)\b/i', $textLower)
+        // Assalamualaikum (full word) atau sapaan lain di awal
+        $hasGreeting = preg_match('/^(assalamu[a-z]*|asalamu[a-z]*|salam|halo|hai|pagi|siang|sore|malam)\b/i', $textLower)
             || preg_match('/\b(pagi|siang|sore|malam)\s*(kak|bang|pak|bu|adek)/i', $textLower);
-        $hasOtherIntent = preg_match('/siap|dah|udah|bisa|jemput|antar|berapa|harga|transfer|bayar|cek|status/i', $textLower);
+        $hasOtherIntent = preg_match('/siap|sudah|dah|udah|udh|bisa|jemput|antar|berapa|harga|transfer|bayar|cek|status|laundry/i', $textLower);
         if (!$hasGreeting || !$hasOtherIntent) {
             return false;
         }
@@ -868,8 +870,8 @@ class WAReplies
         }
 
         $sapaanHint = $contactName !== ''
-            ? "Nama customer: \"{$contactName}\". Aturan sapaan: HANYA jika nama mengandung ibu/bu -> pakai bu. HANYA jika nama mengandung pak/bapak/bpk -> pakai pak. Jika TIDAK mengandung itu, pakai kak/kakak/bg/bang."
-            : "Nama customer tidak tersedia. Pakai sapaan kak/kakak.";
+            ? "Nama customer: \"{$contactName}\". Sapaan yang WAJIB dipakai: {$sapaan}. JANGAN pakai sapaan lain."
+            : "Nama customer tidak tersedia. Pakai sapaan: {$sapaan}.";
 
         try {
             if (!class_exists('\\App\\Config\\AI') || !\App\Config\AI::isEnabled()) {
@@ -880,11 +882,11 @@ class WAReplies
             $messages = [
                 [
                     'role' => 'system',
-                    'content' => "Kamu adalah customer service Madinah Laundry. Balas penutup/acknowledgment dari customer.\n\nCRITICAL - SINGKAT & SANTAI:\n- Balas PENDEK (max 1 kalimat, 5-8 kata). Jangan formal. Santai tapi ramah.\n- Contoh singkat: \"Sama-sama kak\" \"Siap bu\" \"Oke\"\n- JANGAN kalimat panjang. JANGAN pakai tanda seru (!). JANGAN pakai singkatan 'mk' atau 'mksh'.\n- JANGAN PERNAH gunakan kata \"ditunggu\" atau \"di tunggu\" atau \"ditunggu ya\" - HILANGKAN dari semua balasan.\n- JANGAN PERNAH sebut nama customer dalam balasan (gunakan hanya untuk identifikasi sapaan).\n\nJENIS PENUTUP:\n1. Terimakasih/makasih/thanks -> balas sama-sama bang/bu/kak, terimakasih juga pak.\n2. Ok/baik/siap (acknowledgment) -> balas \"Siap\" atau \"Oke\" - singkat\n3. Konfirmasi transfer -> \"Siap kak\" atau \"Oke, terima kasih\"\n4. Pemberitahuan jemput/antar (nanti saya jemput, aku ambil) -> balas \"Siap\" atau \"Oke\" - JANGAN \"ditunggu ya\"\n5. JANGAN balas komplain/keluhan (salah hitung, ada salah, dll) - itu BUKAN PENUTUP\n\nPENTING:\n- Sapaan: HANYA jika nama ada ibu/bu -> bu. HANYA jika nama ada pak/bapak/bpk -> pak. Jika tidak, pakai kak/kakak/bg/bang. JANGAN sebut nama. JANGAN kata 'Anda'.\n- JANGAN pakai \"ditunggu\" / \"di tunggu\" / \"ditunggu ya\" dalam bentuk apapun.\n- JANGAN pakai tanda seru (!).\n- Jika RAGU atau tidak yakin apa yang harus dibalas (misal: gpp kak, gak apa-apa), balas HANYA emoji ramah saja: 😊 atau 👍"
+                    'content' => "Kamu adalah customer service Madinah Laundry. Balas penutup/acknowledgment dari customer.\n\nCRITICAL - SINGKAT & SANTAI:\n- Balas PENDEK (max 1 kalimat, 5-8 kata). Jangan formal. Santai tapi ramah.\n- WAJIB gunakan PERSIS sapaan yang diberikan (bang/bu/kak/pak). JANGAN ganti sapaan.\n- Contoh: jika sapaan=bang -> \"Oke bang\" \"Siap bang\" \"Selamat mudik ya bang\". Jika sapaan=kak -> \"Oke kak\" \"Siap kak\".\n- JANGAN kalimat panjang. JANGAN pakai tanda seru (!). JANGAN pakai singkatan 'mk' atau 'mksh'.\n- JANGAN PERNAH gunakan kata \"ditunggu\" atau \"di tunggu\" atau \"ditunggu ya\" - HILANGKAN dari semua balasan.\n- JANGAN PERNAH sebut nama customer dalam balasan.\n\nJENIS PENUTUP:\n1. Terimakasih/makasih/thanks -> balas sama-sama + sapaan\n2. Ok/baik/siap (acknowledgment) -> balas \"Siap\" atau \"Oke\" + sapaan\n3. Konfirmasi transfer -> \"Siap\" atau \"Oke, terima kasih\"\n4. Pemberitahuan jemput/antar/mudik -> balas \"Siap\" atau \"Oke, selamat mudik ya\" + sapaan\n5. JANGAN balas komplain/keluhan - itu BUKAN PENUTUP\n\nPENTING: Pakai PERSIS sapaan yang diberikan. JANGAN pakai \"ditunggu\". JANGAN pakai tanda seru (!)."
                 ],
                 [
                     'role' => 'user',
-                    'content' => "{$sapaanHint}\n\nPesan customer: \"{$textBody}\"\n\nBalas singkat dan santai. Max 1 kalimat pendek."
+                    'content' => "{$sapaanHint}\n\nPesan customer: \"{$textBody}\"\n\nBalas singkat dan santai. Max 1 kalimat pendek. Gunakan sapaan: {$sapaan}"
                 ]
             ];
 

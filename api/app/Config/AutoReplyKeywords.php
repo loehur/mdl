@@ -5,8 +5,8 @@ return [
             '/^\s*(p|ping|ka*k|ba*n*g|b*a*pa*k|i*bu*k*|a*de*k|he*a*l+o|as+a*l+a*mu*a*l+a*i*ku*m|tes)\s*$/i',
             // Sapaan pagi/sore/siang/malam + kak/bang - HANYA jika tidak diikuti pertanyaan/permintaan
             '/(pa*gi|so*re|si*a*ng|ma*la*m|ha*e*l+o+)\s*\b(ba*n*g|ka*k|pa*k|i*bu*k*|a*de*k*|a*na*k)\s*[,.]?\s*$/i',
-            // Assalamualaikum - HANYA jika tidak diikuti pertanyaan/permintaan (misal: "assalamualaikum, kain dah siap?" -> STATUS)
-            '/^\s*(assalamu|asalamu)[^,]*\s*$/i',
+            // Assalamualaikum - HANYA sapaan singkat. Jika ada "siap/udh/laundry" = STATUS, bukan PEMBUKA
+            '/^\s*(assalamu|asalamu)[a-z]*\s*(wr\s*wb|kak|bang|pak|bu|mbak)?\s*$/i',
             '/^\s*.\s*$/i',
         ],
         'ai_prompt' => "User HANYA memberi sapaan awal singkat tanpa permintaan/isi pesan lain.\n
@@ -59,11 +59,14 @@ return [
     'STATUS' => [
         'patterns' => [
             '/^\s*(cek|sta*tu*s)\s*$/i',
-            '/\b(sudah|dah+|dh)\s*sia+p+\b/i',  // dh = singkatan dah/sudah (kain ku dh siap?)
+            '/\b(sudah|udah|udh|dah+|dh)\s*sia+p+\b/i',  // dh siap, udh siap, laundry saya udh siap?
+            '/\b(siap|sia+p+)\s*(kak|kk|bang|pak|bu|mbak|penya|punya)/i',  // siap kk, siap penya ku (typo)
             '/\b(sudah|udah|dah|dh)\s*selesai/i',  // sudah selesai laundry nya kak?
             '/\b(udah|sudah|dah|dh)\s*bisa\s*(di\s*)?ambil/i',  // udh bisa di ambil baju sy?
             '/\bbisa\s*(di\s*)?ambil\s*\??/i',  // bisa diambil? / bisa di ambil?
-            '/\bsia+p+\s*(kak|bang|pak|bu|ya)?\s*$/i',
+            '/\bsia+p+\s*(kak|kk|bang|pak|bu|mbak|ya)?\s*$/i',
+            // "laundry saya udh siap" / "loundry saya udh siap" (typo)
+            '/\b(laundry|loundry|la*u*ndr(y|i))\s+(saya|ku|sya)\s+(udh|udah|sudah|dah)\s*sia+p/i',
             '/atas\s+nama\s+.+\s*(udah|sudah)\s*\??/i',
         ],
         'ai_prompt' => "User menanyakan ATAU memberitahu status/progress laundry, seperti:\n
@@ -73,8 +76,8 @@ return [
         | atas nama IVAN udah? | atas nama X sudah? | laundry [nama] udah? | punya [nama] sudah? |\n
         \n
         KONFIRMASI/PEMBERITAHUAN status (sudah siap):\n
-        | sudah siap | dah siap | dahh siapp | siapp kak | siap kak | sudah jadi | ready |\n
-        | kak dahh siapp kak | dah siapp | sudah siap kak |\n
+        | sudah siap | udh siap | dah siap | dahh siapp | siapp kak | siap kak | sudah jadi | ready |\n
+        | laundry saya udh siap | loundry saya udh siap mbak | dh siap kk penya ku | siap kk | siap penya | kak dahh siapp kak | dah siapp | sudah siap kak |\n
         \n
         PENTING:\n
         - Jika user bertanya 'kapan' atau 'jam berapa' + (siap/selesai/jadi/bisa diambil) = STATUS\n
@@ -132,6 +135,9 @@ return [
          '/^\s*(je*m*pu*t|anta*r)\s*$/i',
          // "jam berapa bisa jemput?" = tanya jadwal jemput (bukan jam buka toko)
          '/\b(jam\s*)?(brp|brpa|berapa)\s*bisa\s*(jemput|antar)/i',
+         // "jam brp bsk diantarnya?" / "jam berapa besok diantar?" = tanya jadwal pengantaran order
+         '/\b(jam\s*)?(brp|brpa|berapa)\s*(bsk|besok|nanti)?\s*(di)?antar/i',
+         '/\b(ka*pa*n|kpn)\s*(di)?(antar|jemput)/i',
          // Permintaan antar/jemput: "antar aja", "klo udh selesai antar aja", "selesai antar ya"
          '/\b(antar|jemput)\s*(aja|ya)\s*$/i',
          '/(klo|kalau)\s*(udh|udah|sudah)?\s*selesai\s*(antar|jemput)/i',
@@ -141,6 +147,7 @@ return [
       TRUE (MINTA JEMPUT/ANTAR) - HARUS ADA KATA PERMINTAAN/PERTANYAAN:\n
       - Kata kunci: tolong/minta/bisa/boleh/dong/kapan/berapa + jemput/antar\n
       - tolong jemput, minta dijemput, bisa diantar?, boleh dijemput?, kapan diantar?\n
+      - jam brp bsk diantarnya?, jam berapa besok diantar?, kapan diantarnya? = tanya jadwal pengantaran order = MINTA_JEMPUT_ANTAR\n
       - bisa jemput kak?, nanti bisa jemput kak?, jemput dong, antar ya dong\n
       - brp ongkirnya?, berapa ongkosnya?, brp ong nya kak?, biaya antar?\n
       \n
@@ -230,9 +237,10 @@ return [
         \n
         FALSE (BUKAN JAM_OPERASIONAL) - PENTING:\n
         - 'Jam berapa?' / 'Jam brp?' TANPA kata buka/tutup/operasional/terima sama sekali = user menanya WAKTU SAAT INI = FALSE\n
-        - 'jam berapa bisa jemput?' / 'jam brp bisa jemput setrika?' = user minta jemput, tanya kapan kurir bisa jemput = MINTA_JEMPUT_ANTAR (bukan JAM_OPERASIONAL)\n
+        - 'jam berapa bisa jemput?' / 'jam brp bisa jemput setrika?' = user minta jemput = MINTA_JEMPUT_ANTAR (bukan JAM_OPERASIONAL)\n
+        - 'jam brp bsk diantarnya?' / 'jam berapa besok diantar?' / 'kapan diantarnya?' = tanya jadwal PENGANTARAN order = MINTA_JEMPUT_ANTAR (bukan JAM_OPERASIONAL)\n
         - 'bisa antar laundry?' / 'tolong antar laundry' (TANPA 'masih') = permintaan jemput/antar = MINTA_JEMPUT_ANTAR\n
-        - Contoh FALSE: 'jam berapa?', 'jam brp kak?' (tanpa buka/tutup) | 'jam berapa diantar?', 'kapan dijemput?'"
+        - Contoh FALSE: 'jam berapa?', 'jam brp kak?' (tanpa buka/tutup) | 'jam berapa diantar?', 'kapan dijemput?', 'jam brp bsk diantarnya?'"
     ],
 
    'PENUTUP' => [
