@@ -326,6 +326,10 @@ class WAReplies
                     if (($handler === 'PEMBUKA' || $handler === 'PENUTUP') && strpos($textBody ?? '', '?') !== false) {
                         continue;
                     }
+                    // "jam berapa bisa jemput?" = MINTA_JEMPUT_ANTAR (minta jemput), bukan JAM_OPERASIONAL
+                    if ($handler === 'JAM_OPERASIONAL' && preg_match('/\bbisa\s*(jemput|antar)\b/i', $textBodyToCheck) && !preg_match('/\bmasih\s+bisa\s*(jemput|antar)/i', $textBodyToCheck)) {
+                        continue;
+                    }
                     // Get case from config
                     $caseVal = $config['case'] ?? null;
                     $notify = $config['notify'] ?? false;
@@ -388,6 +392,12 @@ class WAReplies
                             'conversation_id' => $conversationId
                         ];
                     }
+                    // Handler match tapi method tidak ada (mis. MINTA_JEMPUT_ANTAR): create conversation, return, biarkan CS
+                    return (object) [
+                        'case' => $caseVal,
+                        'notify' => $notify,
+                        'conversation_id' => $conversationId
+                    ];
                 }
             }
         }

@@ -129,6 +129,8 @@ return [
       'notify' => true,
       'patterns' => [
          '/^\s*(je*m*pu*t|anta*r)\s*$/i',
+         // "jam berapa bisa jemput?" = tanya jadwal jemput (bukan jam buka toko)
+         '/\b(jam\s*)?(brp|brpa|berapa)\s*bisa\s*(jemput|antar)/i',
          // Permintaan antar/jemput: "antar aja", "klo udh selesai antar aja", "selesai antar ya"
          '/\b(antar|jemput)\s*(aja|ya)\s*$/i',
          '/(klo|kalau)\s*(udh|udah|sudah)?\s*selesai\s*(antar|jemput)/i',
@@ -146,6 +148,7 @@ return [
       - Konfirmasi/Pemberitahuan: | baik nanti dijemput | ok sore diantar | iya nanti akan dijemput | siap dijemput |\n
       - Hanya memberitahu jadwal tanpa permintaan: | nanti sore dijemput | besok diantar | jam 2 dijemput |\n
       - CRITICAL: 'masih bisa antar laundry?' / 'masih bisa antar?' = tanya AVAILABILITAS operasional = JAM_OPERASIONAL (bukan MINTA_JEMPUT_ANTAR). Kata 'masih' membedakan: tanya masih buka/bisa vs permintaan.\n
+      - TRUE: 'jam berapa bisa jemput setrika?' / 'jam brp bisa jemput?' = user minta jemput kain setrikaan, tanya kapan kurir bisa jemput = MINTA_JEMPUT_ANTAR (bukan JAM_OPERASIONAL)\n
       - CRITICAL: 'Mau jemput' = User SENDIRI yang akan mengambil = FALSE\n
       - CRITICAL: Jika TIDAK ada kata tolong/minta/bisa/boleh/dong/kapan/ = FALSE\n
       - Contoh FALSE: 'Mau jemput,jgn tutup dlu' (user akan ambil sendiri, bukan minta kurir)\n
@@ -220,6 +223,7 @@ return [
         \n
         FALSE (BUKAN JAM_OPERASIONAL) - PENTING:\n
         - 'Jam berapa?' / 'Jam brp?' TANPA kata buka/tutup/operasional/terima sama sekali = user menanya WAKTU SAAT INI = FALSE\n
+        - 'jam berapa bisa jemput?' / 'jam brp bisa jemput setrika?' = user minta jemput, tanya kapan kurir bisa jemput = MINTA_JEMPUT_ANTAR (bukan JAM_OPERASIONAL)\n
         - 'bisa antar laundry?' / 'tolong antar laundry' (TANPA 'masih') = permintaan jemput/antar = MINTA_JEMPUT_ANTAR\n
         - Contoh FALSE: 'jam berapa?', 'jam brp kak?' (tanpa buka/tutup) | 'jam berapa diantar?', 'kapan dijemput?'"
     ],
