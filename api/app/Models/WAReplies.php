@@ -150,20 +150,54 @@ class WAReplies
     }
 
     /**
-     * Ambil sapaan dari nama. Deteksi eksplisit: ibu/bu, bapak/pak, kak, bg/bang.
-     * Jika tidak jelas, AI pilih kak atau bang dari nama.
+     * Ambil context greeting: contactName + sapaan (pak/bu/kak/bang).
+     * Fungsi terpusat untuk handler yang butuh keduanya (PEMBUKA, PENUTUP, JAM_OPERASIONAL).
+     * @param string $waNumber Nomor WhatsApp
+     * @return array{contactName: string, sapaan: string}
+     */
+    private function getGreetingContext($waNumber)
+    {
+        $contactName = $this->getContactNameForGreeting($waNumber);
+        return [
+            'contactName' => $contactName,
+            'sapaan' => $this->getSapaanFromName($contactName),
+        ];
+    }
+
+    /**
+     * Ambil sapaan untuk greeting (pak/bu/kak/bang) sesuai gender.
+     * Fungsi terpusat: sendGreetingReplyFirst dan handler lain tinggal panggil ini.
+     * Alur: regex (ibu/bu, bapak/pak, bg/bang, kak) → jika tidak cocok, AI klasifikasi gender (kak/bang).
+     * @param string $waNumber Nomor WhatsApp
+     * @return string 'pak'|'bu'|'kak'|'bang'
+     */
+    private function getSapaanForGreeting($waNumber)
+    {
+        $ctx = $this->getGreetingContext($waNumber);
+        return $ctx['sapaan'];
+    }
+
+    /**
+     * Ambil sapaan dari nama. PRIORITAS: regex dulu, baru AI jika tidak ketemu.
+     * @internal Dipanggil via getSapaanForGreeting() oleh handler.
      */
     private function getSapaanFromName($contactName)
     {
         $n = strtolower(trim($contactName ?? ''));
         if ($n === '') return 'kak';
-        if (preg_match('/\b(ibu|bu)\b/', $n)) return 'bu';
+
+        // 1. Regex dulu (pakde/bude sebelum pak/bu agar "pak de"/"bu de" terdeteksi benar)
+        if (preg_match('/\b(pakde|pak\s*de)\b/i', $n)) return 'pakde';
+        if (preg_match('/\b(bude|bukde|bu\s*de|buk\s*de)\b/i', $n)) return 'bude';
+        if (preg_match('/\b(ibu|ibuk|bu|buk)\b/', $n)) return 'bu';
         if (preg_match('/\b(bapak|pak|bpk)\b/', $n)) return 'pak';
-        // bg/bang: sebagai kata ATAU di awal nama (BG ALIM, BGALIM, bg. alim)
+        if (preg_match('/\bom\b/', $n)) return 'om';
+        if (preg_match('/\bmas\b/', $n)) return 'mas';
+        if (preg_match('/\bmbak\b/', $n)) return 'mbak';
         if (preg_match('/\b(bg|bang)\b|^bg/i', $n)) return 'bang';
         if (preg_match('/\b(kak|kakak)\b/', $n)) return 'kak';
 
-        // Tidak ada yang cocok: AI identifikasi dari nama, pilih kak atau bang
+        // 2. Tidak ketemu di regex: baru minta AI (kak/bang dari nama)
         $cacheKey = $n;
         if (isset($this->sapaanAiCache[$cacheKey])) {
             return $this->sapaanAiCache[$cacheKey];
@@ -237,12 +271,11 @@ class WAReplies
         // Assalamualaikum (full word) atau sapaan lain di awal
         $hasGreeting = preg_match('/^(assalamu[a-z]*|asalamu[a-z]*|salam|halo|hai|pagi|siang|sore|malam)\b/i', $textLower)
             || preg_match('/\b(pagi|siang|sore|malam)\s*(kak|bang|pak|bu|adek)/i', $textLower);
-        $hasOtherIntent = preg_match('/siap|sudah|dah|udah|udh|bisa|jemput|antar|berapa|harga|transfer|bayar|cek|status|laundry/i', $textLower);
+        $hasOtherIntent = preg_match('/siap|sudah|dah|udah|udh|bisa|jemput|antar|berapa|harga|transfer|bayar|cek|status|laundry|tagihan|kirim|nota|bon/i', $textLower);
         if (!$hasGreeting || !$hasOtherIntent) {
             return false;
         }
-        $contactName = $this->getContactNameForGreeting($waNumber);
-        $sapaan = $this->getSapaanFromName($contactName);
+        $sapaan = $this->getSapaanForGreeting($waNumber);
         $isSalam = preg_match('/assalamu|asalamu|salam\b/i', $textLower);
         $reply = $isSalam ? "Waalaikumsalam {$sapaan}" : (preg_match('/pagi/i', $textLower) ? "Pagi {$sapaan}" : (preg_match('/siang/i', $textLower) ? "Siang {$sapaan}" : (preg_match('/sore/i', $textLower) ? "Sore {$sapaan}" : (preg_match('/malam/i', $textLower) ? "Malam {$sapaan}" : "Halo {$sapaan}"))));
         $this->sendAutoreplyText($waNumber, $reply);
@@ -756,8 +789,9 @@ class WAReplies
         $len = mb_strlen($textStripped);
         $hasOtherIntent = preg_match('/siap|dah|udah|bisa|jemput|antar|berapa|harga|transfer|bayar/i', $textLower) && mb_strlen($textLower) > 15;
 
-        $contactName = $this->getContactNameForGreeting($waNumber);
-        $sapaan = $this->getSapaanFromName($contactName);
+        $ctx = $this->getGreetingContext($waNumber);
+        $contactName = $ctx['contactName'];
+        $sapaan = $ctx['sapaan'];
 
         // Regex quick path: pesan singkat (P, ., 1-2 huruf) -> singkat & santai
         if ($len <= 2 || preg_match('/^[\.\,\!\?\-\s]+$/u', $textStripped)) {
@@ -850,8 +884,9 @@ class WAReplies
             return;
         }
 
-        $contactName = $this->getContactNameForGreeting($waNumber);
-        $sapaan = $this->getSapaanFromName($contactName);
+        $ctx = $this->getGreetingContext($waNumber);
+        $contactName = $ctx['contactName'];
+        $sapaan = $ctx['sapaan'];
 
         // Regex quick path: terimakasih/makasih (termasuk "oke makasih kak", "ok makasih") -> variatif (sesuai sapaan)
         if (preg_match('/^(terima\s*kasih|terimakasih|makasih|mksh|thanks|thx|tq)(\s+(kak|bang|pak|bu))?\s*[.!]?$/i', $textLower)
@@ -1699,8 +1734,7 @@ class WAReplies
         $t = strtolower(trim($textBody ?? ''));
         $konfirmasiIntro = null;
         if ($forceKonfirmasiIntro || preg_match('/\b(masih|msh|mash)\s*(bisa|bs|bis|b\s*s)\s*(terima|trima|antar|masukin|masuk)\s*(kain|baju|laundry|cuci)?/i', $t)) {
-            $contactName = $this->getContactNameForGreeting($waNumber);
-            $sapaan = $this->getSapaanFromName($contactName);
+            $sapaan = $this->getSapaanForGreeting($waNumber);
             $konfirmasiReplies = [
                 "Tunggu ya {$sapaan}, kami konfirmasi ke petugas dulu ya {$sapaan} 😊",
                 "Tunggu ya {$sapaan}, kami tanyakan ke crew dulu ya {$sapaan} 😊",
@@ -1790,8 +1824,9 @@ class WAReplies
         if (!empty($customIntro)) {
             $textBaku = $customIntro . "\n\n" . $textBaku;
         } elseif (($isQuestion = $this->isJamOperasionalQuestion($textBody)) && class_exists('\\App\\Config\\AI') && \App\Config\AI::isEnabled()) {
-            $contactName = $this->getContactNameForGreeting($waNumber);
-            $sapaan = $this->getSapaanFromName($contactName);
+            $ctx = $this->getGreetingContext($waNumber);
+            $contactName = $ctx['contactName'];
+            $sapaan = $ctx['sapaan'];
             try {
                 $messages = [
                     ['role' => 'system', 'content' => "Kamu customer service Madinah Laundry. Customer bertanya 'masih buka?' / 'buka ga?' (bukan 'masih bisa terima kain').\n\nTugas: buat SATU kalimat pembuka singkat (max 8 kata) yang menjawab 'masih buka', diakhiri koma.\n\nWAJIB: Gunakan HANYA sapaan yang diberikan. Format: \"Masih buka {sapaan},\" atau \"Iya {sapaan}, masih buka,\"\n\nContoh jika sapaan=kak: \"Masih buka kak,\" atau \"Iya kak, masih buka,\"\nContoh jika sapaan=bang: \"Masih buka bang,\" atau \"Iya bang, masih buka,\"\nContoh jika sapaan=bu: \"Masih buka bu,\" atau \"Iya bu, masih buka,\"\n\nPENTING: Pakai PERSIS sapaan yang diberikan. Hanya output kalimat pembuka, diakhiri koma. JANGAN tambah info jam. JANGAN pakai tanda seru (!). JANGAN sebut nama customer."],
