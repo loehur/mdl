@@ -86,7 +86,7 @@ class WA_Fonnte extends Controller
      * Rate limit - sama dengan WAReplies, pakai wa_auto_reply_log (db 0)
      * @return bool True jika boleh kirim, false jika masih cooldown
      */
-    private function shouldHandle($waNumber, $handler, $cooldownMinutes = 1)
+    private function shouldHandle($waNumber, $handler, $cooldownMinutes = 60)
     {
         $db = $this->db(0);
         $provider = 'B';
