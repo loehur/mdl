@@ -8,13 +8,13 @@ class WAReplies
 {
     private $waService = null;
     private $noRegisterTextVariations = [
-        'Maaf kak, nomor ini belum terdaftar di sistem Madinah Laundry. Terima kasih 🙏',
-        'Mohon maaf kak, nomor Anda belum terdaftar di sistem kami. Silakan daftar di kasir ya 😊',
-        'Maaf kak, nomor ini tidak ditemukan di database Madinah Laundry. Terima kasih 🙏',
-        'Mohon maaf kak, nomor belum terdaftar di data kami. Silakan daftarkan di cabang terdekat. Terima kasih 😊',
-        'Maaf kak, nomor ini belum ada di sistem Madinah Laundry. Terima kasih 🙏',
-        'Mohon maaf kak, nomor Anda belum terdaftar di sistem Madinah Laundry. Silakan daftar di kasir ya 😊',
-        'Maaf kak, nomor ini tidak terdaftar di database kami. Terima kasih 🙏',
+        "Maaf, nomor kakak belum terdaftar di sistem kami.\n\nBoleh bantu kirim bukti nota di sini ya, agar kami bantu pengecekan.\nTerima kasih 🙏",
+        "Mohon maaf, nomor kakak tidak ditemukan di sistem.\n\nBoleh bantu kirim bukti nota di sini ya, agar kami bantu pengecekan.\nTerima kasih 😊",
+        "Maaf, nomor kakak belum terdaftar di data kami.\n\nBoleh bantu kirim bukti nota di sini ya, agar kami bantu pengecekan.\nTerima kasih 🙏",
+        "Mohon maaf, nomor kakak belum ada di sistem Madinah Laundry.\n\nBoleh bantu kirim bukti nota di sini ya, agar kami bantu pengecekan.\nTerima kasih 😊",
+        "Maaf, nomor kakak belum terdaftar di database kami.\n\nBoleh bantu kirim bukti nota di sini ya, agar kami bantu pengecekan.\nTerima kasih 🙏",
+        "Mohon maaf, nomor kakak tidak terdaftar di sistem.\n\nBoleh bantu kirim bukti nota di sini ya, agar kami bantu pengecekan.\nTerima kasih 🙏",
+        "Maaf, nomor kakak belum terdaftar di sistem Madinah Laundry.\n\nBoleh bantu kirim bukti nota di sini ya, agar kami bantu pengecekan.\nTerima kasih 😊",
     ];
 
     private function getNoRegisterText()
