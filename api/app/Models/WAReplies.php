@@ -713,9 +713,15 @@ class WAReplies
 
     /**
      * Handle intent PEMBUKA - balas sapaan pembuka dengan AI sebagai customer service laundry
+     * Jika diluar jam operasional, alihkan ke handleJam_tutup
      */
     private function handlePembuka($phoneIn, $waNumber, $textBody = '')
     {
+        if (!$this->isOperatingHours()) {
+            $this->handleJam_tutup($phoneIn, $waNumber, $textBody);
+            return;
+        }
+
         $textLower = strtolower(trim($textBody ?? ''));
         $textStripped = preg_replace('/[\s\x{200B}-\x{200D}\x{FEFF}]/u', '', $textLower);
         $len = mb_strlen($textStripped);
@@ -1791,7 +1797,7 @@ class WAReplies
             $variations = [
                 "Mohon maaf, kami sedang tutup. Jam operasional {$timeBold}, {$daysStr}. 🙏",
                 "Mohon maaf, kami di luar jam operasional. Buka jam {$timeBold}, {$daysStr}. 😊",
-                "Maaf, saat ini kami sudah tutup. Jam buka {$timeBold}, {$daysStr}. 🙏",
+                "Maaf, saat ini kami sedang tutup. Jam buka {$timeBold}, {$daysStr}. 🙏",
                 "Mohon maaf, kami tutup. Buka jam {$timeBold}, {$daysStr}. 😊"
             ];
         }
