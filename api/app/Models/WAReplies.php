@@ -334,6 +334,10 @@ class WAReplies
                     $caseVal = $config['case'] ?? null;
                     $notify = $config['notify'] ?? false;
                     $matchPattern[] = $handler;
+
+                    if (class_exists('\Log')) {
+                        \Log::write(mb_substr($textBody ?? '', 0, 100) . " | {$handler} | regex", 'ai', 'intent');
+                    }
                     
                     // Unset matched keyword from config to optimize AI detection
                     // AI tidak perlu cek keyword yang sudah match di regex
