@@ -1658,6 +1658,21 @@ class WAReplies
 
     function handleJam_operasional($phoneIn, $waNumber, $textBody = '')
     {
+        $t = strtolower(trim($textBody ?? ''));
+        // "masih bisa terima kain? masih bisa antar? masih bisa masukin kain?" -> perlu konfirmasi ke petugas
+        if (preg_match('/\bmasih\s*bisa\s*(terima|antar|masukin|masuk)\s*(kain|baju|laundry|cuci)?/i', $t)) {
+            $contactName = $this->getContactNameForGreeting($waNumber);
+            $sapaan = $this->getSapaanFromName($contactName);
+            $konfirmasiReplies = [
+                "Tunggu ya {$sapaan}, kami konfirmasi ke petugas dulu ya {$sapaan} 😊",
+                "Tunggu ya {$sapaan}, kami tanyakan ke crew dulu ya {$sapaan} 😊",
+                "Tunggu ya {$sapaan}, kami konfirmasi ke kasir dulu ya {$sapaan} 😊",
+                "Tunggu ya {$sapaan}, kami cek ke petugas dulu ya {$sapaan} 😊",
+            ];
+            $this->sendAutoreplyText($waNumber, $konfirmasiReplies[array_rand($konfirmasiReplies)]);
+            return;
+        }
+
         $isOpen = $this->isOperatingHours();
         if ($isOpen) {
             $this->handleJam_buka($phoneIn, $waNumber, $textBody);
