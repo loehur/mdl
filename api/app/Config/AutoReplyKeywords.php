@@ -200,7 +200,7 @@ return [
 
     'JAM_OPERASIONAL' => [
         'patterns' => [
-            '/(ka*pa*n|ma*si*h)\s*\b(bu*ka*|tu*tu*p)/i',
+            '/(ka*pa*n|ma*si*h|masi)\s*\b(bu*ka*|tu*tu*p)/i',
             '/(ja*m)\s*\b(be*ra*pa*)\s*\b(bu*ka*|tu*tu*p)/i',
             // "buka sampai kapan?", "tutup jam berapa?", "sampai jam berapa buka?"
             '/\b(bu*ka*|tu*tu*p)\s*(sa*mpa*i|sampe)\s*(ka*pa*n|ja*m\s*be*ra*pa*)?/i',
@@ -209,12 +209,12 @@ return [
             // "kapan terakhir terima kain/laundry?", "terakhir terima jam berapa?"
             '/\b(ka*pa*n)\s*(te*ra*khir)\s*(te*ri*ma*)\s*(ka*in|ba*ju|la*u*ndr(y|i)|cu*ci)?/i',
             '/\b(te*ra*khir)\s*(te*ri*ma*)\s*(ka*in|ba*ju|la*u*ndr(y|i)|ja*m)?/i',
-            // "masih terima kain/baju/laundry?", "masih terima kak?"
-            '/\b(ma*si*h)\s*(te*ri*ma*)\s*(ka*in|ba*ju|la*u*ndr(y|i)|cu*ci|ka*k|ya)?/i',
-            // "masih/msh bisa/bs terima kain?" (sistem jawab konfirmasi ke petugas dulu)
-            '/\b(masih|msh|mash)\s*(bisa|bs|bis)\s*(terima|trima|antar|masukin|masuk)\s*(kain|baju|laundry|cuci)?/i',
+            // "masih terima kain/baju/laundry?", "masih terima kak?" (masi = typo masih)
+            '/\b(ma*si*h|masi)\s*(te*ri*ma*)\s*(ka*in|ba*ju|la*u*ndr(y|i)|cu*ci|ka*k|ya)?/i',
+            // "masih/msh/masi bisa/bs terima kain?" (sistem jawab konfirmasi ke petugas dulu)
+            '/\b(masih|msh|mash|masi)\s*(bisa|bs|bis)\s*(terima|trima|antar|masukin|masuk)\s*(kain|baju|laundry|cuci)?/i',
             // "masih bisa antar laundry?", "masih bisa antar?", "masih bisa jemput?"
-            '/\b(ma*si*h)\s*(bi*sa*)\s*(anta*r|je*m*pu*t)\s*(la*u*ndr(y|i)|cu*ci)?/i',
+            '/\b(ma*si*h|masi)\s*(bi*sa*)\s*(anta*r|je*m*pu*t)\s*(la*u*ndr(y|i)|cu*ci)?/i',
             // "liburnya kapan?", "kapan libur?", "hari libur?"
             '/\b(liburnya|libur)\s*(kapan|hari)?/i',
             '/\b(kapan)\s*(libur)/i',
@@ -222,7 +222,7 @@ return [
             '/\b(tutup|libur)\s*(tgl|tanggal)\s*(brp|berapa)?/i',
             '/\b(tgl|tanggal)\s*(brp|berapa)\s*(tutup|libur)/i',
             // "masih bisa siap gak mau bawa sprei?", "masih bisa siap mau antar?"
-            '/\b(ma*si*h)\s*(bi*sa*)\s*sia+p+\s*(gak|ga|g)?/i',
+            '/\b(ma*si*h|masi)\s*(bi*sa*)\s*sia+p+\s*(gak|ga|g)?/i',
         ],
         'ai_prompt' => "User menanyakan jam operasional TOKO (buka/tutup) ATAU batas terima laundry ATAU jadwal libur.\n
         DUA JENIS (keduanya JAM_OPERASIONAL, sistem bedakan jawaban): (A) 'masih buka?' = jawab 'masih buka kak/bang'. (B) 'masih bisa terima kain?' / 'msh bs terima kain?' = jawab konfirmasi ke petugas dulu.\n

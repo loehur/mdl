@@ -359,7 +359,7 @@ class WAReplies
 
         // "masih/msh bisa/bs terima kain?" -> konfirmasi ke petugas + jam operasional (PRIORITAS, sebelum handler lain)
         // BEDA dengan "masih buka?" yang jawab "masih buka kak/bang"
-        $masihBisaTerimaPattern = '/\b(masih|msh|mash)\s*(bisa|bs|bis|b\s*s)\s*(terima|trima|antar|masukin|masuk)\s*(kain|baju|laundry|cuci)?/i';
+        $masihBisaTerimaPattern = '/\b(masih|msh|mash|masi)\s*(bisa|bs|bis|b\s*s)\s*(terima|trima|antar|masukin|masuk)\s*(kain|baju|laundry|cuci)?/i';
         if (preg_match($masihBisaTerimaPattern, $textBodyToCheck)) {
             if ($this->shouldHandle($waNumber, 'JAM_OPERASIONAL')) {
                 $this->currentHandler = 'JAM_OPERASIONAL';
@@ -392,7 +392,7 @@ class WAReplies
                         continue;
                     }
                     // "jam berapa bisa jemput?" = MINTA_JEMPUT_ANTAR (minta jemput), bukan JAM_OPERASIONAL
-                    if ($handler === 'JAM_OPERASIONAL' && preg_match('/\bbisa\s*(jemput|antar)\b/i', $textBodyToCheck) && !preg_match('/\bmasih\s+bisa\s*(jemput|antar)/i', $textBodyToCheck)) {
+                    if ($handler === 'JAM_OPERASIONAL' && preg_match('/\bbisa\s*(jemput|antar)\b/i', $textBodyToCheck) && !preg_match('/\b(masih|masi)\s+bisa\s*(jemput|antar)/i', $textBodyToCheck)) {
                         continue;
                     }
                     // Get case from config
@@ -1733,7 +1733,7 @@ class WAReplies
     {
         $t = strtolower(trim($textBody ?? ''));
         $konfirmasiIntro = null;
-        if ($forceKonfirmasiIntro || preg_match('/\b(masih|msh|mash)\s*(bisa|bs|bis|b\s*s)\s*(terima|trima|antar|masukin|masuk)\s*(kain|baju|laundry|cuci)?/i', $t)) {
+        if ($forceKonfirmasiIntro || preg_match('/\b(masih|msh|mash|masi)\s*(bisa|bs|bis|b\s*s)\s*(terima|trima|antar|masukin|masuk)\s*(kain|baju|laundry|cuci)?/i', $t)) {
             $sapaan = $this->getSapaanForGreeting($waNumber);
             $konfirmasiReplies = [
                 "Tunggu ya {$sapaan}, kami konfirmasi ke petugas dulu ya {$sapaan} 😊",
@@ -1856,9 +1856,9 @@ class WAReplies
         $t = strtolower(trim($textBody ?? ''));
         if ($t === '') return false;
         if (strpos($textBody ?? '', '?') !== false) return true;
-        return preg_match('/\b(masih|apa|apakah|kapan|jam\s*br?p?|berapa)\s*(buka|buat)/i', $t)
+        return preg_match('/\b(masih|masi|apa|apakah|kapan|jam\s*br?p?|berapa)\s*(buka|buat)/i', $t)
             || preg_match('/\b(buka|buat)\s*(ga|gak|g\?|tidak|nggak|nya)\b/i', $t)
-            || preg_match('/\bmasih\s*(buka|buat|laundry|loundry)/i', $t);
+            || preg_match('/\b(masih|masi)\s*(buka|buat|laundry|loundry)/i', $t);
     }
 
     function handleJam_tutup($phoneIn, $waNumber, $textBody = '', $customIntro = null)
@@ -2178,6 +2178,9 @@ class WAReplies
         $bank_code = trim($row['bank_code'] ?? '');
         $bank_account_number = trim($row['bank_account_number'] ?? '');
         $bank_account_name = trim($row['bank_account_name'] ?? '');
+        if ($bank_account_name !== '') {
+            $bank_account_name = ucwords(mb_strtolower($bank_account_name));
+        }
 
         $bankName = '';
         if (!empty($bank_code)) {
