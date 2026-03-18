@@ -270,15 +270,16 @@ class WAReplies
         if (mb_strlen($textLower) < 10) {
             return false;
         }
-        // Assalamualaikum (full word) atau sapaan lain di awal
-        $hasGreeting = preg_match('/^(assalamu[a-z]*|asalamu[a-z]*|salam|halo|hai|pagi|siang|sore|malam)\b/i', $textLower)
-            || preg_match('/\b(pagi|siang|sore|malam)\s*(kak|bang|pak|bu|adek)/i', $textLower);
-        $hasOtherIntent = preg_match('/siap|sudah|dah|udah|udh|bisa|jemput|antar|berapa|harga|transfer|bayar|cek|status|laundry|tagihan|kirim|nota|bon|struk/i', $textLower);
+        // Assalamualaikum (assalam/assalamu, termasuk typo assalammualaikum) atau sapaan lain di awal
+        $hasGreeting = preg_match('/^(assalam+u[a-z]*|asalam+u[a-z]*|salam|halo|hai|pagi|siang|sore|malam)\b/i', $textLower)
+            || preg_match('/\b(pagi|siang|sore|malam)\s*(kak|bang|pak|bu|adek)/i', $textLower)
+            || preg_match('/\b(assalam+u|asalam+u|salam)\s*(kak|bang|pak|bu|adek)/i', $textLower);
+        $hasOtherIntent = preg_match('/siap|sudah|dah|udah|udh|bisa|jemput|antar|berapa|brp|harga|transfer|bayar|cek|status|laundry|tagihan|kirim|nota|bon|struk|tutup|buka|jam/i', $textLower);
         if (!$hasGreeting || !$hasOtherIntent) {
             return false;
         }
         $sapaan = $this->getSapaanForGreeting($waNumber);
-        $isSalam = preg_match('/assalamu|asalamu|salam\b/i', $textLower);
+        $isSalam = preg_match('/assalam+u|asalam+u|salam\b/i', $textLower);
         $reply = $isSalam ? "Waalaikumsalam {$sapaan}" : (preg_match('/pagi/i', $textLower) ? "Pagi {$sapaan}" : (preg_match('/siang/i', $textLower) ? "Siang {$sapaan}" : (preg_match('/sore/i', $textLower) ? "Sore {$sapaan}" : (preg_match('/malam/i', $textLower) ? "Malam {$sapaan}" : "Halo {$sapaan}"))));
         $this->sendAutoreplyText($waNumber, $reply);
         return true;
@@ -813,7 +814,7 @@ class WAReplies
 
         // Regex quick path: sapaan + intent lain -> salam singkat lalu trigger handler lain
         if ($hasOtherIntent) {
-            $isSalam = preg_match('/assalamu|asalamu|salam\b/i', $textLower);
+            $isSalam = preg_match('/assalam+u|asalam+u|salam\b/i', $textLower);
             $reply = $isSalam ? "Waalaikumsalam {$sapaan}" : (preg_match('/pagi/i', $textLower) ? "Pagi {$sapaan}" : (preg_match('/siang|sore|malam/i', $textLower) ? "Siang {$sapaan}" : "Halo {$sapaan}"));
             $this->sendAutoreplyText($waNumber, $reply);
             $keywordConfig = require __DIR__ . '/../Config/AutoReplyKeywords.php';
