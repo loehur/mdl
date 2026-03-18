@@ -13,14 +13,14 @@ class Sales extends Controller
       $id_cabang = $_SESSION[URL::SESSID]['user']['id_cabang'] ?? 0;
       $today = date('Y-m-d');
       
-      // Get checkout list - semua penjualan hari ini (termasuk tuntas)
-      // Filter: 
-      // - Hide Piutang (state = 3) -> Sudah ada di Sales Operasi > Piutang
-      // - Hide Pemakaian (type = 3) -> Sudah ada di Sales Operasi > Pakai
-      // - Tampilkan: Sales (type=1) & Transfer (type=2), state 0 atau 1, hari ini saja
+      // Get checkout list
+      // - Sales (type=1): hari ini saja, state 0 atau 1 (termasuk tuntas)
+      // - Transfer (type=2): semua tanpa filter tanggal (agar "sedang di transfer" tetap tampil)
+      // - Hide Piutang (state=3), Pemakaian (type=3)
       // - Urutan: terbaru di atas
+      $where = "state IN (0,1) AND (source_id = '$id_cabang' OR target_id = '$id_cabang') AND ((type = 1 AND DATE(created_at) = '$today') OR type = 2)";
       $checkouts = $this->db(0)->get_where('barang_mutasi', 
-         "state IN (0,1) AND type IN (1,2) AND (source_id = '$id_cabang' OR target_id = '$id_cabang') AND DATE(created_at) = '$today' ORDER BY created_at DESC, id DESC");
+         $where . " ORDER BY created_at DESC, id DESC");
       
       // Group by ref
       $grouped = [];
