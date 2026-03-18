@@ -5,11 +5,13 @@
   }
   
   /* Modal adjustments untuk dropdown */
-  #modalTransfer .modal-body {
+  #modalTransfer .modal-body,
+  #modalSalesBayar .modal-body {
     overflow: visible !important;
   }
   
-  #modalTransfer .modal-content {
+  #modalTransfer .modal-content,
+  #modalSalesBayar .modal-content {
     overflow: visible !important;
   }
   
@@ -428,6 +430,7 @@
     $('#salesTotalTagihan').text(currentTotal.toLocaleString('id-ID'));
     $('#salesBayarAmount').val('');
     $('#salesKembalian').val('0');
+    if (salesKaryawanSelectize) salesKaryawanSelectize.clear();
     
     var modalEl = document.getElementById('modalSalesBayar');
     var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
@@ -466,11 +469,16 @@
   $(document).on('submit', '#formSalesBayar', function(e) {
     e.preventDefault();
     
+    var karyawan = $('#salesKaryawan').val();
+    if (!karyawan) {
+      showSalesAlert('Pilih karyawan terlebih dahulu', 'error');
+      return;
+    }
+    
     var btn = $('#btnSubmitSalesBayar');
     var originalHtml = btn.html();
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Loading...');
     
-    var karyawan = $('#salesKaryawan').val();
     var metode = $('#salesMetodeBayar').val();
     var note = $('#salesNoteBayar').val() || '';
     var dibayar = $('#salesBayarAmount').val();
@@ -872,10 +880,14 @@
   var transferNotaRef = '';
   var transferSelectize;
   
-  // Inisialisasi Selectize - Simple seperti di Operasi
+  // Inisialisasi Selectize - Transfer & Karyawan Bayar
+  var salesKaryawanSelectize;
   $(document).ready(function() {
     transferSelectize = $('#transferCabang').selectize()[0].selectize;
-    console.log('Selectize initialized:', transferSelectize);
+    salesKaryawanSelectize = $('#salesKaryawan').selectize({
+      placeholder: 'Cari karyawan...',
+      allowEmptyOption: true
+    })[0].selectize;
   });
   
   // Open modal transfer
@@ -1113,8 +1125,8 @@
             <tr>
               <td class="py-2">Penerima</td>
               <td>
-                <select id="salesKaryawan" class="form-select" required>
-                  <option value="" disabled selected>Pilih Karyawan</option>
+                <select id="salesKaryawan" class="form-select" required placeholder="Cari karyawan...">
+                  <option value="">Pilih Karyawan</option>
                   <?php 
                   $usersByCabang = [];
                   foreach ($this->userMerge as $u) {
@@ -1151,7 +1163,9 @@
               <td class="py-2">Metode</td>
               <td>
                 <select id="salesMetodeBayar" class="form-select" required>
-                  <?php foreach ($this->dMetodeMutasi as $m) { ?>
+                  <?php foreach ($this->dMetodeMutasi as $m) { 
+                    if (stripos($m['metode_mutasi'] ?? '', 'Saldo Deposit') !== false) continue;
+                  ?>
                     <option value="<?= $m['id_metode_mutasi'] ?>"><?= $m['metode_mutasi'] ?></option>
                   <?php } ?>
                 </select>
