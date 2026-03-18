@@ -2114,10 +2114,10 @@ class WAReplies
             return;
         }
 
-        if (!preg_match('/^\s*karyawan\s+(.+)\s*$/i', $textBody, $m)) {
+        if (!preg_match('/^\s*(karyawan|crew|staf+|staff)\s+(.+)\s*$/i', $textBody, $m)) {
             return;
         }
-        $namaKaryawan = trim($m[1]);
+        $namaKaryawan = trim($m[2]);
         if ($namaKaryawan === '') {
             return;
         }

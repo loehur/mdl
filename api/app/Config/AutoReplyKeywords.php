@@ -298,7 +298,7 @@ return [
 
     'KARYAWAN' => [
         'patterns' => [
-            '/^\s*karyawan\s+(.+)\s*$/i',
+            '/^\s*(karyawan|crew|staf+|staff)\s+(.+)\s*$/i',  // staf+ = staf/staff
         ],
     ],
 
