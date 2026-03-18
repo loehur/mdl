@@ -74,6 +74,19 @@ class Sales extends Controller
       }
       unset($group);
       
+      // Urutkan: transfer masuk (barang masuk) paling atas, lalu urutan terbaru
+      uasort($grouped, function($a, $b) use ($id_cabang) {
+         $aIsMasuk = ($a['type'] ?? 0) == 2 && isset($a['items'][0]) 
+            && ($a['items'][0]['target_id'] ?? 0) == $id_cabang && ($a['items'][0]['source_id'] ?? 0) != $id_cabang;
+         $bIsMasuk = ($b['type'] ?? 0) == 2 && isset($b['items'][0]) 
+            && ($b['items'][0]['target_id'] ?? 0) == $id_cabang && ($b['items'][0]['source_id'] ?? 0) != $id_cabang;
+         if ($aIsMasuk && !$bIsMasuk) return -1;
+         if (!$aIsMasuk && $bIsMasuk) return 1;
+         $dateA = strtotime($a['date'] ?? 0);
+         $dateB = strtotime($b['date'] ?? 0);
+         return $dateB - $dateA;
+      });
+      
       // Get list cabang untuk modal transfer
       $listCabang = $this->db(0)->get('cabang');
       
