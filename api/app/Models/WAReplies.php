@@ -260,6 +260,19 @@ class WAReplies
     }
 
     /**
+     * Cek apakah pesan mengandung sapaan (assalamualaikum, pagi, halo, dll) di awal.
+     * Untuk menentukan apakah perlu intro sapaan di balasan.
+     */
+    private function hasGreetingInMessage($textBody)
+    {
+        $t = strtolower(trim($textBody ?? ''));
+        if ($t === '') return false;
+        return preg_match('/^(assalam+u[a-z]*|asalam+u[a-z]*|salam|halo|hai|pagi|siang|sore|malam)\b/i', $t)
+            || preg_match('/\b(pagi|siang|sore|malam)\s*(kak|bang|pak|bu|adek)/i', $t)
+            || preg_match('/\b(assalam+u|asalam+u|salam)\s*(kak|bang|pak|bu|adek)/i', $t);
+    }
+
+    /**
      * Kirim balasan salam/sapaan dulu jika pesan mengandung sapaan + intent lain.
      * Dipanggil sebelum handler lain (STATUS, dll) agar intent dijalankan satu per satu: PEMBUKA dulu, baru handler lain.
      * @return bool True jika sudah mengirim greeting
@@ -362,7 +375,7 @@ class WAReplies
 
         // "masih/msh/msih bisa/bs terima kain?" atau "masih nerima ga klo gosok aj?" -> konfirmasi ke petugas + jam operasional (PRIORITAS)
         // BEDA dengan "masih buka?" yang jawab "masih buka kak/bang"
-        $masihBisaTerimaPattern = '/\b(masih|msh|mash|masi|msih)\s*(bisa|bs|bis|b\s*s)\s*(terima|trima|nerima|antar|masukin|masuk)\s*(kain|baju|laundry|cuci|gosok|setrika|strika)?\s*(aja|aj)?/i';
+        $masihBisaTerimaPattern = '/\b(masih|msh|mash|masi|msih)\s*(bisa|bs|bis|b\s*s)(?:\s*(terima|trima|nerima|antar|masukin|masuk)\s*(kain|baju|laundry|cuci|gosok|setrika|strika)?\s*(aja|aj)?)?\s*\??\s*$/i';
         $masihTerimaGosokPattern = '/\b(masih|msh|mash|masi|msih)\s*(nerima|terima|trima).*(gosok|setrika|strika)\s*(aja|aj)?/i';
         if (preg_match($masihBisaTerimaPattern, $textBodyToCheck) || preg_match($masihTerimaGosokPattern, $textBodyToCheck)) {
             if ($this->shouldHandle($waNumber, 'JAM_OPERASIONAL')) {
@@ -745,7 +758,7 @@ class WAReplies
                     }
                 }
             } else {
-                $text = "Pak/Bu *" . $nama_pelanggan . "*, belum ada Nota/Bon. Terima kasih 😊";
+                $text = "Pak/Bu *" . $nama_pelanggan . "*, belum ada tagihan dan semua laundry sudah di ambil. Terima kasih 😊";
                 $res = $waService->sendFreeText($waNumber, $text);
                 if ($res['success']) {
                     $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
@@ -1393,7 +1406,7 @@ class WAReplies
         $link = "https://ml.nalju.com/I/" . $id_pelanggan;
 
         if (empty($lines)) {
-            $text = "Pak/Bu *" . $nama_pelanggan . "*, belum ada tagihan terbuka. Terima kasih 😊\n" . $link;
+            $text = "Pak/Bu *" . $nama_pelanggan . "*, belum ada tagihan dan semua laundry sudah di ambil. Terima kasih 😊\n" . $link;
         } else {
             $text = "*" . $nama_pelanggan . "*\nRincian Tagihan:\n\n" . implode("\n\n", $lines) . "\n\n*Total Tagihan: Rp " . number_format($totalTagihan, 0, ',', '.') . "*\n" . $link;
         }
@@ -1601,7 +1614,7 @@ class WAReplies
             $sales = $db1->query("SELECT * FROM sale WHERE tuntas = 0 AND bin = 0 AND id_pelanggan IN ($ids_in) GROUP BY no_ref, tuntas, id_pelanggan")->result_array();
             $noRefs = array_column($sales, 'no_ref');
             if (empty($noRefs)) {
-                $text = 'Pak/Bu *' . $nama_pelanggan . '*, belum ada Nota/Bon terbuka. Terima kasih';
+                $text = 'Pak/Bu *' . $nama_pelanggan . '*, belum ada tagihan dan semua laundry sudah di ambil. Terima kasih';
                 $res = $waService->sendFreeText($waNumber, $text);
                 if ($res['success']) {
                     $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
@@ -1737,7 +1750,7 @@ class WAReplies
     {
         $t = strtolower(trim($textBody ?? ''));
         $konfirmasiIntro = null;
-        $konfirmasiPattern1 = '/\b(masih|msh|mash|masi|msih)\s*(bisa|bs|bis|b\s*s)\s*(terima|trima|nerima|antar|masukin|masuk)\s*(kain|baju|laundry|cuci|gosok|setrika|strika)?\s*(aja|aj)?/i';
+        $konfirmasiPattern1 = '/\b(masih|msh|mash|masi|msih)\s*(bisa|bs|bis|b\s*s)(?:\s*(terima|trima|nerima|antar|masukin|masuk)\s*(kain|baju|laundry|cuci|gosok|setrika|strika)?\s*(aja|aj)?)?\s*\??\s*$/i';
         $konfirmasiPattern2 = '/\b(masih|msh|mash|masi|msih)\s*(nerima|terima|trima).*(gosok|setrika|strika)\s*(aja|aj)?/i';
         if ($forceKonfirmasiIntro || preg_match($konfirmasiPattern1, $t) || preg_match($konfirmasiPattern2, $t)) {
             $sapaan = $this->getSapaanForGreeting($waNumber);
@@ -1826,10 +1839,10 @@ class WAReplies
             $textBaku .= $upcomingHolidays;
         }
 
-        // Custom intro (konfirmasi ke petugas) atau AI intro untuk pertanyaan jam operasional
+        // Custom intro (konfirmasi ke petugas) atau AI intro HANYA jika user menyapa dulu (sapaan + tanya jam)
         if (!empty($customIntro)) {
             $textBaku = $customIntro . "\n\n" . $textBaku;
-        } elseif (($isQuestion = $this->isJamOperasionalQuestion($textBody)) && class_exists('\\App\\Config\\AI') && \App\Config\AI::isEnabled()) {
+        } elseif ($this->hasGreetingInMessage($textBody) && !$this->isBesokOrLiburDateQuestion($textBody) && ($isQuestion = $this->isJamOperasionalQuestion($textBody)) && class_exists('\\App\\Config\\AI') && \App\Config\AI::isEnabled()) {
             $ctx = $this->getGreetingContext($waNumber);
             $contactName = $ctx['contactName'];
             $sapaan = $ctx['sapaan'];
@@ -1852,6 +1865,19 @@ class WAReplies
         }
 
         $this->sendAutoreplyText($waNumber, $textBaku);
+    }
+
+    /**
+     * Cek apakah pertanyaan tentang besok/libur/tanggal (intro "masih buka" tidak nyambung).
+     * Contoh: "Soalnya besok libur kan?", "besok buka jam berapa?", "libur tgl berapa?"
+     */
+    private function isBesokOrLiburDateQuestion($textBody)
+    {
+        $t = strtolower(trim($textBody ?? ''));
+        if ($t === '') return false;
+        return preg_match('/\bbesok\b/i', $t)
+            || preg_match('/\blibur\s*(tgl|tanggal|tgl\.|brp|berapa|kapan|hari)/i', $t)
+            || preg_match('/\b(tgl|tanggal)\s*(brp|berapa)\s*(tutup|libur)/i', $t);
     }
 
     /**

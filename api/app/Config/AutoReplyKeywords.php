@@ -153,10 +153,11 @@ return [
          // "jam brp bsk diantarnya?" / "jam berapa besok diantar?" = tanya jadwal pengantaran order
          '/\b(jam\s*)?(brp|brpa|berapa)\s*(bsk|besok|nanti)?\s*(di)?antar/i',
          '/\b(ka*pa*n|kpn)\s*(di)?(antar|jemput)/i',
-         // Permintaan antar/jemput: "antar aja", "klo udh selesai antar aja", "selesai antar ya"
-         '/\b(antar|jemput)\s*(aja|ya)\s*$/i',
+         // Permintaan antar/jemput: "antar aja", "klo udh selesai antar aja", "kalau da kelar antar aja"
+         '/\b(antar|jemput)\s*(aja|ya)(\s|$)/i',
+         '/(klo|kalau)\s*(da|udh|udah|sudah)?\s*(kelar|selesai)\s*(antar|jemput)/i',
          '/(klo|kalau)\s*(udh|udah|sudah)?\s*selesai\s*(antar|jemput)/i',
-         '/\b(selesai|udh|udah|sudah)\s+(antar|jemput)\s*(aja|ya)?/i',
+         '/\b(selesai|kelar|udh|udah|sudah)\s+(antar|jemput)\s*(aja|ya)?/i',
       ],
       'ai_prompt' => "User MEMINTA KURIR/LAUNDRY untuk datang JEMPUT atau ANTAR, ATAU menanyakan ONGKIR.\n
       TRUE (MINTA JEMPUT/ANTAR) - HARUS ADA KATA PERMINTAAN/PERTANYAAN:\n
@@ -209,6 +210,9 @@ return [
     'JAM_OPERASIONAL' => [
         'patterns' => [
             '/(ka*pa*n|ma*si*h|masi|msih)\s*\b(bu*ka*|tu*tu*p)/i',
+            // "Buka, buk?", "buka kak mau ambil baju" = tanya masih buka (sama seperti masih buka kak)
+            '/\bbuka\s*[,.]?\s*(buk|bu|kak|bang|pak|mbak)\b/i',
+            '/\bbuka\b.*\b(mau|ingin)\s*(ambil|jemput)\s*(baju|laundry)?/i',
             '/(ja*m)\s*\b(be*ra*pa*)\s*\b(bu*ka*|tu*tu*p)/i',
             // "buka sampai kapan?", "tutup jam berapa?", "sampai jam berapa buka?"
             '/\b(bu*ka*|tu*tu*p)\s*(sa*mpa*i|sampe)\s*(ka*pa*n|ja*m\s*be*ra*pa*)?/i',
@@ -219,7 +223,8 @@ return [
             '/\b(te*ra*khir)\s*(te*ri*ma*)\s*(ka*in|ba*ju|la*u*ndr(y|i)|ja*m)?/i',
             // "masih terima kain/baju/laundry/gosok?", "masih terima kak?" (masi/msih = typo masih)
             '/\b(ma*si*h|masi|msih)\s*(ne*ri*ma*|te*ri*ma*)\s*(ka*in|ba*ju|la*u*ndr(y|i)|cu*ci|go*so*k|se*tr*ika*|ka*k|ya)?\s*(a*ja*)?/i',
-            // "masih/msh/masi/msih bisa/bs terima kain?" (sistem jawab konfirmasi ke petugas dulu)
+            // "masih/msh/masi/msih bisa?" atau "masih bisa terima kain?" (sistem jawab konfirmasi ke petugas dulu)
+            '/\b(masih|msh|mash|masi|msih)\s*(bisa|bs|bis)\s*\??\s*$/i',
             '/\b(masih|msh|mash|masi|msih)\s*(bisa|bs|bis)\s*(terima|trima|nerima|antar|masukin|masuk)\s*(kain|baju|laundry|cuci|gosok|setrika|strika)?\s*(aja|aj)?/i',
             // "masih nerima ga klo gosok aj?", "msih terima gosok aja?" (konfirmasi ke petugas)
             '/\b(masih|msh|mash|masi|msih)\s*(nerima|terima|trima).*(gosok|setrika|strika)\s*(aja|aj)?/i',
@@ -235,8 +240,8 @@ return [
             '/\b(ma*si*h|masi|msih)\s*(bi*sa*)\s*sia+p+\s*(gak|ga|g)?/i',
         ],
         'ai_prompt' => "User menanyakan jam operasional TOKO (buka/tutup) ATAU batas terima laundry ATAU jadwal libur.\n
-        DUA JENIS (keduanya JAM_OPERASIONAL, sistem bedakan jawaban): (A) 'masih buka?' = jawab 'masih buka kak/bang'. (B) 'masih bisa terima kain?' / 'msh bs terima kain?' = jawab konfirmasi ke petugas dulu.\n
-        | jam berapa buka? | jam berapa tutup? | kapan tutup? | masih buka? | masih bukak? | sudah tutup? | jam operasional? | jam buka berapa? |\n
+        DUA JENIS (keduanya JAM_OPERASIONAL, sistem bedakan jawaban): (A) 'masih buka?' = jawab 'masih buka kak/bang'. (B) 'masih bisa?' / 'masih bisa terima kain?' / 'msh bs terima kain?' = jawab konfirmasi ke petugas dulu.\n
+        | jam berapa buka? | jam berapa tutup? | kapan tutup? | masih buka? | masih bukak? | buka buk? | buka kak mau ambil baju? | sudah tutup? | jam operasional? | jam buka berapa? |\n
         | liburnya kapan? | kapan libur? | hari libur apa? | libur hari apa? | tutup tgl berapa? | tutup tanggal brp? | libur tgl berapa? |\n
         | besok pagi buka jam berapa? | besok buka jam brp ya? | nanti sore buka jam berapa? | untuk besok pagi buka jam brp ya? |\n
         | kapan terakhir terima kain? | kapan terakhir terima laundry? | terakhir terima jam berapa? |\n
@@ -297,7 +302,8 @@ return [
       - Ada pertanyaan (kapan? berapa? dimana? bisa?)\n
       - Ada permintaan (tolong, minta, bisa, bantu, dong) + object\n
       - Pemberitahuan akan ambil/antar sendiri: 'nanti saya jemput', 'akan saya antar', 'nanti saya ambil', 'akan mengambil' = BUKAN PENUTUP\n
-      - Contoh FALSE: 'bisa dijemput?' (pertanyaan), 'Berarti sudah masuk kak?' (pertanyaan), 'tolong jemput' (permintaan), 'nanti saya jemput' (bukan intent)"
+      - PERMINTAAN antar/jemput: 'kalau da kelar antar aja', 'klo selesai antar ya', 'udh kelar antar aja kak' = MINTA_JEMPUT_ANTAR (bukan PENUTUP)\n
+      - Contoh FALSE: 'bisa dijemput?' (pertanyaan), 'Berarti sudah masuk kak?' (pertanyaan), 'tolong jemput' (permintaan), 'nanti saya jemput' (bukan intent), 'Kak kalau da kelar antar aja kak' (permintaan antar = MINTA_JEMPUT_ANTAR)"
    ],
 
     'REMINDER' => [
