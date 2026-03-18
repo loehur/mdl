@@ -190,6 +190,8 @@ class WAReplies
         if (preg_match('/\b(pakde|pak\s*de)\b/i', $n)) return 'pakde';
         if (preg_match('/\b(bude|bukde|bu\s*de|buk\s*de)\b/i', $n)) return 'bude';
         if (preg_match('/\b(ibu|ibuk|bu|buk)\b/', $n)) return 'bu';
+        // Nama diawali "B " atau "B." (inisial, misal B DELI) -> bu
+        if (preg_match('/^b\s|^b\./i', $n)) return 'bu';
         if (preg_match('/\b(bapak|pak|bpk)\b/', $n)) return 'pak';
         if (preg_match('/\bom\b/', $n)) return 'om';
         if (preg_match('/\bmas\b/', $n)) return 'mas';
