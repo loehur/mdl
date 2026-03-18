@@ -11,16 +11,16 @@ class Sales extends Controller
    public function index()
    {
       $id_cabang = $_SESSION[URL::SESSID]['user']['id_cabang'] ?? 0;
+      $today = date('Y-m-d');
       
-      // Get checkout list 
+      // Get checkout list - semua penjualan hari ini (termasuk tuntas)
       // Filter: 
       // - Hide Piutang (state = 3) -> Sudah ada di Sales Operasi > Piutang
       // - Hide Pemakaian (type = 3) -> Sudah ada di Sales Operasi > Pakai
-      // - Tampilkan: 
-      //   1. Sales/Penjualan (type=1) yang belum bayar/progress (state=0)
-      //   2. Transfer (type=2) yang belum selesai (state=0)
+      // - Tampilkan: Sales (type=1) & Transfer (type=2), state 0 atau 1, hari ini saja
+      // - Urutan: terbaru di atas
       $checkouts = $this->db(0)->get_where('barang_mutasi', 
-         "state = 0 AND type IN (1,2) AND (source_id = '$id_cabang' OR target_id = '$id_cabang') ORDER BY id DESC");
+         "state IN (0,1) AND type IN (1,2) AND (source_id = '$id_cabang' OR target_id = '$id_cabang') AND DATE(created_at) = '$today' ORDER BY created_at DESC, id DESC");
       
       // Group by ref
       $grouped = [];
@@ -64,10 +64,12 @@ class Sales extends Controller
          // Use intval to prevent floating point precision issues (e.g., sisa = 0.9999 -> 1)
          $group['sisa'] = intval(round($group['total'])) - intval($totalPaid);
          
-         // Self-healing: Jika sudah lunas tapi masih muncul (state=0), update jadi state=1
+         // Self-healing: Jika sudah lunas tapi masih state=0, update jadi state=1 (tetap tampil di list)
          if ($group['sisa'] <= 0 && $allPaid && count($group['payments']) > 0) {
-            $this->db(0)->update('barang_mutasi', ['state' => 1], "ref = '$ref'");
-            unset($grouped[$ref]);
+            $firstState = $group['items'][0]['state'] ?? 0;
+            if ($firstState == 0) {
+               $this->db(0)->update('barang_mutasi', ['state' => 1], "ref = '$ref'");
+            }
          }
       }
       unset($group);
