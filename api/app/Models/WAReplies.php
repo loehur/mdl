@@ -271,7 +271,7 @@ class WAReplies
         // Assalamualaikum (full word) atau sapaan lain di awal
         $hasGreeting = preg_match('/^(assalamu[a-z]*|asalamu[a-z]*|salam|halo|hai|pagi|siang|sore|malam)\b/i', $textLower)
             || preg_match('/\b(pagi|siang|sore|malam)\s*(kak|bang|pak|bu|adek)/i', $textLower);
-        $hasOtherIntent = preg_match('/siap|sudah|dah|udah|udh|bisa|jemput|antar|berapa|harga|transfer|bayar|cek|status|laundry|tagihan|kirim|nota|bon/i', $textLower);
+        $hasOtherIntent = preg_match('/siap|sudah|dah|udah|udh|bisa|jemput|antar|berapa|harga|transfer|bayar|cek|status|laundry|tagihan|kirim|nota|bon|struk/i', $textLower);
         if (!$hasGreeting || !$hasOtherIntent) {
             return false;
         }

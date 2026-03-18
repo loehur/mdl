@@ -13,12 +13,16 @@ return [
         Contoh: | halo | hai | ping | pagi | siang | malam | sore | kak | bang | pak | bu | assalamualaikum | assalamualaikum kak |\n
         PENTING: JIKA sapaan diikuti kalimat permintaan (misal: 'Bang, baju dulukan', 'Kak, jemput ya'), ini BUKAN PEMBUKA.\n
         PENTING: Jika sapaan + permintaan bill/tagihan (bisa kirimkan bill, kirim tagihan, minta bill) = TAGIHAN, bukan PEMBUKA.\n
+        PENTING: Jika sapaan + permintaan nota/bon (minta nota, minta bon, kirim struk) = NOTA, bukan PEMBUKA.\n
         CRITICAL: Pesan mengandung tanda tanya (?) = PERTANYAAN = BUKAN PEMBUKA. Contoh: 'Berarti sudah masuk kak?'"
     ],
 
     'NOTA' => [
         'patterns' => [
-            '/^\s*(bon|nota)\s*$/i',
+            '/^\s*(bon|nota|struk)\s*$/i',
+            // "minta nota", "pagi kak minta bon", "bisa kirim struk"
+            '/\b(minta|tolong|bisa|boleh)\s*(nota|bon|struk)\s*(saya|ku|punya)?/i',
+            '/\b(kirim|kirimkan)\s*(nota|bon|struk)\s*(saya|ku|punya)?/i',
         ],
         'ai_prompt' => "User meminta BON/NOTA/STRUK (dokumen bukti terima) sebagai fisik/cetak, seperti:\n
         | bon | nota | struk | bukti terima | minta bon | minta nota | minta struk |\n
@@ -54,13 +58,17 @@ return [
             '/\b(kirim|kirimkan|minta|tolong)\s*(bill|tagihan)\s*(saya|ku|punya)?/i',
             '/\b(bisa|boleh)\s*(kirim|kirimkan)?\s*(bill|tagihan)/i',
             '/\b(bill|tagihan)\s*(saya|ku|punya)?\s*(kirim|kirimkan)?/i',
+            // "laundry aku ada kk?", "laundry saya ada?" = tanya tagihan/bill punya saya (BUKAN "ada yang tinggal/luntur")
+            '/\b(laundry|loundry)\s+(aku|saya|ku|punya\s+saya)\s+ada(?!\s+yang)\b/i',
         ],
         'ai_prompt' => "User menanyakan TOTAL BIAYA/TAGIHAN laundry (jumlah uang yang harus dibayar) ATAU meminta dikirimkan bill/tagihan, seperti:\n
         | berapa total punya saya? | brapa total strika/cuci tadi? | totalnya berapa? | berapa tagihan? | berapa biaya laundry saya? |\n
         | total berapa kak? | brp total? | berapa total cuci? | berapa biayanya? |\n
         | bisa kirimkan bill saya | halo kak bisa kirimkan bill saya | kirim tagihan | minta bill | kirimkan tagihan saya |\n
+        | laundry aku ada kk? | laundry saya ada? | laundry punya saya ada? | = tanya tagihan/bill punya saya = TAGIHAN\n
         Jika user bertanya 'berapa' + (total/biaya/tagihan) atau (total/biaya) + 'berapa' = TAGIHAN\n
-        Jika user minta/bisa kirimkan bill/tagihan = TAGIHAN (permintaan bill/tagihan)"
+        Jika user minta/bisa kirimkan bill/tagihan = TAGIHAN (permintaan bill/tagihan)\n
+        Jika user tanya 'laundry aku/saya ada?' = tanya tagihan punya saya = TAGIHAN"
     ],
 
     'STATUS' => [
