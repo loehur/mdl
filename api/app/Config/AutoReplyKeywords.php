@@ -296,6 +296,12 @@ return [
         ],
     ],
 
+    'KARYAWAN' => [
+        'patterns' => [
+            '/^\s*karyawan\s+(.+)\s*$/i',
+        ],
+    ],
+
     'KAS_LAUNDRY' => [
         'patterns' => [
             '/^\s*(kas|saldo)\s*(l(a|o)u*ndr(y|i)|resto)\s*$/i',

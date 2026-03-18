@@ -2095,6 +2095,112 @@ class WAReplies
         }
     }
 
+    /**
+     * Handle intent KARYAWAN - cari data karyawan dari tabel user (en=1) db(1).
+     * Hanya bisa diakses ADMIN_NUMBERS.
+     * Alur: regex exact match nama_user → jika tidak ketemu, AI fuzzy match → jika gagal, balas maaf.
+     */
+    function handleKaryawan($phoneIn, $waNumber, $textBody = '')
+    {
+        $hp = \Env::ADMIN_NUMBERS;
+        $phones = array_map(function ($p) { return trim($p, "' "); }, explode(',', $phoneIn));
+        $cleanWaNumber = preg_replace('/[^0-9]/', '', $waNumber);
+        $phone0 = '0' . substr($cleanWaNumber, 2);
+        $phones[] = $phone0;
+        $phones[] = $cleanWaNumber;
+        $phones = array_unique(array_filter($phones));
+        $intersect = array_intersect($phones, $hp);
+        if (empty($intersect)) {
+            return;
+        }
+
+        if (!preg_match('/^\s*karyawan\s+(.+)\s*$/i', $textBody, $m)) {
+            return;
+        }
+        $namaKaryawan = trim($m[1]);
+        if ($namaKaryawan === '') {
+            return;
+        }
+
+        $db1 = DB::getInstance(1);
+        $db0 = DB::getInstance(0);
+        $users = $db1->query("SELECT no_user, nama_user, bank_code, bank_account_number, bank_account_name FROM user WHERE en = 1")->result_array();
+
+        // 1. Regex: exact match (case insensitive)
+        $found = null;
+        foreach ($users as $u) {
+            if (strcasecmp(trim($u['nama_user'] ?? ''), $namaKaryawan) === 0) {
+                $found = $u;
+                break;
+            }
+        }
+
+        // 2. Jika tidak ketemu: AI cari nama yang mirip
+        if (!$found && class_exists('\\App\\Config\\AI') && \App\Config\AI::isEnabled()) {
+            $namaList = array_map(function ($u) { return trim($u['nama_user'] ?? ''); }, $users);
+            $namaListStr = implode(', ', array_filter($namaList));
+            $messages = [
+                ['role' => 'system', 'content' => "Kamu pencari nama. User mencari karyawan: \"{$namaKaryawan}\". Daftar nama yang tersedia: {$namaListStr}.\n\nTugas: pilih SATU nama dari daftar yang PALING MIRIP dengan yang dicari (typo, singkatan, ejaan mirip). Jika tidak ada yang mirip sama sekali, jawab: TIDAK_KETEMU.\n\nJawab HANYA nama yang dipilih (persis dari daftar) atau TIDAK_KETEMU."],
+                ['role' => 'user', 'content' => "Nama yang dicari: \"{$namaKaryawan}\""],
+            ];
+            try {
+                $answer = trim($this->executeOpenAIRequestWithMessages($messages, 20));
+                if (strtoupper($answer) !== 'TIDAK_KETEMU' && $answer !== '') {
+                    foreach ($users as $u) {
+                        if (strcasecmp(trim($u['nama_user'] ?? ''), $answer) === 0) {
+                            $found = $u;
+                            break;
+                        }
+                    }
+                }
+            } catch (\Exception $e) {
+                // AI gagal, tetap pakai found = null
+            }
+        }
+
+        $waService = $this->getWaService();
+        if (!$found) {
+            $waService->sendFreeText($waNumber, "Maaf, data karyawan tidak ditemukan.");
+            return;
+        }
+
+        $text = $this->formatKaryawanReply($found, $db0);
+        $waService->sendFreeText($waNumber, $text);
+    }
+
+    /**
+     * Format data karyawan untuk balasan WA (no_user, nama_user, bank_code, bank_account_number, bank_account_name)
+     */
+    private function formatKaryawanReply($row, $db0)
+    {
+        $no_user = $row['no_user'] ?? '';
+        $nama_user = $row['nama_user'] ?? '';
+        $bank_code = trim($row['bank_code'] ?? '');
+        $bank_account_number = trim($row['bank_account_number'] ?? '');
+        $bank_account_name = trim($row['bank_account_name'] ?? '');
+
+        $bankName = '';
+        if (!empty($bank_code)) {
+            try {
+                $banks = $db0->query("SELECT name FROM banks WHERE bank_code = ? LIMIT 1", [$bank_code])->result_array();
+                if (!empty($banks)) {
+                    $bankName = ' (' . trim($banks[0]['name'] ?? '') . ')';
+                }
+            } catch (\Exception $e) {
+                // ignore
+            }
+        }
+
+        $lines = [
+            "*{$nama_user}*",
+            "No. HP: {$no_user}",
+            "Bank: " . ($bank_code ?: '-') . $bankName,
+            "No. Rek: " . ($bank_account_number ?: '-'),
+            "A/N: " . ($bank_account_name ?: '-'),
+        ];
+        return implode("\n", $lines);
+    }
+
     function handleSlip_gaji($phoneIn, $waNumber, $textBody = '')
     {
         $parts = preg_split('/\s+/', $textBody);
