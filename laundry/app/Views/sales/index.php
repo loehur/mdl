@@ -884,10 +884,7 @@
   var salesKaryawanSelectize;
   $(document).ready(function() {
     transferSelectize = $('#transferCabang').selectize()[0].selectize;
-    salesKaryawanSelectize = $('#salesKaryawan').selectize({
-      placeholder: 'Cari karyawan...',
-      allowEmptyOption: true
-    })[0].selectize;
+    salesKaryawanSelectize = $('#salesKaryawan').selectize()[0].selectize;
   });
   
   // Open modal transfer
@@ -1125,7 +1122,7 @@
             <tr>
               <td class="py-2">Penerima</td>
               <td>
-                <select id="salesKaryawan" class="form-select" required placeholder="Cari karyawan...">
+                <select id="salesKaryawan" required>
                   <option value="">Pilih Karyawan</option>
                   <?php 
                   $usersByCabang = [];
