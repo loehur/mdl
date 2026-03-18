@@ -34,10 +34,9 @@ $isEmpty = empty($grouped);
         </div>
       </form>
       
-      <div class="alert alert-info mt-3 mb-0 py-2">
-        <i class="fas fa-info-circle me-2"></i>
-        <small>Maksimal rentang tanggal: 1 minggu (7 hari)</small>
-      </div>
+      <p class="text-muted small mt-3 mb-0 py-1">
+        <i class="fas fa-info-circle me-1"></i>Maksimal rentang tanggal: 1 minggu (7 hari)
+      </p>
     </div>
   </div>
 
@@ -56,7 +55,7 @@ $isEmpty = empty($grouped);
       <div class="col-md-6">
       <div class="card shadow-sm border-0">
         <!-- Header -->
-        <div class="card-header bg-success text-white py-2 px-3">
+        <div class="card-header bg-dark text-white py-2 px-3">
           <div class="d-flex justify-content-between align-items-center">
             <div>
               <span class="small">Ref:</span> <span class="fw-bold">#<?= $ref ?></span>
@@ -77,11 +76,11 @@ $isEmpty = empty($grouped);
                   <td class="ps-3 py-2">
                     <span class="fw-medium text-dark"><?= $item['nama_barang'] ?? 'Unknown' ?></span>
                     <?php if (isset($item['denom']) && $item['denom'] != 1) { ?>
-                      <span class="badge bg-secondary ms-1" style="font-size: 0.7rem;">@<?= $item['denom'] ?></span>
+                      <span class="text-muted ms-1" style="font-size: 0.75rem;">@<?= $item['denom'] ?></span>
                     <?php } ?>
                   </td>
                   <td class="text-end pe-3 py-2 align-middle">
-                     <span class="badge bg-light text-dark border"><?= $item['qty'] ?? 0 ?> Item</span>
+                     <span class="text-muted small"><?= $item['qty'] ?? 0 ?> Item</span>
                   </td>
                 </tr>
               <?php } ?>

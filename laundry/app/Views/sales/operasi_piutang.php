@@ -10,7 +10,7 @@ $isEmpty = empty($grouped);
     <div class="card-body">
       <div class="d-flex justify-content-between align-items-center">
         <h5 class="mb-0"><i class="fas fa-file-invoice-dollar me-2"></i>Daftar Piutang</h5>
-        <span class="badge bg-warning text-dark">
+        <span class="text-warning fw-medium">
           <?= count($grouped) ?> Piutang Aktif
         </span>
       </div>
@@ -45,18 +45,18 @@ $isEmpty = empty($grouped);
       $totalSisa += $group['sisa'];
     ?>
       <div class="col-md-6">
-      <div class="card mb-3 shadow-sm border-0 border-start border-warning border-4">
+      <div class="card mb-3 shadow-sm border-0">
         <!-- Header -->
-        <div class="card-header bg-warning bg-opacity-10 py-2 px-3">
+        <div class="card-header bg-dark text-white py-2 px-3">
           <div class="d-flex justify-content-between align-items-center">
             <div class="d-flex align-items-center gap-2">
               <span class="small">Ref:</span> <span class="fw-bold">#<?= $ref ?></span>
-              <span class="badge bg-warning text-dark" style="font-size: 0.7rem;">
+              <span class="text-warning" style="font-size: 0.7rem;">
                 <i class="fas fa-file-invoice-dollar me-1"></i>Piutang
               </span>
             </div>
             <div class="text-end">
-              <span class="small text-muted"><?= date('d/m/y H:i', strtotime($group['date'])) ?></span>
+              <span class="small text-white-50"><?= date('d/m/y H:i', strtotime($group['date'])) ?></span>
             </div>
           </div>
         </div>
@@ -70,7 +70,7 @@ $isEmpty = empty($grouped);
                   <td class="ps-3 py-2">
                     <span class="fw-medium"><?= $item['nama_barang'] ?></span>
                     <?php if ($item['denom'] != 1) { ?>
-                      <span class="badge bg-info ms-1" style="font-size: 0.7rem;">@<?= $item['denom'] ?></span>
+                      <span class="text-muted ms-1" style="font-size: 0.75rem;">@<?= $item['denom'] ?></span>
                     <?php } ?>
                     <?php 
                       $margin = $item['margin'] ?? 0;
@@ -91,19 +91,19 @@ $isEmpty = empty($grouped);
                   <strong class="text-dark">Rp<?= number_format($group['total']) ?></strong>
                 </td>
               </tr>
-              <tr class="bg-success bg-opacity-10">
+              <tr>
                 <td class="ps-3 py-2">
                   <i class="fas fa-check-circle text-success me-1"></i>
-                  Sudah Dibayar
+                  <span class="text-success">Sudah Dibayar</span>
                 </td>
                 <td class="text-end pe-3 py-2">
                   <span class="text-success fw-bold">Rp<?= number_format($group['total_paid']) ?></span>
                 </td>
               </tr>
-              <tr class="bg-danger bg-opacity-10">
+              <tr>
                 <td class="ps-3 py-2">
                   <i class="fas fa-exclamation-circle text-danger me-1"></i>
-                  <strong>SISA PIUTANG</strong>
+                  <strong class="text-danger">SISA PIUTANG</strong>
                 </td>
                 <td class="text-end pe-3 py-2">
                   <strong class="text-danger fs-6">Rp<?= number_format($group['sisa']) ?></strong>
@@ -146,26 +146,26 @@ $isEmpty = empty($grouped);
     </div> <!-- /row -->
     
     <!-- Summary Card -->
-    <div class="card shadow border-0 border-warning border-top border-3">
+    <div class="card shadow-sm border-0">
       <div class="card-body">
-        <h6 class="mb-3"><i class="fas fa-chart-pie me-2"></i>Ringkasan Piutang</h6>
+        <h6 class="mb-3"><i class="fas fa-chart-pie me-2 text-muted"></i>Ringkasan Piutang</h6>
         <div class="row g-3">
           <div class="col-md-4">
-            <div class="p-3 bg-white rounded border text-center h-100 shadow-sm">
-              <small class="text-secondary text-uppercase fw-bold d-block mb-2" style="font-size: 0.75rem; letter-spacing: 0.5px;">Total Piutang</small>
-              <h4 class="mb-0 fw-bold text-dark">Rp<?= number_format($totalPiutang) ?></h4>
+            <div class="p-3 rounded border text-center h-100">
+              <small class="text-muted text-uppercase fw-bold d-block mb-2" style="font-size: 0.75rem;">Total Piutang</small>
+              <h5 class="mb-0 fw-bold text-dark">Rp<?= number_format($totalPiutang) ?></h5>
             </div>
           </div>
           <div class="col-md-4">
-            <div class="p-3 bg-white rounded border border-success border-2 text-center h-100 shadow-sm">
-              <small class="text-success text-uppercase fw-bold d-block mb-2" style="font-size: 0.75rem; letter-spacing: 0.5px;">Sudah Dibayar</small>
-              <h4 class="mb-0 fw-bold text-success">Rp<?= number_format($totalBayar) ?></h4>
+            <div class="p-3 rounded border text-center h-100">
+              <small class="text-success text-uppercase fw-bold d-block mb-2" style="font-size: 0.75rem;">Sudah Dibayar</small>
+              <h5 class="mb-0 fw-bold text-success">Rp<?= number_format($totalBayar) ?></h5>
             </div>
           </div>
           <div class="col-md-4">
-            <div class="p-3 bg-white rounded border border-danger border-2 text-center h-100 shadow-sm">
-              <small class="text-danger text-uppercase fw-bold d-block mb-2" style="font-size: 0.75rem; letter-spacing: 0.5px;">Sisa Tagihan</small>
-              <h4 class="mb-0 fw-bold text-danger">Rp<?= number_format($totalSisa) ?></h4>
+            <div class="p-3 rounded border text-center h-100">
+              <small class="text-danger text-uppercase fw-bold d-block mb-2" style="font-size: 0.75rem;">Sisa Tagihan</small>
+              <h5 class="mb-0 fw-bold text-danger">Rp<?= number_format($totalSisa) ?></h5>
             </div>
           </div>
         </div>
@@ -222,7 +222,7 @@ $isEmpty = empty($grouped);
           <div class="mb-3">
             <label class="form-label small d-flex justify-content-between">
               <span>Jumlah Bayar</span>
-              <span class="badge bg-warning text-dark pointer" id="btnSalesBayarFull" style="cursor:pointer">Bayar Full</span>
+              <span class="text-warning fw-medium pointer" id="btnSalesBayarFull" style="cursor:pointer">Bayar Full</span>
             </label>
             <div class="input-group">
                <span class="input-group-text">Rp</span>

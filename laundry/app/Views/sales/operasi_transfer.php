@@ -36,10 +36,9 @@ $currentCabang = $this->dCabang['id_cabang'] ?? 0;
         </div>
       </form>
       
-      <div class="alert alert-info mt-3 mb-0 py-2">
-        <i class="fas fa-info-circle me-2"></i>
-        <small>Maksimal rentang tanggal: 1 minggu (7 hari)</small>
-      </div>
+      <p class="text-muted small mt-3 mb-0 py-1">
+        <i class="fas fa-info-circle me-1"></i>Maksimal rentang tanggal: 1 minggu (7 hari)
+      </p>
     </div>
   </div>
 
@@ -63,26 +62,26 @@ $currentCabang = $this->dCabang['id_cabang'] ?? 0;
       <div class="col-md-6">
       <div class="card mb-3 shadow-sm border-0">
         <!-- Header -->
-        <div class="card-header <?= $isReceived ? 'bg-info' : 'bg-primary' ?> text-white py-2 px-3">
+        <div class="card-header bg-dark text-white py-2 px-3">
           <div class="d-flex justify-content-between align-items-center">
-            <div class="d-flex align-items-center gap-2">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
               <span class="small">Ref:</span> <span class="fw-bold">#<?= $ref ?></span>
               <?php if ($isReceived) { ?>
-                <span class="badge bg-light text-dark" style="font-size: 0.7rem;">
+                <span class="text-white-50" style="font-size: 0.7rem;">
                   <i class="fas fa-download me-1"></i>Terima dari <?= $sourceCabang ?>
                 </span>
               <?php } elseif ($isSent) { ?>
-                <span class="badge bg-light text-dark" style="font-size: 0.7rem;">
+                <span class="text-white-50" style="font-size: 0.7rem;">
                   <i class="fas fa-upload me-1"></i>Kirim ke <?= $targetCabang ?>
                 </span>
               <?php } ?>
               
               <?php if ($group['state'] == 1) { ?>
-                <span class="badge bg-success" style="font-size: 0.7rem;">
+                <span class="text-success" style="font-size: 0.7rem;">
                   <i class="fas fa-check-circle me-1"></i>Diterima
                 </span>
               <?php } else { ?>
-                <span class="badge bg-warning text-dark" style="font-size: 0.7rem;">
+                <span class="text-warning" style="font-size: 0.7rem;">
                   <i class="fas fa-clock me-1"></i>Pending
                 </span>
               <?php } ?>
@@ -102,7 +101,7 @@ $currentCabang = $this->dCabang['id_cabang'] ?? 0;
                   <td class="ps-3 py-2">
                     <span class="fw-medium"><?= $item['nama_barang'] ?></span>
                     <?php if ($item['denom'] != 1) { ?>
-                      <span class="badge bg-info ms-1" style="font-size: 0.7rem;">@<?= $item['denom'] ?></span>
+                      <span class="text-muted ms-1" style="font-size: 0.75rem;">@<?= $item['denom'] ?></span>
                     <?php } ?>
                     <?php 
                       $margin = $item['margin'] ?? 0;
@@ -120,7 +119,7 @@ $currentCabang = $this->dCabang['id_cabang'] ?? 0;
         </div>
         
         <!-- Footer - Total & Route -->
-        <div class="card-footer bg-light py-2 px-3">
+        <div class="card-footer border-top py-2 px-3">
           <div class="d-flex justify-content-between align-items-center">
             <div class="small text-muted">
               <i class="fas fa-arrow-right me-1"></i>

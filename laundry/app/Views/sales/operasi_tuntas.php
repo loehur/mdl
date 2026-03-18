@@ -12,7 +12,7 @@ $isEmpty = empty($grouped);
     <div class="card-body">
       <div class="d-flex justify-content-between align-items-center mb-3">
         <h5 class="mb-0"><i class="fas fa-check-circle me-2 text-success"></i>Order Selesai</h5>
-        <span class="badge bg-success">
+        <span class="text-success fw-medium">
           <?= count($grouped) ?> Transaksi
         </span>
       </div>
@@ -37,10 +37,9 @@ $isEmpty = empty($grouped);
         </div>
       </form>
       
-      <div class="alert alert-info mt-3 mb-0 py-2">
-        <i class="fas fa-info-circle me-2"></i>
-        <small>Maksimal rentang tanggal: 1 Minggu (7 hari)</small>
-      </div>
+      <p class="text-muted small mt-3 mb-0 py-1">
+        <i class="fas fa-info-circle me-1"></i>Maksimal rentang tanggal: 1 Minggu (7 hari)
+      </p>
     </div>
   </div>
 
@@ -57,18 +56,18 @@ $isEmpty = empty($grouped);
     <div class="row g-3">
     <?php foreach ($grouped as $ref => $group) { ?>
       <div class="col-md-6">
-      <div class="card mb-3 shadow-sm border-0 border-start border-success border-4">
+      <div class="card mb-3 shadow-sm border-0">
         <!-- Header -->
-        <div class="card-header bg-success bg-opacity-10 py-2 px-3">
+        <div class="card-header bg-dark text-white py-2 px-3">
           <div class="d-flex justify-content-between align-items-center">
             <div class="d-flex align-items-center gap-2">
-              <span class="small">Ref:</span> <span class="fw-bold text-dark">#<?= $ref ?></span>
-              <span class="badge bg-success" style="font-size: 0.7rem;">
+              <span class="small">Ref:</span> <span class="fw-bold">#<?= $ref ?></span>
+              <span class="text-success" style="font-size: 0.7rem;">
                 <i class="fas fa-check me-1"></i>Lunas
               </span>
             </div>
             <div class="text-end">
-              <span class="small text-muted"><?= date('d/m/y H:i', strtotime($group['date'])) ?></span>
+              <span class="small text-white-50"><?= date('d/m/y H:i', strtotime($group['date'])) ?></span>
             </div>
           </div>
         </div>
@@ -82,7 +81,7 @@ $isEmpty = empty($grouped);
                   <td class="ps-3 py-2">
                     <span class="fw-medium"><?= $item['nama_barang'] ?></span>
                     <?php if ($item['denom'] != 1) { ?>
-                      <span class="badge bg-info ms-1" style="font-size: 0.7rem;">@<?= $item['denom'] ?></span>
+                      <span class="text-muted ms-1" style="font-size: 0.75rem;">@<?= $item['denom'] ?></span>
                     <?php } ?>
                     <?php 
                       $margin = $item['margin'] ?? 0;
@@ -96,10 +95,10 @@ $isEmpty = empty($grouped);
                 </tr>
               <?php } ?>
             </tbody>
-            <tfoot class="border-top bg-light">
+            <tfoot class="border-top">
               <tr>
                 <td class="ps-3 py-2 fw-bold">TOTAL</td>
-                <td class="text-end pe-3 py-2 fw-bold text-success">Rp<?= number_format($group['total']) ?></td>
+                <td class="text-end pe-3 py-2 fw-bold text-dark">Rp<?= number_format($group['total']) ?></td>
               </tr>
             </tfoot>
           </table>
