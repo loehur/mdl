@@ -54,7 +54,7 @@
                   if ($targetId == $currentCabang && $sourceId != $currentCabang) {
                     // Nota diterima dari transfer
                   ?>
-                    <span class="badge bg-info" style="font-size: 0.7rem;">
+                    <span class="text-info" style="font-size: 0.7rem;">
                       <i class="fas fa-download me-1"></i>Terima Transfer
                     </span>
                   <?php } ?>
@@ -62,7 +62,7 @@
                   <?php if ($state == 3) { 
                     // Nota piutang
                   ?>
-                    <span class="badge bg-warning text-dark" style="font-size: 0.7rem;">
+                    <span class="text-warning" style="font-size: 0.7rem;">
                       <i class="fas fa-file-invoice-dollar me-1"></i>Piutang
                     </span>
                   <?php } ?>
@@ -82,7 +82,7 @@
                       <td class="ps-3 py-1">
                         <span class="fw-medium"><?= $item['nama_barang'] ?></span>
                         <?php if ($item['denom'] != 1) { ?>
-                          <span class="badge bg-info ms-1" style="font-size: 0.75rem;">@<?= $item['denom'] ?></span>
+                          <span class="text-info ms-1" style="font-size: 0.75rem;">@<?= $item['denom'] ?></span>
                         <?php } ?>
                         <?php 
                           $margin = $item['margin'] ?? 0;
@@ -100,10 +100,10 @@
             </div>
             
             <!-- Footer Nota - Total -->
-            <div class="card-footer bg-warning bg-gradient py-1 px-3">
+            <div class="card-footer border-top py-1 px-3">
               <div class="d-flex justify-content-between align-items-center">
-                <span class="fw-bold">TOTAL</span>
-                <span class="fw-bold">Rp<?= number_format($group['total']) ?></span>
+                <span class="fw-bold text-dark">TOTAL</span>
+                <span class="fw-bold text-dark">Rp<?= number_format($group['total']) ?></span>
               </div>
             </div>
             
@@ -155,7 +155,7 @@
             <?php } ?>
             
             <!-- Action Buttons -->
-            <div class="card-footer bg-light py-2 px-3">
+            <div class="card-footer border-top py-2 px-3">
               <?php 
               $type = $group['type'] ?? 1;
               $currentCabang = $this->dCabang['id_cabang'] ?? 0;
@@ -193,10 +193,10 @@
                   $kodeCabangTarget = $targetCabang['kode_cabang'] ?? 'N/A';
               ?>
                 <div class="d-flex align-items-center justify-content-between">
-                  <div class="alert alert-info mb-0 py-2 px-3 flex-grow-1" role="alert">
-                    <i class="fas fa-info-circle me-2"></i>
-                    <strong>Transfer barang dalam peninjauan</strong>
-                    <span class="ms-2 badge bg-primary"><?= $kodeCabangTarget ?></span>
+                  <div class="mb-0 py-2 px-0 flex-grow-1">
+                    <i class="fas fa-info-circle text-info me-2"></i>
+                    <span class="text-info">Transfer barang dalam peninjauan</span>
+                    <span class="ms-2 text-primary fw-medium"><?= $kodeCabangTarget ?></span>
                   </div>
                   <button type="button" class="btn btn-sm btn-outline-danger btnBatalNota ms-2" data-ref="<?= $ref ?>" title="Hapus Nota">
                     <i class="fas fa-times"></i>
@@ -207,9 +207,9 @@
               } elseif ($type == 3) {
                 // Type 3 (Pakai), sembunyikan semua tombol
               ?>
-                <div class="alert alert-success mb-0 py-2 px-3" role="alert">
-                  <i class="fas fa-check-circle me-2"></i>
-                  <strong>Barang sudah dipakai</strong>
+                <div class="mb-0 py-2 px-0">
+                  <i class="fas fa-check-circle text-success me-2"></i>
+                  <span class="text-success">Barang sudah dipakai</span>
                 </div>
               <?php 
               } else { 
