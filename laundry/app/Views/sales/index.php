@@ -38,7 +38,7 @@
       <?php } else { ?>
         <div class="row g-2">
         <?php foreach ($data['checkouts'] as $ref => $group) { ?>
-          <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
+          <div class="col-12 col-sm-6">
           <div class="card mb-0 shadow-sm border-0 h-100">
             <!-- Header Nota -->
             <div class="card-header bg-dark text-white py-1 px-2">
@@ -1115,8 +1115,34 @@
               <td>
                 <select id="salesKaryawan" class="form-select" required>
                   <option value="" disabled selected>Pilih Karyawan</option>
-                  <?php foreach ($this->user as $u) { ?>
-                    <option value="<?= $u['id_user'] ?>"><?= $u['id_user'] . '-' . strtoupper($u['nama_user']) ?></option>
+                  <?php 
+                  $usersByCabang = [];
+                  foreach ($this->userMerge as $u) {
+                    $u = is_array($u) ? $u : (array)$u;
+                    $cid = $u['id_cabang'] ?? 0;
+                    if (!isset($usersByCabang[$cid])) $usersByCabang[$cid] = [];
+                    $usersByCabang[$cid][] = $u;
+                  }
+                  $currentCid = $this->id_cabang ?? 0;
+                  uksort($usersByCabang, function($a, $b) use ($currentCid) {
+                    if ($a == $currentCid) return -1;
+                    if ($b == $currentCid) return 1;
+                    return (int)$a - (int)$b;
+                  });
+                  foreach ($usersByCabang as $cid => $users) {
+                    $cabangLabel = 'Cabang ' . $cid;
+                    foreach ($this->listCabang as $c) {
+                      if (($c['id_cabang'] ?? 0) == $cid) {
+                        $cabangLabel = ($c['kode_cabang'] ?? '') . ' - ' . ($c['nama'] ?? '');
+                        break;
+                      }
+                    }
+                  ?>
+                  <optgroup label="<?= htmlspecialchars($cabangLabel) ?>">
+                    <?php foreach ($users as $u) { ?>
+                      <option value="<?= $u['id_user'] ?>"><?= ($u['id_user'] ?? '') . '-' . strtoupper($u['nama_user'] ?? '') ?></option>
+                    <?php } ?>
+                  </optgroup>
                   <?php } ?>
                 </select>
               </td>

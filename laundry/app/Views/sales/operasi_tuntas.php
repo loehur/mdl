@@ -106,9 +106,47 @@ $isEmpty = empty($grouped);
         
         <!-- Footer Actions -->
         <div class="card-footer p-2 text-end">
-           <button class="btn btn-sm btn-outline-secondary" onclick="window.print()">
+           <button type="button" class="btn btn-sm btn-outline-secondary" data-print-ref="<?= $ref ?>" data-print-pelanggan="">
              <i class="fas fa-print me-1"></i>Cetak
            </button>
+        </div>
+        
+        <!-- Hidden Print Template for view_load.js - ID MUST be print + REF -->
+        <div id="print<?= $ref ?>" class="d-none">
+          <table style="width: 100%;">
+            <tr>
+              <td colspan="2" style="text-align: center;">
+                <b><?= $this->dCabang['nama'] ?? 'LAUNDRY' ?> - <?= $this->dCabang['kode_cabang'] ?? '' ?></b><br>
+                <?= $this->dCabang['alamat'] ?? '' ?><br>
+                <?= $this->dCabang['phone_number'] ?? '' ?>
+              </td>
+            </tr>
+            <tr id="dashRow"><td></td></tr>
+            <tr>
+              <td><b>#<?= $ref ?></b><br><?= date('d/m/y H:i', strtotime($group['date'])) ?></td>
+              <td style="text-align: right;"></td>
+            </tr>
+            <tr id="dashRow"><td></td></tr>
+            <?php foreach ($group['items'] as $item) { 
+              $margin = $item['margin'] ?? 0;
+              $price = $item['price'] + $margin;
+              $subtotal = $price * $item['qty'];
+            ?>
+            <tr><td><?= $item['nama_barang'] ?></td><td>&#8203;</td></tr>
+            <tr>
+              <td><?= rtrim(rtrim(number_format($item['qty'], 1, ',', '.'), '0'), ',') ?> x <?= number_format($price) ?></td>
+              <td style="text-align: right;"><?= number_format($subtotal) ?></td>
+            </tr>
+            <?php } ?>
+            <tr id="dashRow"><td></td></tr>
+            <tr>
+              <td><b>TOTAL</b></td>
+              <td style="text-align: right;"><b><?= number_format($group['total']) ?></b></td>
+            </tr>
+            <tr>
+              <td colspan="2" style="text-align: center;">Terima Kasih</td>
+            </tr>
+          </table>
         </div>
       </div>
       </div> <!-- /col-md-6 -->
@@ -116,3 +154,13 @@ $isEmpty = empty($grouped);
     </div> <!-- /row -->
   <?php } ?>
 </div>
+
+<script>
+  window.ViewLoadConfig = {
+    baseUrl: '<?= URL::BASE_URL ?>',
+    kodeCabang: '<?= $this->dCabang['id_cabang'] ?? '' ?>',
+    marginTop: <?= $this->mdl_setting["margin_printer_top"] ?? 0 ?>,
+    feedLines: <?= $this->mdl_setting["margin_printer_bottom"] ?? 0 ?>
+  };
+</script>
+<script src="<?= URL::IN_ASSETS ?>js/operasi/view_load.js?v=<?= time() ?>"></script>
