@@ -25,7 +25,7 @@ class CleanKas extends Controller
         }
 
         // Kondisi: note QRIS, metode_mutasi = 2, status_mutasi <> 3, id_client = 0, insertTime > 1 jam
-        $where = "UPPER(note) = 'QRIS' AND metode_mutasi = 2 AND status_mutasi <> 3 AND id_user = 0 AND id_client <> 0 AND insertTime < DATE_SUB(NOW(), INTERVAL 1 HOUR)";
+        $where = "UPPER(note) = 'QRIS' AND metode_mutasi = 2 AND status_mutasi <> 3 AND payment_trx_id IS NULL AND id_user = 0 AND id_client <> 0 AND insertTime < DATE_SUB(NOW(), INTERVAL 1 HOUR)";
 
         try {
             // Hitung dulu sebelum hapus
