@@ -76,7 +76,7 @@ return [
             '/^\s*(cek|sta*tu*s)\s*$/i',
             '/\b(sudah|udah|udh|dah+|dh)\s*sia+p+\b/i',  // dh siap, udh siap, laundry saya udh siap?
             '/\b(siap|sia+p+)\s*(kak|kk|bang|pak|bu|mbak|penya|punya)/i',  // siap kk, siap penya ku (typo)
-            '/\b(sudah|udah|dah|dh)\s*selesai/i',  // sudah selesai laundry nya kak?
+            '/\b(sudah|udah|udh|dah|dh)\s*selesai/i',  // sudah selesai laundry nya kak? udh selesai kah?
             '/\b(udah|sudah|dah|dh)\s*bisa\s*(di\s*)?ambil/i',  // udh bisa di ambil baju sy?
             '/\bbisa\s*(di\s*)?ambil\s*\??/i',  // bisa diambil? / bisa di ambil?
             '/\bsia+p+\s*(kak|kk|bang|pak|bu|mbak|ya)?\s*$/i',
@@ -86,7 +86,7 @@ return [
         ],
         'ai_prompt' => "User menanyakan ATAU memberitahu status/progress laundry, seperti:\n
         PERTANYAAN status:\n
-        | sudah selesai? | bisa diambil? | kapan siap? | jam berapa siap? | sudah jadi? | jam berapa selesai? |\n
+        | sudah selesai? | udh selesai kah? | bisa diambil? | kapan siap? | jam berapa siap? | sudah jadi? | jam berapa selesai? |\n
         | sudah bisa diambil? | kapan bisa diambil? | siapnya kapan? | siapnya jam berapa? |\n
         | atas nama IVAN udah? | atas nama X sudah? | laundry [nama] udah? | punya [nama] sudah? |\n
         \n
@@ -158,6 +158,8 @@ return [
          '/(klo|kalau)\s*(da|udh|udah|sudah)?\s*(kelar|selesai)\s*(antar|jemput)/i',
          '/(klo|kalau)\s*(udh|udah|sudah)?\s*selesai\s*(antar|jemput)/i',
          '/\b(selesai|kelar|udh|udah|sudah)\s+(antar|jemput)\s*(aja|ya)?/i',
+         // "katanya mau antar", "katanya mau jemput" = relay/konfirmasi permintaan antar
+         '/\bkatanya\s+mau\s*(antar|jemput)/i',
       ],
       'ai_prompt' => "User MEMINTA KURIR/LAUNDRY untuk datang JEMPUT atau ANTAR, ATAU menanyakan ONGKIR.\n
       TRUE (MINTA JEMPUT/ANTAR) - HARUS ADA KATA PERMINTAAN/PERTANYAAN:\n
@@ -165,6 +167,7 @@ return [
       - tolong jemput, minta dijemput, bisa diantar?, boleh dijemput?, kapan diantar?\n
       - jam brp bsk diantarnya?, jam berapa besok diantar?, kapan diantarnya? = tanya jadwal pengantaran order = MINTA_JEMPUT_ANTAR\n
       - bisa jemput kak?, nanti bisa jemput kak?, jemput dong, antar ya dong\n
+      - katanya mau antar, katanya mau jemput = relay/konfirmasi permintaan antar = MINTA_JEMPUT_ANTAR\n
       - brp ongkirnya?, berapa ongkosnya?, brp ong nya kak?, biaya antar?\n
       \n
       FALSE (BUKAN MINTA JEMPUT/ANTAR) - SANGAT PENTING:\n
@@ -221,6 +224,8 @@ return [
             // "kapan terakhir terima kain/laundry?", "terakhir terima jam berapa?"
             '/\b(ka*pa*n)\s*(te*ra*khir)\s*(te*ri*ma*)\s*(ka*in|ba*ju|la*u*ndr(y|i)|cu*ci)?/i',
             '/\b(te*ra*khir)\s*(te*ri*ma*)\s*(ka*in|ba*ju|la*u*ndr(y|i)|ja*m)?/i',
+            // "kapan jadwal terakhir penerimaan?", "jadwal terakhir penerimaan" (konfirmasi ke petugas dulu)
+            '/\b(kapan\s*)?(jadwal\s*)?(terakhir|batas)\s*(terima|penerimaan)/i',
             // "masih terima kain/baju/laundry/gosok?", "masih terima kak?" (masi/msih = typo masih)
             '/\b(ma*si*h|masi|msih)\s*(ne*ri*ma*|te*ri*ma*)\s*(ka*in|ba*ju|la*u*ndr(y|i)|cu*ci|go*so*k|se*tr*ika*|ka*k|ya)?\s*(a*ja*)?/i',
             // "masih/msh/masi/msih bisa?" atau "masih bisa terima kain?" (sistem jawab konfirmasi ke petugas dulu)
@@ -240,11 +245,11 @@ return [
             '/\b(ma*si*h|masi|msih)\s*(bi*sa*)\s*sia+p+\s*(gak|ga|g)?/i',
         ],
         'ai_prompt' => "User menanyakan jam operasional TOKO (buka/tutup) ATAU batas terima laundry ATAU jadwal libur.\n
-        DUA JENIS (keduanya JAM_OPERASIONAL, sistem bedakan jawaban): (A) 'masih buka?' = jawab 'masih buka kak/bang'. (B) 'masih bisa?' / 'masih bisa terima kain?' / 'msh bs terima kain?' = jawab konfirmasi ke petugas dulu.\n
+        DUA JENIS (keduanya JAM_OPERASIONAL, sistem bedakan jawaban): (A) 'masih buka?' = jawab 'masih buka kak/bang'. (B) 'masih bisa?' / 'masih bisa terima kain?' / 'kapan jadwal terakhir penerimaan?' = jawab konfirmasi ke petugas dulu.\n
         | jam berapa buka? | jam berapa tutup? | kapan tutup? | masih buka? | masih bukak? | buka buk? | buka kak mau ambil baju? | sudah tutup? | jam operasional? | jam buka berapa? |\n
         | liburnya kapan? | kapan libur? | hari libur apa? | libur hari apa? | tutup tgl berapa? | tutup tanggal brp? | libur tgl berapa? |\n
         | besok pagi buka jam berapa? | besok buka jam brp ya? | nanti sore buka jam berapa? | untuk besok pagi buka jam brp ya? |\n
-        | kapan terakhir terima kain? | kapan terakhir terima laundry? | terakhir terima jam berapa? |\n
+        | kapan terakhir terima kain? | kapan terakhir terima laundry? | terakhir terima jam berapa? | kapan jadwal terakhir penerimaan? | jadwal terakhir penerimaan? |\n
         | masih terima kain kak? | masih terima baju? | masih terima laundry? | masih terima kak? |\n
         | masih bisa antar laundry? | masih bisa antar? | masih bisa jemput? | = tanya AVAILABILITAS (masih buka/bisa layani) = JAM_OPERASIONAL\n
         | masih bisa siap gak kk mau bawa sprei? | masih bisa siap mau antar? | = user BELUM antar laundry, tanya apakah masih terima/proses = JAM_OPERASIONAL\n
@@ -274,8 +279,8 @@ return [
          '/\btha*nks\b/i',
          '/\b(thx|tq|ty|ok|gpp)\b/i',
          '/\b(gak|ga)\s*apa\s*apa\b/i',
-         // udah/sudah/dah - JANGAN match jika diikuti "siap" atau "bisa diambil" (itu tanya status = STATUS)
-         '/((hm+|ok(e*)?|sip)\s*)*(y(a*)?\s*)?(u*da*h|s*u*da*h|la+h)(?!\s*siap)(?!\s*bisa\s*(di\s*)?ambil)/i',
+         // udah/sudah/dah - JANGAN match jika diikuti "siap", "selesai", atau "bisa diambil" (itu tanya status = STATUS)
+         '/((hm+|ok(e*)?|sip)\s*)*(y(a*)?\s*)?(u*da*h|s*u*da*h|la+h)(?!\s*siap)(?!\s*selesai)(?!\s*bisa\s*(di\s*)?ambil)/i',
          '/(oh*)\s*(gi*tu+)/i',
          '/(ok|oh).*(siap|sip|ok)/i',
          '/^reacted\s+[^\s]+$/i', // WhatsApp reactions: "Reacted ❤️", "Reacted 👍"

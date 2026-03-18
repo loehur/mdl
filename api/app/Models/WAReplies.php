@@ -1752,7 +1752,8 @@ class WAReplies
         $konfirmasiIntro = null;
         $konfirmasiPattern1 = '/\b(masih|msh|mash|masi|msih)\s*(bisa|bs|bis|b\s*s)(?:\s*(terima|trima|nerima|antar|masukin|masuk)\s*(kain|baju|laundry|cuci|gosok|setrika|strika)?\s*(aja|aj)?)?\s*\??\s*$/i';
         $konfirmasiPattern2 = '/\b(masih|msh|mash|masi|msih)\s*(nerima|terima|trima).*(gosok|setrika|strika)\s*(aja|aj)?/i';
-        if ($forceKonfirmasiIntro || preg_match($konfirmasiPattern1, $t) || preg_match($konfirmasiPattern2, $t)) {
+        $konfirmasiPattern3 = '/\b(kapan\s*)?(jadwal\s*)?(terakhir|batas)\s*(terima|penerimaan)/i';  // "kapan jadwal terakhir penerimaan?"
+        if ($forceKonfirmasiIntro || preg_match($konfirmasiPattern1, $t) || preg_match($konfirmasiPattern2, $t) || preg_match($konfirmasiPattern3, $t)) {
             $sapaan = $this->getSapaanForGreeting($waNumber);
             $konfirmasiReplies = [
                 "Tunggu ya {$sapaan}, kami konfirmasi ke petugas dulu ya {$sapaan} 😊",
