@@ -284,7 +284,7 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
         </table>
       </div>
 
-      <?php $total_pendapatan = $data['kasLaundry'] + $data['kasMember']; ?>
+      <?php $total_pendapatan = $data['kasLaundry'] + $data['kasMember'] + ($data['margin_penjualan'] ?? 0); ?>
 
       <br>
       <div class="card-body p-0 table-responsive-sm">
@@ -297,6 +297,10 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
             <tr>
               <td>Pendapatan Laundry <span class="text-success">Member</span></td>
               <td class="text-right">Rp<?= number_format($data['kasMember']) ?></td>
+            </tr>
+            <tr>
+              <td>Margin Penjualan Barang</td>
+              <td class="text-right">Rp<?= number_format($data['margin_penjualan'] ?? 0) ?></td>
             </tr>
             <tr class="table-success">
               <td class="fw-bold">Total Pendapatan</td>

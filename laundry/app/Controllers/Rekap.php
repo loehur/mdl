@@ -234,6 +234,21 @@ class Rekap extends Controller
          $barang_pakai = intval($barangPakaiResult[0]['total'] ?? 0);
       }
 
+      // Margin Penjualan Barang - dari Sales (barang_mutasi type=1, state=1), total margin = SUM(margin * qty)
+      $marginPenjualanDateCondition = $isDaily
+         ? "DATE(created_at) = '$today'"
+         : "DATE_FORMAT(created_at, '%Y-%m') = '$today'";
+      $marginPenjualanWhere = "type = 1 AND state = 1 AND $marginPenjualanDateCondition";
+      if ($whereCabang != '') {
+         $marginPenjualanWhere = "source_id = " . $this->id_cabang . " AND " . $marginPenjualanWhere;
+      }
+      $marginPenjualanSql = "SELECT COALESCE(SUM(margin * qty), 0) as total FROM barang_mutasi WHERE $marginPenjualanWhere";
+      $marginPenjualanResult = $this->db(0)->query_array($marginPenjualanSql);
+      $margin_penjualan = 0;
+      if ($marginPenjualanResult && is_array($marginPenjualanResult) && count($marginPenjualanResult) > 0) {
+         $margin_penjualan = intval(round($marginPenjualanResult[0]['total'] ?? 0));
+      }
+
       $this->view('layout', ['data_operasi' => $data_operasi]);
       $this->view('rekap/rekap', [
          'data_main' => $data_main,
@@ -248,7 +263,8 @@ class Rekap extends Controller
          'kas_tarik' => $kas_tarik,
          'prepost_cost' => $prepost_cost,
          'gaji' => $gaji,
-         'barang_pakai' => $barang_pakai
+         'barang_pakai' => $barang_pakai,
+         'margin_penjualan' => $margin_penjualan
       ]);
    }
 
