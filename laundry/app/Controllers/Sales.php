@@ -11,16 +11,13 @@ class Sales extends Controller
    public function index()
    {
       $id_cabang = $_SESSION[URL::SESSID]['user']['id_cabang'] ?? 0;
-      $today = date('Y-m-d');
       
-      // Get checkout list
-      // - Sales (type=1): hari ini saja, state 0 atau 1 (termasuk tuntas)
-      // - Transfer (type=2): semua tanpa filter tanggal (agar "sedang di transfer" tetap tampil)
-      // - Hide Piutang (state=3), Pemakaian (type=3)
-      // - Urutan: terbaru di atas
-      $where = "state IN (0,1) AND (source_id = '$id_cabang' OR target_id = '$id_cabang') AND ((type = 1 AND DATE(created_at) = '$today') OR type = 2)";
+      // Get checkout list - hanya yang belum tuntas (state=0)
+      // - Hide Piutang (state=3) -> Sales Operasi > Piutang
+      // - Hide Pemakaian (type=3) -> Sales Operasi > Pakai
+      // - Tampilkan: Sales (type=1) & Transfer (type=2) yang belum bayar/selesai
       $checkouts = $this->db(0)->get_where('barang_mutasi', 
-         $where . " ORDER BY created_at DESC, id DESC");
+         "state = 0 AND type IN (1,2) AND (source_id = '$id_cabang' OR target_id = '$id_cabang') ORDER BY created_at DESC, id DESC");
       
       // Group by ref
       $grouped = [];
@@ -64,28 +61,13 @@ class Sales extends Controller
          // Use intval to prevent floating point precision issues (e.g., sisa = 0.9999 -> 1)
          $group['sisa'] = intval(round($group['total'])) - intval($totalPaid);
          
-         // Self-healing: Jika sudah lunas tapi masih state=0, update jadi state=1 (tetap tampil di list)
+         // Self-healing: Jika sudah lunas, update state=1 dan hapus dari list
          if ($group['sisa'] <= 0 && $allPaid && count($group['payments']) > 0) {
-            $firstState = $group['items'][0]['state'] ?? 0;
-            if ($firstState == 0) {
-               $this->db(0)->update('barang_mutasi', ['state' => 1], "ref = '$ref'");
-            }
+            $this->db(0)->update('barang_mutasi', ['state' => 1], "ref = '$ref'");
+            unset($grouped[$ref]);
          }
       }
       unset($group);
-      
-      // Urutkan: transfer masuk (barang masuk) paling atas, lalu urutan terbaru
-      uasort($grouped, function($a, $b) use ($id_cabang) {
-         $aIsMasuk = ($a['type'] ?? 0) == 2 && isset($a['items'][0]) 
-            && ($a['items'][0]['target_id'] ?? 0) == $id_cabang && ($a['items'][0]['source_id'] ?? 0) != $id_cabang;
-         $bIsMasuk = ($b['type'] ?? 0) == 2 && isset($b['items'][0]) 
-            && ($b['items'][0]['target_id'] ?? 0) == $id_cabang && ($b['items'][0]['source_id'] ?? 0) != $id_cabang;
-         if ($aIsMasuk && !$bIsMasuk) return -1;
-         if (!$aIsMasuk && $bIsMasuk) return 1;
-         $dateA = strtotime($a['date'] ?? 0);
-         $dateB = strtotime($b['date'] ?? 0);
-         return $dateB - $dateA;
-      });
       
       // Get list cabang untuk modal transfer
       $listCabang = $this->db(0)->get('cabang');
