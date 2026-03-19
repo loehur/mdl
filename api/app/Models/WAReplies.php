@@ -1799,45 +1799,47 @@ class WAReplies
             $daysStr = "setiap hari";
         }
 
-        // Jika "setiap hari" dan ada libur 10 hari ke depan, tambahkan pengecualian
+        // Check if today is a holiday (cek dulu untuk tentukan format pesan)
+        $now = new \DateTime('now', new \DateTimeZone($config['timezone']));
+        $currentDate = $now->format('Y-m-d');
+        $isHoliday = in_array($currentDate, $config['holidays']);
+
+        // Jika "setiap hari" dan ada libur 10 hari ke depan, tambahkan pengecualian (JANGAN jika hari ini libur)
         $upcomingHolidays = '';
         try {
             $upcomingHolidays = $this->getUpcomingHolidaysMessage($config);
-            if ($upcomingHolidays !== '' && $daysStr === 'setiap hari') {
+            if ($upcomingHolidays !== '' && $daysStr === 'setiap hari' && !$isHoliday) {
                 $daysStr = 'setiap hari kecuali pada hari libur khusus';
             }
         } catch (\Throwable $e) {
             // ignore
         }
 
-        // Check if today is a holiday
-        $now = new \DateTime('now', new \DateTimeZone($config['timezone']));
-        $currentDate = $now->format('Y-m-d');
-        $isHoliday = in_array($currentDate, $config['holidays']);
-
-        // Prefix untuk holiday
-        $holidayPrefix = "";
+        // Hari libur: format khusus (tanpa "kecuali hari libur khusus", dengan Catatan + Buka kembali + Terima kasih)
         if ($isHoliday) {
-            $holidayPrefixes = [
-                "Mohon maaf, hari ini kami libur. ",
+            $holidayMessage = $this->getHolidayFullMessage($config);
+            if ($holidayMessage !== '') {
+                $textBaku = $holidayMessage;
+            } else {
+                // Fallback jika tidak ada range
+                $timeBold = "*{$openTime} s.d. {$closeTime}*";
+                $textBaku = "Mohon maaf, hari ini kami libur. Jam operasional {$timeBold}, {$daysStr}. 🙏";
+            }
+        } else {
+            // Bukan libur: format normal
+            $timeBold = "*{$openTime} s.d. {$closeTime}*";
+            $variations = [
+                "Jam operasional {$timeBold}, {$daysStr}. 🕐😊",
+                "Kami buka jam {$timeBold} ({$daysStr}). ⏰🙏",
+                "Buka jam {$timeBold}, {$daysStr}. 📍😊",
+                "Operasional jam {$timeBold}, {$daysStr}. 😊🙏",
+                "Madinah Laundry buka jam {$timeBold}, {$daysStr}. 👍😊",
+                "Jam buka {$timeBold}, {$daysStr}. 😊👋"
             ];
-            $holidayPrefix = $holidayPrefixes[array_rand($holidayPrefixes)];
-        }
-
-        // Jam operasional di depan, tebal di WhatsApp
-        $timeBold = "*{$openTime} s.d. {$closeTime}*";
-        $variations = [
-            "Jam operasional {$timeBold}, {$daysStr}. 🕐😊",
-            "Kami buka jam {$timeBold} ({$daysStr}). ⏰🙏",
-            "Buka jam {$timeBold}, {$daysStr}. 📍😊",
-            "Operasional jam {$timeBold}, {$daysStr}. 😊🙏",
-            "Madinah Laundry buka jam {$timeBold}, {$daysStr}. 👍😊",
-            "Jam buka {$timeBold}, {$daysStr}. 😊👋"
-        ];
-
-        $textBaku = $holidayPrefix . $variations[array_rand($variations)];
-        if ($upcomingHolidays !== '') {
-            $textBaku .= $upcomingHolidays;
+            $textBaku = $variations[array_rand($variations)];
+            if ($upcomingHolidays !== '') {
+                $textBaku .= $upcomingHolidays;
+            }
         }
 
         // Custom intro (konfirmasi ke petugas) atau AI intro HANYA jika user menyapa dulu (sapaan + tanya jam)
@@ -1920,43 +1922,43 @@ class WAReplies
             $daysStr = "setiap hari";
         }
 
-        // Jika "setiap hari" dan ada libur 10 hari ke depan, tambahkan pengecualian
+        // Cek apakah hari ini libur (untuk pesan khusus)
+        $now = new \DateTime('now', new \DateTimeZone($config['timezone']));
+        $currentDate = $now->format('Y-m-d');
+        $isHoliday = in_array($currentDate, $config['holidays']);
+
+        // Jika "setiap hari" dan ada libur 10 hari ke depan, tambahkan pengecualian (JANGAN jika hari ini libur)
         $upcomingHolidays = '';
         try {
             $upcomingHolidays = $this->getUpcomingHolidaysMessage($config);
-            if ($upcomingHolidays !== '' && $daysStr === 'setiap hari') {
+            if ($upcomingHolidays !== '' && $daysStr === 'setiap hari' && !$isHoliday) {
                 $daysStr = 'setiap hari kecuali pada hari libur khusus';
             }
         } catch (\Throwable $e) {
             // ignore
         }
 
-        // Cek apakah hari ini libur (untuk pesan khusus)
-        $now = new \DateTime('now', new \DateTimeZone($config['timezone']));
-        $currentDate = $now->format('Y-m-d');
-        $isHoliday = in_array($currentDate, $config['holidays']);
-
-        // Jam operasional di depan, tebal di WhatsApp
-        $timeBold = "*{$openTime} s.d. {$closeTime}*";
+        // Hari libur: format khusus (tanpa "kecuali hari libur khusus", dengan Catatan + Buka kembali + Terima kasih)
         if ($isHoliday) {
-            $variations = [
-                "Mohon maaf, hari ini kami libur. Jam operasional {$timeBold}, {$daysStr}. 🙏",
-                "Mohon maaf, hari ini kami tutup (libur khusus). Buka jam {$timeBold}, {$daysStr}. 😊",
-                "Maaf, hari ini kami libur. Jam buka {$timeBold}, {$daysStr}. 🙏",
-                "Mohon maaf, hari ini kami libur. Buka jam {$timeBold}, {$daysStr}. 😊"
-            ];
+            $holidayMessage = $this->getHolidayFullMessage($config);
+            if ($holidayMessage !== '') {
+                $text = $holidayMessage;
+            } else {
+                $timeBold = "*{$openTime} s.d. {$closeTime}*";
+                $text = "Mohon maaf, hari ini kami libur. Jam operasional {$timeBold}, {$daysStr}. 🙏";
+            }
         } else {
+            $timeBold = "*{$openTime} s.d. {$closeTime}*";
             $variations = [
                 "Mohon maaf, kami sedang tutup. Jam operasional {$timeBold}, {$daysStr}. 🙏",
                 "Mohon maaf, kami di luar jam operasional. Buka jam {$timeBold}, {$daysStr}. 😊",
                 "Maaf, saat ini kami sedang tutup. Jam buka {$timeBold}, {$daysStr}. 🙏",
                 "Mohon maaf, kami tutup. Buka jam {$timeBold}, {$daysStr}. 😊"
             ];
-        }
-
-        $text = $variations[array_rand($variations)];
-        if ($upcomingHolidays !== '') {
-            $text .= $upcomingHolidays;
+            $text = $variations[array_rand($variations)];
+            if ($upcomingHolidays !== '') {
+                $text .= $upcomingHolidays;
+            }
         }
         if (!empty($customIntro)) {
             $text = $customIntro . "\n\n" . $text;
@@ -3053,6 +3055,85 @@ class WAReplies
         }
 
         return true; // Within operating hours
+    }
+
+    /**
+     * Pesan lengkap saat hari ini libur: Mohon maaf + Catatan tanggal libur + Buka kembali + Terima kasih
+     * Return string kosong jika hari ini bukan libur atau tidak ada range
+     */
+    private function getHolidayFullMessage(array $config): string
+    {
+        $monthNames = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+        $now = new \DateTime('now', new \DateTimeZone($config['timezone']));
+        $currentDate = $now->format('Y-m-d');
+        if (!in_array($currentDate, $config['holidays'])) {
+            return '';
+        }
+
+        $openTime = str_pad($config['open_hour'], 2, '0', STR_PAD_LEFT) . '.' . str_pad($config['open_minute'], 2, '0', STR_PAD_LEFT);
+        $closeTime = str_pad($config['close_hour'], 2, '0', STR_PAD_LEFT) . '.' . str_pad($config['close_minute'], 2, '0', STR_PAD_LEFT);
+        $timeStr = "{$openTime} s.d. {$closeTime}";
+
+        $formatted = [];
+        $reopenDt = null;
+        $holidayRanges = $config['holiday_ranges'] ?? [];
+        foreach ($holidayRanges as $range) {
+            $start = $range['start'] ?? $range[0] ?? null;
+            $end = $range['end'] ?? $range[1] ?? null;
+            if (!$start || !$end) continue;
+            try {
+                $startDt = new \DateTime($start);
+                $endDt = new \DateTime($end);
+                $today = new \DateTime($currentDate);
+                if ($today >= $startDt && $today <= $endDt) {
+                    $formatted[] = $this->formatHolidayRange($startDt, $endDt, $monthNames);
+                    $nextReopen = clone $endDt;
+                    $nextReopen->modify('+1 day');
+                    if ($reopenDt === null || $nextReopen > $reopenDt) {
+                        $reopenDt = $nextReopen;
+                    }
+                }
+            } catch (\Exception $e) {}
+        }
+
+        if (empty($formatted)) {
+            return '';
+        }
+
+        $listItems = array_map(function ($item) {
+            return '• *' . $item . '*';
+        }, $formatted);
+        $dateList = "\n" . implode("\n", $listItems);
+
+        $reopenStr = $reopenDt ? (int)$reopenDt->format('d') . ' ' . $monthNames[(int)$reopenDt->format('n')] . ' ' . $reopenDt->format('Y') : '';
+
+        $openings = [
+            "Mohon maaf, hari ini kami libur",
+            "Maaf, hari ini kami libur",
+            "Mohon maaf, saat ini kami libur",
+        ];
+
+        $catatanVariations = [
+            "\n\nCatatan: Kami tutup pada tanggal berikut:{$dateList}",
+            "\n\nInfo: Kami tutup pada tanggal berikut:{$dateList}",
+            "\n\nMohon dicatat, kami tutup pada tanggal berikut:{$dateList}",
+        ];
+
+        $bukaKembaliVariations = [
+            "\n\nBuka kembali tanggal {$reopenStr}, jam *{$timeStr}*, setiap hari 😊",
+            "\n\nKami buka kembali tanggal {$reopenStr}, jam *{$timeStr}*, setiap hari 😊",
+            "\n\nBuka lagi tanggal {$reopenStr}, jam *{$timeStr}*, setiap hari 😊",
+        ];
+
+        $closings = [
+            "\n\nTerima kasih 😊",
+            "\n\nTerima kasih 🙏",
+        ];
+
+        return $openings[array_rand($openings)]
+            . $catatanVariations[array_rand($catatanVariations)]
+            . $bukaKembaliVariations[array_rand($bukaKembaliVariations)]
+            . $closings[array_rand($closings)];
     }
 
     /**

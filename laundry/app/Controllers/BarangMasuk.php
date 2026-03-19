@@ -76,6 +76,22 @@ class BarangMasuk extends Controller
       // Get parent barang info
       $barang = $this->db(0)->get_where_row('barang_data', "id_barang = '$id_barang'");
       
+      // Get sisa stok (logic sama Sales/Stok controller)
+      $id_cabang = intval($_SESSION[URL::SESSID]['user']['id_cabang'] ?? 0);
+      $res_in = $this->db(0)->get_cols_where('barang_mutasi',
+         "id_barang, SUM(denom * qty) as total_in",
+         "target_id = '$id_cabang' AND id_barang = '$id_barang' GROUP BY id_barang",
+         1
+      );
+      $res_out = $this->db(0)->get_cols_where('barang_mutasi',
+         "id_barang, SUM(denom * qty) as total_out",
+         "source_id = '$id_cabang' AND state != 2 AND id_barang = '$id_barang' GROUP BY id_barang",
+         1
+      );
+      $total_in = (is_array($res_in) && !empty($res_in) && isset($res_in[0]['total_in'])) ? floatval($res_in[0]['total_in']) : 0;
+      $total_out = (is_array($res_out) && !empty($res_out) && isset($res_out[0]['total_out'])) ? floatval($res_out[0]['total_out']) : 0;
+      $barang['stok'] = $total_in - $total_out;
+      
       // Get unit name
       $unit_nama = '';
       if (isset($barang['unit'])) {

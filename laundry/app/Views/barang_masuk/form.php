@@ -158,6 +158,9 @@ function showBarangDetail(res) {
   }
   var hargaMain = (parseFloat(res.barang.price) || parseFloat(res.barang.harga) || 0) + (parseFloat(res.barang.margin) || 0);
   var unit = res.barang.unit_nama ? ' / ' + res.barang.unit_nama : '';
+  var stok = parseFloat(res.barang.stok) || 0;
+  var stokClass = stok <= 0 ? 'text-danger' : (stok < 5 ? 'text-warning' : 'text-muted');
+  var stokText = 'Sisa stok: <span class="' + stokClass + ' fw-bold">' + numberFormat(stok) + '</span>' + (res.barang.unit_nama ? ' ' + res.barang.unit_nama : '');
   
   var listHtml = '<div class="list-group list-group-flush border rounded">';
   
@@ -166,6 +169,7 @@ function showBarangDetail(res) {
   listHtml += '<div class="flex-grow-1">';
   listHtml += '<span class="fw-bold">' + nama + '</span>';
   listHtml += '<br><small class="text-success fw-bold">Rp' + numberFormat(hargaMain) + unit + '</small>';
+  listHtml += '<br><small>' + stokText + '</small>';
   listHtml += '</div>';
   listHtml += '<div class="d-flex align-items-center gap-2">';
   listHtml += '<input type="number" class="form-control form-control-sm text-center" style="width:60px" value="1" min="1" id="qtyMain">';
