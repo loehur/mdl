@@ -3122,7 +3122,7 @@ class WAReplies
         $bukaKembaliVariations = [
             "\n\nBuka kembali tanggal {$reopenStr}, jam *{$timeStr}*, setiap hari 😊",
             "\n\nKami buka kembali tanggal {$reopenStr}, jam *{$timeStr}*, setiap hari 😊",
-            "\n\nBuka lagi tanggal {$reopenStr}, jam *{$timeStr}*, setiap hari 😊",
+            "\n\nBuka kembali tanggal {$reopenStr}, jam *{$timeStr}*, setiap hari 😊",
         ];
 
         $closings = [

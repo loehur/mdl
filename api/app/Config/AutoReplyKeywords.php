@@ -77,7 +77,8 @@ return [
             '/\b(sudah|udah|udh|dah+|dh)\s*sia+p+\b/i',  // dh siap, udh siap, laundry saya udh siap?
             '/\b(siap|sia+p+)\s*(kak|kk|bang|pak|bu|mbak|penya|punya)/i',  // siap kk, siap penya ku (typo)
             '/\b(sudah|udah|udh|dah|dh)\s*selesai/i',  // sudah selesai laundry nya kak? udh selesai kah?
-            '/\b(udah|sudah|dah|dh)\s*bisa\s*(di\s*)?ambil/i',  // udh bisa di ambil baju sy?
+            '/\b(udah|sudah|udh|dah|dh)\s*bisa\s*(di\s*)?ambil/i',  // udh bisa di ambil baju sy?
+            '/\b(udah|sudah|udh|dah|dh)\s*bisa\s*(di\s*|d\s+)?jemput/i',  // udh bisa d jemput kak? udh bisa di jemput?
             '/\bbisa\s*(di\s*)?ambil\s*\??/i',  // bisa diambil? / bisa di ambil?
             '/\bsia+p+\s*(kak|kk|bang|pak|bu|mbak|ya)?\s*$/i',
             // "laundry saya udh siap" / "loundry saya udh siap" (typo)
@@ -87,7 +88,7 @@ return [
         'ai_prompt' => "User menanyakan ATAU memberitahu status/progress laundry, seperti:\n
         PERTANYAAN status:\n
         | sudah selesai? | udh selesai kah? | bisa diambil? | kapan siap? | jam berapa siap? | sudah jadi? | jam berapa selesai? |\n
-        | sudah bisa diambil? | kapan bisa diambil? | siapnya kapan? | siapnya jam berapa? |\n
+        | sudah bisa diambil? | udh bisa d jemput kak? | udh bisa di jemput? | kapan bisa diambil? | siapnya kapan? | siapnya jam berapa? |\n
         | atas nama IVAN udah? | atas nama X sudah? | laundry [nama] udah? | punya [nama] sudah? |\n
         \n
         KONFIRMASI/PEMBERITAHUAN status (sudah siap):\n
@@ -220,6 +221,9 @@ return [
             // "buka sampai kapan?", "tutup jam berapa?", "sampai jam berapa buka?"
             '/\b(bu*ka*|tu*tu*p)\s*(sa*mpa*i|sampe)\s*(ka*pa*n|ja*m\s*be*ra*pa*)?/i',
             '/\b(sa*mpa*i|sampe)\s*(ka*pa*n|ja*m\s*be*ra*pa*)\s*(bu*ka*|tu*tu*p)?/i',
+            // "sampai jam berapa laundry buka hari ini?", "sampai jam berapa loundry buka?" (laundry/loundry di tengah)
+            '/\bsampai\s*(jam\s*)?(berapa|brp)\b.*\b(laundry|loundry)\s+buka/i',
+            '/\bsampai\s*(jam\s*)?(berapa|brp)\b.*\bbuka\b/i',
             '/\b(ja*m)\s*(o*pe*ra*sio*na*l|bu*ka*|tu*tu*p)/i',
             // "kapan terakhir terima kain/laundry?", "terakhir terima jam berapa?"
             '/\b(ka*pa*n)\s*(te*ra*khir)\s*(te*ri*ma*)\s*(ka*in|ba*ju|la*u*ndr(y|i)|cu*ci)?/i',
@@ -246,7 +250,7 @@ return [
         ],
         'ai_prompt' => "User menanyakan jam operasional TOKO (buka/tutup) ATAU batas terima laundry ATAU jadwal libur.\n
         DUA JENIS (keduanya JAM_OPERASIONAL, sistem bedakan jawaban): (A) 'masih buka?' = jawab 'masih buka kak/bang'. (B) 'masih bisa?' / 'masih bisa terima kain?' / 'kapan jadwal terakhir penerimaan?' = jawab konfirmasi ke petugas dulu.\n
-        | jam berapa buka? | jam berapa tutup? | kapan tutup? | masih buka? | masih bukak? | buka buk? | buka kak mau ambil baju? | sudah tutup? | jam operasional? | jam buka berapa? |\n
+        | jam berapa buka? | jam berapa tutup? | kapan tutup? | masih buka? | masih bukak? | buka buk? | buka kak mau ambil baju? | sudah tutup? | jam operasional? | jam buka berapa? | sampai jam berapa laundry buka hari ini? |\n
         | liburnya kapan? | kapan libur? | hari libur apa? | libur hari apa? | tutup tgl berapa? | tutup tanggal brp? | libur tgl berapa? |\n
         | besok pagi buka jam berapa? | besok buka jam brp ya? | nanti sore buka jam berapa? | untuk besok pagi buka jam brp ya? |\n
         | kapan terakhir terima kain? | kapan terakhir terima laundry? | terakhir terima jam berapa? | kapan jadwal terakhir penerimaan? | jadwal terakhir penerimaan? |\n
