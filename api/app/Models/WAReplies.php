@@ -3106,6 +3106,10 @@ class WAReplies
         $dateList = "\n" . implode("\n", $listItems);
 
         $reopenStr = $reopenDt ? (int)$reopenDt->format('d') . ' ' . $monthNames[(int)$reopenDt->format('n')] . ' ' . $reopenDt->format('Y') : '';
+        $tomorrow = clone $now;
+        $tomorrow->modify('+1 day');
+        $isReopenTomorrow = ($reopenDt && $reopenDt->format('Y-m-d') === $tomorrow->format('Y-m-d'));
+        $besokPrefix = $isReopenTomorrow ? 'besok, ' : '';
 
         $openings = [
             "Mohon maaf, hari ini kami libur",
@@ -3120,9 +3124,9 @@ class WAReplies
         ];
 
         $bukaKembaliVariations = [
-            "\n\nBuka kembali tanggal {$reopenStr}, jam *{$timeStr}*, setiap hari 😊",
-            "\n\nKami buka kembali tanggal {$reopenStr}, jam *{$timeStr}*, setiap hari 😊",
-            "\n\nBuka kembali tanggal {$reopenStr}, jam *{$timeStr}*, setiap hari 😊",
+            "\n\nBuka kembali {$besokPrefix}tanggal {$reopenStr}, jam *{$timeStr}*, setiap hari 😊",
+            "\n\nKami buka kembali {$besokPrefix}tanggal {$reopenStr}, jam *{$timeStr}*, setiap hari 😊",
+            "\n\nBuka lagi {$besokPrefix}tanggal {$reopenStr}, jam *{$timeStr}*, setiap hari 😊",
         ];
 
         $closings = [
