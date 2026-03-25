@@ -521,11 +521,12 @@ class WhatsApp extends Controller
 
         $wamid = $statusUpdate['wamid'] ?? null;
         $messageId = $statusUpdate['id'] ?? null; // YCloud Message ID
+        $externalId = $statusUpdate['externalId'] ?? ($statusUpdate['external_id'] ?? null);
         $status = $statusUpdate['status'] ?? null;
         $errorMessage = $statusUpdate['errorMessage'] ?? null;
 
-        if (!$wamid) {
-            \Log::write("ERROR: No wamid in status update", 'webhook', 'WhatsApp');
+        if (!$wamid && !$messageId && !$externalId) {
+            \Log::write("ERROR: No wamid/message_id/externalId in status update", 'webhook', 'WhatsApp');
             return;
         }
 
@@ -535,7 +536,20 @@ class WhatsApp extends Controller
             'error_message' => $errorMessage
         ];
 
-        $updated = $db->update('wa_messages_out', $updateData, ['wamid' => $wamid]);
+        if ($wamid) $updateData['wamid'] = $wamid;
+        if ($messageId) $updateData['message_id'] = $messageId;
+
+        // Update by best available anchor
+        $updated = false;
+        if ($wamid) {
+            $updated = $db->update('wa_messages_out', $updateData, ['wamid' => $wamid]);
+        }
+        if (!$updated && $messageId) {
+            $updated = $db->update('wa_messages_out', $updateData, ['message_id' => $messageId]);
+        }
+        if (!$updated && $externalId) {
+            $updated = $db->update('wa_messages_out', $updateData, ['external_id' => $externalId]);
+        }
         
         // Also check if in wa_messages_out (sometimes stored there differently?) - actually handled in handleMessageUpdated for out
         // But wa_messages is legacy? Or unified?
@@ -545,7 +559,14 @@ class WhatsApp extends Controller
             // \Log::write("✓ Status updated: $wamid -> $status", 'webhook', 'WhatsApp');
 
             // Find phone logic for frontend
-            $msg = $db->query("SELECT phone, id FROM wa_messages_out WHERE wamid = '$wamid'")->row();
+            $msg = null;
+            if ($wamid) {
+                $msg = $db->query("SELECT phone, id FROM wa_messages_out WHERE wamid = ?", [$wamid])->row();
+            } elseif ($messageId) {
+                $msg = $db->query("SELECT phone, id FROM wa_messages_out WHERE message_id = ?", [$messageId])->row();
+            } elseif ($externalId) {
+                $msg = $db->query("SELECT phone, id FROM wa_messages_out WHERE external_id = ?", [$externalId])->row();
+            }
             if ($msg) {
                 // Get assigned_user_id
                 $conv = $db->get_where('wa_conversations', ['wa_number' => $msg->phone])->row();
@@ -592,10 +613,11 @@ class WhatsApp extends Controller
 
         $wamid = $message['wamid'] ?? null;
         $messageId = $message['id'] ?? null; // Provider message ID
+        $externalId = $message['externalId'] ?? ($message['external_id'] ?? null);
         $status = $message['status'] ?? null;
 
-        if (!$wamid && !$messageId) {
-            \Log::write("No wamid or message_id in message.updated event", 'wa_error', 'Webhook');
+        if (!$wamid && !$messageId && !$externalId) {
+            \Log::write("No wamid/message_id/externalId in message.updated event", 'wa_error', 'Webhook');
             return;
         }
 
@@ -608,6 +630,9 @@ class WhatsApp extends Controller
         if ($wamid) {
             $updateData['wamid'] = $wamid;
         }
+        if ($messageId) {
+            $updateData['message_id'] = $messageId;
+        }
 
         $updated = false;
 
@@ -619,6 +644,10 @@ class WhatsApp extends Controller
         // If not updated (or no messageId), try by wamid as fallback
         if (!$updated && $wamid) {
             $updated = $db->update('wa_messages_out', $updateData, ['wamid' => $wamid]);
+        }
+        // Fallback: by externalId (used when HTTP timed out before getting wamid/message_id)
+        if (!$updated && $externalId) {
+            $updated = $db->update('wa_messages_out', $updateData, ['external_id' => $externalId]);
         }
 
         if ($updated) {
@@ -633,6 +662,9 @@ class WhatsApp extends Controller
             } elseif ($wamid) {
                 $checkSql .= "wamid = ?";
                 $params[] = $wamid;
+            } elseif ($externalId) {
+                $checkSql .= "external_id = ?";
+                $params[] = $externalId;
             }
             
             $msg = $db->query($checkSql, $params)->row();

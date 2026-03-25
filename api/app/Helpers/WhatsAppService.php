@@ -13,6 +13,19 @@ class WhatsAppService
     private $apiKey;
     private $baseUrl;
     private $whatsappNumber;
+
+    private function generateExternalId(): string
+    {
+        // Used to reconcile outbound records across retries + webhook updates
+        try {
+            if (function_exists('random_bytes')) {
+                return 'wa_' . bin2hex(random_bytes(8));
+            }
+        } catch (\Throwable $e) {
+            // ignore
+        }
+        return 'wa_' . str_replace('.', '', (string) uniqid((string) microtime(true), true));
+    }
     
     public function __construct()
     {
@@ -45,12 +58,15 @@ class WhatsAppService
         return substr($this->apiKey, 0, 8) . '...';
     }
     
-    public function sendFreeText($to, $message, $replyToMessageId = null, $senderCode = null)
+    public function sendFreeText($to, $message, $replyToMessageId = null, $senderCode = null, $externalId = null)
     {
+        $externalIdToUse = !empty($externalId) ? (string)$externalId : $this->generateExternalId();
         $payload = [
             'from' => $this->formatPhoneNumber($this->whatsappNumber),
             'to' => $this->formatPhoneNumber($to),
             'type' => 'text',
+            // Recommended id to reconcile webhook status with internal systems
+            'externalId' => $externalIdToUse,
             'text' => [
                 'body' => $message
             ]
@@ -562,6 +578,18 @@ class WhatsAppService
                 if (class_exists('\Log')) {
                     \Log::write("!! Send FAIL to $to after $attempt attempt(s): " . ($error ?: "HTTP $httpCode") . " | " . json_encode($responseData), 'wa_error', 'SendRequest');
                 }
+                // If yCloud timeout / 5xx / network error => queue for cron resend
+                $shouldQueue = ($httpCode == 0) || (!empty($error)) || ($httpCode >= 500);
+                if ($shouldQueue) {
+                    try {
+                        $queueError = $error ?: ('HTTP ' . (string)$httpCode);
+                        $this->saveOutboundQueueMessage($payload, $messageText, $senderCode, $replyToMessageId, $queueError);
+                    } catch (\Throwable $e) {
+                        if (class_exists('\Log')) {
+                            \Log::write("!! EXCEPTION queue insert outbound: " . $e->getMessage(), 'wa_error', 'SaveOutbound');
+                        }
+                    }
+                }
                 return [
                     'success' => false,
                     'error' => $error ?: 'API error',
@@ -580,6 +608,97 @@ class WhatsAppService
             'raw_response' => $response ?? ''
         ];
     }
+
+    /**
+     * Insert/update outbound record in wa_messages_out with status=queue.
+     * Used when yCloud times out/network errors so cron can resend later.
+     */
+    private function saveOutboundQueueMessage($payload, $messageText = null, $senderCode = null, $quotedMessageId = null, $errorMessage = null)
+    {
+        // Wrap everything in try-catch to prevent breaking main flow
+        try {
+            $waNumber = $payload['to'] ?? null;
+            $messageType = $payload['type'] ?? 'text';
+            $externalId = $payload['externalId'] ?? null;
+
+            if (!$waNumber || !$externalId) {
+                // externalId is required for upsert / webhook reconciliation
+                if (class_exists('\Log')) {
+                    \Log::write("!! QUEUE INSERT skipped - Phone/ExternalId missing. Phone=" . ($waNumber ?: 'EMPTY') . " ExternalId=" . ($externalId ?: 'EMPTY'), 'wa_error', 'SaveOutbound');
+                }
+                return;
+            }
+
+            // Extract message content based on type
+            $content = null;
+            $templateParams = null;
+            $mediaUrl = null;
+            if ($messageType === 'text' && isset($payload['text']['body'])) {
+                $content = $payload['text']['body'];
+            } elseif ($messageType === 'template' && isset($payload['template']['name'])) {
+                $templateText = '';
+                if (isset($payload['template']['components'])) {
+                    foreach ($payload['template']['components'] as $component) {
+                        if ($component['type'] === 'body' && isset($component['parameters'])) {
+                            $params = [];
+                            foreach ($component['parameters'] as $param) {
+                                if ($param['type'] === 'text') {
+                                    $params[] = $param['text'];
+                                }
+                            }
+                            $templateText = implode(' | ', $params);
+                        }
+                    }
+                }
+                $content = $templateText ?: ($payload['template']['name'] ?? null);
+                if (isset($payload['template']['components'])) {
+                    $templateParams = json_encode($payload['template']['components']);
+                }
+            } elseif (isset($payload[$messageType]['link'])) {
+                $mediaUrl = $payload[$messageType]['link'];
+                $content = $payload[$messageType]['caption'] ?? null;
+            }
+
+            $lastMessageText = $content ?: (($messageType === 'template') ? ('Template: ' . ($payload['template']['name'] ?? '')) : ('Media: ' . $messageType));
+            $isPrivate = $this->checkPrivateWords($content ?? '', $messageText ?? '', $lastMessageText ?? '', 'queue_insert', '');
+
+            // Create outbound message record
+            $messageData = [
+                'phone' => $waNumber,
+                'wamid' => null,
+                'message_id' => null,
+                'type' => $messageType,
+                'content' => $content,
+                'template_params' => $templateParams,
+                'media_url' => $mediaUrl,
+                'sender_code' => $senderCode,
+                'status' => 'queue',
+                'private' => $isPrivate ? 1 : 0,
+                'external_id' => $externalId,
+                'error_message' => $errorMessage,
+                'created_at' => date('Y-m-d H:i:s')
+            ];
+
+            if ($quotedMessageId !== null) {
+                $messageData['quoted_message_id'] = $quotedMessageId;
+            }
+
+            // Upsert by external_id to prevent duplicates on retries
+            $db = new \App\Core\DB(0);
+            $existing = $db->get_where('wa_messages_out', ['external_id' => $externalId])->row();
+            if ($existing) {
+                $db->update('wa_messages_out', $messageData, ['external_id' => $externalId]);
+                return (int)($existing->id ?? 0);
+            }
+
+            return $db->insert('wa_messages_out', $messageData);
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write("!! EXCEPTION in saveOutboundQueueMessage: " . $e->getMessage(), 'wa_error', 'SaveOutbound');
+            }
+            return null;
+        }
+    }
     
     /**
      * Save outbound message to wa_messages table
@@ -597,6 +716,7 @@ class WhatsAppService
             // Validate essential data first
             $waNumber = $payload['to'] ?? null;
             $messageType = $payload['type'] ?? 'text';
+            $externalId = $payload['externalId'] ?? null;
             $messageId = $response['id'] ?? null; // Provider message ID
             $wamid = $response['wamid'] ?? null; // May be NULL initially, updated by webhook
             
@@ -783,6 +903,7 @@ class WhatsAppService
                 'sender_code' => $senderCode,
                 'status' => 'accepted', // Initial status when API accepted
                 'private' => $isPrivate ? 1 : 0, // Set private flag if contains sensitive keywords
+                'external_id' => $externalId,
                 'created_at' => date('Y-m-d H:i:s')
             ];
             
@@ -794,7 +915,19 @@ class WhatsAppService
                 $messageData['quoted_message_body'] = $quotedMessageBody;
             }
             
-            $msgId = $db->insert('wa_messages_out', $messageData);
+            // Upsert by external_id to reconcile retries/timeouts
+            $msgId = null;
+            if (!empty($externalId)) {
+                $existingRow = $db->get_where('wa_messages_out', ['external_id' => $externalId])->row();
+                if ($existingRow) {
+                    $msgId = (int)($existingRow->id ?? 0);
+                    $db->update('wa_messages_out', $messageData, ['external_id' => $externalId]);
+                }
+            }
+
+            if (!$msgId) {
+                $msgId = $db->insert('wa_messages_out', $messageData);
+            }
             
             if (!$msgId) {
                 $dbError = $db->conn()->error ?? 'Unknown';
