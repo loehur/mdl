@@ -3079,6 +3079,9 @@ class WAReplies
         || preg_match('/\b(jam\s*)?(brp|brpa|berapa)\b.*\b(besok|bsk)\b.*\b(bukak|buka)\b/i', $t)
         // Pertanyaan umum: "kapan laundry buka?" (tanpa kata "lagi")
         || preg_match('/\bkapan\b.*\b(laundry|loundry)?\b.*\b(bukak|buka)\b/i', $t)
+        // Pertanyaan hari operasional: "buka hari apa?" / "hari apa buka?"
+        || preg_match('/\b(bukak|buka)\b.*\bhari\s*apa\b/i', $t)
+        || preg_match('/\bhari\s*apa\b.*\b(bukak|buka)\b/i', $t)
         || preg_match('/\bkapan\s+(bukak|buka)\s+lagi\b/i', $t)
         || preg_match('/\bkapan\s+(buka\s+)?kembali\b/i', $t)
         || preg_match('/\b(bukak|buka)\s+lagi\s*[?？]\b/i', $t)
