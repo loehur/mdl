@@ -28,6 +28,80 @@ class PayBill extends Controller
     }
 
     /**
+     * Normalisasi response_code IAK untuk perbandingan ketat (hindari switch PHP yang longgar).
+     * Ref: https://api.iak.id/api/postpaid/response-code
+     */
+    private function normalizeIakResponseCode($rc)
+    {
+        if ($rc === null || $rc === '') {
+            return '';
+        }
+        if (is_int($rc) || (is_string($rc) && ctype_digit((string) $rc))) {
+            $n = (int) $rc;
+            if ($n < 100) {
+                return str_pad((string) $n, 2, '0', STR_PAD_LEFT);
+            }
+            return (string) $n;
+        }
+        return (string) $rc;
+    }
+
+    /**
+     * Simpan hasil inquiry ke postpaid lalu langsung eksekusi pay-pasca di request yang sama (tanpa menunggu cron berikutnya).
+     */
+    private function insertPostpaidAndPayNow($dt, $d, $month)
+    {
+        if (empty($d['tr_id']) || empty($d['ref_id'])) {
+            $warn = $dt['description'] . " - CHECK OK tetapi tr_id/ref_id kosong — bayar tidak dijalankan\n";
+            $this->sendWaNotif($this->waPrivate, $dt['description'] . " inquiry tanpa tr_id/ref_id: " . json_encode($d));
+            return $warn;
+        }
+
+        $col = [
+            'response_code' => $d['response_code'],
+            'message' => $d['message'],
+            'tr_id' => $d['tr_id'],
+            'tr_name' => $d['tr_name'],
+            'period' => $d['period'],
+            'nominal' => $d['nominal'],
+            'admin' => $d['admin'],
+            'ref_id' => $d['ref_id'],
+            'code' => $d['code'],
+            'customer_id' => $d['hp'],
+            'price' => $d['price'],
+            'selling_price' => $d['selling_price'],
+            'description' => serialize($d['desc']),
+            'tr_status' => 0,
+            'id_cabang' => $dt['id_cabang']
+        ];
+        $do = $this->db(0)->insert("postpaid", $col);
+        if (!$do) {
+            $alert = "POSTPAID - DB ERROR - Insert postpaid failed\n";
+            $this->sendWaNotif($this->waPrivate, $alert);
+            return $alert;
+        }
+
+        $output = $dt['description'] . " - CHECK - " . ($d['message'] ?? '') . "\n";
+
+        $a = $this->db(0)->get_where('postpaid', ['ref_id' => $d['ref_id']])->row_array();
+        if (empty($a)) {
+            $a = [
+                'ref_id' => $d['ref_id'],
+                'tr_id' => $d['tr_id'],
+                'customer_id' => $d['hp'] ?? $dt['customer_id'],
+                'code' => $d['code'] ?? $dt['code'],
+                'message' => $d['message'] ?? '',
+                'response_code' => $d['response_code'] ?? '',
+                'price' => $d['price'] ?? null,
+                'balance' => $d['balance'] ?? null,
+            ];
+        }
+
+        $output .= $this->bayar_after_cek($d['ref_id'], $dt, $a, $month);
+        return $output;
+    }
+
+    /**
      * Verifikasi bahwa pembayaran tagihan BENAR-BENAR sukses sebelum update last_bill.
      * Hanya response_code 00 (PAYMENT SUCCESS) yang boleh update last_bill.
      * Ref: https://api.iak.id/api/postpaid/response-code
@@ -40,7 +114,7 @@ class PayBill extends Controller
             return false;
         }
         // Hanya 00 = PAYMENT SUCCESS yang boleh update last_bill
-        if ((string)$rc !== '00') {
+        if ($this->normalizeIakResponseCode($rc) !== '00') {
             return false;
         }
         $customerId = $d['hp'] ?? $a['customer_id'] ?? null;
@@ -72,7 +146,7 @@ class PayBill extends Controller
         if (isset($response['data'])) {
             $d = $response['data'];
 
-            $rc = isset($d['response_code']) ? $d['response_code'] : $a['response_code'];
+            $rc = $this->normalizeIakResponseCode(isset($d['response_code']) ? $d['response_code'] : $a['response_code']);
             $balance = isset($d['balance']) ? $d['balance'] : $a['balance'];
             $price = isset($d['price']) ? $d['price'] : $a['price'];
             $message = isset($d['message']) ? $d['message'] : $a['message'];
@@ -81,19 +155,17 @@ class PayBill extends Controller
             $noref = isset($d['noref']) ? $d['noref'] : $a['noref'];
             $tr_status = isset($d['status']) ? $d['status'] : 3;
 
-            switch ($rc) {
-                case '17':
-                    $alert = $dt['description'] . " - POSTPAID LIST - " . $message . " Rp" . number_format($price);
-                    $msg .= $alert . "\n";
-                    $res = $this->sendWaNotif($this->waPrivate, $alert);
-                    if (!($res['success'] ?? false)) {
-                        $msg .= "WHATSAPP ERROR\n";
-                    }
-                    return $msg;
-                    break;
-                case '04':
-                    $tr_status = 2;
-                    break;
+            if ($rc === '17') {
+                $alert = $dt['description'] . " - POSTPAID LIST - " . $message . " Rp" . number_format($price);
+                $msg .= $alert . "\n";
+                $res = $this->sendWaNotif($this->waPrivate, $alert);
+                if (!($res['success'] ?? false)) {
+                    $msg .= "WHATSAPP ERROR\n";
+                }
+                return $msg;
+            }
+            if ($rc === '04') {
+                $tr_status = 2;
             }
 
             if ($this->isPaymentSuccessForLastBill($d, $a, $rc, $tr_status)) {
@@ -123,7 +195,7 @@ class PayBill extends Controller
             ];
             $update = $this->db(0)->update('postpaid', $set, ['ref_id' => $ref_id]);
             if ($update) {
-                $msg .= $dt['description'] . " - PAY - " . $a['message'] . "\n";
+                $msg .= $dt['description'] . " - PAY - " . $message . "\n";
                 $alert = $dt['description'] . " - PAY - " . $message . " (RC:" . $rc . ")";
                 $this->sendWaNotif($this->waPrivate, $alert);
             } else {
@@ -191,7 +263,7 @@ class PayBill extends Controller
             ];
             $update = $this->db(0)->update('postpaid', $set, ['ref_id' => $ref_id]);
             if ($update) {
-                $msg .= $dt['description'] . " - POSTPAID - " . $a['message'] . "\n";
+                $msg .= $dt['description'] . " - POSTPAID - " . $message . "\n";
             } else {
                 $alert = "POSTPAID - DB ERROR - Update postpaid failed";
                 $msg .= $alert . "\n";
@@ -251,7 +323,8 @@ class PayBill extends Controller
                     $d = $response['data'];
 
                     if (isset($d['response_code'])) {
-                        switch ($d['response_code']) {
+                        $inqRc = $this->normalizeIakResponseCode($d['response_code']);
+                        switch ($inqRc) {
                             case "01":
                             case "34":
                             case "40":
@@ -285,35 +358,8 @@ class PayBill extends Controller
                             case "05":
                             case "39":
                             case "201":
-                                $col = [
-                                    'response_code' => $d['response_code'],
-                                    'message' => $d['message'],
-                                    'tr_id' => $d['tr_id'],
-                                    'tr_name' => $d['tr_name'],
-                                    'period' => $d['period'],
-                                    'nominal' => $d['nominal'],
-                                    'admin' => $d['admin'],
-                                    'ref_id' => $d['ref_id'],
-                                    'code' => $d['code'],
-                                    'customer_id' => $d['hp'],
-                                    'price' => $d['price'],
-                                    'selling_price' => $d['selling_price'],
-                                    'description' => serialize($d['desc']),
-                                    'tr_status' => 0,
-                                    'id_cabang' => $dt['id_cabang']
-                                ];
-                                $do = $this->db(0)->insert("postpaid", $col);
-                                if ($do) {
-                                    $output .= $dt['description'] . " - CHECK - " . $d['message'] . "\n";
-
-                                    // Bayar karena sudah pernah di cek
-                                    $a = $this->db(0)->get_where('postpaid', ['ref_id' => $d['ref_id']])->row_array();
-                                    $output .= $this->bayar_after_cek($d['ref_id'], $dt, $a, $month);
-                                } else {
-                                    $alert = "POSTPAID - DB ERROR - Insert postpaid failed\n";
-                                    $output .= $alert . "\n";
-                                    $this->sendWaNotif($this->waPrivate, $alert);
-                                }
+                                // Inquiry sukses: simpan ke DB lalu pay-pasca di request ini (satu jalan dengan cron)
+                                $output .= $this->insertPostpaidAndPayNow($dt, $d, $month);
                                 break;
                                 
                             case "106":
