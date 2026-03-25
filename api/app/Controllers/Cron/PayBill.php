@@ -85,14 +85,28 @@ class PayBill extends Controller
     }
 
     /**
+     * tr_id dan tr_name wajib terisi sebelum INSERT (atau upgrade identitas tagihan) — jangan paksa kosong.
+     */
+    private function hasTrIdAndTrNameForPostpaid(array $d)
+    {
+        $tid = isset($d['tr_id']) ? trim((string) $d['tr_id']) : '';
+        $tname = isset($d['tr_name']) ? trim((string) $d['tr_name']) : '';
+
+        return $tid !== '' && $tname !== '';
+    }
+
+    /**
      * Simpan hasil inquiry ke postpaid lalu langsung eksekusi pay-pasca di request yang sama (tanpa menunggu cron berikutnya).
      */
     private function insertPostpaidAndPayNow($dt, $d, $month)
     {
-        if (empty($d['tr_id']) || empty($d['ref_id'])) {
-            $warn = $dt['description'] . " - CHECK OK tetapi tr_id/ref_id kosong — bayar tidak dijalankan\n";
-            $this->sendWaNotif($this->waPrivate, $dt['description'] . " inquiry tanpa tr_id/ref_id: " . json_encode($d));
+        if (empty($d['ref_id'])) {
+            $warn = $dt['description'] . " - CHECK OK tetapi ref_id kosong — bayar tidak dijalankan\n";
+            $this->sendWaNotif($this->waPrivate, $dt['description'] . " inquiry tanpa ref_id: " . json_encode($d));
             return $warn;
+        }
+        if (!$this->hasTrIdAndTrNameForPostpaid($d)) {
+            return $dt['description'] . " - CHECK OK tetapi tr_id/tr_name kosong — tidak insert / tidak dibayar\n";
         }
         if (!$this->hasNominalForPostpaidInsert($d)) {
             return $dt['description'] . " - CHECK OK tetapi nominal kosong — tidak insert / tidak dibayar\n";
@@ -255,6 +269,9 @@ class PayBill extends Controller
      */
     private function upgradeNonSuccessPostpaidFromInquiry($dt, $d, $month)
     {
+        if (!$this->hasTrIdAndTrNameForPostpaid($d)) {
+            return false;
+        }
         $customerId = $d['hp'] ?? $dt['customer_id'];
         $code = $d['code'] ?? $dt['code'];
         $id = $this->findNonSuccessPostpaidIdThisMonth($customerId, $code, $month);
@@ -266,8 +283,8 @@ class PayBill extends Controller
         $set = [
             'response_code' => $d['response_code'] ?? $rc,
             'message' => $d['message'] ?? '',
-            'tr_id' => $d['tr_id'] ?? '',
-            'tr_name' => $d['tr_name'] ?? '',
+            'tr_id' => trim((string) $d['tr_id']),
+            'tr_name' => trim((string) $d['tr_name']),
             'period' => $d['period'] ?? '',
             'ref_id' => $ref,
             'price' => $this->intOrNullForPostpaid($d['price'] ?? null) ?? 0,
@@ -305,13 +322,16 @@ class PayBill extends Controller
         if (!$this->inquiryHasNominalForRecap($d)) {
             return;
         }
+        if (!$this->hasTrIdAndTrNameForPostpaid($d)) {
+            return;
+        }
         $rc = $this->normalizeIakResponseCode($d['response_code'] ?? '');
         $ref = !empty($d['ref_id']) ? $d['ref_id'] : ('mdlpost-inq-' . date('YmdHis') . '-' . $dt['id_cabang']);
         $col = [
             'response_code' => $d['response_code'] ?? $rc,
             'message' => $d['message'] ?? '',
-            'tr_id' => $d['tr_id'] ?? '',
-            'tr_name' => $d['tr_name'] ?? '',
+            'tr_id' => trim((string) $d['tr_id']),
+            'tr_name' => trim((string) $d['tr_name']),
             'period' => $d['period'] ?? '',
             'nominal' => $this->intOrNullForPostpaid($d['nominal'] ?? null),
             'admin' => $this->intOrNullForPostpaid($d['admin'] ?? null),
@@ -382,12 +402,17 @@ class PayBill extends Controller
         if ($nominalPay === null) {
             return false;
         }
+        $trIdIns = trim((string) ($set['tr_id'] ?? $d['tr_id'] ?? $a['tr_id'] ?? ''));
+        $trNameIns = trim((string) ($d['tr_name'] ?? $a['tr_name'] ?? ''));
+        if ($trIdIns === '' || $trNameIns === '') {
+            return false;
+        }
         $ref = !empty($d['ref_id']) ? $d['ref_id'] : (!empty($a['ref_id']) ? $a['ref_id'] : ('mdlpost-pay-' . date('YmdHis') . '-' . $dt['id_cabang']));
         $col = [
             'response_code' => $set['response_code'],
             'message' => $set['message'],
-            'tr_id' => $set['tr_id'] ?? ($a['tr_id'] ?? ''),
-            'tr_name' => $a['tr_name'] ?? '',
+            'tr_id' => $trIdIns,
+            'tr_name' => $trNameIns,
             'period' => $a['period'] ?? '',
             'nominal' => $nominalPay,
             'admin' => $this->intOrNullForPostpaid($a['admin'] ?? null),
