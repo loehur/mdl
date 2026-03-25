@@ -47,6 +47,28 @@ class PayBill extends Controller
     }
 
     /**
+     * Kolom INT di postpaid — jangan kirim string kosong (MySQL strict: Incorrect integer value '').
+     */
+    private function intOrNullForPostpaid($v)
+    {
+        if ($v === null || $v === '') {
+            return null;
+        }
+        if (is_numeric($v)) {
+            return (int) round((float) $v);
+        }
+        return null;
+    }
+
+    /**
+     * Nominal wajib ada (numerik) sebelum INSERT ke postpaid — tanpa nominal, tidak insert.
+     */
+    private function hasNominalForPostpaidInsert($d)
+    {
+        return $this->intOrNullForPostpaid($d['nominal'] ?? null) !== null;
+    }
+
+    /**
      * Simpan hasil inquiry ke postpaid lalu langsung eksekusi pay-pasca di request yang sama (tanpa menunggu cron berikutnya).
      */
     private function insertPostpaidAndPayNow($dt, $d, $month)
@@ -56,6 +78,9 @@ class PayBill extends Controller
             $this->sendWaNotif($this->waPrivate, $dt['description'] . " inquiry tanpa tr_id/ref_id: " . json_encode($d));
             return $warn;
         }
+        if (!$this->hasNominalForPostpaidInsert($d)) {
+            return $dt['description'] . " - CHECK OK tetapi nominal kosong — tidak insert / tidak dibayar\n";
+        }
 
         $col = [
             'response_code' => $d['response_code'],
@@ -63,13 +88,13 @@ class PayBill extends Controller
             'tr_id' => $d['tr_id'],
             'tr_name' => $d['tr_name'],
             'period' => $d['period'],
-            'nominal' => $d['nominal'],
-            'admin' => $d['admin'],
+            'nominal' => $this->intOrNullForPostpaid($d['nominal'] ?? null),
+            'admin' => $this->intOrNullForPostpaid($d['admin'] ?? null),
             'ref_id' => $d['ref_id'],
             'code' => $d['code'],
             'customer_id' => $d['hp'],
-            'price' => $d['price'],
-            'selling_price' => $d['selling_price'],
+            'price' => $this->intOrNullForPostpaid($d['price'] ?? null) ?? 0,
+            'selling_price' => $this->intOrNullForPostpaid($d['selling_price'] ?? null),
             'description' => serialize($d['desc']),
             'tr_status' => 0,
             'id_cabang' => $dt['id_cabang']
@@ -155,21 +180,11 @@ class PayBill extends Controller
     }
 
     /**
-     * Inquiry sudah punya total tagihan (nominal) — wajib ada untuk INSERT rekap baru; kalau tidak ada, abaikan.
+     * INSERT rekap inquiry baru hanya jika nominal ada (numerik).
      */
-    private function inquiryHasBillTotalForRecap($d)
+    private function inquiryHasNominalForRecap($d)
     {
-        foreach (['price', 'selling_price', 'nominal'] as $k) {
-            if (!isset($d[$k])) {
-                continue;
-            }
-            $v = $d[$k];
-            if ($v === '' || $v === null) {
-                continue;
-            }
-            return true;
-        }
-        return false;
+        return $this->hasNominalForPostpaidInsert($d);
     }
 
     /**
@@ -191,11 +206,11 @@ class PayBill extends Controller
             'tr_id' => $d['tr_id'] ?? '',
             'tr_name' => $d['tr_name'] ?? '',
             'period' => $d['period'] ?? '',
-            'nominal' => $d['nominal'] ?? '',
-            'admin' => $d['admin'] ?? '',
+            'nominal' => $this->intOrNullForPostpaid($d['nominal'] ?? null),
+            'admin' => $this->intOrNullForPostpaid($d['admin'] ?? null),
             'ref_id' => $ref,
-            'price' => $d['price'] ?? 0,
-            'selling_price' => $d['selling_price'] ?? '',
+            'price' => $this->intOrNullForPostpaid($d['price'] ?? null) ?? 0,
+            'selling_price' => $this->intOrNullForPostpaid($d['selling_price'] ?? null),
             'description' => isset($d['desc']) ? serialize($d['desc']) : serialize([]),
             'tr_status' => 1,
         ];
@@ -213,7 +228,7 @@ class PayBill extends Controller
     /**
      * Rekap inquiry "sudah lunas": sudah ada sukses bulan ini → selesai;
      * ada baris bulan ini dengan tr_status != 1 → update jadi sukses (bukan hanya expired);
-     * belum ada baris → INSERT baru hanya jika response punya total tagihan (price/selling_price/nominal).
+     * belum ada baris → INSERT baru hanya jika response punya nominal.
      */
     private function insertPostpaidInquiryRecapRow($dt, $d, $month)
     {
@@ -225,8 +240,8 @@ class PayBill extends Controller
         if ($this->upgradeNonSuccessPostpaidFromInquiry($dt, $d, $month)) {
             return;
         }
-        // Tanpa total tagihan (price / selling_price / nominal) di response — tidak insert baris baru
-        if (!$this->inquiryHasBillTotalForRecap($d)) {
+        // Tanpa nominal di response — tidak insert baris baru
+        if (!$this->inquiryHasNominalForRecap($d)) {
             return;
         }
         $rc = $this->normalizeIakResponseCode($d['response_code'] ?? '');
@@ -237,13 +252,13 @@ class PayBill extends Controller
             'tr_id' => $d['tr_id'] ?? '',
             'tr_name' => $d['tr_name'] ?? '',
             'period' => $d['period'] ?? '',
-            'nominal' => $d['nominal'] ?? '',
-            'admin' => $d['admin'] ?? '',
+            'nominal' => $this->intOrNullForPostpaid($d['nominal'] ?? null),
+            'admin' => $this->intOrNullForPostpaid($d['admin'] ?? null),
             'ref_id' => $ref,
             'code' => $code,
             'customer_id' => $customerId,
-            'price' => $d['price'] ?? 0,
-            'selling_price' => $d['selling_price'] ?? '',
+            'price' => $this->intOrNullForPostpaid($d['price'] ?? null) ?? 0,
+            'selling_price' => $this->intOrNullForPostpaid($d['selling_price'] ?? null),
             'description' => isset($d['desc']) ? serialize($d['desc']) : serialize([]),
             'tr_status' => 1,
             'id_cabang' => $dt['id_cabang'],
@@ -301,6 +316,11 @@ class PayBill extends Controller
         if ($this->postpaidHasSuccessThisMonth($customerId, $code, $month)) {
             return false;
         }
+        $nominalPay = $this->intOrNullForPostpaid($d['nominal'] ?? null)
+            ?? $this->intOrNullForPostpaid($a['nominal'] ?? null);
+        if ($nominalPay === null) {
+            return false;
+        }
         $ref = !empty($d['ref_id']) ? $d['ref_id'] : (!empty($a['ref_id']) ? $a['ref_id'] : ('mdlpost-pay-' . date('YmdHis') . '-' . $dt['id_cabang']));
         $col = [
             'response_code' => $set['response_code'],
@@ -308,13 +328,13 @@ class PayBill extends Controller
             'tr_id' => $set['tr_id'] ?? ($a['tr_id'] ?? ''),
             'tr_name' => $a['tr_name'] ?? '',
             'period' => $a['period'] ?? '',
-            'nominal' => $a['nominal'] ?? '',
-            'admin' => $a['admin'] ?? '',
+            'nominal' => $nominalPay,
+            'admin' => $this->intOrNullForPostpaid($a['admin'] ?? null),
             'ref_id' => $ref,
             'code' => $code,
             'customer_id' => $customerId,
-            'price' => $set['price'] ?? ($a['price'] ?? 0),
-            'selling_price' => $a['selling_price'] ?? '',
+            'price' => $this->intOrNullForPostpaid($set['price'] ?? ($a['price'] ?? null)) ?? 0,
+            'selling_price' => $this->intOrNullForPostpaid($a['selling_price'] ?? null),
             'description' => !empty($a['description']) ? $a['description'] : serialize([]),
             'tr_status' => $set['tr_status'],
             'id_cabang' => $dt['id_cabang'],
