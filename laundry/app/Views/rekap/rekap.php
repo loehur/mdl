@@ -343,9 +343,13 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
 
             $total_keluar += $data['prepost_cost'];
             ?>
-            <tr>
-              <td>Pre/Post Paid</td>
-              <td class="text-end"><?= number_format($data['prepost_cost']) ?></td>
+            <tr role="button" class="align-middle" id="rekapPrepostRow" style="cursor:pointer" title="Klik untuk rincian per cabang"
+              data-rekap-mode="<?= (int) $target_page_rekap ?>"
+              data-y="<?= htmlspecialchars((string) $currentYear, ENT_QUOTES, 'UTF-8') ?>"
+              data-m="<?= htmlspecialchars((string) $currentMonth, ENT_QUOTES, 'UTF-8') ?>"
+              data-d="<?= htmlspecialchars((string) $currentDay, ENT_QUOTES, 'UTF-8') ?>">
+              <td>Pre/Post Paid <i class="fas fa-list-ul text-secondary small ms-1" aria-hidden="true"></i></td>
+              <td class="text-end">Rp<?= number_format($data['prepost_cost']) ?></td>
             </tr>
             <?php
             $barang_pakai = $data['barang_pakai'] ?? 0;
@@ -385,4 +389,133 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
 </div>
 </div>
 </div>
+
+<div class="modal fade" id="modalPrepostDetail" tabindex="-1" aria-labelledby="modalPrepostDetailLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title" id="modalPrepostDetailLabel">Rincian Pre/Post Paid</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+      </div>
+      <div class="modal-body py-2">
+        <p class="small text-muted mb-2" id="modalPrepostPeriod"></p>
+        <div id="modalPrepostLoading" class="text-center py-3 d-none">Memuat…</div>
+        <div id="modalPrepostError" class="alert alert-danger py-2 small d-none"></div>
+        <div class="table-responsive">
+          <table class="table table-sm table-bordered mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Cabang</th>
+                <th class="text-end">Prepaid</th>
+                <th class="text-end">Postpaid</th>
+                <th class="text-end">Jumlah</th>
+              </tr>
+            </thead>
+            <tbody id="modalPrepostTbody"></tbody>
+            <tfoot id="modalPrepostTfoot" class="table-secondary fw-bold d-none">
+              <tr>
+                <td>Total</td>
+                <td class="text-end" id="modalPrepostFootPre">0</td>
+                <td class="text-end" id="modalPrepostFootPost">0</td>
+                <td class="text-end" id="modalPrepostFootSum">0</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <p class="small text-muted mb-0 mt-2 d-none" id="modalPrepostEmpty">Tidak ada transaksi pada periode ini.</p>
+      </div>
+      <div class="modal-footer py-1">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Tutup</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var row = document.getElementById('rekapPrepostRow');
+  if (!row || typeof bootstrap === 'undefined') return;
+
+  var fmt = function (n) {
+    try {
+      return new Intl.NumberFormat('id-ID').format(n);
+    } catch (e) {
+      return String(n);
+    }
+  };
+
+  row.addEventListener('click', function () {
+    var mode = row.getAttribute('data-rekap-mode') || '1';
+    var y = row.getAttribute('data-y') || '';
+    var m = row.getAttribute('data-m') || '';
+    var d = row.getAttribute('data-d') || '';
+    var url = '<?= URL::BASE_URL ?>Rekap/prepost_detail/' + encodeURIComponent(mode)
+      + '?y=' + encodeURIComponent(y) + '&m=' + encodeURIComponent(m) + '&d=' + encodeURIComponent(d);
+
+    var modalEl = document.getElementById('modalPrepostDetail');
+    var loading = document.getElementById('modalPrepostLoading');
+    var errEl = document.getElementById('modalPrepostError');
+    var tbody = document.getElementById('modalPrepostTbody');
+    var tfoot = document.getElementById('modalPrepostTfoot');
+    var emptyEl = document.getElementById('modalPrepostEmpty');
+    var periodEl = document.getElementById('modalPrepostPeriod');
+
+    tbody.innerHTML = '';
+    errEl.classList.add('d-none');
+    errEl.textContent = '';
+    emptyEl.classList.add('d-none');
+    tfoot.classList.add('d-none');
+    loading.classList.remove('d-none');
+
+    var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+
+    fetch(url, { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        loading.classList.add('d-none');
+        if (!data || !data.ok) {
+          errEl.textContent = (data && data.msg) ? data.msg : 'Gagal memuat data.';
+          errEl.classList.remove('d-none');
+          return;
+        }
+        periodEl.textContent = 'Periode: ' + (data.period_label || '');
+        var rows = data.rows || [];
+        if (rows.length === 0) {
+          emptyEl.classList.remove('d-none');
+          return;
+        }
+        rows.forEach(function (x) {
+          var tr = document.createElement('tr');
+          var td0 = document.createElement('td');
+          td0.textContent = x.nama || '';
+          var td1 = document.createElement('td');
+          td1.className = 'text-end';
+          td1.textContent = 'Rp' + fmt(x.prepaid);
+          var td2 = document.createElement('td');
+          td2.className = 'text-end';
+          td2.textContent = 'Rp' + fmt(x.postpaid);
+          var td3 = document.createElement('td');
+          td3.className = 'text-end';
+          td3.textContent = 'Rp' + fmt(x.total);
+          tr.appendChild(td0);
+          tr.appendChild(td1);
+          tr.appendChild(td2);
+          tr.appendChild(td3);
+          tbody.appendChild(tr);
+        });
+        var g = data.grand || {};
+        document.getElementById('modalPrepostFootPre').textContent = 'Rp' + fmt(g.prepaid || 0);
+        document.getElementById('modalPrepostFootPost').textContent = 'Rp' + fmt(g.postpaid || 0);
+        document.getElementById('modalPrepostFootSum').textContent = 'Rp' + fmt(g.total || 0);
+        tfoot.classList.remove('d-none');
+      })
+      .catch(function () {
+        loading.classList.add('d-none');
+        errEl.textContent = 'Gagal memuat data.';
+        errEl.classList.remove('d-none');
+      });
+  });
+})();
+</script>
 </div>

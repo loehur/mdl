@@ -282,4 +282,151 @@ class Rekap extends Controller
          'mode' => $mode
       ]);
    }
+
+   /**
+    * JSON: rincian Pre/Post Paid per cabang (GET y, m, d sama filter Rekap).
+    */
+   public function prepost_detail($mode = 1)
+   {
+      $this->session_cek(1);
+      $this->operating_data();
+
+      $modeConfig = [
+         1 => ['type' => 'daily', 'useCabang' => true],
+         2 => ['type' => 'monthly', 'useCabang' => true],
+         3 => ['type' => 'monthly', 'useCabang' => false],
+         4 => ['type' => 'daily', 'useCabang' => false],
+      ];
+
+      $mode = (int) $mode;
+      if (!isset($modeConfig[$mode])) {
+         header('Content-Type: application/json; charset=utf-8');
+         echo json_encode(['ok' => false, 'msg' => 'Invalid mode']);
+         return;
+      }
+
+      $config = $modeConfig[$mode];
+      $isDaily = $config['type'] === 'daily';
+
+      $year = isset($_GET['y']) ? (int) $_GET['y'] : (int) date('Y');
+      if ($year < 2000 || $year > 2100) {
+         $year = (int) date('Y');
+      }
+      $monthNum = isset($_GET['m']) ? (int) $_GET['m'] : (int) date('m');
+      if ($monthNum < 1 || $monthNum > 12) {
+         $monthNum = (int) date('m');
+      }
+      $month = str_pad((string) $monthNum, 2, '0', STR_PAD_LEFT);
+
+      if ($isDaily) {
+         $dayNum = isset($_GET['d']) ? (int) $_GET['d'] : (int) date('d');
+         if ($dayNum < 1 || $dayNum > 31) {
+            $dayNum = (int) date('d');
+         }
+         $day = str_pad((string) $dayNum, 2, '0', STR_PAD_LEFT);
+         $today = "$year-$month-$day";
+         $dateCondition = "DATE(insertTime) = '$today'";
+         $periodLabel = "$day/$month/$year";
+      } else {
+         $today = "$year-$month";
+         $dateCondition = "DATE_FORMAT(insertTime, '%Y-%m') = '$today'";
+         $periodLabel = "$month/$year";
+      }
+
+      $whereCabang = $config['useCabang'] ? 'id_cabang = ' . (int) $this->id_cabang . ' AND ' : '';
+      $baseWhere = "{$whereCabang}tr_status = 1 AND bisnis = 'laundry' AND {$dateCondition}";
+
+      $preSql = "SELECT id_cabang, COALESCE(SUM(price),0) AS total FROM prepaid WHERE {$baseWhere} GROUP BY id_cabang";
+      $postSql = "SELECT id_cabang, COALESCE(SUM(price),0) AS total FROM postpaid WHERE {$baseWhere} GROUP BY id_cabang";
+
+      $preRows = $this->db(100)->query_array($preSql);
+      $postRows = $this->db(100)->query_array($postSql);
+      if (!is_array($preRows)) {
+         $preRows = [];
+      }
+      if (!is_array($postRows)) {
+         $postRows = [];
+      }
+
+      $byBranch = [];
+      foreach ($preRows as $r) {
+         $id = (int) ($r['id_cabang'] ?? 0);
+         if ($id < 1) {
+            continue;
+         }
+         if (!isset($byBranch[$id])) {
+            $byBranch[$id] = ['pre' => 0, 'post' => 0];
+         }
+         $byBranch[$id]['pre'] = (int) $r['total'];
+      }
+      foreach ($postRows as $r) {
+         $id = (int) ($r['id_cabang'] ?? 0);
+         if ($id < 1) {
+            continue;
+         }
+         if (!isset($byBranch[$id])) {
+            $byBranch[$id] = ['pre' => 0, 'post' => 0];
+         }
+         $byBranch[$id]['post'] = (int) $r['total'];
+      }
+
+      $cabangRows = $this->db(0)->get('cabang');
+      if (!is_array($cabangRows)) {
+         $cabangRows = [];
+      }
+      $cabangMap = [];
+      foreach ($cabangRows as $c) {
+         $cabangMap[(int) $c['id_cabang']] = $c;
+      }
+
+      $rows = [];
+      foreach ($byBranch as $id => $tot) {
+         $pre = $tot['pre'];
+         $post = $tot['post'];
+         $total = $pre + $post;
+         if ($total <= 0) {
+            continue;
+         }
+         $c = $cabangMap[$id] ?? null;
+         $nama = '';
+         if ($c) {
+            $nama = trim((string) ($c['nama'] ?? ''));
+            $kode = trim((string) ($c['kode_cabang'] ?? ''));
+            $nama = $kode !== '' ? $nama . ' — ' . $kode : $nama;
+         }
+         if ($nama === '') {
+            $nama = 'Cabang #' . $id;
+         }
+         $rows[] = [
+            'id_cabang' => $id,
+            'nama' => $nama,
+            'prepaid' => $pre,
+            'postpaid' => $post,
+            'total' => $total,
+         ];
+      }
+
+      usort($rows, function ($a, $b) {
+         return $b['total'] <=> $a['total'];
+      });
+
+      $grandPre = 0;
+      $grandPost = 0;
+      foreach ($rows as $r) {
+         $grandPre += $r['prepaid'];
+         $grandPost += $r['postpaid'];
+      }
+
+      header('Content-Type: application/json; charset=utf-8');
+      echo json_encode([
+         'ok' => true,
+         'rows' => $rows,
+         'grand' => [
+            'prepaid' => $grandPre,
+            'postpaid' => $grandPost,
+            'total' => $grandPre + $grandPost,
+         ],
+         'period_label' => $periodLabel,
+      ]);
+   }
 }
