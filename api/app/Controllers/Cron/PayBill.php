@@ -131,6 +131,206 @@ class PayBill extends Controller
     }
 
     /**
+     * Sudah ada baris sukses (tr_status=1) di bulan ini untuk rekap — hindari duplikat.
+     */
+    private function postpaidHasSuccessThisMonth($customerId, $code, $monthYm)
+    {
+        $rows = $this->db(0)->query(
+            "SELECT id FROM postpaid WHERE customer_id = ? AND code = ? AND tr_status = 1 AND DATE_FORMAT(insertTime, '%Y%m') = ? LIMIT 1",
+            [$customerId, $code, $monthYm]
+        )->result_array();
+        return count($rows) > 0;
+    }
+
+    /**
+     * Baris postpaid bulan ini yang belum sukses (bukan hanya expired): pending, expired, gagal, dll.
+     */
+    private function findNonSuccessPostpaidIdThisMonth($customerId, $code, $monthYm)
+    {
+        $rows = $this->db(0)->query(
+            "SELECT id FROM postpaid WHERE customer_id = ? AND code = ? AND tr_status <> 1 AND DATE_FORMAT(insertTime, '%Y%m') = ? ORDER BY id DESC LIMIT 1",
+            [$customerId, $code, $monthYm]
+        )->result_array();
+        return count($rows) > 0 ? (int) $rows[0]['id'] : null;
+    }
+
+    /**
+     * Inquiry sudah punya total tagihan (nominal) — wajib ada untuk INSERT rekap baru; kalau tidak ada, abaikan.
+     */
+    private function inquiryHasBillTotalForRecap($d)
+    {
+        foreach (['price', 'selling_price', 'nominal'] as $k) {
+            if (!isset($d[$k])) {
+                continue;
+            }
+            $v = $d[$k];
+            if ($v === '' || $v === null) {
+                continue;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Ubah baris bulan ini yang belum sukses → sukses (inquiry sudah lunas).
+     */
+    private function upgradeNonSuccessPostpaidFromInquiry($dt, $d, $month)
+    {
+        $customerId = $d['hp'] ?? $dt['customer_id'];
+        $code = $d['code'] ?? $dt['code'];
+        $id = $this->findNonSuccessPostpaidIdThisMonth($customerId, $code, $month);
+        if ($id === null) {
+            return false;
+        }
+        $rc = $this->normalizeIakResponseCode($d['response_code'] ?? '');
+        $ref = !empty($d['ref_id']) ? $d['ref_id'] : ('mdlpost-inq-' . date('YmdHis') . '-' . $dt['id_cabang']);
+        $set = [
+            'response_code' => $d['response_code'] ?? $rc,
+            'message' => $d['message'] ?? '',
+            'tr_id' => $d['tr_id'] ?? '',
+            'tr_name' => $d['tr_name'] ?? '',
+            'period' => $d['period'] ?? '',
+            'nominal' => $d['nominal'] ?? '',
+            'admin' => $d['admin'] ?? '',
+            'ref_id' => $ref,
+            'price' => $d['price'] ?? 0,
+            'selling_price' => $d['selling_price'] ?? '',
+            'description' => isset($d['desc']) ? serialize($d['desc']) : serialize([]),
+            'tr_status' => 1,
+        ];
+        if (!empty($d['datetime'])) {
+            $set['datetime'] = $d['datetime'];
+        }
+        if (!empty($d['balance'])) {
+            $set['balance'] = $d['balance'];
+        }
+        $db = $this->db(0);
+        $ok = $db->update('postpaid', $set, ['id' => $id]);
+        return $ok && $db->affected_rows() > 0;
+    }
+
+    /**
+     * Rekap inquiry "sudah lunas": sudah ada sukses bulan ini → selesai;
+     * ada baris bulan ini dengan tr_status != 1 → update jadi sukses (bukan hanya expired);
+     * belum ada baris → INSERT baru hanya jika response punya total tagihan (price/selling_price/nominal).
+     */
+    private function insertPostpaidInquiryRecapRow($dt, $d, $month)
+    {
+        $customerId = $d['hp'] ?? $dt['customer_id'];
+        $code = $d['code'] ?? $dt['code'];
+        if ($this->postpaidHasSuccessThisMonth($customerId, $code, $month)) {
+            return;
+        }
+        if ($this->upgradeNonSuccessPostpaidFromInquiry($dt, $d, $month)) {
+            return;
+        }
+        // Tanpa total tagihan (price / selling_price / nominal) di response — tidak insert baris baru
+        if (!$this->inquiryHasBillTotalForRecap($d)) {
+            return;
+        }
+        $rc = $this->normalizeIakResponseCode($d['response_code'] ?? '');
+        $ref = !empty($d['ref_id']) ? $d['ref_id'] : ('mdlpost-inq-' . date('YmdHis') . '-' . $dt['id_cabang']);
+        $col = [
+            'response_code' => $d['response_code'] ?? $rc,
+            'message' => $d['message'] ?? '',
+            'tr_id' => $d['tr_id'] ?? '',
+            'tr_name' => $d['tr_name'] ?? '',
+            'period' => $d['period'] ?? '',
+            'nominal' => $d['nominal'] ?? '',
+            'admin' => $d['admin'] ?? '',
+            'ref_id' => $ref,
+            'code' => $code,
+            'customer_id' => $customerId,
+            'price' => $d['price'] ?? 0,
+            'selling_price' => $d['selling_price'] ?? '',
+            'description' => isset($d['desc']) ? serialize($d['desc']) : serialize([]),
+            'tr_status' => 1,
+            'id_cabang' => $dt['id_cabang'],
+        ];
+        if (!empty($d['datetime'])) {
+            $col['datetime'] = $d['datetime'];
+        }
+        if (!empty($d['balance'])) {
+            $col['balance'] = $d['balance'];
+        }
+        $this->db(0)->insert('postpaid', $col);
+    }
+
+    /**
+     * Setelah bayar sukses: ubah baris bulan ini yang belum sukses (jika ada) jadi sukses dengan data pembayaran.
+     */
+    private function upgradeNonSuccessPostpaidFromPayment($customerId, $code, $month, $set, $d, $a)
+    {
+        $id = $this->findNonSuccessPostpaidIdThisMonth($customerId, $code, $month);
+        if ($id === null) {
+            return false;
+        }
+        $merge = [
+            'tr_status' => $set['tr_status'],
+            'datetime' => $set['datetime'],
+            'noref' => $set['noref'],
+            'price' => $set['price'],
+            'message' => $set['message'],
+            'balance' => $set['balance'],
+            'tr_id' => $set['tr_id'],
+            'response_code' => $set['response_code'],
+        ];
+        $newRef = $d['ref_id'] ?? $a['ref_id'] ?? null;
+        if (!empty($newRef)) {
+            $merge['ref_id'] = $newRef;
+        }
+        $db = $this->db(0);
+        $ok = $db->update('postpaid', $merge, ['id' => $id]);
+        return $ok && $db->affected_rows() > 0;
+    }
+
+    private function persistPostpaidAfterPayment($ref_id, $dt, $set, $d, $a)
+    {
+        $db = $this->db(0);
+        $ok = $db->update('postpaid', $set, ['ref_id' => $ref_id]);
+        if ($ok && $db->affected_rows() > 0) {
+            return true;
+        }
+        $customerId = $d['hp'] ?? $a['customer_id'] ?? $dt['customer_id'];
+        $code = $d['code'] ?? $a['code'] ?? $dt['code'];
+        $month = $this->getPostMonth();
+        if ($this->upgradeNonSuccessPostpaidFromPayment($customerId, $code, $month, $set, $d, $a)) {
+            return true;
+        }
+        if ($this->postpaidHasSuccessThisMonth($customerId, $code, $month)) {
+            return false;
+        }
+        $ref = !empty($d['ref_id']) ? $d['ref_id'] : (!empty($a['ref_id']) ? $a['ref_id'] : ('mdlpost-pay-' . date('YmdHis') . '-' . $dt['id_cabang']));
+        $col = [
+            'response_code' => $set['response_code'],
+            'message' => $set['message'],
+            'tr_id' => $set['tr_id'] ?? ($a['tr_id'] ?? ''),
+            'tr_name' => $a['tr_name'] ?? '',
+            'period' => $a['period'] ?? '',
+            'nominal' => $a['nominal'] ?? '',
+            'admin' => $a['admin'] ?? '',
+            'ref_id' => $ref,
+            'code' => $code,
+            'customer_id' => $customerId,
+            'price' => $set['price'] ?? ($a['price'] ?? 0),
+            'selling_price' => $a['selling_price'] ?? '',
+            'description' => !empty($a['description']) ? $a['description'] : serialize([]),
+            'tr_status' => $set['tr_status'],
+            'id_cabang' => $dt['id_cabang'],
+            'datetime' => $set['datetime'] ?? null,
+            'noref' => $set['noref'] ?? null,
+            'balance' => $set['balance'] ?? null,
+        ];
+        $ins = $db->insert('postpaid', $col);
+        if ($ins !== false) {
+            return true;
+        }
+        // Mis. ref_id bentrok: coba update baris yang sudah ada
+        return (bool) $db->update('postpaid', $set, ['ref_id' => $ref]);
+    }
+
+    /**
      * Send WhatsApp notification
      */
     private function sendWaNotif($phone, $message)
@@ -231,13 +431,13 @@ class PayBill extends Controller
                 'tr_id' => $tr_id,
                 'response_code' => $rc
             ];
-            $update = $this->db(0)->update('postpaid', $set, ['ref_id' => $ref_id]);
-            if ($update) {
+            $persisted = $this->persistPostpaidAfterPayment($ref_id, $dt, $set, $d, $a);
+            if ($persisted) {
                 $msg .= $dt['description'] . " - PAY - " . $message . "\n";
                 $alert = $dt['description'] . " - PAY - " . $message . " (RC:" . $rc . ")";
                 $this->sendWaNotif($this->waPrivate, $alert);
             } else {
-                $alert = "POSTPAID ERROR - Update postpaid failed";
+                $alert = "POSTPAID ERROR - Simpan postpaid gagal (update/insert)";
                 $msg .= $alert . "\n";
                 $this->sendWaNotif($this->waPrivate, $alert);
             }
@@ -324,11 +524,10 @@ class PayBill extends Controller
                 'tr_id' => $tr_id,
                 'response_code' => $rc
             ];
-            $update = $this->db(0)->update('postpaid', $set, ['ref_id' => $ref_id]);
-            if ($update) {
+            if ($this->persistPostpaidAfterPayment($ref_id, $dt, $set, $d, $a)) {
                 $msg .= $dt['description'] . " - POSTPAID - " . $message . "\n";
             } else {
-                $alert = "POSTPAID - DB ERROR - Update postpaid failed";
+                $alert = "POSTPAID - DB ERROR - Simpan postpaid failed";
                 $msg .= $alert . "\n";
                 $this->sendWaNotif($this->waPrivate, $alert);
             }
@@ -403,6 +602,7 @@ class PayBill extends Controller
                                     $set = ['last_bill' => $month];
                                     $update = $this->db(0)->update('postpaid_list', $set, ['customer_id' => $customer_id, 'code' => $code]);
                                     if ($update) {
+                                        $this->insertPostpaidInquiryRecapRow($dt, $d, $month);
                                         $output .= $dt['description'] . " " . $d['message'] . "\n";
                                     } else {
                                         $alert = "POSTPAID - DB ERROR - Update postpaid_list failed";
@@ -418,10 +618,11 @@ class PayBill extends Controller
                                 break;
                                 
                             case "00":
+                            case "02":
                             case "05":
                             case "39":
                             case "201":
-                                // Inquiry sukses: simpan ke DB lalu pay-pasca di request ini (satu jalan dengan cron)
+                                // Inquiry sukses / tagihan belum lunas (02) dengan data bayar: simpan ke DB lalu pay-pasca di request ini
                                 $output .= $this->insertPostpaidAndPayNow($dt, $d, $month);
                                 break;
                                 

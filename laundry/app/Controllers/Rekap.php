@@ -390,9 +390,7 @@ class Rekap extends Controller
          $c = $cabangMap[$id] ?? null;
          $nama = '';
          if ($c) {
-            $nama = trim((string) ($c['nama'] ?? ''));
-            $kode = trim((string) ($c['kode_cabang'] ?? ''));
-            $nama = $kode !== '' ? $nama . ' — ' . $kode : $nama;
+            $nama = trim((string) ($c['kode_cabang'] ?? ''));
          }
          if ($nama === '') {
             $nama = 'Cabang #' . $id;
