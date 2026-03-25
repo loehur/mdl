@@ -61,6 +61,19 @@ class PayBill extends Controller
     }
 
     /**
+     * Untuk UPDATE postpaid: kolom INT NOT NULL — jangan kirim NULL (pertahankan nilai lama di DB jika API tidak kirim).
+     */
+    private function applyIntColumnsIfPresentForPostpaidUpdate(array &$set, array $d, array $keys)
+    {
+        foreach ($keys as $k) {
+            $v = $this->intOrNullForPostpaid($d[$k] ?? null);
+            if ($v !== null) {
+                $set[$k] = $v;
+            }
+        }
+    }
+
+    /**
      * Nominal wajib ada (numerik) sebelum INSERT ke postpaid — tanpa nominal, tidak insert.
      */
     private function hasNominalForPostpaidInsert($d)
@@ -206,14 +219,12 @@ class PayBill extends Controller
             'tr_id' => $d['tr_id'] ?? '',
             'tr_name' => $d['tr_name'] ?? '',
             'period' => $d['period'] ?? '',
-            'nominal' => $this->intOrNullForPostpaid($d['nominal'] ?? null),
-            'admin' => $this->intOrNullForPostpaid($d['admin'] ?? null),
             'ref_id' => $ref,
             'price' => $this->intOrNullForPostpaid($d['price'] ?? null) ?? 0,
-            'selling_price' => $this->intOrNullForPostpaid($d['selling_price'] ?? null),
             'description' => isset($d['desc']) ? serialize($d['desc']) : serialize([]),
             'tr_status' => 1,
         ];
+        $this->applyIntColumnsIfPresentForPostpaidUpdate($set, $d, ['nominal', 'admin', 'selling_price']);
         if (!empty($d['datetime'])) {
             $set['datetime'] = $d['datetime'];
         }
