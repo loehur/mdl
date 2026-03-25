@@ -242,6 +242,36 @@ class PayBill extends Controller
     }
 
     /**
+     * Inquiry RC 01/34/40 (tagihan sudah lunas): jika belum ada baris sukses bulan ini,
+     * paksa satu baris postpaid bulan ini (customer+code) — hanya update tr_status, response_code (00), message.
+     * Hanya gagal jika tidak ada sama sekali baris di bulan tersebut.
+     */
+    private function ensureSuccessPostpaidThisMonthForAlreadyPaidInquiry($customerId, $code, $monthYm, array $d)
+    {
+        if ($this->postpaidHasSuccessThisMonth($customerId, $code, $monthYm)) {
+            return true;
+        }
+        $db = $this->db(0);
+        $rows = $db->query(
+            "SELECT id FROM postpaid WHERE customer_id = ? AND code = ? AND DATE_FORMAT(insertTime, '%Y%m') = ? ORDER BY id DESC LIMIT 1",
+            [$customerId, $code, $monthYm]
+        )->result_array();
+        if (count($rows) === 0) {
+            return false;
+        }
+        $id = (int) $rows[0]['id'];
+        // Hanya tiga kolom — jangan sentuh price, nominal, tr_id, dll.
+        $set = [
+            'tr_status' => 1,
+            'response_code' => '00',
+            'message' => $d['message'] ?? '',
+        ];
+        $db->update('postpaid', $set, ['id' => $id]);
+
+        return $this->postpaidHasSuccessThisMonth($customerId, $code, $monthYm);
+    }
+
+    /**
      * Update last_bill ke bulan ini hanya jika sudah ada (atau baru dibuat) riwayat sukses di postpaid bulan ini.
      */
     private function tryUpdatePostpaidListLastBill($month, $customerId, $code, array $patch, $preferRefId = null)
@@ -250,6 +280,22 @@ class PayBill extends Controller
             return false;
         }
         if (!$this->ensureSuccessPostpaidThisMonthBeforeLastBill($customerId, $code, $month, $patch, $preferRefId)) {
+            return false;
+        }
+
+        return (bool) $this->db(0)->update('postpaid_list', ['last_bill' => $month], ['customer_id' => $customerId, 'code' => $code]);
+    }
+
+    /**
+     * Sama seperti tryUpdatePostpaidListLastBill, tetapi jika gagal: untuk inquiry "sudah lunas"
+     * paksa satu baris bulan ini jadi sukses (RC 00 + message inquiry) lalu set last_bill.
+     */
+    private function tryUpdatePostpaidListLastBillAfterAlreadyPaidInquiry($month, $customerId, $code, array $d)
+    {
+        if ($customerId === null || $customerId === '' || $code === null || $code === '') {
+            return false;
+        }
+        if (!$this->ensureSuccessPostpaidThisMonthForAlreadyPaidInquiry($customerId, $code, $month, $d)) {
             return false;
         }
 
@@ -719,10 +765,13 @@ class PayBill extends Controller
                                         }
                                     }
                                     $update = $this->tryUpdatePostpaidListLastBill($month, $customer_id, $code, $lastBillPatch, $d['ref_id'] ?? null);
+                                    if (!$update) {
+                                        $update = $this->tryUpdatePostpaidListLastBillAfterAlreadyPaidInquiry($month, $customer_id, $code, $d);
+                                    }
                                     if ($update) {
                                         $output .= $dt['description'] . " " . ($d['message'] ?? '') . "\n";
                                     } else {
-                                        $alert = "POSTPAID - DB ERROR - Update postpaid_list gagal (belum ada riwayat sukses postpaid bulan ini)";
+                                        $alert = "POSTPAID - DB ERROR - Update postpaid_list gagal (tidak ada baris postpaid bulan ini untuk customer)";
                                         $output .= $alert . "\n";
                                         $this->sendWaNotif($this->waPrivate, $alert);
                                     }
