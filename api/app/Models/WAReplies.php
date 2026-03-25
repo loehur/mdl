@@ -1817,13 +1817,15 @@ class WAReplies
 
         // Hari libur: format khusus (tanpa "kecuali hari libur khusus", dengan Catatan + Buka kembali + Terima kasih)
         if ($isHoliday) {
-            $holidayMessage = $this->getHolidayFullMessage($config);
+            $holidayMessage = $this->getHolidayFullMessage($config, $textBody);
             if ($holidayMessage !== '') {
                 $textBaku = $holidayMessage;
             } else {
                 // Fallback jika tidak ada range
                 $timeBold = "*{$openTime} s.d. {$closeTime}*";
-                $textBaku = "Mohon maaf, hari ini kami libur. Jam operasional {$timeBold}, {$daysStr}. 🙏";
+                $textBaku = $this->shouldSkipHolidayApologyIntro($textBody)
+                    ? "Jam operasional {$timeBold}, {$daysStr}. 🙏"
+                    : "Mohon maaf, hari ini kami libur. Jam operasional {$timeBold}, {$daysStr}. 🙏";
             }
         } else {
             // Bukan libur: format normal
@@ -1845,7 +1847,7 @@ class WAReplies
         // Custom intro (konfirmasi ke petugas) atau AI intro HANYA jika user menyapa dulu (sapaan + tanya jam)
         if (!empty($customIntro)) {
             $textBaku = $customIntro . "\n\n" . $textBaku;
-        } elseif ($this->hasGreetingInMessage($textBody) && !$this->isBesokOrLiburDateQuestion($textBody) && ($isQuestion = $this->isJamOperasionalQuestion($textBody)) && class_exists('\\App\\Config\\AI') && \App\Config\AI::isEnabled()) {
+        } elseif (!$isHoliday && $this->hasGreetingInMessage($textBody) && !$this->isBesokOrLiburDateQuestion($textBody) && ($isQuestion = $this->isJamOperasionalQuestion($textBody)) && class_exists('\\App\\Config\\AI') && \App\Config\AI::isEnabled()) {
             $ctx = $this->getGreetingContext($waNumber);
             $contactName = $ctx['contactName'];
             $sapaan = $ctx['sapaan'];
@@ -1940,12 +1942,14 @@ class WAReplies
 
         // Hari libur: format khusus (tanpa "kecuali hari libur khusus", dengan Catatan + Buka kembali + Terima kasih)
         if ($isHoliday) {
-            $holidayMessage = $this->getHolidayFullMessage($config);
+            $holidayMessage = $this->getHolidayFullMessage($config, $textBody);
             if ($holidayMessage !== '') {
                 $text = $holidayMessage;
             } else {
                 $timeBold = "*{$openTime} s.d. {$closeTime}*";
-                $text = "Mohon maaf, hari ini kami libur. Jam operasional {$timeBold}, {$daysStr}. 🙏";
+                $text = $this->shouldSkipHolidayApologyIntro($textBody)
+                    ? "Jam operasional {$timeBold}, {$daysStr}. 🙏"
+                    : "Mohon maaf, hari ini kami libur. Jam operasional {$timeBold}, {$daysStr}. 🙏";
             }
         } else {
             $timeBold = "*{$openTime} s.d. {$closeTime}*";
@@ -3058,10 +3062,30 @@ class WAReplies
     }
 
     /**
-     * Pesan lengkap saat hari ini libur: Mohon maaf + Catatan tanggal libur + Buka kembali + Terima kasih
+     * Pertanyaan tipe "kapan buka lagi?" → balasan libur tanpa intro maaf, langsung Catatan + jadwal.
+     */
+    private function shouldSkipHolidayApologyIntro(?string $textBody): bool
+    {
+        $t = strtolower(trim(preg_replace('/[*_~`]/', '', $textBody ?? '')));
+        if ($t === '') {
+            return false;
+        }
+        return (bool) preg_match(
+            '/\b(bukak|buka)\s+lagi\s+(kapan|jam|brp|berapa|tgl|tanggal)\b/i',
+            $t
+        )
+        || preg_match('/\bkapan\s+(bukak|buka)\s+lagi\b/i', $t)
+        || preg_match('/\bkapan\s+(buka\s+)?kembali\b/i', $t)
+        || preg_match('/\b(bukak|buka)\s+lagi\s*[?？]\b/i', $t)
+        || preg_match('/\b(bukak|buka)\s+lagi\b.*\bkapan\b/i', $t)
+        || preg_match('/\bkapan\s+.*\b(bukak|buka)\s+lagi\b/i', $t);
+    }
+
+    /**
+     * Pesan lengkap saat hari ini libur: (opsional) Mohon maaf + Catatan tanggal libur + Buka kembali + Terima kasih
      * Return string kosong jika hari ini bukan libur atau tidak ada range
      */
-    private function getHolidayFullMessage(array $config): string
+    private function getHolidayFullMessage(array $config, ?string $textBody = null): string
     {
         $monthNames = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
         $now = new \DateTime('now', new \DateTimeZone($config['timezone']));
@@ -3111,6 +3135,8 @@ class WAReplies
         $isReopenTomorrow = ($reopenDt && $reopenDt->format('Y-m-d') === $tomorrow->format('Y-m-d'));
         $besokPrefix = $isReopenTomorrow ? 'besok, ' : '';
 
+        $skipMaaf = $this->shouldSkipHolidayApologyIntro($textBody);
+
         $openings = [
             "Mohon maaf, hari ini kami libur",
             "Maaf, hari ini kami libur",
@@ -3118,9 +3144,9 @@ class WAReplies
         ];
 
         $catatanVariations = [
-            "\n\nCatatan: Kami tutup pada tanggal berikut:{$dateList}",
-            "\n\nInfo: Kami tutup pada tanggal berikut:{$dateList}",
-            "\n\nMohon dicatat, kami tutup pada tanggal berikut:{$dateList}",
+            "Catatan: Kami tutup pada tanggal berikut:{$dateList}",
+            "Info: Kami tutup pada tanggal berikut:{$dateList}",
+            "Mohon dicatat, kami tutup pada tanggal berikut:{$dateList}",
         ];
 
         $bukaKembaliVariations = [
@@ -3134,7 +3160,9 @@ class WAReplies
             "\n\nTerima kasih 🙏",
         ];
 
-        return $openings[array_rand($openings)]
+        $introPart = $skipMaaf ? '' : ($openings[array_rand($openings)] . "\n\n");
+
+        return $introPart
             . $catatanVariations[array_rand($catatanVariations)]
             . $bukaKembaliVariations[array_rand($bukaKembaliVariations)]
             . $closings[array_rand($closings)];

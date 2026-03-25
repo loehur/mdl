@@ -221,6 +221,9 @@ return [
             // "buka sampai kapan?", "tutup jam berapa?", "sampai jam berapa buka?"
             '/\b(bu*ka*|tu*tu*p)\s*(sa*mpa*i|sampe)\s*(ka*pa*n|ja*m\s*be*ra*pa*)?/i',
             '/\b(sa*mpa*i|sampe)\s*(ka*pa*n|ja*m\s*be*ra*pa*)\s*(bu*ka*|tu*tu*p)?/i',
+            // "kak, bukak lagi kapan?", "kapan buka lagi?"
+            '/\b(bukak|buka)\s+lagi\s*kapan\b/i',
+            '/\bkapan\s+(bukak|buka)\s+lagi\b/i',
             // "sampai jam berapa laundry buka hari ini?", "sampai jam berapa loundry buka?" (laundry/loundry di tengah)
             '/\bsampai\s*(jam\s*)?(berapa|brp)\b.*\b(laundry|loundry)\s+buka/i',
             '/\bsampai\s*(jam\s*)?(berapa|brp)\b.*\bbuka\b/i',
@@ -250,7 +253,7 @@ return [
         ],
         'ai_prompt' => "User menanyakan jam operasional TOKO (buka/tutup) ATAU batas terima laundry ATAU jadwal libur.\n
         DUA JENIS (keduanya JAM_OPERASIONAL, sistem bedakan jawaban): (A) 'masih buka?' = jawab 'masih buka kak/bang'. (B) 'masih bisa?' / 'masih bisa terima kain?' / 'kapan jadwal terakhir penerimaan?' = jawab konfirmasi ke petugas dulu.\n
-        | jam berapa buka? | jam berapa tutup? | kapan tutup? | masih buka? | masih bukak? | buka buk? | buka kak mau ambil baju? | sudah tutup? | jam operasional? | jam buka berapa? | sampai jam berapa laundry buka hari ini? |\n
+        | jam berapa buka? | jam berapa tutup? | kapan tutup? | masih buka? | masih bukak? | buka buk? | buka kak mau ambil baju? | sudah tutup? | jam operasional? | jam buka berapa? | sampai jam berapa laundry buka hari ini? | kak bukak lagi kapan? | kapan buka lagi? |\n
         | liburnya kapan? | kapan libur? | hari libur apa? | libur hari apa? | tutup tgl berapa? | tutup tanggal brp? | libur tgl berapa? |\n
         | besok pagi buka jam berapa? | besok buka jam brp ya? | nanti sore buka jam berapa? | untuk besok pagi buka jam brp ya? |\n
         | kapan terakhir terima kain? | kapan terakhir terima laundry? | terakhir terima jam berapa? | kapan jadwal terakhir penerimaan? | jadwal terakhir penerimaan? |\n
