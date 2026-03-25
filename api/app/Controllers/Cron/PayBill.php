@@ -122,6 +122,15 @@ class PayBill extends Controller
     }
 
     /**
+     * RC pay/inquiry: tagihan sudah lunas di biller (tidak ada yang perlu dibayar lagi).
+     * Ref: https://api.iak.id/api/postpaid/response-code — 01, 34, 40
+     */
+    private function isAlreadyPaidResponseCode($rc)
+    {
+        return in_array($this->normalizeIakResponseCode($rc), ['01', '34', '40'], true);
+    }
+
+    /**
      * Send WhatsApp notification
      */
     private function sendWaNotif($phone, $message)
@@ -171,6 +180,10 @@ class PayBill extends Controller
             if ($rc === '00' && !isset($d['status'])) {
                 $tr_status = 1;
             }
+            // Sudah lunas menurut biller (mis. TAGIHAN SUDAH LUNAS) — tutup transaksi & last_bill
+            if ($this->isAlreadyPaidResponseCode($rc)) {
+                $tr_status = 1;
+            }
 
             if ($this->isPaymentSuccessForLastBill($d, $a, $rc)) {
                 $customerId = $d['hp'] ?? $a['customer_id'];
@@ -184,6 +197,27 @@ class PayBill extends Controller
                     $msg .= $alert . "\n";
                     $this->sendWaNotif($this->waPrivate, $alert);
                     return $msg;
+                }
+            } elseif ($this->isAlreadyPaidResponseCode($rc)) {
+                $customerId = $d['hp'] ?? $a['customer_id'];
+                $code = $d['code'] ?? $a['code'];
+                if (!empty($customerId) && !empty($code)
+                    && (string) $customerId === (string) $dt['customer_id']
+                    && (string) $code === (string) $dt['code']) {
+                    $set = ['last_bill' => $month];
+                    $update = $this->db(0)->update('postpaid_list', $set, ['customer_id' => $customerId, 'code' => $code]);
+                    if ($update) {
+                        $msg .= $dt['description'] . " - POSTPAID LIST - " . $message . "\n";
+                    } else {
+                        $alert = "POSTPAID ERROR - Update failed (sudah lunas)";
+                        $msg .= $alert . "\n";
+                        $this->sendWaNotif($this->waPrivate, $alert);
+                        return $msg;
+                    }
+                } elseif (!empty($customerId) && !empty($code)) {
+                    $alert = "POSTPAID - SUDAH LUNAS data mismatch (hp/code)";
+                    $msg .= $alert . "\n";
+                    $this->sendWaNotif($this->waPrivate, $alert);
                 }
             }
 
@@ -253,6 +287,31 @@ class PayBill extends Controller
                     $this->sendWaNotif($this->waPrivate, $alert);
                     return $msg;
                 }
+            } elseif ($this->isAlreadyPaidResponseCode($rc)) {
+                $customerId = $d['hp'] ?? $a['customer_id'];
+                $code = $d['code'] ?? $a['code'];
+                if (!empty($customerId) && !empty($code)
+                    && (string) $customerId === (string) $dt['customer_id']
+                    && (string) $code === (string) $dt['code']) {
+                    $set = ['last_bill' => $month];
+                    $update = $this->db(0)->update('postpaid_list', $set, ['customer_id' => $customerId, 'code' => $code]);
+                    if ($update) {
+                        $msg .= $dt['description'] . " - POSTPAID LIST - " . $message . "\n";
+                    } else {
+                        $alert = "POSTPAID - DB ERROR - Update postpaid_list failed (sudah lunas)";
+                        $msg .= $alert . "\n";
+                        $this->sendWaNotif($this->waPrivate, $alert);
+                        return $msg;
+                    }
+                } elseif (!empty($customerId) && !empty($code)) {
+                    $alert = "POSTPAID - SUDAH LUNAS data mismatch (hp/code)";
+                    $msg .= $alert . "\n";
+                    $this->sendWaNotif($this->waPrivate, $alert);
+                }
+            }
+
+            if ($this->isAlreadyPaidResponseCode($rc)) {
+                $tr_status = 1;
             }
 
             $set = [
