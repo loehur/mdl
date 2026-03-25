@@ -16,6 +16,7 @@ class ResendWAQueue extends Controller
     public function index()
     {
         $db = $this->db(0);
+        $output = '';
 
         $intervalMinutes = (int)($_GET['interval'] ?? 2);
         if ($intervalMinutes < 1) $intervalMinutes = 2;
@@ -40,7 +41,15 @@ class ResendWAQueue extends Controller
         if (!is_array($rows)) $rows = [];
 
         if (count($rows) === 0) {
-            $this->success(['processed' => 0, 'skipped' => 0, 'intervalMinutes' => $intervalMinutes], 'Queue is empty');
+            $output .= "WA RESEND QUEUE - Queue is empty\n";
+            $output .= "intervalMinutes={$intervalMinutes}\n";
+            $output .= "limit={$limit}\n";
+            $output .= "processed=0\n";
+            $output .= "skipped=0\n";
+
+            header('Content-Type: text/plain');
+            echo $output;
+            return;
         }
 
         $waService = new \App\Helpers\WhatsAppService();
@@ -59,6 +68,7 @@ class ResendWAQueue extends Controller
 
             if (!$id || empty($externalId) || empty($phone) || $type !== 'text') {
                 $skipped++;
+                $output .= "SKIP id={$id} phone=" . ($phone ?? '') . " reason=invalid_data_or_not_text\n";
                 continue;
             }
 
@@ -87,6 +97,7 @@ class ResendWAQueue extends Controller
                         ['id' => $id]
                     );
                     $skipped++;
+                    $output .= "SKIP id={$id} phone={$phone} reason=superseded_by_newer_outbound\n";
                     continue;
                 }
             }
@@ -98,6 +109,7 @@ class ResendWAQueue extends Controller
                 ['id' => $id, 'status' => 'queue']
             );
             if (!$locked || $db->affected_rows() <= 0) {
+                $output .= "SKIP id={$id} phone={$phone} reason=lock_failed\n";
                 continue;
             }
 
@@ -106,17 +118,17 @@ class ResendWAQueue extends Controller
             try {
                 $waService->sendFreeText($phone, $content, $quotedMessageId, $senderCode, $externalId);
                 $processed++;
+                $output .= "OK id={$id} phone={$phone} external_id={$externalId}\n";
             } catch (\Throwable $e) {
                 $skipped++;
+                $output .= "ERR id={$id} phone={$phone} external_id={$externalId} message=" . $e->getMessage() . "\n";
             }
         }
 
-        $this->success([
-            'processed' => $processed,
-            'skipped' => $skipped,
-            'intervalMinutes' => $intervalMinutes,
-            'limit' => $limit
-        ]);
+        $output .= "SUMMARY intervalMinutes={$intervalMinutes} limit={$limit} processed={$processed} skipped={$skipped}\n";
+
+        header('Content-Type: text/plain');
+        echo $output;
     }
 }
 

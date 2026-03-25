@@ -3074,6 +3074,9 @@ class WAReplies
             '/\b(bukak|buka)\s+lagi\s+(kapan|jam|brp|berapa|tgl|tanggal)\b/i',
             $t
         )
+        // Pertanyaan jam buka besok: "besok/bsk buka jam berapa (ya)?"
+        || preg_match('/\b(besok|bsk)\b.*\b(bukak|buka)\b.*\b(jam\s*)?(brp|brpa|berapa)\b/i', $t)
+        || preg_match('/\b(jam\s*)?(brp|brpa|berapa)\b.*\b(besok|bsk)\b.*\b(bukak|buka)\b/i', $t)
         || preg_match('/\bkapan\s+(bukak|buka)\s+lagi\b/i', $t)
         || preg_match('/\bkapan\s+(buka\s+)?kembali\b/i', $t)
         || preg_match('/\b(bukak|buka)\s+lagi\s*[?？]\b/i', $t)
