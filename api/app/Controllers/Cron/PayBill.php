@@ -102,19 +102,18 @@ class PayBill extends Controller
     }
 
     /**
-     * Verifikasi bahwa pembayaran tagihan BENAR-BENAR sukses sebelum update last_bill.
-     * Hanya response_code 00 (PAYMENT SUCCESS) yang boleh update last_bill.
-     * Ref: https://api.iak.id/api/postpaid/response-code
-     * - 00 = PAYMENT/INQUIRY SUCCESS (satu-satunya status Success)
-     * - 01,10,34,40 = Failed (jangan update last_bill, pembayaran belum berhasil)
+     * Verifikasi pembayaran postpaid sukses untuk update last_bill.
+     * Ref: https://api.iak.id/api/postpaid/response-code — RC 00 = PAYMENT SUCCESS.
+     * Catatan: respons pay-pasca sering tidak menyertakan field status; default tr_status=3 di sini
+     * dulu membuat last_bill tidak pernah ter-update meski RC 00.
      */
-    private function isPaymentSuccessForLastBill($d, $a, $rc, $tr_status)
+    private function isPaymentSuccessForLastBill($d, $a, $rc)
     {
-        if ($tr_status != 1) {
+        if ($this->normalizeIakResponseCode($rc) !== '00') {
             return false;
         }
-        // Hanya 00 = PAYMENT SUCCESS yang boleh update last_bill
-        if ($this->normalizeIakResponseCode($rc) !== '00') {
+        // Status 3 = pending (IAK) — jangan anggap lunas
+        if (isset($d['status']) && (int) $d['status'] === 3) {
             return false;
         }
         $customerId = $d['hp'] ?? $a['customer_id'] ?? null;
@@ -153,7 +152,8 @@ class PayBill extends Controller
             $tr_id = isset($d['tr_id']) ? $d['tr_id'] : $a['tr_id'];
             $datetime = isset($d['datetime']) ? $d['datetime'] : $a['datetime'];
             $noref = isset($d['noref']) ? $d['noref'] : $a['noref'];
-            $tr_status = isset($d['status']) ? $d['status'] : 3;
+            // Jangan default ke 3 bila status tidak ada — RC 00 + status kosong = sukses menurut IAK
+            $tr_status = isset($d['status']) ? $d['status'] : ($a['tr_status'] ?? null);
 
             if ($rc === '17') {
                 $alert = $dt['description'] . " - POSTPAID LIST - " . $message . " Rp" . number_format($price);
@@ -167,8 +167,12 @@ class PayBill extends Controller
             if ($rc === '04') {
                 $tr_status = 2;
             }
+            // Pay-pasca RC 00 tanpa field status: jangan biarkan tr_status tetap 0 (sisa dari inquiry)
+            if ($rc === '00' && !isset($d['status'])) {
+                $tr_status = 1;
+            }
 
-            if ($this->isPaymentSuccessForLastBill($d, $a, $rc, $tr_status)) {
+            if ($this->isPaymentSuccessForLastBill($d, $a, $rc)) {
                 $customerId = $d['hp'] ?? $a['customer_id'];
                 $code = $d['code'] ?? $a['code'];
                 $set = ['last_bill' => $month];
@@ -184,7 +188,7 @@ class PayBill extends Controller
             }
 
             $set = [
-                'tr_status' => $tr_status,
+                'tr_status' => $tr_status !== null ? $tr_status : 1,
                 'datetime' => $datetime,
                 'noref' => $noref,
                 'price' => $price,
@@ -228,7 +232,7 @@ class PayBill extends Controller
             }
 
             $message = isset($d['message']) ? $d['message'] : $a['message'];
-            $rc = isset($d['response_code']) ? $d['response_code'] : $a['response_code'];
+            $rc = $this->normalizeIakResponseCode(isset($d['response_code']) ? $d['response_code'] : $a['response_code']);
             $price = isset($d['price']) ? $d['price'] : $a['price'];
             $balance = isset($d['balance']) ? $d['balance'] : $a['balance'];
             $tr_id = isset($d['tr_id']) ? $d['tr_id'] : $a['tr_id'];
@@ -236,7 +240,7 @@ class PayBill extends Controller
             $noref = isset($d['noref']) ? $d['noref'] : $a['noref'];
             $tr_status = isset($d['status']) ? $d['status'] : $a['tr_status'];
 
-            if ($this->isPaymentSuccessForLastBill($d, $a, $rc, $tr_status)) {
+            if ($this->isPaymentSuccessForLastBill($d, $a, $rc)) {
                 $customerId = $d['hp'] ?? $a['customer_id'];
                 $code = $d['code'] ?? $a['code'];
                 $set = ['last_bill' => $month];
@@ -252,7 +256,7 @@ class PayBill extends Controller
             }
 
             $set = [
-                'tr_status' => $tr_status,
+                'tr_status' => $tr_status !== null && $tr_status !== '' ? $tr_status : 1,
                 'datetime' => $datetime,
                 'noref' => $noref,
                 'price' => $price,
