@@ -3077,6 +3077,8 @@ class WAReplies
         // Pertanyaan jam buka besok: "besok/bsk buka jam berapa (ya)?"
         || preg_match('/\b(besok|bsk)\b.*\b(bukak|buka)\b.*\b(jam\s*)?(brp|brpa|berapa)\b/i', $t)
         || preg_match('/\b(jam\s*)?(brp|brpa|berapa)\b.*\b(besok|bsk)\b.*\b(bukak|buka)\b/i', $t)
+        // Pertanyaan umum: "kapan laundry buka?" (tanpa kata "lagi")
+        || preg_match('/\bkapan\b.*\b(laundry|loundry)?\b.*\b(bukak|buka)\b/i', $t)
         || preg_match('/\bkapan\s+(bukak|buka)\s+lagi\b/i', $t)
         || preg_match('/\bkapan\s+(buka\s+)?kembali\b/i', $t)
         || preg_match('/\b(bukak|buka)\s+lagi\s*[?？]\b/i', $t)
@@ -3147,9 +3149,7 @@ class WAReplies
         ];
 
         $catatanVariations = [
-            "Catatan: Kami tutup pada tanggal berikut:{$dateList}",
             "Info: Kami tutup pada tanggal berikut:{$dateList}",
-            "Mohon dicatat, kami tutup pada tanggal berikut:{$dateList}",
         ];
 
         $bukaKembaliVariations = [
