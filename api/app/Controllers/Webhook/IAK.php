@@ -3,6 +3,7 @@
 namespace App\Controllers\Webhook;
 
 use App\Core\Controller;
+use App\Helpers\PostpaidTrStatus;
 
 /**
  * Webhook IAK — update tabel prepaid dan/atau postpaid sesuai ref_id.
@@ -122,7 +123,7 @@ class IAK extends Controller
         $rcRaw = $d['response_code'] ?? $d['rc'] ?? $a['response_code'] ?? '';
         $rc = $this->normalizeResponseCode($rcRaw);
 
-        $tr_status = isset($d['status']) ? $d['status'] : ($a['tr_status'] ?? null);
+        $tr_status = PostpaidTrStatus::resolve($d, $a, $rc);
         $price = $d['price'] ?? $a['price'];
         $message = $d['message'] ?? $a['message'];
         $balance = $d['balance'] ?? $a['balance'];
@@ -131,7 +132,7 @@ class IAK extends Controller
         $noref = $d['noref'] ?? $a['noref'] ?? null;
 
         $set = [
-            'tr_status' => $tr_status !== null && $tr_status !== '' ? $tr_status : 1,
+            'tr_status' => $tr_status,
             'response_code' => $rc !== '' ? $rc : ($a['response_code'] ?? ''),
             'message' => $message,
             'price' => $price,

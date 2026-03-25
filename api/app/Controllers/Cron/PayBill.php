@@ -3,11 +3,14 @@
 namespace App\Controllers\Cron;
 
 use App\Core\Controller;
+use App\Helpers\PostpaidTrStatus;
 use App\Models\IAK;
 
 /**
  * PayBill Controller
  * Menangani pembayaran tagihan postpaid (listrik, PDAM, dll)
+ *
+ * postpaid.tr_status: 0=sudah cek/blm bayar, 1=sukses, 2=gagal, 3=dalam proses — lihat PostpaidTrStatus.
  */
 class PayBill extends Controller
 {
@@ -142,15 +145,14 @@ class PayBill extends Controller
     /**
      * Verifikasi pembayaran postpaid sukses untuk update last_bill.
      * Ref: https://api.iak.id/api/postpaid/response-code — RC 00 = PAYMENT SUCCESS.
-     * Catatan: respons pay-pasca sering tidak menyertakan field status; default tr_status=3 di sini
-     * dulu membuat last_bill tidak pernah ter-update meski RC 00.
+     * Catatan: respons pay-pasca sering tidak menyertakan field status; PostpaidTrStatus memetakan RC 00 tanpa status ke sukses (1).
      */
     private function isPaymentSuccessForLastBill($d, $a, $rc)
     {
         if ($this->normalizeIakResponseCode($rc) !== '00') {
             return false;
         }
-        // Status 3 = pending (IAK) — jangan anggap lunas
+        // tr_status 3 = dalam proses — jangan anggap lunas untuk last_bill
         if (isset($d['status']) && (int) $d['status'] === 3) {
             return false;
         }
@@ -190,6 +192,54 @@ class PayBill extends Controller
             [$customerId, $code, $monthYm]
         )->result_array();
         return count($rows) > 0 ? (int) $rows[0]['id'] : null;
+    }
+
+    /**
+     * Sebelum postpaid_list.last_bill di-set ke bulan ini: pastikan ada minimal 1 baris postpaid
+     * tr_status=1 untuk bulan tersebut. Jika belum, naikkan satu baris (prioritas ref_id) jadi sukses.
+     */
+    private function ensureSuccessPostpaidThisMonthBeforeLastBill($customerId, $code, $monthYm, array $patch = [], $preferRefId = null)
+    {
+        if ($this->postpaidHasSuccessThisMonth($customerId, $code, $monthYm)) {
+            return true;
+        }
+        $db = $this->db(0);
+        $set = array_merge(['tr_status' => 1], $patch);
+
+        if (!empty($preferRefId)) {
+            $rows = $db->query(
+                "SELECT id FROM postpaid WHERE ref_id = ? AND customer_id = ? AND code = ? AND DATE_FORMAT(insertTime, '%Y%m') = ? AND tr_status <> 1 LIMIT 1",
+                [$preferRefId, $customerId, $code, $monthYm]
+            )->result_array();
+            if (count($rows) > 0) {
+                $id = (int) $rows[0]['id'];
+                if ($db->update('postpaid', $set, ['id' => $id]) && $db->affected_rows() > 0) {
+                    return true;
+                }
+            }
+        }
+
+        $id = $this->findNonSuccessPostpaidIdThisMonth($customerId, $code, $monthYm);
+        if ($id === null) {
+            return false;
+        }
+
+        return $db->update('postpaid', $set, ['id' => $id]) && $db->affected_rows() > 0;
+    }
+
+    /**
+     * Update last_bill ke bulan ini hanya jika sudah ada (atau baru dibuat) riwayat sukses di postpaid bulan ini.
+     */
+    private function tryUpdatePostpaidListLastBill($month, $customerId, $code, array $patch, $preferRefId = null)
+    {
+        if ($customerId === null || $customerId === '' || $code === null || $code === '') {
+            return false;
+        }
+        if (!$this->ensureSuccessPostpaidThisMonthBeforeLastBill($customerId, $code, $month, $patch, $preferRefId)) {
+            return false;
+        }
+
+        return (bool) $this->db(0)->update('postpaid_list', ['last_bill' => $month], ['customer_id' => $customerId, 'code' => $code]);
     }
 
     /**
@@ -392,8 +442,6 @@ class PayBill extends Controller
             $tr_id = isset($d['tr_id']) ? $d['tr_id'] : $a['tr_id'];
             $datetime = isset($d['datetime']) ? $d['datetime'] : $a['datetime'];
             $noref = isset($d['noref']) ? $d['noref'] : $a['noref'];
-            // Jangan default ke 3 bila status tidak ada — RC 00 + status kosong = sukses menurut IAK
-            $tr_status = isset($d['status']) ? $d['status'] : ($a['tr_status'] ?? null);
 
             if ($rc === '17') {
                 $alert = $dt['description'] . " - POSTPAID LIST - " . $message . " Rp" . number_format($price);
@@ -404,27 +452,39 @@ class PayBill extends Controller
                 }
                 return $msg;
             }
-            if ($rc === '04') {
-                $tr_status = 2;
-            }
-            // Pay-pasca RC 00 tanpa field status: jangan biarkan tr_status tetap 0 (sisa dari inquiry)
-            if ($rc === '00' && !isset($d['status'])) {
-                $tr_status = 1;
-            }
-            // Sudah lunas menurut biller (mis. TAGIHAN SUDAH LUNAS) — tutup transaksi & last_bill
-            if ($this->isAlreadyPaidResponseCode($rc)) {
-                $tr_status = 1;
-            }
+
+            $tr_status = PostpaidTrStatus::resolve($d, $a, $rc);
+
+            $set = [
+                'tr_status' => $tr_status,
+                'datetime' => $datetime,
+                'noref' => $noref,
+                'price' => $price,
+                'message' => $message,
+                'balance' => $balance,
+                'tr_id' => $tr_id,
+                'response_code' => $rc
+            ];
+            $persisted = $this->persistPostpaidAfterPayment($ref_id, $dt, $set, $d, $a);
+
+            $lastBillPatch = [
+                'response_code' => $rc,
+                'message' => $message,
+                'price' => $price,
+                'balance' => $balance,
+                'tr_id' => $tr_id,
+                'datetime' => $datetime,
+                'noref' => $noref,
+            ];
 
             if ($this->isPaymentSuccessForLastBill($d, $a, $rc)) {
                 $customerId = $d['hp'] ?? $a['customer_id'];
                 $code = $d['code'] ?? $a['code'];
-                $set = ['last_bill' => $month];
-                $update = $this->db(0)->update('postpaid_list', $set, ['customer_id' => $customerId, 'code' => $code]);
+                $update = $this->tryUpdatePostpaidListLastBill($month, $customerId, $code, $lastBillPatch, $ref_id);
                 if ($update) {
                     $msg .= $dt['description'] . " - POSTPAID LIST - " . $message . "\n";
                 } else {
-                    $alert = "POSTPAID ERROR - Update failed";
+                    $alert = "POSTPAID ERROR - Update failed (belum ada riwayat sukses postpaid bulan ini)";
                     $msg .= $alert . "\n";
                     $this->sendWaNotif($this->waPrivate, $alert);
                     return $msg;
@@ -435,12 +495,11 @@ class PayBill extends Controller
                 if (!empty($customerId) && !empty($code)
                     && (string) $customerId === (string) $dt['customer_id']
                     && (string) $code === (string) $dt['code']) {
-                    $set = ['last_bill' => $month];
-                    $update = $this->db(0)->update('postpaid_list', $set, ['customer_id' => $customerId, 'code' => $code]);
+                    $update = $this->tryUpdatePostpaidListLastBill($month, $customerId, $code, $lastBillPatch, $ref_id);
                     if ($update) {
                         $msg .= $dt['description'] . " - POSTPAID LIST - " . $message . "\n";
                     } else {
-                        $alert = "POSTPAID ERROR - Update failed (sudah lunas)";
+                        $alert = "POSTPAID ERROR - Update failed (sudah lunas, belum ada riwayat sukses postpaid bulan ini)";
                         $msg .= $alert . "\n";
                         $this->sendWaNotif($this->waPrivate, $alert);
                         return $msg;
@@ -451,18 +510,6 @@ class PayBill extends Controller
                     $this->sendWaNotif($this->waPrivate, $alert);
                 }
             }
-
-            $set = [
-                'tr_status' => $tr_status !== null ? $tr_status : 1,
-                'datetime' => $datetime,
-                'noref' => $noref,
-                'price' => $price,
-                'message' => $message,
-                'balance' => $balance,
-                'tr_id' => $tr_id,
-                'response_code' => $rc
-            ];
-            $persisted = $this->persistPostpaidAfterPayment($ref_id, $dt, $set, $d, $a);
             if ($persisted) {
                 $msg .= $dt['description'] . " - PAY - " . $message . "\n";
                 $alert = $dt['description'] . " - PAY - " . $message . " (RC:" . $rc . ")";
@@ -503,17 +550,38 @@ class PayBill extends Controller
             $tr_id = isset($d['tr_id']) ? $d['tr_id'] : $a['tr_id'];
             $datetime = isset($d['datetime']) ? $d['datetime'] : $a['datetime'];
             $noref = isset($d['noref']) ? $d['noref'] : $a['noref'];
-            $tr_status = isset($d['status']) ? $d['status'] : $a['tr_status'];
+            $tr_status = PostpaidTrStatus::resolve($d, $a, $rc);
+
+            $set = [
+                'tr_status' => $tr_status,
+                'datetime' => $datetime,
+                'noref' => $noref,
+                'price' => $price,
+                'message' => $message,
+                'balance' => $balance,
+                'tr_id' => $tr_id,
+                'response_code' => $rc
+            ];
+            $persisted = $this->persistPostpaidAfterPayment($ref_id, $dt, $set, $d, $a);
+
+            $lastBillPatch = [
+                'response_code' => $rc,
+                'message' => $message,
+                'price' => $price,
+                'balance' => $balance,
+                'tr_id' => $tr_id,
+                'datetime' => $datetime,
+                'noref' => $noref,
+            ];
 
             if ($this->isPaymentSuccessForLastBill($d, $a, $rc)) {
                 $customerId = $d['hp'] ?? $a['customer_id'];
                 $code = $d['code'] ?? $a['code'];
-                $set = ['last_bill' => $month];
-                $update = $this->db(0)->update('postpaid_list', $set, ['customer_id' => $customerId, 'code' => $code]);
+                $update = $this->tryUpdatePostpaidListLastBill($month, $customerId, $code, $lastBillPatch, $ref_id);
                 if ($update) {
                     $msg .= $dt['description'] . " - POSTPAID LIST - " . $message . "\n";
                 } else {
-                    $alert = "POSTPAID - DB ERROR - Update postpaid_list failed";
+                    $alert = "POSTPAID - DB ERROR - Update postpaid_list failed (belum ada riwayat sukses postpaid bulan ini)";
                     $msg .= $alert . "\n";
                     $this->sendWaNotif($this->waPrivate, $alert);
                     return $msg;
@@ -524,12 +592,11 @@ class PayBill extends Controller
                 if (!empty($customerId) && !empty($code)
                     && (string) $customerId === (string) $dt['customer_id']
                     && (string) $code === (string) $dt['code']) {
-                    $set = ['last_bill' => $month];
-                    $update = $this->db(0)->update('postpaid_list', $set, ['customer_id' => $customerId, 'code' => $code]);
+                    $update = $this->tryUpdatePostpaidListLastBill($month, $customerId, $code, $lastBillPatch, $ref_id);
                     if ($update) {
                         $msg .= $dt['description'] . " - POSTPAID LIST - " . $message . "\n";
                     } else {
-                        $alert = "POSTPAID - DB ERROR - Update postpaid_list failed (sudah lunas)";
+                        $alert = "POSTPAID - DB ERROR - Update postpaid_list failed (sudah lunas, belum ada riwayat sukses postpaid bulan ini)";
                         $msg .= $alert . "\n";
                         $this->sendWaNotif($this->waPrivate, $alert);
                         return $msg;
@@ -541,21 +608,7 @@ class PayBill extends Controller
                 }
             }
 
-            if ($this->isAlreadyPaidResponseCode($rc)) {
-                $tr_status = 1;
-            }
-
-            $set = [
-                'tr_status' => $tr_status !== null && $tr_status !== '' ? $tr_status : 1,
-                'datetime' => $datetime,
-                'noref' => $noref,
-                'price' => $price,
-                'message' => $message,
-                'balance' => $balance,
-                'tr_id' => $tr_id,
-                'response_code' => $rc
-            ];
-            if ($this->persistPostpaidAfterPayment($ref_id, $dt, $set, $d, $a)) {
+            if ($persisted) {
                 $msg .= $dt['description'] . " - POSTPAID - " . $message . "\n";
             } else {
                 $alert = "POSTPAID - DB ERROR - Simpan postpaid failed";
@@ -599,7 +652,7 @@ class PayBill extends Controller
                     $ref_id = $a['ref_id'];
 
                     if ($a['tr_status'] == 3) {
-                        // tr_status 3 = pending/failed. Retry bayar (bukan cek status) agar:
+                        // tr_status 3 = dalam proses. Retry bayar (bukan cek status) agar:
                         // - jika gagal (saldo tidak cukup): retry + kirim WA saat gagal lagi
                         // - jika pending: post_pay bisa return status terbaru
                         $output .= $this->bayar_after_cek($ref_id, $dt, $a, $month);
@@ -630,13 +683,21 @@ class PayBill extends Controller
                                     $output .= $alert . "\n";
                                     $this->sendWaNotif($this->waPrivate, $alert);
                                 } else {
-                                    $set = ['last_bill' => $month];
-                                    $update = $this->db(0)->update('postpaid_list', $set, ['customer_id' => $customer_id, 'code' => $code]);
+                                    $this->insertPostpaidInquiryRecapRow($dt, $d, $month);
+                                    $lastBillPatch = [
+                                        'response_code' => $this->normalizeIakResponseCode($d['response_code'] ?? ''),
+                                        'message' => $d['message'] ?? '',
+                                    ];
+                                    foreach (['price', 'balance', 'tr_id', 'datetime', 'noref'] as $k) {
+                                        if (isset($d[$k]) && $d[$k] !== '' && $d[$k] !== null) {
+                                            $lastBillPatch[$k] = $d[$k];
+                                        }
+                                    }
+                                    $update = $this->tryUpdatePostpaidListLastBill($month, $customer_id, $code, $lastBillPatch, $d['ref_id'] ?? null);
                                     if ($update) {
-                                        $this->insertPostpaidInquiryRecapRow($dt, $d, $month);
-                                        $output .= $dt['description'] . " " . $d['message'] . "\n";
+                                        $output .= $dt['description'] . " " . ($d['message'] ?? '') . "\n";
                                     } else {
-                                        $alert = "POSTPAID - DB ERROR - Update postpaid_list failed";
+                                        $alert = "POSTPAID - DB ERROR - Update postpaid_list gagal (belum ada riwayat sukses postpaid bulan ini)";
                                         $output .= $alert . "\n";
                                         $this->sendWaNotif($this->waPrivate, $alert);
                                     }
