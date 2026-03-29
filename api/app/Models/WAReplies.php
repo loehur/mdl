@@ -76,7 +76,7 @@ class WAReplies
     }
 
     /**
-     * Kirim autoreply via WA + push WebSocket. Log jika gagal (untuk debug "intent benar tapi balasan tidak ada").
+     * Kirim autoreply via WA; push WebSocket hanya untuk yCloud (bukan Fonnte).
      * @param string $waNumber
      * @param string $text
      * @return array Response dari sendFreeText
@@ -3319,6 +3319,11 @@ class WAReplies
 
     private function pushToWebSocket($data)
     {
+        // Autoreply Fonnte (FonnteReplyAdapter): tidak push ke waserver — WebSocket hanya untuk yCloud
+        if ($this->customSender !== null) {
+            return null;
+        }
+
         $url = 'https://waserver.nalju.com/incoming';
 
 
