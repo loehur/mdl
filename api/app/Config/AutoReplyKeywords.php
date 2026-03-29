@@ -68,7 +68,11 @@ return [
         | laundry aku ada kk? | laundry saya ada? | laundry punya saya ada? | = tanya tagihan/bill punya saya = TAGIHAN\n
         Jika user bertanya 'berapa' + (total/biaya/tagihan) atau (total/biaya) + 'berapa' = TAGIHAN\n
         Jika user minta/bisa kirimkan bill/tagihan = TAGIHAN (permintaan bill/tagihan)\n
-        Jika user tanya 'laundry aku/saya ada?' = tanya tagihan punya saya = TAGIHAN"
+        Jika user tanya 'laundry aku/saya ada?' = tanya tagihan punya saya = TAGIHAN\n
+        \n
+        CRITICAL - FALSE (BUKAN TAGIHAN) = HARGA:\n
+        - User bertanya HARGA cuci/setrika PER ITEM (order belum tentu ada): | berapa 1 boneka kak? | berapa 2 baju? | boneka berapa? | brp harga boneka? |\n
+        - Pola: 'berapa' + (angka) + nama barang laundry (boneka, baju, celana, handuk, selimut, jaket, sepatu, tas, karpet, sprei, dll) = tanya DAFTAR HARGA = HARGA, BUKAN tagihan order."
     ],
 
     'STATUS' => [
@@ -109,15 +113,21 @@ return [
     'HARGA' => [
         'patterns' => [
             '/^\s*(harga|price)\s*$/i',
+            // "berapa 1 boneka kak?" / "berapa 2 baju" = harga per item, bukan tagihan total
+            '/\bberapa\s+(\d+\s+)?(biji|pcs|pc|buah|lembar\s+)?(boneka|baju|celana|handuk|selimut|jaket|sepatu|tas|karpet|sprei|bedcover|gorden|kemeja|rok|gaun|jas|hoodie|sweater|topi|sarung|mukena|jilbab|kerudung)\b/iu',
+            // "berapa boneka?" tanpa angka
+            '/\bberapa\s+(harga|biaya|cuci|setrika|strika|gosok)?\s*(boneka|baju|celana|handuk|selimut|jaket|sepatu|tas|karpet|sprei|bedcover|gorden|kemeja|rok|gaun|jas)\b/iu',
         ],
         'ai_prompt' => "User menanyakan harga/biaya laundry PER ITEM atau PER KILO, seperti:\n
         | berapa harga? | berapa biaya? | harga berapa? | biaya berapa? |\n
         | berapa harga baju? | berapa harga celana? | berapa harga handuk? | berapa harga boneka? | berapa harga sepatu? | berapa harga selimut? | berapa harga jaket? |\n
+        | berapa 1 boneka kak? | berapa 2 baju? | boneka brp? | cuci boneka berapa? |\n
         | berapa harga per kilo? | berapa biaya per kg? | harga per kilo berapa? |\n
         PENTING: \n
-        - Jika user bertanya 'berapa' + (harga/biaya) + (item laundry atau per kilo) = CEK_HARGA\n
+        - Jika user bertanya 'berapa' + (harga/biaya) + (item laundry atau per kilo) = HARGA\n
+        - Jika user bertanya 'berapa' + angka + item (boneka, baju, dll) = HARGA (harga per item), BUKAN TAGIHAN total order\n
         - Jika user bertanya 'berapa' + (ongkir/ongkos/biaya antar/biaya jemput) = BUKAN CEK_HARGA, itu adalah MINTA_JEMPUT_ANTAR\n
-        - Jika user bertanya 'berapa' + (berat) = BUKAN CEK_HARGA, itu mungkin NOTA atau pertanyaan lain\n
+        - Jika user bertanya 'berapa' + (berat saja tanpa item) = bisa NOTA/TAGIHAN, bedakan konteks\n
         atau yang menurut anda sangat yakin sebagai pertanyaan harga/biaya laundry PER ITEM atau PER KILO"
     ],
 
@@ -190,7 +200,7 @@ return [
         'notify' => true,
         'patterns' => [
             '/(bi*sa*|bo*le*h).*(sa*ya*|a*ku|ka*mi).*(di)?(ambi*l|je*m*pu*t)/i',
-            '/(bantu|tolong|minta|bisa)(?!.*(antar|jemput)).*(baju|pakaian|celana|handuk|boneka|sepatu|selimut|jaket)/i',
+            '/(bantu|bntu|tolong|minta|bisa)(?!.*(antar|jemput)).*(baju|pakaian|celana|handuk|boneka|sepatu|selimut|jaket|kantong)/i',
         ],
         'ai_prompt' => "User melakukan PERMINTAAN KHUSUS atau INSTRUKSI KHUSUS terkait laundry.\n
         TRUE jika:\n
@@ -198,7 +208,7 @@ return [
         - Permintaan waktu/prioritas: | tolong dipercepat | didulukan ya | kapan bisa selesai | prioritas dong |\n
         - Permintaan cara treatment (untuk order yang sudah ada): | ganti parfum | jangan pakai pelembut | lipat rapi | setrika aja (instruksi untuk baju yang sudah di laundry) |\n
         - Konfirmasi ambil sendiri: | saya jemput nanti | aku ambil sendiri | nanti sore saya datang |\n
-        - Ada kata: bantu/tolong/minta/bisa + object laundry (baju/celana/handuk/dll)\n
+        - Ada kata: bantu/bntu (typo)/tolong/minta/bisa + object laundry (baju/celana/handuk/kantong/dll)\n
         \n
         FALSE jika (BUKAN PERMINTAAN - ini HARGA_PAKET):\n
         - User TANYA harga paket/member/langganan + spesifikasi layanan: | ada paket bulanan? setrika aja | paket setrika aja berapa? | ada paket cuci setrika? | paket bulanan cuci setrika? |\n
@@ -284,10 +294,15 @@ return [
          '/\bma*ka*(s|c)(i|e)*h\b/i',
          '/\bte*ri*ma*ka*si*h\b/i',
          '/\btha*nks\b/i',
-         '/\b(thx|tq|ty|ok|gpp)\b/i',
+         // Ok jangan match jika lanjut permintaan (bntu/bw/bantuin/dll)
+         '/\b(thx|tq|ty|ok|gpp)\b(?!\s+(bntu|tolong|minta|bantu|bantuin|kirim|bw|bawa|antar|jemput|kasih|suruh|mohon))/i',
          '/\b(gak|ga)\s*apa\s*apa\b/i',
          // udah/sudah/dah - JANGAN match jika diikuti "siap", "selesai", atau "bisa diambil" (itu tanya status = STATUS)
-         '/((hm+|ok(e*)?|sip)\s*)*(y(a*)?\s*)?(u*da*h|s*u*da*h|la+h)(?!\s*siap)(?!\s*selesai)(?!\s*bisa\s*(di\s*)?ambil)/i',
+         // JANGAN match jika diikuti angka (keluhan durasi: "ini udh 3hari ka", "udh 2 hari") — bukan penutup
+         // la+h: "lah" hanya jika bukan kata pertama (bukan "Lah ya gmn" / tanya)
+         // JANGAN match "sdh/udh" + saya/sy + pesan/order (bukan penutup); contoh: "Sdh sy psn" = sudah saya pesan
+         // JANGAN match sudah/udah + janji/sepakat (janji/jadwal): "Kita sudah janji sore ini" — bukan penutup
+         '/((hm+|ok(e*)?|sip)\s*)*(y(a*)?\s*)?(u*da*h|s*u*da*h|(?<=\S)\s+la+h)(?!\s*\d)(?!\s*siap)(?!\s*selesai)(?!\s*bisa\s*(di\s*)?ambil)(?!\s+(sy|sya|saya|aku|gue|gw)\s+(psn|pesan|order|ordr|pesen))(?!\s+(janji|sepakat|kesepakatan|deal))/i',
          '/(oh*)\s*(gi*tu+)/i',
          '/(ok|oh).*(siap|sip|ok)/i',
          '/^reacted\s+[^\s]+$/i', // WhatsApp reactions: "Reacted ❤️", "Reacted 👍"
@@ -310,11 +325,16 @@ return [
       - PERMINTAAN/INSTRUKSI = BUKAN PENUTUP, biarkan CS manusia: | bisa sy ambil | letak aj dikursi | letakkan di | taruh di | tolong letak | minta letak | saya ambil | aku jemput |\n
       \n
       FALSE jika:\n
-      - CRITICAL: Pesan mengandung tanda tanya (?) = PERTANYAAN = BUKAN PENUTUP. Contoh: 'Berarti sudah masuk kak?' 'Apakah sudah siap?'\n
+      - CRITICAL: Pesan mengandung tanda tanya (?) ATAU kata tanya (dimana/kapan/berapa/gimana/dll) = PERTANYAAN = BUKAN PENUTUP. Contoh: 'Berarti sudah masuk kak?' | 'Alhamdulillah foto dimana' (bisa tanpa ?)\n
       - Ada pertanyaan (kapan? berapa? dimana? bisa?)\n
       - Ada permintaan (tolong, minta, bisa, bantu, dong) + object\n
       - Pemberitahuan akan ambil/antar sendiri: 'nanti saya jemput', 'akan saya antar', 'nanti saya ambil', 'akan mengambil' = BUKAN PENUTUP\n
       - PERMINTAAN antar/jemput: 'kalau da kelar antar aja', 'klo selesai antar ya', 'udh kelar antar aja kak' = MINTA_JEMPUT_ANTAR (bukan PENUTUP)\n
+      - Keluhan durasi/tunggu (bukan penutup): | ini udh 3hari ka | udah 2 hari belum | = BUKAN PENUTUP\n
+      - Pertanyaan dengan partikel 'Lah' di awal: | Lah ya gmn | Lah kok gitu | = BUKAN PENUTUP\n
+      - 'Ok' + permintaan (bntu/bw/bawa/kantong): | Ok bntu bw kantong | = PERMINTAAN, bukan PENUTUP\n
+      - Pemberitahuan sudah pesan/order (bukan penutup): | Sdh sy psn | udah saya pesan | = BUKAN PENUTUP\n
+      - Janji/kesepakatan waktu: | Kita sudah janji sore ini | udah sepakat jam 5 | = BUKAN PENUTUP\n
       - Contoh FALSE: 'bisa dijemput?' (pertanyaan), 'Berarti sudah masuk kak?' (pertanyaan), 'tolong jemput' (permintaan), 'nanti saya jemput' (bukan intent), 'Kak kalau da kelar antar aja kak' (permintaan antar = MINTA_JEMPUT_ANTAR)"
    ],
 

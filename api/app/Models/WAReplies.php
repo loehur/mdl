@@ -260,6 +260,34 @@ class WAReplies
     }
 
     /**
+     * Pertanyaan tidak selalu memakai tanda (?). Contoh: "Alhamdulillah foto dimana"
+     * PEMBUKA/PENUTUP tidak boleh jika ini true.
+     */
+    private function messageLooksLikeQuestion(?string $textBody): bool
+    {
+        if ($textBody === null || trim($textBody) === '') {
+            return false;
+        }
+        if (strpos($textBody, '?') !== false || mb_strpos($textBody, '？') !== false) {
+            return true;
+        }
+        $t = mb_strtolower($textBody);
+        if (preg_match(
+            '/\b(dimana|dimna|kemana|kmana|darimana|kenapa|knp|knapa|gimana|bagaimana|gmn|gmna|siapa|berapa|kapan)\b/iu',
+            $t
+        )) {
+            return true;
+        }
+        if (preg_match('/\bjam\s*(brp|brpa|berapa)\b/iu', $t)) {
+            return true;
+        }
+        if (preg_match('/\b(boleh|bisa)\s*(gak|ga|g|kah)\s*$/iu', trim($t))) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * Cek apakah pesan mengandung sapaan (assalamualaikum, pagi, halo, dll) di awal.
      * Untuk menentukan apakah perlu intro sapaan di balasan.
      */
@@ -404,8 +432,8 @@ class WAReplies
                     if ($handler === 'REKENING' && preg_match('/(telah berhasil mengirimkan|sudah transfer|sudah bayar|sudah kirim|sudah mengirim)/i', $textBodyToCheck)) {
                         continue;
                     }
-                    // Pertanyaan (mengandung ?) TIDAK boleh masuk PEMBUKA atau PENUTUP
-                    if (($handler === 'PEMBUKA' || $handler === 'PENUTUP') && strpos($textBody ?? '', '?') !== false) {
+                    // Pertanyaan (termasuk tanpa tanda ?) TIDAK boleh masuk PEMBUKA atau PENUTUP
+                    if (($handler === 'PEMBUKA' || $handler === 'PENUTUP') && $this->messageLooksLikeQuestion($textBody)) {
                         continue;
                     }
                     // "jam berapa bisa jemput?" = MINTA_JEMPUT_ANTAR (minta jemput), bukan JAM_OPERASIONAL
@@ -505,8 +533,8 @@ class WAReplies
         // Check if AI successfully detected a valid intent
         if ($aiResult && is_array($aiResult) && isset($aiResult['intent']) && strtoupper($aiResult['intent']) !== 'FALSE') {
             $aiIntent = strtoupper($aiResult['intent']);
-            // Pertanyaan (mengandung ?) TIDAK boleh masuk PEMBUKA atau PENUTUP - treat sebagai unknown
-            $isQuestion = strpos($textBody ?? '', '?') !== false;
+            // Pertanyaan (termasuk tanpa tanda ?) TIDAK boleh masuk PEMBUKA atau PENUTUP - treat sebagai unknown
+            $isQuestion = $this->messageLooksLikeQuestion($textBody);
             if ($isQuestion && in_array($aiIntent, ['PEMBUKA', 'PENUTUP'])) {
                 $conversationId = $this->getOrCreateConversationWithCase(
                     $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
