@@ -31,12 +31,30 @@ class WAReplies
     private $customSender = null;
 
     /**
+     * Jika true: tidak INSERT/UPDATE wa_conversations (webhook Fonnte — CSW Fonnte di wa_fonnte_csw saja).
+     */
+    private $skipConversationPersist = false;
+
+    /** Provider untuk wa_auto_reply_log: A = yCloud, B = Fonnte */
+    private $autoReplyProvider = 'A';
+
+    /**
      * Set custom sender untuk Fonnte (bila webhook dari Fonnte, bukan YCloud)
      * @param object $adapter Instance FonnteReplyAdapter
      */
     public function setCustomSender($adapter)
     {
         $this->customSender = $adapter;
+    }
+
+    public function setSkipConversationPersist(bool $skip): void
+    {
+        $this->skipConversationPersist = $skip;
+    }
+
+    public function setAutoReplyProvider(string $provider): void
+    {
+        $this->autoReplyProvider = ($provider === 'B') ? 'B' : 'A';
     }
 
     /**
@@ -87,7 +105,7 @@ class WAReplies
     private function shouldHandle($waNumber, $handler, $cooldownMinutes = 1)
     {
         $db = DB::getInstance(0);
-        $provider = 'A';
+        $provider = $this->autoReplyProvider;
 
         $sql = "SELECT created_at FROM wa_auto_reply_log 
                 WHERE phone = ? AND handler = ? AND provider = ? 
@@ -3567,6 +3585,15 @@ class WAReplies
      */
     private function getOrCreateConversationWithCase($db, $waNumber, $contactName = null, $assigned_user_id = null, $code = null, $cust_id = null, $lastMessage = null, $case = null)
     {
+        if ($this->skipConversationPersist) {
+            $existing = $db->get_where('wa_conversations', ['wa_number' => $waNumber]);
+            if ($existing->num_rows() > 0) {
+                return (int) ($existing->row()->id ?? 0);
+            }
+
+            return 0;
+        }
+
         // Try to find existing conversation
         $existing = $db->get_where('wa_conversations', ['wa_number' => $waNumber]);
         

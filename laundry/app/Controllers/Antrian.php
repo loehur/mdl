@@ -730,6 +730,12 @@ class Antrian extends Controller
 
       $whereUser = "no_user IN (" . implode(', ', $hpVariations) . ")";
       $userExists = $this->db(0)->count_where('user', $whereUser);
+
+      // Template WA: hanya jika nomor pelanggan belum pernah ada di wa_messages_out (satu nomor = no_pelanggan / $_POST['hp'])
+      $matchDigitsWa = (strlen($hpClean) >= 9) ? substr($hpClean, -9) : $hpClean;
+      $whereWaOut = "REPLACE(REPLACE(phone, '+', ''), '-', '') LIKE '%" . $matchDigitsWa . "'";
+      $waOutCount = $this->db(100)->count_where('wa_messages_out', $whereWaOut);
+      $waOutExists = is_numeric($waOutCount) ? (int) $waOutCount : 0;
       
       // Check if notification already exists to prevent duplicate sends
       $setOne = "no_ref = '" . $noref . "' AND tipe = 1";
@@ -766,10 +772,31 @@ class Antrian extends Controller
          return;
       }
       
-      // Jika user internal (ada di tabel user), pakai free mode. Jika tidak, pakai template.
-      $template_name = ($userExists > 0) ? 'free' : URL::TEMPLATE_NOTA;
+      // User internal → free. Sudah pernah outbound ke nomor ini di wa_messages_out → free (bukan template). Selain itu → template nota.
+      if ($userExists > 0) {
+         $template_name = 'free';
+      } elseif ($waOutExists > 0) {
+         $this->model('Log')->write("[sendNotif] wa_messages_out sudah ada untuk nomor pelanggan, pakai free bukan template — Ref: " . $noref . " | HP: " . $hp);
+         $template_name = 'free';
+      } else {
+         $template_name = URL::TEMPLATE_NOTA;
+      }
       $res = $this->helper('Notif')->send_wa($hp, $jsonText, $template_name);
-      
+
+      // Mode free hanya boleh jika CSW terbuka (cek di API: wa_conversations.last_in_at).
+      // Jika CSW tertutup, API mengembalikan 400 + csw_expired — fallback ke template nota (boleh di luar 24 jam).
+      if (!$res['status'] && $template_name === 'free') {
+         $apiPayload = $res['data'] ?? [];
+         $cswExpired = !empty($apiPayload['data']['csw_expired'])
+            || (isset($apiPayload['message']) && stripos((string) $apiPayload['message'], 'CSW') !== false)
+            || (isset($apiPayload['message']) && stripos((string) $apiPayload['message'], 'Customer Service Window') !== false)
+            || (isset($res['error']) && stripos((string) $res['error'], '24 jam') !== false);
+         if ($cswExpired) {
+            $this->model('Log')->write("[sendNotif] Free ditolak (CSW tertutup), fallback template — Ref: " . $noref . " | HP: " . $hp);
+            $res = $this->helper('Notif')->send_wa($hp, $jsonText, URL::TEMPLATE_NOTA);
+         }
+      }
+
       $apiData = $res['data']['data'] ?? $res['data'] ?? [];
       $idApi = $apiData['id'] ?? ($apiData['message_id'] ?? '');
 
@@ -782,13 +809,14 @@ class Antrian extends Controller
          $this->db(0)->update('notif', $updateVals, $where);
          echo 0;
       } else {
-         // WA send failed, update state to pending for retry
+         // WA send failed — tetap pending untuk retry; tanpa alert di UI (response sama seperti sukses agar loadDiv refresh)
          $updateVals = [
             'state' => 'pending'
          ];
          $this->db(0)->update('notif', $updateVals, $where);
          $errorMsg = $res['error'] ?? ($res['message'] ?? 'Gagal mengirim WA');
-         echo json_encode(['status' => 'failed', 'message' => $errorMsg]);
+         $this->model('Log')->write("[sendNotif] WA gagal (state pending, UI diam) — Ref: " . $noref . " | HP: " . $hp . " | " . $errorMsg);
+         echo 0;
       }
    }
 

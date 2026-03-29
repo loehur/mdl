@@ -6,15 +6,17 @@ use App\Core\Controller;
 
 /**
  * Fonnte WhatsApp Webhook Handler
- * @see https://docs.fonnte.com/
+ * Alur intent & balasan sama seperti Webhook\WhatsApp (WAReplies::process), tetapi:
+ * - Tidak menulis wa_messages_in
+ * - Tidak mengubah / membuat wa_conversations (setSkipConversationPersist)
+ * - Balasan keluar via FonnteReplyAdapter (Fonnte API), termasuk inboxid bila ada
+ * - wa_fonnte_csw tetap di-update untuk CSW Fonnte
  *
+ * @see https://docs.fonnte.com/
  * URL: /Webhook/WA_Fonnte
  */
 class WA_Fonnte extends Controller
 {
-    private const NO_REGISTER_TEXT = 'Mohon Maaf, nomor Anda belum terdaftar di Madinah Laundry. Terima kasih';
-    private const DEFAULT_REPLY = "Mohon maaf jika respon lambat 🙏🏻.\n\nBila berkenan kirimkan pesan ke\n*Madinah Laundry (CS)*\n💬 wa.me/6281170706611\n\nTerimakasih 😊";
-
     public function index()
     {
         header('Content-Type: application/json; charset=utf-8');
@@ -23,12 +25,14 @@ class WA_Fonnte extends Controller
 
         if ($method === 'GET') {
             echo json_encode(['status' => 'ok', 'message' => 'Fonnte webhook endpoint']);
+
             return;
         }
 
         if ($method !== 'POST') {
             http_response_code(405);
             echo json_encode(['status' => 'error', 'message' => 'Method not allowed']);
+
             return;
         }
 
@@ -38,90 +42,141 @@ class WA_Fonnte extends Controller
         if (!$data) {
             \Log::write('WA_Fonnte: Invalid JSON', 'webhook', 'Fonnte');
             echo json_encode(['status' => 'error', 'message' => 'Invalid JSON']);
+
             return;
         }
 
-        // Parse Fonnte webhook payload
-        $device = $data['device'] ?? null;
         $sender = $data['sender'] ?? null;
         $message = $data['message'] ?? null;
-        $text = $data['text'] ?? null;       // button text
-        $member = $data['member'] ?? null;
+        $text = $data['text'] ?? null;
         $name = $data['name'] ?? null;
-        $location = $data['location'] ?? null;
-        $pollname = $data['pollname'] ?? null;
-        $choices = $data['choices'] ?? null;
         $timestamp = $data['timestamp'] ?? null;
         $inboxid = $data['inboxid'] ?? null;
         $url = $data['url'] ?? null;
         $filename = $data['filename'] ?? null;
-        $extension = $data['extension'] ?? null;
 
-        $replyText = self::DEFAULT_REPLY;
+        $this->recordFonnteIncoming($sender, $timestamp);
 
-        $messageToCheck = trim($message ?? $text ?? '');
-        $cekStatusPattern = '/^\s*(cek|sta*tu*s)\s*$/i';
+        $replyText = '';
 
-        if (preg_match($cekStatusPattern, $messageToCheck)) {
-            $waNumber = $this->normalizeWaNumber($sender);
-            if ($waNumber && $this->shouldHandle($waNumber, 'status', 1)) {
-                $replyText = $this->getStatusReplyText($sender);
-                $this->sendReply($sender, $replyText, $inboxid);
-            } else {
-                $replyText = ''; // Cooldown - tidak kirim untuk hindari spam
+        $messageText = trim((string) ($message ?? $text ?? ''));
+        if ($messageText === '' && ! empty($url)) {
+            $messageText = '📷 ' . (string) ($filename ?: 'Media');
+        }
+        if ($messageText === '') {
+            echo json_encode(['status' => 'ok', 'reply' => $replyText]);
+
+            return;
+        }
+
+        $waNumber = $this->normalizeWaNumber($sender);
+        if (! $waNumber) {
+            echo json_encode(['status' => 'ok', 'reply' => $replyText]);
+
+            return;
+        }
+
+        $cleanPhone = preg_replace('/[^0-9]/', '', $waNumber);
+        $phone0 = '0' . substr($cleanPhone, 2);
+        $phonePlus = '+' . $cleanPhone;
+        $phoneNoPrefix = substr($cleanPhone, 2);
+        $phones = ["'$cleanPhone'", "'$phone0'", "'$phonePlus'", "'$phoneNoPrefix'"];
+        $phoneIn = implode(',', $phones);
+
+        try {
+            $wh = new WhatsApp();
+            $user_data = $wh->getUserData($phone0);
+            $assigned_user_id = $user_data ? ($user_data->assigned_user_id ?? null) : null;
+            $code = $user_data ? ($user_data->code ?? null) : null;
+            $cust_id = $user_data ? ($user_data->cust_id ?? null) : null;
+            $contact_name = $user_data ? ($user_data->customer_name ?? $name) : ($name ?? null);
+
+            $lastMessageSummary = $messageText;
+            $isPrivateForLastMessage = false;
+            if (class_exists('\Env', false)) {
+                $isPrivateForLastMessage = \Env::textContainsPrivateWord($lastMessageSummary ?? '');
             }
-        } else {
-            $waNumber = $this->normalizeWaNumber($sender);
-            if ($waNumber && $this->shouldHandle($waNumber, 'FORWARD', 1)) {
-                $this->sendReply($sender, $replyText, $inboxid);
-            } else {
-                $replyText = ''; // Cooldown - hindari spam
+            $lastMessage = $isPrivateForLastMessage
+                ? 'i- 🔒 _Private Chat_'
+                : 'i- ' . mb_substr($lastMessageSummary, 0, 50);
+
+            if (! class_exists('\\App\\Models\\WAReplies')) {
+                require_once __DIR__ . '/../../Models/WAReplies.php';
             }
+            if (! class_exists('\\App\\Helpers\\FonnteReplyAdapter')) {
+                require_once __DIR__ . '/../../Helpers/FonnteReplyAdapter.php';
+            }
+
+            $replies = new \App\Models\WAReplies();
+            $replies->setCustomSender(new \App\Helpers\FonnteReplyAdapter($inboxid));
+            $replies->setSkipConversationPersist(true);
+            $replies->setAutoReplyProvider('B');
+
+            $replies->process(
+                $phoneIn,
+                $messageText,
+                $waNumber,
+                $contact_name,
+                $assigned_user_id,
+                $code,
+                $lastMessage,
+                $cust_id
+            );
+        } catch (\Throwable $e) {
+            \Log::write('WA_Fonnte WAReplies: ' . $e->getMessage() . ' | ' . $e->getFile() . ':' . $e->getLine(), 'webhook', 'Fonnte');
         }
 
         echo json_encode(['status' => 'ok', 'reply' => $replyText]);
     }
 
     /**
-     * Rate limit - sama dengan WAReplies, pakai wa_auto_reply_log (db 0)
-     * @return bool True jika boleh kirim, false jika masih cooldown
+     * Simpan waktu pesan masuk terakhir per nomor (db 0) untuk CSW Fonnte.
      */
-    private function shouldHandle($waNumber, $handler, $cooldownMinutes = 60)
+    private function recordFonnteIncoming($sender, $timestamp = null): void
     {
-        $db = $this->db(0);
-        $provider = 'B';
-        $handler = strtoupper($handler);
-
-        $result = $db->query(
-            "SELECT created_at FROM wa_auto_reply_log WHERE phone = ? AND handler = ? AND provider = ? ORDER BY created_at DESC LIMIT 1",
-            [$waNumber, $handler, $provider]
-        );
-
-        if ($result && $result->num_rows() > 0) {
-            $lastReply = $result->row()->created_at;
-            $cooldownEnd = date('Y-m-d H:i:s', strtotime($lastReply) + ($cooldownMinutes * 60));
-            if (date('Y-m-d H:i:s') < $cooldownEnd) {
-                return false;
+        $waNumber = $this->normalizeWaNumber($sender);
+        if ($waNumber === null) {
+            return;
+        }
+        $lastInAt = $this->fonnteTimestampToLastInAt($timestamp);
+        try {
+            $db = $this->db(0);
+            $check = $db->query(
+                'SELECT id FROM wa_fonnte_csw WHERE phone = ? LIMIT 1',
+                [$waNumber]
+            );
+            if ($check->num_rows() > 0) {
+                $db->query(
+                    'UPDATE wa_fonnte_csw SET last_in_at = ? WHERE phone = ?',
+                    [$lastInAt, $waNumber]
+                );
+            } else {
+                $db->query(
+                    'INSERT INTO wa_fonnte_csw (phone, last_in_at) VALUES (?, ?)',
+                    [$waNumber, $lastInAt]
+                );
             }
+        } catch (\Throwable $e) {
+            \Log::write('WA_Fonnte: wa_fonnte_csw update failed: ' . $e->getMessage(), 'webhook', 'Fonnte');
         }
+    }
 
-        $existing = $db->query(
-            "SELECT * FROM wa_auto_reply_log WHERE phone = ? AND handler = ? AND provider = ? LIMIT 1",
-            [$waNumber, $handler, $provider]
-        )->row();
-
-        if ($existing) {
-            $db->update('wa_auto_reply_log', ['created_at' => date('Y-m-d H:i:s'), 'provider' => $provider], ['phone' => $waNumber, 'handler' => $handler, 'provider' => $provider]);
-        } else {
-            $db->insert('wa_auto_reply_log', [
-                'phone' => $waNumber,
-                'handler' => $handler,
-                'provider' => $provider,
-                'created_at' => date('Y-m-d H:i:s'),
-            ]);
+    private function fonnteTimestampToLastInAt($timestamp): string
+    {
+        if ($timestamp === null || $timestamp === '') {
+            return date('Y-m-d H:i:s');
         }
+        if (is_numeric($timestamp)) {
+            $ts = (int) $timestamp;
+            if ($ts > 9999999999) {
+                $ts = (int) ($ts / 1000);
+            }
 
-        return true;
+            return date('Y-m-d H:i:s', $ts);
+        }
+        $s = substr((string) $timestamp, 0, 40);
+
+        return $s !== '' ? $s : date('Y-m-d H:i:s');
     }
 
     /**
@@ -129,148 +184,19 @@ class WA_Fonnte extends Controller
      */
     private function normalizeWaNumber($sender)
     {
-        if (empty($sender)) return null;
+        if (empty($sender)) {
+            return null;
+        }
         $clean = preg_replace('/[^0-9]/', '', $sender);
-        if (strlen($clean) < 8) return null;
+        if (strlen($clean) < 8) {
+            return null;
+        }
         if (substr($clean, 0, 1) === '0') {
             $clean = '62' . substr($clean, 1);
         } elseif (substr($clean, 0, 2) !== '62') {
             $clean = '62' . $clean;
         }
+
         return '+' . $clean;
-    }
-
-    /**
-     * Handle status (cek/status) - return text balasan saja (logic sama WAReplies)
-     * @param string|null $sender Nomor WA pengirim (628xxx)
-     * @return string Teks balasan
-     */
-    private function getStatusReplyText($sender)
-    {
-        if (empty($sender)) {
-            return self::NO_REGISTER_TEXT;
-        }
-
-        $cleanPhone = preg_replace('/[^0-9]/', '', $sender);
-        if (strlen($cleanPhone) < 8) {
-            return self::NO_REGISTER_TEXT;
-        }
-
-        if (substr($cleanPhone, 0, 1) === '0') {
-            $cleanPhone = '62' . substr($cleanPhone, 1);
-        } elseif (substr($cleanPhone, 0, 2) !== '62') {
-            $cleanPhone = '62' . $cleanPhone;
-        }
-
-        $phone0 = '0' . substr($cleanPhone, 2);
-        $phonePlus = '+' . $cleanPhone;
-        $phoneIn = "'$cleanPhone','$phone0','$phonePlus','" . substr($cleanPhone, 2) . "'";
-
-        $db = $this->db(1);
-        $where = "nomor_pelanggan IN ($phoneIn)";
-        $pelanggan = $db->query("SELECT id_pelanggan, nama_pelanggan FROM pelanggan WHERE $where")->result_array();
-
-        if (empty($pelanggan)) {
-            return self::NO_REGISTER_TEXT;
-        }
-
-        $id_pelanggans = array_column($pelanggan, 'id_pelanggan');
-        $nama_pelanggan = strtoupper($pelanggan[0]['nama_pelanggan'] ?? '');
-        $ids_in = implode(',', $id_pelanggans);
-
-        $sales = $db->query("SELECT * FROM sale WHERE tuntas = 0 AND bin = 0 AND id_pelanggan IN ($ids_in) GROUP BY no_ref, tuntas, id_pelanggan")->result_array();
-        $noRefs = array_column($sales, 'no_ref');
-
-        if (empty($noRefs)) {
-            return 'Pak/Bu *' . $nama_pelanggan . '*, belum ada Nota/Bon terbuka. Terima kasih';
-        }
-
-        $listIdPenjualan = [];
-        $listIdSelesai = [];
-        $allIdPenjualan = [];
-
-        foreach ($noRefs as $noRef) {
-            $safeNoRef = $db->conn()->real_escape_string($noRef);
-            $get_penjualan = $db->query("SELECT id_penjualan, id_pelanggan, letak FROM sale WHERE id_user_ambil = 0 AND bin = 0 AND tuntas = 0 AND no_ref = '$safeNoRef'")->result_array();
-            $id_penjualans = array_column($get_penjualan, 'id_penjualan');
-            $quotedIds = array_map(function ($id) use ($db) {
-                return "'" . $db->conn()->real_escape_string($id) . "'";
-            }, $id_penjualans);
-            $id_penjualans_in = implode(',', $quotedIds);
-
-            $existingNotifIds = [];
-            if (!empty($id_penjualans) && !empty($id_penjualans_in)) {
-                $existingNotifIds = array_column($db->query("SELECT no_ref FROM notif WHERE tipe = 2 AND no_ref IN ($id_penjualans_in)")->result_array(), 'no_ref');
-            }
-
-            $completedWithLocation = [];
-            $inProgressItems = [];
-
-            foreach ($get_penjualan as $sale) {
-                $id_penjualan = $sale['id_penjualan'];
-                $letak = $sale['letak'] ?? '';
-                $hasNotif = in_array($id_penjualan, $existingNotifIds);
-                $hasLocation = !empty(trim($letak));
-
-                $allIdPenjualan[] = $id_penjualan;
-                if ($hasNotif && $hasLocation) {
-                    $completedWithLocation[] = $id_penjualan;
-                } else {
-                    $inProgressItems[] = $id_penjualan;
-                }
-            }
-
-            if (!empty($inProgressItems)) {
-                $listIdPenjualan[] = $inProgressItems;
-            }
-            if (!empty($completedWithLocation)) {
-                $listIdSelesai[] = $completedWithLocation;
-            }
-        }
-
-        $list_link = "";
-        foreach (array_unique($id_pelanggans) as $id_pelanggan) {
-            $list_link .= "https://ml.nalju.com/I/" . $id_pelanggan . "\n";
-        }
-
-        $statusList = [];
-        foreach ($listIdPenjualan as $subArr) {
-            foreach ((array)$subArr as $v) {
-                $statusList[] = "#" . $v . " - Dalam Pengerjaan";
-            }
-        }
-        foreach ($listIdSelesai as $subArr) {
-            foreach ((array)$subArr as $v) {
-                $statusList[] = "#" . $v . " - Selesai";
-            }
-        }
-
-        if (empty($statusList) && !empty($allIdPenjualan)) {
-            foreach ($allIdPenjualan as $id) {
-                $statusList[] = "#" . $id . " - Selesai";
-            }
-        }
-
-        $statusText = implode("\n", $statusList);
-        return "*" . $nama_pelanggan . "*,\nStatus Laundry:\n" . $statusText . "\n" . $list_link;
-    }
-
-    /**
-     * Kirim balasan via Fonnte API
-     */
-    private function sendReply($target, $message, $inboxid = null)
-    {
-        if (empty($target) || empty($message)) {
-            return;
-        }
-        if (!class_exists('\\App\\Helpers\\FonnteService')) {
-            require_once __DIR__ . '/../../Helpers/FonnteService.php';
-        }
-        $fonnte = new \App\Helpers\FonnteService();
-        $options = [];
-        if ($inboxid) {
-            $options['inboxid'] = (int) $inboxid;
-        }
-        $fonnte->sendMessage($target, $message, $options);
     }
 }
