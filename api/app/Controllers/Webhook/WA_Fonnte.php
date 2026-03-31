@@ -22,8 +22,10 @@ class WA_Fonnte extends Controller
     public function index()
     {
         header('Content-Type: application/json; charset=utf-8');
+        $this->trace('index hit');
 
         $method = $_SERVER['REQUEST_METHOD'];
+        $this->trace('request method=' . ($method ?: 'unknown'));
 
         if ($method === 'GET') {
             echo json_encode(['status' => 'ok', 'message' => 'Fonnte webhook endpoint']);
@@ -39,7 +41,9 @@ class WA_Fonnte extends Controller
         }
 
         $json = file_get_contents('php://input');
+        $this->trace('raw body length=' . (string) strlen((string) $json));
         $data = json_decode($json, true);
+        $this->trace('json decoded=' . ($data ? 'true' : 'false'));
 
         if (!$data) {
             $this->trace('Invalid JSON');
