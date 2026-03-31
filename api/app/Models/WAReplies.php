@@ -2304,6 +2304,7 @@ class WAReplies
         }
 
         $lines = [
+            "DATA KARYAWAN",
             "*{$nama_user}*",
             "No. HP: {$no_user}",
             "Bank: " . ($bank_code ?: '-') . $bankName,
