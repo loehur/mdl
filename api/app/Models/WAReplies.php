@@ -151,6 +151,19 @@ class WAReplies
     }
 
     /**
+     * Rate limit balasan fallback Fonnte (DEFAULT_FALLBACK_REPLY) per nomor via wa_auto_reply_log.
+     * Handler: FONNTE_DEFAULT_FALLBACK, provider sesuai setAutoReplyProvider (Fonnte = B).
+     *
+     * @param string $waNumber Nomor WhatsApp (+62...)
+     * @param int $cooldownMinutes Default 60
+     * @return bool True jika boleh kirim fallback (di luar cooldown)
+     */
+    public function shouldSendFonnteFallbackReply($waNumber, $cooldownMinutes = 60)
+    {
+        return $this->shouldHandle($waNumber, 'FONNTE_DEFAULT_FALLBACK', $cooldownMinutes);
+    }
+
+    /**
      * Ambil nama contact untuk sapaan AI (pak/bu/kak/bang).
      * Prioritas: currentContactName dari process(), lalu wa_conversations.contact_name.
      * @param string $waNumber Nomor WhatsApp

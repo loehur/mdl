@@ -19,6 +19,9 @@ class WA_Fonnte extends Controller
 {
     private const DEFAULT_FALLBACK_REPLY = "Maaf jika respon lambat.\n\nBila berkenan kirimkan pesan ke\n*Madinah Laundry (CS)*\n💬 wa.me/6281170706611\n\nTerima kasih.";
 
+    /** Cooldown wa_auto_reply_log (handler FONNTE_DEFAULT_FALLBACK) sebelum fallback dikirim lagi ke nomor yang sama */
+    private const DEFAULT_FALLBACK_COOLDOWN_MINUTES = 60;
+
     public function index()
     {
         header('Content-Type: application/json; charset=utf-8');
@@ -127,9 +130,11 @@ class WA_Fonnte extends Controller
                 $lastMessage,
                 $cust_id
             );
-            // Fallback default hanya jika intent tidak punya handler (atau unknown/no-intent).
+            // Fallback default hanya jika intent tidak punya handler (atau unknown/no-intent), max sekali per nomor per DEFAULT_FALLBACK_COOLDOWN_MINUTES.
             if (!empty($processResult->no_handler)) {
-                $this->sendFallbackReply($sender, self::DEFAULT_FALLBACK_REPLY, $inboxid);
+                if ($replies->shouldSendFonnteFallbackReply($waNumber, self::DEFAULT_FALLBACK_COOLDOWN_MINUTES)) {
+                    $this->sendFallbackReply($sender, self::DEFAULT_FALLBACK_REPLY, $inboxid);
+                }
             }
         } catch (\Throwable $e) {
             \Log::write('WA_Fonnte WAReplies: ' . $e->getMessage() . ' | ' . $e->getFile() . ':' . $e->getLine(), 'webhook', 'Fonnte');
