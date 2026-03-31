@@ -319,6 +319,44 @@ class WAReplies
     }
 
     /**
+     * Pesan yang hanya berisi nominal (mis. "175.000 kak", "Rp 38.000", "38.000 normalnya kak") bukan intent TAGIHAN/HARGA.
+     */
+    private function messageLooksLikeAmountOnly(?string $textBody): bool
+    {
+        if ($textBody === null) {
+            return false;
+        }
+        $t = trim(mb_strtolower($textBody));
+        if ($t === '') {
+            return false;
+        }
+        // Jika ada kata tanya/konteks, jangan dianggap nominal-only
+        if (preg_match('/\b(berapa|brp|total|tagihan|bill|biaya|bayar|transfer|harga|cuci|setrika|strika|gosok)\b/iu', $t)) {
+            return false;
+        }
+        // Hapus emoji & simbol umum yang sering ikut
+        $t = preg_replace('/[^\p{L}\p{N}\s\.,_]/u', ' ', $t);
+        $t = preg_replace('/\s+/', ' ', trim($t));
+
+        $amount = '(rp\s*)?[\d\.,]+(\s*(rb|ribu|jt|juta|k))?';
+        $sapaan = '(kak|kk|bang|pak|bu|mbak|mas|sis)?';
+        $konteks = '(normalnya|biasanya|biasa)';
+
+        // "175.000 kak", "rp 38.000", "200rb", "1.5jt", "175000"
+        $rePlain = '/^' . $amount . '\s*' . $sapaan . '\s*$/iu';
+        // "38.000 normalnya kak" — info nominal, bukan tanya harga
+        $reAmountKonteks = '/^' . $amount . '\s+' . $konteks . '\s*' . $sapaan . '\s*$/iu';
+        // "normalnya 38.000 kak"
+        $reKonteksAmount = '/^' . $konteks . '\s+' . $amount . '\s*' . $sapaan . '\s*$/iu';
+
+        if (!preg_match($rePlain, $t) && !preg_match($reAmountKonteks, $t) && !preg_match($reKonteksAmount, $t)) {
+            return false;
+        }
+        // Pastikan ada digit
+        return preg_match('/\d/', $t) === 1;
+    }
+
+    /**
      * Cek apakah pesan mengandung sapaan (assalamualaikum, pagi, halo, dll) di awal.
      * Untuk menentukan apakah perlu intro sapaan di balasan.
      */
@@ -368,13 +406,6 @@ class WAReplies
     public function process($phoneIn, $textBody, $waNumber, $contactName = null, $assigned_user_id = null, $code = null, $lastMessage = null, $cust_id = null)
     {
         $this->currentContactName = $contactName;
-        if (class_exists('\Log')) {
-            \Log::write(
-                '[INBOUND][provider=' . $this->autoReplyProvider . '] ' . mb_substr((string) ($textBody ?? ''), 0, 100),
-                'wa',
-                'intent'
-            );
-        }
         // Strip WhatsApp formatters: * (bold), _ (italic), ~ (strikethrough), ` (monospace)
         $textBodyToCheck = preg_replace('/[*_~`]/', '', $textBody ?? '');
         // Strip quote prefix (> at start of line)
@@ -385,6 +416,18 @@ class WAReplies
 
         // Get DB instance for conversation management
         $db = DB::getInstance(0);
+
+        // Nominal-only (contoh: "175.000 kak") -> jangan dianggap intent apa pun.
+        if ($this->messageLooksLikeAmountOnly($textBodyToCheck)) {
+            $conversationId = $this->getOrCreateConversationWithCase(
+                $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
+            );
+            return (object) [
+                'case' => null,
+                'notify' => false,
+                'conversation_id' => $conversationId
+            ];
+        }
 
         // Load keyword configuration
         $keywordConfig = require __DIR__ . '/../Config/AutoReplyKeywords.php';
