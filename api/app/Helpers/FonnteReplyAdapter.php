@@ -13,6 +13,9 @@ class FonnteReplyAdapter
 
     public function __construct($inboxid = null)
     {
+        if (!class_exists('\\App\\Helpers\\FonnteService')) {
+            require_once __DIR__ . '/FonnteService.php';
+        }
         $this->fonnte = new FonnteService();
         $this->inboxid = $inboxid;
     }
