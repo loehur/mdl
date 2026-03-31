@@ -42,7 +42,7 @@ class WA_Fonnte extends Controller
         $data = json_decode($json, true);
 
         if (!$data) {
-            \Log::write('WA_Fonnte: Invalid JSON', 'webhook', 'Fonnte');
+            $this->trace('Invalid JSON');
             echo json_encode(['status' => 'error', 'message' => 'Invalid JSON']);
 
             return;
@@ -58,17 +58,13 @@ class WA_Fonnte extends Controller
         $filename = $data['filename'] ?? null;
 
         $this->recordFonnteIncoming($sender, $timestamp);
-        if (class_exists('\Log')) {
-            \Log::write(
-                '[WA_Fonnte] inbound sender=' . ($sender ?? 'null') .
-                ' | inboxid=' . (($inboxid !== null) ? (string)$inboxid : 'null') .
-                ' | has_message=' . (($message !== null && $message !== '') ? '1' : '0') .
-                ' | has_text=' . (($text !== null && $text !== '') ? '1' : '0') .
-                ' | has_media_url=' . (($url !== null && $url !== '') ? '1' : '0'),
-                'webhook',
-                'Fonnte'
-            );
-        }
+        $this->trace(
+            'inbound sender=' . ($sender ?? 'null') .
+            ' | inboxid=' . (($inboxid !== null) ? (string)$inboxid : 'null') .
+            ' | has_message=' . (($message !== null && $message !== '') ? '1' : '0') .
+            ' | has_text=' . (($text !== null && $text !== '') ? '1' : '0') .
+            ' | has_media_url=' . (($url !== null && $url !== '') ? '1' : '0')
+        );
 
         $replyText = '';
 
@@ -106,7 +102,10 @@ class WA_Fonnte extends Controller
 
             $lastMessageSummary = $messageText;
             $isPrivateForLastMessage = false;
-            if (class_exists('\Env', false)) {
+            if (!class_exists('\Env')) {
+                require_once __DIR__ . '/../../Config/Env.php';
+            }
+            if (class_exists('\Env') && method_exists('\Env', 'textContainsPrivateWord')) {
                 $isPrivateForLastMessage = \Env::textContainsPrivateWord($lastMessageSummary ?? '');
             }
             $lastMessage = $isPrivateForLastMessage
@@ -135,23 +134,19 @@ class WA_Fonnte extends Controller
                 $lastMessage,
                 $cust_id
             );
-            if (class_exists('\Log')) {
-                \Log::write(
-                    '[WA_Fonnte] process result case=' . (string)($processResult->case ?? 'null') .
-                    ' | notify=' . (string)($processResult->notify ?? 'null') .
-                    ' | conv_id=' . (string)($processResult->conversation_id ?? 'null') .
-                    ' | wa=' . $waNumber,
-                    'webhook',
-                    'Fonnte'
-                );
-            }
+            $this->trace(
+                'process result case=' . (string)($processResult->case ?? 'null') .
+                ' | notify=' . (string)($processResult->notify ?? 'null') .
+                ' | conv_id=' . (string)($processResult->conversation_id ?? 'null') .
+                ' | wa=' . $waNumber
+            );
 
             // Jika tidak masuk intent apa pun (fallback internal WAReplies = case 4), baru kirim balasan default.
             if ((int) ($processResult->case ?? 0) === 4) {
                 $this->sendFallbackReply($sender, self::DEFAULT_FALLBACK_REPLY, $inboxid);
             }
         } catch (\Throwable $e) {
-            \Log::write('WA_Fonnte WAReplies: ' . $e->getMessage() . ' | ' . $e->getFile() . ':' . $e->getLine(), 'webhook', 'Fonnte');
+            $this->trace('WAReplies exception: ' . $e->getMessage() . ' | ' . $e->getFile() . ':' . $e->getLine());
         }
 
         echo json_encode(['status' => 'ok', 'reply' => $replyText]);
@@ -223,15 +218,23 @@ class WA_Fonnte extends Controller
             $options['inboxid'] = (int) $inboxid;
         }
         $res = $fonnte->sendMessage($target, $message, $options);
+        $ok = !empty($res['success']) ? 'true' : 'false';
+        $err = $res['error'] ?? '';
+        $this->trace("fallback send to {$target} | success={$ok} | error={$err}");
+    }
+
+    private function trace(string $text): void
+    {
         if (class_exists('\Log')) {
-            $ok = !empty($res['success']) ? 'true' : 'false';
-            $err = $res['error'] ?? '';
-            \Log::write(
-                "[WA_Fonnte] fallback send to {$target} | success={$ok} | error={$err}",
-                'webhook',
-                'Fonnte'
-            );
+            \Log::write('[WA_Fonnte] ' . $text, 'webhook', 'Fonnte');
         }
+        error_log('[WA_Fonnte] ' . $text);
+
+        $dir = __DIR__ . '/../../../logs/' . date('Y-m-d') . '/';
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+        @file_put_contents($dir . 'webhook_fonnte_trace.log', date('H:i:s') . ' [WA_Fonnte] ' . $text . PHP_EOL, FILE_APPEND | LOCK_EX);
     }
 
     /**
