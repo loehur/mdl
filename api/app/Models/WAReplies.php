@@ -2667,6 +2667,122 @@ class WAReplies
         }
     }
 
+    /**
+     * Daftar gaji transfer (non-cash): payroll dengan bank_code terisi — sama periode & akses admin dengan gaji cash.
+     */
+    function handleGaji_tf($phoneIn, $waNumber, $textBody = '')
+    {
+        $waService = null;
+        $sendErrorToWa = function ($msg) use (&$waService, $waNumber) {
+            try {
+                if (!$waService) {
+                    $waService = $this->getWaService();
+                }
+                if ($waService) {
+                    $waService->sendFreeText($waNumber, $msg);
+                }
+            } catch (\Throwable $ex) {
+                \Log::write("handleGaji_tf: Failed to send error message - " . $ex->getMessage(), 'wa_error', 'GajiTf');
+            }
+        };
+
+        try {
+            $waService = $this->getWaService();
+        } catch (\Throwable $e) {
+            \Log::write("handleGaji_tf: getWaService failed - " . $e->getMessage(), 'wa_error', 'GajiTf');
+        }
+
+        try {
+            $hp = \Env::ADMIN_NUMBERS;
+
+            $phones = array_map(function ($p) {
+                return trim($p, "' ");
+            }, explode(',', $phoneIn));
+            $cleanWaNumber = preg_replace('/[^0-9]/', '', $waNumber);
+            $phone0 = '0' . substr($cleanWaNumber, 2);
+            $phones[] = $phone0;
+            $phones[] = $cleanWaNumber;
+            $phones = array_unique(array_filter($phones));
+
+            $intersect = array_intersect($phones, $hp);
+            if (empty($intersect)) {
+                return;
+            }
+
+            $hariIni = (int)date('d');
+            if ($hariIni >= 1 && $hariIni <= 5) {
+                $period = date('Y-m', strtotime('-1 month'));
+            } else {
+                $period = date('Y-m');
+            }
+
+            $dbMain = DB::getInstance(0);
+            $dbLaundry = DB::getInstance(1);
+
+            $tfPayrolls = $dbMain->query(
+                "SELECT id, employee_id, amount, state, bank_code, bank_acc_number, bank_acc_name FROM payroll WHERE period = ? AND business = 'laundry' AND state IN ('approved', 'draft') AND bank_code IS NOT NULL AND TRIM(bank_code) != ''",
+                [$period]
+            )->result_array();
+
+            if (empty($tfPayrolls)) {
+                $waService->sendFreeText($waNumber, "Tidak ada data gaji transfer untuk periode " . $period);
+                return;
+            }
+
+            $draftCount = 0;
+            foreach ($tfPayrolls as $p) {
+                if (strtolower($p['state'] ?? '') === 'draft') {
+                    $draftCount++;
+                }
+            }
+            $statusLabel = $draftCount === 0 ? "Status: APPROVED ✅" : ($draftCount === count($tfPayrolls) ? "Status: DRAFT 🟨" : "Status: DRAFT & APPROVED 🟡");
+
+            $text = "*GAJI TF - " . strtoupper($period) . "*\n";
+            $text .= "────────────────\n";
+            $text .= $statusLabel . "\n\n";
+
+            $total = 0;
+            $count = 0;
+
+            foreach ($tfPayrolls as $p) {
+                $employeeId = (int)$p['employee_id'];
+                $amount = (float)$p['amount'];
+                $pState = strtoupper($p['state'] ?? '');
+                $simState = $pState == 'APPROVED' ? '✅' : ($pState == 'DRAFT' ? '🟨' : '🟡');
+
+                $user = $dbLaundry->query("SELECT nama_user FROM user WHERE id_user = ? LIMIT 1", [$employeeId])->row_array();
+                $namaUser = $user['nama_user'] ?? 'Unknown';
+
+                $bc = strtoupper(trim($p['bank_code'] ?? ''));
+                $ban = trim($p['bank_acc_number'] ?? '');
+                $banm = trim($p['bank_acc_name'] ?? '');
+
+                $count++;
+                $total += $amount;
+
+                $text .= $simState . " *" . strtoupper($namaUser) . "* #" . $employeeId . "\n";
+                $text .= "Rp" . number_format($amount, 0, ',', '.') . "\n";
+                $text .= "🏦 " . $bc . ($ban !== '' ? " · " . $ban : '') . "\n";
+                if ($banm !== '') {
+                    $text .= "a.n. " . strtoupper($banm) . "\n";
+                }
+                $text .= "\n";
+            }
+
+            $text .= "────────────────\n";
+            $text .= "*Total Transfer:* Rp" . number_format($total, 0, ',', '.') . "\n";
+            $text .= "*Jumlah:* " . $count . " orang";
+
+            $res = $waService->sendFreeText($waNumber, $text);
+            if ($res['success']) {
+                $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+            }
+        } catch (\Throwable $e) {
+            \Log::write("handleGaji_tf ERROR: " . $e->getMessage(), 'wa_error', 'GajiTf');
+            $sendErrorToWa("Maaf, terjadi kesalahan saat mengambil data gaji transfer.\nSilakan hubungi admin.");
+        }
+    }
+
 
     function handleCek_token($phoneIn, $waNumber, $textBody = '')
     {

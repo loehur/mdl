@@ -397,4 +397,11 @@ return [
             '/^gaji cash$/i',
         ],
     ],
+
+    'GAJI_TF' => [
+        'patterns' => [
+            '/^gaji_tf$/i',
+            '/^gaji tf$/i',
+        ],
+    ],
 ];
