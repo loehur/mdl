@@ -17,6 +17,7 @@ use App\Core\Controller;
  */
 class WA_Fonnte extends Controller
 {
+    private const WEBHOOK_VERSION = 'WA_FONNTE_V2026_03_31_1035';
     private const DEFAULT_FALLBACK_REPLY = "Mohon maaf jika slow respon.\n\nBila berkenan kirimkan pesan ke\n*Madinah Laundry (CS)*\n💬 wa.me/6281170706611\n\nTerima kasih.";
 
     public function index()
@@ -28,7 +29,11 @@ class WA_Fonnte extends Controller
         $this->trace('request method=' . ($method ?: 'unknown'));
 
         if ($method === 'GET') {
-            echo json_encode(['status' => 'ok', 'message' => 'Fonnte webhook endpoint']);
+            echo json_encode([
+                'status' => 'ok',
+                'message' => 'Fonnte webhook endpoint',
+                'version' => self::WEBHOOK_VERSION,
+            ]);
 
             return;
         }
@@ -229,16 +234,17 @@ class WA_Fonnte extends Controller
 
     private function trace(string $text): void
     {
+        $line = '[WA_Fonnte ' . self::WEBHOOK_VERSION . '] ' . $text;
         if (class_exists('\Log')) {
-            \Log::write('[WA_Fonnte] ' . $text, 'webhook', 'Fonnte');
+            \Log::write($line, 'webhook', 'Fonnte');
         }
-        error_log('[WA_Fonnte] ' . $text);
+        error_log($line);
 
         $dir = __DIR__ . '/../../../logs/' . date('Y-m-d') . '/';
         if (!is_dir($dir)) {
             @mkdir($dir, 0755, true);
         }
-        @file_put_contents($dir . 'webhook_fonnte_trace.log', date('H:i:s') . ' [WA_Fonnte] ' . $text . PHP_EOL, FILE_APPEND | LOCK_EX);
+        @file_put_contents($dir . 'webhook_fonnte_trace.log', date('H:i:s') . ' ' . $line . PHP_EOL, FILE_APPEND | LOCK_EX);
     }
 
     /**
