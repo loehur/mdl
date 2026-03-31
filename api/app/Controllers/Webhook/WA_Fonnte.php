@@ -58,6 +58,17 @@ class WA_Fonnte extends Controller
         $filename = $data['filename'] ?? null;
 
         $this->recordFonnteIncoming($sender, $timestamp);
+        if (class_exists('\Log')) {
+            \Log::write(
+                '[WA_Fonnte] inbound sender=' . ($sender ?? 'null') .
+                ' | inboxid=' . (($inboxid !== null) ? (string)$inboxid : 'null') .
+                ' | has_message=' . (($message !== null && $message !== '') ? '1' : '0') .
+                ' | has_text=' . (($text !== null && $text !== '') ? '1' : '0') .
+                ' | has_media_url=' . (($url !== null && $url !== '') ? '1' : '0'),
+                'webhook',
+                'Fonnte'
+            );
+        }
 
         $replyText = '';
 
@@ -124,6 +135,16 @@ class WA_Fonnte extends Controller
                 $lastMessage,
                 $cust_id
             );
+            if (class_exists('\Log')) {
+                \Log::write(
+                    '[WA_Fonnte] process result case=' . (string)($processResult->case ?? 'null') .
+                    ' | notify=' . (string)($processResult->notify ?? 'null') .
+                    ' | conv_id=' . (string)($processResult->conversation_id ?? 'null') .
+                    ' | wa=' . $waNumber,
+                    'webhook',
+                    'Fonnte'
+                );
+            }
 
             // Jika tidak masuk intent apa pun (fallback internal WAReplies = case 4), baru kirim balasan default.
             if ((int) ($processResult->case ?? 0) === 4) {
@@ -201,7 +222,16 @@ class WA_Fonnte extends Controller
         if ($inboxid) {
             $options['inboxid'] = (int) $inboxid;
         }
-        $fonnte->sendMessage($target, $message, $options);
+        $res = $fonnte->sendMessage($target, $message, $options);
+        if (class_exists('\Log')) {
+            $ok = !empty($res['success']) ? 'true' : 'false';
+            $err = $res['error'] ?? '';
+            \Log::write(
+                "[WA_Fonnte] fallback send to {$target} | success={$ok} | error={$err}",
+                'webhook',
+                'Fonnte'
+            );
+        }
     }
 
     /**
