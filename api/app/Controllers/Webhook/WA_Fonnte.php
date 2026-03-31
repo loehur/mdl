@@ -17,23 +17,16 @@ use App\Core\Controller;
  */
 class WA_Fonnte extends Controller
 {
-    private const WEBHOOK_VERSION = 'WA_FONNTE_V2026_03_31_1035';
-    private const DEFAULT_FALLBACK_REPLY = "Mohon maaf jika slow respon.\n\nBila berkenan kirimkan pesan ke\n*Madinah Laundry (CS)*\n💬 wa.me/6281170706611\n\nTerima kasih.";
+    private const DEFAULT_FALLBACK_REPLY = "Maaf jika respon lambat.\n\nBila berkenan kirimkan pesan ke\n*Madinah Laundry (CS)*\n💬 wa.me/6281170706611\n\nTerima kasih.";
 
     public function index()
     {
         header('Content-Type: application/json; charset=utf-8');
-        $this->trace('index hit');
 
         $method = $_SERVER['REQUEST_METHOD'];
-        $this->trace('request method=' . ($method ?: 'unknown'));
 
         if ($method === 'GET') {
-            echo json_encode([
-                'status' => 'ok',
-                'message' => 'Fonnte webhook endpoint',
-                'version' => self::WEBHOOK_VERSION,
-            ]);
+            echo json_encode(['status' => 'ok', 'message' => 'Fonnte webhook endpoint']);
 
             return;
         }
@@ -46,12 +39,10 @@ class WA_Fonnte extends Controller
         }
 
         $json = file_get_contents('php://input');
-        $this->trace('raw body length=' . (string) strlen((string) $json));
         $data = json_decode($json, true);
-        $this->trace('json decoded=' . ($data ? 'true' : 'false'));
 
         if (!$data) {
-            $this->trace('Invalid JSON');
+            \Log::write('WA_Fonnte: Invalid JSON', 'webhook', 'Fonnte');
             echo json_encode(['status' => 'error', 'message' => 'Invalid JSON']);
 
             return;
@@ -67,13 +58,6 @@ class WA_Fonnte extends Controller
         $filename = $data['filename'] ?? null;
 
         $this->recordFonnteIncoming($sender, $timestamp);
-        $this->trace(
-            'inbound sender=' . ($sender ?? 'null') .
-            ' | inboxid=' . (($inboxid !== null) ? (string)$inboxid : 'null') .
-            ' | has_message=' . (($message !== null && $message !== '') ? '1' : '0') .
-            ' | has_text=' . (($text !== null && $text !== '') ? '1' : '0') .
-            ' | has_media_url=' . (($url !== null && $url !== '') ? '1' : '0')
-        );
 
         $replyText = '';
 
@@ -143,19 +127,12 @@ class WA_Fonnte extends Controller
                 $lastMessage,
                 $cust_id
             );
-            $this->trace(
-                'process result case=' . (string)($processResult->case ?? 'null') .
-                ' | notify=' . (string)($processResult->notify ?? 'null') .
-                ' | conv_id=' . (string)($processResult->conversation_id ?? 'null') .
-                ' | wa=' . $waNumber
-            );
-
-            // Jika tidak masuk intent apa pun (fallback internal WAReplies = case 4), baru kirim balasan default.
-            if ((int) ($processResult->case ?? 0) === 4) {
+            // Fallback default hanya jika intent tidak punya handler (atau unknown/no-intent).
+            if (!empty($processResult->no_handler)) {
                 $this->sendFallbackReply($sender, self::DEFAULT_FALLBACK_REPLY, $inboxid);
             }
         } catch (\Throwable $e) {
-            $this->trace('WAReplies exception: ' . $e->getMessage() . ' | ' . $e->getFile() . ':' . $e->getLine());
+            \Log::write('WA_Fonnte WAReplies: ' . $e->getMessage() . ' | ' . $e->getFile() . ':' . $e->getLine(), 'webhook', 'Fonnte');
         }
 
         echo json_encode(['status' => 'ok', 'reply' => $replyText]);
@@ -226,25 +203,7 @@ class WA_Fonnte extends Controller
         if ($inboxid) {
             $options['inboxid'] = (int) $inboxid;
         }
-        $res = $fonnte->sendMessage($target, $message, $options);
-        $ok = !empty($res['success']) ? 'true' : 'false';
-        $err = $res['error'] ?? '';
-        $this->trace("fallback send to {$target} | success={$ok} | error={$err}");
-    }
-
-    private function trace(string $text): void
-    {
-        $line = '[WA_Fonnte ' . self::WEBHOOK_VERSION . '] ' . $text;
-        if (class_exists('\Log')) {
-            \Log::write($line, 'webhook', 'Fonnte');
-        }
-        error_log($line);
-
-        $dir = __DIR__ . '/../../../logs/' . date('Y-m-d') . '/';
-        if (!is_dir($dir)) {
-            @mkdir($dir, 0755, true);
-        }
-        @file_put_contents($dir . 'webhook_fonnte_trace.log', date('H:i:s') . ' ' . $line . PHP_EOL, FILE_APPEND | LOCK_EX);
+        $fonnte->sendMessage($target, $message, $options);
     }
 
     /**

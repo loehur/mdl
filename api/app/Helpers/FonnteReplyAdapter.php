@@ -31,15 +31,6 @@ class FonnteReplyAdapter
             $options['inboxid'] = (int) $this->inboxid;
         }
         $res = $this->fonnte->sendMessage($to, $message, $options);
-        if (class_exists('\Log')) {
-            $ok = !empty($res['success']) ? 'true' : 'false';
-            $err = $res['error'] ?? '';
-            \Log::write(
-                "[FonnteReplyAdapter] sendFreeText to {$to} | success={$ok} | error={$err}",
-                'webhook',
-                'Fonnte'
-            );
-        }
         return [
             'success' => $res['success'] ?? false,
             'data' => [

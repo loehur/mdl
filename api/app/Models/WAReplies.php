@@ -355,6 +355,13 @@ class WAReplies
     public function process($phoneIn, $textBody, $waNumber, $contactName = null, $assigned_user_id = null, $code = null, $lastMessage = null, $cust_id = null)
     {
         $this->currentContactName = $contactName;
+        if (class_exists('\Log')) {
+            \Log::write(
+                '[INBOUND][provider=' . $this->autoReplyProvider . '] ' . mb_substr((string) ($textBody ?? ''), 0, 100),
+                'wa',
+                'intent'
+            );
+        }
         // Strip WhatsApp formatters: * (bold), _ (italic), ~ (strikethrough), ` (monospace)
         $textBodyToCheck = preg_replace('/[*_~`]/', '', $textBody ?? '');
         // Strip quote prefix (> at start of line)
@@ -525,7 +532,8 @@ class WAReplies
                     return (object) [
                         'case' => $caseVal,
                         'notify' => $notify,
-                        'conversation_id' => $conversationId
+                        'conversation_id' => $conversationId,
+                        'no_handler' => true
                     ];
                 }
             }
@@ -595,7 +603,8 @@ class WAReplies
             // Call handler method
             $handlerName = ucwords(strtolower($aiIntent), '_');
             $methodName = 'handle' . $handlerName;
-            if (method_exists($this, $methodName)) {
+            $methodExists = method_exists($this, $methodName);
+            if ($methodExists) {
                 $this->currentHandler = $aiIntent;
                 // Kalimat PENUTUP ambigu (closed order, dll): tetap intent PENUTUP tapi jangan dibalas AI
                 if ($aiIntent === 'PENUTUP' && $this->isAmbiguousPenutupShortPhrase($textBodyToCheck)) {
@@ -615,7 +624,8 @@ class WAReplies
             return (object) [
                 'case' => $aiCase,
                 'notify' => $aiNotify,
-                'conversation_id' => $conversationId
+                'conversation_id' => $conversationId,
+                'no_handler' => !$methodExists
             ];
         }
 
@@ -627,7 +637,8 @@ class WAReplies
         return (object) [
             'case' => 4,
             'notify' => true,
-            'conversation_id' => $conversationId
+            'conversation_id' => $conversationId,
+            'no_handler' => true
         ];
     }
 
