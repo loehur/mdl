@@ -17,6 +17,8 @@ use App\Core\Controller;
  */
 class WA_Fonnte extends Controller
 {
+    private const DEFAULT_FALLBACK_REPLY = "Mohon maaf jika slow respon.\n\nBila berkenan kirimkan pesan ke\n*Madinah Laundry (CS)*\n💬 wa.me/6281170706611\n\nTerima kasih.";
+
     public function index()
     {
         header('Content-Type: application/json; charset=utf-8');
@@ -112,7 +114,7 @@ class WA_Fonnte extends Controller
             $replies->setSkipConversationPersist(true);
             $replies->setAutoReplyProvider('B');
 
-            $replies->process(
+            $processResult = $replies->process(
                 $phoneIn,
                 $messageText,
                 $waNumber,
@@ -122,6 +124,11 @@ class WA_Fonnte extends Controller
                 $lastMessage,
                 $cust_id
             );
+
+            // Jika tidak masuk intent apa pun (fallback internal WAReplies = case 4), baru kirim balasan default.
+            if ((int) ($processResult->case ?? 0) === 4) {
+                $this->sendFallbackReply($sender, self::DEFAULT_FALLBACK_REPLY, $inboxid);
+            }
         } catch (\Throwable $e) {
             \Log::write('WA_Fonnte WAReplies: ' . $e->getMessage() . ' | ' . $e->getFile() . ':' . $e->getLine(), 'webhook', 'Fonnte');
         }
@@ -177,6 +184,24 @@ class WA_Fonnte extends Controller
         $s = substr((string) $timestamp, 0, 40);
 
         return $s !== '' ? $s : date('Y-m-d H:i:s');
+    }
+
+    private function sendFallbackReply($target, $message, $inboxid = null): void
+    {
+        if (empty($target) || empty($message)) {
+            return;
+        }
+
+        if (! class_exists('\\App\\Helpers\\FonnteService')) {
+            require_once __DIR__ . '/../../Helpers/FonnteService.php';
+        }
+
+        $fonnte = new \App\Helpers\FonnteService();
+        $options = [];
+        if ($inboxid) {
+            $options['inboxid'] = (int) $inboxid;
+        }
+        $fonnte->sendMessage($target, $message, $options);
     }
 
     /**
