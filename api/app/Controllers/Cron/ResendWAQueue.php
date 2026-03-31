@@ -46,6 +46,7 @@ class ResendWAQueue extends Controller
             $output .= "limit={$limit}\n";
             $output .= "processed=0\n";
             $output .= "skipped=0\n";
+            $output .= "removed_csw=0\n";
 
             header('Content-Type: text/plain');
             echo $output;
@@ -55,6 +56,7 @@ class ResendWAQueue extends Controller
         $waService = new \App\Helpers\WhatsAppService();
         $processed = 0;
         $skipped = 0;
+        $removedCsw = 0;
 
         foreach ($rows as $r) {
             $id = (int)($r['id'] ?? 0);
@@ -102,6 +104,15 @@ class ResendWAQueue extends Controller
                 }
             }
 
+            // yCloud free text hanya dalam CSW — sama dengan WhatsApp/send & isWithinCsw()
+            $lastInAt = $this->getWaConversationLastInAt($db, $phone);
+            if (!$waService->isWithinCsw($lastInAt)) {
+                $db->delete('wa_messages_out', ['id' => $id]);
+                $removedCsw++;
+                $output .= "DELETE id={$id} phone={$phone} reason=csw_closed\n";
+                continue;
+            }
+
             // Lock row to prevent parallel cron from resending the same record
             $locked = $db->update(
                 'wa_messages_out',
@@ -125,10 +136,59 @@ class ResendWAQueue extends Controller
             }
         }
 
-        $output .= "SUMMARY intervalMinutes={$intervalMinutes} limit={$limit} processed={$processed} skipped={$skipped}\n";
+        $output .= "SUMMARY intervalMinutes={$intervalMinutes} limit={$limit} processed={$processed} skipped={$skipped} removed_csw={$removedCsw}\n";
 
         header('Content-Type: text/plain');
         echo $output;
+    }
+
+    /**
+     * last_in_at dari wa_conversations untuk CSW yCloud (format wa_number: 628… atau +628…).
+     */
+    private function getWaConversationLastInAt($db, string $phone): ?string
+    {
+        $norm = $this->normalizePhoneForWaConversations($phone);
+        if ($norm === null) {
+            return null;
+        }
+        [$wa1, $wa2] = $norm;
+        try {
+            $q = $db->query(
+                'SELECT last_in_at FROM wa_conversations WHERE wa_number IN (?, ?) ORDER BY last_in_at DESC LIMIT 1',
+                [$wa1, $wa2]
+            );
+            if ($q && $q->num_rows() > 0) {
+                $row = $q->row();
+
+                return isset($row->last_in_at) ? (string) $row->last_in_at : null;
+            }
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write('ResendWAQueue getWaConversationLastInAt: ' . $e->getMessage(), 'cron', 'ResendWAQueue');
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{0: string, 1: string}|null [628…, +628…]
+     */
+    private function normalizePhoneForWaConversations(string $phone): ?array
+    {
+        $ph = preg_replace('/[^0-9]/', '', $phone);
+        if (strlen($ph) < 8) {
+            return null;
+        }
+        if (substr($ph, 0, 2) === '08') {
+            $ph = '628' . substr($ph, 2);
+        } elseif (substr($ph, 0, 1) === '8' && substr($ph, 0, 2) !== '62') {
+            $ph = '62' . $ph;
+        } elseif (substr($ph, 0, 2) !== '62') {
+            $ph = '62' . $ph;
+        }
+
+        return [$ph, '+' . $ph];
     }
 }
 

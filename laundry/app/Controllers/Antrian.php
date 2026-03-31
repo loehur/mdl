@@ -784,7 +784,9 @@ class Antrian extends Controller
       $res = $this->helper('Notif')->send_wa($hp, $jsonText, $template_name);
 
       // Mode free hanya boleh jika CSW terbuka (cek di API: wa_conversations.last_in_at).
-      // Jika CSW tertutup, API mengembalikan 400 + csw_expired — fallback ke template nota (boleh di luar 24 jam).
+      // Jika CSW tertutup, API bisa mengembalikan 400 + csw_expired.
+      // Fallback template HANYA jika nomor belum pernah ada di wa_messages_out ($waOutExists === 0).
+      // Jika kita sengaja pakai free karena wa_messages_out sudah ada, jangan kirim template (sesuai kebijakan bisnis).
       if (!$res['status'] && $template_name === 'free') {
          $apiPayload = $res['data'] ?? [];
          $cswExpired = !empty($apiPayload['data']['csw_expired'])
@@ -792,8 +794,12 @@ class Antrian extends Controller
             || (isset($apiPayload['message']) && stripos((string) $apiPayload['message'], 'Customer Service Window') !== false)
             || (isset($res['error']) && stripos((string) $res['error'], '24 jam') !== false);
          if ($cswExpired) {
-            $this->model('Log')->write("[sendNotif] Free ditolak (CSW tertutup), fallback template — Ref: " . $noref . " | HP: " . $hp);
-            $res = $this->helper('Notif')->send_wa($hp, $jsonText, URL::TEMPLATE_NOTA);
+            if ($waOutExists > 0) {
+               $this->model('Log')->write("[sendNotif] Free ditolak (CSW tertutup), TIDAK fallback template — nomor sudah pernah di wa_messages_out — Ref: " . $noref . " | HP: " . $hp);
+            } else {
+               $this->model('Log')->write("[sendNotif] Free ditolak (CSW tertutup), fallback template — Ref: " . $noref . " | HP: " . $hp);
+               $res = $this->helper('Notif')->send_wa($hp, $jsonText, URL::TEMPLATE_NOTA);
+            }
          }
       }
 
