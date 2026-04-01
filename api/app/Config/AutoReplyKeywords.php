@@ -147,7 +147,8 @@ return [
         \n
         CRITICAL - FALSE (BUKAN HARGA_PAKET):\n
         - 'Setrika aja' / 'Setrika aj' / 'Setrika saja' TANPA kata paket/member/langganan = BUKAN HARGA_PAKET. Ini bisa instruksi treatment atau pernyataan lain.\n
-        - Contoh FALSE: | Setrika aja | Denosa Setrika aja loh | Setrika aj | setrika aja kak | = BUKAN tanya paket.\n
+        - Kalimat pernyataan/instruksi TANPA tanya harga + TANPA kata paket/member/langganan/deposit = BUKAN HARGA_PAKET.\n
+        - Contoh FALSE: | Setrika aja | Denosa Setrika aja loh | Setrika aj | setrika aja kak | ntr biar kami strika aja | nanti biar kami setrika aja |\n
         - HARGA_PAKET HANYA jika user BERTANYA dengan kata paket/member/langganan, misal: paket setrika aja, paket bulanan setrika, paket member setrika.\n
         \n
         PENTING:\n
@@ -206,7 +207,7 @@ return [
         TRUE jika:\n
         - Permintaan treatment khusus: | bantu dibersihkan | tolong difokusin | baju ini dicuci khusus | noda ini dihilangkan |\n
         - Permintaan waktu/prioritas: | tolong dipercepat | didulukan ya | kapan bisa selesai | prioritas dong |\n
-        - Permintaan cara treatment (untuk order yang sudah ada): | ganti parfum | jangan pakai pelembut | lipat rapi | setrika aja (instruksi untuk baju yang sudah di laundry) |\n
+        - Permintaan cara treatment (untuk order yang sudah ada): | ganti parfum | jangan pakai pelembut | lipat rapi | setrika aja (instruksi untuk baju yang sudah di laundry) | ntr biar kami strika aja |\n
         - Konfirmasi ambil sendiri: | saya jemput nanti | aku ambil sendiri | nanti sore saya datang |\n
         - Ada kata: bantu/bntu (typo)/tolong/minta/bisa + object laundry (baju/celana/handuk/kantong/dll)\n
         \n
