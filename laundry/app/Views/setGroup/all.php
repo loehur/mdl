@@ -2,7 +2,7 @@
 <?php $sisa_item = $data['d2']; ?>
 
 
-<link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/dataTables/jquery.dataTables.css" rel="stylesheet" />
+<link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/DataTables/datatables.min.css" rel="stylesheet" />
 <div class="content">
   <div class="container-fluid">
 
@@ -18,7 +18,7 @@
           </div>
           <!-- card-header -->
           <div class="card-body p-1">
-            <table class="table table-sm" id="dtTable" aria-describedby="example2_info">
+            <table class="table w-100 table-sm" id="dtTable" aria-describedby="example2_info">
               <thead>
                 <tr>
                   <th>#</th>
@@ -143,7 +143,7 @@
         <script src="<?= URL::EX_ASSETS ?>js/popper.min.js"></script>
         <script src="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/js/bootstrap.bundle.min.js"></script>
         <script src="<?= URL::EX_ASSETS ?>plugins/select2/select2.min.js"></script>
-        <script src="<?= URL::EX_ASSETS ?>plugins/dataTables/jquery.dataTables.js"></script>
+        <script src="<?= URL::EX_ASSETS ?>plugins/DataTables/datatables.min.js"></script>
 
         <!-- FUNCTION SCRIPTS -->
         <script>
