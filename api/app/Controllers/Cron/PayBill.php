@@ -773,7 +773,6 @@ class PayBill extends Controller
                                     } else {
                                         $alert = "POSTPAID - DB ERROR - Update postpaid_list gagal (tidak ada baris postpaid bulan ini untuk customer)";
                                         $output .= $alert . "\n";
-                                        $this->sendWaNotif($this->waPrivate, $alert);
                                     }
                                 }
                                 break;

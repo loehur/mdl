@@ -400,7 +400,6 @@ return [
 
     'GAJI_TF' => [
         'patterns' => [
-            '/^gaji_tf$/i',
             '/^gaji tf$/i',
         ],
     ],
