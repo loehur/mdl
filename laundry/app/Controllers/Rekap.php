@@ -124,6 +124,19 @@ class Rekap extends Controller
                  GROUP BY jenis_transaksi, ref_transaksi, note_primary";
       $kasResult = $this->db(0)->query_array($kasSql);
 
+      // Item pengeluaran Non-Biaya (is_expense = 0): tidak ikut ke tabel/total Pengeluaran Rekap
+      $nonExpenseIds = [];
+      $neRows = $this->db(0)->get_where('item_pengeluaran', 'is_expense = 0');
+      if (!is_array($neRows)) {
+         $neRows = $neRows ? iterator_to_array($neRows) : [];
+      }
+      foreach ($neRows as $r) {
+         $idNe = (int) ($r['id_item_pengeluaran'] ?? 0);
+         if ($idNe > 0) {
+            $nonExpenseIds[$idNe] = true;
+         }
+      }
+
       // Parse combined result
       $kas_laundry = 0;
       $kas_member = 0;
@@ -148,11 +161,18 @@ class Rekap extends Controller
                $kas_member += $row['total'];
                break;
             case 4: // Pengeluaran kasir
+               $ref4 = (int) ($row['ref_transaksi'] ?? 0);
+               if ($ref4 > 0 && isset($nonExpenseIds[$ref4])) {
+                  break;
+               }
                $kas_keluar[] = ['note_primary' => $row['note_primary'], 'total' => $row['total']];
                break;
             case 8: // Pengeluaran Kas Besar (termasuk rent id 102)
             case '8': // MySQL bisa return string
                $ref = intval($row['ref_transaksi'] ?? 0);
+               if ($ref > 0 && isset($nonExpenseIds[$ref])) {
+                  break;
+               }
                if ($ref == 102) {
                   $rent_total += $row['total'];
                } else {
@@ -170,7 +190,7 @@ class Rekap extends Controller
       }
 
       // Fallback: rent dari cabang jika belum ada (bulanan) - jamin tampil meski insert gagal
-      if (!$isDaily && isset($listCabang) && $rent_total == 0) {
+      if (!$isDaily && isset($listCabang) && $rent_total == 0 && !isset($nonExpenseIds[102])) {
          $total_rent = 0;
          foreach ($listCabang as $c) {
             $total_rent += intval($c['rent'] ?? 0);
