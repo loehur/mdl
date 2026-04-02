@@ -118,7 +118,7 @@ if (count($data['cek']) == 0) { ?>
   }
 </style>
 <div class="modal fade" id="modalInvoicePelanggan" tabindex="-1" aria-labelledby="modalInvoicePelangganLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-fullscreen nt-modal-tagihan">
+  <div class="modal-dialog modal-fullscreen nt-modal-tagihan">
     <div class="modal-content">
       <div class="modal-header flex-shrink-0 py-2 border-bottom">
         <h5 class="modal-title" id="modalInvoicePelangganLabel">Tagihan</h5>
