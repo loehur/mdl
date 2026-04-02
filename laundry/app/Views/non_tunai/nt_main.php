@@ -90,10 +90,10 @@ if (count($data['cek']) == 0) { ?>
 
 <?php } ?>
 
-<!-- Lebar mengikuti nota (~880px), bukan 100vw (supaya tidak “jumbo” kosong). Tinggi ~85vh — tidak memanjang seperti fullscreen awal -->
+<!-- Lebar mengikuti nota (~640px). Tinggi ~85vh -->
 <style>
   #modalInvoicePelanggan .nt-modal-tagihan {
-    max-width: min(880px, 96vw);
+    max-width: min(640px, 96vw);
     width: 100%;
     margin-left: auto;
     margin-right: auto;
