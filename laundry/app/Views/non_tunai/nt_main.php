@@ -16,6 +16,10 @@ if (count($data['cek']) == 0) { ?>
     $f17 = $a['id_client'];
     $jenisT = $a['jenis_transaksi'];
     $refTransaksi = $a['ref_transaksi'] ?? '';
+    $tglBayar = '';
+    if (!empty($a['insertTime'])) {
+      $tglBayar = date('d/m/Y H:i', strtotime($a['insertTime']));
+    }
 
     $karyawan = '';
     foreach ($this->userMerge as $c) {
@@ -65,7 +69,7 @@ if (count($data['cek']) == 0) { ?>
           <i class="fas fa-expand-alt small text-muted ms-1" title="Lihat tagihan"></i>
         </a>
         <div class="small text-muted">
-          <?= $jenis_bill ?> • <?= strtoupper($f2) ?> • <?= $karyawan ?>
+          <?php if ($tglBayar !== '') { ?><span class="text-nowrap"><i class="far fa-clock me-1"></i><?= $tglBayar ?></span> • <?php } ?><?= $jenis_bill ?> • <?= strtoupper($f2) ?> • <?= $karyawan ?>
         </div>
       </div>
       
@@ -86,16 +90,33 @@ if (count($data['cek']) == 0) { ?>
 
 <?php } ?>
 
-<!-- Modal fullscreen: tagihan pelanggan (iframe) -->
+<!-- Modal fullscreen: tinggi = viewport; scroll hanya di dalam iframe -->
+<style>
+  #modalInvoicePelanggan .modal-content {
+    max-height: 100vh;
+    max-height: 100dvh;
+  }
+  #modalInvoicePelanggan .nt-modal-iframe-wrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+  #modalInvoicePelanggan #iframeInvoicePelanggan {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 0;
+  }
+</style>
 <div class="modal fade" id="modalInvoicePelanggan" tabindex="-1" aria-labelledby="modalInvoicePelangganLabel" aria-hidden="true">
-  <div class="modal-dialog modal-fullscreen">
-    <div class="modal-content rounded-0">
-      <div class="modal-header py-2 border-bottom">
+  <div class="modal-dialog modal-fullscreen m-0">
+    <div class="modal-content rounded-0 h-100 d-flex flex-column overflow-hidden">
+      <div class="modal-header flex-shrink-0 py-2 border-bottom">
         <h5 class="modal-title" id="modalInvoicePelangganLabel">Tagihan</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
       </div>
-      <div class="modal-body p-0 overflow-hidden" style="min-height: calc(100vh - 52px);">
-        <iframe id="iframeInvoicePelanggan" title="Tagihan pelanggan" src="about:blank" class="d-block w-100 border-0" style="height: calc(100vh - 52px);"></iframe>
+      <div class="modal-body p-0 nt-modal-iframe-wrap d-flex flex-column flex-grow-1">
+        <iframe id="iframeInvoicePelanggan" title="Tagihan pelanggan" src="about:blank"></iframe>
       </div>
     </div>
   </div>
