@@ -34,16 +34,20 @@ return [
     'REKENING' => [
         'patterns' => [
             '/\b(rekening|rek|norek|no\s*rek)\b/i',
-            '/\b(qris|qr\s*is)\b/i',
+            // QRIS = barcode pembayaran (customer sering bilang "barcode")
+            '/\b(qris|qr\s*is|barcode|bar\s*code)\b/i',
+            '/^\s*barcode\s+nya\s*(ka|kak|kk|bang|min|mbak|pak|bu)?\s*$/i',
             '/\b(transfer|tf|bayar)\s*(ke|ke\s*mana|kemana|dimana)\b/i',
             '/\b(ke\s*mana|kemana|dimana)\s*(transfer|bayar)\b/i',
         ],
-        'ai_prompt' => "User menanyakan REKENING PEMBAYARAN atau meminta QRIS untuk pembayaran laundry.\n
+        'ai_prompt' => "User menanyakan REKENING PEMBAYARAN atau meminta QRIS/BARCODE untuk pembayaran laundry (QRIS yang di-scan itu berupa barcode — anggap sama).\n
         TRUE (REKENING) - contoh:\n
         | rekening? | no rek? | nomor rekening? | minta rekening | rekening pembayaran? |\n
         | QRIS? | minta QRIS | QRIS pembayaran | link QRIS |\n
+        | barcode? | minta barcode | barcode pembayaran | barcode nya kak | barcode nya ka | kirim barcode |\n
         | transfer ke mana? | bayar ke mana? | mau transfer ke mana? | nomor untuk transfer? |\n
         | BCA/BRI/BNI rekeningnya? | nomor rekening BCA? |\n
+        PENTING: Kata 'barcode' dalam konteks bayar/transfer laundry = sama dengan minta QRIS = REKENING.\n
         \n
         FALSE (BUKAN REKENING):\n
         - User bertanya total tagihan (berapa total?) = TAGIHAN\n

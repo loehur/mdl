@@ -914,7 +914,7 @@ class WAReplies
     }
 
     /**
-     * Handle intent REKENING - balas data rekening pembayaran dan QRIS
+     * Handle intent REKENING - balas data rekening pembayaran dan QRIS (customer bisa menyebut "barcode")
      */
     private function handleRekening($phoneIn, $waNumber, $textBody = '')
     {
