@@ -607,6 +607,7 @@ class Antrian extends Controller
       $set = ['tuntas' => 1];
       $where = $this->wCabang . " AND no_ref = " . $ref;
       $this->db(0)->update('sale', $set, $where);
+      $this->hapusKasPembayaranPengecekanOrder($ref);
    }
 
    public function notifReadySend($idPenjualan)

@@ -45,18 +45,6 @@ class QRISApi
     }
     
     /**
-     * Get merchant balance
-     * @return array Response from API
-     */
-    public function getBalance()
-    {
-        $url = $this->apiUrl . '/balance';
-        
-        $response = $this->callApi($url, 'GET');
-        return $response;
-    }
-    
-    /**
      * Withdraw balance
      * @param int $nominal Amount to withdraw (minimum 10,000)
      * @return array Response from API

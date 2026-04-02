@@ -100,8 +100,21 @@ class KasModel extends Controller
             }
 
             $jt = $tipe == "M" ? 3 : 1;
-            $setOne = "ref_transaksi = '" . $ref . "' AND metode_mutasi = " . $metode . " AND jenis_mutasi = " . $jenis_mutasi . " AND status_mutasi = " . $status_mutasi . " AND jumlah = " . $jumlah;
             $wCabang = "id_cabang = " . $id_cabang;
+
+            // Satu pembayaran non-tunai pending per nota/member: cek hanya per jumlah sehingga nominal
+            // berbeda atau klik ganda masih bisa dobel. Blok jika sudah ada yang menunggu verifikasi.
+            if ($metode == 2 && $status_mutasi == 2) {
+                $refEsc = $this->db(0)->escape($ref);
+                $pendingWhere = $wCabang . " AND jenis_transaksi = " . intval($jt)
+                    . " AND ref_transaksi = '" . $refEsc . "'"
+                    . " AND metode_mutasi = 2 AND status_mutasi = 2";
+                if ($this->db(0)->count_where('kas', $pendingWhere) >= 1) {
+                    return "Masih ada pembayaran yang menunggu verifikasi untuk transaksi ini. Batalkan pembayaran pending atau tunggu hingga berhasil/gagal sebelum membuat pembayaran baru.";
+                }
+            }
+
+            $setOne = "ref_transaksi = '" . $ref . "' AND metode_mutasi = " . $metode . " AND jenis_mutasi = " . $jenis_mutasi . " AND status_mutasi = " . $status_mutasi . " AND jumlah = " . $jumlah;
             $where = $wCabang . " AND " . $setOne;
             $data_main = $this->db(0)->count_where('kas', $where);
 

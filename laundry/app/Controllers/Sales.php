@@ -94,6 +94,71 @@ class Sales extends Controller
       ]);
    }
 
+   /**
+    * Ringkasan nota penjualan (barang_mutasi + pembayaran kas jenis 7) untuk iframe/modal.
+    */
+   public function preview_nota($ref = '')
+   {
+      $ref = trim((string) $ref);
+      if ($ref === '') {
+         $this->view('sales/preview_nota', ['error' => 'Ref tidak valid', 'group' => null]);
+         return;
+      }
+
+      $refEsc = $this->db(0)->escape($ref);
+      $items = $this->db(0)->get_where('barang_mutasi', "ref = '$refEsc'");
+      if (empty($items)) {
+         $this->view('sales/preview_nota', ['error' => 'Nota tidak ditemukan', 'group' => null]);
+         return;
+      }
+
+      $idCabang = (int) $this->id_cabang;
+      $access = false;
+      foreach ($items as $it) {
+         $sid = (int) ($it['source_id'] ?? 0);
+         $tid = (int) ($it['target_id'] ?? 0);
+         if ($sid === $idCabang || $tid === $idCabang) {
+            $access = true;
+            break;
+         }
+      }
+      if (!$access) {
+         $this->view('sales/preview_nota', ['error' => 'Akses ditolak untuk cabang ini', 'group' => null]);
+         return;
+      }
+
+      $group = [
+         'ref' => $ref,
+         'date' => $items[0]['created_at'] ?? '',
+         'type' => (int) ($items[0]['type'] ?? 1),
+         'items' => [],
+         'total' => 0,
+         'payments' => [],
+         'total_paid' => 0,
+         'sisa' => 0,
+      ];
+
+      foreach ($items as $item) {
+         $idBarang = $item['id_barang'] ?? '';
+         $barang = $this->db(0)->get_where_row('barang_data', "id_barang = '" . $this->db(0)->escape($idBarang) . "'");
+         $item['nama_barang'] = $barang['nama'] ?? strtoupper(trim(($barang['brand'] ?? '') . ' ' . ($barang['model'] ?? '')));
+         $margin = $item['margin'] ?? 0;
+         $group['items'][] = $item;
+         $group['total'] += (($item['price'] + $margin) * $item['qty']);
+      }
+
+      $payments = $this->db(0)->get_where('kas', "ref_transaksi = '$refEsc' AND jenis_transaksi = 7");
+      $group['payments'] = $payments ?: [];
+      $totalPaid = 0;
+      foreach ($group['payments'] as $p) {
+         $totalPaid += (int) ($p['jumlah'] ?? 0);
+      }
+      $group['total_paid'] = $totalPaid;
+      $group['sisa'] = (int) round($group['total']) - $totalPaid;
+
+      $this->view('sales/preview_nota', ['error' => null, 'group' => $group]);
+   }
+
    // Load form order untuk offcanvas
    public function form()
    {

@@ -15,6 +15,7 @@ if (count($data['cek']) == 0) { ?>
     $f4 = $a['total'];
     $f17 = $a['id_client'];
     $jenisT = $a['jenis_transaksi'];
+    $refTransaksi = $a['ref_transaksi'] ?? '';
 
     $karyawan = '';
     foreach ($this->userMerge as $c) {
@@ -47,14 +48,21 @@ if (count($data['cek']) == 0) { ?>
         $pelanggan = "Umum";
         break;
     }
+
+    $invoiceUrl = URL::BASE_URL . 'I/' . $f17;
+    $invoiceTitle = strtoupper($pelanggan);
+    if ((int) $jenisT === 7 && $refTransaksi !== '') {
+      $invoiceUrl = URL::BASE_URL . 'Sales/preview_nota/' . rawurlencode($refTransaksi);
+      $invoiceTitle = 'Jualan #' . $refTransaksi;
+    }
   ?>
   <div class="list-group-item list-group-item-action px-3 py-2">
     <div class="d-flex justify-content-between align-items-center">
       <!-- Left: Info -->
       <div class="flex-grow-1">
-        <a href="<?= URL::BASE_URL ?>I/<?= $f17 ?>" target="_blank" class="text-decoration-none">
+        <a href="#" class="text-decoration-none nt-invoice-link" data-invoice-url="<?= htmlspecialchars($invoiceUrl, ENT_QUOTES, 'UTF-8') ?>" data-invoice-title="<?= htmlspecialchars($invoiceTitle, ENT_QUOTES, 'UTF-8') ?>">
           <strong class="text-dark"><?= strtoupper($pelanggan) ?></strong>
-          <i class="fas fa-external-link-alt small text-muted ms-1"></i>
+          <i class="fas fa-expand-alt small text-muted ms-1" title="Lihat tagihan"></i>
         </a>
         <div class="small text-muted">
           <?= $jenis_bill ?> • <?= strtoupper($f2) ?> • <?= $karyawan ?>
@@ -77,6 +85,21 @@ if (count($data['cek']) == 0) { ?>
 </div>
 
 <?php } ?>
+
+<!-- Modal fullscreen: tagihan pelanggan (iframe) -->
+<div class="modal fade" id="modalInvoicePelanggan" tabindex="-1" aria-labelledby="modalInvoicePelangganLabel" aria-hidden="true">
+  <div class="modal-dialog modal-fullscreen">
+    <div class="modal-content rounded-0">
+      <div class="modal-header py-2 border-bottom">
+        <h5 class="modal-title" id="modalInvoicePelangganLabel">Tagihan</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+      </div>
+      <div class="modal-body p-0 overflow-hidden" style="min-height: calc(100vh - 52px);">
+        <iframe id="iframeInvoicePelanggan" title="Tagihan pelanggan" src="about:blank" class="d-block w-100 border-0" style="height: calc(100vh - 52px);"></iframe>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- Modal Konfirmasi Tolak -->
 <div class="modal fade" id="modalTolak" tabindex="-1">
@@ -101,6 +124,24 @@ if (count($data['cek']) == 0) { ?>
 
 <script>
   var tolakData = { id: '', target: '', btn: null };
+
+  $(document).on("click", ".nt-invoice-link", function (e) {
+    e.preventDefault();
+    var url = $(this).data("invoice-url");
+    var title = $(this).data("invoice-title") || "Tagihan";
+    $("#modalInvoicePelangganLabel").text(title);
+    var $iframe = $("#iframeInvoicePelanggan");
+    $iframe.attr("src", "about:blank");
+    var modalEl = document.getElementById("modalInvoicePelanggan");
+    if (modalEl && window.bootstrap && bootstrap.Modal) {
+      $iframe.attr("src", url);
+      bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    }
+  });
+
+  $("#modalInvoicePelanggan").on("hidden.bs.modal", function () {
+    $("#iframeInvoicePelanggan").attr("src", "about:blank");
+  });
 
   // Tombol Tolak - tampilkan modal konfirmasi
   $(".nTolak").on("click", function(e) {
