@@ -90,22 +90,18 @@ if (count($data['cek']) == 0) { ?>
 
 <?php } ?>
 
-<!-- Lebar penuh layar (seperti modal-fullscreen); tinggi 92vh — iframe tidak kolaps -->
+<!-- Lebar mengikuti nota (~880px), bukan 100vw (supaya tidak “jumbo” kosong). Tinggi ~85vh — tidak memanjang seperti fullscreen awal -->
 <style>
-  #modalInvoicePelanggan.modal {
-    padding-left: 0;
-    padding-right: 0;
-  }
   #modalInvoicePelanggan .nt-modal-tagihan {
-    width: 100vw;
-    max-width: none;
-    margin-left: 0;
-    margin-right: 0;
+    max-width: min(880px, 96vw);
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
   }
   /* Wajib height + flex: kalau cuma max-height, iframe height:100% jadi 0 (ancur) */
   #modalInvoicePelanggan .modal-content {
-    height: 92vh;
-    max-height: 92dvh;
+    height: 85vh;
+    max-height: 85dvh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
