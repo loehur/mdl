@@ -90,11 +90,15 @@ if (count($data['cek']) == 0) { ?>
 
 <?php } ?>
 
-<!-- Modal fullscreen: tinggi = viewport; scroll hanya di dalam iframe -->
+<!-- Modal XL + lebar hampir layar; tinggi ~92vh (bukan modal-fullscreen) -->
 <style>
+  #modalInvoicePelanggan .nt-modal-tagihan {
+    max-width: min(1320px, 98vw);
+    width: 98vw;
+  }
   #modalInvoicePelanggan .modal-content {
-    max-height: 100vh;
-    max-height: 100dvh;
+    max-height: 92vh;
+    max-height: 92dvh;
   }
   #modalInvoicePelanggan .nt-modal-iframe-wrap {
     flex: 1 1 auto;
@@ -109,8 +113,8 @@ if (count($data['cek']) == 0) { ?>
   }
 </style>
 <div class="modal fade" id="modalInvoicePelanggan" tabindex="-1" aria-labelledby="modalInvoicePelangganLabel" aria-hidden="true">
-  <div class="modal-dialog modal-fullscreen">
-    <div class="modal-content rounded-0 h-100 d-flex flex-column overflow-hidden">
+  <div class="modal-dialog modal-dialog-centered modal-xl nt-modal-tagihan">
+    <div class="modal-content d-flex flex-column overflow-hidden">
       <div class="modal-header flex-shrink-0 py-2 border-bottom">
         <h5 class="modal-title" id="modalInvoicePelangganLabel">Tagihan</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
