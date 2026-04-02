@@ -90,15 +90,19 @@ if (count($data['cek']) == 0) { ?>
 
 <?php } ?>
 
-<!-- Modal XL + lebar hampir layar; tinggi ~92vh (bukan modal-fullscreen) -->
+<!-- Modal XL: lebar hampir layar; tinggi tetap 92vh agar iframe punya ruang (bukan modal-fullscreen) -->
 <style>
   #modalInvoicePelanggan .nt-modal-tagihan {
     max-width: min(1320px, 98vw);
     width: 98vw;
   }
+  /* Wajib height + flex: kalau cuma max-height, iframe height:100% jadi 0 (ancur) */
   #modalInvoicePelanggan .modal-content {
-    max-height: 92vh;
+    height: 92vh;
     max-height: 92dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
   #modalInvoicePelanggan .nt-modal-iframe-wrap {
     flex: 1 1 auto;
@@ -109,12 +113,13 @@ if (count($data['cek']) == 0) { ?>
     display: block;
     width: 100%;
     height: 100%;
+    min-height: 240px;
     border: 0;
   }
 </style>
 <div class="modal fade" id="modalInvoicePelanggan" tabindex="-1" aria-labelledby="modalInvoicePelangganLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-xl nt-modal-tagihan">
-    <div class="modal-content d-flex flex-column overflow-hidden">
+    <div class="modal-content">
       <div class="modal-header flex-shrink-0 py-2 border-bottom">
         <h5 class="modal-title" id="modalInvoicePelangganLabel">Tagihan</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
@@ -151,7 +156,7 @@ if (count($data['cek']) == 0) { ?>
   var tolakData = { id: '', target: '', btn: null };
 
   // Modal di dalam #load (kolom sempit) membuat fixed terikat ke induk → tampil mepet kiri.
-  // Pindahkan ke body agar fullscreen mengisi viewport dan terpusat.
+  // Pindahkan ke body agar lebar/posisi benar dan terpusat.
   $('body > #modalInvoicePelanggan').remove();
   $('body > #modalTolak').remove();
   $('#modalInvoicePelanggan').appendTo('body');
