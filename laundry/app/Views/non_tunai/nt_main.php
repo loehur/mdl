@@ -109,7 +109,7 @@ if (count($data['cek']) == 0) { ?>
   }
 </style>
 <div class="modal fade" id="modalInvoicePelanggan" tabindex="-1" aria-labelledby="modalInvoicePelangganLabel" aria-hidden="true">
-  <div class="modal-dialog modal-fullscreen m-0">
+  <div class="modal-dialog modal-fullscreen">
     <div class="modal-content rounded-0 h-100 d-flex flex-column overflow-hidden">
       <div class="modal-header flex-shrink-0 py-2 border-bottom">
         <h5 class="modal-title" id="modalInvoicePelangganLabel">Tagihan</h5>
@@ -145,6 +145,13 @@ if (count($data['cek']) == 0) { ?>
 
 <script>
   var tolakData = { id: '', target: '', btn: null };
+
+  // Modal di dalam #load (kolom sempit) membuat fixed terikat ke induk → tampil mepet kiri.
+  // Pindahkan ke body agar fullscreen mengisi viewport dan terpusat.
+  $('body > #modalInvoicePelanggan').remove();
+  $('body > #modalTolak').remove();
+  $('#modalInvoicePelanggan').appendTo('body');
+  $('#modalTolak').appendTo('body');
 
   $(document).on("click", ".nt-invoice-link", function (e) {
     e.preventDefault();
