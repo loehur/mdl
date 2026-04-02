@@ -169,6 +169,8 @@ return [
       'notify' => true,
       'patterns' => [
          '/^\s*(je*m*pu*t|anta*r)\s*$/i',
+         // "tolong/bantu/minta/bisa antar/jemput" (permintaan langsung)
+         '/\b(tolong|minta|bantu|bntu|bisa|boleh)\s*(di)?(antar|jemput)\b/i',
          // "jam berapa bisa jemput?" = tanya jadwal jemput (bukan jam buka toko)
          '/\b(jam\s*)?(brp|brpa|berapa)\s*bisa\s*(jemput|antar)/i',
          // "jam brp bsk diantarnya?" / "jam berapa besok diantar?" = tanya jadwal pengantaran order
@@ -176,7 +178,8 @@ return [
          '/\b(ka*pa*n|kpn)\s*(di)?(antar|jemput)/i',
          // Permintaan antar/jemput: "antar aja", "klo udh selesai antar aja", "kalau da kelar antar aja"
          '/\b(antar|jemput)\s*(aja|ya)(\s|$)/i',
-         '/(klo|kalau)\s*(da|udh|udah|sudah)?\s*(kelar|selesai)\s*(antar|jemput)/i',
+         // "kalau udah selesai bantu antar ..." (ada kata bantu/tolong di tengah)
+         '/(klo|kalau)\s*(da|udh|udah|sudah)?\s*(kelar|selesai)\s*(bantu|bntu|tolong)?\s*(antar|jemput)/i',
          '/(klo|kalau)\s*(udh|udah|sudah)?\s*selesai\s*(antar|jemput)/i',
          '/\b(selesai|kelar|udh|udah|sudah)\s+(antar|jemput)\s*(aja|ya)?/i',
          // "katanya mau antar", "katanya mau jemput" = relay/konfirmasi permintaan antar
