@@ -128,7 +128,12 @@ return [
         - Jika user bertanya 'berapa' + angka + item (boneka, baju, dll) = HARGA (harga per item), BUKAN TAGIHAN total order\n
         - Jika user bertanya 'berapa' + (ongkir/ongkos/biaya antar/biaya jemput) = BUKAN CEK_HARGA, itu adalah MINTA_JEMPUT_ANTAR\n
         - Jika user bertanya 'berapa' + (berat saja tanpa item) = bisa NOTA/TAGIHAN, bedakan konteks\n
-        atau yang menurut anda sangat yakin sebagai pertanyaan harga/biaya laundry PER ITEM atau PER KILO"
+        \n
+        CRITICAL - FALSE (BUKAN HARGA) - harga barang tambahan/ritel (bukan tarif cuci/setrika laundry):\n
+        - Jika pesan menyebut parfum / plastik (kantong plastik) / pewangi / hanger / tissue / barang kemasan = BUKAN HARGA. Contoh: | berapa harga parfum kak? | berapa harga plastik? | sekarang berapa harga parfum? | harga kantong plastik? |\n
+        - Intent khusus harga barang itu nanti terpisah; untuk sekarang jawab FALSE agar CS yang tangani.\n
+        \n
+        atau yang menurut anda sangat yakin sebagai pertanyaan harga/biaya laundry PER ITEM atau PER KILO (bukan barang tambahan di atas)"
     ],
 
     'HARGA_PAKET' => [
@@ -292,6 +297,9 @@ return [
       'patterns' => [
          // Konfirmasi pembayaran/transfer - HARUS sebelum REKENING dicek (via process exception)
          '/(telah berhasil mengirimkan|sudah transfer|sudah bayar|sudah kirim|sudah mengirim)\s*(ke\s*)?(rekening|rek)?/i',
+         // Konfirmasi tagihan sudah lunas (penutup)
+         '/^\s*(sudah|udah|udh|sdh)\s+lunas(\s+(ya\s*)?(kak|kk|bang|min|mbak|pak|bu))?\s*$/i',
+         '/^\s*lunas(\s+ya)?(\s+(kak|kk|bang|min|mbak|pak|bu))?\s*$/i',
          '/\bma*ka*(s|c)(i|e)*h\b/i',
          '/\bte*ri*ma*ka*si*h\b/i',
          '/\btha*nks\b/i',
@@ -313,7 +321,8 @@ return [
       TRUE jika:\n
       - Ucapan terima kasih: | terima kasih | makasih | thanks | thx |\n
       - Konfirmasi singkat: | ok deh | siap kak | iya lah kak | sudah | oke | baik |\n
-      - Konfirmasi status: | sudah lunas | sudah diambil |\n
+      - Konfirmasi pembayaran/tagihan lunas: | lunas | lunas ya kak | lunas ya min | sudah lunas | udah lunas |\n
+      - Konfirmasi status (non-bayar): | sudah diambil |\n
       - Konfirmasi transfer/pembayaran sudah dilakukan: | telah berhasil mengirimkan ke rekening | sudah transfer | sudah bayar | sudah kirim | saya sudah transfer ke rekening kamu |\n
       - Konfirmasi jadwal (TANPA PERMINTAAN): | baik nanti dijemput | ok sore diantar | siap dijemput ya |\n
       - Pemberitahuan jadwal: | nanti sore dijemput | besok diantar | jam 2 dijemput ya kak |\n
@@ -389,7 +398,7 @@ return [
 
     'SLIP_GAJI' => [
         'patterns' => [
-            '/^slip(\s+\d+)?$/i',  // "slip" atau "slip 123" (spasi + angka berapa digit)
+            '/^sli+p(\s+\d+)?$/i',  // slip/sliiip/... atau "slip 123" (i boleh berulang)
         ],
     ],
 

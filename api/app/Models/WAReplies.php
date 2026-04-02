@@ -291,6 +291,22 @@ class WAReplies
     }
 
     /**
+     * Tanya harga barang tambahan/ritel (parfum, plastik, dll.) — bukan tarif laundry di intent HARGA.
+     * Nanti bisa intent terpisah (harga barang khusus).
+     */
+    private function messageIsHargaBarangTambahan(?string $text): bool
+    {
+        if ($text === null || trim($text) === '') {
+            return false;
+        }
+        $t = mb_strtolower($text);
+        return (bool) preg_match(
+            '/\b(parfum|perfume|plastik|pewangi|hanger|tissue|kantong\s*plastik)\b/iu',
+            $t
+        );
+    }
+
+    /**
      * Pertanyaan tidak selalu memakai tanda (?). Contoh: "Alhamdulillah foto dimana"
      * PEMBUKA/PENUTUP tidak boleh jika ini true.
      */
@@ -513,6 +529,10 @@ class WAReplies
                     if ($handler === 'REKENING' && preg_match('/(telah berhasil mengirimkan|sudah transfer|sudah bayar|sudah kirim|sudah mengirim)/i', $textBodyToCheck)) {
                         continue;
                     }
+                    // HARGA laundry: bukan harga parfum/plastik/pewangi/dll (nanti intent terpisah)
+                    if ($handler === 'HARGA' && $this->messageIsHargaBarangTambahan($textBodyToCheck)) {
+                        continue;
+                    }
                     // Pertanyaan (termasuk tanpa tanda ?) TIDAK boleh masuk PEMBUKA atau PENUTUP
                     if (($handler === 'PEMBUKA' || $handler === 'PENUTUP') && $this->messageLooksLikeQuestion($textBody)) {
                         continue;
@@ -651,6 +671,19 @@ class WAReplies
                 ];
             }
             
+            // HARGA laundry: AI salah klasifikasi untuk harga parfum/plastik/dll → biarkan CS (case 4)
+            if ($aiIntent === 'HARGA' && $this->messageIsHargaBarangTambahan($textBodyToCheck)) {
+                $conversationId = $this->getOrCreateConversationWithCase(
+                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
+                );
+                return (object) [
+                    'case' => 4,
+                    'notify' => true,
+                    'conversation_id' => $conversationId,
+                    'no_handler' => true,
+                ];
+            }
+
             // Rate limit passed - create conversation with AI case
             $conversationId = $this->getOrCreateConversationWithCase(
                 $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, $aiCase
