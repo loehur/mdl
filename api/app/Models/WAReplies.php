@@ -291,6 +291,74 @@ class WAReplies
     }
 
     /**
+     * Balasan salam (waalaikumsalam, dll.) — bukan pembuka seperti assalamualaikum.
+     */
+    private function messageIsWalaikumsalamReply(?string $text): bool
+    {
+        if ($text === null || trim($text) === '') {
+            return false;
+        }
+        $t = trim($text);
+        // Pembuka dari customer: assalamualaikum — tetap bukan balasan waalaikumsalam
+        if (preg_match('/^\s*(assalam|asalamu)/iu', $t)) {
+            return false;
+        }
+        // waalaikumsalam / walaikumsalam / wa alaikum salam / waalaikumussalam (bukan assalamualaikum)
+        return (bool) preg_match(
+            '/^\s*w+a+\s*laikums+alam\b|^\s*w+a\s*laikums+alam\b|^\s*wa\s+alaikum\s+salam\b|^\s*walaikum\s+salam\b|^\s*waalaikum\s+salam\b|^\s*(waalaikumussalam|walaikumussalam)\b/iu',
+            $t
+        );
+    }
+
+    /**
+     * Instruksi/daftar item laundry panjang (bukan penutup percakapan).
+     */
+    private function messageLooksLikeLaundryItemListNotPenutup(?string $text): bool
+    {
+        if ($text === null || trim($text) === '') {
+            return false;
+        }
+        $len = mb_strlen($text);
+        if ($len < 80) {
+            return false;
+        }
+        if (substr_count($text, ',') < 1) {
+            return false;
+        }
+        return (bool) preg_match(
+            '/\b(baju|celana|rok|kemeja|kaos|levis|jeans|sprei|selimut|jaket|handuk|dress|gamis|jilbab|celana\s*pendek|lengan\s*panjang)\b/iu',
+            $text
+        );
+    }
+
+    /**
+     * Informasi "belum diambil" adalah status/info, bukan penutup.
+     */
+    private function messageLooksLikeBelumDiambilInfo(?string $text): bool
+    {
+        if ($text === null || trim($text) === '') {
+            return false;
+        }
+        $t = mb_strtolower($text);
+        return (bool) preg_match('/\b(bl?m|belum|belom)\s+(di\s*)?ambil\b/iu', $t);
+    }
+
+    /**
+     * Info "sudah diantar/di anter (oleh saya/suami/dll)" adalah info proses, bukan penutup.
+     */
+    private function messageLooksLikeSudahDiantarInfo(?string $text): bool
+    {
+        if ($text === null || trim($text) === '') {
+            return false;
+        }
+        $t = mb_strtolower($text);
+        return (bool) preg_match(
+            '/\b(sudah|udah|udh)\s+(di\s*)?(antar|anter)\b.*\b(saya|sy|aku|kami|suami|istri)\b|\b(antar|anter)\b.*\b(sama|oleh)\b.*\b(suami|istri|saya|aku|kami)\b/iu',
+            $t
+        );
+    }
+
+    /**
      * Tanya harga barang tambahan/ritel (parfum, plastik, dll.) — bukan tarif laundry di intent HARGA.
      * Nanti bisa intent terpisah (harga barang khusus).
      */
@@ -537,6 +605,26 @@ class WAReplies
                     if (($handler === 'PEMBUKA' || $handler === 'PENUTUP') && $this->messageLooksLikeQuestion($textBody)) {
                         continue;
                     }
+                    // waalaikumsalam = balasan salam, bukan PEMBUKA (beda dari assalamualaikum)
+                    if ($handler === 'PEMBUKA' && $this->messageIsWalaikumsalamReply($textBodyToCheck)) {
+                        continue;
+                    }
+                    // MINTA_JEMPUT_ANTAR: "saya/aku ambil ..." = user ambil sendiri (bukan minta kurir ke kamar)
+                    if ($handler === 'MINTA_JEMPUT_ANTAR' && preg_match('/\b(saya|aku|sy|gue)\s+ambil\b/i', $textBodyToCheck)) {
+                        continue;
+                    }
+                    // PENUTUP: daftar/instruksi item laundry panjang (bukan closing) — regex ok/sip kadang overlap
+                    if ($handler === 'PENUTUP' && $this->messageLooksLikeLaundryItemListNotPenutup($textBodyToCheck)) {
+                        continue;
+                    }
+                    // PENUTUP: info "belum diambil" bukan closing
+                    if ($handler === 'PENUTUP' && $this->messageLooksLikeBelumDiambilInfo($textBodyToCheck)) {
+                        continue;
+                    }
+                    // PENUTUP: info "sudah diantar sama suami/saya" bukan closing
+                    if ($handler === 'PENUTUP' && $this->messageLooksLikeSudahDiantarInfo($textBodyToCheck)) {
+                        continue;
+                    }
                     // "jam berapa bisa jemput?" = MINTA_JEMPUT_ANTAR (minta jemput), bukan JAM_OPERASIONAL
                     if ($handler === 'JAM_OPERASIONAL' && preg_match('/\bbisa\s*(jemput|antar)\b/i', $textBodyToCheck) && !preg_match('/\b(masih|masi|msih)\s+bisa\s*(jemput|antar)/i', $textBodyToCheck)) {
                         continue;
@@ -648,6 +736,19 @@ class WAReplies
                 ];
             }
 
+            // AI salah: waalaikumsalam = balasan salam, bukan PEMBUKA
+            if ($aiIntent === 'PEMBUKA' && $this->messageIsWalaikumsalamReply($textBodyToCheck)) {
+                $conversationId = $this->getOrCreateConversationWithCase(
+                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
+                );
+                return (object) [
+                    'case' => 4,
+                    'notify' => true,
+                    'conversation_id' => $conversationId,
+                    'no_handler' => true,
+                ];
+            }
+
             // Gunakan fullKeywordConfig untuk akses case dan notify (config lengkap)
             $aiCase = $fullKeywordConfig[$aiIntent]['case'] ?? null;
             $aiNotify = $fullKeywordConfig[$aiIntent]['notify'] ?? false;
@@ -673,6 +774,56 @@ class WAReplies
             
             // HARGA laundry: AI salah klasifikasi untuk harga parfum/plastik/dll → biarkan CS (case 4)
             if ($aiIntent === 'HARGA' && $this->messageIsHargaBarangTambahan($textBodyToCheck)) {
+                $conversationId = $this->getOrCreateConversationWithCase(
+                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
+                );
+                return (object) [
+                    'case' => 4,
+                    'notify' => true,
+                    'conversation_id' => $conversationId,
+                    'no_handler' => true,
+                ];
+            }
+
+            // MINTA_JEMPUT_ANTAR: AI salah — "saya/aku ambil" = ambil sendiri, bukan minta kurir
+            if ($aiIntent === 'MINTA_JEMPUT_ANTAR' && preg_match('/\b(saya|aku|sy|gue)\s+ambil\b/i', $textBodyToCheck)) {
+                $conversationId = $this->getOrCreateConversationWithCase(
+                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
+                );
+                return (object) [
+                    'case' => 4,
+                    'notify' => true,
+                    'conversation_id' => $conversationId,
+                    'no_handler' => true,
+                ];
+            }
+
+            // PENUTUP: AI salah — daftar/instruksi item laundry panjang bukan closing
+            if ($aiIntent === 'PENUTUP' && $this->messageLooksLikeLaundryItemListNotPenutup($textBodyToCheck)) {
+                $conversationId = $this->getOrCreateConversationWithCase(
+                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
+                );
+                return (object) [
+                    'case' => 4,
+                    'notify' => true,
+                    'conversation_id' => $conversationId,
+                    'no_handler' => true,
+                ];
+            }
+            // PENUTUP: AI salah — info "belum diambil" bukan closing
+            if ($aiIntent === 'PENUTUP' && $this->messageLooksLikeBelumDiambilInfo($textBodyToCheck)) {
+                $conversationId = $this->getOrCreateConversationWithCase(
+                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
+                );
+                return (object) [
+                    'case' => 4,
+                    'notify' => true,
+                    'conversation_id' => $conversationId,
+                    'no_handler' => true,
+                ];
+            }
+            // PENUTUP: AI salah — info "sudah diantar sama suami/saya" bukan closing
+            if ($aiIntent === 'PENUTUP' && $this->messageLooksLikeSudahDiantarInfo($textBodyToCheck)) {
                 $conversationId = $this->getOrCreateConversationWithCase(
                     $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
                 );

@@ -14,7 +14,8 @@ return [
         PENTING: JIKA sapaan diikuti kalimat permintaan (misal: 'Bang, baju dulukan', 'Kak, jemput ya'), ini BUKAN PEMBUKA.\n
         PENTING: Jika sapaan + permintaan bill/tagihan (bisa kirimkan bill, kirim tagihan, minta bill) = TAGIHAN, bukan PEMBUKA.\n
         PENTING: Jika sapaan + permintaan nota/bon (minta nota, minta bon, kirim struk) = NOTA, bukan PEMBUKA.\n
-        CRITICAL: Pesan mengandung tanda tanya (?) = PERTANYAAN = BUKAN PEMBUKA. Contoh: 'Berarti sudah masuk kak?'"
+        CRITICAL: Pesan mengandung tanda tanya (?) = PERTANYAAN = BUKAN PEMBUKA. Contoh: 'Berarti sudah masuk kak?'\n
+        CRITICAL - FALSE (BUKAN PEMBUKA): Balasan salam / jawaban atas salam = BUKAN pembuka percakapan. Contoh: | waalaikumsalam | walaikumsalam | wa alaikum salam | waalaikum salam | waalaikumussalam | = FALSE (bukan assalamualaikum)."
     ],
 
     'NOTA' => [
@@ -23,9 +24,26 @@ return [
             // "minta nota", "pagi kak minta bon", "bisa kirim struk"
             '/\b(minta|tolong|bisa|boleh)\s*(nota|bon|struk)\s*(saya|ku|punya)?/i',
             '/\b(kirim|kirimkan)\s*(nota|bon|struk)\s*(saya|ku|punya)?/i',
+            // Follow-up: nota/bon/belum masuk WhatsApp — "Laundry strika hari ini blm ada masuk wa nya"
+            '/\b(laundry|loundry).{0,200}?\b(bl?m|belum|belom)\s+ada\s+masuk\s+(ke\s*)?(wa|whatsapp)\b/iu',
+            '/\b(bl?m|belum|belom)\s+ada\s+masuk\s+(ke\s*)?(wa|whatsapp)\b.{0,120}?\b(laundry|loundry)\b/iu',
+            // Singkat: "Wa nya blm masuk" / "wa blm masuk" (notifikasi nota belum masuk WA)
+            '/\b(wa|whatsapp)\s+nya\s+(bl?m|belum|belom)\s+masuk\b/iu',
+            '/\b(wa|whatsapp)\s+(bl?m|belum|belom)\s+masuk\b/iu',
+            '/\b(bl?m|belum|belom)\s+masuk\b.{0,30}?\b(wa|whatsapp)\b/iu',
+            // Sudah antar laundry tapi belum dapat notifikasi/nota di WA (bukan STATUS progres cuci)
+            '/\b(antar|nyerahkan)\s+(laundry|loundry|londri|cucian)\b.{0,350}?\b(bl?m|belum|belom)\s+(dapat|dpt|ada|terima|kirim)\s+(notifikasi|notif|pemberitahuan)/iu',
+            '/\b(bl?m|belum|belom)\s+(dapat|dpt|ada|terima)\s+(notifikasi|notif|pemberitahuan)\s*(via|lewat|pakai)?\s*(wa|whatsapp)\b.{0,160}?\b(antar|laundry|loundry|londri|cucian)\b/iu',
+            '/\b(laundry|loundry|londri|cucian).{0,320}?\b(bl?m|belum|belom)\s+(dapat|dpt|ada|terima)\s+(notifikasi|notif|pemberitahuan)\s*(via|lewat|pakai)?\s*(wa|whatsapp)\b/iu',
         ],
-        'ai_prompt' => "User meminta BON/NOTA/STRUK (dokumen bukti terima) sebagai fisik/cetak, seperti:\n
+        'ai_prompt' => "User meminta BON/NOTA/STRUK (dokumen bukti terima) sebagai fisik/cetak, ATAU menindaklanjuti karena bukti/nota belum masuk WhatsApp, seperti:\n
         | bon | nota | struk | bukti terima | minta bon | minta nota | minta struk |\n
+        \n
+        CRITICAL - TRUE (NOTA) - follow up bukti di WA:\n
+        - Jika ada pola: (laundry/loundry) + (belum/blm/belom) + 'ada masuk' + (wa/whatsapp) = NOTA. Contoh: | Laundry strika hari ini blm ada masuk wa nya | laundry cuci belum ada masuk whatsapp | loundry saya blm ada masuk wa |\n
+        - Kalimat singkat notifikasi WA belum masuk: | Wa nya blm masuk | wa blm masuk | blm masuk wa | = NOTA (follow-up bukti/nota di WA), BUKAN FALSE.\n
+        - Sudah antar/nitip laundry ke outlet tapi belum dapat notifikasi/nota lewat WA = NOTA (follow-up bukti terima digital), BUKAN STATUS. Contoh: | Tadi malam saya antar londri tp sampai siang belum dapat notifikasi via wa | sudah antar laundry kemarin belum ada notif wa | belum dapat notifikasi wa padahal sudah antar cucian |\n
+        - Ini komplain/follow-up nota struk bon belum dikirim ke WA customer = NOTA, BUKAN FALSE.\n
         \n
         FALSE (BUKAN NOTA) - PENTING:\n
         - User menanya 'berapa total?' / 'berapa biaya?' / 'total berapa?' / 'brapa total strika tadi?' = itu TAGIHAN (tanya jumlah uang), BUKAN permintaan bon/nota = FALSE"
@@ -109,6 +127,7 @@ return [
         - Jika user memberitahu/konfirmasi 'sudah siap' / 'dah siap' / 'siapp' / 'dahh siapp' = STATUS\n
         \n
         FALSE (BUKAN STATUS) - CRITICAL:\n
+        - Belum dapat notifikasi/nota via WA setelah sudah antar laundry = follow-up BON/NOTA digital = NOTA, BUKAN STATUS (bukan tanya sudah selesai/siap cuci).\n
         - 'Masih bisa siap gak?' / 'masih bisa siap?' + konteks mau bawa/antar laundry = user BELUM antar laundry, tanya AVAILABILITAS (masih terima/proses?) = JAM_OPERASIONAL. Contoh: | masih bisa siap gak kk mau bawa sprei | masih bisa siap mau antar |\n
         - 'tutup tgl berapa?' / 'tutup tanggal brp?' = tanya tanggal libur/tutup toko = JAM_OPERASIONAL (bukan STATUS)\n
         - atau yang menurut anda sangat yakin sebagai pertanyaan/pemberitahuan status laundry"
@@ -184,15 +203,21 @@ return [
          '/\b(selesai|kelar|udh|udah|sudah)\s+(antar|jemput)\s*(aja|ya)?/i',
          // "katanya mau antar", "katanya mau jemput" = relay/konfirmasi permintaan antar
          '/\bkatanya\s+mau\s*(antar|jemput)/i',
+         // Ambil/jemput baju/laundry di kamar hotel/RS/sekolah/kost/alamat (minta kurir ke lokasi)
+         '/\b(ambil|jemput)\b.{0,220}?\b(kamar|hotel|rumah\s*sakit|rs\b|sekolah|kost|apartemen|apart|gedung|alamat)\b/iu',
+         '/\b(ambil|jemput)\b.{0,220}?\b(dpn|depan)\s+kamar\b/iu',
+         '/\b(ambil|jemput)\b.{0,220}?\bkamar\s*\d+/iu',
+         '/\b(ambil|jemput)\b.{0,220}?\b(jl\.|jalan|jl\s|rt\.|rw\.|gg\.|gang)\b/iu',
       ],
       'ai_prompt' => "User MEMINTA KURIR/LAUNDRY untuk datang JEMPUT atau ANTAR, ATAU menanyakan ONGKIR.\n
-      TRUE (MINTA JEMPUT/ANTAR) - HARUS ADA KATA PERMINTAAN/PERTANYAAN:\n
+      TRUE (MINTA JEMPUT/ANTAR) - HARUS ADA KATA PERMINTAAN/PERTANYAAN ATAU INSTRUKSI JEMPUT KE LOKASI:\n
       - Kata kunci: tolong/minta/bisa/boleh/dong/kapan/berapa + jemput/antar\n
       - tolong jemput, minta dijemput, bisa diantar?, boleh dijemput?, kapan diantar?\n
       - jam brp bsk diantarnya?, jam berapa besok diantar?, kapan diantarnya? = tanya jadwal pengantaran order = MINTA_JEMPUT_ANTAR\n
       - bisa jemput kak?, nanti bisa jemput kak?, jemput dong, antar ya dong\n
       - katanya mau antar, katanya mau jemput = relay/konfirmasi permintaan antar = MINTA_JEMPUT_ANTAR\n
       - brp ongkirnya?, berapa ongkosnya?, brp ong nya kak?, biaya antar?\n
+      - CRITICAL: Instruksi ambil/jemput baju/laundry/kain/bedcover/sprei dari LOKASI (kamar hotel/kost, depan kamar, rumah sakit, sekolah, alamat/jalan) = MINTA_JEMPUT_ANTAR. Contoh: | kk ambil baju kotor sama bedcover di depan kamar 212 | ambil laundry di hotel | jemput di kamar 305 | ambil di RS |\n
       \n
       FALSE (BUKAN MINTA JEMPUT/ANTAR) - SANGAT PENTING:\n
       - User yang akan MENGAMBIL SENDIRI: | mau jemput | saya jemput | aku ambil | awak jemput | nanti saya jemput |\n
@@ -200,8 +225,8 @@ return [
       - Hanya memberitahu jadwal tanpa permintaan: | nanti sore dijemput | besok diantar | jam 2 dijemput |\n
       - CRITICAL: 'masih bisa antar laundry?' / 'masih bisa antar?' = tanya AVAILABILITAS operasional = JAM_OPERASIONAL (bukan MINTA_JEMPUT_ANTAR). Kata 'masih' membedakan: tanya masih buka/bisa vs permintaan.\n
       - TRUE: 'jam berapa bisa jemput setrika?' / 'jam brp bisa jemput?' = user minta jemput kain setrikaan, tanya kapan kurir bisa jemput = MINTA_JEMPUT_ANTAR (bukan JAM_OPERASIONAL)\n
-      - CRITICAL: 'Mau jemput' = User SENDIRI yang akan mengambil = FALSE\n
-      - CRITICAL: Jika TIDAK ada kata tolong/minta/bisa/boleh/dong/kapan/ = FALSE\n
+      - CRITICAL: 'Mau jemput' / 'saya jemput nanti' = User SENDIRI yang akan mengambil = FALSE (bedakan dari 'ambil baju di kamar X' = minta kurir)\n
+      - CRITICAL: Instruksi 'ambil/jemput' + lokasi (kamar/hotel/RS/sekolah/alamat) = MINTA_JEMPUT_ANTAR walaupun TANPA kata tolong/minta/bisa — itu permintaan kurir ke alamat.\n
       - Contoh FALSE: 'Mau jemput,jgn tutup dlu' (user akan ambil sendiri, bukan minta kurir)\n
       - Contoh FALSE: 'Baikla nnti sore dijemput ya kak' (ini konfirmasi)\n
       - Contoh FALSE: 'Ok dijemput ya' (ini konfirmasi)\n
@@ -318,9 +343,12 @@ return [
          // la+h: "lah" hanya jika bukan kata pertama (bukan "Lah ya gmn" / tanya)
          // JANGAN match "sdh/udh" + saya/sy + pesan/order (bukan penutup); contoh: "Sdh sy psn" = sudah saya pesan
          // JANGAN match sudah/udah + janji/sepakat (janji/jadwal): "Kita sudah janji sore ini" — bukan penutup
-         '/((hm+|ok(e*)?|sip)\s*)*(y(a*)?\s*)?(u*da*h|s*u*da*h|(?<=\S)\s+la+h)(?!\s*\d)(?!\s*siap)(?!\s*selesai)(?!\s*bisa\s*(di\s*)?ambil)(?!\s+(sy|sya|saya|aku|gue|gw)\s+(psn|pesan|order|ordr|pesen))(?!\s+(janji|sepakat|kesepakatan|deal))/i',
+         // hm/ok/sip harus kata utuh — jangan match "ok" di dalam "rok", "kaos", dll.
+         // "udah/sudah/lah" sebagai penutup hanya jika kalimat pendek/ack singkat, bukan info panjang
+         '/^\s*((hm+|\bok(?:e+)?\b|\bsip\b)\s*)*(y(a*)?\s*)?(u*da*h|s*u*da*h|la+h)(?!\s*\d)(?!\s*siap)(?!\s*selesai)(?!\s*bisa\s*(di\s*)?ambil)(?!\s+(sy|sya|saya|aku|gue|gw)\s+(psn|pesan|order|ordr|pesen))(?!\s+(janji|sepakat|kesepakatan|deal))(?:\s+(kak|kk|bang|min|mbak|pak|bu|ya))?\s*$/iu',
          '/(oh*)\s*(gi*tu+)/i',
-         '/(ok|oh).*(siap|sip|ok)/i',
+         // ok/siap singkat saja (bukan kalimat panjang daftar pakaian)
+         '/^\s*\b(ok(?:e+)?|oh)\b.{0,60}?\b(siap|sip)\b(?:\s+(kak|kk|bang|min|mbak|pak|bu|ya)?)?\s*$/iu',
          '/^reacted\s+[^\s]+$/i', // WhatsApp reactions: "Reacted ❤️", "Reacted 👍"
          // JANGAN match: nanti saya jemput, nanti saya ambil, akan saya antar, nanti saya antar, akan mengambil - itu BUKAN intent (user memberitahu akan ambil/antar sendiri)
       ],
@@ -338,8 +366,12 @@ return [
       \n
       FALSE (BUKAN PENUTUP) - CRITICAL:\n
       - Pemberitahuan user akan ambil/antar SENDIRI = BUKAN intent apapun: | akan menjemput | nanti saya jemput | nanti saya ambil | akan saya antar | nanti saya antar | akan mengambil | mau jemput | besok saya jemput | nanti saya antar |\n
+      - Informasi "belum diambil" = status/info order (mis. | kak blm diambil loh | belum diambil kak |), bukan penutup.\n
+      - Informasi "sudah diantar/di anter" oleh customer/suami/istri (mis. | laundry tadi pagi di anter sama suami saya |) = info proses, bukan penutup.\n
+      - Kalimat info panjang yang kebetulan mengandung kata "udah/sudah" (mis. | loh kalo yg ini udah kaka ku, ini sblm lebaran |) = BUKAN PENUTUP.\n
       - KOMPLAIN/KELUHAN = BUKAN PENUTUP, biarkan CS manusia: | salah hitung | komplain | keluhan | ada salah | kurang bayar | kelebihan bayar | salah tagihan | salah total | salah jumlah |\n
       - PERMINTAAN/INSTRUKSI = BUKAN PENUTUP, biarkan CS manusia: | bisa sy ambil | letak aj dikursi | letakkan di | taruh di | tolong letak | minta letak | saya ambil | aku jemput |\n
+      - Daftar/instruksi item laundry panjang (baju, celana, rok, kemeja, dll) dengan koma — bukan penutup percakapan = FALSE.\n
       \n
       FALSE jika:\n
       - CRITICAL: Pesan mengandung tanda tanya (?) ATAU kata tanya (dimana/kapan/berapa/gimana/dll) = PERTANYAAN = BUKAN PENUTUP. Contoh: 'Berarti sudah masuk kak?' | 'Alhamdulillah foto dimana' (bisa tanpa ?)\n
