@@ -97,6 +97,22 @@ class WAReplies
     }
 
     /**
+     * Jejak alur autoreply → file logs/{tanggal}/wa_autoreply.log
+     */
+    private function logAutoreplyTrace(?string $waNumber, string $stage, string $detail = ''): void
+    {
+        if (!class_exists('\Log')) {
+            return;
+        }
+        $wa = $waNumber ?? '-';
+        $detail = str_replace(["\r", "\n"], ' ', (string) $detail);
+        if (mb_strlen($detail) > 480) {
+            $detail = mb_substr($detail, 0, 480) . '…';
+        }
+        \Log::write("{$stage} | {$wa} | {$detail}", 'wa', 'autoreply');
+    }
+
+    /**
      * @param string $waNumber Phone number
      * @param string $handler Handler name (bon, status, buka, etc)
      * @param int $cooldownMinutes Cooldown period in minutes (default: 10)
@@ -501,12 +517,15 @@ class WAReplies
         $textBodyToCheck = strtolower(trim($textBodyToCheck));       
 
         $messageLength = mb_strlen($textBodyToCheck);
+        $preview = mb_substr(preg_replace('/\s+/', ' ', (string) ($textBody ?? '')), 0, 120);
+        $this->logAutoreplyTrace($waNumber, 'START', 'len=' . $messageLength . ' preview=' . $preview);
 
         // Get DB instance for conversation management
         $db = DB::getInstance(0);
 
         // Nominal-only (contoh: "175.000 kak") -> jangan dianggap intent apa pun.
         if ($this->messageLooksLikeAmountOnly($textBodyToCheck)) {
+            $this->logAutoreplyTrace($waNumber, 'EXIT', 'amount_only_no_intent');
             $conversationId = $this->getOrCreateConversationWithCase(
                 $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
             );
@@ -535,6 +554,7 @@ class WAReplies
         ];
         foreach ($permintaanPatterns as $pp) {
             if (preg_match($pp, $textBodyToCheck)) {
+                $this->logAutoreplyTrace($waNumber, 'EXIT', 'permintaan_pickup_place_manual_cs');
                 $conversationId = $this->getOrCreateConversationWithCase(
                     $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
                 );
@@ -559,6 +579,7 @@ class WAReplies
         ];
         foreach ($complaintPatterns as $cp) {
             if (preg_match($cp, $textBodyToCheck)) {
+                $this->logAutoreplyTrace($waNumber, 'EXIT', 'complaint_manual_cs');
                 $conversationId = $this->getOrCreateConversationWithCase(
                     $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
                 );
@@ -575,6 +596,7 @@ class WAReplies
         $masihBisaTerimaPattern = '/\b(masih|msh|mash|masi|msih)\s*(bisa|bs|bis|b\s*s)(?:\s*(terima|trima|nerima|antar|masukin|masuk)\s*(kain|baju|laundry|cuci|gosok|setrika|strika)?\s*(aja|aj)?)?\s*\??\s*$/i';
         $masihTerimaGosokPattern = '/\b(masih|msh|mash|masi|msih)\s*(nerima|terima|trima).*(gosok|setrika|strika)\s*(aja|aj)?/i';
         if (preg_match($masihBisaTerimaPattern, $textBodyToCheck) || preg_match($masihTerimaGosokPattern, $textBodyToCheck)) {
+            $this->logAutoreplyTrace($waNumber, 'BRANCH', 'masih_bisa_terima_kain→JAM_OPERASIONAL+notify');
             if ($this->shouldHandle($waNumber, 'JAM_OPERASIONAL')) {
                 $this->currentHandler = 'JAM_OPERASIONAL';
                 $this->handleJam_operasional($phoneIn, $waNumber, $textBody ?? '', true);
@@ -641,6 +663,7 @@ class WAReplies
                     if (class_exists('\Log')) {
                         \Log::write(mb_substr($textBody ?? '', 0, 100) . " | {$handler} | regex", 'wa', 'intent');
                     }
+                    $this->logAutoreplyTrace($waNumber, 'REGEX_MATCH', 'handler=' . $handler);
                     
                     // Unset matched keyword from config to optimize AI detection
                     // AI tidak perlu cek keyword yang sudah match di regex
@@ -648,6 +671,7 @@ class WAReplies
                     
                     //cek rate limit
                     if (!$this->shouldHandle($waNumber, $handler)) {
+                        $this->logAutoreplyTrace($waNumber, 'EXIT', 'regex_rate_limit handler=' . $handler);
                         $conversationId = $this->getOrCreateConversationWithCase(
                             $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
                         );
@@ -679,6 +703,7 @@ class WAReplies
                         $this->currentHandler = $handler;
                         // Kalimat PENUTUP ambigu (closed order, dll): tetap intent PENUTUP tapi jangan dibalas AI
                         if ($handler === 'PENUTUP' && $this->isAmbiguousPenutupShortPhrase($textBodyToCheck)) {
+                            $this->logAutoreplyTrace($waNumber, 'EXIT', 'regex_penutup_ambiguous_no_reply');
                             return (object) [
                                 'case' => $caseVal,
                                 'notify' => $notify,
@@ -689,7 +714,9 @@ class WAReplies
                         if ($handler !== 'PEMBUKA') {
                             $this->sendGreetingReplyFirst($waNumber, $textBody);
                         }
+                        $this->logAutoreplyTrace($waNumber, 'HANDLER_RUN', 'regex method=' . $methodName);
                         $this->$methodName($phoneIn, $waNumber, $textBody);
+                        $this->logAutoreplyTrace($waNumber, 'DONE', 'regex_ok handler=' . $handler);
                         return (object) [
                             'case' => $caseVal,
                             'notify' => $notify,
@@ -697,6 +724,7 @@ class WAReplies
                         ];
                     }
                     // Handler match tapi method tidak ada (mis. MINTA_JEMPUT_ANTAR): create conversation, return, biarkan CS
+                    $this->logAutoreplyTrace($waNumber, 'EXIT', 'regex_no_php_method handler=' . $handler);
                     return (object) [
                         'case' => $caseVal,
                         'notify' => $notify,
@@ -709,6 +737,7 @@ class WAReplies
 
         // Short message (likely not a real query) - still create conversation!
         if ($messageLength >= 0 && $messageLength <= 7) {
+            $this->logAutoreplyTrace($waNumber, 'EXIT', 'short_message_no_regex len=' . $messageLength . ' (no AI)');
             $conversationId = $this->getOrCreateConversationWithCase(
                 $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
             );
@@ -720,6 +749,7 @@ class WAReplies
             ];
         }
 
+        $this->logAutoreplyTrace($waNumber, 'AI_PATH', 'no_regex_match len=' . $messageLength);
         // Pass filtered keywordConfig to AI (keywords yang sudah match di regex sudah di-unset)
         // Ini mengoptimalkan AI detection karena AI tidak perlu cek keyword yang sudah match
         $aiResult = $this->handleWithAI($phoneIn, $textBody, $waNumber, $keywordConfig);
@@ -730,6 +760,7 @@ class WAReplies
             // Pertanyaan (termasuk tanpa tanda ?) TIDAK boleh masuk PEMBUKA atau PENUTUP - treat sebagai unknown
             $isQuestion = $this->messageLooksLikeQuestion($textBody);
             if ($isQuestion && in_array($aiIntent, ['PEMBUKA', 'PENUTUP'])) {
+                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_question_as_pembuka_penutup intent=' . $aiIntent);
                 $conversationId = $this->getOrCreateConversationWithCase(
                     $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
                 );
@@ -742,6 +773,7 @@ class WAReplies
 
             // AI salah: waalaikumsalam = balasan salam, bukan PEMBUKA
             if ($aiIntent === 'PEMBUKA' && $this->messageIsWalaikumsalamReply($textBodyToCheck)) {
+                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_waalaikumsalam_as_pembuka');
                 $conversationId = $this->getOrCreateConversationWithCase(
                     $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
                 );
@@ -764,6 +796,7 @@ class WAReplies
             // Rate limit check for AI intent
             // ========================================
             if (!$this->shouldHandle($waNumber, $aiIntent)) {
+                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_rate_limit intent=' . $aiIntent);
                 // Rate limited - create conversation but don't send auto-reply
                 $conversationId = $this->getOrCreateConversationWithCase(
                     $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
@@ -778,6 +811,7 @@ class WAReplies
             
             // HARGA laundry: AI salah klasifikasi untuk harga parfum/plastik/dll → biarkan CS (case 4)
             if ($aiIntent === 'HARGA' && $this->messageIsHargaBarangTambahan($textBodyToCheck)) {
+                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_harga_barang_tambahan');
                 $conversationId = $this->getOrCreateConversationWithCase(
                     $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
                 );
@@ -791,6 +825,7 @@ class WAReplies
 
             // MINTA_JEMPUT_ANTAR: AI salah — "saya/aku ambil" = ambil sendiri, bukan minta kurir
             if ($aiIntent === 'MINTA_JEMPUT_ANTAR' && preg_match('/\b(saya|aku|sy|gue)\s+ambil\b/i', $textBodyToCheck)) {
+                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_minta_jemput_saya_ambil');
                 $conversationId = $this->getOrCreateConversationWithCase(
                     $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
                 );
@@ -804,6 +839,7 @@ class WAReplies
 
             // PENUTUP: AI salah — daftar/instruksi item laundry panjang bukan closing
             if ($aiIntent === 'PENUTUP' && $this->messageLooksLikeLaundryItemListNotPenutup($textBodyToCheck)) {
+                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_penutup_item_list');
                 $conversationId = $this->getOrCreateConversationWithCase(
                     $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
                 );
@@ -816,6 +852,7 @@ class WAReplies
             }
             // PENUTUP: AI salah — info "belum diambil" bukan closing
             if ($aiIntent === 'PENUTUP' && $this->messageLooksLikeBelumDiambilInfo($textBodyToCheck)) {
+                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_penutup_belum_diambil');
                 $conversationId = $this->getOrCreateConversationWithCase(
                     $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
                 );
@@ -828,6 +865,7 @@ class WAReplies
             }
             // PENUTUP: AI salah — info "sudah diantar sama suami/saya" bukan closing
             if ($aiIntent === 'PENUTUP' && $this->messageLooksLikeSudahDiantarInfo($textBodyToCheck)) {
+                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_penutup_sudah_diantar_info');
                 $conversationId = $this->getOrCreateConversationWithCase(
                     $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
                 );
@@ -852,6 +890,7 @@ class WAReplies
                 $this->currentHandler = $aiIntent;
                 // Kalimat PENUTUP ambigu (closed order, dll): tetap intent PENUTUP tapi jangan dibalas AI
                 if ($aiIntent === 'PENUTUP' && $this->isAmbiguousPenutupShortPhrase($textBodyToCheck)) {
+                    $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_penutup_ambiguous_no_reply');
                     return (object) [
                         'case' => $aiCase,
                         'notify' => $aiNotify,
@@ -862,7 +901,11 @@ class WAReplies
                 if ($aiIntent !== 'PEMBUKA') {
                     $this->sendGreetingReplyFirst($waNumber, $textBody);
                 }
+                $this->logAutoreplyTrace($waNumber, 'HANDLER_RUN', 'ai method=' . $methodName);
                 $this->$methodName($phoneIn, $waNumber, $textBody);
+                $this->logAutoreplyTrace($waNumber, 'DONE', 'ai_ok intent=' . $aiIntent);
+            } else {
+                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_no_php_method intent=' . $aiIntent);
             }
 
             return (object) [
@@ -873,6 +916,7 @@ class WAReplies
             ];
         }
 
+        $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_no_valid_intent (detail in lines above: AI_SKIP / AI_REJECT / AI_ERROR)');
         // AI failed or unknown intent - still create conversation!
         $conversationId = $this->getOrCreateConversationWithCase(
             $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
@@ -3732,6 +3776,7 @@ class WAReplies
             if (!class_exists('\\App\\Config\\AI')) {
                 $configFile = __DIR__ . '/../Config/AI.php';
                 if (!file_exists($configFile)) {
+                    $this->logAutoreplyTrace($waNumber, 'AI_SKIP', 'file missing: Config/AI.php');
                     return false;
                 }
                 require_once $configFile;
@@ -3739,9 +3784,11 @@ class WAReplies
 
             // Check if AI is enabled
             if (!\App\Config\AI::isEnabled()) {
+                $this->logAutoreplyTrace($waNumber, 'AI_SKIP', 'disabled or OPENAI_API_KEY empty');
                 return false;
             }
         } catch (\Exception $e) {
+            $this->logAutoreplyTrace($waNumber, 'AI_SKIP', 'config: ' . $e->getMessage());
             return false;
         }
 
@@ -3769,6 +3816,7 @@ class WAReplies
             $prompt .= "{\"intent\": \"NAMA_KATEGORI\", \"reason\": \"Alasan singkat memilih kategori ini\"}\n";
             $prompt .= "Kategori harus salah satu dari daftar di atas atau FALSE.";
 
+            $this->logAutoreplyTrace($waNumber, 'AI_REQUEST', 'OpenAI chat/completions');
             // Call OpenAI API
             $response = $this->callOpenAI($prompt);
 
@@ -3783,6 +3831,11 @@ class WAReplies
                 }
             }
 
+            if (!is_array($json)) {
+                $this->logAutoreplyTrace($waNumber, 'AI_REJECT', 'unparseable JSON raw=' . mb_substr((string) $response, 0, 200));
+                return false;
+            }
+
             $intent = $json['intent'] ?? 'FALSE';
             $reason = $json['reason'] ?? '';
 
@@ -3795,6 +3848,7 @@ class WAReplies
 
             // Check if this is a valid intent from config
             if (isset($keywordConfig[$intent])) {
+                $this->logAutoreplyTrace($waNumber, 'AI_PARSE', 'intent=' . $intent . ' reason=' . $reason);
                 // Return intent (case will be taken from config in process())
                 // Ensure returning ARRAY as expected by process()
                 return [
@@ -3803,9 +3857,11 @@ class WAReplies
                 ];
             }
 
+            $this->logAutoreplyTrace($waNumber, 'AI_REJECT', 'intent not in config: ' . $intent);
             // Intent not in config, return false
             return false;
         } catch (\Exception $e) {
+            $this->logAutoreplyTrace($waNumber, 'AI_ERROR', $e->getMessage());
             if (class_exists('\Log')) {
                 \Log::write("AI ERROR: " . $e->getMessage(), 'wa_error', 'AI');
             }
