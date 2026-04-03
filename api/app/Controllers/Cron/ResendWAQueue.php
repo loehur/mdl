@@ -25,6 +25,9 @@ class ResendWAQueue extends Controller
         if ($limit < 1) $limit = 20;
         if ($limit > 50) $limit = 50;
 
+        // Sinkronkan last_in_at dari pesan masuk (24 jam) sebelum cek CSW / resend
+        $syncedLastIn = $this->syncLastInAtFromMessagesIn($db);
+
         // Only text messages can be safely resent from stored "content"
         $sql = "
             SELECT id, external_id, phone, type, content, sender_code, quoted_message_id, created_at
@@ -44,6 +47,7 @@ class ResendWAQueue extends Controller
             $output .= "WA RESEND QUEUE - Queue is empty\n";
             $output .= "intervalMinutes={$intervalMinutes}\n";
             $output .= "limit={$limit}\n";
+            $output .= "synced_last_in_at_rows={$syncedLastIn}\n";
             $output .= "processed=0\n";
             $output .= "skipped=0\n";
             $output .= "removed_csw=0\n";
@@ -136,10 +140,51 @@ class ResendWAQueue extends Controller
             }
         }
 
-        $output .= "SUMMARY intervalMinutes={$intervalMinutes} limit={$limit} processed={$processed} skipped={$skipped} removed_csw={$removedCsw}\n";
+        $output .= "SUMMARY intervalMinutes={$intervalMinutes} limit={$limit} synced_last_in_at_rows={$syncedLastIn} processed={$processed} skipped={$skipped} removed_csw={$removedCsw}\n";
 
         header('Content-Type: text/plain');
         echo $output;
+    }
+
+    /**
+     * Update wa_conversations.last_in_at dari agregat wa_messages_in (24 jam terakhir):
+     * per nomor (group by phone), ambil MAX(created_at), cocokkan baris conversation
+     * dengan nomor yang sama setelah normalisasi digit (agar +628… = 628…).
+     * Memakai GREATEST(..., max_in) agar tidak menggeser last_in_at ke waktu yang lebih lama
+     * jika kolom sudah lebih baru dari sumber lain.
+     *
+     * @return int perkiraan baris ter-update (mysqli affected_rows pada satu statement UPDATE)
+     */
+    private function syncLastInAtFromMessagesIn($db): int
+    {
+        try {
+            $sql = "
+                UPDATE wa_conversations c
+                INNER JOIN (
+                    SELECT
+                        REGEXP_REPLACE(m.phone, '[^0-9]', '') AS phone_digits,
+                        MAX(m.created_at) AS max_in
+                    FROM wa_messages_in m
+                    WHERE m.created_at >= (NOW() - INTERVAL 24 HOUR)
+                    GROUP BY REGEXP_REPLACE(m.phone, '[^0-9]', '')
+                ) src ON REGEXP_REPLACE(c.wa_number, '[^0-9]', '') = src.phone_digits
+                SET
+                    c.last_in_at = GREATEST(
+                        COALESCE(c.last_in_at, '1970-01-01 00:00:00'),
+                        src.max_in
+                    ),
+                    c.updated_at = NOW()
+            ";
+            $db->query($sql, []);
+
+            return (int) $db->conn()->affected_rows;
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write('ResendWAQueue syncLastInAtFromMessagesIn: ' . $e->getMessage(), 'cron', 'ResendWAQueue');
+            }
+
+            return 0;
+        }
     }
 
     /**

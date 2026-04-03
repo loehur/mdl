@@ -58,6 +58,40 @@ class WhatsAppService
         return substr($this->apiKey, 0, 8) . '...';
     }
     
+    /**
+     * Antrekan free text (status queue) saat CSW yCloud & Fonnte tidak memungkinkan kirim —
+     * dipakai endpoint /WhatsApp/send bila last_in menolak keduanya tanpa hit API,
+     * atau bisa dipanggil eksplisit. Cron ResendWAQueue mengirim saat CSW terbuka (24 jam).
+     */
+    public function queueFreeTextForCswRetry($to, $message, $replyToMessageId = null, $senderCode = null, $errorMessage = 'CSW closed — standby for resend within 24h')
+    {
+        $externalIdToUse = $this->generateExternalId();
+        $payload = [
+            'from' => $this->formatPhoneNumber($this->whatsappNumber),
+            'to' => $this->formatPhoneNumber($to),
+            'type' => 'text',
+            'externalId' => $externalIdToUse,
+            'text' => [
+                'body' => $message,
+            ],
+        ];
+        if ($replyToMessageId) {
+            $payload['context'] = [
+                'message_id' => $replyToMessageId,
+            ];
+        }
+
+        try {
+            return $this->saveOutboundQueueMessage($payload, null, $senderCode, $replyToMessageId, $errorMessage);
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write('queueFreeTextForCswRetry: ' . $e->getMessage(), 'wa_error', 'SaveOutbound');
+            }
+
+            return null;
+        }
+    }
+
     public function sendFreeText($to, $message, $replyToMessageId = null, $senderCode = null, $externalId = null)
     {
         $externalIdToUse = !empty($externalId) ? (string)$externalId : $this->generateExternalId();
@@ -589,6 +623,21 @@ class WhatsAppService
                             \Log::write("!! EXCEPTION queue insert outbound: " . $e->getMessage(), 'wa_error', 'SaveOutbound');
                         }
                     }
+                } elseif ($this->isFreeTextPayload($payload) && $this->isYCloudCswApiError($responseData)) {
+                    // CSW tertutup di API yCloud (4xx) — antrekan agar cron bisa kirim saat CSW terbuka
+                    try {
+                        $this->saveOutboundQueueMessage(
+                            $payload,
+                            $messageText,
+                            $senderCode,
+                            $replyToMessageId,
+                            'CSW closed (yCloud API)'
+                        );
+                    } catch (\Throwable $e) {
+                        if (class_exists('\Log')) {
+                            \Log::write("!! EXCEPTION queue insert outbound (CSW): " . $e->getMessage(), 'wa_error', 'SaveOutbound');
+                        }
+                    }
                 }
                 return [
                     'success' => false,
@@ -607,6 +656,37 @@ class WhatsAppService
             'data' => $responseData ?? null,
             'raw_response' => $response ?? ''
         ];
+    }
+
+    private function isFreeTextPayload(array $payload): bool
+    {
+        return ($payload['type'] ?? '') === 'text' && isset($payload['text']['body']);
+    }
+
+    /**
+     * Respons API yCloud: free text di luar jendela CSW (sama logika dengan WhatsApp::isYCloudFreeTextCswError).
+     */
+    private function isYCloudCswApiError(?array $responseData): bool
+    {
+        if (!is_array($responseData)) {
+            return false;
+        }
+        $errorData = $responseData['error'] ?? null;
+        if (!is_array($errorData)) {
+            return false;
+        }
+        $errorCode = $errorData['code'] ?? '';
+        $errorMsg = $errorData['message'] ?? '';
+        $codeStr = is_scalar($errorCode) ? (string) $errorCode : '';
+        $msgStr = is_string($errorMsg) ? $errorMsg : '';
+        if (strpos($codeStr, '131047') !== false) {
+            return true;
+        }
+        if ($msgStr !== '' && (stripos($msgStr, 'outside') !== false || stripos($msgStr, '24 hour') !== false || stripos($msgStr, '24-hour') !== false)) {
+            return true;
+        }
+
+        return false;
     }
 
     /**
