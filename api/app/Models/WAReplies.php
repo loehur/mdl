@@ -522,6 +522,7 @@ class WAReplies
 
         // Get DB instance for conversation management
         $db = DB::getInstance(0);
+        $this->logAutoreplyTrace($waNumber, 'CHECKPOINT', 'db_ok');
 
         // Nominal-only (contoh: "175.000 kak") -> jangan dianggap intent apa pun.
         if ($this->messageLooksLikeAmountOnly($textBodyToCheck)) {
@@ -538,6 +539,7 @@ class WAReplies
 
         // Load keyword configuration
         $keywordConfig = require __DIR__ . '/../Config/AutoReplyKeywords.php';
+        $this->logAutoreplyTrace($waNumber, 'CHECKPOINT', 'AutoReplyKeywords loaded');
         
         // Simpan config lengkap untuk akses case dan notify nanti
         $fullKeywordConfig = $keywordConfig;

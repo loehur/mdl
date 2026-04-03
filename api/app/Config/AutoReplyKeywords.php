@@ -366,9 +366,9 @@ return [
       \n
       FALSE (BUKAN PENUTUP) - CRITICAL:\n
       - Pemberitahuan user akan ambil/antar SENDIRI = BUKAN intent apapun: | akan menjemput | nanti saya jemput | nanti saya ambil | akan saya antar | nanti saya antar | akan mengambil | mau jemput | besok saya jemput | nanti saya antar |\n
-      - Informasi "belum diambil" = status/info order (mis. | kak blm diambil loh | belum diambil kak |), bukan penutup.\n
-      - Informasi "sudah diantar/di anter" oleh customer/suami/istri (mis. | laundry tadi pagi di anter sama suami saya |) = info proses, bukan penutup.\n
-      - Kalimat info panjang yang kebetulan mengandung kata "udah/sudah" (mis. | loh kalo yg ini udah kaka ku, ini sblm lebaran |) = BUKAN PENUTUP.\n
+      - Informasi \"belum diambil\" = status/info order (mis. | kak blm diambil loh | belum diambil kak |), bukan penutup.\n
+      - Informasi \"sudah diantar/di anter\" oleh customer/suami/istri (mis. | laundry tadi pagi di anter sama suami saya |) = info proses, bukan penutup.\n
+      - Kalimat info panjang yang kebetulan mengandung kata \"udah/sudah\" (mis. | loh kalo yg ini udah kaka ku, ini sblm lebaran |) = BUKAN PENUTUP.\n
       - KOMPLAIN/KELUHAN = BUKAN PENUTUP, biarkan CS manusia: | salah hitung | komplain | keluhan | ada salah | kurang bayar | kelebihan bayar | salah tagihan | salah total | salah jumlah |\n
       - PERMINTAAN/INSTRUKSI = BUKAN PENUTUP, biarkan CS manusia: | bisa sy ambil | letak aj dikursi | letakkan di | taruh di | tolong letak | minta letak | saya ambil | aku jemput |\n
       - Daftar/instruksi item laundry panjang (baju, celana, rok, kemeja, dll) dengan koma — bukan penutup percakapan = FALSE.\n
