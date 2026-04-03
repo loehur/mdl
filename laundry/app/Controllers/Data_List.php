@@ -150,9 +150,9 @@ class Data_List extends Controller
             break;
          case "pelanggan":
             $cols = 'id_cabang, nama_pelanggan, nomor_pelanggan';
-            $nama_pelanggan = $_POST['f1'];
+            $nama_pelanggan = trim($_POST['f1'] ?? '');
             $vals = $this->id_cabang . ",'" . $nama_pelanggan . "','" . $_POST['f2'] . "'";
-            $setOne = "nama_pelanggan = '" . $_POST['f1'] . "'";
+            $setOne = "nama_pelanggan = '" . $nama_pelanggan . "'";
             $where = $this->wCabang . " AND " . $setOne;
             $data_main = $this->db(0)->count_where($table, $where);
             if ($data_main < 1) {
@@ -186,7 +186,7 @@ class Data_List extends Controller
                'username' => $username,
                'id_cabang' => $_POST['f3'] ?? 0,
                'no_user' => $no_user,
-               'nama_user' => $_POST['f1'] ?? '',
+               'nama_user' => trim($_POST['f1'] ?? ''),
                'id_privilege' => $privilege,
             ];
             
@@ -485,6 +485,10 @@ class Data_List extends Controller
          if ($value == 100) {
             exit();
          }
+      }
+
+      if (isset($col) && ($col === 'nama_pelanggan' || $col === 'nama_user')) {
+         $value = is_string($value) ? trim($value) : $value;
       }
 
       $set = [

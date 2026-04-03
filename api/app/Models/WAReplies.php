@@ -176,7 +176,7 @@ class WAReplies
             return $name;
         }
         $db = DB::getInstance(0);
-        $conv = $db->get_where('wa_conversations', ['wa_number' => $waNumber])->row();
+        $conv = $this->findExistingWaConversationRow($db, $waNumber);
         return $conv ? trim($conv->contact_name ?? '') : '';
     }
 
@@ -251,6 +251,7 @@ class WAReplies
             if (!class_exists('\\App\\Config\\AI') || !\App\Config\AI::isEnabled()) {
                 return 'kak';
             }
+            $contactName = trim((string) ($contactName ?? ''));
             $firstName = trim(preg_split('/\s+/', $contactName, 2)[0] ?? '') ?: $contactName;
             $messages = [
                 ['role' => 'system', 'content' => "Kamu classifier sapaan Indonesia. Dari nama depan, pilih: 'kak' (perempuan/neutral) atau 'bang' (laki-laki).\n\nAturan:\n- Nama khas perempuan (Siti, Dewi, Ani, Rina, dll) -> kak\n- Nama khas laki-laki (Budi, Bambang, Ahmad, Rudi, Alim, dll) -> bang\n- Nama netral/tidak jelas (Dian, Wawan, dsb) -> utamakan kak\n- Ragu atau nama singkat/tidak dikenal -> utamakan kak\n\nPENTING: Jika ragu antara kak dan bang, pilih kak.\n\nJawab HANYA satu kata: kak atau bang."],
@@ -489,6 +490,9 @@ class WAReplies
      */
     public function process($phoneIn, $textBody, $waNumber, $contactName = null, $assigned_user_id = null, $code = null, $lastMessage = null, $cust_id = null)
     {
+        if ($contactName !== null) {
+            $contactName = trim((string) $contactName);
+        }
         $this->currentContactName = $contactName;
         // Strip WhatsApp formatters: * (bold), _ (italic), ~ (strikethrough), ` (monospace)
         $textBodyToCheck = preg_replace('/[*_~`]/', '', $textBody ?? '');
@@ -961,7 +965,7 @@ class WAReplies
             // Customer exists - get first one
             $id_pelanggan = $id_pelanggans[0];
             $nama_pelanggans = array_column($pelanggan, 'nama_pelanggan');
-            $nama_pelanggan = strtoupper($nama_pelanggans[0] ?? 'PELANGGAN');
+            $nama_pelanggan = strtoupper(trim((string) ($nama_pelanggans[0] ?? 'PELANGGAN')));
 
             $ids_in = implode(',', $id_pelanggans);
 
@@ -1598,7 +1602,7 @@ class WAReplies
         $id_pelanggans_to_check = array_unique(array_merge($id_pelanggans_from_sale, $id_pelanggans_from_member));
         if (empty($id_pelanggans_to_check)) {
             $id_pelanggan = $id_pelanggans[0];
-            $nama_pelanggan = strtoupper($pelanggan[array_search($id_pelanggan, $id_pelanggans)]['nama_pelanggan'] ?? 'PELANGGAN');
+            $nama_pelanggan = strtoupper(trim((string) ($pelanggan[array_search($id_pelanggan, $id_pelanggans)]['nama_pelanggan'] ?? 'PELANGGAN')));
             $id_cabang = (int) ($pelanggan[array_search($id_pelanggan, $id_pelanggans)]['id_cabang'] ?? 0);
             $link = "https://ml.nalju.com/I/" . $id_pelanggan;
             $text = "Pak/Bu *" . $nama_pelanggan . "*, belum ada tagihan dan semua laundry sudah di ambil. Terima kasih 😊\n" . $link;
@@ -1617,7 +1621,7 @@ class WAReplies
                 break;
             }
         }
-        $nama_pelanggan = strtoupper($pelangganRow['nama_pelanggan'] ?? 'PELANGGAN');
+        $nama_pelanggan = strtoupper(trim((string) ($pelangganRow['nama_pelanggan'] ?? 'PELANGGAN')));
         $id_cabang = (int) ($pelangganRow['id_cabang'] ?? 0);
 
         $lookup = $this->loadTagihanLookups($db);
@@ -1904,7 +1908,7 @@ class WAReplies
         $pelanggan = $db1->query("SELECT id_pelanggan, nama_pelanggan FROM pelanggan WHERE $where")->result_array();
         $id_pelanggans = array_column($pelanggan, 'id_pelanggan');
         $nama_pelanggans = array_column($pelanggan, 'nama_pelanggan');
-        $nama_pelanggan = strtoupper($nama_pelanggans[0] ?? ''); // fix index 0 if empty
+        $nama_pelanggan = strtoupper(trim((string) ($nama_pelanggans[0] ?? ''))); // fix index 0 if empty
 
         if (empty($id_pelanggans)) {
             $noRegText = $this->getNoRegisterText();
@@ -2489,7 +2493,7 @@ class WAReplies
                 $answer = trim($this->executeOpenAIRequestWithMessages($messages, 20));
                 if (strtoupper($answer) !== 'TIDAK_KETEMU' && $answer !== '') {
                     foreach ($users as $u) {
-                        if (strcasecmp(trim($u['nama_user'] ?? ''), $answer) === 0) {
+                        if (strcasecmp(trim($u['nama_user'] ?? ''), trim((string) $answer)) === 0) {
                             $found = $u;
                             break;
                         }
@@ -2516,7 +2520,7 @@ class WAReplies
     private function formatKaryawanReply($row, $db0)
     {
         $no_user = $row['no_user'] ?? '';
-        $nama_user = $row['nama_user'] ?? '';
+        $nama_user = trim((string) ($row['nama_user'] ?? ''));
         $bank_code = trim($row['bank_code'] ?? '');
         $bank_account_number = trim($row['bank_account_number'] ?? '');
         $bank_account_name = trim($row['bank_account_name'] ?? '');
@@ -2654,7 +2658,7 @@ class WAReplies
             }
             
             $id_user = (int)$user['id_user'];
-            $nama_user = $user['nama_user'] ?? 'Karyawan';
+            $nama_user = trim((string) ($user['nama_user'] ?? 'Karyawan'));
             
             // Ambil data rekening pencairan dari tabel payroll (db(0))
             $payroll = $dbMain->query("SELECT id, state, bank_code, bank_acc_number, bank_acc_name FROM payroll WHERE employee_id = ? AND period = ? AND business = 'laundry' LIMIT 1", [$id_user, $date])->row_array();
@@ -2877,7 +2881,7 @@ class WAReplies
 
                 // Ambil nama karyawan dari db(1) - tabel user
                 $user = $dbLaundry->query("SELECT nama_user FROM user WHERE id_user = ? LIMIT 1", [$employeeId])->row_array();
-                $namaUser = $user['nama_user'] ?? 'Unknown';
+                $namaUser = trim((string) ($user['nama_user'] ?? 'Unknown'));
 
                 $count++;
                 $total += $amount;
@@ -2985,7 +2989,7 @@ class WAReplies
                 $simState = $pState == 'APPROVED' ? '✅' : ($pState == 'DRAFT' ? '🟨' : '🟡');
 
                 $user = $dbLaundry->query("SELECT nama_user FROM user WHERE id_user = ? LIMIT 1", [$employeeId])->row_array();
-                $namaUser = $user['nama_user'] ?? 'Unknown';
+                $namaUser = trim((string) ($user['nama_user'] ?? 'Unknown'));
 
                 $bc = strtoupper(trim($p['bank_code'] ?? ''));
                 $ban = trim($p['bank_acc_number'] ?? '');
@@ -3964,20 +3968,22 @@ class WAReplies
      */
     private function getOrCreateConversationWithCase($db, $waNumber, $contactName = null, $assigned_user_id = null, $code = null, $cust_id = null, $lastMessage = null, $case = null)
     {
+        if ($contactName !== null) {
+            $contactName = trim((string) $contactName);
+        }
         if ($this->skipConversationPersist) {
-            $existing = $db->get_where('wa_conversations', ['wa_number' => $waNumber]);
-            if ($existing->num_rows() > 0) {
-                return (int) ($existing->row()->id ?? 0);
+            $conv = $this->findExistingWaConversationRow($db, $waNumber);
+            if ($conv) {
+                return (int) ($conv->id ?? 0);
             }
 
             return 0;
         }
 
-        // Try to find existing conversation
-        $existing = $db->get_where('wa_conversations', ['wa_number' => $waNumber]);
+        // Try to find existing conversation (same logical ID can be stored as +628…, 628…, 08…)
+        $conv = $this->findExistingWaConversationRow($db, $waNumber);
         
-        if ($existing->num_rows() > 0) {
-            $conv = $existing->row();           
+        if ($conv) {           
             $updateData = [
                 'contact_name' => $contactName,
                 'assigned_user_id' => $assigned_user_id,
@@ -4067,7 +4073,7 @@ class WAReplies
                 }
             }
 
-            $db->update('wa_conversations', $updateData, ['wa_number' => $waNumber]);
+            $db->update('wa_conversations', $updateData, ['wa_number' => $conv->wa_number]);
             return $conv->id ?? 0;
         }
 
@@ -4099,6 +4105,45 @@ class WAReplies
             return $db->insert_id();
         }
         return 0;
+    }
+
+    /**
+     * 9 digit terakhir dari nomor (hanya angka), untuk match wa_number tanpa peduli +62 / 08 / 628 / dll.
+     */
+    private function waPhoneLastNineDigits(string $phone): ?string
+    {
+        $digits = preg_replace('/[^0-9]/', '', $phone);
+        if (strlen($digits) < 9) {
+            return null;
+        }
+
+        return substr($digits, -9);
+    }
+
+    /**
+     * Cari baris wa_conversations: sama jika 9 angka terakhir identik (MySQL/MariaDB: REGEXP_REPLACE).
+     *
+     * @return object|null row from wa_conversations
+     */
+    private function findExistingWaConversationRow($db, string $waNumber): ?object
+    {
+        $last9 = $this->waPhoneLastNineDigits($waNumber);
+        if ($last9 !== null) {
+            $db->query(
+                'SELECT * FROM wa_conversations WHERE RIGHT(REGEXP_REPLACE(wa_number, \'[^0-9]\', \'\'), 9) = ? ORDER BY id DESC LIMIT 1',
+                [$last9]
+            );
+            if ($db->num_rows() > 0) {
+                return $db->row();
+            }
+        }
+
+        $existing = $db->get_where('wa_conversations', ['wa_number' => trim($waNumber)]);
+        if ($existing->num_rows() > 0) {
+            return $existing->row();
+        }
+
+        return null;
     }
 
     /**

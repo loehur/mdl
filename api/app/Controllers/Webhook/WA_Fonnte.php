@@ -60,8 +60,6 @@ class WA_Fonnte extends Controller
         $url = $data['url'] ?? null;
         $filename = $data['filename'] ?? null;
 
-        $this->recordFonnteIncoming($sender, $timestamp);
-
         $replyText = '';
 
         $messageText = trim((string) ($message ?? $text ?? ''));
@@ -120,6 +118,9 @@ class WA_Fonnte extends Controller
             $replies->setSkipConversationPersist(true);
             $replies->setAutoReplyProvider('B');
 
+            // CSW Fonnte harus ter-commit dulu; baru handle intent (hindari race baca last_in_at vs balasan).
+            $this->recordFonnteIncoming($waNumber, $timestamp);
+
             $processResult = $replies->process(
                 $phoneIn,
                 $messageText,
@@ -145,30 +146,42 @@ class WA_Fonnte extends Controller
 
     /**
      * Simpan waktu pesan masuk terakhir per nomor (db 0) untuk CSW Fonnte.
+     * Dipanggil dengan $waNumber yang sama persis dengan alur process() (sudah dinormalisasi).
+     * Transaksi singkat: commit sebelum WAReplies::process agar tidak ada race dengan pembaca last_in_at.
      */
-    private function recordFonnteIncoming($sender, $timestamp = null): void
+    private function recordFonnteIncoming(string $waNumber, $timestamp = null): void
     {
-        $waNumber = $this->normalizeWaNumber($sender);
-        if ($waNumber === null) {
+        if ($waNumber === '') {
             return;
         }
         $lastInAt = $this->fonnteTimestampToLastInAt($timestamp);
         try {
             $db = $this->db(0);
-            $check = $db->query(
-                'SELECT id FROM wa_fonnte_csw WHERE phone = ? LIMIT 1',
-                [$waNumber]
-            );
-            if ($check->num_rows() > 0) {
-                $db->query(
-                    'UPDATE wa_fonnte_csw SET last_in_at = ? WHERE phone = ?',
-                    [$lastInAt, $waNumber]
+            if (! $db->beginTransaction()) {
+                \Log::write('WA_Fonnte: wa_fonnte_csw beginTransaction failed', 'webhook', 'Fonnte');
+
+                return;
+            }
+            try {
+                $check = $db->query(
+                    'SELECT id FROM wa_fonnte_csw WHERE phone = ? LIMIT 1',
+                    [$waNumber]
                 );
-            } else {
-                $db->query(
-                    'INSERT INTO wa_fonnte_csw (phone, last_in_at) VALUES (?, ?)',
-                    [$waNumber, $lastInAt]
-                );
+                if ($check->num_rows() > 0) {
+                    $db->query(
+                        'UPDATE wa_fonnte_csw SET last_in_at = ? WHERE phone = ?',
+                        [$lastInAt, $waNumber]
+                    );
+                } else {
+                    $db->query(
+                        'INSERT INTO wa_fonnte_csw (phone, last_in_at) VALUES (?, ?)',
+                        [$waNumber, $lastInAt]
+                    );
+                }
+                $db->commit();
+            } catch (\Throwable $e) {
+                $db->rollback();
+                throw $e;
             }
         } catch (\Throwable $e) {
             \Log::write('WA_Fonnte: wa_fonnte_csw update failed: ' . $e->getMessage(), 'webhook', 'Fonnte');
