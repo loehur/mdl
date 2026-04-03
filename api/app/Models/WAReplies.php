@@ -4179,14 +4179,60 @@ class WAReplies
     }
 
     /**
-     * Cari baris wa_conversations: sama jika 9 angka terakhir identik (MySQL/MariaDB: REGEXP_REPLACE).
+     * Variasi format nomor WA untuk lookup exact di kolom wa_number (+62… / 62… / 08… / 8…).
+     *
+     * @return string[]
+     */
+    private function waNumberLookupVariants(string $waNumber): array
+    {
+        $trimmed = trim($waNumber);
+        $d = preg_replace('/[^0-9]/', '', $waNumber);
+        $out = [$trimmed];
+        if (strlen($d) < 9) {
+            return array_values(array_unique(array_filter($out)));
+        }
+        if (strpos($d, '62') === 0 && strlen($d) >= 11) {
+            $rest = substr($d, 2);
+            $out[] = '+' . $d;
+            $out[] = $d;
+            $out[] = '0' . $rest;
+            if (strpos($rest, '8') === 0 || strlen($rest) >= 9) {
+                $out[] = $rest;
+            }
+        } elseif (strpos($d, '0') === 0 && strlen($d) >= 10) {
+            $out[] = $d;
+            $out[] = '62' . substr($d, 1);
+            $out[] = '+62' . substr($d, 1);
+        } elseif (strpos($d, '8') === 0 && strlen($d) >= 9) {
+            $out[] = $d;
+            $out[] = '0' . $d;
+            $out[] = '62' . $d;
+            $out[] = '+62' . $d;
+        }
+        return array_values(array_unique(array_filter($out)));
+    }
+
+    /**
+     * Cari baris wa_conversations: exact dulu (variasi format), lalu 9 digit terakhir.
+     * Hindari fatal jika DB tidak punya REGEXP_REPLACE (MySQL sebelum 8).
      *
      * @return object|null row from wa_conversations
      */
     private function findExistingWaConversationRow($db, string $waNumber): ?object
     {
+        foreach ($this->waNumberLookupVariants($waNumber) as $variant) {
+            $existing = $db->get_where('wa_conversations', ['wa_number' => $variant], 1);
+            if ($existing->num_rows() > 0) {
+                return $existing->row();
+            }
+        }
+
         $last9 = $this->waPhoneLastNineDigits($waNumber);
-        if ($last9 !== null) {
+        if ($last9 === null) {
+            return null;
+        }
+
+        try {
             $db->query(
                 'SELECT * FROM wa_conversations WHERE RIGHT(REGEXP_REPLACE(wa_number, \'[^0-9]\', \'\'), 9) = ? ORDER BY id DESC LIMIT 1',
                 [$last9]
@@ -4194,11 +4240,25 @@ class WAReplies
             if ($db->num_rows() > 0) {
                 return $db->row();
             }
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write('findExistingWaConversationRow REGEXP_REPLACE: ' . $e->getMessage(), 'wa_error', 'WAReplies');
+            }
         }
 
-        $existing = $db->get_where('wa_conversations', ['wa_number' => trim($waNumber)]);
-        if ($existing->num_rows() > 0) {
-            return $existing->row();
+        try {
+            $sql = 'SELECT * FROM wa_conversations WHERE '
+                . 'LENGTH(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(wa_number),\'+\',\'\'),\'-\',\'\'),\' \',\'\'),\'(\',\'\'),\')\',\'\')) >= 9 '
+                . 'AND RIGHT(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(wa_number),\'+\',\'\'),\'-\',\'\'),\' \',\'\'),\'(\',\'\'),\')\',\'\'), 9) = ? '
+                . 'ORDER BY id DESC LIMIT 1';
+            $db->query($sql, [$last9]);
+            if ($db->num_rows() > 0) {
+                return $db->row();
+            }
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write('findExistingWaConversationRow REPLACE fallback: ' . $e->getMessage(), 'wa_error', 'WAReplies');
+            }
         }
 
         return null;
