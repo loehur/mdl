@@ -18,10 +18,11 @@
               $name = $a['product_name'];
               $limit = $a['monthly_limit'];
               $no++;
+              $nameAttr = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
               echo "<tr>";
               echo "<td class='text-right'>" . $no . "</td>";
               echo "<td>" . $name . "<br><span class='text-primary'><small>Limit Bulanan " . number_format($limit) . "</small></span></td>";
-              echo "<td class='pt-2'><span data-id='" . $a['pre_id'] . "' " . $modal . " class='btn btn-sm btn-success modal_pre'>Beli</span></td>";
+              echo "<td class='pt-2'><span data-name='" . $nameAttr . "' " . $modal . " class='btn btn-sm btn-success modal_pre'>Beli</span></td>";
               echo "</tr>";
             }
             ?>
@@ -33,32 +34,29 @@
 </div>
 <div class="row mx-0" id="data"></div>
 
-<div class="modal" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-sm">
-    <div class="modal-content">
-      <div class="modal-header">
-        <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close"> <span aria-hidden="true">&times;</span></button>
+<div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title w-100 text-center" id="exampleModalLabel">Pembelian Token</h5>
+        <button type="button" class="close" data-bs-dismiss="modal" aria-label="Tutup"><span aria-hidden="true">&times;</span></button>
       </div>
-      <div class="modal-body">
-        <!-- ====================== FORM ========================= -->
-        <form action="<?= URL::BASE_URL ?>Prepaid/buy" method="POST">
-          <div class="card-body">
-            <p id="info"></p>
-            <label class="">PIN</label>
-            <div class="input-group mb-3">
-              <input type="password" name="pin" class="form-control" required>
-              <div class="input-group-append">
-                <div class="input-group-text" id="req_pin" style="cursor: pointer;">
-                  <span<i class="fas fa-mobile-alt"></i></span>
-                </div>
-              </div>
-              <input type="hidden" name="id" id="pre_id" />
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button type="submit" class="btn btn-sm btn-primary py-2 w-100">Proses</button>
-          </div>
-        </form>
+      <div class="modal-body pt-2">
+        <p class="text-muted small text-center mb-1" id="modal_product_name"></p>
+        <p class="text-center mb-3" style="line-height: 1.5;">
+          Pembelian token saat ini dilakukan melalui <strong>WhatsApp Laundry</strong>. Silakan kirim pesan berikut ke nomor resmi kami, lalu ikuti petunjuk yang diberikan.
+        </p>
+        <div class="rounded p-3 mb-3 text-center" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border: 1px solid #dee2e6;">
+          <span class="d-block text-uppercase text-muted small mb-2" style="letter-spacing: 0.05em;">Format pesan</span>
+          <code class="d-inline-block px-2 py-1 rounded bg-white border user-select-all fw-bold text-dark" style="font-size: 0.95rem;">{ CEK TOKEN LAUNDRY }</code>
+        </div>
+        <p class="small text-muted text-center mb-0">
+          <i class="fab fa-whatsapp text-success me-1"></i>
+          Pastikan Anda menghubungi nomor WhatsApp Laundry yang terdaftar agar transaksi berjalan aman dan tertib.
+        </p>
+      </div>
+      <div class="modal-footer border-0 pt-0 justify-content-center">
+        <button type="button" class="btn btn-primary px-4" data-bs-dismiss="modal">Mengerti</button>
       </div>
     </div>
   </div>
@@ -73,72 +71,12 @@
     $("#data").load("<?= URL::BASE_URL ?>Prepaid/load_data");
   }
 
-  $("#req_pin").on("click", function(e) {
-    var hp_input = '<?= $this->user_login['no_user'] ?>';
-    $(".loaderDiv").fadeIn("fast");
-    e.preventDefault();
-    $.ajax({
-      url: '<?= URL::BASE_URL ?>Login/req_pin',
-      data: {
-        hp: hp_input
-      },
-      type: 'POST',
-
-      success: function(res) {
-        try {
-          data = JSON.parse(res);
-          if (data.code == 0) {
-            $("#info").hide();
-            $("#info").html('<div class="alert alert-danger" role="alert">' + data.msg + '</div>')
-            $("#info").fadeIn();
-            $(".loaderDiv").fadeOut("slow");
-          } else if (data.code == 1) {
-            $("#info").hide();
-            $("#info").html('<div class="alert alert-success" role="alert">' + data.msg + '</div>')
-            $("#info").fadeIn();
-            $(".loaderDiv").fadeOut("slow");
-          }
-        } catch (e) {
-          $("#info").hide();
-          $("#info").html('<div class="alert alert-danger" role="alert">' + res + '</div>')
-          $("#info").fadeIn();
-          $(".loaderDiv").fadeOut("slow");
-        }
-      },
-    });
-  });
-
   $("span.modal_pre").on('click', function() {
-    var id = $(this).attr('data-id');
-    $("input#pre_id").val(id);
-    $("input[name=pin]").focus();
-  })
-
-  $("form").on("submit", function(e) {
-    e.preventDefault();
-    $(".loaderDiv").fadeIn("fast");
-    $.ajax({
-      url: $(this).attr('action'),
-      data: $(this).serialize(),
-      type: $(this).attr("method"),
-      success: function(res) {
-        try {
-          data = JSON.parse(res);
-          if (data.code == 0) {
-            $("#info").hide();
-            $("#info").html('<div class="alert alert-danger" role="alert">' + data.msg + '</div>')
-            $("#info").fadeIn();
-            $(".loaderDiv").fadeOut("slow");
-          } else if ((data.code == 1)) {
-            location.reload(true);
-          }
-        } catch (e) {
-          $("#info").hide();
-          $("#info").html('<div class="alert alert-danger" role="alert">' + res + '</div>')
-          $("#info").fadeIn();
-          $(".loaderDiv").fadeOut("slow");
-        }
-      },
-    });
+    var name = $(this).attr('data-name');
+    if (name) {
+      $("#modal_product_name").html('<span class="fw-semibold text-dark">' + $('<div/>').text(name).html() + '</span>');
+    } else {
+      $("#modal_product_name").empty();
+    }
   });
 </script>
