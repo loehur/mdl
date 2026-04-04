@@ -223,7 +223,7 @@ class WAReplies
      * @param int $cooldownMinutes Default 60
      * @return bool True jika boleh kirim fallback (di luar cooldown)
      */
-    public function shouldSendFonnteFallbackReply($waNumber, $cooldownMinutes = 60)
+    public function shouldSendFonnteFallbackReply($waNumber, $cooldownMinutes = 1440)
     {
         return $this->shouldHandle($waNumber, 'DEFAULT', $cooldownMinutes);
     }

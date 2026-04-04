@@ -19,8 +19,8 @@ class WA_Fonnte extends Controller
 {
     private const DEFAULT_FALLBACK_REPLY = "Maaf jika respon lambat.\n\nBila berkenan kirimkan pesan ke\n*Madinah Laundry (CS)*\n💬 wa.me/6281170706611\n\nTerima kasih.";
 
-    /** Cooldown wa_auto_reply_log (handler DEFAULT) sebelum fallback dikirim lagi ke nomor yang sama */
-    private const DEFAULT_FALLBACK_COOLDOWN_MINUTES = 60;
+    /** Cooldown wa_auto_reply_log (handler DEFAULT) sebelum fallback dikirim lagi ke nomor yang sama — 24 jam */
+    private const DEFAULT_FALLBACK_COOLDOWN_MINUTES = 1440;
 
     public function index()
     {

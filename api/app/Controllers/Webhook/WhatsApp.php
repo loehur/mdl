@@ -14,8 +14,8 @@ class WhatsApp extends Controller
 {
     private const DEFAULT_FALLBACK_REPLY_YCLOUD = "Maaf jika respon lambat.\n\nBila berkenan kirimkan pesan ke\n*Madinah Laundry (Admin)*\n💬 wa.me/628117686252\n\nTerima kasih.";
 
-    /** Cooldown wa_auto_reply_log (handler DEFAULT, menyatu yCloud+Fonnte) sebelum fallback dikirim lagi ke nomor yang sama */
-    private const DEFAULT_FALLBACK_COOLDOWN_MINUTES = 60;
+    /** Cooldown wa_auto_reply_log (handler DEFAULT, menyatu yCloud+Fonnte) sebelum fallback dikirim lagi ke nomor yang sama — 24 jam */
+    private const DEFAULT_FALLBACK_COOLDOWN_MINUTES = 1440;
 
     /**
      * Handle incoming webhook

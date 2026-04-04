@@ -105,6 +105,8 @@ return [
             '/\b(sudah|udah|udh|dah|dh)\s*selesai/i',  // sudah selesai laundry nya kak? udh selesai kah?
             '/\b(udah|sudah|udh|sdh|dah|dh)\s*bisa\s*(di\s*)?ambil/i',  // udh bisa di ambil baju sy? sdh bisa diambil?
             '/\b(udah|sudah|udh|sdh|dah|dh)\s*bisa\s*(di\s*|d\s+)?jemput/i',  // udh/sdh bisa d jemput? (bukan minta kurir)
+            // "yang pakaian harian apa bisa dijemput?" = tanya status (tanpa sdh/udh pun); beda dari minta kurir
+            '/\b(pakaian|laundry|loundry|londri|cucian|strika|setrika|gosok|yang)\b.{0,120}?\bapa\b.{0,50}?\b(bisa|boleh)\s*(di)?(jemput|ambil)\b/iu',
             '/\bbisa\s*(di\s*)?ambil\s*\??/i',  // bisa diambil? / bisa di ambil?
             '/\bsia+p+\s*(kak|kk|bang|pak|bu|mbak|ya)?\s*$/i',
             // "laundry saya udh siap" / "loundry saya udh siap" (typo)
@@ -122,6 +124,7 @@ return [
         | laundry saya udh siap | loundry saya udh siap mbak | dh siap kk penya ku | siap kk | siap penya | kak dahh siapp kak | dah siapp | sudah siap kak |\n
         \n
         PENTING:\n
+        - Pola 'yang/pakaian/laundry/... apa ... bisa dijemput/diambil?' (boleh tanpa sdh/udh) = tanya status order siap diambil = STATUS\n
         - Jika user bertanya 'kapan' atau 'jam berapa' + (siap/selesai/jadi/bisa diambil) = STATUS\n
         - Jika user bertanya 'atas nama [nama] udah/sudah?' = STATUS (tanya status laundry atas nama tertentu)\n
         - Jika user memberitahu/konfirmasi 'sudah siap' / 'dah siap' / 'siapp' / 'dahh siapp' = STATUS\n
@@ -189,6 +192,7 @@ return [
       'patterns' => [
          '/^\s*(je*m*pu*t|anta*r)\s*$/i',
          // "tolong/bantu/minta/bisa antar/jemput" (permintaan langsung). Catatan: "udh/sdh/sudah ... bisa dijemput" = STATUS (regex STATUS dicek lebih dulu + ada kata sudah/singkatannya).
+         // "bisa/boleh" + jemput: permintaan layanan; pertanyaan status "X apa bisa dijemput" ada di regex STATUS (dicek lebih dulu)
          '/\b(tolong|minta|bantu|bntu|bisa|boleh)\s*(di)?(antar|jemput)\b/i',
          // "jam berapa bisa jemput?" = tanya jadwal jemput (bukan jam buka toko)
          '/\b(jam\s*)?(brp|brpa|berapa)\s*bisa\s*(jemput|antar)/i',
