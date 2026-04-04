@@ -12,6 +12,11 @@ use App\Core\Controller;
  */
 class WhatsApp extends Controller
 {
+    private const DEFAULT_FALLBACK_REPLY_YCLOUD = "Maaf jika respon lambat.\n\nBila berkenan kirimkan pesan ke\n*Madinah Laundry (Admin)*\n💬 wa.me/628117686252\n\nTerima kasih.";
+
+    /** Cooldown wa_auto_reply_log (handler DEFAULT, menyatu yCloud+Fonnte) sebelum fallback dikirim lagi ke nomor yang sama */
+    private const DEFAULT_FALLBACK_COOLDOWN_MINUTES = 60;
+
     /**
      * Handle incoming webhook
      * URL: /Webhook/WhatsApp
@@ -410,7 +415,8 @@ class WhatsApp extends Controller
                     $lastMessage = 'i- ' . mb_substr($lastMessageSummary, 0, 50);
                 }
                 
-                $autoReplyResult = (new \App\Models\WAReplies())->process(
+                $replies = new \App\Models\WAReplies();
+                $autoReplyResult = $replies->process(
                     $phoneIn, 
                     $messageText, 
                     $waNumber,
@@ -420,6 +426,12 @@ class WhatsApp extends Controller
                     $lastMessage,
                     $cust_id
                 );
+
+                if (!empty($autoReplyResult->no_handler) && mb_strlen(trim((string) ($messageText ?? ''))) > 10) {
+                    if ($replies->shouldSendFonnteFallbackReply($waNumber, self::DEFAULT_FALLBACK_COOLDOWN_MINUTES)) {
+                        $replies->sendDefaultFallbackAutoreply($waNumber, self::DEFAULT_FALLBACK_REPLY_YCLOUD);
+                    }
+                }
                 
                 $currentCase = $autoReplyResult->case;
                 $notify = $autoReplyResult->notify ?? true;

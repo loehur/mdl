@@ -19,7 +19,7 @@ class WA_Fonnte extends Controller
 {
     private const DEFAULT_FALLBACK_REPLY = "Maaf jika respon lambat.\n\nBila berkenan kirimkan pesan ke\n*Madinah Laundry (CS)*\n💬 wa.me/6281170706611\n\nTerima kasih.";
 
-    /** Cooldown wa_auto_reply_log (handler FONNTE_DEFAULT_FALLBACK) sebelum fallback dikirim lagi ke nomor yang sama */
+    /** Cooldown wa_auto_reply_log (handler DEFAULT) sebelum fallback dikirim lagi ke nomor yang sama */
     private const DEFAULT_FALLBACK_COOLDOWN_MINUTES = 60;
 
     public function index()
@@ -132,7 +132,8 @@ class WA_Fonnte extends Controller
                 $cust_id
             );
             // Fallback default hanya jika intent tidak punya handler (atau unknown/no-intent), max sekali per nomor per DEFAULT_FALLBACK_COOLDOWN_MINUTES.
-            if (!empty($processResult->no_handler)) {
+            // Pesan sangat pendek (≤10 karakter) tidak dibalas fallback CS agar tidak mengganggu salam/stiker singkat.
+            if (!empty($processResult->no_handler) && mb_strlen($messageText) > 10) {
                 if ($replies->shouldSendFonnteFallbackReply($waNumber, self::DEFAULT_FALLBACK_COOLDOWN_MINUTES)) {
                     $this->sendFallbackReply($sender, self::DEFAULT_FALLBACK_REPLY, $inboxid);
                 }

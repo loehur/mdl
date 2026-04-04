@@ -35,7 +35,7 @@ class WAReplies
      */
     private $skipConversationPersist = false;
 
-    /** Provider untuk wa_auto_reply_log: A = yCloud, B = Fonnte */
+    /** Provider untuk wa_auto_reply_log: A = yCloud, B = Fonnte (kecuali handler DEFAULT — cooldown menyatu, lihat shouldHandleDefaultUnified) */
     private $autoReplyProvider = 'A';
 
     /**
@@ -120,6 +120,10 @@ class WAReplies
      */
     private function shouldHandle($waNumber, $handler, $cooldownMinutes = 1)
     {
+        if ($handler === 'DEFAULT') {
+            return $this->shouldHandleDefaultUnified($waNumber, $cooldownMinutes);
+        }
+
         $db = DB::getInstance(0);
         $provider = $this->autoReplyProvider;
 
@@ -167,8 +171,53 @@ class WAReplies
     }
 
     /**
-     * Rate limit balasan fallback Fonnte (DEFAULT_FALLBACK_REPLY) per nomor via wa_auto_reply_log.
-     * Handler: FONNTE_DEFAULT_FALLBACK, provider sesuai setAutoReplyProvider (Fonnte = B).
+     * Cooldown fallback DEFAULT: satu jejak per nomor (abaikan provider A/B) agar pelanggan tidak
+     * mendapat dua arahan berbeda (yCloud vs Fonnte) dalam jendela cooldown yang sama.
+     */
+    private function shouldHandleDefaultUnified(string $waNumber, int $cooldownMinutes): bool
+    {
+        $db = DB::getInstance(0);
+        $handler = 'DEFAULT';
+
+        $sql = "SELECT created_at FROM wa_auto_reply_log 
+                WHERE phone = ? AND handler = ? 
+                ORDER BY created_at DESC LIMIT 1";
+
+        $result = $db->query($sql, [$waNumber, $handler]);
+
+        if ($result && $result->num_rows() > 0) {
+            $lastReply = $result->row()->created_at;
+            $cooldownEnd = date('Y-m-d H:i:s', strtotime($lastReply) + ($cooldownMinutes * 60));
+
+            if (date('Y-m-d H:i:s') < $cooldownEnd) {
+                return false;
+            }
+        }
+
+        $now = date('Y-m-d H:i:s');
+        $db->update(
+            'wa_auto_reply_log',
+            ['created_at' => $now],
+            ['phone' => $waNumber, 'handler' => $handler]
+        );
+
+        if ($db->affected_rows() > 0) {
+            return true;
+        }
+
+        $db->insert('wa_auto_reply_log', [
+            'phone' => $waNumber,
+            'handler' => $handler,
+            'provider' => $this->autoReplyProvider,
+            'created_at' => $now,
+        ]);
+
+        return true;
+    }
+
+    /**
+     * Rate limit balasan fallback per nomor via wa_auto_reply_log (handler DEFAULT).
+     * Cooldown menyatu untuk yCloud (A) dan Fonnte (B): tidak boleh double fallback ke channel lain dalam jendela yang sama.
      *
      * @param string $waNumber Nomor WhatsApp (+62...)
      * @param int $cooldownMinutes Default 60
@@ -176,7 +225,18 @@ class WAReplies
      */
     public function shouldSendFonnteFallbackReply($waNumber, $cooldownMinutes = 60)
     {
-        return $this->shouldHandle($waNumber, 'FONNTE_DEFAULT_FALLBACK', $cooldownMinutes);
+        return $this->shouldHandle($waNumber, 'DEFAULT', $cooldownMinutes);
+    }
+
+    /**
+     * Kirim teks fallback DEFAULT via yCloud (sendAutoreplyText: API + WebSocket).
+     * Panggil setelah shouldSendFonnteFallbackReply mengembalikan true.
+     */
+    public function sendDefaultFallbackAutoreply(string $waNumber, string $text): array
+    {
+        $this->currentHandler = 'DEFAULT';
+
+        return $this->sendAutoreplyText($waNumber, $text);
     }
 
     /**
