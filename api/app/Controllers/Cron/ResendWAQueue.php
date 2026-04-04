@@ -171,6 +171,15 @@ class ResendWAQueue extends Controller
     }
 
     /**
+     * SQL: nomor jadi digit saja tanpa REGEXP_REPLACE (MySQL 8+).
+     * Rantai REPLACE sama seperti fallback di WAReplies::findExistingWaConversationRow.
+     */
+    private function sqlPhoneDigitsOnly(string $column): string
+    {
+        return "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM({$column}),'+',''),'-',''),' ',''),'(',''),')','')";
+    }
+
+    /**
      * 9 digit terakhir nomor (digit saja), untuk samakan 081… / 628… / +62….
      */
     private function phoneLast9Digits(string $phone): ?string
@@ -198,11 +207,13 @@ class ResendWAQueue extends Controller
         }
         $text = trim($content);
         try {
+            $digits = $this->sqlPhoneDigitsOnly('phone');
             $sql = "
                 SELECT 1 AS ok
                 FROM notif
                 WHERE TRIM(text) = ?
-                  AND RIGHT(REGEXP_REPLACE(phone, '[^0-9]', ''), 9) = ?
+                  AND LENGTH({$digits}) >= 9
+                  AND RIGHT({$digits}, 9) = ?
                 LIMIT 1
             ";
             $q = $db->query($sql, [$text, $last9]);
@@ -246,16 +257,18 @@ class ResendWAQueue extends Controller
     private function syncLastInAtFromMessagesIn($db): int
     {
         try {
+            $mDigits = $this->sqlPhoneDigitsOnly('m.phone');
+            $cDigits = $this->sqlPhoneDigitsOnly('c.wa_number');
             $sql = "
                 UPDATE wa_conversations c
                 INNER JOIN (
                     SELECT
-                        REGEXP_REPLACE(m.phone, '[^0-9]', '') AS phone_digits,
+                        {$mDigits} AS phone_digits,
                         MAX(m.created_at) AS max_in
                     FROM wa_messages_in m
                     WHERE m.created_at >= (NOW() - INTERVAL 24 HOUR)
-                    GROUP BY REGEXP_REPLACE(m.phone, '[^0-9]', '')
-                ) src ON REGEXP_REPLACE(c.wa_number, '[^0-9]', '') = src.phone_digits
+                    GROUP BY {$mDigits}
+                ) src ON {$cDigits} = src.phone_digits
                 SET
                     c.last_in_at = GREATEST(
                         COALESCE(c.last_in_at, '1970-01-01 00:00:00'),
