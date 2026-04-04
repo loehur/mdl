@@ -701,6 +701,10 @@ class WAReplies
                     if ($handler === 'MINTA_JEMPUT_ANTAR' && preg_match('/\b(saya|aku|sy|gue)\s+ambil\b/i', $textBodyToCheck)) {
                         continue;
                     }
+                    // MINTA_JEMPUT_ANTAR: udh/sdh/sudah + bisa dijemput/diambil = tanya STATUS order, bukan minta kurir
+                    if ($handler === 'MINTA_JEMPUT_ANTAR' && preg_match('/\b(udah|sudah|udh|sdh|dah|dh)\s+bisa\s*(di\s*)?(jemput|ambil)\b/i', $textBodyToCheck)) {
+                        continue;
+                    }
                     // PENUTUP: daftar/instruksi item laundry panjang (bukan closing) — regex ok/sip kadang overlap
                     if ($handler === 'PENUTUP' && $this->messageLooksLikeLaundryItemListNotPenutup($textBodyToCheck)) {
                         continue;

@@ -8,8 +8,8 @@ use App\Core\Controller;
  * Resend WA outbound messages stuck in wa_messages_out.status='queue'
  * after yCloud timeout/network errors.
  *
- * Jika ada notif.state=pending (tabel notif di db(1)) dengan text sama dan nomor cocok
- * (9 digit terakhir), baris antrian WA dihapus agar tidak dobel dengan pengiriman lewat Cron laundry.
+ * Jika ada baris di tabel notif (db(1)) dengan text sama dan nomor cocok (9 digit terakhir),
+ * state apa pun, baris antrian WA dihapus agar tidak dobel dengan pengiriman lewat Cron laundry.
  *
  * URL (example):
  * /Cron/ResendWAQueue/index?interval=2&limit=20
@@ -55,7 +55,7 @@ class ResendWAQueue extends Controller
             $output .= "skipped=0\n";
             $output .= "removed_csw=0\n";
             $output .= "deferred_csw=0\n";
-            $output .= "removed_notif_pending=0\n";
+            $output .= "removed_notif_match=0\n";
 
             header('Content-Type: text/plain');
             echo $output;
@@ -69,7 +69,7 @@ class ResendWAQueue extends Controller
         $skipped = 0;
         $removedCsw = 0;
         $deferredCsw = 0;
-        $removedNotifPending = 0;
+        $removedNotifMatch = 0;
 
         foreach ($rows as $r) {
             $id = (int)($r['id'] ?? 0);
@@ -87,11 +87,11 @@ class ResendWAQueue extends Controller
                 continue;
             }
 
-            // Laundry masih punya notif pending (teks + nomor sama per 9 digit terakhir) → jangan kirim WA antrian; hapus baris
-            if ($this->hasPendingNotifMatchingQueueRow($dbNotif, $content, $phone)) {
+            // Laundry punya baris notif (teks + nomor sama per 9 digit terakhir, state apa pun) → jangan kirim WA antrian; hapus baris
+            if ($this->hasNotifMatchingQueueRow($dbNotif, $content, $phone)) {
                 $db->delete('wa_messages_out', ['id' => $id]);
-                $removedNotifPending++;
-                $output .= "DELETE id={$id} phone={$phone} reason=pending_notif_same_text_phone9\n";
+                $removedNotifMatch++;
+                $output .= "DELETE id={$id} phone={$phone} reason=notif_same_text_phone9\n";
                 continue;
             }
 
@@ -164,7 +164,7 @@ class ResendWAQueue extends Controller
             }
         }
 
-        $output .= "SUMMARY intervalMinutes={$intervalMinutes} limit={$limit} synced_last_in_at_rows={$syncedLastIn} processed={$processed} skipped={$skipped} removed_csw={$removedCsw} deferred_csw={$deferredCsw} removed_notif_pending={$removedNotifPending}\n";
+        $output .= "SUMMARY intervalMinutes={$intervalMinutes} limit={$limit} synced_last_in_at_rows={$syncedLastIn} processed={$processed} skipped={$skipped} removed_csw={$removedCsw} deferred_csw={$deferredCsw} removed_notif_match={$removedNotifMatch}\n";
 
         header('Content-Type: text/plain');
         echo $output;
@@ -187,10 +187,10 @@ class ResendWAQueue extends Controller
     }
 
     /**
-     * Ada baris notif pending dengan text sama (trim) dan nomor cocok (9 digit terakhir).
+     * Ada baris di notif dengan text sama (trim) dan nomor cocok (9 digit terakhir), state apa pun.
      * Tabel notif ada di db(1) (laundry); wa_messages_out tetap di db(0).
      */
-    private function hasPendingNotifMatchingQueueRow($db, string $content, string $phone): bool
+    private function hasNotifMatchingQueueRow($db, string $content, string $phone): bool
     {
         $last9 = $this->phoneLast9Digits($phone);
         if ($last9 === null) {
@@ -201,8 +201,7 @@ class ResendWAQueue extends Controller
             $sql = "
                 SELECT 1 AS ok
                 FROM notif
-                WHERE state = 'pending'
-                  AND TRIM(text) = ?
+                WHERE TRIM(text) = ?
                   AND RIGHT(REGEXP_REPLACE(phone, '[^0-9]', ''), 9) = ?
                 LIMIT 1
             ";
@@ -212,7 +211,7 @@ class ResendWAQueue extends Controller
             }
         } catch (\Throwable $e) {
             if (class_exists('\Log')) {
-                \Log::write('ResendWAQueue hasPendingNotifMatchingQueueRow: ' . $e->getMessage(), 'cron', 'ResendWAQueue');
+                \Log::write('ResendWAQueue hasNotifMatchingQueueRow: ' . $e->getMessage(), 'cron', 'ResendWAQueue');
             }
         }
 

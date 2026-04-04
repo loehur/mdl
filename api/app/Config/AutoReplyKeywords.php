@@ -103,8 +103,8 @@ return [
             '/\b(sudah|udah|udh|dah+|dh)\s*sia+p+\b/i',  // dh siap, udh siap, laundry saya udh siap?
             '/\b(siap|sia+p+)\s*(kak|kk|bang|pak|bu|mbak|penya|punya)/i',  // siap kk, siap penya ku (typo)
             '/\b(sudah|udah|udh|dah|dh)\s*selesai/i',  // sudah selesai laundry nya kak? udh selesai kah?
-            '/\b(udah|sudah|udh|dah|dh)\s*bisa\s*(di\s*)?ambil/i',  // udh bisa di ambil baju sy?
-            '/\b(udah|sudah|udh|dah|dh)\s*bisa\s*(di\s*|d\s+)?jemput/i',  // udh bisa d jemput kak? udh bisa di jemput?
+            '/\b(udah|sudah|udh|sdh|dah|dh)\s*bisa\s*(di\s*)?ambil/i',  // udh bisa di ambil baju sy? sdh bisa diambil?
+            '/\b(udah|sudah|udh|sdh|dah|dh)\s*bisa\s*(di\s*|d\s+)?jemput/i',  // udh/sdh bisa d jemput? (bukan minta kurir)
             '/\bbisa\s*(di\s*)?ambil\s*\??/i',  // bisa diambil? / bisa di ambil?
             '/\bsia+p+\s*(kak|kk|bang|pak|bu|mbak|ya)?\s*$/i',
             // "laundry saya udh siap" / "loundry saya udh siap" (typo)
@@ -114,7 +114,7 @@ return [
         'ai_prompt' => "User menanyakan ATAU memberitahu status/progress laundry, seperti:\n
         PERTANYAAN status:\n
         | sudah selesai? | udh selesai kah? | bisa diambil? | kapan siap? | jam berapa siap? | sudah jadi? | jam berapa selesai? |\n
-        | sudah bisa diambil? | udh bisa d jemput kak? | udh bisa di jemput? | kapan bisa diambil? | siapnya kapan? | siapnya jam berapa? |\n
+        | sudah bisa diambil? | udh bisa d jemput kak? | udh bisa di jemput? | pakaian harian apa sdh bisa dijemput? | yang strika sdh bisa dijemput? | kapan bisa diambil? | siapnya kapan? | siapnya jam berapa? |\n
         | atas nama IVAN udah? | atas nama X sudah? | laundry [nama] udah? | punya [nama] sudah? |\n
         \n
         KONFIRMASI/PEMBERITAHUAN status (sudah siap):\n
@@ -188,7 +188,7 @@ return [
       'notify' => true,
       'patterns' => [
          '/^\s*(je*m*pu*t|anta*r)\s*$/i',
-         // "tolong/bantu/minta/bisa antar/jemput" (permintaan langsung)
+         // "tolong/bantu/minta/bisa antar/jemput" (permintaan langsung). Catatan: "udh/sdh/sudah ... bisa dijemput" = STATUS (regex STATUS dicek lebih dulu + ada kata sudah/singkatannya).
          '/\b(tolong|minta|bantu|bntu|bisa|boleh)\s*(di)?(antar|jemput)\b/i',
          // "jam berapa bisa jemput?" = tanya jadwal jemput (bukan jam buka toko)
          '/\b(jam\s*)?(brp|brpa|berapa)\s*bisa\s*(jemput|antar)/i',
@@ -220,6 +220,7 @@ return [
       - CRITICAL: Instruksi ambil/jemput baju/laundry/kain/bedcover/sprei dari LOKASI (kamar hotel/kost, depan kamar, rumah sakit, sekolah, alamat/jalan) = MINTA_JEMPUT_ANTAR. Contoh: | kk ambil baju kotor sama bedcover di depan kamar 212 | ambil laundry di hotel | jemput di kamar 305 | ambil di RS |\n
       \n
       FALSE (BUKAN MINTA JEMPUT/ANTAR) - SANGAT PENTING:\n
+      - Tanya STATUS order (sudah/sdh/udh bisa dijemput/diambil) termasuk per kategori: | pakaian harian apa sdh bisa dijemput? | yang cuci setrika udh bisa dijemput? | = STATUS, BUKAN minta kurir.\n
       - User yang akan MENGAMBIL SENDIRI: | mau jemput | saya jemput | aku ambil | awak jemput | nanti saya jemput |\n
       - Konfirmasi/Pemberitahuan: | baik nanti dijemput | ok sore diantar | iya nanti akan dijemput | siap dijemput |\n
       - Hanya memberitahu jadwal tanpa permintaan: | nanti sore dijemput | besok diantar | jam 2 dijemput |\n
