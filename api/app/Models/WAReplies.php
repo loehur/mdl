@@ -3170,8 +3170,10 @@ class WAReplies
             $db0 = DB::getInstance(0);
 
             // Get prepaid_list - TODO: $pre_id perlu didefinisikan (dari parameter atau parsing message)
+            $pre_id_int = (int) $pre_id;
             $pre_list = $db0->query(
-                "SELECT * FROM prepaid_list WHERE pre_id = $pre_id AND bisnis = '$bisnis'"
+                "SELECT * FROM prepaid_list WHERE pre_id = ? AND bisnis = ?",
+                [$pre_id_int, $bisnis]
             )->row_array();
 
             if (!$pre_list) {
@@ -3197,6 +3199,36 @@ class WAReplies
                 return;
             }
 
+            // Cegah duplikasi: token id + hari yang sama + tr_status yang sama (cek sukses sebelum proses)
+            $dupBefore = $db0->query(
+                "SELECT id, ref_id, tr_status, insertTime, sn, message, price, product_code, customer_id, id_cabang
+                 FROM prepaid
+                 WHERE product_code = ? AND customer_id = ? AND id_cabang = ?
+                 AND DATE(insertTime) = CURDATE()
+                 AND tr_status = 1
+                 LIMIT 1",
+                [$product_code, $customer_id_prepaid, $id_cabang]
+            )->row_array();
+            if ($dupBefore) {
+                $d = $dupBefore;
+                $msg = "*Transaksi tidak dapat dilanjutkan*\n\n"
+                    . "Sudah ada data transaksi hari ini untuk *token id yang sama* dengan *status transaksi (tr_status) yang sama*.\n"
+                    . "Tidak dapat melakukan transaksi 2 kali dalam sehari dengan id token yang sama bila hasilnya sama (sukses).\n\n"
+                    . "*Data yang sudah ada:*\n"
+                    . "Token ID (pre_id): *{$pre_id_int}*\n"
+                    . "Product code: *{$d['product_code']}*\n"
+                    . "Customer ID: *{$d['customer_id']}*\n"
+                    . "ID cabang: *{$d['id_cabang']}*\n"
+                    . "Ref ID: *{$d['ref_id']}*\n"
+                    . "tr_status: *{$d['tr_status']}* (sukses)\n"
+                    . "Waktu: *{$d['insertTime']}*\n"
+                    . "SN: " . ($d['sn'] ?? '-') . "\n"
+                    . "Harga: *" . ($d['price'] ?? '-') . "*\n"
+                    . "Pesan: " . ($d['message'] ?? '-');
+                $waService->sendFreeText($waNumber, $msg);
+                return;
+            }
+
             // Bersihkan waNumber dari karakter non-digit (seperti +)
             $cleanWaNumber = preg_replace('/[^0-9]/', '', $waNumber);
             $ref_id = "wa-" . $cleanWaNumber . "-" . date('YmdHi') . "-" . $id_cabang;
@@ -3219,13 +3251,45 @@ class WAReplies
                 if (isset($proses['data'])) {
                     $d = $proses['data'];
 
-                    $tr_status = $d['status'] ?? ($a['tr_status'] ?? 0);
+                    $tr_status = (int) ($d['status'] ?? ($a['tr_status'] ?? 0));
                     $price = $d['price'] ?? ($a['price'] ?? 0);
                     $message = $d['message'] ?? ($a['message'] ?? '');
                     $balance = $d['balance'] ?? ($a['balance'] ?? 0);
                     $tr_id = $d['tr_id'] ?? ($a['tr_id'] ?? 0);
                     $rc = $d['rc'] ?? ($a['rc'] ?? '');
                     $sn = $d['sn'] ?? ($a['sn'] ?? '');
+
+                    // Duplikasi: hari yang sama + token yang sama + tr_status yang sama (baris lain, mis. race atau gagal 2x)
+                    $dupOther = $db0->query(
+                        "SELECT id, ref_id, tr_status, insertTime, sn, message, price, product_code, customer_id, id_cabang
+                         FROM prepaid
+                         WHERE product_code = ? AND customer_id = ? AND id_cabang = ?
+                         AND DATE(insertTime) = CURDATE()
+                         AND tr_status = ?
+                         AND ref_id <> ?
+                         LIMIT 1",
+                        [$product_code, $customer_id_prepaid, $id_cabang, $tr_status, $ref_id]
+                    )->row_array();
+                    if ($dupOther) {
+                        $du = $dupOther;
+                        $msgDup = "*Transaksi tidak dapat dilanjutkan*\n\n"
+                            . "Sudah ada data transaksi *hari ini* untuk token id yang sama dengan *tr_status* yang sama. "
+                            . "Tidak dapat melakukan transaksi 2 kali dalam sehari dengan id yang sama bila status hasilnya sama.\n\n"
+                            . "*Data yang sudah ada:*\n"
+                            . "Token ID (pre_id): *{$pre_id_int}*\n"
+                            . "Product code: *{$du['product_code']}*\n"
+                            . "Customer ID: *{$du['customer_id']}*\n"
+                            . "ID cabang: *{$du['id_cabang']}*\n"
+                            . "Ref ID: *{$du['ref_id']}*\n"
+                            . "tr_status: *{$du['tr_status']}*\n"
+                            . "Waktu: *{$du['insertTime']}*\n"
+                            . "SN: " . ($du['sn'] ?? '-') . "\n"
+                            . "Harga: *" . ($du['price'] ?? '-') . "*\n"
+                            . "Pesan: " . ($du['message'] ?? '-');
+                        $db0->delete('prepaid', ['ref_id' => $ref_id]);
+                        $waService->sendFreeText($waNumber, $msgDup);
+                        return;
+                    }
 
                     $set = [
                         'sn' => $sn,
