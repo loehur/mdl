@@ -80,7 +80,11 @@ $isEmpty = empty($grouped);
                     <?php } ?>
                   </td>
                   <td class="text-end pe-3 py-2 align-middle">
-                     <span class="text-muted small"><?= $item['qty'] ?? 0 ?> Item</span>
+                     <?php
+                       $q = rtrim(rtrim(number_format($item['qty'] ?? 0, 1, ',', '.'), '0'), ',');
+                       $u = trim($item['unit_nama'] ?? '');
+                     ?>
+                     <span class="text-muted small"><?= $q ?><?= $u !== '' ? ' ' . htmlspecialchars($u, ENT_QUOTES, 'UTF-8') : '' ?></span>
                   </td>
                 </tr>
               <?php } ?>

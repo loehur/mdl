@@ -48,6 +48,8 @@ $group = $data['group'] ?? null;
           <?php foreach ($group['items'] as $item) {
             $margin = $item['margin'] ?? 0;
             $displayPrice = $item['price'] + $margin;
+            $qtyFmt = rtrim(rtrim(number_format($item['qty'], 1, ',', '.'), '0'), ',');
+            $unitLbl = trim($item['unit_nama'] ?? '');
           ?>
           <tr>
             <td class="ps-3 py-2">
@@ -55,7 +57,7 @@ $group = $data['group'] ?? null;
               <?php if (($item['denom'] ?? 1) != 1) { ?>
                 <span class="text-muted ms-1 small">@<?= htmlspecialchars((string)($item['denom'] ?? ''), ENT_QUOTES, 'UTF-8') ?></span>
               <?php } ?>
-              <div class="text-muted small"><?= rtrim(rtrim(number_format($item['qty'], 1, ',', '.'), '0'), ',') ?> x Rp<?= number_format($displayPrice) ?></div>
+              <div class="text-muted small"><?= $qtyFmt ?><?= $unitLbl !== '' ? ' ' . htmlspecialchars($unitLbl, ENT_QUOTES, 'UTF-8') : '' ?> x Rp<?= number_format($displayPrice) ?></div>
             </td>
             <td class="text-end pe-3 py-2 align-middle">
               <span class="fw-bold">Rp<?= number_format($displayPrice * $item['qty']) ?></span>

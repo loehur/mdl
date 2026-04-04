@@ -76,18 +76,19 @@ $isEmpty = empty($grouped);
         <div class="card-body p-0">
           <table class="table table-sm mb-0">
             <tbody>
-              <?php foreach ($group['items'] as $item) { ?>
+              <?php foreach ($group['items'] as $item) { 
+                $margin = $item['margin'] ?? 0;
+                $displayPrice = $item['price'] + $margin;
+                $qtyFmt = rtrim(rtrim(number_format($item['qty'], 1, ',', '.'), '0'), ',');
+                $unitLbl = trim($item['unit_nama'] ?? '');
+              ?>
                 <tr>
                   <td class="ps-3 py-2">
                     <span class="fw-medium"><?= $item['nama_barang'] ?></span>
                     <?php if ($item['denom'] != 1) { ?>
                       <span class="text-muted ms-1" style="font-size: 0.75rem;">@<?= $item['denom'] ?></span>
                     <?php } ?>
-                    <?php 
-                      $margin = $item['margin'] ?? 0;
-                      $displayPrice = $item['price'] + $margin;
-                    ?>
-                    <div class="text-muted small"><?= $item['qty'] ?> x Rp<?= number_format($displayPrice) ?></div>
+                    <div class="text-muted small"><?= $qtyFmt ?><?= $unitLbl !== '' ? ' ' . htmlspecialchars($unitLbl, ENT_QUOTES, 'UTF-8') : '' ?> x Rp<?= number_format($displayPrice) ?></div>
                   </td>
                   <td class="text-end pe-3 py-2 align-middle">
                     <span class="fw-bold">Rp<?= number_format($displayPrice * $item['qty']) ?></span>
@@ -103,6 +104,40 @@ $isEmpty = empty($grouped);
             </tfoot>
           </table>
         </div>
+
+        <?php if (!empty($group['payments'])) { ?>
+        <div class="card-footer py-2 px-3 bg-light border-top">
+          <small class="text-muted fw-bold"><i class="fas fa-history me-1"></i>Riwayat pembayaran</small>
+          <table class="table table-sm table-borderless mb-0 mt-1" style="font-size: 0.9rem;">
+            <?php foreach ($group['payments'] as $payment) {
+              $st = (int) ($payment['status_mutasi'] ?? 0);
+              $statusClass = $st === 3 ? 'text-success' : 'text-warning';
+              $statusText = $st === 3 ? 'Lunas' : 'Pending';
+            ?>
+            <tr>
+              <td class="py-1 ps-0"><?= date('d/m/y H:i', strtotime($payment['insertTime'])) ?></td>
+              <td class="py-1">
+                <span class="<?= $statusClass ?>"><?= $statusText ?></span>
+                <?php if (!empty($payment['note'])) { ?>
+                  <span class="text-muted">(<?= htmlspecialchars($payment['note'], ENT_QUOTES, 'UTF-8') ?>)</span>
+                <?php } ?>
+              </td>
+              <td class="py-1 text-end pe-0"><span class="fw-bold">Rp<?= number_format($payment['jumlah']) ?></span></td>
+            </tr>
+            <?php } ?>
+            <tr class="border-top">
+              <td colspan="2" class="py-1 ps-0"><span class="text-muted">Total dibayar</span></td>
+              <td class="py-1 text-end pe-0"><span class="fw-bold text-success">Rp<?= number_format($group['total_paid'] ?? 0) ?></span></td>
+            </tr>
+            <?php if (($group['sisa'] ?? 0) != 0) { ?>
+            <tr>
+              <td colspan="2" class="py-1 ps-0"><span class="fw-bold text-danger">Sisa</span></td>
+              <td class="py-1 text-end pe-0"><span class="fw-bold text-danger">Rp<?= number_format($group['sisa']) ?></span></td>
+            </tr>
+            <?php } ?>
+          </table>
+        </div>
+        <?php } ?>
         
         <!-- Footer Actions -->
         <div class="card-footer p-2 text-end">
@@ -131,10 +166,12 @@ $isEmpty = empty($grouped);
               $margin = $item['margin'] ?? 0;
               $price = $item['price'] + $margin;
               $subtotal = $price * $item['qty'];
+              $qtyFmtP = rtrim(rtrim(number_format($item['qty'], 1, ',', '.'), '0'), ',');
+              $unitLblP = trim($item['unit_nama'] ?? '');
             ?>
             <tr><td><?= $item['nama_barang'] ?></td><td>&#8203;</td></tr>
             <tr>
-              <td><?= rtrim(rtrim(number_format($item['qty'], 1, ',', '.'), '0'), ',') ?> x <?= number_format($price) ?></td>
+              <td><?= $qtyFmtP ?><?= $unitLblP !== '' ? ' ' . htmlspecialchars($unitLblP, ENT_QUOTES, 'UTF-8') : '' ?> x <?= number_format($price) ?></td>
               <td style="text-align: right;"><?= number_format($subtotal) ?></td>
             </tr>
             <?php } ?>
@@ -143,6 +180,19 @@ $isEmpty = empty($grouped);
               <td><b>TOTAL</b></td>
               <td style="text-align: right;"><b><?= number_format($group['total']) ?></b></td>
             </tr>
+            <?php if (!empty($group['payments'])) { ?>
+            <tr id="dashRow"><td></td></tr>
+            <?php foreach ($group['payments'] as $payment) { ?>
+            <tr>
+              <td><?= date('d/m H:i', strtotime($payment['insertTime'])) ?> <?= htmlspecialchars($payment['note'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
+              <td style="text-align: right;"><?= number_format($payment['jumlah']) ?></td>
+            </tr>
+            <?php } ?>
+            <tr>
+              <td><small>Total dibayar</small></td>
+              <td style="text-align: right;"><small><?= number_format($group['total_paid'] ?? 0) ?></small></td>
+            </tr>
+            <?php } ?>
             <tr>
               <td colspan="2" style="text-align: center;">Terima Kasih</td>
             </tr>

@@ -65,18 +65,19 @@ $isEmpty = empty($grouped);
         <div class="card-body p-0">
           <table class="table table-sm mb-0">
             <tbody>
-              <?php foreach ($group['items'] as $item) { ?>
+              <?php foreach ($group['items'] as $item) { 
+                $margin = $item['margin'] ?? 0;
+                $displayPrice = $item['price'] + $margin;
+                $qtyFmt = rtrim(rtrim(number_format($item['qty'], 1, ',', '.'), '0'), ',');
+                $unitLbl = trim($item['unit_nama'] ?? '');
+              ?>
                 <tr>
                   <td class="ps-3 py-2">
                     <span class="fw-medium"><?= $item['nama_barang'] ?></span>
                     <?php if ($item['denom'] != 1) { ?>
                       <span class="text-muted ms-1" style="font-size: 0.75rem;">@<?= $item['denom'] ?></span>
                     <?php } ?>
-                    <?php 
-                      $margin = $item['margin'] ?? 0;
-                      $displayPrice = $item['price'] + $margin;
-                    ?>
-                    <div class="text-muted small"><?= $item['qty'] ?> x Rp<?= number_format($displayPrice) ?></div>
+                    <div class="text-muted small"><?= $qtyFmt ?><?= $unitLbl !== '' ? ' ' . htmlspecialchars($unitLbl, ENT_QUOTES, 'UTF-8') : '' ?> x Rp<?= number_format($displayPrice) ?></div>
                   </td>
                   <td class="text-end pe-3 py-2 align-middle">
                     <span class="fw-bold">Rp<?= number_format($displayPrice * $item['qty']) ?></span>

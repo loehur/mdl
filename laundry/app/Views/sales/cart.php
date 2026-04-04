@@ -26,7 +26,11 @@
           <?php } ?>
           <br>
           <small class="text-muted">
-            <?= rtrim(rtrim(number_format($item['qty'], 1, ',', '.'), '0'), ',') ?> x Rp<?= number_format($hargaJual) ?>
+            <?php
+              $q = rtrim(rtrim(number_format($item['qty'], 1, ',', '.'), '0'), ',');
+              $u = trim($item['unit_nama'] ?? '');
+            ?>
+            <?= $q ?><?= $u !== '' ? ' ' . htmlspecialchars($u, ENT_QUOTES, 'UTF-8') : '' ?> x Rp<?= number_format($hargaJual) ?>
           </small>
         </div>
         <div class="d-flex align-items-center gap-2">

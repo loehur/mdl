@@ -34,9 +34,7 @@ class Sales extends Controller
                'total_paid' => 0
             ];
          }
-         // Get barang name
-         $barang = $this->db(0)->get_where_row('barang_data', "id_barang = '{$item['id_barang']}'");
-         $item['nama_barang'] = $barang['nama'] ?? strtoupper(($barang['brand'] ?? '') . ' ' . ($barang['model'] ?? ''));
+         $item = $this->itemWithBarangMeta($item);
          $grouped[$ref]['items'][] = $item;
          $margin = $item['margin'] ?? 0;
          $grouped[$ref]['total'] += (($item['price'] + $margin) * $item['qty']);
@@ -139,9 +137,7 @@ class Sales extends Controller
       ];
 
       foreach ($items as $item) {
-         $idBarang = $item['id_barang'] ?? '';
-         $barang = $this->db(0)->get_where_row('barang_data', "id_barang = '" . $this->db(0)->escape($idBarang) . "'");
-         $item['nama_barang'] = $barang['nama'] ?? strtoupper(trim(($barang['brand'] ?? '') . ' ' . ($barang['model'] ?? '')));
+         $item = $this->itemWithBarangMeta($item);
          $margin = $item['margin'] ?? 0;
          $group['items'][] = $item;
          $group['total'] += (($item['price'] + $margin) * $item['qty']);
@@ -284,7 +280,8 @@ class Sales extends Controller
             'harga' => $harga,
             'qty' => $qty,
             'denom' => $denom,
-            'margin' => $margin
+            'margin' => $margin,
+            'unit_nama' => $this->unitNamaFromBarangRow(($id_sub > 0) ? $barang : $item),
          ];
       }
       
@@ -334,7 +331,8 @@ class Sales extends Controller
             'harga' => $harga,
             'qty' => $qty,
             'denom' => 1, // Main item denom = 1
-            'margin' => $margin
+            'margin' => $margin,
+            'unit_nama' => $this->unitNamaFromBarangRow($item),
          ];
       }
       
@@ -1069,9 +1067,7 @@ class Sales extends Controller
             ];
          }
          
-         // Get barang name
-         $barang = $this->db(0)->get_where_row('barang_data', "id_barang = '{$item['id_barang']}'");
-         $item['nama_barang'] = $barang['nama'] ?? strtoupper(($barang['brand'] ?? '') . ' ' . ($barang['model'] ?? ''));
+         $item = $this->itemWithBarangMeta($item);
          $grouped[$ref]['items'][] = $item;
          
          $margin = $item['margin'] ?? 0;
@@ -1127,9 +1123,7 @@ class Sales extends Controller
             ];
          }
          
-         // Get barang name
-         $barang = $this->db(0)->get_where_row('barang_data', "id_barang = '{$item['id_barang']}'");
-         $item['nama_barang'] = $barang['nama'] ?? strtoupper(($barang['brand'] ?? '') . ' ' . ($barang['model'] ?? ''));
+         $item = $this->itemWithBarangMeta($item);
          $grouped[$ref]['items'][] = $item;
          
          $margin = $item['margin'] ?? 0;
@@ -1184,9 +1178,7 @@ class Sales extends Controller
             ];
          }
          
-         // Get barang name
-         $barang = $this->db(0)->get_where_row('barang_data', "id_barang = '{$item['id_barang']}'");
-         $item['nama_barang'] = $barang['nama'] ?? strtoupper(($barang['brand'] ?? '') . ' ' . ($barang['model'] ?? ''));
+         $item = $this->itemWithBarangMeta($item);
          $grouped[$ref]['items'][] = $item;
          
          $margin = $item['margin'] ?? 0;
@@ -1251,14 +1243,33 @@ class Sales extends Controller
             ];
          }
          
-         // Get barang name
-         $barang = $this->db(0)->get_where_row('barang_data', "id_barang = '{$item['id_barang']}'");
-         $item['nama_barang'] = $barang['nama'] ?? strtoupper(($barang['brand'] ?? '') . ' ' . ($barang['model'] ?? ''));
+         $item = $this->itemWithBarangMeta($item);
          $grouped[$ref]['items'][] = $item;
          
          $margin = $item['margin'] ?? 0;
          $grouped[$ref]['total'] += (($item['price'] + $margin) * $item['qty']);
       }
+
+      // Riwayat pembayaran kas (jenis 7) per ref_transaksi, urut waktu
+      foreach ($grouped as $ref => &$group) {
+         $refEsc = $this->db(0)->escape($ref);
+         $payments = $this->db(0)->get_where_order(
+            'kas',
+            "ref_transaksi = '$refEsc' AND jenis_transaksi = 7",
+            'insertTime ASC'
+         );
+         if (!is_array($payments)) {
+            $payments = [];
+         }
+         $group['payments'] = $payments;
+         $totalPaid = 0;
+         foreach ($payments as $payment) {
+            $totalPaid += ($payment['jumlah'] ?? 0);
+         }
+         $group['total_paid'] = intval($totalPaid);
+         $group['sisa'] = intval(round($group['total'])) - intval($totalPaid);
+      }
+      unset($group);
       
       $data_operasi = ['title' => 'Order Selesai'];
       $this->view('layout', ['data_operasi' => $data_operasi]);
@@ -1267,5 +1278,36 @@ class Sales extends Controller
          'startDate' => $startDate,
          'endDate' => $endDate
       ]);
+   }
+
+   /**
+    * Nama satuan dari master barang_unit (untuk tampilan qty).
+    */
+   private function unitNamaFromBarangRow($barang)
+   {
+      if (!is_array($barang) || empty($barang['unit'])) {
+         return '';
+      }
+      $uid = $this->db(0)->escape($barang['unit']);
+      $unit = $this->db(0)->get_where_row('barang_unit', "id = '$uid'");
+      return $unit['nama'] ?? '';
+   }
+
+   /**
+    * Isi nama_barang + unit_nama pada baris barang_mutasi untuk ditampilkan di view.
+    */
+   private function itemWithBarangMeta($item)
+   {
+      if (!is_array($item)) {
+         $item = [];
+      }
+      $idEsc = $this->db(0)->escape($item['id_barang'] ?? '');
+      $barang = $this->db(0)->get_where_row('barang_data', "id_barang = '$idEsc'");
+      if (!is_array($barang)) {
+         $barang = [];
+      }
+      $item['nama_barang'] = $barang['nama'] ?? strtoupper(trim(($barang['brand'] ?? '') . ' ' . ($barang['model'] ?? '')));
+      $item['unit_nama'] = $this->unitNamaFromBarangRow($barang);
+      return $item;
    }
 }
