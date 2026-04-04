@@ -8,6 +8,9 @@ use App\Core\Controller;
  * Resend WA outbound messages stuck in wa_messages_out.status='queue'
  * after yCloud timeout/network errors.
  *
+ * Jika ada notif.state=pending (tabel notif di db(1)) dengan text sama dan nomor cocok
+ * (9 digit terakhir), baris antrian WA dihapus agar tidak dobel dengan pengiriman lewat Cron laundry.
+ *
  * URL (example):
  * /Cron/ResendWAQueue/index?interval=2&limit=20
  */
@@ -51,16 +54,22 @@ class ResendWAQueue extends Controller
             $output .= "processed=0\n";
             $output .= "skipped=0\n";
             $output .= "removed_csw=0\n";
+            $output .= "deferred_csw=0\n";
+            $output .= "removed_notif_pending=0\n";
 
             header('Content-Type: text/plain');
             echo $output;
             return;
         }
 
+        $dbNotif = $this->db(1);
+
         $waService = new \App\Helpers\WhatsAppService();
         $processed = 0;
         $skipped = 0;
         $removedCsw = 0;
+        $deferredCsw = 0;
+        $removedNotifPending = 0;
 
         foreach ($rows as $r) {
             $id = (int)($r['id'] ?? 0);
@@ -75,6 +84,14 @@ class ResendWAQueue extends Controller
             if (!$id || empty($externalId) || empty($phone) || $type !== 'text') {
                 $skipped++;
                 $output .= "SKIP id={$id} phone=" . ($phone ?? '') . " reason=invalid_data_or_not_text\n";
+                continue;
+            }
+
+            // Laundry masih punya notif pending (teks + nomor sama per 9 digit terakhir) → jangan kirim WA antrian; hapus baris
+            if ($this->hasPendingNotifMatchingQueueRow($dbNotif, $content, $phone)) {
+                $db->delete('wa_messages_out', ['id' => $id]);
+                $removedNotifPending++;
+                $output .= "DELETE id={$id} phone={$phone} reason=pending_notif_same_text_phone9\n";
                 continue;
             }
 
@@ -111,6 +128,13 @@ class ResendWAQueue extends Controller
             // yCloud free text hanya dalam CSW — sama dengan WhatsApp/send & isWithinCsw()
             $lastInAt = $this->getWaConversationLastInAt($db, $phone);
             if (!$waService->isWithinCsw($lastInAt)) {
+                // Selama baris antrian masih < 24 jam sejak created_at, jangan hapus: tunggu peluang CSW terbuka lagi di cron berikutnya
+                if ($this->isQueueCreatedWithinLast24Hours($queueCreatedAt)) {
+                    $deferredCsw++;
+                    $skipped++;
+                    $output .= "SKIP id={$id} phone={$phone} reason=csw_closed_defer_within_24h\n";
+                    continue;
+                }
                 $db->delete('wa_messages_out', ['id' => $id]);
                 $removedCsw++;
                 $output .= "DELETE id={$id} phone={$phone} reason=csw_closed\n";
@@ -140,10 +164,75 @@ class ResendWAQueue extends Controller
             }
         }
 
-        $output .= "SUMMARY intervalMinutes={$intervalMinutes} limit={$limit} synced_last_in_at_rows={$syncedLastIn} processed={$processed} skipped={$skipped} removed_csw={$removedCsw}\n";
+        $output .= "SUMMARY intervalMinutes={$intervalMinutes} limit={$limit} synced_last_in_at_rows={$syncedLastIn} processed={$processed} skipped={$skipped} removed_csw={$removedCsw} deferred_csw={$deferredCsw} removed_notif_pending={$removedNotifPending}\n";
 
         header('Content-Type: text/plain');
         echo $output;
+    }
+
+    /**
+     * 9 digit terakhir nomor (digit saja), untuk samakan 081… / 628… / +62….
+     */
+    private function phoneLast9Digits(string $phone): ?string
+    {
+        $d = preg_replace('/[^0-9]/', '', $phone);
+        if ($d === '') {
+            return null;
+        }
+        if (strlen($d) >= 9) {
+            return substr($d, -9);
+        }
+
+        return $d;
+    }
+
+    /**
+     * Ada baris notif pending dengan text sama (trim) dan nomor cocok (9 digit terakhir).
+     * Tabel notif ada di db(1) (laundry); wa_messages_out tetap di db(0).
+     */
+    private function hasPendingNotifMatchingQueueRow($db, string $content, string $phone): bool
+    {
+        $last9 = $this->phoneLast9Digits($phone);
+        if ($last9 === null) {
+            return false;
+        }
+        $text = trim($content);
+        try {
+            $sql = "
+                SELECT 1 AS ok
+                FROM notif
+                WHERE state = 'pending'
+                  AND TRIM(text) = ?
+                  AND RIGHT(REGEXP_REPLACE(phone, '[^0-9]', ''), 9) = ?
+                LIMIT 1
+            ";
+            $q = $db->query($sql, [$text, $last9]);
+            if ($q && $q->num_rows() > 0) {
+                return true;
+            }
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write('ResendWAQueue hasPendingNotifMatchingQueueRow: ' . $e->getMessage(), 'cron', 'ResendWAQueue');
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Baris antrian masih dalam jendela 24 jam sejak created_at (toleransi retry CSW).
+     */
+    private function isQueueCreatedWithinLast24Hours(?string $createdAt): bool
+    {
+        if ($createdAt === null || $createdAt === '') {
+            return false;
+        }
+        $ts = strtotime($createdAt);
+        if ($ts === false) {
+            return false;
+        }
+
+        return $ts >= (time() - 86400);
     }
 
     /**
