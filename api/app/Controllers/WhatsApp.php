@@ -3,7 +3,7 @@
 namespace App\Controllers;
 
 use App\Core\Controller;
-use App\Helpers\FonnteService;
+use App\Helpers\FreeTextOutboundDispatcher;
 use App\Helpers\WhatsAppService;
 
 /**
@@ -130,7 +130,6 @@ class WhatsApp extends Controller
             $hoursElapsed = $this->whatsappService->diffHours(date('Y-m-d H:i:s'), $last_in_at);
         }
         
-        // Business Logic: Free text — CSW yCloud (wa_conversations); jika tertutup / API tolak CSW, coba CSW Fonnte (wa_fonnte_csw) + Fonnte API
         if ($messageMode === 'free') {
             if (empty($body['message'])) {
                 $this->error('Message content is required for free text mode', 400);
@@ -142,75 +141,11 @@ class WhatsApp extends Controller
                 $messageText = $decodedMsg['text'];
             }
 
-            $fonnteLastIn = $this->getFonnteCswLastInAt($db, $phone1);
-            $fonnteHoursElapsed = 99999;
-            if ($fonnteLastIn) {
-                $fonnteHoursElapsed = $this->whatsappService->diffHours(date('Y-m-d H:i:s'), $fonnteLastIn);
+            $res = FreeTextOutboundDispatcher::dispatch($db, $this->whatsappService, $phone, $messageText, $senderCode);
+            if (!empty($res['ok'])) {
+                $this->success($res['http_data'], $res['http_message']);
             }
-            $isFonnteCswOpen = $this->whatsappService->isWithinCsw($fonnteLastIn);
-
-            $bothCswClosedData = [
-                'csw_expired' => true,
-                'ycloud_open' => false,
-                'fonnte_open' => false,
-                'hours_elapsed_ycloud' => round($hoursElapsed, 2),
-                'hours_elapsed_fonnte' => round($fonnteHoursElapsed, 2),
-                'last_in_at_ycloud' => $last_in_at ?? 'No previous message',
-                'last_in_at_fonnte' => $fonnteLastIn ?? 'No previous message',
-                'phone_sent' => $phone,
-                'suggestion' => 'chat ke Laundry Bot dulu ya',
-            ];
-
-            if ($isWithinCsw) {
-                $result = $this->whatsappService->sendFreeText($phone, $messageText, null, $senderCode);
-                if ($result['success']) {
-                    $this->success([
-                        'message_id' => $result['data']['id'] ?? null,
-                        'status' => $result['data']['status'] ?? 'sent',
-                        'mode' => 'free_text',
-                        'to' => $phone,
-                        'csw_status' => [
-                            'within_csw' => true,
-                            'hours_elapsed' => round($hoursElapsed, 2),
-                        ],
-                    ], 'WhatsApp free text sent successfully');
-                }
-                if ($this->isYCloudFreeTextCswError($result)) {
-                    if ($isFonnteCswOpen) {
-                        $this->sendFreeTextViaFonnte($phone, $messageText, $isWithinCsw, $hoursElapsed, $fonnteHoursElapsed, $fonnteLastIn);
-                    }
-                    // Pesan sudah diantrekan di WhatsAppService::sendRequest (status queue) untuk resend saat CSW terbuka
-                    $bothCswClosedData['free_text_queued_for_resend'] = true;
-                    $this->error(
-                        'Customer Service Window (CSW) expired for yCloud and Fonnte. Cannot send free text message.',
-                        400,
-                        $bothCswClosedData
-                    );
-                }
-                $errorMsg = $this->extractYCloudFreeTextError($result);
-                \Log::write('Failed to send free text: ' . json_encode($result), 'whatsapp', 'api');
-                $this->error('Failed to send WhatsApp message: ' . $errorMsg, 500, $result);
-            }
-
-            if ($isFonnteCswOpen) {
-                $this->sendFreeTextViaFonnte($phone, $messageText, $isWithinCsw, $hoursElapsed, $fonnteHoursElapsed, $fonnteLastIn);
-            }
-
-            // CSW tertutup di DB untuk yCloud & Fonnte — belum kirim ke API; antrekan untuk cron (24 jam)
-            $this->whatsappService->queueFreeTextForCswRetry(
-                $phone,
-                $messageText,
-                null,
-                $senderCode,
-                'CSW closed — yCloud & Fonnte (DB); message not sent to API'
-            );
-            $bothCswClosedData['free_text_queued_for_resend'] = true;
-
-            $this->error(
-                'Customer Service Window (CSW) expired for yCloud and Fonnte. Cannot send free text message.',
-                400,
-                $bothCswClosedData
-            );
+            $this->error($res['http_message'], $res['http_code'] ?? 400, $res['http_data'] ?? null);
         }
         
         // Business Logic: Template mode — jika CSW yCloud ATAU CSW Fonnte terbuka: batalkan template, kirim free text saja
@@ -243,68 +178,18 @@ class WhatsApp extends Controller
                     $freeTextMsg = $decodedFree['text'];
                 }
 
-                $bothCswClosedTpl = [
-                    'csw_expired' => true,
-                    'ycloud_open' => false,
-                    'fonnte_open' => false,
-                    'hours_elapsed_ycloud' => round($hoursElapsed, 2),
-                    'hours_elapsed_fonnte' => round($fonnteHoursElapsedTpl, 2),
-                    'last_in_at_ycloud' => $last_in_at ?? 'No previous message',
-                    'last_in_at_fonnte' => $fonnteLastInTpl ?? 'No previous message',
-                    'phone_sent' => $phone,
-                    'template_cancelled' => true,
-                ];
-
-                if ($isWithinCsw) {
-                    $result = $this->whatsappService->sendFreeText($phone, $freeTextMsg, null, $senderCode);
-                    if ($result['success']) {
-                        $this->success([
-                            'message_id' => $result['data']['id'] ?? null,
-                            'status' => $result['data']['status'] ?? 'sent',
-                            'mode' => 'free_text',
-                            'to' => $phone,
-                            'csw_status' => [
-                                'ycloud_within_csw' => true,
-                                'fonnte_within_csw' => $isFonnteCswOpenTpl,
-                                'hours_elapsed_ycloud' => round($hoursElapsed, 2),
-                                'hours_elapsed_fonnte' => round($fonnteHoursElapsedTpl, 2),
-                                'note' => 'Template dibatalkan; terkirim sebagai free text (CSW yCloud dan/atau Fonnte terbuka)',
-                            ],
-                        ], 'WhatsApp free text sent successfully (template cancelled)');
-                    }
-                    if ($this->isYCloudFreeTextCswError($result)) {
-                        if ($isFonnteCswOpenTpl) {
-                            $this->sendFreeTextViaFonnte(
-                                $phone,
-                                $freeTextMsg,
-                                $isWithinCsw,
-                                $hoursElapsed,
-                                $fonnteHoursElapsedTpl,
-                                $fonnteLastInTpl
-                            );
-                        }
-                        $bothCswClosedTpl['free_text_queued_for_resend'] = true;
-                        $this->error(
-                            'Customer Service Window (CSW) expired for yCloud and Fonnte. Cannot send free text message.',
-                            400,
-                            $bothCswClosedTpl
-                        );
-                    }
-                    $errorMsg = $this->extractYCloudFreeTextError($result);
-                    \Log::write('Template→free text failed: ' . json_encode($result), 'whatsapp', 'api');
-                    $this->error('Template dibatalkan; free text gagal: ' . $errorMsg, 500, $result);
+                $resTpl = FreeTextOutboundDispatcher::dispatch(
+                    $db,
+                    $this->whatsappService,
+                    $phone,
+                    $freeTextMsg,
+                    $senderCode,
+                    ['template_cancelled' => true]
+                );
+                if (!empty($resTpl['ok'])) {
+                    $this->success($resTpl['http_data'], $resTpl['http_message']);
                 }
-
-                if ($isFonnteCswOpenTpl) {
-                    $this->sendFreeTextViaFonnte(
-                        $phone,
-                        $freeTextMsg,
-                        $isWithinCsw,
-                        $hoursElapsed,
-                        $fonnteHoursElapsedTpl,
-                        $fonnteLastInTpl
-                    );
-                }
+                $this->error($resTpl['http_message'], $resTpl['http_code'] ?? 400, $resTpl['http_data'] ?? null);
             }
 
             // CSW tertutup di yCloud DAN Fonnte — kirim template (yCloud)
@@ -383,78 +268,5 @@ class WhatsApp extends Controller
         }
 
         return null;
-    }
-
-    private function isYCloudFreeTextCswError(array $result): bool
-    {
-        $errorData = $result['data']['error'] ?? null;
-        if (!is_array($errorData)) {
-            return false;
-        }
-        $errorCode = $errorData['code'] ?? '';
-        $errorMsg = $errorData['message'] ?? '';
-        $codeStr = is_scalar($errorCode) ? (string) $errorCode : '';
-        $msgStr = is_string($errorMsg) ? $errorMsg : '';
-        if (strpos($codeStr, '131047') !== false) {
-            return true;
-        }
-        if ($msgStr !== '' && (stripos($msgStr, 'outside') !== false || stripos($msgStr, '24 hour') !== false || stripos($msgStr, '24-hour') !== false)) {
-            return true;
-        }
-
-        return false;
-    }
-
-    private function extractYCloudFreeTextError(array $result): string
-    {
-        $errorData = $result['data']['error'] ?? null;
-        if (is_array($errorData)) {
-            return (string) ($errorData['message'] ?? $errorData['code'] ?? json_encode($errorData));
-        }
-        if (is_string($errorData)) {
-            return $errorData;
-        }
-
-        return (string) ($result['error'] ?? 'Failed to send');
-    }
-
-    /**
-     * Kirim teks bebas via Fonnte; success()/error() menghentikan eksekusi.
-     */
-    private function sendFreeTextViaFonnte(
-        string $phone,
-        string $messageText,
-        bool $isWithinCswYcloud,
-        float $hoursElapsedYcloud,
-        float $hoursElapsedFonnte,
-        ?string $fonnteLastIn
-    ): void {
-        $fonnte = new FonnteService();
-        $fonnteResult = $fonnte->sendMessage($phone, $messageText);
-        if ($fonnteResult['success']) {
-            $note = $isWithinCswYcloud
-                ? 'Sent via Fonnte after yCloud API rejected CSW'
-                : 'Sent via Fonnte (yCloud CSW closed; Fonnte CSW open)';
-            $this->success([
-                'message_id' => $fonnteResult['data']['id'][0] ?? ($fonnteResult['data']['requestid'] ?? null),
-                'status' => $fonnteResult['data']['process'] ?? 'sent',
-                'mode' => 'fonnte',
-                'to' => $phone,
-                'csw_status' => [
-                    'ycloud_within_csw' => $isWithinCswYcloud,
-                    'fonnte_within_csw' => true,
-                    'hours_elapsed_ycloud' => round($hoursElapsedYcloud, 2),
-                    'hours_elapsed_fonnte' => round($hoursElapsedFonnte, 2),
-                    'last_in_at_fonnte' => $fonnteLastIn,
-                    'note' => $note,
-                ],
-            ], 'WhatsApp free text sent via Fonnte');
-        }
-        \Log::write('Fonnte free send failed: ' . json_encode($fonnteResult), 'whatsapp', 'api');
-        $this->error(
-            'Failed to send WhatsApp message via Fonnte: ' . ($fonnteResult['error'] ?? 'unknown'),
-            500,
-            ['fonnte' => $fonnteResult]
-        );
     }
 }

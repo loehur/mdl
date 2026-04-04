@@ -3,6 +3,7 @@
 namespace App\Controllers\Webhook;
 
 use App\Core\Controller;
+use App\Helpers\FreeTextOutboundDispatcher;
 use App\Helpers\PostpaidTrStatus;
 
 /**
@@ -198,9 +199,23 @@ class IAK extends Controller
                 $text = $message;
             }
 
-            $waService->sendFreeText($waNumber, $text);
+            $db = $this->db(0);
+            $res = FreeTextOutboundDispatcher::dispatch($db, $waService, $waNumber, $text, null);
+            if (!empty($res['ok'])) {
+                \Log::write("WA Notif sent ({$res['channel']}) to $waNumber", 'webhook', 'IAK');
 
-            \Log::write("WA Notif sent to $waNumber", 'webhook', 'IAK');
+                return;
+            }
+            if (($res['channel'] ?? '') === 'queued') {
+                \Log::write("WA Notif queued (CSW yCloud & Fonnte closed) to $waNumber", 'webhook', 'IAK');
+
+                return;
+            }
+            \Log::write(
+                'WA Notif failed: ' . ($res['http_message'] ?? 'unknown') . ' | channel=' . ($res['channel'] ?? ''),
+                'webhook',
+                'IAK'
+            );
         } catch (\Exception $e) {
             \Log::write("Err: WA Notif " . $e->getMessage(), 'webhook', 'IAK');
         }
