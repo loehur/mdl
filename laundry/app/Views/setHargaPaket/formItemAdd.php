@@ -34,12 +34,6 @@
   </div>
 </form>
 
-<!-- SCRIPT -->
-<script src="<?= URL::EX_ASSETS ?>js/jquery-3.6.0.min.js"></script>
-<script src="<?= URL::EX_ASSETS ?>js/popper.min.js"></script>
-<script src="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.1/js/bootstrap.bundle.min.js"></script>
-<script src="<?= URL::EX_ASSETS ?>plugins/select2/select2.min.js"></script>
-
 <script>
   $(document).ready(function() {
     $("form").on("submit", function(e) {

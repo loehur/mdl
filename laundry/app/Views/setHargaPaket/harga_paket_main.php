@@ -87,7 +87,7 @@
     });
 
     $("button.orderPenjualanForm").on("click", function(e) {
-      var id_penjualan = "'" + $(this).attr('data-id_penjualan') + "'";
+      var id_penjualan = $(this).attr('data-id_penjualan');
       $('div.orderPenjualanForm').load('<?= URL::BASE_URL ?>SetHargaPaket/form/' + id_penjualan);
     });
 
