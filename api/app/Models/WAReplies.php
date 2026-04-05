@@ -4415,8 +4415,25 @@ class WAReplies
     }
 
     /**
-     * Cari baris wa_conversations: exact dulu (variasi format), lalu 9 digit terakhir.
-     * Hindari fatal jika DB tidak punya REGEXP_REPLACE (MySQL sebelum 8).
+     * Ekspresi SQL (MySQL 5.7): normalisasi wa_number ke digit saja dengan rantai REPLACE.
+     * Tidak memakai REGEXP_REPLACE (hanya MySQL 8+).
+     *
+     * @param string $column Nama kolom, default wa_number
+     */
+    private function sqlWaNumberDigitsOnlyExpr(string $column = 'wa_number'): string
+    {
+        $expr = "TRIM({$column})";
+        foreach (['+', '-', ' ', '(', ')', '.'] as $ch) {
+            $q = $ch === "'" ? "''" : $ch;
+            $expr = "REPLACE({$expr},'{$q}','')";
+        }
+
+        return $expr;
+    }
+
+    /**
+     * Cari baris wa_conversations: exact dulu (variasi format), lalu 9 digit terakhir (cocokkan digit saja).
+     * Kompatibel MySQL 5.7 (tanpa REGEXP_REPLACE).
      *
      * @return object|null row from wa_conversations
      */
@@ -4434,32 +4451,18 @@ class WAReplies
             return null;
         }
 
-        try {
-            $db->query(
-                'SELECT * FROM wa_conversations WHERE RIGHT(REGEXP_REPLACE(wa_number, \'[^0-9]\', \'\'), 9) = ? ORDER BY id DESC LIMIT 1',
-                [$last9]
-            );
-            if ($db->num_rows() > 0) {
-                return $db->row();
-            }
-        } catch (\Throwable $e) {
-            if (class_exists('\Log')) {
-                \Log::write('findExistingWaConversationRow REGEXP_REPLACE: ' . $e->getMessage(), 'wa_error', 'WAReplies');
-            }
-        }
+        $digits = $this->sqlWaNumberDigitsOnlyExpr('wa_number');
+        $sql = 'SELECT * FROM wa_conversations WHERE LENGTH(' . $digits . ') >= 9 '
+            . 'AND RIGHT(' . $digits . ', 9) = ? ORDER BY id DESC LIMIT 1';
 
         try {
-            $sql = 'SELECT * FROM wa_conversations WHERE '
-                . 'LENGTH(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(wa_number),\'+\',\'\'),\'-\',\'\'),\' \',\'\'),\'(\',\'\'),\')\',\'\')) >= 9 '
-                . 'AND RIGHT(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(wa_number),\'+\',\'\'),\'-\',\'\'),\' \',\'\'),\'(\',\'\'),\')\',\'\'), 9) = ? '
-                . 'ORDER BY id DESC LIMIT 1';
             $db->query($sql, [$last9]);
             if ($db->num_rows() > 0) {
                 return $db->row();
             }
         } catch (\Throwable $e) {
             if (class_exists('\Log')) {
-                \Log::write('findExistingWaConversationRow REPLACE fallback: ' . $e->getMessage(), 'wa_error', 'WAReplies');
+                \Log::write('findExistingWaConversationRow: ' . $e->getMessage(), 'wa_error', 'WAReplies');
             }
         }
 
