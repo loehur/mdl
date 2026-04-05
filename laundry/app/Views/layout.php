@@ -51,9 +51,33 @@ if (isset($data['data_operasi'])) {
             opacity: 0.1 !important;
         }
 
+        /* Sidebar: scroll only the menu nav so long dropdowns stay reachable */
         .main-sidebar {
             height: 100vh;
+            max-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .main-sidebar .sidebar {
+            display: flex;
+            flex-direction: column;
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .main-sidebar .sidebar > *:not(nav) {
+            flex-shrink: 0;
+        }
+
+        .main-sidebar .sidebar > nav {
+            flex: 1 1 auto;
+            min-height: 0;
             overflow-y: auto;
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
         }
     </style>
 </head>
@@ -169,7 +193,7 @@ if ($log_mode == 1) {
                 <?php } ?>
 
                 <!-- MENU KASIR --------------------------------->
-                <nav class="ps-2 overflow-auto pb-5">
+                <nav class="ps-2 pb-5">
                     <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
                         <?php foreach ($menu as $key => $m) { ?>
                             <ul id="nav_<?= $key ?>" class="nav nav-pills nav-sidebar flex-column <?= $key == 0 ? $hideKasir : $hideAdmin ?>">
