@@ -275,6 +275,10 @@ return [
             // "Buka, buk?", "buka kak mau ambil baju" = tanya masih buka (sama seperti masih buka kak)
             '/\bbuka\s*[,.]?\s*(buk|bu|kak|bang|pak|mbak)\b/i',
             '/\bbuka\b.*\b(mau|ingin)\s*(ambil|jemput)\s*(baju|laundry)?/i',
+            // "Ka londry buka ga??", "laundry buka gak kak?", "loundry buka atau tidak" = tanya apakah outlet masih buka
+            '/\b(laundry|loundry|londri|londry|laondri|loundri)\b.{0,80}?\bbuka\b.{0,35}?\b(ga|gak|gk|nggak|enggak|tidak|tak|apa)\b/i',
+            '/\bbuka\b.{0,30}?\b(ga|gak|gk)\b.{0,70}?\b(laundry|loundry|londri|londry|laondri|loundri)\b/i',
+            '/\b(ma*si*h|masi|msih)\s+\bbuka\b.{0,25}?\b(ga|gak|gk|nggak)\b/i',
             '/(ja*m)\s*\b(be*ra*pa*)\s*\b(bu*ka*|tu*tu*p)/i',
             // "buka sampai kapan?", "tutup jam berapa?", "sampai jam berapa buka?"
             '/\b(bu*ka*|tu*tu*p)\s*(sa*mpa*i|sampe)\s*(ka*pa*n|ja*m\s*be*ra*pa*)?/i',
@@ -318,8 +322,10 @@ return [
         | masih terima kain kak? | masih terima baju? | masih terima laundry? | masih terima kak? |\n
         | masih bisa antar laundry? | masih bisa antar? | masih bisa jemput? | = tanya AVAILABILITAS (masih buka/bisa layani) = JAM_OPERASIONAL\n
         | masih bisa siap gak kk mau bawa sprei? | masih bisa siap mau antar? | = user BELUM antar laundry, tanya apakah masih terima/proses = JAM_OPERASIONAL\n
+        | Ka londry buka ga? | laundry buka gak? | loundry masih buka ga kak? | buka ga sekarang? (dengan konteks laundry/toko) = tanya apakah outlet MASIH BUKA = JAM_OPERASIONAL (BUKAN pertanyaan umum / bukan kategori lain)\n
         \n
         TRUE (JAM_OPERASIONAL) - PENTING:\n
+        - JIKA user tanya apakah laundry/toko/outlet BUKA atau TIDAK / buka ga / buka gak / masih buka = JAM_OPERASIONAL (walaupun ada tanda ? atau typo londry/loundry).\n
         - JIKA ada kata BUKA/TUTUP/OPERASIONAL dalam konteks jam = JAM_OPERASIONAL\n
         - JIKA user tanya 'kapan terakhir terima' / 'terakhir terima jam berapa' = tanya batas waktu terima laundry = JAM_OPERASIONAL\n
         - JIKA user tanya 'masih terima kain/baju/laundry' = tanya apakah masih buka terima = JAM_OPERASIONAL\n

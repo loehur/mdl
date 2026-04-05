@@ -62,11 +62,11 @@ class WA_Fonnte extends Controller
 
         $replyText = '';
 
-        $messageText = trim((string) ($message ?? $text ?? ''));
-        if ($messageText === '' && ! empty($url)) {
-            $messageText = '📷 ' . (string) ($filename ?: 'Media');
-        }
-        if ($messageText === '') {
+        $rawText = trim((string) ($message ?? $text ?? ''));
+        // Gambar/file/voice dari Fonnte biasanya punya url; tanpa caption = anggap panjang teks 0 (tidak intent AI, tidak DEFAULT_FALLBACK_REPLY)
+        $isMediaWithoutCaption = ($rawText === '' && ! empty($url));
+
+        if ($rawText === '' && empty($url)) {
             echo json_encode(['status' => 'ok', 'reply' => $replyText]);
 
             return;
@@ -78,6 +78,15 @@ class WA_Fonnte extends Controller
 
             return;
         }
+
+        if ($isMediaWithoutCaption) {
+            $this->recordFonnteIncoming($waNumber, $timestamp);
+            echo json_encode(['status' => 'ok', 'reply' => $replyText]);
+
+            return;
+        }
+
+        $messageText = $rawText;
 
         $cleanPhone = preg_replace('/[^0-9]/', '', $waNumber);
         $phone0 = '0' . substr($cleanPhone, 2);
