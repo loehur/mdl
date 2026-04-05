@@ -6,11 +6,15 @@
   <div class="list-group list-group-flush">
     <?php foreach ($data['cart'] as $key => $item) { 
         $hargaJual = ($item['harga'] ?? 0) + ($item['margin'] ?? 0);
+        $descBar = trim($item['deskripsi_barang'] ?? '');
     ?>
       <div class="list-group-item d-flex justify-content-between align-items-center py-2 px-1 cart-item" 
            data-harga="<?= $hargaJual ?>" data-qty="<?= $item['qty'] ?>">
         <div class="flex-grow-1">
           <span class="fw-medium text-sm"><?= $item['nama'] ?></span>
+          <?php if ($descBar !== '') { ?>
+          <div class="text-muted" style="font-size: 0.7rem; line-height: 1.25;"><?= htmlspecialchars($descBar, ENT_QUOTES, 'UTF-8') ?></div>
+          <?php } ?>
           <?php 
           // Tampilkan denom jika denom != 1
           $denom = $item['denom'] ?? 1;

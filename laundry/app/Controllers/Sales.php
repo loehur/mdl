@@ -263,6 +263,7 @@ class Sales extends Controller
             return;
          }
          
+         $namaHasDb = trim($item['nama'] ?? '') !== '';
          $nama = $item['nama'] ?? strtoupper(implode(' ', array_filter([$item['brand'] ?? '', $item['model'] ?? '', $item['description'] ?? ''])));
          $harga = $item['price'] ?? $item['harga'] ?? 0;
          $denom = 1; // Main item denom = 1
@@ -274,6 +275,11 @@ class Sales extends Controller
       if (isset($_SESSION['sales_cart'][$cart_key])) {
          $_SESSION['sales_cart'][$cart_key]['qty'] += $qty;
       } else {
+         if ($id_sub > 0) {
+            $deskripsiCart = trim($barang['description'] ?? '');
+         } else {
+            $deskripsiCart = $namaHasDb ? trim($item['description'] ?? '') : '';
+         }
          $_SESSION['sales_cart'][$cart_key] = [
             'id_barang' => $id_barang,
             'nama' => $nama,
@@ -282,6 +288,7 @@ class Sales extends Controller
             'denom' => $denom,
             'margin' => $margin,
             'unit_nama' => $this->unitNamaFromBarangRow(($id_sub > 0) ? $barang : $item),
+            'deskripsi_barang' => $deskripsiCart,
          ];
       }
       
@@ -313,6 +320,7 @@ class Sales extends Controller
       }
       
       // Construct name
+      $namaHasDb = trim($item['nama'] ?? '') !== '';
       $nama = $item['nama'] ?? '';
       if (empty($nama) && !empty($item['brand'])) {
           $nama = strtoupper(implode(' ', array_filter([$item['brand'] ?? '', $item['model'] ?? '', $item['description'] ?? ''])));
@@ -333,6 +341,7 @@ class Sales extends Controller
             'denom' => 1, // Main item denom = 1
             'margin' => $margin,
             'unit_nama' => $this->unitNamaFromBarangRow($item),
+            'deskripsi_barang' => $namaHasDb ? trim($item['description'] ?? '') : '',
          ];
       }
       
@@ -1294,7 +1303,7 @@ class Sales extends Controller
    }
 
    /**
-    * Isi nama_barang + unit_nama pada baris barang_mutasi untuk ditampilkan di view.
+    * Isi nama_barang, deskripsi_barang (dari barang_data.description), dan unit_nama untuk ditampilkan di view.
     */
    private function itemWithBarangMeta($item)
    {
@@ -1307,6 +1316,7 @@ class Sales extends Controller
          $barang = [];
       }
       $item['nama_barang'] = $barang['nama'] ?? strtoupper(trim(($barang['brand'] ?? '') . ' ' . ($barang['model'] ?? '')));
+      $item['deskripsi_barang'] = isset($barang['description']) ? trim((string) $barang['description']) : '';
       $item['unit_nama'] = $this->unitNamaFromBarangRow($barang);
       return $item;
    }

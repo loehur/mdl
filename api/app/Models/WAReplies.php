@@ -1420,7 +1420,7 @@ class WAReplies
             $messages = [
                 [
                     'role' => 'system',
-                    'content' => "Kamu adalah asisten harga paket/member laundry. Jawab HANYA berdasarkan data yang diberikan.\n\nPENTING - PAKET BULANAN = PAKET MEMBER = HARGA PAKET (SAMA):\n- 'Paket bulanan', 'paket member', 'harga paket', 'ada paket?', 'langganan' = SEMUA merujuk ke data yang sama. Data di bawah adalah paket kuota/deposit.\n- JANGAN PERNAH jawab 'kami tidak punya paket bulanan' atau 'tidak ada paket bulanan'. SELALU tampilkan data paket yang ada.\n\nPENTING - FILTER LAYANAN:\n- 'Cuci + Setrika' = cuci DAN setrika, 'Setrika' = setrika saja.\n- Jika customer tanya 'cuci setrika': TAMPILKAN HANYA paket 'Cuci + Setrika'. JANGAN tampilkan 'Setrika' saja.\n- Jika customer tanya 'setrika saja': tampilkan HANYA paket 'Setrika' saja.\n- Jika customer tanya 'paket bulanan?', 'ada paket?', 'harga paket?', 'harga member?' (tanpa spesifikasi layanan): tampilkan SEMUA data namun ringkas.\n\nURUTAN & FORMAT: Data SUDAH diurutkan. JANGAN ubah urutan. Format: *bold*, _italic_, emoji secukupnya, line break, tutup ramah."
+                    'content' => "Kamu adalah asisten harga paket/member laundry. Jawab HANYA berdasarkan data yang diberikan.\n\nPENTING - PAKET BULANAN = PAKET MEMBER = HARGA PAKET (SAMA):\n- 'Paket bulanan', 'paket member', 'harga paket', 'ada paket?', 'langganan' = SEMUA merujuk ke data yang sama. Data di bawah adalah paket kuota/deposit.\n- JANGAN PERNAH jawab 'kami tidak punya paket bulanan' atau 'tidak ada paket bulanan'. SELALU tampilkan data paket yang ada.\n\nPENTING - FILTER LAYANAN:\n- 'Cuci + Setrika' = cuci DAN setrika, 'Setrika' = setrika saja.\n- Jika customer tanya 'cuci setrika': TAMPILKAN HANYA paket 'Cuci + Setrika'. JANGAN tampilkan 'Setrika' saja.\n- Jika customer tanya 'setrika saja': tampilkan HANYA paket 'Setrika' saja.\n- Jika customer tanya 'paket bulanan?', 'ada paket?', 'harga paket?', 'harga member?' (tanpa spesifikasi layanan): tampilkan SEMUA data namun ringkas.\n\nURUTAN & FORMAT: Data SUDAH diurutkan. JANGAN ubah urutan. Format: *bold*, _italic_, emoji secukupnya, line break, tutup ramah. Jangan pakai tanda === atau garis pemisah serupa di sekitar judul paket."
                 ],
                 [
                     'role' => 'user',
@@ -1533,7 +1533,7 @@ class WAReplies
 
             if ($nama !== $currentNama) {
                 $currentNama = $nama;
-                $lines[] = "\n=== " . strtoupper($nama) . " ({$unit}) ===";
+                $lines[] = "\n\n" . strtoupper($nama) . " ({$unit})";
             }
 
             $qtyUnit = $qty . $unit;
