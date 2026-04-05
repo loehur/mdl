@@ -35,6 +35,12 @@ return [
             '/\b(antar|nyerahkan)\s+(laundry|loundry|londri|cucian)\b.{0,350}?\b(bl?m|belum|belom)\s+(dapat|dpt|ada|terima|kirim)\s+(notifikasi|notif|pemberitahuan)/iu',
             '/\b(bl?m|belum|belom)\s+(dapat|dpt|ada|terima)\s+(notifikasi|notif|pemberitahuan)\s*(via|lewat|pakai)?\s*(wa|whatsapp)\b.{0,160}?\b(antar|laundry|loundry|londri|cucian)\b/iu',
             '/\b(laundry|loundry|londri|cucian).{0,320}?\b(bl?m|belum|belom)\s+(dapat|dpt|ada|terima)\s+(notifikasi|notif|pemberitahuan)\s*(via|lewat|pakai)?\s*(wa|whatsapp)\b/iu',
+            // Waktu (tadi sore/pagi, kemarin, hari Jumat…) + belum di WA = follow-up nota/notifikasi belum masuk WA (bukan tanya total uang)
+            '/\b(yg|yang)\s+(td|tadi|kemarin|kmrn)\s*(pagi|siang|sore|malam)?\b.{0,200}?\b(bl?m|belum|belom)\s+di\s+(wa|whatsapp)\b/iu',
+            '/\b(td|tadi|kemarin|kmrn)\s+(pagi|siang|sore|malam)\b.{0,200}?\b(bl?m|belum|belom)\s+di\s+(wa|whatsapp)\b/iu',
+            '/\b(hari\s*)?(jumat|kamis|senin|selasa|rabu|sabtu|minggu)\b.{0,200}?\b(bl?m|belum|belom)\s+di\s+(wa|whatsapp)\b/iu',
+            '/\b(bl?m|belum|belom)\s+di\s+(wa|whatsapp)\b.{0,60}?\b(brp|berapa)\b/iu',
+            '/\b(brp|berapa)\b.{0,50}?\b(bl?m|belum|belom)\s+di\s+(wa|whatsapp)\b/iu',
         ],
         'ai_prompt' => "User meminta BON/NOTA/STRUK (dokumen bukti terima) sebagai fisik/cetak, ATAU menindaklanjuti karena bukti/nota belum masuk WhatsApp, seperti:\n
         | bon | nota | struk | bukti terima | minta bon | minta nota | minta struk |\n
@@ -43,10 +49,12 @@ return [
         - Jika ada pola: (laundry/loundry) + (belum/blm/belom) + 'ada masuk' + (wa/whatsapp) = NOTA. Contoh: | Laundry strika hari ini blm ada masuk wa nya | laundry cuci belum ada masuk whatsapp | loundry saya blm ada masuk wa |\n
         - Kalimat singkat notifikasi WA belum masuk: | Wa nya blm masuk | wa blm masuk | blm masuk wa | = NOTA (follow-up bukti/nota di WA), BUKAN FALSE.\n
         - Sudah antar/nitip laundry ke outlet tapi belum dapat notifikasi/nota lewat WA = NOTA (follow-up bukti terima digital), BUKAN STATUS. Contoh: | Tadi malam saya antar londri tp sampai siang belum dapat notifikasi via wa | sudah antar laundry kemarin belum ada notif wa | belum dapat notifikasi wa padahal sudah antar cucian |\n
+        - Waktu + belum di WA: user merujuk order/jam (tadi sore, tadi pagi, kemarin, hari Jumat, yg td sore, dll) lalu 'blm di wa' / 'belum di whatsapp' = follow-up NOTA/notifikasi digital belum masuk = NOTA. Contoh: | Kak yg td sore blm di wa ya brp nya | yang tadi pagi blm di wa | kemarin blm di wa kak | = NOTA. 'Brp nya' di sini = tanya notifikasi/nota (kok belum), BUKAN tanya total rupiah tagihan.\n
         - Ini komplain/follow-up nota struk bon belum dikirim ke WA customer = NOTA, BUKAN FALSE.\n
         \n
         FALSE (BUKAN NOTA) - PENTING:\n
-        - User menanya 'berapa total?' / 'berapa biaya?' / 'total berapa?' / 'brapa total strika tadi?' = itu TAGIHAN (tanya jumlah uang), BUKAN permintaan bon/nota = FALSE"
+        - User menanya 'berapa total?' / 'berapa biaya?' / 'total berapa?' / 'brapa total strika tadi?' murni tanya JUMLAH UANG (tanpa konteks blm di wa / nota belum masuk) = TAGIHAN, BUKAN NOTA.\n
+        - Jika pesan jelas 'blm di wa' / 'belum di whatsapp' dengan konteks waktu (tadi sore, dll) = NOTA walaupun ada kata 'berapa' atau 'brp'."
     ],
 
     'REKENING' => [
@@ -91,6 +99,9 @@ return [
         Jika user bertanya 'berapa' + (total/biaya/tagihan) atau (total/biaya) + 'berapa' = TAGIHAN\n
         Jika user minta/bisa kirimkan bill/tagihan = TAGIHAN (permintaan bill/tagihan)\n
         Jika user tanya 'laundry aku/saya ada?' = tanya tagihan punya saya = TAGIHAN\n
+        \n
+        CRITICAL - FALSE (BUKAN TAGIHAN) = NOTA:\n
+        - Follow-up nota/notifikasi belum masuk WA: 'tadi sore blm di wa', 'yg td sore blm di wa ya brp nya', 'kemarin blm di whatsapp' = tanya bukti/notifikasi di WA = NOTA, BUKAN TAGIHAN (walaupun ada 'berapa'/'brp').\n
         \n
         CRITICAL - FALSE (BUKAN TAGIHAN) = HARGA:\n
         - User bertanya HARGA cuci/setrika PER ITEM (order belum tentu ada): | berapa 1 boneka kak? | berapa 2 baju? | boneka berapa? | brp harga boneka? |\n
