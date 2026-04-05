@@ -63,20 +63,57 @@ class SetHargaPaket extends Controller
 
    public function updateCell()
    {
-      $id = $_POST['id'];
-      $value = $_POST['value'];
-      $mode = $_POST['mode'];
+      $id = (int) $_POST['id'];
+      $valueRaw = isset($_POST['value']) ? $_POST['value'] : '';
+      $valueNew = (float) str_replace(',', '.', (string) $valueRaw);
+      $mode = isset($_POST['mode']) ? $_POST['mode'] : '';
+      if ($mode !== 'a' && $mode !== 'b') {
+         return;
+      }
+      $col = ($mode === 'a') ? 'harga' : 'harga_b';
 
-      if ($mode == 'a') {
-         $col = 'harga';
-      } else {
-         $col = 'harga_b';
+      $db = $this->db(0);
+      $edited = $db->get_where('harga_paket', 'id_harga_paket = ' . $id);
+      if (empty($edited) || !isset($edited[0])) {
+         return;
       }
-      $set = $col . " = '" . $value . "'";
-      $where = "id_harga_paket = " . $id;
-      $query = $this->db(0)->update('harga_paket', $set, $where);
-      if ($query['errno'] == 0) {
-         $this->dataSynchrone($_SESSION[URL::SESSID]['user']['id_user']);
+      $row0 = $edited[0];
+      $idHarga = (int) $row0['id_harga'];
+      $qtyEdit = (float) $row0['qty'];
+      if ($qtyEdit <= 0) {
+         $qtyEdit = 1.0;
       }
+
+      // Nilai 0 = hanya baris ini (tanpa propagasi), agar tidak mengosongkan semua tier
+      if ($valueNew <= 0) {
+         $set = [$col => (string) $valueNew];
+         $query = $db->update('harga_paket', $set, 'id_harga_paket = ' . $id);
+         if ($query['errno'] == 0) {
+            $this->dataSynchrone($_SESSION[URL::SESSID]['user']['id_user']);
+         }
+         return;
+      }
+
+      $unitPrice = $valueNew / $qtyEdit;
+      $siblings = $db->get_where('harga_paket', 'id_harga = ' . $idHarga);
+
+      foreach ($siblings as $r) {
+         $pk = (int) $r['id_harga_paket'];
+         $qty = (float) $r['qty'];
+         if ($qty <= 0) {
+            $qty = 1.0;
+         }
+         $current = (float) $r[$col];
+         if ($pk !== $id && abs($current) < 0.0000001) {
+            continue;
+         }
+         $newVal = ($pk === $id) ? $valueNew : round($unitPrice * $qty, 2);
+         $q = $db->update('harga_paket', [$col => (string) $newVal], 'id_harga_paket = ' . $pk);
+         if ($q['errno'] !== 0) {
+            return;
+         }
+      }
+
+      $this->dataSynchrone($_SESSION[URL::SESSID]['user']['id_user']);
    }
 }
