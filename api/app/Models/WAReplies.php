@@ -705,6 +705,10 @@ class WAReplies
                     if ($handler === 'MINTA_JEMPUT_ANTAR' && preg_match('/\b(udah|sudah|udh|sdh|dah|dh)\s+bisa\s*(di\s*)?(jemput|ambil)\b/i', $textBodyToCheck)) {
                         continue;
                     }
+                    // MINTA_JEMPUT_ANTAR: tanya harga paket/member + antar/jemput (paket -D) = HARGA_PAKET lewat AI, bukan minta kurir
+                    if ($handler === 'MINTA_JEMPUT_ANTAR' && $this->messageIsHargaPaketAntarJemputCombinedQuestion($textBodyToCheck)) {
+                        continue;
+                    }
                     // PENUTUP: daftar/instruksi item laundry panjang (bukan closing) — regex ok/sip kadang overlap
                     if ($handler === 'PENUTUP' && $this->messageLooksLikeLaundryItemListNotPenutup($textBodyToCheck)) {
                         continue;
@@ -854,6 +858,14 @@ class WAReplies
             // Gunakan fullKeywordConfig untuk akses case dan notify (config lengkap)
             $aiCase = $fullKeywordConfig[$aiIntent]['case'] ?? null;
             $aiNotify = $fullKeywordConfig[$aiIntent]['notify'] ?? false;
+
+            // AI salah: tanya harga paket + antar/jemput (paket -D) = HARGA_PAKET, bukan minta kurir
+            if ($aiIntent === 'MINTA_JEMPUT_ANTAR' && $this->messageIsHargaPaketAntarJemputCombinedQuestion($textBodyToCheck)) {
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override_minta_jemput→HARGA_PAKET');
+                $aiIntent = 'HARGA_PAKET';
+                $aiCase = $fullKeywordConfig['HARGA_PAKET']['case'] ?? null;
+                $aiNotify = $fullKeywordConfig['HARGA_PAKET']['notify'] ?? false;
+            }
             
             // Note: Tidak perlu cek in_array($aiIntent, $matchPattern) lagi
             // karena keyword yang sudah match di regex sudah di-unset dari $keywordConfig
@@ -1407,7 +1419,10 @@ class WAReplies
     {
         $waService = $this->getWaService();
 
-        $priceDataText = $this->loadHargaPaketDataForAI();
+        $textCheck = mb_strtolower(preg_replace('/[*_~`]/', '', (string) $textBody), 'UTF-8');
+        $includeDeliveryPakets = $this->messageIsHargaPaketAntarJemputCombinedQuestion($textCheck);
+
+        $priceDataText = $this->loadHargaPaketDataForAI($includeDeliveryPakets);
         if (empty($priceDataText)) {
             return; // Tidak ada data, CS yang akan membalas manual
         }
@@ -1417,10 +1432,15 @@ class WAReplies
                 return; // AI tidak aktif, CS yang akan membalas manual
             }
 
+            $deliveryHint = '';
+            if ($includeDeliveryPakets) {
+                $deliveryHint = "\n\nPENTING - PAKET DENGAN '-D' DI NAMA (ANTAR/JEMPUT):\n- Customer menanyakan harga paket sekaligus antar/jemput (atau ongkir/kurir).\n- Di data, baris judul paket yang mengandung teks '-D' adalah varian yang SUDAH INCLUDE layanan antar-jemput.\n- UTAMAKAN tampilkan harga paket yang namanya mengandung '-D' (jelaskan singkat bahwa itu paket include antar/jemput). Paket tanpa '-D' boleh disinggung jika relevan, tapi jangan mengabaikan varian '-D'.\n- JANGAN mengira '-D' adalah typo; itu penanda produk di sistem.";
+            }
+
             $messages = [
                 [
                     'role' => 'system',
-                    'content' => "Kamu adalah asisten harga paket/member laundry. Jawab HANYA berdasarkan data yang diberikan.\n\nPENTING - PAKET BULANAN = PAKET MEMBER = HARGA PAKET (SAMA):\n- 'Paket bulanan', 'paket member', 'harga paket', 'ada paket?', 'langganan' = SEMUA merujuk ke data yang sama. Data di bawah adalah paket kuota/deposit.\n- JANGAN PERNAH jawab 'kami tidak punya paket bulanan' atau 'tidak ada paket bulanan'. SELALU tampilkan data paket yang ada.\n\nPENTING - FILTER LAYANAN:\n- 'Cuci + Setrika' = cuci DAN setrika, 'Setrika' = setrika saja.\n- Jika customer tanya 'cuci setrika': TAMPILKAN HANYA paket 'Cuci + Setrika'. JANGAN tampilkan 'Setrika' saja.\n- Jika customer tanya 'setrika saja': tampilkan HANYA paket 'Setrika' saja.\n- Jika customer tanya 'paket bulanan?', 'ada paket?', 'harga paket?', 'harga member?' (tanpa spesifikasi layanan): tampilkan SEMUA data namun ringkas.\n\nURUTAN & FORMAT: Data SUDAH diurutkan. JANGAN ubah urutan. Format: *bold*, _italic_, emoji secukupnya, line break, tutup ramah. Jangan pakai tanda === atau garis pemisah serupa di sekitar judul paket."
+                    'content' => "Kamu adalah asisten harga paket/member laundry. Jawab HANYA berdasarkan data yang diberikan.\n\nPENTING - PAKET BULANAN = PAKET MEMBER = HARGA PAKET (SAMA):\n- 'Paket bulanan', 'paket member', 'harga paket', 'ada paket?', 'langganan' = SEMUA merujuk ke data yang sama. Data di bawah adalah paket kuota/deposit.\n- JANGAN PERNAH jawab 'kami tidak punya paket bulanan' atau 'tidak ada paket bulanan'. SELALU tampilkan data paket yang ada.\n\nPENTING - FILTER LAYANAN:\n- 'Cuci + Setrika' = cuci DAN setrika, 'Setrika' = setrika saja.\n- Jika customer tanya 'cuci setrika': TAMPILKAN HANYA paket 'Cuci + Setrika'. JANGAN tampilkan 'Setrika' saja.\n- Jika customer tanya 'setrika saja': tampilkan HANYA paket 'Setrika' saja.\n- Jika customer tanya 'paket bulanan?', 'ada paket?', 'harga paket?', 'harga member?' (tanpa spesifikasi layanan): tampilkan SEMUA data namun ringkas." . $deliveryHint . "\n\nURUTAN & FORMAT: Data SUDAH diurutkan. JANGAN ubah urutan. Format: *bold*, _italic_, emoji secukupnya, line break, tutup ramah. Jangan pakai tanda === atau garis pemisah serupa di sekitar judul paket."
                 ],
                 [
                     'role' => 'user',
@@ -1450,10 +1470,38 @@ class WAReplies
     }
 
     /**
-     * Load harga paket dari db(1) - format untuk AI
-     * Urut by id_harga (nama paket), qty
+     * Pertanyaan harga paket/member/langganan/deposit sekaligus antar-jemput → sertakan data paket nama berisi "-D".
+     * Dipakai agar regex MINTA_JEMPUT_ANTAR tidak mengalahkan jalur AI HARGA_PAKET.
+     *
+     * @param string $textLower lowercase, tanpa formatter WA
      */
-    private function loadHargaPaketDataForAI()
+    private function messageIsHargaPaketAntarJemputCombinedQuestion($textLower)
+    {
+        $t = (string) $textLower;
+        if ($t === '') {
+            return false;
+        }
+        if (!preg_match('/\b(paket|member|langganan|deposit)\b/u', $t)) {
+            return false;
+        }
+        if (!preg_match('/\b(antar|jemput|dijemput|diantar|ongkir|ongkos|kurir|pickup|pick\s*up|include)\b/u', $t)) {
+            return false;
+        }
+        // Instruksi kurir saja (bukan tanya harga paket)
+        if (preg_match('/\b(tolong|minta|bantu)\s+(di)?(jemput|antar)\b/i', $t)
+            && !preg_match('/\b(harga|berapa|biaya|daftar|tarif|rate|brp|brpa)\b/u', $t)) {
+            return false;
+        }
+        return (bool) preg_match('/\b(harga|berapa|biaya|daftar|tarif|rate|brp|brpa)\b/u', $t);
+    }
+
+    /**
+     * Load harga paket dari db(1) - format untuk AI
+     * Urut by id_harga (nama paket), qty.
+     *
+     * @param bool $includeDeliveryPakets true = sertakan nama paket dengan "-D" (antar/jemput), diurutkan lebih dulu
+     */
+    private function loadHargaPaketDataForAI($includeDeliveryPakets = false)
     {
         $db = DB::getInstance(1);
 
@@ -1490,8 +1538,9 @@ class WAReplies
         }
 
         $hargaCache = [];
-        $lines = [];
-        $currentNama = '';
+        /** @var array<string, array{unit: string, rows: string[], has_d: bool}> $groups */
+        $groups = [];
+        $order = [];
 
         foreach ($rows as $r) {
             $idHarga = (int) ($r['id_harga'] ?? 0);
@@ -1526,18 +1575,41 @@ class WAReplies
             $nama = $cache['nama'];
             $unit = $cache['unit'];
 
-            // Jangan tampilkan paket yang nama mengandung -D
-            if (strpos($nama, '-D') !== false) {
+            if (!$includeDeliveryPakets && strpos($nama, '-D') !== false) {
                 continue;
             }
 
-            if ($nama !== $currentNama) {
-                $currentNama = $nama;
-                $lines[] = "\n\n" . strtoupper($nama) . " ({$unit})";
+            $hasD = strpos($nama, '-D') !== false;
+            if (!isset($groups[$nama])) {
+                $groups[$nama] = ['unit' => $unit, 'rows' => [], 'has_d' => $hasD];
+                $order[] = $nama;
             }
 
             $qtyUnit = $qty . $unit;
-            $lines[] = "  {$qtyUnit}: Rp " . number_format($harga, 0, ',', '.');
+            $groups[$nama]['rows'][] = "  {$qtyUnit}: Rp " . number_format($harga, 0, ',', '.');
+        }
+
+        if ($includeDeliveryPakets) {
+            $withD = [];
+            $withoutD = [];
+            foreach ($order as $nama) {
+                if (!empty($groups[$nama]['has_d'])) {
+                    $withD[] = $nama;
+                } else {
+                    $withoutD[] = $nama;
+                }
+            }
+            $order = array_merge($withD, $withoutD);
+        }
+
+        $lines = [];
+        foreach ($order as $nama) {
+            $g = $groups[$nama];
+            $unit = $g['unit'];
+            $lines[] = "\n\n" . strtoupper($nama) . " ({$unit})";
+            foreach ($g['rows'] as $rowLine) {
+                $lines[] = $rowLine;
+            }
         }
 
         return trim(implode("\n", $lines));
