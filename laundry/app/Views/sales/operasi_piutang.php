@@ -73,17 +73,17 @@ $isEmpty = empty($grouped);
                 $descBar = trim($item['deskripsi_barang'] ?? '');
               ?>
                 <tr>
-                  <td class="ps-3 py-2">
+                  <td class="ps-3 py-2 align-top">
                     <span class="fw-medium"><?= $item['nama_barang'] ?></span>
                     <?php if ($descBar !== '') { ?>
-                    <div class="text-muted" style="font-size: 0.7rem; line-height: 1.25;"><?= htmlspecialchars($descBar, ENT_QUOTES, 'UTF-8') ?></div>
+                    <div class="text-muted text-uppercase" style="font-size: 0.7rem; line-height: 1.25;"><?= htmlspecialchars($descBar, ENT_QUOTES, 'UTF-8') ?></div>
                     <?php } ?>
                     <?php if ($item['denom'] != 1) { ?>
                       <span class="text-muted ms-1" style="font-size: 0.75rem;">@<?= $item['denom'] ?></span>
                     <?php } ?>
                     <div class="text-muted small"><?= $qtyFmt ?><?= $unitLbl !== '' ? ' ' . htmlspecialchars($unitLbl, ENT_QUOTES, 'UTF-8') : '' ?> x Rp<?= number_format($displayPrice) ?></div>
                   </td>
-                  <td class="text-end pe-3 py-2 align-middle">
+                  <td class="text-end pe-3 py-2 align-top">
                     <span class="fw-bold">Rp<?= number_format($displayPrice * $item['qty']) ?></span>
                   </td>
                 </tr>

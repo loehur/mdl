@@ -13,7 +13,7 @@
         <div class="flex-grow-1">
           <span class="fw-medium text-sm"><?= $item['nama'] ?></span>
           <?php if ($descBar !== '') { ?>
-          <div class="text-muted" style="font-size: 0.7rem; line-height: 1.25;"><?= htmlspecialchars($descBar, ENT_QUOTES, 'UTF-8') ?></div>
+          <div class="text-muted text-uppercase" style="font-size: 0.7rem; line-height: 1.25;"><?= htmlspecialchars($descBar, ENT_QUOTES, 'UTF-8') ?></div>
           <?php } ?>
           <?php 
           // Tampilkan denom jika denom != 1
