@@ -155,8 +155,9 @@
           },
           type: 'POST',
           dataType: 'html',
-          success: function(response) {
-            location.reload(true);
+          success: function() {
+            click = 0;
+            $('div#cart').load('<?= URL::BASE_URL ?>SetHargaPaket/cart');
           },
         });
       }
