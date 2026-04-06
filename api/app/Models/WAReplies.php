@@ -709,6 +709,10 @@ class WAReplies
                     if ($handler === 'MINTA_JEMPUT_ANTAR' && $this->messageIsHargaPaketAntarJemputCombinedQuestion($textBodyToCheck)) {
                         continue;
                     }
+                    // MINTA_JEMPUT_ANTAR: "masih bisa/bs jemput" = tanya availabilitas layanan = JAM_OPERASIONAL (regex MINTA lewat sub-bisa jemput)
+                    if ($handler === 'MINTA_JEMPUT_ANTAR' && preg_match('/\b(masih|msh|mash|masi|msih)\s+(bisa|bs|bis|boleh)\s*(jemput|jmpt|antar)\b/i', $textBodyToCheck)) {
+                        continue;
+                    }
                     // PENUTUP: daftar/instruksi item laundry panjang (bukan closing) — regex ok/sip kadang overlap
                     if ($handler === 'PENUTUP' && $this->messageLooksLikeLaundryItemListNotPenutup($textBodyToCheck)) {
                         continue;
@@ -721,8 +725,8 @@ class WAReplies
                     if ($handler === 'PENUTUP' && $this->messageLooksLikeSudahDiantarInfo($textBodyToCheck)) {
                         continue;
                     }
-                    // "jam berapa bisa jemput?" = MINTA_JEMPUT_ANTAR (minta jemput), bukan JAM_OPERASIONAL
-                    if ($handler === 'JAM_OPERASIONAL' && preg_match('/\bbisa\s*(jemput|antar)\b/i', $textBodyToCheck) && !preg_match('/\b(masih|masi|msih)\s+bisa\s*(jemput|antar)/i', $textBodyToCheck)) {
+                    // "jam berapa bisa jemput?" / "bs jmpt?" = MINTA_JEMPUT_ANTAR (minta jemput), bukan JAM_OPERASIONAL
+                    if ($handler === 'JAM_OPERASIONAL' && preg_match('/\b(bisa|bs|bis|boleh)\s*(jemput|jmpt|antar)\b/i', $textBodyToCheck) && !preg_match('/\b(masih|msh|mash|masi|msih)\s+(bisa|bs|bis|boleh)\s*(jemput|jmpt|antar)/i', $textBodyToCheck)) {
                         continue;
                     }
                     // Get case from config
@@ -865,6 +869,15 @@ class WAReplies
                 $aiIntent = 'HARGA_PAKET';
                 $aiCase = $fullKeywordConfig['HARGA_PAKET']['case'] ?? null;
                 $aiNotify = $fullKeywordConfig['HARGA_PAKET']['notify'] ?? false;
+            }
+
+            // JAM_OPERASIONAL AI salah: "bs jmpt baju?" / "bisa jemput?" tanpa "masih" = MINTA_JEMPUT_ANTAR (bukan tanya jam buka)
+            if ($aiIntent === 'JAM_OPERASIONAL' && preg_match('/\b(bisa|bs|bis|boleh)\s*(jmpt|jemput|antar)\b/i', $textBodyToCheck)
+                && !preg_match('/\b(masih|msh|mash|masi|msih)\s+(bisa|bs|bis|boleh)\s*(jemput|jmpt|antar)/i', $textBodyToCheck)) {
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override_jam_operasional→MINTA_JEMPUT_ANTAR bs_jmput_tanpa_masih');
+                $aiIntent = 'MINTA_JEMPUT_ANTAR';
+                $aiCase = $fullKeywordConfig['MINTA_JEMPUT_ANTAR']['case'] ?? null;
+                $aiNotify = $fullKeywordConfig['MINTA_JEMPUT_ANTAR']['notify'] ?? false;
             }
             
             // Note: Tidak perlu cek in_array($aiIntent, $matchPattern) lagi

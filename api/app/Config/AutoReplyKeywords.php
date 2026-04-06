@@ -209,6 +209,8 @@ return [
          // "tolong/bantu/minta/bisa antar/jemput" (permintaan langsung). Catatan: "udh/sdh/sudah ... bisa dijemput" = STATUS (regex STATUS dicek lebih dulu + ada kata sudah/singkatannya).
          // "bisa/boleh" + jemput: permintaan layanan; pertanyaan status "X apa bisa dijemput" ada di regex STATUS (dicek lebih dulu)
          '/\b(tolong|minta|bantu|bntu|bisa|boleh)\s*(di)?(antar|jemput)\b/i',
+         // Singkatan WA: "bs jmpt baju?", "bs jemput?" (= bisa jemput); tanpa "masih" = permintaan/tanya jemput (bukan JAM_OPERASIONAL)
+         '/\b(bs|bis)\s*(jmpt|jemput|antar)\b/i',
          // "jam berapa bisa jemput?" = tanya jadwal jemput (bukan jam buka toko)
          '/\b(jam\s*)?(brp|brpa|berapa)\s*bisa\s*(jemput|antar)/i',
          // "jam brp bsk diantarnya?" / "jam berapa besok diantar?" = tanya jadwal pengantaran order
@@ -234,6 +236,7 @@ return [
       - tolong jemput, minta dijemput, bisa diantar?, boleh dijemput?, kapan diantar?\n
       - jam brp bsk diantarnya?, jam berapa besok diantar?, kapan diantarnya? = tanya jadwal pengantaran order = MINTA_JEMPUT_ANTAR\n
       - bisa jemput kak?, nanti bisa jemput kak?, jemput dong, antar ya dong\n
+      - Singkatan: bs jmpt baju?, bs jemput? = sama dengan bisa jemput = MINTA_JEMPUT_ANTAR\n
       - katanya mau antar, katanya mau jemput = relay/konfirmasi permintaan antar = MINTA_JEMPUT_ANTAR\n
       - brp ongkirnya?, berapa ongkosnya?, brp ong nya kak?, biaya antar?\n
       - CRITICAL: Instruksi ambil/jemput baju/laundry/kain/bedcover/sprei dari LOKASI (kamar hotel/kost, depan kamar, rumah sakit, sekolah, alamat/jalan) = MINTA_JEMPUT_ANTAR. Contoh: | kk ambil baju kotor sama bedcover di depan kamar 212 | ambil laundry di hotel | jemput di kamar 305 | ambil di RS |\n
@@ -348,7 +351,7 @@ return [
         - 'Jam berapa?' / 'Jam brp?' TANPA kata buka/tutup/operasional/terima sama sekali = user menanya WAKTU SAAT INI = FALSE\n
         - 'jam berapa bisa jemput?' / 'jam brp bisa jemput setrika?' = user minta jemput = MINTA_JEMPUT_ANTAR (bukan JAM_OPERASIONAL)\n
         - 'jam brp bsk diantarnya?' / 'jam berapa besok diantar?' / 'kapan diantarnya?' = tanya jadwal PENGANTARAN order = MINTA_JEMPUT_ANTAR (bukan JAM_OPERASIONAL)\n
-        - 'bisa antar laundry?' / 'tolong antar laundry' (TANPA 'masih') = permintaan jemput/antar = MINTA_JEMPUT_ANTAR\n
+        - 'bisa antar laundry?' / 'tolong antar laundry' / 'bs jmpt baju?' (TANPA 'masih') = permintaan jemput/antar = MINTA_JEMPUT_ANTAR\n
         - Contoh FALSE: 'jam berapa?', 'jam brp kak?' (tanpa buka/tutup) | 'jam berapa diantar?', 'kapan dijemput?', 'jam brp bsk diantarnya?'"
     ],
 
