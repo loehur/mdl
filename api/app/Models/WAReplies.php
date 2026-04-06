@@ -4029,6 +4029,7 @@ class WAReplies
             $prompt .= "ATURAN WAJIB: field \"intent\" HANYA boleh berisi nama kategori yang PERSIS ada di daftar di atas, atau FALSE. Jangan mengarang label seperti PERTANYAAN, PERTANYAAN_UMUM, atau kategori lain yang tidak tercantum.\n";
             $prompt .= "PRIORITAS: Jika user menanyakan apakah laundry/toko BUKA atau TIDAK (termasuk 'buka ga/gak', 'masih buka', 'sudah tutup') = pilih JAM_OPERASIONAL.\n";
             $prompt .= "PRIORITAS: Jika user menanyakan apakah cucian/laundry sudah SIAP/SELESAI (termasuk typo sudh, laundri, 'apakah sudh siap laundri saya?') = pilih STATUS — jangan FALSE dan jangan mengarang intent baru.\n";
+            $prompt .= "PRIORITAS: Jika user bertanya berapa/brp/brpa kilo (mis. 'berapa kilo itu kak?', 'brpa kilo kk?') tanpa tanya harga/biaya per kilo = pilih TAGIHAN (tanya berat order), bukan FALSE.\n";
             $prompt .= "Pesan: \"{$textBody}\"\n";
             $prompt .= "JAWAB HANYA DENGAN FORMAT JSON SEPERTI INI:\n";
             $prompt .= "{\"intent\": \"NAMA_KATEGORI\", \"reason\": \"Alasan singkat memilih kategori ini\"}\n";
@@ -4066,6 +4067,13 @@ class WAReplies
                     $intent = 'STATUS';
                     $reason = 'remap tanya siap laundry → STATUS (ai label bukan)';
                 }
+            }
+
+            // FALSE padahal jelas tanya berat order (berapa/brp kilo) — samakan ke TAGIHAN (bukan tanya harga per kg)
+            if ($intent === 'FALSE' && preg_match('/\b(brp|brpa|brapa|berapa)\s*kilo\b/i', $textBody)
+                && !preg_match('/\b(harga|biaya|tarif)\b.{0,50}?\b(per\s*)?kilo\b/i', $textBody)) {
+                $intent = 'TAGIHAN';
+                $reason = 'remap tanya berapa kilo order → TAGIHAN';
             }
 
             // Log: text | intent | reason

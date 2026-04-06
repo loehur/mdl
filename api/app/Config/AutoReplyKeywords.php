@@ -90,12 +90,15 @@ return [
             '/\b(bill|tagihan)\s*(saya|ku|punya)?\s*(kirim|kirimkan)?/i',
             // "laundry aku ada kk?", "laundry saya ada?" = tanya tagihan/bill punya saya (BUKAN "ada yang tinggal/luntur")
             '/\b(laundry|loundry)\s+(aku|saya|ku|punya\s+saya)\s+ada(?!\s+yang)\b/i',
+            // "berapa kilo itu kak?", "brpa kilo kk?" = tanya berat order (kait tagihan/kg) — bukan daftar harga per item
+            '/\b(brp|brpa|brapa|berapa)\s*kilo\b/i',
         ],
         'ai_prompt' => "User menanyakan TOTAL BIAYA/TAGIHAN laundry (jumlah uang yang harus dibayar) ATAU meminta dikirimkan bill/tagihan, seperti:\n
         | berapa total punya saya? | brapa total strika/cuci tadi? | totalnya berapa? | berapa tagihan? | berapa biaya laundry saya? |\n
         | total berapa kak? | brp total? | berapa total cuci? | berapa biayanya? |\n
         | bisa kirimkan bill saya | halo kak bisa kirimkan bill saya | kirim tagihan | minta bill | kirimkan tagihan saya |\n
         | laundry aku ada kk? | laundry saya ada? | laundry punya saya ada? | = tanya tagihan/bill punya saya = TAGIHAN\n
+        | berapa kilo itu kak? | brpa kilo itu kk? | brp kilo? | = tanya berat cucian/order (hubungan ke tagihan) = TAGIHAN, BUKAN FALSE\n
         Jika user bertanya 'berapa' + (total/biaya/tagihan) atau (total/biaya) + 'berapa' = TAGIHAN\n
         Jika user minta/bisa kirimkan bill/tagihan = TAGIHAN (permintaan bill/tagihan)\n
         Jika user tanya 'laundry aku/saya ada?' = tanya tagihan punya saya = TAGIHAN\n
@@ -105,7 +108,8 @@ return [
         \n
         CRITICAL - FALSE (BUKAN TAGIHAN) = HARGA:\n
         - User bertanya HARGA cuci/setrika PER ITEM (order belum tentu ada): | berapa 1 boneka kak? | berapa 2 baju? | boneka berapa? | brp harga boneka? |\n
-        - Pola: 'berapa' + (angka) + nama barang laundry (boneka, baju, celana, handuk, selimut, jaket, sepatu, tas, karpet, sprei, dll) = tanya DAFTAR HARGA = HARGA, BUKAN tagihan order."
+        - Pola: 'berapa' + (angka) + nama barang laundry (boneka, baju, celana, handuk, selimut, jaket, sepatu, tas, karpet, sprei, dll) = tanya DAFTAR HARGA = HARGA, BUKAN tagihan order.\n
+        - BUKAN FALSE: 'berapa kilo itu?' / 'brp kilo kak?' (tanya berat order) = TAGIHAN — bedakan dari 'berapa harga per kilo?' (= HARGA)."
     ],
 
     'STATUS' => [
@@ -165,6 +169,7 @@ return [
         | berapa 1 boneka kak? | berapa 2 baju? | boneka brp? | cuci boneka berapa? |\n
         | berapa harga per kilo? | berapa biaya per kg? | harga per kilo berapa? |\n
         PENTING: \n
+        - 'berapa kilo itu?' / 'brp kilo kak?' TANPA kata harga/biaya = tanya berat order = TAGIHAN, BUKAN HARGA.\n
         - Jika user bertanya 'berapa' + (harga/biaya) + (item laundry atau per kilo) = HARGA\n
         - Jika user bertanya 'berapa' + angka + item (boneka, baju, dll) = HARGA (harga per item), BUKAN TAGIHAN total order\n
         - Jika user bertanya 'berapa' + (ongkir/ongkos/biaya antar/biaya jemput) = BUKAN CEK_HARGA, itu adalah MINTA_JEMPUT_ANTAR\n
