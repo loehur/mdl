@@ -4028,6 +4028,7 @@ class WAReplies
             $prompt .= "- FALSE: Tidak termasuk kategori di atas\n";
             $prompt .= "ATURAN WAJIB: field \"intent\" HANYA boleh berisi nama kategori yang PERSIS ada di daftar di atas, atau FALSE. Jangan mengarang label seperti PERTANYAAN, PERTANYAAN_UMUM, atau kategori lain yang tidak tercantum.\n";
             $prompt .= "PRIORITAS: Jika user menanyakan apakah laundry/toko BUKA atau TIDAK (termasuk 'buka ga/gak', 'masih buka', 'sudah tutup') = pilih JAM_OPERASIONAL.\n";
+            $prompt .= "PRIORITAS: Jika user menanyakan apakah cucian/laundry sudah SIAP/SELESAI (termasuk typo sudh, laundri, 'apakah sudh siap laundri saya?') = pilih STATUS — jangan FALSE dan jangan mengarang intent baru.\n";
             $prompt .= "Pesan: \"{$textBody}\"\n";
             $prompt .= "JAWAB HANYA DENGAN FORMAT JSON SEPERTI INI:\n";
             $prompt .= "{\"intent\": \"NAMA_KATEGORI\", \"reason\": \"Alasan singkat memilih kategori ini\"}\n";
@@ -4057,6 +4058,15 @@ class WAReplies
             $reason = $json['reason'] ?? '';
 
             $intent = trim(strtoupper($intent));
+
+            // Model kadang mengembalikan label bukan daftar (mis. PERTANYAAN) — sering dari teks prompt. Samakan ke STATUS jika jelas tanya siap laundry/cucian.
+            if (!isset($keywordConfig[$intent]) && in_array($intent, ['PERTANYAAN', 'QUESTION', 'TANYA', 'PERTANYAAN_UMUM'], true)) {
+                if (preg_match('/\b(sudah|udah|sudh|udh|dah|dh)\s+siap\b.{0,120}?\b(laundry|loundry|laundri|londri|cucian)\b/iu', $textBody)
+                    || preg_match('/\b(apakah)\b.{0,120}?\bsiap\b.{0,120}?\b(laundry|loundry|laundri|londri|cucian)\b/iu', $textBody)) {
+                    $intent = 'STATUS';
+                    $reason = 'remap tanya siap laundry → STATUS (ai label bukan)';
+                }
+            }
 
             // Log: text | intent | reason
             if (class_exists('\Log')) {

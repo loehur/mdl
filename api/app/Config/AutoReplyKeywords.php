@@ -14,7 +14,7 @@ return [
         PENTING: JIKA sapaan diikuti kalimat permintaan (misal: 'Bang, baju dulukan', 'Kak, jemput ya'), ini BUKAN PEMBUKA.\n
         PENTING: Jika sapaan + permintaan bill/tagihan (bisa kirimkan bill, kirim tagihan, minta bill) = TAGIHAN, bukan PEMBUKA.\n
         PENTING: Jika sapaan + permintaan nota/bon (minta nota, minta bon, kirim struk) = NOTA, bukan PEMBUKA.\n
-        CRITICAL: Pesan mengandung tanda tanya (?) = PERTANYAAN = BUKAN PEMBUKA. Contoh: 'Berarti sudah masuk kak?'\n
+        CRITICAL: Pesan mengandung tanda tanya (?) = bukan sekadar sapaan PEMBUKA. Contoh: 'Berarti sudah masuk kak?'\n
         CRITICAL - FALSE (BUKAN PEMBUKA): Balasan salam / jawaban atas salam = BUKAN pembuka percakapan. Contoh: | waalaikumsalam | walaikumsalam | wa alaikum salam | waalaikum salam | waalaikumussalam | = FALSE (bukan assalamualaikum)."
     ],
 
@@ -123,9 +123,12 @@ return [
             // "laundry saya udh siap" / "loundry saya udh siap" (typo)
             '/\b(laundry|loundry|la*u*ndr(y|i))\s+(saya|ku|sya)\s+(udh|udah|sudah|dah)\s*sia+p/i',
             '/atas\s+nama\s+.+\s*(udah|sudah)\s*\??/i',
+            // "apakah sudh siap laundri saya?" — typo sudh/laundri; tanya siap + laundry/cucian
+            '/\b(sudah|udah|sudh|udh|dah|dh)\s+siap\b.{0,120}?\b(laundry|loundry|laundri|londri|cucian)\b/iu',
+            '/\b(apakah)\b.{0,120}?\bsiap\b.{0,120}?\b(laundry|loundry|laundri|londri|cucian)\b/iu',
         ],
         'ai_prompt' => "User menanyakan ATAU memberitahu status/progress laundry, seperti:\n
-        PERTANYAAN status:\n
+        Contoh kalimat tanya status (pilih intent STATUS, bukan kategori lain):\n
         | sudah selesai? | udh selesai kah? | bisa diambil? | kapan siap? | jam berapa siap? | sudah jadi? | jam berapa selesai? |\n
         | sudah bisa diambil? | udh bisa d jemput kak? | udh bisa di jemput? | pakaian harian apa sdh bisa dijemput? | yang strika sdh bisa dijemput? | kapan bisa diambil? | siapnya kapan? | siapnya jam berapa? |\n
         | atas nama IVAN udah? | atas nama X sudah? | laundry [nama] udah? | punya [nama] sudah? |\n
@@ -134,6 +137,7 @@ return [
         | sudah siap | udh siap | dah siap | dahh siapp | siapp kak | siap kak | sudah jadi | ready |\n
         | laundry saya udh siap | loundry saya udh siap mbak | dh siap kk penya ku | siap kk | siap penya | kak dahh siapp kak | dah siapp | sudah siap kak |\n
         \n
+        PRIORITAS: 'apakah sudah/sudh/siap ... laundry/laundri/cucian saya?', 'sudh siap laundri?', 'udh siap cucian?' = tanya STATUS order (pilih STATUS).\n
         PENTING:\n
         - Pola 'yang/pakaian/laundry/... apa ... bisa dijemput/diambil?' (boleh tanpa sdh/udh) = tanya status order siap diambil = STATUS\n
         - Jika user bertanya 'kapan' atau 'jam berapa' + (siap/selesai/jadi/bisa diambil) = STATUS\n
@@ -231,7 +235,7 @@ return [
          '/\b(ambil|jemput)\b.{0,220}?\b(jl\.|jalan|jl\s|rt\.|rw\.|gg\.|gang)\b/iu',
       ],
       'ai_prompt' => "User MEMINTA KURIR/LAUNDRY untuk datang JEMPUT atau ANTAR, ATAU menanyakan ONGKIR.\n
-      TRUE (MINTA JEMPUT/ANTAR) - HARUS ADA KATA PERMINTAAN/PERTANYAAN ATAU INSTRUKSI JEMPUT KE LOKASI:\n
+      TRUE (MINTA JEMPUT/ANTAR) - HARUS ADA kata permintaan atau pertanyaan atau instruksi jemput ke lokasi:\n
       - Kata kunci: tolong/minta/bisa/boleh/dong/kapan/berapa + jemput/antar\n
       - tolong jemput, minta dijemput, bisa diantar?, boleh dijemput?, kapan diantar?\n
       - jam brp bsk diantarnya?, jam berapa besok diantar?, kapan diantarnya? = tanya jadwal pengantaran order = MINTA_JEMPUT_ANTAR\n
@@ -404,7 +408,7 @@ return [
       - Daftar/instruksi item laundry panjang (baju, celana, rok, kemeja, dll) dengan koma — bukan penutup percakapan = FALSE.\n
       \n
       FALSE jika:\n
-      - CRITICAL: Pesan mengandung tanda tanya (?) ATAU kata tanya (dimana/kapan/berapa/gimana/dll) = PERTANYAAN = BUKAN PENUTUP. Contoh: 'Berarti sudah masuk kak?' | 'Alhamdulillah foto dimana' (bisa tanpa ?)\n
+      - CRITICAL: Pesan mengandung tanda tanya (?) atau kata tanya (dimana/kapan/berapa/gimana/dll) = bukan PENUTUP. Contoh: 'Berarti sudah masuk kak?' | 'Alhamdulillah foto dimana' (bisa tanpa ?)\n
       - Ada pertanyaan (kapan? berapa? dimana? bisa?)\n
       - Ada permintaan (tolong, minta, bisa, bantu, dong) + object\n
       - Pemberitahuan akan ambil/antar sendiri: 'nanti saya jemput', 'akan saya antar', 'nanti saya ambil', 'akan mengambil' = BUKAN PENUTUP\n
