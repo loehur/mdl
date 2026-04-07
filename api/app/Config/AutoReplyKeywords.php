@@ -15,6 +15,7 @@ return [
         PENTING: Jika sapaan + permintaan bill/tagihan (bisa kirimkan bill, kirim tagihan, minta bill) = TAGIHAN, bukan PEMBUKA.\n
         PENTING: Jika sapaan + permintaan nota/bon (minta nota, minta bon, kirim struk) = NOTA, bukan PEMBUKA.\n
         CRITICAL: Pesan mengandung tanda tanya (?) = bukan sekadar sapaan PEMBUKA. Contoh: 'Berarti sudah masuk kak?'\n
+        CRITICAL - FALSE (BUKAN PEMBUKA): | kabari ya kak | kabarin ya | infokan ya kk | kasih kabar ya | = minta update/kabar (penutup/ack), BUKAN sapaan awal — pilih PENUTUP.\n
         CRITICAL - FALSE (BUKAN PEMBUKA): Balasan salam / jawaban atas salam = BUKAN pembuka percakapan. Contoh: | waalaikumsalam | walaikumsalam | wa alaikum salam | waalaikum salam | waalaikumussalam | = FALSE (bukan assalamualaikum)."
     ],
 
@@ -371,6 +372,9 @@ return [
          // Konfirmasi tagihan sudah lunas (penutup)
          '/^\s*(sudah|udah|udh|sdh)\s+lunas(\s+(ya\s*)?(kak|kk|bang|min|mbak|pak|bu))?\s*$/i',
          '/^\s*lunas(\s+ya)?(\s+(kak|kk|bang|min|mbak|pak|bu))?\s*$/i',
+         // "kabari ya kak" / "infokan ya" = minta kabar (penutup); harus "… kabari ya" / "infokan ya" — bukan "infokan harga ya"
+         '/\b(kabari|kabarin)\s+(ya|dong)\b/iu',
+         '/\binfokan\s+(ya|dong)\b/iu',
          '/\bma*ka*(s|c)(i|e)*h\b/i',
          '/\bte*ri*ma*ka*si*h\b/i',
          '/\btha*nks\b/i',
@@ -399,6 +403,7 @@ return [
       - Konfirmasi status (non-bayar): | sudah diambil |\n
       - Konfirmasi transfer/pembayaran sudah dilakukan: | telah berhasil mengirimkan ke rekening | sudah transfer | sudah bayar | sudah kirim | saya sudah transfer ke rekening kamu |\n
       - Konfirmasi jadwal (TANPA PERMINTAAN): | baik nanti dijemput | ok sore diantar | siap dijemput ya |\n
+      - Minta kabar/update singkat (penutup): | kabari ya kak | kabarin ya min | infokan ya kk | kasih kabar ya |\n
       - Pemberitahuan jadwal: | nanti sore dijemput | besok diantar | jam 2 dijemput ya kak |\n
       - EMOJI/REACTION SAJA: | ❤️ | 👍 | 🙏 | 👌 | ✅ | atau kata 'Reacted' + emoji |\n
       - Kata kunci: baik/ok/iya/siap + (nanti/sore/besok/jam) + dijemput/diantar = PENUTUP\n

@@ -879,6 +879,14 @@ class WAReplies
                 $aiCase = $fullKeywordConfig['MINTA_JEMPUT_ANTAR']['case'] ?? null;
                 $aiNotify = $fullKeywordConfig['MINTA_JEMPUT_ANTAR']['notify'] ?? false;
             }
+
+            // PEMBUKA AI salah: "kabari ya kak" = minta kabar (penutup), bukan sapaan pembuka
+            if ($aiIntent === 'PEMBUKA' && (preg_match('/\b(kabari|kabarin)\s+(ya|dong)\b/iu', $textBodyToCheck) || preg_match('/\binfokan\s+(ya|dong)\b/iu', $textBodyToCheck))) {
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override_pembuka→PENUTUP kabari_ya');
+                $aiIntent = 'PENUTUP';
+                $aiCase = $fullKeywordConfig['PENUTUP']['case'] ?? null;
+                $aiNotify = $fullKeywordConfig['PENUTUP']['notify'] ?? false;
+            }
             
             // Note: Tidak perlu cek in_array($aiIntent, $matchPattern) lagi
             // karena keyword yang sudah match di regex sudah di-unset dari $keywordConfig
@@ -4030,6 +4038,7 @@ class WAReplies
             $prompt .= "PRIORITAS: Jika user menanyakan apakah laundry/toko BUKA atau TIDAK (termasuk 'buka ga/gak', 'masih buka', 'sudah tutup') = pilih JAM_OPERASIONAL.\n";
             $prompt .= "PRIORITAS: Jika user menanyakan apakah cucian/laundry sudah SIAP/SELESAI (termasuk typo sudh, laundri, 'apakah sudh siap laundri saya?') = pilih STATUS — jangan FALSE dan jangan mengarang intent baru.\n";
             $prompt .= "PRIORITAS: Jika user bertanya berapa/brp/brpa kilo (mis. 'berapa kilo itu kak?', 'brpa kilo kk?') tanpa tanya harga/biaya per kilo = pilih TAGIHAN (tanya berat order), bukan FALSE.\n";
+            $prompt .= "PRIORITAS: 'kabari ya kak' / 'kabarin ya' / 'infokan ya' = minta kabar/update (penutup) = pilih PENUTUP, BUKAN PEMBUKA.\n";
             $prompt .= "Pesan: \"{$textBody}\"\n";
             $prompt .= "JAWAB HANYA DENGAN FORMAT JSON SEPERTI INI:\n";
             $prompt .= "{\"intent\": \"NAMA_KATEGORI\", \"reason\": \"Alasan singkat memilih kategori ini\"}\n";
