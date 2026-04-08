@@ -1328,16 +1328,11 @@ class WAReplies
 
     /**
      * Handle intent PENUTUP - balas penutup/konfirmasi dengan AI sebagai customer service laundry
-     * Termasuk konfirmasi pembayaran/transfer
-     * Jika di luar jam operasional, alihkan ke handleJam_tutup (sama seperti PEMBUKA)
+     * Termasuk konfirmasi pembayaran/transfer.
+     * Tidak cek jam operasional (beda dari PEMBUKA): penutup langsung dibalas.
      */
     private function handlePenutup($phoneIn, $waNumber, $textBody = '')
     {
-        if (!$this->isOperatingHours()) {
-            $this->handleJam_tutup($phoneIn, $waNumber, $textBody);
-            return;
-        }
-
         $textLower = trim(strtolower($textBody ?? ''));
         $textTrimmed = trim($textBody ?? '');
 
