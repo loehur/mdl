@@ -28,7 +28,7 @@ class Chat extends Controller
                          AND last_in_at < (NOW() - INTERVAL 24 HOUR)";
             $db->query($sqlClose);
             
-            // Auto-delete old messages (older than 30 days)
+            // Auto-delete old messages (older than 90 days)
             $deleteDays = 90;
             $sqlDeleteIn = "DELETE FROM wa_messages_in WHERE created_at < (NOW() - INTERVAL $deleteDays DAY)";
             $db->query($sqlDeleteIn);

@@ -521,6 +521,111 @@ class WhatsApp extends Controller
     }
 
     /**
+     * Baris wa_messages_out untuk anchor webhook (urutan: wamid, message_id, external_id).
+     */
+    private function findWaMessagesOutRowByAnchors($db, $wamid, $messageId, $externalId): ?object
+    {
+        try {
+            if ($wamid) {
+                $q = $db->query('SELECT * FROM wa_messages_out WHERE wamid = ? LIMIT 1', [$wamid]);
+                if ($q && $q->num_rows() > 0) {
+                    return $q->row();
+                }
+            }
+            if ($messageId) {
+                $q = $db->query('SELECT * FROM wa_messages_out WHERE message_id = ? LIMIT 1', [$messageId]);
+                if ($q && $q->num_rows() > 0) {
+                    return $q->row();
+                }
+            }
+            if ($externalId) {
+                $q = $db->query('SELECT * FROM wa_messages_out WHERE external_id = ? LIMIT 1', [$externalId]);
+                if ($q && $q->num_rows() > 0) {
+                    return $q->row();
+                }
+            }
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write('findWaMessagesOutRowByAnchors: ' . $e->getMessage(), 'wa_error', 'Webhook');
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Teks error yCloud / Meta yang mengindikasikan CSW / jendela 24 jam.
+     */
+    private function outboundErrorLooksLikeCsw(?string $errorMessage): bool
+    {
+        if ($errorMessage === null || $errorMessage === '') {
+            return false;
+        }
+        $e = strtolower($errorMessage);
+        if (strpos($e, '131047') !== false) {
+            return true;
+        }
+        foreach (['outside', '24 hour', '24-hour', '24h window', 'customer service window', 'csw', 'session has expired'] as $kw) {
+            if (strpos($e, $kw) !== false) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Jangan set wa_messages_out ke failed bila CSW / antre retry: tetap queue agar ResendWAQueue bisa mencoba lagi (≤24 jam).
+     *
+     * @param object|null $existingRow baris saat ini (jika ada)
+     * @return array{status: mixed, error_message: mixed}
+     */
+    private function normalizeWaOutboundStatusForCswRetry($db, $incomingStatus, $errorMessage, ?string $phone, $existingRow): array
+    {
+        $st = strtolower((string) $incomingStatus);
+        $failureLike = in_array($st, ['failed', 'undelivered', 'error'], true);
+        if (!$failureLike) {
+            return ['status' => $incomingStatus, 'error_message' => $errorMessage];
+        }
+
+        $current = $existingRow ? strtolower((string) ($existingRow->status ?? '')) : '';
+        $keepQueue = false;
+        if ($current === 'queue' || $current === 'processing') {
+            $keepQueue = true;
+        }
+        if (!$keepQueue && $this->outboundErrorLooksLikeCsw(is_string($errorMessage) ? $errorMessage : '')) {
+            $keepQueue = true;
+        }
+        if (!$keepQueue && $phone) {
+            try {
+                if (! class_exists('\\App\\Helpers\\WhatsAppService')) {
+                    require_once __DIR__ . '/../../Helpers/WhatsAppService.php';
+                }
+                $wa = new \App\Helpers\WhatsAppService();
+                $conv = $db->get_where('wa_conversations', ['wa_number' => $phone])->row();
+                $lastIn = $conv->last_in_at ?? null;
+                if (! $wa->isWithinCsw($lastIn)) {
+                    $keepQueue = true;
+                }
+            } catch (\Throwable $e) {
+                // abaikan
+            }
+        }
+
+        if ($keepQueue) {
+            $err = trim((string) ($errorMessage ?? ''));
+            if ($err !== '') {
+                $err .= ' ';
+            }
+            $err .= '[tetap antre: CSW / retry cron]';
+
+            return ['status' => 'queue', 'error_message' => $err];
+        }
+
+        return ['status' => $incomingStatus, 'error_message' => $errorMessage];
+    }
+
+    /**
      * Handle outbound message status update
      */
     private function handleStatusUpdate($db, $data)
@@ -542,14 +647,23 @@ class WhatsApp extends Controller
             return;
         }
 
+        $existing = $this->findWaMessagesOutRowByAnchors($db, $wamid, $messageId, $externalId);
+        $phoneForCsw = $existing ? ($existing->phone ?? null) : null;
+        $norm = $this->normalizeWaOutboundStatusForCswRetry($db, $status, $errorMessage, $phoneForCsw, $existing);
+        $normalizedToQueue = ($norm['status'] === 'queue' && strtolower((string) $status) !== 'queue');
+
         // Update message status in wa_messages
         $updateData = [
-            'status' => $status,
-            'error_message' => $errorMessage
+            'status' => $norm['status'],
+            'error_message' => $norm['error_message']
         ];
 
-        if ($wamid) $updateData['wamid'] = $wamid;
-        if ($messageId) $updateData['message_id'] = $messageId;
+        if ($wamid) {
+            $updateData['wamid'] = $wamid;
+        }
+        if ($messageId) {
+            $updateData['message_id'] = $messageId;
+        }
 
         // Update by best available anchor
         $updated = false;
@@ -591,7 +705,7 @@ class WhatsApp extends Controller
                     'message' => [
                         'id' => $msg->id,
                         'wamid' => $wamid,
-                        'status' => $status
+                        'status' => $norm['status']
                     ],
                     'target_id' => $targetId
                 ]);
@@ -599,11 +713,14 @@ class WhatsApp extends Controller
             
             // Update notif table logic...
             // id_api is likely the YCloud Message ID, not wamid
-            $db1 = $this->db(1);
-            if ($messageId) {
-                $db1->update('notif', ['state' => $status], ['id_api' => $messageId]);
-            } elseif ($wamid) {
-                $db1->update('notif', ['state' => $status], ['id_api' => $wamid]);
+            // Jangan timpa notif laundry dengan 'queue' hasil normalisasi CSW — biarkan state dari provider atau skip
+            if (!$normalizedToQueue) {
+                $db1 = $this->db(1);
+                if ($messageId) {
+                    $db1->update('notif', ['state' => $status], ['id_api' => $messageId]);
+                } elseif ($wamid) {
+                    $db1->update('notif', ['state' => $status], ['id_api' => $wamid]);
+                }
             }
         } else {
             // Message not found (no log - this can happen normally)
@@ -627,15 +744,28 @@ class WhatsApp extends Controller
         $messageId = $message['id'] ?? null; // Provider message ID
         $externalId = $message['externalId'] ?? ($message['external_id'] ?? null);
         $status = $message['status'] ?? null;
+        $errObj = $message['error'] ?? null;
+        $errorFromMsg = is_array($errObj) ? ($errObj['message'] ?? $errObj['code'] ?? null) : ($message['errorMessage'] ?? null);
+        if (is_scalar($errorFromMsg)) {
+            $errorFromMsg = (string) $errorFromMsg;
+        } else {
+            $errorFromMsg = $errorFromMsg !== null ? json_encode($errorFromMsg) : null;
+        }
 
         if (!$wamid && !$messageId && !$externalId) {
             \Log::write("No wamid/message_id/externalId in message.updated event", 'wa_error', 'Webhook');
             return;
         }
 
+        $existing = $this->findWaMessagesOutRowByAnchors($db, $wamid, $messageId, $externalId);
+        $phoneForCsw = $existing ? ($existing->phone ?? null) : null;
+        $norm = $this->normalizeWaOutboundStatusForCswRetry($db, $status, $errorFromMsg, $phoneForCsw, $existing);
+        $normalizedToQueue = ($norm['status'] === 'queue' && strtolower((string) $status) !== 'queue');
+
         // Build update data based on available fields
         $updateData = [
-            'status' => $status
+            'status' => $norm['status'],
+            'error_message' => $norm['error_message'],
         ];
 
         // Add wamid if we have it (might be first time getting wamid from webhook)
@@ -663,10 +793,8 @@ class WhatsApp extends Controller
         }
 
         if ($updated) {
-            // \Log::write("✓ Outbound message updated: wamid=$wamid, id=$messageId, status=$status", 'webhook', 'WhatsApp');
-            
             // Fetch phone and local ID for WebSocket push
-            $checkSql = "SELECT id, phone FROM wa_messages_out WHERE "; // Changed from conversation_id to phone
+            $checkSql = "SELECT id, phone FROM wa_messages_out WHERE ";
             $params = [];
             if ($messageId) {
                 $checkSql .= "message_id = ?";
@@ -678,9 +806,9 @@ class WhatsApp extends Controller
                 $checkSql .= "external_id = ?";
                 $params[] = $externalId;
             }
-            
+
             $msg = $db->query($checkSql, $params)->row();
-            
+
             if ($msg) {
                 // Get assigned_user_id
                 $conv = $db->get_where('wa_conversations', ['wa_number' => $msg->phone])->row();
@@ -692,20 +820,20 @@ class WhatsApp extends Controller
                     'conversation_id' => $conv->id ?? 0,
                     'message' => [
                         'id' => $msg->id, // Local DB ID
-                        'status' => $status
+                        'status' => $norm['status'],
                     ],
-                    'target_id' => $targetId
+                    'target_id' => $targetId,
                 ]);
-                
-                // Update notif table state
-                $db1 = $this->db(1);
-                if ($messageId) {
-                    $db1->update('notif', ['state' => $status], ['id_api' => $messageId]);
-                } elseif ($wamid) {
-                    $db1->update('notif', ['state' => $status], ['id_api' => $wamid]);
+
+                if (! $normalizedToQueue) {
+                    $db1 = $this->db(1);
+                    if ($messageId) {
+                        $db1->update('notif', ['state' => $status], ['id_api' => $messageId]);
+                    } elseif ($wamid) {
+                        $db1->update('notif', ['state' => $status], ['id_api' => $wamid]);
+                    }
                 }
             }
-
         } else {
             // Outbound message not found (no log - this can happen normally)
         }

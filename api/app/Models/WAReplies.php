@@ -1140,9 +1140,8 @@ class WAReplies
                 }
             }
         } else {
-            // Find customer
-            $where = "nomor_pelanggan IN ($phoneIn)";
-            $pelanggan = $db1->query("SELECT id_pelanggan, nama_pelanggan FROM pelanggan WHERE $where")->result_array();
+            // Find customer (exact variasi nomor atau 7 digit terakhir sama)
+            $pelanggan = $this->queryPelangganRowsByWaNumber($db1, $phoneIn, $waNumber, 'id_pelanggan, nama_pelanggan');
             $id_pelanggans = array_column($pelanggan, 'id_pelanggan');
 
             // Check if customer exists BEFORE accessing array
@@ -1853,8 +1852,7 @@ class WAReplies
         $waService = $this->getWaService();
         $db = DB::getInstance(1);
 
-        $where = "nomor_pelanggan IN ($phoneIn)";
-        $pelanggan = $db->query("SELECT id_pelanggan, nama_pelanggan, id_cabang FROM pelanggan WHERE $where")->result_array();
+        $pelanggan = $this->queryPelangganRowsByWaNumber($db, $phoneIn, $waNumber, 'id_pelanggan, nama_pelanggan, id_cabang');
 
         if (empty($pelanggan)) {
             $noRegText = $this->getNoRegisterText();
@@ -2178,11 +2176,7 @@ class WAReplies
         
         // Always check sale status, even if there are pending notifs
         // This ensures items without pending notifs are also reported
-        $cleanPhone = preg_replace('/[^0-9]/', '', $waNumber);
-        $phone0 = '0' . substr($cleanPhone, 2);
-
-        $where = "nomor_pelanggan IN ($phoneIn)";
-        $pelanggan = $db1->query("SELECT id_pelanggan, nama_pelanggan FROM pelanggan WHERE $where")->result_array();
+        $pelanggan = $this->queryPelangganRowsByWaNumber($db1, $phoneIn, $waNumber, 'id_pelanggan, nama_pelanggan');
         $id_pelanggans = array_column($pelanggan, 'id_pelanggan');
         $nama_pelanggans = array_column($pelanggan, 'nama_pelanggan');
         $nama_pelanggan = strtoupper(trim((string) ($nama_pelanggans[0] ?? ''))); // fix index 0 if empty
@@ -4483,16 +4477,41 @@ class WAReplies
     }
 
     /**
+     * Hanya digit 0–9 dari string nomor (kedua sisi perbandingan memakai ini di PHP).
+     */
+    private function normalizePhoneDigitsOnlyPhp(?string $s): string
+    {
+        if ($s === null || $s === '') {
+            return '';
+        }
+
+        return preg_replace('/[^0-9]/u', '', $s);
+    }
+
+    /**
      * 9 digit terakhir dari nomor (hanya angka), untuk match wa_number tanpa peduli +62 / 08 / 628 / dll.
      */
     private function waPhoneLastNineDigits(string $phone): ?string
     {
-        $digits = preg_replace('/[^0-9]/', '', $phone);
+        $digits = $this->normalizePhoneDigitsOnlyPhp($phone);
         if (strlen($digits) < 9) {
             return null;
         }
 
         return substr($digits, -9);
+    }
+
+    /**
+     * 8 digit terakhir dari nomor (hanya angka), untuk cocokkan nomor_pelanggan walaupun format penyimpanan beda (+62 / 08 / spasi, dll.).
+     */
+    private function waPhoneLastEightDigits(string $phone): ?string
+    {
+        $digits = $this->normalizePhoneDigitsOnlyPhp($phone);
+        if (strlen($digits) < 8) {
+            return null;
+        }
+
+        return substr($digits, -8);
     }
 
     /**
@@ -4503,7 +4522,7 @@ class WAReplies
     private function waNumberLookupVariants(string $waNumber): array
     {
         $trimmed = trim($waNumber);
-        $d = preg_replace('/[^0-9]/', '', $waNumber);
+        $d = $this->normalizePhoneDigitsOnlyPhp($waNumber);
         $out = [$trimmed];
         if (strlen($d) < 9) {
             return array_values(array_unique(array_filter($out)));
@@ -4530,15 +4549,15 @@ class WAReplies
     }
 
     /**
-     * Ekspresi SQL (MySQL 5.7): normalisasi wa_number ke digit saja dengan rantai REPLACE.
-     * Tidak memakai REGEXP_REPLACE (hanya MySQL 8+).
+     * MySQL 5.7: tebakan digit dari kolom nomor dengan rantai REPLACE (tanpa REGEXP_REPLACE).
+     * Karakter di luar daftar bisa tetap ada; sisi WA sudah dibersihkan penuh di PHP.
      *
-     * @param string $column Nama kolom, default wa_number
+     * @param string $column Nama kolom (mis. nomor_pelanggan, wa_number)
      */
-    private function sqlWaNumberDigitsOnlyExpr(string $column = 'wa_number'): string
+    private function sqlPhoneColumnDigitsOnlyExpr(string $column): string
     {
         $expr = "TRIM({$column})";
-        foreach (['+', '-', ' ', '(', ')', '.'] as $ch) {
+        foreach (['+', '-', ' ', '(', ')', '.', '/', "'", '"', ':', ';', ',', '_', '*', '#', '@', '&', "\t"] as $ch) {
             $q = $ch === "'" ? "''" : $ch;
             $expr = "REPLACE({$expr},'{$q}','')";
         }
@@ -4547,8 +4566,30 @@ class WAReplies
     }
 
     /**
-     * Cari baris wa_conversations: exact dulu (variasi format), lalu 9 digit terakhir (cocokkan digit saja).
-     * Kompatibel MySQL 5.7 (tanpa REGEXP_REPLACE).
+     * Cari pelanggan: exact nomor_pelanggan IN (variasi dari webhook) atau 8 digit terakhir sama.
+     * Nomor WA dinormalisasi ke digit saja di PHP; nomor_pelanggan di DB dinormalisasi sebisa mungkin di SQL (MySQL 5.7).
+     *
+     * @param \App\Core\DB $db DB laundry (biasanya getInstance(1))
+     * @param string $selectColumns kolom SELECT tanpa kata SELECT
+     * @return array
+     */
+    private function queryPelangganRowsByWaNumber($db, string $phoneIn, string $waNumber, string $selectColumns = 'id_pelanggan, nama_pelanggan'): array
+    {
+        $last8 = $this->waPhoneLastEightDigits($waNumber);
+        if ($last8 !== null) {
+            $digits = $this->sqlPhoneColumnDigitsOnlyExpr('nomor_pelanggan');
+            $sql = 'SELECT ' . $selectColumns . ' FROM pelanggan WHERE nomor_pelanggan IN (' . $phoneIn . ') OR (LENGTH(' . $digits . ') >= 8 AND RIGHT(' . $digits . ', 8) = ?) ORDER BY id_pelanggan ASC';
+
+            return $db->query($sql, [$last8])->result_array();
+        }
+
+        $sql = 'SELECT ' . $selectColumns . ' FROM pelanggan WHERE nomor_pelanggan IN (' . $phoneIn . ') ORDER BY id_pelanggan ASC';
+
+        return $db->query($sql)->result_array();
+    }
+
+    /**
+     * Cari baris wa_conversations: exact dulu (variasi format), lalu 9 digit terakhir (MySQL 5.7).
      *
      * @return object|null row from wa_conversations
      */
@@ -4566,7 +4607,7 @@ class WAReplies
             return null;
         }
 
-        $digits = $this->sqlWaNumberDigitsOnlyExpr('wa_number');
+        $digits = $this->sqlPhoneColumnDigitsOnlyExpr('wa_number');
         $sql = 'SELECT * FROM wa_conversations WHERE LENGTH(' . $digits . ') >= 9 '
             . 'AND RIGHT(' . $digits . ', 9) = ? ORDER BY id DESC LIMIT 1';
 

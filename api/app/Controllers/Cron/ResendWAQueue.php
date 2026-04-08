@@ -8,6 +8,8 @@ use App\Core\Controller;
  * Resend WA outbound messages stuck in wa_messages_out.status='queue'
  * after yCloud timeout/network errors.
  *
+ * Jika CSW (last_in_at) belum terbuka: baris tetap queue — tidak dihapus — cron mencoba lagi nanti.
+ *
  * Jika ada baris di tabel notif (db(1)) dengan text sama dan nomor cocok (9 digit terakhir),
  * state apa pun, baris antrian WA dihapus agar tidak dobel dengan pengiriman lewat Cron laundry.
  *
@@ -53,7 +55,6 @@ class ResendWAQueue extends Controller
             $output .= "synced_last_in_at_rows={$syncedLastIn}\n";
             $output .= "processed=0\n";
             $output .= "skipped=0\n";
-            $output .= "removed_csw=0\n";
             $output .= "deferred_csw=0\n";
             $output .= "removed_notif_match=0\n";
 
@@ -67,7 +68,6 @@ class ResendWAQueue extends Controller
         $waService = new \App\Helpers\WhatsAppService();
         $processed = 0;
         $skipped = 0;
-        $removedCsw = 0;
         $deferredCsw = 0;
         $removedNotifMatch = 0;
 
@@ -126,18 +126,13 @@ class ResendWAQueue extends Controller
             }
 
             // yCloud free text hanya dalam CSW — sama dengan WhatsApp/send & isWithinCsw()
+            // CSW tutup (DB): jangan hapus baris; tetap status queue agar cron mencoba lagi (bukan failed / delete).
             $lastInAt = $this->getWaConversationLastInAt($db, $phone);
             if (!$waService->isWithinCsw($lastInAt)) {
-                // Selama baris antrian masih < 24 jam sejak created_at, jangan hapus: tunggu peluang CSW terbuka lagi di cron berikutnya
-                if ($this->isQueueCreatedWithinLast24Hours($queueCreatedAt)) {
-                    $deferredCsw++;
-                    $skipped++;
-                    $output .= "SKIP id={$id} phone={$phone} reason=csw_closed_defer_within_24h\n";
-                    continue;
-                }
-                $db->delete('wa_messages_out', ['id' => $id]);
-                $removedCsw++;
-                $output .= "DELETE id={$id} phone={$phone} reason=csw_closed\n";
+                $deferredCsw++;
+                $skipped++;
+                $ageTag = $this->isQueueCreatedWithinLast24Hours($queueCreatedAt) ? 'queue_age_within_24h' : 'queue_age_over_24h';
+                $output .= "SKIP id={$id} phone={$phone} reason=csw_closed_keep_queue ({$ageTag})\n";
                 continue;
             }
 
@@ -152,19 +147,34 @@ class ResendWAQueue extends Controller
                 continue;
             }
 
-            // Fire & forget: WhatsAppService will upsert status based on yCloud webhook
-            // If yCloud still fails (timeout/network), WhatsAppService will keep/return status='queue'
             try {
-                $waService->sendFreeText($phone, $content, $quotedMessageId, $senderCode, $externalId);
-                $processed++;
-                $output .= "OK id={$id} phone={$phone} external_id={$externalId}\n";
+                $result = $waService->sendFreeText($phone, $content, $quotedMessageId, $senderCode, $externalId);
+                if (!empty($result['success'])) {
+                    $processed++;
+                    $output .= "OK id={$id} phone={$phone} external_id={$externalId}\n";
+                } else {
+                    $err = $result['error'] ?? 'sendFreeText failed';
+                    if (!is_string($err)) {
+                        $err = json_encode($err);
+                    }
+                    $db->update('wa_messages_out', [
+                        'status' => 'queue',
+                        'error_message' => $err,
+                    ], ['id' => $id]);
+                    $skipped++;
+                    $output .= "REQUEUE id={$id} phone={$phone} reason=send_not_success\n";
+                }
             } catch (\Throwable $e) {
+                $db->update('wa_messages_out', [
+                    'status' => 'queue',
+                    'error_message' => $e->getMessage(),
+                ], ['id' => $id]);
                 $skipped++;
-                $output .= "ERR id={$id} phone={$phone} external_id={$externalId} message=" . $e->getMessage() . "\n";
+                $output .= "REQUEUE id={$id} phone={$phone} reason=exception\n";
             }
         }
 
-        $output .= "SUMMARY intervalMinutes={$intervalMinutes} limit={$limit} synced_last_in_at_rows={$syncedLastIn} processed={$processed} skipped={$skipped} removed_csw={$removedCsw} deferred_csw={$deferredCsw} removed_notif_match={$removedNotifMatch}\n";
+        $output .= "SUMMARY intervalMinutes={$intervalMinutes} limit={$limit} synced_last_in_at_rows={$syncedLastIn} processed={$processed} skipped={$skipped} deferred_csw={$deferredCsw} removed_notif_match={$removedNotifMatch}\n";
 
         header('Content-Type: text/plain');
         echo $output;
