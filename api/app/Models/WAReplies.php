@@ -531,6 +531,41 @@ class WAReplies
     }
 
     /**
+     * Balasan sapaan waktu/salam yang mengikuti KATA DI AWAL pesan (bukan kata di tengah, mis. "tdi pagi").
+     * Menghindari "Siang kak, ... nota ... tdi pagi" salah dibalas "Pagi" karena preg_match /pagi/ di seluruh teks.
+     */
+    private function getMirrorTimeGreetingReplyLine(string $textBody, string $sapaan): string
+    {
+        $t = strtolower(trim((string) $textBody));
+        if ($t === '') {
+            return "Halo {$sapaan}";
+        }
+        // Hilangkan pembuka halo/hai + sapaan opsional + koma agar terbaca sapaan waktu berikutnya
+        if (preg_match('/^(halo|hai)\s*[,]?\s*\S{0,14}\s*,\s*/u', $t, $m)) {
+            $t = trim(mb_substr($t, mb_strlen($m[0])));
+        }
+        $head = mb_substr($t, 0, 72);
+
+        if (preg_match('/^(assalam+u[a-z]*|asalam+u[a-z]*)\b/i', $head)) {
+            return "Waalaikumsalam {$sapaan}";
+        }
+        if (preg_match('/^salam\b/i', $head)) {
+            return "Waalaikumsalam {$sapaan}";
+        }
+        // Waktu: cek urutan di AWAL (siang/sore/malam sebelum pagi) — jangan pakai /pagi/ pada seluruh string
+        foreach (['siang' => 'Siang', 'sore' => 'Sore', 'malam' => 'Malam', 'pagi' => 'Pagi'] as $word => $label) {
+            if (preg_match('/^' . preg_quote($word, '/') . '\b/i', $head)) {
+                return "{$label} {$sapaan}";
+            }
+        }
+        if (preg_match('/^(halo|hai)\b/i', $head)) {
+            return "Halo {$sapaan}";
+        }
+
+        return "Halo {$sapaan}";
+    }
+
+    /**
      * Kirim balasan salam/sapaan dulu jika pesan mengandung sapaan + intent lain.
      * Dipanggil sebelum handler lain (STATUS, dll) agar intent dijalankan satu per satu: PEMBUKA dulu, baru handler lain.
      * @return bool True jika sudah mengirim greeting
@@ -550,9 +585,12 @@ class WAReplies
             return false;
         }
         $sapaan = $this->getSapaanForGreeting($waNumber);
-        $isSalam = preg_match('/assalam+u|asalam+u|salam\b/i', $textLower);
-        $reply = $isSalam ? "Waalaikumsalam {$sapaan}" : (preg_match('/pagi/i', $textLower) ? "Pagi {$sapaan}" : (preg_match('/siang/i', $textLower) ? "Siang {$sapaan}" : (preg_match('/sore/i', $textLower) ? "Sore {$sapaan}" : (preg_match('/malam/i', $textLower) ? "Malam {$sapaan}" : "Halo {$sapaan}"))));
-        $this->sendAutoreplyText($waNumber, $reply);
+        $reply = $this->getMirrorTimeGreetingReplyLine($textBody, $sapaan);
+        $res = $this->sendAutoreplyText($waNumber, $reply);
+        // Fonnte (provider B): dua API beruntun kadang sampai terbalik di UI — jeda singkat sebelum nota/handler berikutnya
+        if ($this->autoReplyProvider === 'B' && ($res['success'] ?? false)) {
+            usleep(450000);
+        }
         return true;
     }
 
@@ -713,6 +751,11 @@ class WAReplies
                     if ($handler === 'MINTA_JEMPUT_ANTAR' && preg_match('/\b(masih|msh|mash|masi|msih)\s+(bisa|bs|bis|boleh)\s*(jemput|jmpt|antar)\b/i', $textBodyToCheck)) {
                         continue;
                     }
+                    // MINTA_JEMPUT_ANTAR: minta satu pakaian/item diambil/dulukan dulu dari order = PERMINTAAN (regex), bukan kurir ke alamat
+                    if ($handler === 'MINTA_JEMPUT_ANTAR' && $this->messageIsPermintaanAmbilPakaianDulu($textBodyToCheck)) {
+                        $this->logAutoreplyTrace($waNumber, 'REGEX_SKIP', 'MINTA_JEMPUT_ANTAR→permintaan_ambil_pakaian_dulu');
+                        continue;
+                    }
                     // PENUTUP: daftar/instruksi item laundry panjang (bukan closing) — regex ok/sip kadang overlap
                     if ($handler === 'PENUTUP' && $this->messageLooksLikeLaundryItemListNotPenutup($textBodyToCheck)) {
                         continue;
@@ -869,6 +912,14 @@ class WAReplies
                 $aiIntent = 'HARGA_PAKET';
                 $aiCase = $fullKeywordConfig['HARGA_PAKET']['case'] ?? null;
                 $aiNotify = $fullKeywordConfig['HARGA_PAKET']['notify'] ?? false;
+            }
+
+            // AI salah: minta satu pakaian/item diambil/dulukan dulu dari cucian/order = PERMINTAAN, bukan minta kurir jemput/antar
+            if ($aiIntent === 'MINTA_JEMPUT_ANTAR' && $this->messageIsPermintaanAmbilPakaianDulu($textBodyToCheck)) {
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override_minta_jemput→PERMINTAAN ambil_pakaian_dulu');
+                $aiIntent = 'PERMINTAAN';
+                $aiCase = $fullKeywordConfig['PERMINTAAN']['case'] ?? null;
+                $aiNotify = $fullKeywordConfig['PERMINTAAN']['notify'] ?? false;
             }
 
             // JAM_OPERASIONAL AI salah: "bs jmpt baju?" / "bisa jemput?" tanpa "masih" = MINTA_JEMPUT_ANTAR (bukan tanya jam buka)
@@ -1271,9 +1322,11 @@ class WAReplies
 
         // Regex quick path: sapaan + intent lain -> salam singkat lalu trigger handler lain
         if ($hasOtherIntent) {
-            $isSalam = preg_match('/assalam+u|asalam+u|salam\b/i', $textLower);
-            $reply = $isSalam ? "Waalaikumsalam {$sapaan}" : (preg_match('/pagi/i', $textLower) ? "Pagi {$sapaan}" : (preg_match('/siang|sore|malam/i', $textLower) ? "Siang {$sapaan}" : "Halo {$sapaan}"));
-            $this->sendAutoreplyText($waNumber, $reply);
+            $reply = $this->getMirrorTimeGreetingReplyLine($textBody, $sapaan);
+            $res = $this->sendAutoreplyText($waNumber, $reply);
+            if ($this->autoReplyProvider === 'B' && ($res['success'] ?? false)) {
+                usleep(450000);
+            }
             $keywordConfig = require __DIR__ . '/../Config/AutoReplyKeywords.php';
             unset($keywordConfig['PEMBUKA']);
             $aiResult = $this->handleWithAI($phoneIn, $textBody, $waNumber, $keywordConfig);
@@ -1509,6 +1562,32 @@ class WAReplies
             return false;
         }
         return (bool) preg_match('/\b(harga|berapa|biaya|daftar|tarif|rate|brp|brpa)\b/u', $t);
+    }
+
+    /**
+     * Minta satu jenis pakaian/item diambil/dulukan dulu dari order — PERMINTAAN, bukan kurir jemput ke kamar/alamat.
+     *
+     * @param string $textLower lowercase, tanpa formatter WA
+     */
+    private function messageIsPermintaanAmbilPakaianDulu($textLower)
+    {
+        $t = (string) $textLower;
+        if ($t === '') {
+            return false;
+        }
+        if (preg_match('/\b(ambil|jemput)\b.{0,100}?\b(kamar|hotel|rumah\s*sakit|depan\s+kamar|alamat|jalan\s*\.?)\b/iu', $t)) {
+            return false;
+        }
+        if (preg_match('/\b(baju|pakaian|seragam|celana|jaket|kemeja|dress|rok|dinas)\b.{0,160}?\b(di\s*)?amb(i|l)\b.{0,40}?\b(dulu|dlu|duluan|dulukan)\b/iu', $t)) {
+            return true;
+        }
+        if (preg_match('/\b(di\s*)?amb(i|l)\b.{0,40}?\b(dulu|dlu|duluan).{0,120}?\b(baju|pakaian|seragam|celana|dinas)\b/iu', $t)) {
+            return true;
+        }
+        if (preg_match('/\b(didulukan|dulukan|prioritas|utamakan)\b.{0,80}?\b(baju|pakaian|seragam|celana)\b/iu', $t)) {
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -4034,6 +4113,7 @@ class WAReplies
             $prompt .= "PRIORITAS: Jika user menanyakan apakah cucian/laundry sudah SIAP/SELESAI (termasuk typo sudh, laundri, 'apakah sudh siap laundri saya?') = pilih STATUS — jangan FALSE dan jangan mengarang intent baru.\n";
             $prompt .= "PRIORITAS: Jika user bertanya berapa/brp/brpa kilo (mis. 'berapa kilo itu kak?', 'brpa kilo kk?') tanpa tanya harga/biaya per kilo = pilih TAGIHAN (tanya berat order), bukan FALSE.\n";
             $prompt .= "PRIORITAS: 'kabari ya kak' / 'kabarin ya' / 'infokan ya' = minta kabar/update (penutup) = pilih PENUTUP, BUKAN PEMBUKA.\n";
+            $prompt .= "PRIORITAS: Minta satu pakaian/item tertentu diambil/dulukan dulu dari order/cucian yang sudah di laundry (belum waktunya ambil semua) = PERMINTAAN, BUKAN MINTA_JEMPUT_ANTAR.\n";
             $prompt .= "Pesan: \"{$textBody}\"\n";
             $prompt .= "JAWAB HANYA DENGAN FORMAT JSON SEPERTI INI:\n";
             $prompt .= "{\"intent\": \"NAMA_KATEGORI\", \"reason\": \"Alasan singkat memilih kategori ini\"}\n";

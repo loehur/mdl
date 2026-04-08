@@ -211,6 +211,37 @@ return [
         - Itu pertanyaan tarif paket varian include antar-jemput, BUKAN permintaan kurir jemput order sekarang."
     ],
 
+    'PERMINTAAN' => [
+        'case' => 3,
+        'notify' => true,
+        'patterns' => [
+            '/(bi*sa*|bo*le*h).*(sa*ya*|a*ku|ka*mi).*(di)?(ambi*l|je*m*pu*t)/i',
+            '/(bantu|bntu|tolong|minta|bisa)(?!.*(antar|jemput)).*(baju|pakaian|celana|handuk|boneka|sepatu|selimut|jaket|kantong)/i',
+            // Satu jenis pakaian/item diambil/dulukan dulu dari order (bukan layanan kurir jemput ke alamat)
+            '/\b(baju|pakaian|seragam|celana|jaket|kemeja|dress|rok|dinas)\b.{0,160}?\b(di\s*)?amb(i|l)\b.{0,40}?\b(dulu|dlu|duluan|dulukan)\b/iu',
+            '/\b(di\s*)?amb(i|l)\b.{0,40}?\b(dulu|dlu|duluan).{0,120}?\b(baju|pakaian|seragam|celana|dinas)\b/iu',
+            '/\b(didulukan|dulukan|prioritas|utamakan)\b.{0,80}?\b(baju|pakaian|seragam|celana)\b/iu',
+        ],
+        'ai_prompt' => "User melakukan PERMINTAAN KHUSUS atau INSTRUKSI KHUSUS terkait laundry.\n
+        TRUE jika:\n
+        - Permintaan treatment khusus: | bantu dibersihkan | tolong difokusin | baju ini dicuci khusus | noda ini dihilangkan |\n
+        - Permintaan waktu/prioritas: | tolong dipercepat | didulukan ya | kapan bisa selesai | prioritas dong |\n
+        - Permintaan cara treatment (untuk order yang sudah ada): | ganti parfum | jangan pakai pelembut | lipat rapi | setrika aja (instruksi untuk baju yang sudah di laundry) | ntr biar kami strika aja |\n
+        - Konfirmasi ambil sendiri: | saya jemput nanti | aku ambil sendiri | nanti sore saya datang |\n
+        - Ada kata: bantu/bntu (typo)/tolong/minta/bisa + object laundry (baju/celana/handuk/kantong/dll)\n
+        - CRITICAL: Minta SALAH SATU pakaian/item tertentu diambil/dulukan lebih dulu dari order yang sudah ada (belum waktunya ambil semua): | bisa ga baju dinas diambil dulu? | tolong seragam coklat didulukan | kemarin ada laundry, baju X di ambil dulu | = PERMINTAAN, BUKAN MINTA_JEMPUT_ANTAR (bukan minta kurir jemput/antar dari alamat).\n
+        \n
+        FALSE jika (BUKAN PERMINTAAN - ini HARGA_PAKET):\n
+        - User TANYA harga paket/member/langganan + spesifikasi layanan: | ada paket bulanan? setrika aja | paket setrika aja berapa? | ada paket cuci setrika? | paket bulanan cuci setrika? |\n
+        - 'Setrika aja' / 'cuci setrika' setelah tanya paket = spesifikasi JENIS paket yang ditanya, bukan instruksi treatment = HARGA_PAKET\n
+        \n
+        FALSE jika:\n
+        - Hanya sapaan: 'halo' tanpa permintaan\n
+        - Hanya tanya status: 'kapan siap?' tanpa instruksi khusus\n
+        - Minta kurir jemput/antar ke alamat (kamar/hotel/jemput laundry dari rumah): itu MINTA_JEMPUT_ANTAR\n
+        - Pemberitahuan singkat: 'Mau jemput,jgn tutup dlu' (terlalu singkat/informal)"
+    ],
+
    'MINTA_JEMPUT_ANTAR' => [
       'case' => 2,
       'notify' => true,
@@ -250,6 +281,7 @@ return [
       - katanya mau antar, katanya mau jemput = relay/konfirmasi permintaan antar = MINTA_JEMPUT_ANTAR\n
       - brp ongkirnya?, berapa ongkosnya?, brp ong nya kak?, biaya antar?\n
       - CRITICAL: Instruksi ambil/jemput baju/laundry/kain/bedcover/sprei dari LOKASI (kamar hotel/kost, depan kamar, rumah sakit, sekolah, alamat/jalan) = MINTA_JEMPUT_ANTAR. Contoh: | kk ambil baju kotor sama bedcover di depan kamar 212 | ambil laundry di hotel | jemput di kamar 305 | ambil di RS |\n
+      - CRITICAL - FALSE: Minta SATU jenis pakaian/item (baju dinas, seragam, dll.) diambil/dulukan DULU dari order/cucian yang sudah di laundry — prioritas item, BUKAN minta kurir jemput-antar = PERMINTAAN.\n
       \n
       FALSE (BUKAN MINTA JEMPUT/ANTAR) - SANGAT PENTING:\n
       - Tanya STATUS order (sudah/sdh/udh bisa dijemput/diambil) termasuk per kategori: | pakaian harian apa sdh bisa dijemput? | yang cuci setrika udh bisa dijemput? | = STATUS, BUKAN minta kurir.\n
@@ -266,32 +298,6 @@ return [
       - Contoh FALSE: 'Ok dijemput ya' (ini konfirmasi)\n
       - Contoh FALSE: 'Saya jemput nanti' (user akan ambil sendiri)"
    ],
-
-    'PERMINTAAN' => [
-        'case' => 3,
-        'notify' => true,
-        'patterns' => [
-            '/(bi*sa*|bo*le*h).*(sa*ya*|a*ku|ka*mi).*(di)?(ambi*l|je*m*pu*t)/i',
-            '/(bantu|bntu|tolong|minta|bisa)(?!.*(antar|jemput)).*(baju|pakaian|celana|handuk|boneka|sepatu|selimut|jaket|kantong)/i',
-        ],
-        'ai_prompt' => "User melakukan PERMINTAAN KHUSUS atau INSTRUKSI KHUSUS terkait laundry.\n
-        TRUE jika:\n
-        - Permintaan treatment khusus: | bantu dibersihkan | tolong difokusin | baju ini dicuci khusus | noda ini dihilangkan |\n
-        - Permintaan waktu/prioritas: | tolong dipercepat | didulukan ya | kapan bisa selesai | prioritas dong |\n
-        - Permintaan cara treatment (untuk order yang sudah ada): | ganti parfum | jangan pakai pelembut | lipat rapi | setrika aja (instruksi untuk baju yang sudah di laundry) | ntr biar kami strika aja |\n
-        - Konfirmasi ambil sendiri: | saya jemput nanti | aku ambil sendiri | nanti sore saya datang |\n
-        - Ada kata: bantu/bntu (typo)/tolong/minta/bisa + object laundry (baju/celana/handuk/kantong/dll)\n
-        \n
-        FALSE jika (BUKAN PERMINTAAN - ini HARGA_PAKET):\n
-        - User TANYA harga paket/member/langganan + spesifikasi layanan: | ada paket bulanan? setrika aja | paket setrika aja berapa? | ada paket cuci setrika? | paket bulanan cuci setrika? |\n
-        - 'Setrika aja' / 'cuci setrika' setelah tanya paket = spesifikasi JENIS paket yang ditanya, bukan instruksi treatment = HARGA_PAKET\n
-        \n
-        FALSE jika:\n
-        - Hanya sapaan: 'halo' tanpa permintaan\n
-        - Hanya tanya status: 'kapan siap?' tanpa instruksi khusus\n
-        - Minta jemput/antar: 'tolong jemput' (ini MINTA_JEMPUT_ANTAR)\n
-        - Pemberitahuan singkat: 'Mau jemput,jgn tutup dlu' (terlalu singkat/informal)"
-    ],
 
     'JAM_OPERASIONAL' => [
         'patterns' => [
