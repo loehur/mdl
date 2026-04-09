@@ -393,6 +393,17 @@ class Chat extends Controller
                 'updated_at' => date('Y-m-d H:i:s')
             ], ['wa_number' => $phone]);
 
+            try {
+                if (!class_exists(\App\Helpers\SapaanStatsHelper::class)) {
+                    require_once __DIR__ . '/../../Helpers/SapaanStatsHelper.php';
+                }
+                \App\Helpers\SapaanStatsHelper::recordStats($db, $phone, $message);
+            } catch (\Throwable $e) {
+                if (class_exists('\Log', false)) {
+                    \Log::write('SapaanStats reply: ' . $e->getMessage(), 'cms_error', 'Chat');
+                }
+            }
+
             $data = $res['data'];
             $data['local_id'] = $res['local_id'] ?? null; // Attach local DB ID
             
@@ -1056,6 +1067,17 @@ class Chat extends Controller
                     'last_message_at' => date('Y-m-d H:i:s'),
                     'updated_at' => date('Y-m-d H:i:s')
                 ], ['wa_number' => $waNumber]);
+
+                try {
+                    if (!class_exists(\App\Helpers\SapaanStatsHelper::class)) {
+                        require_once __DIR__ . '/../../Helpers/SapaanStatsHelper.php';
+                    }
+                    \App\Helpers\SapaanStatsHelper::recordStats($db, $waNumber, (string) $caption);
+                } catch (\Throwable $e) {
+                    if (class_exists('\Log', false)) {
+                        \Log::write('SapaanStats sendImage: ' . $e->getMessage(), 'cms_error', 'Chat');
+                    }
+                }
                 
                 // Broadcast via WebSocket
                 $broadcastPayload = [

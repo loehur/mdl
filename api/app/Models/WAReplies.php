@@ -259,12 +259,21 @@ class WAReplies
     /**
      * Ambil context greeting: contactName + sapaan (pak/bu/kak/bang).
      * Fungsi terpusat untuk handler yang butuh keduanya (PEMBUKA, PENUTUP, JAM_OPERASIONAL).
+     * Sapaan: prioritas sapaan_stats (paling sering dipakai agent ke nomor ini), lalu nama/regex/AI.
      * @param string $waNumber Nomor WhatsApp
      * @return array{contactName: string, sapaan: string}
      */
     private function getGreetingContext($waNumber)
     {
         $contactName = $this->getContactNameForGreeting($waNumber);
+        $fromStats = $this->getSapaanFromStats($waNumber);
+        if ($fromStats !== null && $fromStats !== '') {
+            return [
+                'contactName' => $contactName,
+                'sapaan' => $fromStats,
+            ];
+        }
+
         return [
             'contactName' => $contactName,
             'sapaan' => $this->getSapaanFromName($contactName),
@@ -272,9 +281,80 @@ class WAReplies
     }
 
     /**
+     * Sapaan yang paling sering dipakai agent ke nomor ini (sapaan_stats.jumlah tertinggi).
+     * Variasi nomor WA disamakan dengan wa_conversations / CRM.
+     *
+     * @return string|null null jika belum ada baris atau nilai tidak valid
+     */
+    private function getSapaanFromStats(string $waNumber): ?string
+    {
+        try {
+            $db = DB::getInstance(0);
+
+            foreach ($this->waNumberLookupVariants($waNumber) as $variant) {
+                $db->query(
+                    'SELECT sapaan FROM sapaan_stats WHERE wa_number = ? ORDER BY jumlah DESC, sapaan ASC LIMIT 1',
+                    [$variant]
+                );
+                if ($db->num_rows() > 0) {
+                    $row = $db->row();
+                    $normalized = $this->normalizeSapaanFromStats((string) ($row->sapaan ?? ''));
+                    if ($normalized !== null) {
+                        return $normalized;
+                    }
+                }
+            }
+
+            $last9 = $this->waPhoneLastNineDigits($waNumber);
+            if ($last9 === null) {
+                return null;
+            }
+
+            $digits = $this->sqlPhoneColumnDigitsOnlyExpr('wa_number');
+            $sql = 'SELECT sapaan FROM sapaan_stats WHERE LENGTH(' . $digits . ') >= 9 '
+                . 'AND RIGHT(' . $digits . ', 9) = ? ORDER BY jumlah DESC, sapaan ASC LIMIT 1';
+            $db->query($sql, [$last9]);
+            if ($db->num_rows() > 0) {
+                $row = $db->row();
+                return $this->normalizeSapaanFromStats((string) ($row->sapaan ?? ''));
+            }
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write('getSapaanFromStats: ' . $e->getMessage(), 'wa_error', 'WAReplies');
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Pastikan nilai dari DB masuk daftar kata di SapaanStatsKeywords (bisa ditambah user).
+     *
+     * @return string|null null jika kosong atau tidak ada di daftar
+     */
+    private function normalizeSapaanFromStats(string $raw): ?string
+    {
+        $s = strtolower(trim($raw));
+        if ($s === '') {
+            return null;
+        }
+
+        $path = __DIR__ . '/../Config/SapaanStatsKeywords.php';
+        if (is_file($path)) {
+            $cfg = require $path;
+            $allowed = array_map('strtolower', $cfg['keywords'] ?? []);
+            if ($allowed !== [] && !in_array($s, $allowed, true)) {
+                return null;
+            }
+        }
+
+        return $s;
+    }
+
+    /**
      * Ambil sapaan untuk greeting (pak/bu/kak/bang) sesuai gender.
      * Fungsi terpusat: sendGreetingReplyFirst dan handler lain tinggal panggil ini.
-     * Alur: regex (ibu/bu, bapak/pak, bg/bang, kak) → jika tidak cocok, AI klasifikasi gender (kak/bang).
+     * Prioritas: sapaan_stats (histori agent) → regex nama → AI (kak/bang).
      * @param string $waNumber Nomor WhatsApp
      * @return string 'pak'|'bu'|'kak'|'bang'
      */
@@ -354,6 +434,56 @@ class WAReplies
             "Ok {$sapaan} 😊",
         ];
         return $replies[array_rand($replies)];
+    }
+
+    /**
+     * True jika pesan mengandung ok/oke sebagai kata (bukan sekadar substring di tengah kata lain).
+     */
+    private function penutupMessageContainsOkToken(string $text): bool
+    {
+        $t = strtolower(trim($text));
+        if ($t === '') {
+            return false;
+        }
+
+        return (bool) preg_match('/\b(ok|oke|okey|okee)\b/i', $t);
+    }
+
+    /**
+     * Ack PENUTUP tanpa kata ok/oke — teks variatif + sapaan, atau dua emoji ramah.
+     */
+    private function getRandomPenutupAckNoOk(string $sapaan)
+    {
+        $items = [
+            "Baik {$sapaan} 😊",
+            "Sip {$sapaan} 😊",
+            "Siap {$sapaan} 😊",
+            "Baik ya {$sapaan} 🙏",
+            "Siap ya {$sapaan} 😊",
+            "Sip ya {$sapaan} 🙏",
+            '😊🙏',
+            '🙂🙏',
+            '😄🙏',
+            '🙏😊',
+            '👍😊',
+            '😊💚',
+            '🫶😊',
+            '😌🙏',
+        ];
+
+        return $items[array_rand($items)];
+    }
+
+    /**
+     * Pilih balasan ack: hindari mengulang ok/oke jika user baru saja menulis ok/oke.
+     */
+    private function pickPenutupAckReply(string $sapaan, string $textBody): string
+    {
+        if ($this->penutupMessageContainsOkToken($textBody)) {
+            return $this->getRandomPenutupAckNoOk($sapaan);
+        }
+
+        return $this->getRandomSiapReply($sapaan);
     }
 
     /**
@@ -1291,7 +1421,12 @@ class WAReplies
     private function handlePembuka($phoneIn, $waNumber, $textBody = '')
     {
         if (!$this->isOperatingHours()) {
-            $this->handleJam_tutup($phoneIn, $waNumber, $textBody);
+            // handleJam_tutup pakai cooldown JAM_TUTUP — hindari double pesan yang sama
+            // (mis. "Halo min" lalu "masih buka?" → dulu dua kali balasan tutup).
+            if (!$this->handleJam_tutup($phoneIn, $waNumber, $textBody)) {
+                $ctx = $this->getGreetingContext($waNumber);
+                $this->sendAutoreplyText($waNumber, "Halo {$ctx['sapaan']} 😊");
+            }
             return;
         }
 
@@ -1402,7 +1537,8 @@ class WAReplies
         $contactName = $ctx['contactName'];
         $sapaan = $ctx['sapaan'];
 
-        // Regex quick path: terimakasih/makasih (termasuk "oke makasih kak", "ok makasih") -> variatif (sesuai sapaan)
+        // Regex quick path: terimakasih/makasih (termasuk "oke makasih kak", "ok makasih") -> variatif (sesuai sapaan).
+        // Untuk "ok makasih" ok hanya pembuka — tetap balas rangkaian terima kasih (sama-sama, terima kasih kembali, dll.), bukan aturan hindari-ok.
         if (preg_match('/^(terima\s*kasih|terimakasih|makasih|mksh|thanks|thx|tq)(\s+(kak|bang|pak|bu))?\s*[.!]?$/i', $textLower)
             || preg_match('/^(ok|oke)\s*[,.]?\s*(makasih|terimakasih|thanks|thx)(\s+(kak|bang|pak|bu))?\s*[.!]?$/i', $textLower)) {
             $terimakasihReplies = [
@@ -1426,9 +1562,10 @@ class WAReplies
             return;
         }
 
-        // Regex quick path: ok/baik/siap (acknowledgment) tanpa jemput/antar
-        if (preg_match('/^(ok|oke|baik|sip|siap)(\s+deh)?\s*[.!]?$/i', $textLower) && !preg_match('/jemput|antar|ambil/i', $textLower)) {
-            $this->sendAutoreplyText($waNumber, $this->getRandomSiapReply($sapaan));
+        // Regex quick path: ok/baik/siap (acknowledgment), termasuk "ok kak", "oke min" — tanpa jemput/antar
+        $ackShort = '/^(ok|oke|baik|sip|siap)(\s+deh)?(\s+(kak|kk|bang|pak|bu|mbak|mas|om|min|dek|nte))?\s*[.!?]*$/iu';
+        if (preg_match($ackShort, $textLower) && !preg_match('/jemput|antar|ambil/i', $textLower)) {
+            $this->sendAutoreplyText($waNumber, $this->pickPenutupAckReply($sapaan, $textBody));
             return;
         }
 
@@ -1436,34 +1573,43 @@ class WAReplies
             ? "Nama customer: \"{$contactName}\". Sapaan yang WAJIB dipakai: {$sapaan}. JANGAN pakai sapaan lain."
             : "Nama customer tidak tersedia. Pakai sapaan: {$sapaan}.";
 
+        $avoidOkEcho = $this->penutupMessageContainsOkToken($textBody);
+        $systemPenutup = "Kamu adalah customer service Madinah Laundry. Balas penutup/acknowledgment dari customer.\n\nCRITICAL - SINGKAT & SANTAI:\n- Balas PENDEK (max 1 kalimat, 5-8 kata). Jangan formal. Santai tapi ramah.\n- WAJIB gunakan PERSIS sapaan yang diberikan (bang/bu/kak/pak). JANGAN ganti sapaan.\n- Contoh: jika sapaan=bang -> \"Oke bang\" \"Siap bang\" \"Selamat mudik ya bang\". Jika sapaan=kak -> \"Oke kak\" \"Siap kak\".\n- JANGAN kalimat panjang. JANGAN pakai tanda seru (!). JANGAN pakai singkatan 'mk' atau 'mksh'.\n- JANGAN PERNAH gunakan kata \"ditunggu\" atau \"di tunggu\" atau \"ditunggu ya\" - HILANGKAN dari semua balasan.\n- JANGAN PERNAH sebut nama customer dalam balasan.\n\nJENIS PENUTUP:\n1. Terimakasih/makasih/thanks -> balas sama-sama + sapaan\n2. Ok/baik/siap (acknowledgment) -> balas \"Siap\" atau \"Oke\" + sapaan\n3. Konfirmasi transfer -> \"Siap\" atau \"Oke, terima kasih\"\n4. Pemberitahuan jemput/antar/mudik -> balas \"Siap\" atau \"Oke, selamat mudik ya\" + sapaan\n5. JANGAN balas komplain/keluhan - itu BUKAN PENUTUP\n\nPENTING: Pakai PERSIS sapaan yang diberikan. JANGAN pakai \"ditunggu\". JANGAN pakai tanda seru (!).";
+        if ($avoidOkEcho) {
+            $systemPenutup .= "\n\nCRITICAL — Customer memakai kata ok/oke/okey di pesannya:\n- JANGAN balas dengan kata ok, oke, okey (hindari mengulang).\n- Gunakan baik, sip, siap, atau hanya dua emoji ramah (mis. 😊🙏 🙏😊).";
+        }
+
         try {
             if (!class_exists('\\App\\Config\\AI') || !\App\Config\AI::isEnabled()) {
-                $this->sendAutoreplyText($waNumber, $this->getRandomSiapReply($sapaan));
+                $this->sendAutoreplyText($waNumber, $this->pickPenutupAckReply($sapaan, $textBody));
                 return;
             }
 
             $messages = [
                 [
                     'role' => 'system',
-                    'content' => "Kamu adalah customer service Madinah Laundry. Balas penutup/acknowledgment dari customer.\n\nCRITICAL - SINGKAT & SANTAI:\n- Balas PENDEK (max 1 kalimat, 5-8 kata). Jangan formal. Santai tapi ramah.\n- WAJIB gunakan PERSIS sapaan yang diberikan (bang/bu/kak/pak). JANGAN ganti sapaan.\n- Contoh: jika sapaan=bang -> \"Oke bang\" \"Siap bang\" \"Selamat mudik ya bang\". Jika sapaan=kak -> \"Oke kak\" \"Siap kak\".\n- JANGAN kalimat panjang. JANGAN pakai tanda seru (!). JANGAN pakai singkatan 'mk' atau 'mksh'.\n- JANGAN PERNAH gunakan kata \"ditunggu\" atau \"di tunggu\" atau \"ditunggu ya\" - HILANGKAN dari semua balasan.\n- JANGAN PERNAH sebut nama customer dalam balasan.\n\nJENIS PENUTUP:\n1. Terimakasih/makasih/thanks -> balas sama-sama + sapaan\n2. Ok/baik/siap (acknowledgment) -> balas \"Siap\" atau \"Oke\" + sapaan\n3. Konfirmasi transfer -> \"Siap\" atau \"Oke, terima kasih\"\n4. Pemberitahuan jemput/antar/mudik -> balas \"Siap\" atau \"Oke, selamat mudik ya\" + sapaan\n5. JANGAN balas komplain/keluhan - itu BUKAN PENUTUP\n\nPENTING: Pakai PERSIS sapaan yang diberikan. JANGAN pakai \"ditunggu\". JANGAN pakai tanda seru (!)."
+                    'content' => $systemPenutup,
                 ],
                 [
                     'role' => 'user',
-                    'content' => "{$sapaanHint}\n\nPesan customer: \"{$textBody}\"\n\nBalas singkat dan santai. Max 1 kalimat pendek. Gunakan sapaan: {$sapaan}"
-                ]
+                    'content' => "{$sapaanHint}\n\nPesan customer: \"{$textBody}\"\n\nBalas singkat dan santai. Max 1 kalimat pendek. Gunakan sapaan: {$sapaan}",
+                ],
             ];
 
             $answer = $this->executeOpenAIRequestWithMessages($messages, 100);
             $text = trim(str_replace('!', '', $answer));
             if (empty($text) || mb_strlen($text) <= 2) {
-                $this->sendAutoreplyText($waNumber, $this->getRandomSiapReply($sapaan));
+                $this->sendAutoreplyText($waNumber, $this->pickPenutupAckReply($sapaan, $textBody));
                 return;
             }
             // Hilangkan "ditunggu ya" / "di tunggu" jika AI tetap mengeluarkan
             $text = preg_replace('/,?\s*(di\s*)?tunggu\s*(ya\s*)?(kak|bang|pak|bu)?\s*[.!]?/i', '', $text);
             $text = trim(preg_replace('/\s+/', ' ', $text));
             if ($text === '' || $text === ',') {
-                $text = $this->getRandomSiapReply($sapaan);
+                $text = $this->pickPenutupAckReply($sapaan, $textBody);
+            }
+            if ($avoidOkEcho && preg_match('/\b(ok|oke|okey|okee)\b/i', $text)) {
+                $text = $this->getRandomPenutupAckNoOk($sapaan);
             }
 
             $this->sendAutoreplyText($waNumber, $text);
@@ -1471,7 +1617,7 @@ class WAReplies
             if (class_exists('\Log')) {
                 \Log::write("handlePenutup ERROR: " . $e->getMessage(), 'wa_error', 'Penutup');
             }
-            $this->sendAutoreplyText($waNumber, $this->getRandomSiapReply($sapaan));
+            $this->sendAutoreplyText($waNumber, $this->pickPenutupAckReply($sapaan, $textBody));
         }
     }
 
@@ -2476,13 +2622,24 @@ class WAReplies
             || preg_match('/\b(masih|masi|msih)\s*(buka|buat|laundry|loundry)/i', $t);
     }
 
+    /**
+     * Balasan di luar jam operasional / tutup.
+     * Cooldown handler JAM_TUTUP: satu pesan jenis ini per nomor per jendela (terpisah dari PEMBUKA / JAM_OPERASIONAL)
+     * agar tidak dobel saat user kirim sapaan lalu tanya jam dalam waktu berdekatan.
+     *
+     * @return bool true jika ada pengiriman (atau fallback config), false jika dilewati karena cooldown
+     */
     function handleJam_tutup($phoneIn, $waNumber, $textBody = '', $customIntro = null)
     {
+        if (!$this->shouldHandle($waNumber, 'JAM_TUTUP', 3)) {
+            return false;
+        }
+
         try {
             $config = require __DIR__ . '/../Config/OperatingHours.php';
         } catch (\Throwable $e) {
             $this->sendAutoreplyText($waNumber, "Mohon maaf, kami sedang tutup. Buka setiap hari pukul *07.00 s.d. 21.00*. Terima kasih 🙏");
-            return;
+            return true;
         }
         $openHour = str_pad($config['open_hour'], 2, '0', STR_PAD_LEFT);
         $openMin = str_pad($config['open_minute'], 2, '0', STR_PAD_LEFT);
@@ -2546,6 +2703,8 @@ class WAReplies
             $text = $customIntro . "\n\n" . $text;
         }
         $this->sendAutoreplyText($waNumber, $text);
+
+        return true;
     }
 
     function handleReminder($phoneIn, $waNumber, $textBody = '')
