@@ -400,12 +400,17 @@ class Chat extends Controller
                 // sapaan_stats di DB index 0 (sama wa_conversations / CRM)
                 \App\Helpers\SapaanStatsHelper::recordStats($db, $phone, $message);
             } catch (\Throwable $e) {
-                if (class_exists('\Log', false)) {
+                if (!class_exists('Log', false)) {
+                    require_once __DIR__ . '/../../Helpers/Log.php';
+                }
+                if (class_exists('Log', false)) {
                     \Log::write(
                         'SapaanStats reply (outer): ' . $e->getMessage() . ' | ' . $e->getFile() . ':' . $e->getLine(),
                         'cms_error',
                         'Chat'
                     );
+                } else {
+                    error_log('SapaanStats reply (outer): ' . $e->getMessage());
                 }
             }
 
@@ -1079,12 +1084,17 @@ class Chat extends Controller
                     }
                     \App\Helpers\SapaanStatsHelper::recordStats($db, $waNumber, (string) $caption);
                 } catch (\Throwable $e) {
-                    if (class_exists('\Log', false)) {
+                    if (!class_exists('Log', false)) {
+                        require_once __DIR__ . '/../../Helpers/Log.php';
+                    }
+                    if (class_exists('Log', false)) {
                         \Log::write(
                             'SapaanStats sendImage (outer): ' . $e->getMessage() . ' | ' . $e->getFile() . ':' . $e->getLine(),
                             'cms_error',
                             'Chat'
                         );
+                    } else {
+                        error_log('SapaanStats sendImage (outer): ' . $e->getMessage());
                     }
                 }
                 

@@ -51,14 +51,17 @@ class SapaanStatsHelper
                     ], 1)->row();
 
                     if ($row) {
+                        $newJumlah = (int) $row->jumlah + 1;
                         $ok = $db->update('sapaan_stats', [
-                            'jumlah' => (int) $row->jumlah + 1,
+                            'jumlah' => $newJumlah,
                         ], [
                             'wa_number' => $waNumber,
                             'sapaan' => $sapaan,
                         ]);
                         if (!$ok) {
                             self::logDbFailure('update', $db, $waNumber, $sapaan);
+                        } else {
+                            self::logLine("ok update wa_number={$waNumber} sapaan={$sapaan} jumlah={$newJumlah}", 'cms', 'SapaanStats');
                         }
                     } else {
                         $insertId = $db->insert('sapaan_stats', [
@@ -68,6 +71,8 @@ class SapaanStatsHelper
                         ]);
                         if ($insertId === false) {
                             self::logDbFailure('insert', $db, $waNumber, $sapaan);
+                        } else {
+                            self::logLine("ok insert id={$insertId} wa_number={$waNumber} sapaan={$sapaan}", 'cms', 'SapaanStats');
                         }
                     }
                 } catch (\Throwable $e) {
@@ -76,6 +81,30 @@ class SapaanStatsHelper
             }
         } catch (\Throwable $e) {
             self::logThrowable($e, $waNumber, null);
+        }
+    }
+
+    /**
+     * class_exists(Log, false) sering false di request pertama → log tidak pernah tertulis; load eksplisit.
+     * Output: api/logs/Y-m-d/cms_sapaanstats.log (sukses, app=cms) dan cms_error_sapaanstats.log (gagal).
+     */
+    private static function ensureLogClass(): void
+    {
+        if (!class_exists('Log', false)) {
+            $f = __DIR__ . '/Log.php';
+            if (is_file($f)) {
+                require_once $f;
+            }
+        }
+    }
+
+    private static function logLine(string $text, string $app = 'cms_error', string $controller = 'SapaanStats'): void
+    {
+        self::ensureLogClass();
+        if (class_exists('Log', false)) {
+            \Log::write($text, $app, $controller);
+        } else {
+            error_log('[SapaanStats] ' . $text);
         }
     }
 
@@ -92,18 +121,14 @@ class SapaanStatsHelper
             }
         }
         $line = "SapaanStats {$op} failed [db0 sapaan_stats] wa_number={$waNumber} sapaan={$sapaan} | {$mysql}";
-        if (class_exists('\Log', false)) {
-            \Log::write($line, 'cms_error', 'SapaanStats');
-        }
+        self::logLine($line, 'cms_error', 'SapaanStats');
     }
 
     private static function logThrowable(\Throwable $e, string $waNumber, ?string $sapaan): void
     {
         $s = $sapaan !== null ? "sapaan={$sapaan} " : '';
         $line = "SapaanStats exception [db0 sapaan_stats] wa_number={$waNumber} {$s}| {$e->getMessage()} | {$e->getFile()}:{$e->getLine()}";
-        if (class_exists('\Log', false)) {
-            \Log::write($line, 'cms_error', 'SapaanStats');
-        }
+        self::logLine($line, 'cms_error', 'SapaanStats');
     }
 
     /**
