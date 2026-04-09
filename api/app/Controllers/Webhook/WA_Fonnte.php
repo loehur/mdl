@@ -141,8 +141,8 @@ class WA_Fonnte extends Controller
                 $cust_id
             );
             // Fallback default hanya jika intent tidak punya handler (atau unknown/no-intent), max sekali per nomor per DEFAULT_FALLBACK_COOLDOWN_MINUTES.
-            // Pesan sangat pendek (<15 karakter) tidak dibalas fallback CS agar tidak mengganggu salam/stiker singkat.
-            if (!empty($processResult->no_handler) && mb_strlen(trim((string) ($messageText ?? ''))) >= 15) {
+            // Pesan pendek (≤20 karakter) tidak dibalas fallback CS agar tidak mengganggu salam/stiker singkat.
+            if (!empty($processResult->no_handler) && mb_strlen(trim((string) ($messageText ?? ''))) > 20) {
                 if ($replies->shouldSendFonnteFallbackReply($waNumber, self::DEFAULT_FALLBACK_COOLDOWN_MINUTES)) {
                     $this->sendFallbackReply($sender, self::DEFAULT_FALLBACK_REPLY, $inboxid);
                 }
