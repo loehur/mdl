@@ -789,7 +789,7 @@ onUnmounted(() => {
                   <div @click="showCustomerInfo" class="min-w-0 flex-1 cursor-pointer">
                       <h2 class="font-medium text-[var(--wa-text-primary)] text-base md:text-lg truncate uppercase">{{ activeConversation.name }}</h2>
                       <div class="flex items-center gap-2 flex-wrap">
-                        <span v-if="activeConversation.kode_cabang" class="text-xs font-bold text-[var(--wa-text-secondary)]">{{ activeConversation.kode_cabang }}</span>
+                        <span v-if="activeConversation.kode_cabang" class="text-xs font-bold text-[var(--wa-accent-green)]">{{ activeConversation.kode_cabang }}</span>
                         <span v-if="activeConversation.cust_id" class="text-xs text-[var(--wa-text-tertiary)]">#{{ activeConversation.cust_id }}</span>
                            <div v-if="activeConversation.cases" class="flex gap-1">
                                 <template v-for="(cse, idx) in activeConversation.cases" :key="idx">
