@@ -33,35 +33,76 @@ class SapaanStatsHelper
     }
 
     /**
-     * @param object $db \App\Core\DB
+     * @param object $db \App\Core\DB (CRM / wa: biasanya DB index 0)
      */
     public static function recordStats($db, string $waNumber, string $message): void
     {
-        $tokens = self::findSapaanInMessage($message);
-        if ($tokens === []) {
-            return;
-        }
-
-        foreach ($tokens as $sapaan) {
-            $row = $db->get_where('sapaan_stats', [
-                'wa_number' => $waNumber,
-                'sapaan' => $sapaan,
-            ], 1)->row();
-
-            if ($row) {
-                $db->update('sapaan_stats', [
-                    'jumlah' => (int) $row->jumlah + 1,
-                ], [
-                    'wa_number' => $waNumber,
-                    'sapaan' => $sapaan,
-                ]);
-            } else {
-                $db->insert('sapaan_stats', [
-                    'wa_number' => $waNumber,
-                    'sapaan' => $sapaan,
-                    'jumlah' => 1,
-                ]);
+        try {
+            $tokens = self::findSapaanInMessage($message);
+            if ($tokens === []) {
+                return;
             }
+
+            foreach ($tokens as $sapaan) {
+                try {
+                    $row = $db->get_where('sapaan_stats', [
+                        'wa_number' => $waNumber,
+                        'sapaan' => $sapaan,
+                    ], 1)->row();
+
+                    if ($row) {
+                        $ok = $db->update('sapaan_stats', [
+                            'jumlah' => (int) $row->jumlah + 1,
+                        ], [
+                            'wa_number' => $waNumber,
+                            'sapaan' => $sapaan,
+                        ]);
+                        if (!$ok) {
+                            self::logDbFailure('update', $db, $waNumber, $sapaan);
+                        }
+                    } else {
+                        $insertId = $db->insert('sapaan_stats', [
+                            'wa_number' => $waNumber,
+                            'sapaan' => $sapaan,
+                            'jumlah' => 1,
+                        ]);
+                        if ($insertId === false) {
+                            self::logDbFailure('insert', $db, $waNumber, $sapaan);
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    self::logThrowable($e, $waNumber, $sapaan);
+                }
+            }
+        } catch (\Throwable $e) {
+            self::logThrowable($e, $waNumber, null);
+        }
+    }
+
+    /**
+     * insert/update mengembalikan false tanpa exception — catat errno MySQL untuk debug (tabel hilang, kolom salah, dll.).
+     */
+    private static function logDbFailure(string $op, $db, string $waNumber, string $sapaan): void
+    {
+        $mysql = '';
+        if (is_object($db) && method_exists($db, 'conn')) {
+            $c = $db->conn();
+            if ($c instanceof \mysqli) {
+                $mysql = $c->error . ' (errno ' . $c->errno . ')';
+            }
+        }
+        $line = "SapaanStats {$op} failed [db0 sapaan_stats] wa_number={$waNumber} sapaan={$sapaan} | {$mysql}";
+        if (class_exists('\Log', false)) {
+            \Log::write($line, 'cms_error', 'SapaanStats');
+        }
+    }
+
+    private static function logThrowable(\Throwable $e, string $waNumber, ?string $sapaan): void
+    {
+        $s = $sapaan !== null ? "sapaan={$sapaan} " : '';
+        $line = "SapaanStats exception [db0 sapaan_stats] wa_number={$waNumber} {$s}| {$e->getMessage()} | {$e->getFile()}:{$e->getLine()}";
+        if (class_exists('\Log', false)) {
+            \Log::write($line, 'cms_error', 'SapaanStats');
         }
     }
 

@@ -397,10 +397,15 @@ class Chat extends Controller
                 if (!class_exists(\App\Helpers\SapaanStatsHelper::class)) {
                     require_once __DIR__ . '/../../Helpers/SapaanStatsHelper.php';
                 }
+                // sapaan_stats di DB index 0 (sama wa_conversations / CRM)
                 \App\Helpers\SapaanStatsHelper::recordStats($db, $phone, $message);
             } catch (\Throwable $e) {
                 if (class_exists('\Log', false)) {
-                    \Log::write('SapaanStats reply: ' . $e->getMessage(), 'cms_error', 'Chat');
+                    \Log::write(
+                        'SapaanStats reply (outer): ' . $e->getMessage() . ' | ' . $e->getFile() . ':' . $e->getLine(),
+                        'cms_error',
+                        'Chat'
+                    );
                 }
             }
 
@@ -1075,7 +1080,11 @@ class Chat extends Controller
                     \App\Helpers\SapaanStatsHelper::recordStats($db, $waNumber, (string) $caption);
                 } catch (\Throwable $e) {
                     if (class_exists('\Log', false)) {
-                        \Log::write('SapaanStats sendImage: ' . $e->getMessage(), 'cms_error', 'Chat');
+                        \Log::write(
+                            'SapaanStats sendImage (outer): ' . $e->getMessage() . ' | ' . $e->getFile() . ':' . $e->getLine(),
+                            'cms_error',
+                            'Chat'
+                        );
                     }
                 }
                 
