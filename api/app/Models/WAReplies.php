@@ -257,9 +257,25 @@ class WAReplies
     }
 
     /**
+     * Log jejak pemilihan sapaan → file logs/{tanggal}/wa_sapaan.log (app=wa, controller=sapaan).
+     */
+    private function logSapaanResolve(string $line): void
+    {
+        if (!class_exists('Log', false)) {
+            $p = __DIR__ . '/../Helpers/Log.php';
+            if (is_file($p)) {
+                require_once $p;
+            }
+        }
+        if (class_exists('Log', false)) {
+            \Log::write($line, 'wa', 'sapaan');
+        }
+    }
+
+    /**
      * Ambil context greeting: contactName + sapaan (pak/bu/kak/bang).
      * Fungsi terpusat untuk handler yang butuh keduanya (PEMBUKA, PENUTUP, JAM_OPERASIONAL).
-     * Sapaan: prioritas sapaan_stats (paling sering dipakai agent ke nomor ini), lalu nama/regex/AI.
+     * WAJIB: sapaan_stats (db0) dulu — baris dengan jumlah tertinggi per nomor; baru fallback nama/regex/AI.
      * @param string $waNumber Nomor WhatsApp
      * @return array{contactName: string, sapaan: string}
      */
@@ -268,21 +284,30 @@ class WAReplies
         $contactName = $this->getContactNameForGreeting($waNumber);
         $fromStats = $this->getSapaanFromStats($waNumber);
         if ($fromStats !== null && $fromStats !== '') {
+            $this->logSapaanResolve(
+                "GREETING final wa_number={$waNumber} sapaan={$fromStats} source=sapaan_stats(db0) contact_name=" . str_replace(["\r", "\n"], ' ', $contactName)
+            );
+
             return [
                 'contactName' => $contactName,
                 'sapaan' => $fromStats,
             ];
         }
 
+        $fromName = $this->getSapaanFromName($contactName);
+        $this->logSapaanResolve(
+            "GREETING final wa_number={$waNumber} sapaan={$fromName} source=fallback_getSapaanFromName (stats_tidak_ketemu_atau_kosong) contact_name=" . str_replace(["\r", "\n"], ' ', $contactName)
+        );
+
         return [
             'contactName' => $contactName,
-            'sapaan' => $this->getSapaanFromName($contactName),
+            'sapaan' => $fromName,
         ];
     }
 
     /**
-     * Sapaan yang paling sering dipakai agent ke nomor ini (sapaan_stats.jumlah tertinggi).
-     * Variasi nomor WA disamakan dengan wa_conversations / CRM.
+     * Sapaan dari sapaan_stats: ORDER BY jumlah DESC (paling sering dipakai agent ke nomor ini).
+     * Urutan lookup: exact wa_number (variasi) → match digit penuh kolom = digit nomor webhook → 9 digit terakhir.
      *
      * @return string|null null jika belum ada baris atau nilai tidak valid
      */
@@ -293,33 +318,75 @@ class WAReplies
 
             foreach ($this->waNumberLookupVariants($waNumber) as $variant) {
                 $db->query(
-                    'SELECT sapaan FROM sapaan_stats WHERE wa_number = ? ORDER BY jumlah DESC, sapaan ASC LIMIT 1',
+                    'SELECT sapaan, jumlah, wa_number AS wn FROM sapaan_stats WHERE wa_number = ? ORDER BY jumlah DESC, sapaan ASC LIMIT 1',
                     [$variant]
                 );
                 if ($db->num_rows() > 0) {
                     $row = $db->row();
-                    $normalized = $this->normalizeSapaanFromStats((string) ($row->sapaan ?? ''));
+                    $raw = (string) ($row->sapaan ?? '');
+                    $normalized = $this->normalizeSapaanFromStats($raw);
                     if ($normalized !== null) {
+                        $this->logSapaanResolve(
+                            "STATS hit=exact_variant variant={$variant} row_wn=" . ($row->wn ?? '') . " raw={$raw} jumlah=" . ($row->jumlah ?? '') . " normalized={$normalized}"
+                        );
+
                         return $normalized;
                     }
+                    $this->logSapaanResolve("STATS skip_normalize raw={$raw} (tidak ada di SapaanStatsKeywords) variant={$variant}");
+                }
+            }
+
+            $digitsIn = $this->normalizePhoneDigitsOnlyPhp($waNumber);
+            if (strlen($digitsIn) >= 10) {
+                $expr = $this->sqlPhoneColumnDigitsOnlyExpr('wa_number');
+                $db->query(
+                    'SELECT sapaan, jumlah, wa_number AS wn FROM sapaan_stats WHERE ' . $expr . ' = ? ORDER BY jumlah DESC, sapaan ASC LIMIT 1',
+                    [$digitsIn]
+                );
+                if ($db->num_rows() > 0) {
+                    $row = $db->row();
+                    $raw = (string) ($row->sapaan ?? '');
+                    $normalized = $this->normalizeSapaanFromStats($raw);
+                    if ($normalized !== null) {
+                        $this->logSapaanResolve(
+                            "STATS hit=full_digits digits_in={$digitsIn} row_wn=" . ($row->wn ?? '') . " raw={$raw} jumlah=" . ($row->jumlah ?? '') . " normalized={$normalized}"
+                        );
+
+                        return $normalized;
+                    }
+                    $this->logSapaanResolve("STATS full_digits row tapi normalize gagal raw={$raw} digits_in={$digitsIn}");
                 }
             }
 
             $last9 = $this->waPhoneLastNineDigits($waNumber);
             if ($last9 === null) {
+                $this->logSapaanResolve("STATS miss wa_number={$waNumber} (last9 null, nomor terlalu pendek)");
+
                 return null;
             }
 
             $digits = $this->sqlPhoneColumnDigitsOnlyExpr('wa_number');
-            $sql = 'SELECT sapaan FROM sapaan_stats WHERE LENGTH(' . $digits . ') >= 9 '
+            $sql = 'SELECT sapaan, jumlah, wa_number AS wn FROM sapaan_stats WHERE LENGTH(' . $digits . ') >= 9 '
                 . 'AND RIGHT(' . $digits . ', 9) = ? ORDER BY jumlah DESC, sapaan ASC LIMIT 1';
             $db->query($sql, [$last9]);
             if ($db->num_rows() > 0) {
                 $row = $db->row();
-                return $this->normalizeSapaanFromStats((string) ($row->sapaan ?? ''));
+                $raw = (string) ($row->sapaan ?? '');
+                $normalized = $this->normalizeSapaanFromStats($raw);
+                if ($normalized !== null) {
+                    $this->logSapaanResolve(
+                        "STATS hit=last9 last9={$last9} row_wn=" . ($row->wn ?? '') . " raw={$raw} jumlah=" . ($row->jumlah ?? '') . " normalized={$normalized}"
+                    );
+
+                    return $normalized;
+                }
+                $this->logSapaanResolve("STATS last9 row tapi normalize gagal raw={$raw}");
             }
+
+            $this->logSapaanResolve("STATS miss wa_number={$waNumber} digits_in={$digitsIn} last9={$last9} (tidak ada baris sapaan_stats)");
         } catch (\Throwable $e) {
-            if (class_exists('\Log')) {
+            $this->logSapaanResolve('STATS exception ' . $e->getMessage() . ' | ' . $e->getFile() . ':' . $e->getLine());
+            if (class_exists('Log', false)) {
                 \Log::write('getSapaanFromStats: ' . $e->getMessage(), 'wa_error', 'WAReplies');
             }
         }
