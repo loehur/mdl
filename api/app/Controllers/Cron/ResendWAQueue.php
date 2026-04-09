@@ -57,6 +57,7 @@ class ResendWAQueue extends Controller
             $output .= "skipped=0\n";
             $output .= "deferred_csw=0\n";
             $output .= "removed_notif_match=0\n";
+            $output .= "removed_superseded=0\n";
 
             header('Content-Type: text/plain');
             echo $output;
@@ -70,6 +71,7 @@ class ResendWAQueue extends Controller
         $skipped = 0;
         $deferredCsw = 0;
         $removedNotifMatch = 0;
+        $removedSuperseded = 0;
 
         foreach ($rows as $r) {
             $id = (int)($r['id'] ?? 0);
@@ -97,8 +99,7 @@ class ResendWAQueue extends Controller
 
             // Safety check:
             // If there is any newer outbound message for the same phone with status
-            // NOT in ('queue','failed'), then this queue record is superseded and
-            // should be marked failed (no need to resend).
+            // NOT in ('queue','failed'), then this queue record is superseded — delete (no resend).
             if (!empty($queueCreatedAt)) {
                 $checkSql = "
                     SELECT id
@@ -111,16 +112,9 @@ class ResendWAQueue extends Controller
                 ";
                 $newer = $db->query($checkSql, [$phone, $queueCreatedAt])->row();
                 if ($newer) {
-                    $db->update(
-                        'wa_messages_out',
-                        [
-                            'status' => 'failed',
-                            'error_message' => 'Superseded by newer outbound send (status != queue/failed).'
-                        ],
-                        ['id' => $id]
-                    );
-                    $skipped++;
-                    $output .= "SKIP id={$id} phone={$phone} reason=superseded_by_newer_outbound\n";
+                    $db->delete('wa_messages_out', ['id' => $id]);
+                    $removedSuperseded++;
+                    $output .= "DELETE id={$id} phone={$phone} reason=superseded_by_newer_outbound\n";
                     continue;
                 }
             }
@@ -174,7 +168,7 @@ class ResendWAQueue extends Controller
             }
         }
 
-        $output .= "SUMMARY intervalMinutes={$intervalMinutes} limit={$limit} synced_last_in_at_rows={$syncedLastIn} processed={$processed} skipped={$skipped} deferred_csw={$deferredCsw} removed_notif_match={$removedNotifMatch}\n";
+        $output .= "SUMMARY intervalMinutes={$intervalMinutes} limit={$limit} synced_last_in_at_rows={$syncedLastIn} processed={$processed} skipped={$skipped} deferred_csw={$deferredCsw} removed_notif_match={$removedNotifMatch} removed_superseded={$removedSuperseded}\n";
 
         header('Content-Type: text/plain');
         echo $output;
