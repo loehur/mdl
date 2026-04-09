@@ -273,19 +273,27 @@ class WAReplies
     }
 
     /**
-     * Ambil context greeting: contactName + sapaan (pak/bu/kak/bang).
+     * Ambil context greeting: contactName + sapaan (pak/bu/kak/bang/bg/…).
      * Fungsi terpusat untuk handler yang butuh keduanya (PEMBUKA, PENUTUP, JAM_OPERASIONAL).
-     * WAJIB: sapaan_stats (db0) dulu — baris dengan jumlah tertinggi per nomor; baru fallback nama/regex/AI.
+     *
+     * Urutan wajib sapaan (berhenti di langkah pertama yang menghasilkan nilai):
+     * 1) sapaan_stats (db0), jumlah terbesar — tidak lanjut ke 2 atau 3.
+     * 2) regex pada nama kontak — tidak lanjut ke 3 jika ketemu.
+     * 3) AI dari nama (kak/bang) — jika tidak bisa diputuskan, default "kak".
+     * Pengecualian: nama kontak kosong → langsung "kak" (tanpa regex/AI).
+     *
      * @param string $waNumber Nomor WhatsApp
      * @return array{contactName: string, sapaan: string}
      */
     private function getGreetingContext($waNumber)
     {
         $contactName = $this->getContactNameForGreeting($waNumber);
+        $cnLog = str_replace(["\r", "\n"], ' ', $contactName);
+
         $fromStats = $this->getSapaanFromStats($waNumber);
         if ($fromStats !== null && $fromStats !== '') {
             $this->logSapaanResolve(
-                "GREETING final wa_number={$waNumber} sapaan={$fromStats} source=sapaan_stats(db0) contact_name=" . str_replace(["\r", "\n"], ' ', $contactName)
+                "GREETING final wa_number={$waNumber} sapaan={$fromStats} source=1_sapaan_stats contact_name={$cnLog}"
             );
 
             return [
@@ -294,14 +302,36 @@ class WAReplies
             ];
         }
 
-        $fromName = $this->getSapaanFromName($contactName);
+        if (trim((string) $contactName) === '') {
+            $this->logSapaanResolve("GREETING final wa_number={$waNumber} sapaan=kak source=default (nama_kosong, tanpa regex/ai)");
+
+            return [
+                'contactName' => $contactName,
+                'sapaan' => 'kak',
+            ];
+        }
+
+        $fromRegex = $this->getSapaanFromContactNameRegex($contactName);
+        if ($fromRegex !== null && $fromRegex !== '') {
+            $this->logSapaanResolve(
+                "GREETING final wa_number={$waNumber} sapaan={$fromRegex} source=2_regex_nama contact_name={$cnLog}"
+            );
+
+            return [
+                'contactName' => $contactName,
+                'sapaan' => $fromRegex,
+            ];
+        }
+
+        $fromAi = $this->getSapaanFromContactNameAI($contactName);
+        $sapaan = ($fromAi === 'bang') ? 'bang' : 'kak';
         $this->logSapaanResolve(
-            "GREETING final wa_number={$waNumber} sapaan={$fromName} source=fallback_getSapaanFromName (stats_tidak_ketemu_atau_kosong) contact_name=" . str_replace(["\r", "\n"], ' ', $contactName)
+            "GREETING final wa_number={$waNumber} sapaan={$sapaan} source=3_ai_nama contact_name={$cnLog}"
         );
 
         return [
             'contactName' => $contactName,
-            'sapaan' => $fromName,
+            'sapaan' => $sapaan,
         ];
     }
 
@@ -395,7 +425,7 @@ class WAReplies
     }
 
     /**
-     * Pastikan nilai dari DB masuk daftar kata di SapaanStatsKeywords (bisa ditambah user).
+     * Validasi token dari kolom sapaan (bukan “menebak” sapaan): harus ada di SapaanStatsKeywords.
      *
      * @return string|null null jika kosong atau tidak ada di daftar
      */
@@ -419,11 +449,11 @@ class WAReplies
     }
 
     /**
-     * Ambil sapaan untuk greeting (pak/bu/kak/bang) sesuai gender.
-     * Fungsi terpusat: sendGreetingReplyFirst dan handler lain tinggal panggil ini.
-     * Prioritas: sapaan_stats (histori agent) → regex nama → AI (kak/bang).
+     * Sapaan untuk greeting — hanya lewat getGreetingContext:
+     * 1) sapaan_stats → 2) regex nama → 3) AI (kak/bang), default kak.
+     *
      * @param string $waNumber Nomor WhatsApp
-     * @return string 'pak'|'bu'|'kak'|'bang'
+     * @return string token sapaan (mis. pak, bu, kak, bang, bg, …)
      */
     private function getSapaanForGreeting($waNumber)
     {
@@ -432,34 +462,71 @@ class WAReplies
     }
 
     /**
-     * Ambil sapaan dari nama. PRIORITAS: regex dulu, baru AI jika tidak ketemu.
-     * @internal Dipanggil via getSapaanForGreeting() oleh handler.
+     * Langkah 2: sapaan dari pola pada nama kontak (tanpa AI).
+     *
+     * @return string|null null jika tidak ada pola yang cocok → lanjut langkah 3 (AI)
      */
-    private function getSapaanFromName($contactName)
+    private function getSapaanFromContactNameRegex(?string $contactName): ?string
     {
-        $n = strtolower(trim($contactName ?? ''));
-        if ($n === '') return 'kak';
-
-        // 1. Regex dulu (pakde/bude sebelum pak/bu agar "pak de"/"bu de" terdeteksi benar)
-        if (preg_match('/\b(pakde|pak\s*de)\b/i', $n)) return 'pakde';
-        if (preg_match('/\b(bude|bukde|bu\s*de|buk\s*de)\b/i', $n)) return 'bude';
-        if (preg_match('/\b(ibu|ibuk|bu|buk)\b/', $n)) return 'bu';
-        // Nama diawali "B " atau "B." (inisial, misal B DELI) -> bu
-        if (preg_match('/^b\s|^b\./i', $n)) return 'bu';
-        if (preg_match('/\b(bapak|pak|bpk)\b/', $n)) return 'pak';
-        if (preg_match('/\bom\b/', $n)) return 'om';
-        if (preg_match('/\bmas\b/', $n)) return 'mas';
-        if (preg_match('/\bmbak\b/', $n)) return 'mbak';
-        if (preg_match('/\b(bg|bang)\b|^bg/i', $n)) return 'bang';
-        if (preg_match('/\b(kak|kakak)\b/', $n)) return 'kak';
-
-        // 2. Tidak ketemu di regex: baru minta AI (kak/bang dari nama)
-        $cacheKey = $n;
-        if (isset($this->sapaanAiCache[$cacheKey])) {
-            return $this->sapaanAiCache[$cacheKey];
+        $n = strtolower(trim((string) $contactName));
+        if ($n === '') {
+            return null;
         }
-        $sapaan = $this->detectSapaanFromNameWithAI($n);
-        $this->sapaanAiCache[$cacheKey] = $sapaan;
+
+        if (preg_match('/\b(pakde|pak\s*de)\b/i', $n)) {
+            return 'pakde';
+        }
+        if (preg_match('/\b(bude|bukde|bu\s*de|buk\s*de)\b/i', $n)) {
+            return 'bude';
+        }
+        if (preg_match('/\b(ibu|ibuk|bu|buk)\b/', $n)) {
+            return 'bu';
+        }
+        if (preg_match('/^b\s|^b\./i', $n)) {
+            return 'bu';
+        }
+        if (preg_match('/\b(bapak|pak|bpk)\b/', $n)) {
+            return 'pak';
+        }
+        if (preg_match('/\bom\b/', $n)) {
+            return 'om';
+        }
+        if (preg_match('/\bmas\b/', $n)) {
+            return 'mas';
+        }
+        if (preg_match('/\bmbak\b/', $n)) {
+            return 'mbak';
+        }
+        if (preg_match('/\b(bg|bang)\b|^bg/i', $n)) {
+            return 'bang';
+        }
+        if (preg_match('/\b(kak|kakak)\b/', $n)) {
+            return 'kak';
+        }
+
+        return null;
+    }
+
+    /**
+     * Langkah 3: AI memilih kak atau bang dari nama. Default akhir: "kak".
+     *
+     * @return string 'kak'|'bang'
+     */
+    private function getSapaanFromContactNameAI(string $contactName): string
+    {
+        $n = strtolower(trim($contactName));
+        if ($n === '') {
+            return 'kak';
+        }
+        if (isset($this->sapaanAiCache[$n])) {
+            return $this->sapaanAiCache[$n];
+        }
+        $sapaan = $this->detectSapaanFromNameWithAI($contactName);
+        if ($sapaan !== 'bang') {
+            $sapaan = 'kak';
+        }
+        $this->sapaanAiCache[$n] = $sapaan;
+
         return $sapaan;
     }
 
@@ -1543,9 +1610,9 @@ class WAReplies
             return;
         }
 
-        $sapaanHint = $contactName !== ''
-            ? "Nama customer: \"{$contactName}\". Aturan sapaan: HANYA jika nama mengandung ibu/bu -> pakai bu. HANYA jika nama mengandung pak/bapak/bpk -> pakai pak. Jika TIDAK mengandung itu, pakai kak/kakak/bg/bang."
-            : "Nama customer tidak tersedia. Pakai sapaan kak/kakak.";
+        $nameContext = $contactName !== ''
+            ? "Nama di data (konteks saja, JANGAN sebut di balasan): \"{$contactName}\".\n"
+            : '';
 
         try {
             if (!class_exists('\\App\\Config\\AI') || !\App\Config\AI::isEnabled()) {
@@ -1553,15 +1620,30 @@ class WAReplies
                 return;
             }
 
+            $systemPembuka = "Kamu adalah customer service Madinah Laundry. Balas HANYA sapaan pembuka dari customer. JANGAN jawab pertanyaan/permintaan lain.\n\n"
+                . "CRITICAL — SAPAAN TUNGGAL (WAJIB):\n"
+                . "- Di setiap balasan, panggilan sopan HARUS memakai tepat kata sapaan ini: {$sapaan}\n"
+                . "- Jangan ganti ke kak/bang/pak/bu lain. Jika sapaan wajib adalah bg, tulis \"bg\" (bukan kak).\n"
+                . "- Contoh format (ganti tidak boleh — pakai {$sapaan}): \"Halo {$sapaan}, ada yang bisa dibantu?\" / \"Sore {$sapaan}, ada yang bisa dibantu?\" / \"Pagi {$sapaan} 😊\"\n\n"
+                . "CRITICAL - SINGKAT & SANTAI:\n"
+                . "- Balas PENDEK (1 kalimat, max 8-10 kata). Jangan formal. Santai tapi ramah.\n"
+                . "- JANGAN kalimat panjang. JANGAN pakai tanda seru (!).\n\n"
+                . "CRITICAL - JANGAN PERNAH sebut nama customer dalam balasan.\n\n"
+                . "CRITICAL - JANGAN JAWAB PERTANYAAN:\n"
+                . "- Jika pesan mengandung sapaan + pertanyaan, balas CUKUP salam saja. Handler lain yang jawab pertanyaannya.\n\n"
+                . "PENTING:\n"
+                . "- Assalamualaikum -> Waalaikumsalam + {$sapaan}. Halo/pagi/siang/sore/malam -> sesuaikan waktu + {$sapaan}.\n"
+                . "- JANGAN kata 'Anda'. Boleh singkatan: siap, oke. JANGAN 'mk'. Santai, ramah.";
+
             $messages = [
                 [
                     'role' => 'system',
-                    'content' => "Kamu adalah customer service Madinah Laundry. Balas HANYA sapaan pembuka dari customer. JANGAN jawab pertanyaan/permintaan lain.\n\nCRITICAL - SINGKAT & SANTAI:\n- Balas PENDEK (1 kalimat, max 8-10 kata). Jangan formal. Santai tapi ramah.\n- Contoh singkat: \"Halo kak, ada yang bisa dibantu?\" \"Pagi bu 😊\" \"Waalaikumsalam pak\"\n- JANGAN kalimat panjang. JANGAN pakai tanda seru (!).\n\nCRITICAL - JANGAN PERNAH sebut nama customer dalam balasan (gunakan hanya untuk identifikasi sapaan).\n\nCRITICAL - JANGAN JAWAB PERTANYAAN:\n- Jika pesan mengandung sapaan + pertanyaan (misal: 'Assalamualaikum, kain ku dah siap?'), balas CUKUP salam saja. Handler lain yang jawab pertanyaannya.\n- Contoh: \"Assalamualaikum, kain ku dah siap?\" -> \"Waalaikumsalam pak\" (HANYA itu)\n\nPENTING:\n- Assalamualaikum -> Waalaikumsalam + sapaan. Halo/pagi/siang/malam -> sesuaikan + sapaan.\n- Sapaan: HANYA jika nama ada ibu/bu -> bu. HANYA jika nama ada pak/bapak/bpk -> pak. Jika tidak, pakai kak/kakak/bg/bang. JANGAN sebut nama. JANGAN kata 'Anda'.\n- Boleh singkatan umum: siap, oke. JANGAN pakai 'mk'. JANGAN pakai tanda seru (!). Santai, tidak formal, tetap ramah."
+                    'content' => $systemPembuka,
                 ],
                 [
                     'role' => 'user',
-                    'content' => "{$sapaanHint}\n\nPesan customer: \"{$textBody}\"\n\nBalas singkat dan santai. Max 1-2 kalimat pendek."
-                ]
+                    'content' => $nameContext . "Sapaan WAJIB untuk balasan ini (dari sistem/CRM): {$sapaan}\n\nPesan customer: \"{$textBody}\"\n\nBalas singkat. Semua sapaan dalam balasan harus memakai kata \"{$sapaan}\".",
+                ],
             ];
 
             $answer = $this->executeOpenAIRequestWithMessages($messages, 120);
@@ -1571,6 +1653,8 @@ class WAReplies
                 return;
             }
 
+            $text = $this->sanitizePembukaSapaanAiOutput($text, $sapaan);
+
             $this->sendAutoreplyText($waNumber, $text);
         } catch (\Exception $e) {
             if (class_exists('\Log')) {
@@ -1578,6 +1662,24 @@ class WAReplies
             }
             $this->sendAutoreplyText($waNumber, "Halo {$sapaan} 😊");
         }
+    }
+
+    /**
+     * Jika AI masih menulis kak/kk padahal sapaan wajib dari CRM lain (bg, bang, …), ganti token tersebut.
+     */
+    private function sanitizePembukaSapaanAiOutput(string $text, string $sapaan): string
+    {
+        $s = strtolower(trim($sapaan));
+        if ($s === '' || in_array($s, ['kak', 'kk'], true)) {
+            return $text;
+        }
+
+        $out = preg_replace('/\b(kak|kk)\b/iu', $sapaan, $text);
+        if ($out !== $text) {
+            $this->logSapaanResolve('PEMBUKA_AI sanitize kak/kk→' . $sapaan . ' | was=' . mb_substr($text, 0, 160));
+        }
+
+        return $out ?? $text;
     }
 
     /**
@@ -2644,12 +2746,13 @@ class WAReplies
             $sapaan = $ctx['sapaan'];
             try {
                 $messages = [
-                    ['role' => 'system', 'content' => "Kamu customer service Madinah Laundry. Customer bertanya 'masih buka?' / 'buka ga?' (bukan 'masih bisa terima kain').\n\nTugas: buat SATU kalimat pembuka singkat (max 8 kata) yang menjawab 'masih buka', diakhiri koma.\n\nWAJIB: Gunakan HANYA sapaan yang diberikan. Format: \"Masih buka {sapaan},\" atau \"Iya {sapaan}, masih buka,\"\n\nContoh jika sapaan=kak: \"Masih buka kak,\" atau \"Iya kak, masih buka,\"\nContoh jika sapaan=bang: \"Masih buka bang,\" atau \"Iya bang, masih buka,\"\nContoh jika sapaan=bu: \"Masih buka bu,\" atau \"Iya bu, masih buka,\"\n\nPENTING: Pakai PERSIS sapaan yang diberikan. Hanya output kalimat pembuka, diakhiri koma. JANGAN tambah info jam. JANGAN pakai tanda seru (!). JANGAN sebut nama customer."],
-                    ['role' => 'user', 'content' => "Sapaan yang WAJIB dipakai: {$sapaan}\nNama customer: \"{$contactName}\"\nPesan customer: \"{$textBody}\"\n\nBalasan baku yang mengikuti: \"{$textBaku}\"\n\nBuat HANYA kalimat pembuka singkat (diakhiri koma). Gunakan sapaan: {$sapaan}"],
+                    ['role' => 'system', 'content' => "Kamu customer service Madinah Laundry. Customer bertanya 'masih buka?' / 'buka ga?' (bukan 'masih bisa terima kain').\n\nTugas: buat SATU kalimat pembuka singkat (max 8 kata) yang menjawab 'masih buka', diakhiri koma.\n\nWAJIB: Gunakan HANYA kata sapaan yang diberikan user (bukan kak secara default). Format: \"Masih buka {sapaan},\" atau \"Iya {sapaan}, masih buka,\"\n\nContoh (ganti {sapaan} dengan nilai yang diberikan user, jangan pakai kak jika user minta bg):\n- sapaan=kak: \"Masih buka kak,\"\n- sapaan=bg: \"Masih buka bg,\" atau \"Iya bg, masih buka,\"\n- sapaan=bang: \"Masih buka bang,\"\n\nPENTING: Pakai PERSIS sapaan dari pesan user. Jangan mengganti bg menjadi kak. Hanya output kalimat pembuka, diakhiri koma. JANGAN tambah info jam. JANGAN pakai tanda seru (!). JANGAN sebut nama customer."],
+                    ['role' => 'user', 'content' => "Sapaan WAJIB: {$sapaan}\nNama (konteks, jangan sebut): \"{$contactName}\"\nPesan customer: \"{$textBody}\"\n\nBalasan baku yang mengikuti: \"{$textBaku}\"\n\nBuat HANYA kalimat pembuka singkat (diakhiri koma). Wajib memakai sapaan \"{$sapaan}\"."],
                 ];
                 $intro = trim($this->executeOpenAIRequestWithMessages($messages, 50));
                 if (!empty($intro) && mb_strlen($intro) > 2) {
                     $intro = preg_replace('/!+$/', '', $intro);
+                    $intro = $this->sanitizePembukaSapaanAiOutput($intro, $sapaan);
                     if (mb_substr($intro, -1) !== ',') {
                         $intro .= ',';
                     }
