@@ -12,7 +12,7 @@ return [
         'bu',
         'buk',
         'kak',
-        'kk'
+        'kk',
         'bg',
         'bang',
         'mbak',
