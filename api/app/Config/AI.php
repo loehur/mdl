@@ -14,7 +14,10 @@ namespace App\Config;
  * 3. Klik "Create new secret key"
  * 4. Copy API Key
  * 5. Paste di Env.php sebagai konstanta OPENAI_API_KEY
- * 
+ *
+ * Fallback intent (saat OpenAI timeout/error): tambahkan GROQ_API_KEY di Env.php
+ * — https://console.groq.com/keys — model default: llama-3.1-8b-instant (override via GROQ_MODEL)
+ *
  * Lihat template di bawah untuk cara setup di Env.php
  */
 
@@ -25,6 +28,9 @@ class AI
      */
     private static $openAiApiKey = \Env::OPENAI_API_KEY ?? '';
     private static $openAiModel = \Env::OPENAI_MODEL ?? 'gpt-4o-mini';
+
+    /** Groq OpenAI-compatible API — dipakai jika pemanggilan OpenAI gagal (timeout, DNS, HTTP) */
+    private static $groqDefaultModel = 'llama-3.1-8b-instant';
 
     /**
      * AI Settings
@@ -52,6 +58,30 @@ class AI
     public static function getOpenAIModel()
     {
         return self::$openAiModel;
+    }
+
+    /**
+     * Groq API key (opsional). Konstanta Env::GROQ_API_KEY — jika tidak ada, kembalikan string kosong.
+     */
+    public static function getGroqApiKey(): string
+    {
+        if (!\defined('Env::GROQ_API_KEY')) {
+            return '';
+        }
+
+        return (string) \Env::GROQ_API_KEY;
+    }
+
+    /**
+     * Model Groq untuk chat completions (OpenAI-compatible).
+     */
+    public static function getGroqModel(): string
+    {
+        if (\defined('Env::GROQ_MODEL') && (string) \Env::GROQ_MODEL !== '') {
+            return (string) \Env::GROQ_MODEL;
+        }
+
+        return self::$groqDefaultModel;
     }
 
     /**
@@ -83,7 +113,13 @@ class AI
      */
     public static function isEnabled()
     {
-        // Check enabled flag AND at least one API key
-        return self::$aiEnabled && (!empty(self::$openAiApiKey));
+        if (!self::$aiEnabled) {
+            return false;
+        }
+        if (!empty(self::$openAiApiKey)) {
+            return true;
+        }
+
+        return self::getGroqApiKey() !== '';
     }
 }

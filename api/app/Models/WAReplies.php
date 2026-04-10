@@ -4440,7 +4440,7 @@ class WAReplies
 
             // Check if AI is enabled
             if (!\App\Config\AI::isEnabled()) {
-                $this->logAutoreplyTrace($waNumber, 'AI_SKIP', 'disabled or OPENAI_API_KEY empty');
+                $this->logAutoreplyTrace($waNumber, 'AI_SKIP', 'disabled or no API key (OpenAI/Groq)');
                 return false;
             }
         } catch (\Exception $e) {
@@ -4478,9 +4478,8 @@ class WAReplies
             $prompt .= "{\"intent\": \"NAMA_KATEGORI\", \"reason\": \"Alasan singkat memilih kategori ini\"}\n";
             $prompt .= "Kategori harus salah satu dari daftar di atas atau FALSE.";
 
-            $this->logAutoreplyTrace($waNumber, 'AI_REQUEST', 'OpenAI chat/completions');
-            // Call OpenAI API
-            $response = $this->callOpenAI($prompt);
+            $this->logAutoreplyTrace($waNumber, 'AI_REQUEST', 'OpenAI primary (Groq fallback if key set)');
+            $response = $this->callOpenAI($prompt, $waNumber);
 
             // Parse JSON Response
             $json = json_decode($response, true);
@@ -4547,57 +4546,27 @@ class WAReplies
         }
     }
 
-    private function callOpenAI($prompt)
+    /**
+     * POST chat/completions (format OpenAI). Dipakai OpenAI dan Groq (endpoint kompatibel).
+     *
+     * @param string $url      Mis. https://api.openai.com/v1/chat/completions
+     * @param array  $data     Body JSON (model, messages, …)
+     * @param string $label    Untuk pesan error (OpenAI / Groq)
+     */
+    private function executeOpenAiCompatibleChat(string $url, string $apiKey, array $data, string $label, int $timeout): string
     {
-        // Load AI config
-        if (!class_exists('\\App\\Config\\AI')) {
-            require_once __DIR__ . '/../Config/AI.php';
-        }
-
-        $model = 'gpt-4o-mini';
-
-        try {
-            return $this->executeOpenAIRequest($prompt, $model);
-        } catch (\Exception $e) {
-            throw $e;
-        }
-    }
-
-    private function executeOpenAIRequest($prompt, $model)
-    {
-        // Prioritize getOpenAIApiKey if exists, otherwise fallback to getApiKey
-        $apiKey = (method_exists('\\App\\Config\\AI', 'getOpenAIApiKey')) ? \App\Config\AI::getOpenAIApiKey() : ((method_exists('\\App\\Config\\AI', 'getApiKey')) ? \App\Config\AI::getApiKey() : '');
-
-        $temperature = \App\Config\AI::getTemperature();
-        $timeout = \App\Config\AI::getTimeout();
-
-        // OpenAI API URL
-        $url = 'https://api.openai.com/v1/chat/completions';
-
-        // Prepare request body for OpenAI
-        $data = [
-            'model' => $model,
-            'messages' => [
-                [
-                    'role' => 'user',
-                    'content' => $prompt
-                ]
-            ],
-            'temperature' => $temperature,
-            'max_completion_tokens' => 50, // Limit output for efficiency
-        ];
-
-        // cURL request
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
             'Content-Type: application/json',
-            'Authorization: Bearer ' . $apiKey
+            'Authorization: Bearer ' . $apiKey,
         ]);
         curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+        $connectTimeout = min(30, max(15, (int) $timeout));
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $connectTimeout);
+        curl_setopt($ch, CURLOPT_NOSIGNAL, 1);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
 
@@ -4606,94 +4575,170 @@ class WAReplies
         $curlError = curl_error($ch);
         curl_close($ch);
 
-        // Check for cURL errors
         if ($result === false) {
-            throw new \Exception("OpenAI API cURL error: {$curlError}");
+            throw new \Exception("{$label} API cURL error: {$curlError}");
         }
-
-        // Check HTTP status
         if ($httpCode !== 200) {
-            $errorMsg = "OpenAI API error: HTTP {$httpCode}";
+            $errorMsg = "{$label} API error: HTTP {$httpCode}";
             if ($result) {
                 $errorData = json_decode($result, true);
                 if (isset($errorData['error']['message'])) {
-                    $errorMsg .= " - " . $errorData['error']['message'];
+                    $errorMsg .= ' - ' . $errorData['error']['message'];
                 }
             }
             throw new \Exception($errorMsg);
         }
 
-        // Parse response
         $response = json_decode($result, true);
-
-        // Extract text from OpenAI response structure
         if (isset($response['choices'][0]['message']['content'])) {
             return trim($response['choices'][0]['message']['content']);
         }
 
-        throw new \Exception("OpenAI API: Invalid response structure");
+        throw new \Exception("{$label} API: Invalid response structure");
     }
 
     /**
-     * Call OpenAI with messages array (system + user) and custom max_tokens
-     * @param array $messages [['role'=>'system','content'=>...], ['role'=>'user','content'=>...]]
-     * @param int $maxTokens
-     * @return string
+     * @param string|null $waNumber Untuk log AI_FALLBACK ke wa_autoreply
      */
-    private function executeOpenAIRequestWithMessages($messages, $maxTokens = 400)
+    private function callOpenAI($prompt, $waNumber = null)
     {
         if (!class_exists('\\App\\Config\\AI')) {
             require_once __DIR__ . '/../Config/AI.php';
         }
-        $apiKey = (method_exists('\\App\\Config\\AI', 'getOpenAIApiKey')) ? \App\Config\AI::getOpenAIApiKey() : ((method_exists('\\App\\Config\\AI', 'getApiKey')) ? \App\Config\AI::getApiKey() : '');
+
+        return $this->executeOpenAIRequest($prompt, 'gpt-4o-mini', $waNumber);
+    }
+
+    /**
+     * Intent classifier: OpenAI dulu; jika gagal (timeout, dll.) dan GROQ_API_KEY ada → Groq.
+     *
+     * @param string|null $waNumber Untuk log trace
+     */
+    private function executeOpenAIRequest($prompt, $model, $waNumber = null)
+    {
+        if (!class_exists('\\App\\Config\\AI')) {
+            require_once __DIR__ . '/../Config/AI.php';
+        }
+
+        $openaiKey = \App\Config\AI::getOpenAIApiKey();
+        $groqKey = \App\Config\AI::getGroqApiKey();
+        $temperature = \App\Config\AI::getTemperature();
+        $timeout = \App\Config\AI::getTimeout();
+
+        if ($openaiKey === '' && $groqKey === '') {
+            throw new \Exception('No OpenAI or Groq API key configured');
+        }
+
+        $openaiData = [
+            'model' => $model,
+            'messages' => [
+                ['role' => 'user', 'content' => $prompt],
+            ],
+            'temperature' => $temperature,
+            'max_completion_tokens' => 50,
+        ];
+
+        if ($openaiKey !== '') {
+            try {
+                return $this->executeOpenAiCompatibleChat(
+                    'https://api.openai.com/v1/chat/completions',
+                    $openaiKey,
+                    $openaiData,
+                    'OpenAI',
+                    $timeout
+                );
+            } catch (\Exception $e) {
+                if ($groqKey === '') {
+                    throw $e;
+                }
+                if ($waNumber !== null) {
+                    $this->logAutoreplyTrace($waNumber, 'AI_FALLBACK', 'Groq after OpenAI failed: ' . mb_substr($e->getMessage(), 0, 240));
+                }
+            }
+        }
+
+        $groqData = [
+            'model' => \App\Config\AI::getGroqModel(),
+            'messages' => [
+                ['role' => 'user', 'content' => $prompt],
+            ],
+            'temperature' => $temperature,
+            'max_tokens' => 50,
+        ];
+
+        return $this->executeOpenAiCompatibleChat(
+            'https://api.groq.com/openai/v1/chat/completions',
+            $groqKey,
+            $groqData,
+            'Groq',
+            $timeout
+        );
+    }
+
+    /**
+     * Call OpenAI with messages array (system + user) and custom max_tokens.
+     * Fallback ke Groq jika OpenAI gagal (sama seperti intent classifier).
+     *
+     * @param array       $messages [['role'=>'system','content'=>...], ['role'=>'user','content'=>...]]
+     * @param int         $maxTokens
+     * @param string|null $waNumber  Opsional: log AI_FALLBACK
+     * @return string
+     */
+    private function executeOpenAIRequestWithMessages($messages, $maxTokens = 400, $waNumber = null)
+    {
+        if (!class_exists('\\App\\Config\\AI')) {
+            require_once __DIR__ . '/../Config/AI.php';
+        }
+        $openaiKey = \App\Config\AI::getOpenAIApiKey();
+        $groqKey = \App\Config\AI::getGroqApiKey();
         $temperature = \App\Config\AI::getTemperature();
         $timeout = \App\Config\AI::getTimeout();
         $model = 'gpt-4o-mini';
 
-        $data = [
+        if ($openaiKey === '' && $groqKey === '') {
+            throw new \Exception('No OpenAI or Groq API key configured');
+        }
+
+        $openaiData = [
             'model' => $model,
             'messages' => $messages,
             'temperature' => $temperature,
             'max_tokens' => $maxTokens,
         ];
 
-        $ch = curl_init('https://api.openai.com/v1/chat/completions');
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json',
-            'Authorization: Bearer ' . $apiKey
-        ]);
-        curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
-
-        $result = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlError = curl_error($ch);
-        curl_close($ch);
-
-        if ($result === false) {
-            throw new \Exception("OpenAI API cURL error: {$curlError}");
-        }
-        if ($httpCode !== 200) {
-            $errorMsg = "OpenAI API error: HTTP {$httpCode}";
-            if ($result) {
-                $errorData = json_decode($result, true);
-                if (isset($errorData['error']['message'])) {
-                    $errorMsg .= " - " . $errorData['error']['message'];
+        if ($openaiKey !== '') {
+            try {
+                return $this->executeOpenAiCompatibleChat(
+                    'https://api.openai.com/v1/chat/completions',
+                    $openaiKey,
+                    $openaiData,
+                    'OpenAI',
+                    $timeout
+                );
+            } catch (\Exception $e) {
+                if ($groqKey === '') {
+                    throw $e;
+                }
+                if ($waNumber !== null) {
+                    $this->logAutoreplyTrace($waNumber, 'AI_FALLBACK', 'Groq after OpenAI failed (messages): ' . mb_substr($e->getMessage(), 0, 240));
                 }
             }
-            throw new \Exception($errorMsg);
         }
 
-        $response = json_decode($result, true);
-        if (isset($response['choices'][0]['message']['content'])) {
-            return trim($response['choices'][0]['message']['content']);
-        }
-        throw new \Exception("OpenAI API: Invalid response structure");
+        $groqData = [
+            'model' => \App\Config\AI::getGroqModel(),
+            'messages' => $messages,
+            'temperature' => $temperature,
+            'max_tokens' => $maxTokens,
+        ];
+
+        return $this->executeOpenAiCompatibleChat(
+            'https://api.groq.com/openai/v1/chat/completions',
+            $groqKey,
+            $groqData,
+            'Groq',
+            $timeout
+        );
     }
     
     /**

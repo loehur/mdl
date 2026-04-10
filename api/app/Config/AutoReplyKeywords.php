@@ -385,6 +385,9 @@ return [
             '/\bbuka\b.{0,30}?\b(ga|gak|gk)\b.{0,70}?\b(laundry|loundry|londri|londry|laondri|loundri)\b/i',
             '/\b(ma*si*h|masi|msih)\s+\bbuka\b.{0,25}?\b(ga|gak|gk|nggak)\b/i',
             '/(ja*m)\s*\b(be*ra*pa*)\s*\b(bu*ka*|tu*tu*p)/i',
+            // "tutup jam berapa kak?", "buka jam brp?" (urutan: tutup/buka dulu — pola di atas hanya "jam … berapa … tutup")
+            '/\b(tu*tu*p|bu*ka*)\s+ja*m\s+(be*ra*pa|brp|brpa)/i',
+            '/\bja*m\s+(be*ra*pa|brp|brpa)\s+(tu*tu*p|bu*ka*)\b/i',
             // "buka sampai kapan?", "tutup jam berapa?", "sampai jam berapa buka?"
             '/\b(bu*ka*|tu*tu*p)\s*(sa*mpa*i|sampe)\s*(ka*pa*n|ja*m\s*be*ra*pa*)?/i',
             '/\b(sa*mpa*i|sampe)\s*(ka*pa*n|ja*m\s*be*ra*pa*)\s*(bu*ka*|tu*tu*p)?/i',
