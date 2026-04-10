@@ -1,0 +1,17 @@
+Groq — salin ke “online curl” / ReqBin (https://reqbin.com/curl)
+Ganti GSK_your_key dengan key asli dari https://console.groq.com/keys
+
+--- Versi disarankan (Bash / ReqBin / terminal Linux & macOS): JSON pakai kutip tunggal, tanpa escape ribet ---
+
+curl -sS -X POST 'https://api.groq.com/openai/v1/chat/completions' \
+  -H 'Authorization: Bearer GSK_your_key' \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"llama-3.1-8b-instant","messages":[{"role":"user","content":"Balas hanya: OK"}],"max_tokens":20}'
+
+--- Satu baris (tetap Bash / ReqBin) ---
+
+curl -sS -X POST 'https://api.groq.com/openai/v1/chat/completions' -H 'Authorization: Bearer GSK_your_key' -H 'Content-Type: application/json' -d '{"model":"llama-3.1-8b-instant","messages":[{"role":"user","content":"Balas hanya: OK"}],"max_tokens":20}'
+
+--- Windows CMD (kutip ganda + escape JSON) — jika tool online pakai CMD ---
+
+curl.exe -sS -X POST "https://api.groq.com/openai/v1/chat/completions" -H "Authorization: Bearer GSK_your_key" -H "Content-Type: application/json" -d "{\"model\":\"llama-3.1-8b-instant\",\"messages\":[{\"role\":\"user\",\"content\":\"Balas hanya: OK\"}],\"max_tokens\":20}"
