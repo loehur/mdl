@@ -310,6 +310,42 @@ const openApproval = () => {
     }
 };
 
+const isUpdatingPartner = ref(false);
+const isPartnerActive = computed(() => {
+    const p = props.activeConversation?.partner;
+    return p === 1 || p === "1";
+});
+
+const onPartnerToggle = async (e) => {
+    if (!props.activeConversation?.wa_number || isUpdatingPartner.value) return;
+    const wantOn = e.target.checked;
+    const prevPartner = props.activeConversation.partner;
+    props.activeConversation.partner = wantOn ? 1 : null;
+    isUpdatingPartner.value = true;
+    try {
+        const res = await fetch(`${props.API_BASE}/CRM/Chat/setPartner`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                phone: props.activeConversation.wa_number,
+                partner: wantOn,
+                user_id: props.authId,
+            }),
+        }).then((r) => r.json());
+        if (!res.status) {
+            props.activeConversation.partner = prevPartner;
+            e.target.checked =
+                prevPartner === 1 || prevPartner === "1";
+        }
+    } catch (err) {
+        console.error(err);
+        props.activeConversation.partner = prevPartner;
+        e.target.checked = prevPartner === 1 || prevPartner === "1";
+    } finally {
+        isUpdatingPartner.value = false;
+    }
+};
+
 const backToMenu = () => {
     emit('back-to-menu');
 };
@@ -1230,6 +1266,19 @@ onUnmounted(() => {
                    >
                      Approval
                    </button>
+                 </div>
+                 <div class="flex items-center justify-between gap-3 bg-[var(--wa-bg-secondary)] rounded-xl p-4 border border-[var(--wa-border)]">
+                   <span class="text-sm font-medium text-[var(--wa-text-primary)]">Partner</span>
+                   <label class="relative inline-flex cursor-pointer items-center" :class="{ 'pointer-events-none opacity-50': isUpdatingPartner }">
+                     <input
+                       type="checkbox"
+                       class="peer sr-only"
+                       :checked="isPartnerActive"
+                       :disabled="isUpdatingPartner"
+                       @change="onPartnerToggle"
+                     />
+                     <div class="relative peer h-6 w-11 shrink-0 rounded-full bg-[var(--wa-bg-tertiary)] after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-[var(--wa-border)] after:bg-white after:transition-all peer-checked:bg-[var(--wa-accent-green)] peer-checked:after:translate-x-full peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[var(--wa-accent-green)] peer-focus:ring-offset-2 peer-focus:ring-offset-[var(--wa-bg-panel)]"></div>
+                   </label>
                  </div>
             </div>
         </div>

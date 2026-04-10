@@ -135,7 +135,8 @@ class Chat extends Controller
                     c.last_message_at as last_message_time,
                     c.assigned_user_id,
                     COALESCE(c.code, '00') as kode_cabang,
-                    c.cust_id
+                    c.cust_id,
+                    c.partner
                 FROM wa_conversations c
                 WHERE $whereClause
                 ORDER BY c.last_message_at DESC
@@ -708,6 +709,51 @@ class Chat extends Controller
             echo json_encode([
                 'status' => false, 
                 'message' => "Server Error: " . $e->getMessage()
+            ]);
+            exit;
+        }
+    }
+
+    /**
+     * Set flag partner pada wa_conversations: 1 = partner, NULL = bukan partner.
+     * Body JSON: phone (required), partner (bool|0|1 — true/1 set 1, false/0/null set NULL)
+     */
+    public function setPartner()
+    {
+        try {
+            $this->handleCors();
+            $body = json_decode(file_get_contents('php://input'), true) ?? [];
+            $phone = $body['phone'] ?? null;
+            $raw = $body['partner'] ?? null;
+
+            if (!$phone) {
+                $this->error('Phone required');
+            }
+
+            $enabled = false;
+            if ($raw === true || $raw === 1 || $raw === '1') {
+                $enabled = true;
+            }
+
+            $db = $this->db(0);
+            $exists = $db->query('SELECT id FROM wa_conversations WHERE wa_number = ?', [$phone])->row();
+            if (!$exists) {
+                $this->error('Conversation not found');
+            }
+
+            if ($enabled) {
+                $db->update('wa_conversations', ['partner' => 1], ['wa_number' => $phone]);
+            } else {
+                $db->query('UPDATE wa_conversations SET partner = NULL WHERE wa_number = ?', [$phone]);
+            }
+
+            $this->success(['partner' => $enabled ? 1 : null], 'Partner updated');
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode([
+                'status' => false,
+                'message' => 'Server Error: ' . $e->getMessage(),
             ]);
             exit;
         }

@@ -388,6 +388,8 @@ const fetchConversations = async (offset = 0, limit = 30, search = '') => {
           convo.name = c.contact_name || c.wa_number;
           convo.kode_cabang = c.kode_cabang;
           convo.cust_id = c.cust_id;
+          convo.partner =
+            c.partner === 1 || c.partner === "1" ? 1 : null;
           // convo.priority = parseInt(c.priority) || 0; // Legacy ignored
           convo.cases = parseCases(c); // New Array
 
@@ -411,6 +413,8 @@ const fetchConversations = async (offset = 0, limit = 30, search = '') => {
             name: c.contact_name || c.wa_number,
             kode_cabang: c.kode_cabang,
             cust_id: c.cust_id,
+            partner:
+              c.partner === 1 || c.partner === "1" ? 1 : null,
             // priority: parseInt(c.priority) || 0,
             cases: parseCases(c),
 
@@ -566,6 +570,8 @@ const loadMoreConversations = async () => {
           name: c.contact_name || c.wa_number,
           kode_cabang: c.kode_cabang,
           cust_id: c.cust_id,
+          partner:
+            c.partner === 1 || c.partner === "1" ? 1 : null,
           cases: parseCases(c),
           initials: (c.contact_name || c.wa_number || "?")
             .substring(0, 1)

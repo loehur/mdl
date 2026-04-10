@@ -171,6 +171,36 @@ class WAReplies
     }
 
     /**
+     * Perbarui wa_auto_reply_log untuk handler tanpa cek rate limit (upsert created_at).
+     * Dipakai saat satu intent memicu handler lain yang tidak lewat shouldHandle() terpisah.
+     */
+    private function recordHandlerCooldown($waNumber, string $handler): void
+    {
+        $db = DB::getInstance(0);
+        $provider = $this->autoReplyProvider;
+        $existing = $db->get_where('wa_auto_reply_log', [
+            'phone' => $waNumber,
+            'handler' => $handler,
+            'provider' => $provider,
+        ])->row();
+
+        if ($existing) {
+            $db->update(
+                'wa_auto_reply_log',
+                ['created_at' => date('Y-m-d H:i:s'), 'provider' => $provider],
+                ['phone' => $waNumber, 'handler' => $handler, 'provider' => $provider]
+            );
+        } else {
+            $db->insert('wa_auto_reply_log', [
+                'phone' => $waNumber,
+                'handler' => $handler,
+                'provider' => $provider,
+                'created_at' => date('Y-m-d H:i:s'),
+            ]);
+        }
+    }
+
+    /**
      * Cooldown fallback DEFAULT: satu jejak per nomor (abaikan provider A/B) agar pelanggan tidak
      * mendapat dua arahan berbeda (yCloud vs Fonnte) dalam jendela cooldown yang sama.
      */
@@ -886,6 +916,20 @@ class WAReplies
         $db = DB::getInstance(0);
         $this->logAutoreplyTrace($waNumber, 'CHECKPOINT', 'db_ok');
 
+        // Partner (wa_conversations.partner = 1): channel mitra — tanpa deteksi intent & tanpa autoreply (yCloud + Fonnte)
+        if ($this->isWaPartnerChannel($db, $waNumber)) {
+            $this->logAutoreplyTrace($waNumber, 'EXIT', 'partner_skip_intent_autoreply');
+            $conversationId = $this->getOrCreateConversationWithCase(
+                $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
+            );
+
+            return (object) [
+                'case' => null,
+                'notify' => true,
+                'conversation_id' => $conversationId,
+            ];
+        }
+
         // Nominal-only (contoh: "175.000 kak") -> jangan dianggap intent apa pun.
         if ($this->messageLooksLikeAmountOnly($textBodyToCheck)) {
             $this->logAutoreplyTrace($waNumber, 'EXIT', 'amount_only_no_intent');
@@ -1501,19 +1545,11 @@ class WAReplies
                         }
                     }
                 } else {
-                    // All notifs already exist - they were sent before
-                    $list_link = "";
-                    // Remove duplicates - same customer may have multiple transactions
-                    $unique_pelanggans_active = array_unique($id_pelanggans_active);
-                    foreach ($unique_pelanggans_active as $id_pelanggan_active) {
-                        $list_link .= "https://ml.nalju.com/I/" . $id_pelanggan_active . "\n";
-                    }
-
-                    $text = "Pak/Bu *" . $nama_pelanggan . "*,\nNota/Bon sudah kami kirimkan sebelumnya. Terima kasih 😊\n" . $list_link;
-                    $res = $waService->sendFreeText($waNumber, $text);
-                    if ($res['success']) {
-                        $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
-                    }
+                    // Semua no_ref sudah punya notif (nota pernah dibuat): tidak kirim teks "sudah dikirim",
+                    // langsung sama seperti intent TAGIHAN. NOTA sudah lewat shouldHandle di process();
+                    // TAGIHAN perlu jejak cooldown terpisah.
+                    $this->recordHandlerCooldown($waNumber, 'TAGIHAN');
+                    $this->handleTagihan($phoneIn, $waNumber, $textBody);
                 }
             } else {
                 $text = "Pak/Bu *" . $nama_pelanggan . "*, belum ada tagihan dan semua laundry sudah di ambil. Terima kasih 😊";
@@ -4915,6 +4951,19 @@ class WAReplies
         $sql = 'SELECT ' . $selectColumns . ' FROM pelanggan WHERE nomor_pelanggan IN (' . $phoneIn . ') ORDER BY id_pelanggan ASC';
 
         return $db->query($sql)->result_array();
+    }
+
+    /**
+     * True jika baris wa_conversations untuk nomor ini punya partner = 1 (flag mitra dari CRM).
+     */
+    private function isWaPartnerChannel($db, string $waNumber): bool
+    {
+        $conv = $this->findExistingWaConversationRow($db, $waNumber);
+        if (!$conv) {
+            return false;
+        }
+
+        return isset($conv->partner) && (int) $conv->partner === 1;
     }
 
     /**
