@@ -395,14 +395,12 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
 
             if ($member == 0) {
                 if (strlen($show_diskon) > 0) {
-                    $tampilDiskon = '<small><br>(Disc. ' . $show_diskon . ')</small>';
                     $show_total =
                         '<del>Rp' .
                         number_format($f7 * $qty_real) .
                         '</del><br>Rp' .
                         number_format($total);
                 } else {
-                    $tampilDiskon = '';
                     $show_total = 'Rp' . number_format($total);
                 }
             } else {
@@ -410,7 +408,6 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
                     "<span class='text-nowrap text-sm text-success'><small><b>Member</b></small></span><br><span>-" .
                     $show_qty .
                     '&nbsp;</span>';
-                $tampilDiskon = '';
             }
 
             $showNote = '';
@@ -445,7 +442,7 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
                 '</td>';
             echo "<td nowrap class='pt-1'>" . $list_layanan . '</td>';
             echo "<td class='text-end text-sm'>" .
-                $show_total . $tampilDiskon .
+                $show_total .
                 '</td>';
             echo '</tr>';
             echo '<tr>';

@@ -703,6 +703,18 @@ class WAReplies
     }
 
     /**
+     * PENUTUP hanya untuk ack/kalimat sangat pendek. Lebih dari 50 karakter (trim) = bukan penutup.
+     */
+    private function messageExceedsPenutupMaxLength(?string $text): bool
+    {
+        if ($text === null || trim($text) === '') {
+            return false;
+        }
+
+        return mb_strlen(trim($text)) > 50;
+    }
+
+    /**
      * Informasi "belum diambil" adalah status/info, bukan penutup.
      */
     private function messageLooksLikeBelumDiambilInfo(?string $text): bool
@@ -1076,6 +1088,10 @@ class WAReplies
                     if ($handler === 'PENUTUP' && $this->messageLooksLikeSudahDiantarInfo($textBodyToCheck)) {
                         continue;
                     }
+                    // PENUTUP: kalimat panjang (>50 karakter) bukan ack penutup
+                    if ($handler === 'PENUTUP' && $this->messageExceedsPenutupMaxLength($textBodyToCheck)) {
+                        continue;
+                    }
                     // "jam berapa bisa jemput?" / "bs jmpt?" = MINTA_JEMPUT_ANTAR (minta jemput), bukan JAM_OPERASIONAL
                     if ($handler === 'JAM_OPERASIONAL' && preg_match('/\b(bisa|bs|bis|boleh)\s*(jemput|jmpt|antar)\b/i', $textBodyToCheck) && !preg_match('/\b(masih|msh|mash|masi|msih)\s+(bisa|bs|bis|boleh)\s*(jemput|jmpt|antar)/i', $textBodyToCheck)) {
                         continue;
@@ -1241,12 +1257,14 @@ class WAReplies
 
             // PEMBUKA AI salah: "kabari ya kak" = minta kabar (penutup), bukan sapaan pembuka
             if ($aiIntent === 'PEMBUKA' && (preg_match('/\b(kabari|kabarin)\s+(ya|dong)\b/iu', $textBodyToCheck) || preg_match('/\binfokan\s+(ya|dong)\b/iu', $textBodyToCheck))) {
-                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override_pembuka→PENUTUP kabari_ya');
-                $aiIntent = 'PENUTUP';
-                $aiCase = $fullKeywordConfig['PENUTUP']['case'] ?? null;
-                $aiNotify = $fullKeywordConfig['PENUTUP']['notify'] ?? false;
+                if (!$this->messageExceedsPenutupMaxLength($textBodyToCheck)) {
+                    $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override_pembuka→PENUTUP kabari_ya');
+                    $aiIntent = 'PENUTUP';
+                    $aiCase = $fullKeywordConfig['PENUTUP']['case'] ?? null;
+                    $aiNotify = $fullKeywordConfig['PENUTUP']['notify'] ?? false;
+                }
             }
-            
+
             // Note: Tidak perlu cek in_array($aiIntent, $matchPattern) lagi
             // karena keyword yang sudah match di regex sudah di-unset dari $keywordConfig
             // Jadi jika AI detect intent, berarti intent tersebut belum match di regex
@@ -1264,6 +1282,20 @@ class WAReplies
                     'case' => $aiCase,
                     'notify' => $aiNotify,
                     'conversation_id' => $conversationId
+                ];
+            }
+
+            // PENUTUP: pesan panjang (>50 karakter) — jangan pakai intent PENUTUP (AI/override)
+            if ($aiIntent === 'PENUTUP' && $this->messageExceedsPenutupMaxLength($textBodyToCheck)) {
+                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_penutup_too_long len=' . mb_strlen(trim($textBodyToCheck ?? '')));
+                $conversationId = $this->getOrCreateConversationWithCase(
+                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
+                );
+                return (object) [
+                    'case' => 4,
+                    'notify' => true,
+                    'conversation_id' => $conversationId,
+                    'no_handler' => true,
                 ];
             }
             

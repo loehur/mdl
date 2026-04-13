@@ -162,6 +162,7 @@ return [
       - Kata kunci: baik/ok/iya/siap + (nanti/sore/besok/jam) + dijemput/diantar = PENUTUP\n
       \n
       FALSE (BUKAN PENUTUP) - CRITICAL:\n
+      - CRITICAL: Pesan lebih dari 50 karakter (hitung semua karakter termasuk spasi/emoji, setelah trim) = BUKAN PENUTUP — itu konteks/penjelasan, bukan ack singkat.\n
       - Pemberitahuan user akan ambil/antar SENDIRI = BUKAN intent apapun: | akan menjemput | nanti saya jemput | nanti saya ambil | akan saya antar | nanti saya antar | akan mengambil | mau jemput | besok saya jemput | nanti saya antar |\n
       - Informasi \"belum diambil\" = status/info order (mis. | kak blm diambil loh | belum diambil kak |), bukan penutup.\n
       - Informasi \"sudah diantar/di anter\" oleh customer/suami/istri (mis. | laundry tadi pagi di anter sama suami saya |) = info proses, bukan penutup.\n
