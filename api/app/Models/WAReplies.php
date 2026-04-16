@@ -586,16 +586,14 @@ class WAReplies
     }
 
     /**
-     * Balasan acknowledgment (ok/siap) variatif sesuai sapaan.
+     * Penutup singkat tetap (tanpa AI): hanya Baik / Oke / Ok + sapaan.
      */
     private function getRandomSiapReply($sapaan)
     {
         $replies = [
-            "Siap {$sapaan} 😊",
-            "Oke {$sapaan} 😊",
-            "Baik {$sapaan} 😊",
-            "Sip {$sapaan} 😊",
-            "Ok {$sapaan} 😊",
+            "Baik {$sapaan}",
+            "Oke {$sapaan}",
+            "Ok {$sapaan}",
         ];
         return $replies[array_rand($replies)];
     }
@@ -614,28 +612,11 @@ class WAReplies
     }
 
     /**
-     * Ack PENUTUP tanpa kata ok/oke — teks variatif + sapaan, atau dua emoji ramah.
+     * Ack PENUTUP tanpa mengulang ok/oke — hanya Baik + sapaan (selaras template singkat).
      */
     private function getRandomPenutupAckNoOk(string $sapaan)
     {
-        $items = [
-            "Baik {$sapaan} 😊",
-            "Sip {$sapaan} 😊",
-            "Siap {$sapaan} 😊",
-            "Baik ya {$sapaan} 🙏",
-            "Siap ya {$sapaan} 😊",
-            "Sip ya {$sapaan} 🙏",
-            '😊🙏',
-            '🙂🙏',
-            '😄🙏',
-            '🙏😊',
-            '👍😊',
-            '😊💚',
-            '🫶😊',
-            '😌🙏',
-        ];
-
-        return $items[array_rand($items)];
+        return "Baik {$sapaan}";
     }
 
     /**
@@ -739,6 +720,24 @@ class WAReplies
             '/\b(sudah|udah|udh)\s+(di\s*)?(antar|anter)\b.*\b(saya|sy|aku|kami|suami|istri)\b|\b(antar|anter)\b.*\b(sama|oleh)\b.*\b(suami|istri|saya|aku|kami)\b/iu',
             $t
         );
+    }
+
+    /**
+     * Rujukan order/waktu (yg tadi sore, dll.) + jadwal ambil/jemput (besok di ambil) — info operasional, bukan ack penutup singkat.
+     */
+    private function messageLooksLikeJadwalRujukOrderBukanPenutup(?string $text): bool
+    {
+        if ($text === null || trim($text) === '') {
+            return false;
+        }
+        $t = $text;
+        if (!preg_match('/\b(yg|yang)\s+(td|tdi|tadi)\s+(sore|pagi|siang|malam)\b/iu', $t)) {
+            return false;
+        }
+        if (!preg_match('/\bbesok\b/iu', $t)) {
+            return false;
+        }
+        return (bool) preg_match('/\b(di\s*)?(ambil|jemput|antar|anter)\b/iu', $t);
     }
 
     /**
@@ -1088,6 +1087,10 @@ class WAReplies
                     if ($handler === 'PENUTUP' && $this->messageLooksLikeSudahDiantarInfo($textBodyToCheck)) {
                         continue;
                     }
+                    // PENUTUP: yg tadi sore + besok di ambil — jadwal/order, bukan penutup
+                    if ($handler === 'PENUTUP' && $this->messageLooksLikeJadwalRujukOrderBukanPenutup($textBodyToCheck)) {
+                        continue;
+                    }
                     // PENUTUP: kalimat panjang (>50 karakter) bukan ack penutup
                     if ($handler === 'PENUTUP' && $this->messageExceedsPenutupMaxLength($textBodyToCheck)) {
                         continue;
@@ -1356,6 +1359,19 @@ class WAReplies
             // PENUTUP: AI salah — info "sudah diantar sama suami/saya" bukan closing
             if ($aiIntent === 'PENUTUP' && $this->messageLooksLikeSudahDiantarInfo($textBodyToCheck)) {
                 $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_penutup_sudah_diantar_info');
+                $conversationId = $this->getOrCreateConversationWithCase(
+                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
+                );
+                return (object) [
+                    'case' => 4,
+                    'notify' => true,
+                    'conversation_id' => $conversationId,
+                    'no_handler' => true,
+                ];
+            }
+            // PENUTUP: AI salah — rujukan order + jadwal ambil (yg td sore besok di ambil) = operasional, bukan penutup
+            if ($aiIntent === 'PENUTUP' && $this->messageLooksLikeJadwalRujukOrderBukanPenutup($textBodyToCheck)) {
+                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_penutup_jadwal_rujuk_order');
                 $conversationId = $this->getOrCreateConversationWithCase(
                     $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
                 );
@@ -1751,9 +1767,8 @@ class WAReplies
     }
 
     /**
-     * Handle intent PENUTUP - balas penutup/konfirmasi dengan AI sebagai customer service laundry
-     * Termasuk konfirmasi pembayaran/transfer.
-     * Tidak cek jam operasional (beda dari PEMBUKA): penutup langsung dibalas.
+     * Handle intent PENUTUP — balasan tetap singkat (tanpa LLM): Baik/Oke/Ok + sapaan, atau Siap/Baik jika hindari ulang "ok".
+     * Termasuk konfirmasi pembayaran/transfer. Tidak cek jam operasional.
      */
     private function handlePenutup($phoneIn, $waNumber, $textBody = '')
     {
@@ -1771,25 +1786,12 @@ class WAReplies
         }
 
         $ctx = $this->getGreetingContext($waNumber);
-        $contactName = $ctx['contactName'];
         $sapaan = $ctx['sapaan'];
 
-        // Regex quick path: terimakasih/makasih (termasuk "oke makasih kak", "ok makasih") -> variatif (sesuai sapaan).
-        // Untuk "ok makasih" ok hanya pembuka — tetap balas rangkaian terima kasih (sama-sama, terima kasih kembali, dll.), bukan aturan hindari-ok.
+        // Terimakasih/makasih — sama template penutup singkat (tanpa kalimat tambahan / tanpa AI).
         if (preg_match('/^(terima\s*kasih|terimakasih|makasih|mksh|thanks|thx|tq)(\s+(kak|bang|pak|bu))?\s*[.!]?$/i', $textLower)
             || preg_match('/^(ok|oke)\s*[,.]?\s*(makasih|terimakasih|thanks|thx)(\s+(kak|bang|pak|bu))?\s*[.!]?$/i', $textLower)) {
-            $terimakasihReplies = [
-                "Sama-sama {$sapaan} 😊",
-                "Baik {$sapaan}, sama-sama 😊",
-                "Oke {$sapaan}, sama-sama 😊",
-                "Sama-sama ya {$sapaan} 😊",
-                "Terima kasih juga {$sapaan} 😊",
-                "Senang bisa membantu {$sapaan} 😊",
-                "Dengan senang hati {$sapaan} 😊",
-                "Terima kasih kembali {$sapaan} 😊",
-            ];
-            $reply = $terimakasihReplies[array_rand($terimakasihReplies)];
-            $this->sendAutoreplyText($waNumber, $reply);
+            $this->sendAutoreplyText($waNumber, $this->pickPenutupAckReply($sapaan, $textBody));
             return;
         }
 
@@ -1806,56 +1808,7 @@ class WAReplies
             return;
         }
 
-        $sapaanHint = $contactName !== ''
-            ? "Nama customer: \"{$contactName}\". Sapaan yang WAJIB dipakai: {$sapaan}. JANGAN pakai sapaan lain."
-            : "Nama customer tidak tersedia. Pakai sapaan: {$sapaan}.";
-
-        $avoidOkEcho = $this->penutupMessageContainsOkToken($textBody);
-        $systemPenutup = "Kamu adalah customer service Madinah Laundry. Balas penutup/acknowledgment dari customer.\n\nCRITICAL - SINGKAT & SANTAI:\n- Balas PENDEK (max 1 kalimat, 5-8 kata). Jangan formal. Santai tapi ramah.\n- WAJIB gunakan PERSIS sapaan yang diberikan (bang/bu/kak/pak). JANGAN ganti sapaan.\n- Contoh: jika sapaan=bang -> \"Oke bang\" \"Siap bang\" \"Selamat mudik ya bang\". Jika sapaan=kak -> \"Oke kak\" \"Siap kak\".\n- JANGAN kalimat panjang. JANGAN pakai tanda seru (!). JANGAN pakai singkatan 'mk' atau 'mksh'.\n- JANGAN PERNAH gunakan kata \"ditunggu\" atau \"di tunggu\" atau \"ditunggu ya\" - HILANGKAN dari semua balasan.\n- JANGAN PERNAH sebut nama customer dalam balasan.\n\nJENIS PENUTUP:\n1. Terimakasih/makasih/thanks -> balas sama-sama + sapaan\n2. Ok/baik/siap (acknowledgment) -> balas \"Siap\" atau \"Oke\" + sapaan\n3. Konfirmasi transfer -> \"Siap\" atau \"Oke, terima kasih\"\n4. Pemberitahuan jemput/antar/mudik -> balas \"Siap\" atau \"Oke, selamat mudik ya\" + sapaan\n5. JANGAN balas komplain/keluhan - itu BUKAN PENUTUP\n\nPENTING: Pakai PERSIS sapaan yang diberikan. JANGAN pakai \"ditunggu\". JANGAN pakai tanda seru (!).";
-        if ($avoidOkEcho) {
-            $systemPenutup .= "\n\nCRITICAL — Customer memakai kata ok/oke/okey di pesannya:\n- JANGAN balas dengan kata ok, oke, okey (hindari mengulang).\n- Gunakan baik, sip, siap, atau hanya dua emoji ramah (mis. 😊🙏 🙏😊).";
-        }
-
-        try {
-            if (!class_exists('\\App\\Config\\AI') || !\App\Config\AI::isEnabled()) {
-                $this->sendAutoreplyText($waNumber, $this->pickPenutupAckReply($sapaan, $textBody));
-                return;
-            }
-
-            $messages = [
-                [
-                    'role' => 'system',
-                    'content' => $systemPenutup,
-                ],
-                [
-                    'role' => 'user',
-                    'content' => "{$sapaanHint}\n\nPesan customer: \"{$textBody}\"\n\nBalas singkat dan santai. Max 1 kalimat pendek. Gunakan sapaan: {$sapaan}",
-                ],
-            ];
-
-            $answer = $this->executeOpenAIRequestWithMessages($messages, 100);
-            $text = trim(str_replace('!', '', $answer));
-            if (empty($text) || mb_strlen($text) <= 2) {
-                $this->sendAutoreplyText($waNumber, $this->pickPenutupAckReply($sapaan, $textBody));
-                return;
-            }
-            // Hilangkan "ditunggu ya" / "di tunggu" jika AI tetap mengeluarkan
-            $text = preg_replace('/,?\s*(di\s*)?tunggu\s*(ya\s*)?(kak|bang|pak|bu)?\s*[.!]?/i', '', $text);
-            $text = trim(preg_replace('/\s+/', ' ', $text));
-            if ($text === '' || $text === ',') {
-                $text = $this->pickPenutupAckReply($sapaan, $textBody);
-            }
-            if ($avoidOkEcho && preg_match('/\b(ok|oke|okey|okee)\b/i', $text)) {
-                $text = $this->getRandomPenutupAckNoOk($sapaan);
-            }
-
-            $this->sendAutoreplyText($waNumber, $text);
-        } catch (\Exception $e) {
-            if (class_exists('\Log')) {
-                \Log::write("handlePenutup ERROR: " . $e->getMessage(), 'wa_error', 'Penutup');
-            }
-            $this->sendAutoreplyText($waNumber, $this->pickPenutupAckReply($sapaan, $textBody));
-        }
+        $this->sendAutoreplyText($waNumber, $this->pickPenutupAckReply($sapaan, $textBody));
     }
 
     /**
@@ -4503,7 +4456,9 @@ class WAReplies
             $prompt .= "PRIORITAS: Jika user menanyakan apakah laundry/toko BUKA atau TIDAK (termasuk 'buka ga/gak', 'masih buka', 'sudah tutup') = pilih JAM_OPERASIONAL.\n";
             $prompt .= "PRIORITAS: Jika user menanyakan apakah cucian/laundry sudah SIAP/SELESAI (termasuk typo sudh, laundri, 'apakah sudh siap laundri saya?') = pilih STATUS — jangan FALSE dan jangan mengarang intent baru.\n";
             $prompt .= "PRIORITAS: Jika user bertanya berapa/brp/brpa kilo (mis. 'berapa kilo itu kak?', 'brpa kilo kk?') tanpa tanya harga/biaya per kilo = pilih TAGIHAN (tanya berat order), bukan FALSE.\n";
+            $prompt .= "PRIORITAS: Jika user bertanya brp/berapa + laundry/londry (typo) + ku/saya/aku (mis. 'brp londry ku buk', 'berapa laundry saya kak') = TAGIHAN (tanya total/tagihan order), bukan FALSE.\n";
             $prompt .= "PRIORITAS: 'kabari ya kak' / 'kabarin ya' / 'infokan ya' = minta kabar/update (penutup) = pilih PENUTUP, BUKAN PEMBUKA.\n";
+            $prompt .= "PRIORITAS: Pesan yang merujuk order/waktu (yg td sore, yg tadi sore) DAN jadwal pengambilan (besok di ambil, besok dijemput) — meski ada 'iya kak/buk' — = BUKAN PENUTUP (info operasional untuk CS), pilih FALSE.\n";
             $prompt .= "PRIORITAS: Minta satu pakaian/item tertentu diambil/dulukan dulu dari order/cucian yang sudah di laundry (belum waktunya ambil semua) = PERMINTAAN, BUKAN MINTA_JEMPUT_ANTAR.\n";
             $prompt .= "Pesan: \"{$textBody}\"\n";
             $prompt .= "JAWAB HANYA DENGAN FORMAT JSON SEPERTI INI:\n";
@@ -4548,6 +4503,16 @@ class WAReplies
                 && !preg_match('/\b(harga|biaya|tarif)\b.{0,50}?\b(per\s*)?kilo\b/i', $textBody)) {
                 $intent = 'TAGIHAN';
                 $reason = 'remap tanya berapa kilo order → TAGIHAN';
+            }
+
+            // FALSE padahal brp/berapa + laundry (typo londry) + ku/saya/aku — tanya tagihan order
+            if ($intent === 'FALSE' && preg_match('/\b(brp|brpa|brapa|berapa)\b/i', $textBody)
+                && preg_match('/\b(laundry|loundry|londri|londry|cucian)\b/i', $textBody)
+                && preg_match('/\b(ku|saya|aku)\b/i', $textBody)
+                && !preg_match('/\b(bl?m|belum|belom)\s+di\s+(wa|whatsapp)\b/i', $textBody)
+                && !preg_match('/\b(harga|tarif)\b.{0,40}?\b(per\s*)?(item|pcs|buah|potong|kg|kilo)\b/i', $textBody)) {
+                $intent = 'TAGIHAN';
+                $reason = 'remap brp/berapa + laundry + ku/saya/aku → TAGIHAN';
             }
 
             // Log: text | intent | reason

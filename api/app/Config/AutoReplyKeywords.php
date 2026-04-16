@@ -93,6 +93,9 @@ return [
             '/\b(laundry|loundry)\s+(aku|saya|ku|punya\s+saya)\s+ada(?!\s+yang)\b/i',
             // "berapa kilo itu kak?", "brpa kilo kk?" = tanya berat order (kait tagihan/kg) — bukan daftar harga per item
             '/\b(brp|brpa|brapa|berapa)\s*kilo\b/i',
+            // "brp londry ku buk" / "berapa laundry ku kak" = tanya total/tagihan order (typo londry; sufisk pendek)
+            '/^\s*\b(brp|brpa|brapa|berapa)\b\s+(laundry|loundry|londri|londry)\s+(ku|aku)(?:\s+(?:kak|kk|bang|buk|min|mbak|pak|bu|ka|dek))?\s*$/iu',
+            '/^\s*\b(brp|brpa|brapa|berapa)\b\s+(laundry|loundry|londri|londry)\s+saya(?:\s+(?:kak|kk|bang|buk|min|mbak|pak|bu|ka|dek))?\s*$/iu',
         ],
         'ai_prompt' => "User menanyakan TOTAL BIAYA/TAGIHAN laundry (jumlah uang yang harus dibayar) ATAU meminta dikirimkan bill/tagihan, seperti:\n
         | berapa total punya saya? | brapa total strika/cuci tadi? | totalnya berapa? | berapa tagihan? | berapa biaya laundry saya? |\n
@@ -100,6 +103,7 @@ return [
         | bisa kirimkan bill saya | halo kak bisa kirimkan bill saya | kirim tagihan | minta bill | kirimkan tagihan saya |\n
         | laundry aku ada kk? | laundry saya ada? | laundry punya saya ada? | = tanya tagihan/bill punya saya = TAGIHAN\n
         | berapa kilo itu kak? | brpa kilo itu kk? | brp kilo? | = tanya berat cucian/order (hubungan ke tagihan) = TAGIHAN, BUKAN FALSE\n
+        | brp londry ku kak? | berapa laundry ku bang? | brp laundry saya? | = typo londry / tanya total tagihan cucian saya = TAGIHAN, BUKAN FALSE\n
         Jika user bertanya 'berapa' + (total/biaya/tagihan) atau (total/biaya) + 'berapa' = TAGIHAN\n
         Jika user minta/bisa kirimkan bill/tagihan = TAGIHAN (permintaan bill/tagihan)\n
         Jika user tanya 'laundry aku/saya ada?' = tanya tagihan punya saya = TAGIHAN\n
@@ -155,13 +159,14 @@ return [
       - Konfirmasi pembayaran/tagihan lunas: | lunas | lunas ya kak | lunas ya min | sudah lunas | udah lunas |\n
       - Konfirmasi status (non-bayar): | sudah diambil |\n
       - Konfirmasi transfer/pembayaran sudah dilakukan: | telah berhasil mengirimkan ke rekening | sudah transfer | sudah bayar | sudah kirim | saya sudah transfer ke rekening kamu |\n
-      - Konfirmasi jadwal (TANPA PERMINTAAN): | baik nanti dijemput | ok sore diantar | siap dijemput ya |\n
+      - Konfirmasi jadwal SANGAT singkat saja (tanpa rujukan order tertentu): | baik nanti dijemput | ok sore diantar | siap dijemput ya | besok diantar kak |\n
       - Minta kabar/update singkat (penutup): | kabari ya kak | kabarin ya min | infokan ya kk | kasih kabar ya |\n
-      - Pemberitahuan jadwal: | nanti sore dijemput | besok diantar | jam 2 dijemput ya kak |\n
+      - Pemberitahuan jadwal singkat (bukan rujukan cucian tertentu): | nanti sore dijemput | jam 2 dijemput ya kak |\n
       - EMOJI/REACTION SAJA: | ❤️ | 👍 | 🙏 | 👌 | ✅ | atau kata 'Reacted' + emoji |\n
-      - Kata kunci: baik/ok/iya/siap + (nanti/sore/besok/jam) + dijemput/diantar = PENUTUP\n
+      - Kata kunci singkat: baik/ok/siap + (nanti/sore/besok/jam) + dijemput/diantar = PENUTUP HANYA jika TIDAK ada rujukan order (lihat FALSE di bawah).\n
       \n
       FALSE (BUKAN PENUTUP) - CRITICAL:\n
+      - CRITICAL: Rujukan order/waktu + jadwal ambil: | yg tdi sore besok di ambil iya buk | yang tadi sore besok dijemput ya | yg td sore nanti di ambil | = info operasional/jadwal cucian tertentu = FALSE (bukan PENUTUP), meski ada 'iya/baik/siap'.\n
       - CRITICAL: Pesan lebih dari 50 karakter (hitung semua karakter termasuk spasi/emoji, setelah trim) = BUKAN PENUTUP — itu konteks/penjelasan, bukan ack singkat.\n
       - Pemberitahuan user akan ambil/antar SENDIRI = BUKAN intent apapun: | akan menjemput | nanti saya jemput | nanti saya ambil | akan saya antar | nanti saya antar | akan mengambil | mau jemput | besok saya jemput | nanti saya antar |\n
       - Informasi \"belum diambil\" = status/info order (mis. | kak blm diambil loh | belum diambil kak |), bukan penutup.\n
