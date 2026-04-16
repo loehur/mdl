@@ -4458,6 +4458,7 @@ class WAReplies
             $prompt .= "PRIORITAS: Jika user bertanya berapa/brp/brpa kilo (mis. 'berapa kilo itu kak?', 'brpa kilo kk?') tanpa tanya harga/biaya per kilo = pilih TAGIHAN (tanya berat order), bukan FALSE.\n";
             $prompt .= "PRIORITAS: Jika user bertanya brp/berapa + laundry/londry (typo) + ku/saya/aku (mis. 'brp londry ku buk', 'berapa laundry saya kak') = TAGIHAN (tanya total/tagihan order), bukan FALSE.\n";
             $prompt .= "PRIORITAS: 'kabari ya kak' / 'kabarin ya' / 'infokan ya' = minta kabar/update (penutup) = pilih PENUTUP, BUKAN PEMBUKA.\n";
+            $prompt .= "PRIORITAS: Jika user meminta info transfer/tf/rekening/QRIS untuk bayar (mis. 'bisa tf kak', 'mau transfer kak', 'minta no rek') dan BUKAN konfirmasi sudah kirim = pilih REKENING, BUKAN FALSE.\n";
             $prompt .= "PRIORITAS: Pesan yang merujuk order/waktu (yg td sore, yg tadi sore) DAN jadwal pengambilan (besok di ambil, besok dijemput) — meski ada 'iya kak/buk' — = BUKAN PENUTUP (info operasional untuk CS), pilih FALSE.\n";
             $prompt .= "PRIORITAS: Minta satu pakaian/item tertentu diambil/dulukan dulu dari order/cucian yang sudah di laundry (belum waktunya ambil semua) = PERMINTAAN, BUKAN MINTA_JEMPUT_ANTAR.\n";
             $prompt .= "Pesan: \"{$textBody}\"\n";
@@ -4513,6 +4514,14 @@ class WAReplies
                 && !preg_match('/\b(harga|tarif)\b.{0,40}?\b(per\s*)?(item|pcs|buah|potong|kg|kilo)\b/i', $textBody)) {
                 $intent = 'TAGIHAN';
                 $reason = 'remap brp/berapa + laundry + ku/saya/aku → TAGIHAN';
+            }
+
+            // FALSE padahal minta info transfer/tf (bukan konfirmasi sudah kirim) — REKENING
+            if ($intent === 'FALSE'
+                && preg_match('/\b(bisa|boleh|mau|minta)\s+(tf|transfer)\b/i', $textBody)
+                && !preg_match('/(telah berhasil mengirimkan|sudah\s+transfer|sudah\s+bayar|sudah\s+kirim|sudah\s+mengirim)\b/i', $textBody)) {
+                $intent = 'REKENING';
+                $reason = 'remap minta info tf/transfer → REKENING';
             }
 
             // Log: text | intent | reason
