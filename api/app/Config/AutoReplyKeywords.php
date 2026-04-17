@@ -252,6 +252,11 @@ return [
             '/\bberapa\s+(\d+\s+)?(biji|pcs|pc|buah|lembar\s+)?(boneka|baju|celana|handuk|selimut|jaket|sepatu|tas|karpet|sprei|bedcover|gorden|kemeja|rok|gaun|jas|hoodie|sweater|topi|sarung|mukena|jilbab|kerudung)\b/iu',
             // "berapa boneka?" tanpa angka
             '/\bberapa\s+(harga|biaya|cuci|setrika|strika|gosok)?\s*(boneka|baju|celana|handuk|selimut|jaket|sepatu|tas|karpet|sprei|bedcover|gorden|kemeja|rok|gaun|jas)\b/iu',
+            // Ongkos/ongkir by durasi (sehari, 1–3 hari, dll.) atau by jenis layanan (regular/ekspres/kilat) = tarif di data harga, bukan minta kurir
+            '/\b(brp|brpa|brapa|berapa|harga|biaya|tarif)\b.{0,140}?\b(ongkos|ongkir|ong\s*kos)\b.{0,100}?\b(sehari|se\s*hari|satu\s*hari|dua\s*hari|tiga\s*hari|\d{1,2}\s*hari)\b/iu',
+            '/\b(sehari|se\s*hari|satu\s*hari|dua\s*hari|tiga\s*hari|\d{1,2}\s*hari)\b.{0,140}?\b(brp|brpa|brapa|berapa|harga|biaya|tarif)\b.{0,100}?\b(ongkos|ongkir|ong\s*kos)\b/iu',
+            '/\b(brp|brpa|brapa|berapa|harga|biaya|tarif)\b.{0,140}?\b(ongkos|ongkir|ong\s*kos)\b.{0,100}?\b(regular|reguler|ekspres|ekspress|express|kilat)\b/iu',
+            '/\b(regular|reguler|ekspres|ekspress|express|kilat)\b.{0,140}?\b(brp|brpa|brapa|berapa|harga|biaya|tarif)\b.{0,100}?\b(ongkos|ongkir|ong\s*kos)\b/iu',
         ],
         'ai_prompt' => "User menanyakan harga/biaya laundry PER ITEM atau PER KILO, seperti:\n
         | berapa harga? | berapa biaya? | harga berapa? | biaya berapa? |\n
@@ -262,7 +267,9 @@ return [
         - 'berapa kilo itu?' / 'brp kilo kak?' TANPA kata harga/biaya = tanya berat order = TAGIHAN, BUKAN HARGA.\n
         - Jika user bertanya 'berapa' + (harga/biaya) + (item laundry atau per kilo) = HARGA\n
         - Jika user bertanya 'berapa' + angka + item (boneka, baju, dll) = HARGA (harga per item), BUKAN TAGIHAN total order\n
-        - Jika user bertanya 'berapa' + (ongkir/ongkos/biaya antar/biaya jemput) = BUKAN CEK_HARGA, itu adalah MINTA_JEMPUT_ANTAR\n
+        - CRITICAL - TRUE (HARGA): Tanya ONGKOS/ONGKIR sekaligus DURASI proses (1/2/3 hari, sehari, satu hari, dll.) di awal atau akhir kalimat = tanya TARIF layanan sesuai SLA di data harga = HARGA. Contoh: | Klu 1 hari brp ongkos nya | kalau 2 hari berapa ongkos | sehari brp ongkir kak | = HARGA, BUKAN MINTA_JEMPUT_ANTAR.\n
+        - CRITICAL - TRUE (HARGA): Tanya ONGKOS/ONGKIR + JENIS LAYANAN (regular, ekspres, express, kilat) = tarif varian layanan di data harga = HARGA. Contoh: | berapa ongkos regular? | ongkos kilat brp? | brp ongkos ekspres | = HARGA, BUKAN MINTA_JEMPUT_ANTAR.\n
+        - Jika user bertanya 'berapa' + (ongkir/ongkos/biaya antar/biaya jemput) TANPA durasi hari DAN TANPA sebut regular/ekspres/kilat (murni ongkos antar/jemput kurir) = MINTA_JEMPUT_ANTAR\n
         - Jika user bertanya 'berapa' + (berat saja tanpa item) = bisa NOTA/TAGIHAN, bedakan konteks\n
         \n
         CRITICAL - FALSE (BUKAN HARGA) - harga barang tambahan/ritel (bukan tarif cuci/setrika laundry):\n
@@ -368,7 +375,7 @@ return [
       - bisa jemput kak?, nanti bisa jemput kak?, jemput dong, antar ya dong\n
       - Singkatan: bs jmpt baju?, bs jemput? = sama dengan bisa jemput = MINTA_JEMPUT_ANTAR\n
       - katanya mau antar, katanya mau jemput = relay/konfirmasi permintaan antar = MINTA_JEMPUT_ANTAR\n
-      - brp ongkirnya?, berapa ongkosnya?, brp ong nya kak?, biaya antar?\n
+      - brp ongkirnya?, berapa ongkosnya?, brp ong nya kak?, biaya antar? — HANYA jika TANPA durasi (1/2/3 hari, sehari) DAN TANPA jenis layanan (regular/ekspres/kilat). Jika ada '1 hari'/'sehari'/durasi + ongkos ATAU regular/ekspres/kilat + ongkos = itu tanya TARIF di harga = HARGA, BUKAN MINTA_JEMPUT_ANTAR.\n
       - CRITICAL: Instruksi ambil/jemput baju/laundry/kain/bedcover/sprei dari LOKASI (kamar hotel/kost, depan kamar, rumah sakit, sekolah, alamat/jalan) = MINTA_JEMPUT_ANTAR. Contoh: | kk ambil baju kotor sama bedcover di depan kamar 212 | ambil laundry di hotel | jemput di kamar 305 | ambil di RS |\n
       - CRITICAL - FALSE: Minta SATU jenis pakaian/item (baju dinas, seragam, dll.) diambil/dulukan DULU dari order/cucian yang sudah di laundry — prioritas item, BUKAN minta kurir jemput-antar = PERMINTAAN.\n
       \n
@@ -382,6 +389,7 @@ return [
       - CRITICAL: 'Mau jemput' / 'saya jemput nanti' = User SENDIRI yang akan mengambil = FALSE (bedakan dari 'ambil baju di kamar X' = minta kurir)\n
       - CRITICAL: Instruksi 'ambil/jemput' + lokasi (kamar/hotel/RS/sekolah/alamat) = MINTA_JEMPUT_ANTAR walaupun TANPA kata tolong/minta/bisa — itu permintaan kurir ke alamat.\n
       - CRITICAL - FALSE: Pertanyaan HARGA PAKET/MEMBER/DEPOSIT + antar/jemput/ongkir (berapa harga paket include antar? harga member pakai antar?) = HARGA_PAKET, BUKAN MINTA_JEMPUT_ANTAR.\n
+      - CRITICAL - FALSE: Tanya ongkos/ongkir + durasi hari (1/2/3 hari, sehari) ATAU + regular/ekspres/kilat = HARGA (tarif layanan), BUKAN MINTA_JEMPUT_ANTAR.\n
       - Contoh FALSE: 'Mau jemput,jgn tutup dlu' (user akan ambil sendiri, bukan minta kurir)\n
       - Contoh FALSE: 'Baikla nnti sore dijemput ya kak' (ini konfirmasi)\n
       - Contoh FALSE: 'Ok dijemput ya' (ini konfirmasi)\n

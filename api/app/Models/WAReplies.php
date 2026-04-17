@@ -1066,6 +1066,10 @@ class WAReplies
                     if ($handler === 'MINTA_JEMPUT_ANTAR' && $this->messageIsHargaPaketAntarJemputCombinedQuestion($textBodyToCheck)) {
                         continue;
                     }
+                    // MINTA_JEMPUT_ANTAR: ongkos + durasi hari / tipe layanan = HARGA (regex HARGA dicek lebih dulu; ini cadangan)
+                    if ($handler === 'MINTA_JEMPUT_ANTAR' && $this->messageIsHargaOngkosByDurasiAtauLayanan($textBodyToCheck)) {
+                        continue;
+                    }
                     // MINTA_JEMPUT_ANTAR: "masih bisa/bs jemput" = tanya availabilitas layanan = JAM_OPERASIONAL (regex MINTA lewat sub-bisa jemput)
                     if ($handler === 'MINTA_JEMPUT_ANTAR' && preg_match('/\b(masih|msh|mash|masi|msih)\s+(bisa|bs|bis|boleh)\s*(jemput|jmpt|antar)\b/i', $textBodyToCheck)) {
                         continue;
@@ -1239,6 +1243,14 @@ class WAReplies
                 $aiIntent = 'HARGA_PAKET';
                 $aiCase = $fullKeywordConfig['HARGA_PAKET']['case'] ?? null;
                 $aiNotify = $fullKeywordConfig['HARGA_PAKET']['notify'] ?? false;
+            }
+
+            // AI salah: ongkos + durasi (hari) / jenis layanan = HARGA, bukan minta kurir
+            if ($aiIntent === 'MINTA_JEMPUT_ANTAR' && $this->messageIsHargaOngkosByDurasiAtauLayanan($textBodyToCheck)) {
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override_minta_jemput→HARGA ongkos_durasi_tier');
+                $aiIntent = 'HARGA';
+                $aiCase = $fullKeywordConfig['HARGA']['case'] ?? null;
+                $aiNotify = $fullKeywordConfig['HARGA']['notify'] ?? false;
             }
 
             // AI salah: minta satu pakaian/item diambil/dulukan dulu dari cucian/order = PERMINTAAN, bukan minta kurir jemput/antar
@@ -1897,6 +1909,29 @@ class WAReplies
             return false;
         }
         return (bool) preg_match('/\b(harga|berapa|biaya|daftar|tarif|rate|brp|brpa)\b/u', $t);
+    }
+
+    /**
+     * Tanya ongkos/ongkir sekaligus durasi proses (hari) atau jenis layanan (regular/ekspres/kilat) → HARGA, bukan minta kurir.
+     *
+     * @param string $text asli atau lowercase
+     */
+    private function messageIsHargaOngkosByDurasiAtauLayanan($text)
+    {
+        $t = (string) $text;
+        if ($t === '') {
+            return false;
+        }
+        if (!preg_match('/\b(ongkos|ongkir|ong\s*kos|ong\s*kir)\b/iu', $t)) {
+            return false;
+        }
+        if (!preg_match('/\b(brp|brpa|brapa|berapa|harga|biaya|tarif)\b/iu', $t)) {
+            return false;
+        }
+        $hasDurasi = (bool) preg_match('/\b(sehari|se\s*hari|satu\s*hari|dua\s*hari|tiga\s*hari|\d{1,2}\s*hari)\b/iu', $t);
+        $hasTier = (bool) preg_match('/\b(regular|reguler|ekspres|ekspress|express|kilat)\b/iu', $t);
+
+        return $hasDurasi || $hasTier;
     }
 
     /**
@@ -4529,6 +4564,13 @@ class WAReplies
                 && preg_match('/\b(info|infonya|informasi)\b.{0,280}?\b(laundry|loundry|londri|laondri|cucian)\b.{0,220}?\b(antar|nyerahkan|nitip)\b.{0,120}?\b(pagi|siang|sore|malam)\b.{0,40}?\b(tadi|td|kemarin|kmrn)\b/iu', $textBody)) {
                 $intent = 'NOTA';
                 $reason = 'remap infonya + laundry + antar + waktu → NOTA';
+            }
+
+            // MINTA_JEMPUT_ANTAR / FALSE padahal tanya tarif ongkos by durasi atau jenis layanan = HARGA
+            if (($intent === 'MINTA_JEMPUT_ANTAR' || $intent === 'FALSE') && isset($keywordConfig['HARGA'])
+                && $this->messageIsHargaOngkosByDurasiAtauLayanan($textBody)) {
+                $intent = 'HARGA';
+                $reason = 'remap ongkos + durasi/tier layanan → HARGA';
             }
 
             // Log: text | intent | reason
