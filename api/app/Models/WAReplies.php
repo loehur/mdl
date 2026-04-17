@@ -4524,6 +4524,13 @@ class WAReplies
                 $reason = 'remap minta info tf/transfer → REKENING';
             }
 
+            // FALSE padahal follow-up nota: infonya + laundry + antar + waktu (sama pola regex NOTA)
+            if ($intent === 'FALSE' && isset($keywordConfig['NOTA'])
+                && preg_match('/\b(info|infonya|informasi)\b.{0,280}?\b(laundry|loundry|londri|laondri|cucian)\b.{0,220}?\b(antar|nyerahkan|nitip)\b.{0,120}?\b(pagi|siang|sore|malam)\b.{0,40}?\b(tadi|td|kemarin|kmrn)\b/iu', $textBody)) {
+                $intent = 'NOTA';
+                $reason = 'remap infonya + laundry + antar + waktu → NOTA';
+            }
+
             // Log: text | intent | reason
             if (class_exists('\Log')) {
                 \Log::write("{$textBody} | {$intent} | {$reason}", 'wa', 'intent');

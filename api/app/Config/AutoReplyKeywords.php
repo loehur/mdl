@@ -42,6 +42,8 @@ return [
             '/\b(hari\s*)?(jumat|kamis|senin|selasa|rabu|sabtu|minggu)\b.{0,200}?\b(bl?m|belum|belom)\s+di\s+(wa|whatsapp)\b/iu',
             '/\b(bl?m|belum|belom)\s+di\s+(wa|whatsapp)\b.{0,60}?\b(brp|berapa)\b/iu',
             '/\b(brp|berapa)\b.{0,50}?\b(bl?m|belum|belom)\s+di\s+(wa|whatsapp)\b/iu',
+            // Minta info nota/order setelah antar: "Tolong infonya. Laondri yang saya antar pagi tadi" (bukan tanya siap cucian)
+            '/\b(info|infonya|informasi)\b.{0,280}?\b(laundry|loundry|londri|laondri|cucian)\b.{0,220}?\b(antar|nyerahkan|nitip)\b.{0,120}?\b(pagi|siang|sore|malam)\b.{0,40}?\b(tadi|td|kemarin|kmrn)\b/iu',
         ],
         'ai_prompt' => "User meminta BON/NOTA/STRUK (dokumen bukti terima) sebagai fisik/cetak, ATAU menindaklanjuti karena bukti/nota belum masuk WhatsApp, seperti:\n
         | bon | nota | struk | bukti terima | minta bon | minta nota | minta struk |\n
@@ -51,6 +53,7 @@ return [
         - Kalimat singkat notifikasi WA belum masuk: | Wa nya blm masuk | wa blm masuk | blm masuk wa | = NOTA (follow-up bukti/nota di WA), BUKAN FALSE.\n
         - Sudah antar/nitip laundry ke outlet tapi belum dapat notifikasi/nota lewat WA = NOTA (follow-up bukti terima digital), BUKAN STATUS. Contoh: | Tadi malam saya antar londri tp sampai siang belum dapat notifikasi via wa | sudah antar laundry kemarin belum ada notif wa | belum dapat notifikasi wa padahal sudah antar cucian |\n
         - Waktu + belum di WA: user merujuk order/jam (tadi sore, tadi pagi, kemarin, hari Jumat, yg td sore, dll) lalu 'blm di wa' / 'belum di whatsapp' = follow-up NOTA/notifikasi digital belum masuk = NOTA. Contoh: | Kak yg td sore blm di wa ya brp nya | yang tadi pagi blm di wa | kemarin blm di wa kak | = NOTA. 'Brp nya' di sini = tanya notifikasi/nota (kok belum), BUKAN tanya total rupiah tagihan.\n
+        - CRITICAL - TRUE (NOTA): Pola minta INFO + (laondri/laundry) + yang saya antar + pagi/siang/sore/malam + tadi/kemarin = follow-up NOTA/bukti order setelah antar (bukan sekadar sapaan). Contoh: | Tolong infonya. Laondri yang saya antar pagi tadi | infonya laundry yang saya antar siang tadi kak | = NOTA, BUKAN FALSE.\n
         - Ini komplain/follow-up nota struk bon belum dikirim ke WA customer = NOTA, BUKAN FALSE.\n
         \n
         FALSE (BUKAN NOTA) - PENTING:\n
