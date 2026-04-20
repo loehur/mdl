@@ -17,7 +17,7 @@ use App\Core\Controller;
  */
 class WA_Fonnte extends Controller
 {
-    private const DEFAULT_FALLBACK_REPLY = "Maaf jika respon lambat.\n\nBila berkenan kirimkan pesan ke\n*Madinah Laundry (CS)*\n💬 wa.me/6281170706611\n\nTerima kasih.";
+    private const DEFAULT_FALLBACK_REPLY_FONNTE = "Maaf, mohon menunggu. Admin sedang melayani customer lain.\n\nUntuk balasan otomatis, silahkan ketik:\n- *BON* untuk info nota\n- *CEK* untuk info status\n- *BILL* untuk info tagihan\n\nUntuk informasi lainnya, kirimkan pesan ke *Madinah Laundry (CS)*\n💬 wa.me/6281170706611";
 
     /** Cooldown wa_auto_reply_log (handler DEFAULT) sebelum fallback dikirim lagi ke nomor yang sama — 24 jam */
     private const DEFAULT_FALLBACK_COOLDOWN_MINUTES = 1440;
@@ -63,7 +63,7 @@ class WA_Fonnte extends Controller
         $replyText = '';
 
         $rawText = trim((string) ($message ?? $text ?? ''));
-        // Gambar/file/voice dari Fonnte biasanya punya url; tanpa caption = anggap panjang teks 0 (tidak intent AI, tidak DEFAULT_FALLBACK_REPLY)
+        // Gambar/file/voice dari Fonnte biasanya punya url; tanpa caption = anggap panjang teks 0 (tidak intent AI, tidak DEFAULT_FALLBACK_REPLY_FONNTE)
         $isMediaWithoutCaption = ($rawText === '' && ! empty($url));
 
         if ($rawText === '' && empty($url)) {

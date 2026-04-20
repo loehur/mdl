@@ -12,7 +12,7 @@ use App\Core\Controller;
  */
 class WhatsApp extends Controller
 {
-    private const DEFAULT_FALLBACK_REPLY_YCLOUD = "Maaf jika respon lambat.\n\nBila berkenan kirimkan pesan ke\n*Madinah Laundry (Admin)*\n💬 wa.me/628117686252\n\nTerima kasih.";
+    private const DEFAULT_FALLBACK_REPLY_YCLOUD = "Maaf, mohon menunggu. CS sedang melayani customer lain.\n\nUntuk balasan otomatis, silahkan ketik:\n- *BON* untuk info nota\n- *CEK* untuk info status\n- *BILL* untuk info tagihan\n\nUntuk pengaduan, kirimkan pesan ke *Madinah Laundry (Admin)*\n💬 wa.me/628117686252";
 
     /** Cooldown wa_auto_reply_log (handler DEFAULT, menyatu yCloud+Fonnte) sebelum fallback dikirim lagi ke nomor yang sama — 24 jam */
     private const DEFAULT_FALLBACK_COOLDOWN_MINUTES = 1440;
