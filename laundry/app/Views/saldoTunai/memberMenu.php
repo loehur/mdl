@@ -30,6 +30,23 @@
 <!-- SCRIPT -->
 <script src="<?= URL::EX_ASSETS ?>js/jquery-3.6.0.min.js"></script>
 <script src="<?= URL::EX_ASSETS ?>plugins/select2/select2.min.js"></script>
+<script>
+  window.print_ms = <?= isset($this->mdl_setting['print_ms']) ? (float) $this->mdl_setting['print_ms'] : 0 ?>;
+  window.ViewLoadConfig = {
+    baseUrl: '<?= URL::BASE_URL ?>',
+    modeView: '0',
+    idPelanggan: '<?= (int) $id_pelanggan ?>',
+    kodeCabang: '<?= htmlspecialchars($this->dCabang['kode_cabang'] ?? '', ENT_QUOTES, 'UTF-8') ?>',
+    nonTunaiGuide: <?= json_encode(URL::NON_TUNAI_GUIDE) ?>,
+    loadRekap: {},
+    arrTuntas: [],
+    arrTuntasSerial: <?= json_encode(serialize([])) ?>,
+    marginTop: <?= $this->mdl_setting['margin_printer_top'] ?? 0 ?>,
+    feedLines: <?= $this->mdl_setting['margin_printer_bottom'] ?? 0 ?>,
+    saldoTunaiView: true
+  };
+</script>
+<script src="<?= URL::IN_ASSETS ?>js/operasi/view_load.js?v=<?= time() ?>"></script>
 
 <script>
   $(document).ready(function() {

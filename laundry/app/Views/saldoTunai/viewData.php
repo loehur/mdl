@@ -1,6 +1,7 @@
 <?php
 $id_pelanggan = $data['pelanggan'];
 $nama_pelanggan = "";
+$no_pelanggan = "";
 foreach ($this->pelanggan as $dp) {
   if ($dp['id_pelanggan'] == $id_pelanggan) {
     $nama_pelanggan = $dp['nama_pelanggan'];
@@ -59,7 +60,7 @@ foreach ($this->pelanggan as $dp) {
     }
 
     //BUTTON NOTIF
-    $buttonNotif = "<a href='#' data-hp='" . $no_pelanggan . "' data-ref='" . $id . "' data-time='" . $timeRef . "' class='text-dark sendNotifMember bg-white rounded col pl-2 pr-2 mr-1'><i class='fab fa-whatsapp'></i> <span id='notif" . $id . "'></span></a>";
+    $buttonNotif = "<a href='#' data-hp='" . htmlspecialchars((string) $no_pelanggan, ENT_QUOTES, 'UTF-8') . "' data-ref='" . htmlspecialchars((string) $id, ENT_QUOTES, 'UTF-8') . "' data-time='" . htmlspecialchars((string) $timeRef, ENT_QUOTES, 'UTF-8') . "' class='text-dark sendNotifSaldoDeposit bg-white rounded col pl-2 pr-2 mr-1'><i class='fab fa-whatsapp'></i> <span id='notif" . htmlspecialchars((string) $id, ENT_QUOTES, 'UTF-8') . "'></span></a>";
     foreach ($data["notif"] as $notif) {
       if ($notif['no_ref'] == $id) {
         $stNotif = ucwords($notif['state']);
@@ -105,7 +106,7 @@ foreach ($this->pelanggan as $dp) {
               </td>
             </tr>
             <tr class="<?= $class_tr ?>">
-              <td><a href='#' class='ml-1' onclick='Print("<?= $id ?>")'><i class='text-dark fas fa-print'></i></a></td>
+              <td><a href='#' class='ml-1 text-dark' data-print-id='<?= htmlspecialchars($id, ENT_QUOTES, 'UTF-8') ?>'><i class='fas fa-print'></i></a></td>
               <td><b><?= strtoupper($nama_pelanggan) ?></b></td>
               <td class="text-right">
                 <small><span class='buttonNotif'><?= $buttonNotif ?></span></small>
@@ -128,50 +129,41 @@ foreach ($this->pelanggan as $dp) {
       <span id="<?= $id ?>"><?= strtoupper($nama_pelanggan) ?>,</span>
     </span>
 
-    <span class="d-none" id="print<?= $id ?>" style="width:50mm;background-color:white; padding-bottom:10px">
-      <style>
-        @font-face {
-          font-family: "fontku";
-          src: url("<?= URL::EX_ASSETS ?>font/Titillium-Regular.otf");
-        }
-
-        html .table {
-          font-family: 'fontku', sans-serif;
-        }
-
-        html .content {
-          font-family: 'fontku', sans-serif;
-        }
-
-        html body {
-          font-family: 'fontku', sans-serif;
-        }
-
-        hr {
-          border-top: 1px dashed black;
-        }
-      </style>
-      <table style="width:42mm; font-size:x-small; margin-top:10px; margin-bottom:10px">
+    <!-- Struktur tabel cetak sama pola operasi/view_load (member nota) agar Print() di view_load.js -->
+    <span class="d-none" id="print<?= htmlspecialchars($id, ENT_QUOTES, 'UTF-8') ?>">
+      <table>
         <tr>
-          <td colspan="2" style="text-align: center;border-bottom:1px dashed black; padding:6px;">
-            <b> <?= $this->dCabang['nama'] ?> - <?= $this->dCabang['kode_cabang'] ?></b><br>
-            <?= $this->dCabang['alamat'] ?>
+          <td>
+            <b><?= htmlspecialchars($this->dCabang['nama'] ?? '', ENT_QUOTES, 'UTF-8') ?> [ <?= htmlspecialchars($this->dCabang['kode_cabang'] ?? '', ENT_QUOTES, 'UTF-8') ?> </b> ]<br>
+            <?= htmlspecialchars($this->dCabang['alamat'] ?? '', ENT_QUOTES, 'UTF-8') ?><br>
+            <?= htmlspecialchars($this->dCabang['phone_number'] ?? '', ENT_QUOTES, 'UTF-8') ?>
+          </td>
+        </tr>
+        <tr id="dashRow">
+          <td></td>
+        </tr>
+        <tr>
+          <td>
+            <h1><b><?= htmlspecialchars(strtoupper($nama_pelanggan), ENT_QUOTES, 'UTF-8') ?></b></h1><br>
+            #<?= htmlspecialchars($id, ENT_QUOTES, 'UTF-8') ?><br>
+            <?= htmlspecialchars($z['insertTime'] ?? '', ENT_QUOTES, 'UTF-8') ?>
           </td>
         </tr>
         <tr>
-          <td colspan="2" style="border-bottom:1px dashed black; padding-top:6px;padding-bottom:6px;">
-            <font size='2'><b><?= strtoupper($nama_pelanggan) ?></b></font><br>
-            #<?= $id ?><br>
-            <?= $z['insertTime'] ?>
+          <td>
+            <?= $jenis_mutasi == 2 ? 'Refund Deposit' : 'Topup Deposit' ?><br><?= htmlspecialchars($met, ENT_QUOTES, 'UTF-8') ?> · <?= htmlspecialchars($stBayar ?: '-', ENT_QUOTES, 'UTF-8') ?>
           </td>
+          <td></td>
         </tr>
-        <td style="margin: 0;">Topup Deposit</td>
-        <td align="right"><?= number_format($jumlah) ?></td>
-        <tr>
-          <td colspan="2" style="border-bottom:1px dashed black;"></td>
+        <tr id="dashRow">
+          <td></td>
         </tr>
         <tr>
-          <td colspan="2"><br><br><br><br>.</td>
+          <td>Jumlah</td>
+          <td style="text-align:right"><?= $jenis_mutasi == 2 ? '-' : '' ?><?= number_format($jumlah) ?></td>
+        </tr>
+        <tr id="dashRow">
+          <td></td>
         </tr>
       </table>
     </span>
@@ -284,13 +276,17 @@ foreach ($this->pelanggan as $dp) {
     });
   }
 
-  $("a.sendNotifMember").on('click', function(e) {
+  $(document).off('click', 'a.sendNotifSaldoDeposit').on('click', 'a.sendNotifSaldoDeposit', function(e) {
     e.preventDefault();
+    var $a = $(this);
+    if ($a.data('sending')) return;
+    $a.data('sending', 1);
     $(".loaderDiv").fadeIn("fast");
-    var hpNya = $(this).attr('data-hp');
-    var refNya = $(this).attr('data-ref');
-    var timeNya = $(this).attr('data-time');
-    var textNya = $("span#text" + refNya).html();
+    var hpNya = $a.attr('data-hp');
+    var refNya = $a.attr('data-ref');
+    var timeNya = $a.attr('data-time');
+    var $textEl = $("span#text" + refNya);
+    var textNya = $textEl.length ? $textEl.text() : '';
     $.ajax({
       url: '<?= URL::BASE_URL ?>SaldoTunai/sendNotifDeposit',
       data: {
@@ -298,16 +294,25 @@ foreach ($this->pelanggan as $dp) {
         text: textNya,
         ref: refNya,
         time: timeNya,
+        id_pelanggan: <?= (int) $id_pelanggan ?>
       },
       type: "POST",
       success: function(res) {
         if (res == 0) {
           $(".loaderDiv").fadeOut("slow");
-          $('div#riwayat').load('<?= URL::BASE_URL ?>SaldoTunai/tampilkan/' + <?= $id_pelanggan ?>);
+          $('div#riwayat').load('<?= URL::BASE_URL ?>SaldoTunai/tampilkan/' + <?= (int) $id_pelanggan ?>);
         } else {
           alert(res);
+          $a.data('sending', 0);
         }
       },
+      error: function() {
+        alert('Gagal mengirim WA (jaringan).');
+        $a.data('sending', 0);
+      },
+      complete: function() {
+        $(".loaderDiv").fadeOut("slow");
+      }
     });
   });
 
@@ -369,12 +374,4 @@ foreach ($this->pelanggan as $dp) {
     }
   });
 
-  function Print(id) {
-    var printContents = document.getElementById("print" + id).innerHTML;
-    var originalContents = document.body.innerHTML;
-    window.document.body.style = 'margin:0';
-    window.document.writeln(printContents);
-    window.print();
-    location.reload(true);
-  }
 </script>

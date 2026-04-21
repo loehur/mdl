@@ -886,7 +886,11 @@
     });
   });
 
-  $("a.sendNotifMember").on("click", function (e) {
+  $(document).off("click", "a.sendNotifMember").on("click", "a.sendNotifMember", function (e) {
+    // Saldo Tunai memakai kelas sendNotifSaldoDeposit + handler di viewData; link lama bisa punya data-hp
+    if ($(this).attr("data-hp")) {
+      return;
+    }
     klikNotif += 1;
     if (klikNotif > 1) {
       return;
@@ -1700,6 +1704,14 @@
   };
 
   function loadDiv() {
+    if (config.saldoTunaiView) {
+      var pelSaldo = $("select[name=p]").val();
+      if (pelSaldo) {
+        $("div#riwayat").load(BASE_URL + "SaldoTunai/tampilkan/" + pelSaldo);
+        $("div#saldoRekap").load(BASE_URL + "SaldoTunai/tampil_rekap/0/" + pelSaldo);
+      }
+      return;
+    }
     if (modeView != 2) {
       var pelanggan = $("select[name=pelanggan]").attr("data-id");
       $("div#load").load(BASE_URL + "Operasi/loadData/" + pelanggan + "/0");
