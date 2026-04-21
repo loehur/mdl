@@ -255,53 +255,63 @@ class SaldoTunai extends Controller
 
    public function sendNotifDeposit()
    {
-      $hp = $_POST['hp'];
-      $noref = $_POST['ref'];
-      $time =  $_POST['time'];
-      $text = $_POST['text'];
+      $hp = $_POST['hp'] ?? '';
+      $noref = $_POST['ref'] ?? '';
+      $time = $_POST['time'] ?? '';
+      $text = $_POST['text'] ?? '';
 
-      $cols =  'insertTime, id_cabang, no_ref, phone, text, id_api, proses, tipe';
-      $res = $this->helper('Notif')->send_wa($hp, $text, false);
+      if (session_status() === PHP_SESSION_ACTIVE) {
+         session_write_close();
+      }
 
+      // Sama pola dengan Member::sendNotifDeposit / Antrian::sendNotif (notif pakai kolom `state`, bukan boolean mentah ke DB)
       $setOne = "no_ref = '" . $noref . "' AND tipe = 4";
       $where = $this->wCabang . " AND " . $setOne;
-      $data_main = $this->db(0)->count_where('notif', $where);
+      $existingNotif = $this->db(0)->count_where('notif', $where);
 
+      if ($existingNotif > 0) {
+         echo 0;
+         return;
+      }
+
+      $id_notif = (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9);
+      $pendingData = [
+         'id_notif' => $id_notif,
+         'insertTime' => $time,
+         'id_cabang' => $this->id_cabang,
+         'no_ref' => $noref,
+         'phone' => $hp,
+         'text' => $text,
+         'tipe' => 4,
+         'id_api' => '',
+         'state' => 'pending',
+      ];
+
+      $insertResult = $this->db(0)->insert('notif', $pendingData);
+      if (isset($insertResult['errno']) && $insertResult['errno'] <> 0) {
+         echo 0;
+         return;
+      }
+
+      // `false` sebagai template_name salah: ikuti Member (teks bebas = 'free')
+      $res = $this->helper('Notif')->send_wa($hp, $text, 'free');
+
+      $apiData = $res['data']['data'] ?? $res['data'] ?? [];
+      $idApi = $apiData['id'] ?? ($apiData['message_id'] ?? '');
+      $idApiStr = is_scalar($idApi) ? (string) $idApi : '';
+
+      $whereNotif = "id_notif = '" . $id_notif . "'";
       if ($res['status']) {
-         $status = $res['data']['status'];
-         $vals = [
-            'id_notif' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
-            'insertTime' => $time,
-            'id_cabang' => $this->id_cabang,
-            'no_ref' => $noref,
-            'phone' => $hp,
-            'text' => $text,
-            'id_api' => $res['data']['id'],
-            'proses' => $status,
-            'tipe' => 4
-         ];
+         $this->db(0)->update('notif', [
+            'id_api' => $idApiStr,
+            'state' => 'sent',
+         ], $whereNotif);
       } else {
-         $status = $res['data']['status'];
-         $vals = [
-            'id_notif' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9),
-            'insertTime' => $time,
-            'id_cabang' => $this->id_cabang,
-            'no_ref' => $noref,
-            'phone' => $hp,
-            'text' => $text,
-            'id_api' => '',
-            'proses' => $status,
-            'tipe' => 4
-         ];
+         $this->model('Log')->write(
+            __CLASS__ . '::sendNotifDeposit | WA gagal | HP: ' . $hp . ' | ' . ($res['error'] ?? '') . ' | ' . json_encode($res)
+         );
       }
 
-      if ($data_main < 1) {
-         $do = $this->db(0)->insert('notif', $vals);
-         if ($do['errno'] <> 0) {
-            echo $do['error'];
-         } else {
-            echo 0;
-         }
-      }
+      echo 0;
    }
 }
