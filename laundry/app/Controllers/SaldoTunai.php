@@ -253,180 +253,62 @@ class SaldoTunai extends Controller
       $this->tambah($id_pelanggan);
    }
 
-   /**
-    * WA deposit tunai — selaras Antrian::sendNotif (API WhatsApp/send, free vs template, fallback CSW).
-    * Simpan notif tipe 4 dulu, lalu kirim; update state + id_api.
-    */
    public function sendNotifDeposit()
    {
-      $hp = trim((string) ($_POST['hp'] ?? ''));
-      $noref = trim((string) ($_POST['ref'] ?? ''));
-      $time = trim((string) ($_POST['time'] ?? ''));
-      $text = (string) ($_POST['text'] ?? '');
-      $id_pelanggan = (int) ($_POST['id_pelanggan'] ?? 0);
-
-      if ($hp === '' || $noref === '' || $text === '') {
-         $this->model('Log')->write(__CLASS__ . '::sendNotifDeposit | batal: hp/ref/teks kosong');
-         echo 'Data WA tidak lengkap (nomor / referensi / teks).';
-         return;
-      }
-
-      if ($time === '') {
-         $time = date('Y-m-d H:i:s');
-      }
+      $hp = $_POST['hp'] ?? '';
+      $noref = $_POST['ref'] ?? '';
+      $time = $_POST['time'] ?? '';
+      $text = $_POST['text'] ?? '';
 
       if (session_status() === PHP_SESSION_ACTIVE) {
          session_write_close();
       }
 
-      $db = $this->db(0);
-      $norefEsc = $db->escape($noref);
-      $setOne = "no_ref = '" . $norefEsc . "' AND tipe = 4";
-      $whereCheck = $this->wCabang . " AND " . $setOne;
+      // Sama pola dengan Member::sendNotifDeposit / Antrian::sendNotif (notif pakai kolom `state`, bukan boolean mentah ke DB)
+      $setOne = "no_ref = '" . $noref . "' AND tipe = 4";
+      $where = $this->wCabang . " AND " . $setOne;
+      $existingNotif = $this->db(0)->count_where('notif', $where);
 
-      $plainText = trim(html_entity_decode(strip_tags($text), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
-      $plainText = str_replace(["\r\n", "\r"], "\n", $plainText);
-      if ($plainText === '') {
-         echo 'Teks WA kosong.';
+      if ($existingNotif > 0) {
+         echo 0;
          return;
       }
 
-      $hpClean = preg_replace('/[^0-9]/', '', $hp);
-      if ($hpClean === '') {
-         echo 'Nomor WA tidak valid.';
-         return;
-      }
-
-      $rowExisting = $db->get_where_row('notif', $whereCheck);
-      if (!empty($rowExisting['id_notif'])) {
-         $prevState = strtolower((string) ($rowExisting['state'] ?? ''));
-         if (in_array($prevState, ['sent', 'processing', 'delivered', 'read'], true)) {
-            echo 0;
-            return;
-         }
-         // pending (atau gagal sebelumnya): boleh kirim ulang — jangan blokir selamanya
-         $id_notif = $rowExisting['id_notif'];
-         $upRetry = $db->update('notif', [
-            'phone' => $hp,
-            'text' => $plainText,
-            'state' => 'pending',
-            'id_api' => '',
-         ], $this->wCabang . " AND id_notif = '" . $db->escape($id_notif) . "'");
-         if (isset($upRetry['errno']) && $upRetry['errno'] <> 0) {
-            $this->model('Log')->write(__CLASS__ . '::sendNotifDeposit | gagal update retry: ' . ($upRetry['error'] ?? ''));
-            echo 'Gagal menyiapkan ulang notifikasi.';
-            return;
-         }
-      } else {
-         $id_notif = (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9);
-         $pendingData = [
-            'id_notif' => $id_notif,
-            'insertTime' => $time,
-            'id_cabang' => $this->id_cabang,
-            'no_ref' => $noref,
-            'phone' => $hp,
-            'text' => $plainText,
-            'tipe' => 4,
-            'id_api' => '',
-            'state' => 'pending',
-         ];
-         $insertResult = $db->insert('notif', $pendingData);
-         if (isset($insertResult['errno']) && $insertResult['errno'] <> 0) {
-            echo $insertResult['error'] ?? 'Gagal simpan notif';
-            return;
-         }
-      }
-
-      // --- Pola Antrian::sendNotif: variasi nomor + user internal + wa_messages_out ---
-      $hpVariations = [];
-      if (substr($hpClean, 0, 2) === '62') {
-         $hpVariations[] = "'+62" . substr($hpClean, 2) . "'";
-         $hpVariations[] = "'" . $hpClean . "'";
-         $hpVariations[] = "'0" . substr($hpClean, 2) . "'";
-         $hpVariations[] = "'" . substr($hpClean, 2) . "'";
-      } elseif (substr($hpClean, 0, 1) === '0') {
-         $hpVariations[] = "'+62" . substr($hpClean, 1) . "'";
-         $hpVariations[] = "'62" . substr($hpClean, 1) . "'";
-         $hpVariations[] = "'" . $hpClean . "'";
-         $hpVariations[] = "'" . substr($hpClean, 1) . "'";
-      } else {
-         $hpVariations[] = "'+62" . $hpClean . "'";
-         $hpVariations[] = "'62" . $hpClean . "'";
-         $hpVariations[] = "'0" . $hpClean . "'";
-         $hpVariations[] = "'" . $hpClean . "'";
-      }
-
-      $whereUser = "no_user IN (" . implode(', ', $hpVariations) . ")";
-      $userExists = $db->count_where('user', $whereUser);
-      $userExists = is_array($userExists) ? 0 : (int) $userExists;
-
-      $matchDigitsWa = (strlen($hpClean) >= 9) ? substr($hpClean, -9) : $hpClean;
-      $whereWaOut = "REPLACE(REPLACE(phone, '+', ''), '-', '') LIKE '%" . $matchDigitsWa . "'";
-      $waOutCount = $this->db(100)->count_where('wa_messages_out', $whereWaOut);
-      $waOutExists = is_numeric($waOutCount) ? (int) $waOutCount : 0;
-
-      $cleanOrderList = str_replace(["\n", "\r", "\t"], " | ", $plainText);
-      $cleanOrderList = preg_replace('/\s{2,}/', ' ', $cleanOrderList);
-      $cleanOrderList = trim($cleanOrderList, ' |');
-      $invoiceTail = $id_pelanggan > 0 ? ('/I/s/' . $id_pelanggan) : '';
-      $templateParams = [
-         'customer' => '*INFO DEPOSIT TUNAI*',
-         'order_list' => '| ' . $cleanOrderList . ' |',
-         'invoice_link' => rtrim(URL::HOST_URL, '/') . $invoiceTail . ' _Deposit tunai MDL_',
+      $id_notif = (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9);
+      $pendingData = [
+         'id_notif' => $id_notif,
+         'insertTime' => $time,
+         'id_cabang' => $this->id_cabang,
+         'no_ref' => $noref,
+         'phone' => $hp,
+         'text' => $text,
+         'tipe' => 4,
+         'id_api' => '',
+         'state' => 'pending',
       ];
-      $jsonText = json_encode([
-         'text' => $plainText,
-         'template_params' => $templateParams,
-      ], JSON_UNESCAPED_UNICODE);
 
-      if ($userExists > 0) {
-         $template_name = 'free';
-      } elseif ($waOutExists > 0) {
-         $this->model('Log')->write(__CLASS__ . '::sendNotifDeposit | wa_messages_out ada → free | ref=' . $noref);
-         $template_name = 'free';
-      } else {
-         $template_name = URL::TEMPLATE_NOTA;
+      $insertResult = $this->db(0)->insert('notif', $pendingData);
+      if (isset($insertResult['errno']) && $insertResult['errno'] <> 0) {
+         echo 0;
+         return;
       }
 
-      if ($template_name === 'free') {
-         $res = $this->helper('Notif')->send_wa($hp, $plainText, 'free');
-      } else {
-         $res = $this->helper('Notif')->send_wa($hp, $jsonText, URL::TEMPLATE_NOTA);
-      }
-
-      if (!$res['status'] && $template_name === 'free') {
-         $apiPayload = $res['data'] ?? [];
-         $cswExpired = !empty($apiPayload['data']['csw_expired'])
-            || (isset($apiPayload['message']) && stripos((string) $apiPayload['message'], 'CSW') !== false)
-            || (isset($apiPayload['message']) && stripos((string) $apiPayload['message'], 'Customer Service Window') !== false)
-            || (isset($res['error']) && stripos((string) $res['error'], '24 jam') !== false);
-         if ($cswExpired) {
-            if ($waOutExists > 0) {
-               $this->model('Log')->write(__CLASS__ . '::sendNotifDeposit | CSW tutup, tidak fallback template (sudah pernah wa out) | ref=' . $noref);
-            } else {
-               $this->model('Log')->write(__CLASS__ . '::sendNotifDeposit | CSW tutup → fallback template | ref=' . $noref);
-               $res = $this->helper('Notif')->send_wa($hp, $jsonText, URL::TEMPLATE_NOTA);
-            }
-         }
-      }
+      // `false` sebagai template_name salah: ikuti Member (teks bebas = 'free')
+      $res = $this->helper('Notif')->send_wa($hp, $text, 'free');
 
       $apiData = $res['data']['data'] ?? $res['data'] ?? [];
       $idApi = $apiData['id'] ?? ($apiData['message_id'] ?? '');
       $idApiStr = is_scalar($idApi) ? (string) $idApi : '';
 
-      $whereUp = $this->wCabang . " AND no_ref = '" . $norefEsc . "' AND tipe = 4";
-      if (!empty($res['status'])) {
-         $up = $db->update('notif', [
+      $whereNotif = "id_notif = '" . $id_notif . "'";
+      if ($res['status']) {
+         $this->db(0)->update('notif', [
             'id_api' => $idApiStr,
             'state' => 'sent',
-         ], $whereUp);
-         if (isset($up['errno']) && $up['errno'] <> 0) {
-            $this->model('Log')->write(__CLASS__ . '::sendNotifDeposit | WA ok tapi update DB gagal: ' . ($up['error'] ?? '') . ' | q=' . ($up['query'] ?? ''));
-         }
+         ], $whereNotif);
       } else {
-         $db->update('notif', ['state' => 'pending'], $whereUp);
          $this->model('Log')->write(
-            __CLASS__ . '::sendNotifDeposit | WA gagal (pending) | HP: ' . $hp . ' | http=' . ($res['code'] ?? '') . ' | ' . ($res['error'] ?? '') . ' | ' . json_encode($res['data'] ?? [])
+            __CLASS__ . '::sendNotifDeposit | WA gagal | HP: ' . $hp . ' | ' . ($res['error'] ?? '') . ' | ' . json_encode($res)
          );
       }
 

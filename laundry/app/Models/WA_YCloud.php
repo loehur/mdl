@@ -92,23 +92,10 @@ class WA_YCloud extends DB
             // Log full response untuk debug
             // $decoded dianggap null
         } else {
-            // JSON Valid — API success() kirim status true; toleransi 1 / "success" / HTTP 201
-            if ($httpCode == 200 || $httpCode == 201) {
-                $s = $decoded['status'] ?? null;
-                $okTop =
-                    $s === true
-                    || $s === 1
-                    || $s === '1'
-                    || $s === 'success'
-                    || $s === 'Success'
-                    || (is_string($s) && strtolower($s) === 'true');
-                $d = isset($decoded['data']) && is_array($decoded['data']) ? $decoded['data'] : [];
-                $okData = !empty($d['id']) || !empty($d['message_id']);
-                if ($okTop) {
-                    $status = true;
-                    $msg = 'Success';
-                } elseif ($okData && ($s === null || $s === '')) {
-                    // Varian: tanpa field status tapi ada id / message_id di data
+            // JSON Valid
+            if ($httpCode == 200) {
+                // Cek sukses standard framework kita
+                if (isset($decoded['status']) && ($decoded['status'] === true || $decoded['status'] === 'success')) {
                     $status = true;
                     $msg = 'Success';
                 } else {

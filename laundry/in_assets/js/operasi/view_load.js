@@ -886,11 +886,7 @@
     });
   });
 
-  $(document).off("click", "a.sendNotifMember").on("click", "a.sendNotifMember", function (e) {
-    // Saldo Tunai memakai kelas sendNotifSaldoDeposit + handler di viewData; link lama bisa punya data-hp
-    if ($(this).attr("data-hp")) {
-      return;
-    }
+  $("a.sendNotifMember").on("click", function (e) {
     klikNotif += 1;
     if (klikNotif > 1) {
       return;

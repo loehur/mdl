@@ -1,7 +1,6 @@
 <?php
 $id_pelanggan = $data['pelanggan'];
 $nama_pelanggan = "";
-$no_pelanggan = "";
 foreach ($this->pelanggan as $dp) {
   if ($dp['id_pelanggan'] == $id_pelanggan) {
     $nama_pelanggan = $dp['nama_pelanggan'];
@@ -60,7 +59,7 @@ foreach ($this->pelanggan as $dp) {
     }
 
     //BUTTON NOTIF
-    $buttonNotif = "<a href='#' data-hp='" . htmlspecialchars((string) $no_pelanggan, ENT_QUOTES, 'UTF-8') . "' data-ref='" . htmlspecialchars((string) $id, ENT_QUOTES, 'UTF-8') . "' data-time='" . htmlspecialchars((string) $timeRef, ENT_QUOTES, 'UTF-8') . "' class='text-dark sendNotifSaldoDeposit bg-white rounded col pl-2 pr-2 mr-1'><i class='fab fa-whatsapp'></i> <span id='notif" . htmlspecialchars((string) $id, ENT_QUOTES, 'UTF-8') . "'></span></a>";
+    $buttonNotif = "<a href='#' data-hp='" . $no_pelanggan . "' data-ref='" . $id . "' data-time='" . $timeRef . "' class='text-dark sendNotifMember bg-white rounded col pl-2 pr-2 mr-1'><i class='fab fa-whatsapp'></i> <span id='notif" . $id . "'></span></a>";
     foreach ($data["notif"] as $notif) {
       if ($notif['no_ref'] == $id) {
         $stNotif = ucwords($notif['state']);
@@ -276,17 +275,13 @@ foreach ($this->pelanggan as $dp) {
     });
   }
 
-  $(document).off('click', 'a.sendNotifSaldoDeposit').on('click', 'a.sendNotifSaldoDeposit', function(e) {
+  $("a.sendNotifMember").on('click', function(e) {
     e.preventDefault();
-    var $a = $(this);
-    if ($a.data('sending')) return;
-    $a.data('sending', 1);
     $(".loaderDiv").fadeIn("fast");
-    var hpNya = $a.attr('data-hp');
-    var refNya = $a.attr('data-ref');
-    var timeNya = $a.attr('data-time');
-    var $textEl = $("span#text" + refNya);
-    var textNya = $textEl.length ? $textEl.text() : '';
+    var hpNya = $(this).attr('data-hp');
+    var refNya = $(this).attr('data-ref');
+    var timeNya = $(this).attr('data-time');
+    var textNya = $("span#text" + refNya).html();
     $.ajax({
       url: '<?= URL::BASE_URL ?>SaldoTunai/sendNotifDeposit',
       data: {
@@ -294,25 +289,16 @@ foreach ($this->pelanggan as $dp) {
         text: textNya,
         ref: refNya,
         time: timeNya,
-        id_pelanggan: <?= (int) $id_pelanggan ?>
       },
       type: "POST",
       success: function(res) {
         if (res == 0) {
           $(".loaderDiv").fadeOut("slow");
-          $('div#riwayat').load('<?= URL::BASE_URL ?>SaldoTunai/tampilkan/' + <?= (int) $id_pelanggan ?>);
+          $('div#riwayat').load('<?= URL::BASE_URL ?>SaldoTunai/tampilkan/' + <?= $id_pelanggan ?>);
         } else {
           alert(res);
-          $a.data('sending', 0);
         }
       },
-      error: function() {
-        alert('Gagal mengirim WA (jaringan).');
-        $a.data('sending', 0);
-      },
-      complete: function() {
-        $(".loaderDiv").fadeOut("slow");
-      }
     });
   });
 
