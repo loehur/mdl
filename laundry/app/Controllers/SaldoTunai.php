@@ -283,16 +283,6 @@ class SaldoTunai extends Controller
       $norefEsc = $db->escape($noref);
       $setOne = "no_ref = '" . $norefEsc . "' AND tipe = 4";
       $whereCheck = $this->wCabang . " AND " . $setOne;
-      $existingNotif = $db->count_where('notif', $whereCheck);
-      if (is_array($existingNotif)) {
-         $this->model('Log')->write(__CLASS__ . '::sendNotifDeposit | count_where gagal: ' . json_encode($existingNotif));
-         echo 'Gagal cek data notifikasi.';
-         return;
-      }
-      if ((int) $existingNotif > 0) {
-         echo 0;
-         return;
-      }
 
       $plainText = trim(html_entity_decode(strip_tags($text), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
       $plainText = str_replace(["\r\n", "\r"], "\n", $plainText);
@@ -301,13 +291,53 @@ class SaldoTunai extends Controller
          return;
       }
 
-      // --- Pola Antrian::sendNotif: variasi nomor + user internal + wa_messages_out ---
       $hpClean = preg_replace('/[^0-9]/', '', $hp);
       if ($hpClean === '') {
          echo 'Nomor WA tidak valid.';
          return;
       }
 
+      $rowExisting = $db->get_where_row('notif', $whereCheck);
+      if (!empty($rowExisting['id_notif'])) {
+         $prevState = strtolower((string) ($rowExisting['state'] ?? ''));
+         if (in_array($prevState, ['sent', 'processing', 'delivered', 'read'], true)) {
+            echo 0;
+            return;
+         }
+         // pending (atau gagal sebelumnya): boleh kirim ulang — jangan blokir selamanya
+         $id_notif = $rowExisting['id_notif'];
+         $upRetry = $db->update('notif', [
+            'phone' => $hp,
+            'text' => $plainText,
+            'state' => 'pending',
+            'id_api' => '',
+         ], $this->wCabang . " AND id_notif = '" . $db->escape($id_notif) . "'");
+         if (isset($upRetry['errno']) && $upRetry['errno'] <> 0) {
+            $this->model('Log')->write(__CLASS__ . '::sendNotifDeposit | gagal update retry: ' . ($upRetry['error'] ?? ''));
+            echo 'Gagal menyiapkan ulang notifikasi.';
+            return;
+         }
+      } else {
+         $id_notif = (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9);
+         $pendingData = [
+            'id_notif' => $id_notif,
+            'insertTime' => $time,
+            'id_cabang' => $this->id_cabang,
+            'no_ref' => $noref,
+            'phone' => $hp,
+            'text' => $plainText,
+            'tipe' => 4,
+            'id_api' => '',
+            'state' => 'pending',
+         ];
+         $insertResult = $db->insert('notif', $pendingData);
+         if (isset($insertResult['errno']) && $insertResult['errno'] <> 0) {
+            echo $insertResult['error'] ?? 'Gagal simpan notif';
+            return;
+         }
+      }
+
+      // --- Pola Antrian::sendNotif: variasi nomor + user internal + wa_messages_out ---
       $hpVariations = [];
       if (substr($hpClean, 0, 2) === '62') {
          $hpVariations[] = "'+62" . substr($hpClean, 2) . "'";
@@ -334,25 +364,6 @@ class SaldoTunai extends Controller
       $whereWaOut = "REPLACE(REPLACE(phone, '+', ''), '-', '') LIKE '%" . $matchDigitsWa . "'";
       $waOutCount = $this->db(100)->count_where('wa_messages_out', $whereWaOut);
       $waOutExists = is_numeric($waOutCount) ? (int) $waOutCount : 0;
-
-      $id_notif = (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9);
-      $pendingData = [
-         'id_notif' => $id_notif,
-         'insertTime' => $time,
-         'id_cabang' => $this->id_cabang,
-         'no_ref' => $noref,
-         'phone' => $hp,
-         'text' => $plainText,
-         'tipe' => 4,
-         'id_api' => '',
-         'state' => 'pending',
-      ];
-
-      $insertResult = $db->insert('notif', $pendingData);
-      if (isset($insertResult['errno']) && $insertResult['errno'] <> 0) {
-         echo $insertResult['error'] ?? 'Gagal simpan notif';
-         return;
-      }
 
       $cleanOrderList = str_replace(["\n", "\r", "\t"], " | ", $plainText);
       $cleanOrderList = preg_replace('/\s{2,}/', ' ', $cleanOrderList);
@@ -404,15 +415,18 @@ class SaldoTunai extends Controller
       $idApiStr = is_scalar($idApi) ? (string) $idApi : '';
 
       $whereUp = $this->wCabang . " AND no_ref = '" . $norefEsc . "' AND tipe = 4";
-      if ($res['status']) {
-         $db->update('notif', [
+      if (!empty($res['status'])) {
+         $up = $db->update('notif', [
             'id_api' => $idApiStr,
             'state' => 'sent',
          ], $whereUp);
+         if (isset($up['errno']) && $up['errno'] <> 0) {
+            $this->model('Log')->write(__CLASS__ . '::sendNotifDeposit | WA ok tapi update DB gagal: ' . ($up['error'] ?? '') . ' | q=' . ($up['query'] ?? ''));
+         }
       } else {
          $db->update('notif', ['state' => 'pending'], $whereUp);
          $this->model('Log')->write(
-            __CLASS__ . '::sendNotifDeposit | WA gagal (pending) | HP: ' . $hp . ' | ' . ($res['error'] ?? '') . ' | ' . json_encode($res)
+            __CLASS__ . '::sendNotifDeposit | WA gagal (pending) | HP: ' . $hp . ' | http=' . ($res['code'] ?? '') . ' | ' . ($res['error'] ?? '') . ' | ' . json_encode($res['data'] ?? [])
          );
       }
 
