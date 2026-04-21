@@ -87,7 +87,7 @@ class SaldoTunai extends Controller
    public function tampilkan($id_client)
    {
       $viewData = 'saldoTunai/viewData';
-      $where = $this->wCabang . " AND id_client = " . $id_client . " AND jenis_transaksi = 6 ORDER BY id_kas DESC";
+      $where = $this->wCabang . " AND id_client = " . $id_client . " AND jenis_transaksi = 6 ORDER BY insertTime DESC, id_kas DESC";
       $cols = "id_kas, jenis_mutasi, id_client, id_user, jumlah, metode_mutasi, status_mutasi, note, insertTime";
       // FIX: use db(0) directly
       $data = [];
