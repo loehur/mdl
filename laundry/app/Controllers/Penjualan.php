@@ -155,6 +155,7 @@ class Penjualan extends Controller
          $harga = $a['harga'];
          $total = $harga * $qty;
          $diskon_qty = $a['diskon_qty'];
+         $diskon_partner_manual = (float) ($a['diskon_partner'] ?? 0);
          $member = $a['member'];
 
          //CEK JIKA DISKON KHUSUS
@@ -166,7 +167,14 @@ class Penjualan extends Controller
             }
          }
 
+         // Prioritas diskon_partner:
+         // 1) diskon manual dari cart (per item)
+         // 2) diskon khusus pelanggan
+         // 3) diskon default pelanggan
          $diskon_partner = $disc_p;
+         if ($diskon_partner_manual > 0) {
+            $diskon_partner = $diskon_partner_manual;
+         }
 
          if ($member == 0) {
             if ($diskon_qty > 0 && $diskon_partner == 0) {
@@ -194,7 +202,7 @@ class Penjualan extends Controller
          // Hanya pakai member jika saldo cukup (jangan sampai minus)
          if ($saldo >= $qty) {
             $usedMemberQty[$idHarga] = $usedInLoop + $qty;
-            $set = "id_pelanggan = " . $pelanggan . ", no_ref = " . $no_ref . ", pelanggan = '" . $nama_pelanggan . "', member = 1, diskon_partner = " . $disc_p . ", total = 0, id_user = " . $id_penerima;
+            $set = "id_pelanggan = " . $pelanggan . ", no_ref = " . $no_ref . ", pelanggan = '" . $nama_pelanggan . "', member = 1, diskon_partner = " . $diskon_partner . ", total = 0, id_user = " . $id_penerima;
             $whereSet = "id_penjualan = '" . $id . "'";
             $this->db(0)->update('sale', $set, $whereSet);
          }
@@ -211,7 +219,7 @@ class Penjualan extends Controller
          }
          $where_update = "id_penjualan = '" . $id . "'";
          $totalForUpdate = ($saldo >= $qty) ? 0 : $total;
-         $set = $reset_diskon . "id_pelanggan = " . $pelanggan . ", pelanggan = '" . $nama_pelanggan . "', diskon_partner = " . $disc_p . ", total = " . $totalForUpdate . ", no_ref = " . $no_ref . ", id_user = " . $id_penerima;
+         $set = $reset_diskon . "id_pelanggan = " . $pelanggan . ", pelanggan = '" . $nama_pelanggan . "', diskon_partner = " . $diskon_partner . ", total = " . $totalForUpdate . ", no_ref = " . $no_ref . ", id_user = " . $id_penerima;
          $this->db(0)->update('sale', $set, $where_update);
       }
 
