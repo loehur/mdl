@@ -4648,6 +4648,20 @@ class WAReplies
                 $reason = 'remap ongkos + durasi/tier layanan → HARGA';
             }
 
+            // AI kadang salah pilih HARGA_PAKET untuk tanya harga layanan biasa (mis. "cek harga setrika").
+            // HARGA_PAKET wajib ada konteks paket/member/langganan/deposit.
+            if ($intent === 'HARGA_PAKET' && isset($keywordConfig['HARGA'])) {
+                $hasPaketContext = (bool) preg_match('/\b(paket|member|langganan|deposit|bulanan)\b/iu', $textBody);
+                $looksLikeRegularHargaQuestion = (bool) (
+                    preg_match('/\b(harga|biaya|tarif|berapa|brp|brapa)\b/iu', $textBody)
+                    && preg_match('/\b(setrika|strika|gosok|cuci|laundry|loundry|londri|kilo|kg|reguler|regular|ekspres|kilat)\b/iu', $textBody)
+                );
+                if (!$hasPaketContext && $looksLikeRegularHargaQuestion) {
+                    $intent = 'HARGA';
+                    $reason = 'remap HARGA_PAKET tanpa kata paket/member → HARGA';
+                }
+            }
+
             // Log: text | intent | reason
             if (class_exists('\Log')) {
                 \Log::write("{$textBody} | {$intent} | {$reason}", 'wa', 'intent');
