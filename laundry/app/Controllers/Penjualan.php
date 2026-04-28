@@ -296,6 +296,44 @@ class Penjualan extends Controller
       $this->db(0)->update('sale', $set, $where);
    }
 
+   public function setDiskonHarga()
+   {
+      $id = $_POST['id'] ?? '';
+      $hargaDiskon = (float) ($_POST['harga_diskon'] ?? 0);
+
+      if (strlen($id) == 0) {
+         echo "ID tidak valid";
+         return;
+      }
+
+      $row = $this->db(0)->get_where_row('sale', $this->wCabang . " AND id_penjualan = '" . $id . "'");
+      if (!isset($row['harga'])) {
+         echo "Data tidak ditemukan";
+         return;
+      }
+
+      $hargaAsli = (float) $row['harga'];
+      if ($hargaAsli <= 0) {
+         echo "Harga asli tidak valid";
+         return;
+      }
+
+      $diskonQty = 0;
+      if ($hargaDiskon > 0 && $hargaDiskon < $hargaAsli) {
+         $diskonQty = (($hargaAsli - $hargaDiskon) / $hargaAsli) * 100;
+      }
+
+      $set = "diskon_qty = " . round($diskonQty, 2);
+      $where = $this->wCabang . " AND id_penjualan = '" . $id . "'";
+      $do = $this->db(0)->update('sale', $set, $where);
+
+      if ($do['errno'] <> 0) {
+         echo $do['error'];
+      } else {
+         echo 0;
+      }
+   }
+
    public function sering($idPelanggan)
    {
       $viewData = 'penjualan/viewSering';
