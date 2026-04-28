@@ -83,14 +83,19 @@
             }
             $show_diskon_partner = "";
             if ($diskon_partner > 0) {
-              $show_diskon_partner = $diskon_partner . "%";
+              $show_diskon_partner = rtrim(rtrim(number_format($diskon_partner, 2, '.', ''), '0'), '.') . "%";
             }
             $plus = "";
             if ($diskon_qty > 0 && $diskon_partner > 0) {
               $plus = " + ";
             }
             $show_diskon = $show_diskon_qty . $plus . $show_diskon_partner;
-            $harga_diskon_now = $f7 - ($f7 * ($diskon_qty / 100));
+            $harga_diskon_now = $f7;
+            if ($diskon_partner > 0) {
+              $harga_diskon_now = $f7 - ($f7 * ($diskon_partner / 100));
+            } elseif ($diskon_qty > 0) {
+              $harga_diskon_now = $f7 - ($f7 * ($diskon_qty / 100));
+            }
 
             $itemList = "";
             if (strlen($f4) <> 0) {
@@ -107,7 +112,13 @@
               }
             }
 
-            $total = ($f7 * $qty_real) - (($f7 * $qty_real) * ($f14 / 100));
+            $total = $f7 * $qty_real;
+            if ($diskon_qty > 0) {
+              $total = $total - ($total * ($diskon_qty / 100));
+            }
+            if ($diskon_partner > 0) {
+              $total = $total - ($total * ($diskon_partner / 100));
+            }
 
             if (strlen($show_diskon) > 0) {
               $show_total = "<del>" . number_format($f7 * $qty_real) . "</del><br>" . number_format($total);

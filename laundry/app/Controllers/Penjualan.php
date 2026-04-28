@@ -318,12 +318,12 @@ class Penjualan extends Controller
          return;
       }
 
-      $diskonQty = 0;
+      $diskonPartner = 0;
       if ($hargaDiskon > 0 && $hargaDiskon < $hargaAsli) {
-         $diskonQty = (($hargaAsli - $hargaDiskon) / $hargaAsli) * 100;
+         $diskonPartner = (($hargaAsli - $hargaDiskon) / $hargaAsli) * 100;
       }
 
-      $set = "diskon_qty = " . round($diskonQty, 2);
+      $set = "diskon_partner = " . round($diskonPartner, 2);
       $where = $this->wCabang . " AND id_penjualan = '" . $id . "'";
       $do = $this->db(0)->update('sale', $set, $where);
 
