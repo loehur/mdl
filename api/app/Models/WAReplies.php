@@ -2112,7 +2112,12 @@ class WAReplies
             $answer = $this->executeOpenAIRequestWithMessages($messages, 400);
             $text = trim($answer);
             if (empty($text)) {
-                return; // AI tidak bisa jawab, CS yang akan membalas manual
+                $fallback = "Mohon maaf, saya belum bisa menampilkan harga saat ini.\nBoleh sebutkan itemnya (mis. pakaian harian, bedcover, sepatu, gorden) agar saya bantu cek harga?";
+                $res = $waService->sendFreeText($waNumber, $fallback);
+                if ($res['success']) {
+                    $this->pushToWebSocket($this->buildWsPayload($waNumber, $fallback, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+                }
+                return;
             }
 
             $res = $waService->sendFreeText($waNumber, $text);
@@ -2123,7 +2128,12 @@ class WAReplies
             if (class_exists('\Log')) {
                 \Log::write("handleHarga ERROR: " . $e->getMessage(), 'wa_error', 'Harga');
             }
-            return; // Error, CS yang akan membalas manual
+            $fallback = "Mohon maaf, sistem sedang sibuk saat cek harga.\nSilakan kirim lagi dengan item yang dicari (contoh: setrika, bedcover, sepatu, gorden).";
+            $res = $waService->sendFreeText($waNumber, $fallback);
+            if ($res['success']) {
+                $this->pushToWebSocket($this->buildWsPayload($waNumber, $fallback, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+            }
+            return;
         }
     }
 
@@ -2169,6 +2179,8 @@ class WAReplies
         }
 
         $questionLower = mb_strtolower(trim($questionText));
+        $specialItemPattern = '/\b(gorden|gor?d?en|bed\s*cover|bedcover|selimut|karpet|sepatu|tas|boneka|jaket|sprei|kemeja|gaun|jas|hoodie|sweater|mukena|jilbab|kerudung)\b/iu';
+        $mentionsSpecialItem = (bool) preg_match($specialItemPattern, $questionLower);
         $keywords = [];
         if ($questionLower !== '') {
             if (preg_match('/\b(reguler\s*[-]?\s*d)\b/iu', $questionLower)) {
@@ -2208,11 +2220,6 @@ class WAReplies
             $namaJenis = $pj ? $pj['nama'] : 'Layanan';
             $idSatuan = $pj ? $pj['id_satuan'] : 0;
             $unit = $satuan[$idSatuan] ?? '';
-
-            if ($namaJenis !== $currentJenis) {
-                $currentJenis = $namaJenis;
-                $lines[] = "\n=== " . strtoupper($namaJenis) . " (per " . $unit . ") ===";
-            }
 
             $kategori = $itemGroup[$r['id_item_group']] ?? 'Item';
             $listL = @unserialize($r['list_layanan'] ?? '');
@@ -2258,6 +2265,7 @@ class WAReplies
             }
 
             $enrichedRows[] = [
+                'kategori' => $kategori,
                 'namaJenis' => $namaJenis,
                 'unit' => $unit,
                 'line' => $line,
@@ -2265,8 +2273,20 @@ class WAReplies
             ];
         }
 
+        $defaultRows = $enrichedRows;
+        // Jika item khusus tidak disebut, anggap user menanyakan "pakaian harian".
+        if (!$mentionsSpecialItem) {
+            $pakaianHarianRows = array_values(array_filter($enrichedRows, function ($row) {
+                $kategori = mb_strtolower((string) ($row['kategori'] ?? ''));
+                return mb_strpos($kategori, 'pakaian') !== false && mb_strpos($kategori, 'harian') !== false;
+            }));
+            if (!empty($pakaianHarianRows)) {
+                $defaultRows = $pakaianHarianRows;
+            }
+        }
+
         if (!empty($keywords)) {
-            $filtered = array_values(array_filter($enrichedRows, function ($row) {
+            $filtered = array_values(array_filter($defaultRows, function ($row) {
                 return (int) ($row['score'] ?? 0) > 0;
             }));
         } else {
@@ -2274,7 +2294,7 @@ class WAReplies
         }
 
         // Jika tidak ada match keyword, fallback ke data terpopuler (urutan default query).
-        $selectedRows = !empty($filtered) ? $filtered : $enrichedRows;
+        $selectedRows = !empty($filtered) ? $filtered : $defaultRows;
         $selectedRows = array_slice($selectedRows, 0, max(1, (int) $maxRows));
 
         $lines = [];
