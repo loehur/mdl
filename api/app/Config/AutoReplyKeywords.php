@@ -22,6 +22,8 @@ return [
     'NOTA' => [
         'patterns' => [
             '/^\s*(bon|nota|struk)\s*$/i',
+            // "cek bon", "cek nota", "cek struk"
+            '/^\s*(cek|cekin|cekkan)\s*(bon|nota|struk)\s*$/i',
             // "minta nota", "pagi kak minta bon", "bisa kirim struk"
             '/\b(minta|tolong|bisa|boleh)\s*(nota|bon|struk)\s*(saya|ku|punya)?/i',
             '/\b(kirim|kirimkan)\s*(nota|bon|struk)\s*(saya|ku|punya)?/i',
