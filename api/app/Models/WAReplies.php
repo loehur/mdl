@@ -2088,7 +2088,7 @@ class WAReplies
     {
         $waService = $this->getWaService();
 
-        $priceDataText = $this->loadHargaDataForAI();
+        $priceDataText = $this->loadHargaDataForAI($textBody, 20);
         if (empty($priceDataText)) {
             return; // Tidak ada data, CS yang akan membalas manual
         }
@@ -2131,7 +2131,7 @@ class WAReplies
      * Load harga data dari db(1) - format sama SetHarga view
      * Return: text untuk context AI
      */
-    private function loadHargaDataForAI()
+    private function loadHargaDataForAI(string $questionText = '', int $maxRows = 20)
     {
         $db = DB::getInstance(1);
 
@@ -2168,11 +2168,41 @@ class WAReplies
             return '';
         }
 
-        $lines = [];
-        $currentJenis = '';
-        $lineNum = 0;
+        $questionLower = mb_strtolower(trim($questionText));
+        $keywords = [];
+        if ($questionLower !== '') {
+            if (preg_match('/\b(reguler\s*[-]?\s*d)\b/iu', $questionLower)) {
+                $keywords[] = 'reguler-d';
+            }
+            if (preg_match('/\b(ekspres\s*[-]?\s*d)\b/iu', $questionLower)) {
+                $keywords[] = 'ekspres-d';
+            }
+            if (preg_match('/\b(kilat\s*[-]?\s*d)\b/iu', $questionLower)) {
+                $keywords[] = 'kilat-d';
+            }
+            if (preg_match('/\b(setrika|strika|gosok)\b/iu', $questionLower)) {
+                $keywords[] = 'setrika';
+                $keywords[] = 'strika';
+                $keywords[] = 'gosok';
+            }
+
+            preg_match_all('/[a-z0-9\-]{3,}/iu', $questionLower, $m);
+            $tokens = $m[0] ?? [];
+            $stopwords = [
+                'harga', 'berapa', 'brp', 'kak', 'bang', 'pak', 'bu', 'mau', 'saya', 'aku', 'yang',
+                'untuk', 'dan', 'atau', 'ini', 'itu', 'ada', 'bisa', 'tolong', 'info', 'dong', 'ya',
+                'laundry', 'cuci'
+            ];
+            foreach ($tokens as $token) {
+                if (!in_array($token, $stopwords, true)) {
+                    $keywords[] = $token;
+                }
+            }
+        }
+        $keywords = array_values(array_unique($keywords));
+
+        $enrichedRows = [];
         foreach ($rows as $r) {
-            $lineNum++;
             $idPj = $r['id_penjualan_jenis'];
             $pj = $penjualan[$idPj] ?? null;
             $namaJenis = $pj ? $pj['nama'] : 'Layanan';
@@ -2201,8 +2231,7 @@ class WAReplies
             $hari = (int) ($r['hari'] ?? 0);
             $jam = (int) ($r['jam'] ?? 0);
 
-            $prefix = $lineNum <= 10 ? "{$lineNum}. " : "- ";
-            $line = $prefix . "{$kategori} | {$layananStr} | {$durasiStr} | Rp " . number_format($harga, 0, ',', '.') . "/{$unit}";
+            $line = "{$kategori} | {$layananStr} | {$durasiStr} | Rp " . number_format($harga, 0, ',', '.') . "/{$unit}";
             if ($minOrder > 0) {
                 $line .= " | Min order: {$minOrder}{$unit}";
             }
@@ -2212,7 +2241,53 @@ class WAReplies
                 if ($jam > 0) $waktuParts[] = $jam . ' Jam';
                 $line .= ' | Waktu: ' . implode(' ', $waktuParts);
             }
-            $lines[] = $line;
+
+            $searchBlob = mb_strtolower(implode(' ', [
+                (string) $kategori,
+                (string) $namaJenis,
+                (string) $layananStr,
+                (string) $durasiStr,
+                (string) $line,
+            ]));
+
+            $matchScore = 0;
+            foreach ($keywords as $kw) {
+                if ($kw !== '' && mb_strpos($searchBlob, $kw) !== false) {
+                    $matchScore++;
+                }
+            }
+
+            $enrichedRows[] = [
+                'namaJenis' => $namaJenis,
+                'unit' => $unit,
+                'line' => $line,
+                'score' => $matchScore,
+            ];
+        }
+
+        if (!empty($keywords)) {
+            $filtered = array_values(array_filter($enrichedRows, function ($row) {
+                return (int) ($row['score'] ?? 0) > 0;
+            }));
+        } else {
+            $filtered = [];
+        }
+
+        // Jika tidak ada match keyword, fallback ke data terpopuler (urutan default query).
+        $selectedRows = !empty($filtered) ? $filtered : $enrichedRows;
+        $selectedRows = array_slice($selectedRows, 0, max(1, (int) $maxRows));
+
+        $lines = [];
+        $currentJenis = '';
+        $lineNum = 0;
+        foreach ($selectedRows as $row) {
+            $lineNum++;
+            if ($row['namaJenis'] !== $currentJenis) {
+                $currentJenis = $row['namaJenis'];
+                $lines[] = "\n=== " . strtoupper($row['namaJenis']) . " (per " . $row['unit'] . ") ===";
+            }
+            $prefix = "{$lineNum}. ";
+            $lines[] = $prefix . $row['line'];
         }
 
         return trim(implode("\n", $lines));
