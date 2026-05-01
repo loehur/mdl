@@ -187,7 +187,6 @@ class Data_List extends Controller
                'id_cabang' => $_POST['f3'] ?? 0,
                'no_user' => $no_user,
                'nama_user' => trim($_POST['f1'] ?? ''),
-               'nama_pemilik' => '',
                'id_privilege' => $privilege,
             ];
             
@@ -342,9 +341,6 @@ class Data_List extends Controller
             $mode = $_POST['mode'];
 
             switch ($mode) {
-               case "1":
-                  $col = "nama_pemilik";
-                  break;
                case "2":
                   $col = "nama_user";
                   break;
@@ -491,7 +487,7 @@ class Data_List extends Controller
          }
       }
 
-      if (isset($col) && ($col === 'nama_pelanggan' || $col === 'nama_user' || $col === 'nama_pemilik')) {
+      if (isset($col) && ($col === 'nama_pelanggan' || $col === 'nama_user')) {
          $value = is_string($value) ? trim($value) : $value;
       }
 
