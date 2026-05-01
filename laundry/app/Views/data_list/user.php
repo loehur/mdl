@@ -53,9 +53,15 @@
                     $classAdmin = "row-disabled";
                   }
 
+                  $nama_pemilik = trim($a['nama_pemilik'] ?? '');
+                  $npAttr = htmlspecialchars($nama_pemilik, ENT_QUOTES, 'UTF-8');
+                  $npInner = $nama_pemilik !== '' ? htmlspecialchars($nama_pemilik, ENT_NOQUOTES, 'UTF-8') : '<span class="text-muted">-</span>';
+
                   echo "<tr class='" . $classAdmin . "'>";
                   echo "<td>";
-                  echo "<span data-mode=2 data-id_value='" . $id . "' data-value='" . $a['nama_user'] . "'><b>" . $a['nama_user'] . "</b></span><br><span data-mode=5 data-id_value='" . $id . "' data-value='" . $f3name . "'>" . $f3name . "</span>";
+                  echo "<span data-mode=2 data-id_value='" . $id . "' data-value='" . $a['nama_user'] . "'><b>" . $a['nama_user'] . "</b></span>";
+                  echo "<br><span data-mode=1 data-id_value='" . $id . "' data-value='" . $npAttr . "'>" . $npInner . "</span>";
+                  echo "<br><span data-mode=5 data-id_value='" . $id . "' data-value='" . $f3name . "'>" . $f3name . "</span>";
                   echo "</td>";
                   echo "<td>" . $no . "#" . $id . " <span data-mode=4 data-id_value='" . $id . "' data-value='" . $f2name . "'>" . $f2name . "</span><br><span data-mode=6 data-id_value='" . $id . "' data-value='" . $a['no_user'] . "'>" . $a['no_user'] . "</span></td>";
                   echo "<td class='text-right'>";
@@ -205,7 +211,7 @@
       $("#value_").focusout(function() {
         var value_after = $(this).val();
         if (value_after === value_before) {
-          span.html(value);
+          span.html(valHtml);
           click = 0;
         } else {
           $.ajax({
