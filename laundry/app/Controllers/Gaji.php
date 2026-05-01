@@ -221,8 +221,24 @@ class Gaji extends Controller
    }
 
    /**
-    * Sinkron kolom gaji_laundry ke semua karyawan untuk pasangan jenis_penjualan + id_layanan yang sama.
-    * Karyawan aktif tanpa baris akan mendapat INSERT dengan template dari baris referensi.
+    * True jika pasangan jenis penjualan + layanan = Kiloan + Setrika (nama dari DB, case-insensitive).
+    * Sinkron gaji_laundry multi-karyawan hanya berlaku untuk pasangan ini.
+    */
+   private function isGajiLaundryKiloanSetrika(int $jenisPenjualanId, int $idLayananId): bool
+   {
+      $p = $this->db(0)->get_where_row('penjualan_jenis', 'id_penjualan_jenis = ' . $jenisPenjualanId);
+      $l = $this->db(0)->get_where_row('layanan', 'id_layanan = ' . $idLayananId);
+      if (empty($p) || empty($l)) {
+         return false;
+      }
+      $namaPenj = isset($p['penjualan_jenis']) ? trim((string) $p['penjualan_jenis']) : '';
+      $namaLay = isset($l['layanan']) ? trim((string) $l['layanan']) : '';
+      return strcasecmp($namaPenj, 'Kiloan') === 0 && strcasecmp($namaLay, 'Setrika') === 0;
+   }
+
+   /**
+    * gaji_laundry: sinkron ke semua karyawan + insert yang belum punya baris hanya untuk Kiloan + Setrika.
+    * Kombinasi lain hanya meng-update baris id_gaji_laundry yang diedit.
     */
    private function updateGajiLaundryCell($idGajiLaundry, $col, $value)
    {
@@ -239,6 +255,11 @@ class Gaji extends Controller
       $jenis = (int) $ref['jenis_penjualan'];
       $idLayanan = (int) $ref['id_layanan'];
       $numVal = (int) $value;
+
+      if (!$this->isGajiLaundryKiloanSetrika($jenis, $idLayanan)) {
+         $this->db(0)->update('gaji_laundry', [$col => $numVal], 'id_gaji_laundry = ' . $idGajiLaundry);
+         return;
+      }
 
       $wherePair = 'jenis_penjualan = ' . $jenis . ' AND id_layanan = ' . $idLayanan;
       $this->db(0)->update('gaji_laundry', [$col => $numVal], $wherePair);
