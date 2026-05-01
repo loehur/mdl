@@ -186,7 +186,7 @@ class Data_List extends Controller
                'username' => $username,
                'id_cabang' => $_POST['f3'] ?? 0,
                'no_user' => $no_user,
-               'nama_user' => trim($_POST['f1'] ?? ''),
+               'nama_user' => $this->formatNamaUserTitleCase($_POST['f1'] ?? ''),
                'id_privilege' => $privilege,
             ];
             
@@ -498,6 +498,9 @@ class Data_List extends Controller
             ? (function_exists('mb_strtoupper') ? mb_strtoupper($value, 'UTF-8') : strtoupper($value))
             : '';
       }
+      if (isset($col) && $col === 'nama_user' && is_string($value)) {
+         $value = $this->formatNamaUserTitleCase($value);
+      }
 
       $set = [
          $col => $value
@@ -542,5 +545,17 @@ class Data_List extends Controller
          $where = "id = '$id_esc'";
          $this->db(0)->delete('barang_sub', $where);
       }
+   }
+
+   private function formatNamaUserTitleCase($s)
+   {
+      $s = trim((string) $s);
+      if ($s === '') {
+         return '';
+      }
+      if (function_exists('mb_convert_case') && function_exists('mb_strtolower')) {
+         return mb_convert_case(mb_strtolower($s, 'UTF-8'), MB_CASE_TITLE, 'UTF-8');
+      }
+      return ucwords(strtolower($s));
    }
 }

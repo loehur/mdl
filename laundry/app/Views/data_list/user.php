@@ -66,13 +66,19 @@
                     $bankAccNameShow = $bankAccNameUpper !== '' ? htmlspecialchars($bankAccNameUpper) : '<span class="text-muted">-</span>';
 
                     $classAdmin = ($f3 != 100) ? "" : "row-disabled";
-                    $namaEsc = htmlspecialchars((string) $a['nama_user'], ENT_QUOTES, 'UTF-8');
+                    $namaRaw = trim((string) $a['nama_user']);
+                    $namaTitle = $namaRaw !== ''
+                      ? (function_exists('mb_convert_case') && function_exists('mb_strtolower')
+                        ? mb_convert_case(mb_strtolower($namaRaw, 'UTF-8'), MB_CASE_TITLE, 'UTF-8')
+                        : ucwords(strtolower($namaRaw)))
+                      : '';
+                    $namaEsc = htmlspecialchars($namaTitle, ENT_QUOTES, 'UTF-8');
                     $noHpEsc = htmlspecialchars((string) $a['no_user'], ENT_QUOTES, 'UTF-8');
 
                     echo "<tr class='" . $classAdmin . " tr" . (int) $id . "'>";
                     echo "<td class='text-center'>" . $no . "</td>";
                     echo "<td class='text-center'>" . (int) $id . "</td>";
-                    echo "<td><span data-mode='2' data-id_value='" . (int) $id . "' data-value='" . $namaEsc . "'><b>" . htmlspecialchars($a['nama_user']) . "</b></span></td>";
+                    echo "<td><span data-mode='2' data-id_value='" . (int) $id . "' data-value='" . $namaEsc . "'><b>" . htmlspecialchars($namaTitle) . "</b></span></td>";
                     echo "<td><span data-mode='4' data-id_value='" . (int) $id . "' data-value='" . (int) $f2 . "'>" . htmlspecialchars($f2name) . "</span></td>";
                     echo "<td><span data-mode='5' data-id_value='" . (int) $id . "' data-value='" . (int) $f3 . "'>" . htmlspecialchars($f3name) . "</span></td>";
                     echo "<td><span data-mode='6' data-id_value='" . (int) $id . "' data-value='" . $noHpEsc . "'>" . htmlspecialchars((string) $a['no_user']) . "</span></td>";
