@@ -239,7 +239,7 @@ $totalTerima = 0;
                   echo "<td class='text-right'><small>Qty</small><br>" . $totalTerima . "</td>";
                   echo "<td class='text-right'><small>Fee</small><br>Rp
                 
-                <span class='edit' data-table='gaji_pengali' data-col='gaji_pengali' data-id_edit='" . $id_gp . "'>" . $feeTerima . "</span>
+                <span class='edit' data-table='gaji_pengali' data-col='gaji_pengali' data-id_pengali='1' data-id_edit='" . $id_gp . "'>" . $feeTerima . "</span>
   
                 </td>";
                   echo "<td class='text-right'><small>Total</small><br>Rp" . number_format($totalFeeTerima) . "</td>";
@@ -270,7 +270,7 @@ $totalTerima = 0;
                   echo "<td class='text-right'><small>Qty</small><br>" . $totalKembali . "</td>";
                   echo "<td class='text-right'><small>Fee</small><br>Rp
               
-              <span class='edit' data-table='gaji_pengali' data-col='gaji_pengali' data-id_edit='" . $id_gp . "'>" . $feeKembali . "</span>
+              <span class='edit' data-table='gaji_pengali' data-col='gaji_pengali' data-id_pengali='2' data-id_edit='" . $id_gp . "'>" . $feeKembali . "</span>
 
               </td>";
                   echo "<td class='text-right'><small>Total</small><br>Rp" . number_format($totalFeeKembali) . "</td>";
@@ -725,27 +725,32 @@ $totalTerima = 0;
     var value = $(this).html();
     var col = $(this).attr('data-col');
     var table = $(this).attr('data-table');
+    var id_pengali = $(this).attr('data-id_pengali');
     var value_before = value;
     var span = $(this);
 
-    var valHtml = $(this).html();
-    span.html("<input type='number' style='width:70px' id='value" + id_edit + "' value='" + value + "'>");
+    var inputId = 'value' + table + '_' + col + '_' + id_edit + '_' + (id_pengali || '0');
+    span.html("<input type='number' style='width:70px' id='" + inputId + "' value='" + value + "'>");
 
-    $("#value" + id_edit).focus();
-    $("#value" + id_edit).focusout(function() {
+    $('#' + inputId).focus();
+    $('#' + inputId).focusout(function() {
       var value_after = $(this).val();
       if (value_after === value_before) {
         span.html(value);
         click = 0;
       } else {
+        var ajaxData = {
+          'id': id_edit,
+          'value': value_after,
+          'col': col,
+          'table': table
+        };
+        if (id_pengali !== undefined && id_pengali !== '') {
+          ajaxData.id_pengali = id_pengali;
+        }
         $.ajax({
           url: '<?= URL::BASE_URL ?>Gaji/updateCell',
-          data: {
-            'id': id_edit,
-            'value': value_after,
-            'col': col,
-            'table': table
-          },
+          data: ajaxData,
           type: 'POST',
           dataType: 'html',
           success: function(response) {

@@ -126,14 +126,19 @@ class Gaji extends Controller
       $value = $_POST['value'];
       $col = $_POST['col'];
 
+      if ($table === 'gaji_laundry') {
+         $this->updateGajiLaundryCell((int) $id, $col, $value);
+         return;
+      }
+
+      if ($table === 'gaji_pengali') {
+         $idPengaliPost = isset($_POST['id_pengali']) ? (int) $_POST['id_pengali'] : 0;
+         $this->updateGajiPengaliCell((int) $id, $col, $value, $idPengaliPost);
+         return;
+      }
+
       $where = "";
       switch ($table) {
-         case 'gaji_laundry':
-            $where = "id_gaji_laundry = " . $id;
-            break;
-         case 'gaji_pengali':
-            $where = "id_gaji_pengali = " . $id;
-            break;
          case 'gaji_pengali_data':
             $where = "id_pengali_data = " . $id;
             break;
@@ -143,6 +148,141 @@ class Gaji extends Controller
          $col => $value
       ];
       $this->db(0)->update($table, $set, $where);
+   }
+
+   /**
+    * Untuk id_pengali 1 (Terima) dan 2 (Kembali): sinkron fee ke semua karyawan + insert yang belum punya baris.
+    * Jenis pengali lain tetap update satu baris saja.
+    */
+   private function updateGajiPengaliCell($idGajiPengali, $col, $value, $idPengaliPost = 0)
+   {
+      if ($col !== 'gaji_pengali') {
+         if ($idGajiPengali < 1) {
+            return;
+         }
+         $this->db(0)->update('gaji_pengali', [$col => $value], 'id_gaji_pengali = ' . $idGajiPengali);
+         return;
+      }
+
+      $numVal = (int) $value;
+      $idPengali = 0;
+
+      if ($idGajiPengali > 0) {
+         $ref = $this->db(0)->get_where_row('gaji_pengali', 'id_gaji_pengali = ' . $idGajiPengali);
+         if (empty($ref) || !isset($ref['id_pengali'])) {
+            return;
+         }
+         $idPengali = (int) $ref['id_pengali'];
+      } elseif (in_array($idPengaliPost, [1, 2], true)) {
+         $idPengali = $idPengaliPost;
+      } else {
+         return;
+      }
+
+      if (!in_array($idPengali, [1, 2], true)) {
+         $this->db(0)->update('gaji_pengali', ['gaji_pengali' => $numVal], 'id_gaji_pengali = ' . $idGajiPengali);
+         return;
+      }
+
+      $whereP = 'id_pengali = ' . $idPengali;
+      $this->db(0)->update('gaji_pengali', ['gaji_pengali' => $numVal], $whereP);
+
+      $existing = $this->db(0)->get_cols_where('gaji_pengali', 'id_karyawan', $whereP, 1);
+      if (!is_array($existing)) {
+         $existing = [];
+      }
+      $have = [];
+      foreach ($existing as $row) {
+         if (isset($row['id_karyawan'])) {
+            $have[(int) $row['id_karyawan']] = true;
+         }
+      }
+
+      $karyawan = $this->db(0)->get_cols_where('user', 'id_user', 'en = 1', 1);
+      if (!is_array($karyawan)) {
+         $karyawan = [];
+      }
+
+      foreach ($karyawan as $k) {
+         if (!isset($k['id_user'])) {
+            continue;
+         }
+         $idKaryawan = (int) $k['id_user'];
+         if (isset($have[$idKaryawan])) {
+            continue;
+         }
+         $data = [
+            'id_karyawan' => $idKaryawan,
+            'id_pengali' => $idPengali,
+            'gaji_pengali' => $numVal,
+         ];
+         $this->db(0)->insert('gaji_pengali', $data);
+      }
+   }
+
+   /**
+    * Sinkron kolom gaji_laundry ke semua karyawan untuk pasangan jenis_penjualan + id_layanan yang sama.
+    * Karyawan aktif tanpa baris akan mendapat INSERT dengan template dari baris referensi.
+    */
+   private function updateGajiLaundryCell($idGajiLaundry, $col, $value)
+   {
+      $allowed = ['target', 'max_target', 'gaji_laundry', 'bonus_target'];
+      if (!in_array($col, $allowed, true)) {
+         return;
+      }
+
+      $ref = $this->db(0)->get_where_row('gaji_laundry', 'id_gaji_laundry = ' . $idGajiLaundry);
+      if (empty($ref) || !isset($ref['jenis_penjualan'], $ref['id_layanan'])) {
+         return;
+      }
+
+      $jenis = (int) $ref['jenis_penjualan'];
+      $idLayanan = (int) $ref['id_layanan'];
+      $numVal = (int) $value;
+
+      $wherePair = 'jenis_penjualan = ' . $jenis . ' AND id_layanan = ' . $idLayanan;
+      $this->db(0)->update('gaji_laundry', [$col => $numVal], $wherePair);
+
+      $gajiLaundry = $col === 'gaji_laundry' ? $numVal : (int) $ref['gaji_laundry'];
+      $target = $col === 'target' ? $numVal : (int) $ref['target'];
+      $maxTarget = $col === 'max_target' ? $numVal : (int) $ref['max_target'];
+      $bonusTarget = $col === 'bonus_target' ? $numVal : (int) $ref['bonus_target'];
+
+      $existing = $this->db(0)->get_cols_where('gaji_laundry', 'id_karyawan', $wherePair, 1);
+      if (!is_array($existing)) {
+         $existing = [];
+      }
+      $have = [];
+      foreach ($existing as $row) {
+         if (isset($row['id_karyawan'])) {
+            $have[(int) $row['id_karyawan']] = true;
+         }
+      }
+
+      $karyawan = $this->db(0)->get_cols_where('user', 'id_user', 'en = 1', 1);
+      if (!is_array($karyawan)) {
+         $karyawan = [];
+      }
+
+      foreach ($karyawan as $k) {
+         if (!isset($k['id_user'])) {
+            continue;
+         }
+         $idKaryawan = (int) $k['id_user'];
+         if (isset($have[$idKaryawan])) {
+            continue;
+         }
+         $data = [
+            'id_karyawan' => $idKaryawan,
+            'jenis_penjualan' => $jenis,
+            'id_layanan' => $idLayanan,
+            'gaji_laundry' => $gajiLaundry,
+            'target' => $target,
+            'bonus_target' => $bonusTarget,
+            'max_target' => $maxTarget,
+         ];
+         $this->db(0)->insert('gaji_laundry', $data);
+      }
    }
 
    function penetapan($userID, $date)
