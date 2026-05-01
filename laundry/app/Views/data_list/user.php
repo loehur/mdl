@@ -16,66 +16,76 @@
             </button>
           </div>
           <div class="card-body p-0">
-            <table class="table table-sm" style="max-width: 450px;">
-              <tbody>
-                <?php
-                $no = 0;
-                foreach ($data['data_main'] as $a) {
-                  $no++;
+            <div class="table-responsive">
+              <table class="table table-sm table-bordered table-hover mb-0 w-100">
+                <thead class="table-light">
+                  <tr>
+                    <th class="text-center" style="width:3rem">No</th>
+                    <th class="text-center" style="width:4rem">ID</th>
+                    <th>Nama</th>
+                    <th>Cabang</th>
+                    <th>Privilege</th>
+                    <th>No. HP</th>
+                    <th>Rek. Bank</th>
+                    <th class="text-center" style="width:4rem">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <?php
+                  $no = 0;
+                  $cabangRow = null;
+                  foreach ($data['data_main'] as $a) {
+                    $no++;
 
-                  $id = $a['id_user'];
-                  $f2 = $a['id_cabang'];
-                  $f2name = "";
-                  foreach ($data['d2'] as $b) {
-                    if ($f2 == $b['id_cabang']) {
-                      $f2name = $b['kode_cabang'];
+                    $id = $a['id_user'];
+                    $f2 = $a['id_cabang'];
+                    $f2name = "";
+                    foreach ($data['d2'] as $b) {
+                      if ($f2 == $b['id_cabang']) {
+                        $f2name = $b['kode_cabang'];
+                      }
                     }
-                  }
 
-                  if (!isset($cabangRow)) {
-                    echo "<tr class='table-primary'><td colspan=11 class='text-center'>#" . $f2 . " <b>" . $f2name . "</b></td></tr>";
-                  }
-                  if (isset($cabangRow) && $cabangRow <> $f2) {
-                    echo "<tr class='table-primary'><td colspan=11 class='text-center'>#" . $f2 . " <b>" . $f2name . "</b></td></tr>";
-                  }
-
-                  $f3 = $a['id_privilege'];
-                  $f3name = "";
-                  foreach ($this->dPrivilege as $b) {
-                    if ($f3 == $b['id_privilege']) {
-                      $f3name = $b['privilege'];
+                    if ($cabangRow === null || $cabangRow != $f2) {
+                      echo "<tr class='table-primary'><td colspan='8' class='text-center'>#" . htmlspecialchars((string) $f2) . " <b>" . htmlspecialchars($f2name) . "</b></td></tr>";
                     }
-                  }
 
-                  $bankAccName = isset($a['bank_account_name']) ? (string) $a['bank_account_name'] : '';
-                  $bankAccNameEsc = htmlspecialchars($bankAccName, ENT_QUOTES, 'UTF-8');
-                  $bankAccNameShow = $bankAccName !== '' ? htmlspecialchars($bankAccName) : '<span class="text-muted">-</span>';
+                    $f3 = $a['id_privilege'];
+                    $f3name = "";
+                    foreach ($this->dPrivilege as $b) {
+                      if ($f3 == $b['id_privilege']) {
+                        $f3name = $b['privilege'];
+                      }
+                    }
 
-                  if ($f3 <> 100) {
-                    $classAdmin = "";
-                  } else {
-                    $classAdmin = "row-disabled";
-                  }
+                    $bankAccName = isset($a['bank_account_name']) ? (string) $a['bank_account_name'] : '';
+                    $bankAccNameEsc = htmlspecialchars($bankAccName, ENT_QUOTES, 'UTF-8');
+                    $bankAccNameShow = $bankAccName !== '' ? htmlspecialchars($bankAccName) : '<span class="text-muted">-</span>';
 
-                  echo "<tr class='" . $classAdmin . "'>";
-                  echo "<td>";
-                  echo "<span data-mode=2 data-id_value='" . $id . "' data-value='" . $a['nama_user'] . "'><b>" . $a['nama_user'] . "</b></span><br><span data-mode=5 data-id_value='" . $id . "' data-value='" . $f3name . "'>" . $f3name . "</span>";
-                  echo "</td>";
-                  echo "<td>" . $no . "#" . $id . " <span data-mode=4 data-id_value='" . $id . "' data-value='" . $f2name . "'>" . $f2name . "</span><br><span data-mode=6 data-id_value='" . $id . "' data-value='" . htmlspecialchars((string) $a['no_user'], ENT_QUOTES, 'UTF-8') . "'>" . $a['no_user'] . "</span><br><span data-mode=11 data-id_value='" . $id . "' data-value='" . $bankAccNameEsc . "'>" . $bankAccNameShow . "</span></td>";
-                  echo "<td class='text-right'>";
-                  echo " ";
-                  echo "</td>";
-                  if ($data['z']['mode'] == 'aktif') {
-                    echo "<td><a data-id_value='" . $id . "' data-value='0' class='text-danger enable' href='#'><i class='fas fa-times-circle'></i></a></td>";
-                  } else {
-                    echo "<td><a data-id_value='" . $id . "' data-value='1' class='text-success enable' href='#'><i class='fas fa-recycle'></i></a></td>";
+                    $classAdmin = ($f3 != 100) ? "" : "row-disabled";
+                    $namaEsc = htmlspecialchars((string) $a['nama_user'], ENT_QUOTES, 'UTF-8');
+                    $noHpEsc = htmlspecialchars((string) $a['no_user'], ENT_QUOTES, 'UTF-8');
+
+                    echo "<tr class='" . $classAdmin . " tr" . (int) $id . "'>";
+                    echo "<td class='text-center'>" . $no . "</td>";
+                    echo "<td class='text-center'>" . (int) $id . "</td>";
+                    echo "<td><span data-mode='2' data-id_value='" . (int) $id . "' data-value='" . $namaEsc . "'><b>" . htmlspecialchars($a['nama_user']) . "</b></span></td>";
+                    echo "<td><span data-mode='4' data-id_value='" . (int) $id . "' data-value='" . (int) $f2 . "'>" . htmlspecialchars($f2name) . "</span></td>";
+                    echo "<td><span data-mode='5' data-id_value='" . (int) $id . "' data-value='" . (int) $f3 . "'>" . htmlspecialchars($f3name) . "</span></td>";
+                    echo "<td><span data-mode='6' data-id_value='" . (int) $id . "' data-value='" . $noHpEsc . "'>" . htmlspecialchars((string) $a['no_user']) . "</span></td>";
+                    echo "<td><span data-mode='11' data-id_value='" . (int) $id . "' data-value='" . $bankAccNameEsc . "'>" . $bankAccNameShow . "</span></td>";
+                    if ($data['z']['mode'] == 'aktif') {
+                      echo "<td class='text-center'><a data-id_value='" . (int) $id . "' data-value='0' class='text-danger enable' href='#' title='Nonaktifkan'><i class='fas fa-times-circle'></i></a></td>";
+                    } else {
+                      echo "<td class='text-center'><a data-id_value='" . (int) $id . "' data-value='1' class='text-success enable' href='#' title='Aktifkan kembali'><i class='fas fa-recycle'></i></a></td>";
+                    }
+                    echo "</tr>";
+                    $cabangRow = $f2;
                   }
-                  echo "</tr>";
-                  $cabangRow = $f2;
-                }
-                ?>
-              </tbody>
-            </table>
+                  ?>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
@@ -171,7 +181,7 @@
     });
 
     var click = 0;
-    $("span").on('dblclick', function() {
+    $('table.table tbody').on('dblclick', 'span[data-mode]', function() {
       click = click + 1;
       if (click != 1) {
         return;
@@ -179,7 +189,7 @@
 
       var id_value = $(this).attr('data-id_value');
       var value = $(this).attr('data-value');
-      var mode = $(this).attr('data-mode');
+      var mode = String($(this).attr('data-mode'));
       var value_before = value;
       var span = $(this);
 
@@ -239,7 +249,7 @@
       });
     });
 
-    $(".enable").on("click", function(e) {
+    $('table.table tbody').on('click', 'a.enable', function(e) {
       e.preventDefault();
       var id_value = $(this).attr('data-id_value');
       var value = $(this).attr('data-value');
