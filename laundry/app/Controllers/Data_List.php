@@ -493,6 +493,11 @@ class Data_List extends Controller
       if (isset($col) && ($col === 'nama_pelanggan' || $col === 'nama_user' || $col === 'bank_account_name')) {
          $value = is_string($value) ? trim($value) : $value;
       }
+      if (isset($col) && $col === 'bank_account_name' && is_string($value)) {
+         $value = $value !== ''
+            ? (function_exists('mb_strtoupper') ? mb_strtoupper($value, 'UTF-8') : strtoupper($value))
+            : '';
+      }
 
       $set = [
          $col => $value

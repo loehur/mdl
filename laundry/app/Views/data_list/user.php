@@ -58,9 +58,12 @@
                       }
                     }
 
-                    $bankAccName = isset($a['bank_account_name']) ? (string) $a['bank_account_name'] : '';
-                    $bankAccNameEsc = htmlspecialchars($bankAccName, ENT_QUOTES, 'UTF-8');
-                    $bankAccNameShow = $bankAccName !== '' ? htmlspecialchars($bankAccName) : '<span class="text-muted">-</span>';
+                    $bankAccName = isset($a['bank_account_name']) ? trim((string) $a['bank_account_name']) : '';
+                    $bankAccNameUpper = $bankAccName !== ''
+                      ? (function_exists('mb_strtoupper') ? mb_strtoupper($bankAccName, 'UTF-8') : strtoupper($bankAccName))
+                      : '';
+                    $bankAccNameEsc = htmlspecialchars($bankAccNameUpper, ENT_QUOTES, 'UTF-8');
+                    $bankAccNameShow = $bankAccNameUpper !== '' ? htmlspecialchars($bankAccNameUpper) : '<span class="text-muted">-</span>';
 
                     $classAdmin = ($f3 != 100) ? "" : "row-disabled";
                     $namaEsc = htmlspecialchars((string) $a['nama_user'], ENT_QUOTES, 'UTF-8');
