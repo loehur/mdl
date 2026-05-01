@@ -47,6 +47,10 @@
                     }
                   }
 
+                  $bankAccName = isset($a['bank_account_name']) ? (string) $a['bank_account_name'] : '';
+                  $bankAccNameEsc = htmlspecialchars($bankAccName, ENT_QUOTES, 'UTF-8');
+                  $bankAccNameShow = $bankAccName !== '' ? htmlspecialchars($bankAccName) : '<span class="text-muted">-</span>';
+
                   if ($f3 <> 100) {
                     $classAdmin = "";
                   } else {
@@ -57,7 +61,7 @@
                   echo "<td>";
                   echo "<span data-mode=2 data-id_value='" . $id . "' data-value='" . $a['nama_user'] . "'><b>" . $a['nama_user'] . "</b></span><br><span data-mode=5 data-id_value='" . $id . "' data-value='" . $f3name . "'>" . $f3name . "</span>";
                   echo "</td>";
-                  echo "<td>" . $no . "#" . $id . " <span data-mode=4 data-id_value='" . $id . "' data-value='" . $f2name . "'>" . $f2name . "</span><br><span data-mode=6 data-id_value='" . $id . "' data-value='" . $a['no_user'] . "'>" . $a['no_user'] . "</span></td>";
+                  echo "<td>" . $no . "#" . $id . " <span data-mode=4 data-id_value='" . $id . "' data-value='" . $f2name . "'>" . $f2name . "</span><br><span data-mode=6 data-id_value='" . $id . "' data-value='" . htmlspecialchars((string) $a['no_user'], ENT_QUOTES, 'UTF-8') . "'>" . $a['no_user'] . "</span><br><span data-mode=11 data-id_value='" . $id . "' data-value='" . $bankAccNameEsc . "'>" . $bankAccNameShow . "</span></td>";
                   echo "<td class='text-right'>";
                   echo " ";
                   echo "</td>";
@@ -187,7 +191,9 @@
         case '6':
         case '7':
         case '10':
-          span.html("<input type='text' id='value_' value='" + value + "'>");
+        case '11':
+          span.empty();
+          span.append($('<input>', { type: 'text', id: 'value_' }).val(value));
           break;
         case '4':
           span.html('<select id="value_"><option value="' + value + '" selected>' + valHtml + '</option><?php foreach ($data['d2'] as $a) { ?><option value="<?= $a['id_cabang'] ?>"><?= $a['kode_cabang'] ?></option><?php } ?></select>');
@@ -205,7 +211,11 @@
       $("#value_").focusout(function() {
         var value_after = $(this).val();
         if (value_after === value_before) {
-          span.html(value);
+          if (mode === '11' && value_before === '') {
+            span.html('<span class="text-muted">-</span>');
+          } else {
+            span.html(value);
+          }
           click = 0;
         } else {
           $.ajax({

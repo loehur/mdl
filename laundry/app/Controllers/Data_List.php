@@ -353,6 +353,9 @@ class Data_List extends Controller
                case "6":
                   $col = "no_user";
                   break;
+               case "11":
+                  $col = "bank_account_name";
+                  break;
             }
             $where = "id_user = $id";
             break;
@@ -487,7 +490,7 @@ class Data_List extends Controller
          }
       }
 
-      if (isset($col) && ($col === 'nama_pelanggan' || $col === 'nama_user')) {
+      if (isset($col) && ($col === 'nama_pelanggan' || $col === 'nama_user' || $col === 'bank_account_name')) {
          $value = is_string($value) ? trim($value) : $value;
       }
 
