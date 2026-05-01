@@ -6,6 +6,7 @@
       <table class="table table-sm w-100">
         <thead>
           <th>Nama</th>
+          <th>Nama Pemilik</th>
           <th>Mac Address</th>
           <th>Mac Address 2</th>
         </thead>
@@ -27,8 +28,13 @@
               $f3 = '[ ]';
             }
 
+            $pemilikEmpty = ($f_pemilik === '');
+            $pemilikDisplay = $pemilikEmpty ? '[ ]' : htmlspecialchars($f_pemilik, ENT_NOQUOTES, 'UTF-8');
+            $pemilikAttr = htmlspecialchars($pemilikEmpty ? '[ ]' : $f_pemilik, ENT_QUOTES, 'UTF-8');
+
             echo "<tr>";
             echo "<td>" . strtoupper($f1) . "</td>";
+            echo "<td nowrap><span data-mode='1' data-id_value='" . $id . "' data-value='" . $pemilikAttr . "'>" . $pemilikDisplay . "</span></td>";
             if ($f2 == "[ ]") {
               echo "<td nowrap><span data-mode='2' data-id_value='" . $id . "' data-value='" . $f2 . "'>" . $f2 . "</span>";
             } else {
@@ -70,6 +76,7 @@
     var valHtml = $(this).html();
 
     switch (mode) {
+      case '1':
       case '2':
       case '3':
         if (value == '[ ]') {
@@ -103,6 +110,7 @@
             dataType: 'html',
             success: function(response) {
               span.html(value_after);
+              span.attr('data-value', value_after);
               click = 0;
             },
           });

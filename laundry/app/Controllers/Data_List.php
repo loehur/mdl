@@ -71,7 +71,7 @@ class Data_List extends Controller
             $view = 'data_list/' . $page;
             $data_operasi = ['title' => 'Karyawan Mac Address'];
             $table = $page;
-            $cols = 'id_user, nama_user, mac, mac_2';
+            $cols = 'id_user, nama_user, nama_pemilik, mac, mac_2';
             $where = $this->wCabang . " AND en = 1";
             $data_main = $this->db(0)->get_cols_where("user", $cols, $where, 1);
             break;
@@ -363,6 +363,9 @@ class Data_List extends Controller
             $mode = $_POST['mode'];
 
             switch ($mode) {
+               case "1":
+                  $col = "nama_pemilik";
+                  break;
                case "2":
                   $col = "mac";
                   break;
@@ -487,7 +490,7 @@ class Data_List extends Controller
          }
       }
 
-      if (isset($col) && ($col === 'nama_pelanggan' || $col === 'nama_user')) {
+      if (isset($col) && ($col === 'nama_pelanggan' || $col === 'nama_user' || $col === 'nama_pemilik')) {
          $value = is_string($value) ? trim($value) : $value;
       }
 
