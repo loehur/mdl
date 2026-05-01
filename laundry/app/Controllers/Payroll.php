@@ -63,6 +63,19 @@ class Payroll extends Controller
             }
         }
 
+        $lastMonthDt = new DateTime('now');
+        $lastMonthDt->modify('first day of this month');
+        $lastMonthDt->modify('-1 month');
+        $lastMonthPeriod = $lastMonthDt->format('Y-m');
+        $isLastMonthPeriod = ($period === $lastMonthPeriod);
+        $hasApprovedPayroll = false;
+        foreach ($payrollData as $p) {
+            if (strtolower((string)($p['state'] ?? '')) === 'approved') {
+                $hasApprovedPayroll = true;
+                break;
+            }
+        }
+
         $this->view('layout', ['data_operasi' => $data_operasi]);
         $this->view('payroll/index', [
             'period' => $period,
@@ -70,7 +83,10 @@ class Payroll extends Controller
             'karyawan' => $karyawan,
             'total_amount' => $total_amount,
             'total_cash' => $total_cash,
-            'total_transfer' => $total_transfer
+            'total_transfer' => $total_transfer,
+            'last_month_period' => $lastMonthPeriod,
+            'is_last_month_period' => $isLastMonthPeriod,
+            'has_approved_payroll' => $hasApprovedPayroll
         ]);
     }
 
@@ -347,6 +363,79 @@ class Payroll extends Controller
         $msg = "Berhasil approve: $success";
         if ($failed > 0) {
             $msg .= ", Gagal: $failed";
+        }
+
+        echo json_encode([
+            'ok' => true,
+            'msg' => $msg,
+            'success' => $success,
+            'failed' => $failed
+        ]);
+    }
+
+    /**
+     * Kembalikan semua payroll approved ke draft untuk satu periode.
+     * Hanya diizinkan jika periode sama dengan bulan kalender sebelumnya (bulan lalu).
+     * POST: period (YYYY-MM)
+     */
+    public function draft_all()
+    {
+        if (!headers_sent()) {
+            header('Content-Type: application/json; charset=utf-8');
+        }
+
+        $period = isset($_POST['period']) ? trim($_POST['period']) : '';
+
+        if (!preg_match('/^\d{4}-\d{2}$/', $period)) {
+            echo json_encode(['ok' => false, 'msg' => 'Periode tidak valid. Gunakan format YYYY-MM']);
+            return;
+        }
+
+        $lastMonthDt = new DateTime('now');
+        $lastMonthDt->modify('first day of this month');
+        $lastMonthDt->modify('-1 month');
+        $lastMonthPeriod = $lastMonthDt->format('Y-m');
+
+        if ($period !== $lastMonthPeriod) {
+            echo json_encode([
+                'ok' => false,
+                'msg' => 'Kembalikan ke draft hanya untuk periode bulan lalu (' . $lastMonthPeriod . ').'
+            ]);
+            return;
+        }
+
+        $approved = $this->db(100)->get_where(
+            'payroll',
+            "period = '" . $this->db(100)->escape($period) . "' AND business = 'laundry' AND state = 'approved'"
+        );
+
+        if (empty($approved)) {
+            echo json_encode(['ok' => false, 'msg' => 'Tidak ada payroll dengan status APPROVED untuk periode ' . $period]);
+            return;
+        }
+
+        $success = 0;
+        $failed = 0;
+
+        foreach ($approved as $d) {
+            $payroll_id = (int)($d['id'] ?? 0);
+            if ($payroll_id < 1) {
+                continue;
+            }
+            $set = ['state' => 'draft'];
+            $where = 'id = ' . $payroll_id;
+            $do = $this->db(100)->update('payroll', $set, $where);
+
+            if (isset($do['errno']) && $do['errno'] == 0) {
+                $success++;
+            } else {
+                $failed++;
+            }
+        }
+
+        $msg = 'Berhasil kembalikan ke draft: ' . $success;
+        if ($failed > 0) {
+            $msg .= ', Gagal: ' . $failed;
         }
 
         echo json_encode([

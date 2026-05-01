@@ -25,6 +25,17 @@
                             <button type="button" class="btn btn-warning" id="btnApproveAll">
                                 <i class="fas fa-check-circle me-1"></i>Approve All
                             </button>
+                            <button type="button" class="btn btn-outline-danger" id="btnDraftAll"
+                                title="<?php
+                                    if (empty($data['is_last_month_period'])) {
+                                        echo 'Hanya untuk periode bulan lalu (' . htmlspecialchars($data['last_month_period'] ?? '') . ')';
+                                    } elseif (empty($data['has_approved_payroll'])) {
+                                        echo 'Tidak ada payroll yang masih approved';
+                                    }
+                                ?>"
+                                <?= empty($data['is_last_month_period']) || empty($data['has_approved_payroll']) ? 'disabled' : '' ?>>
+                                <i class="fas fa-undo me-1"></i>Draft All
+                            </button>
                             <button type="button" class="btn btn-success" id="btnExportCSV" 
                                 <?= empty($data['payrolls']) ? 'disabled' : '' ?>>
                                 <i class="fas fa-file-csv me-1"></i>Export CSV Flip
@@ -100,6 +111,7 @@
                 <small class="text-muted">
                     <i class="fas fa-info-circle me-1"></i>
                     <strong>Draft:</strong> Baru dibuat, masih bisa diedit | <strong>Approved:</strong> Sudah di-approve, siap export
+                    | <strong>Draft All:</strong> Mengembalikan semua approved ke draft, hanya untuk periode bulan lalu
                 </small>
             </div>
         </div>
@@ -150,6 +162,31 @@
     </div>
 </div>
 
+<!-- Secure Draft All Modal -->
+<div class="modal fade" id="secureDraftModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Konfirmasi Draft All</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body py-3">
+                <p class="mb-3 text-muted fs-6">
+                    Semua payroll <strong>APPROVED</strong> periode <span class="fw-bold text-dark draft-period-text"></span> akan dikembalikan ke <strong>DRAFT</strong>.
+                </p>
+                <div class="form-group mb-0">
+                    <label class="small text-uppercase fw-bold text-muted mb-1">Ketik "draft" untuk melanjutkan:</label>
+                    <input type="text" id="draftAllSecret" class="form-control form-control-lg text-center" placeholder="draft" autocomplete="off">
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-danger px-4 fw-bold" id="confirmDraftAllBtn" disabled>Kembalikan ke Draft</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Toast Container -->
 <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 2000;">
     <div id="statusToast" class="toast align-items-center text-white border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
@@ -168,6 +205,8 @@ $(document).ready(function() {
     const currentPeriod = '<?= $data['period'] ?>';
     const confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
     const secureModal = new bootstrap.Modal(document.getElementById('secureApproveModal'));
+    const secureDraftModal = new bootstrap.Modal(document.getElementById('secureDraftModal'));
+    const isLastMonthPeriod = <?= !empty($data['is_last_month_period']) ? 'true' : 'false' ?>;
     var toastEl = document.getElementById('statusToast');
     if (toastEl) window.statusToastInstance = new bootstrap.Toast(toastEl);
 
@@ -241,6 +280,50 @@ $(document).ready(function() {
 
         $.ajax({
             url: '<?= URL::BASE_URL ?>Payroll/approve_all',
+            method: 'POST',
+            data: { period: currentPeriod },
+            dataType: 'json',
+            success: function(res) {
+                if (res.ok) {
+                    showToast('✅ ' + res.msg);
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    showToast('❌ Error: ' + res.msg, 'error');
+                    $btnTrigger.prop('disabled', false).html(originalHtml);
+                }
+            },
+            error: function() {
+                showToast('❌ Terjadi kesalahan server', 'error');
+                $btnTrigger.prop('disabled', false).html(originalHtml);
+            }
+        });
+    });
+
+    // Draft All (approved -> draft), hanya periode bulan lalu
+    $('#btnDraftAll').click(function() {
+        if (!isLastMonthPeriod) {
+            showToast('❌ Draft All hanya untuk periode bulan lalu', 'error');
+            return;
+        }
+        $('.draft-period-text').text(currentPeriod);
+        $('#draftAllSecret').val('');
+        $('#confirmDraftAllBtn').prop('disabled', true);
+        secureDraftModal.show();
+    });
+
+    $('#draftAllSecret').on('input', function() {
+        $('#confirmDraftAllBtn').prop('disabled', $(this).val().toLowerCase() !== 'draft');
+    });
+
+    $('#confirmDraftAllBtn').click(function() {
+        const $btnTrigger = $('#btnDraftAll');
+        const originalHtml = $btnTrigger.html();
+
+        secureDraftModal.hide();
+        $btnTrigger.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Processing...');
+
+        $.ajax({
+            url: '<?= URL::BASE_URL ?>Payroll/draft_all',
             method: 'POST',
             data: { period: currentPeriod },
             dataType: 'json',
