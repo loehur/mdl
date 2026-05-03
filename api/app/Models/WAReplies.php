@@ -1448,6 +1448,102 @@ class WAReplies
         ];
     }
 
+    /**
+     * Hanya untuk handleStatus: kirim nota (notif tipe=1) untuk no_ref yang belum punya notif.
+     * Tanpa cabang TAGIHAN / tanpa pesan "belum ada tagihan" / tanpa noReg — jika tidak ada missingRefs, no-op.
+     */
+    private function trySendMissingNotaNotifsForStatus($phoneIn, $waNumber, $waService, $db1): void
+    {
+        $cleanPhone = preg_replace('/[^0-9]/', '', $waNumber);
+        $phone0 = '0' . substr($cleanPhone, 2);
+        $pelanggan = $this->queryPelangganRowsByWaNumber($db1, $phoneIn, $waNumber, 'id_pelanggan');
+        $id_pelanggans = array_column($pelanggan, 'id_pelanggan');
+        if (empty($id_pelanggans)) {
+            return;
+        }
+        $ids_in = implode(',', $id_pelanggans);
+        $sales = $db1->query("SELECT * FROM sale WHERE tuntas = 0 AND bin = 0 AND id_pelanggan IN ($ids_in) GROUP BY no_ref, tuntas, id_pelanggan ORDER BY insertTime DESC")->result_array();
+        $noRefs = array_column($sales, 'no_ref');
+        if (empty($noRefs)) {
+            return;
+        }
+        $noRefsIn = "'" . implode("','", $noRefs) . "'";
+        $existingRefs = array_column($db1->query("SELECT no_ref FROM notif WHERE tipe = 1 AND no_ref IN ($noRefsIn)")->result_array(), 'no_ref');
+        $missingRefs = array_diff($noRefs, $existingRefs);
+        if (empty($missingRefs)) {
+            return;
+        }
+        $this->sendNotaNotifsForMissingRefs($db1, $waService, $waNumber, $phone0, $sales, $noRefs, $missingRefs, true);
+    }
+
+    /**
+     * Fetch wa_nota, insert notif tipe=1, kirim WA + update state (sama logika dengan cabang missingRefs di handleNota).
+     *
+     * @param array $missingRefs no_ref yang belum punya baris notif tipe 1 (non-empty)
+     */
+    private function sendNotaNotifsForMissingRefs($db1, $waService, $waNumber, $phone0, array $sales, array $noRefs, array $missingRefs, bool $wsDelayOneSecond): void
+    {
+        foreach ($missingRefs as $ref) {
+            $opts = [
+                "http" => [
+                    "method" => "GET",
+                    "header" => "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36\r\n"
+                ]
+            ];
+            $context = stream_context_create($opts);
+
+            $apiUrl = "https://ml.nalju.com/Get/wa_nota/" . urlencode($ref);
+            $apiResponse = @file_get_contents($apiUrl, false, $context);
+
+            if ($apiResponse) {
+                $responseData = json_decode($apiResponse, true);
+                if (!empty($responseData['text'])) {
+                    $id_notif = (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9);
+                    $insertData = [
+                        'id_notif' => $id_notif,
+                        'id_cabang' => $sales[array_search($ref, $noRefs)]['id_cabang'],
+                        'tipe' => 1,
+                        'no_ref' => $ref,
+                        'text' => $responseData['text'],
+                        'phone' => $phone0,
+                        'state' => 'pending',
+                    ];
+
+                    $isInserted = $db1->insert('notif', $insertData);
+
+                    if ($isInserted !== false) {
+                        $res = $waService->sendFreeText($waNumber, $responseData['text']);
+
+                        $status = ($res['success'] ?? false) ? 'sent' : 'failed';
+                        $msgId = $res['data']['id'] ?? ($res['data']['message_id'] ?? null);
+                        $wamid = $res['data']['wamid'] ?? null;
+
+                        $updateData = ['state' => $status];
+                        if ($msgId) {
+                            $updateData['id_api'] = $msgId;
+                        }
+
+                        $db1->update('notif', $updateData, ['id_notif' => $id_notif]);
+
+                        if ($res['success']) {
+                            $timestamp = $wsDelayOneSecond ? date('Y-m-d H:i:s', strtotime('+1 second')) : null;
+                            $payload = $this->buildWsPayload($waNumber, $responseData['text'], $msgId, $wamid, $timestamp);
+                            $this->pushToWebSocket($payload);
+                        }
+                    } else {
+                        $conn = $db1->conn();
+                        $errorMsg = $conn->error ?? 'No Error Msg';
+                        if (empty($errorMsg) && !empty($conn->error_list)) {
+                            $errorMsg = json_encode($conn->error_list);
+                        }
+
+                        \Log::write("Notif insert FAILED - Error: $errorMsg | Data: " . json_encode($insertData), 'wa_error', 'Notif');
+                    }
+                }
+            }
+        }
+    }
+
     private function handleNota($phoneIn, $waNumber, $textBody = '')
     {
         $waService = $this->getWaService();
@@ -1542,68 +1638,7 @@ class WAReplies
                 $missingRefs = array_diff($noRefs, $existingRefs);
 
                 if (count($missingRefs) > 0) {
-                    foreach ($missingRefs as $ref) {
-                        // Create context with User-Agent to avoid potential filtering
-                        $opts = [
-                            "http" => [
-                                "method" => "GET",
-                                "header" => "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36\r\n"
-                            ]
-                        ];
-                        $context = stream_context_create($opts);
-
-                        $apiUrl = "https://ml.nalju.com/Get/wa_nota/" . urlencode($ref);
-                        $apiResponse = @file_get_contents($apiUrl, false, $context);
-
-                        if ($apiResponse) {
-                            $responseData = json_decode($apiResponse, true);
-                            if (!empty($responseData['text'])) {
-                                // Insert Notif
-                                $id_notif = (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9);
-                                $insertData = [
-                                    'id_notif' => $id_notif,
-                                    'id_cabang' => $sales[array_search($ref, $noRefs)]['id_cabang'],
-                                    'tipe' => 1,
-                                    'no_ref' => $ref,
-                                    'text' => $responseData['text'],
-                                    'phone' => $phone0,
-                                    'state' => 'pending',
-                                ];
-
-                                $isInserted = $db1->insert('notif', $insertData);
-
-                                if ($isInserted !== false) {
-                                    $res = $waService->sendFreeText($waNumber, $responseData['text']);
-
-                                    $status = ($res['success'] ?? false) ? 'sent' : 'failed';
-                                    $msgId = $res['data']['id'] ?? ($res['data']['message_id'] ?? null);
-                                    $wamid = $res['data']['wamid'] ?? null;
-
-                                    // Update state immediately
-                                    $updateData = ['state' => $status];
-                                    if ($msgId) {
-                                        $updateData['id_api'] = $msgId;
-                                    }
-
-                                    $db1->update('notif', $updateData, ['id_notif' => $id_notif]);
-
-                                    // Broadcast to WebSocket
-                                    if ($res['success']) {
-                                        $payload = $this->buildWsPayload($waNumber, $responseData['text'], $msgId, $wamid);
-                                        $this->pushToWebSocket($payload);
-                                    }
-                                } else {
-                                    $conn = $db1->conn();
-                                    $errorMsg = $conn->error ?? 'No Error Msg';
-                                    if (empty($errorMsg) && !empty($conn->error_list)) {
-                                        $errorMsg = json_encode($conn->error_list);
-                                    }
-
-                                    \Log::write("Notif insert FAILED - Error: $errorMsg | Data: " . json_encode($insertData), 'wa_error', 'Notif');
-                                }
-                            }
-                        }
-                    }
+                    $this->sendNotaNotifsForMissingRefs($db1, $waService, $waNumber, $phone0, $sales, $noRefs, $missingRefs, false);
                 } else {
                     // Semua no_ref sudah punya notif (nota pernah dibuat): tidak kirim teks "sudah dikirim",
                     // langsung sama seperti intent TAGIHAN. NOTA sudah lewat shouldHandle di process();
@@ -2580,6 +2615,8 @@ class WAReplies
         $waService = $this->getWaService();
 
         $db1 = DB::getInstance(1);
+        $this->trySendMissingNotaNotifsForStatus($phoneIn, $waNumber, $waService, $db1);
+
         $limitTime = date('Y-m-d H:i:s', strtotime('-72 hours'));
 
         $sql = "SELECT * FROM notif 
