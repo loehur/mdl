@@ -250,6 +250,10 @@ return [
     'HARGA' => [
         'patterns' => [
             '/^\s*(harga|price)\s*$/i',
+            // Pricelist / daftar harga (termasuk "pricelistnya", "boleh dibantu pricelistnya kak")
+            '/\bpricelist\w*\b/iu',
+            '/\bprice\s*list\w*\b/iu',
+            '/\b(daftar|list)\s+harga\w*\b/iu',
             // "berapa 1 boneka kak?" / "berapa 2 baju" = harga per item, bukan tagihan total
             '/\bberapa\s+(\d+\s+)?(biji|pcs|pc|buah|lembar\s+)?(boneka|baju|celana|handuk|selimut|jaket|sepatu|tas|karpet|sprei|bedcover|gorden|kemeja|rok|gaun|jas|hoodie|sweater|topi|sarung|mukena|jilbab|kerudung)\b/iu',
             // "berapa boneka?" tanpa angka
@@ -265,10 +269,12 @@ return [
         | berapa harga baju? | berapa harga celana? | berapa harga handuk? | berapa harga boneka? | berapa harga sepatu? | berapa harga selimut? | berapa harga jaket? |\n
         | berapa 1 boneka kak? | berapa 2 baju? | boneka brp? | cuci boneka berapa? |\n
         | berapa harga per kilo? | berapa biaya per kg? | harga per kilo berapa? |\n
+        | minta pricelist | boleh dibantu pricelistnya kak? | kirim daftar harga | list harga dong | price list ya |\n
         PENTING: \n
         - 'berapa kilo itu?' / 'brp kilo kak?' TANPA kata harga/biaya = tanya berat order = TAGIHAN, BUKAN HARGA.\n
         - Jika user bertanya 'berapa' + (harga/biaya) + (item laundry atau per kilo) = HARGA\n
         - Jika user bertanya 'berapa' + angka + item (boneka, baju, dll) = HARGA (harga per item), BUKAN TAGIHAN total order\n
+        - CRITICAL - TRUE (HARGA): Meminta PRICELIST / PRICE LIST / DAFTAR HARGA / LIST HARGA (bahasa Inggris atau Indonesia) = minta daftar tarif laundry = HARGA, BUKAN FALSE. Contoh: | boleh dibantu pricelistnya kak | minta pricelist | share price list | daftar harga dong |\n
         - CRITICAL - TRUE (HARGA): Tanya ONGKOS/ONGKIR sekaligus DURASI proses (1/2/3 hari, sehari, satu hari, dll.) di awal atau akhir kalimat = tanya TARIF layanan sesuai SLA di data harga = HARGA. Contoh: | Klu 1 hari brp ongkos nya | kalau 2 hari berapa ongkos | sehari brp ongkir kak | = HARGA, BUKAN MINTA_JEMPUT_ANTAR.\n
         - CRITICAL - TRUE (HARGA): Tanya ONGKOS/ONGKIR + JENIS LAYANAN (regular, ekspres, express, kilat) = tarif varian layanan di data harga = HARGA. Contoh: | berapa ongkos regular? | ongkos kilat brp? | brp ongkos ekspres | = HARGA, BUKAN MINTA_JEMPUT_ANTAR.\n
         - Jika user bertanya 'berapa' + (ongkir/ongkos/biaya antar/biaya jemput) TANPA durasi hari DAN TANPA sebut regular/ekspres/kilat (murni ongkos antar/jemput kurir) = MINTA_JEMPUT_ANTAR\n

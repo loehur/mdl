@@ -757,6 +757,20 @@ class WAReplies
     }
 
     /**
+     * Minta pricelist / price list / daftar harga (tarif laundry), bukan konteks lain.
+     */
+    private function messageLooksLikePricelistRequest(?string $text): bool
+    {
+        if ($text === null || trim($text) === '') {
+            return false;
+        }
+        return (bool) preg_match(
+            '/\bpricelist\w*\b|\bprice\s*list\w*\b|\b(daftar|list)\s+harga\w*\b/iu',
+            $text
+        );
+    }
+
+    /**
      * Pertanyaan tidak selalu memakai tanda (?). Contoh: "Alhamdulillah foto dimana"
      * PEMBUKA/PENUTUP tidak boleh jika ini true.
      */
@@ -4623,6 +4637,7 @@ class WAReplies
             $prompt .= "PRIORITAS: Jika user menanyakan apakah laundry/toko BUKA atau TIDAK (termasuk 'buka ga/gak', 'masih buka', 'sudah tutup') = pilih JAM_OPERASIONAL.\n";
             $prompt .= "PRIORITAS: Jika user menanyakan apakah cucian/laundry sudah SIAP/SELESAI (termasuk typo sudh, laundri, 'apakah sudh siap laundri saya?') = pilih STATUS — jangan FALSE dan jangan mengarang intent baru.\n";
             $prompt .= "PRIORITAS: Jika user bertanya berapa/brp/brpa kilo (mis. 'berapa kilo itu kak?', 'brpa kilo kk?') tanpa tanya harga/biaya per kilo = pilih TAGIHAN (tanya berat order), bukan FALSE.\n";
+            $prompt .= "PRIORITAS: Jika user meminta pricelist / price list / daftar harga / list harga (mis. 'boleh dibantu pricelistnya kak', 'minta pricelist') = pilih HARGA, bukan FALSE.\n";
             $prompt .= "PRIORITAS: Jika user bertanya brp/berapa + laundry/londry (typo) + ku/saya/aku (mis. 'brp londry ku buk', 'berapa laundry saya kak') = TAGIHAN (tanya total/tagihan order), bukan FALSE.\n";
             $prompt .= "PRIORITAS: 'kabari ya kak' / 'kabarin ya' / 'infokan ya' = minta kabar/update (penutup) = pilih PENUTUP, BUKAN PEMBUKA.\n";
             $prompt .= "PRIORITAS: Jika user meminta info transfer/tf/rekening/QRIS untuk bayar (mis. 'bisa tf kak', 'mau transfer kak', 'minta no rek') dan BUKAN konfirmasi sudah kirim = pilih REKENING, BUKAN FALSE.\n";
@@ -4698,6 +4713,12 @@ class WAReplies
                 $reason = 'remap infonya + laundry + antar + waktu → NOTA';
             }
 
+            // FALSE padahal minta pricelist / daftar harga = HARGA
+            if ($intent === 'FALSE' && isset($keywordConfig['HARGA']) && $this->messageLooksLikePricelistRequest($textBody)) {
+                $intent = 'HARGA';
+                $reason = 'remap pricelist/daftar harga → HARGA';
+            }
+
             // MINTA_JEMPUT_ANTAR / FALSE padahal tanya tarif ongkos by durasi atau jenis layanan = HARGA
             if (($intent === 'MINTA_JEMPUT_ANTAR' || $intent === 'FALSE') && isset($keywordConfig['HARGA'])
                 && $this->messageIsHargaOngkosByDurasiAtauLayanan($textBody)) {
@@ -4713,7 +4734,7 @@ class WAReplies
                     preg_match('/\b(harga|biaya|tarif|berapa|brp|brapa)\b/iu', $textBody)
                     && preg_match('/\b(setrika|strika|gosok|cuci|laundry|loundry|londri|kilo|kg|reguler|regular|ekspres|kilat)\b/iu', $textBody)
                 );
-                if (!$hasPaketContext && $looksLikeRegularHargaQuestion) {
+                if (!$hasPaketContext && ($looksLikeRegularHargaQuestion || $this->messageLooksLikePricelistRequest($textBody))) {
                     $intent = 'HARGA';
                     $reason = 'remap HARGA_PAKET tanpa kata paket/member → HARGA';
                 }
