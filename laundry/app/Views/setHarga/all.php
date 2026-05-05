@@ -91,7 +91,9 @@ foreach ($this->dSatuan as $a) {
                   }
 
                   echo "<tr>";
-                  echo "<td class='text-primary'><b>" . $kategori . "</b></td>";
+                  $kategoriAttr = htmlspecialchars($kategori, ENT_QUOTES, 'UTF-8');
+                  $kategoriHtml = htmlspecialchars($kategori, ENT_NOQUOTES, 'UTF-8');
+                  echo "<td class='text-primary'><span class='cell' data-mode='8' data-id_value='" . (int) $f2 . "' data-value='" . $kategoriAttr . "'><b>" . $kategoriHtml . "</b></span></td>";
                   echo "<td>" . $list_layanan . "</td>";
                   echo "<td>" . $durasi . "</td>";
                   echo "<td class='text-right'> <span class='cell' data-mode='2' data-id_value='" . $id . "' data-value='" . $f6 . "'><b>" . $f6 . "</b></span> Hari</td>";
@@ -223,19 +225,32 @@ foreach ($this->dSatuan as $a) {
     var id_value = $(this).attr('data-id_value');
     var value = $(this).attr('data-value');
     var mode = $(this).attr('data-mode');
-    var value_before = value;
+    var value_before = (mode === '8') ? $.trim(String(value != null ? value : '')) : value;
     var span = $(this);
 
     var valHtml = $(this).html();
-    span.html("<input type='number' min='0' style='width:70px' id='value_' value='" + value + "'>");
+    if (mode === '8') {
+      span.html("<input type='text' class='form-control form-control-sm' style='min-width:8rem;max-width:16rem;display:inline-block' id='value_'>");
+      $("#value_").val(value_before);
+    } else {
+      span.html("<input type='number' min='0' style='width:70px' id='value_' value='" + value + "'>");
+    }
 
     $("#value_").focus();
     $("#value_").focusout(function() {
       var value_after = $(this).val();
+      if (mode === '8') {
+        value_after = $.trim(value_after);
+      }
       if (value_after === value_before) {
         span.html(valHtml);
         click = 0;
       } else {
+        if (mode === '8' && value_after === '') {
+          span.html(valHtml);
+          click = 0;
+          return;
+        }
         $.ajax({
           url: '<?= URL::BASE_URL ?>SetHarga/updateCell',
           data: {
@@ -246,7 +261,15 @@ foreach ($this->dSatuan as $a) {
           type: 'POST',
           dataType: 'html',
           success: function(response) {
-            span.html(value_after);
+            if (mode === '8') {
+              $('.cell[data-mode="8"][data-id_value="' + id_value + '"]').each(function() {
+                var s = $(this);
+                s.attr('data-value', value_after);
+                s.empty().append($('<b>').text(value_after));
+              });
+            } else {
+              span.html(value_after);
+            }
             click = 0;
           },
         });

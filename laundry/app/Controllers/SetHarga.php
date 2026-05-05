@@ -61,6 +61,14 @@ class SetHarga extends Controller
       $value = $_POST['value'];
       $mode = $_POST['mode'];
 
+      if ($mode === "8") {
+         $query = $this->db(0)->update('item_group', ['item_kategori' => $value], "id_item_group = " . intval($id));
+         if ($query['errno'] == 0) {
+            $this->dataSynchrone($_SESSION[URL::SESSID]['user']['id_user']);
+         }
+         return;
+      }
+
       switch ($mode) {
          case "1":
             $col = "harga";
