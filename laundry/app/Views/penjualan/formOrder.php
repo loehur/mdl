@@ -172,12 +172,15 @@ if ($saldoNya_member > 0) {
   </div>
 </form>
 
-<script script src="<?= URL::EX_ASSETS ?>js/selectize.min.js"></script>
+<script src="<?= URL::EX_ASSETS ?>js/selectize.min.js"></script>
 
 <script>
   $(document).ready(function() {
     selectMember(<?= $id_harga_member ?>, <?= $saldoNya_member ?>);
-    $(".2tize").selectize();
+    // sortField $order = urutan opsi di HTML (sudah ORDER BY sort dari server), bukan urut skor pencarian
+    $(".2tize").selectize({
+      sortField: [{ field: "$order", direction: "asc" }]
+    });
 
     $("form.addOrder").on("submit", function(e) {
       $("select.order[name=f1]").removeAttr('disabled');
