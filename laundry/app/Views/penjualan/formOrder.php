@@ -177,9 +177,12 @@ if ($saldoNya_member > 0) {
 <script>
   $(document).ready(function() {
     selectMember(<?= $id_harga_member ?>, <?= $saldoNya_member ?>);
-    // sortField $order = urutan opsi di HTML (sudah ORDER BY sort dari server), bukan urut skor pencarian
+    // Sifter: jika ada query, $score disisipkan otomatis di depan KECUALI $score sudah ada di sortField — urutan utama $order (sama urutan opsi di HTML)
     $(".2tize").selectize({
-      sortField: [{ field: "$order", direction: "asc" }]
+      sortField: [
+        { field: "$order", direction: "asc" },
+        { field: "$score", direction: "desc" }
+      ]
     });
 
     $("form.addOrder").on("submit", function(e) {
