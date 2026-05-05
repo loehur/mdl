@@ -33,7 +33,6 @@ foreach ($this->dSatuan as $a) {
                   <th class="text-right">Rp/<?= $satuan ?> (A)</th>
                   <th class="text-right">Rp/<?= $satuan ?> (B)</th>
                   <th>Min Order</th>
-                  <th class="text-right">Min Harga (Rp)</th>
                   <th class="text-center">Aktif</th>
                   <th class="text-right">Used</th>
                   <th class="text-right">ID</th>
@@ -57,9 +56,10 @@ foreach ($this->dSatuan as $a) {
                   $f6 = $a['hari'];
                   $f7 = $a['jam'];
                   $f8 = $a['sort'];
-                  $f9 = $a['min_order'];
+                  $f9 = round((float) ($a['min_order'] ?? 0), 2);
                   $f10 = isset($a['is_active']) ? (int) $a['is_active'] : 1;
-                  $f_min_price = isset($a['min_price']) ? $a['min_price'] : 0;
+                  $f9data = htmlspecialchars((string) $f9, ENT_QUOTES, 'UTF-8');
+                  $f9show = $this->fmtDecMax2($f9);
 
                   $IDkategori = $f2;
                   if ($IDkategori == $IDkategoriBefore) {
@@ -102,8 +102,7 @@ foreach ($this->dSatuan as $a) {
                   echo "<td class='text-right'> <span class='cell' data-mode='3' data-id_value='" . $id . "' data-value='" . $f7 . "'><b>" . $f7 . "</b></span> Jam</td>";
                   echo "<td class='text-right'>Rp<span class='cell' data-mode='1' data-id_value='" . $id . "' data-value='" . $f5 . "'>" . $f5 . "</span></td>";
                   echo "<td class='text-right'>Rp<span class='cell' data-mode='6' data-id_value='" . $id . "' data-value='" . $f5_b . "'>" . $f5_b . "</span></td>";
-                  echo "<td class='text-right'><span class='cell' data-mode='5' data-id_value='" . $id . "' data-value='" . $f9 . "'>" . $f9 . "</span></td>";
-                  echo "<td class='text-right'>Rp<span class='cell' data-mode='9' data-id_value='" . $id . "' data-value='" . $f_min_price . "'>" . $f_min_price . "</span></td>";
+                  echo "<td class='text-right'><span class='cell' data-mode='5' data-id_value='" . $id . "' data-value='" . $f9data . "'>" . $f9show . "</span></td>";
                   $iconActive = $f10 == 1 ? '<i class="fas fa-check text-success"></i>' : '<i class="fas fa-times text-muted"></i>';
                   echo "<td class='text-center'><span class='cell-is-active' data-id_value='" . $id . "' data-value='" . $f10 . "' style='cursor:pointer' title='Klik untuk ubah'>" . $iconActive . "</span></td>";
                   echo "<td class='text-right'> <span>" . $f8 . "</span></td>";
@@ -159,15 +158,11 @@ foreach ($this->dSatuan as $a) {
                     </div>
                     <div class="form-group">
                       <label>Minimal Order (<?= $satuan ?>)</label>
-                      <input type="number" min="1" name="f5" class="form-control form-control-sm" value="0" placeholder="" required>
+                      <input type="number" name="f5" class="form-control form-control-sm" min="0" step="0.01" value="1" placeholder="" required>
                     </div>
                     <div class="form-group">
                       <label>Harga/<?= $satuan ?></label>
                       <input type="number" min="1" name="f4" class="form-control form-control-sm" placeholder="" required>
-                    </div>
-                    <div class="form-group">
-                      <label>Min Harga (Rp)</label>
-                      <input type="number" min="0" name="f6" class="form-control form-control-sm" value="0" placeholder="0">
                     </div>
                     <!-- ======================================================== -->
 
@@ -222,6 +217,19 @@ foreach ($this->dSatuan as $a) {
     });
   });
 
+  function fmtDecMax2js(n) {
+    var v = Math.round(parseFloat(String(n).replace(',', '.')) * 100) / 100;
+    if (isNaN(v)) {
+      return String(n);
+    }
+    var s = v.toFixed(2);
+    if (s.indexOf('.') >= 0) {
+      s = s.replace(/0+$/, '');
+      s = s.replace(/\.$/, '');
+    }
+    return s === '' ? '0' : s;
+  }
+
   var click = 0;
   $(".cell").on('dblclick', function() {
     click = click + 1;
@@ -239,6 +247,8 @@ foreach ($this->dSatuan as $a) {
     if (mode === '8') {
       span.html("<input type='text' class='form-control form-control-sm' style='min-width:8rem;max-width:16rem;display:inline-block' id='value_'>");
       $("#value_").val(value_before);
+    } else if (mode === '5') {
+      span.html("<input type='number' min='0' step='0.01' style='width:90px' id='value_' value='" + value + "'>");
     } else {
       span.html("<input type='number' min='0' style='width:70px' id='value_' value='" + value + "'>");
     }
@@ -249,7 +259,13 @@ foreach ($this->dSatuan as $a) {
       if (mode === '8') {
         value_after = $.trim(value_after);
       }
-      if (value_after === value_before) {
+      var unchanged = (value_after === value_before);
+      if (mode === '5' && value_after !== '') {
+        var va = Math.round(parseFloat(String(value_after).replace(',', '.')) * 100) / 100;
+        var vb = Math.round(parseFloat(String(value_before).replace(',', '.')) * 100) / 100;
+        unchanged = !isNaN(va) && !isNaN(vb) && va === vb;
+      }
+      if (unchanged) {
         span.html(valHtml);
         click = 0;
       } else {
@@ -257,6 +273,14 @@ foreach ($this->dSatuan as $a) {
           span.html(valHtml);
           click = 0;
           return;
+        }
+        if (mode === '5' && (value_after === '' || isNaN(parseFloat(String(value_after).replace(',', '.'))) || parseFloat(String(value_after).replace(',', '.')) < 0)) {
+          span.html(valHtml);
+          click = 0;
+          return;
+        }
+        if (mode === '5') {
+          value_after = String(Math.round(parseFloat(String(value_after).replace(',', '.')) * 100) / 100);
         }
         $.ajax({
           url: '<?= URL::BASE_URL ?>SetHarga/updateCell',
@@ -275,7 +299,12 @@ foreach ($this->dSatuan as $a) {
                 s.empty().append($('<b>').text(value_after));
               });
             } else {
-              span.html(value_after);
+              if (mode === '5') {
+                span.attr('data-value', value_after);
+                span.html(fmtDecMax2js(value_after));
+              } else {
+                span.html(value_after);
+              }
             }
             click = 0;
           },

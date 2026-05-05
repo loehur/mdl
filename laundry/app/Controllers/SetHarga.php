@@ -45,8 +45,7 @@ class SetHarga extends Controller
             'list_layanan' => $layanan,
             'id_durasi' => $durasi,
             'harga' => $_POST['f4'],
-            'min_order' => $_POST['f5'],
-            'min_price' => isset($_POST['f6']) ? $_POST['f6'] : 0,
+            'min_order' => round((float) str_replace(',', '.', (string) ($_POST['f5'] ?? '0')), 2),
             'is_active' => 1
          ];
          $query = $this->db(0)->insert($this->table, $data);
@@ -61,6 +60,10 @@ class SetHarga extends Controller
       $id = $_POST['id'];
       $value = $_POST['value'];
       $mode = $_POST['mode'];
+
+      if ($mode === "5") {
+         $value = round((float) str_replace(',', '.', (string) $value), 2);
+      }
 
       if ($mode === "8") {
          $query = $this->db(0)->update('item_group', ['item_kategori' => $value], "id_item_group = " . intval($id));
@@ -91,9 +94,6 @@ class SetHarga extends Controller
             break;
          case "7":
             $col = "is_active";
-            break;
-         case "9":
-            $col = "min_price";
             break;
       }
 

@@ -216,6 +216,17 @@ if ($saldoNya_member > 0) {
     updateTotal();
   })
 
+  function qtyFmtMax2(v) {
+    v = Math.round(parseFloat(v) * 100) / 100;
+    if (isNaN(v)) return '';
+    var s = v.toFixed(2);
+    if (s.indexOf('.') >= 0) {
+      s = s.replace(/0+$/, '');
+      s = s.replace(/\.$/, '');
+    }
+    return s;
+  }
+
   function updateTotal() {
     var qty = $("input#qtyNya").val();
     var harga = $("input#harga").val();
@@ -255,7 +266,7 @@ if ($saldoNya_member > 0) {
     var t3 = $("#timb3").val() || 0;
     var t4 = $("#timb4").val() || 0;
     var total = parseFloat(t1) + parseFloat(t2) + parseFloat(t3) + parseFloat(t4);
-    $("input#qtyNya").val(parseFloat(total).toFixed(2));
+    $("input#qtyNya").val(qtyFmtMax2(total));
     updateTotal();
   });
 
@@ -263,7 +274,7 @@ if ($saldoNya_member > 0) {
     var t1 = $("#bkali1").val() || 0;
     var t2 = $("#bkali2").val() || 0;
     var total = parseFloat(t1) * parseFloat(t2);
-    $("input#qtyNya").val(parseFloat(total).toFixed(2));
+    $("input#qtyNya").val(qtyFmtMax2(total));
     updateTotal();
   });
 </script>

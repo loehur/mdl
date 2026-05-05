@@ -35,7 +35,7 @@ class Penjualan extends Controller
    public function insert($page)
    {
       $id_harga = $_POST['f1'];
-      $qty = $_POST['f2'];
+      $qty = round((float) str_replace(',', '.', (string) ($_POST['f2'] ?? '0')), 2);
       $note = $_POST['f3'];
 
       foreach ($this->harga as $a) {
@@ -55,7 +55,7 @@ class Penjualan extends Controller
             }
 
             $layanan = $a['list_layanan'];
-            $minOrder = $a['min_order'];
+            $minOrder = round((float) str_replace(',', '.', (string) ($a['min_order'] ?? 0)), 2);
          }
       }
 

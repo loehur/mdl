@@ -55,7 +55,7 @@
               $f4 = $a['list_item'];
               $f5 = $a['list_layanan'];
               $f11 = $a['id_durasi'];
-              $f6 = $a['qty'];
+              $f6 = round((float) $a['qty'], 2);
               $f7 = $a['harga'];
               $f8 = $a['note'];
               $f9 = $a['id_user'];
@@ -64,7 +64,7 @@
               $f13 = $a['jam'];
               $f14 = $a['diskon_qty'];
               $f15 = $a['diskon_partner'];
-              $f16 = $a['min_order'];
+              $f16 = round(isset($a['min_order']) ? (float) $a['min_order'] : 0.0, 2);
               $f17 = $a['id_pelanggan'];
               $f18 = $a['id_user'];
               $noref = $a['no_ref'];
@@ -132,10 +132,10 @@
               $qty_real = 0;
               if ($f6 < $f16) {
                 $qty_real = $f16;
-                $show_qty = $f6 . $satuan . " (Min. " . $f16 . $satuan . ")";
+                $show_qty = $this->fmtDecMax2($f6) . $satuan . " (Min. " . $this->fmtDecMax2($f16) . $satuan . ")";
               } else {
                 $qty_real = $f6;
-                $show_qty = $f6 . $satuan;
+                $show_qty = $this->fmtDecMax2($f6) . $satuan;
               }
 
               $kategori = "";

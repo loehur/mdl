@@ -95,7 +95,7 @@ $jenis_member = $kategori . "," . $layanan . "," . $durasi;
     $f4 = $a['list_item'];
     $f5 = $a['list_layanan'];
     $f11 = $a['id_durasi'];
-    $qty = $a['qty'];
+    $qty = round((float) $a['qty'], 2);
     $f7 = $a['harga'];
     $f8 = $a['note'];
     $f9 = $a['id_user'];
@@ -104,7 +104,7 @@ $jenis_member = $kategori . "," . $layanan . "," . $durasi;
     $f13 = $a['jam'];
     $f14 = $a['diskon_qty'];
     $f15 = $a['diskon_partner'];
-    $f16 = $a['min_order'];
+    $f16 = round(isset($a['min_order']) ? (float) $a['min_order'] : 0.0, 2);
     $f17 = $a['id_pelanggan'];
     $f18 = $a['id_user'];
     $noref = $a['no_ref'];
@@ -137,9 +137,9 @@ $jenis_member = $kategori . "," . $layanan . "," . $durasi;
     $show_qty = "";
     $qty_real = 0;
     if ($qty < $f16) {
-      $qty_real = $f16;
+      $qty_real = round($f16, 2);
     } else {
-      $qty_real = $qty;
+      $qty_real = round($qty, 2);
     }
 
     $tgl_terima = strtotime($f1);

@@ -79,15 +79,15 @@ class WAGenerator extends Controller
             $f3 = $a['id_item_group']; // category
             $f5 = $a['list_layanan'];
             $f11 = $a['id_durasi'];
-            $f6 = $a['qty'];
+            $f6 = round((float) $a['qty'], 2);
             $f7 = $a['harga']; // price per item
-            $f16 = $a['min_order'];
+            $f16 = round(isset($a['min_order']) ? (float) $a['min_order'] : 0.0, 2);
             $f10 = $a['id_penjualan_jenis'];
             $f14 = $a['diskon_qty'];
             $f15 = $a['diskon_partner'];
             $member = $a['member'];
             
-            // Qty Logic
+            // Qty Logic (numeric; min_order boleh desimal)
             $qty_real = ($f6 < $f16) ? $f16 : $f6;
             
             // Satuan
@@ -106,9 +106,9 @@ class WAGenerator extends Controller
 
             $show_qty = "";
             if ($f6 < $f16) {
-                 $show_qty = $f6 . $satuan . " (Min. " . $f16 . $satuan . ")";
+                 $show_qty = $this->fmtDecMax2($f6) . $satuan . " (Min. " . $this->fmtDecMax2($f16) . $satuan . ")";
             } else {
-                 $show_qty = $f6 . $satuan;
+                 $show_qty = $this->fmtDecMax2($f6) . $satuan;
             }
 
             // Kategori
@@ -357,7 +357,7 @@ class WAGenerator extends Controller
         
         foreach ($all_items as $a) {
              // Basic Total calc
-             $qty = ($a['qty'] < $a['min_order']) ? $a['min_order'] : $a['qty'];
+             $qty = round(((float) $a['qty'] < (float) $a['min_order']) ? (float) $a['min_order'] : (float) $a['qty'], 2);
              $price = $a['harga'];
              $total = $qty * $price;
              

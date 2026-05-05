@@ -96,4 +96,18 @@ class Controller extends URL
             }
         }
     }
+
+    /**
+     * Qty / min order: tampil maks. 2 desimal; bilangan bulat dari DB tanpa ".00" / ",00".
+     */
+    public function fmtDecMax2($v)
+    {
+        $n = round((float) str_replace(',', '.', (string) $v), 2);
+        $s = number_format($n, 2, '.', '');
+        if (strpos($s, '.') !== false) {
+            $s = rtrim($s, '0');
+            $s = rtrim($s, '.');
+        }
+        return $s !== '' ? $s : '0';
+    }
 }
