@@ -398,30 +398,20 @@ class Data_List extends Controller
                   exit();
             }
             $id_int = intval($id);
-            $ids_barang_sama = [];
             if ($mode == 5 || $mode == 6) {
                $row = $this->db(0)->get_where_row($table, "id_barang = $id_int");
                if ($row && isset($row['brand']) && isset($row['model'])) {
                   $brand = $this->db(0)->escape($row['brand']);
                   $model = $this->db(0)->escape($row['model']);
                   $where = "brand = '$brand' AND model = '$model'";
-                  $all_barang = $this->db(0)->get_where('barang_data', $where);
-                  foreach ($all_barang as $b) {
-                     $ids_barang_sama[] = intval($b['id_barang']);
-                  }
                } else {
                   $where = "id_barang = $id_int";
-                  $ids_barang_sama = [$id_int];
                }
             } else {
                $where = "id_barang = $id_int";
             }
             $set = [$col => $value];
             $up = $this->db(0)->update($table, $set, $where);
-            if ($up['errno'] == 0 && $mode == 5 && !empty($ids_barang_sama)) {
-               $where_sub = "id_barang IN (" . implode(',', $ids_barang_sama) . ")";
-               $this->db(0)->update('barang_sub', ['price' => $value], $where_sub);
-            }
             echo $up['errno'] == 0 ? '0' : $up['error'];
             exit();
             break;
