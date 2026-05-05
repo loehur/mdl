@@ -33,6 +33,7 @@ foreach ($this->dSatuan as $a) {
                   <th class="text-right">Rp/<?= $satuan ?> (A)</th>
                   <th class="text-right">Rp/<?= $satuan ?> (B)</th>
                   <th>Min Order</th>
+                  <th class="text-right">Min Harga (Rp)</th>
                   <th class="text-center">Aktif</th>
                   <th class="text-right">Used</th>
                   <th class="text-right">ID</th>
@@ -58,6 +59,7 @@ foreach ($this->dSatuan as $a) {
                   $f8 = $a['sort'];
                   $f9 = $a['min_order'];
                   $f10 = isset($a['is_active']) ? (int) $a['is_active'] : 1;
+                  $f_min_price = isset($a['min_price']) ? $a['min_price'] : 0;
 
                   $IDkategori = $f2;
                   if ($IDkategori == $IDkategoriBefore) {
@@ -101,6 +103,7 @@ foreach ($this->dSatuan as $a) {
                   echo "<td class='text-right'>Rp<span class='cell' data-mode='1' data-id_value='" . $id . "' data-value='" . $f5 . "'>" . $f5 . "</span></td>";
                   echo "<td class='text-right'>Rp<span class='cell' data-mode='6' data-id_value='" . $id . "' data-value='" . $f5_b . "'>" . $f5_b . "</span></td>";
                   echo "<td class='text-right'><span class='cell' data-mode='5' data-id_value='" . $id . "' data-value='" . $f9 . "'>" . $f9 . "</span></td>";
+                  echo "<td class='text-right'>Rp<span class='cell' data-mode='9' data-id_value='" . $id . "' data-value='" . $f_min_price . "'>" . $f_min_price . "</span></td>";
                   $iconActive = $f10 == 1 ? '<i class="fas fa-check text-success"></i>' : '<i class="fas fa-times text-muted"></i>';
                   echo "<td class='text-center'><span class='cell-is-active' data-id_value='" . $id . "' data-value='" . $f10 . "' style='cursor:pointer' title='Klik untuk ubah'>" . $iconActive . "</span></td>";
                   echo "<td class='text-right'> <span>" . $f8 . "</span></td>";
@@ -161,6 +164,10 @@ foreach ($this->dSatuan as $a) {
                     <div class="form-group">
                       <label>Harga/<?= $satuan ?></label>
                       <input type="number" min="1" name="f4" class="form-control form-control-sm" placeholder="" required>
+                    </div>
+                    <div class="form-group">
+                      <label>Min Harga (Rp)</label>
+                      <input type="number" min="0" name="f6" class="form-control form-control-sm" value="0" placeholder="0">
                     </div>
                     <!-- ======================================================== -->
 

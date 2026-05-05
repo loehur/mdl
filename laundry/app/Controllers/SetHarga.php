@@ -46,6 +46,7 @@ class SetHarga extends Controller
             'id_durasi' => $durasi,
             'harga' => $_POST['f4'],
             'min_order' => $_POST['f5'],
+            'min_price' => isset($_POST['f6']) ? $_POST['f6'] : 0,
             'is_active' => 1
          ];
          $query = $this->db(0)->insert($this->table, $data);
@@ -90,6 +91,9 @@ class SetHarga extends Controller
             break;
          case "7":
             $col = "is_active";
+            break;
+         case "9":
+            $col = "min_price";
             break;
       }
 
