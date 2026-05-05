@@ -45,7 +45,7 @@ class SetHarga extends Controller
             'list_layanan' => $layanan,
             'id_durasi' => $durasi,
             'harga' => $_POST['f4'],
-            'min_order' => round((float) str_replace(',', '.', (string) ($_POST['f5'] ?? '0')), 2),
+            'min_order' => number_format(round((float) str_replace(',', '.', (string) ($_POST['f5'] ?? '0')), 2), 2, '.', ''),
             'is_active' => 1
          ];
          $query = $this->db(0)->insert($this->table, $data);
@@ -57,49 +57,49 @@ class SetHarga extends Controller
 
    public function updateCell()
    {
-      $id = $_POST['id'];
+      $id = (int) $_POST['id'];
       $value = $_POST['value'];
-      $mode = $_POST['mode'];
-
-      if ($mode === "5") {
-         $value = round((float) str_replace(',', '.', (string) $value), 2);
-      }
+      $mode = (string) ($_POST['mode'] ?? '');
 
       if ($mode === "8") {
-         $query = $this->db(0)->update('item_group', ['item_kategori' => $value], "id_item_group = " . intval($id));
+         $query = $this->db(0)->update('item_group', ['item_kategori' => $value], "id_item_group = " . $id);
          if ($query['errno'] == 0) {
             $this->dataSynchrone($_SESSION[URL::SESSID]['user']['id_user']);
          }
          return;
       }
 
+      $where = "id_harga = " . $id;
+      $payload = [];
+
       switch ($mode) {
          case "1":
-            $col = "harga";
+            $payload['harga'] = (string) (int) round((float) str_replace(',', '.', (string) $value), 0);
             break;
          case "6":
-            $col = "harga_b";
+            $payload['harga_b'] = (string) (int) round((float) str_replace(',', '.', (string) $value), 0);
             break;
          case "2":
-            $col = "hari";
+            $payload['hari'] = (string) (int) $value;
             break;
          case "3":
-            $col = "jam";
+            $payload['jam'] = (string) (int) $value;
             break;
          case "4":
-            $col = "sort";
+            $payload['sort'] = (string) (int) $value;
             break;
          case "5":
-            $col = "min_order";
+            $n = round((float) str_replace(',', '.', (string) $value), 2);
+            $payload['min_order'] = number_format($n, 2, '.', '');
             break;
          case "7":
-            $col = "is_active";
+            $payload['is_active'] = (string) (int) $value;
             break;
+         default:
+            return;
       }
 
-      $set = ($col === "is_active") ? ($col . " = " . intval($value)) : ($col . " = '" . $value . "'");
-      $where = "id_harga = " . $id;
-      $query = $this->db(0)->update($this->table, $set, $where);
+      $query = $this->db(0)->update($this->table, $payload, $where);
       if ($query['errno'] == 0) {
          $this->dataSynchrone($_SESSION[URL::SESSID]['user']['id_user']);
       }
