@@ -144,7 +144,7 @@ class WA_Fonnte extends Controller
             // Pesan pendek (≤20 karakter) tidak dibalas fallback CS agar tidak mengganggu salam/stiker singkat.
             if (!empty($processResult->no_handler) && mb_strlen(trim((string) ($messageText ?? ''))) > 20) {
                 if ($replies->shouldSendFonnteFallbackReply($waNumber, self::DEFAULT_FALLBACK_COOLDOWN_MINUTES)) {
-                    $this->sendFallbackReply($sender, self::DEFAULT_FALLBACK_REPLY, $inboxid);
+                    $this->sendFallbackReply($sender, self::DEFAULT_FALLBACK_REPLY_FONNTE, $inboxid);
                 }
             }
         } catch (\Throwable $e) {
