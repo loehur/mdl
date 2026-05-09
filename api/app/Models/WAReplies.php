@@ -741,6 +741,47 @@ class WAReplies
     }
 
     /**
+     * Janji/konfirmasi AKAN bayar/transfer (belum dilakukan) — bukan PENUTUP.
+     * PENUTUP untuk pembayaran hanya jika sudah kirim/sudah transfer/sudah bayar.
+     */
+    private function messageLooksLikeFuturePaymentCommitmentBukanPenutup(?string $text): bool
+    {
+        if ($text === null || trim($text) === '') {
+            return false;
+        }
+        $t = mb_strtolower($text);
+        if (preg_match(
+            '/telah\s+berhasil\s+mengirimkan|sudah\s+transfer|sudah\s+bayar|sudah\s+kirim|sudah\s+mengirim|'
+            . 'udah\s+transfer|udah\s+bayar|udh\s+tf|udh\s+transfer|sdh\s+transfer|sdh\s+bayar/iu',
+            $t
+        )) {
+            return false;
+        }
+        if (preg_match(
+            '/\b(nanti|nntk|nnti|ntar|besok)\b.{0,52}\b(bayar|byr|transfer|tf|trf)\b/iu',
+            $t
+        )) {
+            return true;
+        }
+        if (preg_match(
+            '/\b(bayar|byr|transfer|tf|trf)\b.{0,52}\b(nanti|nntk|nnti|ntar|besok)\b/iu',
+            $t
+        )) {
+            return true;
+        }
+        if (preg_match('/\bakan\s+(bayar|transfer|tf|trf|kirim(\s+uang)?)\b/iu', $t)) {
+            return true;
+        }
+        if (preg_match('/\d/', $t)
+            && preg_match('/\b(bayar|byr|transfer|tf|trf)\b/iu', $t)
+            && preg_match('/\b(dl|deal)\b/iu', $t)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
      * Tanya harga barang tambahan/ritel (parfum, plastik, dll.) — bukan tarif laundry di intent HARGA.
      * Nanti bisa intent terpisah (harga barang khusus).
      */
@@ -1109,6 +1150,10 @@ class WAReplies
                     if ($handler === 'PENUTUP' && $this->messageLooksLikeJadwalRujukOrderBukanPenutup($textBodyToCheck)) {
                         continue;
                     }
+                    // PENUTUP: janji/nanti bayar atau transfer (belum dilakukan) — bukan ack sudah bayar
+                    if ($handler === 'PENUTUP' && $this->messageLooksLikeFuturePaymentCommitmentBukanPenutup($textBodyToCheck)) {
+                        continue;
+                    }
                     // PENUTUP: kalimat panjang (>50 karakter) bukan ack penutup
                     if ($handler === 'PENUTUP' && $this->messageExceedsPenutupMaxLength($textBodyToCheck)) {
                         continue;
@@ -1398,6 +1443,19 @@ class WAReplies
             // PENUTUP: AI salah — rujukan order + jadwal ambil (yg td sore besok di ambil) = operasional, bukan penutup
             if ($aiIntent === 'PENUTUP' && $this->messageLooksLikeJadwalRujukOrderBukanPenutup($textBodyToCheck)) {
                 $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_penutup_jadwal_rujuk_order');
+                $conversationId = $this->getOrCreateConversationWithCase(
+                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
+                );
+                return (object) [
+                    'case' => 4,
+                    'notify' => true,
+                    'conversation_id' => $conversationId,
+                    'no_handler' => true,
+                ];
+            }
+            // PENUTUP: AI salah — konfirmasi akan/nanti bayar/transfer (belum kirim) bukan penutup
+            if ($aiIntent === 'PENUTUP' && $this->messageLooksLikeFuturePaymentCommitmentBukanPenutup($textBodyToCheck)) {
+                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_penutup_future_payment_commitment');
                 $conversationId = $this->getOrCreateConversationWithCase(
                     $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
                 );
@@ -4642,6 +4700,7 @@ class WAReplies
             $prompt .= "PRIORITAS: 'kabari ya kak' / 'kabarin ya' / 'infokan ya' = minta kabar/update (penutup) = pilih PENUTUP, BUKAN PEMBUKA.\n";
             $prompt .= "PRIORITAS: Jika user meminta info transfer/tf/rekening/QRIS untuk bayar (mis. 'bisa tf kak', 'mau transfer kak', 'minta no rek') dan BUKAN konfirmasi sudah kirim = pilih REKENING, BUKAN FALSE.\n";
             $prompt .= "PRIORITAS: Pesan yang merujuk order/waktu (yg td sore, yg tadi sore) DAN jadwal pengambilan (besok di ambil, besok dijemput) — meski ada 'iya kak/buk' — = BUKAN PENUTUP (info operasional untuk CS), pilih FALSE.\n";
+            $prompt .= "PRIORITAS: Janji atau konfirmasi AKAN bayar/transfer/tf (belum dilakukan), misalnya 'nnti transfer', 'nntk byr ... deal ya kk', 'besok bayar ya' — = FALSE, BUKAN PENUTUP. PENUTUP untuk pembayaran hanya jika SUDAH: sudah transfer, sudah bayar, sudah kirim.\n";
             $prompt .= "PRIORITAS: Minta satu pakaian/item tertentu diambil/dulukan dulu dari order/cucian yang sudah di laundry (belum waktunya ambil semua) = PERMINTAAN, BUKAN MINTA_JEMPUT_ANTAR.\n";
             $prompt .= "Pesan: \"{$textBody}\"\n";
             $prompt .= "JAWAB HANYA DENGAN FORMAT JSON SEPERTI INI:\n";
@@ -4704,6 +4763,12 @@ class WAReplies
                 && !preg_match('/(telah berhasil mengirimkan|sudah\s+transfer|sudah\s+bayar|sudah\s+kirim|sudah\s+mengirim)\b/i', $textBody)) {
                 $intent = 'REKENING';
                 $reason = 'remap minta info tf/transfer → REKENING';
+            }
+
+            // PENUTUP padahal janji bayar/transfer nanti — FALSE (belum setara sudah kirim)
+            if ($intent === 'PENUTUP' && $this->messageLooksLikeFuturePaymentCommitmentBukanPenutup($textBody)) {
+                $intent = 'FALSE';
+                $reason = 'remap janji/nanti bayar atau transfer → FALSE (bukan penutup sudah bayar)';
             }
 
             // FALSE padahal follow-up nota: infonya + laundry + antar + waktu (sama pola regex NOTA)

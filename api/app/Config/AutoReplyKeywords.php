@@ -168,7 +168,7 @@ return [
       - Konfirmasi singkat: | ok deh | ok siap | ok siaaap | ok kak | ok siap kak | siap kak | iya lah kak | sudah | oke | baik |\n
       - Konfirmasi pembayaran/tagihan lunas: | lunas | lunas ya kak | lunas ya min | sudah lunas | udah lunas |\n
       - Konfirmasi status (non-bayar): | sudah diambil |\n
-      - Konfirmasi transfer/pembayaran sudah dilakukan: | telah berhasil mengirimkan ke rekening | sudah transfer | sudah bayar | sudah kirim | saya sudah transfer ke rekening kamu |\n
+      - Konfirmasi transfer/pembayaran SUDAH dilakukan (bukan janji nanti): | telah berhasil mengirimkan ke rekening | sudah transfer | sudah bayar | sudah kirim | saya sudah transfer ke rekening kamu |\n
       - Konfirmasi jadwal SANGAT singkat saja (tanpa rujukan order tertentu): | baik nanti dijemput | ok sore diantar | siap dijemput ya | besok diantar kak |\n
       - Minta kabar/update singkat (penutup): | kabari ya kak | kabarin ya min | infokan ya kk | kasih kabar ya |\n
       - Pemberitahuan jadwal singkat (bukan rujukan cucian tertentu): | nanti sore dijemput | jam 2 dijemput ya kak |\n
@@ -176,6 +176,7 @@ return [
       - Kata kunci singkat: baik/ok/siap + (nanti/sore/besok/jam) + dijemput/diantar = PENUTUP HANYA jika TIDAK ada rujukan order (lihat FALSE di bawah).\n
       \n
       FALSE (BUKAN PENUTUP) - CRITICAL:\n
+      - CRITICAL: Janji/konfirmasi AKAN bayar/transfer/tf (belum kirim uang): | nnti transfer ya | nntk byr 100 dl ya kk | besok transfer kak | akan bayar sore | = FALSE. Bedakan dari SUDAH: | sudah transfer | sudah bayar | = PENUTUP.\n
       - CRITICAL: Rujukan order/waktu + jadwal ambil: | yg tdi sore besok di ambil iya buk | yang tadi sore besok dijemput ya | yg td sore nanti di ambil | = info operasional/jadwal cucian tertentu = FALSE (bukan PENUTUP), meski ada 'iya/baik/siap'.\n
       - CRITICAL: Pesan lebih dari 50 karakter (hitung semua karakter termasuk spasi/emoji, setelah trim) = BUKAN PENUTUP — itu konteks/penjelasan, bukan ack singkat.\n
       - Pemberitahuan user akan ambil/antar SENDIRI = BUKAN intent apapun: | akan menjemput | nanti saya jemput | nanti saya ambil | akan saya antar | nanti saya antar | akan mengambil | mau jemput | besok saya jemput | nanti saya antar |\n
