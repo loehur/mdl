@@ -1,5 +1,7 @@
 <?php
 $idPenjualan = $data[1];
+$paket = '';
+$unit = '';
 foreach ($this->dPenjualan as $a) {
   if ($a['id_penjualan_jenis'] == $idPenjualan) {
     foreach ($this->dSatuan as $b) {
