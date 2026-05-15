@@ -800,6 +800,34 @@ class WAReplies
     /**
      * Minta pricelist / price list / daftar harga (tarif laundry), bukan konteks lain.
      */
+    /**
+     * Memberitahu pilihan layanan untuk cucian yang baru/kemarin diantar/masukkan — NOTA (detail order/bon).
+     */
+    private function messageLooksLikeNotaLayananSetelahAntar(?string $text): bool
+    {
+        if ($text === null || trim($text) === '') {
+            return false;
+        }
+        $t = $text;
+        $hasDropOffRef = (bool) preg_match(
+            '/\b(yg|yang)\s+(saya|aku|kami)\s+(masukkan|antar|anter|serahkan|titip|bawa|nyerahkan|nitip)\b/iu',
+            $t
+        ) || (bool) preg_match(
+            '/\b(kain|pakaian|cucian|baju|item)\s+(yang\s+)?(saya|aku|kami)\s+(antar|anter|masukkan|titip|bawa|nyerahkan|nitip)\b/iu',
+            $t
+        ) || (bool) preg_match(
+            '/\b(saya|aku|kami)\s+(antar|anter|masukkan|titip|bawa|nyerahkan|nitip)\s+(tadi|kemarin|kmrn|td|pagi|siang|sore|malam|hari\s+ini)\b/iu',
+            $t
+        );
+        if (!$hasDropOffRef) {
+            return false;
+        }
+        return (bool) preg_match(
+            '/\b(cuci\s*setrika|cuci\s*strika|setrika\s*aja|strika\s*aja|setrika\s*manual|cuci\s*aja|reguler|regular|ekspres|ekspress|express|kilat|manual|biasa|laundry|loundry|londri|pilih\s+(yang\s+)?(ekspres|express|reguler|kilat|setrika))\b/iu',
+            $t
+        );
+    }
+
     private function messageLooksLikePricelistRequest(?string $text): bool
     {
         if ($text === null || trim($text) === '') {
@@ -4702,6 +4730,7 @@ class WAReplies
             $prompt .= "PRIORITAS: Pesan yang merujuk order/waktu (yg td sore, yg tadi sore) DAN jadwal pengambilan (besok di ambil, besok dijemput) — meski ada 'iya kak/buk' — = BUKAN PENUTUP (info operasional untuk CS), pilih FALSE.\n";
             $prompt .= "PRIORITAS: Janji atau konfirmasi AKAN bayar/transfer/tf (belum dilakukan), misalnya 'nnti transfer', 'nntk byr ... deal ya kk', 'besok bayar ya' — = FALSE, BUKAN PENUTUP. PENUTUP untuk pembayaran hanya jika SUDAH: sudah transfer, sudah bayar, sudah kirim.\n";
             $prompt .= "PRIORITAS: Minta satu pakaian/item tertentu diambil/dulukan dulu dari order/cucian yang sudah di laundry (belum waktunya ambil semua) = PERMINTAAN, BUKAN MINTA_JEMPUT_ANTAR.\n";
+            $prompt .= "PRIORITAS: User memberitahu cucian/kain yang baru/kemarin diantar/masukkan (yg saya masukkan tadi, kain yang saya antar tadi malam, dll) sekaligus menjelaskan pilihan layanan (cuci setrika, reguler, ekspres, setrika aja, dll) = NOTA (konfirmasi detail order/bon), BUKAN FALSE.\n";
             $prompt .= "Pesan: \"{$textBody}\"\n";
             $prompt .= "JAWAB HANYA DENGAN FORMAT JSON SEPERTI INI:\n";
             $prompt .= "{\"intent\": \"NAMA_KATEGORI\", \"reason\": \"Alasan singkat memilih kategori ini\"}\n";
@@ -4776,6 +4805,13 @@ class WAReplies
                 && preg_match('/\b(info|infonya|informasi)\b.{0,280}?\b(laundry|loundry|londri|laondri|cucian)\b.{0,220}?\b(antar|nyerahkan|nitip)\b.{0,120}?\b(pagi|siang|sore|malam)\b.{0,40}?\b(tadi|td|kemarin|kmrn)\b/iu', $textBody)) {
                 $intent = 'NOTA';
                 $reason = 'remap infonya + laundry + antar + waktu → NOTA';
+            }
+
+            // FALSE padahal konfirmasi layanan untuk cucian yang baru diantar/masukkan = NOTA
+            if ($intent === 'FALSE' && isset($keywordConfig['NOTA'])
+                && $this->messageLooksLikeNotaLayananSetelahAntar($textBody)) {
+                $intent = 'NOTA';
+                $reason = 'remap antar/masukkan + pilihan layanan → NOTA';
             }
 
             // FALSE padahal minta pricelist / daftar harga = HARGA
