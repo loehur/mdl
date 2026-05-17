@@ -447,4 +447,230 @@ class Rekap extends Controller
          'period_label' => $periodLabel,
       ]);
    }
+
+   /**
+    * JSON: rincian Margin Penjualan Barang (barang_mutasi type=1, state=1).
+    */
+   public function margin_penjualan_detail($mode = 1)
+   {
+      $this->session_cek(1);
+      $this->operating_data();
+
+      $period = $this->rekapPeriodFromMode($mode);
+      if (!$period['ok']) {
+         $this->jsonRekapDetailError($period['msg']);
+         return;
+      }
+
+      $dateCondition = $period['isDaily']
+         ? "DATE(created_at) = '{$period['today']}'"
+         : "DATE_FORMAT(created_at, '%Y-%m') = '{$period['today']}'";
+      $where = "type = 1 AND state = 1 AND {$dateCondition}";
+      if ($period['source_id'] !== null) {
+         $where = 'source_id = ' . (int) $period['source_id'] . ' AND ' . $where;
+      }
+
+      $items = $this->db(0)->get_where('barang_mutasi', $where . ' ORDER BY created_at DESC, ref ASC, id ASC');
+      if (!is_array($items)) {
+         $items = $items ? iterator_to_array($items) : [];
+      }
+
+      $cabangMap = $this->rekapCabangMap();
+      $rows = [];
+      $grand = 0;
+      foreach ($items as $item) {
+         $qty = floatval($item['qty'] ?? 0);
+         $margin = floatval($item['margin'] ?? 0);
+         $subtotal = (int) round($margin * $qty);
+         if ($subtotal <= 0) {
+            continue;
+         }
+         $grand += $subtotal;
+         $rows[] = [
+            'ref' => (string) ($item['ref'] ?? ''),
+            'tanggal' => $this->rekapFormatDateTime($item['created_at'] ?? ''),
+            'cabang' => $period['show_cabang'] ? $this->rekapCabangLabel((int) ($item['source_id'] ?? 0), $cabangMap) : '',
+            'barang' => $this->rekapNamaBarang((int) ($item['id_barang'] ?? 0)),
+            'qty' => $qty,
+            'margin' => (int) round($margin),
+            'subtotal' => $subtotal,
+         ];
+      }
+
+      $this->jsonRekapDetailOk($rows, $grand, $period['period_label']);
+   }
+
+   /**
+    * JSON: rincian Barang Pakai (barang_mutasi type=3, modal = price * qty).
+    */
+   public function barang_pakai_detail($mode = 1)
+   {
+      $this->session_cek(1);
+      $this->operating_data();
+
+      $period = $this->rekapPeriodFromMode($mode);
+      if (!$period['ok']) {
+         $this->jsonRekapDetailError($period['msg']);
+         return;
+      }
+
+      $dateCondition = $period['isDaily']
+         ? "DATE(created_at) = '{$period['today']}'"
+         : "DATE_FORMAT(created_at, '%Y-%m') = '{$period['today']}'";
+      $where = "type = 3 AND {$dateCondition}";
+      if ($period['source_id'] !== null) {
+         $where = 'source_id = ' . (int) $period['source_id'] . ' AND ' . $where;
+      }
+
+      $items = $this->db(0)->get_where('barang_mutasi', $where . ' ORDER BY created_at DESC, ref ASC, id ASC');
+      if (!is_array($items)) {
+         $items = $items ? iterator_to_array($items) : [];
+      }
+
+      $cabangMap = $this->rekapCabangMap();
+      $rows = [];
+      $grand = 0;
+      foreach ($items as $item) {
+         $qty = floatval($item['qty'] ?? 0);
+         $price = floatval($item['price'] ?? 0);
+         $subtotal = (int) round($price * $qty);
+         if ($subtotal <= 0) {
+            continue;
+         }
+         $grand += $subtotal;
+         $rows[] = [
+            'ref' => (string) ($item['ref'] ?? ''),
+            'tanggal' => $this->rekapFormatDateTime($item['created_at'] ?? ''),
+            'cabang' => $period['show_cabang'] ? $this->rekapCabangLabel((int) ($item['source_id'] ?? 0), $cabangMap) : '',
+            'barang' => $this->rekapNamaBarang((int) ($item['id_barang'] ?? 0)),
+            'qty' => $qty,
+            'harga' => (int) round($price),
+            'subtotal' => $subtotal,
+         ];
+      }
+
+      $this->jsonRekapDetailOk($rows, $grand, $period['period_label']);
+   }
+
+   private function rekapPeriodFromMode($mode)
+   {
+      $modeConfig = [
+         1 => ['type' => 'daily', 'useCabang' => true],
+         2 => ['type' => 'monthly', 'useCabang' => true],
+         3 => ['type' => 'monthly', 'useCabang' => false],
+         4 => ['type' => 'daily', 'useCabang' => false],
+      ];
+
+      $mode = (int) $mode;
+      if (!isset($modeConfig[$mode])) {
+         return ['ok' => false, 'msg' => 'Invalid mode'];
+      }
+
+      $config = $modeConfig[$mode];
+      $isDaily = $config['type'] === 'daily';
+
+      $year = isset($_GET['y']) ? (int) $_GET['y'] : (int) date('Y');
+      if ($year < 2000 || $year > 2100) {
+         $year = (int) date('Y');
+      }
+      $monthNum = isset($_GET['m']) ? (int) $_GET['m'] : (int) date('m');
+      if ($monthNum < 1 || $monthNum > 12) {
+         $monthNum = (int) date('m');
+      }
+      $month = str_pad((string) $monthNum, 2, '0', STR_PAD_LEFT);
+
+      if ($isDaily) {
+         $dayNum = isset($_GET['d']) ? (int) $_GET['d'] : (int) date('d');
+         if ($dayNum < 1 || $dayNum > 31) {
+            $dayNum = (int) date('d');
+         }
+         $day = str_pad((string) $dayNum, 2, '0', STR_PAD_LEFT);
+         $today = "$year-$month-$day";
+         $periodLabel = "$day/$month/$year";
+      } else {
+         $today = "$year-$month";
+         $periodLabel = "$month/$year";
+      }
+
+      return [
+         'ok' => true,
+         'isDaily' => $isDaily,
+         'today' => $today,
+         'period_label' => $periodLabel,
+         'source_id' => $config['useCabang'] ? (int) $this->id_cabang : null,
+         'show_cabang' => !$config['useCabang'],
+      ];
+   }
+
+   private function rekapCabangMap()
+   {
+      $cabangRows = $this->db(0)->get('cabang');
+      if (!is_array($cabangRows)) {
+         $cabangRows = [];
+      }
+      $map = [];
+      foreach ($cabangRows as $c) {
+         $map[(int) $c['id_cabang']] = $c;
+      }
+      return $map;
+   }
+
+   private function rekapCabangLabel($id, array $cabangMap)
+   {
+      if ($id < 1) {
+         return '';
+      }
+      $c = $cabangMap[$id] ?? null;
+      if (!$c) {
+         return 'Cabang #' . $id;
+      }
+      $nama = trim((string) ($c['kode_cabang'] ?? ''));
+      return $nama !== '' ? $nama : 'Cabang #' . $id;
+   }
+
+   private function rekapNamaBarang($id_barang)
+   {
+      if ($id_barang < 1) {
+         return '-';
+      }
+      $idEsc = $this->db(0)->escape((string) $id_barang);
+      $barang = $this->db(0)->get_where_row('barang_data', "id_barang = '$idEsc'");
+      if (!is_array($barang)) {
+         return 'Barang #' . $id_barang;
+      }
+      $nama = trim((string) ($barang['nama'] ?? ''));
+      if ($nama !== '') {
+         return $nama;
+      }
+      return strtoupper(trim(($barang['brand'] ?? '') . ' ' . ($barang['model'] ?? '')));
+   }
+
+   private function rekapFormatDateTime($dt)
+   {
+      if ($dt === '' || $dt === null) {
+         return '-';
+      }
+      $ts = strtotime((string) $dt);
+      if ($ts === false) {
+         return '-';
+      }
+      return date('d/m/Y H:i', $ts);
+   }
+
+   private function jsonRekapDetailError($msg)
+   {
+      header('Content-Type: application/json; charset=utf-8');
+      echo json_encode(['ok' => false, 'msg' => $msg]);
+   }
+
+   private function jsonRekapDetailOk(array $rows, $grandTotal, $periodLabel)
+   {
+      header('Content-Type: application/json; charset=utf-8');
+      echo json_encode([
+         'ok' => true,
+         'rows' => $rows,
+         'grand' => ['total' => (int) $grandTotal],
+         'period_label' => $periodLabel,
+      ]);
+   }
 }

@@ -298,8 +298,12 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
               <td>Pendapatan Laundry <span class="text-success">Member</span></td>
               <td class="text-right">Rp<?= number_format($data['kasMember']) ?></td>
             </tr>
-            <tr>
-              <td>Margin Penjualan Barang</td>
+            <tr role="button" class="align-middle" id="rekapMarginRow" style="cursor:pointer" title="Klik untuk rincian"
+              data-rekap-mode="<?= (int) $target_page_rekap ?>"
+              data-y="<?= htmlspecialchars((string) $currentYear, ENT_QUOTES, 'UTF-8') ?>"
+              data-m="<?= htmlspecialchars((string) $currentMonth, ENT_QUOTES, 'UTF-8') ?>"
+              data-d="<?= htmlspecialchars((string) $currentDay, ENT_QUOTES, 'UTF-8') ?>">
+              <td>Margin Penjualan Barang <i class="fas fa-list-ul text-secondary small ms-1" aria-hidden="true"></i></td>
               <td class="text-right">Rp<?= number_format($data['margin_penjualan'] ?? 0) ?></td>
             </tr>
             <tr class="table-success">
@@ -357,8 +361,12 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
               $total_keluar += $barang_pakai;
             }
             ?>
-            <tr>
-              <td>Barang Pakai</td>
+            <tr role="button" class="align-middle<?= $barang_pakai > 0 ? '' : ' text-muted' ?>" id="rekapBarangPakaiRow" style="cursor:pointer" title="Klik untuk rincian"
+              data-rekap-mode="<?= (int) $target_page_rekap ?>"
+              data-y="<?= htmlspecialchars((string) $currentYear, ENT_QUOTES, 'UTF-8') ?>"
+              data-m="<?= htmlspecialchars((string) $currentMonth, ENT_QUOTES, 'UTF-8') ?>"
+              data-d="<?= htmlspecialchars((string) $currentDay, ENT_QUOTES, 'UTF-8') ?>">
+              <td>Barang Pakai <i class="fas fa-list-ul text-secondary small ms-1" aria-hidden="true"></i></td>
               <td class="text-right">Rp<?= number_format($barang_pakai) ?></td>
             </tr>
             <tr class="table-danger">
@@ -388,6 +396,90 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
   </div>
 </div>
 </div>
+</div>
+
+<div class="modal fade" id="modalMarginDetail" tabindex="-1" aria-labelledby="modalMarginDetailLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title" id="modalMarginDetailLabel">Rincian Margin Penjualan Barang</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+      </div>
+      <div class="modal-body py-2">
+        <p class="small text-muted mb-2" id="modalMarginPeriod"></p>
+        <div id="modalMarginLoading" class="text-center py-3 d-none">Memuat…</div>
+        <div id="modalMarginError" class="alert alert-danger py-2 small d-none"></div>
+        <div class="table-responsive">
+          <table class="table table-sm table-bordered mb-0">
+            <thead class="table-light">
+              <tr id="modalMarginHeadRow">
+                <th>Ref</th>
+                <th>Tanggal</th>
+                <th class="modalMarginColCabang d-none">Cabang</th>
+                <th>Barang</th>
+                <th class="text-end">Qty</th>
+                <th class="text-end">Margin</th>
+                <th class="text-end">Jumlah</th>
+              </tr>
+            </thead>
+            <tbody id="modalMarginTbody"></tbody>
+            <tfoot id="modalMarginTfoot" class="table-secondary fw-bold d-none">
+              <tr>
+                <td colspan="6" id="modalMarginFootLabel">Total</td>
+                <td class="text-end" id="modalMarginFootSum">0</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <p class="small text-muted mb-0 mt-2 d-none" id="modalMarginEmpty">Tidak ada transaksi pada periode ini.</p>
+      </div>
+      <div class="modal-footer py-1">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Tutup</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="modalBarangPakaiDetail" tabindex="-1" aria-labelledby="modalBarangPakaiDetailLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title" id="modalBarangPakaiDetailLabel">Rincian Barang Pakai</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+      </div>
+      <div class="modal-body py-2">
+        <p class="small text-muted mb-2" id="modalBarangPakaiPeriod"></p>
+        <div id="modalBarangPakaiLoading" class="text-center py-3 d-none">Memuat…</div>
+        <div id="modalBarangPakaiError" class="alert alert-danger py-2 small d-none"></div>
+        <div class="table-responsive">
+          <table class="table table-sm table-bordered mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Ref</th>
+                <th>Tanggal</th>
+                <th class="modalPakaiColCabang d-none">Cabang</th>
+                <th>Barang</th>
+                <th class="text-end">Qty</th>
+                <th class="text-end">Harga</th>
+                <th class="text-end">Jumlah</th>
+              </tr>
+            </thead>
+            <tbody id="modalBarangPakaiTbody"></tbody>
+            <tfoot id="modalBarangPakaiTfoot" class="table-secondary fw-bold d-none">
+              <tr>
+                <td colspan="6" id="modalBarangPakaiFootLabel">Total</td>
+                <td class="text-end" id="modalBarangPakaiFootSum">0</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <p class="small text-muted mb-0 mt-2 d-none" id="modalBarangPakaiEmpty">Tidak ada transaksi pada periode ini.</p>
+      </div>
+      <div class="modal-footer py-1">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Tutup</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="modal fade" id="modalPrepostDetail" tabindex="-1" aria-labelledby="modalPrepostDetailLabel" aria-hidden="true">
@@ -433,8 +525,7 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
 
 <script>
 (function () {
-  var row = document.getElementById('rekapPrepostRow');
-  if (!row || typeof bootstrap === 'undefined') return;
+  if (typeof bootstrap === 'undefined') return;
 
   var fmt = function (n) {
     try {
@@ -444,77 +535,187 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
     }
   };
 
-  row.addEventListener('click', function () {
-    var mode = row.getAttribute('data-rekap-mode') || '1';
-    var y = row.getAttribute('data-y') || '';
-    var m = row.getAttribute('data-m') || '';
-    var d = row.getAttribute('data-d') || '';
-    var url = '<?= URL::BASE_URL ?>Rekap/prepost_detail/' + encodeURIComponent(mode)
-      + '?y=' + encodeURIComponent(y) + '&m=' + encodeURIComponent(m) + '&d=' + encodeURIComponent(d);
+  var fmtQty = function (n) {
+    var x = parseFloat(n);
+    if (isNaN(x)) return String(n);
+    if (Math.abs(x - Math.round(x)) < 0.0001) {
+      return fmt(Math.round(x));
+    }
+    return String(n);
+  };
 
-    var modalEl = document.getElementById('modalPrepostDetail');
-    var loading = document.getElementById('modalPrepostLoading');
-    var errEl = document.getElementById('modalPrepostError');
-    var tbody = document.getElementById('modalPrepostTbody');
-    var tfoot = document.getElementById('modalPrepostTfoot');
-    var emptyEl = document.getElementById('modalPrepostEmpty');
-    var periodEl = document.getElementById('modalPrepostPeriod');
+  var periodParams = function (row) {
+    return '?y=' + encodeURIComponent(row.getAttribute('data-y') || '')
+      + '&m=' + encodeURIComponent(row.getAttribute('data-m') || '')
+      + '&d=' + encodeURIComponent(row.getAttribute('data-d') || '');
+  };
 
-    tbody.innerHTML = '';
+  var resetModal = function (ids) {
+    document.getElementById(ids.tbody).innerHTML = '';
+    var errEl = document.getElementById(ids.error);
     errEl.classList.add('d-none');
     errEl.textContent = '';
-    emptyEl.classList.add('d-none');
-    tfoot.classList.add('d-none');
-    loading.classList.remove('d-none');
+    document.getElementById(ids.empty).classList.add('d-none');
+    document.getElementById(ids.tfoot).classList.add('d-none');
+    document.getElementById(ids.loading).classList.remove('d-none');
+  };
 
-    var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-    modal.show();
-
+  var openFetchModal = function (row, url, ids, onSuccess) {
+    resetModal(ids);
+    bootstrap.Modal.getOrCreateInstance(document.getElementById(ids.modal)).show();
     fetch(url, { credentials: 'same-origin' })
       .then(function (r) { return r.json(); })
       .then(function (data) {
-        loading.classList.add('d-none');
+        document.getElementById(ids.loading).classList.add('d-none');
         if (!data || !data.ok) {
+          var errEl = document.getElementById(ids.error);
           errEl.textContent = (data && data.msg) ? data.msg : 'Gagal memuat data.';
           errEl.classList.remove('d-none');
           return;
         }
-        periodEl.textContent = 'Periode: ' + (data.period_label || '');
-        var rows = data.rows || [];
-        if (rows.length === 0) {
-          emptyEl.classList.remove('d-none');
-          return;
-        }
-        rows.forEach(function (x) {
-          var tr = document.createElement('tr');
-          var td0 = document.createElement('td');
-          td0.textContent = x.nama || '';
-          var td1 = document.createElement('td');
-          td1.className = 'text-end';
-          td1.textContent = 'Rp' + fmt(x.prepaid);
-          var td2 = document.createElement('td');
-          td2.className = 'text-end';
-          td2.textContent = 'Rp' + fmt(x.postpaid);
-          var td3 = document.createElement('td');
-          td3.className = 'text-end';
-          td3.textContent = 'Rp' + fmt(x.total);
-          tr.appendChild(td0);
-          tr.appendChild(td1);
-          tr.appendChild(td2);
-          tr.appendChild(td3);
-          tbody.appendChild(tr);
-        });
-        var g = data.grand || {};
-        document.getElementById('modalPrepostFootPre').textContent = 'Rp' + fmt(g.prepaid || 0);
-        document.getElementById('modalPrepostFootPost').textContent = 'Rp' + fmt(g.postpaid || 0);
-        document.getElementById('modalPrepostFootSum').textContent = 'Rp' + fmt(g.total || 0);
-        tfoot.classList.remove('d-none');
+        document.getElementById(ids.period).textContent = 'Periode: ' + (data.period_label || '');
+        onSuccess(data);
       })
       .catch(function () {
-        loading.classList.add('d-none');
+        document.getElementById(ids.loading).classList.add('d-none');
+        var errEl = document.getElementById(ids.error);
         errEl.textContent = 'Gagal memuat data.';
         errEl.classList.remove('d-none');
       });
+  };
+
+  var bindRow = function (rowId, buildUrl, ids, onSuccess) {
+    var row = document.getElementById(rowId);
+    if (!row) return;
+    row.addEventListener('click', function () {
+      var mode = row.getAttribute('data-rekap-mode') || '1';
+      openFetchModal(row, buildUrl(mode) + periodParams(row), ids, onSuccess);
+    });
+  };
+
+  bindRow('rekapPrepostRow', function (mode) {
+    return '<?= URL::BASE_URL ?>Rekap/prepost_detail/' + encodeURIComponent(mode);
+  }, {
+    modal: 'modalPrepostDetail',
+    loading: 'modalPrepostLoading',
+    error: 'modalPrepostError',
+    tbody: 'modalPrepostTbody',
+    tfoot: 'modalPrepostTfoot',
+    empty: 'modalPrepostEmpty',
+    period: 'modalPrepostPeriod'
+  }, function (data) {
+    var rows = data.rows || [];
+    if (rows.length === 0) {
+      document.getElementById('modalPrepostEmpty').classList.remove('d-none');
+      return;
+    }
+    var tbody = document.getElementById('modalPrepostTbody');
+    rows.forEach(function (x) {
+      var tr = document.createElement('tr');
+      var td0 = document.createElement('td');
+      td0.textContent = x.nama || '';
+      var td1 = document.createElement('td');
+      td1.className = 'text-end';
+      td1.textContent = 'Rp' + fmt(x.prepaid);
+      var td2 = document.createElement('td');
+      td2.className = 'text-end';
+      td2.textContent = 'Rp' + fmt(x.postpaid);
+      var td3 = document.createElement('td');
+      td3.className = 'text-end';
+      td3.textContent = 'Rp' + fmt(x.total);
+      tr.appendChild(td0);
+      tr.appendChild(td1);
+      tr.appendChild(td2);
+      tr.appendChild(td3);
+      tbody.appendChild(tr);
+    });
+    var g = data.grand || {};
+    document.getElementById('modalPrepostFootPre').textContent = 'Rp' + fmt(g.prepaid || 0);
+    document.getElementById('modalPrepostFootPost').textContent = 'Rp' + fmt(g.postpaid || 0);
+    document.getElementById('modalPrepostFootSum').textContent = 'Rp' + fmt(g.total || 0);
+    document.getElementById('modalPrepostTfoot').classList.remove('d-none');
+  });
+
+  var renderBarangRows = function (data, opts) {
+    var rows = data.rows || [];
+    if (rows.length === 0) {
+      document.getElementById(opts.emptyId).classList.remove('d-none');
+      return;
+    }
+    var showCabang = rows.some(function (x) { return (x.cabang || '').length > 0; });
+    document.querySelectorAll(opts.cabangColClass).forEach(function (el) {
+      el.classList.toggle('d-none', !showCabang);
+    });
+    document.getElementById(opts.footLabelId).colSpan = showCabang ? 6 : 5;
+
+    var tbody = document.getElementById(opts.tbodyId);
+    rows.forEach(function (x) {
+      var tr = document.createElement('tr');
+      var cells = [
+        { text: x.ref ? '#' + x.ref : '-' },
+        { text: x.tanggal || '-' },
+      ];
+      if (showCabang) {
+        cells.push({ text: x.cabang || '-' });
+      }
+      cells.push({ text: x.barang || '-' });
+      cells.push({ text: fmtQty(x.qty), cls: 'text-end' });
+      cells.push({ text: 'Rp' + fmt(x[opts.unitField]), cls: 'text-end' });
+      cells.push({ text: 'Rp' + fmt(x.subtotal), cls: 'text-end' });
+      cells.forEach(function (c) {
+        var td = document.createElement('td');
+        if (c.cls) td.className = c.cls;
+        td.textContent = c.text;
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    document.getElementById(opts.footSumId).textContent = 'Rp' + fmt((data.grand && data.grand.total) || 0);
+    document.getElementById(opts.tfootId).classList.remove('d-none');
+  };
+
+  bindRow('rekapMarginRow', function (mode) {
+    return '<?= URL::BASE_URL ?>Rekap/margin_penjualan_detail/' + encodeURIComponent(mode);
+  }, {
+    modal: 'modalMarginDetail',
+    loading: 'modalMarginLoading',
+    error: 'modalMarginError',
+    tbody: 'modalMarginTbody',
+    tfoot: 'modalMarginTfoot',
+    empty: 'modalMarginEmpty',
+    period: 'modalMarginPeriod'
+  }, function (data) {
+    renderBarangRows(data, {
+      tbodyId: 'modalMarginTbody',
+      tfootId: 'modalMarginTfoot',
+      emptyId: 'modalMarginEmpty',
+      footLabelId: 'modalMarginFootLabel',
+      footSumId: 'modalMarginFootSum',
+      cabangColClass: '.modalMarginColCabang',
+      unitField: 'margin'
+    });
+  });
+
+  bindRow('rekapBarangPakaiRow', function (mode) {
+    return '<?= URL::BASE_URL ?>Rekap/barang_pakai_detail/' + encodeURIComponent(mode);
+  }, {
+    modal: 'modalBarangPakaiDetail',
+    loading: 'modalBarangPakaiLoading',
+    error: 'modalBarangPakaiError',
+    tbody: 'modalBarangPakaiTbody',
+    tfoot: 'modalBarangPakaiTfoot',
+    empty: 'modalBarangPakaiEmpty',
+    period: 'modalBarangPakaiPeriod'
+  }, function (data) {
+    renderBarangRows(data, {
+      tbodyId: 'modalBarangPakaiTbody',
+      tfootId: 'modalBarangPakaiTfoot',
+      emptyId: 'modalBarangPakaiEmpty',
+      footLabelId: 'modalBarangPakaiFootLabel',
+      footSumId: 'modalBarangPakaiFootSum',
+      cabangColClass: '.modalPakaiColCabang',
+      unitField: 'harga'
+    });
   });
 })();
 </script>
