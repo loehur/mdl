@@ -409,6 +409,30 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
         <p class="small text-muted mb-2" id="modalMarginPeriod"></p>
         <div id="modalMarginLoading" class="text-center py-3 d-none">Memuat…</div>
         <div id="modalMarginError" class="alert alert-danger py-2 small d-none"></div>
+        <div id="modalMarginRekapWrap" class="d-none mb-2">
+          <p class="small fw-semibold text-success mb-1">Rekapitulasi per Barang</p>
+          <div class="table-responsive">
+            <table class="table table-sm table-bordered mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Barang</th>
+                  <th class="text-end">Qty</th>
+                  <th class="text-end">Jumlah</th>
+                </tr>
+              </thead>
+              <tbody id="modalMarginRekapTbody"></tbody>
+              <tfoot class="table-secondary fw-bold">
+                <tr>
+                  <td>Total</td>
+                  <td class="text-end" id="modalMarginRekapQty">0</td>
+                  <td class="text-end" id="modalMarginRekapSum">0</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          <p class="small fw-semibold mb-1 mt-3">Rincian Transaksi</p>
+        </div>
+        <div id="modalMarginDetailWrap" class="d-none">
         <div class="table-responsive">
           <table class="table table-sm table-bordered mb-0">
             <thead class="table-light">
@@ -431,6 +455,7 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
             </tfoot>
           </table>
         </div>
+        </div>
         <p class="small text-muted mb-0 mt-2 d-none" id="modalMarginEmpty">Tidak ada transaksi pada periode ini.</p>
       </div>
       <div class="modal-footer py-1">
@@ -451,6 +476,30 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
         <p class="small text-muted mb-2" id="modalBarangPakaiPeriod"></p>
         <div id="modalBarangPakaiLoading" class="text-center py-3 d-none">Memuat…</div>
         <div id="modalBarangPakaiError" class="alert alert-danger py-2 small d-none"></div>
+        <div id="modalBarangPakaiRekapWrap" class="d-none mb-2">
+          <p class="small fw-semibold text-danger mb-1">Rekapitulasi per Barang</p>
+          <div class="table-responsive">
+            <table class="table table-sm table-bordered mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Barang</th>
+                  <th class="text-end">Qty</th>
+                  <th class="text-end">Jumlah</th>
+                </tr>
+              </thead>
+              <tbody id="modalBarangPakaiRekapTbody"></tbody>
+              <tfoot class="table-secondary fw-bold">
+                <tr>
+                  <td>Total</td>
+                  <td class="text-end" id="modalBarangPakaiRekapQty">0</td>
+                  <td class="text-end" id="modalBarangPakaiRekapSum">0</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          <p class="small fw-semibold mb-1 mt-3">Rincian Transaksi</p>
+        </div>
+        <div id="modalBarangPakaiDetailWrap" class="d-none">
         <div class="table-responsive">
           <table class="table table-sm table-bordered mb-0">
             <thead class="table-light">
@@ -473,6 +522,7 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
             </tfoot>
           </table>
         </div>
+        </div>
         <p class="small text-muted mb-0 mt-2 d-none" id="modalBarangPakaiEmpty">Tidak ada transaksi pada periode ini.</p>
       </div>
       <div class="modal-footer py-1">
@@ -483,14 +533,15 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
 </div>
 
 <div class="modal fade" id="modalPrepostDetail" tabindex="-1" aria-labelledby="modalPrepostDetailLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-scrollable">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg">
     <div class="modal-content">
       <div class="modal-header py-2">
         <h6 class="modal-title" id="modalPrepostDetailLabel">Rincian Pre/Post Paid</h6>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
       </div>
       <div class="modal-body py-2">
-        <p class="small text-muted mb-2" id="modalPrepostPeriod"></p>
+        <p class="small text-muted mb-1" id="modalPrepostPeriod"></p>
+        <p class="small text-muted mb-2 d-none" id="modalPrepostHint">Klik baris cabang untuk melihat rincian Pre/Post Paid.</p>
         <div id="modalPrepostLoading" class="text-center py-3 d-none">Memuat…</div>
         <div id="modalPrepostError" class="alert alert-danger py-2 small d-none"></div>
         <div class="table-responsive">
@@ -552,6 +603,15 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
 
   var resetModal = function (ids) {
     document.getElementById(ids.tbody).innerHTML = '';
+    if (ids.rekapTbody) {
+      document.getElementById(ids.rekapTbody).innerHTML = '';
+    }
+    if (ids.rekapWrap) {
+      document.getElementById(ids.rekapWrap).classList.add('d-none');
+    }
+    if (ids.detailWrap) {
+      document.getElementById(ids.detailWrap).classList.add('d-none');
+    }
     var errEl = document.getElementById(ids.error);
     errEl.classList.add('d-none');
     errEl.textContent = '';
@@ -607,13 +667,71 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
     var rows = data.rows || [];
     if (rows.length === 0) {
       document.getElementById('modalPrepostEmpty').classList.remove('d-none');
+      document.getElementById('modalPrepostHint').classList.add('d-none');
       return;
     }
+    document.getElementById('modalPrepostHint').classList.remove('d-none');
     var tbody = document.getElementById('modalPrepostTbody');
+
+    var buildPrepostDetailRow = function (details) {
+      var detailTr = document.createElement('tr');
+      detailTr.className = 'prepost-detail-row d-none table-light';
+      var detailTd = document.createElement('td');
+      detailTd.colSpan = 4;
+      detailTd.className = 'p-0';
+      if (!details || details.length === 0) {
+        detailTd.className = 'p-2 small text-muted';
+        detailTd.textContent = 'Tidak ada rincian transaksi.';
+        detailTr.appendChild(detailTd);
+        return detailTr;
+      }
+      var inner = document.createElement('table');
+      inner.className = 'table table-sm table-bordered mb-0 bg-white';
+      var iHead = document.createElement('thead');
+      iHead.className = 'table-secondary';
+      iHead.innerHTML = '<tr><th>Tipe</th><th>Keterangan</th><th>Tanggal</th><th class="text-end">Jumlah</th></tr>';
+      inner.appendChild(iHead);
+      var iBody = document.createElement('tbody');
+      details.forEach(function (d) {
+        var itr = document.createElement('tr');
+        var it0 = document.createElement('td');
+        it0.className = d.tipe === 'Prepaid' ? 'text-primary' : 'text-danger';
+        it0.textContent = d.tipe || '-';
+        var it1 = document.createElement('td');
+        it1.textContent = d.keterangan || '-';
+        var it2 = document.createElement('td');
+        it2.className = 'text-nowrap';
+        it2.textContent = d.tanggal || '-';
+        var it3 = document.createElement('td');
+        it3.className = 'text-end';
+        it3.textContent = 'Rp' + fmt(d.jumlah || 0);
+        itr.appendChild(it0);
+        itr.appendChild(it1);
+        itr.appendChild(it2);
+        itr.appendChild(it3);
+        iBody.appendChild(itr);
+      });
+      inner.appendChild(iBody);
+      detailTd.appendChild(inner);
+      detailTr.appendChild(detailTd);
+      return detailTr;
+    };
+
     rows.forEach(function (x) {
       var tr = document.createElement('tr');
+      tr.className = 'prepost-branch-row align-middle';
+      tr.setAttribute('role', 'button');
+      tr.setAttribute('data-expanded', '0');
+      tr.style.cursor = 'pointer';
+      tr.title = 'Klik untuk rincian';
+
       var td0 = document.createElement('td');
-      td0.textContent = x.nama || '';
+      var chevron = document.createElement('i');
+      chevron.className = 'fas fa-chevron-right prepost-chevron small text-secondary me-1';
+      chevron.setAttribute('aria-hidden', 'true');
+      td0.appendChild(chevron);
+      td0.appendChild(document.createTextNode(x.nama || ''));
+
       var td1 = document.createElement('td');
       td1.className = 'text-end';
       td1.textContent = 'Rp' + fmt(x.prepaid);
@@ -627,7 +745,27 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
       tr.appendChild(td1);
       tr.appendChild(td2);
       tr.appendChild(td3);
+
+      var detailTr = buildPrepostDetailRow(x.details || []);
+      tr.addEventListener('click', function () {
+        var expanded = tr.getAttribute('data-expanded') === '1';
+        if (expanded) {
+          detailTr.classList.add('d-none');
+          tr.setAttribute('data-expanded', '0');
+          tr.classList.remove('table-active');
+          chevron.classList.remove('fa-chevron-down');
+          chevron.classList.add('fa-chevron-right');
+        } else {
+          detailTr.classList.remove('d-none');
+          tr.setAttribute('data-expanded', '1');
+          tr.classList.add('table-active');
+          chevron.classList.remove('fa-chevron-right');
+          chevron.classList.add('fa-chevron-down');
+        }
+      });
+
       tbody.appendChild(tr);
+      tbody.appendChild(detailTr);
     });
     var g = data.grand || {};
     document.getElementById('modalPrepostFootPre').textContent = 'Rp' + fmt(g.prepaid || 0);
@@ -636,12 +774,44 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
     document.getElementById('modalPrepostTfoot').classList.remove('d-none');
   });
 
+  var renderBarangRekap = function (data, opts) {
+    var rekap = data.rekap || [];
+    if (rekap.length === 0) {
+      return;
+    }
+    document.getElementById(opts.rekapWrapId).classList.remove('d-none');
+    var tbody = document.getElementById(opts.rekapTbodyId);
+    var totalQty = 0;
+    var totalSum = 0;
+    rekap.forEach(function (x) {
+      totalQty += parseFloat(x.qty) || 0;
+      totalSum += parseInt(x.total, 10) || 0;
+      var tr = document.createElement('tr');
+      var td0 = document.createElement('td');
+      td0.textContent = x.barang || '-';
+      var td1 = document.createElement('td');
+      td1.className = 'text-end';
+      td1.textContent = fmtQty(x.qty);
+      var td2 = document.createElement('td');
+      td2.className = 'text-end';
+      td2.textContent = 'Rp' + fmt(x.total);
+      tr.appendChild(td0);
+      tr.appendChild(td1);
+      tr.appendChild(td2);
+      tbody.appendChild(tr);
+    });
+    document.getElementById(opts.rekapQtyId).textContent = fmtQty(totalQty);
+    document.getElementById(opts.rekapSumId).textContent = 'Rp' + fmt(totalSum);
+  };
+
   var renderBarangRows = function (data, opts) {
     var rows = data.rows || [];
     if (rows.length === 0) {
       document.getElementById(opts.emptyId).classList.remove('d-none');
       return;
     }
+    renderBarangRekap(data, opts);
+    document.getElementById(opts.detailWrapId).classList.remove('d-none');
     var showCabang = rows.some(function (x) { return (x.cabang || '').length > 0; });
     document.querySelectorAll(opts.cabangColClass).forEach(function (el) {
       el.classList.toggle('d-none', !showCabang);
@@ -683,7 +853,10 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
     tbody: 'modalMarginTbody',
     tfoot: 'modalMarginTfoot',
     empty: 'modalMarginEmpty',
-    period: 'modalMarginPeriod'
+    period: 'modalMarginPeriod',
+    rekapWrap: 'modalMarginRekapWrap',
+    rekapTbody: 'modalMarginRekapTbody',
+    detailWrap: 'modalMarginDetailWrap'
   }, function (data) {
     renderBarangRows(data, {
       tbodyId: 'modalMarginTbody',
@@ -692,7 +865,12 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
       footLabelId: 'modalMarginFootLabel',
       footSumId: 'modalMarginFootSum',
       cabangColClass: '.modalMarginColCabang',
-      unitField: 'margin'
+      unitField: 'margin',
+      rekapWrapId: 'modalMarginRekapWrap',
+      rekapTbodyId: 'modalMarginRekapTbody',
+      rekapQtyId: 'modalMarginRekapQty',
+      rekapSumId: 'modalMarginRekapSum',
+      detailWrapId: 'modalMarginDetailWrap'
     });
   });
 
@@ -705,7 +883,10 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
     tbody: 'modalBarangPakaiTbody',
     tfoot: 'modalBarangPakaiTfoot',
     empty: 'modalBarangPakaiEmpty',
-    period: 'modalBarangPakaiPeriod'
+    period: 'modalBarangPakaiPeriod',
+    rekapWrap: 'modalBarangPakaiRekapWrap',
+    rekapTbody: 'modalBarangPakaiRekapTbody',
+    detailWrap: 'modalBarangPakaiDetailWrap'
   }, function (data) {
     renderBarangRows(data, {
       tbodyId: 'modalBarangPakaiTbody',
@@ -714,7 +895,12 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
       footLabelId: 'modalBarangPakaiFootLabel',
       footSumId: 'modalBarangPakaiFootSum',
       cabangColClass: '.modalPakaiColCabang',
-      unitField: 'harga'
+      unitField: 'harga',
+      rekapWrapId: 'modalBarangPakaiRekapWrap',
+      rekapTbodyId: 'modalBarangPakaiRekapTbody',
+      rekapQtyId: 'modalBarangPakaiRekapQty',
+      rekapSumId: 'modalBarangPakaiRekapSum',
+      detailWrapId: 'modalBarangPakaiDetailWrap'
     });
   });
 })();

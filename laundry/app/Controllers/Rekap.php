@@ -399,6 +399,8 @@ class Rekap extends Controller
          $cabangMap[(int) $c['id_cabang']] = $c;
       }
 
+      $detailsByCabang = $this->rekapPrepostDetailsByCabang($baseWhere);
+
       $rows = [];
       foreach ($byBranch as $id => $tot) {
          $pre = $tot['pre'];
@@ -421,6 +423,7 @@ class Rekap extends Controller
             'prepaid' => $pre,
             'postpaid' => $post,
             'total' => $total,
+            'details' => $detailsByCabang[$id] ?? [],
          ];
       }
 
@@ -497,7 +500,8 @@ class Rekap extends Controller
          ];
       }
 
-      $this->jsonRekapDetailOk($rows, $grand, $period['period_label']);
+      $rekap = $this->rekapAgregatPerBarang($rows);
+      $this->jsonRekapDetailOk($rows, $grand, $period['period_label'], $rekap);
    }
 
    /**
@@ -549,7 +553,126 @@ class Rekap extends Controller
          ];
       }
 
-      $this->jsonRekapDetailOk($rows, $grand, $period['period_label']);
+      $rekap = $this->rekapAgregatPerBarang($rows);
+      $this->jsonRekapDetailOk($rows, $grand, $period['period_label'], $rekap);
+   }
+
+   /**
+    * Rincian transaksi Pre/Post Paid per cabang (untuk expand di modal Rekap).
+    */
+   private function rekapPrepostDetailsByCabang($baseWhere)
+   {
+      $byCabang = [];
+
+      $preItems = $this->db(100)->get_where('prepaid', $baseWhere . ' ORDER BY insertTime DESC');
+      if (!is_array($preItems)) {
+         $preItems = $preItems ? iterator_to_array($preItems) : [];
+      }
+      foreach ($preItems as $item) {
+         $id = (int) ($item['id_cabang'] ?? 0);
+         if ($id < 1) {
+            continue;
+         }
+         $code = strtoupper(trim((string) ($item['product_code'] ?? '')));
+         $customer = trim((string) ($item['customer_id'] ?? ''));
+         $keterangan = $code;
+         if ($customer !== '') {
+            $keterangan = ($keterangan !== '' ? $keterangan . ' · ' : '') . $customer;
+         }
+         if ($keterangan === '') {
+            $keterangan = 'Prepaid #' . ($item['id'] ?? '');
+         }
+         if (!isset($byCabang[$id])) {
+            $byCabang[$id] = [];
+         }
+         $byCabang[$id][] = [
+            'tipe' => 'Prepaid',
+            'keterangan' => $keterangan,
+            'tanggal' => $this->rekapFormatDateTime($item['insertTime'] ?? ''),
+            'jumlah' => (int) ($item['price'] ?? 0),
+            '_sort' => (string) ($item['insertTime'] ?? ''),
+         ];
+      }
+
+      $postItems = $this->db(100)->get_where('postpaid', $baseWhere . ' ORDER BY insertTime DESC');
+      if (!is_array($postItems)) {
+         $postItems = $postItems ? iterator_to_array($postItems) : [];
+      }
+      foreach ($postItems as $item) {
+         $id = (int) ($item['id_cabang'] ?? 0);
+         if ($id < 1) {
+            continue;
+         }
+         $code = strtoupper(trim((string) ($item['code'] ?? '')));
+         $trName = trim((string) ($item['tr_name'] ?? ''));
+         $customer = trim((string) ($item['customer_id'] ?? ''));
+         $parts = array_filter([$code, $trName, $customer], function ($p) {
+            return $p !== '';
+         });
+         $keterangan = implode(' · ', $parts);
+         if ($keterangan === '') {
+            $keterangan = 'Postpaid #' . ($item['id'] ?? '');
+         }
+         if (!isset($byCabang[$id])) {
+            $byCabang[$id] = [];
+         }
+         $byCabang[$id][] = [
+            'tipe' => 'Postpaid',
+            'keterangan' => $keterangan,
+            'tanggal' => $this->rekapFormatDateTime($item['insertTime'] ?? ''),
+            'jumlah' => (int) ($item['price'] ?? 0),
+            '_sort' => (string) ($item['insertTime'] ?? ''),
+         ];
+      }
+
+      foreach ($byCabang as $id => &$list) {
+         usort($list, function ($a, $b) {
+            return strcmp($b['_sort'] ?? '', $a['_sort'] ?? '');
+         });
+         foreach ($list as &$row) {
+            unset($row['_sort']);
+         }
+         unset($row);
+      }
+      unset($list);
+
+      return $byCabang;
+   }
+
+   /**
+    * Agregat qty & jumlah per nama barang dari baris rincian.
+    */
+   private function rekapAgregatPerBarang(array $rows)
+   {
+      $by = [];
+      foreach ($rows as $r) {
+         $nama = trim((string) ($r['barang'] ?? ''));
+         if ($nama === '') {
+            $nama = '-';
+         }
+         if (!isset($by[$nama])) {
+            $by[$nama] = ['barang' => $nama, 'qty' => 0.0, 'total' => 0];
+         }
+         $by[$nama]['qty'] += floatval($r['qty'] ?? 0);
+         $by[$nama]['total'] += (int) ($r['subtotal'] ?? 0);
+      }
+
+      $rekap = array_values($by);
+      usort($rekap, function ($a, $b) {
+         $cmp = $b['total'] <=> $a['total'];
+         if ($cmp !== 0) {
+            return $cmp;
+         }
+         return strcmp($a['barang'], $b['barang']);
+      });
+
+      foreach ($rekap as &$item) {
+         $item['qty'] = round($item['qty'], 4);
+         $item['total'] = (int) $item['total'];
+      }
+      unset($item);
+
+      return $rekap;
    }
 
    private function rekapPeriodFromMode($mode)
@@ -663,12 +786,13 @@ class Rekap extends Controller
       echo json_encode(['ok' => false, 'msg' => $msg]);
    }
 
-   private function jsonRekapDetailOk(array $rows, $grandTotal, $periodLabel)
+   private function jsonRekapDetailOk(array $rows, $grandTotal, $periodLabel, array $rekap = [])
    {
       header('Content-Type: application/json; charset=utf-8');
       echo json_encode([
          'ok' => true,
          'rows' => $rows,
+         'rekap' => $rekap,
          'grand' => ['total' => (int) $grandTotal],
          'period_label' => $periodLabel,
       ]);
