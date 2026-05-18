@@ -4029,9 +4029,10 @@ class WAReplies
             $akan_dipakai = $pre_list['nominal'];
             $limit = $pre_list['monthly_limit'];
 
-            // Get usage this month (pengganti helper('Pre')->bulan_ini)
+            // Get usage this month — filter sama dengan handleCek_token (per cabang + bisnis)
             $pakai_result = $db0->query(
-                "SELECT SUM(price) as total FROM prepaid WHERE product_code = '$product_code' AND MONTH(insertTime) = MONTH(NOW()) AND YEAR(insertTime) = YEAR(NOW()) AND tr_status = 1"
+                "SELECT SUM(price) as total FROM prepaid WHERE bisnis = ? AND product_code = ? AND id_cabang = ? AND MONTH(insertTime) = MONTH(NOW()) AND YEAR(insertTime) = YEAR(NOW()) AND tr_status = 1",
+                [$bisnis, $product_code, $id_cabang]
             )->row_array();
             $pakai_bulan_ini = $pakai_result['total'] ?? 0;
             $total_pakai = $akan_dipakai + $pakai_bulan_ini;
