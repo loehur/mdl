@@ -27,8 +27,9 @@ foreach ($satuanList as $s) {
                   <th>Brand</th>
                   <th>Model</th>
                   <th>Description</th>
-                  <th>Price</th>
+                  <th>Modal</th>
                   <th>Margin</th>
+                  <th class="text-end">Price</th>
                   <th>Unit</th>
                   <th>St</th>
                 </tr>
@@ -47,6 +48,8 @@ foreach ($satuanList as $s) {
                   echo "<td><span class='editable text-uppercase' data-mode='4' data-id_value='" . $id . "' data-value='" . $a['description'] . "'>" . $a['description'] . "</span></td>";
                   echo "<td><span class='editable' data-mode='5' data-id_value='" . $id . "' data-value='" . $a['price'] . "'>" . number_format($a['price']) . "</span></td>";
                   echo "<td><span class='editable' data-mode='6' data-id_value='" . $id . "' data-value='" . $a['margin'] . "'>" . $a['margin'] . "</span></td>";
+                  $priceJual = (float) ($a['price'] ?? 0) + (float) ($a['margin'] ?? 0);
+                  echo "<td class='text-end'><span class='editable' data-mode='10' data-id_value='" . $id . "' data-value='" . $priceJual . "'>" . number_format($priceJual, 0, '.', ',') . "</span></td>";
                   echo "<td><span class='editable' data-mode='7' data-id_value='" . $id . "' data-value='" . $a['unit'] . "'>" . $unitName . "</span></td>";
                   echo "<td><button class='btn btn-xs " . $btnClass . " toggle-state' data-id='" . $id . "' data-val='" . $stateVal . "'>" . $stateVal . "</button></td>";
                   echo "</tr>";
@@ -174,9 +177,9 @@ foreach ($satuanList as $s) {
       var mode = span.attr('data-mode');
       var value_before = value;
 
-      // Unformat helper for price if needed
-      if(mode == 5) { // Price
-         value = value.toString().replace(/,/g, ''); 
+      // Unformat helper for price / harga jual if needed
+      if (mode == 5 || mode == 10) {
+         value = value.toString().replace(/,/g, '');
       }
 
       if (mode == 7) { // Unit Dropdown
@@ -198,7 +201,10 @@ foreach ($satuanList as $s) {
         if(span.find('#value_').length === 0) return;
 
         var value_after = $(this).val();
-        
+        if (mode == 5 || mode == 10) {
+          value_after = value_after.toString().replace(/,/g, '').trim();
+        }
+
         if (value_after == value_before) {
              if (mode == 7) {
                 span.html(mapSatuan[value_before] || value_before);

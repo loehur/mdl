@@ -380,7 +380,7 @@ class Data_List extends Controller
             $table = "barang_data";
             $mode = intval($_POST['mode'] ?? 0);
             $value = $_POST['value'] ?? '';
-            if ($mode == 5 || $mode == 6) {
+            if ($mode == 5 || $mode == 6 || $mode == 10) {
                $value = preg_replace('/[^0-9.-]/', '', $value);
             }
             switch ($mode) {
@@ -393,12 +393,13 @@ class Data_List extends Controller
                case 7: $col = 'unit'; break;
                case 8: $col = 'sort'; break;
                case 9: $col = 'state'; break;
+               case 10: $col = 'margin'; break; // harga jual: diolah khusus di bawah
                default:
                   echo 'Mode tidak valid';
                   exit();
             }
             $id_int = intval($id);
-            if ($mode == 5 || $mode == 6) {
+            if ($mode == 5 || $mode == 6 || $mode == 10) {
                $row = $this->db(0)->get_where_row($table, "id_barang = $id_int");
                if ($row && isset($row['brand']) && isset($row['model'])) {
                   $brand = $this->db(0)->escape($row['brand']);
@@ -409,6 +410,54 @@ class Data_List extends Controller
                }
             } else {
                $where = "id_barang = $id_int";
+            }
+            // Mode 5 (modal): keep selling price (modal + margin) per row; adjust margin only.
+            // Same brand+model rows still sync to the new modal; each row keeps its own prior sell total.
+            if ($mode === 5) {
+               $newModal = floatval($value);
+               $rows = $this->db(0)->get_where($table, $where);
+               if (!is_array($rows)) {
+                  $rows = [];
+               }
+               foreach ($rows as $r) {
+                  $rid = intval($r['id_barang'] ?? 0);
+                  if ($rid < 1) {
+                     continue;
+                  }
+                  $sell = floatval($r['price'] ?? 0) + floatval($r['margin'] ?? 0);
+                  $newMargin = $sell - $newModal;
+                  $up = $this->db(0)->update($table, ['price' => $newModal, 'margin' => $newMargin], "id_barang = $rid");
+                  if ($up['errno'] != 0) {
+                     echo $up['error'] ?? 'Update gagal';
+                     exit();
+                  }
+               }
+               echo '0';
+               exit();
+            }
+            // Mode 10 (harga jual = modal + margin): modal tetap; margin disesuaikan per baris.
+            // Scope WHERE sama seperti mode 5/6 (brand + model).
+            if ($mode === 10) {
+               $newHargaJual = floatval($value);
+               $rows = $this->db(0)->get_where($table, $where);
+               if (!is_array($rows)) {
+                  $rows = [];
+               }
+               foreach ($rows as $r) {
+                  $rid = intval($r['id_barang'] ?? 0);
+                  if ($rid < 1) {
+                     continue;
+                  }
+                  $modal = floatval($r['price'] ?? 0);
+                  $newMargin = $newHargaJual - $modal;
+                  $up = $this->db(0)->update($table, ['margin' => $newMargin], "id_barang = $rid");
+                  if ($up['errno'] != 0) {
+                     echo $up['error'] ?? 'Update gagal';
+                     exit();
+                  }
+               }
+               echo '0';
+               exit();
             }
             $set = [$col => $value];
             $up = $this->db(0)->update($table, $set, $where);
