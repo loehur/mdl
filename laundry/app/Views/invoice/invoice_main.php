@@ -271,7 +271,12 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
             $durasi = '';
             foreach ($this->dDurasi as $b) {
                 if ($b['id_durasi'] == $f11) {
-                    $durasi = '<small>' . ucwords($b['durasi']) . '</small>';
+                    $durasiLabel = ucwords($b['durasi']);
+                    if (strcasecmp($b['durasi'], 'Reguler') !== 0) {
+                        $durasi = '<small class="text-danger"><b>' . $durasiLabel . '</b></small>';
+                    } else {
+                        $durasi = '<small>' . $durasiLabel . '</small>';
+                    }
                 }
             }
 
@@ -703,7 +708,11 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
                     }
                     foreach ($this->dDurasi as $c) {
                         if ($a['id_durasi'] == $c['id_durasi']) {
-                            $durasi = $durasi . ' ' . $c['durasi'];
+                            if (strcasecmp($c['durasi'], 'Reguler') !== 0) {
+                                $durasi = $durasi . ' <span class="text-danger"><b>' . $c['durasi'] . '</b></span>';
+                            } else {
+                                $durasi = $durasi . ' ' . $c['durasi'];
+                            }
                         }
                     }
 
