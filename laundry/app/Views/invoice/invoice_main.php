@@ -442,7 +442,7 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
                 $notifStateWa = $notifBonByRef[$noref] ?? '';
                 if ($notifStateWa === '') {
                     $buttonNotifWa =
-                        "<a href='#' class='sendNotifInvoice text-success ms-1' title='Kirim nota WA' " .
+                        "<a href='#' class='sendNotifInvoice text-success' title='Kirim nota WA' " .
                         "data-id-pelanggan='" . (int) $dPelanggan['id_pelanggan'] . "' " .
                         "data-urutref='" . htmlspecialchars($noref, ENT_QUOTES) . "' " .
                         "data-hp='" . htmlspecialchars($dPelanggan['nomor_pelanggan'], ENT_QUOTES) . "' " .
@@ -458,7 +458,8 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
                     } else {
                         $waStatusIcon = "<i class='far fa-circle text-info'></i>";
                     }
-                    $buttonNotifWa = "<span class='ms-1'>" . $waStatusIcon . '</span>';
+                    $buttonNotifWa =
+                        "<span><i class='fab fa-whatsapp'></i> " . $waStatusIcon . '</span>';
                 }
             }
 
@@ -475,8 +476,8 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
                 $kategori .
                 "</b><span class='badge badge-light'></span><br><b>" .
                 $show_qty .
-                '</b> ' .
-                $buttonNotifWa .
+                '</b>' .
+                ($buttonNotifWa !== '' ? ' | ' . $buttonNotifWa : '') .
                 '</td>';
             echo "<td nowrap class='pt-1'>" . $list_layanan . '</td>';
             echo "<td class='text-end text-sm'>" .
