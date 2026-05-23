@@ -906,16 +906,21 @@ class WAReplies
     }
 
     /**
-     * Pesan tegas satu kata saja: bon/nota/struk atau bill/tagihan (tanpa kata lain).
-     * Balasan "belum ada tagihan..." hanya dikirim untuk pola ini.
+     * Pesan tegas satu kata saja (tanpa kata lain), selaras pola di AutoReplyKeywords:
+     * bon|nota|struk, bill|tagihan, cek|status.
+     * Balasan "belum ada tagihan..." dan noRegister hanya untuk pola ini.
      */
-    private function messageIsStrictEmptyNotaOrTagihanRequest(?string $text): bool
+    private function messageIsStrictNotaTagihanStatusRequest(?string $text): bool
     {
         if ($text === null || trim($text) === '') {
             return false;
         }
         $t = preg_replace('/[*_~`]/', '', trim($text));
-        return (bool) preg_match('/^\s*(bon|nota|struk|bill|tagihan)\s*$/i', $t);
+        return (bool) (
+            preg_match('/^\s*(bon|nota|struk)\s*$/i', $t)
+            || preg_match('/^\s*(bill|tagihan)\s*$/i', $t)
+            || preg_match('/^\s*(cek|sta*tu*s)\s*$/i', $t)
+        );
     }
 
     /**
@@ -1723,11 +1728,12 @@ class WAReplies
 
             // Check if customer exists BEFORE accessing array
             if (empty($id_pelanggans)) {
-                // Customer NOT registered - send message and exit
-                $noRegText = $this->getNoRegisterText();
-                $res = $waService->sendFreeText($waNumber, $noRegText);
-                if ($res['success']) {
-                    $this->pushToWebSocket($this->buildWsPayload($waNumber, $noRegText, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+                if ($this->messageIsStrictNotaTagihanStatusRequest($textBody)) {
+                    $noRegText = $this->getNoRegisterText();
+                    $res = $waService->sendFreeText($waNumber, $noRegText);
+                    if ($res['success']) {
+                        $this->pushToWebSocket($this->buildWsPayload($waNumber, $noRegText, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+                    }
                 }
                 return;
             }
@@ -1759,7 +1765,7 @@ class WAReplies
                     $this->recordHandlerCooldown($waNumber, 'TAGIHAN');
                     $this->handleTagihan($phoneIn, $waNumber, $textBody);
                 }
-            } elseif ($this->messageIsStrictEmptyNotaOrTagihanRequest($textBody)) {
+            } elseif ($this->messageIsStrictNotaTagihanStatusRequest($textBody)) {
                 $text = "Pak/Bu *" . $nama_pelanggan . "*, belum ada tagihan dan semua laundry sudah di ambil. Terima kasih 😊";
                 $res = $waService->sendFreeText($waNumber, $text);
                 if ($res['success']) {
@@ -2469,10 +2475,12 @@ class WAReplies
         $pelanggan = $this->queryPelangganRowsByWaNumber($db, $phoneIn, $waNumber, 'id_pelanggan, nama_pelanggan, id_cabang');
 
         if (empty($pelanggan)) {
-            $noRegText = $this->getNoRegisterText();
-            $res = $waService->sendFreeText($waNumber, $noRegText);
-            if ($res['success']) {
-                $this->pushToWebSocket($this->buildWsPayload($waNumber, $noRegText, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+            if ($this->messageIsStrictNotaTagihanStatusRequest($textBody)) {
+                $noRegText = $this->getNoRegisterText();
+                $res = $waService->sendFreeText($waNumber, $noRegText);
+                if ($res['success']) {
+                    $this->pushToWebSocket($this->buildWsPayload($waNumber, $noRegText, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+                }
             }
             return;
         }
@@ -2490,7 +2498,7 @@ class WAReplies
 
         $id_pelanggans_to_check = array_unique(array_merge($id_pelanggans_from_sale, $id_pelanggans_from_member));
         if (empty($id_pelanggans_to_check)) {
-            if ($this->messageIsStrictEmptyNotaOrTagihanRequest($textBody)) {
+            if ($this->messageIsStrictNotaTagihanStatusRequest($textBody)) {
                 $id_pelanggan = $id_pelanggans[0];
                 $nama_pelanggan = strtoupper(trim((string) ($pelanggan[array_search($id_pelanggan, $id_pelanggans)]['nama_pelanggan'] ?? 'PELANGGAN')));
                 $link = "https://ml.nalju.com/I/" . $id_pelanggan;
@@ -2603,7 +2611,7 @@ class WAReplies
         $link = "https://ml.nalju.com/I/" . $id_pelanggan;
 
         if (empty($lines)) {
-            if (!$this->messageIsStrictEmptyNotaOrTagihanRequest($textBody)) {
+            if (!$this->messageIsStrictNotaTagihanStatusRequest($textBody)) {
                 return;
             }
             $text = "Pak/Bu *" . $nama_pelanggan . "*, belum ada tagihan dan semua laundry sudah di ambil. Terima kasih 😊\n" . $link;
@@ -2802,17 +2810,19 @@ class WAReplies
         $nama_pelanggan = strtoupper(trim((string) ($nama_pelanggans[0] ?? ''))); // fix index 0 if empty
 
         if (empty($id_pelanggans)) {
-            $noRegText = $this->getNoRegisterText();
-            $res = $waService->sendFreeText($waNumber, $noRegText);
-            if ($res['success']) {
-                $this->pushToWebSocket($this->buildWsPayload($waNumber, $noRegText, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+            if ($this->messageIsStrictNotaTagihanStatusRequest($textBody)) {
+                $noRegText = $this->getNoRegisterText();
+                $res = $waService->sendFreeText($waNumber, $noRegText);
+                if ($res['success']) {
+                    $this->pushToWebSocket($this->buildWsPayload($waNumber, $noRegText, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+                }
             }
         } else {
             $ids_in = implode(',', $id_pelanggans);
             $sales = $db1->query("SELECT * FROM sale WHERE tuntas = 0 AND bin = 0 AND id_pelanggan IN ($ids_in) GROUP BY no_ref, tuntas, id_pelanggan")->result_array();
             $noRefs = array_column($sales, 'no_ref');
             if (empty($noRefs)) {
-                if ($this->messageIsStrictEmptyNotaOrTagihanRequest($textBody)) {
+                if ($this->messageIsStrictNotaTagihanStatusRequest($textBody)) {
                     $text = 'Pak/Bu *' . $nama_pelanggan . '*, belum ada tagihan dan semua laundry sudah di ambil. Terima kasih';
                     $res = $waService->sendFreeText($waNumber, $text);
                     if ($res['success']) {
