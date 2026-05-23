@@ -439,8 +439,7 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
             $buttonNotifWa = '';
             if (!isset($waNotifShownRefs[$noref])) {
                 $waNotifShownRefs[$noref] = true;
-                $notifStateWa = $notifBonByRef[$noref] ?? '';
-                if ($notifStateWa === '') {
+                if (!isset($notifBonByRef[$noref])) {
                     $buttonNotifWa =
                         "<a href='#' class='sendNotifInvoice text-success' title='Kirim nota WA' " .
                         "data-id-pelanggan='" . (int) $dPelanggan['id_pelanggan'] . "' " .
@@ -449,17 +448,6 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
                         "data-ref='" . htmlspecialchars($noref, ENT_QUOTES) . "' " .
                         "data-time='" . htmlspecialchars($timeRef, ENT_QUOTES) . "'>" .
                         "<i class='fab fa-whatsapp'></i></a>";
-                } else {
-                    $stWa = strtolower(trim($notifStateWa));
-                    if ($stWa === 'failed') {
-                        $waStatusIcon = "<i class='fas fa-times text-danger'></i>";
-                    } elseif (in_array($stWa, ['sent', 'delivered', 'read'], true)) {
-                        $waStatusIcon = "<i class='fas fa-check text-success'></i>";
-                    } else {
-                        $waStatusIcon = "<i class='far fa-circle text-info'></i>";
-                    }
-                    $buttonNotifWa =
-                        "<span><i class='fab fa-whatsapp'></i> " . $waStatusIcon . '</span>';
                 }
             }
 
@@ -477,7 +465,7 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
                 "</b><span class='badge badge-light'></span><br><b>" .
                 $show_qty .
                 '</b>' .
-                ($buttonNotifWa !== '' ? ' | ' . $buttonNotifWa : '') .
+                ($buttonNotifWa !== '' ? ' ' . $buttonNotifWa : '') .
                 '</td>';
             echo "<td nowrap class='pt-1'>" . $list_layanan . '</td>';
             echo "<td class='text-end text-sm'>" .
