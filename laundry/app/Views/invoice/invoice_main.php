@@ -167,6 +167,11 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
     $Rtotal_tagihan = 0;
     $Rtotal_dibayar = 0;
     $Rsisa_tagihan = 0;
+    $waNotifShownRefs = [];
+    $notifBonByRef = [];
+    foreach ($data['notif_bon'] ?? [] as $notifRow) {
+        $notifBonByRef[$notifRow['no_ref']] = $notifRow['state'];
+    }
 
     if (count($data['data_main']) == 0 && count($data['data_member']) == 0) { ?>
         <div class="row mx-1 p-1">
@@ -430,6 +435,33 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
             } else {
                 $cekDisable = '';
             }
+
+            $buttonNotifWa = '';
+            if (!isset($waNotifShownRefs[$noref])) {
+                $waNotifShownRefs[$noref] = true;
+                $notifStateWa = $notifBonByRef[$noref] ?? '';
+                if ($notifStateWa === '') {
+                    $buttonNotifWa =
+                        "<a href='#' class='sendNotifInvoice text-success ms-1' title='Kirim nota WA' " .
+                        "data-id-pelanggan='" . (int) $dPelanggan['id_pelanggan'] . "' " .
+                        "data-urutref='" . htmlspecialchars($noref, ENT_QUOTES) . "' " .
+                        "data-hp='" . htmlspecialchars($dPelanggan['nomor_pelanggan'], ENT_QUOTES) . "' " .
+                        "data-ref='" . htmlspecialchars($noref, ENT_QUOTES) . "' " .
+                        "data-time='" . htmlspecialchars($timeRef, ENT_QUOTES) . "'>" .
+                        "<i class='fab fa-whatsapp'></i></a>";
+                } else {
+                    $stWa = strtolower(trim($notifStateWa));
+                    if ($stWa === 'failed') {
+                        $waStatusIcon = "<i class='fas fa-times text-danger'></i>";
+                    } elseif (in_array($stWa, ['sent', 'delivered', 'read'], true)) {
+                        $waStatusIcon = "<i class='fas fa-check text-success'></i>";
+                    } else {
+                        $waStatusIcon = "<i class='far fa-circle text-info'></i>";
+                    }
+                    $buttonNotifWa = "<span class='ms-1'>" . $waStatusIcon . '</span>';
+                }
+            }
+
             echo '<tr>';
             echo "<td class='pt-0 pb-0'><span style='white-space: nowrap;'></span><small> 
                 $id 
@@ -444,6 +476,7 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
                 "</b><span class='badge badge-light'></span><br><b>" .
                 $show_qty .
                 '</b> ' .
+                $buttonNotifWa .
                 '</td>';
             echo "<td nowrap class='pt-1'>" . $list_layanan . '</td>';
             echo "<td class='text-end text-sm'>" .
@@ -1387,6 +1420,49 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
         
         var modal = new bootstrap.Modal(document.getElementById('modalCancelPayment'));
         modal.show();
+    });
+
+    $(document).on('click', 'a.sendNotifInvoice', function(e) {
+        e.preventDefault();
+        var $btn = $(this);
+        if ($btn.hasClass('sending')) {
+            return;
+        }
+        $btn.addClass('sending').css('opacity', '0.4');
+
+        var refNya = $btn.attr('data-ref');
+        var urutRef = $btn.attr('data-urutref');
+        if (!refNya || refNya === '0' || refNya === 'undefined') {
+            refNya = urutRef;
+        }
+
+        $.ajax({
+            url: '<?= URL::BASE_URL ?>I/send_nota/1',
+            type: 'POST',
+            data: {
+                id_pelanggan: $btn.attr('data-id-pelanggan'),
+                hp: $btn.attr('data-hp'),
+                ref: refNya,
+                time: $btn.attr('data-time')
+            },
+            success: function(res) {
+                if (res == 0 || res === '0') {
+                    location.reload();
+                    return;
+                }
+                try {
+                    var parsed = typeof res === 'string' ? JSON.parse(res) : res;
+                    if (parsed && parsed.status === 'exists') {
+                        location.reload();
+                        return;
+                    }
+                } catch (err) {}
+                $btn.removeClass('sending').css('opacity', '1');
+            },
+            error: function() {
+                $btn.removeClass('sending').css('opacity', '1');
+            }
+        });
     });
 
     $('#btnConfirmCancel').on('click', function() {

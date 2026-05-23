@@ -114,6 +114,9 @@ return [
             '/\b(laundry|loundry)\s+(aku|saya|ku|punya\s+saya)\s+ada(?!\s+yang)\b/i',
             // "berapa kilo itu kak?", "brpa kilo kk?" = tanya berat order (kait tagihan/kg) — bukan daftar harga per item
             '/\b(brp|brpa|brapa|berapa)\s*kilo\b/i',
+            // "brp kg pny sya kk?", "berapa kg punya saya" — singkatan kg (bukan harga per kg)
+            '/\b(brp|brpa|brapa|berapa)\s*kg\b/i',
+            '/\b(brp|brpa|brapa|berapa)\s*kg\b.{0,40}?\b(punya|pny|punya\s+saya|saya|ku|sy|sya)\b/iu',
             // "brp londry ku buk" / "berapa laundry ku kak" = tanya total/tagihan order (typo londry; sufisk pendek)
             '/^\s*\b(brp|brpa|brapa|berapa)\b\s+(laundry|loundry|londri|londry)\s+(ku|aku)(?:\s+(?:kak|kk|bang|buk|min|mbak|pak|bu|ka|dek))?\s*$/iu',
             '/^\s*\b(brp|brpa|brapa|berapa)\b\s+(laundry|loundry|londri|londry)\s+saya(?:\s+(?:kak|kk|bang|buk|min|mbak|pak|bu|ka|dek))?\s*$/iu',

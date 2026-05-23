@@ -59,6 +59,7 @@ class I extends Controller
          }
       }
 
+      $notifBon = [];
       foreach ($refs as $rf => $book) {
          // FIX: use db(0)
          $where = "id_cabang = " . $this->id_cabang_p . "  AND jenis_transaksi = 1 AND ref_transaksi = '" . $rf . "'";
@@ -77,6 +78,14 @@ class I extends Controller
                array_push($surcas, $scv);
             }
          }
+      }
+
+      if (!empty($refs)) {
+         $refs_in = "'" . implode("','", array_keys($refs)) . "'";
+         $notifBon = $this->db(0)->get_where(
+            'notif',
+            "id_cabang = " . (int) $this->id_cabang_p . " AND tipe = 1 AND no_ref IN ($refs_in)"
+         );
       }
 
       $data_member = array();
@@ -190,7 +199,130 @@ class I extends Controller
          'saldoTunai' => $saldoTunai,
          'saldoTunai' => $saldoTunai,
          'finance_history' => $finance_history,
+         'notif_bon' => $notifBon,
       ]);
+   }
+
+   /** Kirim nota WA dari halaman invoice publik (sama logika Antrian::sendNotif tipe=1). */
+   public function send_nota($tipe = 1)
+   {
+      $id_pelanggan = $_POST['id_pelanggan'] ?? 0;
+      $noref = trim((string) ($_POST['ref'] ?? ''));
+      if (!is_numeric($id_pelanggan) || $noref === '') {
+         echo 1;
+         return;
+      }
+
+      $this->public_data($id_pelanggan);
+      $db = $this->db(0);
+      $refSql = "'" . $db->escape($noref) . "'";
+      $ownsRef = $db->count_where(
+         'sale',
+         "no_ref = $refSql AND id_pelanggan = " . (int) $id_pelanggan . " AND id_cabang = " . (int) $this->id_cabang_p . " AND bin = 0"
+      );
+      if ($ownsRef < 1) {
+         echo 1;
+         return;
+      }
+
+      $this->id_cabang = (int) $this->id_cabang_p;
+      $this->wCabang = 'id_cabang = ' . $this->id_cabang;
+
+      $hp = $_POST['hp'] ?? ($this->pelanggan_p['nomor_pelanggan'] ?? '');
+      $time = $_POST['time'] ?? date('Y-m-d H:i:s');
+      $tipe = (int) $tipe;
+
+      $waGen = $this->helper('WAGenerator');
+      $jsonText = $waGen->get_nota($noref);
+      $objText = json_decode($jsonText, true);
+      $text = $objText['text'] ?? '';
+
+      if (session_status() === PHP_SESSION_ACTIVE) {
+         session_write_close();
+      }
+
+      $hpClean = preg_replace('/[^0-9]/', '', $hp);
+      $hpVariations = [];
+      if (substr($hpClean, 0, 2) === '62') {
+         $hpVariations[] = "'+62" . substr($hpClean, 2) . "'";
+         $hpVariations[] = "'" . $hpClean . "'";
+         $hpVariations[] = "'0" . substr($hpClean, 2) . "'";
+         $hpVariations[] = "'" . substr($hpClean, 2) . "'";
+      } elseif (substr($hpClean, 0, 1) === '0') {
+         $hpVariations[] = "'+62" . substr($hpClean, 1) . "'";
+         $hpVariations[] = "'62" . substr($hpClean, 1) . "'";
+         $hpVariations[] = "'" . $hpClean . "'";
+         $hpVariations[] = "'" . substr($hpClean, 1) . "'";
+      } else {
+         $hpVariations[] = "'+62" . $hpClean . "'";
+         $hpVariations[] = "'62" . $hpClean . "'";
+         $hpVariations[] = "'0" . $hpClean . "'";
+         $hpVariations[] = "'" . $hpClean . "'";
+      }
+
+      $userExists = $db->count_where('user', 'no_user IN (' . implode(', ', $hpVariations) . ')');
+      $matchDigitsWa = (strlen($hpClean) >= 9) ? substr($hpClean, -9) : $hpClean;
+      $waOutCount = $this->db(100)->count_where(
+         'wa_messages_out',
+         "REPLACE(REPLACE(phone, '+', ''), '-', '') LIKE '%" . $matchDigitsWa . "'"
+      );
+      $waOutExists = is_numeric($waOutCount) ? (int) $waOutCount : 0;
+
+      $setOne = "no_ref = $refSql AND tipe = " . (int) $tipe;
+      $where = $this->wCabang . ' AND ' . $setOne;
+      if ($db->count_where('notif', $where) > 0) {
+         echo json_encode(['status' => 'exists', 'message' => 'Notifikasi sudah pernah dikirim']);
+         return;
+      }
+
+      $id_notif = (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9);
+      $insertResult = $db->insert('notif', [
+         'id_notif' => $id_notif,
+         'insertTime' => $time,
+         'id_cabang' => $this->id_cabang,
+         'no_ref' => $noref,
+         'phone' => $hp,
+         'text' => $text,
+         'tipe' => $tipe,
+         'id_api' => '',
+         'state' => 'pending',
+      ]);
+      if ($insertResult['errno'] <> 0) {
+         echo json_encode(['status' => 'exists', 'message' => 'Notifikasi sedang diproses']);
+         return;
+      }
+
+      if ($userExists > 0) {
+         $template_name = 'free';
+      } elseif ($waOutExists > 0) {
+         $template_name = 'free';
+      } else {
+         $template_name = URL::TEMPLATE_NOTA;
+      }
+      $res = $this->helper('Notif')->send_wa($hp, $jsonText, $template_name);
+
+      if (!$res['status'] && $template_name === 'free') {
+         $apiPayload = $res['data'] ?? [];
+         $cswExpired = !empty($apiPayload['data']['csw_expired'])
+            || (isset($apiPayload['message']) && stripos((string) $apiPayload['message'], 'CSW') !== false)
+            || (isset($apiPayload['message']) && stripos((string) $apiPayload['message'], 'Customer Service Window') !== false)
+            || (isset($res['error']) && stripos((string) $res['error'], '24 jam') !== false);
+         if ($cswExpired && $waOutExists === 0) {
+            $res = $this->helper('Notif')->send_wa($hp, $jsonText, URL::TEMPLATE_NOTA);
+         }
+      }
+
+      $apiData = $res['data']['data'] ?? $res['data'] ?? [];
+      $idApi = $apiData['id'] ?? ($apiData['message_id'] ?? '');
+
+      if ($res['status']) {
+         $db->update('notif', ['id_api' => $idApi, 'state' => 'sent'], $where);
+         echo 0;
+      } else {
+         $db->update('notif', ['state' => 'pending'], $where);
+         $this->model('Log')->write('[I::send_nota] WA gagal — Ref: ' . $noref . ' | HP: ' . $hp);
+         echo 0;
+      }
    }
 
    public function m($pelanggan, $id_harga) //riwayat member

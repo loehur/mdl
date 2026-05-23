@@ -906,11 +906,12 @@ class WAReplies
     }
 
     /**
-     * Pesan tegas satu kata saja (tanpa kata lain), selaras pola di AutoReplyKeywords:
-     * bon|nota|struk, bill|tagihan, cek|status.
-     * Balasan "belum ada tagihan..." dan noRegister hanya untuk pola ini.
+     * Boleh kirim balasan generik saat TIDAK ada data (noRegister / "belum ada tagihan...")?
+     * Hanya jika pesan tegas satu kata: bon|nota|struk, bill|tagihan, cek|status.
+     *
+     * Bukan syarat untuk mengirim rincian tagihan, nota, atau status — itu tetap jalan jika ada data di DB.
      */
-    private function messageIsStrictNotaTagihanStatusRequest(?string $text): bool
+    private function shouldSendGenericNoDataAutoreply(?string $text): bool
     {
         if ($text === null || trim($text) === '') {
             return false;
@@ -921,6 +922,43 @@ class WAReplies
             || preg_match('/^\s*(bill|tagihan)\s*$/i', $t)
             || preg_match('/^\s*(cek|sta*tu*s)\s*$/i', $t)
         );
+    }
+
+    /**
+     * Balasan generik noRegister — hanya saat pelanggan tidak ada di DB + pola tegas.
+     */
+    private function trySendNoRegisterAutoreply($waService, string $waNumber, ?string $textBody, string $logPrefix = 'SKIP'): void
+    {
+        if (!$this->shouldSendGenericNoDataAutoreply($textBody)) {
+            $this->logAutoreplyTrace($waNumber, $logPrefix, 'no_register_skipped_not_strict_keyword');
+            return;
+        }
+        $noRegText = $this->getNoRegisterText();
+        $res = $waService->sendFreeText($waNumber, $noRegText);
+        if ($res['success']) {
+            $this->pushToWebSocket($this->buildWsPayload($waNumber, $noRegText, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+        }
+        $this->logAutoreplyTrace($waNumber, $logPrefix, 'no_register_sent');
+    }
+
+    /**
+     * Balasan generik "belum ada tagihan..." — hanya saat tidak ada data + pola tegas.
+     */
+    private function trySendBelumAdaTagihanAutoreply($waService, string $waNumber, ?string $textBody, string $namaPelanggan, ?string $linkSuffix = null, string $logPrefix = 'SKIP'): void
+    {
+        if (!$this->shouldSendGenericNoDataAutoreply($textBody)) {
+            $this->logAutoreplyTrace($waNumber, $logPrefix, 'belum_ada_tagihan_skipped_not_strict_keyword');
+            return;
+        }
+        $text = 'Pak/Bu *' . $namaPelanggan . '*, belum ada tagihan dan semua laundry sudah di ambil. Terima kasih 😊';
+        if ($linkSuffix !== null && $linkSuffix !== '') {
+            $text .= "\n" . $linkSuffix;
+        }
+        $res = $waService->sendFreeText($waNumber, $text);
+        if ($res['success']) {
+            $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+        }
+        $this->logAutoreplyTrace($waNumber, $logPrefix, 'belum_ada_tagihan_sent');
     }
 
     /**
@@ -1682,6 +1720,7 @@ class WAReplies
 
         $pendingNotifs = $db1->query($sql)->result_array();
 
+        // --- Ada data: notif nota pending — kirim tanpa cek pola tegas ---
         if (!empty($pendingNotifs)) {
             foreach ($pendingNotifs as $notif) {
                 $idNotif = $notif['id_notif'];
@@ -1721,25 +1760,18 @@ class WAReplies
                     $this->pushToWebSocket($payload);
                 }
             }
+            $this->logAutoreplyTrace($waNumber, 'NOTA_SEND', 'pending_notif count=' . count($pendingNotifs));
         } else {
             // Find customer (exact variasi nomor atau 7 digit terakhir sama)
             $pelanggan = $this->queryPelangganRowsByWaNumber($db1, $phoneIn, $waNumber, 'id_pelanggan, nama_pelanggan');
             $id_pelanggans = array_column($pelanggan, 'id_pelanggan');
 
-            // Check if customer exists BEFORE accessing array
+            // --- Tidak ada pelanggan di DB: generik noRegister hanya pola tegas ---
             if (empty($id_pelanggans)) {
-                if ($this->messageIsStrictNotaTagihanStatusRequest($textBody)) {
-                    $noRegText = $this->getNoRegisterText();
-                    $res = $waService->sendFreeText($waNumber, $noRegText);
-                    if ($res['success']) {
-                        $this->pushToWebSocket($this->buildWsPayload($waNumber, $noRegText, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
-                    }
-                }
+                $this->trySendNoRegisterAutoreply($waService, $waNumber, $textBody, 'NOTA');
                 return;
             }
 
-            // Customer exists - get first one
-            $id_pelanggan = $id_pelanggans[0];
             $nama_pelanggans = array_column($pelanggan, 'nama_pelanggan');
             $nama_pelanggan = strtoupper(trim((string) ($nama_pelanggans[0] ?? 'PELANGGAN')));
 
@@ -1747,30 +1779,24 @@ class WAReplies
 
             // Find unfinished sales
             $sales = $db1->query("SELECT * FROM sale WHERE tuntas = 0 AND bin = 0 AND id_pelanggan IN ($ids_in) GROUP BY no_ref, tuntas, id_pelanggan ORDER BY insertTime DESC")->result_array();
-            $id_pelanggans_active = array_column($sales, 'id_pelanggan');
             $noRefs = array_column($sales, 'no_ref');
 
+            // --- Ada data: sale aktif — kirim nota / tagihan tanpa cek pola tegas ---
             if (!empty($noRefs)) {
-                // Remove refs that already have a notification of tipe 1
                 $noRefsIn = "'" . implode("','", $noRefs) . "'";
                 $existingRefs = array_column($db1->query("SELECT no_ref FROM notif WHERE tipe = 1 AND no_ref IN ($noRefsIn)")->result_array(), 'no_ref');
                 $missingRefs = array_diff($noRefs, $existingRefs);
 
                 if (count($missingRefs) > 0) {
                     $this->sendNotaNotifsForMissingRefs($db1, $waService, $waNumber, $phone0, $sales, $noRefs, $missingRefs, false);
+                    $this->logAutoreplyTrace($waNumber, 'NOTA_SEND', 'missing_refs count=' . count($missingRefs));
                 } else {
-                    // Semua no_ref sudah punya notif (nota pernah dibuat): tidak kirim teks "sudah dikirim",
-                    // langsung sama seperti intent TAGIHAN. NOTA sudah lewat shouldHandle di process();
-                    // TAGIHAN perlu jejak cooldown terpisah.
                     $this->recordHandlerCooldown($waNumber, 'TAGIHAN');
                     $this->handleTagihan($phoneIn, $waNumber, $textBody);
                 }
-            } elseif ($this->messageIsStrictNotaTagihanStatusRequest($textBody)) {
-                $text = "Pak/Bu *" . $nama_pelanggan . "*, belum ada tagihan dan semua laundry sudah di ambil. Terima kasih 😊";
-                $res = $waService->sendFreeText($waNumber, $text);
-                if ($res['success']) {
-                    $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
-                }
+            } else {
+                // --- Tidak ada sale aktif: generik hanya pola tegas ---
+                $this->trySendBelumAdaTagihanAutoreply($waService, $waNumber, $textBody, $nama_pelanggan, null, 'NOTA');
             }
         }
     }
@@ -2474,19 +2500,18 @@ class WAReplies
 
         $pelanggan = $this->queryPelangganRowsByWaNumber($db, $phoneIn, $waNumber, 'id_pelanggan, nama_pelanggan, id_cabang');
 
+        // --- Tidak ada pelanggan di DB: generik noRegister hanya pola tegas ---
         if (empty($pelanggan)) {
-            if ($this->messageIsStrictNotaTagihanStatusRequest($textBody)) {
-                $noRegText = $this->getNoRegisterText();
-                $res = $waService->sendFreeText($waNumber, $noRegText);
-                if ($res['success']) {
-                    $this->pushToWebSocket($this->buildWsPayload($waNumber, $noRegText, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
-                }
-            }
+            $this->trySendNoRegisterAutoreply($waService, $waNumber, $textBody, 'TAGIHAN');
             return;
         }
 
         $id_pelanggans = array_column($pelanggan, 'id_pelanggan');
-        $ids_in = implode(',', $id_pelanggans);
+        $ids_in = implode(',', array_map('intval', $id_pelanggans));
+        $cabangByPelanggan = [];
+        foreach ($pelanggan as $p) {
+            $cabangByPelanggan[(int) $p['id_pelanggan']] = (int) ($p['id_cabang'] ?? 0);
+        }
 
         // Cari id_pelanggan dari sales yang tuntas=0 dulu (sama seperti handleNota)
         $sales = $db->query("SELECT * FROM sale WHERE tuntas = 0 AND bin = 0 AND id_pelanggan IN ($ids_in) GROUP BY no_ref, tuntas, id_pelanggan ORDER BY insertTime DESC")->result_array();
@@ -2497,40 +2522,27 @@ class WAReplies
         $id_pelanggans_from_member = array_unique(array_column($members, 'id_pelanggan'));
 
         $id_pelanggans_to_check = array_unique(array_merge($id_pelanggans_from_sale, $id_pelanggans_from_member));
+        // --- Tidak ada sale/member aktif: generik hanya pola tegas ---
         if (empty($id_pelanggans_to_check)) {
-            if ($this->messageIsStrictNotaTagihanStatusRequest($textBody)) {
-                $id_pelanggan = $id_pelanggans[0];
-                $nama_pelanggan = strtoupper(trim((string) ($pelanggan[array_search($id_pelanggan, $id_pelanggans)]['nama_pelanggan'] ?? 'PELANGGAN')));
-                $link = "https://ml.nalju.com/I/" . $id_pelanggan;
-                $text = "Pak/Bu *" . $nama_pelanggan . "*, belum ada tagihan dan semua laundry sudah di ambil. Terima kasih 😊\n" . $link;
-                $res = $waService->sendFreeText($waNumber, $text);
-                if ($res['success']) {
-                    $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
-                }
-            }
+            $id_pelanggan = $id_pelanggans[0];
+            $nama_pelanggan = strtoupper(trim((string) ($pelanggan[array_search($id_pelanggan, $id_pelanggans)]['nama_pelanggan'] ?? 'PELANGGAN')));
+            $this->trySendBelumAdaTagihanAutoreply($waService, $waNumber, $textBody, $nama_pelanggan, 'https://ml.nalju.com/I/' . $id_pelanggan, 'TAGIHAN');
             return;
         }
 
-        $id_pelanggan = array_values($id_pelanggans_to_check)[0];
-        $pelangganRow = null;
-        foreach ($pelanggan as $p) {
-            if ($p['id_pelanggan'] == $id_pelanggan) {
-                $pelangganRow = $p;
-                break;
-            }
-        }
-        $nama_pelanggan = strtoupper(trim((string) ($pelangganRow['nama_pelanggan'] ?? 'PELANGGAN')));
-        $id_cabang = (int) ($pelangganRow['id_cabang'] ?? 0);
+        // --- Ada data tagihan: bangun rincian (tanpa cek pola tegas) ---
+
+        $ids_bill = implode(',', array_map('intval', $id_pelanggans_to_check));
+        $id_pelanggan = (int) $id_pelanggans[0];
+        $nama_pelanggan = strtoupper(trim((string) ($pelanggan[0]['nama_pelanggan'] ?? 'PELANGGAN')));
 
         $lookup = $this->loadTagihanLookups($db);
         $lines = [];
         $totalTagihan = 0;
 
-        // 1. Sale - ambil item per baris (sama seperti I.php)
-        // Urutan sama seperti I.php: id_penjualan DESC agar id item yang tampil selaras dengan invoice
+        // 1. Sale — semua id_pelanggan terikat nomor WA (bukan hanya satu id)
         $saleRows = $db->query(
-            "SELECT id_penjualan, no_ref, id_item_group, id_penjualan_jenis, id_durasi, list_layanan, qty, harga, min_order, diskon_qty, diskon_partner, member, insertTime FROM sale WHERE id_pelanggan = ? AND bin = 0 AND tuntas = 0 ORDER BY no_ref, id_penjualan DESC",
-            [$id_pelanggan]
+            "SELECT id_penjualan, no_ref, id_pelanggan, id_cabang, id_item_group, id_penjualan_jenis, id_durasi, list_layanan, qty, harga, min_order, diskon_qty, diskon_partner, member, insertTime FROM sale WHERE id_pelanggan IN ($ids_bill) AND bin = 0 AND tuntas = 0 ORDER BY no_ref, id_penjualan DESC"
         )->result_array();
 
         $byRef = [];
@@ -2541,6 +2553,7 @@ class WAReplies
         foreach ($byRef as $noRef => $items) {
             $subTotal = 0;
             $itemLines = [];
+            $id_cabang = (int) ($items[0]['id_cabang'] ?? $cabangByPelanggan[(int) ($items[0]['id_pelanggan'] ?? 0)] ?? 0);
 
             foreach ($items as $s) {
                 $line = $this->formatSaleItemForTagihan($s, $lookup);
@@ -2577,14 +2590,14 @@ class WAReplies
             $lines[] = $block;
         }
 
-        // 2. Member (lunas=0) - dengan rincian paket
+        // 2. Member (lunas=0) — semua id_pelanggan pada nomor ini
         $members = $db->query(
-            "SELECT m.id_member, m.id_harga, m.harga, m.qty, m.insertTime FROM member m WHERE m.id_cabang = ? AND m.bin = 0 AND m.id_pelanggan = ? AND m.lunas = 0 ORDER BY m.id_member DESC",
-            [$id_cabang, $id_pelanggan]
+            "SELECT m.id_member, m.id_cabang, m.id_harga, m.harga, m.qty, m.insertTime FROM member m WHERE m.bin = 0 AND m.id_pelanggan IN ($ids_bill) AND m.lunas = 0 ORDER BY m.id_member DESC"
         )->result_array();
 
         foreach ($members as $mem) {
             $id_member = $mem['id_member'];
+            $id_cabang = (int) ($mem['id_cabang'] ?? 0);
             $total = (int) ($mem['harga'] ?? 0);
 
             // Sama seperti I.php invoice (line 726-727): untuk member hanya hitung status_mutasi = 3
@@ -2611,14 +2624,14 @@ class WAReplies
         $link = "https://ml.nalju.com/I/" . $id_pelanggan;
 
         if (empty($lines)) {
-            if (!$this->messageIsStrictNotaTagihanStatusRequest($textBody)) {
-                return;
-            }
-            $text = "Pak/Bu *" . $nama_pelanggan . "*, belum ada tagihan dan semua laundry sudah di ambil. Terima kasih 😊\n" . $link;
-        } else {
-            $text = "*" . $nama_pelanggan . "*\nRincian Tagihan:\n\n" . implode("\n\n", $lines) . "\n\n*Total Tagihan: Rp " . number_format($totalTagihan, 0, ',', '.') . "*\n" . $link;
+            // Sale/member ada di DB tapi rincian kosong (mis. sudah lunas): generik hanya pola tegas
+            $this->trySendBelumAdaTagihanAutoreply($waService, $waNumber, $textBody, $nama_pelanggan, $link, 'TAGIHAN');
+            return;
         }
 
+        // Ada rincian tagihan — selalu kirim (tanpa cek pola tegas)
+        $text = "*" . $nama_pelanggan . "*\nRincian Tagihan:\n\n" . implode("\n\n", $lines) . "\n\n*Total Tagihan: Rp " . number_format($totalTagihan, 0, ',', '.') . "*\n" . $link;
+        $this->logAutoreplyTrace($waNumber, 'TAGIHAN_SEND', 'rincian blocks=' . count($lines));
         $res = $waService->sendFreeText($waNumber, $text);
         if ($res['success']) {
             $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
@@ -2754,6 +2767,7 @@ class WAReplies
         
         // Track which id_penjualan already have pending notifs
         $pendingNotifIds = [];
+        // --- Ada data: notif status pending — kirim tanpa cek pola tegas ---
         if (!empty($pendingNotifs)) {
             foreach ($pendingNotifs as $notif) {
                 $idNotif = $notif['id_notif'];
@@ -2800,6 +2814,7 @@ class WAReplies
                     $this->pushToWebSocket($payload);
                 }
             }
+            $this->logAutoreplyTrace($waNumber, 'STATUS_SEND', 'pending_notif count=' . count($pendingNotifs));
         }
         
         // Always check sale status, even if there are pending notifs
@@ -2810,26 +2825,15 @@ class WAReplies
         $nama_pelanggan = strtoupper(trim((string) ($nama_pelanggans[0] ?? ''))); // fix index 0 if empty
 
         if (empty($id_pelanggans)) {
-            if ($this->messageIsStrictNotaTagihanStatusRequest($textBody)) {
-                $noRegText = $this->getNoRegisterText();
-                $res = $waService->sendFreeText($waNumber, $noRegText);
-                if ($res['success']) {
-                    $this->pushToWebSocket($this->buildWsPayload($waNumber, $noRegText, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
-                }
-            }
+            $this->trySendNoRegisterAutoreply($waService, $waNumber, $textBody, 'STATUS');
         } else {
             $ids_in = implode(',', $id_pelanggans);
             $sales = $db1->query("SELECT * FROM sale WHERE tuntas = 0 AND bin = 0 AND id_pelanggan IN ($ids_in) GROUP BY no_ref, tuntas, id_pelanggan")->result_array();
             $noRefs = array_column($sales, 'no_ref');
             if (empty($noRefs)) {
-                if ($this->messageIsStrictNotaTagihanStatusRequest($textBody)) {
-                    $text = 'Pak/Bu *' . $nama_pelanggan . '*, belum ada tagihan dan semua laundry sudah di ambil. Terima kasih';
-                    $res = $waService->sendFreeText($waNumber, $text);
-                    if ($res['success']) {
-                        $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
-                    }
-                }
+                $this->trySendBelumAdaTagihanAutoreply($waService, $waNumber, $textBody, $nama_pelanggan, null, 'STATUS');
             } else {
+                // --- Ada data: sale aktif — kirim status tanpa cek pola tegas ---
                 $listIdPenjualan = []; // Items still in progress (belum ada notif selesai)
                 $listIdSelesai = [];   // Items already completed (sudah ada notif selesai)
                 $allIdPenjualan = [];  // All items for fallback display
@@ -2938,6 +2942,7 @@ class WAReplies
                         if ($res['success']) {
                             $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
                         }
+                        $this->logAutoreplyTrace($waNumber, 'STATUS_SEND', 'status_list in_progress=' . count($flatInProgress) . ' selesai=' . count($flatCompleted));
                     } else {
                         // Jika semua selesai, tetap tampilkan list dengan format yang sama
                         $statusList = [];
@@ -2950,6 +2955,7 @@ class WAReplies
                         if ($res['success']) {
                             $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
                         }
+                        $this->logAutoreplyTrace($waNumber, 'STATUS_SEND', 'status_list all_selesai count=' . count($allIdPenjualan));
                     }
                 }
             }
@@ -4799,11 +4805,12 @@ class WAReplies
                 }
             }
 
-            // FALSE padahal jelas tanya berat order (berapa/brp kilo) — samakan ke TAGIHAN (bukan tanya harga per kg)
-            if ($intent === 'FALSE' && preg_match('/\b(brp|brpa|brapa|berapa)\s*kilo\b/i', $textBody)
-                && !preg_match('/\b(harga|biaya|tarif)\b.{0,50}?\b(per\s*)?kilo\b/i', $textBody)) {
+            // FALSE padahal jelas tanya berat order (berapa/brp kilo atau kg) — samakan ke TAGIHAN (bukan tanya harga per kg)
+            if ($intent === 'FALSE'
+                && preg_match('/\b(brp|brpa|brapa|berapa)\s*(kilo|kg)\b/i', $textBody)
+                && !preg_match('/\b(harga|biaya|tarif)\b.{0,50}?\b(per\s*)?(kilo|kg)\b/i', $textBody)) {
                 $intent = 'TAGIHAN';
-                $reason = 'remap tanya berapa kilo order → TAGIHAN';
+                $reason = 'remap tanya berapa kilo/kg order → TAGIHAN';
             }
 
             // FALSE padahal brp/berapa + laundry (typo londry) + ku/saya/aku — tanya tagihan order
