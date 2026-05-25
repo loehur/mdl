@@ -302,9 +302,37 @@ return [
         atau yang menurut anda sangat yakin sebagai pertanyaan harga/biaya laundry PER ITEM atau PER KILO (bukan barang tambahan di atas)"
     ],
 
+    'HARGA_PAKET_D' => [
+        'patterns' => [
+            // Delivery di awal: "antar jemput harga paket member"
+            '/\b(antar|jemput|delivery|antar\s*jemput|jemput\s*antar)\b.{0,150}?\b(harga\s+paket\s+member|harga\s+paket|harga\s+member|paket\s+member|paket\s+(?:laundry|londri|laundri|loundry|loundri))\b/iu',
+            // Delivery di akhir: "paket member antar jemput", "harga paket include delivery"
+            '/\b(harga\s+paket\s+member|harga\s+paket|harga\s+member|paket\s+member|paket\s+(?:laundry|londri|laundri|loundry|loundri))\b.{0,150}?\b(antar|jemput|delivery|antar\s*jemput|jemput\s*antar)\b/iu',
+        ],
+        'ai_prompt' => "User menanyakan HARGA PAKET/MEMBER/LANGGANAN/DEPOSIT yang INCLUDE layanan ANTAR-JEMPUT (delivery).\n
+        TRUE (HARGA_PAKET_D) - HARUS ADA kata paket/member/langganan/deposit DAN konteks antar/jemput/delivery:\n
+        | berapa harga paket yang include antar jemput? | harga member pakai antar? | paket bulanan sama ongkir? |\n
+        | daftar harga paket + antar jemput | paket member antar jemput | harga paket laundry sekalian antar jemput |\n
+        | paket delivery berapa? | harga deposit member + jemput |\n
+        \n
+        CRITICAL - FALSE (BUKAN HARGA_PAKET_D):\n
+        - Tanya harga paket/member TANPA menyebut antar/jemput/ongkir paket/delivery = HARGA_PAKET (bukan HARGA_PAKET_D).\n
+        - Contoh FALSE: | berapa harga paket? | harga member? | ada paket bulanan? | paket setrika aja berapa? |\n
+        - Instruksi kurir saja tanpa tanya harga paket: | tolong dijemput | minta antar baju kamar 212 | = MINTA_JEMPUT_ANTAR.\n
+        - 'Setrika aja' tanpa kata paket/member = BUKAN HARGA_PAKET_D.\n
+        \n
+        PENTING:\n
+        - Ini pertanyaan TARIF paket varian include antar-jemput, BUKAN permintaan kurir jemput order sekarang.\n
+        - Jika user bertanya harga PER ITEM atau PER KILO (baju, celana, per kg) = HARGA (bukan HARGA_PAKET_D)"
+    ],
+
     'HARGA_PAKET' => [
         'patterns' => [
-            // TODO: tambah pattern sesuai kebutuhan
+            '/\bharga\s+paket\s+member\b/iu',
+            '/\bharga\s+paket\b/iu',
+            '/\bharga\s+member\b/iu',
+            '/\bpaket\s+member\b/iu',
+            '/\bpaket\s+(?:laundry|londri|laundri|loundry|loundri)\b/iu',
         ],
         'ai_prompt' => "User menanyakan HARGA PAKET, HARGA MEMBER, HARGA PAKET BULANAN, HARGA DEPOSIT MEMBER, atau HARGA DEPOSIT PAKET laundry.\n
         TRUE (HARGA_PAKET) - HARUS ADA kata paket/member/langganan/deposit:\n
@@ -325,9 +353,9 @@ return [
         PENTING:\n
         - Jika user bertanya harga PER ITEM atau PER KILO (baju, celana, per kg) = HARGA (bukan HARGA_PAKET)\n
         \n
-        CRITICAL - HARGA_PAKET (bukan MINTA_JEMPUT_ANTAR):\n
-        - User bertanya HARGA PAKET/MEMBER/LANGGANAN/DEPOSIT sekaligus menyebut antar/jemput/ongkir/kurir/include antar = tetap HARGA_PAKET. Contoh: | berapa harga paket yang include antar jemput? | harga member pakai antar? | paket bulanan sama ongkir? | daftar harga paket + antar jemput |\n
-        - Itu pertanyaan tarif paket varian include antar-jemput, BUKAN permintaan kurir jemput order sekarang."
+        CRITICAL - FALSE (bukan HARGA_PAKET — pakai HARGA_PAKET_D):\n
+        - User bertanya harga paket/member/langganan/deposit sekaligus antar/jemput/ongkir paket/delivery/include antar = HARGA_PAKET_D, BUKAN HARGA_PAKET.\n
+        - Contoh: | berapa harga paket yang include antar jemput? | harga member pakai antar? | paket member antar jemput | paket bulanan sama ongkir? | daftar harga paket + antar jemput |"
     ],
 
     'PERMINTAAN' => [
@@ -411,7 +439,7 @@ return [
       - TRUE: 'jam berapa bisa jemput setrika?' / 'jam brp bisa jemput?' = user minta jemput kain setrikaan, tanya kapan kurir bisa jemput = MINTA_JEMPUT_ANTAR (bukan JAM_OPERASIONAL)\n
       - CRITICAL: 'Mau jemput' / 'saya jemput nanti' = User SENDIRI yang akan mengambil = FALSE (bedakan dari 'ambil baju di kamar X' = minta kurir)\n
       - CRITICAL: Instruksi 'ambil/jemput' + lokasi (kamar/hotel/RS/sekolah/alamat) = MINTA_JEMPUT_ANTAR walaupun TANPA kata tolong/minta/bisa — itu permintaan kurir ke alamat.\n
-      - CRITICAL - FALSE: Pertanyaan HARGA PAKET/MEMBER/DEPOSIT + antar/jemput/ongkir (berapa harga paket include antar? harga member pakai antar?) = HARGA_PAKET, BUKAN MINTA_JEMPUT_ANTAR.\n
+      - CRITICAL - FALSE: Pertanyaan HARGA PAKET/MEMBER/DEPOSIT + antar/jemput/ongkir paket/delivery (berapa harga paket include antar? harga member pakai antar? paket member antar jemput) = HARGA_PAKET_D, BUKAN MINTA_JEMPUT_ANTAR.\n
       - CRITICAL - FALSE: Tanya ongkos/ongkir + durasi hari (1/2/3 hari, sehari) ATAU + regular/ekspres/kilat = HARGA (tarif layanan), BUKAN MINTA_JEMPUT_ANTAR.\n
       - Contoh FALSE: 'Mau jemput,jgn tutup dlu' (user akan ambil sendiri, bukan minta kurir)\n
       - Contoh FALSE: 'Baikla nnti sore dijemput ya kak' (ini konfirmasi)\n
