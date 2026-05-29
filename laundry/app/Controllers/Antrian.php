@@ -86,26 +86,30 @@ class Antrian extends Controller
    public function loadList($antrian)
    {
       $viewData = 'antrian/view_content';
+      $orderNewest = ' ORDER BY insertTime DESC, CAST(id_penjualan AS UNSIGNED) DESC';
+      $orderOldest = ' ORDER BY insertTime ASC, CAST(id_penjualan AS UNSIGNED) ASC';
+
       switch ($antrian) {
          case 1:
-            $where = $this->wCabang . " AND id_pelanggan <> 0 AND bin = 0 AND tuntas = 0 AND DATE(NOW()) <= (insertTime + INTERVAL 7 DAY) ORDER BY id_penjualan DESC";
+            $where = $this->wCabang . " AND id_pelanggan <> 0 AND bin = 0 AND tuntas = 0 AND DATE(NOW()) <= (insertTime + INTERVAL 7 DAY)" . $orderNewest;
             break;
          case 6:
-            $where = $this->wCabang . " AND id_pelanggan <> 0 AND bin = 0 AND tuntas = 0 AND DATE(NOW()) > (insertTime + INTERVAL 7 DAY) AND DATE(NOW()) <= (insertTime + INTERVAL 30 DAY) ORDER BY id_penjualan DESC";
+            $where = $this->wCabang . " AND id_pelanggan <> 0 AND bin = 0 AND tuntas = 0 AND DATE(NOW()) > (insertTime + INTERVAL 7 DAY) AND DATE(NOW()) <= (insertTime + INTERVAL 30 DAY)" . $orderNewest;
             break;
          case 7:
-            $where = $this->wCabang . " AND id_pelanggan <> 0 AND bin = 0 AND tuntas = 0 AND DATE(NOW()) > (insertTime + INTERVAL 30 DAY) AND DATE(NOW()) <= (insertTime + INTERVAL 365 DAY) ORDER BY id_penjualan DESC";
+            $where = $this->wCabang . " AND id_pelanggan <> 0 AND bin = 0 AND tuntas = 0 AND DATE(NOW()) > (insertTime + INTERVAL 30 DAY) AND DATE(NOW()) <= (insertTime + INTERVAL 365 DAY)" . $orderNewest;
             break;
          case 8:
-            $where = $this->wCabang . " AND id_pelanggan <> 0 AND bin = 0 AND tuntas = 0 AND DATE(NOW()) > (insertTime + INTERVAL 365 DAY) ORDER BY id_penjualan DESC";
+            $where = $this->wCabang . " AND id_pelanggan <> 0 AND bin = 0 AND tuntas = 0 AND DATE(NOW()) > (insertTime + INTERVAL 365 DAY)" . $orderNewest;
             break;
          case 100:
-            $where = $this->wCabang . " AND id_pelanggan <> 0 AND bin = 0 AND tuntas = 0 AND id_user_ambil <> 0 ORDER BY id_penjualan ASC";
+            $where = $this->wCabang . " AND id_pelanggan <> 0 AND bin = 0 AND tuntas = 0 AND id_user_ambil <> 0" . $orderOldest;
             break;
       }
 
       // OPTIMIZED: Single query, extract both keys
       $data_main2 = $this->db(0)->get_where('sale', $where, 'no_ref', 1);
+      $this->sortAntrianGroups($data_main2, $antrian != 100);
       $refs = array_keys($data_main2);
       
       // Extract id_penjualan from data_main2 (no duplicate query)
@@ -337,6 +341,47 @@ class Antrian extends Controller
       } else {
           echo json_encode(['status' => 'error', 'message' => 'Conversation not found']);
       }
+   }
+
+   /**
+    * Urutkan grup order (per no_ref): terbaru di atas untuk antrian umum, terlama di atas untuk mode ambil (100).
+    */
+   private function sortAntrianGroups(array &$groups, bool $newestFirst): void
+   {
+      if (count($groups) < 2) {
+         return;
+      }
+
+      uasort($groups, function ($a, $b) use ($newestFirst) {
+         $maxInsertTime = function ($block) {
+            $latest = '';
+            foreach ($block as $row) {
+               $t = $row['insertTime'] ?? '';
+               if ($t !== '' && strcmp($t, $latest) > 0) {
+                  $latest = $t;
+               }
+            }
+            return $latest;
+         };
+
+         $maxIdPenjualan = function ($block) {
+            $max = 0;
+            foreach ($block as $row) {
+               $id = (int) ($row['id_penjualan'] ?? 0);
+               if ($id > $max) {
+                  $max = $id;
+               }
+            }
+            return $max;
+         };
+
+         $cmp = strcmp($maxInsertTime($a), $maxInsertTime($b));
+         if ($cmp === 0) {
+            $cmp = $maxIdPenjualan($a) <=> $maxIdPenjualan($b);
+         }
+
+         return $newestFirst ? -$cmp : $cmp;
+      });
    }
 
    private function pushToWebSocket($data)
