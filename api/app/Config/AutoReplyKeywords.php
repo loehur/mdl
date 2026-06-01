@@ -584,7 +584,7 @@ return [
 
     'GAJI_TF' => [
         'patterns' => [
-            '/^gaji tf$/i',
+            '/^gaji (tf|transfer)$/i',
         ],
     ],
 ];

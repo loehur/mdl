@@ -1104,7 +1104,7 @@ class WhatsAppService
      */
     private function checkPrivateWords($content, $messageText, $lastMessageText, $context = '', $extraText = '')
     {
-        $words = ['kode otp', 'salary slip', 'gaji cash', 'gaji tf', 'gaji_tf'];
+        $words = ['kode otp', 'salary slip', 'gaji cash', 'gaji tf', 'gaji transfer', 'gaji_tf'];
         $textsToCheck = array_filter([$content, $messageText, $lastMessageText, $extraText], function ($t) {
             return $t !== null && $t !== '';
         });
