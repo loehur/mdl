@@ -38,6 +38,9 @@ class WAReplies
     /** Provider untuk wa_auto_reply_log: A = yCloud, B = Fonnte (kecuali handler DEFAULT — cooldown menyatu, lihat shouldHandleDefaultUnified) */
     private $autoReplyProvider = 'A';
 
+    /** @var array|null Cache AutoReplyKeywords.php untuk cek rate limit per handler */
+    private $autoreplyKeywordConfig = null;
+
     /**
      * Set custom sender untuk Fonnte (bila webhook dari Fonnte, bukan YCloud)
      * @param object $adapter Instance FonnteReplyAdapter
@@ -113,18 +116,46 @@ class WAReplies
     }
 
     /**
-     * @param string $waNumber Phone number
-     * @param string $handler Handler name (bon, status, buka, etc)
-     * @param int $cooldownMinutes Cooldown period in minutes (default: 10)
-     * @return bool True if can send reply
+     * Handler di AutoReplyKeywords tanpa ai_prompt = regex-only / perintah admin, tanpa cooldown.
      */
-    private function shouldHandle($waNumber, $handler, $cooldownMinutes = 1)
+    private function handlerSkipsAutoreplyRateLimit(string $handler): bool
     {
-        if ($handler === 'DEFAULT') {
-            return $this->shouldHandleDefaultUnified($waNumber, $cooldownMinutes);
+        if ($this->autoreplyKeywordConfig === null) {
+            $this->autoreplyKeywordConfig = require __DIR__ . '/../Config/AutoReplyKeywords.php';
+        }
+        $config = $this->autoreplyKeywordConfig[$handler] ?? null;
+        if ($config === null) {
+            return false;
         }
 
+        return !isset($config['ai_prompt']);
+    }
+
+    /**
+     * @param string $waNumber Phone number
+     * @param string $handler Handler name (bon, status, buka, etc)
+     * @param int $cooldownMinutes Cooldown period in minutes (default: 1)
+     * @return bool True jika masih dalam jendela cooldown (jangan kirim balasan)
+     */
+    private function isInAutoreplyCooldown($waNumber, $handler, $cooldownMinutes = 1): bool
+    {
         $db = DB::getInstance(0);
+
+        if ($handler === 'DEFAULT') {
+            $sql = "SELECT created_at FROM wa_auto_reply_log 
+                    WHERE phone = ? AND handler = 'DEFAULT' 
+                    ORDER BY created_at DESC LIMIT 1";
+            $result = $db->query($sql, [$waNumber]);
+            if ($result && $result->num_rows() > 0) {
+                $lastReply = $result->row()->created_at;
+                $cooldownEnd = date('Y-m-d H:i:s', strtotime($lastReply) + ($cooldownMinutes * 60));
+                if (date('Y-m-d H:i:s') < $cooldownEnd) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         $provider = $this->autoReplyProvider;
 
         $sql = "SELECT created_at FROM wa_auto_reply_log 
@@ -137,35 +168,35 @@ class WAReplies
             $lastReply = $result->row()->created_at;
             $cooldownEnd = date('Y-m-d H:i:s', strtotime($lastReply) + ($cooldownMinutes * 60));
 
-            // Still in cooldown period
             if (date('Y-m-d H:i:s') < $cooldownEnd) {
-                return false;
+                return true;
             }
         }
 
-        // Update jika sudah ada, insert jika belum
-        $existing = $db->get_where('wa_auto_reply_log', [
-            'phone' => $waNumber,
-            'handler' => $handler,
-            'provider' => $provider
-        ])->row();
+        return false;
+    }
 
-        if ($existing) {
-            // Update created_at jika record sudah ada
-            $db->update(
-                'wa_auto_reply_log',
-                ['created_at' => date('Y-m-d H:i:s'), 'provider' => $provider],
-                ['phone' => $waNumber, 'handler' => $handler, 'provider' => $provider]
-            );
-        } else {
-            // Insert baru jika belum ada
-            $db->insert('wa_auto_reply_log', [
-                'phone' => $waNumber,
-                'handler' => $handler,
-                'provider' => $provider,
-                'created_at' => date('Y-m-d H:i:s')
-            ]);
+    /**
+     * @param string $waNumber Phone number
+     * @param string $handler Handler name (bon, status, buka, etc)
+     * @param int $cooldownMinutes Cooldown period in minutes (default: 1)
+     * @return bool True if can send reply (cek cooldown + catat log)
+     */
+    private function shouldHandle($waNumber, $handler, $cooldownMinutes = 1)
+    {
+        if ($this->handlerSkipsAutoreplyRateLimit($handler)) {
+            return true;
         }
+
+        if ($handler === 'DEFAULT') {
+            return $this->shouldHandleDefaultUnified($waNumber, $cooldownMinutes);
+        }
+
+        if ($this->isInAutoreplyCooldown($waNumber, $handler, $cooldownMinutes)) {
+            return false;
+        }
+
+        $this->recordHandlerCooldown($waNumber, $handler);
 
         return true;
     }
@@ -1095,6 +1126,7 @@ class WAReplies
 
         // Load keyword configuration
         $keywordConfig = require __DIR__ . '/../Config/AutoReplyKeywords.php';
+        $this->autoreplyKeywordConfig = $keywordConfig;
         $this->logAutoreplyTrace($waNumber, 'CHECKPOINT', 'AutoReplyKeywords loaded');
         
         // Simpan config lengkap untuk akses case dan notify nanti
@@ -1268,8 +1300,9 @@ class WAReplies
                     // AI tidak perlu cek keyword yang sudah match di regex
                     unset($keywordConfig[$handler]);
                     
-                    //cek rate limit
-                    if (!$this->shouldHandle($waNumber, $handler)) {
+                    // Rate limit: cek saja; catat log setelah handler sukses dijalankan
+                    if (!$this->handlerSkipsAutoreplyRateLimit($handler)
+                        && $this->isInAutoreplyCooldown($waNumber, $handler)) {
                         $this->logAutoreplyTrace($waNumber, 'EXIT', 'regex_rate_limit handler=' . $handler);
                         $conversationId = $this->getOrCreateConversationWithCase(
                             $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
@@ -1315,6 +1348,9 @@ class WAReplies
                         }
                         $this->logAutoreplyTrace($waNumber, 'HANDLER_RUN', 'regex method=' . $methodName);
                         $this->$methodName($phoneIn, $waNumber, $textBody);
+                        if (!$this->handlerSkipsAutoreplyRateLimit($handler)) {
+                            $this->recordHandlerCooldown($waNumber, $handler);
+                        }
                         $this->logAutoreplyTrace($waNumber, 'DONE', 'regex_ok handler=' . $handler);
                         return (object) [
                             'case' => $caseVal,
@@ -1453,7 +1489,8 @@ class WAReplies
 
             // Rate limit check for AI intent
             // ========================================
-            if (!$this->shouldHandle($waNumber, $aiIntent)) {
+            if (!$this->handlerSkipsAutoreplyRateLimit($aiIntent)
+                && $this->isInAutoreplyCooldown($waNumber, $aiIntent)) {
                 $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_rate_limit intent=' . $aiIntent);
                 // Rate limited - create conversation but don't send auto-reply
                 $conversationId = $this->getOrCreateConversationWithCase(
@@ -1601,6 +1638,9 @@ class WAReplies
                 }
                 $this->logAutoreplyTrace($waNumber, 'HANDLER_RUN', 'ai method=' . $methodName);
                 $this->$methodName($phoneIn, $waNumber, $textBody);
+                if (!$this->handlerSkipsAutoreplyRateLimit($aiIntent)) {
+                    $this->recordHandlerCooldown($waNumber, $aiIntent);
+                }
                 $this->logAutoreplyTrace($waNumber, 'DONE', 'ai_ok intent=' . $aiIntent);
             } else {
                 $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_no_php_method intent=' . $aiIntent);
