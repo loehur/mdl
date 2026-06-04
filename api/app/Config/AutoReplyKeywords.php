@@ -563,6 +563,13 @@ return [
             '/^(saldo|cek|info)\s*(tokopay)$/i',
         ],
     ],
+
+    'CEK_QRIS' => [
+        'patterns' => [
+            '/^\s*cek\s+qris\s+(\d{2})\.(\d{2})\s+(\d+)\s*$/i',
+            '/^\s*cek\s+qris\b/i',
+        ],
+    ],
     
     'TARIK_TOKOPAY' => [
         'patterns' => [

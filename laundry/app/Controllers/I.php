@@ -145,7 +145,8 @@ class I extends Controller
                'status' => $k['status_mutasi'],
                'metode' => $k['metode_mutasi'],
                'note' => $k['note'],
-               'insertTime' => $k['insertTime']
+               'insertTime' => $k['insertTime'],
+               'id_user' => (int) ($k['id_user'] ?? 0),
             ];
          }
          $finance_history[$rf]['total'] += intval($k['jumlah']);
@@ -154,6 +155,7 @@ class I extends Controller
             $finance_history[$rf]['status'] = $k['status_mutasi'];
             $finance_history[$rf]['metode'] = $k['metode_mutasi'];
             $finance_history[$rf]['note'] = $k['note'];
+            $finance_history[$rf]['id_user'] = (int) ($k['id_user'] ?? 0);
          }
       }
 

@@ -1181,6 +1181,10 @@ class WAReplies
                     if ($handler === 'REKENING' && preg_match('/(telah berhasil mengirimkan|sudah transfer|sudah bayar|sudah kirim|sudah mengirim)/i', $textBodyToCheck)) {
                         continue;
                     }
+                    // "cek qris ..." = intent admin CEK_QRIS, bukan minta rekening/QRIS pelanggan
+                    if ($handler === 'REKENING' && preg_match('/^\s*cek\s+qris\b/i', $textBodyToCheck)) {
+                        continue;
+                    }
                     // HARGA laundry: bukan harga parfum/plastik/pewangi/dll (nanti intent terpisah)
                     if ($handler === 'HARGA' && $this->messageIsHargaBarangTambahan($textBodyToCheck)) {
                         continue;
@@ -4304,6 +4308,93 @@ class WAReplies
             \Log::write("handleSaldo_iak ERROR: " . $e->getMessage(), 'wa_error', 'IAK');
             $waService = $this->getWaService();
             $waService->sendFreeText($waNumber, "Error: " . $e->getMessage());
+        }
+    }
+
+    private function cekQrisFormatHelpMessage()
+    {
+        return "Format cek QRIS:\n"
+            . "cek qris MM.YY jumlah\n\n"
+            . "• MM.YY = bulan.tahun (2 digit), contoh 06.26 = Juni 2026\n"
+            . "• jumlah = nominal total bayar dari Tokopay (angka), contoh 900\n\n"
+            . "Contoh benar:\ncek qris 06.26 900";
+    }
+
+    function handleCek_qris($phoneIn, $waNumber, $textBody = '')
+    {
+        try {
+            $hp = \Env::ADMIN_NUMBERS;
+
+            $phones = array_map(function ($p) {
+                return trim($p, "' ");
+            }, explode(',', $phoneIn));
+            $cleanWaNumber = preg_replace('/[^0-9]/', '', $waNumber);
+            $phone0 = '0' . substr($cleanWaNumber, 2);
+            $phones[] = $phone0;
+            $phones[] = $cleanWaNumber;
+            $phones = array_unique(array_filter($phones));
+
+            if (empty(array_intersect($phones, $hp))) {
+                return;
+            }
+
+            if (!preg_match('/^\s*cek\s+qris\s+(\d{2})\.(\d{2})\s+(\d+)\s*$/i', trim($textBody), $m)) {
+                $this->getWaService()->sendFreeText($waNumber, $this->cekQrisFormatHelpMessage());
+                return;
+            }
+
+            $period = $m[1] . '.' . $m[2];
+            $jumlah = (int) $m[3];
+            if ($jumlah <= 0) {
+                $this->getWaService()->sendFreeText($waNumber, "Nominal tidak valid.\n\n" . $this->cekQrisFormatHelpMessage());
+                return;
+            }
+
+            $bulan = (int) $m[1];
+            if ($bulan < 1 || $bulan > 12) {
+                $this->getWaService()->sendFreeText($waNumber, "Bulan tidak valid (gunakan 01–12).\n\n" . $this->cekQrisFormatHelpMessage());
+                return;
+            }
+
+            $db = DB::getInstance(1);
+            $rows = $db->query(
+                "SELECT ref_finance, state, jumlah, `date`, id_client
+                 FROM kas_qris_cleanup_log
+                 WHERE jumlah = ? AND DATE_FORMAT(`date`, '%m.%y') = ?
+                 ORDER BY `date` DESC
+                 LIMIT 30",
+                [$jumlah, $period]
+            )->result_array();
+
+            $waService = $this->getWaService();
+
+            if (empty($rows)) {
+                $waService->sendFreeText(
+                    $waNumber,
+                    "Tidak ada data QRIS untuk periode {$period} dengan nominal Rp" . number_format($jumlah, 0, ',', '.') . "."
+                );
+                return;
+            }
+
+            $lines = [];
+            foreach ($rows as $i => $row) {
+                $ref = $row['ref_finance'] ?? '';
+                $state = strtoupper($row['state'] ?? '-');
+                $tgl = !empty($row['date']) ? date('d/m/y H:i', strtotime($row['date'])) : '-';
+                $link = 'https://api.nalju.com/QRIS_State/' . rawurlencode($ref);
+                $lines[] = ($i + 1) . ". *{$ref}*\n{$state} · Rp" . number_format((int) ($row['jumlah'] ?? 0), 0, ',', '.') . " · {$tgl}\n{$link}";
+            }
+
+            $header = "QRIS {$period} · Rp" . number_format($jumlah, 0, ',', '.') . " (" . count($rows) . " data)\n\n";
+            $waService->sendFreeText($waNumber, $header . implode("\n\n", $lines));
+
+        } catch (\Throwable $e) {
+            \Log::write("handleCek_qris ERROR: " . $e->getMessage(), 'wa_error', 'CekQris');
+            try {
+                $this->getWaService()->sendFreeText($waNumber, "Maaf, terjadi kesalahan saat mengambil data QRIS.");
+            } catch (\Throwable $e2) {
+                // ignore
+            }
         }
     }
 

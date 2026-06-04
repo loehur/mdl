@@ -870,7 +870,11 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
             </td>
             <td class='text-end'><button class="btn btn-sm btn-white">Rp<?= number_format($fh['total']) ?></button></td>
             <td class="text-end">
-                <?php $isQRIS = (isset($fh['note']) && strtoupper($fh['note']) === 'QRIS'); ?>
+                <?php
+                $isQRIS = (isset($fh['note']) && strtoupper($fh['note']) === 'QRIS');
+                $canManagePayment = (int) ($fh['id_user'] ?? 0) === 0;
+                ?>
+                <?php if ($canManagePayment) { ?>
                 <button type='button' class='btn btn-light btn-sm tokopayOrder text-primary' data-ref='<?= $fh['ref_finance'] ?>'
                   data-total='<?= (int) $fh['total'] ?>'
                   data-note='<?= $fh['note'] ?>'><?= $isQRIS ? 'Scan QR' : 'Cek Status' ?></button>
@@ -882,6 +886,7 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
                     title='Batalkan Pembayaran'>
                     <i class="fas fa-trash-alt"></i>
                 </button>
+                <?php } ?>
                 <?php } ?>
             </td>
           </tr>
