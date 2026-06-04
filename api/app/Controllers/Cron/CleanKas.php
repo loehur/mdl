@@ -11,8 +11,8 @@ use App\Models\Tokopay;
  * Hapus hanya jika: id_user = 0 dan payment_qr_string kosong.
  * Cek Tokopay jika sudah ada payment_trx_id:
  *   paid → status_mutasi=3, payment_state=status tokopay
- *   unpaid/expired/failed → status_mutasi=4, payment_state=status tokopay
- *   pending → tidak ubah kas
+ *   expired/failed/cancel → status_mutasi=4 (gagal, QR sudah tidak valid)
+ *   unpaid/pending → tidak ubah kas (pelanggan masih bisa bayar)
  * Log setiap cek ke kas_qris_cleanup_log (upsert by ref_finance).
  */
 class CleanKas extends Controller
@@ -198,26 +198,33 @@ class CleanKas extends Controller
     {
         $statusTrx = '';
 
+        // Prioritas: data.status (Unpaid/Paid/Expired) — jangan tertimpa status_pembayaran "pending"
         if (isset($data['data']) && is_array($data['data'])) {
-            if (!empty($data['data']['status_pembayaran'])) {
-                $statusTrx = strtolower(trim($data['data']['status_pembayaran']));
-            } elseif (!empty($data['data']['status']) && is_string($data['data']['status'])) {
+            if (!empty($data['data']['status']) && is_string($data['data']['status'])) {
                 $statusTrx = strtolower(trim($data['data']['status']));
+            } elseif (!empty($data['data']['status_pembayaran'])) {
+                $statusTrx = strtolower(trim($data['data']['status_pembayaran']));
             } elseif (!empty($data['data']['status_detail'])) {
                 $statusTrx = strtolower(trim($data['data']['status_detail']));
             }
         }
 
         if ($statusTrx === '') {
-            if (!empty($data['status_pembayaran'])) {
+            if (!empty($data['trx_status'])) {
+                $statusTrx = strtolower(trim($data['trx_status']));
+            } elseif (!empty($data['status_pembayaran'])) {
                 $statusTrx = strtolower(trim($data['status_pembayaran']));
             } elseif (!empty($data['status_detail'])) {
                 $statusTrx = strtolower(trim($data['status_detail']));
             } elseif (!empty($data['payment_status'])) {
                 $statusTrx = strtolower(trim($data['payment_status']));
-            } elseif (!empty($data['trx_status'])) {
-                $statusTrx = strtolower(trim($data['trx_status']));
             }
+        }
+
+        // trx_status unpaid lebih spesifik daripada payment_status pending (format API wrapper)
+        $trxStatus = isset($data['trx_status']) ? strtolower(trim((string) $data['trx_status'])) : '';
+        if ($trxStatus === 'unpaid' && ($statusTrx === '' || $statusTrx === 'pending')) {
+            $statusTrx = 'unpaid';
         }
 
         if ($statusTrx === '') {
@@ -236,12 +243,14 @@ class CleanKas extends Controller
             return 'paid';
         }
 
-        if ($statusTrx === 'pending' || $statusTrx === 'not_found') {
-            return 'pending';
+        // Expired/failed/cancel = terminal, mark gagal
+        if (in_array($statusTrx, \Env::QRIS_STATUS_EXPIRED, true)) {
+            return 'failed';
         }
 
-        if ($statusTrx === 'unpaid' || in_array($statusTrx, \Env::QRIS_STATUS_EXPIRED, true)) {
-            return 'failed';
+        // Unpaid = belum bayar, masih bisa lunas nanti — jangan ubah kas
+        if ($statusTrx === 'unpaid' || $statusTrx === 'pending' || $statusTrx === 'not_found') {
+            return 'pending';
         }
 
         return 'failed';
