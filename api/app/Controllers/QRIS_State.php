@@ -43,7 +43,16 @@ class QRIS_State extends Controller
         $namaPelanggan = '';
         if (!empty($log['id_client'])) {
             $pel = $db->get_where('pelanggan', ['id_pelanggan' => (int) $log['id_client']], 1)->row_array();
-            $namaPelanggan = $pel['nama_pelanggan'] ?? '';
+            $namaPelanggan = mb_strtoupper(trim($pel['nama_pelanggan'] ?? ''), 'UTF-8');
+        }
+
+        $tanggalUpdate = '';
+        $tsUpdate = trim($log['updated_at'] ?? '');
+        if ($tsUpdate === '') {
+            $tsUpdate = trim($log['created_at'] ?? '');
+        }
+        if ($tsUpdate !== '') {
+            $tanggalUpdate = date('d M Y H:i', strtotime($tsUpdate));
         }
 
         $state = strtolower(trim($log['state'] ?? ''));
@@ -74,14 +83,11 @@ class QRIS_State extends Controller
             'log' => $log,
             'raw_decoded' => $rawDecoded,
             'nama_pelanggan' => $namaPelanggan,
+            'tanggal_update' => $tanggalUpdate,
             'status_theme' => $statusTheme,
             'status_badge' => $statusBadge,
             'status_icon' => $statusIcon,
             'status_label' => $statusLabel,
-            'raw_json_pretty' => json_encode(
-                $rawDecoded ?: json_decode($log['raw_json'] ?? '{}', true),
-                JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
-            ),
         ]);
     }
 

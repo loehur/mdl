@@ -4417,16 +4417,16 @@ class WAReplies
             }
 
             $lines = [];
-            foreach ($rows as $i => $row) {
+            foreach ($rows as $row) {
                 $ref = $row['ref_finance'] ?? '';
                 $state = strtoupper($row['state'] ?? '-');
                 $tgl = !empty($row['date']) ? date('d/m/y H:i', strtotime($row['date'])) : '-';
+                $nominal = number_format((int) ($row['jumlah'] ?? 0), 0, ',', '.');
                 $link = 'https://api.nalju.com/QRIS_State/' . rawurlencode($ref);
-                $lines[] = ($i + 1) . ". *{$ref}*\n{$state} · Rp" . number_format((int) ($row['jumlah'] ?? 0), 0, ',', '.') . " · {$tgl}\n{$link}";
+                $lines[] = "{$tgl}\nRp{$nominal} ({$state})\n{$link}";
             }
 
-            $header = "QRIS {$period} · Rp" . number_format($jumlah, 0, ',', '.') . " (" . count($rows) . " data)\n\n";
-            $waService->sendFreeText($waNumber, $header . implode("\n\n", $lines));
+            $waService->sendFreeText($waNumber, implode("\n\n", $lines));
 
         } catch (\Throwable $e) {
             \Log::write("handleCek_qris ERROR: " . $e->getMessage(), 'wa_error', 'CekQris');

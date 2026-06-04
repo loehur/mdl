@@ -123,34 +123,6 @@
         .badge.warning { background: #FEF3C7; color: #92400E; }
         .badge.danger { background: #FEE2E2; color: #991B1B; }
 
-        .note-box {
-            background: #F9FAFB;
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 16px;
-        }
-
-        .note-title {
-            font-size: 12px;
-            font-weight: 700;
-            color: var(--text-secondary);
-            margin-bottom: 8px;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        .note-content {
-            font-size: 12px;
-            color: var(--text-main);
-            line-height: 1.5;
-            white-space: pre-wrap;
-            word-break: break-word;
-            font-family: ui-monospace, monospace;
-            max-height: 200px;
-            overflow-y: auto;
-        }
-
         .footer {
             text-align: center;
             font-size: 12px;
@@ -191,36 +163,17 @@
                     <span class="value"><?= htmlspecialchars($nama_pelanggan) ?></span>
                 </div>
                 <?php endif; ?>
-                <?php if (!empty($log['id_client'])) : ?>
-                <div class="info-row">
-                    <span class="label">ID Client</span>
-                    <span class="value"><?= (int) $log['id_client'] ?></span>
-                </div>
-                <?php endif; ?>
                 <?php if (!empty($raw_decoded['trx_id'])) : ?>
                 <div class="info-row">
                     <span class="label">Trx ID</span>
                     <span class="value"><?= htmlspecialchars($raw_decoded['trx_id']) ?></span>
                 </div>
                 <?php endif; ?>
-                <?php if (isset($raw_decoded['total_diterima'])) : ?>
                 <div class="info-row">
-                    <span class="label">Total Diterima</span>
-                    <span class="value">Rp<?= number_format((int) $raw_decoded['total_diterima'], 0, ',', '.') ?></span>
-                </div>
-                <?php endif; ?>
-                <div class="info-row">
-                    <span class="label">Terakhir Dicek</span>
-                    <span class="value"><?= !empty($log['updated_at']) ? date('d M Y H:i', strtotime($log['updated_at'])) : '-' ?></span>
+                    <span class="label">Tanggal Update</span>
+                    <span class="value"><?= !empty($tanggal_update) ? htmlspecialchars($tanggal_update) : '-' ?></span>
                 </div>
             </div>
-
-            <?php if (!empty($raw_json_pretty) && $raw_json_pretty !== 'null') : ?>
-            <div class="note-box">
-                <div class="note-title">Data Tokopay (raw)</div>
-                <div class="note-content"><?= htmlspecialchars($raw_json_pretty) ?></div>
-            </div>
-            <?php endif; ?>
 
             <div class="footer">QRIS_State · ref_finance</div>
         </div>
