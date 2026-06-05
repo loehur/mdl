@@ -313,9 +313,32 @@
             <!-- Step 2: Products -->
             <div>
                <label class="block text-sm font-bold text-gray-800 mb-3">Pilih Layanan</label>
+               <div class="relative mb-3">
+                 <input 
+                   type="text" 
+                   v-model="serviceSearch" 
+                   placeholder="Ketik min. 2 karakter untuk cari layanan..." 
+                   class="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-pink-200 focus:border-pink-400 outline-none transition bg-white text-sm"
+                 />
+                 <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                   <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                 </div>
+                 <button 
+                   v-if="serviceSearch" 
+                   @click="serviceSearch = ''" 
+                   type="button"
+                   class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
+                 >
+                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                 </button>
+               </div>
+               <p v-if="serviceSearch.trim().length < 2" class="text-xs text-gray-500 mb-3 px-1">
+                 Ketik minimal 2 karakter untuk menampilkan daftar layanan.
+                 <span v-if="form.selectedItems.length > 0" class="text-pink-600 font-medium">({{ form.selectedItems.length }} layanan sudah dipilih)</span>
+               </p>
                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-60 overflow-y-auto p-1">
                  <div 
-                    v-for="prod in products" 
+                    v-for="prod in filteredProducts" 
                     :key="prod.id"
                     class="border rounded-xl p-3 relative overflow-hidden group transition-all"
                     :class="getQuantity(prod.id) > 0 ? 'border-pink-500 bg-pink-50' : 'border-gray-200 hover:border-pink-300'"
@@ -333,6 +356,9 @@
                         <button @click.stop="addProduct(prod)" class="w-8 h-8 rounded-full bg-pink-600 text-white hover:bg-pink-700 flex items-center justify-center font-bold shadow-sm transition-colors">+</button>
                      </div>
                      <div v-else class="absolute inset-0 cursor-pointer" @click="addProduct(prod)"></div>
+                  </div>
+                  <div v-if="serviceSearch.trim().length >= 2 && filteredProducts.length === 0" class="col-span-full px-4 py-6 text-center text-gray-400 text-sm">
+                    Layanan "{{ serviceSearch }}" tidak ditemukan.
                   </div>
                </div>
             </div>
@@ -685,6 +711,17 @@ async function selectCustomer(cust) {
     await fetchCustomerVoucherInfo(cust.id);
 }
 
+/* Service Search */
+const serviceSearch = ref('');
+
+const filteredProducts = computed(() => {
+    const q = serviceSearch.value.trim().toLowerCase();
+    if (q.length < 2) return [];
+    return products.value.filter(p => 
+        p.name && p.name.toLowerCase().includes(q)
+    );
+});
+
 async function fetchCustomerVoucherInfo(customerId) {
     try {
         const res = await fetch(`/api/Beauty_Salon/Vouchers/customerStats/${customerId}`);
@@ -848,6 +885,7 @@ function openCreateModal() {
     form.selectedInventoryItems = [];
     form.notes = '';
     custSearch.value = '';
+    serviceSearch.value = '';
     // Reset voucher state
     customerVoucherInfo.value = null;
     selectedVoucher.value = null;
@@ -861,6 +899,7 @@ function editOrder(order) {
     // If customer name isn't readily available in id form, we use what we have
     // The card shows customer_name, let's try to match it or set text
     custSearch.value = order.customer_name || '';
+    serviceSearch.value = '';
     
     // Attempt to reverse-lookup customer object to ensure ID is valid if needed, 
     // but usually ID is enough.
@@ -1016,12 +1055,12 @@ async function submitOrder() {
             product_id: p.id,
             product_name: p.name,
             price: p.price,
-            work_steps: p.work_steps.map(ws => ({
+            work_steps: (p.work_steps || []).map(ws => ({
                 step_id: ws.step_id,
                 step_name: ws.step_name,
                 fee: ws.fee,
-                worker_id: null, // Force null for new orders
-                status: 'pending'
+                worker_id: ws.worker_id ?? null,
+                status: ws.status ?? 'pending'
             }))
         }));
 
