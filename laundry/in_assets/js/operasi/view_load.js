@@ -12,6 +12,11 @@
   $(document).off("click", "[data-print-qr]");
   $(document).off("click", "#btnPrintQR");
   $(document).off("click", "#btnCekStatusQR");
+  $(document).off("click", ".editDurasi");
+  $(document).off("change", "#ubahDurasiSelect");
+  $(document).off("click", "#btnSimpanDurasi");
+  $(document).off("click", ".editMember");
+  $(document).off("click", "#btnSimpanMember");
 
   // Cleanup orphaned modals that were moved to body in previous executions
   // This prevents Duplicate ID errors and Bootstrap confusion which causes recursive errors
@@ -1068,6 +1073,294 @@
           },
         });
       }
+    });
+  });
+
+  var ubahDurasiState = { id: 0, options: [], dibayar: 0 };
+
+  function formatRp(n) {
+    return parseInt(n || 0, 10).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  }
+
+  function renderUbahDurasiOption(opt) {
+    var label = opt.durasi + " (" + opt.hari + "h " + opt.jam + "j) - Rp" + formatRp(opt.harga);
+    if (!opt.can_select) {
+      label += " [min. total Rp" + formatRp(ubahDurasiState.dibayar) + "]";
+    }
+    return label;
+  }
+
+  function updateUbahDurasiPreview() {
+    var val = $("#ubahDurasiSelect").val();
+    var opt = null;
+    for (var i = 0; i < ubahDurasiState.options.length; i++) {
+      if (String(ubahDurasiState.options[i].id_harga) === String(val)) {
+        opt = ubahDurasiState.options[i];
+        break;
+      }
+    }
+
+    $("#ubahDurasiAlert").addClass("d-none").text("");
+
+    if (!opt) {
+      $("#btnSimpanDurasi").prop("disabled", true);
+      return;
+    }
+
+    $("#ubahDurasiItemHarga").text("Rp" + formatRp(opt.item_total));
+    $("#ubahDurasiRefTotal").text("Rp" + formatRp(opt.ref_total));
+
+    if (opt.selected) {
+      $("#btnSimpanDurasi").prop("disabled", true);
+      return;
+    }
+
+    if (!opt.can_select) {
+      $("#ubahDurasiAlert")
+        .removeClass("d-none")
+        .text(
+          "Total order setelah ubah durasi (Rp" +
+            formatRp(opt.ref_total) +
+            ") kurang dari pembayaran Cek/Berhasil (Rp" +
+            formatRp(ubahDurasiState.dibayar) +
+            ")."
+        );
+      $("#btnSimpanDurasi").prop("disabled", true);
+      return;
+    }
+
+    $("#btnSimpanDurasi").prop("disabled", false);
+  }
+
+  function loadUbahDurasiOptions(idPenjualan) {
+    ubahDurasiState = { id: idPenjualan, options: [], dibayar: 0 };
+    $("#ubahDurasiLoading").removeClass("d-none");
+    $("#ubahDurasiContent").addClass("d-none");
+    $("#btnSimpanDurasi").prop("disabled", true);
+
+    $.ajax({
+      url: BASE_URL + "Operasi/durasi_options",
+      data: { id: idPenjualan },
+      type: "POST",
+      dataType: "json",
+      success: function (res) {
+        $("#ubahDurasiLoading").addClass("d-none");
+        if (!res || res.status !== "success") {
+          showAlert((res && res.message) || "Gagal memuat pilihan durasi", "error");
+          try {
+            var modalEl = document.getElementById("modalUbahDurasi");
+            if (modalEl && bootstrap.Modal) {
+              bootstrap.Modal.getInstance(modalEl).hide();
+            }
+          } catch (e) {}
+          return;
+        }
+
+        ubahDurasiState.options = res.options || [];
+        ubahDurasiState.dibayar = res.dibayar || 0;
+
+        $("#ubahDurasiItem").text("#" + res.id_penjualan + " " + (res.kategori || ""));
+        $("#ubahDurasiInfo").text(
+          "Durasi sekarang: " +
+            (res.current_durasi || "-") +
+            " | Total order: Rp" +
+            formatRp(res.current_ref_total)
+        );
+
+        var $sel = $("#ubahDurasiSelect").empty();
+        ubahDurasiState.options.forEach(function (opt) {
+          $sel.append(
+            $("<option></option>")
+              .val(opt.id_harga)
+              .prop("disabled", !opt.can_select && !opt.selected)
+              .text(renderUbahDurasiOption(opt))
+          );
+        });
+
+        ubahDurasiState.options.forEach(function (opt) {
+          if (opt.selected) {
+            $sel.val(opt.id_harga);
+          }
+        });
+
+        if (res.dibayar > 0) {
+          $("#ubahDurasiBayarInfo").removeClass("d-none");
+          $("#ubahDurasiDibayar").text("Rp" + formatRp(res.dibayar));
+        } else {
+          $("#ubahDurasiBayarInfo").addClass("d-none");
+        }
+
+        $("#ubahDurasiContent").removeClass("d-none");
+        updateUbahDurasiPreview();
+      },
+      error: function () {
+        $("#ubahDurasiLoading").addClass("d-none");
+        showAlert("Gagal memuat pilihan durasi", "error");
+      },
+    });
+  }
+
+  $(document).on("click", ".editDurasi", function (e) {
+    e.preventDefault();
+    var idPenjualan = $(this).attr("data-id");
+    if (!idPenjualan) {
+      return;
+    }
+    loadUbahDurasiOptions(idPenjualan);
+  });
+
+  $(document).on("change", "#ubahDurasiSelect", function () {
+    updateUbahDurasiPreview();
+  });
+
+  $(document).on("click", "#btnSimpanDurasi", function () {
+    var idHarga = $("#ubahDurasiSelect").val();
+    if (!ubahDurasiState.id || !idHarga) {
+      return;
+    }
+
+    $("#btnSimpanDurasi").prop("disabled", true);
+    $.ajax({
+      url: BASE_URL + "Operasi/ubah_durasi",
+      data: {
+        id: ubahDurasiState.id,
+        id_harga: idHarga,
+      },
+      type: "POST",
+      dataType: "json",
+      beforeSend: function () {
+        $(".loaderDiv").fadeIn("fast");
+      },
+      success: function (res) {
+        if (res && res.status === "success") {
+          try {
+            var modalEl = document.getElementById("modalUbahDurasi");
+            if (modalEl && bootstrap.Modal) {
+              var instance = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+              instance.hide();
+            }
+          } catch (e) {}
+          loadDiv();
+        } else {
+          showAlert((res && res.message) || "Gagal mengubah durasi", "error");
+          updateUbahDurasiPreview();
+        }
+      },
+      error: function () {
+        showAlert("Gagal mengubah durasi", "error");
+        updateUbahDurasiPreview();
+      },
+      complete: function () {
+        $(".loaderDiv").fadeOut("slow");
+      },
+    });
+  });
+
+  var ubahMemberState = { id: 0 };
+
+  function loadUbahMemberOptions(idPenjualan) {
+    ubahMemberState = { id: idPenjualan };
+    $("#ubahMemberLoading").removeClass("d-none");
+    $("#ubahMemberContent").addClass("d-none");
+    $("#ubahMemberAlert").addClass("d-none").text("");
+    $("#btnSimpanMember").prop("disabled", true);
+
+    $.ajax({
+      url: BASE_URL + "Operasi/member_options",
+      data: { id: idPenjualan },
+      type: "POST",
+      dataType: "json",
+      success: function (res) {
+        $("#ubahMemberLoading").addClass("d-none");
+        if (!res || res.status !== "success") {
+          showAlert((res && res.message) || "Gagal memuat data member", "error");
+          try {
+            var modalEl = document.getElementById("modalUbahMember");
+            if (modalEl && bootstrap.Modal) {
+              bootstrap.Modal.getInstance(modalEl).hide();
+            }
+          } catch (e) {}
+          return;
+        }
+
+        $("#ubahMemberInfo").text(
+          "#" + res.id_penjualan + " " + (res.kategori || "") + " - " + (res.durasi || "")
+        );
+        $("#ubahMemberPaket").text("M" + res.id_harga);
+        $("#ubahMemberQty").text((res.qty_fmt || res.qty) + (res.unit || ""));
+        $("#ubahMemberSaldo").text((res.saldo_fmt || res.saldo) + (res.unit || ""));
+        $("#ubahMemberRefTotal").text(
+          "Rp" + formatRp(res.current_ref_total) + " → Rp" + formatRp(res.new_ref_total)
+        );
+
+        if (res.dibayar > 0) {
+          $("#ubahMemberBayarInfo").removeClass("d-none");
+          $("#ubahMemberDibayar").text("Rp" + formatRp(res.dibayar));
+        } else {
+          $("#ubahMemberBayarInfo").addClass("d-none");
+        }
+
+        if (!res.can_convert && res.message) {
+          $("#ubahMemberAlert").removeClass("d-none").text(res.message);
+          $("#btnSimpanMember").prop("disabled", true);
+        } else {
+          $("#btnSimpanMember").prop("disabled", false);
+        }
+
+        $("#ubahMemberContent").removeClass("d-none");
+      },
+      error: function () {
+        $("#ubahMemberLoading").addClass("d-none");
+        showAlert("Gagal memuat data member", "error");
+      },
+    });
+  }
+
+  $(document).on("click", ".editMember", function (e) {
+    e.preventDefault();
+    var idPenjualan = $(this).attr("data-id");
+    if (!idPenjualan) {
+      return;
+    }
+    loadUbahMemberOptions(idPenjualan);
+  });
+
+  $(document).on("click", "#btnSimpanMember", function () {
+    if (!ubahMemberState.id) {
+      return;
+    }
+
+    $("#btnSimpanMember").prop("disabled", true);
+    $.ajax({
+      url: BASE_URL + "Operasi/ubah_member",
+      data: { id: ubahMemberState.id },
+      type: "POST",
+      dataType: "json",
+      beforeSend: function () {
+        $(".loaderDiv").fadeIn("fast");
+      },
+      success: function (res) {
+        if (res && res.status === "success") {
+          try {
+            var modalEl = document.getElementById("modalUbahMember");
+            if (modalEl && bootstrap.Modal) {
+              var instance = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+              instance.hide();
+            }
+          } catch (e) {}
+          loadDiv();
+        } else {
+          showAlert((res && res.message) || "Gagal mengubah ke member", "error");
+          $("#btnSimpanMember").prop("disabled", false);
+        }
+      },
+      error: function () {
+        showAlert("Gagal mengubah ke member", "error");
+        $("#btnSimpanMember").prop("disabled", false);
+      },
+      complete: function () {
+        $(".loaderDiv").fadeOut("slow");
+      },
     });
   });
 

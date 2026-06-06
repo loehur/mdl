@@ -126,6 +126,8 @@ $labeled = false;
             $id_ambil = $a['id_user_ambil'];
             $tgl_ambil = $a['tgl_ambil'];
             $member = $a['member'];
+            $tuntas = (int) ($a['tuntas'] ?? 0);
+            $canEditItem = ($member == 0 && $modeView != 2 && $tuntas === 0);
             $showMember = "";
             $countMember[$ref] += $member;
 
@@ -360,6 +362,11 @@ $labeled = false;
               $tampilDiskon = "";
             }
 
+            $show_total_cell = $show_total;
+            if ($canEditItem) {
+              $show_total_cell = "<span class='editMember' style='cursor:pointer;' data-id='" . $id . "' data-ref='" . $ref . "' data-bs-target='#modalUbahMember' title='Klik untuk ubah ke member'>" . $show_total . "</span>";
+            }
+
             $showNote = "";
             if (strlen($f8) > 0) {
               $showNote = $f8;
@@ -368,6 +375,11 @@ $labeled = false;
             $classDurasi = "";
             if (strpos($durasi, "EKSPRES") !== false || strpos($durasi, "KILAT") !== false || strpos($durasi, "PREMIUM") !== false) {
               $classDurasi = "fw-bold text-danger";
+            }
+
+            $durasiHtml = "<span class='" . $classDurasi . "' style='white-space: pre;'>" . $durasi . $f12 . "h " . $f13 . "j</span>";
+            if ($canEditItem) {
+              $durasiHtml = "<span class='" . $classDurasi . " editDurasi' style='cursor:pointer; white-space: pre;' data-id='" . $id . "' data-ref='" . $ref . "' data-bs-target='#modalUbahDurasi' title='Klik untuk ubah durasi'>" . $durasi . $f12 . "h " . $f13 . "j</span>";
             }
 
             $classTRDurasi = "";
@@ -421,11 +433,11 @@ $labeled = false;
               </td>
 
               <td class='pb-0'>
-                <small><?= $id ?></small><br><b><span style='white-space: nowrap;'><?= $kategori ?></span></b><span class='badge badge-light'></span><br><span class='<?= $classDurasi ?>' style='white-space: pre;'><?= $durasi ?><?= $f12 ?>h <?= $f13 ?>j</span><br>
+                <small><?= $id ?></small><br><b><span style='white-space: nowrap;'><?= $kategori ?></span></b><span class='badge badge-light'></span><br><?= $durasiHtml ?><br>
                 <b><?= $show_qty ?></b> <?= $tampilDiskon ?><br><?= $itemList ?>
               </td>
               <td nowrap><?= $list_layanan . $buttonAmbil ?></td>
-              <td class='text-right'><?= $show_total ?></td>
+              <td class='text-right'><?= $show_total_cell ?></td>
             </tr>
             <tr class='<?= $classTRDurasi ?>'>
               <?php if (strlen($f8) > 0) { ?>
@@ -1140,7 +1152,7 @@ $labeled = false;
   $(document).ready(function() {
       
       // Manual Modal Trigger to prevent Bootstrap 5 null reading hide error on spans
-      $(document).on('click', '.gantiOperasi, .endLayanan, .addOperasi, .ambil', function(e) {
+      $(document).on('click', '.gantiOperasi, .endLayanan, .addOperasi, .ambil, .editDurasi, .editMember', function(e) {
           e.preventDefault();
           var target = $(this).attr('data-bs-target');
           if(target) {

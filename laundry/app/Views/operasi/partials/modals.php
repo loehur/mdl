@@ -141,6 +141,71 @@
   </div>
 </form>
 
+<div class="modal" id="modalUbahMember" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Ubah ke Member</h5>
+        <button type="button" data-bs-dismiss="modal" class="btn-close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="ubahMemberLoading" class="text-center py-3">
+          <i class="fas fa-spinner fa-spin"></i> Memuat...
+        </div>
+        <div id="ubahMemberContent" class="d-none">
+          <p class="small text-muted mb-2" id="ubahMemberInfo"></p>
+          <div class="small border rounded p-2 bg-light">
+            <div>Paket: <strong id="ubahMemberPaket">-</strong></div>
+            <div>Qty order: <strong id="ubahMemberQty">-</strong></div>
+            <div>Saldo member: <strong id="ubahMemberSaldo">-</strong></div>
+            <div>Total order: <strong id="ubahMemberRefTotal">-</strong></div>
+            <div id="ubahMemberBayarInfo" class="text-warning d-none mt-1">Pembayaran Cek/Berhasil: <strong id="ubahMemberDibayar">-</strong></div>
+          </div>
+          <div id="ubahMemberAlert" class="alert alert-danger d-none small mt-2 mb-0 py-2"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" data-bs-dismiss="modal" class="btn btn-dark btn-sm">Batal</button>
+        <button type="button" id="btnSimpanMember" class="btn btn-success btn-sm" disabled>Simpan</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="modalUbahDurasi" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Ubah Durasi</h5>
+        <button type="button" data-bs-dismiss="modal" class="btn-close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="ubahDurasiLoading" class="text-center py-3">
+          <i class="fas fa-spinner fa-spin"></i> Memuat...
+        </div>
+        <div id="ubahDurasiContent" class="d-none">
+          <p class="small text-muted mb-2" id="ubahDurasiInfo"></p>
+          <div class="mb-2"><strong>Item:</strong> <span id="ubahDurasiItem"></span></div>
+          <div class="form-group mb-2">
+            <label class="small mb-1">Pilih Durasi</label>
+            <select id="ubahDurasiSelect" class="form-control form-control-sm"></select>
+          </div>
+          <div class="small border rounded p-2 bg-light">
+            <div>Harga item: <strong id="ubahDurasiItemHarga">-</strong></div>
+            <div>Total order: <strong id="ubahDurasiRefTotal">-</strong></div>
+            <div id="ubahDurasiBayarInfo" class="text-warning d-none mt-1">Pembayaran Cek/Berhasil: <strong id="ubahDurasiDibayar">-</strong></div>
+          </div>
+          <div id="ubahDurasiAlert" class="alert alert-danger d-none small mt-2 mb-0 py-2"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" data-bs-dismiss="modal" class="btn btn-dark btn-sm">Batal</button>
+        <button type="button" id="btnSimpanDurasi" class="btn btn-success btn-sm" disabled>Simpan</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <form class="ajax" action="<?= URL::BASE_URL; ?>Antrian/surcas" method="POST">
   <div class="modal" id="exampleModalSurcas">
     <div class="modal-dialog modal-sm">
