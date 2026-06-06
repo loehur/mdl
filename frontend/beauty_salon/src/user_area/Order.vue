@@ -632,7 +632,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue';
+import { ref, reactive, onMounted, computed, inject } from 'vue';
 import { useRouter } from 'vue-router';
 
 // Props from parent (UserLayout)
@@ -644,6 +644,7 @@ const props = defineProps({
 });
 
 const router = useRouter();
+const checkSubscription = inject('checkSubscription', null);
 const loading = ref(true);
 const orders = ref([]);
 const customers = ref([]);
@@ -868,9 +869,16 @@ async function fetchAllWorkSteps() {
        if(d.success) allWorkSteps.value = d.data;
    } catch{}
 }
-function openCreateModal() {
-    // Check subscription status before allowing order creation
-    if (!props.subscriptionValid) {
+async function openCreateModal() {
+    // Cek ulang status langganan (hindari false positive saat session PHP habis)
+    if (checkSubscription) {
+        const result = await checkSubscription();
+        if (result?.reason === 'no_session') return;
+        if (!result?.valid) {
+            showSubscriptionModal.value = true;
+            return;
+        }
+    } else if (!props.subscriptionValid) {
         showSubscriptionModal.value = true;
         return;
     }

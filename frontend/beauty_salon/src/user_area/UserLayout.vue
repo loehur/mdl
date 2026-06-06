@@ -242,7 +242,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch } from "vue";
+import { ref, onMounted, computed, watch, provide } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { API_BASE_URL } from '../api';
 
@@ -479,21 +479,36 @@ function isDropdownActive(childrenName) {
   return items.some(item => route.path.includes(item.path));
 }
 
+function handleSessionExpired() {
+  localStorage.removeItem("salon_user");
+  alert("Sesi login habis. Silakan login ulang.");
+  router.push("/login");
+}
+
 async function fetchSubscriptionStatus() {
-  if (!isAdmin()) return;
+  if (!isAdmin()) return { valid: true };
   try {
     const res = await fetch(`${API_BASE_URL}/Beauty_Salon/Subscription/check`, {
       credentials: 'include'
     });
     const data = await res.json();
-    if (data.success) {
-      subscriptionStatus.value = data.status || (data.is_valid ? 'active' : 'expired');
-      subscriptionDays.value = data.days_remaining ?? 0;
+    if (!data.success) {
+      return { valid: subscriptionStatus.value ? isSubscriptionValid.value : true, reason: 'error' };
     }
+    if (data.reason === 'no_session') {
+      handleSessionExpired();
+      return { valid: false, reason: 'no_session' };
+    }
+    subscriptionStatus.value = data.status || (data.is_valid ? 'active' : 'expired');
+    subscriptionDays.value = data.days_remaining ?? 0;
+    return { valid: !!data.is_valid, reason: data.reason };
   } catch (err) {
     console.error('Failed to fetch subscription status:', err);
+    return { valid: subscriptionStatus.value ? isSubscriptionValid.value : true, reason: 'error' };
   }
 }
+
+provide('checkSubscription', fetchSubscriptionStatus);
 
 onMounted(async () => {
   try {
@@ -512,6 +527,9 @@ onMounted(async () => {
   
   // Fetch subscription status for admin
   await fetchSubscriptionStatus();
+
+  // Refresh saat tab/browser kembali aktif (session PHP bisa habis saat idle)
+  window.addEventListener('focus', fetchSubscriptionStatus);
 });
 
 watch(() => route.fullPath, () => {

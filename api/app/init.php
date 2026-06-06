@@ -98,8 +98,15 @@ set_exception_handler(function($e) {
 date_default_timezone_set("Asia/Jakarta");
 $GLOBALS['now'] = date("Y-m-d H:i:s");
 
-// Start session for all API requests
+// Start session for all API requests (24 jam, selaras dengan expiry localStorage login)
 if (session_status() === PHP_SESSION_NONE) {
+    ini_set('session.gc_maxlifetime', '86400');
+    session_set_cookie_params([
+        'lifetime' => 86400,
+        'path' => '/',
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
     session_start();
 }
 
