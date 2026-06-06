@@ -1156,6 +1156,7 @@
           return;
         }
 
+        ubahDurasiState.id = res.id_penjualan || idPenjualan;
         ubahDurasiState.options = res.options || [];
         ubahDurasiState.dibayar = res.dibayar || 0;
 
@@ -1299,6 +1300,8 @@
         } else {
           $("#ubahMemberBayarInfo").addClass("d-none");
         }
+
+        ubahMemberState.id = res.id_penjualan || idPenjualan;
 
         if (!res.can_convert && res.message) {
           $("#ubahMemberAlert").removeClass("d-none").text(res.message);

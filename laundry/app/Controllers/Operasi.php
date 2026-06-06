@@ -245,13 +245,13 @@ class Operasi extends Controller
    public function durasi_options()
    {
       header('Content-Type: application/json');
-      $id_penjualan = (int) ($_POST['id'] ?? $_GET['id'] ?? 0);
-      if ($id_penjualan <= 0) {
+      $id_penjualan = $this->normalizeSaleId($_POST['id'] ?? $_GET['id'] ?? '');
+      if ($id_penjualan === '') {
          echo json_encode(['status' => 'error', 'message' => 'ID tidak valid']);
          return;
       }
 
-      $sale = $this->db(0)->get_where_row('sale', $this->wCabang . " AND id_penjualan = $id_penjualan AND bin = 0");
+      $sale = $this->db(0)->get_where_row('sale', $this->whereSaleById($id_penjualan) . ' AND bin = 0');
       $err = $this->validateOrderModifiable($sale);
       if ($err !== null) {
          echo json_encode(['status' => 'error', 'message' => $err]);
@@ -263,6 +263,7 @@ class Operasi extends Controller
          return;
       }
 
+      $id_penjualan = $this->normalizeSaleId($sale['id_penjualan']);
       $ref = $sale['no_ref'];
       $dibayar = $this->getRefDibayar($ref);
       $currentSubTotal = $this->getRefSubTotal($ref);
@@ -354,15 +355,15 @@ class Operasi extends Controller
    public function ubah_durasi()
    {
       header('Content-Type: application/json');
-      $id_penjualan = (int) ($_POST['id'] ?? 0);
+      $id_penjualan = $this->normalizeSaleId($_POST['id'] ?? '');
       $id_harga = (int) ($_POST['id_harga'] ?? 0);
 
-      if ($id_penjualan <= 0 || $id_harga <= 0) {
+      if ($id_penjualan === '' || $id_harga <= 0) {
          echo json_encode(['status' => 'error', 'message' => 'Data tidak lengkap']);
          return;
       }
 
-      $sale = $this->db(0)->get_where_row('sale', $this->wCabang . " AND id_penjualan = $id_penjualan AND bin = 0");
+      $sale = $this->db(0)->get_where_row('sale', $this->whereSaleById($id_penjualan) . ' AND bin = 0');
       $err = $this->validateOrderModifiable($sale);
       if ($err !== null) {
          echo json_encode(['status' => 'error', 'message' => $err]);
@@ -399,8 +400,8 @@ class Operasi extends Controller
          return;
       }
 
+      $id_penjualan = $this->normalizeSaleId($sale['id_penjualan']);
       $ref = $sale['no_ref'];
-      $dibayar = $this->getRefDibayar($ref);
       $unitPrice = $this->hargaUnitPrice($hargaRow);
       $minOrder = round((float) ($hargaRow['min_order'] ?? $sale['min_order'] ?? 0), 2);
       $newSubTotal = $this->getRefSubTotal($ref, [
@@ -424,7 +425,7 @@ class Operasi extends Controller
          'min_order' => $minOrder,
          'id_harga' => $id_harga,
       ];
-      $where = $this->wCabang . " AND id_penjualan = $id_penjualan";
+      $where = $this->whereSaleById($id_penjualan);
       $up = $this->db(0)->update('sale', $set, $where);
       if ($up['errno'] != 0) {
          $this->model('Log')->write("[ubah_durasi] Update sale error id=$id_penjualan: " . ($up['error'] ?? ''));
@@ -480,11 +481,16 @@ class Operasi extends Controller
          $sales = [];
       }
 
+      $normalizedOverrides = [];
+      foreach ($saleOverrides as $oid => $override) {
+         $normalizedOverrides[$this->normalizeSaleId($oid)] = $override;
+      }
+
       $subTotal = 0;
       foreach ($sales as $s) {
-         $id = $s['id_penjualan'];
-         if (isset($saleOverrides[$id])) {
-            $s = array_merge($s, $saleOverrides[$id]);
+         $id = $this->normalizeSaleId($s['id_penjualan']);
+         if (isset($normalizedOverrides[$id])) {
+            $s = array_merge($s, $normalizedOverrides[$id]);
          }
          $subTotal += $this->calcSaleItemTotal($s);
       }
@@ -544,13 +550,13 @@ class Operasi extends Controller
    public function member_options()
    {
       header('Content-Type: application/json');
-      $id_penjualan = (int) ($_POST['id'] ?? $_GET['id'] ?? 0);
-      if ($id_penjualan <= 0) {
+      $id_penjualan = $this->normalizeSaleId($_POST['id'] ?? $_GET['id'] ?? '');
+      if ($id_penjualan === '') {
          echo json_encode(['status' => 'error', 'message' => 'ID tidak valid']);
          return;
       }
 
-      $sale = $this->db(0)->get_where_row('sale', $this->wCabang . " AND id_penjualan = $id_penjualan AND bin = 0");
+      $sale = $this->db(0)->get_where_row('sale', $this->whereSaleById($id_penjualan) . ' AND bin = 0');
       $err = $this->validateOrderModifiable($sale);
       if ($err !== null) {
          echo json_encode(['status' => 'error', 'message' => $err]);
@@ -573,6 +579,7 @@ class Operasi extends Controller
          return;
       }
 
+      $id_penjualan = $this->normalizeSaleId($sale['id_penjualan']);
       $ref = $sale['no_ref'];
       $qty = round((float) ($sale['qty'] ?? 0), 2);
       $saldo = $this->getMemberSaldo($idPelanggan, $idHarga);
@@ -630,13 +637,13 @@ class Operasi extends Controller
    public function ubah_member()
    {
       header('Content-Type: application/json');
-      $id_penjualan = (int) ($_POST['id'] ?? 0);
-      if ($id_penjualan <= 0) {
+      $id_penjualan = $this->normalizeSaleId($_POST['id'] ?? '');
+      if ($id_penjualan === '') {
          echo json_encode(['status' => 'error', 'message' => 'ID tidak valid']);
          return;
       }
 
-      $sale = $this->db(0)->get_where_row('sale', $this->wCabang . " AND id_penjualan = $id_penjualan AND bin = 0");
+      $sale = $this->db(0)->get_where_row('sale', $this->whereSaleById($id_penjualan) . ' AND bin = 0');
       $err = $this->validateOrderModifiable($sale);
       if ($err !== null) {
          echo json_encode(['status' => 'error', 'message' => $err]);
@@ -662,6 +669,7 @@ class Operasi extends Controller
          return;
       }
 
+      $id_penjualan = $this->normalizeSaleId($sale['id_penjualan']);
       $ref = $sale['no_ref'];
       $newSubTotal = $this->getRefSubTotal($ref, [$id_penjualan => ['member' => 1]]);
       $payErr = $this->validatePaymentAfterChange($ref, $newSubTotal);
@@ -674,7 +682,7 @@ class Operasi extends Controller
          'member' => 1,
          'total' => 0,
       ];
-      $where = $this->wCabang . " AND id_penjualan = $id_penjualan";
+      $where = $this->whereSaleById($id_penjualan);
       $up = $this->db(0)->update('sale', $set, $where);
       if ($up['errno'] != 0) {
          $this->model('Log')->write("[ubah_member] Update sale error id=$id_penjualan: " . ($up['error'] ?? ''));
@@ -683,6 +691,17 @@ class Operasi extends Controller
       }
 
       echo json_encode(['status' => 'success', 'message' => 'Berhasil diubah ke member']);
+   }
+
+   private function normalizeSaleId($id)
+   {
+      return trim((string) $id);
+   }
+
+   private function whereSaleById($id_penjualan)
+   {
+      $idEsc = $this->db(0)->escape($this->normalizeSaleId($id_penjualan));
+      return $this->wCabang . " AND id_penjualan = '$idEsc'";
    }
 
    private function getMemberSaldo($idPelanggan, $idHarga)
