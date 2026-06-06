@@ -727,6 +727,39 @@ class WAReplies
     }
 
     /**
+     * Konfirmasi pembayaran/transfer/lunas — tetap PENUTUP meski pesan panjang (bukti + nominal + terima kasih).
+     */
+    private function messageLooksLikePaymentConfirmationPenutup(?string $text): bool
+    {
+        if ($text === null || trim($text) === '') {
+            return false;
+        }
+        $t = mb_strtolower($text);
+        if (preg_match(
+            '/telah\s+berhasil\s+mengirimkan|sudah\s+transfer|sudah\s+bayar|sudah\s+kirim|sudah\s+mengirim|'
+            . 'udah\s+transfer|udah\s+bayar|udh\s+tf|udh\s+transfer|sdh\s+transfer|sdh\s+bayar|'
+            . 'sudah\s+lunas|udah\s+lunas|udh\s+lunas|sdh\s+lunas/iu',
+            $t
+        )) {
+            return true;
+        }
+        if (preg_match(
+            '/\bberikut\s+bukti\s+(lunas(\s+bayar)?|bayar|transfer|pembayaran|tf|trf)\b/iu',
+            $t
+        )) {
+            return true;
+        }
+        if (preg_match('/\bbukti\s+(lunas(\s+bayar)?|bayar|transfer|pembayaran|tf|trf)\b/iu', $t)) {
+            return true;
+        }
+        if (preg_match('/\blunas\s+bayar\b/iu', $t)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
      * Informasi "belum diambil" adalah status/info, bukan penutup.
      */
     private function messageLooksLikeBelumDiambilInfo(?string $text): bool
@@ -1278,8 +1311,9 @@ class WAReplies
                     if ($handler === 'PENUTUP' && $this->messageLooksLikeFuturePaymentCommitmentBukanPenutup($textBodyToCheck)) {
                         continue;
                     }
-                    // PENUTUP: kalimat panjang (>50 karakter) bukan ack penutup
-                    if ($handler === 'PENUTUP' && $this->messageExceedsPenutupMaxLength($textBodyToCheck)) {
+                    // PENUTUP: kalimat panjang (>50 karakter) bukan ack penutup — kecuali konfirmasi bayar/lunas
+                    if ($handler === 'PENUTUP' && $this->messageExceedsPenutupMaxLength($textBodyToCheck)
+                        && !$this->messageLooksLikePaymentConfirmationPenutup($textBodyToCheck)) {
                         continue;
                     }
                     // "jam berapa bisa jemput?" / "bs jmpt?" = MINTA_JEMPUT_ANTAR (minta jemput), bukan JAM_OPERASIONAL
@@ -1504,8 +1538,9 @@ class WAReplies
                 ];
             }
 
-            // PENUTUP: pesan panjang (>50 karakter) — jangan pakai intent PENUTUP (AI/override)
-            if ($aiIntent === 'PENUTUP' && $this->messageExceedsPenutupMaxLength($textBodyToCheck)) {
+            // PENUTUP: pesan panjang (>50 karakter) — jangan pakai intent PENUTUP (AI/override), kecuali konfirmasi bayar/lunas
+            if ($aiIntent === 'PENUTUP' && $this->messageExceedsPenutupMaxLength($textBodyToCheck)
+                && !$this->messageLooksLikePaymentConfirmationPenutup($textBodyToCheck)) {
                 $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_penutup_too_long len=' . mb_strlen(trim($textBodyToCheck ?? '')));
                 $conversationId = $this->getOrCreateConversationWithCase(
                     $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4

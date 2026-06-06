@@ -150,6 +150,10 @@ return [
          '/^\s*\bsia+p+\s*(kak|kk|bang|min|mbak|pak|bu|penya|punya|ya)?\s*\??\s*$/iu',
          // Konfirmasi pembayaran/transfer - HARUS sebelum REKENING dicek (via process exception)
          '/(telah berhasil mengirimkan|sudah transfer|sudah bayar|sudah kirim|sudah mengirim)\s*(ke\s*)?(rekening|rek)?/i',
+         // Bukti pembayaran/lunas (boleh panjang: bukti + nominal + terima kasih)
+         '/\bberikut\s+bukti\s+(lunas(\s+bayar)?|bayar|transfer|pembayaran|tf)\b/i',
+         '/\bbukti\s+(lunas(\s+bayar)?|bayar|transfer|pembayaran|tf)\b/i',
+         '/\blunas\s+bayar\b/i',
          // Konfirmasi tagihan sudah lunas (penutup)
          '/^\s*(sudah|udah|udh|sdh)\s+lunas(\s+(ya\s*)?(kak|kk|bang|min|mbak|pak|bu))?\s*$/i',
          '/^\s*lunas(\s+ya)?(\s+(kak|kk|bang|min|mbak|pak|bu))?\s*$/i',
@@ -183,6 +187,7 @@ return [
       - Konfirmasi pembayaran/tagihan lunas: | lunas | lunas ya kak | lunas ya min | sudah lunas | udah lunas |\n
       - Konfirmasi status (non-bayar): | sudah diambil |\n
       - Konfirmasi transfer/pembayaran SUDAH dilakukan (bukan janji nanti): | telah berhasil mengirimkan ke rekening | sudah transfer | sudah bayar | sudah kirim | saya sudah transfer ke rekening kamu |\n
+      - Bukti pembayaran/lunas (boleh panjang, tetap PENUTUP): | berikut bukti lunas bayar | berikut bukti bayar | berikut bukti lunas | bukti lunas bayar | bukti transfer kak | bukti pembayaran |\n
       - Konfirmasi jadwal SANGAT singkat saja (tanpa rujukan order tertentu): | baik nanti dijemput | ok sore diantar | siap dijemput ya | besok diantar kak |\n
       - Minta kabar/update singkat (penutup): | kabari ya kak | kabarin ya min | infokan ya kk | kasih kabar ya |\n
       - Pemberitahuan jadwal singkat (bukan rujukan cucian tertentu): | nanti sore dijemput | jam 2 dijemput ya kak |\n
@@ -192,7 +197,7 @@ return [
       FALSE (BUKAN PENUTUP) - CRITICAL:\n
       - CRITICAL: Janji/konfirmasi AKAN bayar/transfer/tf (belum kirim uang): | nnti transfer ya | nntk byr 100 dl ya kk | besok transfer kak | akan bayar sore | = FALSE. Bedakan dari SUDAH: | sudah transfer | sudah bayar | = PENUTUP.\n
       - CRITICAL: Rujukan order/waktu + jadwal ambil: | yg tdi sore besok di ambil iya buk | yang tadi sore besok dijemput ya | yg td sore nanti di ambil | = info operasional/jadwal cucian tertentu = FALSE (bukan PENUTUP), meski ada 'iya/baik/siap'.\n
-      - CRITICAL: Pesan lebih dari 50 karakter (hitung semua karakter termasuk spasi/emoji, setelah trim) = BUKAN PENUTUP — itu konteks/penjelasan, bukan ack singkat.\n
+      - CRITICAL: Pesan lebih dari 50 karakter (hitung semua karakter termasuk spasi/emoji, setelah trim) = BUKAN PENUTUP — itu konteks/penjelasan, bukan ack singkat — KECUALI konfirmasi pembayaran/lunas (berikut bukti lunas bayar, berikut bukti bayar, berikut bukti lunas, sudah transfer, sudah bayar, dll).\n
       - Pemberitahuan user akan ambil/antar SENDIRI = BUKAN intent apapun: | akan menjemput | nanti saya jemput | nanti saya ambil | akan saya antar | nanti saya antar | akan mengambil | mau jemput | besok saya jemput | nanti saya antar |\n
       - Informasi \"belum diambil\" = status/info order (mis. | kak blm diambil loh | belum diambil kak |), bukan penutup.\n
       - Informasi \"sudah diantar/di anter\" oleh customer/suami/istri (mis. | laundry tadi pagi di anter sama suami saya |) = info proses, bukan penutup.\n

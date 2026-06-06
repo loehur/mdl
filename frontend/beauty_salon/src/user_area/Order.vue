@@ -317,7 +317,7 @@
                  <input 
                    type="text" 
                    v-model="serviceSearch" 
-                   placeholder="Ketik min. 2 karakter untuk cari layanan..." 
+                   placeholder="Cari layanan... (min. 2 karakter untuk filter)" 
                    class="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-pink-200 focus:border-pink-400 outline-none transition bg-white text-sm"
                  />
                  <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
@@ -332,9 +332,8 @@
                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                  </button>
                </div>
-               <p v-if="serviceSearch.trim().length < 2" class="text-xs text-gray-500 mb-3 px-1">
-                 Ketik minimal 2 karakter untuk menampilkan daftar layanan.
-                 <span v-if="form.selectedItems.length > 0" class="text-pink-600 font-medium">({{ form.selectedItems.length }} layanan sudah dipilih)</span>
+               <p v-if="form.selectedItems.length > 0" class="text-xs text-pink-600 font-medium mb-3 px-1">
+                 {{ form.selectedItems.length }} layanan sudah dipilih
                </p>
                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-60 overflow-y-auto p-1">
                  <div 
@@ -716,7 +715,7 @@ const serviceSearch = ref('');
 
 const filteredProducts = computed(() => {
     const q = serviceSearch.value.trim().toLowerCase();
-    if (q.length < 2) return [];
+    if (q.length < 2) return products.value;
     return products.value.filter(p => 
         p.name && p.name.toLowerCase().includes(q)
     );
