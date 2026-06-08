@@ -4,16 +4,16 @@
     class="rounded-2xl border px-4 py-3"
     :class="boxClass"
   >
-    <p class="text-[10px] font-bold uppercase tracking-[0.12em]" :class="labelClass">
+    <p class="text-sm font-bold uppercase tracking-[0.08em]" :class="labelClass">
       {{ status === 'profit' ? 'Tumbuh' : status === 'loss' ? 'Rugi' : 'Impas' }}
     </p>
     <p class="money-display-sm mt-1" :class="amountClass">
       {{ formatGainLoss(gainLoss) }}
     </p>
-    <p v-if="pct !== null && pct !== undefined" class="mt-1 text-xs" :class="labelClass">
+    <p v-if="pct !== null && pct !== undefined" class="mt-1 text-sm" :class="labelClass">
       {{ pct > 0 ? '+' : '' }}{{ pct }}% dari modal investasi
     </p>
-    <p class="mt-2 text-xs text-mist">
+    <p class="mt-2 text-sm text-mist">
       Portfolio {{ formatRupiah(portfolio) }} − Modal {{ formatRupiah(invested) }}
     </p>
   </div>

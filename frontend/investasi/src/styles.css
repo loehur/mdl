@@ -6,11 +6,11 @@
 
 @layer base {
   html {
-    @apply scroll-smooth;
+    @apply scroll-smooth text-[17px];
   }
 
   body {
-    @apply min-h-screen bg-ink font-sans text-base text-pearl antialiased;
+    @apply min-h-screen bg-ink font-sans text-[17px] leading-relaxed text-pearl antialiased;
     background-image:
       radial-gradient(ellipse 80% 50% at 50% -20%, rgba(74, 143, 212, 0.1), transparent),
       radial-gradient(ellipse 60% 40% at 100% 50%, rgba(13, 148, 136, 0.05), transparent),
@@ -49,15 +49,15 @@
   }
 
   .label-caps {
-    @apply font-sans text-[11px] font-semibold uppercase tracking-[0.08em] text-mist;
+    @apply font-sans text-sm font-semibold uppercase tracking-[0.06em] text-mist;
   }
 
   .page-title {
-    @apply font-display text-[1.65rem] font-bold leading-tight tracking-tight text-pearl;
+    @apply font-display text-[1.85rem] font-bold leading-tight tracking-tight text-pearl;
   }
 
   .section-title {
-    @apply font-display text-lg font-bold leading-tight tracking-tight text-pearl;
+    @apply font-display text-xl font-bold leading-tight tracking-tight text-pearl;
   }
 
   .money-display {
@@ -65,15 +65,15 @@
   }
 
   .money-display-sm {
-    @apply font-display text-xl font-bold leading-none tracking-tight text-pearl tabular-nums;
+    @apply font-display text-2xl font-bold leading-none tracking-tight text-pearl tabular-nums;
   }
 
   .field-label {
-    @apply mb-2 block text-xs font-medium tracking-wide text-mist;
+    @apply mb-2 block text-sm font-semibold tracking-wide text-mist;
   }
 
   .field-input {
-    @apply w-full rounded-2xl border border-ink-200 bg-ink-50 px-4 py-3.5 text-sm text-pearl outline-none transition placeholder:text-mist/50;
+    @apply w-full rounded-2xl border border-ink-200 bg-ink-50 px-4 py-3.5 text-base text-pearl outline-none transition placeholder:text-mist/50;
     @apply focus:border-ledger/50 focus:ring-2 focus:ring-ledger/15;
   }
 
@@ -82,17 +82,17 @@
   }
 
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-ledger-dim via-ledger to-ledger-glow px-5 py-3.5 font-sans text-sm font-semibold text-white shadow-glow transition;
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-ledger-dim via-ledger to-ledger-glow px-5 py-3.5 font-sans text-base font-semibold text-white shadow-glow transition;
     @apply hover:brightness-105 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .btn-debit {
-    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-debit-dim via-debit to-debit-dim px-5 py-3.5 font-sans text-sm font-semibold text-white shadow-panel transition;
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-debit-dim via-debit to-debit-dim px-5 py-3.5 font-sans text-base font-semibold text-white shadow-panel transition;
     @apply hover:brightness-105 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 rounded-2xl border border-ink-200 bg-ink-50 px-5 py-3.5 font-sans text-sm font-medium text-pearl transition;
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl border border-ink-200 bg-ink-50 px-5 py-3.5 font-sans text-base font-medium text-pearl transition;
     @apply hover:border-ledger/30 hover:bg-ledger/5 active:scale-[0.98];
   }
 
@@ -101,7 +101,7 @@
   }
 
   .chip {
-    @apply inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider;
+    @apply inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide;
   }
 
   .chip-in {
@@ -140,7 +140,7 @@
   }
 
   .alert {
-    @apply rounded-2xl border px-4 py-3 text-sm;
+    @apply rounded-2xl border px-4 py-3 text-base;
   }
 
   .alert-error {
@@ -156,11 +156,15 @@
   }
 
   .dock-inner {
-    @apply flex items-center gap-1 rounded-full border border-ink-200 bg-ink-50/95 px-2 py-2 shadow-panel backdrop-blur-md;
+    @apply flex max-w-[calc(100vw-2rem)] items-center gap-0.5 overflow-x-auto rounded-full border border-ink-200 bg-ink-50/95 px-2 py-2 shadow-panel backdrop-blur-md;
   }
 
   .dock-link {
-    @apply relative flex flex-col items-center gap-0.5 rounded-full px-2 py-2 text-[8px] font-medium tracking-wide text-mist transition;
+    @apply relative flex min-w-[3.25rem] shrink-0 flex-col items-center gap-1 rounded-full px-2.5 py-2.5 text-xs font-semibold tracking-wide text-mist transition;
+  }
+
+  .dock-link svg {
+    @apply h-6 w-6;
   }
 
   .dock-link-active {

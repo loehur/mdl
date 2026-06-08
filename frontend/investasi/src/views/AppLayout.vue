@@ -37,7 +37,7 @@
           class="dock-link"
           :class="$route.path === item.path ? 'dock-link-active' : ''"
         >
-          <component :is="item.icon" class="h-5 w-5" />
+          <component :is="item.icon" />
           <span>{{ item.label }}</span>
           <span
             v-if="$route.path === item.path"

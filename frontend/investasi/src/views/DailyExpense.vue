@@ -15,7 +15,7 @@
         <div>
           <div class="mb-2 flex items-center justify-between gap-2">
             <label class="field-label !mb-0">Target pengeluaran <span class="text-debit">*</span></label>
-            <button class="btn-ghost !px-3 !py-1.5 !text-xs" type="button" @click="showTargetManager = true">
+            <button class="btn-ghost !px-3 !py-1.5 !text-sm" type="button" @click="showTargetManager = true">
               Kelola
             </button>
           </div>
@@ -82,7 +82,7 @@
           <p class="label-caps">Riwayat</p>
           <p class="money-display-sm mt-1 text-debit-dim">{{ formatRupiah(total) }}</p>
         </div>
-        <input v-model="month" class="field-input !w-auto !py-2 !text-xs" type="month" @change="loadItems" />
+        <input v-model="month" class="field-input !w-auto !py-2 !text-sm" type="month" @change="loadItems" />
       </div>
 
       <div v-if="loading" class="space-y-3">
@@ -104,7 +104,7 @@
           <div class="min-w-0 flex-1">
             <span v-if="item.target_name" class="chip-out mb-2">{{ item.target_name }}</span>
             <p class="money-display-sm text-debit-dim">{{ formatRupiah(item.amount) }}</p>
-            <p class="mt-1 text-xs text-mist">{{ formatDate(item.record_date) }}</p>
+            <p class="mt-1 text-sm text-mist">{{ formatDate(item.record_date) }}</p>
             <p v-if="item.note" class="mt-2 truncate text-sm text-pearl/60">{{ item.note }}</p>
           </div>
           <div class="flex shrink-0 gap-1 opacity-60 transition group-hover:opacity-100">

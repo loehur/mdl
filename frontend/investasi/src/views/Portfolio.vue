@@ -10,7 +10,7 @@
       <p class="relative mt-3 text-sm text-mist">
         Modal investasi: <span class="font-semibold text-pearl">{{ formatRupiah(netInvestment) }}</span>
       </p>
-      <p class="relative mt-1 text-xs text-mist">
+      <p class="relative mt-1 text-sm text-mist">
         <template v-if="current?.record_date">
           Snapshot {{ formatDate(current.record_date) }}
         </template>
@@ -95,7 +95,7 @@
           <div class="flex items-start justify-between gap-3">
             <div>
               <p class="money-display-sm">{{ formatRupiah(item.amount) }}</p>
-              <p class="mt-0.5 text-xs text-mist">{{ formatDate(item.record_date) }}</p>
+              <p class="mt-0.5 text-sm text-mist">{{ formatDate(item.record_date) }}</p>
               <p v-if="item.note" class="mt-1.5 text-sm text-pearl/55">{{ item.note }}</p>
             </div>
             <span

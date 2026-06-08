@@ -71,7 +71,7 @@
             Net {{ formatRupiah(net) }}
           </p>
         </div>
-        <input v-model="month" class="field-input !w-auto !py-2 !text-xs" type="month" @change="loadItems" />
+        <input v-model="month" class="field-input !w-auto !py-2 !text-sm" type="month" @change="loadItems" />
       </div>
 
       <div class="mb-4 grid grid-cols-2 gap-3">
@@ -117,7 +117,7 @@
                 </span>
               </div>
               <p class="mt-2 money-display-sm">{{ formatRupiah(item.amount) }}</p>
-              <p class="mt-1 text-xs text-mist">{{ formatDate(item.record_date) }}</p>
+              <p class="mt-1 text-sm text-mist">{{ formatDate(item.record_date) }}</p>
               <p v-if="item.note" class="mt-1 text-sm text-pearl/60">{{ item.note }}</p>
             </div>
           </div>

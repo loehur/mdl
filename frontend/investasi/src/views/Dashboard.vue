@@ -16,22 +16,22 @@
           <div class="stat-tile !p-3">
             <div class="mb-1 flex items-center justify-between gap-2">
               <p class="label-caps">Income</p>
-              <router-link to="/pemasukan" class="text-[10px] font-semibold text-ledger-dim">+ Input</router-link>
+              <router-link to="/pemasukan" class="text-sm font-semibold text-ledger-dim">+ Input</router-link>
             </div>
-            <p class="text-[10px] leading-tight text-mist">Hari ini</p>
-            <p class="money-display-sm mt-0.5 text-lg">{{ formatRupiah(summary.today_income) }}</p>
-            <p class="mt-1 text-[10px] leading-tight text-mist">Bulan ini</p>
-            <p class="text-sm font-semibold leading-tight text-pearl">{{ formatRupiah(summary.month_income) }}</p>
+            <p class="text-sm leading-tight text-mist">Hari ini</p>
+            <p class="money-display-sm mt-0.5">{{ formatRupiah(summary.today_income) }}</p>
+            <p class="mt-1 text-sm leading-tight text-mist">Bulan ini</p>
+            <p class="text-base font-semibold leading-tight text-pearl">{{ formatRupiah(summary.month_income) }}</p>
           </div>
           <div class="stat-tile !p-3">
             <div class="mb-1 flex items-center justify-between gap-2">
               <p class="label-caps">Expense</p>
-              <router-link to="/pengeluaran" class="text-[10px] font-semibold text-debit-dim">+ Input</router-link>
+              <router-link to="/pengeluaran" class="text-sm font-semibold text-debit-dim">+ Input</router-link>
             </div>
-            <p class="text-[10px] leading-tight text-mist">Hari ini</p>
-            <p class="money-display-sm mt-0.5 text-lg text-debit-dim">{{ formatRupiah(summary.today_expense) }}</p>
-            <p class="mt-1 text-[10px] leading-tight text-mist">Bulan ini</p>
-            <p class="text-sm font-semibold leading-tight text-debit-dim">{{ formatRupiah(summary.month_expense) }}</p>
+            <p class="text-sm leading-tight text-mist">Hari ini</p>
+            <p class="money-display-sm mt-0.5 text-debit-dim">{{ formatRupiah(summary.today_expense) }}</p>
+            <p class="mt-1 text-sm leading-tight text-mist">Bulan ini</p>
+            <p class="text-base font-semibold leading-tight text-debit-dim">{{ formatRupiah(summary.month_expense) }}</p>
           </div>
         </div>
       </section>
@@ -47,7 +47,7 @@
           Modal investasi: <span class="font-semibold text-pearl">{{ formatRupiah(summary.net_investment) }}</span>
           <span class="text-mist/70"> (deposit − penarikan)</span>
         </p>
-        <p class="relative mt-0.5 text-xs leading-snug text-mist">
+        <p class="relative mt-0.5 text-sm leading-snug text-mist">
           <template v-if="summary.portfolio?.record_date">
             Snapshot {{ formatDate(summary.portfolio.record_date) }}
           </template>
@@ -66,7 +66,7 @@
 
         <p
           v-else-if="summary.portfolio_amount === null && summary.net_investment > 0"
-          class="relative mt-3 rounded-2xl border border-ink-200 bg-ink-100 px-3 py-2.5 text-xs text-mist"
+          class="relative mt-3 rounded-2xl border border-ink-200 bg-ink-100 px-3 py-2.5 text-sm text-mist"
         >
           Input deposit sudah ada. Update snapshot portfolio untuk melihat tumbuh/rugi.
         </p>
@@ -80,10 +80,10 @@
       <section>
         <div class="mb-2 flex items-center justify-between">
           <div>
-            <h2 class="text-sm font-bold text-pearl">Modal investasi</h2>
-            <p class="text-xs leading-snug text-mist">Input deposit & penarikan secara manual</p>
+            <h2 class="text-base font-bold text-pearl">Modal investasi</h2>
+            <p class="text-sm leading-snug text-mist">Input deposit & penarikan secara manual</p>
           </div>
-          <router-link to="/investasi" class="text-xs font-semibold text-ledger-dim">Kelola →</router-link>
+          <router-link to="/investasi" class="text-sm font-semibold text-ledger-dim">Kelola →</router-link>
         </div>
         <div class="glass divide-y divide-ink-200 overflow-hidden">
           <div class="flex items-center justify-between px-4 py-3">
@@ -94,7 +94,7 @@
                 </svg>
               </span>
               <div>
-                <p class="text-xs text-mist">Total deposit</p>
+                <p class="text-sm text-mist">Total deposit</p>
                 <p class="font-semibold text-pearl">{{ formatRupiah(summary.total_deposits) }}</p>
               </div>
             </div>
@@ -107,7 +107,7 @@
                 </svg>
               </span>
               <div>
-                <p class="text-xs text-mist">Total penarikan</p>
+                <p class="text-sm text-mist">Total penarikan</p>
                 <p class="font-semibold text-pearl">{{ formatRupiah(summary.total_withdrawals) }}</p>
               </div>
             </div>

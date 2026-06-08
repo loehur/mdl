@@ -55,7 +55,7 @@
             </div>
             <div>
               <p class="text-sm font-bold text-pearl">Login</p>
-              <p class="text-xs text-mist">Masukkan email dan kata sandi</p>
+              <p class="text-sm text-mist">Masukkan email dan kata sandi</p>
             </div>
           </div>
 
@@ -92,7 +92,7 @@
           <AlertBanner class="mt-5" :message="message" :type="isError ? 'error' : 'success'" />
         </div>
 
-        <p class="mt-8 text-center text-xs text-mist/70">
+        <p class="mt-8 text-center text-sm text-mist/70">
           Data tersimpan aman · hanya untuk penggunaan pribadi
         </p>
       </div>
