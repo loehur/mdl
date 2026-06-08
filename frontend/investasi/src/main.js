@@ -66,4 +66,21 @@ router.beforeEach(async (to) => {
 });
 
 createApp(App).use(router).mount("#app");
-registerSW({ immediate: true });
+
+registerSW({
+  immediate: true,
+  onRegisteredSW(_swUrl, registration) {
+    if (registration) {
+      setInterval(() => registration.update(), 5 * 60 * 1000);
+    }
+  },
+});
+
+if ("serviceWorker" in navigator) {
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (refreshing) return;
+    refreshing = true;
+    window.location.reload();
+  });
+}
