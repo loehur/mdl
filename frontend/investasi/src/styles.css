@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -49,15 +49,23 @@
   }
 
   .label-caps {
-    @apply text-[10px] font-semibold uppercase tracking-[0.22em] text-mist;
+    @apply text-[11px] font-bold uppercase tracking-[0.12em] text-mist;
+  }
+
+  .page-title {
+    @apply font-display text-2xl font-extrabold tracking-tight text-pearl;
+  }
+
+  .section-title {
+    @apply font-display text-lg font-bold tracking-tight text-pearl;
   }
 
   .money-display {
-    @apply font-display text-4xl leading-none tracking-tight text-pearl md:text-5xl;
+    @apply font-mono text-3xl font-bold leading-none tracking-tight text-pearl tabular-nums md:text-4xl;
   }
 
   .money-display-sm {
-    @apply font-display text-2xl leading-none tracking-tight text-pearl;
+    @apply font-mono text-xl font-bold leading-none tracking-tight text-pearl tabular-nums;
   }
 
   .field-label {
@@ -70,7 +78,7 @@
   }
 
   .field-input-lg {
-    @apply field-input py-4 font-mono text-lg tracking-wide;
+    @apply field-input py-4 font-mono text-lg font-semibold tracking-wide tabular-nums;
   }
 
   .btn-primary {
@@ -164,8 +172,8 @@
 }
 
 @layer utilities {
-  .text-gradient-accent {
-    @apply bg-gradient-to-r from-ledger-dim via-ledger to-ledger-glow bg-clip-text text-transparent;
+  .text-accent {
+    @apply font-bold text-ledger-dim;
   }
 
   .hairline {

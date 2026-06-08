@@ -5,7 +5,7 @@
       <div class="mb-6 flex items-start justify-between">
         <div>
           <p class="label-caps">{{ editingId ? "Edit entri" : "Entri baru" }}</p>
-          <h2 class="mt-1 font-display text-2xl text-pearl">Pemasukan harian</h2>
+          <h2 class="section-title mt-1">Pemasukan harian</h2>
         </div>
         <span class="chip-in">Inflow</span>
       </div>
@@ -49,7 +49,7 @@
       <div class="mb-4 flex items-end justify-between gap-3">
         <div>
           <p class="label-caps">Riwayat</p>
-          <p class="mt-1 font-display text-xl text-pearl">{{ formatRupiah(total) }}</p>
+          <p class="money-display-sm mt-1">{{ formatRupiah(total) }}</p>
         </div>
         <input v-model="month" class="field-input !w-auto !py-2 !text-xs" type="month" @change="loadItems" />
       </div>
@@ -71,7 +71,7 @@
           class="glass group flex items-start justify-between gap-4 p-4 transition hover:border-ledger/20"
         >
           <div class="min-w-0 flex-1">
-            <p class="font-display text-xl text-pearl">{{ formatRupiah(item.amount) }}</p>
+            <p class="money-display-sm">{{ formatRupiah(item.amount) }}</p>
             <p class="mt-1 text-xs text-mist">{{ formatDate(item.record_date) }}</p>
             <p v-if="item.note" class="mt-2 truncate text-sm text-pearl/60">{{ item.note }}</p>
           </div>

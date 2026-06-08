@@ -3,7 +3,7 @@
     <section class="glass-strong p-6">
       <div class="mb-6">
         <p class="label-caps">Transaksi</p>
-        <h2 class="mt-1 font-display text-2xl text-pearl">Aliran dana</h2>
+        <h2 class="section-title mt-1">Aliran dana</h2>
       </div>
 
       <!-- Type selector -->
@@ -65,7 +65,7 @@
         <div>
           <p class="label-caps">Ringkasan bulan</p>
           <p
-            class="mt-1 font-display text-xl"
+            class="money-display-sm mt-1"
             :class="net >= 0 ? 'text-credit' : 'text-debit'"
           >
             Net {{ formatRupiah(net) }}
@@ -116,7 +116,7 @@
                   {{ item.movement_type === 'deposit' ? 'Deposit' : 'Penarikan' }}
                 </span>
               </div>
-              <p class="mt-2 font-display text-xl text-pearl">{{ formatRupiah(item.amount) }}</p>
+              <p class="mt-2 money-display-sm">{{ formatRupiah(item.amount) }}</p>
               <p class="mt-1 text-xs text-mist">{{ formatDate(item.record_date) }}</p>
               <p v-if="item.note" class="mt-1 text-sm text-pearl/60">{{ item.note }}</p>
             </div>

@@ -6,7 +6,7 @@
       <div class="mx-auto flex max-w-md items-end justify-between">
         <div class="page-enter">
           <p class="label-caps mb-1">Personal Finance</p>
-          <h1 class="font-display text-3xl italic text-pearl">{{ pageTitle }}</h1>
+          <h1 class="page-title">{{ pageTitle }}</h1>
         </div>
         <button class="btn-icon" title="Keluar" @click="logout">
           <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">

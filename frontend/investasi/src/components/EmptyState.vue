@@ -8,7 +8,7 @@
         </svg>
       </slot>
     </div>
-    <p class="font-display text-lg text-pearl/80">{{ title }}</p>
+    <p class="text-base font-bold text-pearl">{{ title }}</p>
     <p v-if="subtitle" class="mt-1 max-w-xs text-sm text-mist">{{ subtitle }}</p>
   </div>
 </template>

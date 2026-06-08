@@ -6,13 +6,14 @@
     <aside class="relative hidden w-[45%] overflow-hidden lg:flex lg:flex-col lg:justify-between lg:p-12">
       <div>
         <p class="label-caps text-ledger/80">Investasi PWA</p>
-        <h1 class="mt-6 font-display text-6xl leading-[1.05] text-pearl">
-          Catat.<br />
-          <span class="italic text-gradient-accent">Kelola.</span><br />
-          Lacak.
+        <h1 class="mt-4 text-4xl font-extrabold leading-tight tracking-tight text-pearl">
+          Jurnal Keuangan
         </h1>
-        <p class="mt-6 max-w-sm text-base leading-relaxed text-mist">
-          Jurnal keuangan pribadi untuk pemasukan harian, aliran investasi, dan nilai portfolio — dalam satu tempat yang tenang.
+        <p class="mt-3 text-lg font-semibold text-ledger-dim">
+          Pemasukan · Investasi · Portfolio
+        </p>
+        <p class="mt-5 max-w-sm text-sm leading-relaxed text-mist">
+          Catat pemasukan harian, aliran deposit/penarikan, dan nilai portfolio dalam satu sistem.
         </p>
       </div>
 
@@ -41,7 +42,7 @@
       <div class="w-full max-w-sm page-enter">
         <div class="mb-10 lg:hidden">
           <p class="label-caps text-ledger/80">Investasi</p>
-          <h1 class="mt-2 font-display text-4xl italic text-pearl">Selamat datang</h1>
+          <h1 class="mt-2 text-2xl font-extrabold tracking-tight text-pearl">Masuk</h1>
         </div>
 
         <div class="glass-strong p-8">
@@ -53,8 +54,8 @@
               </svg>
             </div>
             <div>
-              <p class="text-sm font-medium text-pearl">Masuk ke akun</p>
-              <p class="text-xs text-mist">Akses data keuangan pribadi Anda</p>
+              <p class="text-sm font-bold text-pearl">Login</p>
+              <p class="text-xs text-mist">Masukkan email dan kata sandi</p>
             </div>
           </div>
 

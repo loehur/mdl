@@ -15,7 +15,7 @@
       <section class="glass-strong relative overflow-hidden p-6 shadow-glow">
         <div class="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-ledger/10 blur-2xl" />
         <p class="label-caps relative">Portfolio terkini</p>
-        <p class="money-display relative mt-3 text-gradient-accent">
+        <p class="money-display relative mt-3 text-ledger-dim">
           {{ formatRupiah(summary.portfolio_amount) }}
         </p>
         <p class="relative mt-3 text-sm text-mist">
@@ -34,7 +34,7 @@
       <!-- Income row -->
       <section>
         <div class="mb-3 flex items-center justify-between">
-          <h2 class="text-sm font-medium text-pearl">Pemasukan</h2>
+          <h2 class="text-sm font-bold text-pearl">Pemasukan</h2>
           <span class="text-xs text-mist">bulan berjalan</span>
         </div>
         <div class="grid grid-cols-2 gap-3">
@@ -52,7 +52,7 @@
       <!-- Investment flow -->
       <section>
         <div class="mb-3 flex items-center justify-between">
-          <h2 class="text-sm font-medium text-pearl">Aliran investasi</h2>
+          <h2 class="text-sm font-bold text-pearl">Aliran investasi</h2>
         </div>
         <div class="glass divide-y divide-ink-200 overflow-hidden">
           <div class="flex items-center justify-between px-5 py-4">
@@ -84,7 +84,7 @@
           <div class="flex items-center justify-between bg-ink px-5 py-4">
             <p class="text-sm text-mist">Net investasi</p>
             <p
-              class="font-display text-xl"
+              class="money-display-sm text-pearl"
               :class="summary.net_investment >= 0 ? 'text-credit' : 'text-debit'"
             >
               {{ formatRupiah(summary.net_investment) }}

@@ -4,7 +4,7 @@
     <section class="glass-strong relative overflow-hidden p-6 text-center">
       <div class="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(91,155,213,0.12),transparent_60%)]" />
       <p class="label-caps relative">Nilai saat ini</p>
-      <p class="money-display relative mx-auto mt-4 max-w-full break-words text-gradient-accent">
+      <p class="money-display relative mx-auto mt-4 max-w-full break-words text-ledger-dim">
         {{ formatRupiah(current?.amount) }}
       </p>
       <p class="relative mt-3 text-sm text-mist">
@@ -19,7 +19,7 @@
     <section class="glass-strong p-6">
       <div class="mb-6">
         <p class="label-caps">Perbarui</p>
-        <h2 class="mt-1 font-display text-2xl text-pearl">Snapshot portfolio</h2>
+        <h2 class="section-title mt-1">Snapshot portfolio</h2>
         <p class="mt-2 text-sm text-mist">Masukkan nilai total aset investasi terkini.</p>
       </div>
 
@@ -62,7 +62,7 @@
     <section>
       <div class="mb-4">
         <p class="label-caps">Riwayat</p>
-        <h3 class="mt-1 text-sm font-medium text-pearl">Perjalanan nilai aset</h3>
+        <h3 class="mt-1 text-sm font-bold text-pearl">Perjalanan nilai aset</h3>
       </div>
 
       <div v-if="loading" class="space-y-3 pl-4">
@@ -79,7 +79,7 @@
         <li v-for="(item, index) in history" :key="item.id" class="timeline-item">
           <div class="flex items-start justify-between gap-3">
             <div>
-              <p class="font-display text-lg text-pearl">{{ formatRupiah(item.amount) }}</p>
+              <p class="money-display-sm">{{ formatRupiah(item.amount) }}</p>
               <p class="mt-0.5 text-xs text-mist">{{ formatDate(item.record_date) }}</p>
               <p v-if="item.note" class="mt-1.5 text-sm text-pearl/55">{{ item.note }}</p>
             </div>
