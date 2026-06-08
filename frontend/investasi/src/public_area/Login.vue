@@ -1,38 +1,98 @@
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-100 via-white to-teal-100 px-4">
-    <div class="w-full max-w-md">
-      <div class="text-center mb-8">
-        <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-600 shadow-lg">
-          <svg class="h-8 w-8 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M4 19V5" stroke-linecap="round"/>
-            <path d="M4 19H20" stroke-linecap="round"/>
-            <path d="M8 17V11" stroke-linecap="round"/>
-            <path d="M12 17V7" stroke-linecap="round"/>
-            <path d="M16 17V13" stroke-linecap="round"/>
-          </svg>
-        </div>
-        <h1 class="text-2xl font-bold text-slate-900">MDL Investasi</h1>
-        <p class="mt-1 text-sm text-slate-600">Catat pemasukan & portfolio harian</p>
+  <div class="relative flex min-h-screen">
+    <MeshBackground />
+
+    <!-- Left decorative panel (desktop) -->
+    <aside class="relative hidden w-[45%] overflow-hidden lg:flex lg:flex-col lg:justify-between lg:p-12">
+      <div>
+        <p class="label-caps text-gold/80">Investasi PWA</p>
+        <h1 class="mt-6 font-display text-6xl leading-[1.05] text-pearl">
+          Catat.<br />
+          <span class="italic text-gradient-gold">Tumbuh.</span><br />
+          Lacak.
+        </h1>
+        <p class="mt-6 max-w-sm text-base leading-relaxed text-mist">
+          Jurnal keuangan pribadi untuk pemasukan harian, aliran investasi, dan nilai portfolio — dalam satu tempat yang tenang.
+        </p>
       </div>
 
-      <div class="card p-6">
-        <h2 class="mb-5 text-lg font-semibold text-slate-900">Masuk</h2>
-        <form class="space-y-4" @submit.prevent="onSubmit">
+      <div class="space-y-4">
+        <div class="hairline" />
+        <div class="flex gap-8">
           <div>
-            <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Email</label>
-            <input v-model="email" class="input" type="email" placeholder="admin@mdl.local" required />
+            <p class="label-caps">Fitur</p>
+            <p class="mt-2 text-sm text-pearl/70">Pemasukan harian</p>
+            <p class="text-sm text-pearl/70">Deposit & penarikan</p>
+            <p class="text-sm text-pearl/70">Update portfolio</p>
           </div>
           <div>
-            <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Kata Sandi</label>
-            <input v-model="password" class="input" type="password" placeholder="••••••••" required />
+            <p class="label-caps">Segera</p>
+            <p class="mt-2 text-sm text-mist">Rekap & laporan</p>
           </div>
-          <button class="btn-primary w-full" type="submit" :disabled="loading">
-            {{ loading ? "Memproses..." : "Masuk" }}
-          </button>
-        </form>
+        </div>
+      </div>
 
-        <p v-if="message" class="mt-4 rounded-xl px-4 py-3 text-sm" :class="isError ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'">
-          {{ message }}
+      <div class="absolute -right-20 top-1/4 h-80 w-80 rounded-full border border-gold/10" />
+      <div class="absolute right-10 bottom-20 h-40 w-40 rounded-full border border-white/5 bg-gold/5 blur-sm" />
+    </aside>
+
+    <!-- Login form -->
+    <div class="flex flex-1 items-center justify-center px-5 py-12">
+      <div class="w-full max-w-sm page-enter">
+        <div class="mb-10 lg:hidden">
+          <p class="label-caps text-gold/80">Investasi</p>
+          <h1 class="mt-2 font-display text-4xl italic text-pearl">Selamat datang</h1>
+        </div>
+
+        <div class="glass-strong p-8">
+          <div class="mb-8 flex items-center gap-3">
+            <div class="flex h-11 w-11 items-center justify-center rounded-2xl border border-gold/20 bg-gold/10">
+              <svg class="h-5 w-5 text-gold" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7v10M8 12h8" stroke-linecap="round" />
+              </svg>
+            </div>
+            <div>
+              <p class="text-sm font-medium text-pearl">Masuk ke akun</p>
+              <p class="text-xs text-mist">Akses data keuangan pribadi Anda</p>
+            </div>
+          </div>
+
+          <form class="space-y-5" @submit.prevent="onSubmit">
+            <div>
+              <label class="field-label">Email</label>
+              <input
+                v-model="email"
+                class="field-input"
+                type="email"
+                autocomplete="email"
+                placeholder="nama@email.com"
+                required
+              />
+            </div>
+            <div>
+              <label class="field-label">Kata sandi</label>
+              <input
+                v-model="password"
+                class="field-input"
+                type="password"
+                autocomplete="current-password"
+                placeholder="••••••••"
+                required
+              />
+            </div>
+
+            <button class="btn-gold w-full" type="submit" :disabled="loading">
+              <span v-if="loading" class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-ink/30 border-t-ink" />
+              {{ loading ? "Memverifikasi..." : "Masuk" }}
+            </button>
+          </form>
+
+          <AlertBanner class="mt-5" :message="message" :type="isError ? 'error' : 'success'" />
+        </div>
+
+        <p class="mt-8 text-center text-xs text-mist/70">
+          Data tersimpan aman · hanya untuk penggunaan pribadi
         </p>
       </div>
     </div>
@@ -42,6 +102,8 @@
 <script setup>
 import { ref } from "vue";
 import { useRouter } from "vue-router";
+import MeshBackground from "../components/MeshBackground.vue";
+import AlertBanner from "../components/AlertBanner.vue";
 
 const router = useRouter();
 const email = ref("");

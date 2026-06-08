@@ -1,49 +1,95 @@
 <template>
-  <div class="space-y-4">
-    <section class="card overflow-hidden">
-      <div class="bg-gradient-to-br from-slate-800 to-slate-900 p-5 text-white">
-        <p class="text-sm text-slate-300">Nilai Portfolio Saat Ini</p>
-        <p class="mt-1 text-3xl font-bold">{{ formatRupiah(current?.amount) }}</p>
-        <p v-if="current?.record_date" class="mt-1 text-xs text-slate-400">
-          Diperbarui {{ formatDate(current.record_date) }}
-        </p>
-        <p v-else class="mt-1 text-xs text-slate-400">Belum ada update portfolio</p>
-      </div>
-    </section>
-
-    <section class="card p-4">
-      <h2 class="mb-4 text-sm font-semibold text-slate-900">Update Portfolio</h2>
-      <form class="space-y-3" @submit.prevent="submitForm">
-        <div>
-          <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Tanggal</label>
-          <input v-model="form.record_date" class="input" type="date" required />
-        </div>
-        <div>
-          <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Nilai Portfolio (Rp)</label>
-          <input v-model="form.amount" class="input" type="number" min="1" step="1" placeholder="100000000" required />
-        </div>
-        <div>
-          <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Catatan</label>
-          <input v-model="form.note" class="input" type="text" placeholder="Contoh: rebalancing, update harga pasar" />
-        </div>
-        <button class="btn-primary w-full" type="submit" :disabled="saving">
-          {{ saving ? "Menyimpan..." : "Simpan Update" }}
-        </button>
-      </form>
-      <p v-if="message" class="mt-3 rounded-xl px-4 py-3 text-sm" :class="isError ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'">
-        {{ message }}
+  <div class="space-y-6">
+    <!-- Current value hero -->
+    <section class="glass-strong relative overflow-hidden p-6 text-center">
+      <div class="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(212,168,83,0.12),transparent_60%)]" />
+      <p class="label-caps relative">Nilai saat ini</p>
+      <p class="money-display relative mx-auto mt-4 max-w-full break-words text-gradient-gold">
+        {{ formatRupiah(current?.amount) }}
+      </p>
+      <p class="relative mt-3 text-sm text-mist">
+        <template v-if="current?.record_date">
+          Snapshot {{ formatDate(current.record_date) }}
+        </template>
+        <template v-else>Belum pernah diupdate</template>
       </p>
     </section>
 
-    <section class="card p-4">
-      <h2 class="mb-4 text-sm font-semibold text-slate-900">Riwayat Update</h2>
-      <div v-if="loading" class="py-6 text-center text-sm text-slate-500">Memuat data...</div>
-      <div v-else-if="history.length === 0" class="py-6 text-center text-sm text-slate-500">Belum ada riwayat</div>
-      <ul v-else class="divide-y divide-slate-100">
-        <li v-for="item in history" :key="item.id" class="py-3">
-          <p class="font-semibold text-slate-900">{{ formatRupiah(item.amount) }}</p>
-          <p class="text-xs text-slate-500">{{ formatDate(item.record_date) }}</p>
-          <p v-if="item.note" class="mt-1 text-xs text-slate-600">{{ item.note }}</p>
+    <!-- Update form -->
+    <section class="glass-strong p-6">
+      <div class="mb-6">
+        <p class="label-caps">Perbarui</p>
+        <h2 class="mt-1 font-display text-2xl text-pearl">Snapshot portfolio</h2>
+        <p class="mt-2 text-sm text-mist">Masukkan nilai total aset investasi terkini.</p>
+      </div>
+
+      <form class="space-y-4" @submit.prevent="submitForm">
+        <div>
+          <label class="field-label">Tanggal</label>
+          <input v-model="form.record_date" class="field-input" type="date" required />
+        </div>
+        <div>
+          <label class="field-label">Nilai portfolio (Rp)</label>
+          <input
+            v-model="form.amount"
+            class="field-input-lg"
+            type="number"
+            min="1"
+            step="1"
+            inputmode="numeric"
+            placeholder="0"
+            required
+          />
+        </div>
+        <div>
+          <label class="field-label">Catatan <span class="text-mist/60">(opsional)</span></label>
+          <input
+            v-model="form.note"
+            class="field-input"
+            type="text"
+            placeholder="Rebalancing, update harga pasar..."
+          />
+        </div>
+        <button class="btn-gold w-full" type="submit" :disabled="saving">
+          {{ saving ? "Menyimpan..." : "Simpan snapshot" }}
+        </button>
+      </form>
+
+      <AlertBanner class="mt-4" :message="message" :type="isError ? 'error' : 'success'" />
+    </section>
+
+    <!-- Timeline history -->
+    <section>
+      <div class="mb-4">
+        <p class="label-caps">Riwayat</p>
+        <h3 class="mt-1 text-sm font-medium text-pearl">Perjalanan nilai aset</h3>
+      </div>
+
+      <div v-if="loading" class="space-y-3 pl-4">
+        <div v-for="n in 4" :key="n" class="skeleton h-16" />
+      </div>
+
+      <EmptyState
+        v-else-if="history.length === 0"
+        title="Riwayat masih kosong"
+        subtitle="Setiap kali Anda update portfolio, snapshot akan muncul di sini."
+      />
+
+      <ul v-else class="pl-1">
+        <li v-for="(item, index) in history" :key="item.id" class="timeline-item">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="font-display text-lg text-pearl">{{ formatRupiah(item.amount) }}</p>
+              <p class="mt-0.5 text-xs text-mist">{{ formatDate(item.record_date) }}</p>
+              <p v-if="item.note" class="mt-1.5 text-sm text-pearl/55">{{ item.note }}</p>
+            </div>
+            <span
+              v-if="index === 0"
+              class="chip border-gold/30 bg-gold/10 text-gold-glow"
+            >
+              Terbaru
+            </span>
+          </div>
         </li>
       </ul>
     </section>
@@ -53,6 +99,8 @@
 <script setup>
 import { onMounted, ref } from "vue";
 import { formatDate, formatRupiah, todayISO } from "../utils/format";
+import AlertBanner from "../components/AlertBanner.vue";
+import EmptyState from "../components/EmptyState.vue";
 
 const form = ref({ record_date: todayISO(), amount: "", note: "" });
 const current = ref(null);

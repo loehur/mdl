@@ -8,14 +8,14 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       manifest: {
-        name: "MDL Investasi",
+        name: "Investasi",
         short_name: "Investasi",
-        description: "Catat pemasukan harian, deposit/penarikan, dan portfolio investasi.",
+        description: "Jurnal keuangan pribadi — pemasukan, aliran investasi, portfolio.",
         start_url: "./",
         scope: "./",
         display: "standalone",
-        background_color: "#f0fdf4",
-        theme_color: "#059669",
+        background_color: "#08080c",
+        theme_color: "#08080c",
         lang: "id",
         icons: [
           {

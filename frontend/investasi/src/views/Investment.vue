@@ -1,87 +1,134 @@
 <template>
-  <div class="space-y-4">
-    <section class="card p-4">
-      <h2 class="mb-4 text-sm font-semibold text-slate-900">Catat Transaksi</h2>
-      <form class="space-y-3" @submit.prevent="submitForm">
-        <div class="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            class="rounded-xl border px-3 py-3 text-sm font-semibold transition"
-            :class="form.movement_type === 'deposit' ? 'border-emerald-600 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-600'"
-            @click="form.movement_type = 'deposit'"
-          >
-            Deposit
-          </button>
-          <button
-            type="button"
-            class="rounded-xl border px-3 py-3 text-sm font-semibold transition"
-            :class="form.movement_type === 'withdrawal' ? 'border-red-500 bg-red-50 text-red-700' : 'border-slate-200 text-slate-600'"
-            @click="form.movement_type = 'withdrawal'"
-          >
-            Penarikan
-          </button>
+  <div class="space-y-6">
+    <section class="glass-strong p-6">
+      <div class="mb-6">
+        <p class="label-caps">Transaksi</p>
+        <h2 class="mt-1 font-display text-2xl text-pearl">Aliran dana</h2>
+      </div>
+
+      <!-- Type selector -->
+      <div class="mb-5 grid grid-cols-2 gap-2 rounded-2xl border border-white/[0.06] bg-ink/40 p-1">
+        <button
+          type="button"
+          class="rounded-xl py-3 text-sm font-medium transition"
+          :class="form.movement_type === 'deposit'
+            ? 'bg-emerald-400/15 text-emerald-200 shadow-inner'
+            : 'text-mist hover:text-pearl'"
+          @click="form.movement_type = 'deposit'"
+        >
+          ↑ Deposit
+        </button>
+        <button
+          type="button"
+          class="rounded-xl py-3 text-sm font-medium transition"
+          :class="form.movement_type === 'withdrawal'
+            ? 'bg-rose-400/15 text-rose-200 shadow-inner'
+            : 'text-mist hover:text-pearl'"
+          @click="form.movement_type = 'withdrawal'"
+        >
+          ↓ Penarikan
+        </button>
+      </div>
+
+      <form class="space-y-4" @submit.prevent="submitForm">
+        <div>
+          <label class="field-label">Tanggal</label>
+          <input v-model="form.record_date" class="field-input" type="date" required />
         </div>
         <div>
-          <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Tanggal</label>
-          <input v-model="form.record_date" class="input" type="date" required />
+          <label class="field-label">Jumlah (Rp)</label>
+          <input
+            v-model="form.amount"
+            class="field-input-lg"
+            type="number"
+            min="1"
+            step="1"
+            inputmode="numeric"
+            placeholder="0"
+            required
+          />
         </div>
         <div>
-          <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Jumlah (Rp)</label>
-          <input v-model="form.amount" class="input" type="number" min="1" step="1" required />
+          <label class="field-label">Catatan <span class="text-mist/60">(opsional)</span></label>
+          <input v-model="form.note" class="field-input" type="text" placeholder="Reksa dana, saham, dll." />
         </div>
-        <div>
-          <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Catatan</label>
-          <input v-model="form.note" class="input" type="text" placeholder="Opsional" />
-        </div>
-        <button class="btn-primary w-full" type="submit" :disabled="saving">
-          {{ saving ? "Menyimpan..." : "Simpan Transaksi" }}
+        <button class="btn-gold w-full" type="submit" :disabled="saving">
+          {{ saving ? "Menyimpan..." : "Catat transaksi" }}
         </button>
       </form>
-      <p v-if="message" class="mt-3 rounded-xl px-4 py-3 text-sm" :class="isError ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'">
-        {{ message }}
-      </p>
+
+      <AlertBanner class="mt-4" :message="message" :type="isError ? 'error' : 'success'" />
     </section>
 
-    <section class="card p-4">
-      <div class="mb-4 flex items-center justify-between gap-3">
+    <section>
+      <div class="mb-4 flex items-end justify-between gap-3">
         <div>
-          <h2 class="text-sm font-semibold text-slate-900">Riwayat Bulan Ini</h2>
-          <p class="text-xs text-slate-500">
-            Net: {{ formatRupiah(net) }}
+          <p class="label-caps">Ringkasan bulan</p>
+          <p
+            class="mt-1 font-display text-xl"
+            :class="net >= 0 ? 'text-emerald-300' : 'text-rose-300'"
+          >
+            Net {{ formatRupiah(net) }}
           </p>
         </div>
-        <input v-model="month" class="input !w-auto !py-2" type="month" @change="loadItems" />
+        <input v-model="month" class="field-input !w-auto !py-2 !text-xs" type="month" @change="loadItems" />
       </div>
 
       <div class="mb-4 grid grid-cols-2 gap-3">
-        <div class="rounded-xl bg-emerald-50 p-3">
-          <p class="text-xs text-emerald-700">Deposit</p>
-          <p class="font-bold text-emerald-800">{{ formatRupiah(depositTotal) }}</p>
+        <div class="stat-tile border-emerald-400/10">
+          <p class="label-caps text-emerald-400/70">Deposit</p>
+          <p class="money-display-sm mt-2 text-emerald-200">{{ formatRupiah(depositTotal) }}</p>
         </div>
-        <div class="rounded-xl bg-red-50 p-3">
-          <p class="text-xs text-red-700">Penarikan</p>
-          <p class="font-bold text-red-800">{{ formatRupiah(withdrawalTotal) }}</p>
+        <div class="stat-tile border-rose-400/10">
+          <p class="label-caps text-rose-400/70">Penarikan</p>
+          <p class="money-display-sm mt-2 text-rose-200">{{ formatRupiah(withdrawalTotal) }}</p>
         </div>
       </div>
 
-      <div v-if="loading" class="py-6 text-center text-sm text-slate-500">Memuat data...</div>
-      <div v-else-if="items.length === 0" class="py-6 text-center text-sm text-slate-500">Belum ada transaksi</div>
-      <ul v-else class="divide-y divide-slate-100">
-        <li v-for="item in items" :key="item.id" class="flex items-start justify-between gap-3 py-3">
-          <div>
-            <div class="flex items-center gap-2">
-              <span
-                class="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase"
-                :class="item.movement_type === 'deposit' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'"
-              >
-                {{ item.movement_type === 'deposit' ? 'Deposit' : 'Penarikan' }}
-              </span>
-              <p class="font-semibold text-slate-900">{{ formatRupiah(item.amount) }}</p>
+      <div v-if="loading" class="space-y-3">
+        <div v-for="n in 3" :key="n" class="skeleton h-20" />
+      </div>
+
+      <EmptyState
+        v-else-if="items.length === 0"
+        title="Belum ada transaksi"
+        subtitle="Catat deposit atau penarikan investasi pertama."
+      />
+
+      <ul v-else class="space-y-3">
+        <li
+          v-for="item in items"
+          :key="item.id"
+          class="glass flex items-start justify-between gap-4 p-4"
+        >
+          <div class="flex gap-3">
+            <span
+              class="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold"
+              :class="item.movement_type === 'deposit'
+                ? 'bg-emerald-400/10 text-emerald-300'
+                : 'bg-rose-400/10 text-rose-300'"
+            >
+              {{ item.movement_type === 'deposit' ? '↑' : '↓' }}
+            </span>
+            <div>
+              <div class="flex items-center gap-2">
+                <span :class="item.movement_type === 'deposit' ? 'chip-in' : 'chip-out'">
+                  {{ item.movement_type === 'deposit' ? 'Deposit' : 'Penarikan' }}
+                </span>
+              </div>
+              <p class="mt-2 font-display text-xl text-pearl">{{ formatRupiah(item.amount) }}</p>
+              <p class="mt-1 text-xs text-mist">{{ formatDate(item.record_date) }}</p>
+              <p v-if="item.note" class="mt-1 text-sm text-pearl/60">{{ item.note }}</p>
             </div>
-            <p class="mt-1 text-xs text-slate-500">{{ formatDate(item.record_date) }}</p>
-            <p v-if="item.note" class="mt-1 text-xs text-slate-600">{{ item.note }}</p>
           </div>
-          <button class="text-xs font-semibold text-red-600" @click="removeItem(item.id)">Hapus</button>
+          <button
+            class="btn-icon !h-8 !w-8 shrink-0 hover:border-rose-400/30 hover:text-rose-300"
+            @click="removeItem(item.id)"
+          >
+            <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
         </li>
       </ul>
     </section>
@@ -91,6 +138,8 @@
 <script setup>
 import { onMounted, ref } from "vue";
 import { currentMonth, formatDate, formatRupiah, todayISO } from "../utils/format";
+import AlertBanner from "../components/AlertBanner.vue";
+import EmptyState from "../components/EmptyState.vue";
 
 const form = ref({
   movement_type: "deposit",
