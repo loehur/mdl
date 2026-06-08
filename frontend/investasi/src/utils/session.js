@@ -1,48 +1,53 @@
 const SESSION_MS = 7 * 24 * 60 * 60 * 1000;
+const STORAGE_KEY = "investasi_user";
 
-export function saveSession(user) {
-  localStorage.setItem(
-    "investasi_user",
-    JSON.stringify({
-      user,
-      expiry: Date.now() + SESSION_MS,
-    })
-  );
-}
-
-export function extendSession() {
-  const raw = localStorage.getItem("investasi_user");
-  if (!raw) return false;
-
-  try {
-    const parsed = JSON.parse(raw);
-    if (!parsed?.user) return false;
-    parsed.expiry = Date.now() + SESSION_MS;
-    localStorage.setItem("investasi_user", JSON.stringify(parsed));
-    return true;
-  } catch {
-    localStorage.removeItem("investasi_user");
-    return false;
-  }
-}
-
-export function getValidSession() {
-  const raw = localStorage.getItem("investasi_user");
+function readRaw() {
+  const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) return null;
 
   try {
-    const parsed = JSON.parse(raw);
-    if (parsed?.expiry && Date.now() < parsed.expiry && parsed.user) {
-      return parsed;
-    }
+    return JSON.parse(raw);
   } catch {
-    /* invalid */
+    localStorage.removeItem(STORAGE_KEY);
+    return null;
+  }
+}
+
+export function saveSession(user, token = null) {
+  const existing = readRaw();
+  const data = {
+    user,
+    expiry: Date.now() + SESSION_MS,
+    token: token || existing?.token || null,
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+export function extendSession() {
+  const parsed = readRaw();
+  if (!parsed?.user) return false;
+
+  parsed.expiry = Date.now() + SESSION_MS;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+  return true;
+}
+
+export function getValidSession() {
+  const parsed = readRaw();
+  if (parsed?.expiry && Date.now() < parsed.expiry && parsed.user) {
+    return parsed;
   }
 
-  localStorage.removeItem("investasi_user");
+  if (parsed) {
+    localStorage.removeItem(STORAGE_KEY);
+  }
   return null;
 }
 
+export function getToken() {
+  return getValidSession()?.token || null;
+}
+
 export function clearSession() {
-  localStorage.removeItem("investasi_user");
+  localStorage.removeItem(STORAGE_KEY);
 }

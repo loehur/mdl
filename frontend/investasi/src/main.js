@@ -4,18 +4,45 @@ import { registerSW } from "virtual:pwa-register";
 import App from "./App.vue";
 import "./styles.css";
 import { apiUrl } from "./api";
-import { extendSession, getValidSession, saveSession } from "./utils/session";
+import {
+  clearSession,
+  extendSession,
+  getToken,
+  getValidSession,
+  saveSession,
+} from "./utils/session";
 
 const originalFetch = window.fetch;
-window.fetch = (url, options = {}) => {
-  if (
+window.fetch = async (url, options = {}) => {
+  const isApi =
     typeof url === "string" &&
-    (url.startsWith("/api") || url.startsWith("/Investasi"))
-  ) {
+    (url.startsWith("/api") || url.startsWith("/Investasi"));
+
+  if (isApi) {
     url = apiUrl(url);
-    options = { ...options, credentials: "include" };
+    const headers = { ...(options.headers || {}) };
+    const token = getToken();
+    if (token) {
+      headers["X-Investasi-Token"] = token;
+    }
+    options = { ...options, credentials: "include", headers };
   }
-  return originalFetch(url, options);
+
+  const res = await originalFetch(url, options);
+
+  if (
+    isApi &&
+    res.status === 401 &&
+    typeof url === "string" &&
+    !url.includes("/Auth/login")
+  ) {
+    clearSession();
+    if (window.location.hash !== "#/login") {
+      window.location.hash = "#/login";
+    }
+  }
+
+  return res;
 };
 
 import Login from "./public_area/Login.vue";
@@ -53,7 +80,22 @@ router.beforeEach(async (to) => {
   const cached = getValidSession();
   if (cached) {
     extendSession();
-    fetch("/api/Investasi/Auth/check").catch(() => {});
+    try {
+      const res = await fetch("/api/Investasi/Auth/check");
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data?.data?.user) {
+          saveSession(data.data.user);
+        }
+        return true;
+      }
+      if (res.status === 401) {
+        clearSession();
+        return "/login";
+      }
+    } catch {
+      return true;
+    }
     return true;
   }
 

@@ -133,7 +133,7 @@ async function onSubmit() {
       return;
     }
 
-    saveSession(data.user);
+    saveSession(data.user, data.token || null);
 
     router.push("/dashboard");
   } catch {

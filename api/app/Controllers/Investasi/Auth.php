@@ -42,18 +42,21 @@ class Auth extends InvestasiController
 
             unset($user['password']);
 
-            $_SESSION[$this->session_key] = [
-                'user' => $user,
-                'logged_in' => true,
-            ];
+            $this->establishSession($user);
             $this->extendSession();
+            $token = $this->issueAuthToken((int) $user['id']);
 
-            $this->json([
+            $payload = [
                 'success' => true,
                 'message' => 'Login berhasil',
                 'user' => $user,
                 'redirect' => '/dashboard',
-            ]);
+            ];
+            if ($token !== null) {
+                $payload['token'] = $token;
+            }
+
+            $this->json($payload);
         } catch (\Throwable $e) {
             $this->error('Login gagal: ' . $e->getMessage(), 500);
         }
@@ -84,17 +87,16 @@ class Auth extends InvestasiController
 
     public function check()
     {
-        if (empty($_SESSION[$this->session_key]['logged_in'])) {
+        if (!$this->restoreAuth()) {
             $this->error('Unauthorized', 401);
         }
 
-        $this->extendSession();
-        $user = $this->currentUser();
-        $this->success(['user' => $user], 'Session aktif');
+        $this->success(['user' => $this->currentUser()], 'Session aktif');
     }
 
     public function logout()
     {
+        $this->revokeAuthToken();
         unset($_SESSION[$this->session_key]);
         $this->success(null, 'Logout berhasil');
     }

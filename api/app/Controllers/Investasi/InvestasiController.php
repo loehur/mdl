@@ -8,6 +8,8 @@ abstract class InvestasiController extends BaseController
 {
     protected $db_index = 5;
     protected $session_key = 'investasi_user_session';
+    protected $token_cookie = 'investasi_token';
+    protected $token_lifetime = 604800;
 
     public function __construct()
     {
@@ -16,11 +18,202 @@ abstract class InvestasiController extends BaseController
 
     protected function verifyAuth()
     {
-        if (empty($_SESSION[$this->session_key]['logged_in'])) {
+        if (!$this->restoreAuth()) {
             $this->error('Unauthorized', 401);
         }
+    }
 
+    /** Pulihkan login dari session PHP atau token persisten (header/cookie). */
+    protected function restoreAuth(): bool
+    {
+        if ($this->isSessionLoggedIn()) {
+            $this->extendSession();
+            return true;
+        }
+
+        $user = $this->authenticateByToken();
+        if (!$user) {
+            return false;
+        }
+
+        $this->establishSession($user);
         $this->extendSession();
+        return true;
+    }
+
+    protected function isSessionLoggedIn(): bool
+    {
+        return !empty($_SESSION[$this->session_key]['logged_in']);
+    }
+
+    protected function getRequestToken(): string
+    {
+        if (!empty($_SERVER['HTTP_X_INVESTASI_TOKEN'])) {
+            return trim($_SERVER['HTTP_X_INVESTASI_TOKEN']);
+        }
+
+        return trim($_COOKIE[$this->token_cookie] ?? '');
+    }
+
+    protected function authenticateByToken(): ?array
+    {
+        $token = $this->getRequestToken();
+        if ($token === '') {
+            return null;
+        }
+
+        try {
+            $hash = hash('sha256', $token);
+            $row = $this->db($this->db_index)->query(
+                "SELECT t.user_id, u.id, u.name, u.email, u.is_active
+                 FROM investasi_tokens t
+                 INNER JOIN users u ON u.id = t.user_id
+                 WHERE t.token_hash = ? AND t.expires_at > NOW()
+                 LIMIT 1",
+                [$hash]
+            )->row_array();
+
+            if (!$row || (int) $row['is_active'] !== 1) {
+                return null;
+            }
+
+            $this->db($this->db_index)->update('investasi_tokens', [
+                'expires_at' => date('Y-m-d H:i:s', time() + $this->token_lifetime),
+            ], ['token_hash' => $hash]);
+
+            return [
+                'id' => (int) $row['id'],
+                'name' => $row['name'],
+                'email' => $row['email'],
+            ];
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    protected function establishSession(array $user): void
+    {
+        $_SESSION[$this->session_key] = [
+            'user' => $user,
+            'logged_in' => true,
+        ];
+    }
+
+    protected function issueAuthToken(int $userId): ?string
+    {
+        try {
+            $token = bin2hex(random_bytes(32));
+            $hash = hash('sha256', $token);
+
+            $this->db($this->db_index)->insert('investasi_tokens', [
+                'user_id' => $userId,
+                'token_hash' => $hash,
+                'expires_at' => date('Y-m-d H:i:s', time() + $this->token_lifetime),
+            ]);
+
+            $this->pruneUserTokens($userId);
+            $this->setTokenCookie($token);
+
+            return $token;
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    protected function revokeAuthToken(): void
+    {
+        $token = $this->getRequestToken();
+        if ($token !== '') {
+            try {
+                $hash = hash('sha256', $token);
+                $this->db($this->db_index)->delete('investasi_tokens', ['token_hash' => $hash]);
+            } catch (\Throwable $e) {
+                /* ignore */
+            }
+        }
+
+        $this->clearTokenCookie();
+    }
+
+    protected function pruneUserTokens(int $userId): void
+    {
+        try {
+            $rows = $this->db($this->db_index)->query(
+                "SELECT id FROM investasi_tokens
+                 WHERE user_id = ?
+                 ORDER BY id DESC",
+                [$userId]
+            )->result_array();
+
+            if (count($rows) <= 5) {
+                return;
+            }
+
+            $keep = array_column(array_slice($rows, 0, 5), 'id');
+            $placeholders = implode(',', array_fill(0, count($keep), '?'));
+            $this->db($this->db_index)->query(
+                "DELETE FROM investasi_tokens WHERE user_id = ? AND id NOT IN ({$placeholders})",
+                array_merge([$userId], $keep)
+            );
+        } catch (\Throwable $e) {
+            /* ignore */
+        }
+    }
+
+    protected function cookieDomain(): string
+    {
+        $host = strtolower($_SERVER['HTTP_HOST'] ?? '');
+        if ($host === 'nalju.com' || str_ends_with($host, '.nalju.com')) {
+            return '.nalju.com';
+        }
+
+        return '';
+    }
+
+    protected function setTokenCookie(string $token): void
+    {
+        if (headers_sent()) {
+            return;
+        }
+
+        $domain = $this->cookieDomain();
+        $secure = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+
+        $params = [
+            'expires' => time() + $this->token_lifetime,
+            'path' => '/',
+            'httponly' => true,
+            'samesite' => 'Lax',
+            'secure' => $secure,
+        ];
+        if ($domain !== '') {
+            $params['domain'] = $domain;
+        }
+
+        setcookie($this->token_cookie, $token, $params);
+    }
+
+    protected function clearTokenCookie(): void
+    {
+        if (headers_sent()) {
+            return;
+        }
+
+        $domain = $this->cookieDomain();
+        $secure = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+
+        $params = [
+            'expires' => time() - 3600,
+            'path' => '/',
+            'httponly' => true,
+            'samesite' => 'Lax',
+            'secure' => $secure,
+        ];
+        if ($domain !== '') {
+            $params['domain'] = $domain;
+        }
+
+        setcookie($this->token_cookie, '', $params);
     }
 
     /** Tandai session aktif 7 hari (sliding). Cookie lifetime diatur di init.php. */
@@ -31,7 +224,7 @@ abstract class InvestasiController extends BaseController
         }
 
         if (!empty($_SESSION[$this->session_key]['logged_in'])) {
-            $_SESSION[$this->session_key]['expires_at'] = time() + (7 * 24 * 60 * 60);
+            $_SESSION[$this->session_key]['expires_at'] = time() + $this->token_lifetime;
         }
     }
 
