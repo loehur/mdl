@@ -10,23 +10,28 @@
     </div>
 
     <template v-else>
-      <!-- Pemasukan — modul terpisah, tidak masuk portfolio -->
+      <!-- Pemasukan & pengeluaran — modul terpisah -->
       <section>
-        <div class="mb-3 flex items-center justify-between gap-3">
-          <div>
-            <h2 class="text-sm font-bold text-pearl">Pemasukan</h2>
-            <p class="mt-0.5 text-xs text-mist">Catatan pendapatan harian — tidak mempengaruhi portfolio</p>
-          </div>
-          <router-link to="/pemasukan" class="btn-primary !px-4 !py-2 text-xs">+ Input</router-link>
-        </div>
         <div class="grid grid-cols-2 gap-3">
           <div class="stat-tile">
-            <p class="label-caps">Hari ini</p>
-            <p class="money-display-sm mt-2">{{ formatRupiah(summary.today_income) }}</p>
+            <div class="mb-2 flex items-center justify-between gap-2">
+              <p class="label-caps">Pemasukan</p>
+              <router-link to="/pemasukan" class="text-[10px] font-semibold text-ledger-dim">+ Input</router-link>
+            </div>
+            <p class="text-[10px] text-mist">Hari ini</p>
+            <p class="money-display-sm mt-1">{{ formatRupiah(summary.today_income) }}</p>
+            <p class="mt-2 text-[10px] text-mist">Bulan ini</p>
+            <p class="mt-0.5 text-sm font-semibold text-pearl">{{ formatRupiah(summary.month_income) }}</p>
           </div>
           <div class="stat-tile">
-            <p class="label-caps">Bulan ini</p>
-            <p class="money-display-sm mt-2">{{ formatRupiah(summary.month_income) }}</p>
+            <div class="mb-2 flex items-center justify-between gap-2">
+              <p class="label-caps">Pengeluaran</p>
+              <router-link to="/pengeluaran" class="text-[10px] font-semibold text-debit-dim">+ Input</router-link>
+            </div>
+            <p class="text-[10px] text-mist">Hari ini</p>
+            <p class="money-display-sm mt-1 text-debit-dim">{{ formatRupiah(summary.today_expense) }}</p>
+            <p class="mt-2 text-[10px] text-mist">Bulan ini</p>
+            <p class="mt-0.5 text-sm font-semibold text-debit-dim">{{ formatRupiah(summary.month_expense) }}</p>
           </div>
         </div>
       </section>
@@ -130,6 +135,8 @@ const error = ref("");
 const summary = ref({
   today_income: 0,
   month_income: 0,
+  today_expense: 0,
+  month_expense: 0,
   total_deposits: 0,
   total_withdrawals: 0,
   net_investment: 0,

@@ -86,6 +86,11 @@
     @apply hover:brightness-105 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
   }
 
+  .btn-debit {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-debit-dim via-debit to-debit-dim px-5 py-3.5 font-sans text-sm font-semibold text-white shadow-panel transition;
+    @apply hover:brightness-105 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
   .btn-ghost {
     @apply inline-flex items-center justify-center gap-2 rounded-2xl border border-ink-200 bg-ink-50 px-5 py-3.5 font-sans text-sm font-medium text-pearl transition;
     @apply hover:border-ledger/30 hover:bg-ledger/5 active:scale-[0.98];
@@ -155,7 +160,7 @@
   }
 
   .dock-link {
-    @apply relative flex flex-col items-center gap-0.5 rounded-full px-4 py-2.5 text-[10px] font-medium tracking-wide text-mist transition;
+    @apply relative flex flex-col items-center gap-0.5 rounded-full px-3 py-2.5 text-[9px] font-medium tracking-wide text-mist transition;
   }
 
   .dock-link-active {

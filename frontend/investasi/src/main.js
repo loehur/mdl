@@ -21,6 +21,7 @@ import Login from "./public_area/Login.vue";
 import AppLayout from "./views/AppLayout.vue";
 import Dashboard from "./views/Dashboard.vue";
 import DailyIncome from "./views/DailyIncome.vue";
+import DailyExpense from "./views/DailyExpense.vue";
 import Investment from "./views/Investment.vue";
 import Portfolio from "./views/Portfolio.vue";
 
@@ -35,6 +36,7 @@ const router = createRouter({
       children: [
         { path: "dashboard", component: Dashboard },
         { path: "pemasukan", component: DailyIncome },
+        { path: "pengeluaran", component: DailyExpense },
         { path: "investasi", component: Investment },
         { path: "portfolio", component: Portfolio },
       ],

@@ -1,82 +1,82 @@
 <template>
   <div class="space-y-6">
-    <!-- Kelola sumber pemasukan -->
+    <!-- Kelola target pengeluaran -->
     <section class="glass p-5">
       <div class="mb-4 flex items-start justify-between gap-3">
         <div>
           <p class="label-caps">Master data</p>
-          <h2 class="section-title mt-1">Sumber pemasukan</h2>
+          <h2 class="section-title mt-1">Target pengeluaran</h2>
         </div>
       </div>
 
-      <form class="mb-4 flex gap-2" @submit.prevent="addSource">
+      <form class="mb-4 flex gap-2" @submit.prevent="addTarget">
         <input
-          v-model="newSourceName"
+          v-model="newTargetName"
           class="field-input flex-1"
           type="text"
-          placeholder="Nama sumber, mis. Laundry"
+          placeholder="Nama target, mis. Makan, Transport"
           maxlength="100"
         />
-        <button class="btn-primary shrink-0 !px-4" type="submit" :disabled="addingSource">
-          {{ addingSource ? "..." : "Tambah" }}
+        <button class="btn-debit shrink-0 !px-4" type="submit" :disabled="addingTarget">
+          {{ addingTarget ? "..." : "Tambah" }}
         </button>
       </form>
 
-      <div v-if="sourcesLoading" class="skeleton h-12" />
+      <div v-if="targetsLoading" class="skeleton h-12" />
 
-      <p v-else-if="sources.length === 0" class="rounded-2xl border border-dashed border-ink-200 px-4 py-6 text-center text-sm text-mist">
-        Belum ada sumber. Tambahkan dulu agar bisa dipilih saat input pemasukan.
+      <p v-else-if="targets.length === 0" class="rounded-2xl border border-dashed border-ink-200 px-4 py-6 text-center text-sm text-mist">
+        Belum ada target. Tambahkan dulu agar bisa dipilih saat input pengeluaran.
       </p>
 
       <div v-else class="flex flex-wrap gap-2">
         <span
-          v-for="src in sources"
-          :key="src.id"
-          class="inline-flex items-center gap-1.5 rounded-xl border border-ink-200 bg-ink-50 px-3 py-2 text-sm font-medium text-pearl"
+          v-for="tgt in targets"
+          :key="tgt.id"
+          class="inline-flex items-center gap-1.5 rounded-xl border border-debit-dim/20 bg-debit-light px-3 py-2 text-sm font-medium text-debit-dim"
         >
-          {{ src.name }}
+          {{ tgt.name }}
           <button
             type="button"
             class="ml-0.5 text-mist hover:text-debit"
-            title="Hapus sumber"
-            @click="removeSource(src.id)"
+            title="Hapus target"
+            @click="removeTarget(tgt.id)"
           >
             ×
           </button>
         </span>
       </div>
 
-      <AlertBanner class="mt-3" :message="sourceMessage" :type="sourceError ? 'error' : 'success'" />
+      <AlertBanner class="mt-3" :message="targetMessage" :type="targetError ? 'error' : 'success'" />
     </section>
 
-    <!-- Form input pemasukan -->
+    <!-- Form input pengeluaran -->
     <section class="glass-strong p-6">
       <div class="mb-6 flex items-start justify-between">
         <div>
           <p class="label-caps">{{ editingId ? "Edit entri" : "Entri baru" }}</p>
-          <h2 class="section-title mt-1">Pemasukan harian</h2>
+          <h2 class="section-title mt-1">Pengeluaran harian</h2>
         </div>
-        <span class="chip-in">Terpisah</span>
+        <span class="chip-out">Terpisah</span>
       </div>
 
       <form class="space-y-4" @submit.prevent="submitForm">
         <div>
-          <label class="field-label">Sumber pemasukan <span class="text-debit">*</span></label>
-          <div v-if="sources.length === 0" class="rounded-2xl border border-debit-dim/20 bg-debit-light px-4 py-3 text-sm text-debit-dim">
-            Tambahkan sumber pemasukan di atas terlebih dahulu.
+          <label class="field-label">Target pengeluaran <span class="text-debit">*</span></label>
+          <div v-if="targets.length === 0" class="rounded-2xl border border-debit-dim/20 bg-debit-light px-4 py-3 text-sm text-debit-dim">
+            Tambahkan target pengeluaran di atas terlebih dahulu.
           </div>
           <div v-else class="grid grid-cols-2 gap-2 sm:grid-cols-3">
             <button
-              v-for="src in sources"
-              :key="src.id"
+              v-for="tgt in targets"
+              :key="tgt.id"
               type="button"
               class="rounded-xl border px-3 py-3 text-left text-sm font-semibold transition"
-              :class="form.source_id === src.id
-                ? 'border-ledger bg-ledger/10 text-ledger-dim shadow-inner'
-                : 'border-ink-200 bg-ink-50 text-pearl hover:border-ledger/30'"
-              @click="form.source_id = src.id"
+              :class="form.target_id === tgt.id
+                ? 'border-debit-dim bg-debit-dim/10 text-debit-dim shadow-inner'
+                : 'border-ink-200 bg-ink-50 text-pearl hover:border-debit-dim/30'"
+              @click="form.target_id = tgt.id"
             >
-              {{ src.name }}
+              {{ tgt.name }}
             </button>
           </div>
         </div>
@@ -105,9 +105,9 @@
 
         <div class="flex gap-3 pt-1">
           <button
-            class="btn-primary flex-1"
+            class="btn-debit flex-1"
             type="submit"
-            :disabled="saving || sources.length === 0 || !form.source_id"
+            :disabled="saving || targets.length === 0 || !form.target_id"
           >
             {{ saving ? "Menyimpan..." : editingId ? "Perbarui" : "Simpan" }}
           </button>
@@ -123,7 +123,7 @@
       <div class="mb-4 flex items-end justify-between gap-3">
         <div>
           <p class="label-caps">Riwayat</p>
-          <p class="money-display-sm mt-1">{{ formatRupiah(total) }}</p>
+          <p class="money-display-sm mt-1 text-debit-dim">{{ formatRupiah(total) }}</p>
         </div>
         <input v-model="month" class="field-input !w-auto !py-2 !text-xs" type="month" @change="loadItems" />
       </div>
@@ -134,19 +134,19 @@
 
       <EmptyState
         v-else-if="items.length === 0"
-        title="Belum ada pemasukan"
-        subtitle="Pilih sumber, isi jumlah, lalu simpan."
+        title="Belum ada pengeluaran"
+        subtitle="Pilih target, isi jumlah, lalu simpan."
       />
 
       <ul v-else class="space-y-3">
         <li
           v-for="item in items"
           :key="item.id"
-          class="glass group flex items-start justify-between gap-4 p-4 transition hover:border-ledger/20"
+          class="glass group flex items-start justify-between gap-4 p-4 transition hover:border-debit-dim/20"
         >
           <div class="min-w-0 flex-1">
-            <span v-if="item.source_name" class="chip-in mb-2">{{ item.source_name }}</span>
-            <p class="money-display-sm">{{ formatRupiah(item.amount) }}</p>
+            <span v-if="item.target_name" class="chip-out mb-2">{{ item.target_name }}</span>
+            <p class="money-display-sm text-debit-dim">{{ formatRupiah(item.amount) }}</p>
             <p class="mt-1 text-xs text-mist">{{ formatDate(item.record_date) }}</p>
             <p v-if="item.note" class="mt-2 truncate text-sm text-pearl/60">{{ item.note }}</p>
           </div>
@@ -174,88 +174,88 @@ import { currentMonth, formatDate, formatRupiah, todayISO } from "../utils/forma
 import AlertBanner from "../components/AlertBanner.vue";
 import EmptyState from "../components/EmptyState.vue";
 
-const form = ref({ record_date: todayISO(), amount: "", source_id: null, note: "" });
+const form = ref({ record_date: todayISO(), amount: "", target_id: null, note: "" });
 const editingId = ref(null);
 const month = ref(currentMonth());
 const items = ref([]);
 const total = ref(0);
-const sources = ref([]);
-const newSourceName = ref("");
+const targets = ref([]);
+const newTargetName = ref("");
 const loading = ref(false);
-const sourcesLoading = ref(false);
+const targetsLoading = ref(false);
 const saving = ref(false);
-const addingSource = ref(false);
+const addingTarget = ref(false);
 const message = ref("");
 const isError = ref(false);
-const sourceMessage = ref("");
-const sourceError = ref(false);
+const targetMessage = ref("");
+const targetError = ref(false);
 
 function resetForm() {
   editingId.value = null;
   form.value = {
     record_date: todayISO(),
     amount: "",
-    source_id: sources.value[0]?.id ?? null,
+    target_id: targets.value[0]?.id ?? null,
     note: "",
   };
 }
 
-async function loadSources() {
-  sourcesLoading.value = true;
-  sourceMessage.value = "";
+async function loadTargets() {
+  targetsLoading.value = true;
+  targetMessage.value = "";
   try {
-    const res = await fetch("/api/Investasi/IncomeSource/list");
+    const res = await fetch("/api/Investasi/ExpenseTarget/list");
     const data = await res.json();
-    if (!res.ok || !data.status) throw new Error(data.message || "Gagal memuat sumber");
-    sources.value = data.data.items;
-    if (!form.value.source_id && sources.value.length > 0) {
-      form.value.source_id = sources.value[0].id;
+    if (!res.ok || !data.status) throw new Error(data.message || "Gagal memuat target");
+    targets.value = data.data.items;
+    if (!form.value.target_id && targets.value.length > 0) {
+      form.value.target_id = targets.value[0].id;
     }
   } catch (err) {
-    sourceMessage.value = err.message;
-    sourceError.value = true;
+    targetMessage.value = err.message;
+    targetError.value = true;
   } finally {
-    sourcesLoading.value = false;
+    targetsLoading.value = false;
   }
 }
 
-async function addSource() {
-  const name = newSourceName.value.trim();
+async function addTarget() {
+  const name = newTargetName.value.trim();
   if (name.length < 2) {
-    sourceMessage.value = "Nama minimal 2 karakter";
-    sourceError.value = true;
+    targetMessage.value = "Nama minimal 2 karakter";
+    targetError.value = true;
     return;
   }
 
-  addingSource.value = true;
-  sourceMessage.value = "";
-  sourceError.value = false;
+  addingTarget.value = true;
+  targetMessage.value = "";
+  targetError.value = false;
 
   try {
-    const res = await fetch("/api/Investasi/IncomeSource/add", {
+    const res = await fetch("/api/Investasi/ExpenseTarget/add", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name }),
     });
     const data = await res.json();
-    if (!res.ok || !data.status) throw new Error(data.message || "Gagal menambah sumber");
+    if (!res.ok || !data.status) throw new Error(data.message || "Gagal menambah target");
 
-    newSourceName.value = "";
-    sourceMessage.value = data.message || "Sumber ditambahkan";
-    await loadSources();
-    if (data.data?.id) form.value.source_id = data.data.id;
+    newTargetName.value = "";
+    targetMessage.value = data.message || "Target ditambahkan";
+    await loadTargets();
+    if (data.data?.id) form.value.target_id = data.data.id;
   } catch (err) {
-    sourceMessage.value = err.message;
-    sourceError.value = true;
+    targetMessage.value = err.message;
+    targetError.value = true;
   } finally {
-    addingSource.value = false;
+    addingTarget.value = false;
   }
 }
 
-async function removeSource(id) {
-  if (!confirm("Hapus sumber ini?")) return;
+async function removeTarget(id) {
+  if (!confirm("Hapus target ini?")) return;
   try {
-    const res = await fetch("/api/Investasi/IncomeSource/delete", {
+    const res = await fetch("/api/Investasi/ExpenseTarget/delete", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id }),
@@ -263,20 +263,20 @@ async function removeSource(id) {
     const data = await res.json();
     if (!res.ok || !data.status) throw new Error(data.message || "Gagal menghapus");
 
-    if (form.value.source_id === id) form.value.source_id = null;
-    await loadSources();
-    sourceMessage.value = data.message || "Sumber dihapus";
-    sourceError.value = false;
+    if (form.value.target_id === id) form.value.target_id = null;
+    await loadTargets();
+    targetMessage.value = data.message || "Target dihapus";
+    targetError.value = false;
   } catch (err) {
-    sourceMessage.value = err.message;
-    sourceError.value = true;
+    targetMessage.value = err.message;
+    targetError.value = true;
   }
 }
 
 async function loadItems() {
   loading.value = true;
   try {
-    const res = await fetch(`/api/Investasi/DailyIncome/list?month=${month.value}`);
+    const res = await fetch(`/api/Investasi/DailyExpense/list?month=${month.value}`);
     const data = await res.json();
     if (!res.ok || !data.status) throw new Error(data.message || "Gagal memuat data");
     items.value = data.data.items;
@@ -290,8 +290,8 @@ async function loadItems() {
 }
 
 async function submitForm() {
-  if (!form.value.source_id) {
-    message.value = "Pilih sumber pemasukan";
+  if (!form.value.target_id) {
+    message.value = "Pilih target pengeluaran";
     isError.value = true;
     return;
   }
@@ -303,13 +303,13 @@ async function submitForm() {
   const payload = {
     record_date: form.value.record_date,
     amount: Number(form.value.amount),
-    source_id: form.value.source_id,
+    target_id: form.value.target_id,
     note: form.value.note || null,
   };
 
   const endpoint = editingId.value
-    ? "/api/Investasi/DailyIncome/update"
-    : "/api/Investasi/DailyIncome/add";
+    ? "/api/Investasi/DailyExpense/update"
+    : "/api/Investasi/DailyExpense/add";
 
   if (editingId.value) payload.id = editingId.value;
 
@@ -339,16 +339,16 @@ function startEdit(item) {
   form.value = {
     record_date: item.record_date,
     amount: item.amount,
-    source_id: item.source_id || sources.value[0]?.id || null,
+    target_id: item.target_id || targets.value[0]?.id || null,
     note: item.note || "",
   };
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 async function removeItem(id) {
-  if (!confirm("Hapus pemasukan ini?")) return;
+  if (!confirm("Hapus pengeluaran ini?")) return;
   try {
-    const res = await fetch("/api/Investasi/DailyIncome/delete", {
+    const res = await fetch("/api/Investasi/DailyExpense/delete", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id }),
@@ -363,7 +363,7 @@ async function removeItem(id) {
 }
 
 onMounted(async () => {
-  await loadSources();
+  await loadTargets();
   await loadItems();
 });
 </script>

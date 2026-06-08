@@ -3,9 +3,9 @@
 namespace App\Controllers\Investasi;
 
 /**
- * DailyIncome — GET list, POST add, POST update, POST delete
+ * DailyExpense — GET list, POST add, POST update, POST delete
  */
-class DailyIncome extends InvestasiController
+class DailyExpense extends InvestasiController
 {
     public function __construct()
     {
@@ -24,10 +24,10 @@ class DailyIncome extends InvestasiController
         $end = date('Y-m-t', strtotime($start));
 
         $rows = $this->db($this->db_index)->query(
-            "SELECT d.id, d.record_date, d.amount, d.source_id, d.note, d.created_at,
-                    s.name AS source_name
-             FROM daily_incomes d
-             LEFT JOIN income_sources s ON s.id = d.source_id
+            "SELECT d.id, d.record_date, d.amount, d.target_id, d.note, d.created_at,
+                    t.name AS target_name
+             FROM daily_expenses d
+             LEFT JOIN expense_targets t ON t.id = d.target_id
              WHERE d.record_date BETWEEN ? AND ?
              ORDER BY d.record_date DESC, d.id DESC",
             [$start, $end]
@@ -49,17 +49,17 @@ class DailyIncome extends InvestasiController
         }
 
         $body = $this->getBody();
-        $this->validate($body, ['record_date', 'amount', 'source_id']);
+        $this->validate($body, ['record_date', 'amount', 'target_id']);
 
         $recordDate = $this->sanitizeDate($body['record_date']);
         $amount = $this->sanitizeAmount($body['amount']);
-        $sourceId = $this->resolveSourceId($body['source_id']);
+        $targetId = $this->resolveTargetId($body['target_id']);
         $note = isset($body['note']) ? trim((string) $body['note']) : null;
 
-        $id = $this->db($this->db_index)->insert('daily_incomes', [
+        $id = $this->db($this->db_index)->insert('daily_expenses', [
             'record_date' => $recordDate,
             'amount' => $amount,
-            'source_id' => $sourceId,
+            'target_id' => $targetId,
             'note' => $note ?: null,
         ]);
 
@@ -67,9 +67,9 @@ class DailyIncome extends InvestasiController
             'id' => $id,
             'record_date' => $recordDate,
             'amount' => $amount,
-            'source_id' => $sourceId,
+            'target_id' => $targetId,
             'note' => $note,
-        ], 'Pemasukan harian berhasil disimpan');
+        ], 'Pengeluaran harian berhasil disimpan');
     }
 
     public function update()
@@ -79,27 +79,27 @@ class DailyIncome extends InvestasiController
         }
 
         $body = $this->getBody();
-        $this->validate($body, ['id', 'record_date', 'amount', 'source_id']);
+        $this->validate($body, ['id', 'record_date', 'amount', 'target_id']);
 
         $id = (int) $body['id'];
         $recordDate = $this->sanitizeDate($body['record_date']);
         $amount = $this->sanitizeAmount($body['amount']);
-        $sourceId = $this->resolveSourceId($body['source_id']);
+        $targetId = $this->resolveTargetId($body['target_id']);
         $note = isset($body['note']) ? trim((string) $body['note']) : null;
 
-        $existing = $this->db($this->db_index)->get_where('daily_incomes', ['id' => $id], 1)->row_array();
+        $existing = $this->db($this->db_index)->get_where('daily_expenses', ['id' => $id], 1)->row_array();
         if (!$existing) {
             $this->error('Data tidak ditemukan', 404);
         }
 
-        $this->db($this->db_index)->update('daily_incomes', [
+        $this->db($this->db_index)->update('daily_expenses', [
             'record_date' => $recordDate,
             'amount' => $amount,
-            'source_id' => $sourceId,
+            'target_id' => $targetId,
             'note' => $note ?: null,
         ], ['id' => $id]);
 
-        $this->success(['id' => $id], 'Pemasukan harian berhasil diperbarui');
+        $this->success(['id' => $id], 'Pengeluaran harian berhasil diperbarui');
     }
 
     public function delete()
@@ -112,29 +112,29 @@ class DailyIncome extends InvestasiController
         $this->validate($body, ['id']);
 
         $id = (int) $body['id'];
-        $existing = $this->db($this->db_index)->get_where('daily_incomes', ['id' => $id], 1)->row_array();
+        $existing = $this->db($this->db_index)->get_where('daily_expenses', ['id' => $id], 1)->row_array();
         if (!$existing) {
             $this->error('Data tidak ditemukan', 404);
         }
 
-        $this->db($this->db_index)->delete('daily_incomes', ['id' => $id]);
-        $this->success(['id' => $id], 'Pemasukan harian berhasil dihapus');
+        $this->db($this->db_index)->delete('daily_expenses', ['id' => $id]);
+        $this->success(['id' => $id], 'Pengeluaran harian berhasil dihapus');
     }
 
-    private function resolveSourceId($sourceId): int
+    private function resolveTargetId($targetId): int
     {
-        $id = (int) $sourceId;
+        $id = (int) $targetId;
         if ($id <= 0) {
-            $this->error('Pilih sumber pemasukan', 400);
+            $this->error('Pilih target pengeluaran', 400);
         }
 
-        $source = $this->db($this->db_index)->get_where('income_sources', [
+        $target = $this->db($this->db_index)->get_where('expense_targets', [
             'id' => $id,
             'is_active' => 1,
         ], 1)->row_array();
 
-        if (!$source) {
-            $this->error('Sumber pemasukan tidak valid', 400);
+        if (!$target) {
+            $this->error('Target pengeluaran tidak valid', 400);
         }
 
         return $id;

@@ -31,12 +31,25 @@ class Dashboard extends InvestasiController
             [$monthStart, $today]
         )->row_array()['total'] ?? 0);
 
+        $todayExpense = (float) ($this->db($this->db_index)->query(
+            "SELECT COALESCE(SUM(amount), 0) AS total FROM daily_expenses WHERE record_date = ?",
+            [$today]
+        )->row_array()['total'] ?? 0);
+
+        $monthExpense = (float) ($this->db($this->db_index)->query(
+            "SELECT COALESCE(SUM(amount), 0) AS total FROM daily_expenses WHERE record_date BETWEEN ? AND ?",
+            [$monthStart, $today]
+        )->row_array()['total'] ?? 0);
+
         $performance = $this->getPortfolioPerformance();
 
         $this->success([
             // Pemasukan — independen dari portfolio
             'today_income' => $todayIncome,
             'month_income' => $monthIncome,
+            // Pengeluaran — independen dari portfolio
+            'today_expense' => $todayExpense,
+            'month_expense' => $monthExpense,
             // Investasi & portfolio
             'total_deposits' => $performance['total_deposits'],
             'total_withdrawals' => $performance['total_withdrawals'],
