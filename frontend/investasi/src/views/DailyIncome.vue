@@ -103,8 +103,10 @@
         >
           <div class="min-w-0 flex-1">
             <span v-if="item.source_name" class="chip-in mb-2">{{ item.source_name }}</span>
-            <p class="money-display-sm">{{ formatRupiah(item.amount) }}</p>
-            <p class="mt-1 text-sm text-mist">{{ formatDate(item.record_date) }}</p>
+            <div class="flex items-baseline justify-between gap-3">
+              <p class="text-sm text-mist">{{ formatDate(item.record_date) }}</p>
+              <p class="shrink-0 font-display text-lg font-bold tabular-nums text-pearl">{{ formatRupiah(item.amount) }}</p>
+            </div>
             <p v-if="item.note" class="mt-2 truncate text-sm text-pearl/60">{{ item.note }}</p>
           </div>
           <div class="flex shrink-0 gap-1 opacity-60 transition group-hover:opacity-100">
