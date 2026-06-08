@@ -65,7 +65,7 @@
         <div>
           <p class="label-caps">Ringkasan bulan</p>
           <p
-            class="money-display-sm mt-1"
+            class="mt-1 font-display text-lg font-bold tabular-nums"
             :class="net >= 0 ? 'text-credit' : 'text-debit'"
           >
             Net {{ formatRupiah(net) }}
@@ -77,11 +77,11 @@
       <div class="mb-4 grid grid-cols-2 gap-3">
         <div class="stat-tile border-credit-dim/10">
           <p class="label-caps text-credit-dim/70">Deposit</p>
-          <p class="money-display-sm mt-2 text-credit">{{ formatRupiah(depositTotal) }}</p>
+          <p class="mt-2 font-display text-lg font-bold tabular-nums text-credit">{{ formatRupiah(depositTotal) }}</p>
         </div>
         <div class="stat-tile border-debit-dim/10">
           <p class="label-caps text-debit-dim/70">Penarikan</p>
-          <p class="money-display-sm mt-2 text-debit">{{ formatRupiah(withdrawalTotal) }}</p>
+          <p class="mt-2 font-display text-lg font-bold tabular-nums text-debit">{{ formatRupiah(withdrawalTotal) }}</p>
         </div>
       </div>
 
