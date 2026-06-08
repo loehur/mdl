@@ -4,6 +4,7 @@ import { registerSW } from "virtual:pwa-register";
 import App from "./App.vue";
 import "./styles.css";
 import { apiUrl } from "./api";
+import { extendSession, getValidSession, saveSession } from "./utils/session";
 
 const originalFetch = window.fetch;
 window.fetch = (url, options = {}) => {
@@ -24,6 +25,7 @@ import DailyIncome from "./views/DailyIncome.vue";
 import DailyExpense from "./views/DailyExpense.vue";
 import Investment from "./views/Investment.vue";
 import Portfolio from "./views/Portfolio.vue";
+import Rekap from "./views/Rekap.vue";
 
 const router = createRouter({
   history: createWebHashHistory(),
@@ -37,6 +39,7 @@ const router = createRouter({
         { path: "dashboard", component: Dashboard },
         { path: "pemasukan", component: DailyIncome },
         { path: "pengeluaran", component: DailyExpense },
+        { path: "rekap", component: Rekap },
         { path: "investasi", component: Investment },
         { path: "portfolio", component: Portfolio },
       ],
@@ -47,19 +50,20 @@ const router = createRouter({
 router.beforeEach(async (to) => {
   if (to.meta.public) return true;
 
-  const cached = localStorage.getItem("investasi_user");
+  const cached = getValidSession();
   if (cached) {
-    try {
-      const parsed = JSON.parse(cached);
-      if (parsed?.expiry && Date.now() < parsed.expiry) return true;
-    } catch {
-      localStorage.removeItem("investasi_user");
-    }
+    extendSession();
+    fetch("/api/Investasi/Auth/check").catch(() => {});
+    return true;
   }
 
   try {
     const res = await fetch("/api/Investasi/Auth/check");
-    if (res.ok) return true;
+    if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (data?.data?.user) saveSession(data.data.user);
+      return true;
+    }
   } catch {
     /* offline or server down */
   }

@@ -105,6 +105,7 @@ import { ref } from "vue";
 import { useRouter } from "vue-router";
 import MeshBackground from "../components/MeshBackground.vue";
 import AlertBanner from "../components/AlertBanner.vue";
+import { saveSession } from "../utils/session";
 
 const router = useRouter();
 const email = ref("");
@@ -132,13 +133,7 @@ async function onSubmit() {
       return;
     }
 
-    localStorage.setItem(
-      "investasi_user",
-      JSON.stringify({
-        user: data.user,
-        expiry: Date.now() + 24 * 60 * 60 * 1000,
-      })
-    );
+    saveSession(data.user);
 
     router.push("/dashboard");
   } catch {

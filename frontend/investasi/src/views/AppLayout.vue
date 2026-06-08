@@ -53,6 +53,7 @@
 import { computed, h, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import MeshBackground from "../components/MeshBackground.vue";
+import { clearSession } from "../utils/session";
 
 const route = useRoute();
 const router = useRouter();
@@ -78,6 +79,11 @@ const IconExpense = () =>
     h("path", { d: "M5 3h14", strokeLinecap: "round" }),
   ]);
 
+const IconRecap = () =>
+  h("svg", iconProps, [
+    h("path", { d: "M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01", strokeLinecap: "round" }),
+  ]);
+
 const IconFlow = () =>
   h("svg", iconProps, [
     h("path", { d: "M4 7h16M4 12h10M4 17h6", strokeLinecap: "round" }),
@@ -96,6 +102,7 @@ const IconChart = () =>
 
 const navItems = [
   { path: "/dashboard", label: "Home", icon: IconHome },
+  { path: "/rekap", label: "Rekap", icon: IconRecap },
   { path: "/pemasukan", label: "Masuk", icon: IconIncome },
   { path: "/pengeluaran", label: "Keluar", icon: IconExpense },
   { path: "/investasi", label: "Aliran", icon: IconFlow },
@@ -104,6 +111,7 @@ const navItems = [
 
 const titles = {
   "/dashboard": "Overview",
+  "/rekap": "Rekap",
   "/pemasukan": "Pemasukan",
   "/pengeluaran": "Pengeluaran",
   "/investasi": "Aliran Dana",
@@ -149,7 +157,7 @@ async function logout() {
   } catch {
     /* ignore */
   }
-  localStorage.removeItem("investasi_user");
+  clearSession();
   router.push("/login");
 }
 </script>

@@ -46,6 +46,7 @@ class Auth extends InvestasiController
                 'user' => $user,
                 'logged_in' => true,
             ];
+            $this->extendSession();
 
             $this->json([
                 'success' => true,
@@ -86,6 +87,7 @@ class Auth extends InvestasiController
             $this->error('Unauthorized', 401);
         }
 
+        $this->extendSession();
         $user = $this->currentUser();
         $this->success(['user' => $user], 'Session aktif');
     }

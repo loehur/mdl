@@ -160,7 +160,7 @@
   }
 
   .dock-link {
-    @apply relative flex flex-col items-center gap-0.5 rounded-full px-3 py-2.5 text-[9px] font-medium tracking-wide text-mist transition;
+    @apply relative flex flex-col items-center gap-0.5 rounded-full px-2 py-2 text-[8px] font-medium tracking-wide text-mist transition;
   }
 
   .dock-link-active {

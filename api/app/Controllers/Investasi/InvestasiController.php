@@ -19,6 +19,33 @@ abstract class InvestasiController extends BaseController
         if (empty($_SESSION[$this->session_key]['logged_in'])) {
             $this->error('Unauthorized', 401);
         }
+
+        $this->extendSession();
+    }
+
+    /** Perpanjang cookie session 7 hari (sliding) setiap request terautentikasi. */
+    protected function extendSession(): void
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            return;
+        }
+
+        $lifetime = 7 * 24 * 60 * 60;
+        ini_set('session.gc_maxlifetime', (string) $lifetime);
+
+        $params = session_get_cookie_params();
+        setcookie(session_name(), session_id(), [
+            'expires' => time() + $lifetime,
+            'path' => $params['path'] ?: '/',
+            'domain' => $params['domain'] ?? '',
+            'secure' => $params['secure'] ?? false,
+            'httponly' => $params['httponly'] ?? true,
+            'samesite' => $params['samesite'] ?? 'Lax',
+        ]);
+
+        if (!empty($_SESSION[$this->session_key]['logged_in'])) {
+            $_SESSION[$this->session_key]['expires_at'] = time() + $lifetime;
+        }
     }
 
     protected function currentUser()
