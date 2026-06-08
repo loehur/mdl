@@ -7,6 +7,12 @@ namespace App\Controllers\Investasi;
  */
 class Auth extends InvestasiController
 {
+    /** @var string[] */
+    private $allowedEmails = [
+        'loehur@gmail.com',
+        'neliarnisglory@gmail.com',
+    ];
+
     public function login()
     {
         if (!$this->isPost()) {
@@ -17,8 +23,13 @@ class Auth extends InvestasiController
             $body = $this->getBody();
             $this->validate($body, ['email', 'password']);
 
+            $email = strtolower(trim($body['email']));
+            if (!in_array($email, $this->allowedEmails, true)) {
+                $this->error('Email atau kata sandi salah', 401);
+            }
+
             $user = $this->db($this->db_index)
-                ->get_where('users', ['email' => trim($body['email'])], 1)
+                ->get_where('users', ['email' => $email], 1)
                 ->row_array();
 
             if (!$user || !password_verify($body['password'], $user['password'])) {
