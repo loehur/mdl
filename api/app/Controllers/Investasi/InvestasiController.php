@@ -23,18 +23,15 @@ abstract class InvestasiController extends BaseController
         $this->extendSession();
     }
 
-    /** Perpanjang session 7 hari (sliding) — tanpa setcookie setelah header terkirim. */
+    /** Tandai session aktif 7 hari (sliding). Cookie lifetime diatur di init.php. */
     protected function extendSession(): void
     {
         if (session_status() !== PHP_SESSION_ACTIVE) {
             return;
         }
 
-        $lifetime = 7 * 24 * 60 * 60;
-        ini_set('session.gc_maxlifetime', (string) $lifetime);
-
         if (!empty($_SESSION[$this->session_key]['logged_in'])) {
-            $_SESSION[$this->session_key]['expires_at'] = time() + $lifetime;
+            $_SESSION[$this->session_key]['expires_at'] = time() + (7 * 24 * 60 * 60);
         }
     }
 

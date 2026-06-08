@@ -65,8 +65,9 @@ class Auth extends InvestasiController
     public function ping()
     {
         try {
+            $db = $this->db($this->db_index);
             $config = \DBC::getDbConfig($this->db_index);
-            $this->db($this->db_index)->query('SELECT 1 AS ok');
+            $db->query('SELECT 1 AS ok');
             $hasUsers = $this->db($this->db_index)
                 ->query("SHOW TABLES LIKE 'users'")
                 ->row_array();
