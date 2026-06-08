@@ -13,26 +13,26 @@
       <!-- Pemasukan & pengeluaran — modul terpisah -->
       <section>
         <div class="grid grid-cols-2 gap-2.5">
-          <div class="stat-tile !p-3">
-            <div class="mb-1 flex items-center justify-between gap-2">
-              <p class="label-caps">Income</p>
-              <router-link to="/pemasukan" class="text-sm font-semibold text-ledger-dim">+ Input</router-link>
-            </div>
+          <router-link
+            to="/pemasukan"
+            class="stat-tile block !p-3 transition active:scale-[0.98] active:opacity-90"
+          >
+            <p class="label-caps mb-1">Income</p>
             <p class="text-sm leading-tight text-mist">Hari ini</p>
             <p class="money-display-sm mt-0.5">{{ formatRupiah(summary.today_income) }}</p>
             <p class="mt-1 text-sm leading-tight text-mist">Bulan ini</p>
             <p class="text-base font-semibold leading-tight text-pearl">{{ formatRupiah(summary.month_income) }}</p>
-          </div>
-          <div class="stat-tile !p-3">
-            <div class="mb-1 flex items-center justify-between gap-2">
-              <p class="label-caps">Expense</p>
-              <router-link to="/pengeluaran" class="text-sm font-semibold text-debit-dim">+ Input</router-link>
-            </div>
+          </router-link>
+          <router-link
+            to="/pengeluaran"
+            class="stat-tile block !p-3 transition active:scale-[0.98] active:opacity-90"
+          >
+            <p class="label-caps mb-1">Expense</p>
             <p class="text-sm leading-tight text-mist">Hari ini</p>
             <p class="money-display-sm mt-0.5 text-debit-dim">{{ formatRupiah(summary.today_expense) }}</p>
             <p class="mt-1 text-sm leading-tight text-mist">Bulan ini</p>
             <p class="text-base font-semibold leading-tight text-debit-dim">{{ formatRupiah(summary.month_expense) }}</p>
-          </div>
+          </router-link>
         </div>
       </section>
 
