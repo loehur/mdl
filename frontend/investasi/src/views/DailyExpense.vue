@@ -123,12 +123,13 @@
       </ul>
     </section>
 
-    <div
-      v-if="showTargetManager"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4"
-      @click.self="showTargetManager = false"
-    >
-      <section class="glass-strong w-full max-w-md max-h-[80vh] overflow-y-auto p-5">
+    <Teleport to="body">
+      <div
+        v-if="showTargetManager"
+        class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/40 p-4"
+        @click.self="showTargetManager = false"
+      >
+        <section class="glass-strong w-full max-w-md max-h-[80vh] overflow-y-auto p-5 shadow-panel">
         <div class="mb-4 flex items-center justify-between gap-3">
           <div>
             <p class="label-caps">Master data</p>
@@ -175,8 +176,9 @@
         </div>
 
         <AlertBanner class="mt-3" :message="targetMessage" :type="targetError ? 'error' : 'success'" />
-      </section>
-    </div>
+        </section>
+      </div>
+    </Teleport>
   </div>
 </template>
 
