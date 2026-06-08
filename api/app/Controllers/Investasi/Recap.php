@@ -43,12 +43,12 @@ class Recap extends InvestasiController
 
         $totalIncome = array_sum(array_column($incomeBySource, 'total'));
 
-        $totalExpense = (float) ($this->db($this->db_index)->query(
+        $totalExpense = $this->safeExpenseSum(
             "SELECT COALESCE(SUM(amount), 0) AS total
              FROM daily_expenses
              WHERE record_date BETWEEN ? AND ?",
             [$start, $end]
-        )->row_array()['total'] ?? 0);
+        );
 
         $sourceIds = $this->parseSourceIds($this->query('source_ids', ''));
         $filteredIncome = $this->sumIncomeForSources($incomeBySource, $sourceIds);

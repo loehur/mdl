@@ -31,15 +31,15 @@ class Dashboard extends InvestasiController
             [$monthStart, $today]
         )->row_array()['total'] ?? 0);
 
-        $todayExpense = (float) ($this->db($this->db_index)->query(
+        $todayExpense = $this->safeExpenseSum(
             "SELECT COALESCE(SUM(amount), 0) AS total FROM daily_expenses WHERE record_date = ?",
             [$today]
-        )->row_array()['total'] ?? 0);
+        );
 
-        $monthExpense = (float) ($this->db($this->db_index)->query(
+        $monthExpense = $this->safeExpenseSum(
             "SELECT COALESCE(SUM(amount), 0) AS total FROM daily_expenses WHERE record_date BETWEEN ? AND ?",
             [$monthStart, $today]
-        )->row_array()['total'] ?? 0);
+        );
 
         $performance = $this->getPortfolioPerformance();
 

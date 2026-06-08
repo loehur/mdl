@@ -23,7 +23,7 @@ abstract class InvestasiController extends BaseController
         $this->extendSession();
     }
 
-    /** Perpanjang cookie session 7 hari (sliding) setiap request terautentikasi. */
+    /** Perpanjang session 7 hari (sliding) — tanpa setcookie setelah header terkirim. */
     protected function extendSession(): void
     {
         if (session_status() !== PHP_SESSION_ACTIVE) {
@@ -33,18 +33,19 @@ abstract class InvestasiController extends BaseController
         $lifetime = 7 * 24 * 60 * 60;
         ini_set('session.gc_maxlifetime', (string) $lifetime);
 
-        $params = session_get_cookie_params();
-        setcookie(session_name(), session_id(), [
-            'expires' => time() + $lifetime,
-            'path' => $params['path'] ?: '/',
-            'domain' => $params['domain'] ?? '',
-            'secure' => $params['secure'] ?? false,
-            'httponly' => $params['httponly'] ?? true,
-            'samesite' => $params['samesite'] ?? 'Lax',
-        ]);
-
         if (!empty($_SESSION[$this->session_key]['logged_in'])) {
             $_SESSION[$this->session_key]['expires_at'] = time() + $lifetime;
+        }
+    }
+
+    /** Total expense aman jika tabel daily_expenses belum ada di server. */
+    protected function safeExpenseSum(string $sql, array $bind = []): float
+    {
+        try {
+            $row = $this->db($this->db_index)->query($sql, $bind)->row_array();
+            return (float) ($row['total'] ?? 0);
+        } catch (\Throwable $e) {
+            return 0.0;
         }
     }
 
