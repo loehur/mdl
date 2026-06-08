@@ -152,15 +152,15 @@
   }
 
   .dock {
-    @apply fixed bottom-5 left-1/2 z-50 -translate-x-1/2;
+    @apply fixed bottom-0 left-0 right-0 z-50;
   }
 
   .dock-inner {
-    @apply flex max-w-[calc(100vw-2rem)] items-center gap-0.5 overflow-x-auto rounded-full border border-ink-200 bg-ink-50/95 px-2 py-2 shadow-panel backdrop-blur-md;
+    @apply mx-auto flex w-full max-w-md items-center gap-0.5 overflow-x-auto rounded-t-3xl rounded-b-md border border-b-0 border-ink-200 bg-ink-50/95 px-2 py-2.5 shadow-panel backdrop-blur-md;
   }
 
   .dock-link {
-    @apply relative flex min-w-[3.25rem] shrink-0 flex-col items-center gap-1 rounded-full px-2.5 py-2.5 text-xs font-semibold tracking-wide text-mist transition;
+    @apply relative flex min-w-[3.25rem] shrink-0 flex-col items-center gap-1 rounded-xl px-2.5 py-2.5 text-xs font-semibold tracking-wide text-mist transition;
   }
 
   .dock-link svg {
