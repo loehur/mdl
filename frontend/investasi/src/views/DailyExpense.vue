@@ -1,53 +1,5 @@
 <template>
   <div class="space-y-6">
-    <!-- Kelola target pengeluaran -->
-    <section class="glass p-5">
-      <div class="mb-4 flex items-start justify-between gap-3">
-        <div>
-          <p class="label-caps">Master data</p>
-          <h2 class="section-title mt-1">Target pengeluaran</h2>
-        </div>
-      </div>
-
-      <form class="mb-4 flex gap-2" @submit.prevent="addTarget">
-        <input
-          v-model="newTargetName"
-          class="field-input flex-1"
-          type="text"
-          placeholder="Nama target, mis. Makan, Transport"
-          maxlength="100"
-        />
-        <button class="btn-debit shrink-0 !px-4" type="submit" :disabled="addingTarget">
-          {{ addingTarget ? "..." : "Tambah" }}
-        </button>
-      </form>
-
-      <div v-if="targetsLoading" class="skeleton h-12" />
-
-      <p v-else-if="targets.length === 0" class="rounded-2xl border border-dashed border-ink-200 px-4 py-6 text-center text-sm text-mist">
-        Belum ada target. Tambahkan dulu agar bisa dipilih saat input pengeluaran.
-      </p>
-
-      <div v-else class="flex flex-wrap gap-2">
-        <span
-          v-for="tgt in targets"
-          :key="tgt.id"
-          class="inline-flex items-center gap-1.5 rounded-xl border border-debit-dim/20 bg-debit-light px-3 py-2 text-sm font-medium text-debit-dim"
-        >
-          {{ tgt.name }}
-          <button
-            type="button"
-            class="ml-0.5 text-mist hover:text-debit"
-            title="Hapus target"
-            @click="removeTarget(tgt.id)"
-          >
-            ×
-          </button>
-        </span>
-      </div>
-
-      <AlertBanner class="mt-3" :message="targetMessage" :type="targetError ? 'error' : 'success'" />
-    </section>
 
     <!-- Form input pengeluaran -->
     <section class="glass-strong p-6">
@@ -61,9 +13,14 @@
 
       <form class="space-y-4" @submit.prevent="submitForm">
         <div>
-          <label class="field-label">Target pengeluaran <span class="text-debit">*</span></label>
+          <div class="mb-2 flex items-center justify-between gap-2">
+            <label class="field-label !mb-0">Target pengeluaran <span class="text-debit">*</span></label>
+            <button class="btn-ghost !px-3 !py-1.5 !text-xs" type="button" @click="showTargetManager = true">
+              Kelola
+            </button>
+          </div>
           <div v-if="targets.length === 0" class="rounded-2xl border border-debit-dim/20 bg-debit-light px-4 py-3 text-sm text-debit-dim">
-            Tambahkan target pengeluaran di atas terlebih dahulu.
+            Tambahkan target lewat tombol Kelola.
           </div>
           <div v-else class="grid grid-cols-2 gap-2 sm:grid-cols-3">
             <button
@@ -165,6 +122,69 @@
         </li>
       </ul>
     </section>
+
+    <button
+      class="btn-debit fixed bottom-24 right-5 z-40 !px-4 !py-2.5 !text-xs shadow-panel"
+      type="button"
+      @click="showTargetManager = true"
+    >
+      Kelola target
+    </button>
+
+    <div
+      v-if="showTargetManager"
+      class="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/35 p-4 sm:items-center"
+      @click.self="showTargetManager = false"
+    >
+      <section class="glass-strong w-full max-w-md p-5">
+        <div class="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <p class="label-caps">Master data</p>
+            <h2 class="section-title mt-1">Target pengeluaran</h2>
+          </div>
+          <button class="btn-icon" type="button" title="Tutup" @click="showTargetManager = false">✕</button>
+        </div>
+
+        <form class="mb-4 flex gap-2" @submit.prevent="addTarget">
+          <input
+            v-model="newTargetName"
+            class="field-input flex-1"
+            type="text"
+            placeholder="Nama target, mis. Makan, Transport"
+            maxlength="100"
+          />
+          <button class="btn-debit shrink-0 !px-4" type="submit" :disabled="addingTarget">
+            {{ addingTarget ? "..." : "Tambah" }}
+          </button>
+        </form>
+
+        <div v-if="targetsLoading" class="skeleton h-12" />
+
+        <p v-else-if="targets.length === 0" class="rounded-2xl border border-dashed border-ink-200 px-4 py-6 text-center text-sm text-mist">
+          Belum ada target. Tambahkan dulu agar bisa dipilih saat input pengeluaran.
+        </p>
+
+        <div v-else class="flex max-h-52 flex-wrap gap-2 overflow-y-auto pr-1">
+          <span
+            v-for="tgt in targets"
+            :key="tgt.id"
+            class="inline-flex items-center gap-1.5 rounded-xl border border-debit-dim/20 bg-debit-light px-3 py-2 text-sm font-medium text-debit-dim"
+          >
+            {{ tgt.name }}
+            <button
+              type="button"
+              class="ml-0.5 text-mist hover:text-debit"
+              title="Hapus target"
+              @click="removeTarget(tgt.id)"
+            >
+              ×
+            </button>
+          </span>
+        </div>
+
+        <AlertBanner class="mt-3" :message="targetMessage" :type="targetError ? 'error' : 'success'" />
+      </section>
+    </div>
   </div>
 </template>
 
@@ -189,6 +209,7 @@ const message = ref("");
 const isError = ref(false);
 const targetMessage = ref("");
 const targetError = ref(false);
+const showTargetManager = ref(false);
 
 function resetForm() {
   editingId.value = null;

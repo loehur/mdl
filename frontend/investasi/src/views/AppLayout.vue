@@ -2,7 +2,7 @@
   <div class="app-shell">
     <MeshBackground />
 
-    <header class="sticky top-0 z-40 px-5 pt-6 pb-4">
+    <header class="sticky top-0 z-40 border-b border-ink-200 bg-ink-50/95 px-5 pt-6 pb-4 shadow-sm backdrop-blur-md">
       <div class="mx-auto flex max-w-md items-end justify-between">
         <div class="page-enter">
           <p class="label-caps mb-1">Personal Finance</p>
