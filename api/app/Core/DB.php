@@ -20,7 +20,7 @@ class DB extends \DBC
     {
         // Simple singleton logic for connections could be here or handled by getInstance
         // Select DB config based on environment
-        $config = parent::dbm[\Env::MODE][$db];
+        $config = \DBC::getDbConfig((int) $db);
         
         $db_name = $config['db'];
         $db_user = $config['user'];

@@ -54,7 +54,7 @@
         <div class="mb-3 flex items-center justify-between">
           <h2 class="text-sm font-medium text-pearl">Aliran investasi</h2>
         </div>
-        <div class="glass divide-y divide-white/[0.06] overflow-hidden">
+        <div class="glass divide-y divide-ink-200 overflow-hidden">
           <div class="flex items-center justify-between px-5 py-4">
             <div class="flex items-center gap-3">
               <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-credit-dim/10 text-credit">
@@ -81,7 +81,7 @@
               </div>
             </div>
           </div>
-          <div class="flex items-center justify-between bg-white/[0.02] px-5 py-4">
+          <div class="flex items-center justify-between bg-ink px-5 py-4">
             <p class="text-sm text-mist">Net investasi</p>
             <p
               class="font-display text-xl"

@@ -21,9 +21,9 @@
         <div class="flex gap-8">
           <div>
             <p class="label-caps">Fitur</p>
-            <p class="mt-2 text-sm text-pearl/70">Pemasukan harian</p>
-            <p class="text-sm text-pearl/70">Deposit & penarikan</p>
-            <p class="text-sm text-pearl/70">Update portfolio</p>
+            <p class="mt-2 text-sm text-mist">Pemasukan harian</p>
+            <p class="text-sm text-mist">Deposit & penarikan</p>
+            <p class="text-sm text-mist">Update portfolio</p>
           </div>
           <div>
             <p class="label-caps">Segera</p>
@@ -33,7 +33,7 @@
       </div>
 
       <div class="absolute -right-20 top-1/4 h-80 w-80 rounded-full border border-ledger/10" />
-      <div class="absolute right-10 bottom-20 h-40 w-40 rounded-full border border-white/5 bg-ledger/5 blur-sm" />
+      <div class="absolute right-10 bottom-20 h-40 w-40 rounded-full border border-ledger/15 bg-ledger/5 blur-sm" />
     </aside>
 
     <!-- Login form -->
@@ -126,7 +126,7 @@ async function onSubmit() {
     const data = await res.json().catch(() => ({}));
 
     if (!res.ok || !data.success) {
-      message.value = data.message || "Login gagal";
+      message.value = data.message || data.error || "Login gagal";
       isError.value = true;
       return;
     }

@@ -13,34 +13,60 @@ class Auth extends InvestasiController
             $this->error('Method not allowed', 405);
         }
 
-        $body = $this->getBody();
-        $this->validate($body, ['email', 'password']);
+        try {
+            $body = $this->getBody();
+            $this->validate($body, ['email', 'password']);
 
-        $user = $this->db($this->db_index)
-            ->get_where('users', ['email' => trim($body['email'])], 1)
-            ->row_array();
+            $user = $this->db($this->db_index)
+                ->get_where('users', ['email' => trim($body['email'])], 1)
+                ->row_array();
 
-        if (!$user || !password_verify($body['password'], $user['password'])) {
-            $this->error('Email atau kata sandi salah', 401);
+            if (!$user || !password_verify($body['password'], $user['password'])) {
+                $this->error('Email atau kata sandi salah', 401);
+            }
+
+            if ((int) $user['is_active'] !== 1) {
+                $this->error('Akun tidak aktif', 403);
+            }
+
+            unset($user['password']);
+
+            $_SESSION[$this->session_key] = [
+                'user' => $user,
+                'logged_in' => true,
+            ];
+
+            $this->json([
+                'success' => true,
+                'message' => 'Login berhasil',
+                'user' => $user,
+                'redirect' => '/dashboard',
+            ]);
+        } catch (\Throwable $e) {
+            $this->error('Login gagal: ' . $e->getMessage(), 500);
         }
+    }
 
-        if ((int) $user['is_active'] !== 1) {
-            $this->error('Akun tidak aktif', 403);
+    /**
+     * GET /Investasi/Auth/ping — cek koneksi DB (debug deploy)
+     */
+    public function ping()
+    {
+        try {
+            $config = \DBC::getDbConfig($this->db_index);
+            $this->db($this->db_index)->query('SELECT 1 AS ok');
+            $hasUsers = $this->db($this->db_index)
+                ->query("SHOW TABLES LIKE 'users'")
+                ->row_array();
+
+            $this->success([
+                'database' => $config['db'],
+                'mode' => \Env::MODE,
+                'users_table' => (bool) $hasUsers,
+            ], 'Koneksi database OK');
+        } catch (\Throwable $e) {
+            $this->error('Database error: ' . $e->getMessage(), 500);
         }
-
-        unset($user['password']);
-
-        $_SESSION[$this->session_key] = [
-            'user' => $user,
-            'logged_in' => true,
-        ];
-
-        $this->json([
-            'success' => true,
-            'message' => 'Login berhasil',
-            'user' => $user,
-            'redirect' => '/dashboard',
-        ]);
     }
 
     public function check()

@@ -7,12 +7,12 @@
       </div>
 
       <!-- Type selector -->
-      <div class="mb-5 grid grid-cols-2 gap-2 rounded-2xl border border-white/[0.06] bg-ink/40 p-1">
+      <div class="mb-5 grid grid-cols-2 gap-2 rounded-2xl border border-ink-200 bg-ink-100 p-1">
         <button
           type="button"
           class="rounded-xl py-3 text-sm font-medium transition"
           :class="form.movement_type === 'deposit'
-            ? 'bg-credit-dim/15 text-credit shadow-inner'
+            ? 'bg-credit-light text-credit-dim shadow-inner'
             : 'text-mist hover:text-pearl'"
           @click="form.movement_type = 'deposit'"
         >
@@ -22,7 +22,7 @@
           type="button"
           class="rounded-xl py-3 text-sm font-medium transition"
           :class="form.movement_type === 'withdrawal'
-            ? 'bg-debit-dim/15 text-debit shadow-inner'
+            ? 'bg-debit-light text-debit-dim shadow-inner'
             : 'text-mist hover:text-pearl'"
           @click="form.movement_type = 'withdrawal'"
         >
