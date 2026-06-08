@@ -23,8 +23,6 @@
         :gain-loss="gainLoss"
         :gain-loss-pct="gainLossPct"
         :status="status"
-        :portfolio="current.amount"
-        :invested="netInvestment"
       />
     </section>
 

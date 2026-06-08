@@ -39,19 +39,23 @@
       <!-- Portfolio vs modal investasi -->
       <section class="glass-strong relative overflow-hidden p-4 shadow-glow">
         <div class="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-ledger/10 blur-2xl" />
-        <p class="label-caps relative">Portfolio</p>
-        <p class="money-display relative mt-2 text-[1.75rem] text-ledger-dim">
-          {{ formatRupiah(summary.portfolio_amount) }}
+        <p class="relative">
+          <span class="label-caps">Portfolio</span>
+          <span
+            v-if="summary.portfolio?.record_date"
+            class="text-xs font-normal normal-case tracking-normal text-mist"
+          >
+            (Snapshot {{ snapshotDateLabel }})
+          </span>
         </p>
+        <router-link
+          to="/portfolio"
+          class="money-display relative mt-2 block text-[1.75rem] text-ledger-dim transition active:opacity-80"
+        >
+          {{ summary.portfolio_amount !== null ? formatRupiah(summary.portfolio_amount) : '—' }}
+        </router-link>
         <p class="relative mt-1.5 text-sm leading-snug text-mist">
-          Modal investasi: <span class="font-semibold text-pearl">{{ formatRupiah(summary.net_investment) }}</span>
-          <span class="text-mist/70"> (deposit − penarikan)</span>
-        </p>
-        <p class="relative mt-0.5 text-sm leading-snug text-mist">
-          <template v-if="summary.portfolio?.record_date">
-            Snapshot {{ formatDate(summary.portfolio.record_date) }}
-          </template>
-          <template v-else>Belum ada snapshot — update nilai portfolio secara berkala</template>
+          Modal: <span class="font-semibold text-pearl">{{ formatRupiah(summary.net_investment) }}</span>
         </p>
 
         <GainLossBadge
@@ -60,8 +64,6 @@
           :gain-loss="summary.gain_loss"
           :gain-loss-pct="summary.gain_loss_pct"
           :status="summary.status"
-          :portfolio="summary.portfolio_amount"
-          :invested="summary.net_investment"
         />
 
         <p
@@ -71,9 +73,6 @@
           Input deposit sudah ada. Update snapshot portfolio untuk melihat tumbuh/rugi.
         </p>
 
-        <router-link to="/portfolio" class="btn-ghost relative mt-3 block w-full !py-3 text-center">
-          Update portfolio
-        </router-link>
       </section>
 
       <!-- Deposit & penarikan manual -->
@@ -86,27 +85,25 @@
           <router-link to="/investasi" class="text-sm font-semibold text-ledger-dim">Kelola →</router-link>
         </div>
         <div class="glass divide-y divide-ink-200 overflow-hidden">
-          <div class="flex items-center justify-between px-4 py-3">
-            <div class="flex items-center gap-2.5">
-              <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-credit-dim/10 text-credit">
+          <div class="grid grid-cols-2 divide-x divide-ink-200">
+            <div class="flex items-center gap-2.5 px-4 py-3">
+              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-credit-dim/10 text-credit">
                 <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M12 19V5M7 10l5-5 5 5" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
               </span>
-              <div>
+              <div class="min-w-0">
                 <p class="text-sm text-mist">Total deposit</p>
                 <p class="font-semibold text-pearl">{{ formatRupiah(summary.total_deposits) }}</p>
               </div>
             </div>
-          </div>
-          <div class="flex items-center justify-between px-4 py-3">
-            <div class="flex items-center gap-2.5">
-              <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-debit-dim/10 text-debit">
+            <div class="flex items-center gap-2.5 px-4 py-3">
+              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-debit-dim/10 text-debit">
                 <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M12 5v14M7 14l5 5 5-5" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
               </span>
-              <div>
+              <div class="min-w-0">
                 <p class="text-sm text-mist">Total penarikan</p>
                 <p class="font-semibold text-pearl">{{ formatRupiah(summary.total_withdrawals) }}</p>
               </div>
@@ -125,8 +122,8 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from "vue";
-import { formatDate, formatRupiah } from "../utils/format";
+import { computed, onMounted, ref } from "vue";
+import { formatRupiah } from "../utils/format";
 import AlertBanner from "../components/AlertBanner.vue";
 import GainLossBadge from "../components/GainLossBadge.vue";
 
@@ -145,6 +142,17 @@ const summary = ref({
   gain_loss: null,
   gain_loss_pct: null,
   status: null,
+});
+
+const snapshotDateLabel = computed(() => {
+  const dateStr = summary.value.portfolio?.record_date;
+  if (!dateStr) return "";
+  const date = new Date(`${dateStr}T00:00:00`);
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(date);
 });
 
 async function loadSummary() {
