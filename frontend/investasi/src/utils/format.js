@@ -25,3 +25,21 @@ export function todayISO() {
 export function currentMonth() {
   return new Date().toISOString().slice(0, 7);
 }
+
+/** Selisih portfolio vs modal investasi: +Rp ... atau -Rp ... */
+export function formatGainLoss(value) {
+  if (value === null || value === undefined) return null;
+  const num = Number(value);
+  if (Number.isNaN(num)) return null;
+  const abs = formatRupiah(Math.abs(num));
+  if (num > 0) return `+${abs}`;
+  if (num < 0) return `-${abs}`;
+  return abs;
+}
+
+export function gainLossLabel(status) {
+  if (status === "profit") return "Tumbuh";
+  if (status === "loss") return "Rugi";
+  if (status === "breakeven") return "Impas";
+  return null;
+}

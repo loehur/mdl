@@ -15,16 +15,15 @@ class Portfolio extends InvestasiController
 
     public function current()
     {
-        $latest = $this->db($this->db_index)->query(
-            "SELECT id, amount, record_date, note, created_at
-             FROM portfolio_snapshots
-             ORDER BY record_date DESC, id DESC
-             LIMIT 1"
-        )->row_array();
+        $performance = $this->getPortfolioPerformance();
 
         $this->success([
-            'current' => $latest ?: null,
-            'amount' => $latest ? (float) $latest['amount'] : null,
+            'current' => $performance['portfolio'],
+            'amount' => $performance['portfolio_amount'],
+            'net_investment' => $performance['net_investment'],
+            'gain_loss' => $performance['gain_loss'],
+            'gain_loss_pct' => $performance['gain_loss_pct'],
+            'status' => $performance['status'],
         ]);
     }
 

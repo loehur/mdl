@@ -4,6 +4,9 @@ namespace App\Controllers\Investasi;
 
 /**
  * Dashboard — GET /Investasi/Dashboard/summary
+ *
+ * Pemasukan harian = modul terpisah, tidak mempengaruhi portfolio.
+ * Portfolio dibandingkan dengan modal investasi (deposit - penarikan).
  */
 class Dashboard extends InvestasiController
 {
@@ -18,38 +21,31 @@ class Dashboard extends InvestasiController
         $today = date('Y-m-d');
         $monthStart = date('Y-m-01');
 
-        $todayIncome = $this->db($this->db_index)->query(
+        $todayIncome = (float) ($this->db($this->db_index)->query(
             "SELECT COALESCE(SUM(amount), 0) AS total FROM daily_incomes WHERE record_date = ?",
             [$today]
-        )->row_array()['total'] ?? 0;
+        )->row_array()['total'] ?? 0);
 
-        $monthIncome = $this->db($this->db_index)->query(
+        $monthIncome = (float) ($this->db($this->db_index)->query(
             "SELECT COALESCE(SUM(amount), 0) AS total FROM daily_incomes WHERE record_date BETWEEN ? AND ?",
             [$monthStart, $today]
-        )->row_array()['total'] ?? 0;
+        )->row_array()['total'] ?? 0);
 
-        $deposits = $this->db($this->db_index)->query(
-            "SELECT COALESCE(SUM(amount), 0) AS total FROM investment_movements WHERE movement_type = 'deposit'"
-        )->row_array()['total'] ?? 0;
-
-        $withdrawals = $this->db($this->db_index)->query(
-            "SELECT COALESCE(SUM(amount), 0) AS total FROM investment_movements WHERE movement_type = 'withdrawal'"
-        )->row_array()['total'] ?? 0;
-
-        $portfolio = $this->db($this->db_index)->query(
-            "SELECT amount, record_date, note, created_at FROM portfolio_snapshots ORDER BY record_date DESC, id DESC LIMIT 1"
-        )->row_array();
-
-        $netInvestment = (float) $deposits - (float) $withdrawals;
+        $performance = $this->getPortfolioPerformance();
 
         $this->success([
-            'today_income' => (float) $todayIncome,
-            'month_income' => (float) $monthIncome,
-            'total_deposits' => (float) $deposits,
-            'total_withdrawals' => (float) $withdrawals,
-            'net_investment' => $netInvestment,
-            'portfolio' => $portfolio ?: null,
-            'portfolio_amount' => $portfolio ? (float) $portfolio['amount'] : null,
+            // Pemasukan — independen dari portfolio
+            'today_income' => $todayIncome,
+            'month_income' => $monthIncome,
+            // Investasi & portfolio
+            'total_deposits' => $performance['total_deposits'],
+            'total_withdrawals' => $performance['total_withdrawals'],
+            'net_investment' => $performance['net_investment'],
+            'portfolio' => $performance['portfolio'],
+            'portfolio_amount' => $performance['portfolio_amount'],
+            'gain_loss' => $performance['gain_loss'],
+            'gain_loss_pct' => $performance['gain_loss_pct'],
+            'status' => $performance['status'],
         ]);
     }
 }

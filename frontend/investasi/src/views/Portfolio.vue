@@ -8,11 +8,24 @@
         {{ formatRupiah(current?.amount) }}
       </p>
       <p class="relative mt-3 text-sm text-mist">
+        Modal investasi: <span class="font-semibold text-pearl">{{ formatRupiah(netInvestment) }}</span>
+      </p>
+      <p class="relative mt-1 text-xs text-mist">
         <template v-if="current?.record_date">
           Snapshot {{ formatDate(current.record_date) }}
         </template>
         <template v-else>Belum pernah diupdate</template>
       </p>
+
+      <GainLossBadge
+        v-if="current?.amount != null && gainLoss !== null"
+        class="relative mx-auto mt-5 max-w-sm text-left"
+        :gain-loss="gainLoss"
+        :gain-loss-pct="gainLossPct"
+        :status="status"
+        :portfolio="current.amount"
+        :invested="netInvestment"
+      />
     </section>
 
     <!-- Update form -->
@@ -20,7 +33,9 @@
       <div class="mb-6">
         <p class="label-caps">Perbarui</p>
         <h2 class="section-title mt-1">Snapshot portfolio</h2>
-        <p class="mt-2 text-sm text-mist">Masukkan nilai total aset investasi terkini.</p>
+        <p class="mt-2 text-sm text-mist">
+          Update nilai aset secara berkala. Selisih dengan modal investasi = tumbuh (+) atau rugi (−).
+        </p>
       </div>
 
       <form class="space-y-4" @submit.prevent="submitForm">
@@ -101,9 +116,14 @@ import { onMounted, ref } from "vue";
 import { formatDate, formatRupiah, todayISO } from "../utils/format";
 import AlertBanner from "../components/AlertBanner.vue";
 import EmptyState from "../components/EmptyState.vue";
+import GainLossBadge from "../components/GainLossBadge.vue";
 
 const form = ref({ record_date: todayISO(), amount: "", note: "" });
 const current = ref(null);
+const netInvestment = ref(0);
+const gainLoss = ref(null);
+const gainLossPct = ref(null);
+const status = ref(null);
 const history = ref([]);
 const loading = ref(false);
 const saving = ref(false);
@@ -128,6 +148,10 @@ async function loadData() {
     }
 
     current.value = currentData.data.current;
+    netInvestment.value = currentData.data.net_investment ?? 0;
+    gainLoss.value = currentData.data.gain_loss;
+    gainLossPct.value = currentData.data.gain_loss_pct;
+    status.value = currentData.data.status;
     history.value = historyData.data.items;
 
     if (current.value?.amount) {

@@ -7,7 +7,7 @@
           <p class="label-caps">{{ editingId ? "Edit entri" : "Entri baru" }}</p>
           <h2 class="section-title mt-1">Pemasukan harian</h2>
         </div>
-        <span class="chip-in">Inflow</span>
+        <span class="chip-in">Terpisah</span>
       </div>
 
       <form class="space-y-4" @submit.prevent="submitForm">

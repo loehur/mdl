@@ -87,7 +87,7 @@ const IconChart = () =>
 
 const navItems = [
   { path: "/dashboard", label: "Home", icon: IconHome },
-  { path: "/pemasukan", label: "Masuk", icon: IconIncome },
+  { path: "/pemasukan", label: "Pemasukan", icon: IconIncome },
   { path: "/investasi", label: "Aliran", icon: IconFlow },
   { path: "/portfolio", label: "Aset", icon: IconChart },
 ];

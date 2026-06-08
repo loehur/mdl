@@ -1,41 +1,23 @@
 <template>
   <div class="space-y-6">
     <div v-if="loading" class="space-y-4">
-      <div class="skeleton h-44" />
       <div class="grid grid-cols-2 gap-3">
         <div class="skeleton h-24" />
         <div class="skeleton h-24" />
-        <div class="skeleton h-24" />
-        <div class="skeleton h-24" />
       </div>
+      <div class="skeleton h-48" />
+      <div class="skeleton h-44" />
     </div>
 
     <template v-else>
-      <!-- Hero portfolio card -->
-      <section class="glass-strong relative overflow-hidden p-6 shadow-glow">
-        <div class="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-ledger/10 blur-2xl" />
-        <p class="label-caps relative">Portfolio terkini</p>
-        <p class="money-display relative mt-3 text-ledger-dim">
-          {{ formatRupiah(summary.portfolio_amount) }}
-        </p>
-        <p class="relative mt-3 text-sm text-mist">
-          <template v-if="summary.portfolio?.record_date">
-            Diperbarui {{ formatDate(summary.portfolio.record_date) }}
-          </template>
-          <template v-else>Belum ada snapshot portfolio</template>
-        </p>
-
-        <div class="relative mt-6 flex gap-3">
-          <router-link to="/pemasukan" class="btn-primary flex-1 text-center">+ Pemasukan</router-link>
-          <router-link to="/portfolio" class="btn-ghost flex-1 text-center">Update</router-link>
-        </div>
-      </section>
-
-      <!-- Income row -->
+      <!-- Pemasukan — modul terpisah, tidak masuk portfolio -->
       <section>
-        <div class="mb-3 flex items-center justify-between">
-          <h2 class="text-sm font-bold text-pearl">Pemasukan</h2>
-          <span class="text-xs text-mist">bulan berjalan</span>
+        <div class="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <h2 class="text-sm font-bold text-pearl">Pemasukan</h2>
+            <p class="mt-0.5 text-xs text-mist">Catatan pendapatan harian — tidak mempengaruhi portfolio</p>
+          </div>
+          <router-link to="/pemasukan" class="btn-primary !px-4 !py-2 text-xs">+ Input</router-link>
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div class="stat-tile">
@@ -49,10 +31,54 @@
         </div>
       </section>
 
-      <!-- Investment flow -->
+      <!-- Portfolio vs modal investasi -->
+      <section class="glass-strong relative overflow-hidden p-6 shadow-glow">
+        <div class="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-ledger/10 blur-2xl" />
+        <p class="label-caps relative">Portfolio</p>
+        <p class="money-display relative mt-3 text-ledger-dim">
+          {{ formatRupiah(summary.portfolio_amount) }}
+        </p>
+        <p class="relative mt-2 text-sm text-mist">
+          Modal investasi: <span class="font-semibold text-pearl">{{ formatRupiah(summary.net_investment) }}</span>
+          <span class="text-mist/70"> (deposit − penarikan)</span>
+        </p>
+        <p class="relative mt-1 text-xs text-mist">
+          <template v-if="summary.portfolio?.record_date">
+            Snapshot {{ formatDate(summary.portfolio.record_date) }}
+          </template>
+          <template v-else>Belum ada snapshot — update nilai portfolio secara berkala</template>
+        </p>
+
+        <GainLossBadge
+          v-if="summary.portfolio_amount !== null && summary.gain_loss !== null"
+          class="relative mt-4"
+          :gain-loss="summary.gain_loss"
+          :gain-loss-pct="summary.gain_loss_pct"
+          :status="summary.status"
+          :portfolio="summary.portfolio_amount"
+          :invested="summary.net_investment"
+        />
+
+        <p
+          v-else-if="summary.portfolio_amount === null && summary.net_investment > 0"
+          class="relative mt-4 rounded-2xl border border-ink-200 bg-ink-100 px-4 py-3 text-xs text-mist"
+        >
+          Input deposit sudah ada. Update snapshot portfolio untuk melihat tumbuh/rugi.
+        </p>
+
+        <router-link to="/portfolio" class="btn-ghost relative mt-5 block w-full text-center">
+          Update portfolio
+        </router-link>
+      </section>
+
+      <!-- Deposit & penarikan manual -->
       <section>
         <div class="mb-3 flex items-center justify-between">
-          <h2 class="text-sm font-bold text-pearl">Aliran investasi</h2>
+          <div>
+            <h2 class="text-sm font-bold text-pearl">Modal investasi</h2>
+            <p class="mt-0.5 text-xs text-mist">Input deposit & penarikan secara manual</p>
+          </div>
+          <router-link to="/investasi" class="text-xs font-semibold text-ledger-dim">Kelola →</router-link>
         </div>
         <div class="glass divide-y divide-ink-200 overflow-hidden">
           <div class="flex items-center justify-between px-5 py-4">
@@ -64,7 +90,7 @@
               </span>
               <div>
                 <p class="text-xs text-mist">Total deposit</p>
-                <p class="font-medium text-pearl">{{ formatRupiah(summary.total_deposits) }}</p>
+                <p class="font-semibold text-pearl">{{ formatRupiah(summary.total_deposits) }}</p>
               </div>
             </div>
           </div>
@@ -77,18 +103,13 @@
               </span>
               <div>
                 <p class="text-xs text-mist">Total penarikan</p>
-                <p class="font-medium text-pearl">{{ formatRupiah(summary.total_withdrawals) }}</p>
+                <p class="font-semibold text-pearl">{{ formatRupiah(summary.total_withdrawals) }}</p>
               </div>
             </div>
           </div>
           <div class="flex items-center justify-between bg-ink px-5 py-4">
-            <p class="text-sm text-mist">Net investasi</p>
-            <p
-              class="money-display-sm text-pearl"
-              :class="summary.net_investment >= 0 ? 'text-credit' : 'text-debit'"
-            >
-              {{ formatRupiah(summary.net_investment) }}
-            </p>
+            <p class="text-sm font-medium text-mist">Modal bersih</p>
+            <p class="money-display-sm text-pearl">{{ formatRupiah(summary.net_investment) }}</p>
           </div>
         </div>
       </section>
@@ -102,6 +123,7 @@
 import { onMounted, ref } from "vue";
 import { formatDate, formatRupiah } from "../utils/format";
 import AlertBanner from "../components/AlertBanner.vue";
+import GainLossBadge from "../components/GainLossBadge.vue";
 
 const loading = ref(true);
 const error = ref("");
@@ -113,6 +135,9 @@ const summary = ref({
   net_investment: 0,
   portfolio_amount: null,
   portfolio: null,
+  gain_loss: null,
+  gain_loss_pct: null,
+  status: null,
 });
 
 async function loadSummary() {

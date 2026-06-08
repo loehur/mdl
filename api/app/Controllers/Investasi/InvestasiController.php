@@ -49,4 +49,69 @@ abstract class InvestasiController extends BaseController
 
         return $value;
     }
+
+    /**
+     * Total deposit, penarikan, dan modal bersih (deposit - penarikan).
+     */
+    protected function getInvestmentTotals(): array
+    {
+        $deposits = (float) ($this->db($this->db_index)->query(
+            "SELECT COALESCE(SUM(amount), 0) AS total FROM investment_movements WHERE movement_type = 'deposit'"
+        )->row_array()['total'] ?? 0);
+
+        $withdrawals = (float) ($this->db($this->db_index)->query(
+            "SELECT COALESCE(SUM(amount), 0) AS total FROM investment_movements WHERE movement_type = 'withdrawal'"
+        )->row_array()['total'] ?? 0);
+
+        return [
+            'total_deposits' => $deposits,
+            'total_withdrawals' => $withdrawals,
+            'net_investment' => $deposits - $withdrawals,
+        ];
+    }
+
+    /**
+     * Snapshot portfolio terbaru + selisih vs modal investasi.
+     * Pemasukan harian TIDAK masuk perhitungan ini.
+     */
+    protected function getPortfolioPerformance(): array
+    {
+        $totals = $this->getInvestmentTotals();
+        $netInvestment = $totals['net_investment'];
+
+        $portfolio = $this->db($this->db_index)->query(
+            "SELECT id, amount, record_date, note, created_at
+             FROM portfolio_snapshots
+             ORDER BY record_date DESC, id DESC
+             LIMIT 1"
+        )->row_array();
+
+        $portfolioAmount = $portfolio ? (float) $portfolio['amount'] : null;
+        $gainLoss = null;
+        $gainLossPct = null;
+        $status = null;
+
+        if ($portfolioAmount !== null) {
+            $gainLoss = $portfolioAmount - $netInvestment;
+            if ($gainLoss > 0) {
+                $status = 'profit';
+            } elseif ($gainLoss < 0) {
+                $status = 'loss';
+            } else {
+                $status = 'breakeven';
+            }
+
+            if ($netInvestment > 0) {
+                $gainLossPct = round(($gainLoss / $netInvestment) * 100, 2);
+            }
+        }
+
+        return array_merge($totals, [
+            'portfolio' => $portfolio ?: null,
+            'portfolio_amount' => $portfolioAmount,
+            'gain_loss' => $gainLoss,
+            'gain_loss_pct' => $gainLossPct,
+            'status' => $status,
+        ]);
+    }
 }
