@@ -123,14 +123,6 @@
       </ul>
     </section>
 
-    <button
-      class="btn-debit fixed bottom-24 right-5 z-40 !px-4 !py-2.5 !text-xs shadow-panel"
-      type="button"
-      @click="showTargetManager = true"
-    >
-      Kelola target
-    </button>
-
     <div
       v-if="showTargetManager"
       class="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/35 p-4 sm:items-center"

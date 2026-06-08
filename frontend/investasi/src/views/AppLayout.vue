@@ -20,7 +20,7 @@
 
     <div class="header-spacer" aria-hidden="true" />
 
-    <main class="mx-auto max-w-md px-5 page-enter" style="animation-delay: 0.05s">
+    <main class="mx-auto max-w-md px-5 pt-3 page-enter" style="animation-delay: 0.05s">
       <router-view v-slot="{ Component }">
         <transition name="page" mode="out-in">
           <component :is="Component" />
@@ -171,7 +171,7 @@ async function logout() {
 }
 
 .header-spacer {
-  height: 5.5rem;
+  height: 6.75rem;
 }
 
 .page-enter-active,
