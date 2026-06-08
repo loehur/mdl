@@ -2,8 +2,8 @@
   <div class="app-shell">
     <MeshBackground />
 
-    <header class="sticky top-0 z-40 border-b border-ink-200 bg-ink-50/95 px-5 pt-6 pb-4 shadow-sm backdrop-blur-md">
-      <div class="mx-auto flex max-w-md items-end justify-between">
+    <header class="app-header" :class="{ 'app-header--hidden': !headerVisible }">
+      <div class="mx-auto flex max-w-md items-end justify-between px-5 pt-6 pb-4">
         <div class="page-enter">
           <p class="label-caps mb-1">Personal Finance</p>
           <h1 class="page-title">{{ pageTitle }}</h1>
@@ -17,6 +17,8 @@
         </button>
       </div>
     </header>
+
+    <div class="header-spacer" aria-hidden="true" />
 
     <main class="mx-auto max-w-md px-5 page-enter" style="animation-delay: 0.05s">
       <router-view v-slot="{ Component }">
@@ -48,7 +50,7 @@
 </template>
 
 <script setup>
-import { computed, h } from "vue";
+import { computed, h, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import MeshBackground from "../components/MeshBackground.vue";
 
@@ -109,6 +111,37 @@ const titles = {
 };
 
 const pageTitle = computed(() => titles[route.path] || "Investasi");
+const headerVisible = ref(true);
+
+let scrollTicking = false;
+
+function updateHeaderVisibility() {
+  headerVisible.value = window.scrollY <= 8;
+  scrollTicking = false;
+}
+
+function onScroll() {
+  if (scrollTicking) return;
+  scrollTicking = true;
+  requestAnimationFrame(updateHeaderVisibility);
+}
+
+onMounted(() => {
+  window.addEventListener("scroll", onScroll, { passive: true });
+  updateHeaderVisibility();
+});
+
+onUnmounted(() => {
+  window.removeEventListener("scroll", onScroll);
+});
+
+watch(
+  () => route.path,
+  () => {
+    window.scrollTo({ top: 0 });
+    headerVisible.value = true;
+  }
+);
 
 async function logout() {
   try {
@@ -122,6 +155,25 @@ async function logout() {
 </script>
 
 <style scoped>
+.app-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  transition: transform 0.28s ease, opacity 0.28s ease;
+}
+
+.app-header--hidden {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.header-spacer {
+  height: 5.5rem;
+}
+
 .page-enter-active,
 .page-leave-active {
   transition: opacity 0.2s ease, transform 0.2s ease;
