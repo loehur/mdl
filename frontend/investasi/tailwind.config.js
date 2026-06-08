@@ -3,9 +3,9 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['"Plus Jakarta Sans"', "system-ui", "sans-serif"],
-        display: ['"Plus Jakarta Sans"', "system-ui", "sans-serif"],
-        mono: ['"JetBrains Mono"', "ui-monospace", "monospace"],
+        // Barlow ≈ pengganti gratis Maison Neue (font resmi Gojek)
+        sans: ['"Barlow"', "system-ui", "sans-serif"],
+        display: ['"Barlow Semi Condensed"', '"Barlow"', "system-ui", "sans-serif"],
       },
       colors: {
         ink: {

@@ -6,10 +6,10 @@
     <aside class="relative hidden w-[45%] overflow-hidden lg:flex lg:flex-col lg:justify-between lg:p-12">
       <div>
         <p class="label-caps text-ledger/80">Investasi PWA</p>
-        <h1 class="mt-4 text-4xl font-extrabold leading-tight tracking-tight text-pearl">
+        <h1 class="mt-4 font-display text-5xl font-bold leading-none tracking-tight text-pearl">
           Jurnal Keuangan
         </h1>
-        <p class="mt-3 text-lg font-semibold text-ledger-dim">
+        <p class="mt-3 font-sans text-lg font-semibold text-ledger-dim">
           Pemasukan · Investasi · Portfolio
         </p>
         <p class="mt-5 max-w-sm text-sm leading-relaxed text-mist">
@@ -42,7 +42,7 @@
       <div class="w-full max-w-sm page-enter">
         <div class="mb-10 lg:hidden">
           <p class="label-caps text-ledger/80">Investasi</p>
-          <h1 class="mt-2 text-2xl font-extrabold tracking-tight text-pearl">Masuk</h1>
+          <h1 class="mt-2 font-display text-3xl font-bold tracking-tight text-pearl">Masuk</h1>
         </div>
 
         <div class="glass-strong p-8">

@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@600;700;800&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -10,7 +10,7 @@
   }
 
   body {
-    @apply min-h-screen bg-ink font-sans text-pearl antialiased;
+    @apply min-h-screen bg-ink font-sans text-base text-pearl antialiased;
     background-image:
       radial-gradient(ellipse 80% 50% at 50% -20%, rgba(74, 143, 212, 0.1), transparent),
       radial-gradient(ellipse 60% 40% at 100% 50%, rgba(13, 148, 136, 0.05), transparent),
@@ -49,23 +49,23 @@
   }
 
   .label-caps {
-    @apply text-[11px] font-bold uppercase tracking-[0.12em] text-mist;
+    @apply font-sans text-[11px] font-semibold uppercase tracking-[0.08em] text-mist;
   }
 
   .page-title {
-    @apply font-display text-2xl font-extrabold tracking-tight text-pearl;
+    @apply font-display text-[1.65rem] font-bold leading-tight tracking-tight text-pearl;
   }
 
   .section-title {
-    @apply font-display text-lg font-bold tracking-tight text-pearl;
+    @apply font-display text-lg font-bold leading-tight tracking-tight text-pearl;
   }
 
   .money-display {
-    @apply font-mono text-3xl font-bold leading-none tracking-tight text-pearl tabular-nums md:text-4xl;
+    @apply font-display text-[2rem] font-bold leading-none tracking-tight text-pearl tabular-nums md:text-[2.35rem];
   }
 
   .money-display-sm {
-    @apply font-mono text-xl font-bold leading-none tracking-tight text-pearl tabular-nums;
+    @apply font-display text-xl font-bold leading-none tracking-tight text-pearl tabular-nums;
   }
 
   .field-label {
@@ -78,16 +78,16 @@
   }
 
   .field-input-lg {
-    @apply field-input py-4 font-mono text-lg font-semibold tracking-wide tabular-nums;
+    @apply field-input py-4 font-display text-xl font-semibold tabular-nums;
   }
 
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-ledger-dim via-ledger to-ledger-glow px-5 py-3.5 text-sm font-semibold text-white shadow-glow transition;
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-ledger-dim via-ledger to-ledger-glow px-5 py-3.5 font-sans text-sm font-semibold text-white shadow-glow transition;
     @apply hover:brightness-105 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 rounded-2xl border border-ink-200 bg-ink-50 px-5 py-3.5 text-sm font-medium text-pearl transition;
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl border border-ink-200 bg-ink-50 px-5 py-3.5 font-sans text-sm font-medium text-pearl transition;
     @apply hover:border-ledger/30 hover:bg-ledger/5 active:scale-[0.98];
   }
 
