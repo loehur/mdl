@@ -125,10 +125,10 @@
 
     <div
       v-if="showSourceManager"
-      class="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/35 p-4 sm:items-center"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4"
       @click.self="showSourceManager = false"
     >
-      <section class="glass-strong w-full max-w-md p-5">
+      <section class="glass-strong w-full max-w-md max-h-[80vh] overflow-y-auto p-5">
         <div class="mb-4 flex items-center justify-between gap-3">
           <div>
             <p class="label-caps">Master data</p>
@@ -181,7 +181,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from "vue";
+import { onMounted, onUnmounted, ref, watch } from "vue";
 import { currentMonth, formatDate, formatRupiah, todayISO } from "../utils/format";
 import AlertBanner from "../components/AlertBanner.vue";
 import EmptyState from "../components/EmptyState.vue";
@@ -202,6 +202,22 @@ const isError = ref(false);
 const sourceMessage = ref("");
 const sourceError = ref(false);
 const showSourceManager = ref(false);
+
+let previousBodyOverflow = "";
+watch(showSourceManager, (open) => {
+  if (typeof document === "undefined") return;
+  if (open) {
+    previousBodyOverflow = document.body.style.overflow || "";
+    document.body.style.overflow = "hidden";
+  } else {
+    document.body.style.overflow = previousBodyOverflow;
+  }
+});
+
+onUnmounted(() => {
+  if (typeof document === "undefined") return;
+  document.body.style.overflow = previousBodyOverflow;
+});
 
 function resetForm() {
   editingId.value = null;
