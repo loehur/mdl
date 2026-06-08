@@ -44,7 +44,7 @@
           <input v-model="form.record_date" class="field-input" type="date" required />
         </div>
         <div>
-          <label class="field-label">Nilai portfolio (Rp)</label>
+          <label class="field-label">Nilai portfolio</label>
           <input
             v-model="form.amount"
             class="field-input-lg"

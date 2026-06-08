@@ -1,8 +1,6 @@
 export function formatRupiah(value) {
   const num = Number(value) || 0;
   return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(num);
@@ -26,7 +24,7 @@ export function currentMonth() {
   return new Date().toISOString().slice(0, 7);
 }
 
-/** Selisih portfolio vs modal investasi: +Rp ... atau -Rp ... */
+/** Selisih portfolio vs modal investasi: +... atau -... */
 export function formatGainLoss(value) {
   if (value === null || value === undefined) return null;
   const num = Number(value);

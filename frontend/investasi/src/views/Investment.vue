@@ -36,7 +36,7 @@
           <input v-model="form.record_date" class="field-input" type="date" required />
         </div>
         <div>
-          <label class="field-label">Jumlah (Rp)</label>
+          <label class="field-label">Jumlah</label>
           <input
             v-model="form.amount"
             class="field-input-lg"
