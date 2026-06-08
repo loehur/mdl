@@ -5,10 +5,10 @@
     <!-- Left decorative panel (desktop) -->
     <aside class="relative hidden w-[45%] overflow-hidden lg:flex lg:flex-col lg:justify-between lg:p-12">
       <div>
-        <p class="label-caps text-gold/80">Investasi PWA</p>
+        <p class="label-caps text-ledger/80">Investasi PWA</p>
         <h1 class="mt-6 font-display text-6xl leading-[1.05] text-pearl">
           Catat.<br />
-          <span class="italic text-gradient-gold">Tumbuh.</span><br />
+          <span class="italic text-gradient-accent">Kelola.</span><br />
           Lacak.
         </h1>
         <p class="mt-6 max-w-sm text-base leading-relaxed text-mist">
@@ -32,22 +32,22 @@
         </div>
       </div>
 
-      <div class="absolute -right-20 top-1/4 h-80 w-80 rounded-full border border-gold/10" />
-      <div class="absolute right-10 bottom-20 h-40 w-40 rounded-full border border-white/5 bg-gold/5 blur-sm" />
+      <div class="absolute -right-20 top-1/4 h-80 w-80 rounded-full border border-ledger/10" />
+      <div class="absolute right-10 bottom-20 h-40 w-40 rounded-full border border-white/5 bg-ledger/5 blur-sm" />
     </aside>
 
     <!-- Login form -->
     <div class="flex flex-1 items-center justify-center px-5 py-12">
       <div class="w-full max-w-sm page-enter">
         <div class="mb-10 lg:hidden">
-          <p class="label-caps text-gold/80">Investasi</p>
+          <p class="label-caps text-ledger/80">Investasi</p>
           <h1 class="mt-2 font-display text-4xl italic text-pearl">Selamat datang</h1>
         </div>
 
         <div class="glass-strong p-8">
           <div class="mb-8 flex items-center gap-3">
-            <div class="flex h-11 w-11 items-center justify-center rounded-2xl border border-gold/20 bg-gold/10">
-              <svg class="h-5 w-5 text-gold" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+            <div class="flex h-11 w-11 items-center justify-center rounded-2xl border border-ledger/20 bg-ledger/10">
+              <svg class="h-5 w-5 text-ledger" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
                 <circle cx="12" cy="12" r="9" />
                 <path d="M12 7v10M8 12h8" stroke-linecap="round" />
               </svg>
@@ -82,7 +82,7 @@
               />
             </div>
 
-            <button class="btn-gold w-full" type="submit" :disabled="loading">
+            <button class="btn-primary w-full" type="submit" :disabled="loading">
               <span v-if="loading" class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-ink/30 border-t-ink" />
               {{ loading ? "Memverifikasi..." : "Masuk" }}
             </button>

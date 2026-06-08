@@ -12,13 +12,13 @@
   body {
     @apply min-h-screen bg-ink font-sans text-pearl antialiased;
     background-image:
-      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(212, 168, 83, 0.12), transparent),
-      radial-gradient(ellipse 60% 40% at 100% 50%, rgba(124, 106, 232, 0.08), transparent),
-      radial-gradient(ellipse 50% 30% at 0% 80%, rgba(212, 168, 83, 0.06), transparent);
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(91, 155, 213, 0.14), transparent),
+      radial-gradient(ellipse 60% 40% at 100% 50%, rgba(45, 212, 191, 0.06), transparent),
+      radial-gradient(ellipse 50% 30% at 0% 80%, rgba(59, 130, 246, 0.05), transparent);
   }
 
   ::selection {
-    @apply bg-gold/30 text-pearl;
+    @apply bg-ledger/30 text-pearl;
   }
 
   input[type="date"],
@@ -68,15 +68,15 @@
 
   .field-input {
     @apply w-full rounded-2xl border border-white/[0.08] bg-ink/60 px-4 py-3.5 text-sm text-pearl outline-none transition placeholder:text-mist/50;
-    @apply focus:border-gold/40 focus:bg-ink-50/50 focus:ring-2 focus:ring-gold/10;
+    @apply focus:border-ledger/40 focus:bg-ink-50/50 focus:ring-2 focus:ring-ledger/10;
   }
 
   .field-input-lg {
     @apply field-input py-4 font-mono text-lg tracking-wide;
   }
 
-  .btn-gold {
-    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-gold-dim via-gold to-gold-glow px-5 py-3.5 text-sm font-semibold text-ink shadow-glow transition;
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-ledger-dim via-ledger to-ledger-glow px-5 py-3.5 text-sm font-semibold text-ink shadow-glow transition;
     @apply hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
   }
 
@@ -86,7 +86,7 @@
   }
 
   .btn-icon {
-    @apply inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 text-mist transition hover:border-gold/30 hover:text-gold;
+    @apply inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 text-mist transition hover:border-ledger/30 hover:text-ledger;
   }
 
   .chip {
@@ -94,11 +94,11 @@
   }
 
   .chip-in {
-    @apply chip border-emerald-400/20 bg-emerald-400/10 text-emerald-300;
+    @apply chip border-credit-dim/25 bg-credit-dim/10 text-credit;
   }
 
   .chip-out {
-    @apply chip border-rose-400/20 bg-rose-400/10 text-rose-300;
+    @apply chip border-debit-dim/25 bg-debit-dim/10 text-debit;
   }
 
   .stat-tile {
@@ -116,12 +116,12 @@
 
   .timeline-item::before {
     content: "";
-    @apply absolute left-[7px] top-2 bottom-0 w-px bg-gradient-to-b from-gold/40 to-transparent;
+    @apply absolute left-[7px] top-2 bottom-0 w-px bg-gradient-to-b from-ledger/40 to-transparent;
   }
 
   .timeline-item::after {
     content: "";
-    @apply absolute left-0 top-1.5 h-3.5 w-3.5 rounded-full border-2 border-gold/60 bg-ink;
+    @apply absolute left-0 top-1.5 h-3.5 w-3.5 rounded-full border-2 border-ledger/60 bg-ink;
   }
 
   .timeline-item:last-child::before {
@@ -133,11 +133,11 @@
   }
 
   .alert-error {
-    @apply alert border-rose-500/20 bg-rose-500/10 text-rose-200;
+    @apply alert border-debit-dim/25 bg-debit-dim/10 text-debit;
   }
 
   .alert-success {
-    @apply alert border-emerald-500/20 bg-emerald-500/10 text-emerald-200;
+    @apply alert border-credit-dim/25 bg-credit-dim/10 text-credit;
   }
 
   .dock {
@@ -153,7 +153,7 @@
   }
 
   .dock-link-active {
-    @apply bg-white/[0.08] text-gold;
+    @apply bg-white/[0.08] text-ledger-glow;
   }
 
   .page-enter {
@@ -166,8 +166,8 @@
 }
 
 @layer utilities {
-  .text-gradient-gold {
-    @apply bg-gradient-to-r from-gold-glow via-gold to-gold-dim bg-clip-text text-transparent;
+  .text-gradient-accent {
+    @apply bg-gradient-to-r from-ledger-glow via-ledger to-ledger-dim bg-clip-text text-transparent;
   }
 
   .hairline {

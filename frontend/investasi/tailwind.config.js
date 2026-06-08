@@ -9,21 +9,30 @@ export default {
       },
       colors: {
         ink: {
-          DEFAULT: "#08080c",
-          50: "#13131a",
-          100: "#1a1a24",
-          200: "#242433",
+          DEFAULT: "#0a0f18",
+          50: "#111827",
+          100: "#1a2332",
+          200: "#243044",
         },
-        gold: {
-          DEFAULT: "#d4a853",
-          dim: "#a07c32",
-          glow: "#f0cc7a",
+        ledger: {
+          DEFAULT: "#5b9bd5",
+          dim: "#3d7ab8",
+          glow: "#93c5fd",
         },
-        mist: "#9898a8",
-        pearl: "#f2efe8",
+        credit: {
+          DEFAULT: "#5eead4",
+          dim: "#2dd4bf",
+          bg: "#14b8a6",
+        },
+        debit: {
+          DEFAULT: "#fca5a5",
+          dim: "#f87171",
+        },
+        mist: "#8b95a8",
+        pearl: "#eef2f7",
       },
       boxShadow: {
-        glow: "0 0 60px rgba(212, 168, 83, 0.15)",
+        glow: "0 0 60px rgba(91, 155, 213, 0.18)",
         panel: "0 24px 80px rgba(0,0,0,0.45)",
       },
       animation: {

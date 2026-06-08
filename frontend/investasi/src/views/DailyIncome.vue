@@ -34,7 +34,7 @@
         </div>
 
         <div class="flex gap-3 pt-1">
-          <button class="btn-gold flex-1" type="submit" :disabled="saving">
+          <button class="btn-primary flex-1" type="submit" :disabled="saving">
             {{ saving ? "Menyimpan..." : editingId ? "Perbarui" : "Simpan" }}
           </button>
           <button v-if="editingId" class="btn-ghost" type="button" @click="resetForm">Batal</button>
@@ -68,7 +68,7 @@
         <li
           v-for="item in items"
           :key="item.id"
-          class="glass group flex items-start justify-between gap-4 p-4 transition hover:border-gold/20"
+          class="glass group flex items-start justify-between gap-4 p-4 transition hover:border-ledger/20"
         >
           <div class="min-w-0 flex-1">
             <p class="font-display text-xl text-pearl">{{ formatRupiah(item.amount) }}</p>
@@ -81,7 +81,7 @@
                 <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" stroke-linecap="round" stroke-linejoin="round" />
               </svg>
             </button>
-            <button class="btn-icon !h-8 !w-8 hover:border-rose-400/30 hover:text-rose-300" title="Hapus" @click="removeItem(item.id)">
+            <button class="btn-icon !h-8 !w-8 hover:border-debit-dim/30 hover:text-debit" title="Hapus" @click="removeItem(item.id)">
               <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke-linecap="round" stroke-linejoin="round" />
               </svg>

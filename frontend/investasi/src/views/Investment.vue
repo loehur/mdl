@@ -12,7 +12,7 @@
           type="button"
           class="rounded-xl py-3 text-sm font-medium transition"
           :class="form.movement_type === 'deposit'
-            ? 'bg-emerald-400/15 text-emerald-200 shadow-inner'
+            ? 'bg-credit-dim/15 text-credit shadow-inner'
             : 'text-mist hover:text-pearl'"
           @click="form.movement_type = 'deposit'"
         >
@@ -22,7 +22,7 @@
           type="button"
           class="rounded-xl py-3 text-sm font-medium transition"
           :class="form.movement_type === 'withdrawal'
-            ? 'bg-rose-400/15 text-rose-200 shadow-inner'
+            ? 'bg-debit-dim/15 text-debit shadow-inner'
             : 'text-mist hover:text-pearl'"
           @click="form.movement_type = 'withdrawal'"
         >
@@ -52,7 +52,7 @@
           <label class="field-label">Catatan <span class="text-mist/60">(opsional)</span></label>
           <input v-model="form.note" class="field-input" type="text" placeholder="Reksa dana, saham, dll." />
         </div>
-        <button class="btn-gold w-full" type="submit" :disabled="saving">
+        <button class="btn-primary w-full" type="submit" :disabled="saving">
           {{ saving ? "Menyimpan..." : "Catat transaksi" }}
         </button>
       </form>
@@ -66,7 +66,7 @@
           <p class="label-caps">Ringkasan bulan</p>
           <p
             class="mt-1 font-display text-xl"
-            :class="net >= 0 ? 'text-emerald-300' : 'text-rose-300'"
+            :class="net >= 0 ? 'text-credit' : 'text-debit'"
           >
             Net {{ formatRupiah(net) }}
           </p>
@@ -75,13 +75,13 @@
       </div>
 
       <div class="mb-4 grid grid-cols-2 gap-3">
-        <div class="stat-tile border-emerald-400/10">
-          <p class="label-caps text-emerald-400/70">Deposit</p>
-          <p class="money-display-sm mt-2 text-emerald-200">{{ formatRupiah(depositTotal) }}</p>
+        <div class="stat-tile border-credit-dim/10">
+          <p class="label-caps text-credit-dim/70">Deposit</p>
+          <p class="money-display-sm mt-2 text-credit">{{ formatRupiah(depositTotal) }}</p>
         </div>
-        <div class="stat-tile border-rose-400/10">
-          <p class="label-caps text-rose-400/70">Penarikan</p>
-          <p class="money-display-sm mt-2 text-rose-200">{{ formatRupiah(withdrawalTotal) }}</p>
+        <div class="stat-tile border-debit-dim/10">
+          <p class="label-caps text-debit-dim/70">Penarikan</p>
+          <p class="money-display-sm mt-2 text-debit">{{ formatRupiah(withdrawalTotal) }}</p>
         </div>
       </div>
 
@@ -105,8 +105,8 @@
             <span
               class="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold"
               :class="item.movement_type === 'deposit'
-                ? 'bg-emerald-400/10 text-emerald-300'
-                : 'bg-rose-400/10 text-rose-300'"
+                ? 'bg-credit-dim/10 text-credit'
+                : 'bg-debit-dim/10 text-debit'"
             >
               {{ item.movement_type === 'deposit' ? '↑' : '↓' }}
             </span>
@@ -122,7 +122,7 @@
             </div>
           </div>
           <button
-            class="btn-icon !h-8 !w-8 shrink-0 hover:border-rose-400/30 hover:text-rose-300"
+            class="btn-icon !h-8 !w-8 shrink-0 hover:border-debit-dim/30 hover:text-debit"
             @click="removeItem(item.id)"
           >
             <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

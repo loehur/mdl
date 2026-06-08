@@ -39,7 +39,7 @@
           <span>{{ item.label }}</span>
           <span
             v-if="$route.path === item.path"
-            class="absolute -bottom-0.5 h-1 w-1 rounded-full bg-gold"
+            class="absolute -bottom-0.5 h-1 w-1 rounded-full bg-ledger"
           />
         </router-link>
       </div>

@@ -13,9 +13,9 @@
     <template v-else>
       <!-- Hero portfolio card -->
       <section class="glass-strong relative overflow-hidden p-6 shadow-glow">
-        <div class="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-gold/10 blur-2xl" />
+        <div class="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-ledger/10 blur-2xl" />
         <p class="label-caps relative">Portfolio terkini</p>
-        <p class="money-display relative mt-3 text-gradient-gold">
+        <p class="money-display relative mt-3 text-gradient-accent">
           {{ formatRupiah(summary.portfolio_amount) }}
         </p>
         <p class="relative mt-3 text-sm text-mist">
@@ -26,7 +26,7 @@
         </p>
 
         <div class="relative mt-6 flex gap-3">
-          <router-link to="/pemasukan" class="btn-gold flex-1 text-center">+ Pemasukan</router-link>
+          <router-link to="/pemasukan" class="btn-primary flex-1 text-center">+ Pemasukan</router-link>
           <router-link to="/portfolio" class="btn-ghost flex-1 text-center">Update</router-link>
         </div>
       </section>
@@ -57,7 +57,7 @@
         <div class="glass divide-y divide-white/[0.06] overflow-hidden">
           <div class="flex items-center justify-between px-5 py-4">
             <div class="flex items-center gap-3">
-              <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-400/10 text-emerald-300">
+              <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-credit-dim/10 text-credit">
                 <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M12 19V5M7 10l5-5 5 5" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
@@ -70,7 +70,7 @@
           </div>
           <div class="flex items-center justify-between px-5 py-4">
             <div class="flex items-center gap-3">
-              <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-400/10 text-rose-300">
+              <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-debit-dim/10 text-debit">
                 <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M12 5v14M7 14l5 5 5-5" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
@@ -85,7 +85,7 @@
             <p class="text-sm text-mist">Net investasi</p>
             <p
               class="font-display text-xl"
-              :class="summary.net_investment >= 0 ? 'text-emerald-300' : 'text-rose-300'"
+              :class="summary.net_investment >= 0 ? 'text-credit' : 'text-debit'"
             >
               {{ formatRupiah(summary.net_investment) }}
             </p>

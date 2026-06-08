@@ -2,9 +2,9 @@
   <div class="space-y-6">
     <!-- Current value hero -->
     <section class="glass-strong relative overflow-hidden p-6 text-center">
-      <div class="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(212,168,83,0.12),transparent_60%)]" />
+      <div class="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(91,155,213,0.12),transparent_60%)]" />
       <p class="label-caps relative">Nilai saat ini</p>
-      <p class="money-display relative mx-auto mt-4 max-w-full break-words text-gradient-gold">
+      <p class="money-display relative mx-auto mt-4 max-w-full break-words text-gradient-accent">
         {{ formatRupiah(current?.amount) }}
       </p>
       <p class="relative mt-3 text-sm text-mist">
@@ -50,7 +50,7 @@
             placeholder="Rebalancing, update harga pasar..."
           />
         </div>
-        <button class="btn-gold w-full" type="submit" :disabled="saving">
+        <button class="btn-primary w-full" type="submit" :disabled="saving">
           {{ saving ? "Menyimpan..." : "Simpan snapshot" }}
         </button>
       </form>
@@ -85,7 +85,7 @@
             </div>
             <span
               v-if="index === 0"
-              class="chip border-gold/30 bg-gold/10 text-gold-glow"
+              class="chip border-ledger/30 bg-ledger/10 text-ledger-glow"
             >
               Terbaru
             </span>
