@@ -1,7 +1,7 @@
 <template>
   <div
     v-if="gainLoss !== null && gainLoss !== undefined"
-    class="rounded-2xl border px-4 py-3"
+    class="rounded-2xl border px-4 py-3 text-center"
     :class="boxClass"
   >
     <p class="money-display-sm" :class="amountClass">

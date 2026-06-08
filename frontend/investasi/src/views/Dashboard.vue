@@ -37,7 +37,7 @@
       </section>
 
       <!-- Portfolio vs modal investasi -->
-      <section class="glass-strong relative overflow-hidden p-4 shadow-glow">
+      <section class="glass-strong relative overflow-hidden p-4 text-center shadow-glow">
         <div class="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-ledger/10 blur-2xl" />
         <p class="relative">
           <span class="label-caps">Portfolio</span>
@@ -60,7 +60,7 @@
 
         <GainLossBadge
           v-if="summary.portfolio_amount !== null && summary.gain_loss !== null"
-          class="relative mt-3"
+          class="relative mx-auto mt-3 max-w-sm"
           :gain-loss="summary.gain_loss"
           :gain-loss-pct="summary.gain_loss_pct"
           :status="summary.status"

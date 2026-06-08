@@ -19,7 +19,7 @@
 
       <GainLossBadge
         v-if="current?.amount != null && gainLoss !== null"
-        class="relative mx-auto mt-5 max-w-sm text-left"
+        class="relative mx-auto mt-5 max-w-sm"
         :gain-loss="gainLoss"
         :gain-loss-pct="gainLossPct"
         :status="status"
