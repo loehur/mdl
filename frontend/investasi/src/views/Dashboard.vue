@@ -15,7 +15,7 @@
         <div class="grid grid-cols-2 gap-2.5">
           <router-link
             to="/pemasukan"
-            class="stat-tile block !p-3 transition active:scale-[0.98] active:opacity-90"
+            class="stat-tile block !p-3 text-center transition active:scale-[0.98] active:opacity-90"
           >
             <p class="label-caps mb-1">Income</p>
             <p class="text-sm leading-tight text-mist">Hari ini</p>
@@ -25,7 +25,7 @@
           </router-link>
           <router-link
             to="/pengeluaran"
-            class="stat-tile block !p-3 transition active:scale-[0.98] active:opacity-90"
+            class="stat-tile block !p-3 text-center transition active:scale-[0.98] active:opacity-90"
           >
             <p class="label-caps mb-1">Expense</p>
             <p class="text-sm leading-tight text-mist">Hari ini</p>
