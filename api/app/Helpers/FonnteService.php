@@ -7,6 +7,7 @@ use App\Config\Fonnte;
 /**
  * Fonnte WhatsApp API Service
  * @see https://docs.fonnte.com/api-send-message/
+ * @see https://docs.fonnte.com/api-device-profile/
  */
 class FonnteService
 {
@@ -76,6 +77,30 @@ class FonnteService
     }
 
     /**
+     * Ambil profil device Fonnte (kuota, paket, status koneksi, dll.)
+     * @return array ['success' => bool, 'data' => array|null, 'error' => string|null]
+     */
+    public function getDeviceProfile()
+    {
+        if (empty($this->token)) {
+            return [
+                'success' => false,
+                'data' => null,
+                'error' => 'Fonnte token not configured',
+            ];
+        }
+
+        $response = $this->callDeviceApi();
+
+        $ok = isset($response['status']) && $response['status'] === true;
+        return [
+            'success' => $ok,
+            'data' => $ok ? $response : null,
+            'error' => $ok ? null : ($response['reason'] ?? 'Unknown error'),
+        ];
+    }
+
+    /**
      * Format phone for Fonnte (62xxx)
      */
     private function formatPhone($phone)
@@ -111,6 +136,46 @@ class FonnteService
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
             CURLOPT_CUSTOMREQUEST => 'POST',
             CURLOPT_POSTFIELDS => $postFields,
+            CURLOPT_HTTPHEADER => [
+                'Authorization: ' . $this->token,
+            ],
+        ]);
+
+        $raw = curl_exec($ch);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($curlError) {
+            return ['status' => false, 'reason' => 'cURL error: ' . $curlError];
+        }
+
+        $decoded = json_decode($raw, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            return ['status' => false, 'reason' => 'Invalid JSON response', 'raw' => substr($raw, 0, 200)];
+        }
+
+        if (isset($decoded['Status'])) {
+            $decoded['status'] = $decoded['Status'];
+        }
+
+        return $decoded;
+    }
+
+    /**
+     * Call Fonnte Device Profile API
+     */
+    private function callDeviceApi()
+    {
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => Fonnte::getBaseUrl() . '/device',
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_ENCODING => '',
+            CURLOPT_MAXREDIRS => 10,
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            CURLOPT_CUSTOMREQUEST => 'POST',
             CURLOPT_HTTPHEADER => [
                 'Authorization: ' . $this->token,
             ],

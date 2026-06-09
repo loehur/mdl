@@ -569,6 +569,18 @@ return [
         ],
     ],
 
+    'SALDO_YCLOUD' => [
+        'patterns' => [
+            '/^(saldo|cek|info)\s*(ycloud)$/i',
+        ],
+    ],
+
+    'INFO_FONNTE' => [
+        'patterns' => [
+            '/^(cek|info)\s*(fonnte|fonte)$/i',
+        ],
+    ],
+
     'CEK_QRIS' => [
         'patterns' => [
             '/^\s*cek\s+qris\s+(\d{2})\.(\d{2})\s+(\d+)\s*$/i',

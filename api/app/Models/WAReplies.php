@@ -4566,6 +4566,130 @@ class WAReplies
         }
     }
 
+    function handleSaldo_ycloud($phoneIn, $waNumber, $textBody = '')
+    {
+        try {
+            $hp = \Env::ADMIN_NUMBERS;
+
+            $phones = array_map(function ($p) {
+                return trim($p, "' ");
+            }, explode(',', $phoneIn));
+            $cleanWaNumber = preg_replace('/[^0-9]/', '', $waNumber);
+            $phone0 = '0' . substr($cleanWaNumber, 2);
+            $phones[] = $phone0;
+            $phones[] = $cleanWaNumber;
+            $phones = array_unique(array_filter($phones));
+
+            if (empty(array_intersect($phones, $hp))) {
+                return;
+            }
+
+            $apiKey = \App\Config\WhatsApp::getApiKey();
+            $baseUrl = rtrim(\App\Config\WhatsApp::getBaseUrl(), '/');
+
+            $curl = curl_init();
+            curl_setopt_array($curl, [
+                CURLOPT_URL => $baseUrl . '/balance',
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_ENCODING => '',
+                CURLOPT_MAXREDIRS => 10,
+                CURLOPT_TIMEOUT => 30,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                CURLOPT_CUSTOMREQUEST => 'GET',
+                CURLOPT_HTTPHEADER => [
+                    'X-API-Key: ' . $apiKey,
+                ],
+                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_SSL_VERIFYHOST => false,
+            ]);
+
+            $response = curl_exec($curl);
+            $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($curl);
+            curl_close($curl);
+
+            $waService = $this->getWaService();
+
+            if ($curlError) {
+                $waService->sendFreeText($waNumber, "Error: Gagal menghubungi API YCloud. " . $curlError);
+                return;
+            }
+
+            $data = json_decode($response, true);
+
+            if ($httpCode === 200 && isset($data['amount'])) {
+                $amount = (float) $data['amount'];
+                $currency = $data['currency'] ?? 'USD';
+                $text = "Saldo YCloud: " . number_format($amount, 2, ',', '.') . " {$currency}";
+            } else {
+                $message = $data['message'] ?? ($data['error']['message'] ?? 'Unknown error');
+                $text = "Gagal mengambil saldo YCloud: " . $message;
+            }
+
+            $waService->sendFreeText($waNumber, $text);
+
+        } catch (\Throwable $e) {
+            \Log::write("handleSaldo_ycloud ERROR: " . $e->getMessage(), 'wa_error', 'YCloud');
+            $waService = $this->getWaService();
+            $waService->sendFreeText($waNumber, "Error: " . $e->getMessage());
+        }
+    }
+
+    function handleInfo_fonnte($phoneIn, $waNumber, $textBody = '')
+    {
+        try {
+            $hp = \Env::ADMIN_NUMBERS;
+
+            $phones = array_map(function ($p) {
+                return trim($p, "' ");
+            }, explode(',', $phoneIn));
+            $cleanWaNumber = preg_replace('/[^0-9]/', '', $waNumber);
+            $phone0 = '0' . substr($cleanWaNumber, 2);
+            $phones[] = $phone0;
+            $phones[] = $cleanWaNumber;
+            $phones = array_unique(array_filter($phones));
+
+            if (empty(array_intersect($phones, $hp))) {
+                return;
+            }
+
+            if (!class_exists('\\App\\Helpers\\FonnteService')) {
+                require_once __DIR__ . '/../Helpers/FonnteService.php';
+            }
+
+            $fonnte = new \App\Helpers\FonnteService();
+            $result = $fonnte->getDeviceProfile();
+            $waService = $this->getWaService();
+
+            if (!$result['success']) {
+                $waService->sendFreeText($waNumber, "Gagal mengambil profil Fonnte: " . ($result['error'] ?? 'Unknown error'));
+                return;
+            }
+
+            $d = $result['data'];
+            $deviceStatus = $d['device_status'] ?? '-';
+            $messages = isset($d['messages']) ? number_format((int) $d['messages'], 0, ',', '.') : '-';
+            $quota = $d['quota'] ?? '-';
+
+            $text = "*Profile Fonnte*\n"
+                . "Nama: " . ($d['name'] ?? '-') . "\n"
+                . "Device: " . ($d['device'] ?? '-') . "\n"
+                . "Status koneksi: " . $deviceStatus . "\n"
+                . "Paket: " . ($d['package'] ?? '-') . "\n"
+                . "Kuota: " . $quota . "\n"
+                . "Total pesan: " . $messages . "\n"
+                . "Expired: " . ($d['expired'] ?? '-');
+
+            $waService->sendFreeText($waNumber, $text);
+
+        } catch (\Throwable $e) {
+            \Log::write("handleInfo_fonnte ERROR: " . $e->getMessage(), 'wa_error', 'Fonnte');
+            $waService = $this->getWaService();
+            $waService->sendFreeText($waNumber, "Error: " . $e->getMessage());
+        }
+    }
+
      function handleTarik_tokopay($phoneIn, $waNumber, $textBody = '')
     {
         try {
