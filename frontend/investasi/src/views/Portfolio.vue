@@ -1,39 +1,10 @@
 <template>
   <div class="space-y-6">
-    <!-- Current value hero -->
-    <section class="glass-strong relative overflow-hidden p-6 text-center">
-      <div class="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(91,155,213,0.12),transparent_60%)]" />
-      <p class="label-caps relative">Nilai saat ini</p>
-      <p class="money-display relative mx-auto mt-4 max-w-full break-words text-ledger-dim">
-        {{ formatRupiah(current?.amount) }}
-      </p>
-      <p class="relative mt-3 text-sm text-mist">
-        Modal investasi: <span class="font-semibold text-pearl">{{ formatRupiah(netInvestment) }}</span>
-      </p>
-      <p class="relative mt-1 text-sm text-mist">
-        <template v-if="current?.record_date">
-          Snapshot {{ formatDate(current.record_date) }}
-        </template>
-        <template v-else>Belum pernah diupdate</template>
-      </p>
-
-      <GainLossBadge
-        v-if="current?.amount != null && gainLoss !== null"
-        class="relative mx-auto mt-5 max-w-sm"
-        :gain-loss="gainLoss"
-        :gain-loss-pct="gainLossPct"
-        :status="status"
-      />
-    </section>
-
     <!-- Update form -->
     <section class="glass-strong p-6">
       <div class="mb-6">
         <p class="label-caps">Perbarui</p>
         <h2 class="section-title mt-1">Snapshot portfolio</h2>
-        <p class="mt-2 text-sm text-mist">
-          Update nilai aset secara berkala. Selisih dengan modal investasi = tumbuh (+) atau rugi (−).
-        </p>
       </div>
 
       <form class="space-y-4" @submit.prevent="submitForm">
@@ -114,14 +85,9 @@ import { onMounted, ref } from "vue";
 import { formatDate, formatRupiah, todayISO } from "../utils/format";
 import AlertBanner from "../components/AlertBanner.vue";
 import EmptyState from "../components/EmptyState.vue";
-import GainLossBadge from "../components/GainLossBadge.vue";
 
 const form = ref({ record_date: todayISO(), amount: "", note: "" });
 const current = ref(null);
-const netInvestment = ref(0);
-const gainLoss = ref(null);
-const gainLossPct = ref(null);
-const status = ref(null);
 const history = ref([]);
 const loading = ref(false);
 const saving = ref(false);
@@ -146,10 +112,6 @@ async function loadData() {
     }
 
     current.value = currentData.data.current;
-    netInvestment.value = currentData.data.net_investment ?? 0;
-    gainLoss.value = currentData.data.gain_loss;
-    gainLossPct.value = currentData.data.gain_loss_pct;
-    status.value = currentData.data.status;
     history.value = historyData.data.items;
 
     if (current.value?.amount) {

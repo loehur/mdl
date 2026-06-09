@@ -144,8 +144,8 @@
         </div>
       </section>
 
-      <!-- Breakdown per sumber -->
-      <section>
+      <!-- Breakdown per sumber / target -->
+      <section v-if="activeGabungan === 'income'">
         <p class="label-caps mb-2">Income per sumber</p>
 
         <ul v-if="recap.income_by_source.length > 0" class="space-y-2">
@@ -168,6 +168,32 @@
           v-else
           title="Belum ada data"
           subtitle="Input pemasukan dulu untuk melihat rekap."
+        />
+      </section>
+
+      <section v-else-if="activeGabungan === 'expense'">
+        <p class="label-caps mb-2">Expense per target</p>
+
+        <ul v-if="recap.expense_by_target.length > 0" class="space-y-2">
+          <li
+            v-for="tgt in recap.expense_by_target"
+            :key="tgt.target_id ?? 'none'"
+            class="glass flex items-center justify-between gap-3 px-4 py-3"
+          >
+            <div class="min-w-0">
+              <p class="truncate text-sm font-semibold text-pearl">{{ tgt.target_name }}</p>
+              <p v-if="recap.total_expense > 0" class="text-sm text-mist">
+                {{ sharePct(tgt.total, recap.total_expense) }}% dari total expense
+              </p>
+            </div>
+            <p class="shrink-0 text-base font-bold text-debit-dim">{{ formatRupiah(tgt.total) }}</p>
+          </li>
+        </ul>
+
+        <EmptyState
+          v-else
+          title="Belum ada data"
+          subtitle="Input pengeluaran dulu untuk melihat rekap."
         />
       </section>
     </template>

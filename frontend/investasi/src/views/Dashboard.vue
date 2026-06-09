@@ -78,35 +78,18 @@
       <!-- Deposit & penarikan manual -->
       <section>
         <div class="mb-2 flex items-center justify-between">
-          <div>
-            <h2 class="text-base font-bold text-pearl">Modal investasi</h2>
-            <p class="text-sm leading-snug text-mist">Input deposit & penarikan secara manual</p>
-          </div>
+          <h2 class="text-base font-bold text-pearl">Modal investasi</h2>
           <router-link to="/investasi" class="text-sm font-semibold text-ledger-dim">Kelola →</router-link>
         </div>
         <div class="glass divide-y divide-ink-200 overflow-hidden">
           <div class="grid grid-cols-2 divide-x divide-ink-200">
-            <div class="flex items-center gap-2.5 px-4 py-3">
-              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-credit-dim/10 text-credit">
-                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M12 19V5M7 10l5-5 5 5" stroke-linecap="round" stroke-linejoin="round" />
-                </svg>
-              </span>
-              <div class="min-w-0">
-                <p class="text-sm text-mist">Total deposit</p>
-                <p class="font-semibold text-pearl">{{ formatRupiah(summary.total_deposits) }}</p>
-              </div>
+            <div class="px-4 py-3 text-center">
+              <p class="text-sm text-mist">Total deposit</p>
+              <p class="font-semibold text-credit-dim">{{ formatRupiah(summary.total_deposits) }}</p>
             </div>
-            <div class="flex items-center gap-2.5 px-4 py-3">
-              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-debit-dim/10 text-debit">
-                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M12 5v14M7 14l5 5 5-5" stroke-linecap="round" stroke-linejoin="round" />
-                </svg>
-              </span>
-              <div class="min-w-0">
-                <p class="text-sm text-mist">Total penarikan</p>
-                <p class="font-semibold text-pearl">{{ formatRupiah(summary.total_withdrawals) }}</p>
-              </div>
+            <div class="px-4 py-3 text-center">
+              <p class="text-sm text-mist">Total penarikan</p>
+              <p class="font-semibold text-debit-dim">{{ formatRupiah(summary.total_withdrawals) }}</p>
             </div>
           </div>
           <div class="flex items-center justify-between bg-ink px-4 py-3">
