@@ -4621,7 +4621,7 @@ class WAReplies
             if ($httpCode === 200 && isset($data['amount'])) {
                 $amount = (float) $data['amount'];
                 $currency = $data['currency'] ?? 'USD';
-                $text = "Saldo YCloud: " . number_format($amount, 2, ',', '.') . " {$currency}";
+                $text = number_format($amount, 2, ',', '.') . " {$currency}";
             } else {
                 $message = $data['message'] ?? ($data['error']['message'] ?? 'Unknown error');
                 $text = "Gagal mengambil saldo YCloud: " . $message;
