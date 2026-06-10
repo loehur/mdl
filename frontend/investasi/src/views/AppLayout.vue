@@ -3,9 +3,8 @@
     <MeshBackground />
 
     <header class="app-header" :class="{ 'app-header--hidden': !headerVisible }">
-      <div class="mx-auto flex max-w-md items-end justify-between px-5 pt-6 pb-4">
+      <div class="mx-auto flex max-w-md items-center justify-between px-5 pt-4 pb-3">
         <div class="page-enter">
-          <p class="label-caps mb-1">Personal Finance</p>
           <h1 class="page-title">{{ pageTitle }}</h1>
         </div>
         <button class="btn-icon" title="Keluar" @click="logout">
@@ -179,7 +178,7 @@ async function logout() {
 }
 
 .header-spacer {
-  height: 6.75rem;
+  height: 5rem;
 }
 
 .page-enter-active,
