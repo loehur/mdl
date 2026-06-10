@@ -14,12 +14,12 @@
           <div v-if="sources.length === 0" class="rounded-2xl border border-debit-dim/20 bg-debit-light px-4 py-3 text-sm text-debit-dim">
             Tambahkan sumber lewat tombol Kelola.
           </div>
-          <div v-else class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <div v-else class="flex flex-wrap gap-2">
             <button
               v-for="src in sources"
               :key="src.id"
               type="button"
-              class="rounded-xl border px-3 py-3 text-left text-sm font-semibold transition"
+              class="rounded-xl border px-3 py-2.5 text-sm font-semibold transition"
               :class="form.source_id === src.id
                 ? 'border-ledger bg-ledger/10 text-ledger-dim shadow-inner'
                 : 'border-ink-200 bg-ink-50 text-pearl hover:border-ledger/30'"
