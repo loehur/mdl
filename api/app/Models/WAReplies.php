@@ -301,6 +301,32 @@ class WAReplies
     }
 
     /**
+     * Fallback DEFAULT (CS menunggu) hanya di jam operasional.
+     * Di luar jam operasional → handleJam_operasional (jam tutup/libur).
+     *
+     * @return bool True jika ada balasan terkirim (atau cooldown DEFAULT tercatat)
+     */
+    public function trySendDefaultFallbackAutoreply($phoneIn, string $waNumber, ?string $textBody, string $fallbackText, int $cooldownMinutes = 1440): bool
+    {
+        if (!$this->shouldSendFonnteFallbackReply($waNumber, $cooldownMinutes)) {
+            return false;
+        }
+
+        if (!$this->isOperatingHours()) {
+            $this->currentHandler = 'JAM_OPERASIONAL';
+            $this->logAutoreplyTrace($waNumber, 'DEFAULT_FALLBACK', 'outside_hours→JAM_OPERASIONAL');
+            $this->handleJam_operasional($phoneIn, $waNumber, $textBody ?? '', false, true);
+
+            return true;
+        }
+
+        $this->logAutoreplyTrace($waNumber, 'DEFAULT_FALLBACK', 'inside_hours→CS_wait');
+        $this->sendDefaultFallbackAutoreply($waNumber, $fallbackText);
+
+        return true;
+    }
+
+    /**
      * Ambil nama contact untuk sapaan AI (pak/bu/kak/bang).
      * Prioritas: currentContactName dari process(), lalu wa_conversations.contact_name.
      * @param string $waNumber Nomor WhatsApp
@@ -3106,7 +3132,7 @@ class WAReplies
         }
     }
 
-    function handleJam_operasional($phoneIn, $waNumber, $textBody = '', $forceKonfirmasiIntro = false)
+    function handleJam_operasional($phoneIn, $waNumber, $textBody = '', $forceKonfirmasiIntro = false, $skipJamTutupCooldown = false)
     {
         $t = strtolower(trim($textBody ?? ''));
         $konfirmasiIntro = null;
@@ -3129,7 +3155,7 @@ class WAReplies
             $this->handleJam_buka($phoneIn, $waNumber, $textBody, $konfirmasiIntro);
         } else {
             // Jam tutup: jawaban baku saja (tanpa konfirmasi intro)
-            $this->handleJam_tutup($phoneIn, $waNumber, $textBody, null);
+            $this->handleJam_tutup($phoneIn, $waNumber, $textBody, null, $skipJamTutupCooldown);
         }
     }
 
@@ -3266,9 +3292,9 @@ class WAReplies
      *
      * @return bool true jika ada pengiriman (atau fallback config), false jika dilewati karena cooldown
      */
-    function handleJam_tutup($phoneIn, $waNumber, $textBody = '', $customIntro = null)
+    function handleJam_tutup($phoneIn, $waNumber, $textBody = '', $customIntro = null, $skipCooldown = false)
     {
-        if (!$this->shouldHandle($waNumber, 'JAM_TUTUP', 3)) {
+        if (!$skipCooldown && !$this->shouldHandle($waNumber, 'JAM_TUTUP', 3)) {
             return false;
         }
 
@@ -3327,7 +3353,7 @@ class WAReplies
             $timeBold = "*{$openTime} s.d. {$closeTime}*";
             $variations = [
                 "Mohon maaf, kami sedang tutup. Jam operasional {$timeBold}, {$daysStr}. 🙏",
-                "Mohon maaf, kami di luar jam operasional. Buka jam {$timeBold}, {$daysStr}. 😊",
+                "Mohon maaf, kami sedang di luar jam operasional. Buka jam {$timeBold}, {$daysStr}. 😊",
                 "Maaf, saat ini kami sedang tutup. Jam buka {$timeBold}, {$daysStr}. 🙏",
                 "Mohon maaf, kami tutup. Buka jam {$timeBold}, {$daysStr}. 😊"
             ];

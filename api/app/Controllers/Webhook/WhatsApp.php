@@ -428,9 +428,13 @@ class WhatsApp extends Controller
                 );
 
                 if (!empty($autoReplyResult->no_handler) && mb_strlen(trim((string) ($messageText ?? ''))) > 20) {
-                    if ($replies->shouldSendFonnteFallbackReply($waNumber, self::DEFAULT_FALLBACK_COOLDOWN_MINUTES)) {
-                        $replies->sendDefaultFallbackAutoreply($waNumber, self::DEFAULT_FALLBACK_REPLY_YCLOUD);
-                    }
+                    $replies->trySendDefaultFallbackAutoreply(
+                        $phoneIn,
+                        $waNumber,
+                        $messageText,
+                        self::DEFAULT_FALLBACK_REPLY_YCLOUD,
+                        self::DEFAULT_FALLBACK_COOLDOWN_MINUTES
+                    );
                 }
                 
                 $currentCase = $autoReplyResult->case;
