@@ -19,10 +19,10 @@
 
     <div class="header-spacer" aria-hidden="true" />
 
-    <main class="mx-auto max-w-md px-5 pt-3 page-enter" style="animation-delay: 0.05s">
-      <router-view v-slot="{ Component }">
-        <transition name="page" mode="out-in">
-          <component :is="Component" />
+    <main class="mx-auto max-w-md px-5 pt-3">
+      <router-view v-slot="{ Component, route }">
+        <transition name="page">
+          <component :is="Component" :key="route.path" />
         </transition>
       </router-view>
     </main>
@@ -183,14 +183,11 @@ async function logout() {
 
 .page-enter-active,
 .page-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition: opacity 0.1s ease;
 }
-.page-enter-from {
-  opacity: 0;
-  transform: translateY(8px);
-}
+
+.page-enter-from,
 .page-leave-to {
   opacity: 0;
-  transform: translateY(-6px);
 }
 </style>

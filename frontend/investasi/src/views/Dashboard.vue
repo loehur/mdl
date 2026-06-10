@@ -1,13 +1,6 @@
 <template>
   <div class="space-y-4">
-    <div v-if="loading" class="space-y-3">
-      <div class="grid grid-cols-2 gap-3">
-        <div class="skeleton h-24" />
-        <div class="skeleton h-24" />
-      </div>
-      <div class="skeleton h-48" />
-      <div class="skeleton h-44" />
-    </div>
+    <PageLoader v-if="loading" />
 
     <template v-else>
       <!-- Pemasukan & pengeluaran — modul terpisah -->
@@ -109,6 +102,7 @@ import { computed, onMounted, ref } from "vue";
 import { formatRupiah } from "../utils/format";
 import AlertBanner from "../components/AlertBanner.vue";
 import GainLossBadge from "../components/GainLossBadge.vue";
+import PageLoader from "../components/PageLoader.vue";
 
 const loading = ref(true);
 const error = ref("");

@@ -35,9 +35,7 @@
         <h3 class="mt-1 text-sm font-bold text-pearl">Perjalanan nilai aset</h3>
       </div>
 
-      <div v-if="loading" class="space-y-3 pl-4">
-        <div v-for="n in 4" :key="n" class="skeleton h-16" />
-      </div>
+      <PageLoader v-if="loading" />
 
       <EmptyState
         v-else-if="history.length === 0"
@@ -72,11 +70,12 @@ import { amountInputToNumber, formatDate, formatRupiah, todayISO, toAmountDigits
 import AlertBanner from "../components/AlertBanner.vue";
 import AmountInput from "../components/AmountInput.vue";
 import EmptyState from "../components/EmptyState.vue";
+import PageLoader from "../components/PageLoader.vue";
 
 const form = ref({ record_date: todayISO(), amount: "", note: "" });
 const current = ref(null);
 const history = ref([]);
-const loading = ref(false);
+const loading = ref(true);
 const saving = ref(false);
 const message = ref("");
 const isError = ref(false);

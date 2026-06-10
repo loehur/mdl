@@ -8,10 +8,7 @@
       <input v-model="month" class="field-input !w-auto !py-2 !text-sm" type="month" @change="onMonthChange" />
     </div>
 
-    <div v-if="loading" class="space-y-3">
-      <div class="skeleton h-28" />
-      <div class="skeleton h-40" />
-    </div>
+    <PageLoader v-if="loading" />
 
     <template v-else>
       <!-- Net utama -->
@@ -207,6 +204,7 @@ import { computed, onMounted, ref } from "vue";
 import { currentMonth, formatGainLoss, formatRupiah } from "../utils/format";
 import AlertBanner from "../components/AlertBanner.vue";
 import EmptyState from "../components/EmptyState.vue";
+import PageLoader from "../components/PageLoader.vue";
 
 const month = ref(currentMonth());
 const loading = ref(true);

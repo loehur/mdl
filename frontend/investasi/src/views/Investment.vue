@@ -60,28 +60,27 @@
         <input v-model="month" class="field-input !w-auto !py-2 !text-sm" type="month" @change="loadItems" />
       </div>
 
-      <div class="mb-4 grid grid-cols-2 gap-3">
-        <div class="stat-tile border-credit-dim/10">
-          <p class="label-caps text-credit-dim/70">Deposit</p>
-          <p class="mt-2 font-display text-lg font-bold tabular-nums text-credit">{{ formatRupiah(depositTotal) }}</p>
+      <PageLoader v-if="loading" />
+
+      <template v-else>
+        <div class="mb-4 grid grid-cols-2 gap-3">
+          <div class="stat-tile border-credit-dim/10">
+            <p class="label-caps text-credit-dim/70">Deposit</p>
+            <p class="mt-2 font-display text-lg font-bold tabular-nums text-credit">{{ formatRupiah(depositTotal) }}</p>
+          </div>
+          <div class="stat-tile border-debit-dim/10">
+            <p class="label-caps text-debit-dim/70">Penarikan</p>
+            <p class="mt-2 font-display text-lg font-bold tabular-nums text-debit">{{ formatRupiah(withdrawalTotal) }}</p>
+          </div>
         </div>
-        <div class="stat-tile border-debit-dim/10">
-          <p class="label-caps text-debit-dim/70">Penarikan</p>
-          <p class="mt-2 font-display text-lg font-bold tabular-nums text-debit">{{ formatRupiah(withdrawalTotal) }}</p>
-        </div>
-      </div>
 
-      <div v-if="loading" class="space-y-3">
-        <div v-for="n in 3" :key="n" class="skeleton h-20" />
-      </div>
+        <EmptyState
+          v-if="items.length === 0"
+          title="Belum ada transaksi"
+          subtitle="Catat deposit atau penarikan investasi pertama."
+        />
 
-      <EmptyState
-        v-else-if="items.length === 0"
-        title="Belum ada transaksi"
-        subtitle="Catat deposit atau penarikan investasi pertama."
-      />
-
-      <ul v-else class="space-y-3">
+        <ul v-else class="space-y-3">
         <li
           v-for="item in items"
           :key="item.id"
@@ -117,6 +116,7 @@
           </button>
         </li>
       </ul>
+      </template>
     </section>
   </div>
 </template>
@@ -127,6 +127,7 @@ import { currentMonth, amountInputToNumber, formatDate, formatRupiah, todayISO }
 import AlertBanner from "../components/AlertBanner.vue";
 import AmountInput from "../components/AmountInput.vue";
 import EmptyState from "../components/EmptyState.vue";
+import PageLoader from "../components/PageLoader.vue";
 
 const form = ref({
   movement_type: "deposit",
@@ -139,7 +140,7 @@ const items = ref([]);
 const depositTotal = ref(0);
 const withdrawalTotal = ref(0);
 const net = ref(0);
-const loading = ref(false);
+const loading = ref(true);
 const saving = ref(false);
 const message = ref("");
 const isError = ref(false);

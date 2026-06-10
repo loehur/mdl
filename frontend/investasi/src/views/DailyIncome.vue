@@ -89,9 +89,7 @@
         </button>
       </div>
 
-      <div v-if="loading" class="space-y-3">
-        <div v-for="n in 3" :key="n" class="skeleton h-20" />
-      </div>
+      <PageLoader v-if="loading" />
 
       <EmptyState
         v-else-if="items.length === 0"
@@ -204,6 +202,7 @@ import {
 } from "../utils/historyFilter";
 import AlertBanner from "../components/AlertBanner.vue";
 import EmptyState from "../components/EmptyState.vue";
+import PageLoader from "../components/PageLoader.vue";
 
 const form = ref({ record_date: todayISO(), amount: "", source_id: null, note: "" });
 const editingId = ref(null);
@@ -213,7 +212,7 @@ const items = ref([]);
 const total = ref(0);
 const sources = ref([]);
 const newSourceName = ref("");
-const loading = ref(false);
+const loading = ref(true);
 const sourcesLoading = ref(false);
 const saving = ref(false);
 const addingSource = ref(false);

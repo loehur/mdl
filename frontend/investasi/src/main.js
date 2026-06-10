@@ -74,43 +74,53 @@ const router = createRouter({
   ],
 });
 
-router.beforeEach(async (to) => {
+function refreshSessionInBackground() {
+  const now = Date.now();
+  if (now - lastAuthCheck < AUTH_CHECK_INTERVAL) return;
+  lastAuthCheck = now;
+
+  fetch("/api/Investasi/Auth/check")
+    .then(async (res) => {
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data?.data?.user) saveSession(data.data.user);
+        return;
+      }
+      if (res.status === 401) {
+        clearSession();
+        if (!router.currentRoute.value.meta.public) {
+          router.replace("/login");
+        }
+      }
+    })
+    .catch(() => {});
+}
+
+let lastAuthCheck = 0;
+const AUTH_CHECK_INTERVAL = 2 * 60 * 1000;
+
+router.beforeEach((to) => {
   if (to.meta.public) return true;
 
   const cached = getValidSession();
   if (cached) {
     extendSession();
-    try {
-      const res = await fetch("/api/Investasi/Auth/check");
+    refreshSessionInBackground();
+    return true;
+  }
+
+  return fetch("/api/Investasi/Auth/check")
+    .then(async (res) => {
       if (res.ok) {
         const data = await res.json().catch(() => ({}));
         if (data?.data?.user) {
           saveSession(data.data.user);
+          return true;
         }
-        return true;
       }
-      if (res.status === 401) {
-        clearSession();
-        return "/login";
-      }
-    } catch {
-      return true;
-    }
-    return true;
-  }
-
-  try {
-    const res = await fetch("/api/Investasi/Auth/check");
-    if (res.ok) {
-      const data = await res.json().catch(() => ({}));
-      if (data?.data?.user) saveSession(data.data.user);
-      return true;
-    }
-  } catch {
-    /* offline or server down */
-  }
-
-  return "/login";
+      return "/login";
+    })
+    .catch(() => "/login");
 });
 
 createApp(App).use(router).mount("#app");
