@@ -103,7 +103,10 @@
         <li
           v-for="item in items"
           :key="item.id"
-          class="glass group p-4 transition hover:border-debit-dim/20"
+          class="group rounded-[1.75rem] border p-4 transition"
+          :class="isToday(item.record_date)
+            ? 'border-debit-dim/35 bg-debit-light/70 shadow-card hover:border-debit-dim/50'
+            : 'glass hover:border-debit-dim/20'"
         >
           <div class="flex items-start justify-between gap-2">
             <span v-if="item.target_name" class="chip-out">{{ item.target_name }}</span>
@@ -121,7 +124,9 @@
             </div>
           </div>
           <div class="mt-2 flex items-baseline justify-between gap-3">
-            <p class="text-sm text-mist">{{ formatDate(item.record_date) }}</p>
+            <p class="text-sm" :class="isToday(item.record_date) ? 'font-semibold text-debit-dim' : 'text-mist'">
+              {{ isToday(item.record_date) ? "Hari ini" : formatDate(item.record_date) }}
+            </p>
             <p class="font-display text-lg font-bold tabular-nums text-debit-dim">{{ formatRupiah(item.amount) }}</p>
           </div>
           <p v-if="item.note" class="mt-2 truncate text-sm text-pearl/60">{{ item.note }}</p>
@@ -190,7 +195,7 @@
 
 <script setup>
 import { onMounted, onUnmounted, ref, watch } from "vue";
-import { currentMonth, amountInputToNumber, formatDate, formatRupiah, todayISO, toAmountDigits } from "../utils/format";
+import { currentMonth, amountInputToNumber, formatDate, formatRupiah, isToday, todayISO, toAmountDigits } from "../utils/format";
 import AmountInput from "../components/AmountInput.vue";
 import {
   buildHistoryListQuery,

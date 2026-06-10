@@ -1,15 +1,10 @@
+import { localDateISO } from "./format";
+
 export const HISTORY_FILTER_OPTIONS = [
   { id: "today", label: "Hari ini" },
   { id: "yesterday", label: "Kemarin" },
   { id: "week", label: "Minggu ini" },
 ];
-
-export function localDateISO(date = new Date()) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
 
 /** @returns {{ from: string, to: string } | null} */
 export function historyFilterRange(filter) {
