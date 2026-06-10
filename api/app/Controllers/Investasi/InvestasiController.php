@@ -268,6 +268,38 @@ abstract class InvestasiController extends BaseController
         return $value;
     }
 
+    /** @return array{start: string, end: string, meta: array} */
+    protected function resolveListPeriod(?string $from, ?string $to, ?string $month): array
+    {
+        if ($from !== null && $from !== '' && $to !== null && $to !== '') {
+            $start = $this->sanitizeDate($from);
+            $end = $this->sanitizeDate($to);
+            if ($start > $end) {
+                $this->error('Rentang tanggal tidak valid', 400);
+            }
+
+            return [
+                'start' => $start,
+                'end' => $end,
+                'meta' => ['from' => $start, 'to' => $end],
+            ];
+        }
+
+        $month = $month ?: date('Y-m');
+        if (!preg_match('/^\d{4}-\d{2}$/', $month)) {
+            $this->error('Format month tidak valid (YYYY-MM)', 400);
+        }
+
+        $start = $month . '-01';
+        $end = date('Y-m-t', strtotime($start));
+
+        return [
+            'start' => $start,
+            'end' => $end,
+            'meta' => ['month' => $month],
+        ];
+    }
+
     /**
      * Total deposit, penarikan, dan modal bersih (deposit - penarikan).
      */

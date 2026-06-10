@@ -1,11 +1,6 @@
 <template>
   <div class="space-y-6">
     <section class="glass-strong p-6">
-      <div class="mb-6">
-        <p class="label-caps">Transaksi</p>
-        <h2 class="section-title mt-1">Aliran dana</h2>
-      </div>
-
       <!-- Type selector -->
       <div class="mb-5 grid grid-cols-2 gap-2 rounded-2xl border border-ink-200 bg-ink-100 p-1">
         <button
@@ -37,16 +32,7 @@
         </div>
         <div>
           <label class="field-label">Jumlah</label>
-          <input
-            v-model="form.amount"
-            class="field-input-lg"
-            type="number"
-            min="1"
-            step="1"
-            inputmode="numeric"
-            placeholder="0"
-            required
-          />
+          <AmountInput v-model="form.amount" required />
         </div>
         <div>
           <label class="field-label">Catatan <span class="text-mist/60">(opsional)</span></label>
@@ -137,8 +123,9 @@
 
 <script setup>
 import { onMounted, ref } from "vue";
-import { currentMonth, formatDate, formatRupiah, todayISO } from "../utils/format";
+import { currentMonth, amountInputToNumber, formatDate, formatRupiah, todayISO } from "../utils/format";
 import AlertBanner from "../components/AlertBanner.vue";
+import AmountInput from "../components/AmountInput.vue";
 import EmptyState from "../components/EmptyState.vue";
 
 const form = ref({
@@ -187,7 +174,7 @@ async function submitForm() {
       body: JSON.stringify({
         movement_type: form.value.movement_type,
         record_date: form.value.record_date,
-        amount: Number(form.value.amount),
+        amount: amountInputToNumber(form.value.amount),
         note: form.value.note || null,
       }),
     });

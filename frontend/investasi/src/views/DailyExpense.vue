@@ -3,14 +3,6 @@
 
     <!-- Form input pengeluaran -->
     <section class="glass-strong p-6">
-      <div class="mb-6 flex items-start justify-between">
-        <div>
-          <p class="label-caps">{{ editingId ? "Edit entri" : "Entri baru" }}</p>
-          <h2 class="section-title mt-1">Pengeluaran harian</h2>
-        </div>
-        <span class="chip-out">Terpisah</span>
-      </div>
-
       <form class="space-y-4" @submit.prevent="submitForm">
         <div>
           <div class="mb-2 flex items-center justify-between gap-2">
@@ -44,16 +36,7 @@
         </div>
         <div>
           <label class="field-label">Jumlah</label>
-          <input
-            v-model="form.amount"
-            class="field-input-lg"
-            type="number"
-            min="1"
-            step="1"
-            inputmode="numeric"
-            placeholder="0"
-            required
-          />
+          <AmountInput v-model="form.amount" required />
         </div>
         <div>
           <label class="field-label">Catatan <span class="text-mist/60">(opsional)</span></label>
@@ -77,12 +60,33 @@
 
     <!-- Riwayat -->
     <section>
-      <div class="mb-4 flex items-end justify-between gap-3">
+      <div class="mb-3 flex items-end justify-between gap-3">
         <div>
           <p class="label-caps">Riwayat</p>
           <p class="money-display-sm mt-1 text-debit-dim">{{ formatRupiah(total) }}</p>
         </div>
-        <input v-model="month" class="field-input !w-auto !py-2 !text-sm" type="month" @change="loadItems" />
+        <input
+          v-if="!historyFilter"
+          v-model="month"
+          class="field-input !w-auto !py-2 !text-sm"
+          type="month"
+          @change="loadItems"
+        />
+      </div>
+
+      <div class="mb-4 flex flex-wrap gap-2">
+        <button
+          v-for="opt in HISTORY_FILTER_OPTIONS"
+          :key="opt.id"
+          type="button"
+          class="rounded-xl border px-3 py-2 text-sm font-semibold transition active:scale-[0.98]"
+          :class="historyFilter === opt.id
+            ? 'border-debit-dim bg-debit-dim/10 text-debit-dim'
+            : 'border-ink-200 bg-ink-50 text-pearl hover:border-debit-dim/30'"
+          @click="setHistoryFilter(opt.id)"
+        >
+          {{ opt.label }}
+        </button>
       </div>
 
       <div v-if="loading" class="space-y-3">
@@ -186,13 +190,20 @@
 
 <script setup>
 import { onMounted, onUnmounted, ref, watch } from "vue";
-import { currentMonth, formatDate, formatRupiah, todayISO } from "../utils/format";
+import { currentMonth, amountInputToNumber, formatDate, formatRupiah, todayISO, toAmountDigits } from "../utils/format";
+import AmountInput from "../components/AmountInput.vue";
+import {
+  buildHistoryListQuery,
+  HISTORY_FILTER_OPTIONS,
+  toggleHistoryFilter,
+} from "../utils/historyFilter";
 import AlertBanner from "../components/AlertBanner.vue";
 import EmptyState from "../components/EmptyState.vue";
 
 const form = ref({ record_date: todayISO(), amount: "", target_id: null, note: "" });
 const editingId = ref(null);
 const month = ref(currentMonth());
+const historyFilter = ref("today");
 const items = ref([]);
 const total = ref(0);
 const targets = ref([]);
@@ -306,10 +317,16 @@ async function removeTarget(id) {
   }
 }
 
+function setHistoryFilter(id) {
+  historyFilter.value = toggleHistoryFilter(historyFilter.value, id);
+  loadItems();
+}
+
 async function loadItems() {
   loading.value = true;
   try {
-    const res = await fetch(`/api/Investasi/DailyExpense/list?month=${month.value}`);
+    const query = buildHistoryListQuery(historyFilter.value, month.value);
+    const res = await fetch(`/api/Investasi/DailyExpense/list?${query}`);
     const data = await res.json();
     if (!res.ok || !data.status) throw new Error(data.message || "Gagal memuat data");
     items.value = data.data.items;
@@ -335,7 +352,7 @@ async function submitForm() {
 
   const payload = {
     record_date: form.value.record_date,
-    amount: Number(form.value.amount),
+    amount: amountInputToNumber(form.value.amount),
     target_id: form.value.target_id,
     note: form.value.note || null,
   };
@@ -371,7 +388,7 @@ function startEdit(item) {
   editingId.value = item.id;
   form.value = {
     record_date: item.record_date,
-    amount: item.amount,
+    amount: toAmountDigits(item.amount),
     target_id: item.target_id || targets.value[0]?.id || null,
     note: item.note || "",
   };

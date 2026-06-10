@@ -15,13 +15,11 @@ class DailyExpense extends InvestasiController
 
     public function list()
     {
-        $month = $this->query('month', date('Y-m'));
-        if (!preg_match('/^\d{4}-\d{2}$/', $month)) {
-            $this->error('Format month tidak valid (YYYY-MM)', 400);
-        }
-
-        $start = $month . '-01';
-        $end = date('Y-m-t', strtotime($start));
+        $period = $this->resolveListPeriod(
+            $this->query('from'),
+            $this->query('to'),
+            $this->query('month')
+        );
 
         $rows = $this->db($this->db_index)->query(
             "SELECT d.id, d.record_date, d.amount, d.target_id, d.note, d.created_at,
@@ -30,16 +28,15 @@ class DailyExpense extends InvestasiController
              LEFT JOIN expense_targets t ON t.id = d.target_id
              WHERE d.record_date BETWEEN ? AND ?
              ORDER BY d.record_date DESC, d.id DESC",
-            [$start, $end]
+            [$period['start'], $period['end']]
         )->result_array();
 
         $total = array_sum(array_map(fn($r) => (float) $r['amount'], $rows));
 
-        $this->success([
-            'month' => $month,
+        $this->success(array_merge($period['meta'], [
             'total' => $total,
             'items' => $rows,
-        ]);
+        ]));
     }
 
     public function add()

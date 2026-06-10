@@ -2,11 +2,6 @@
   <div class="space-y-6">
     <!-- Update form -->
     <section class="glass-strong p-6">
-      <div class="mb-6">
-        <p class="label-caps">Perbarui</p>
-        <h2 class="section-title mt-1">Snapshot portfolio</h2>
-      </div>
-
       <form class="space-y-4" @submit.prevent="submitForm">
         <div>
           <label class="field-label">Tanggal</label>
@@ -14,16 +9,7 @@
         </div>
         <div>
           <label class="field-label">Nilai portfolio</label>
-          <input
-            v-model="form.amount"
-            class="field-input-lg"
-            type="number"
-            min="1"
-            step="1"
-            inputmode="numeric"
-            placeholder="0"
-            required
-          />
+          <AmountInput v-model="form.amount" required />
         </div>
         <div>
           <label class="field-label">Catatan <span class="text-mist/60">(opsional)</span></label>
@@ -82,8 +68,9 @@
 
 <script setup>
 import { onMounted, ref } from "vue";
-import { formatDate, formatRupiah, todayISO } from "../utils/format";
+import { amountInputToNumber, formatDate, formatRupiah, todayISO, toAmountDigits } from "../utils/format";
 import AlertBanner from "../components/AlertBanner.vue";
+import AmountInput from "../components/AmountInput.vue";
 import EmptyState from "../components/EmptyState.vue";
 
 const form = ref({ record_date: todayISO(), amount: "", note: "" });
@@ -115,7 +102,7 @@ async function loadData() {
     history.value = historyData.data.items;
 
     if (current.value?.amount) {
-      form.value.amount = current.value.amount;
+      form.value.amount = toAmountDigits(current.value.amount);
     }
   } catch (err) {
     message.value = err.message;
@@ -136,7 +123,7 @@ async function submitForm() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         record_date: form.value.record_date,
-        amount: Number(form.value.amount),
+        amount: amountInputToNumber(form.value.amount),
         note: form.value.note || null,
       }),
     });
