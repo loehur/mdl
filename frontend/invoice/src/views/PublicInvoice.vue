@@ -13,7 +13,6 @@
 
       <template v-else>
         <div class="page-enter mb-6 text-center">
-          <p class="label-caps text-ledger/80">Invoice Publik</p>
           <h1 class="page-title mt-2">{{ invoice.invoice_number }}</h1>
           <p class="mt-1 text-sm text-mist">Dari {{ invoice.issuer?.name }}</p>
         </div>
