@@ -67,7 +67,7 @@
       <section v-if="invoice.status !== 'cancelled'" class="glass-strong p-5">
         <h3 class="section-title mb-3">Bagikan Invoice</h3>
         <p class="mb-3 text-sm text-mist">Salin teks berikut dan kirim ke pelanggan:</p>
-        <pre class="whitespace-pre-wrap rounded-2xl border border-ink-200 bg-ink-50 p-4 text-sm text-pearl">{{ invoice.share_text }}</pre>
+        <pre class="whitespace-pre-wrap break-all rounded-2xl border border-ink-200 bg-ink-50 p-4 text-sm text-pearl">{{ invoice.share_text }}</pre>
         <div class="mt-3 flex gap-3">
           <button class="btn-primary flex-1" @click="copyShareText">
             {{ copied ? "Tersalin!" : "Salin Teks" }}

@@ -229,7 +229,9 @@ async function checkPayment() {
       paymentSuccess.value = true;
       invoice.value.payment_status = "paid";
       invoice.value.can_pay = false;
-      message.value = "Pembayaran berhasil!";
+      showPaymentModal.value = false;
+      paymentData.value = null;
+      message.value = "";
       isError.value = false;
     } else if (data.data?.payment_status === "expired") {
       message.value = "Pembayaran kadaluarsa. Silakan buat pembayaran baru.";
