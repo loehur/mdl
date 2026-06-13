@@ -144,7 +144,7 @@ class Invoices extends InvoiceController
             $invoiceNumber = $this->generateInvoiceNumber($userId);
             $publicToken = $this->generatePublicToken();
 
-            $this->db($this->db_index)->insert('invoices', [
+            $invoiceId = (int) $this->db($this->db_index)->insert('invoices', [
                 'user_id' => $userId,
                 'invoice_number' => $invoiceNumber,
                 'public_token' => $publicToken,
@@ -162,7 +162,9 @@ class Invoices extends InvoiceController
                 'payment_status' => 'unpaid',
             ]);
 
-            $invoiceId = (int) $this->db($this->db_index)->insert_id();
+            if ($invoiceId <= 0) {
+                $this->error('Gagal menyimpan invoice ke database', 500);
+            }
 
             foreach ($parsedItems as $item) {
                 $item['invoice_id'] = $invoiceId;
