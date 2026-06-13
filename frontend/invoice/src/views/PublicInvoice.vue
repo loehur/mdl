@@ -71,13 +71,13 @@
             </div>
           </div>
 
-          <p v-if="invoice.notes" class="mt-4 rounded-2xl bg-ink-100 p-3 text-sm text-mist">
+          <p v-if="invoice.notes" class="mt-4 whitespace-pre-wrap rounded-2xl bg-ink-100 p-3 text-sm text-mist">
             {{ invoice.notes }}
           </p>
 
           <div v-if="invoice.issuer?.phone || invoice.issuer?.address" class="mt-4 text-sm text-mist">
             <p v-if="invoice.issuer.phone">📞 {{ invoice.issuer.phone }}</p>
-            <p v-if="invoice.issuer.address" class="mt-1">{{ invoice.issuer.address }}</p>
+            <p v-if="invoice.issuer.address" class="mt-1 whitespace-pre-wrap">{{ invoice.issuer.address }}</p>
           </div>
         </div>
 

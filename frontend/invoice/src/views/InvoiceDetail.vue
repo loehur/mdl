@@ -59,6 +59,11 @@
         </div>
       </section>
 
+      <section v-if="invoice.notes" class="glass-strong p-5">
+        <h3 class="section-title mb-3">Catatan</h3>
+        <p class="whitespace-pre-wrap text-sm text-mist">{{ invoice.notes }}</p>
+      </section>
+
       <section v-if="invoice.status !== 'cancelled'" class="glass-strong p-5">
         <h3 class="section-title mb-3">Bagikan Invoice</h3>
         <p class="mb-3 text-sm text-mist">Salin teks berikut dan kirim ke pelanggan:</p>
