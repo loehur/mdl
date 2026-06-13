@@ -1,0 +1,135 @@
+<template>
+  <div class="relative flex min-h-screen">
+    <MeshBackground />
+
+    <aside class="relative hidden w-[45%] overflow-hidden lg:flex lg:flex-col lg:justify-between lg:p-12">
+      <div>
+        <p class="label-caps text-ledger/80">Invoice PWA</p>
+        <h1 class="mt-4 font-display text-5xl font-bold leading-none tracking-tight text-pearl">
+          Kelola Invoice
+        </h1>
+        <p class="mt-3 font-sans text-lg font-semibold text-ledger-dim">
+          Buat · Bagikan · Terima Bayar
+        </p>
+        <p class="mt-5 max-w-sm text-sm leading-relaxed text-mist">
+          Buat invoice profesional, bagikan link publik ke pelanggan, dan terima pembayaran via QRIS.
+        </p>
+      </div>
+
+      <div class="space-y-4">
+        <div class="hairline" />
+        <div class="flex gap-8">
+          <div>
+            <p class="label-caps">Fitur</p>
+            <p class="mt-2 text-sm text-mist">Buat invoice</p>
+            <p class="text-sm text-mist">Bagikan link</p>
+            <p class="text-sm text-mist">Bayar via QRIS</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="absolute -right-20 top-1/4 h-80 w-80 rounded-full border border-ledger/10" />
+      <div class="absolute right-10 bottom-20 h-40 w-40 rounded-full border border-ledger/15 bg-ledger/5 blur-sm" />
+    </aside>
+
+    <div class="flex flex-1 items-center justify-center px-5 py-12">
+      <div class="w-full max-w-sm page-enter">
+        <div class="mb-10 lg:hidden">
+          <p class="label-caps text-ledger/80">Invoice</p>
+          <h1 class="mt-2 font-display text-3xl font-bold tracking-tight text-pearl">Masuk</h1>
+        </div>
+
+        <div class="glass-strong p-8">
+          <div class="mb-8 flex items-center gap-3">
+            <div class="flex h-11 w-11 items-center justify-center rounded-2xl border border-ledger/20 bg-ledger/10">
+              <svg class="h-5 w-5 text-ledger" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Z" stroke-linejoin="round" />
+                <path d="M14 3v6h6M8 13h8M8 17h5" stroke-linecap="round" />
+              </svg>
+            </div>
+            <div>
+              <p class="text-sm font-bold text-pearl">Login</p>
+              <p class="text-sm text-mist">Masukkan email dan kata sandi</p>
+            </div>
+          </div>
+
+          <form class="space-y-5" @submit.prevent="onSubmit">
+            <div>
+              <label class="field-label">Email</label>
+              <input
+                v-model="email"
+                class="field-input"
+                type="email"
+                autocomplete="email"
+                placeholder="nama@email.com"
+                required
+              />
+            </div>
+            <div>
+              <label class="field-label">Kata sandi</label>
+              <input
+                v-model="password"
+                class="field-input"
+                type="password"
+                autocomplete="current-password"
+                placeholder="••••••••"
+                required
+              />
+            </div>
+
+            <button class="btn-primary w-full" type="submit" :disabled="loading">
+              <span v-if="loading" class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-ink/30 border-t-ink" />
+              {{ loading ? "Memverifikasi..." : "Masuk" }}
+            </button>
+          </form>
+
+          <AlertBanner class="mt-5" :message="message" :type="isError ? 'error' : 'success'" />
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref } from "vue";
+import { useRouter } from "vue-router";
+import MeshBackground from "../components/MeshBackground.vue";
+import AlertBanner from "../components/AlertBanner.vue";
+import { saveSession } from "../utils/session";
+
+const router = useRouter();
+const email = ref("");
+const password = ref("");
+const loading = ref(false);
+const message = ref("");
+const isError = ref(false);
+
+async function onSubmit() {
+  loading.value = true;
+  message.value = "";
+  isError.value = false;
+
+  try {
+    const res = await fetch("/api/Invoice/Auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email.value, password: password.value }),
+    });
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok || !data.success) {
+      message.value = data.message || data.error || "Login gagal";
+      isError.value = true;
+      return;
+    }
+
+    saveSession(data.user, data.token || null);
+    router.push("/dashboard");
+  } catch {
+    message.value = "Tidak dapat terhubung ke server";
+    isError.value = true;
+  } finally {
+    loading.value = false;
+  }
+}
+</script>

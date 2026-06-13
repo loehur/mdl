@@ -18,6 +18,7 @@ class DBC
                 3 => ['db' => 'mdl_water', 'user' => 'root', 'pass' => ''],
                 4 => ['db' => 'mdl_salon', 'user' => 'root', 'pass' => ''],
                 5 => ['db' => 'mdl_investasi', 'user' => 'root', 'pass' => ''],
+                6 => ['db' => 'mdl_invoice', 'user' => 'root', 'pass' => ''],
             ],
             'pro' => [
                 0 => ['db' => 'mdl_main', 'user' => 'mdl_main', 'pass' => 'wB5KjfjRYfPXBtFF'],
@@ -26,6 +27,7 @@ class DBC
                 3 => ['db' => 'mdl_water', 'user' => 'mdl_water', 'pass' => 'csFW7fjxxTXB7ryR'],
                 4 => ['db' => 'mdl_salon', 'user' => 'mdl_salon', 'pass' => 'W6FLRYyeKFZdTpHC'],
                 5 => ['db' => 'mdl_investasi', 'user' => 'mdl_investasi', 'pass' => ''],
+                6 => ['db' => 'mdl_invoice', 'user' => 'mdl_invoice', 'pass' => ''],
             ],
         ];
     }

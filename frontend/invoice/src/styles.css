@@ -1,0 +1,202 @@
+@import url("https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@600;700;800&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply scroll-smooth text-[17px];
+  }
+
+  body {
+    @apply min-h-screen bg-ink font-sans text-[17px] leading-relaxed text-pearl antialiased;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(124, 92, 191, 0.12), transparent),
+      radial-gradient(ellipse 60% 40% at 100% 50%, rgba(5, 150, 105, 0.05), transparent),
+      radial-gradient(ellipse 50% 30% at 0% 80%, rgba(124, 92, 191, 0.05), transparent);
+  }
+
+  ::selection {
+    @apply bg-ledger/20 text-pearl;
+  }
+
+  input[type="date"],
+  input[type="month"] {
+    color-scheme: light;
+  }
+}
+
+@layer components {
+  .app-shell {
+    @apply relative min-h-screen pb-32;
+  }
+
+  .mesh-bg {
+    @apply pointer-events-none fixed inset-0 -z-10 overflow-hidden;
+  }
+
+  .mesh-orb {
+    @apply absolute rounded-full blur-3xl opacity-50;
+  }
+
+  .glass {
+    @apply rounded-[1.75rem] border border-ink-200/80 bg-ink-50/90 shadow-card backdrop-blur-sm;
+  }
+
+  .glass-strong {
+    @apply rounded-[1.75rem] border border-ink-200 bg-ink-50 shadow-card;
+  }
+
+  .label-caps {
+    @apply font-sans text-sm font-semibold uppercase tracking-[0.06em] text-mist;
+  }
+
+  .page-title {
+    @apply font-display text-[1.85rem] font-bold leading-tight tracking-tight text-pearl;
+  }
+
+  .section-title {
+    @apply font-display text-xl font-bold leading-tight tracking-tight text-pearl;
+  }
+
+  .money-display {
+    @apply font-display text-[2rem] font-bold leading-none tracking-tight text-pearl tabular-nums md:text-[2.35rem];
+  }
+
+  .money-display-sm {
+    @apply font-display text-2xl font-bold leading-none tracking-tight text-pearl tabular-nums;
+  }
+
+  .field-label {
+    @apply mb-2 block text-sm font-semibold tracking-wide text-mist;
+  }
+
+  .field-input {
+    @apply w-full rounded-2xl border border-ink-200 bg-ink-50 px-4 py-3.5 text-base text-pearl outline-none transition placeholder:text-mist/50;
+    @apply focus:border-ledger/50 focus:ring-2 focus:ring-ledger/15;
+  }
+
+  .field-input-lg {
+    @apply field-input py-4 font-display text-xl font-semibold tabular-nums;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-ledger-dim via-ledger to-ledger-glow px-5 py-3.5 font-sans text-base font-semibold text-white shadow-glow transition;
+    @apply hover:brightness-105 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-debit {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-debit-dim via-debit to-debit-dim px-5 py-3.5 font-sans text-base font-semibold text-white shadow-panel transition;
+    @apply hover:brightness-105 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl border border-ink-200 bg-ink-50 px-5 py-3.5 font-sans text-base font-medium text-pearl transition;
+    @apply hover:border-ledger/30 hover:bg-ledger/5 active:scale-[0.98];
+  }
+
+  .btn-icon {
+    @apply inline-flex h-9 w-9 items-center justify-center rounded-xl border border-ink-200 bg-ink-50 text-mist transition hover:border-ledger/40 hover:text-ledger;
+  }
+
+  .chip {
+    @apply inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide;
+  }
+
+  .chip-in {
+    @apply chip border-credit-dim/20 bg-credit-light text-credit-dim;
+  }
+
+  .chip-out {
+    @apply chip border-debit-dim/20 bg-debit-light text-debit-dim;
+  }
+
+  .stat-tile {
+    @apply glass relative overflow-hidden p-4;
+  }
+
+  .stat-tile::before {
+    content: "";
+    @apply absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-ledger/20 to-transparent;
+  }
+
+  .timeline-item {
+    @apply relative pl-6 pb-6 last:pb-0;
+  }
+
+  .timeline-item::before {
+    content: "";
+    @apply absolute left-[7px] top-2 bottom-0 w-px bg-gradient-to-b from-ledger/30 to-transparent;
+  }
+
+  .timeline-item::after {
+    content: "";
+    @apply absolute left-0 top-1.5 h-3.5 w-3.5 rounded-full border-2 border-ledger bg-ink-50;
+  }
+
+  .timeline-item:last-child::before {
+    display: none;
+  }
+
+  .alert {
+    @apply rounded-2xl border px-4 py-3 text-base;
+  }
+
+  .alert-error {
+    @apply alert border-debit-dim/20 bg-debit-light text-debit-dim;
+  }
+
+  .alert-success {
+    @apply alert border-credit-dim/20 bg-credit-light text-credit-dim;
+  }
+
+  .dock {
+    @apply fixed bottom-0 left-0 right-0 z-50;
+  }
+
+  .dock-inner {
+    @apply mx-auto flex w-full max-w-md items-center gap-0.5 overflow-x-auto rounded-none border border-b-0 border-ink-200 bg-ink-50/95 px-2 py-2.5 shadow-panel backdrop-blur-md;
+  }
+
+  .dock-link {
+    @apply relative flex min-w-[3.25rem] shrink-0 flex-col items-center gap-1 rounded-none px-2.5 py-2.5 text-xs font-semibold tracking-wide text-mist transition;
+  }
+
+  .dock-link svg {
+    @apply h-6 w-6;
+  }
+
+  .dock-link-active {
+    @apply bg-ledger/10 text-ledger-dim;
+  }
+
+  .page-enter {
+    animation: fadeUp 0.45s ease-out both;
+  }
+
+  .skeleton {
+    @apply animate-pulse rounded-2xl bg-ink-100;
+  }
+}
+
+@layer utilities {
+  .text-accent {
+    @apply font-bold text-ledger-dim;
+  }
+
+  .hairline {
+    @apply h-px bg-gradient-to-r from-transparent via-ink-200 to-transparent;
+  }
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

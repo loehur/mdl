@@ -1,0 +1,175 @@
+<template>
+  <div class="page-enter space-y-5 pb-6">
+    <PageLoader v-if="loading" />
+
+    <template v-else-if="invoice">
+      <div class="glass-strong p-5">
+        <div class="flex items-start justify-between">
+          <div>
+            <p class="label-caps">Invoice</p>
+            <h2 class="section-title mt-1">{{ invoice.invoice_number }}</h2>
+            <p class="text-sm text-mist">{{ invoice.customer_name }}</p>
+          </div>
+          <span class="chip" :class="invoice.payment_status === 'paid' ? 'chip-in' : 'chip-out'">
+            {{ paymentLabel(invoice.payment_status) }}
+          </span>
+        </div>
+
+        <div class="mt-4 grid grid-cols-2 gap-3 text-sm">
+          <div>
+            <p class="text-mist">Tanggal</p>
+            <p class="font-semibold text-pearl">{{ formatDate(invoice.issue_date) }}</p>
+          </div>
+          <div>
+            <p class="text-mist">Jatuh Tempo</p>
+            <p class="font-semibold text-pearl">{{ invoice.due_date ? formatDate(invoice.due_date) : '-' }}</p>
+          </div>
+        </div>
+      </div>
+
+      <section class="glass-strong p-5">
+        <h3 class="section-title mb-3">Item</h3>
+        <div class="space-y-3">
+          <div
+            v-for="item in invoice.items"
+            :key="item.id"
+            class="flex justify-between gap-3 border-b border-ink-200 pb-3 last:border-0"
+          >
+            <div>
+              <p class="text-sm font-semibold text-pearl">{{ item.description }}</p>
+              <p class="text-xs text-mist">{{ item.quantity }} × Rp {{ formatRupiah(item.unit_price) }}</p>
+            </div>
+            <p class="text-sm font-bold text-pearl">Rp {{ formatRupiah(item.amount) }}</p>
+          </div>
+        </div>
+
+        <div class="mt-4 space-y-1 border-t border-ink-200 pt-3">
+          <div class="flex justify-between text-sm text-mist">
+            <span>Subtotal</span>
+            <span>Rp {{ formatRupiah(invoice.subtotal) }}</span>
+          </div>
+          <div v-if="invoice.tax_amount > 0" class="flex justify-between text-sm text-mist">
+            <span>Pajak ({{ invoice.tax_percent }}%)</span>
+            <span>Rp {{ formatRupiah(invoice.tax_amount) }}</span>
+          </div>
+          <div class="flex justify-between pt-1">
+            <span class="font-bold text-pearl">Total</span>
+            <span class="money-display-sm text-ledger-dim">Rp {{ formatRupiah(invoice.total) }}</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="glass-strong p-5">
+        <h3 class="section-title mb-3">Bagikan Invoice</h3>
+        <p class="mb-3 text-sm text-mist">Salin teks berikut dan kirim ke pelanggan:</p>
+        <pre class="whitespace-pre-wrap rounded-2xl border border-ink-200 bg-ink-50 p-4 text-sm text-pearl">{{ invoice.share_text }}</pre>
+        <div class="mt-3 flex gap-3">
+          <button class="btn-primary flex-1" @click="copyShareText">
+            {{ copied ? "Tersalin!" : "Salin Teks" }}
+          </button>
+          <button class="btn-ghost flex-1" @click="copyLink">Salin Link</button>
+        </div>
+      </section>
+
+      <button
+        v-if="invoice.payment_status !== 'paid' && invoice.status !== 'cancelled'"
+        class="btn-debit w-full"
+        @click="cancelInvoice"
+      >
+        Batalkan Invoice
+      </button>
+
+      <AlertBanner :message="message" :type="isError ? 'error' : 'success'" />
+    </template>
+  </div>
+</template>
+
+<script setup>
+import { onMounted, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import PageLoader from "../components/PageLoader.vue";
+import AlertBanner from "../components/AlertBanner.vue";
+import { formatDate, formatRupiah } from "../utils/format";
+
+const route = useRoute();
+const router = useRouter();
+
+const loading = ref(true);
+const invoice = ref(null);
+const copied = ref(false);
+const message = ref("");
+const isError = ref(false);
+
+function paymentLabel(status) {
+  if (status === "paid") return "Lunas";
+  if (status === "pending") return "Menunggu Bayar";
+  return "Belum Bayar";
+}
+
+async function loadDetail() {
+  loading.value = true;
+  try {
+    const res = await fetch(`/api/Invoice/Invoices/detail?id=${route.params.id}`);
+    const data = await res.json();
+    if (res.ok && data.status) {
+      invoice.value = data.data;
+    } else {
+      message.value = data.message || "Invoice tidak ditemukan";
+      isError.value = true;
+    }
+  } catch {
+    message.value = "Gagal memuat invoice";
+    isError.value = true;
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function copyShareText() {
+  if (!invoice.value?.share_text) return;
+  try {
+    await navigator.clipboard.writeText(invoice.value.share_text);
+    copied.value = true;
+    setTimeout(() => { copied.value = false; }, 2000);
+  } catch {
+    message.value = "Gagal menyalin teks";
+    isError.value = true;
+  }
+}
+
+async function copyLink() {
+  if (!invoice.value?.public_url) return;
+  try {
+    await navigator.clipboard.writeText(invoice.value.public_url);
+    message.value = "Link berhasil disalin";
+    isError.value = false;
+  } catch {
+    message.value = "Gagal menyalin link";
+    isError.value = true;
+  }
+}
+
+async function cancelInvoice() {
+  if (!confirm("Batalkan invoice ini?")) return;
+
+  try {
+    const res = await fetch("/api/Invoice/Invoices/cancel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: invoice.value.id }),
+    });
+    const data = await res.json();
+    if (res.ok && data.status) {
+      router.push("/riwayat");
+    } else {
+      message.value = data.message || "Gagal membatalkan";
+      isError.value = true;
+    }
+  } catch {
+    message.value = "Gagal membatalkan invoice";
+    isError.value = true;
+  }
+}
+
+onMounted(loadDetail);
+</script>

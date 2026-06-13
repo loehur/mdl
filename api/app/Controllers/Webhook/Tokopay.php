@@ -71,6 +71,10 @@ class Tokopay extends Controller
              $this->handleSalonSubscription($reff_id, $status);
              echo json_encode(['status' => true, 'message' => 'Processed SALONSUB']);
              return;
+        } else if ($parts[0] === 'MDLINV') {
+             $this->handleInvoicePayment($reff_id, $status);
+             echo json_encode(['status' => true, 'message' => 'Processed MDLINV']);
+             return;
         } else if ($parts[0] === 'RESTOKAS') {
              $this->handleRestoKas($reff_id, $status);
              echo json_encode(['status' => true, 'message' => 'Processed RESTOKAS']);
@@ -143,6 +147,55 @@ class Tokopay extends Controller
                 'payment_status' => 'failed'
             ], ['payment_ref' => $payment_ref]);
              \Log::write("OK: Salon Sub FAILED ref=$payment_ref", 'webhook', 'Tokopay');
+        }
+    }
+
+    private function handleInvoicePayment($payment_ref, $status_tokopay)
+    {
+        $db_index = 6; // mdl_invoice
+        $db = $this->db($db_index);
+
+        if (!$db) {
+            \Log::write("Err: DB Invoice Not Found", 'webhook', 'Tokopay');
+            return;
+        }
+
+        $payment = $db->get_where('invoice_payments', ['payment_ref' => $payment_ref])->row_array();
+
+        if (!$payment) {
+            \Log::write("Err: Invoice Pmt Not Found ref=$payment_ref", 'webhook', 'Tokopay');
+            return;
+        }
+
+        $statusLower = strtolower($status_tokopay);
+        $isPaid = in_array($statusLower, \Env::QRIS_STATUS_SUCCESS);
+        $isExpired = in_array($statusLower, \Env::QRIS_STATUS_EXPIRED);
+
+        if ($isPaid) {
+            if ($payment['payment_status'] !== 'success') {
+                $now = date('Y-m-d H:i:s');
+                $db->update('invoice_payments', [
+                    'payment_status' => 'success',
+                    'paid_at' => $now,
+                ], ['payment_ref' => $payment_ref]);
+
+                $db->update('invoices', [
+                    'payment_status' => 'paid',
+                    'status' => 'paid',
+                ], ['id' => $payment['invoice_id']]);
+
+                \Log::write("OK: Invoice PAID ref=$payment_ref inv={$payment['invoice_id']}", 'webhook', 'Tokopay');
+            }
+        } elseif ($isExpired) {
+            $db->update('invoice_payments', [
+                'payment_status' => 'expired',
+            ], ['payment_ref' => $payment_ref]);
+
+            $db->update('invoices', [
+                'payment_status' => 'unpaid',
+            ], ['id' => $payment['invoice_id']]);
+
+            \Log::write("OK: Invoice EXPIRED ref=$payment_ref", 'webhook', 'Tokopay');
         }
     }
 
