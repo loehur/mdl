@@ -112,6 +112,10 @@
     @apply chip border-debit-dim/20 bg-debit-light text-debit-dim;
   }
 
+  .chip-cancelled {
+    @apply chip border-mist/30 bg-ink-100 text-mist;
+  }
+
   .stat-tile {
     @apply glass relative overflow-hidden p-4;
   }

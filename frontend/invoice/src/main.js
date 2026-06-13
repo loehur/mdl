@@ -66,6 +66,7 @@ const router = createRouter({
       children: [
         { path: "dashboard", component: Dashboard },
         { path: "buat", component: CreateInvoice },
+        { path: "edit/:id", component: CreateInvoice },
         { path: "riwayat", component: History },
         { path: "detail/:id", component: InvoiceDetail },
       ],

@@ -34,7 +34,7 @@
           :key="item.path"
           :to="item.path"
           class="dock-link"
-          :class="$route.path === item.path || ($route.path.startsWith('/detail') && item.path === '/riwayat') ? 'dock-link-active' : ''"
+          :class="$route.path === item.path || ($route.path.startsWith('/detail') && item.path === '/riwayat') || ($route.path.startsWith('/edit') && item.path === '/riwayat') ? 'dock-link-active' : ''"
         >
           <component :is="item.icon" />
           <span>{{ item.label }}</span>
@@ -84,6 +84,7 @@ const titles = {
 
 const pageTitle = computed(() => {
   if (route.path.startsWith("/detail")) return "Detail Invoice";
+  if (route.path.startsWith("/edit")) return "Edit Invoice";
   return titles[route.path] || "Invoice";
 });
 

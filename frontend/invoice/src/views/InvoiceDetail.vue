@@ -10,8 +10,8 @@
             <h2 class="section-title mt-1">{{ invoice.invoice_number }}</h2>
             <p class="text-sm text-mist">{{ invoice.customer_name }}</p>
           </div>
-          <span class="chip" :class="invoice.payment_status === 'paid' ? 'chip-in' : 'chip-out'">
-            {{ paymentLabel(invoice.payment_status) }}
+          <span class="chip" :class="invoiceStatusChipClass(invoice)">
+            {{ invoiceStatusLabel(invoice) }}
           </span>
         </div>
 
@@ -59,7 +59,7 @@
         </div>
       </section>
 
-      <section class="glass-strong p-5">
+      <section v-if="invoice.status !== 'cancelled'" class="glass-strong p-5">
         <h3 class="section-title mb-3">Bagikan Invoice</h3>
         <p class="mb-3 text-sm text-mist">Salin teks berikut dan kirim ke pelanggan:</p>
         <pre class="whitespace-pre-wrap rounded-2xl border border-ink-200 bg-ink-50 p-4 text-sm text-pearl">{{ invoice.share_text }}</pre>
@@ -71,12 +71,32 @@
         </div>
       </section>
 
+      <div v-if="invoice.status === 'cancelled'" class="alert border-mist/30 bg-ink-100 text-mist">
+        Invoice ini telah dibatalkan dan tidak dapat dibagikan atau dibayar.
+      </div>
+
+      <router-link
+        v-if="invoice.payment_status !== 'paid' && invoice.status !== 'cancelled'"
+        :to="`/edit/${invoice.id}`"
+        class="btn-primary block w-full text-center"
+      >
+        Edit Invoice
+      </router-link>
+
       <button
         v-if="invoice.payment_status !== 'paid' && invoice.status !== 'cancelled'"
         class="btn-debit w-full"
         @click="cancelInvoice"
       >
         Batalkan Invoice
+      </button>
+
+      <button
+        v-if="invoice.status === 'cancelled'"
+        class="btn-debit w-full"
+        @click="deleteInvoice"
+      >
+        Hapus Invoice
       </button>
 
       <AlertBanner :message="message" :type="isError ? 'error' : 'success'" />
@@ -90,6 +110,7 @@ import { useRoute, useRouter } from "vue-router";
 import PageLoader from "../components/PageLoader.vue";
 import AlertBanner from "../components/AlertBanner.vue";
 import { formatDate, formatRupiah } from "../utils/format";
+import { invoiceStatusChipClass, invoiceStatusLabel } from "../utils/invoiceStatus";
 
 const route = useRoute();
 const router = useRouter();
@@ -99,12 +120,6 @@ const invoice = ref(null);
 const copied = ref(false);
 const message = ref("");
 const isError = ref(false);
-
-function paymentLabel(status) {
-  if (status === "paid") return "Lunas";
-  if (status === "pending") return "Menunggu Bayar";
-  return "Belum Bayar";
-}
 
 async function loadDetail() {
   loading.value = true;
@@ -160,13 +175,37 @@ async function cancelInvoice() {
     });
     const data = await res.json();
     if (res.ok && data.status) {
-      router.push("/riwayat");
+      await loadDetail();
+      message.value = "Invoice berhasil dibatalkan";
+      isError.value = false;
     } else {
       message.value = data.message || "Gagal membatalkan";
       isError.value = true;
     }
   } catch {
     message.value = "Gagal membatalkan invoice";
+    isError.value = true;
+  }
+}
+
+async function deleteInvoice() {
+  if (!confirm("Hapus invoice ini secara permanen?")) return;
+
+  try {
+    const res = await fetch("/api/Invoice/Invoices/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: invoice.value.id }),
+    });
+    const data = await res.json();
+    if (res.ok && data.status) {
+      router.push("/riwayat");
+    } else {
+      message.value = data.message || "Gagal menghapus invoice";
+      isError.value = true;
+    }
+  } catch {
+    message.value = "Gagal menghapus invoice";
     isError.value = true;
   }
 }

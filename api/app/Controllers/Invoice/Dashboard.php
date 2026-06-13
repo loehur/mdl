@@ -31,7 +31,7 @@ class Dashboard extends InvoiceController
             )->row_array();
 
             $recent = $this->db($this->db_index)->query(
-                "SELECT id, invoice_number, customer_name, total, payment_status, issue_date, public_token
+                "SELECT id, invoice_number, customer_name, total, payment_status, status, issue_date, public_token
                  FROM invoices
                  WHERE user_id = ?
                  ORDER BY created_at DESC

@@ -49,8 +49,8 @@
             </div>
             <div class="text-right">
               <p class="text-sm font-bold text-pearl">Rp {{ formatRupiah(inv.total) }}</p>
-              <span class="chip" :class="inv.payment_status === 'paid' ? 'chip-in' : 'chip-out'">
-                {{ inv.payment_status === 'paid' ? 'Lunas' : 'Belum' }}
+              <span class="chip" :class="invoiceStatusChipClass(inv)">
+                {{ invoiceStatusLabel(inv) }}
               </span>
             </div>
           </router-link>
@@ -65,6 +65,7 @@ import { onMounted, ref } from "vue";
 import PageLoader from "../components/PageLoader.vue";
 import EmptyState from "../components/EmptyState.vue";
 import { formatRupiah } from "../utils/format";
+import { invoiceStatusChipClass, invoiceStatusLabel } from "../utils/invoiceStatus";
 
 const loading = ref(true);
 const summary = ref({

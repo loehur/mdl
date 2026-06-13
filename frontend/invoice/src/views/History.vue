@@ -2,10 +2,11 @@
   <div class="page-enter space-y-5 pb-6">
     <div class="flex gap-2">
       <input v-model="month" class="field-input flex-1" type="month" @change="loadList" />
-      <select v-model="statusFilter" class="field-input w-32" @change="loadList">
+      <select v-model="statusFilter" class="field-input w-36" @change="loadList">
         <option value="">Semua</option>
         <option value="unpaid">Belum Bayar</option>
         <option value="paid">Lunas</option>
+        <option value="cancelled">Dibatalkan</option>
       </select>
     </div>
 
@@ -32,8 +33,8 @@
           </div>
           <div class="text-right">
             <p class="text-sm font-bold text-pearl">Rp {{ formatRupiah(inv.total) }}</p>
-            <span class="chip mt-1" :class="inv.payment_status === 'paid' ? 'chip-in' : 'chip-out'">
-              {{ paymentLabel(inv.payment_status) }}
+            <span class="chip mt-1" :class="invoiceStatusChipClass(inv)">
+              {{ invoiceStatusLabel(inv) }}
             </span>
           </div>
         </div>
@@ -47,17 +48,12 @@ import { onMounted, ref } from "vue";
 import PageLoader from "../components/PageLoader.vue";
 import EmptyState from "../components/EmptyState.vue";
 import { currentMonth, formatDate, formatRupiah } from "../utils/format";
+import { invoiceStatusChipClass, invoiceStatusLabel } from "../utils/invoiceStatus";
 
 const loading = ref(true);
 const month = ref(currentMonth());
 const statusFilter = ref("");
 const invoices = ref([]);
-
-function paymentLabel(status) {
-  if (status === "paid") return "Lunas";
-  if (status === "pending") return "Menunggu";
-  return "Belum Bayar";
-}
 
 async function loadList() {
   loading.value = true;
