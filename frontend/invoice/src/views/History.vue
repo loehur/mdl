@@ -1,5 +1,5 @@
 <template>
-  <div class="page-enter space-y-5 pb-6">
+  <div class="space-y-5 pb-6">
     <div class="flex gap-2">
       <input v-model="month" class="field-input flex-1" type="month" @change="loadList" />
       <select v-model="statusFilter" class="field-input w-36" @change="loadList">

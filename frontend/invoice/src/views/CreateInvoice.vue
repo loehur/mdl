@@ -1,5 +1,5 @@
 <template>
-  <div class="page-enter space-y-5 pb-6">
+  <div class="space-y-5 pb-6">
     <PageLoader v-if="loadingInvoice" />
 
     <template v-else>
