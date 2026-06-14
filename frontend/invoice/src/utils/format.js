@@ -6,6 +6,11 @@ export function formatRupiah(value) {
   }).format(num);
 }
 
+/** Tampilan "Rp 100.000" — pakai non-breaking space agar tidak wrap. */
+export function formatRupiahDisplay(value) {
+  return `Rp\u00A0${formatRupiah(value)}`;
+}
+
 /** Ambil digit saja dari input jumlah. */
 export function parseAmountInput(value) {
   return String(value ?? "").replace(/\D/g, "");

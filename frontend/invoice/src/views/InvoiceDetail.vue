@@ -33,28 +33,32 @@
           <div
             v-for="item in invoice.items"
             :key="item.id"
-            class="flex justify-between gap-3 border-b border-ink-200 pb-3 last:border-0"
+            class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 border-b border-ink-200 pb-3 last:border-0"
           >
-            <div>
+            <div class="min-w-0">
               <p class="text-sm font-semibold text-pearl">{{ item.description }}</p>
-              <p class="text-xs text-mist">{{ item.quantity }} × Rp {{ formatRupiah(item.unit_price) }}</p>
+              <p class="text-xs text-mist">{{ item.quantity }} × {{ formatRupiahDisplay(item.unit_price) }}</p>
             </div>
-            <p class="text-sm font-bold text-pearl">Rp {{ formatRupiah(item.amount) }}</p>
+            <p class="min-w-max whitespace-nowrap text-right text-sm font-bold tabular-nums text-pearl">
+              {{ formatRupiahDisplay(item.amount) }}
+            </p>
           </div>
         </div>
 
         <div class="mt-4 space-y-1 border-t border-ink-200 pt-3">
-          <div class="flex justify-between text-sm text-mist">
+          <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 text-sm text-mist">
             <span>Subtotal</span>
-            <span>Rp {{ formatRupiah(invoice.subtotal) }}</span>
+            <span class="min-w-max whitespace-nowrap text-right tabular-nums">{{ formatRupiahDisplay(invoice.subtotal) }}</span>
           </div>
-          <div v-if="invoice.tax_amount > 0" class="flex justify-between text-sm text-mist">
+          <div v-if="invoice.tax_amount > 0" class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 text-sm text-mist">
             <span>Pajak ({{ invoice.tax_percent }}%)</span>
-            <span>Rp {{ formatRupiah(invoice.tax_amount) }}</span>
+            <span class="min-w-max whitespace-nowrap text-right tabular-nums">{{ formatRupiahDisplay(invoice.tax_amount) }}</span>
           </div>
-          <div class="flex justify-between pt-1">
+          <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 pt-1">
             <span class="font-bold text-pearl">Total</span>
-            <span class="money-display-sm text-ledger-dim">Rp {{ formatRupiah(invoice.total) }}</span>
+            <span class="money-display-sm min-w-max whitespace-nowrap text-right tabular-nums text-ledger-dim">
+              {{ formatRupiahDisplay(invoice.total) }}
+            </span>
           </div>
         </div>
       </section>
@@ -114,7 +118,7 @@ import { onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import PageLoader from "../components/PageLoader.vue";
 import AlertBanner from "../components/AlertBanner.vue";
-import { formatDate, formatRupiah } from "../utils/format";
+import { formatDate, formatRupiahDisplay } from "../utils/format";
 import { invoiceStatusChipClass, invoiceStatusLabel } from "../utils/invoiceStatus";
 
 const route = useRoute();
