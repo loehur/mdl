@@ -24,15 +24,64 @@
         font-size: 17px;
         letter-spacing: 0.06em;
       }
+      .absen-datetime {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 12px 14px;
+        margin-bottom: 14px;
+        background: linear-gradient(135deg, #f8faff 0%, #eef2fb 100%);
+        border: 1px solid #d6e0f5;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        line-height: 1.3;
+        color: #2c3e6b;
+      }
+      .absen-tanggal,
+      .absen-jam {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+      }
+      .absen-tanggal {
+        flex: 1;
+        text-align: left;
+      }
+      .absen-jam {
+        flex-shrink: 0;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        color: #c0392b;
+      }
+      .absen-datetime i {
+        font-size: 15px;
+        opacity: 0.8;
+      }
+      .absen-tanggal i {
+        color: #3b6fd9;
+      }
+      .absen-jam i {
+        color: #e05a4a;
+      }
     </style>
+    <?php
+    $hariIndo = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    $bulanIndo = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    $tanggalAbsen = $hariIndo[(int) date('w')] . ', ' . date('j') . ' ' . $bulanIndo[(int) date('n')] . ' ' . date('Y');
+    ?>
     <div class="card p-3 mt-2">
       <form method="POST" action="<?= URL::BASE_URL ?>Absen/absen">
-        <div class="row">
-          <div class="col text-center text-danger">
-            <?= date('Y-m-d') ?>
-            <h1>
-              <span id="jam"><?= date('H') ?></span>:<span id="menit"><?= date('i') ?></span>:<span id="detik"><?= date('s') ?></span>
-            </h1>
+        <div class="absen-datetime">
+          <div class="absen-tanggal">
+            <i class="far fa-calendar-alt"></i>
+            <span><?= $tanggalAbsen ?></span>
+          </div>
+          <div class="absen-jam">
+            <i class="far fa-clock"></i>
+            <span id="absen-jam"><?= date('H:i:s') ?></span>
           </div>
         </div>
         <div class="row">
@@ -213,12 +262,19 @@
     submitAbsen();
   });
 
-  window.setTimeout("waktu()", 1000);
+  (function() {
+    var serverOffset = <?= time() ?> - Math.floor(Date.now() / 1000);
 
-  function waktu() {
-    setTimeout("waktu()", 1000);
-    $("#jam").load('<?= URL::BASE_URL . 'Time/get/H' ?>');
-    $("#menit").load('<?= URL::BASE_URL . 'Time/get/i' ?>');
-    $("#detik").load('<?= URL::BASE_URL . 'Time/get/s' ?>');
-  }
+    function pad(n) {
+      return n < 10 ? '0' + n : n;
+    }
+
+    function tickJam() {
+      var d = new Date((Math.floor(Date.now() / 1000) + serverOffset) * 1000);
+      $('#absen-jam').text(pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()));
+    }
+
+    tickJam();
+    setInterval(tickJam, 1000);
+  })();
 </script>
