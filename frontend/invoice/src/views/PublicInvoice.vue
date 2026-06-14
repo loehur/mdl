@@ -45,28 +45,28 @@
             <div
               v-for="item in invoice.items"
               :key="item.id"
-              class="flex justify-between gap-3"
+              class="flex items-start justify-between gap-3"
             >
-              <div>
+              <div class="min-w-0 flex-1">
                 <p class="text-sm font-semibold text-pearl">{{ item.description }}</p>
                 <p class="text-xs text-mist">{{ item.quantity }} × Rp {{ formatRupiah(item.unit_price) }}</p>
               </div>
-              <p class="text-sm font-bold">Rp {{ formatRupiah(item.amount) }}</p>
+              <p class="shrink-0 whitespace-nowrap text-sm font-bold">Rp {{ formatRupiah(item.amount) }}</p>
             </div>
           </div>
 
           <div class="mt-4 space-y-1 border-t border-ink-200 pt-3">
-            <div class="flex justify-between text-sm text-mist">
+            <div class="flex justify-between gap-3 text-sm text-mist">
               <span>Subtotal</span>
-              <span>Rp {{ formatRupiah(invoice.subtotal) }}</span>
+              <span class="shrink-0 whitespace-nowrap">Rp {{ formatRupiah(invoice.subtotal) }}</span>
             </div>
-            <div v-if="invoice.tax_amount > 0" class="flex justify-between text-sm text-mist">
+            <div v-if="invoice.tax_amount > 0" class="flex justify-between gap-3 text-sm text-mist">
               <span>Pajak</span>
-              <span>Rp {{ formatRupiah(invoice.tax_amount) }}</span>
+              <span class="shrink-0 whitespace-nowrap">Rp {{ formatRupiah(invoice.tax_amount) }}</span>
             </div>
-            <div class="flex justify-between pt-1">
+            <div class="flex justify-between gap-3 pt-1">
               <span class="font-bold text-pearl">Total</span>
-              <span class="money-display-sm text-ledger-dim">Rp {{ formatRupiah(invoice.total) }}</span>
+              <span class="money-display-sm shrink-0 whitespace-nowrap text-ledger-dim">Rp {{ formatRupiah(invoice.total) }}</span>
             </div>
           </div>
 
