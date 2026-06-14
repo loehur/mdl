@@ -57,7 +57,9 @@
         </div>
         <div class="row">
           <div class="col">
-            <button type="submit" class="form-control form-control-sm bg-primary">Absen</button>
+            <button type="submit" class="form-control form-control-sm bg-primary">
+              Absen - <span class="fw-bold" style="font-size: 1.15em; letter-spacing: 0.05em;"><?= strtoupper($this->dCabang['kode_cabang']) ?></span>
+            </button>
           </div>
         </div>
       </form>
