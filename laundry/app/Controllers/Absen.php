@@ -30,12 +30,11 @@ class Absen extends Controller
 
    function absen()
    {
-      $hp = $_POST['karyawan'];
+      $id_karyawan = (int) $_POST['karyawan'];
       $jenis = $_POST['jenis'];
       $tgl_post = $_POST['tgl'];
 
-      $username = $this->model("Enc")->username($hp);
-      $user_absen = $this->helper('User')->get_data_user($username);
+      $user_absen = $this->db(0)->get_where_row('user', "id_user = " . $id_karyawan . " AND en = 1");
 
       $tgl = date('Y-m-d');
       if ($tgl_post == 1) {
