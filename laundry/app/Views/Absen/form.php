@@ -1,5 +1,30 @@
 <div class="row mx-0">
   <div class="col" style="max-width:450px">
+    <style>
+      .btn-absen {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        padding: 11px 16px;
+        border: none;
+        border-radius: 6px;
+        background: #0d6efd;
+        color: #fff;
+        font-size: 14px;
+        line-height: 1;
+        cursor: pointer;
+      }
+      .btn-absen:hover {
+        background: #0b5ed7;
+        color: #fff;
+      }
+      .btn-absen .kode-cabang {
+        font-weight: 700;
+        font-size: 17px;
+        letter-spacing: 0.06em;
+      }
+    </style>
     <div class="card p-3 mt-2">
       <form method="POST" action="<?= URL::BASE_URL ?>Absen/absen">
         <div class="row">
@@ -57,8 +82,8 @@
         </div>
         <div class="row">
           <div class="col">
-            <button type="submit" class="form-control bg-primary pb-2">
-              Absen - <span class="fw-bold" style="font-size: 1.15em; letter-spacing: 0.05em;"><?= strtoupper($this->dCabang['kode_cabang']) ?></span>
+            <button type="submit" class="btn-absen">
+              Absen - <span class="kode-cabang"><?= strtoupper($this->dCabang['kode_cabang']) ?></span>
             </button>
           </div>
         </div>
