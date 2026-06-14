@@ -105,7 +105,11 @@ class Absen extends Controller
             print_r(json_encode($res));
          }
       } else {
-         echo "PIN SALAH";
+         $res = [
+            'code' => 0,
+            'msg' => "GAGAL - KARYAWAN TIDAK DITEMUKAN"
+         ];
+         print_r(json_encode($res));
       }
    }
 }

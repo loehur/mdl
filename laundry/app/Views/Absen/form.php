@@ -112,49 +112,6 @@
     });
   });
 
-  $("#req_pin").on("click", function(e) {
-    e.preventDefault();
-
-    var hp_input = $('select[name=karyawan]').val();
-    if (hp_input == '') {
-      $("#info").hide();
-      $("#info").html('<div class="alert alert-danger" role="alert">Pilih Karyawan sebelum request PIN</div>')
-      $("#info").fadeIn();
-      return;
-    }
-
-    $(".loaderDiv").fadeIn("fast");
-    $.ajax({
-      url: '<?= URL::BASE_URL ?>Login/req_pin',
-      data: {
-        hp: hp_input
-      },
-      type: 'POST',
-
-      success: function(res) {
-        try {
-          data = JSON.parse(res);
-          if (data.code == 0) {
-            $("#info").hide();
-            $("#info").html('<div class="alert alert-danger" role="alert">' + data.msg + '</div>')
-            $("#info").fadeIn();
-            $(".loaderDiv").fadeOut("slow");
-          } else if (data.code == 1) {
-            $("#info").hide();
-            $("#info").html('<div class="alert alert-success" role="alert">' + data.msg + '</div>')
-            $("#info").fadeIn();
-            $(".loaderDiv").fadeOut("slow");
-          }
-        } catch (e) {
-          $("#info").hide();
-          $("#info").html('<div class="alert alert-danger" role="alert">' + res + '</div>')
-          $("#info").fadeIn();
-          $(".loaderDiv").fadeOut("slow");
-        }
-      },
-    });
-  });
-
   window.setTimeout("waktu()", 1000);
 
   function waktu() {
