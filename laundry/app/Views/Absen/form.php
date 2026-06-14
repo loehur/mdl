@@ -65,6 +65,41 @@
   </div>
 </div>
 
+<div class="modal fade" id="modalKonfirmasiAbsen" tabindex="-1" aria-labelledby="modalKonfirmasiAbsenLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title fw-bold" id="modalKonfirmasiAbsenLabel">Konfirmasi Absen</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-3">Pastikan data berikut sudah benar sebelum absen:</p>
+        <table class="table table-sm table-borderless mb-0">
+          <tr>
+            <td class="text-muted" style="width:38%">Nama Karyawan</td>
+            <td class="fw-bold" id="konfirm_nama">-</td>
+          </tr>
+          <tr>
+            <td class="text-muted">Tugas</td>
+            <td class="fw-bold" id="konfirm_tugas">-</td>
+          </tr>
+          <tr>
+            <td class="text-muted">Tanggal Absen</td>
+            <td>
+              <span class="badge fs-6" id="konfirm_tgl_badge">-</span>
+              <span class="fw-bold ms-1" id="konfirm_tgl_date">-</span>
+            </td>
+          </tr>
+        </table>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Batal</button>
+        <button type="button" class="btn btn-sm btn-primary" id="btnKonfirmasiAbsen">Ya, Absen</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="row mx-0">
   <div class="col" style="max-width:450px" id="load">
   </div>
@@ -75,18 +110,26 @@
 <script src="<?= URL::EX_ASSETS ?>js/selectize.min.js"></script>
 
 <script>
+  var tglAbsenInfo = {
+    '0': { label: 'HARI INI', date: '<?= date('Y-m-d') ?>', badge: 'bg-success' },
+    '1': { label: 'KEMARIN', date: '<?= date('Y-m-d', strtotime('-1 day')) ?>', badge: 'bg-warning text-dark' }
+  };
+
+  var modalKonfirmasiAbsen;
+
   $(document).ready(function() {
     $(".tize").selectize();
     $("div#load").load("<?= URL::BASE_URL ?>Absen/load");
+    modalKonfirmasiAbsen = new bootstrap.Modal(document.getElementById('modalKonfirmasiAbsen'));
   });
 
-  $("form").on("submit", function(e) {
-    e.preventDefault();
+  function submitAbsen() {
+    var $form = $("form");
     $(".loaderDiv").fadeIn("fast");
     $.ajax({
-      url: $(this).attr('action'),
-      data: $(this).serialize(),
-      type: $(this).attr("method"),
+      url: $form.attr('action'),
+      data: $form.serialize(),
+      type: $form.attr("method"),
       success: function(res) {
         try {
           data = JSON.parse(res);
@@ -110,6 +153,37 @@
         }
       },
     });
+  }
+
+  $("form").on("submit", function(e) {
+    e.preventDefault();
+
+    var karyawan = $('select[name=karyawan]').val();
+    var jenis = $('select[name=jenis]').val();
+    var tgl = $('select[name=tgl]').val();
+
+    if (!karyawan || !jenis || tgl === null || tgl === '') {
+      $("#info").hide();
+      $("#info").html('<div class="alert alert-danger" role="alert">Lengkapi Karyawan, Tugas, dan Tanggal terlebih dahulu</div>');
+      $("#info").fadeIn();
+      return;
+    }
+
+    var namaKaryawan = $('select[name=karyawan] option[value="' + karyawan + '"]').text().trim();
+    var namaTugas = $('select[name=jenis] option[value="' + jenis + '"]').text().trim();
+    var infoTgl = tglAbsenInfo[tgl];
+
+    $("#konfirm_nama").text(namaKaryawan);
+    $("#konfirm_tugas").text(namaTugas);
+    $("#konfirm_tgl_badge").text(infoTgl.label).removeClass('bg-success bg-warning text-dark').addClass(infoTgl.badge);
+    $("#konfirm_tgl_date").text('(' + infoTgl.date + ')');
+
+    modalKonfirmasiAbsen.show();
+  });
+
+  $("#btnKonfirmasiAbsen").on("click", function() {
+    modalKonfirmasiAbsen.hide();
+    submitAbsen();
   });
 
   window.setTimeout("waktu()", 1000);
