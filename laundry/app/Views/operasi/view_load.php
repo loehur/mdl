@@ -279,6 +279,11 @@ $labeled = false;
               $buttonAmbil = "<a href='#' data-id='" . $id . "' data-ref='" . $ref . "' data-bs-toggle='modal' data-bs-target='#exampleModal4' class='ambil text-dark ambil" . $id . "'><i class='far fa-circle'></i> Ambil</a>";
             }
 
+            $buttonUbahLayanan = "";
+            if ($canEditItem && $doneLayanan == 0 && $id_ambil == 0 && $buttonAmbil === "") {
+              $buttonUbahLayanan = "<br><a href='#' data-id='" . $id . "' data-ref='" . $ref . "' data-bs-target='#modalUbahLayanan' class='editLayanan text-dark'><i class='far fa-circle'></i> Ubah Layanan</a>";
+            }
+
 
             $list_layanan = $list_layanan . "<span class='operasiAmbil" . $id . "'></span>";
 
@@ -436,7 +441,7 @@ $labeled = false;
                 <small><?= $id ?></small><br><b><span style='white-space: nowrap;'><?= $kategori ?></span></b><span class='badge badge-light'></span><br><?= $durasiHtml ?><br>
                 <b><?= $show_qty ?></b> <?= $tampilDiskon ?><br><?= $itemList ?>
               </td>
-              <td nowrap><?= $list_layanan . $buttonAmbil ?></td>
+              <td nowrap><?= $list_layanan . $buttonAmbil . $buttonUbahLayanan ?></td>
               <td class='text-right'><?= $show_total_cell ?></td>
             </tr>
             <tr class='<?= $classTRDurasi ?>'>
@@ -1152,7 +1157,7 @@ $labeled = false;
   $(document).ready(function() {
       
       // Manual Modal Trigger to prevent Bootstrap 5 null reading hide error on spans
-      $(document).on('click', '.gantiOperasi, .endLayanan, .addOperasi, .ambil, .editDurasi, .editMember', function(e) {
+      $(document).on('click', '.gantiOperasi, .endLayanan, .addOperasi, .ambil, .editDurasi, .editMember, .editLayanan', function(e) {
           e.preventDefault();
           var target = $(this).attr('data-bs-target');
           if(target) {

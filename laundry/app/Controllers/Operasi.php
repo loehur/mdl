@@ -433,7 +433,188 @@ class Operasi extends Controller
          return;
       }
 
+      $this->resetBonNotif($ref);
+
       echo json_encode(['status' => 'success', 'message' => 'Durasi berhasil diubah']);
+   }
+
+   public function layanan_options()
+   {
+      header('Content-Type: application/json');
+      $id_penjualan = $this->normalizeSaleId($_POST['id'] ?? $_GET['id'] ?? '');
+      if ($id_penjualan === '') {
+         echo json_encode(['status' => 'error', 'message' => 'ID tidak valid']);
+         return;
+      }
+
+      $sale = $this->db(0)->get_where_row('sale', $this->whereSaleById($id_penjualan) . ' AND bin = 0');
+      $err = $this->validateLayananChangeable($sale, $id_penjualan);
+      if ($err !== null) {
+         echo json_encode(['status' => 'error', 'message' => $err]);
+         return;
+      }
+
+      $id_penjualan = $this->normalizeSaleId($sale['id_penjualan']);
+      $ref = $sale['no_ref'];
+      $dibayar = $this->getRefDibayar($ref);
+      $currentSubTotal = $this->getRefSubTotal($ref);
+      $currentItemTotal = $this->calcSaleItemTotal($sale);
+
+      $kategori = '';
+      foreach ($this->itemGroup as $ig) {
+         if ($ig['id_item_group'] == $sale['id_item_group']) {
+            $kategori = $ig['item_kategori'];
+         }
+      }
+
+      $options = [];
+      foreach ($this->harga as $h) {
+         if (($h['is_active'] ?? 1) != 1) {
+            continue;
+         }
+         if ($h['id_penjualan_jenis'] != $sale['id_penjualan_jenis']) {
+            continue;
+         }
+         if ($h['id_item_group'] != $sale['id_item_group']) {
+            continue;
+         }
+         if ((int) $h['id_durasi'] !== (int) $sale['id_durasi']) {
+            continue;
+         }
+         if ($h['list_layanan'] === $sale['list_layanan']) {
+            continue;
+         }
+
+         $layananLabel = $this->layananLabelFromSerialized($h['list_layanan']);
+         $unitPrice = $this->hargaUnitPrice($h);
+         $minOrder = round((float) str_replace(',', '.', (string) ($h['min_order'] ?? $sale['min_order'] ?? 0)), 2);
+         $newSubTotal = $this->getRefSubTotal($ref, [
+            $id_penjualan => [
+               'harga' => $unitPrice,
+               'min_order' => $minOrder,
+            ],
+         ]);
+         $newItemTotal = $this->calcSaleItemTotal(array_merge($sale, [
+            'harga' => $unitPrice,
+            'min_order' => $minOrder,
+         ]));
+
+         $canSelect = ($dibayar <= 0) || ($newSubTotal >= $dibayar);
+
+         $options[] = [
+            'id_harga' => (int) $h['id_harga'],
+            'layanan' => $layananLabel,
+            'harga' => $unitPrice,
+            'item_total' => $newItemTotal,
+            'ref_total' => $newSubTotal,
+            'can_select' => $canSelect,
+            'selected' => ($h['list_layanan'] === $sale['list_layanan']),
+         ];
+      }
+
+      if (empty($options)) {
+         echo json_encode(['status' => 'error', 'message' => 'Tidak ada pilihan layanan lain untuk item ini']);
+         return;
+      }
+
+      $currentDurasi = '';
+      foreach ($this->dDurasi as $d) {
+         if ($d['id_durasi'] == $sale['id_durasi']) {
+            $currentDurasi = strtoupper($d['durasi']);
+         }
+      }
+
+      echo json_encode([
+         'status' => 'success',
+         'id_penjualan' => $id_penjualan,
+         'ref' => $ref,
+         'kategori' => $kategori,
+         'current_layanan' => $this->layananLabelFromSerialized($sale['list_layanan']),
+         'current_durasi' => $currentDurasi,
+         'current_item_total' => $currentItemTotal,
+         'current_ref_total' => $currentSubTotal,
+         'dibayar' => $dibayar,
+         'options' => $options,
+      ]);
+   }
+
+   public function ubah_layanan()
+   {
+      header('Content-Type: application/json');
+      $id_penjualan = $this->normalizeSaleId($_POST['id'] ?? '');
+      $id_harga = (int) ($_POST['id_harga'] ?? 0);
+
+      if ($id_penjualan === '' || $id_harga <= 0) {
+         echo json_encode(['status' => 'error', 'message' => 'Data tidak lengkap']);
+         return;
+      }
+
+      $sale = $this->db(0)->get_where_row('sale', $this->whereSaleById($id_penjualan) . ' AND bin = 0');
+      $err = $this->validateLayananChangeable($sale, $id_penjualan);
+      if ($err !== null) {
+         echo json_encode(['status' => 'error', 'message' => $err]);
+         return;
+      }
+
+      $hargaRow = null;
+      foreach ($this->harga as $h) {
+         if ((int) $h['id_harga'] === $id_harga) {
+            $hargaRow = $h;
+            break;
+         }
+      }
+
+      if (!$hargaRow || ($hargaRow['is_active'] ?? 1) != 1) {
+         echo json_encode(['status' => 'error', 'message' => 'Harga tidak ditemukan']);
+         return;
+      }
+
+      if ($hargaRow['id_penjualan_jenis'] != $sale['id_penjualan_jenis']
+         || $hargaRow['id_item_group'] != $sale['id_item_group']
+         || (int) $hargaRow['id_durasi'] !== (int) $sale['id_durasi']) {
+         echo json_encode(['status' => 'error', 'message' => 'Layanan tidak sesuai dengan item order']);
+         return;
+      }
+
+      if ($hargaRow['list_layanan'] === $sale['list_layanan']) {
+         echo json_encode(['status' => 'error', 'message' => 'Layanan sama dengan yang sekarang']);
+         return;
+      }
+
+      $id_penjualan = $this->normalizeSaleId($sale['id_penjualan']);
+      $ref = $sale['no_ref'];
+      $unitPrice = $this->hargaUnitPrice($hargaRow);
+      $minOrder = round((float) str_replace(',', '.', (string) ($hargaRow['min_order'] ?? $sale['min_order'] ?? 0)), 2);
+      $newSubTotal = $this->getRefSubTotal($ref, [
+         $id_penjualan => [
+            'harga' => $unitPrice,
+            'min_order' => $minOrder,
+         ],
+      ]);
+
+      $payErr = $this->validatePaymentAfterChange($ref, $newSubTotal);
+      if ($payErr !== null) {
+         echo json_encode(['status' => 'error', 'message' => $payErr]);
+         return;
+      }
+
+      $set = [
+         'list_layanan' => $hargaRow['list_layanan'],
+         'harga' => $unitPrice,
+         'min_order' => $minOrder,
+         'id_harga' => $id_harga,
+      ];
+      $where = $this->whereSaleById($id_penjualan);
+      $up = $this->db(0)->update('sale', $set, $where);
+      if ($up['errno'] != 0) {
+         $this->model('Log')->write("[ubah_layanan] Update sale error id=$id_penjualan: " . ($up['error'] ?? ''));
+         echo json_encode(['status' => 'error', 'message' => 'Gagal menyimpan: ' . ($up['error'] ?? 'Unknown error')]);
+         return;
+      }
+
+      $this->resetBonNotif($ref);
+
+      echo json_encode(['status' => 'success', 'message' => 'Layanan berhasil diubah']);
    }
 
    private function hargaUnitPrice($hargaRow)
@@ -545,6 +726,50 @@ class Operasi extends Controller
          return 'Total order setelah perubahan (' . number_format($newSubTotal) . ') kurang dari pembayaran Cek/Berhasil (' . number_format($dibayar) . ')';
       }
       return null;
+   }
+
+   private function validateLayananChangeable($sale, $id_penjualan)
+   {
+      $err = $this->validateOrderModifiable($sale);
+      if ($err !== null) {
+         return $err;
+      }
+      if (($sale['member'] ?? 0) != 0) {
+         return 'Item member tidak dapat diubah layanannya';
+      }
+      if (($sale['id_user_ambil'] ?? 0) > 0) {
+         return 'Layanan tidak dapat diubah karena sudah diambil';
+      }
+      if ($this->saleHasOperasi($id_penjualan)) {
+         return 'Layanan tidak dapat diubah karena sudah ada layanan yang diselesaikan';
+      }
+      return null;
+   }
+
+   private function saleHasOperasi($id_penjualan)
+   {
+      $idEsc = $this->db(0)->escape($this->normalizeSaleId($id_penjualan));
+      $count = $this->db(0)->count_where('operasi', $this->wCabang . " AND id_penjualan = '$idEsc'");
+      return is_numeric($count) && (int) $count > 0;
+   }
+
+   private function layananLabelFromSerialized($listLayanan)
+   {
+      $arr = @unserialize((string) $listLayanan);
+      if (!is_array($arr)) {
+         return '';
+      }
+
+      $label = '';
+      foreach ($arr as $lid) {
+         foreach ($this->dLayanan as $c) {
+            if ($c['id_layanan'] == $lid) {
+               $label .= ($label === '' ? '' : ' + ') . $c['layanan'];
+            }
+         }
+      }
+
+      return $label;
    }
 
    public function member_options()
@@ -690,6 +915,8 @@ class Operasi extends Controller
          return;
       }
 
+      $this->resetBonNotif($ref);
+
       echo json_encode(['status' => 'success', 'message' => 'Berhasil diubah ke member']);
    }
 
@@ -702,6 +929,24 @@ class Operasi extends Controller
    {
       $idEsc = $this->db(0)->escape($this->normalizeSaleId($id_penjualan));
       return $this->wCabang . " AND id_penjualan = '$idEsc'";
+   }
+
+   /**
+    * Hapus notif bon (tipe=1) agar nota WA bisa dikirim ulang setelah perubahan order.
+    */
+   private function resetBonNotif($ref)
+   {
+      $ref = trim((string) $ref);
+      if ($ref === '') {
+         return;
+      }
+
+      $refEsc = $this->db(0)->escape($ref);
+      $where = $this->wCabang . " AND no_ref = '$refEsc' AND tipe = 1";
+      $del = $this->db(0)->delete('notif', $where);
+      if (isset($del['errno']) && $del['errno'] != 0) {
+         $this->model('Log')->write("[resetBonNotif] Delete notif error ref=$ref: " . ($del['error'] ?? ''));
+      }
    }
 
    private function getMemberSaldo($idPelanggan, $idHarga)

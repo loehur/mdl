@@ -206,6 +206,40 @@
   </div>
 </div>
 
+<div class="modal" id="modalUbahLayanan" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Ubah Layanan</h5>
+        <button type="button" data-bs-dismiss="modal" class="btn-close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="ubahLayananLoading" class="text-center py-3">
+          <i class="fas fa-spinner fa-spin"></i> Memuat...
+        </div>
+        <div id="ubahLayananContent" class="d-none">
+          <p class="small text-muted mb-2" id="ubahLayananInfo"></p>
+          <div class="mb-2"><strong>Item:</strong> <span id="ubahLayananItem"></span></div>
+          <div class="form-group mb-2">
+            <label class="small mb-1">Pilih Layanan</label>
+            <select id="ubahLayananSelect" class="form-control form-control-sm"></select>
+          </div>
+          <div class="small border rounded p-2 bg-light">
+            <div>Harga item: <strong id="ubahLayananItemHarga">-</strong></div>
+            <div>Total order: <strong id="ubahLayananRefTotal">-</strong></div>
+            <div id="ubahLayananBayarInfo" class="text-warning d-none mt-1">Pembayaran Cek/Berhasil: <strong id="ubahLayananDibayar">-</strong></div>
+          </div>
+          <div id="ubahLayananAlert" class="alert alert-danger d-none small mt-2 mb-0 py-2"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" data-bs-dismiss="modal" class="btn btn-dark btn-sm">Batal</button>
+        <button type="button" id="btnSimpanLayanan" class="btn btn-success btn-sm" disabled>Simpan</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <form class="ajax" action="<?= URL::BASE_URL; ?>Antrian/surcas" method="POST">
   <div class="modal" id="exampleModalSurcas">
     <div class="modal-dialog modal-sm">

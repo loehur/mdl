@@ -17,6 +17,9 @@
   $(document).off("click", "#btnSimpanDurasi");
   $(document).off("click", ".editMember");
   $(document).off("click", "#btnSimpanMember");
+  $(document).off("click", ".editLayanan");
+  $(document).off("change", "#ubahLayananSelect");
+  $(document).off("click", "#btnSimpanLayanan");
 
   // Cleanup orphaned modals that were moved to body in previous executions
   // This prevents Duplicate ID errors and Bootstrap confusion which causes recursive errors
@@ -1250,6 +1253,185 @@
       error: function () {
         showAlert("Gagal mengubah durasi", "error");
         updateUbahDurasiPreview();
+      },
+      complete: function () {
+        $(".loaderDiv").fadeOut("slow");
+      },
+    });
+  });
+
+  var ubahLayananState = { id: 0, options: [], dibayar: 0 };
+
+  function renderUbahLayananOption(opt) {
+    var label = opt.layanan + " - Rp" + formatRp(opt.harga);
+    if (!opt.can_select) {
+      label += " [min. total Rp" + formatRp(ubahLayananState.dibayar) + "]";
+    }
+    return label;
+  }
+
+  function updateUbahLayananPreview() {
+    var val = $("#ubahLayananSelect").val();
+    var opt = null;
+    for (var i = 0; i < ubahLayananState.options.length; i++) {
+      if (String(ubahLayananState.options[i].id_harga) === String(val)) {
+        opt = ubahLayananState.options[i];
+        break;
+      }
+    }
+
+    $("#ubahLayananAlert").addClass("d-none").text("");
+
+    if (!opt) {
+      $("#btnSimpanLayanan").prop("disabled", true);
+      return;
+    }
+
+    $("#ubahLayananItemHarga").text("Rp" + formatRp(opt.item_total));
+    $("#ubahLayananRefTotal").text("Rp" + formatRp(opt.ref_total));
+
+    if (opt.selected) {
+      $("#btnSimpanLayanan").prop("disabled", true);
+      return;
+    }
+
+    if (!opt.can_select) {
+      $("#ubahLayananAlert")
+        .removeClass("d-none")
+        .text(
+          "Total order setelah ubah layanan (Rp" +
+            formatRp(opt.ref_total) +
+            ") kurang dari pembayaran Cek/Berhasil (Rp" +
+            formatRp(ubahLayananState.dibayar) +
+            ")."
+        );
+      $("#btnSimpanLayanan").prop("disabled", true);
+      return;
+    }
+
+    $("#btnSimpanLayanan").prop("disabled", false);
+  }
+
+  function loadUbahLayananOptions(idPenjualan) {
+    ubahLayananState = { id: idPenjualan, options: [], dibayar: 0 };
+    $("#ubahLayananLoading").removeClass("d-none");
+    $("#ubahLayananContent").addClass("d-none");
+    $("#btnSimpanLayanan").prop("disabled", true);
+
+    $.ajax({
+      url: BASE_URL + "Operasi/layanan_options",
+      data: { id: idPenjualan },
+      type: "POST",
+      dataType: "json",
+      success: function (res) {
+        $("#ubahLayananLoading").addClass("d-none");
+        if (!res || res.status !== "success") {
+          showAlert((res && res.message) || "Gagal memuat pilihan layanan", "error");
+          try {
+            var modalEl = document.getElementById("modalUbahLayanan");
+            if (modalEl && bootstrap.Modal) {
+              bootstrap.Modal.getInstance(modalEl).hide();
+            }
+          } catch (e) {}
+          return;
+        }
+
+        ubahLayananState.id = res.id_penjualan || idPenjualan;
+        ubahLayananState.options = res.options || [];
+        ubahLayananState.dibayar = res.dibayar || 0;
+
+        $("#ubahLayananItem").text("#" + res.id_penjualan + " " + (res.kategori || ""));
+        $("#ubahLayananInfo").text(
+          "Layanan sekarang: " +
+            (res.current_layanan || "-") +
+            " | " +
+            (res.current_durasi || "") +
+            " | Total order: Rp" +
+            formatRp(res.current_ref_total)
+        );
+
+        var $sel = $("#ubahLayananSelect").empty();
+        ubahLayananState.options.forEach(function (opt) {
+          $sel.append(
+            $("<option></option>")
+              .val(opt.id_harga)
+              .prop("disabled", !opt.can_select && !opt.selected)
+              .text(renderUbahLayananOption(opt))
+          );
+        });
+
+        ubahLayananState.options.forEach(function (opt) {
+          if (opt.selected) {
+            $sel.val(opt.id_harga);
+          }
+        });
+
+        if (res.dibayar > 0) {
+          $("#ubahLayananBayarInfo").removeClass("d-none");
+          $("#ubahLayananDibayar").text("Rp" + formatRp(res.dibayar));
+        } else {
+          $("#ubahLayananBayarInfo").addClass("d-none");
+        }
+
+        $("#ubahLayananContent").removeClass("d-none");
+        updateUbahLayananPreview();
+      },
+      error: function () {
+        $("#ubahLayananLoading").addClass("d-none");
+        showAlert("Gagal memuat pilihan layanan", "error");
+      },
+    });
+  }
+
+  $(document).on("click", ".editLayanan", function (e) {
+    e.preventDefault();
+    var idPenjualan = $(this).attr("data-id");
+    if (!idPenjualan) {
+      return;
+    }
+    loadUbahLayananOptions(idPenjualan);
+  });
+
+  $(document).on("change", "#ubahLayananSelect", function () {
+    updateUbahLayananPreview();
+  });
+
+  $(document).on("click", "#btnSimpanLayanan", function () {
+    var idHarga = $("#ubahLayananSelect").val();
+    if (!ubahLayananState.id || !idHarga) {
+      return;
+    }
+
+    $("#btnSimpanLayanan").prop("disabled", true);
+    $.ajax({
+      url: BASE_URL + "Operasi/ubah_layanan",
+      data: {
+        id: ubahLayananState.id,
+        id_harga: idHarga,
+      },
+      type: "POST",
+      dataType: "json",
+      beforeSend: function () {
+        $(".loaderDiv").fadeIn("fast");
+      },
+      success: function (res) {
+        if (res && res.status === "success") {
+          try {
+            var modalEl = document.getElementById("modalUbahLayanan");
+            if (modalEl && bootstrap.Modal) {
+              var instance = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+              instance.hide();
+            }
+          } catch (e) {}
+          loadDiv();
+        } else {
+          showAlert((res && res.message) || "Gagal mengubah layanan", "error");
+          updateUbahLayananPreview();
+        }
+      },
+      error: function () {
+        showAlert("Gagal mengubah layanan", "error");
+        updateUbahLayananPreview();
       },
       complete: function () {
         $(".loaderDiv").fadeOut("slow");
