@@ -604,3 +604,4 @@ if ($log_mode == 1) {
                     $('.modal-backdrop').remove();
                 }
             </script>
+<?php require_once __DIR__ . '/pwa_register.php'; ?>

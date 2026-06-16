@@ -3,7 +3,7 @@
   "name": "MDL Laundry",
   "short_name": "MDL",
   "description": "Sistem manajemen laundry MDL",
-  "start_url": "/mdl/laundry/",
+  "start_url": "/mdl/laundry/Login",
   "scope": "/mdl/laundry/",
   "display": "standalone",
   "background_color": "#ffffff",
@@ -22,12 +22,6 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
-    },
-    {
-      "src": "/mdl/laundry/in_assets/icon/logo.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
     }
   ]
 }

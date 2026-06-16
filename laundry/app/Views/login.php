@@ -1,4 +1,5 @@
-<html lang="en">
+<!DOCTYPE html>
+<html lang="id">
 
 <head>
     <meta charset="utf-8">
@@ -226,6 +227,7 @@
             </div>
         </div>
     </div>
+<?php require_once __DIR__ . '/pwa_register.php'; ?>
 </body>
 
 </html>
