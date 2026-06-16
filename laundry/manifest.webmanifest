@@ -1,0 +1,33 @@
+{
+  "id": "/mdl/laundry/",
+  "name": "MDL Laundry",
+  "short_name": "MDL",
+  "description": "Sistem manajemen laundry MDL",
+  "start_url": "/mdl/laundry/",
+  "scope": "/mdl/laundry/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffc107",
+  "orientation": "any",
+  "lang": "id",
+  "icons": [
+    {
+      "src": "/mdl/laundry/in_assets/icon/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/mdl/laundry/in_assets/icon/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/mdl/laundry/in_assets/icon/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

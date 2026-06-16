@@ -12,6 +12,7 @@ if (isset($data['data_operasi'])) {
 <head>
     <meta charset="utf-8">
     <link rel="icon" href="<?= URL::IN_ASSETS ?>icon/logo.png">
+    <?php require_once __DIR__ . '/pwa_head.php'; ?>
     <title><?= $title ?> | MDL</title>
     <meta name="viewport" content="width=460, user-scalable=no">
     <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>css/ionicons.min.css">

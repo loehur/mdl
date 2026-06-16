@@ -3,6 +3,7 @@
 <head>
     <meta charset="utf-8">
     <link rel="icon" href="<?= URL::EX_ASSETS ?>icon/logo.png">
+    <?php require_once __DIR__ . '/pwa_head.php'; ?>
     <title>MDL LAUNDRY</title>
     <meta name="viewport" content="width=410, user-scalable=no">
     <script src="<?= URL::EX_ASSETS ?>js/jquery-3.6.0.min.js"></script>
