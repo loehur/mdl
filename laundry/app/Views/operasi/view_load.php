@@ -12,43 +12,6 @@ if (strlen($nama_pelanggan) > 20) {
 $labeled = false;
 ?>
 
-<style>
-  .layanan-ganti-icon {
-    display: inline-block;
-    position: relative;
-    width: 1em;
-    height: 1em;
-    vertical-align: -0.1em;
-    line-height: 1;
-  }
-
-  .layanan-ganti-icon > .fa-circle {
-    visibility: hidden;
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 1em;
-    text-align: center;
-  }
-
-  .layanan-ganti-icon > .fa-edit {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    font-size: 0.8em;
-    line-height: 1;
-  }
-
-  span.editLayanan {
-    color: #6c757d;
-  }
-
-  span.editLayanan .layanan-ganti-icon > .fa-edit {
-    color: #6c757d !important;
-  }
-</style>
-
 <div class="row mx-0 mt-2" style="flex-wrap: wrap;">
 
   <?php
@@ -317,7 +280,7 @@ $labeled = false;
 
             $buttonUbahLayanan = "";
             if ($canEditItem && $doneLayanan == 0 && $id_ambil == 0 && $buttonAmbil === "") {
-              $buttonUbahLayanan = "<span style='cursor:pointer' data-id='" . $id . "' data-ref='" . $ref . "' data-bs-target='#modalUbahLayanan' class='editLayanan'><span class='layanan-ganti-icon' aria-hidden='true'><i class='far fa-circle'></i><i class='fas fa-edit'></i></span> Ganti</span>";
+              $buttonUbahLayanan = "<span style='cursor:pointer' data-id='" . $id . "' data-ref='" . $ref . "' data-bs-target='#modalUbahLayanan' class='editLayanan text-warning'><i class='fas fa-circle text-warning'></i> Ganti</span>";
             }
 
 
