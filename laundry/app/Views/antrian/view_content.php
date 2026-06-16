@@ -579,7 +579,7 @@ if (count($data['data_main']) == 0) {
 
               $id_surcas = $sca['id_surcas'];
               $jumlahCas = $sca['jumlah'];
-              echo "<tr><td colspan='2'><span class='text-muted'>Surcharge</span> | " . $surcasNya . "</td><td class='text-right'>" . number_format($jumlahCas) . "</td></tr>";
+              echo "<tr><td colspan='2'><small>Surcharge</small> " . $surcasNya . "</td><td class='text-right'>" . number_format($jumlahCas) . "</td></tr>";
               $subTotal += $jumlahCas;
             }
           }
