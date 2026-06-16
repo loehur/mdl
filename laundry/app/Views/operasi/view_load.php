@@ -280,7 +280,7 @@ $labeled = false;
 
             $buttonUbahLayanan = "";
             if ($canEditItem && $doneLayanan == 0 && $id_ambil == 0 && $buttonAmbil === "") {
-              $buttonUbahLayanan = "<span style='cursor:pointer' data-id='" . $id . "' data-ref='" . $ref . "' data-bs-target='#modalUbahLayanan' class='editLayanan text-warning'><i class='fas fa-circle text-warning'></i> Ganti</span>";
+              $buttonUbahLayanan = "<span style='cursor:pointer' data-id='" . $id . "' data-ref='" . $ref . "' data-bs-target='#modalUbahLayanan' class='editLayanan text-purple'><i class='fas fa-circle text-purple'></i> Ganti</span>";
             }
 
 
