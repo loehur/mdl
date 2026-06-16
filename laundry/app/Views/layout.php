@@ -436,59 +436,127 @@ if ($log_mode == 1) {
 
             <div id="content"></div>
             <script>
-                let startX, startY;
-                const threshold = 50; // Minimum swipe distance
+                (function() {
+                    var SWIPE_THRESHOLD = 50;
+                    var MOBILE_BREAKPOINT = 992;
+                    var startX = null;
+                    var startY = null;
 
-                document.addEventListener('touchstart', (event) => {
-                    startX = event.touches[0].clientX;
-                    startY = event.touches[0].clientY;
-                });
-
-                document.addEventListener('touchend', (event) => {
-
-                    if (!startX || !startY) {
-                        return;
-                    }
-                    const endX = event.changedTouches[0].clientX;
-                    const endY = event.changedTouches[0].clientY;
-
-                    const distX = endX - startX;
-                    const distY = endY - startY;
-
-                    if (Math.abs(distX) > threshold || Math.abs(distY) > threshold) {
-                        if (Math.abs(distX) > Math.abs(distY)) {
-                            if (distX > 0) {
-                                function buka_menu(boleh) {
-                                    if (boleh == true) {
-                                        $('.sidebar-closed').each(function() {
-                                            $("#menu_utama").click();
-                                        });
-                                    }
-                                }
-
-                                function adaCanvas(boleh, callback) {
-                                    boleh = true;
-                                    $('.offcanvas.show').each(function() {
-                                        $(this).offcanvas('hide');
-                                        boleh = false;
-                                    });
-
-                                    callback(boleh);
-                                }
-                                adaCanvas(true, buka_menu);
-                            } else {
-                                $('.sidebar-open').each(function() {
-                                    $("#menu_utama").click();
-                                });
-                            }
-                        } else {
-                            if (distY > 0) {} else {}
+                    function ensureSidebarOverlay() {
+                        if (document.getElementById('sidebar-overlay')) {
+                            return;
                         }
+                        var wrapper = document.querySelector('.wrapper');
+                        if (!wrapper) {
+                            return;
+                        }
+                        var overlay = document.createElement('div');
+                        overlay.id = 'sidebar-overlay';
+                        overlay.addEventListener('click', closeSidebarMenu);
+                        wrapper.appendChild(overlay);
                     }
 
-                    startX = null;
-                    startY = null;
-                });
+                    function closeOffcanvasPanels() {
+                        var hadOpen = false;
+                        document.querySelectorAll('.offcanvas.show').forEach(function(el) {
+                            hadOpen = true;
+                            if (typeof bootstrap !== 'undefined' && bootstrap.Offcanvas) {
+                                var inst = bootstrap.Offcanvas.getInstance(el) || bootstrap.Offcanvas.getOrCreateInstance(el);
+                                inst.hide();
+                            } else {
+                                el.classList.remove('show');
+                            }
+                        });
+                        return hadOpen;
+                    }
+
+                    function isMobileSidebar() {
+                        return window.innerWidth <= MOBILE_BREAKPOINT;
+                    }
+
+                    function isSidebarMenuVisible() {
+                        var body = document.body;
+                        if (isMobileSidebar()) {
+                            return body.classList.contains('sidebar-open');
+                        }
+                        return !body.classList.contains('sidebar-collapse');
+                    }
+
+                    function openSidebarMenu() {
+                        if (isSidebarMenuVisible()) {
+                            return;
+                        }
+
+                        var body = document.body;
+
+                        if (isMobileSidebar()) {
+                            ensureSidebarOverlay();
+                            body.classList.add('sidebar-is-opening', 'sidebar-open');
+                            body.classList.remove('sidebar-collapse', 'sidebar-closed');
+                            window.setTimeout(function() {
+                                body.classList.remove('sidebar-is-opening');
+                            }, 50);
+                            return;
+                        }
+
+                        body.classList.remove('sidebar-collapse', 'sidebar-closed');
+                    }
+
+                    function closeSidebarMenu() {
+                        if (!isSidebarMenuVisible()) {
+                            return;
+                        }
+
+                        var body = document.body;
+
+                        if (isMobileSidebar()) {
+                            body.classList.remove('sidebar-open');
+                            body.classList.add('sidebar-closed', 'sidebar-collapse');
+                            return;
+                        }
+
+                        body.classList.add('sidebar-collapse');
+                    }
+
+                    document.addEventListener('touchstart', function(event) {
+                        if (!event.touches || !event.touches.length) {
+                            return;
+                        }
+                        startX = event.touches[0].clientX;
+                        startY = event.touches[0].clientY;
+                    }, { passive: true });
+
+                    document.addEventListener('touchend', function(event) {
+                        if (startX === null || startY === null) {
+                            return;
+                        }
+                        if (!event.changedTouches || !event.changedTouches.length) {
+                            startX = null;
+                            startY = null;
+                            return;
+                        }
+
+                        var endX = event.changedTouches[0].clientX;
+                        var endY = event.changedTouches[0].clientY;
+                        var distX = endX - startX;
+                        var distY = endY - startY;
+
+                        if (Math.abs(distX) > SWIPE_THRESHOLD || Math.abs(distY) > SWIPE_THRESHOLD) {
+                            if (Math.abs(distX) > Math.abs(distY)) {
+                                if (distX > 0) {
+                                    if (!closeOffcanvasPanels()) {
+                                        openSidebarMenu();
+                                    }
+                                } else {
+                                    closeSidebarMenu();
+                                }
+                            }
+                        }
+
+                        startX = null;
+                        startY = null;
+                    }, { passive: true });
+                })();
 
                 $("a.refresh").on('click', function() {
                     $.ajax('<?= URL::BASE_URL ?>Data_List/synchrone', {
