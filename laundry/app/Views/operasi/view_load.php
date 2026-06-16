@@ -281,7 +281,7 @@ $labeled = false;
 
             $buttonUbahLayanan = "";
             if ($canEditItem && $doneLayanan == 0 && $id_ambil == 0 && $buttonAmbil === "") {
-              $buttonUbahLayanan = "<br><a href='#' data-id='" . $id . "' data-ref='" . $ref . "' data-bs-target='#modalUbahLayanan' class='editLayanan text-dark'><i class='far fa-circle'></i> Ubah Layanan</a>";
+              $buttonUbahLayanan = "<span style='cursor:pointer' data-id='" . $id . "' data-ref='" . $ref . "' data-bs-target='#modalUbahLayanan' class='editLayanan'><i class='fas fa-edit text-info'></i> Ganti</span>";
             }
 
 
