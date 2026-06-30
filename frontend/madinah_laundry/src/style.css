@@ -1,0 +1,36 @@
+:root {
+  --color-primary: #16A34A;
+  /* Hijau - warna utama dominan */
+  --color-secondary: #FACC15;
+  /* Kuning cerah */
+  --color-accent: #B91C1C;
+  /* Merah solid/padat */
+  --color-white: #FFFFFF;
+  --color-text: #333333;
+  --color-bg-light: #F0FDF4;
+  /* Background hijau muda */
+
+  --font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-family);
+  background-color: var(--color-white);
+  color: var(--color-text);
+  line-height: 1.6;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+ul {
+  list-style: none;
+}
