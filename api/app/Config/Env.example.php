@@ -31,4 +31,9 @@ class Env
             6 => ['db' => 'mdl_invoice', 'user' => 'root', 'pass' => ''],
         ],
     ];
+
+    // KlikQRIS — https://klikqris.com/dokumentasi-api
+    const KLIKQRIS_API_KEY = 'ISI_API_KEY';
+    const KLIKQRIS_MERCHANT_ID = 'ISI_MERCHANT_ID';
+    const KLIKQRIS_API_URL = 'https://klikqris.com/api';
 }
