@@ -176,10 +176,121 @@ class Operasi extends Controller
    {
       $rekap = isset($_POST['rekap']) ? $_POST['rekap'][0] : [];
       $dibayar = isset($_POST['dibayar']) ? $_POST['dibayar'] : 0;
+      $idPenanggung = isset($_POST['id_penanggung_bayar']) ? (int) $_POST['id_penanggung_bayar'] : 0;
+      $idSaldoClient = 0;
 
-      $res = $this->model('KasModel')->bayarMulti($rekap, $dibayar, $idPelanggan, $this->id_cabang, $karyawan, $metode, $note);
+      $note = str_replace('_SPACE_', ' ', (string) $note);
+
+      if ((int) $metode === 3 && $idPenanggung > 0) {
+         if ($idPenanggung === (int) $idPelanggan) {
+            echo 'Penanggung bayar harus berbeda dari pelanggan order';
+            return;
+         }
+         if (!isset($this->pelanggan[$idPenanggung])) {
+            echo 'Penanggung bayar tidak ditemukan di cabang ini';
+            return;
+         }
+         $saldoPenanggung = $this->helper('Saldo')->getSaldoTunai($idPenanggung);
+         if ($saldoPenanggung <= 0) {
+            echo 'Saldo penanggung bayar tidak mencukupi';
+            return;
+         }
+         $idSaldoClient = $idPenanggung;
+         $namaOrder = $this->pelanggan[$idPelanggan]['nama_pelanggan'] ?? $idPelanggan;
+         $namaPenanggung = $this->pelanggan[$idPenanggung]['nama_pelanggan'] ?? $idPenanggung;
+         $note = 'TB:' . strtoupper($namaOrder);
+         $userName = $_SESSION[URL::SESSID]['user']['nama_user'] ?? $karyawan;
+         $this->model('Log')->write(
+            "[TanggungBayar] Order#$idPelanggan ($namaOrder) saldo dari #$idPenanggung ($namaPenanggung) oleh user $karyawan ($userName)"
+         );
+      }
+
+      $res = $this->model('KasModel')->bayarMulti(
+         $rekap,
+         $dibayar,
+         $idPelanggan,
+         $this->id_cabang,
+         $karyawan,
+         $metode,
+         $note,
+         1,
+         $idSaldoClient
+      );
 
       echo $res;
+   }
+
+   /**
+    * Daftar pelanggan cabang yang memiliki saldo tunai > 0 (untuk modal Tanggung Bayar).
+    */
+   public function listPenanggungBayar($excludePelanggan = 0)
+   {
+      header('Content-Type: application/json; charset=utf-8');
+
+      $excludePelanggan = (int) $excludePelanggan;
+
+      $where = $this->wCabang . " AND jenis_transaksi = 6 AND jenis_mutasi = 1 AND status_mutasi = 3 GROUP BY id_client ORDER BY saldo DESC";
+      $where2 = $this->wCabang . " AND jenis_transaksi = 6 AND jenis_mutasi = 2 AND status_mutasi = 3 GROUP BY id_client ORDER BY saldo DESC";
+      $cols = "id_client, SUM(jumlah) as saldo";
+
+      $data = $this->db(0)->get_cols_where('kas', $cols, $where, 1);
+      $data3 = $this->db(0)->get_cols_where('kas', $cols, $where2, 1);
+
+      $saldo = [];
+      $pakai = [];
+
+      foreach ($data as $a) {
+         $saldo[$a['id_client']] = $a['saldo'];
+         $pakai[$a['id_client']] = 0;
+      }
+
+      if (count($saldo) > 0) {
+         $wherePakai = $this->wCabang . " AND metode_mutasi = 3 AND jenis_mutasi = 2";
+         $colsPakai = "id_client, SUM(jumlah) as pakai";
+         $dataPakai = $this->db(0)->get_cols_where('kas', $colsPakai, $wherePakai . " GROUP BY id_client", 1);
+         foreach ($dataPakai as $dp) {
+            if (isset($saldo[$dp['id_client']])) {
+               $pakai[$dp['id_client']] = $dp['pakai'];
+            }
+         }
+      }
+
+      foreach ($data3 as $a2) {
+         $idClient = $a2['id_client'];
+         if (isset($pakai[$idClient])) {
+            $pakai[$idClient] += $a2['saldo'];
+         } else {
+            $pakai[$idClient] = $a2['saldo'];
+         }
+      }
+
+      $result = [];
+      foreach ($saldo as $idClient => $topupAmt) {
+         $sisa = (int) round($topupAmt - ($pakai[$idClient] ?? 0));
+         if ($sisa <= 0) {
+            continue;
+         }
+         $idClient = (int) $idClient;
+         if ($excludePelanggan > 0 && $idClient === $excludePelanggan) {
+            continue;
+         }
+         if (!isset($this->pelanggan[$idClient])) {
+            continue;
+         }
+         $p = $this->pelanggan[$idClient];
+         $result[] = [
+            'id_pelanggan' => $idClient,
+            'nama_pelanggan' => $p['nama_pelanggan'],
+            'nomor_pelanggan' => $p['nomor_pelanggan'] ?? '',
+            'saldo' => $sisa,
+         ];
+      }
+
+      usort($result, function ($a, $b) {
+         return strcasecmp($a['nama_pelanggan'], $b['nama_pelanggan']);
+      });
+
+      echo json_encode(['ok' => 1, 'data' => $result]);
    }
 
    public function ganti_operasi()

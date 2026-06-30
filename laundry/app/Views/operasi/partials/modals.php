@@ -336,6 +336,27 @@
                       </select></td>
                     <td></td>
                   </tr>
+                  <tr id="rowTanggungBayar">
+                    <td colspan="3" class="pb-2">
+                      <button type="button" class="btn btn-warning btn-sm w-100" id="btnTanggungBayar">
+                        <i class="fas fa-user-friends"></i> Tanggung Bayar
+                      </button>
+                    </td>
+                  </tr>
+                  <tr id="rowTanggungBayarInfo" class="d-none">
+                    <td colspan="3" class="pb-2">
+                      <div class="alert alert-warning py-2 mb-0 small">
+                        <div class="d-flex justify-content-between align-items-start">
+                          <div>
+                            <strong>Penanggung Bayar:</strong> <span id="tbNamaPenanggung"></span><br>
+                            <strong>Saldo:</strong> Rp <span id="tbSaldoPenanggung"></span>
+                          </div>
+                          <button type="button" class="btn btn-link btn-sm p-0 text-danger" id="btnBatalTanggungBayar">Batal</button>
+                        </div>
+                      </div>
+                      <input type="hidden" id="idPenanggungBayar" value="">
+                    </td>
+                  </tr>
                   <tr id="nTunaiBill" class="border-top">
                     <td style="vertical-align: bottom;" class="pr-2 pb-2" nowrap><br>Tujuan</td>
                     <td colspan="2" class="pb-2 pt-2">
@@ -398,6 +419,44 @@
                   </tr>
                 </table>
             </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Tanggung Bayar -->
+<div class="modal" id="modalTanggungBayar" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" style="z-index: 10070 !important;">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-warning py-2">
+        <h6 class="modal-title"><i class="fas fa-user-friends me-2"></i>Tanggung Bayar</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-3">
+        <div class="alert alert-danger py-2 small mb-3">
+          <i class="fas fa-exclamation-triangle me-1"></i>
+          Penggunaan saldo untuk tanggung bayar diawasi ketat oleh Admin. Mohon hati-hati dalam memilih penanggung bayar — kesalahan pilih dapat menimbulkan perselisihan di kemudian hari.
+        </div>
+        <p class="small text-muted mb-2">Order atas nama: <strong><?= strtoupper($nama_pelanggan ?? '') ?></strong></p>
+        <input type="text" id="searchPenanggungBayar" class="form-control form-control-sm mb-2" placeholder="Cari nama atau nomor HP..." autocomplete="off">
+        <div id="listPenanggungBayar" style="max-height: 280px; overflow-y: auto;">
+          <div class="text-center text-muted py-3"><i class="fas fa-spinner fa-spin"></i> Memuat...</div>
+        </div>
+        <div id="tbKonfirmasi" class="d-none mt-3 p-2 border rounded bg-light">
+          <p class="small mb-2">
+            Bayar tagihan <strong id="tbKonfirmasiOrder"></strong> menggunakan saldo:
+          </p>
+          <p class="mb-2">
+            <strong id="tbKonfirmasiNama" class="text-primary"></strong><br>
+            <span class="text-muted small">Saldo: Rp <span id="tbKonfirmasiSaldo"></span></span>
+          </p>
+          <button type="button" class="btn btn-success btn-sm w-100" id="btnKonfirmasiTanggungBayar">
+            <i class="fas fa-check"></i> Gunakan Saldo Ini
+          </button>
+        </div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Tutup</button>
       </div>
     </div>
   </div>

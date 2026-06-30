@@ -9,7 +9,7 @@ class KasModel extends Controller
         $this->db(0); // Initialize DB connection
     }
 
-    public function bayarMulti($data_rekap, $dibayar, $id_pelanggan, $id_cabang, $id_user, $metode = 2, $note = "", $jenis_mutasi = 1)
+    public function bayarMulti($data_rekap, $dibayar, $id_pelanggan, $id_cabang, $id_user, $metode = 2, $note = "", $jenis_mutasi = 1, $id_saldo_client = 0)
     {
         $total_dibayar = 0;
 
@@ -71,11 +71,12 @@ class KasModel extends Controller
             $jumlah = intval(round($jumlah));
 
             if ($metode == 3) {
-                $q_cr = "id_client = '$id_pelanggan' AND jenis_transaksi = 6 AND jenis_mutasi = 1 AND status_mutasi = 3";
+                $idSaldo = ((int) $id_saldo_client > 0) ? (int) $id_saldo_client : (int) $id_pelanggan;
+                $q_cr = "id_client = '$idSaldo' AND jenis_transaksi = 6 AND jenis_mutasi = 1 AND status_mutasi = 3";
                 $topup = $this->db(0)->sum_col_where('kas', 'jumlah', $q_cr) ?? 0;
-                $q_cr_out = "id_client = '$id_pelanggan' AND jenis_transaksi = 6 AND jenis_mutasi = 2 AND status_mutasi = 3";
+                $q_cr_out = "id_client = '$idSaldo' AND jenis_transaksi = 6 AND jenis_mutasi = 2 AND status_mutasi = 3";
                 $topup_out = $this->db(0)->sum_col_where('kas', 'jumlah', $q_cr_out) ?? 0;
-                $q_use = "id_client = '$id_pelanggan' AND metode_mutasi = 3 AND jenis_mutasi = 2";
+                $q_use = "id_client = '$idSaldo' AND metode_mutasi = 3 AND jenis_mutasi = 2";
                 $usage = $this->db(0)->sum_col_where('kas', 'jumlah', $q_use) ?? 0;
                 $sisaSaldo = $topup - $topup_out - $usage;
                 
@@ -131,7 +132,7 @@ class KasModel extends Controller
                     'status_mutasi' => $status_mutasi,
                     'jumlah' => $jumlah,
                     'id_user' => $id_user,
-                    'id_client' => $id_pelanggan,
+                    'id_client' => ($metode == 3 && (int) $id_saldo_client > 0) ? (int) $id_saldo_client : $id_pelanggan,
                     'ref_finance' => $ref_f,
                     'insertTime' => $GLOBALS['now']
                 ];

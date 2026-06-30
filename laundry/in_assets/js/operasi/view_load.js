@@ -124,6 +124,7 @@
   var BASE_URL = config.baseUrl || "";
   var modeView = config.modeView || "0";
   var id_pelanggan = config.idPelanggan || "";
+  var nama_pelanggan = config.namaPelanggan || "";
   var marginTop = config.marginTop || 0;
   var feedLines = config.feedLines || 0;
 
@@ -649,8 +650,22 @@
     var karyawanBill = $("#karyawanBill").val();
     var metodeBill = $("#metodeBill").val();
     var noteBill = $("#noteBill").val();
+    var idPenanggungBayar = parseInt($("#idPenanggungBayar").val() || "0", 10);
+
+    if (idPenanggungBayar > 0 && metodeBill != "3") {
+      showAlert("Tanggung bayar hanya dapat menggunakan metode Saldo Tunai.", "error");
+      return;
+    }
 
     noteBill = (noteBill || "").replace(" ", "_SPACE_");
+
+    var postData = {
+      rekap: window.json_rekap,
+      dibayar: parseRupiahInput($("input#bayarBill").val()),
+    };
+    if (idPenanggungBayar > 0) {
+      postData.id_penanggung_bayar = idPenanggungBayar;
+    }
 
     $.ajax({
       url:
@@ -663,10 +678,7 @@
         metodeBill +
         "/" +
         noteBill,
-      data: {
-        rekap: window.json_rekap,
-        dibayar: parseRupiahInput($("input#bayarBill").val()),
-      },
+      data: postData,
       type: $(this).attr("method"),
       beforeSend: function () {
         $(".loaderDiv").fadeIn("fast");
@@ -931,7 +943,157 @@
       $("tr#nTunaiBill").hide();
       $("#noteBill").prop("required", false);
     }
+    if ($(this).val() != "3") {
+      resetTanggungBayar();
+    }
   });
+
+  var tbListData = [];
+  var tbSelected = null;
+  var tbMetodeSaldoAdded = false;
+  var tbMetodeSaldoOrigText = null;
+
+  function resetTanggungBayar() {
+    $("#idPenanggungBayar").val("");
+    $("#rowTanggungBayarInfo").addClass("d-none");
+    $("#rowTanggungBayar").removeClass("d-none");
+    tbSelected = null;
+    $("#tbKonfirmasi").addClass("d-none");
+    if (tbMetodeSaldoOrigText !== null) {
+      $("#metodeBill option[value='3']").text(tbMetodeSaldoOrigText);
+      tbMetodeSaldoOrigText = null;
+    }
+    if (tbMetodeSaldoAdded) {
+      $("#metodeBill option[value='3']").remove();
+      tbMetodeSaldoAdded = false;
+      var $metode = $("#metodeBill");
+      if ($metode.find("option").length > 0) {
+        $metode.val($metode.find("option:first").val()).trigger("change");
+      }
+    }
+  }
+
+  function ensureMetodeSaldoTanggungBayar(labelSaldo) {
+    var $sel = $("#metodeBill");
+    var $opt = $sel.find('option[value="3"]');
+    if ($opt.length === 0) {
+      $sel.append(
+        $("<option>", {
+          value: "3",
+          text: "Saldo Tunai (Tanggung Bayar) [ " + labelSaldo + " ]",
+        })
+      );
+      tbMetodeSaldoAdded = true;
+    } else {
+      if (tbMetodeSaldoOrigText === null) {
+        tbMetodeSaldoOrigText = $opt.text();
+      }
+      $opt.text("Saldo Tunai (Tanggung Bayar) [ " + labelSaldo + " ]");
+    }
+    $sel.val("3").trigger("change");
+  }
+
+  function renderListPenanggungBayar(filter) {
+    var q = (filter || "").toUpperCase().trim();
+    var html = "";
+    var count = 0;
+    for (var i = 0; i < tbListData.length; i++) {
+      var row = tbListData[i];
+      var nama = String(row.nama_pelanggan || "").toUpperCase();
+      var hp = String(row.nomor_pelanggan || "");
+      if (q && nama.indexOf(q) === -1 && hp.indexOf(q) === -1) {
+        continue;
+      }
+      count++;
+      html +=
+        "<button type='button' class='btn btn-outline-secondary btn-sm w-100 text-start mb-1 tb-pilih-penanggung' " +
+        "data-id='" + row.id_pelanggan + "' " +
+        "data-nama='" + nama.replace(/'/g, "") + "' " +
+        "data-saldo='" + row.saldo + "'>" +
+        "<strong>" + nama + "</strong><br>" +
+        "<span class='small text-muted'>" + hp + "</span>" +
+        "<span class='float-end text-success fw-bold'>Rp " + Number(row.saldo).toLocaleString("id-ID") + "</span>" +
+        "</button>";
+    }
+    if (count === 0) {
+      html = "<div class='text-center text-muted py-3 small'>Tidak ada pemilik saldo tunai ditemukan.</div>";
+    }
+    $("#listPenanggungBayar").html(html);
+  }
+
+  function loadListPenanggungBayar() {
+    $("#listPenanggungBayar").html("<div class='text-center text-muted py-3'><i class='fas fa-spinner fa-spin'></i> Memuat...</div>");
+    $.getJSON(BASE_URL + "Operasi/listPenanggungBayar/" + id_pelanggan)
+      .done(function (res) {
+        if (res && res.ok && Array.isArray(res.data)) {
+          tbListData = res.data;
+          renderListPenanggungBayar($("#searchPenanggungBayar").val());
+        } else {
+          tbListData = [];
+          $("#listPenanggungBayar").html("<div class='text-center text-danger py-3 small'>Gagal memuat data.</div>");
+        }
+      })
+      .fail(function () {
+        tbListData = [];
+        $("#listPenanggungBayar").html("<div class='text-center text-danger py-3 small'>Gagal memuat data.</div>");
+      });
+  }
+
+  $("#btnTanggungBayar").on("click", function () {
+    tbSelected = null;
+    $("#tbKonfirmasi").addClass("d-none");
+    $("#searchPenanggungBayar").val("");
+    loadListPenanggungBayar();
+    var modalEl = document.getElementById("modalTanggungBayar");
+    if (modalEl && window.bootstrap && bootstrap.Modal) {
+      bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    }
+  });
+
+  $("#searchPenanggungBayar").on("input", function () {
+    renderListPenanggungBayar($(this).val());
+  });
+
+  $(document).on("click", ".tb-pilih-penanggung", function () {
+    tbSelected = {
+      id: parseInt($(this).attr("data-id"), 10),
+      nama: $(this).attr("data-nama"),
+      saldo: parseInt($(this).attr("data-saldo"), 10) || 0,
+    };
+    $("#tbKonfirmasiOrder").text(nama_pelanggan ? nama_pelanggan.toUpperCase() : "pelanggan ini");
+    $("#tbKonfirmasiNama").text(tbSelected.nama);
+    $("#tbKonfirmasiSaldo").text(Number(tbSelected.saldo).toLocaleString("id-ID"));
+    $("#tbKonfirmasi").removeClass("d-none");
+  });
+
+  $("#btnKonfirmasiTanggungBayar").on("click", function () {
+    if (!tbSelected || !tbSelected.id) {
+      return;
+    }
+    $("#idPenanggungBayar").val(tbSelected.id);
+    $("#tbNamaPenanggung").text(tbSelected.nama);
+    $("#tbSaldoPenanggung").text(Number(tbSelected.saldo).toLocaleString("id-ID"));
+    $("#rowTanggungBayarInfo").removeClass("d-none");
+    $("#rowTanggungBayar").addClass("d-none");
+    ensureMetodeSaldoTanggungBayar(Number(tbSelected.saldo).toLocaleString("id-ID"));
+    var modalEl = document.getElementById("modalTanggungBayar");
+    if (modalEl && window.bootstrap && bootstrap.Modal) {
+      var inst = bootstrap.Modal.getInstance(modalEl);
+      if (inst) inst.hide();
+    }
+  });
+
+  $("#btnBatalTanggungBayar").on("click", function () {
+    resetTanggungBayar();
+  });
+
+  var offcanvasPaymentEl = document.getElementById("offcanvasPayment");
+  if (offcanvasPaymentEl) {
+    offcanvasPaymentEl.addEventListener("hidden.bs.offcanvas", function () {
+      resetTanggungBayar();
+      $("#alertRecap").addClass("d-none").html("");
+    });
+  }
 
   $("select.userChange").change(function () {
     userClick = $("select.userChange option:selected").text();
