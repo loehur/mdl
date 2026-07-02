@@ -12,6 +12,7 @@ class KasModel extends Controller
     public function bayarMulti($data_rekap, $dibayar, $id_pelanggan, $id_cabang, $id_user, $metode = 2, $note = "", $jenis_mutasi = 1, $id_saldo_client = 0)
     {
         $total_dibayar = 0;
+        $metodeInt = (int) $metode;
 
         $use_bayar = true;
         if ($dibayar == 0) {
@@ -22,31 +23,50 @@ class KasModel extends Controller
             return false;
         }
 
-        if ($metode == 1) {
+        if ($metodeInt === 1) {
             if ($note == "") {
                 $note = "CASH";
             }
+        } elseif ($metodeInt === 3) {
+            if ($note == "") {
+                $note = "SALDO";
+            }
         } else {
-            if ($note == "") {  
+            if ($note == "") {
                 return "Pembayaran Non Tunai wajib memilih Tujuan Bayar";
-            } else {
-                if ($use_bayar) {
-                    if ($note == "QRIS" && $dibayar < 1000) {
-                        return "QRIS minimal 1.000";
-                    }
-                    if ($note <> "QRIS" && $dibayar < 10000) {
-                        return "Pembayaran Transfer minimal 10.000";
-                    }
+            }
+            if ($use_bayar) {
+                if ($note == "QRIS" && $dibayar < 1000) {
+                    return "QRIS minimal 1.000";
+                }
+                if ($note <> "QRIS" && $dibayar < 10000) {
+                    return "Pembayaran Transfer minimal 10.000";
                 }
             }
         }
 
-        ksort($data_rekap);
+        // Saldo tunai: bayar order laundry (U#) dulu, baru topup paket member (M#)
+        if ($metodeInt === 3) {
+            uksort($data_rekap, function ($a, $b) {
+                $ta = substr((string) $a, 0, 1);
+                $tb = substr((string) $b, 0, 1);
+                if ($ta === 'U' && $tb === 'M') {
+                    return -1;
+                }
+                if ($ta === 'M' && $tb === 'U') {
+                    return 1;
+                }
+                return strcmp((string) $a, (string) $b);
+            });
+        } else {
+            ksort($data_rekap);
+        }
+
         $ref_f = (date('Y') - 2024) . date('mdHis') . rand(0, 9) . rand(0, 9) . $id_cabang;
 
         foreach ($data_rekap as $key => $value) {
             if ($use_bayar && $dibayar == 0) {
-                return "0";
+                break;
             }
 
             $xNoref = $key;
@@ -66,33 +86,46 @@ class KasModel extends Controller
             } else {
                 $jumlah = $value;
             }
-            
-            // Ensure jumlah is integer to prevent floating point precision issues
-            $jumlah = intval(round($jumlah));
 
-            if ($metode == 3) {
+            $jumlah = intval(round($jumlah));
+            if ($jumlah <= 0) {
+                continue;
+            }
+
+            $kasIdClient = (int) $id_pelanggan;
+
+            if ($metodeInt === 3) {
                 $idSaldo = ((int) $id_saldo_client > 0) ? (int) $id_saldo_client : (int) $id_pelanggan;
+                $kasIdClient = $idSaldo;
                 $q_cr = "id_client = '$idSaldo' AND jenis_transaksi = 6 AND jenis_mutasi = 1 AND status_mutasi = 3";
                 $topup = $this->db(0)->sum_col_where('kas', 'jumlah', $q_cr) ?? 0;
                 $q_cr_out = "id_client = '$idSaldo' AND jenis_transaksi = 6 AND jenis_mutasi = 2 AND status_mutasi = 3";
                 $topup_out = $this->db(0)->sum_col_where('kas', 'jumlah', $q_cr_out) ?? 0;
                 $q_use = "id_client = '$idSaldo' AND metode_mutasi = 3 AND jenis_mutasi = 2";
                 $usage = $this->db(0)->sum_col_where('kas', 'jumlah', $q_use) ?? 0;
-                $sisaSaldo = $topup - $topup_out - $usage;
-                
-                if ($sisaSaldo > 0) {
-                    if ($jumlah > $sisaSaldo) {
-                        $jumlah = $sisaSaldo;
+                $sisaSaldo = intval(round($topup - $topup_out - $usage));
+
+                if ($sisaSaldo <= 0) {
+                    if ($total_dibayar > 0) {
+                        continue;
                     }
-                } else {
                     return "Saldo tidak cukup";
                 }
+
+                if ($jumlah > $sisaSaldo) {
+                    $jumlah = $sisaSaldo;
+                }
+
+                if ($jumlah <= 0) {
+                    continue;
+                }
+
                 $jenis_mutasi = 2;
             }
 
             $status_mutasi = 2;
-            switch ($metode) {
-                case "2":
+            switch ($metodeInt) {
+                case 2:
                     $status_mutasi = 2;
                     break;
                 default:
@@ -103,9 +136,7 @@ class KasModel extends Controller
             $jt = $tipe == "M" ? 3 : 1;
             $wCabang = "id_cabang = " . $id_cabang;
 
-            // Satu pembayaran non-tunai pending per nota/member: cek hanya per jumlah sehingga nominal
-            // berbeda atau klik ganda masih bisa dobel. Blok jika sudah ada yang menunggu verifikasi.
-            if ($metode == 2 && $status_mutasi == 2) {
+            if ($metodeInt === 2 && $status_mutasi == 2) {
                 $refEsc = $this->db(0)->escape($ref);
                 $pendingWhere = $wCabang . " AND jenis_transaksi = " . intval($jt)
                     . " AND ref_transaksi = '" . $refEsc . "'"
@@ -115,7 +146,7 @@ class KasModel extends Controller
                 }
             }
 
-            $setOne = "ref_transaksi = '" . $ref . "' AND metode_mutasi = " . $metode . " AND jenis_mutasi = " . $jenis_mutasi . " AND status_mutasi = " . $status_mutasi . " AND jumlah = " . $jumlah;
+            $setOne = "ref_transaksi = '" . $ref . "' AND metode_mutasi = " . $metodeInt . " AND jenis_mutasi = " . $jenis_mutasi . " AND status_mutasi = " . $status_mutasi . " AND jumlah = " . $jumlah;
             $where = $wCabang . " AND " . $setOne;
             $data_main = $this->db(0)->count_where('kas', $where);
 
@@ -127,12 +158,12 @@ class KasModel extends Controller
                     'jenis_mutasi' => $jenis_mutasi,
                     'jenis_transaksi' => $jt,
                     'ref_transaksi' => $ref,
-                    'metode_mutasi' => $metode,
+                    'metode_mutasi' => $metodeInt,
                     'note' => $note,
                     'status_mutasi' => $status_mutasi,
                     'jumlah' => $jumlah,
                     'id_user' => $id_user,
-                    'id_client' => ($metode == 3 && (int) $id_saldo_client > 0) ? (int) $id_saldo_client : $id_pelanggan,
+                    'id_client' => $kasIdClient,
                     'ref_finance' => $ref_f,
                     'insertTime' => $GLOBALS['now']
                 ];
@@ -144,9 +175,16 @@ class KasModel extends Controller
                     $total_dibayar += $jumlah;
                 } else {
                     $this->model('Log')->write("[KasModel::bayarMulti] Insert Kas Error: " . $do['error']);
+                    if ($total_dibayar > 0) {
+                        break;
+                    }
                     return $do['error'];
                 }
             }
+        }
+
+        if ($metodeInt === 3 && $total_dibayar <= 0) {
+            return "Saldo tidak cukup";
         }
 
         return 0;
