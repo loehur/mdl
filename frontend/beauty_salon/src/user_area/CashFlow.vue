@@ -18,6 +18,28 @@
           Filter
         </button>
       </div>
+
+      <!-- Search Bar -->
+      <div class="relative">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+        </svg>
+        <input
+          v-model="searchQuery"
+          type="text"
+          placeholder="Cari order ID, nama pelanggan, atau metode bayar..."
+          class="w-full pl-10 pr-10 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-200 focus:border-pink-400 outline-none transition"
+        />
+        <button
+          v-if="searchQuery"
+          @click="searchQuery = ''"
+          class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
     </div>
 
 
@@ -26,7 +48,7 @@
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div class="border-b border-gray-100 px-6 py-4 flex items-center justify-between">
             <h3 class="font-bold text-gray-800">Riwayat Pembayaran</h3>
-            <span class="text-xs font-medium bg-gray-100 text-gray-600 px-2 py-1 rounded-lg">{{ transactions.length }} Transaksi</span>
+            <span class="text-xs font-medium bg-gray-100 text-gray-600 px-2 py-1 rounded-lg">{{ filteredTransactions.length }} Transaksi</span>
         </div>
          <div class="overflow-x-auto">
             <table class="w-full text-left text-sm border-collapse">
@@ -43,10 +65,12 @@
                     <tr v-if="loading" class="animate-pulse">
                         <td colspan="5" class="px-6 py-8 text-center text-gray-400">Memuat data...</td>
                     </tr>
-                    <tr v-else-if="transactions.length === 0">
-                         <td colspan="5" class="px-6 py-8 text-center text-gray-400">Tidak ada transaksi tunai pada periode ini</td>
+                    <tr v-else-if="filteredTransactions.length === 0">
+                         <td colspan="5" class="px-6 py-8 text-center text-gray-400">
+                           {{ transactions.length && searchQuery ? 'Tidak ada transaksi yang cocok dengan pencarian' : 'Tidak ada transaksi tunai pada periode ini' }}
+                         </td>
                     </tr>
-                    <tr v-for="trx in transactions" :key="trx.id" class="hover:bg-gray-50 transition duration-150">
+                    <tr v-for="trx in filteredTransactions" :key="trx.id" class="hover:bg-gray-50 transition duration-150">
                         <td class="px-6 py-3 whitespace-nowrap text-gray-600 font-mono text-xs">
                             {{ formatDateTime(trx.order_date || trx.created_at) }}
                         </td>
@@ -77,10 +101,11 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, computed } from 'vue';
 
 const loading = ref(true);
 const transactions = ref([]);
+const searchQuery = ref('');
 const totalCashPeriod = ref(0); // Saldo untuk periode tertentu
 
 // Default: Last 7 days
@@ -92,6 +117,20 @@ const formatDateInput = (d) => d.toISOString().split('T')[0];
 const filters = reactive({
     startDate: formatDateInput(sevenDaysAgo),
     endDate: formatDateInput(today)
+});
+
+const filteredTransactions = computed(() => {
+    if (!searchQuery.value.trim()) {
+        return transactions.value;
+    }
+    const query = searchQuery.value.toLowerCase().trim();
+    return transactions.value.filter(trx => {
+        if (String(trx.id).includes(query)) return true;
+        if ((trx.customer_name || '').toLowerCase().includes(query)) return true;
+        if ((trx.payment_method || '').toLowerCase().includes(query)) return true;
+        if ((trx.customer_phone || '').includes(query)) return true;
+        return false;
+    });
 });
 
 async function fetchData() {

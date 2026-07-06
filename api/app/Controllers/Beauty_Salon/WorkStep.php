@@ -150,17 +150,8 @@ class WorkStep extends Controller
             }
 
             // Check if work step is used in products
-            $usedInProducts = $this->db($this->db_index)
-                ->query("
-                    SELECT COUNT(*) as count 
-                    FROM products 
-                    WHERE salon_id = ? 
-                    AND JSON_CONTAINS(work_steps, ?, '$.work_step_id')
-                ", [$salon_id, $id])
-                ->row_array();
-
-            if ($usedInProducts && $usedInProducts['count'] > 0) {
-                $this->error('Langkah kerja tidak dapat dihapus karena digunakan di ' . $usedInProducts['count'] . ' produk', 400);
+            if (WorkStepHelper::isUsedInProducts($this->db($this->db_index), (int) $salon_id, (int) $id)) {
+                $this->error('Langkah kerja tidak dapat dihapus karena masih digunakan di produk layanan', 400);
             }
 
             $this->db($this->db_index)->delete('work_step', ['id' => $id]);

@@ -3,15 +3,49 @@
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
       <div class="flex items-center justify-between mb-6">
         <h2 class="text-2xl font-bold text-gray-800">Produk Layanan</h2>
-        <button 
-          @click="openCreateModal"
-          class="px-4 py-2 bg-gradient-to-r from-pink-500 to-fuchsia-600 hover:from-pink-600 hover:to-fuchsia-700 text-white rounded-lg font-medium shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
-        >
+        <div class="flex items-center gap-2">
+          <button
+            v-if="hasOrphanedProducts"
+            @click="repairOrphanedSteps"
+            :disabled="repairing"
+            class="px-3 py-2 border border-amber-300 text-amber-700 hover:bg-amber-50 rounded-lg text-sm font-medium transition disabled:opacity-50"
+          >
+            {{ repairing ? 'Memperbaiki...' : 'Perbaiki Langkah Invalid' }}
+          </button>
+          <button 
+            @click="openCreateModal"
+            class="px-4 py-2 bg-gradient-to-r from-pink-500 to-fuchsia-600 hover:from-pink-600 hover:to-fuchsia-700 text-white rounded-lg font-medium shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
+          >
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
           </svg>
           <span>Tambah Produk</span>
         </button>
+        </div>
+      </div>
+
+      <!-- Search Bar -->
+      <div class="mb-4">
+        <div class="relative">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+          </svg>
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Cari nama produk, harga, atau langkah kerja..."
+            class="w-full pl-10 pr-10 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-200 focus:border-pink-400 outline-none transition"
+          />
+          <button
+            v-if="searchQuery"
+            @click="searchQuery = ''"
+            class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
       </div>
 
       <!-- Products Grid -->
@@ -24,8 +58,8 @@
         </div>
       </div>
 
-      <div v-else-if="products.length" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div v-for="product in products" :key="product.id" class="bg-gradient-to-br from-white to-gray-50 rounded-xl border border-gray-200 p-5 hover:shadow-lg transition-all group">
+      <div v-else-if="filteredProducts.length" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div v-for="product in filteredProducts" :key="product.id" class="bg-gradient-to-br from-white to-gray-50 rounded-xl border border-gray-200 p-5 hover:shadow-lg transition-all group">
           <div class="flex items-start justify-between mb-3">
             <h3 class="font-bold text-gray-800 text-lg">{{ product.name }}</h3>
             <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -54,9 +88,31 @@
               </svg>
               <span>{{ getStepName(stepId) }}</span>
             </div>
+            <div v-for="stepId in (product.work_steps_orphaned || [])" :key="'orphan-' + stepId" class="flex items-center gap-2 text-sm text-amber-600">
+              <svg class="w-4 h-4 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+              </svg>
+              <span>Langkah #{{ stepId }} (tidak ditemukan)</span>
+            </div>
+          </div>
+          <div v-else-if="product.work_steps_orphaned && product.work_steps_orphaned.length" class="space-y-1">
+            <div class="text-xs font-medium text-amber-600 uppercase mb-2">Langkah Bermasalah:</div>
+            <div v-for="stepId in product.work_steps_orphaned" :key="'orphan-only-' + stepId" class="flex items-center gap-2 text-sm text-amber-600">
+              <svg class="w-4 h-4 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+              </svg>
+              <span>Langkah #{{ stepId }} (tidak ditemukan)</span>
+            </div>
           </div>
           <div v-else class="text-sm text-gray-400 italic">Belum ada langkah kerja</div>
         </div>
+      </div>
+
+      <div v-else-if="products.length && searchQuery" class="text-center py-16">
+        <svg class="w-20 h-20 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+        </svg>
+        <p class="text-gray-500">Tidak ada produk yang cocok dengan pencarian</p>
       </div>
 
       <div v-else class="text-center py-16">
@@ -76,6 +132,10 @@
           </div>
           
           <form @submit.prevent="saveProduct" class="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+            <div v-if="orphanedStepIds.length" class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <p class="font-medium mb-1">Langkah kerja tidak ditemukan di master:</p>
+              <p>Langkah #{{ orphanedStepIds.join(', #') }} sudah dihapus atau tidak ada. Pilih langkah pengganti lalu simpan produk.</p>
+            </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-2">
                 Nama Produk <span class="text-red-500">*</span>
@@ -201,14 +261,17 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, computed } from 'vue';
 
 const products = ref([]);
+const searchQuery = ref('');
 const workSteps = ref([]);
 const loading = ref(true);
 const showModal = ref(false);
 const editMode = ref(false);
 const saving = ref(false);
+const repairing = ref(false);
+const orphanedStepIds = ref([]);
 
 const form = reactive({
   id: null,
@@ -245,6 +308,28 @@ function getStepName(stepId) {
   return step ? step.name : 'Unknown';
 }
 
+const filteredProducts = computed(() => {
+  if (!searchQuery.value.trim()) {
+    return products.value;
+  }
+  const query = searchQuery.value.toLowerCase().trim();
+  return products.value.filter(product => {
+    if ((product.name || '').toLowerCase().includes(query)) return true;
+    if (String(product.price || '').includes(query)) return true;
+    if (product.work_steps && Array.isArray(product.work_steps)) {
+      if (product.work_steps.some(stepId => getStepName(stepId).toLowerCase().includes(query))) return true;
+    }
+    if (product.work_steps_orphaned && Array.isArray(product.work_steps_orphaned)) {
+      if (product.work_steps_orphaned.some(id => String(id).includes(query))) return true;
+    }
+    return false;
+  });
+});
+
+const hasOrphanedProducts = computed(() =>
+  products.value.some(p => Array.isArray(p.work_steps_orphaned) && p.work_steps_orphaned.length > 0)
+);
+
 async function fetchWorkSteps() {
   try {
     const res = await fetch('/api/Beauty_Salon/WorkStep');
@@ -278,6 +363,7 @@ function openCreateModal() {
   form.name = '';
   form.price = 0;
   form.work_steps = [];
+  orphanedStepIds.value = [];
   showModal.value = true;
 }
 
@@ -287,11 +373,31 @@ function editProduct(product) {
   form.name = product.name;
   form.price = product.price;
   form.work_steps = Array.isArray(product.work_steps) ? [...product.work_steps] : [];
+  orphanedStepIds.value = Array.isArray(product.work_steps_orphaned) ? [...product.work_steps_orphaned] : [];
   showModal.value = true;
 }
 
 function closeModal() {
   showModal.value = false;
+  orphanedStepIds.value = [];
+}
+
+async function repairOrphanedSteps() {
+  repairing.value = true;
+  try {
+    const res = await fetch('/api/Beauty_Salon/Products/repairOrphaned', { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      showToast(data.message, 'success');
+      await fetchProducts();
+    } else {
+      showToast(data.message || 'Gagal memperbaiki', 'error');
+    }
+  } catch (e) {
+    showToast('Terjadi kesalahan jaringan', 'error');
+  } finally {
+    repairing.value = false;
+  }
 }
 
 async function saveProduct() {

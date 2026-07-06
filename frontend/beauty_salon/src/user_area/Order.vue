@@ -136,7 +136,10 @@
                      >
                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
                      </button>
-                     <span :class="step.status === 'completed' ? 'text-gray-400 line-through' : 'text-gray-600'">
+                     <span :class="[
+                       step.status === 'completed' ? 'text-gray-400 line-through' : '',
+                       isStepMissing(step) ? 'text-amber-600 italic' : 'text-gray-600'
+                     ]">
                         {{ displayStepName(step) }}
                      </span>
                    </div>
@@ -813,12 +816,23 @@ function goToSubscription() {
 }
 
 function displayStepName(step) {
-    if (step.step_name && step.step_name !== 'Step ' + step.step_id && step.step_name !== 'undefined') {
+    if (step.step_name && !step.step_missing && step.step_name !== 'Step ' + step.step_id && step.step_name !== 'undefined') {
         return step.step_name;
     }
-    // Fallback to lookup
     const found = allWorkSteps.value.find(s => s.id == step.step_id);
-    return found ? found.name : 'Step #' + step.step_id;
+    if (found) {
+        return found.name;
+    }
+    return 'Langkah tidak ditemukan #' + step.step_id;
+}
+
+function isStepMissing(step) {
+    if (step.step_missing) return true;
+    if (!step.step_id) return false;
+    const found = allWorkSteps.value.find(s => s.id == step.step_id);
+    if (found) return false;
+    const name = (step.step_name || '').trim();
+    return !name || name === 'undefined' || /^Step #?\d+$/i.test(name);
 }
 
 // -- Fetch Data --
@@ -923,17 +937,35 @@ function editOrder(order) {
         form.orderType = 'direct';
     }
 
-    // Hydrate items
-    // map order_items to selectedItems format
+    // Hydrate items — sinkronkan langkah kerja dari definisi produk terbaru
     if (order.order_items) {
-        form.selectedItems = order.order_items.map(item => ({
-            id: item.product_id, // Important for getQuantity
-            name: item.product_name,
-            price: item.price,
-            work_steps: item.work_steps ? JSON.parse(JSON.stringify(item.work_steps)) : [], // Deep copy steps
-            // Keep track of original item id for backend to know which to update/keep
-            original_item_id: item.id 
-        }));
+        form.selectedItems = order.order_items.map(item => {
+            const prod = products.value.find(p => p.id == item.product_id);
+            let work_steps = item.work_steps ? JSON.parse(JSON.stringify(item.work_steps)) : [];
+
+            if (prod && Array.isArray(prod.work_steps) && prod.work_steps.length > 0) {
+                work_steps = prod.work_steps.map(stepId => {
+                    const existing = work_steps.find(s => s.step_id == stepId);
+                    const details = allWorkSteps.value.find(s => s.id == stepId);
+                    return {
+                        step_id: stepId,
+                        step_name: details ? details.name : null,
+                        fee: details ? Number(details.fee) : 0,
+                        worker_id: existing?.worker_id ?? null,
+                        status: existing?.status ?? 'pending',
+                        step_missing: !details,
+                    };
+                });
+            }
+
+            return {
+                id: item.product_id,
+                name: item.product_name,
+                price: item.price,
+                work_steps,
+                original_item_id: item.id
+            };
+        });
     } else {
         form.selectedItems = [];
     }
@@ -964,10 +996,11 @@ function addProduct(prod) {
         
         return {
             step_id: stepId,
-            step_name: details ? details.name : ('Step ' + stepId),
+            step_name: details ? details.name : null,
             fee: details ? Number(details.fee) : 0,
             worker_id: null,
-            status: 'pending'
+            status: 'pending',
+            step_missing: !details,
         };
     });
 

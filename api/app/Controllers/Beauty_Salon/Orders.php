@@ -62,10 +62,13 @@ class Orders extends Controller
                 ->query($sql, $params)
                 ->result_array();
 
-            // Decode JSON order_items
+            $stepMap = WorkStepHelper::loadMap($this->db($this->db_index), (int) $salon_id);
+
             foreach ($orders as &$order) {
                 $order['order_items'] = json_decode($order['order_items'] ?? '[]', true);
+                WorkStepHelper::hydrateOrderItems($order['order_items'], $stepMap);
             }
+            unset($order);
 
             $this->json([
                 'success' => true,

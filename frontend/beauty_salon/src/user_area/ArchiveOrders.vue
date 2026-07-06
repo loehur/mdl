@@ -25,6 +25,30 @@
       </div>
     </div>
 
+    <!-- Search Bar -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 px-6 py-4">
+      <div class="relative">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+        </svg>
+        <input
+          v-model="searchQuery"
+          type="text"
+          placeholder="Cari order ID, nama pelanggan, no HP, atau layanan..."
+          class="w-full pl-10 pr-10 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-200 focus:border-pink-400 outline-none transition"
+        />
+        <button
+          v-if="searchQuery"
+          @click="searchQuery = ''"
+          class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+
     <!-- Table -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
       <div v-if="loading" class="p-8 text-center text-gray-500">Memuat arsip...</div>
@@ -35,6 +59,14 @@
         </div>
         <h3 class="text-lg font-medium text-gray-900">Belum ada arsip</h3>
         <p class="text-gray-500">Order yang diselesaikan akan muncul di sini.</p>
+      </div>
+
+      <div v-else-if="filteredOrders.length === 0" class="p-12 text-center">
+        <div class="inline-block p-4 rounded-full bg-gray-50 mb-4">
+             <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+        </div>
+        <h3 class="text-lg font-medium text-gray-900">Tidak ada hasil pencarian</h3>
+        <p class="text-gray-500">Coba kata kunci lain atau kosongkan pencarian.</p>
       </div>
 
       <div v-else class="overflow-x-auto">
@@ -51,7 +83,7 @@
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-50">
-            <tr v-for="order in orders" :key="order.id" 
+            <tr v-for="order in filteredOrders" :key="order.id" 
                 class="transition"
                 :class="order.status === 'cancelled' ? 'bg-red-50/50 hover:bg-red-50' : 'hover:bg-gray-50/50'">
               <td class="px-6 py-4 font-mono" :class="order.status === 'cancelled' ? 'text-gray-400' : 'text-gray-500'">
@@ -215,6 +247,7 @@ import { ref, reactive, onMounted, computed } from 'vue';
 
 const loading = ref(true);
 const orders = ref([]);
+const searchQuery = ref('');
 const selectedOrder = ref(null);
 const therapists = ref([]);
 const toast = reactive({ show: false, message: '', type: 'success' });
@@ -289,6 +322,23 @@ const workerNameMap = computed(() => {
     const m = {};
     therapists.value.forEach(t => { m[t.id] = t.nama || ('Terapis #' + t.id); });
     return m;
+});
+
+const filteredOrders = computed(() => {
+  if (!searchQuery.value.trim()) {
+    return orders.value;
+  }
+  const query = searchQuery.value.toLowerCase().trim();
+  return orders.value.filter(order => {
+    if (String(order.id).includes(query)) return true;
+    if ((order.customer_name || '').toLowerCase().includes(query)) return true;
+    if ((order.customer_phone || '').includes(query)) return true;
+    if ((order.payment_method || '').toLowerCase().includes(query)) return true;
+    if (order.order_items && Array.isArray(order.order_items)) {
+      return order.order_items.some(item => (item.product_name || '').toLowerCase().includes(query));
+    }
+    return false;
+  });
 });
 
 function getWorkerName(workerId) {

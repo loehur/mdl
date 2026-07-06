@@ -14,6 +14,30 @@
         </button>
       </div>
 
+      <!-- Search Bar -->
+      <div class="mb-4">
+        <div class="relative">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+          </svg>
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Cari nama langkah kerja..."
+            class="w-full pl-10 pr-10 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-200 focus:border-pink-400 outline-none transition"
+          />
+          <button
+            v-if="searchQuery"
+            @click="searchQuery = ''"
+            class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+
       <!-- Table Desktop -->
       <div class="hidden md:block overflow-x-auto">
         <table class="w-full text-left text-sm">
@@ -32,8 +56,8 @@
               <td v-if="isAdmin" class="px-4 py-3"><div class="h-4 bg-gray-200 rounded w-24 ml-auto"></div></td>
               <td class="px-4 py-3"></td>
             </tr>
-            <template v-else-if="steps.length">
-              <tr v-for="(step, index) in steps" :key="step.id" class="hover:bg-fuchsia-50/30 transition group">
+            <template v-else-if="filteredSteps.length">
+              <tr v-for="(step, index) in filteredSteps" :key="step.id" class="hover:bg-fuchsia-50/30 transition group">
                 <td class="px-4 py-3 text-gray-500">{{ index + 1 }}</td>
                 <td class="px-4 py-3 font-medium text-gray-800">{{ step.name }}</td>
                 <td v-if="isAdmin" class="px-4 py-3 text-right font-mono text-gray-600">
@@ -69,7 +93,7 @@
                   <svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
                   </svg>
-                  <p class="text-sm font-medium">Belum ada langkah kerja</p>
+                  <p class="text-sm font-medium">{{ steps.length && searchQuery ? 'Tidak ada langkah kerja yang cocok' : 'Belum ada langkah kerja' }}</p>
                 </div>
               </td>
             </tr>
@@ -83,8 +107,8 @@
           <div class="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
           <div class="h-3 bg-gray-200 rounded w-1/2"></div>
         </div>
-        <template v-else-if="steps.length">
-          <div v-for="(step, index) in steps" :key="step.id" class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+        <template v-else-if="filteredSteps.length">
+          <div v-for="(step, index) in filteredSteps" :key="step.id" class="bg-gray-50 rounded-lg p-4 border border-gray-200">
             <div class="flex items-start justify-between mb-2">
               <div class="flex-1">
                 <div class="text-xs text-gray-500 mb-1">Langkah #{{ index + 1 }}</div>
@@ -114,7 +138,7 @@
           <svg class="w-16 h-16 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
           </svg>
-          <p class="text-sm">Belum ada langkah kerja</p>
+          <p class="text-sm">{{ steps.length && searchQuery ? 'Tidak ada langkah kerja yang cocok' : 'Belum ada langkah kerja' }}</p>
         </div>
       </div>
     </div>
@@ -243,6 +267,7 @@
 import { ref, reactive, onMounted, computed } from 'vue';
 
 const steps = ref([]);
+const searchQuery = ref('');
 const loading = ref(true);
 const showModal = ref(false);
 const editMode = ref(false);
@@ -278,6 +303,18 @@ const userRole = computed(() => {
 });
 
 const isAdmin = computed(() => userRole.value === 'admin');
+
+const filteredSteps = computed(() => {
+  if (!searchQuery.value.trim()) {
+    return steps.value;
+  }
+  const query = searchQuery.value.toLowerCase().trim();
+  return steps.value.filter(step => {
+    if ((step.name || '').toLowerCase().includes(query)) return true;
+    if (String(step.fee || '').includes(query)) return true;
+    return false;
+  });
+});
 
 function showToast(message, type = 'success') {
   toast.message = message;
