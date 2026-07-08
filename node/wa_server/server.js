@@ -718,6 +718,8 @@ app.post('/incoming', async (req, res) => {
     const data = req.body;
     const targetId = data.target_id;
 
+    console.log(`[INCOMING] POST target=${targetId || '?'} phone=${data.phone || '-'} type=${data.type || 'wa_masuk'}`);
+
     if (!targetId) {
         return res.status(400).json({ success: false, message: 'target_id is required' });
     }

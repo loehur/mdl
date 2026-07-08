@@ -392,6 +392,11 @@ class WhatsApp extends Controller
             $errno = $db->conn()->errno;
             \Log::write("DB INSERT FAILED wa_messages_in - Error ($errno): $error | Data: " . json_encode($messageData), 'wa_error', 'Inbound');
         } else {
+            $currentCase = null;
+            $conversationId = 0;
+            $activeCases = [];
+            $notify = true;
+
             try {
                 // ========================================
                 // 🚀 BRILLIANT ARCHITECTURE (User's Idea!)
@@ -438,11 +443,10 @@ class WhatsApp extends Controller
                 }
                 
                 $currentCase = $autoReplyResult->case;
-                $notify = $autoReplyResult->notify ?? true;
                 $conversationId = $autoReplyResult->conversation_id ?? 0;
+                $notify = $autoReplyResult->notify ?? true;
                 
                 // Fetch active cases specific for Notification Logic (Driver needs to know if Case 2 active)
-                $activeCases = [];
                 $freshConv = $db->get_where('wa_conversations', ['id' => $conversationId])->row();
                 if ($freshConv && !empty($freshConv->conv_case)) {
                     $casesDecoded = json_decode($freshConv->conv_case, true);
@@ -461,40 +465,37 @@ class WhatsApp extends Controller
                     }
                 }
 
-                // Ensure notify is boolean (not string or other type)
-                $notifyBool = (bool)$notify;
-                
-                $this->pushIncomingToWebSocket([
-                    'conversation_id' => $conversationId,
-                    'phone' => $waNumber,
-                    'contact_name' => $contact_name,
-                    'case' => $currentCase, 
-                    'active_cases' => $activeCases, // Send active cases list
-                    'notify' => $notifyBool, // Flag for push notification logic (explicit boolean)
-                    'message' => [
-                        'id' => $msgId, // local DB ID
-                        'text' => $textBody,
-                        'type' => $messageType,
-                        'media_id' => $mediaId,
-                        'media_url' => $mediaUrl,
-                        'caption' => $mediaCaption,
-                        'quoted_message_id' => $quotedMessageId, // Reply-to reference
-                        'quoted_message_body' => $quotedMessageBody, // Quoted message content
-                        'quoted_message_from' => $quotedMessageFrom, // Quoted message sender
-                        'time' => date('Y-m-d H:i:s'),
-                    ],
-                    // Target ID logic: if assigned, send to agent. Else '0' (Broadcast)? 
-                    // Using '0' guarantees it pops up for everyone (Realtime solution)
-                    // But let's stick to original logic: if assigned, target specific.
-                    'target_id' => $assigned_user_id ? (string)$assigned_user_id : '0',
-                    'kode_cabang' => $code,
-                    'cust_id' => $cust_id
-                ]);
-                
-
             } catch (\Exception $e) {
                 \Log::write("Error in auto-reply/conversation: " . $e->getMessage() . " | " . $e->getTraceAsString(), 'wa_error', 'AutoReply');
             }
+
+            // Push ke waserver (tetap jalan meski autoreply error)
+            $notifyBool = (bool) $notify;
+            $this->pushIncomingToWebSocket([
+                'type' => 'wa_masuk',
+                'conversation_id' => $conversationId,
+                'phone' => $waNumber,
+                'contact_name' => $contact_name,
+                'case' => $currentCase,
+                'active_cases' => $activeCases,
+                'notify' => $notifyBool,
+                'assignment_user_id' => $assigned_user_id,
+                'message' => [
+                    'id' => $msgId,
+                    'text' => $textBody,
+                    'type' => $messageType,
+                    'media_id' => $mediaId,
+                    'media_url' => $mediaUrl,
+                    'caption' => $mediaCaption,
+                    'quoted_message_id' => $quotedMessageId,
+                    'quoted_message_body' => $quotedMessageBody,
+                    'quoted_message_from' => $quotedMessageFrom,
+                    'time' => date('Y-m-d H:i:s'),
+                ],
+                'target_id' => $assigned_user_id ? (string)$assigned_user_id : '0',
+                'kode_cabang' => $code,
+                'cust_id' => $cust_id
+            ]);
         }
     }
 
@@ -532,6 +533,8 @@ class WhatsApp extends Controller
                 \Log::write('WS PUSH ERROR: ' . curl_error($ch), 'wa_error', 'WebSocket');
             } elseif ($httpCode >= 400) {
                 \Log::write("WS PUSH HTTP $httpCode: " . substr((string) $result, 0, 500), 'wa_error', 'WebSocket');
+            } else {
+                \Log::write('WS PUSH OK HTTP ' . $httpCode . ' target=' . ($data['target_id'] ?? '?') . ' phone=' . ($data['phone'] ?? '?'), 'webhook', 'WebSocket');
             }
         }
 
