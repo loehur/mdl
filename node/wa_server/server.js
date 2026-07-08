@@ -18,8 +18,25 @@ if (result.error) {
 }
 
 const app = express();
-app.use(express.json());
+app.use(express.json({
+    verify: (req, res, buf) => {
+        req.rawBody = buf;
+    }
+}));
 app.use(express.urlencoded({ extended: true }));
+
+// Log malformed JSON bodies (common cause: broken curl escaping or failed json_encode in PHP)
+app.use((err, req, res, next) => {
+    if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+        const preview = req.rawBody
+            ? req.rawBody.toString('utf8').substring(0, 300)
+            : '(empty body)';
+        console.error('[INCOMING] ❌ Invalid JSON body:', preview);
+        console.error('[INCOMING] ❌ Parse error:', err.message);
+        return res.status(400).json({ success: false, error: 'Invalid JSON body' });
+    }
+    next(err);
+});
 
 // ============================================
 // CORS Configuration

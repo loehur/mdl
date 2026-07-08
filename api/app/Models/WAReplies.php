@@ -5075,10 +5075,18 @@ class WAReplies
 
 
 
+        $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        if ($json === false) {
+            if (class_exists('\Log')) {
+                \Log::write('WS PUSH ERROR: json_encode failed - ' . json_last_error_msg(), 'wa_error', 'WebSocket');
+            }
+            return null;
+        }
+
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $json);
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
         curl_setopt($ch, CURLOPT_TIMEOUT, 5); // Increased from 2 to 5 seconds
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3); // DNS resolution timeout
@@ -5087,8 +5095,12 @@ class WAReplies
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
 
         $result = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
-        // Ignore errors silently to prevent blocking auto-reply
+        if (class_exists('\Log') && (curl_errno($ch) || $httpCode >= 400)) {
+            $err = curl_errno($ch) ? curl_error($ch) : "HTTP $httpCode: " . substr((string) $result, 0, 300);
+            \Log::write('WS PUSH ERROR: ' . $err, 'wa_error', 'WebSocket');
+        }
 
         curl_close($ch);
         return $result;

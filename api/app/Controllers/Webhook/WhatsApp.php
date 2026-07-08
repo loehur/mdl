@@ -504,23 +504,39 @@ class WhatsApp extends Controller
     private function pushIncomingToWebSocket($data)
     {
         $url = 'https://waserver.nalju.com/incoming';
-        
-        // Use curl to post
+
+        $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        if ($json === false) {
+            if (class_exists('\Log')) {
+                \Log::write('WS PUSH ERROR: json_encode failed - ' . json_last_error_msg(), 'wa_error', 'WebSocket');
+            }
+            return false;
+        }
+
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $json);
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 2); // Fast timeout, don't block php
-        
+        curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
+        curl_setopt($ch, CURLOPT_NOSIGNAL, 1);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+
         $result = curl_exec($ch);
-        
-        if (class_exists('\Log') && curl_errno($ch)) {
-             \Log::write("WS PUSH ERROR: " . curl_error($ch), 'wa_error', 'WebSocket');
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+        if (class_exists('\Log')) {
+            if (curl_errno($ch)) {
+                \Log::write('WS PUSH ERROR: ' . curl_error($ch), 'wa_error', 'WebSocket');
+            } elseif ($httpCode >= 400) {
+                \Log::write("WS PUSH HTTP $httpCode: " . substr((string) $result, 0, 500), 'wa_error', 'WebSocket');
+            }
         }
-        
+
         curl_close($ch);
-        
+
         return $result;
     }
 
