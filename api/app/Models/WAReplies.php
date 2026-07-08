@@ -5099,7 +5099,7 @@ class WAReplies
 
         if (class_exists('\Log') && (curl_errno($ch) || $httpCode >= 400)) {
             $err = curl_errno($ch) ? curl_error($ch) : "HTTP $httpCode: " . substr((string) $result, 0, 300);
-            \Log::write('WS PUSH ERROR: ' . $err, 'wa_error', 'WebSocket');
+            \Log::write('WS PUSH ERROR: ' . $err . ' | url=' . $url, 'wa_error', 'WebSocket');
         }
 
         curl_close($ch);
