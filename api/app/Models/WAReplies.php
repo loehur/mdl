@@ -1937,9 +1937,6 @@ class WAReplies
             "QRIS\nhttps://ml.nalju.com/I/q\n\n" .
             "BRI 327901031534535\n" .
             "BCA 8455103793\n" .
-            "BTNs 7132077419\n" .
-            "SEABANK 901799867052\n" .
-            "SHOPEE/GOPAY/DANA 081268098300\n\n" .
             "a.n. LUHUR GUNAWAN\n\n" .
             "Terima kasih 😊";
 
