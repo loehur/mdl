@@ -529,12 +529,21 @@ class WhatsApp extends Controller
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
         if (class_exists('\Log')) {
+            $notifyLog = isset($data['notify']) ? ($data['notify'] ? 'true' : 'false') : 'unset';
             if (curl_errno($ch)) {
-                \Log::write('WS PUSH ERROR: ' . curl_error($ch), 'wa_error', 'WebSocket');
+                \Log::write('WS PUSH ERROR: ' . curl_error($ch) . " | notify=$notifyLog", 'wa_error', 'WebSocket');
             } elseif ($httpCode >= 400) {
-                \Log::write("WS PUSH HTTP $httpCode: " . substr((string) $result, 0, 500), 'wa_error', 'WebSocket');
+                \Log::write("WS PUSH HTTP $httpCode | notify=$notifyLog | " . substr((string) $result, 0, 500), 'wa_error', 'WebSocket');
             } else {
-                \Log::write('WS PUSH OK HTTP ' . $httpCode . ' target=' . ($data['target_id'] ?? '?') . ' phone=' . ($data['phone'] ?? '?'), 'webhook', 'WebSocket');
+                \Log::write(
+                    'WS PUSH OK HTTP ' . $httpCode
+                    . ' | target=' . ($data['target_id'] ?? '?')
+                    . ' | phone=' . ($data['phone'] ?? '?')
+                    . ' | notify=' . $notifyLog
+                    . ' | response=' . substr((string) $result, 0, 300),
+                    'webhook',
+                    'WebSocket'
+                );
             }
         }
 

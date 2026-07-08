@@ -664,6 +664,47 @@ wss.on('close', () => {
 // Helper Functions
 // ============================================
 
+function parseNotifyFlag(value) {
+    if (value === undefined || value === null) return true;
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') return value.toLowerCase() === 'true' || value === '1';
+    if (typeof value === 'number') return value === 1;
+    return true;
+}
+
+/**
+ * Log ringkas keputusan push notifikasi OneSignal (untuk debug)
+ */
+function logPushNotifDecision(context, opts) {
+    const {
+        notify,
+        offlineUserIds = [],
+        hasTextContent = true,
+        shouldSkipPush = false,
+        pushResult = null,
+        phone = '',
+    } = opts;
+
+    const offline = offlineUserIds.length > 0 ? offlineUserIds.join(',') : 'none';
+    let action;
+
+    if (notify === false) {
+        action = 'SKIP notify=false (by design)';
+    } else if (shouldSkipPush) {
+        action = 'SKIP system/agent event';
+    } else if (!hasTextContent) {
+        action = 'SKIP no text content';
+    } else if (offlineUserIds.length === 0) {
+        action = 'SKIP all targets online (WebSocket)';
+    } else if (pushResult?.success) {
+        action = `SENT → ${offline} | onesignal_id=${pushResult.id || 'ok'}`;
+    } else {
+        action = `FAILED → ${offline} | error=${pushResult?.error || 'unknown'}`;
+    }
+
+    console.log(`[PUSH-NOTIF] ${context} | phone=${phone || '-'} | notify=${notify} | offline=[${offline}] | ${action}`);
+}
+
 function sendToTarget(targetId, data, excludeId = null) {
     let sent = false;
 
@@ -916,30 +957,9 @@ app.post('/incoming', async (req, res) => {
         // Send Push Notification only to OFFLINE users AND only if message has text content
         // AND only for incoming messages (not agent messages or system events)
         let pushResult = { success: false, error: 'No text content' };
-        
-        // DEBUG: Log notify value and type
-        console.log(`[PUSH-DEBUG] notify value: ${data.notify}, type: ${typeof data.notify}, case: ${caseType}`);
-        
-        // Normalize notify: handle string "true"/"false", boolean true/false, undefined/null
-        let notify = true; // Default to true
-        if (data.notify !== undefined && data.notify !== null) {
-            if (typeof data.notify === 'boolean') {
-                notify = data.notify;
-            } else if (typeof data.notify === 'string') {
-                // Handle string "true"/"false"
-                notify = data.notify.toLowerCase() === 'true' || data.notify === '1';
-            } else if (typeof data.notify === 'number') {
-                // Handle 1/0
-                notify = data.notify === 1;
-            }
-        }
-        
-        console.log(`[PUSH-DEBUG] Final notify value: ${notify} (boolean: ${typeof notify === 'boolean'})`);
 
-        // DEBUG: Log status of silent push triggers
-        if (data.type === 'case_resolved' || data.type === 'mark_done' || data.all_closed) {
-            console.log(`[PUSH-DEBUG] Silent Check: all_closed=${data.all_closed}, offlineUsers=${offlineUserIds.length}, phone=${customerPhone}`);
-        }
+        const notify = parseNotifyFlag(data.notify);
+        console.log(`[PUSH-DEBUG] notify raw=${data.notify} (${typeof data.notify}) → final=${notify} | case=${caseType}`);
 
         // Check for CANCEL / ALL CLOSED signal
         // ⚠️ CRITICAL: Send cancel to ALL clients (online + offline + sender) without exception
@@ -971,8 +991,19 @@ app.post('/incoming', async (req, res) => {
             pushResult = { success: false, error: 'Skipped: agent/system event' };
         } else if (!hasTextContent) {
             console.log('[PUSH] Skipped: Message has no text content (image/sticker/etc without caption)');
+        } else if (offlineUserIds.length === 0) {
+            pushResult = { success: false, error: 'All targets online via WebSocket' };
         }
 
+
+        logPushNotifDecision('broadcast', {
+            notify,
+            offlineUserIds,
+            hasTextContent,
+            shouldSkipPush,
+            pushResult,
+            phone: customerPhone,
+        });
 
         console.log(`[BROADCAST] Sent to ${broadcastCount} client(s), excluded sender: ${senderId || 'none'}`);
         console.log(`[BROADCAST] Push notification to ${offlineUserIds.length} offline user(s):`, pushResult.success ? '✅' : '⏭️ skipped');
@@ -1032,25 +1063,9 @@ app.post('/incoming', async (req, res) => {
     pushRecipients = [...new Set(pushRecipients)];
 
     let pushResult = { success: false, recipients: 0 };
-    
-    // DEBUG: Log notify value and type
-    console.log(`[PUSH-DEBUG] notify value: ${data.notify}, type: ${typeof data.notify}, case: ${caseType}`);
-    
-    // Normalize notify: handle string "true"/"false", boolean true/false, undefined/null
-    let notify = true; // Default to true
-    if (data.notify !== undefined && data.notify !== null) {
-        if (typeof data.notify === 'boolean') {
-            notify = data.notify;
-        } else if (typeof data.notify === 'string') {
-            // Handle string "true"/"false"
-            notify = data.notify.toLowerCase() === 'true' || data.notify === '1';
-        } else if (typeof data.notify === 'number') {
-            // Handle 1/0
-            notify = data.notify === 1;
-        }
-    }
-    
-    console.log(`[PUSH-DEBUG] Final notify value: ${notify} (boolean: ${typeof notify === 'boolean'})`);
+
+    const notify = parseNotifyFlag(data.notify);
+    console.log(`[PUSH-DEBUG] notify raw=${data.notify} (${typeof data.notify}) → final=${notify} | case=${caseType}`);
 
     // Only send push if message has text content AND is incoming (not agent/system event)
     if (pushRecipients.length > 0 && hasTextContent && !shouldSkipPush) {
@@ -1066,9 +1081,22 @@ app.post('/incoming', async (req, res) => {
         console.log(`[PUSH] Sent to ${pushRecipients.length} offline user(s) (${pushRecipients.join(',')}) for target ${targetId} (Case ${caseType}):`, pushResult.success ? '✅' : '❌');
     } else if (shouldSkipPush) {
         console.log(`[PUSH] Skipped: Event type '${eventType}' does not trigger push notification`);
+        pushResult = { success: false, error: 'Skipped: agent/system event' };
     } else if (!hasTextContent) {
         console.log('[PUSH] Skipped: Message has no text content');
+        pushResult = { success: false, error: 'No text content' };
+    } else if (pushRecipients.length === 0) {
+        pushResult = { success: false, error: 'All targets online via WebSocket' };
     }
+
+    logPushNotifDecision(`target=${targetId}`, {
+        notify,
+        offlineUserIds: pushRecipients,
+        hasTextContent,
+        shouldSkipPush,
+        pushResult,
+        phone: customerPhone,
+    });
 
 
     if (sent) {
