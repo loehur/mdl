@@ -386,7 +386,7 @@ class Antrian extends Controller
 
    private function pushToWebSocket($data)
    {
-       $url = 'https://waserver.nalju.com/incoming';
+       $url = 'http://127.0.0.1:3003/incoming';
        
        $ch = curl_init($url);
        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);

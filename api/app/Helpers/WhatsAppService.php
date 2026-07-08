@@ -1051,7 +1051,7 @@ class WhatsAppService
                     ];
                     
                     // Send to WebSocket
-                    $wsUrl = 'https://waserver.nalju.com/incoming';
+                    $wsUrl = \App\Helpers\WaServer::incomingUrl();
                     $ch = curl_init($wsUrl);
                     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                     curl_setopt($ch, CURLOPT_POST, true);

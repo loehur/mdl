@@ -504,7 +504,7 @@ class WhatsApp extends Controller
      */
     private function pushIncomingToWebSocket($data)
     {
-        $url = 'https://waserver.nalju.com/incoming';
+        $url = \App\Helpers\WaServer::incomingUrl();
 
         $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
         if ($json === false) {

@@ -978,7 +978,7 @@ class Chat extends Controller
 
     private function pushToWebSocket($data)
     {
-        $url = 'https://waserver.nalju.com/incoming';
+        $url = \App\Helpers\WaServer::incomingUrl();
         
         // Log payload for debugging
         if (class_exists('\Log')) {

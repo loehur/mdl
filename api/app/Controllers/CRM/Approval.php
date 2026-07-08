@@ -129,7 +129,7 @@ class Approval extends Controller
                         'target_id' => '0',
                         'sender_id' => 'system',
                     ];
-                    $ch = curl_init('https://waserver.nalju.com/incoming');
+                    $ch = curl_init(\App\Helpers\WaServer::incomingUrl());
                     curl_setopt_array($ch, [
                         CURLOPT_RETURNTRANSFER => true,
                         CURLOPT_POST => true,

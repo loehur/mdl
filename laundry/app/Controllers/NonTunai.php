@@ -88,7 +88,7 @@ class NonTunai extends Controller
    
    private function pushToWebSocket($data)
    {
-      $url = 'https://waserver.nalju.com/incoming';
+      $url = 'http://127.0.0.1:3003/incoming';
       
       // Log request details
       $this->model('Log')->write('[NonTunai::pushToWebSocket] Starting request to: ' . $url . ' | Data: ' . json_encode($data));

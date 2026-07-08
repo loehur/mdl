@@ -5071,7 +5071,7 @@ class WAReplies
             return null;
         }
 
-        $url = 'https://waserver.nalju.com/incoming';
+        $url = \App\Helpers\WaServer::incomingUrl();
 
 
 

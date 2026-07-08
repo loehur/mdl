@@ -32,3 +32,7 @@ class Env
         ],
     ];
 }
+
+// URL internal push ke wa_server (Node.js port 3003, sama VPS dengan API)
+// Jangan pakai https://waserver.nalju.com dari PHP — DNS bisa timeout di server.
+const WA_SERVER_URL = 'http://127.0.0.1:3003/incoming';
