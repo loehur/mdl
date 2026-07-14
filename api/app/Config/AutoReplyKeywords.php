@@ -15,7 +15,7 @@ return [
         PENTING: Jika sapaan + permintaan bill/tagihan (bisa kirimkan bill, kirim tagihan, minta bill) = TAGIHAN, bukan PEMBUKA.\n
         PENTING: Jika sapaan + permintaan nota/bon (minta nota, minta bon, kirim struk) = NOTA, bukan PEMBUKA.\n
         CRITICAL: Pesan mengandung tanda tanya (?) = bukan sekadar sapaan PEMBUKA. Contoh: 'Berarti sudah masuk kak?'\n
-        CRITICAL - FALSE (BUKAN PEMBUKA): | kabari ya kak | kabarin ya | infokan ya kk | kasih kabar ya | = minta update/kabar (penutup/ack), BUKAN sapaan awal — pilih PENUTUP.\n
+        CRITICAL - FALSE (BUKAN PEMBUKA): | kabari ya kak | kabarin ya | infokan ya kk | kasih kabar ya | = minta update/kabar, BUKAN sapaan awal — pilih FALSE (bukan PENUTUP, biarkan CS).\n
         CRITICAL - FALSE (BUKAN PEMBUKA): Balasan salam / jawaban atas salam = BUKAN pembuka percakapan. Contoh: | waalaikumsalam | walaikumsalam | wa alaikum salam | waalaikum salam | waalaikumussalam | = FALSE (bukan assalamualaikum)."
     ],
 
@@ -143,82 +143,47 @@ return [
 
    'PENUTUP' => [
       'patterns' => [
-         // Ok + siap/siaaaap/kak — ack penutup (prioritas sebelum STATUS; bukan cek status laundry)
+         // === HANYA 3 kategori: (1) terima kasih (2) sudah bayar/lunas (3) ack singkat murni ===
+         // Ack singkat murni — SELURUH pesan hanya ok/baik/sip/siap(+sapaan). JANGAN match "Ok kk, aku otw"
          '/^\s*\bok(?:e+)?\s+sia+p+\s*(kak|kk|bang|min|mbak|pak|bu|ya)?\s*\??\s*$/iu',
-         '/^\s*\bok(?:e+)?\s+kak\s*\??\s*$/iu',
-         // Ack tunggal: siap kak / siaaaap kk (bukan "udah siap kak?" / "kapan siap kak?" — itu STATUS)
+         '/^\s*\bok(?:e+)?\s*(kak|kk|bang|min|mbak|pak|bu)?\s*[.!?]*\s*$/iu',
          '/^\s*\bsia+p+\s*(kak|kk|bang|min|mbak|pak|bu|penya|punya|ya)?\s*\??\s*$/iu',
-         // Konfirmasi pembayaran/transfer - HARUS sebelum REKENING dicek (via process exception)
+         '/^\s*\b(ok(?:e+|ey)?|baik+|sip+)(\s+(deh|lah|dong|ya))*(?:\s+(kak|kk|bang|min|mbak|pak|bu|mas|om|dek|nte|penya|punya))*\s*[.!?]*\s*$/iu',
+         '/^\s*\b(iya+|ya+)(\s+(deh|lah|dong))*(?:\s+(kak|kk|bang|min|mbak|pak|bu|buk))*\s*[.!?]*\s*$/iu',
+         '/^\s*\b(ok(?:e+)?|baik|sip)\s+(sia+p+|sip)(?:\s+(kak|kk|bang|min|mbak|pak|bu|ya))?\s*\??\s*$/iu',
+         '/^\s*(gpp|gak\s*apa\s*apa|ga\s*apa\s*apa)(?:\s+(kak|kk|bang|min|mbak|pak|bu))?\s*[.!?]*\s*$/iu',
+         // Konfirmasi pembayaran/transfer/lunas — boleh ada konteks (bukan hanya ack singkat)
          '/(telah berhasil mengirimkan|sudah transfer|sudah bayar|sudah kirim|sudah mengirim)\s*(ke\s*)?(rekening|rek)?/i',
-         // Bukti pembayaran/lunas (boleh panjang: bukti + nominal + terima kasih)
+         '/\b(udah|udh|sdh)\s+(transfer|bayar|tf|trf|kirim)\b/i',
          '/\bberikut\s+bukti\s+(lunas(\s+bayar)?|bayar|transfer|pembayaran|tf)\b/i',
          '/\bbukti\s+(lunas(\s+bayar)?|bayar|transfer|pembayaran|tf)\b/i',
          '/\blunas\s+bayar\b/i',
-         // Konfirmasi tagihan sudah lunas (penutup)
+         '/\b(info\s+)?pelunasan\b/i',
          '/^\s*(sudah|udah|udh|sdh)\s+lunas(\s+(ya\s*)?(kak|kk|bang|min|mbak|pak|bu))?\s*$/i',
          '/^\s*lunas(\s+ya)?(\s+(kak|kk|bang|min|mbak|pak|bu))?\s*$/i',
-         // "kabari ya kak" / "infokan ya" = minta kabar (penutup); harus "… kabari ya" / "infokan ya" — bukan "infokan harga ya"
-         '/\b(kabari|kabarin)\s+(ya|dong)\b/iu',
-         '/\binfokan\s+(ya|dong)\b/iu',
+         // Ucapan terima kasih
          '/\bma*ka*(s|c)(i|e)*h\b/i',
          '/\bte*ri*ma*ka*si*h\b/i',
          '/\btha*nks\b/i',
-         // Ok jangan match jika lanjut permintaan (bntu/bw/bantuin/dll)
-         '/\b(thx|tq|ty|ok|gpp)\b(?!\s+(bntu|tolong|minta|bantu|bantuin|kirim|bw|bawa|antar|jemput|kasih|suruh|mohon))/i',
-         '/\b(gak|ga)\s*apa\s*apa\b/i',
-         // udah/sudah/dah - JANGAN match jika diikuti "siap", "selesai", atau "bisa diambil" (itu tanya status = STATUS)
-         // JANGAN match jika diikuti angka (keluhan durasi: "ini udh 3hari ka", "udh 2 hari") — bukan penutup
-         // la+h: "lah" hanya jika bukan kata pertama (bukan "Lah ya gmn" / tanya)
-         // JANGAN match "sdh/udh" + saya/sy + pesan/order (bukan penutup); contoh: "Sdh sy psn" = sudah saya pesan
-         // JANGAN match sudah/udah + janji/sepakat (janji/jadwal): "Kita sudah janji sore ini" — bukan penutup
-         // hm/ok/sip harus kata utuh — jangan match "ok" di dalam "rok", "kaos", dll.
-         // "udah/sudah/lah" sebagai penutup hanya jika kalimat pendek/ack singkat, bukan info panjang
-         '/^\s*((hm+|\bok(?:e+)?\b|\bsip\b)\s*)*(y(a*)?\s*)?(u*da*h|s*u*da*h|la+h)(?!\s*\d)(?!\s*siap)(?!\s*selesai)(?!\s*bisa\s*(di\s*)?ambil)(?!\s+(sy|sya|saya|aku|gue|gw)\s+(psn|pesan|order|ordr|pesen))(?!\s+(janji|sepakat|kesepakatan|deal))(?:\s+(kak|kk|bang|min|mbak|pak|bu|ya))?\s*$/iu',
-         '/(oh*)\s*(gi*tu+)/i',
-         // ok + siap/siaaaap/sip (bukan kalimat panjang daftar pakaian)
-         '/^\s*\b(ok(?:e+)?|oh)\b.{0,60}?\b(siap|sip|sia+p+)\b(?:\s+(kak|kk|bang|min|mbak|pak|bu|ya)?)?\s*$/iu',
-         '/^reacted\s+[^\s]+$/i', // WhatsApp reactions: "Reacted ❤️", "Reacted 👍"
-         // JANGAN match: nanti saya jemput, nanti saya ambil, akan saya antar, nanti saya antar, akan mengambil - itu BUKAN intent (user memberitahu akan ambil/antar sendiri)
+         '/\b(thx|tq|ty)\b/i',
+         // WhatsApp reactions
+         '/^reacted\s+[^\s]+$/i',
       ],
-      'ai_prompt' => "User memberikan PENUTUP/CLOSING/ACKNOWLEDGMENT tanpa pertanyaan atau permintaan lanjutan.\n
-      TRUE jika:\n
-      - Ucapan terima kasih: | terima kasih | makasih | thanks | thx |\n
-      - Konfirmasi singkat: | ok deh | ok siap | ok siaaap | ok kak | ok siap kak | siap kak | iya lah kak | sudah | oke | baik |\n
-      - Konfirmasi pembayaran/tagihan lunas: | lunas | lunas ya kak | lunas ya min | sudah lunas | udah lunas |\n
-      - Konfirmasi status (non-bayar): | sudah diambil |\n
-      - Konfirmasi transfer/pembayaran SUDAH dilakukan (bukan janji nanti): | telah berhasil mengirimkan ke rekening | sudah transfer | sudah bayar | sudah kirim | saya sudah transfer ke rekening kamu |\n
-      - Bukti pembayaran/lunas (boleh panjang, tetap PENUTUP): | berikut bukti lunas bayar | berikut bukti bayar | berikut bukti lunas | bukti lunas bayar | bukti transfer kak | bukti pembayaran |\n
-      - Konfirmasi jadwal SANGAT singkat saja (tanpa rujukan order tertentu): | baik nanti dijemput | ok sore diantar | siap dijemput ya | besok diantar kak |\n
-      - Minta kabar/update singkat (penutup): | kabari ya kak | kabarin ya min | infokan ya kk | kasih kabar ya |\n
-      - Pemberitahuan jadwal singkat (bukan rujukan cucian tertentu): | nanti sore dijemput | jam 2 dijemput ya kak |\n
-      - EMOJI/REACTION SAJA: | ❤️ | 👍 | 🙏 | 👌 | ✅ | atau kata 'Reacted' + emoji |\n
-      - Kata kunci singkat: baik/ok/siap + (nanti/sore/besok/jam) + dijemput/diantar = PENUTUP HANYA jika TIDAK ada rujukan order (lihat FALSE di bawah).\n
+      'ai_prompt' => "User memberikan PENUTUP — HANYA 3 jenis berikut (selain itu = FALSE):\n
+      (1) Ucapan terima kasih: | terima kasih | makasih | thanks | thx | tq |\n
+      (2) Info pelunasan / sudah bayar / bukti transfer: | sudah transfer | sudah bayar | sudah lunas | lunas ya kak | berikut bukti bayar | bukti transfer | info pelunasan | telah berhasil mengirimkan ke rekening |\n
+      (3) Ack singkat MURNI — SELURUH pesan hanya: | ok | oke | baik | sip | siap | ok kak | siap kk | ok siap | iya | ya | gpp | (opsional sapaan kak/kk/bang/min). TANPA kalimat tambahan.\n
+      - EMOJI/REACTION SAJA: | ❤️ | 👍 | Reacted 👍 | = boleh PENUTUP.\n
       \n
       FALSE (BUKAN PENUTUP) - CRITICAL:\n
-      - CRITICAL: Janji/konfirmasi AKAN bayar/transfer/tf (belum kirim uang): | nnti transfer ya | nntk byr 100 dl ya kk | besok transfer kak | akan bayar sore | = FALSE. Bedakan dari SUDAH: | sudah transfer | sudah bayar | = PENUTUP.\n
-      - CRITICAL: Rujukan order/waktu + jadwal ambil: | yg tdi sore besok di ambil iya buk | yang tadi sore besok dijemput ya | yg td sore nanti di ambil | = info operasional/jadwal cucian tertentu = FALSE (bukan PENUTUP), meski ada 'iya/baik/siap'.\n
-      - CRITICAL: Pesan lebih dari 50 karakter (hitung semua karakter termasuk spasi/emoji, setelah trim) = BUKAN PENUTUP — itu konteks/penjelasan, bukan ack singkat — KECUALI konfirmasi pembayaran/lunas (berikut bukti lunas bayar, berikut bukti bayar, berikut bukti lunas, sudah transfer, sudah bayar, dll).\n
-      - Pemberitahuan user akan ambil/antar SENDIRI = BUKAN intent apapun: | akan menjemput | nanti saya jemput | nanti saya ambil | akan saya antar | nanti saya antar | akan mengambil | mau jemput | besok saya jemput | nanti saya antar |\n
-      - Informasi \"belum diambil\" = status/info order (mis. | kak blm diambil loh | belum diambil kak |), bukan penutup.\n
-      - Informasi \"sudah diantar/di anter\" oleh customer/suami/istri (mis. | laundry tadi pagi di anter sama suami saya |) = info proses, bukan penutup.\n
-      - Kalimat info panjang yang kebetulan mengandung kata \"udah/sudah\" (mis. | loh kalo yg ini udah kaka ku, ini sblm lebaran |) = BUKAN PENUTUP.\n
-      - KOMPLAIN/KELUHAN = BUKAN PENUTUP, biarkan CS manusia: | salah hitung | komplain | keluhan | ada salah | kurang bayar | kelebihan bayar | salah tagihan | salah total | salah jumlah |\n
-      - PERMINTAAN/INSTRUKSI = BUKAN PENUTUP, biarkan CS manusia: | bisa sy ambil | letak aj dikursi | letakkan di | taruh di | tolong letak | minta letak | saya ambil | aku jemput |\n
-      - Daftar/instruksi item laundry panjang (baju, celana, rok, kemeja, dll) dengan koma — bukan penutup percakapan = FALSE.\n
-      \n
-      FALSE jika:\n
-      - CRITICAL: Pesan mengandung tanda tanya (?) atau kata tanya (dimana/kapan/berapa/gimana/dll) = bukan PENUTUP — KECUALI sekadar ack pendek saja: | siap kak? | ok siap? | ok siap kak? | (tanpa kata tanya lain seperti kapan/udah/dimana di pesan itu).\n
-      - Contoh lain tanya: 'Berarti sudah masuk kak?' | 'Alhamdulillah foto dimana' (bisa tanpa ?)\n
-      - Ada pertanyaan (kapan? berapa? dimana? bisa?)\n
-      - Ada permintaan (tolong, minta, bisa, bantu, dong) + object\n
-      - Pemberitahuan akan ambil/antar sendiri: 'nanti saya jemput', 'akan saya antar', 'nanti saya ambil', 'akan mengambil' = BUKAN PENUTUP\n
-      - PERMINTAAN antar/jemput: 'kalau da kelar antar aja', 'klo selesai antar ya', 'udh kelar antar aja kak' = MINTA_JEMPUT_ANTAR (bukan PENUTUP)\n
-      - Keluhan durasi/tunggu (bukan penutup): | ini udh 3hari ka | udah 2 hari belum | = BUKAN PENUTUP\n
-      - Pertanyaan dengan partikel 'Lah' di awal: | Lah ya gmn | Lah kok gitu | = BUKAN PENUTUP\n
-      - 'Ok' + permintaan (bntu/bw/bawa/kantong): | Ok bntu bw kantong | = PERMINTAAN, bukan PENUTUP\n
-      - Pemberitahuan sudah pesan/order (bukan penutup): | Sdh sy psn | udah saya pesan | = BUKAN PENUTUP\n
-      - Janji/kesepakatan waktu: | Kita sudah janji sore ini | udah sepakat jam 5 | = BUKAN PENUTUP\n
-      - Contoh FALSE: 'bisa dijemput?' (pertanyaan), 'Berarti sudah masuk kak?' (pertanyaan), 'tolong jemput' (permintaan), 'nanti saya jemput' (bukan intent), 'Kak kalau da kelar antar aja kak' (permintaan antar = MINTA_JEMPUT_ANTAR)"
+      - CRITICAL: 'Ok'/'Baik'/'Siap' + isi lain (otw, jemput, antar, mau, nanti, jadwal, info order) = FALSE. Contoh: | Ok kk,aku otw ya kk | baik nanti dijemput | siap besok diantar | = BUKAN PENUTUP.\n
+      - CRITICAL: Janji AKAN bayar/transfer (belum kirim): | nnti transfer | besok bayar | = FALSE. Hanya SUDAH bayar/transfer = PENUTUP.\n
+      - CRITICAL: Rujukan order/jadwal: | yg tadi sore besok di ambil | = FALSE.\n
+      - CRITICAL: Pesan >50 karakter selain konfirmasi bayar/lunas = FALSE.\n
+      - kabari ya / infokan ya / kasih kabar ya = FALSE (bukan PENUTUP).\n
+      - Info proses (belum diambil, sudah diantar suami) = FALSE.\n
+      - Komplain, permintaan, daftar item laundry, pertanyaan = FALSE.\n
+      - Contoh FALSE: | Ok kk,aku otw ya kk | baik nanti jemput | siap diantar sore | kabari ya kak | nanti saya jemput |"
    ],
 
     'STATUS' => [

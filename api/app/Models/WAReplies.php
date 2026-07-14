@@ -132,13 +132,27 @@ class WAReplies
     }
 
     /**
+     * Durasi cooldown per handler (menit). Default 1; jam operasional/tutup = 60.
+     */
+    private function getAutoreplyCooldownMinutes(string $handler): int
+    {
+        $h = strtoupper($handler);
+        if ($h === 'JAM_OPERASIONAL' || $h === 'JAM_TUTUP') {
+            return 60;
+        }
+
+        return 1;
+    }
+
+    /**
      * @param string $waNumber Phone number
      * @param string $handler Handler name (bon, status, buka, etc)
-     * @param int $cooldownMinutes Cooldown period in minutes (default: 1)
+     * @param int|null $cooldownMinutes Null = pakai getAutoreplyCooldownMinutes($handler)
      * @return bool True jika masih dalam jendela cooldown (jangan kirim balasan)
      */
-    private function isInAutoreplyCooldown($waNumber, $handler, $cooldownMinutes = 1): bool
+    private function isInAutoreplyCooldown($waNumber, $handler, $cooldownMinutes = null): bool
     {
+        $cooldownMinutes = $cooldownMinutes ?? $this->getAutoreplyCooldownMinutes($handler);
         $db = DB::getInstance(0);
 
         if ($handler === 'DEFAULT') {
@@ -179,14 +193,16 @@ class WAReplies
     /**
      * @param string $waNumber Phone number
      * @param string $handler Handler name (bon, status, buka, etc)
-     * @param int $cooldownMinutes Cooldown period in minutes (default: 1)
+     * @param int|null $cooldownMinutes Null = pakai getAutoreplyCooldownMinutes($handler)
      * @return bool True if can send reply (cek cooldown + catat log)
      */
-    private function shouldHandle($waNumber, $handler, $cooldownMinutes = 1)
+    private function shouldHandle($waNumber, $handler, $cooldownMinutes = null)
     {
         if ($this->handlerSkipsAutoreplyRateLimit($handler)) {
             return true;
         }
+
+        $cooldownMinutes = $cooldownMinutes ?? $this->getAutoreplyCooldownMinutes($handler);
 
         if ($handler === 'DEFAULT') {
             return $this->shouldHandleDefaultUnified($waNumber, $cooldownMinutes);
@@ -764,7 +780,8 @@ class WAReplies
         if (preg_match(
             '/telah\s+berhasil\s+mengirimkan|sudah\s+transfer|sudah\s+bayar|sudah\s+kirim|sudah\s+mengirim|'
             . 'udah\s+transfer|udah\s+bayar|udh\s+tf|udh\s+transfer|sdh\s+transfer|sdh\s+bayar|'
-            . 'sudah\s+lunas|udah\s+lunas|udh\s+lunas|sdh\s+lunas/iu',
+            . 'sudah\s+lunas|udah\s+lunas|udh\s+lunas|sdh\s+lunas|'
+            . '\b(info\s+)?pelunasan\b|\blunas\s+bayar\b/iu',
             $t
         )) {
             return true;
@@ -778,7 +795,57 @@ class WAReplies
         if (preg_match('/\bbukti\s+(lunas(\s+bayar)?|bayar|transfer|pembayaran|tf|trf)\b/iu', $t)) {
             return true;
         }
-        if (preg_match('/\blunas\s+bayar\b/iu', $t)) {
+        if (preg_match('/^\s*lunas(\s+ya)?(\s+(kak|kk|bang|min|mbak|pak|bu))?\s*$/iu', $t)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * PENUTUP ketat — hanya salah satu dari:
+     * (1) ucapan terima kasih, (2) info sudah bayar/lunas/pelunasan, (3) ack murni (ok/baik/sip/siap/sejenis) tanpa isi lain.
+     * Contoh BUKAN penutup: "Ok kk,aku otw ya kk"
+     */
+    private function messageMatchesStrictPenutupAllowlist(?string $text): bool
+    {
+        if ($text === null || trim($text) === '') {
+            return false;
+        }
+        $t = trim($text);
+
+        // (1) Terima kasih
+        if (preg_match('/\b(ma*ka*(s|c)(i|e)*h|te*ri*ma*ka*si*h|tha*nks|thx|tq|ty)\b/iu', $t)) {
+            return true;
+        }
+
+        // (2) Sudah bayar / lunas / bukti / pelunasan
+        if ($this->messageLooksLikePaymentConfirmationPenutup($t)) {
+            return true;
+        }
+
+        // Reaction / emoji saja
+        if (preg_match('/^reacted\s+/iu', $t)) {
+            return true;
+        }
+        if (mb_strlen($t) <= 6 && preg_match('/^[^\p{L}\p{N}]+$/u', $t)) {
+            return true;
+        }
+
+        // (3) Ack singkat murni — seluruh pesan hanya token ack (+ sapaan opsional)
+        if (preg_match(
+            '/^\s*\b(ok(?:e+|ey)?|baik+|sip+|sia+p+|gpp|gak\s*apa\s*apa|ga\s*apa\s*apa|iya+|ya+)'
+            . '(\s+(deh|lah|dong|ya))*'
+            . '(?:\s+(kak|kk|bang|min|mbak|pak|bu|buk|mas|om|dek|nte|penya|punya))*'
+            . '\s*[.!?]*\s*$/iu',
+            $t
+        )) {
+            return true;
+        }
+        if (preg_match(
+            '/^\s*\b(ok(?:e+)?|baik|sip)\s+(sia+p+|sip)(?:\s+(kak|kk|bang|min|mbak|pak|bu|ya))?\s*\??\s*$/iu',
+            $t
+        )) {
             return true;
         }
 
@@ -1337,6 +1404,10 @@ class WAReplies
                     if ($handler === 'PENUTUP' && $this->messageLooksLikeFuturePaymentCommitmentBukanPenutup($textBodyToCheck)) {
                         continue;
                     }
+                    // PENUTUP ketat: hanya terima kasih / sudah bayar-lunas / ack murni (ok/baik/sip/siap)
+                    if ($handler === 'PENUTUP' && !$this->messageMatchesStrictPenutupAllowlist($textBodyToCheck)) {
+                        continue;
+                    }
                     // PENUTUP: kalimat panjang (>50 karakter) bukan ack penutup — kecuali konfirmasi bayar/lunas
                     if ($handler === 'PENUTUP' && $this->messageExceedsPenutupMaxLength($textBodyToCheck)
                         && !$this->messageLooksLikePaymentConfirmationPenutup($textBodyToCheck)) {
@@ -1533,14 +1604,18 @@ class WAReplies
                 $aiNotify = $fullKeywordConfig['MINTA_JEMPUT_ANTAR']['notify'] ?? false;
             }
 
-            // PEMBUKA AI salah: "kabari ya kak" = minta kabar (penutup), bukan sapaan pembuka
+            // PEMBUKA AI salah: "kabari ya kak" = minta kabar (bukan sapaan, juga bukan PENUTUP ketat) → biarkan CS
             if ($aiIntent === 'PEMBUKA' && (preg_match('/\b(kabari|kabarin)\s+(ya|dong)\b/iu', $textBodyToCheck) || preg_match('/\binfokan\s+(ya|dong)\b/iu', $textBodyToCheck))) {
-                if (!$this->messageExceedsPenutupMaxLength($textBodyToCheck)) {
-                    $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override_pembuka→PENUTUP kabari_ya');
-                    $aiIntent = 'PENUTUP';
-                    $aiCase = $fullKeywordConfig['PENUTUP']['case'] ?? null;
-                    $aiNotify = $fullKeywordConfig['PENUTUP']['notify'] ?? false;
-                }
+                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_pembuka_kabari_ya');
+                $conversationId = $this->getOrCreateConversationWithCase(
+                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
+                );
+                return (object) [
+                    'case' => 4,
+                    'notify' => true,
+                    'conversation_id' => $conversationId,
+                    'no_handler' => true,
+                ];
             }
 
             // Note: Tidak perlu cek in_array($aiIntent, $matchPattern) lagi
@@ -1561,6 +1636,20 @@ class WAReplies
                     'case' => $aiCase,
                     'notify' => $aiNotify,
                     'conversation_id' => $conversationId
+                ];
+            }
+
+            // PENUTUP ketat: AI salah klasifikasi — hanya terima kasih / bayar-lunas / ack murni
+            if ($aiIntent === 'PENUTUP' && !$this->messageMatchesStrictPenutupAllowlist($textBodyToCheck)) {
+                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_penutup_not_in_allowlist');
+                $conversationId = $this->getOrCreateConversationWithCase(
+                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
+                );
+                return (object) [
+                    'case' => 4,
+                    'notify' => true,
+                    'conversation_id' => $conversationId,
+                    'no_handler' => true,
                 ];
             }
 
@@ -2082,10 +2171,15 @@ class WAReplies
 
     /**
      * Handle intent PENUTUP — balasan tetap singkat (tanpa LLM): Baik/Oke/Ok + sapaan, atau Siap/Baik jika hindari ulang "ok".
-     * Termasuk konfirmasi pembayaran/transfer. Tidak cek jam operasional.
+     * Termasuk konfirmasi pembayaran/transfer. Di luar jam operasional → tidak balas.
      */
     private function handlePenutup($phoneIn, $waNumber, $textBody = '')
     {
+        if (!$this->isOperatingHours()) {
+            $this->logAutoreplyTrace($waNumber, 'EXIT', 'penutup_skip_outside_hours');
+            return;
+        }
+
         $textLower = trim(strtolower($textBody ?? ''));
         $textTrimmed = trim($textBody ?? '');
 
@@ -3284,14 +3378,14 @@ class WAReplies
 
     /**
      * Balasan di luar jam operasional / tutup.
-     * Cooldown handler JAM_TUTUP: satu pesan jenis ini per nomor per jendela (terpisah dari PEMBUKA / JAM_OPERASIONAL)
+     * Cooldown handler JAM_TUTUP: 60 menit (sama JAM_OPERASIONAL) — satu pesan jenis ini per nomor
      * agar tidak dobel saat user kirim sapaan lalu tanya jam dalam waktu berdekatan.
      *
      * @return bool true jika ada pengiriman (atau fallback config), false jika dilewati karena cooldown
      */
     function handleJam_tutup($phoneIn, $waNumber, $textBody = '', $customIntro = null, $skipCooldown = false)
     {
-        if (!$skipCooldown && !$this->shouldHandle($waNumber, 'JAM_TUTUP', 3)) {
+        if (!$skipCooldown && !$this->shouldHandle($waNumber, 'JAM_TUTUP')) {
             return false;
         }
 
@@ -5153,8 +5247,9 @@ class WAReplies
             $prompt .= "PRIORITAS: Pertanyaan harga paket/member/langganan/deposit + antar/jemput/delivery/ongkir paket (mis. paket member antar jemput, harga paket include antar) = HARGA_PAKET_D, BUKAN HARGA_PAKET dan BUKAN MINTA_JEMPUT_ANTAR.\n";
             $prompt .= "PRIORITAS: Pertanyaan harga paket/member/langganan/deposit TANPA antar/jemput = HARGA_PAKET.\n";
             $prompt .= "PRIORITAS: Jika user bertanya brp/berapa + laundry/londry (typo) + ku/saya/aku (mis. 'brp londry ku buk', 'berapa laundry saya kak') = TAGIHAN (tanya total/tagihan order), bukan FALSE.\n";
-            $prompt .= "PRIORITAS: 'kabari ya kak' / 'kabarin ya' / 'infokan ya' = minta kabar/update (penutup) = pilih PENUTUP, BUKAN PEMBUKA.\n";
+            $prompt .= "PRIORITAS: 'kabari ya kak' / 'kabarin ya' / 'infokan ya' = minta kabar/update = FALSE (BUKAN PEMBUKA, BUKAN PENUTUP).\n";
             $prompt .= "PRIORITAS: Jika user meminta info transfer/tf/rekening/QRIS untuk bayar (mis. 'bisa tf kak', 'mau transfer kak', 'minta no rek') dan BUKAN konfirmasi sudah kirim = pilih REKENING, BUKAN FALSE.\n";
+            $prompt .= "PRIORITAS: PENUTUP HANYA untuk (1) terima kasih, (2) sudah bayar/lunas/bukti/pelunasan, (3) ack murni ok/baik/sip/siap tanpa isi lain. Contoh BUKAN PENUTUP: 'Ok kk,aku otw ya kk', 'baik nanti dijemput'.\n";
             $prompt .= "PRIORITAS: Pesan yang merujuk order/waktu (yg td sore, yg tadi sore) DAN jadwal pengambilan (besok di ambil, besok dijemput) — meski ada 'iya kak/buk' — = BUKAN PENUTUP (info operasional untuk CS), pilih FALSE.\n";
             $prompt .= "PRIORITAS: Janji atau konfirmasi AKAN bayar/transfer/tf (belum dilakukan), misalnya 'nnti transfer', 'nntk byr ... deal ya kk', 'besok bayar ya' — = FALSE, BUKAN PENUTUP. PENUTUP untuk pembayaran hanya jika SUDAH: sudah transfer, sudah bayar, sudah kirim.\n";
             $prompt .= "PRIORITAS: Minta satu pakaian/item tertentu diambil/dulukan dulu dari order/cucian yang sudah di laundry (belum waktunya ambil semua) = PERMINTAAN, BUKAN MINTA_JEMPUT_ANTAR.\n";
@@ -5227,6 +5322,12 @@ class WAReplies
             if ($intent === 'PENUTUP' && $this->messageLooksLikeFuturePaymentCommitmentBukanPenutup($textBody)) {
                 $intent = 'FALSE';
                 $reason = 'remap janji/nanti bayar atau transfer → FALSE (bukan penutup sudah bayar)';
+            }
+
+            // PENUTUP ketat — di luar terima kasih / bayar-lunas / ack murni → FALSE
+            if ($intent === 'PENUTUP' && !$this->messageMatchesStrictPenutupAllowlist($textBody)) {
+                $intent = 'FALSE';
+                $reason = 'remap PENUTUP → FALSE (bukan allowlist ketat: thanks/bayar/ack murni)';
             }
 
             // FALSE padahal follow-up nota: infonya + laundry + antar + waktu (sama pola regex NOTA)
