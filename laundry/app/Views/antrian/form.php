@@ -60,7 +60,7 @@
 </script>
 
 <!-- Floating Action Button - Buka Order (Offcanvas Trigger) -->
-<button class="btn btn-warning rounded-3 shadow-lg position-fixed" 
+<button id="btnBukaOrderAntrian" class="btn btn-warning rounded-3 shadow-lg position-fixed" 
    type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasBukaOrder"
    style="bottom: 24px; right: 24px; z-index: 1050; padding: 10px 18px; font-weight: 600;">
   <i class="fas fa-cash-register fa-lg me-2"></i>Order
@@ -86,6 +86,7 @@
     var orderOffcanvas = document.getElementById('offcanvasBukaOrder');
     
     orderOffcanvas.addEventListener('show.bs.offcanvas', function () {
+        $('#btnBukaOrderAntrian').hide();
         if(!orderLoaded) {
             $('#bukaOrderContent').load('<?= URL::BASE_URL ?>Penjualan', function(response, status, xhr) {
                 if (status == "error") {
@@ -100,5 +101,9 @@
                 }
             });
         }
+    });
+
+    orderOffcanvas.addEventListener('hidden.bs.offcanvas', function () {
+        $('#btnBukaOrderAntrian').show();
     });
 </script>

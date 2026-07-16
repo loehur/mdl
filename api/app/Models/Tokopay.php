@@ -27,10 +27,11 @@ class Tokopay
     {
         $mid = $this->merchantId;
         $secret = $this->secretKey;
+        $url = $this->apiUrl . "/v1/order?merchant=" . $mid . "&secret=" . $secret . "&ref_id=" . $ref_id . "&nominal=" . $nominal . "&metode=" . $kodeChannel;
         
         $curl = curl_init();
         curl_setopt_array($curl, array(
-            CURLOPT_URL => $this->apiUrl . "/v1/order?merchant=" . $mid . "&secret=" . $secret . "&ref_id=" . $ref_id . "&nominal=" . $nominal . "&metode=" . $kodeChannel,
+            CURLOPT_URL => $url,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_ENCODING => '',
             CURLOPT_MAXREDIRS => 10,
@@ -43,6 +44,7 @@ class Tokopay
         ));
         
         $response = curl_exec($curl);
+        $this->logLatency('createOrder', $ref_id, $nominal, $curl, $response);
         $error = curl_error($curl);
         curl_close($curl);
         
@@ -60,10 +62,11 @@ class Tokopay
     {
         $mid = $this->merchantId;
         $secret = $this->secretKey;
+        $url = $this->apiUrl . "/v1/order?merchant=" . $mid . "&secret=" . $secret . "&ref_id=" . $ref_id . "&nominal=" . $nominal . "&metode=" . $kodeChannel;
         
         $curl = curl_init();
         curl_setopt_array($curl, array(
-            CURLOPT_URL => $this->apiUrl . "/v1/order?merchant=" . $mid . "&secret=" . $secret . "&ref_id=" . $ref_id . "&nominal=" . $nominal . "&metode=" . $kodeChannel,
+            CURLOPT_URL => $url,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_ENCODING => '',
             CURLOPT_MAXREDIRS => 10,
@@ -76,6 +79,7 @@ class Tokopay
         ));
         
         $response = curl_exec($curl);
+        $this->logLatency('checkStatus', $ref_id, $nominal, $curl, $response);
         $error = curl_error($curl);
         curl_close($curl);
         
@@ -84,6 +88,33 @@ class Tokopay
         }
         
         return $response;
+    }
+
+    /**
+     * Log pure TokoPay API latency (api.nalju.com → api.tokopay.id)
+     */
+    private function logLatency($action, $ref_id, $nominal, $curl, $response)
+    {
+        $error = curl_error($curl);
+        $httpCode = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        $totalMs = round((float) curl_getinfo($curl, CURLINFO_TOTAL_TIME) * 1000, 1);
+        $dnsMs = round((float) curl_getinfo($curl, CURLINFO_NAMELOOKUP_TIME) * 1000, 1);
+        $connectMs = round((float) curl_getinfo($curl, CURLINFO_CONNECT_TIME) * 1000, 1);
+        $ttfbMs = round((float) curl_getinfo($curl, CURLINFO_STARTTRANSFER_TIME) * 1000, 1);
+        $bytes = is_string($response) ? strlen($response) : 0;
+
+        $msg = "[Tokopay] {$action} ref={$ref_id} nominal={$nominal}"
+            . " | ok=" . ($error ? '0' : '1')
+            . " http={$httpCode} curl_total_ms={$totalMs}"
+            . " dns_ms={$dnsMs} connect_ms={$connectMs} ttfb_ms={$ttfbMs}"
+            . " bytes={$bytes}"
+            . ($error ? " error={$error}" : '');
+
+        try {
+            \Log::write($msg, 'api', 'tokopay_latency');
+        } catch (\Exception $e) {
+            error_log($msg);
+        }
     }
 
     /**

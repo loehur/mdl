@@ -95,11 +95,32 @@ class QRISApi
         }
         
         curl_setopt_array($curl, $options);
-        
+
+        $t0 = microtime(true);
         $response = curl_exec($curl);
+        $elapsedMs = round((microtime(true) - $t0) * 1000, 1);
         $error = curl_error($curl);
-        $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        $httpCode = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        $totalTime = round((float) curl_getinfo($curl, CURLINFO_TOTAL_TIME) * 1000, 1);
+        $dnsMs = round((float) curl_getinfo($curl, CURLINFO_NAMELOOKUP_TIME) * 1000, 1);
+        $connectMs = round((float) curl_getinfo($curl, CURLINFO_CONNECT_TIME) * 1000, 1);
+        $ttfbMs = round((float) curl_getinfo($curl, CURLINFO_STARTTRANSFER_TIME) * 1000, 1);
         curl_close($curl);
+
+        $path = parse_url($url, PHP_URL_PATH) ?: $url;
+        $refHint = '';
+        if ($method === 'POST' && isset($data['ref_id'])) {
+            $refHint = ' ref=' . $data['ref_id'];
+        } elseif (preg_match('/[?&]ref_id=([^&]+)/', $url, $m)) {
+            $refHint = ' ref=' . urldecode($m[1]);
+        }
+
+        $this->logLatency(
+            "[QRISApi] {$method} {$path}{$refHint} | ok=" . ($error ? '0' : '1')
+            . " http={$httpCode} elapsed_ms={$elapsedMs} curl_total_ms={$totalTime}"
+            . " dns_ms={$dnsMs} connect_ms={$connectMs} ttfb_ms={$ttfbMs}"
+            . ($error ? " error={$error}" : '')
+        );
         
         if ($error) {
             return [
@@ -117,6 +138,25 @@ class QRISApi
         
         // Return as-is, sudah dalam format yang benar
         return $decoded ?: ['status' => false, 'message' => 'Invalid response'];
+    }
+
+    private function logLatency($text)
+    {
+        try {
+            if (!class_exists('Log')) {
+                $logFile = __DIR__ . '/../Models/Log.php';
+                if (is_file($logFile)) {
+                    require_once $logFile;
+                }
+            }
+            if (class_exists('Log')) {
+                Log::write($text, 'laundry', 'qris_latency');
+            } else {
+                error_log($text);
+            }
+        } catch (Exception $e) {
+            error_log($text);
+        }
     }
 
 }

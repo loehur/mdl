@@ -194,7 +194,7 @@ if ($data['id_pelanggan'] > 0) {
 </script>
 
 <!-- Floating Action Buttons -->
-<div class="position-fixed bottom-0 end-0 p-4 d-flex gap-2" style="z-index: 1050">
+<div id="fabOperasiButtons" class="position-fixed bottom-0 end-0 p-4 d-flex gap-2" style="z-index: 1050">
   <button id="btnBukaOrderOp" class="btn btn-warning bg-gradient rounded-3 shadow d-flex align-items-center gap-2 px-3 py-2" type="button">
     <i class="fas fa-cash-register fa-lg"></i>
     <span class="fw-bold fs-6">Order</span>
@@ -226,7 +226,15 @@ if ($data['id_pelanggan'] > 0) {
   // Manual Trigger for Buka Order Offcanvas
   var orderLoaded = false;
   var offcanvasBukaOrderEl = document.getElementById('offcanvasBukaOrderOp');
-  
+  var $fabOperasi = $('#fabOperasiButtons');
+
+  function syncFabOperasiVisibility() {
+      var orderOpen = offcanvasBukaOrderEl && offcanvasBukaOrderEl.classList.contains('show');
+      var paymentEl = document.getElementById('offcanvasPayment');
+      var paymentOpen = paymentEl && paymentEl.classList.contains('show');
+      $fabOperasi.toggle(!(orderOpen || paymentOpen));
+  }
+
   if (offcanvasBukaOrderEl) {
       var bsOffcanvas = new bootstrap.Offcanvas(offcanvasBukaOrderEl);
       
@@ -235,6 +243,7 @@ if ($data['id_pelanggan'] > 0) {
       });
 
       offcanvasBukaOrderEl.addEventListener('show.bs.offcanvas', function () {
+          $fabOperasi.hide();
           if(!orderLoaded) {
               $('#bukaOrderContentOp').load('<?= URL::BASE_URL ?>Penjualan', function(response, status, xhr) {
                   if (status == "error") {
@@ -249,6 +258,8 @@ if ($data['id_pelanggan'] > 0) {
               });
           }
       });
+
+      offcanvasBukaOrderEl.addEventListener('hidden.bs.offcanvas', syncFabOperasiVisibility);
   }
 
   // Manual Trigger for Payment Offcanvas
@@ -257,6 +268,18 @@ if ($data['id_pelanggan'] > 0) {
       if (offcanvasPaymentEl) {
           var paymentOffcanvas = bootstrap.Offcanvas.getOrCreateInstance(offcanvasPaymentEl);
           paymentOffcanvas.toggle();
+      }
+  });
+
+  // offcanvasPayment di-load via AJAX, jadi pakai listener di document
+  document.addEventListener('show.bs.offcanvas', function (e) {
+      if (e.target && e.target.id === 'offcanvasPayment') {
+          $fabOperasi.hide();
+      }
+  });
+  document.addEventListener('hidden.bs.offcanvas', function (e) {
+      if (e.target && e.target.id === 'offcanvasPayment') {
+          syncFabOperasiVisibility();
       }
   });
 </script>

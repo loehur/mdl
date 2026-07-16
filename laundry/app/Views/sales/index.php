@@ -413,6 +413,7 @@
       
       // Load form when offcanvas opens
       offcanvasSalesOrderEl.addEventListener('show.bs.offcanvas', function () {
+          $('#btnSalesOrder').hide();
           if(!formLoaded) {
               $('#salesOrderContent').load('<?= URL::BASE_URL ?>Sales/form', function(response, status, xhr) {
                   if (status == "error") {
@@ -422,6 +423,10 @@
                   }
               });
           }
+      });
+
+      offcanvasSalesOrderEl.addEventListener('hidden.bs.offcanvas', function () {
+          $('#btnSalesOrder').show();
       });
   }
   
