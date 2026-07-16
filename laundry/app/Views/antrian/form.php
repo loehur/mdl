@@ -86,7 +86,7 @@
     var orderOffcanvas = document.getElementById('offcanvasBukaOrder');
     
     orderOffcanvas.addEventListener('show.bs.offcanvas', function () {
-        $('#btnBukaOrderAntrian').hide();
+        $('#btnBukaOrderAntrian').addClass('d-none');
         if(!orderLoaded) {
             $('#bukaOrderContent').load('<?= URL::BASE_URL ?>Penjualan', function(response, status, xhr) {
                 if (status == "error") {
@@ -104,6 +104,6 @@
     });
 
     orderOffcanvas.addEventListener('hidden.bs.offcanvas', function () {
-        $('#btnBukaOrderAntrian').show();
+        $('#btnBukaOrderAntrian').removeClass('d-none');
     });
 </script>

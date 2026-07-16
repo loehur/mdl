@@ -232,7 +232,7 @@ if ($data['id_pelanggan'] > 0) {
       var orderOpen = offcanvasBukaOrderEl && offcanvasBukaOrderEl.classList.contains('show');
       var paymentEl = document.getElementById('offcanvasPayment');
       var paymentOpen = paymentEl && paymentEl.classList.contains('show');
-      $fabOperasi.toggle(!(orderOpen || paymentOpen));
+      $fabOperasi.toggleClass('d-none', !!(orderOpen || paymentOpen));
   }
 
   if (offcanvasBukaOrderEl) {
@@ -243,7 +243,7 @@ if ($data['id_pelanggan'] > 0) {
       });
 
       offcanvasBukaOrderEl.addEventListener('show.bs.offcanvas', function () {
-          $fabOperasi.hide();
+          $fabOperasi.addClass('d-none');
           if(!orderLoaded) {
               $('#bukaOrderContentOp').load('<?= URL::BASE_URL ?>Penjualan', function(response, status, xhr) {
                   if (status == "error") {
@@ -274,7 +274,7 @@ if ($data['id_pelanggan'] > 0) {
   // offcanvasPayment di-load via AJAX, jadi pakai listener di document
   document.addEventListener('show.bs.offcanvas', function (e) {
       if (e.target && e.target.id === 'offcanvasPayment') {
-          $fabOperasi.hide();
+          $fabOperasi.addClass('d-none');
       }
   });
   document.addEventListener('hidden.bs.offcanvas', function (e) {
