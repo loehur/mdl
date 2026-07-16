@@ -418,32 +418,8 @@ class Chat extends Controller
             $data = $res['data'];
             $data['local_id'] = $res['local_id'] ?? null; // Attach local DB ID
             
-            // *** BROADCAST TO ALL AGENTS via WebSocket ***
-            $userId = $_SERVER['HTTP_USER_ID'] ?? $body['user_id'] ?? null;
-            
-            $broadcastPayload = [
-                'type' => 'agent_message_sent',
-                'phone' => $phone, // PRIMARY IDENTIFIER
-                'conversation_id' => $conv->id ?? 0, // Optional legacy
-                'target_id' => '0', // Broadcast to ALL agents
-                'sender_id' => $userId,
-                'sender_code' => $senderCode ?? null, // Include sender_code for display
-                'message' => [
-                    'id' => $data['local_id'] ?? time(),
-                    'wamid' => $data['id'] ?? $data['wamid'] ?? null,
-                    'text' => $message,
-                    'type' => 'text',
-                    'sender' => 'me',
-                    'time' => date('Y-m-d H:i:s'),
-                    'status' => 'sent',
-                    'sender_code' => $senderCode ?? null, // Include sender_code in message object
-                    'quoted_message_id' => $replyTo // Include quoted message reference
-                ],
-                'contact_name' => $conv->contact_name ?? '',
-                'phone' => $phone
-            ];
-            
-            $this->pushToWebSocket($broadcastPayload);
+            // WS broadcast already done inside WhatsAppService::saveOutboundMessage.
+            // Do NOT broadcast again here — causes duplicate bubbles for the sender.
             
             $this->success($data, 'Reply sent');
         } else {
@@ -1145,28 +1121,7 @@ class Chat extends Controller
                     }
                 }
                 
-                // Broadcast via WebSocket
-                $broadcastPayload = [
-                    'type' => 'agent_message_sent',
-                    'phone' => $waNumber,
-                    'conversation_id' => $conversation->id ?? 0,
-                    'target_id' => '0',
-                    'sender_id' => $userId,
-                    'sender_code' => $senderCode ?? null, // Include sender_code for display
-                    'message' => [
-                        'id' => $msgId,
-                        'wamid' => $result['data']['wamid'] ?? null,
-                        'text' => $caption,
-                        'type' => 'image',
-                        'media_url' => $mediaUrl,
-                        'sender' => 'me',
-                        'time' => date('Y-m-d H:i:s'),
-                        'status' => 'sent',
-                        'sender_code' => $senderCode ?? null // Include sender_code in message object
-                    ]
-                ];
-                
-                $this->pushToWebSocket($broadcastPayload);
+                // WS already broadcast by WhatsAppService::saveOutboundMessage — skip duplicate push
                 
                 $this->success([
                     'local_id' => $msgId,

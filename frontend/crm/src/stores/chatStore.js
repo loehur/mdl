@@ -57,6 +57,32 @@ export const autoOpenChatOnIncoming = ref(false);
 // Increment this when message status changes to force activeConversation to re-compute
 export const messageUpdateTrigger = ref(0);
 
+// WhatsApp / Meta may return "accepted"; UI only treats sent|delivered|read as checkmarks
+export const MESSAGE_STATUS_PRIORITY = {
+  failed: -1,
+  error: -1,
+  pending: 0,
+  queue: 0,
+  accepted: 1,
+  sent: 1,
+  delivered: 2,
+  read: 3,
+};
+
+export const normalizeMessageStatus = (status) => {
+  if (!status) return "pending";
+  const s = String(status).toLowerCase();
+  if (s === "accepted" || s === "queue") return "sent";
+  return s;
+};
+
+export const shouldApplyMessageStatus = (currentStatus, newStatus) => {
+  const next = normalizeMessageStatus(newStatus);
+  if (next === "failed" || next === "error") return true;
+  const cur = normalizeMessageStatus(currentStatus);
+  return (MESSAGE_STATUS_PRIORITY[next] ?? 0) >= (MESSAGE_STATUS_PRIORITY[cur] ?? 0);
+};
+
 // Active conversation computed
 export const activeConversation = computed(() => {
     // Force dependency on messageUpdateTrigger to re-compute on nested changes

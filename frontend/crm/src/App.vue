@@ -50,6 +50,8 @@ import {
   activeConversation, filteredConversations, totalUnreadCount, totalOpenCasesCount,
   // Trigger
   messageUpdateTrigger,
+  normalizeMessageStatus,
+  shouldApplyMessageStatus,
 } from "./stores/chatStore.js";
 
 // Navigation Store (Anti-SLEEP)
@@ -1086,28 +1088,59 @@ const sanitizeMessages = (messages) => {
     }
 
     // Fuzzy Check (The "Healer")
-    // IMPORTANT: Never merge media messages (image, video, audio, etc.) - each media should be a separate bubble.
-    // When customer sends multiple images at once, they have same timestamp + empty text and would incorrectly merge.
+    // IMPORTANT: Never merge inbound media messages (customer images) — each is a separate bubble.
+    // Outgoing optimistic bubbles (pending/temp id) MUST merge with the server copy.
     const isMediaMessage = (m) => ['image', 'video', 'audio', 'document', 'sticker'].includes(m?.type);
-    if (!existing && !isMediaMessage(msg)) {
+    const isTempId = (id) => /^\d{13,}$/.test(String(id || "")); // Date.now() style
+    const isOptimistic = (m) =>
+      m?.status === "pending" || isTempId(m?.id) || String(m?.media_url || "").startsWith("data:");
+
+    if (!existing) {
       const normalize = (str) =>
         String(str || "")
           .replace(/\s+/g, " ")
           .trim();
       const msgTime = new Date(msg.rawTime || msg.time).getTime();
       const msgText = normalize(msg.text);
+      // Wider window for optimistic/server reconcile (timezone + network delay)
+      const timeWindowMs = (isOptimistic(msg) || msg.sender === "me") ? 120000 : 5000;
 
-      // Look backwards for a fuzzy match (optimisation: only check last 10 messages)
-      // We iterate result array which contains 'kept' messages
-      for (let i = result.length - 1; i >= 0 && i >= result.length - 10; i--) {
+      for (let i = result.length - 1; i >= 0 && i >= result.length - 15; i--) {
         const cand = result[i];
-        // Skip if candidate is media - don't merge media into text or vice versa
-        if (isMediaMessage(cand)) continue;
-        if (cand.sender === msg.sender && normalize(cand.text) === msgText) {
+        if (cand.sender !== msg.sender) continue;
+
+        // Outgoing media: merge optimistic preview with server message
+        if (isMediaMessage(msg) || isMediaMessage(cand)) {
+          if (
+            msg.sender === "me" &&
+            isMediaMessage(msg) &&
+            isMediaMessage(cand) &&
+            (isOptimistic(msg) || isOptimistic(cand)) &&
+            normalize(cand.text) === msgText
+          ) {
+            const candTime = new Date(cand.rawTime || cand.time).getTime();
+            if (
+              isNaN(msgTime) ||
+              isNaN(candTime) ||
+              Math.abs(candTime - msgTime) < timeWindowMs
+            ) {
+              existing = cand;
+              break;
+            }
+          }
+          continue; // never fuzzy-merge customer media
+        }
+
+        if (normalize(cand.text) === msgText && msgText !== "") {
           const candTime = new Date(cand.rawTime || cand.time).getTime();
-          if (Math.abs(candTime - msgTime) < 5000) {
-            // 5s window
-            existing = cand; // Found a fuzzy match!
+          if (
+            isNaN(msgTime) ||
+            isNaN(candTime) ||
+            Math.abs(candTime - msgTime) < timeWindowMs ||
+            isOptimistic(msg) ||
+            isOptimistic(cand)
+          ) {
+            existing = cand;
             break;
           }
         }
@@ -1115,32 +1148,39 @@ const sanitizeMessages = (messages) => {
     }
 
     if (existing) {
-      // MERGE STRATEGY: Keep the "Better" version
-      // Prefer Integer IDs over Long Strings (Hex/UUID)
-      // Prefer Existing WAMID over Null
+      // MERGE STRATEGY: Prefer real DB id over temp Date.now() id; keep WAMID; upgrade status
 
-      const existingIdIsInt = /^\d+$/.test(String(existing.id));
-      const msgIdIsInt = /^\d+$/.test(String(msg.id));
-
-      // If incoming is "better" (e.g. Real ID vs Hex ID), update the existing object
-      if (msgIdIsInt && !existingIdIsInt) {
-        existing.id = msg.id; // Upgrade ID
+      if (isTempId(existing.id) && msg.id != null && !isTempId(msg.id)) {
+        existing.id = msg.id;
+      } else if (isTempId(msg.id) && existing.id != null && !isTempId(existing.id)) {
+        // keep existing real id
+      } else {
+        const existingIdIsInt = /^\d+$/.test(String(existing.id));
+        const msgIdIsInt = /^\d+$/.test(String(msg.id));
+        if (msgIdIsInt && !existingIdIsInt) {
+          existing.id = msg.id;
+        }
       }
 
       if (msg.wamid && !existing.wamid) {
-        existing.wamid = msg.wamid; // Upgrade WAMID
+        existing.wamid = msg.wamid;
+      }
+
+      // Prefer real https media URL over data: preview
+      if (
+        msg.media_url &&
+        (!existing.media_url || String(existing.media_url).startsWith("data:"))
+      ) {
+        existing.media_url = msg.media_url;
       }
 
       if (
         msg.status &&
-        msg.status !== "read" &&
-        existing.status !== msg.status
+        shouldApplyMessageStatus(existing.status, msg.status)
       ) {
-        existing.status = msg.status; // Update status
+        existing.status = normalizeMessageStatus(msg.status);
       }
 
-      // Don't add 'msg' to result, we merged it into 'existing'
-      // Update map keys to point to the merged object
       uniqueMap.set(String(existing.id), existing);
       if (existing.wamid) uniqueMap.set(existing.wamid, existing);
     } else {
@@ -1195,7 +1235,7 @@ const fetchMessages = async (phone, offset = 0, limit = 20) => {
               })
             : "",
           rawTime: m.time,
-          status: m.status,
+          status: normalizeMessageStatus(m.status),
           private: m.private !== undefined ? (typeof m.private === 'number' ? m.private : parseInt(m.private) || 0) : 0, // Include private field
           sender_code: m.sender_code,
           quoted_message_id: m.quoted_message_id || null,
@@ -2150,6 +2190,12 @@ const sendMessage = async () => {
             if (res.data.wamid) sentMsg.wamid = res.data.wamid;
             else if (res.data.id) sentMsg.wamid = res.data.id;
           }
+          // Force UI refresh for nested status change
+          const idx = activeConversation.value.messages.indexOf(sentMsg);
+          if (idx !== -1) {
+            activeConversation.value.messages.splice(idx, 1, { ...sentMsg });
+          }
+          messageUpdateTrigger.value++;
         }
       } else {
         // Error state
@@ -2514,6 +2560,11 @@ const sendImage = async () => {
           sentMsg.id = res.data.local_id;
           if (res.data.media_url) sentMsg.media_url = res.data.media_url;
         }
+        const idx = activeConversation.value.messages.indexOf(sentMsg);
+        if (idx !== -1) {
+          activeConversation.value.messages.splice(idx, 1, { ...sentMsg });
+        }
+        messageUpdateTrigger.value++;
       }
       cancelImage();
     } else {
@@ -2579,21 +2630,10 @@ const handleIncomingMessage = (payload) => {
         // Prevent downgrading status when WebSocket messages arrive out of order
         // Status hierarchy: pending → sent → delivered → read
         const currentStatus = conversation.messages[msgIndex].status;
-        const newStatus = message.status;
-        
-        const statusPriority = {
-          'pending': 0,
-          'sent': 1,
-          'delivered': 2,
-          'read': 3,
-          'failed': -1  // Failed status can always override
-        };
-        
-        const currentPriority = statusPriority[currentStatus] || 0;
-        const newPriority = statusPriority[newStatus] || 0;
-        
+        const newStatus = normalizeMessageStatus(message.status);
+
         // Only update if new status has higher priority OR is failed
-        if (newPriority >= currentPriority || newStatus === 'failed') {
+        if (shouldApplyMessageStatus(currentStatus, newStatus)) {
           // ⚡ CRITICAL FIX: Deep clone to trigger Vue reactivity
           // Step 1: Update message object
           conversation.messages[msgIndex] = {
@@ -2603,7 +2643,7 @@ const handleIncomingMessage = (payload) => {
           
           console.log(`✅ Status updated: ${currentStatus} → ${newStatus}`);
         } else {
-          console.log(`⏭️ Skipping status downgrade: ${currentStatus} (priority ${currentPriority}) → ${newStatus} (priority ${newPriority})`);
+          console.log(`⏭️ Skipping status downgrade: ${currentStatus} → ${newStatus}`);
           // Don't update, return early
           return;
         }
@@ -3093,20 +3133,24 @@ const connectWebSocket = () => {
             match: senderId == authId.value,
           });
 
-          // Skip if this message was sent by current user (use == for type safety)
-          // This prevents the duplicate when server echoes our own message back
-          if (senderId == authId.value) {
-            return;
-          }
-
           const conversation = conversations.value.find(
             (c) =>
               (conversationId && c.id == conversationId) ||
               (payload.phone && c.wa_number == payload.phone)
           );
           if (conversation) {
+            const isTempId = (id) => /^\d{13,}$/.test(String(id || ""));
+            const isOptimistic = (m) =>
+              m?.status === "pending" ||
+              isTempId(m?.id) ||
+              String(m?.media_url || "").startsWith("data:");
+            const normalizeText = (str) =>
+              String(str || "")
+                .replace(/\s+/g, " ")
+                .trim();
+
             // Enhanced duplicate check: ID, wamid, OR media_url for images
-            const existingMessage = conversation.messages.find(
+            let existingMessage = conversation.messages.find(
               (m) =>
                 m.id == messageData.id ||
                 (m.wamid &&
@@ -3118,31 +3162,76 @@ const connectWebSocket = () => {
                   m.media_url == messageData.media_url)
             );
 
+            // Match optimistic outgoing bubble (temp id / data: preview / pending)
+            if (!existingMessage) {
+              const incomingText = normalizeText(messageData.text);
+              const incomingType = messageData.type || "text";
+
+              if (incomingType === "image") {
+                // FIFO: oldest optimistic image without wamid (avoid swapping 2 quick sends)
+                const start = Math.max(0, conversation.messages.length - 8);
+                for (let i = start; i < conversation.messages.length; i++) {
+                  const m = conversation.messages[i];
+                  if (
+                    m.sender === "me" &&
+                    (m.type || "text") === "image" &&
+                    isOptimistic(m) &&
+                    !m.wamid &&
+                    normalizeText(m.text) === incomingText
+                  ) {
+                    existingMessage = m;
+                    break;
+                  }
+                }
+              } else {
+                for (let i = conversation.messages.length - 1; i >= 0; i--) {
+                  if (conversation.messages.length - i > 8) break;
+                  const m = conversation.messages[i];
+                  if (m.sender !== "me" || !isOptimistic(m)) continue;
+                  if (
+                    (m.type || "text") === incomingType &&
+                    normalizeText(m.text) === incomingText
+                  ) {
+                    existingMessage = m;
+                    break;
+                  }
+                }
+              }
+            }
+
             if (existingMessage) {
               // Update existing message (from optimistic UI after API response)
               existingMessage.id = messageData.id;
               existingMessage.wamid = messageData.wamid;
-              existingMessage.status = messageData.status || "sent";
-              if (messageData.media_url)
+              if (shouldApplyMessageStatus(existingMessage.status, messageData.status || "sent")) {
+                existingMessage.status = normalizeMessageStatus(messageData.status || "sent");
+              }
+              if (messageData.media_url && !String(messageData.media_url).startsWith("data:"))
                 existingMessage.media_url = messageData.media_url;
               // Update sender_code if provided (from message or payload level)
               const senderCode = messageData.sender_code ?? payload.sender_code;
               if (senderCode !== undefined)
                 existingMessage.sender_code = senderCode;
+              const msgIdx = conversation.messages.indexOf(existingMessage);
+              if (msgIdx !== -1) {
+                conversation.messages.splice(msgIdx, 1, { ...existingMessage });
+              }
+              conversation.messages = sanitizeMessages(conversation.messages);
+              messageUpdateTrigger.value++;
               // Don't add as new - already exists
             } else {
               // NEW DEFENSE: Robust Fuzzy Match
               // Search backwards for the most recent message from 'me' with same text
               // This handles race conditions where the order might be slightly off or not the very last item
               let pendingMatch = null;
-              const cleanIncomingText = (messageData.text || "").trim();
+              const cleanIncomingText = normalizeText(messageData.text);
 
-              // Scan last 5 messages
+              // Scan last 8 messages
               for (let i = conversation.messages.length - 1; i >= 0; i--) {
-                if (conversation.messages.length - i > 5) break;
+                if (conversation.messages.length - i > 8) break;
 
                 const m = conversation.messages[i];
-                const cleanLocalText = (m.text || "").trim();
+                const cleanLocalText = normalizeText(m.text);
 
                 // Check match: Sender is me AND text matches
                 if (m.sender === "me" && cleanLocalText === cleanIncomingText) {
@@ -3164,17 +3253,30 @@ const connectWebSocket = () => {
                 // Update IDs to server values
                 pendingMatch.id = messageData.id;
                 if (messageData.wamid) pendingMatch.wamid = messageData.wamid;
-                pendingMatch.status = messageData.status || "sent";
-                if (messageData.media_url)
+                if (shouldApplyMessageStatus(pendingMatch.status, messageData.status || "sent")) {
+                  pendingMatch.status = normalizeMessageStatus(messageData.status || "sent");
+                }
+                if (messageData.media_url && !String(messageData.media_url).startsWith("data:"))
                   pendingMatch.media_url = messageData.media_url;
                 // Update sender_code if provided (from message or payload level)
                 const senderCode = messageData.sender_code ?? payload.sender_code;
                 if (senderCode !== undefined)
                   pendingMatch.sender_code = senderCode;
+                const pendingIdx = conversation.messages.indexOf(pendingMatch);
+                if (pendingIdx !== -1) {
+                  conversation.messages.splice(pendingIdx, 1, { ...pendingMatch });
+                }
+                conversation.messages = sanitizeMessages(conversation.messages);
+                messageUpdateTrigger.value++;
                 return; // Stop, don't add new
               }
 
-              // Add new message (from another agent/device)
+              // Own echo (same agent): never add a second bubble
+              if (senderId == authId.value) {
+                return;
+              }
+
+              // Add new message (from another agent/device / system outbound)
               const newMsg = {
                 id: messageData.id,
                 wamid: messageData.wamid,
@@ -3188,7 +3290,7 @@ const connectWebSocket = () => {
                   hour12: false,
                 }),
                 rawTime: messageData.time,
-                status: messageData.status || "sent",
+                status: normalizeMessageStatus(messageData.status || "sent"),
                 sender_code: messageData.sender_code || payload.sender_code || null, // Use message sender_code or fallback to payload level
                 quoted_message_id: messageData.quoted_message_id || null,
                 quoted_message_body: messageData.quoted_message_body || null,
@@ -3196,6 +3298,7 @@ const connectWebSocket = () => {
               };
 
               conversation.messages.push(newMsg);
+              conversation.messages = sanitizeMessages(conversation.messages);
 
               // Sort messages by rawTime to ensure chronological order
               conversation.messages.sort((a, b) => {

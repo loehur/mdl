@@ -3,6 +3,7 @@ import { ref, computed, nextTick, watch, onMounted, onUnmounted } from "vue";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import EmojiPicker from "./EmojiPicker.vue";
 import twemoji from 'twemoji';
+import { messageUpdateTrigger } from "../stores/chatStore.js";
 
 const props = defineProps({
   activeConversation: {
@@ -415,6 +416,35 @@ const resolveCase = async (caseId) => {
 };
 
 // --- MESSAGE SENDING ---
+const formatLocalDateTime = (d = new Date()) => {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+};
+
+const bumpMessageStatus = (msg, status, patch = {}) => {
+  if (!msg || !props.activeConversation?.messages) return;
+  Object.assign(msg, patch, { status });
+
+  let idx = props.activeConversation.messages.indexOf(msg);
+  if (idx === -1) {
+    // Message object may have been replaced by polling/WS merge
+    idx = props.activeConversation.messages.findIndex(
+      (m) =>
+        m.id === msg.id ||
+        (patch.id != null && m.id === patch.id) ||
+        (msg.wamid && m.wamid && m.wamid === msg.wamid) ||
+        (patch.wamid && m.wamid === patch.wamid)
+    );
+  }
+
+  if (idx !== -1) {
+    const current = props.activeConversation.messages[idx];
+    Object.assign(current, patch, { status });
+    props.activeConversation.messages.splice(idx, 1, { ...current });
+  }
+  messageUpdateTrigger.value++;
+};
+
 const sendMessage = async () => {
   const text = messageInput.value.trim();
   if (!text) return;
@@ -424,7 +454,7 @@ const sendMessage = async () => {
     const newMsg = {
       id: tempId, text: text, sender: "me",
       time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }),
-      rawTime: new Date().toISOString(), timestamp: Date.now(), status: "pending",
+      rawTime: formatLocalDateTime(), timestamp: Date.now(), status: "pending",
       quoted_message_id: replyingTo?.wamid || null,
       quoted_message_body: replyingTo?.text || replyingTo?.caption || null,
       sender_code: props.senderCode || localStorage.getItem("cms_chat_sender_code") || "",
@@ -448,19 +478,19 @@ const sendMessage = async () => {
         }),
       }).then(r => r.json());
 
-      const sentMsg = props.activeConversation.messages.find(m => m.id === tempId);
-      if(sentMsg) {
-          if (res.status) {
-            sentMsg.status = "sent";
-            if(res.data?.local_id) sentMsg.id = res.data.local_id;
-            if(res.data?.wamid || res.data?.id) sentMsg.wamid = res.data.wamid || res.data.id;
-          } else {
-             sentMsg.status = "failed";
-          }
+      // Use object reference (not find-by-id) — polling/sanitize may change id mid-flight
+      if (res.status) {
+        bumpMessageStatus(newMsg, "sent", {
+          ...(res.data?.local_id != null ? { id: res.data.local_id } : {}),
+          ...(res.data?.wamid || res.data?.id
+            ? { wamid: res.data.wamid || res.data.id }
+            : {}),
+        });
+      } else {
+        bumpMessageStatus(newMsg, "failed");
       }
     } catch(e) {
-         const sentMsg = props.activeConversation.messages.find(m => m.id === tempId);
-         if(sentMsg) sentMsg.status = "error";
+      bumpMessageStatus(newMsg, "error");
     }
   }
 };
@@ -477,7 +507,7 @@ const sendImage = async () => {
     const newMsg = {
       id: tempId, text: caption || "", type: "image", media_url: imagePreview.value,
       sender: "me", time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }),
-      sender_code: props.senderCode, rawTime: new Date().toISOString(), status: "pending",
+      sender_code: props.senderCode, rawTime: formatLocalDateTime(), status: "pending",
     };
     props.activeConversation.messages.push(newMsg);
     props.activeConversation.lastMessage = "You: 📷 Image";
@@ -493,15 +523,21 @@ const sendImage = async () => {
         if(caption) formData.append("caption", caption);
 
         const res = await fetch(`${props.API_BASE}/CRM/Chat/sendImage`, { method: "POST", body: formData }).then(r => r.json());
-        const sentMsg = props.activeConversation.messages.find(m => m.id === tempId);
-        if(sentMsg) {
-            if(res.status) {
-                sentMsg.status = "sent";
-                if(res.data?.local_id) sentMsg.id = res.data.local_id;
-                if(res.data?.media_url) sentMsg.media_url = res.data.media_url;
-            } else sentMsg.status = "failed";
+        if (res.status) {
+            bumpMessageStatus(newMsg, "sent", {
+              ...(res.data?.local_id != null ? { id: res.data.local_id } : {}),
+              ...(res.data?.media_url ? { media_url: res.data.media_url } : {}),
+              ...(res.data?.wamid || res.data?.id
+                ? { wamid: res.data.wamid || res.data.id }
+                : {}),
+            });
+        } else {
+            bumpMessageStatus(newMsg, "failed");
         }
-    } catch(e) { console.error(e); }
+    } catch(e) {
+        console.error(e);
+        bumpMessageStatus(newMsg, "error");
+    }
     finally {
         isUploadingImage.value = false;
         selectedImage.value = null; imagePreview.value = "";
