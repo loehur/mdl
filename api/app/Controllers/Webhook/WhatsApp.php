@@ -741,7 +741,9 @@ class WhatsApp extends Controller
                         'wamid' => $wamid,
                         'status' => $norm['status']
                     ],
-                    'target_id' => $targetId
+                    // ALWAYS broadcast status to all agents viewing any chat
+                    // (assigned_user_id targeting caused other viewers to miss ticks)
+                    'target_id' => '0'
                 ]);
             }
             
@@ -854,9 +856,11 @@ class WhatsApp extends Controller
                     'conversation_id' => $conv->id ?? 0,
                     'message' => [
                         'id' => $msg->id, // Local DB ID
+                        'wamid' => $wamid,
                         'status' => $norm['status'],
                     ],
-                    'target_id' => $targetId,
+                    // ALWAYS broadcast — status ticks must reach every open CRM client
+                    'target_id' => '0',
                 ]);
 
                 if (! $normalizedToQueue) {

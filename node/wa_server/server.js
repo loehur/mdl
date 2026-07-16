@@ -824,6 +824,14 @@ app.post('/incoming', async (req, res) => {
 
     console.log(`WA Incoming for ${targetId}:`, data);
 
+    // Status ticks must reach every connected CRM client (not only assigned_user)
+    if (data.type === 'status_update' && targetId !== '0') {
+        console.log('[STATUS] Forcing broadcast to ALL (was targeted to', targetId, ')');
+        data.target_id = '0';
+        // fall through using broadcast path below by rewriting targetId
+    }
+    const effectiveTargetId = data.type === 'status_update' ? '0' : targetId;
+
     // Extract common data for push notification
     const customerPhone = data.phone || data.wa_number || '';
     const customerName = (data.name || data.contact_name || 'Customer').toUpperCase();
@@ -869,8 +877,8 @@ app.post('/incoming', async (req, res) => {
     const caseType = parseInt(data.case || 0);
 
 
-    // BROADCAST TO ALL if target_id = '0'
-    if (targetId === '0') {
+    // BROADCAST TO ALL if target_id = '0' (status_update always forced to broadcast)
+    if (effectiveTargetId === '0') {
         console.log('[BROADCAST] Sending to ALL connected clients');
 
         // Extract sender_id to exclude from broadcast

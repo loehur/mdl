@@ -1760,30 +1760,63 @@ const startChatPolling = (phone) => {
       if (response.ok) {
         const result = await response.json();
         const serverLastMessageAt = result.data?.last_message_at;
-        
-        // Compare with local last_message_at
-        if (serverLastMessageAt && serverLastMessageAt !== localLastMessageAt.value) {
-          console.log('🔄 Chat updated detected, fetching new messages...');
-          
-          // Update local last_message_at
-          localLastMessageAt.value = serverLastMessageAt;
-          
-          // Fetch new messages
-          const chat = conversations.value.find((c) => c.wa_number === phone);
-          if (chat) {
-            try {
-              const result = await fetchMessages(chat.wa_number, 0, 20);
-              if (result.messages.length > 0) {
-                // Merge with existing messages
-                const combined = [...chat.messages, ...result.messages];
+        const chat = conversations.value.find((c) => c.wa_number === phone);
+        if (!chat) return;
+
+        const lastMessageChanged =
+          serverLastMessageAt && serverLastMessageAt !== localLastMessageAt.value;
+
+        // Status ticks (sent→delivered→read) do NOT change last_message_at.
+        // Still sync when any outgoing bubble is not yet fully read.
+        const needsStatusSync = (chat.messages || []).some(
+          (m) =>
+            m.sender === "me" &&
+            ["pending", "accepted", "sent", "delivered"].includes(
+              normalizeMessageStatus(m.status)
+            )
+        );
+
+        if (lastMessageChanged || needsStatusSync) {
+          if (lastMessageChanged) {
+            localLastMessageAt.value = serverLastMessageAt;
+          }
+
+          try {
+            const msgResult = await fetchMessages(chat.wa_number, 0, 20);
+            if (msgResult.messages.length > 0) {
+              if (lastMessageChanged) {
+                const combined = [...chat.messages, ...msgResult.messages];
                 chat.messages = sanitizeMessages(combined);
-                chat.hasMoreMessages = result.has_more;
+                chat.hasMoreMessages = msgResult.has_more;
                 chat.messageOffset = chat.messages.length;
                 scrollToBottom();
+              } else {
+                // Status-only sync: upgrade ticks without reshuffling UI
+                let changed = false;
+                for (const serverMsg of msgResult.messages) {
+                  if (serverMsg.sender !== "me") continue;
+                  const local = chat.messages.find(
+                    (m) =>
+                      m.id == serverMsg.id ||
+                      (m.wamid && serverMsg.wamid && m.wamid == serverMsg.wamid)
+                  );
+                  if (
+                    local &&
+                    shouldApplyMessageStatus(local.status, serverMsg.status)
+                  ) {
+                    local.status = normalizeMessageStatus(serverMsg.status);
+                    if (serverMsg.wamid && !local.wamid) local.wamid = serverMsg.wamid;
+                    changed = true;
+                  }
+                }
+                if (changed) {
+                  chat.messages = [...chat.messages];
+                  messageUpdateTrigger.value++;
+                }
               }
-            } catch (error) {
-              console.error('Failed to fetch new messages:', error);
             }
+          } catch (error) {
+            console.error('Failed to fetch/sync messages:', error);
           }
         }
       }
@@ -2592,86 +2625,62 @@ const handleIncomingMessage = (payload) => {
   // Check if this is a status update
   if (payload.type === "status_update") {
     const { conversation_id, message, phone } = payload;
-    
-    // Find conversation
+    if (!message) return;
+
+    const digits = (p) => String(p || "").replace(/\D/g, "").slice(-10);
+
+    // Find conversation (id, exact phone, or last-10-digit match)
     const conversation = conversations.value.find(
       (c) =>
         (conversation_id && c.id == conversation_id) ||
-        (phone && c.wa_number == phone)
+        (phone && c.wa_number == phone) ||
+        (phone && digits(c.wa_number) && digits(c.wa_number) === digits(phone))
     );
 
-    if (conversation) {
-      console.log(`✅ Conversation found:`, {
-        convId: conversation.id,
-        convPhone: conversation.wa_number,
-        convName: conversation.name,
-        messagesCount: conversation.messages?.length,
-        searchingMsgId: message.id,
-        searchingWamid: message.wamid,
-        payloadConvId: conversation_id,
-        payloadPhone: phone
-      });
-      
-      // DEBUG: Show all message IDs in this conversation
-      console.log("📋 All messages in conversation:", conversation.messages.map(m => ({
-        id: m.id,
-        wamid: m.wamid,
-        text: (m.text || '').substring(0, 20),
-        status: m.status
-      })));
-      
-      // Find and update message
+    if (conversation && Array.isArray(conversation.messages)) {
+      // Find message by local id, wamid, or message_id
       const msgIndex = conversation.messages.findIndex(
-        (m) => m.id == message.id || m.wamid == message.wamid
+        (m) =>
+          (message.id != null && m.id == message.id) ||
+          (message.wamid && m.wamid && m.wamid == message.wamid) ||
+          (message.wamid && m.message_id && m.message_id == message.wamid) ||
+          (message.id != null && m.wamid && m.wamid == message.id)
       );
-      
+
       if (msgIndex !== -1) {
-        // ⚡ STATUS HIERARCHY VALIDATION
-        // Prevent downgrading status when WebSocket messages arrive out of order
-        // Status hierarchy: pending → sent → delivered → read
         const currentStatus = conversation.messages[msgIndex].status;
         const newStatus = normalizeMessageStatus(message.status);
 
-        // Only update if new status has higher priority OR is failed
         if (shouldApplyMessageStatus(currentStatus, newStatus)) {
-          // ⚡ CRITICAL FIX: Deep clone to trigger Vue reactivity
-          // Step 1: Update message object
           conversation.messages[msgIndex] = {
             ...conversation.messages[msgIndex],
-            status: newStatus
+            status: newStatus,
+            ...(message.wamid && !conversation.messages[msgIndex].wamid
+              ? { wamid: message.wamid }
+              : {}),
           };
-          
+
+          conversation.messages = [...conversation.messages];
+
+          const convIndex = conversations.value.findIndex(
+            (c) => c.id === conversation.id
+          );
+          if (convIndex !== -1) {
+            conversations.value[convIndex] = { ...conversation };
+            conversations.value = [...conversations.value];
+          }
+
+          messageUpdateTrigger.value++;
           console.log(`✅ Status updated: ${currentStatus} → ${newStatus}`);
-        } else {
-          console.log(`⏭️ Skipping status downgrade: ${currentStatus} → ${newStatus}`);
-          // Don't update, return early
-          return;
         }
-        
-        // Step 2: Clone messages array to trigger reactivity
-        conversation.messages = [...conversation.messages];
-        
-        // Step 3: Find conversation index and replace entire conversation object
-        const convIndex = conversations.value.findIndex(c => c.id === conversation.id);
-        if (convIndex !== -1) {
-          conversations.value[convIndex] = { ...conversation };
-          
-          // Step 4: Replace conversations array (force Vue to detect change)
-          conversations.value = [...conversations.value];
-        }
-        
-        // Step 5: Increment trigger to force activeConversation re-compute
-        messageUpdateTrigger.value++;
-        
-        // Step 6: Force next tick re-render
-        nextTick(() => {
-          // Status updated
-        });
       } else {
-        // Message not found - may arrive before conversation loaded
+        console.log("⚠️ status_update: message not found in local list", {
+          id: message.id,
+          wamid: message.wamid,
+          status: message.status,
+          phone,
+        });
       }
-    } else {
-      // Conversation not found - may arrive before conversation loaded
     }
     return;
   }
