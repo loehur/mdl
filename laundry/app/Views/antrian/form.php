@@ -62,12 +62,12 @@
 <!-- Floating Action Button - Buka Order (Offcanvas Trigger) -->
 <button id="btnBukaOrderAntrian" class="btn btn-warning rounded-3 shadow-lg position-fixed" 
    type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasBukaOrder"
-   style="bottom: 24px; right: 24px; z-index: 1050; padding: 10px 18px; font-weight: 600;">
+   style="bottom: 24px; right: 24px; z-index: 1020; padding: 10px 18px; font-weight: 600;">
   <i class="fas fa-cash-register fa-lg me-2"></i>Order
 </button>
 
 <!-- Offcanvas Buka Order -->
-<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasBukaOrder" aria-labelledby="offcanvasBukaOrderLabel" data-bs-backdrop="true">
+<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasBukaOrder" aria-labelledby="offcanvasBukaOrderLabel" data-bs-backdrop="true" style="z-index: 1100;">
   <div class="offcanvas-header bg-warning bg-gradient">
     <h5 class="offcanvas-title fw-bold text-dark" id="offcanvasBukaOrderLabel"><i class="fas fa-cash-register me-2"></i>Buka Order Baru</h5>
     <button type="button" class="btn-close text-dark" data-bs-dismiss="offcanvas" aria-label="Close"></button>
@@ -81,12 +81,18 @@
   </div>
 </div>
 
+<style>
+  #offcanvasBukaOrder { z-index: 1100 !important; }
+  .offcanvas-backdrop { z-index: 1090 !important; }
+  #btnBukaOrderAntrian.is-fab-hidden { display: none !important; }
+</style>
+
 <script>
     var orderLoaded = false;
     var orderOffcanvas = document.getElementById('offcanvasBukaOrder');
     
     orderOffcanvas.addEventListener('show.bs.offcanvas', function () {
-        $('#btnBukaOrderAntrian').addClass('d-none');
+        $('#btnBukaOrderAntrian').addClass('is-fab-hidden');
         if(!orderLoaded) {
             $('#bukaOrderContent').load('<?= URL::BASE_URL ?>Penjualan', function(response, status, xhr) {
                 if (status == "error") {
@@ -104,6 +110,6 @@
     });
 
     orderOffcanvas.addEventListener('hidden.bs.offcanvas', function () {
-        $('#btnBukaOrderAntrian').removeClass('d-none');
+        $('#btnBukaOrderAntrian').removeClass('is-fab-hidden');
     });
 </script>

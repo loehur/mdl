@@ -194,7 +194,7 @@ if ($data['id_pelanggan'] > 0) {
 </script>
 
 <!-- Floating Action Buttons -->
-<div id="fabOperasiButtons" class="position-fixed bottom-0 end-0 p-4 d-flex gap-2" style="z-index: 1050">
+<div id="fabOperasiButtons" class="position-fixed bottom-0 end-0 p-4 gap-2" style="z-index: 1020; display: flex;">
   <button id="btnBukaOrderOp" class="btn btn-warning bg-gradient rounded-3 shadow d-flex align-items-center gap-2 px-3 py-2" type="button">
     <i class="fas fa-cash-register fa-lg"></i>
     <span class="fw-bold fs-6">Order</span>
@@ -208,7 +208,7 @@ if ($data['id_pelanggan'] > 0) {
 </div>
 
 <!-- Offcanvas Buka Order -->
-<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasBukaOrderOp" aria-labelledby="offcanvasBukaOrderOpLabel" data-bs-backdrop="true" data-bs-scroll="true">
+<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasBukaOrderOp" aria-labelledby="offcanvasBukaOrderOpLabel" data-bs-backdrop="true" data-bs-scroll="true" style="z-index: 1100;">
   <div class="offcanvas-header bg-warning bg-gradient">
     <h5 class="offcanvas-title fw-bold text-dark" id="offcanvasBukaOrderOpLabel"><i class="fas fa-cash-register me-2"></i>Buka Order Baru</h5>
     <button type="button" class="btn-close text-dark" data-bs-dismiss="offcanvas" aria-label="Close"></button>
@@ -222,28 +222,41 @@ if ($data['id_pelanggan'] > 0) {
   </div>
 </div>
 
+<style>
+  #offcanvasBukaOrderOp,
+  #offcanvasPayment { z-index: 1100 !important; }
+  .offcanvas-backdrop { z-index: 1090 !important; }
+  #fabOperasiButtons.is-fab-hidden { display: none !important; }
+</style>
+
 <script>
   // Manual Trigger for Buka Order Offcanvas
   var orderLoaded = false;
   var offcanvasBukaOrderEl = document.getElementById('offcanvasBukaOrderOp');
   var $fabOperasi = $('#fabOperasiButtons');
 
-  function syncFabOperasiVisibility() {
+  function hideFabOperasi() {
+      $fabOperasi.addClass('is-fab-hidden');
+  }
+  function showFabOperasi() {
       var orderOpen = offcanvasBukaOrderEl && offcanvasBukaOrderEl.classList.contains('show');
       var paymentEl = document.getElementById('offcanvasPayment');
       var paymentOpen = paymentEl && paymentEl.classList.contains('show');
-      $fabOperasi.toggleClass('d-none', !!(orderOpen || paymentOpen));
+      if (!orderOpen && !paymentOpen) {
+          $fabOperasi.removeClass('is-fab-hidden');
+      }
   }
 
   if (offcanvasBukaOrderEl) {
       var bsOffcanvas = new bootstrap.Offcanvas(offcanvasBukaOrderEl);
       
       $('#btnBukaOrderOp').on('click', function() {
+          hideFabOperasi();
           bsOffcanvas.toggle();
       });
 
       offcanvasBukaOrderEl.addEventListener('show.bs.offcanvas', function () {
-          $fabOperasi.addClass('d-none');
+          hideFabOperasi();
           if(!orderLoaded) {
               $('#bukaOrderContentOp').load('<?= URL::BASE_URL ?>Penjualan', function(response, status, xhr) {
                   if (status == "error") {
@@ -259,11 +272,12 @@ if ($data['id_pelanggan'] > 0) {
           }
       });
 
-      offcanvasBukaOrderEl.addEventListener('hidden.bs.offcanvas', syncFabOperasiVisibility);
+      offcanvasBukaOrderEl.addEventListener('hidden.bs.offcanvas', showFabOperasi);
   }
 
   // Manual Trigger for Payment Offcanvas
   $(document).on('click', '#btnTriggerPayment', function() {
+      hideFabOperasi();
       var offcanvasPaymentEl = document.getElementById('offcanvasPayment');
       if (offcanvasPaymentEl) {
           var paymentOffcanvas = bootstrap.Offcanvas.getOrCreateInstance(offcanvasPaymentEl);
@@ -274,12 +288,12 @@ if ($data['id_pelanggan'] > 0) {
   // offcanvasPayment di-load via AJAX, jadi pakai listener di document
   document.addEventListener('show.bs.offcanvas', function (e) {
       if (e.target && e.target.id === 'offcanvasPayment') {
-          $fabOperasi.addClass('d-none');
+          hideFabOperasi();
       }
   });
   document.addEventListener('hidden.bs.offcanvas', function (e) {
       if (e.target && e.target.id === 'offcanvasPayment') {
-          syncFabOperasiVisibility();
+          showFabOperasi();
       }
   });
 </script>

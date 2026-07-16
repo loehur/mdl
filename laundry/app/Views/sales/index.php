@@ -370,14 +370,14 @@
 </div>
 
 <!-- Floating Action Button - Order -->
-<button id="btnSalesOrder" class="btn btn-warning bg-gradient rounded-3 shadow-lg position-fixed d-flex align-items-center gap-2 px-3 py-2" 
-   type="button" style="bottom: 24px; right: 24px; z-index: 1050;">
+<button id="btnSalesOrder" class="btn btn-warning bg-gradient rounded-3 shadow-lg position-fixed align-items-center gap-2 px-3 py-2" 
+   type="button" style="bottom: 24px; right: 24px; z-index: 1020; display: flex;">
   <i class="fas fa-shopping-cart fa-lg"></i>
   <span class="fw-bold fs-6">Order</span>
 </button>
 
 <!-- Offcanvas Sales Order -->
-<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasSalesOrder" aria-labelledby="offcanvasSalesOrderLabel" data-bs-backdrop="true" data-bs-scroll="true">
+<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasSalesOrder" aria-labelledby="offcanvasSalesOrderLabel" data-bs-backdrop="true" data-bs-scroll="true" style="z-index: 1100;">
   <div class="offcanvas-header bg-warning bg-gradient">
     <h5 class="offcanvas-title fw-bold text-dark" id="offcanvasSalesOrderLabel"><i class="fas fa-shopping-cart me-2"></i>Buat Sales Order</h5>
     <button type="button" class="btn-close text-dark" data-bs-dismiss="offcanvas" aria-label="Close"></button>
@@ -390,6 +390,12 @@
     </div>
   </div>
 </div>
+
+<style>
+  #offcanvasSalesOrder { z-index: 1100 !important; }
+  .offcanvas-backdrop { z-index: 1090 !important; }
+  #btnSalesOrder.is-fab-hidden { display: none !important; }
+</style>
 
 <script src="<?= URL::EX_ASSETS ?>js/jquery-3.6.0.min.js"></script>
 <script src="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/js/bootstrap.bundle.min.js"></script>
@@ -408,12 +414,13 @@
       var bsOffcanvas = new bootstrap.Offcanvas(offcanvasSalesOrderEl);
       
       $('#btnSalesOrder').on('click', function() {
+          $('#btnSalesOrder').addClass('is-fab-hidden');
           bsOffcanvas.toggle();
       });
       
       // Load form when offcanvas opens
       offcanvasSalesOrderEl.addEventListener('show.bs.offcanvas', function () {
-          $('#btnSalesOrder').addClass('d-none');
+          $('#btnSalesOrder').addClass('is-fab-hidden');
           if(!formLoaded) {
               $('#salesOrderContent').load('<?= URL::BASE_URL ?>Sales/form', function(response, status, xhr) {
                   if (status == "error") {
@@ -426,7 +433,7 @@
       });
 
       offcanvasSalesOrderEl.addEventListener('hidden.bs.offcanvas', function () {
-          $('#btnSalesOrder').removeClass('d-none');
+          $('#btnSalesOrder').removeClass('is-fab-hidden');
       });
   }
   

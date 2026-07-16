@@ -293,7 +293,7 @@
 </form>
 </form>
 
-<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasPayment" aria-labelledby="offcanvasPaymentLabel" data-bs-backdrop="true" data-bs-scroll="true">
+<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasPayment" aria-labelledby="offcanvasPaymentLabel" data-bs-backdrop="true" data-bs-scroll="true" style="z-index: 1100;">
   <div class="offcanvas-header bg-success bg-gradient">
     <h5 class="offcanvas-title" id="offcanvasPaymentLabel">Pembayaran</h5>
     <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
