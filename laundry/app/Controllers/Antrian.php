@@ -389,6 +389,7 @@ class Antrian extends Controller
        $url = 'http://127.0.0.1:3003/incoming';
        
        $ch = curl_init($url);
+       curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
        curl_setopt($ch, CURLOPT_POST, true);
        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));

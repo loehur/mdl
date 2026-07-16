@@ -35,6 +35,7 @@ class Midtrans
         $payloadJson = json_encode($payload);
 
         $curl = curl_init();
+        curl_setopt($curl, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
 
         curl_setopt_array($curl, [
             CURLOPT_URL => $url,
@@ -70,6 +71,7 @@ class Midtrans
         $url = $this->getBaseUrl() . '/v2/' . $orderId . '/status';
 
         $curl = curl_init();
+        curl_setopt($curl, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
 
         curl_setopt_array($curl, [
             CURLOPT_URL => $url,

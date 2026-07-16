@@ -58,15 +58,23 @@ class WA_YCloud extends DB
             'Content-Type: application/json'
         ]);
         // Timeout agak lama karena API Server mungkin query DB dan forward ke YCloud
-        curl_setopt($ch, CURLOPT_TIMEOUT, 30); 
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+        curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
         
+        $t0 = microtime(true);
         $response = curl_exec($ch);
+        $elapsedMs = round((microtime(true) - $t0) * 1000, 1);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $dnsMs = round((float) curl_getinfo($ch, CURLINFO_NAMELOOKUP_TIME) * 1000, 1);
+        $ttfbMs = round((float) curl_getinfo($ch, CURLINFO_STARTTRANSFER_TIME) * 1000, 1);
         $error = curl_error($ch);
         curl_close($ch);
         
         // Log response untuk debugging
         if (class_exists('Log')) {
+            @\Log::write("[WA_YCloud] latency phone=$phone dns_ms={$dnsMs} ttfb_ms={$ttfbMs} elapsed_ms={$elapsedMs} http={$httpCode}", 'whatsapp', 'latency');
             @\Log::write("[WA_YCloud] API Response - HTTP: $httpCode, Response: " . substr($response, 0, 500), 'whatsapp', 'model');
         }
 

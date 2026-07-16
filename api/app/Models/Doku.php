@@ -75,6 +75,7 @@ class Doku
         curl_setopt_array($curl, [
             CURLOPT_URL => $this->tokenUrl,
             CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
             CURLOPT_ENCODING => '',
             CURLOPT_MAXREDIRS => 10,
             CURLOPT_TIMEOUT => 30,
@@ -145,6 +146,7 @@ class Doku
         ];
 
         $curl = curl_init();
+        curl_setopt($curl, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
         curl_setopt_array($curl, [
             CURLOPT_URL => $this->tokenUrl,
             CURLOPT_RETURNTRANSFER => true,
@@ -277,6 +279,7 @@ class Doku
         curl_setopt_array($curl, [
             CURLOPT_URL => $url,
             CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
             CURLOPT_ENCODING => '',
             CURLOPT_MAXREDIRS => 10,
             CURLOPT_TIMEOUT => 60,
@@ -351,6 +354,7 @@ class Doku
         ];
 
         $curl = curl_init();
+        curl_setopt($curl, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
         curl_setopt_array($curl, [
             CURLOPT_URL => $url,
             CURLOPT_RETURNTRANSFER => true,

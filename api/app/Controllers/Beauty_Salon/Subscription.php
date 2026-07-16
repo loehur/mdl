@@ -678,6 +678,7 @@ class Subscription extends Controller
         curl_setopt_array($curl, array(
             CURLOPT_URL => "https://api.tokopay.id/v1/order?merchant=" . $merchantId . "&secret=" . $secretKey . "&ref_id=" . $payment_ref . "&nominal=" . $amount_int . "&metode=QRIS",
             CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
             CURLOPT_ENCODING => '',
             CURLOPT_MAXREDIRS => 10,
             CURLOPT_TIMEOUT => 30,

@@ -324,6 +324,7 @@ class WhatsApp extends Controller
             'Accept: application/json'
         ]);
         curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+        curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
         
         $response = curl_exec($ch);
         $error = curl_error($ch);
