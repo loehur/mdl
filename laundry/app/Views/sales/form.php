@@ -285,6 +285,9 @@ function showModalAlert(message, type) {
   $('#salesModalAlertHeader').attr('class', 'modal-header text-white ' + headerClass);
   
   var modalEl = document.getElementById('salesModalAlert');
+  if (modalEl && modalEl.parentNode !== document.body) {
+    document.body.appendChild(modalEl);
+  }
   var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
   modal.show();
 }
@@ -295,6 +298,9 @@ function showConfirmModal(message, onConfirm) {
   window.confirmCallback = onConfirm;
   
   var modalEl = document.getElementById('salesConfirmModal');
+  if (modalEl && modalEl.parentNode !== document.body) {
+    document.body.appendChild(modalEl);
+  }
   var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
   modal.show();
 }

@@ -138,34 +138,6 @@
           ?>
       </table>
 
-<div class="modal fade" id="modalDiskonHarga" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-sm">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h6 class="modal-title m-0">Atur Diskon</h6>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <form id="formDiskonHarga">
-        <div class="modal-body">
-          <input type="hidden" id="diskon_id_penjualan" name="id" value="">
-          <input type="hidden" id="diskon_harga_asli" value="">
-          <div class="mb-2">
-            <label class="form-label form-label-sm mb-1">Harga Asli / item-kg-unit</label>
-            <input type="text" id="diskon_harga_asli_view" class="form-control form-control-sm" readonly>
-          </div>
-          <div>
-            <label class="form-label form-label-sm mb-1">Harga Setelah Diskon / item-kg-unit</label>
-            <input type="number" min="0" step="0.01" id="diskon_harga_input" name="harga_diskon" class="form-control form-control-sm" required>
-          </div>
-          <small class="text-muted">Harga asli tidak diubah, sistem hanya mengisi nilai diskon.</small>
-        </div>
-        <div class="modal-footer">
-          <button type="submit" class="btn btn-sm btn-primary">Simpan</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
 <!-- SCRIPT -->
 <script>
   $(document).ready(function() {
@@ -174,6 +146,12 @@
       $("button#proses").prop('disabled', false);
     } else {
       $("button#proses").prop('disabled', true);
+    }
+
+    // Buang duplikat modal diskon jika cart sempat membawa markup lama
+    $("#cart #modalDiskonHarga").remove();
+    if ($("#modalDiskonHarga").length && $("#modalDiskonHarga").parent()[0] !== document.body) {
+      $("#modalDiskonHarga").appendTo("body");
     }
 
     $(".removeRow").on("click", function(e) {
@@ -220,8 +198,9 @@
         },
       });
     });
+  });
 
-    $(".setDiskonBtn").on("click", function(e) {
+  $(document).off("click.setDiskon", ".setDiskonBtn").on("click.setDiskon", ".setDiskonBtn", function(e) {
       e.preventDefault();
       var id = $(this).attr('data-id_penjualan');
       var harga = parseFloat($(this).attr('data-harga'));
@@ -234,9 +213,9 @@
       $("#diskon_harga_asli").val(harga);
       $("#diskon_harga_asli_view").val(harga.toLocaleString('id-ID'));
       $("#diskon_harga_input").val(hargaDiskon);
-    });
+  });
 
-    $("#formDiskonHarga").on("submit", function(e) {
+  $(document).off("submit.setDiskon", "#formDiskonHarga").on("submit.setDiskon", "#formDiskonHarga", function(e) {
       e.preventDefault();
       var id = $("#diskon_id_penjualan").val();
       var hargaDiskon = parseFloat($("#diskon_harga_input").val());
@@ -262,6 +241,9 @@
         success: function(res) {
           if (res == 0) {
             var modalEl = document.getElementById('modalDiskonHarga');
+            if (modalEl && modalEl.parentNode !== document.body) {
+              document.body.appendChild(modalEl);
+            }
             var modalInstance = bootstrap.Modal.getInstance(modalEl);
             if (modalInstance) {
               modalInstance.hide();
@@ -272,6 +254,5 @@
           }
         },
       });
-    });
   });
 </script>

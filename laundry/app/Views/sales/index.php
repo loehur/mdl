@@ -406,6 +406,13 @@
 <script src="<?= URL::EX_ASSETS ?>js/selectize.min.js"></script>
 
 <script>
+  // Pastikan modal selalu di body (di atas offcanvas + backdrop)
+  document.addEventListener('show.bs.modal', function (e) {
+      if (e.target && e.target.classList.contains('modal') && e.target.parentNode !== document.body) {
+          document.body.appendChild(e.target);
+      }
+  });
+
   var kodeCabang = '<?= $this->dCabang['id_cabang'] ?? '' ?>';
   var printerMarginTop = <?= $this->mdl_setting["margin_printer_top"] ?? 0 ?>;
   var printerFeedLines = <?= $this->mdl_setting["margin_printer_bottom"] ?? 0 ?>;
@@ -429,6 +436,8 @@
                       $('#salesOrderContent').html('<div class="alert alert-danger">Gagal memuat form: ' + xhr.status + " " + xhr.statusText + '</div>');
                   } else {
                       formLoaded = true;
+                      // Modal harus di body agar di atas offcanvas + backdrop
+                      $('#salesOrderContent .modal').appendTo('body');
                   }
               });
           }

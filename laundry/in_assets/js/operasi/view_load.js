@@ -1045,8 +1045,13 @@
     $("#searchPenanggungBayar").val("");
     loadListPenanggungBayar();
     var modalEl = document.getElementById("modalTanggungBayar");
-    if (modalEl && window.bootstrap && bootstrap.Modal) {
-      bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    if (modalEl) {
+      if (modalEl.parentNode !== document.body) {
+        document.body.appendChild(modalEl);
+      }
+      if (window.bootstrap && bootstrap.Modal) {
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+      }
     }
   });
 

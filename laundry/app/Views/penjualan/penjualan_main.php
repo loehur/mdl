@@ -113,6 +113,35 @@
   </div>
 </div>
 
+<div class="modal fade" id="modalDiskonHarga" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title m-0">Atur Diskon</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="formDiskonHarga">
+        <div class="modal-body">
+          <input type="hidden" id="diskon_id_penjualan" name="id" value="">
+          <input type="hidden" id="diskon_harga_asli" value="">
+          <div class="mb-2">
+            <label class="form-label form-label-sm mb-1">Harga Asli / item-kg-unit</label>
+            <input type="text" id="diskon_harga_asli_view" class="form-control form-control-sm" readonly>
+          </div>
+          <div>
+            <label class="form-label form-label-sm mb-1">Harga Setelah Diskon / item-kg-unit</label>
+            <input type="number" min="0" step="0.01" id="diskon_harga_input" name="harga_diskon" class="form-control form-control-sm" required>
+          </div>
+          <small class="text-muted">Harga asli tidak diubah, sistem hanya mengisi nilai diskon.</small>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-sm btn-primary">Simpan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <style>
   /* Hide scrollbar for Chrome, Safari and Opera */
   #cart::-webkit-scrollbar {

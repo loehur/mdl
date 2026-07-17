@@ -90,6 +90,13 @@
 </style>
 
 <script>
+    // Pastikan modal selalu di body (di atas offcanvas + backdrop)
+    document.addEventListener('show.bs.modal', function (e) {
+        if (e.target && e.target.classList.contains('modal') && e.target.parentNode !== document.body) {
+            document.body.appendChild(e.target);
+        }
+    });
+
     var orderLoaded = false;
     var orderOffcanvas = document.getElementById('offcanvasBukaOrder');
     
