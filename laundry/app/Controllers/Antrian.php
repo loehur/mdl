@@ -16,20 +16,26 @@ class Antrian extends Controller
       $data_main = [];
       $surcas = [];
 
-      // Mode 6/7/8 digabung ke Laundry (mode 1)
-      if (in_array((int) $antrian, [6, 7, 8], true)) {
-         $antrian = 1;
-      }
-
       switch ($antrian) {
          case 1:
-            $data_operasi = ['title' => 'Laundry Order'];
+            //DALAM PROSES 10 HARI
+            $data_operasi = ['title' => 'Data Order Proses H7-'];
             $viewData = 'antrian/view';
             break;
-         default:
-            $data_operasi = ['title' => 'Laundry Order'];
+         case 6:
+            //DALAM PROSES > 7 HARI
+            $data_operasi = ['title' => 'Data Order Proses H7+'];
             $viewData = 'antrian/view';
-            $antrian = 1;
+            break;
+         case 7:
+            //DALAM PROSES > 30 HARI
+            $data_operasi = ['title' => 'Data Order Proses H30+'];
+            $viewData = 'antrian/view';
+            break;
+         case 8:
+            //DALAM PROSES > 1 Tahun
+            $data_operasi = ['title' => 'Data Order Proses H365+'];
+            $viewData = 'antrian/view';
             break;
       }
 
@@ -83,77 +89,30 @@ class Antrian extends Controller
       $orderNewest = ' ORDER BY insertTime DESC, CAST(id_penjualan AS UNSIGNED) DESC';
       $orderOldest = ' ORDER BY insertTime ASC, CAST(id_penjualan AS UNSIGNED) ASC';
 
-      $antrian = (int) $antrian;
-      if (in_array($antrian, [6, 7, 8], true)) {
-         $antrian = 1;
+      switch ($antrian) {
+         case 1:
+            $where = $this->wCabang . " AND id_pelanggan <> 0 AND bin = 0 AND tuntas = 0 AND DATE(NOW()) <= (insertTime + INTERVAL 7 DAY)" . $orderNewest;
+            break;
+         case 6:
+            $where = $this->wCabang . " AND id_pelanggan <> 0 AND bin = 0 AND tuntas = 0 AND DATE(NOW()) > (insertTime + INTERVAL 7 DAY) AND DATE(NOW()) <= (insertTime + INTERVAL 30 DAY)" . $orderNewest;
+            break;
+         case 7:
+            $where = $this->wCabang . " AND id_pelanggan <> 0 AND bin = 0 AND tuntas = 0 AND DATE(NOW()) > (insertTime + INTERVAL 30 DAY) AND DATE(NOW()) <= (insertTime + INTERVAL 365 DAY)" . $orderNewest;
+            break;
+         case 8:
+            $where = $this->wCabang . " AND id_pelanggan <> 0 AND bin = 0 AND tuntas = 0 AND DATE(NOW()) > (insertTime + INTERVAL 365 DAY)" . $orderNewest;
+            break;
+         case 100:
+            $where = $this->wCabang . " AND id_pelanggan <> 0 AND bin = 0 AND tuntas = 0 AND id_user_ambil <> 0" . $orderOldest;
+            break;
       }
 
-      $limit = max(1, min(50, (int) ($_GET['limit'] ?? 20)));
-      $offset = max(0, (int) ($_GET['offset'] ?? 0));
-      $searchQ = trim((string) ($_GET['q'] ?? ''));
-      $isAppend = $offset > 0;
-      $hasMore = false;
-      $usePagination = ($antrian !== 100);
-
-      $data_main2 = [];
-
-      if ($antrian === 100) {
-         $where = $this->wCabang . " AND id_pelanggan <> 0 AND bin = 0 AND tuntas = 0 AND id_user_ambil <> 0" . $orderOldest;
-         $data_main2 = $this->db(0)->get_where('sale', $where, 'no_ref', 1);
-         $this->sortAntrianGroups($data_main2, false);
-      } else {
-         // Laundry: semua order belum tuntas (ex-mode 1+6+7+8)
-         $baseWhere = $this->wCabang . " AND id_pelanggan <> 0 AND bin = 0 AND tuntas = 0";
-
-         if (strlen($searchQ) >= 2) {
-            $matchedIds = $this->findPelangganIdsByName($searchQ);
-            $safeQ = addslashes($searchQ);
-            if (!empty($matchedIds)) {
-               $baseWhere .= " AND (id_pelanggan IN (" . implode(',', $matchedIds) . ") OR pelanggan LIKE '%{$safeQ}%')";
-            } else {
-               $baseWhere .= " AND pelanggan LIKE '%{$safeQ}%'";
-            }
-         }
-
-         $refSql = "SELECT no_ref, MAX(insertTime) AS max_t, MAX(CAST(id_penjualan AS UNSIGNED)) AS max_id
-            FROM sale
-            WHERE {$baseWhere}
-            GROUP BY no_ref
-            ORDER BY max_t DESC, max_id DESC
-            LIMIT {$limit} OFFSET {$offset}";
-         $refRows = $this->db(0)->query_array($refSql);
-         if (!is_array($refRows)) {
-            $refRows = [];
-         }
-
-         $pageRefs = [];
-         foreach ($refRows as $r) {
-            if (isset($r['no_ref'])) {
-               $pageRefs[] = $r['no_ref'];
-            }
-         }
-         $hasMore = count($pageRefs) >= $limit;
-
-         if (!empty($pageRefs)) {
-            $ref_list = implode(',', array_map('intval', $pageRefs));
-            $where = $baseWhere . " AND no_ref IN ({$ref_list})" . $orderNewest;
-            $data_main2 = $this->db(0)->get_where('sale', $where, 'no_ref', 1);
-            if (!is_array($data_main2)) {
-               $data_main2 = [];
-            }
-            // jaga urutan sesuai query paginasi
-            $ordered = [];
-            foreach ($pageRefs as $ref) {
-               if (isset($data_main2[$ref])) {
-                  $ordered[$ref] = $data_main2[$ref];
-               }
-            }
-            $data_main2 = $ordered;
-         }
-      }
-
+      // OPTIMIZED: Single query, extract both keys
+      $data_main2 = $this->db(0)->get_where('sale', $where, 'no_ref', 1);
+      $this->sortAntrianGroups($data_main2, $antrian != 100);
       $refs = array_keys($data_main2);
-
+      
+      // Extract id_penjualan from data_main2 (no duplicate query)
       $numbers = [];
       $visibleCustomerIds = [];
       foreach ($data_main2 as $refBlock) {
@@ -165,53 +124,53 @@ class Antrian extends Controller
 
       // --- Fetch Open WA Conversations (optimized: only visible customers) ---
       $customersWithOpenCases = [];
-      if (!$isAppend) {
-         try {
-            if (!empty($visibleCustomerIds)) {
-               $openWaRaw = $this->db(100)->get_where('wa_conversations', "conv_case LIKE '%\"status\":\"open\"%'");
-               $openWaMap = [];
-               if (is_array($openWaRaw)) {
-                  foreach ($openWaRaw as $row) {
-                     $cases = json_decode($row['conv_case'] ?? '[]', true);
-                     if (is_array($cases)) {
-                        foreach ($cases as $c) {
-                           if (isset($c['case']) && $c['case'] == 3 && ($c['status'] ?? '') === 'open') {
-                              $cleanPhone = preg_replace('/[^0-9]/', '', $row['wa_number']);
-                              $openWaMap[$cleanPhone] = $row;
-                              break;
-                           }
+      try {
+         if (!empty($visibleCustomerIds)) {
+            $openWaRaw = $this->db(100)->get_where('wa_conversations', "conv_case LIKE '%\"status\":\"open\"%'");
+            $openWaMap = [];
+            if (is_array($openWaRaw)) {
+               foreach ($openWaRaw as $row) {
+                  $cases = json_decode($row['conv_case'] ?? '[]', true);
+                  if (is_array($cases)) {
+                     foreach ($cases as $c) {
+                        if (isset($c['case']) && $c['case'] == 3 && ($c['status'] ?? '') === 'open') {
+                           $cleanPhone = preg_replace('/[^0-9]/', '', $row['wa_number']);
+                           $openWaMap[$cleanPhone] = $row;
+                           break;
                         }
                      }
                   }
                }
+            }
 
-               if (!empty($openWaMap)) {
-                  foreach ($visibleCustomerIds as $id_pelanggan => $v) {
-                     $p = $this->pelanggan[$id_pelanggan] ?? null;
-                     if (!$p) continue;
+            // OPTIMIZED: Only loop visible customers, not all pelanggan
+            if (!empty($openWaMap)) {
+               foreach ($visibleCustomerIds as $id_pelanggan => $v) {
+                  $p = $this->pelanggan[$id_pelanggan] ?? null;
+                  if (!$p) continue;
+                  
+                  $hp = preg_replace('/[^0-9]/', '', $p['nomor_pelanggan'] ?? '');
+                  if (empty($hp)) continue;
+                  
+                  // Match with phone variations
+                  $found = $openWaMap[$hp] 
+                     ?? (substr($hp, 0, 2) == '08' ? ($openWaMap['62' . substr($hp, 1)] ?? null) : null)
+                     ?? (substr($hp, 0, 3) == '628' ? ($openWaMap['0' . substr($hp, 2)] ?? null) : null);
 
-                     $hp = preg_replace('/[^0-9]/', '', $p['nomor_pelanggan'] ?? '');
-                     if (empty($hp)) continue;
-
-                     $found = $openWaMap[$hp]
-                        ?? (substr($hp, 0, 2) == '08' ? ($openWaMap['62' . substr($hp, 1)] ?? null) : null)
-                        ?? (substr($hp, 0, 3) == '628' ? ($openWaMap['0' . substr($hp, 2)] ?? null) : null);
-
-                     if ($found) {
-                        $customersWithOpenCases[] = ['pelanggan' => $p, 'wa' => $found];
-                     }
+                  if ($found) {
+                     $customersWithOpenCases[] = ['pelanggan' => $p, 'wa' => $found];
                   }
                }
             }
-         } catch (\Exception $e) {
          }
-      }
+      } catch (\Exception $e) {}
 
       $operasi = [];
       $kas = [];
       $surcas = [];
       $notif = [];
 
+      // OPTIMIZED: Use implode instead of loop
       if (!empty($refs)) {
          $ref_list = implode(',', $refs);
          $kas = $this->db(0)->get_where('kas', $this->wCabang . " AND jenis_transaksi = 1 AND ref_transaksi IN ($ref_list)");
@@ -232,42 +191,8 @@ class Antrian extends Controller
          'surcas' => $surcas,
          'data_notif' => $notif,
          'karyawan' => $this->userAll,
-         'customersWithOpenCases' => $customersWithOpenCases,
-         'isAppend' => $usePagination ? $isAppend : false,
-         'hasMore' => $usePagination ? $hasMore : false,
-         'nextOffset' => $usePagination ? ($offset + count($refs)) : 0,
-         'pageLimit' => $limit,
+         'customersWithOpenCases' => $customersWithOpenCases
       ]);
-   }
-
-   /**
-    * Cari id_pelanggan berdasarkan nama (min. partial match) atau id numerik.
-    */
-   private function findPelangganIdsByName($q)
-   {
-      $ids = [];
-      $q = strtoupper(trim((string) $q));
-      if ($q === '') {
-         return $ids;
-      }
-
-      if (ctype_digit($q)) {
-         $ids[] = (int) $q;
-      }
-
-      if (!empty($this->pelanggan) && is_array($this->pelanggan)) {
-         foreach ($this->pelanggan as $id => $p) {
-            if (!is_array($p)) {
-               continue;
-            }
-            $nama = strtoupper((string) ($p['nama_pelanggan'] ?? ''));
-            if ($nama !== '' && strpos($nama, $q) !== false) {
-               $ids[] = (int) $id;
-            }
-         }
-      }
-
-      return array_values(array_unique(array_filter($ids)));
    }
 
    public function chat_history()

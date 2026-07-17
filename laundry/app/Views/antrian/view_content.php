@@ -1,13 +1,9 @@
 <?php
 $kodeCabang = $this->dCabang['kode_cabang'];
 $modeView = $data['modeView'];
-$isAppend = !empty($data['isAppend']);
-$hasMore = !empty($data['hasMore']);
-$nextOffset = isset($data['nextOffset']) ? (int) $data['nextOffset'] : 0;
-$pageLimit = isset($data['pageLimit']) ? (int) $data['pageLimit'] : 20;
 ?>
 
-<?php if (!$isAppend && !empty($data['customersWithOpenCases'])) { ?>
+<?php if (!empty($data['customersWithOpenCases'])) { ?>
 <div class="row mx-0 mt-2 mb-2">
   <div class="col-12">
     <div class="d-flex flex-wrap gap-2">
@@ -30,7 +26,6 @@ $pageLimit = isset($data['pageLimit']) ? (int) $data['pageLimit'] : 20;
 </div>
 <?php } ?>
 
-<?php if (!$isAppend) { ?>
 <!-- Modal -->
 <div class="modal fade" id="waHistoryModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
@@ -145,11 +140,9 @@ $(document).ready(function() {
     });
 });
 </script>
-<?php } ?>
 
 <?php
 if (count($data['data_main']) == 0) {
-  if (!$isAppend) {
 ?>
   <div class="container-fluid">
     <div class="row">
@@ -160,29 +153,13 @@ if (count($data['data_main']) == 0) {
       </div>
     </div>
   </div>
-  <div id="antrianSentinel"></div>
-  <div id="antrianLoadMore" class="d-none"></div>
-  <script>
-    window.antrianPage = { hasMore: false, nextOffset: <?= $nextOffset ?>, isAppend: false };
-    if (typeof view === 'undefined') { var view = []; }
-    view[1] = []; view[2] = []; view[3] = []; view[4] = []; view[5] = [];
-    $("span#rekapAntri").html("");
-  </script>
+
 <?php
-  } else {
-?>
-  <script>
-    window.antrianPage = { hasMore: false, nextOffset: <?= $nextOffset ?>, isAppend: true };
-  </script>
-<?php
-  }
-  return;
+  exit();
 }
 ?>
 
-<?php if (!$isAppend) { ?>
-<div class="row mx-0" id="antrianList">
-<?php } ?>
+<div class="row mx-0">
   <?php
   $arrRekapAntrian = [];
   $arrRekapAntrianToday = [];
@@ -227,7 +204,7 @@ if (count($data['data_main']) == 0) {
       }
     } ?>
 
-    <div data-id_pelanggan='<?= $f17 ?>' id='grid<?= $ref ?>' class='antrian-card R-<?= $ref ?> cekOperasi col backShow <?= strtoupper($pelanggan) ?> p-0 px-1 mb-2 rounded' style='cursor:pointer;min-width:420px; max-width:500px'>
+    <div data-id_pelanggan='<?= $f17 ?>' id='grid<?= $ref ?>' class='R-<?= $ref ?> cekOperasi col backShow <?= strtoupper($pelanggan) ?> p-0 px-1 mb-2 rounded' style='cursor:pointer;min-width:420px; max-width:500px'>
       <div class='bg-white rounded p-0'>
         <table class='table table-sm m-0 rounded w-100 shadow-sm bg-white'>
           <?php
@@ -637,11 +614,7 @@ if (count($data['data_main']) == 0) {
     $no_urut = 0;
     $subTotal = 0;
   } ?>
-<?php if (!$isAppend) { ?>
 </div>
-<div id="antrianSentinel" class="w-100" style="height:1px;"></div>
-<div id="antrianLoadMore" class="w-100"></div>
-<?php } ?>
 
 <?php
 $listAntri = "";
@@ -686,47 +659,30 @@ if (count($arrRekapAntrian) > 0) {
 ?>
 
 <script>
-  window.antrianPage = {
-    hasMore: <?= $hasMore ? 'true' : 'false' ?>,
-    nextOffset: <?= (int) $nextOffset ?>,
-    isAppend: <?= $isAppend ? 'true' : 'false' ?>
-  };
+  var view = [];
 
-  if (typeof view === 'undefined') {
-    var view = [];
-  }
+  $(document).ready(function() {
+    $("span#rekapAntri").html("<?= $listAntri ?>");
+    view[1] = <?= json_encode($arrPelangganToday) ?>;
+    view[2] = <?= json_encode($arrPelangganBesok) ?>;
+    view[3] = <?= json_encode($arrPelangganMiss) ?>;
+    view[4] = <?= json_encode($arrPelangganRak) ?>;
+    view[5] = <?= json_encode($arrPelangganKerja) ?>;
+  });
 
-  <?php if ($isAppend) { ?>
-  view[1] = (view[1] || []).concat(<?= json_encode($arrPelangganToday) ?>);
-  view[2] = (view[2] || []).concat(<?= json_encode($arrPelangganBesok) ?>);
-  view[3] = (view[3] || []).concat(<?= json_encode($arrPelangganMiss) ?>);
-  view[4] = (view[4] || []).concat(<?= json_encode($arrPelangganRak) ?>);
-  view[5] = (view[5] || []).concat(<?= json_encode($arrPelangganKerja) ?>);
-  <?php } else { ?>
-  $("span#rekapAntri").html(<?= json_encode($listAntri) ?>);
-  view[1] = <?= json_encode($arrPelangganToday) ?>;
-  view[2] = <?= json_encode($arrPelangganBesok) ?>;
-  view[3] = <?= json_encode($arrPelangganMiss) ?>;
-  view[4] = <?= json_encode($arrPelangganRak) ?>;
-  view[5] = <?= json_encode($arrPelangganKerja) ?>;
-  <?php } ?>
+  $("div.cekOperasi").click(function() {
+    var id_pelanggan = $(this).attr('data-id_pelanggan');
+    window.location.href = "<?= URL::BASE_URL ?>Operasi/i/0/" + id_pelanggan + "/0";
+  })
 
-  if (typeof window.antrianClickBound === 'undefined') {
-    window.antrianClickBound = true;
-    $(document).on('click', 'div.cekOperasi', function() {
-      var id_pelanggan = $(this).attr('data-id_pelanggan');
-      window.location.href = "<?= URL::BASE_URL ?>Operasi/i/0/" + id_pelanggan + "/0";
-    });
-  }
-
-  window.filterDeadline = function(mode) {
+  function filterDeadline(mode) {
     $("div.backShow").addClass('d-none');
-    (view[mode] || []).forEach(window.filterFunction);
-  };
+    view[mode].forEach(filterFunction);
+  }
 
-  window.filterFunction = function(item) {
-    if (item && String(item).length > 0) {
+  function filterFunction(item) {
+    if (item.length > 0) {
       $("[class*=R-" + item + "]").removeClass('d-none');
     }
-  };
+  }
 </script>

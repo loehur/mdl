@@ -1,5 +1,4 @@
 <?php $modeView = $data['modeView'];
-$isLaundry = ((int) $modeView !== 100);
 ?>
 <div class="position-fixed w-100 bg-light mx-1" style="z-index:1000;top:0px;height:205px">
 </div>
@@ -7,21 +6,31 @@ $isLaundry = ((int) $modeView !== 100);
   <div class="bg-white p-1 rounded border mb-2" style="height:127px">
     <div class="row mx-0">
       <div class="col">
-        <input id="searchInput" class="form-control border-top-0 border-bottom-1 border-end-0 border-start-0 p-1" type="text" placeholder="Pelanggan" autocomplete="off">
+        <input id="searchInput" class="form-control border-top-0 border-bottom-1 border-end-0 border-start-0 p-1" type="text" placeholder="Pelanggan">
       </div>
         <div class="col">
           <div class="d-flex align-items-start align-items-end pt-1">
-            <?php if ($isLaundry) { ?>
             <div class="pl-0 pe-1">
-              <a href="<?= URL::BASE_URL ?>Antrian/index/1" type="button" class="btn btn-primary">
-                Laundry
+              <?php $outline = ($modeView == 1) ? "" : "outline-" ?>
+              <a href="<?= URL::BASE_URL ?>Antrian/index/1" type="button" class="btn btn-<?= $outline ?>primary">
+                Terkini
               </a>
+              <?php $outline = "outline-" ?>
             </div>
-            <?php } else { ?>
             <div class="pl-0 pe-1">
-              <span class="btn btn-warning disabled">Piutang</span>
+              <?php $outline = ($modeView == 6) ? "" : "outline-" ?>
+              <a href="<?= URL::BASE_URL ?>Antrian/index/6" type="button" class="btn btn-<?= $outline ?>success">
+                Minggu
+              </a>
+              <?php $outline = "outline-" ?>
             </div>
-            <?php } ?>
+            <div class="pl-0 pe-1">
+              <?php $outline = ($modeView == 7) ? "" : "outline-" ?>
+              <a href="<?= URL::BASE_URL ?>Antrian/index/7" type="button" class="btn btn-<?= $outline ?>info">
+                Bulan
+              </a>
+              <?php $outline = "outline-" ?>
+            </div>
           </div>
         </div>
     </div>
@@ -35,41 +44,12 @@ $isLaundry = ((int) $modeView !== 100);
 </div>
 
 <script>
-  var antrianSearchTimer = null;
-
-  $("input#searchInput").on("keyup input", function() {
-    var pelanggan = $.trim($(this).val());
-
-    <?php if (!$isLaundry) { ?>
-    // Mode piutang: filter client-side (data sudah ter-load penuh)
-    searchClient(pelanggan);
-    return;
-    <?php } ?>
-
-    clearTimeout(antrianSearchTimer);
-
-    if (pelanggan.length === 0) {
-      antrianSearchTimer = setTimeout(function() {
-        if (typeof window.antrianSearch === 'function') {
-          window.antrianSearch('');
-        }
-      }, 300);
-      return;
-    }
-
-    if (pelanggan.length < 2) {
-      return;
-    }
-
-    antrianSearchTimer = setTimeout(function() {
-      if (typeof window.antrianSearch === 'function') {
-        window.antrianSearch(pelanggan);
-      }
-    }, 450);
+  $("input#searchInput").on("keyup change", function() {
+    search();
   });
 
-  function searchClient(pelanggan) {
-    pelanggan = (pelanggan || '').toUpperCase();
+  function search() {
+    var pelanggan = $("input#searchInput").val().toUpperCase();
     if (pelanggan.length > 0) {
       $("div.backShow").addClass('d-none');
       $("[class*=" + pelanggan + "]").removeClass('d-none');
