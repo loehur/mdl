@@ -6,7 +6,8 @@ $title = $data['title'] ?? 'MDL';
 $cabang = $data['cabang'] ?? [];
 $base = $data['base'];
 $assets = $data['assets'];
-$namaCabang = $cabang['nama_cabang'] ?? ($cabang['kode_cabang'] ?? 'MDL Laundry');
+$namaCabang = $cabang['nama_cabang'] ?? 'MDL Laundry';
+$kodeCabang = $cabang['kode_cabang'] ?? '00';
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -25,18 +26,18 @@ $namaCabang = $cabang['nama_cabang'] ?? ($cabang['kode_cabang'] ?? 'MDL Laundry'
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/fontawesome-free-5.15.4-web/css/all.css">
-  <link rel="stylesheet" href="<?= $assets ?>css/j-customer.css?v=1">
+  <link rel="stylesheet" href="<?= $assets ?>css/j-customer.css?v=2">
 </head>
 <body>
 <div class="j-app">
   <header class="j-top">
-    <div class="j-brand">
-      <img src="<?= $assets ?>icon/logo.png" alt="MDL">
+    <div class="j-top-row">
+      <img class="j-logo" src="<?= $assets ?>icon/logo.png" alt="MDL">
       <div class="j-brand-text">
-        <strong><?= htmlspecialchars($namaCabang) ?></strong>
-        <span>Portal pelanggan</span>
+        <strong>MDL - <?= htmlspecialchars($kodeCabang) ?></strong>
+        <span>Customer Portal</span>
       </div>
+      <h1 class="j-page-title"><?= htmlspecialchars($title) ?></h1>
     </div>
-    <h1 class="j-page-title"><?= htmlspecialchars($title) ?></h1>
   </header>
   <main class="j-main">
