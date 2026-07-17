@@ -380,7 +380,7 @@
   }
 
   document.addEventListener('click', function (e) {
-    var bayar = e.target.closest('#jBtnBayar');
+    var bayar = e.target.closest('.j-open-bayar');
     if (bayar) {
       e.preventDefault();
       openBayarModal();

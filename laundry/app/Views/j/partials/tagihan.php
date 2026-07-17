@@ -9,6 +9,7 @@ $unpaid = $data['unpaid'] ?? [];
 $finance = $data['finance_history'] ?? [];
 $customer = $data['customer'] ?? ['id' => $id, 'nama' => $p['nama_pelanggan'], 'hp' => $p['nomor_pelanggan'] ?? ''];
 $hp = $customer['hp'] ?? ($p['nomor_pelanggan'] ?? '');
+$hasUnpaid = !empty($unpaid);
 ?>
 
 <script type="application/json" id="jPayConfig"><?= json_encode([
@@ -21,17 +22,18 @@ $hp = $customer['hp'] ?? ($p['nomor_pelanggan'] ?? '');
   'base' => $base,
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?></script>
 
-<div class="j-card" style="margin-bottom:12px">
-  <div class="j-hero-grid" style="gap:8px">
-    <div class="j-hero-stat" style="background:#F7FBFA;border-color:var(--j-line);color:var(--j-ink)">
-      <small style="opacity:1;color:var(--j-muted)">Total</small>
-      <b>Rp<?= number_format((float) $summary['total_tagihan']) ?></b>
-    </div>
-    <div class="j-hero-stat" style="background:#F7FBFA;border-color:var(--j-line);color:var(--j-ink)">
-      <small style="opacity:1;color:var(--j-muted)">Sisa</small>
-      <b style="color:var(--j-coral)">Rp<?= number_format((float) $summary['sisa']) ?></b>
-    </div>
+<div class="j-bill-bar<?= $hasUnpaid ? ' has-pay' : '' ?>">
+  <div class="j-bill-stat">
+    <small>Total</small>
+    <b>Rp<?= number_format((float) $summary['total_tagihan']) ?></b>
   </div>
+  <div class="j-bill-stat">
+    <small>Sisa</small>
+    <b class="sisa">Rp<?= number_format((float) $summary['sisa']) ?></b>
+  </div>
+  <?php if ($hasUnpaid) { ?>
+  <button type="button" class="j-bill-pay j-open-bayar">Bayar</button>
+  <?php } ?>
 </div>
 
 <?php if (!empty($finance)) { ?>
@@ -159,8 +161,8 @@ $hp = $customer['hp'] ?? ($p['nomor_pelanggan'] ?? '');
   </article>
 <?php } ?>
 
-<?php if (!empty($unpaid)) { ?>
-<button type="button" class="j-fab-bayar" id="jBtnBayar">
-  <i class="fas fa-wallet"></i> Bayar
-</button>
+<?php if ($hasUnpaid) { ?>
+<div class="j-bayar-bottom">
+  <button type="button" class="j-bayar-now j-open-bayar">Bayar Sekarang</button>
+</div>
 <?php } ?>
