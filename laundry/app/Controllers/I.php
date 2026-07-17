@@ -21,7 +21,7 @@ class I extends Controller
       }
 
       if ($this->forwardToJ) {
-         header('Location: ' . URL::BASE_URL . 'J/' . (int) $pelanggan);
+         header('Location: ' . URL::BASE_URL . 'J/tagihan/' . (int) $pelanggan);
          exit;
       }
 
