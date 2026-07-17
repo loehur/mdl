@@ -84,6 +84,8 @@
 <style>
   #offcanvasBukaOrder { z-index: 1100 !important; }
   .offcanvas-backdrop { z-index: 1090 !important; }
+  .modal { z-index: 1200 !important; }
+  .modal-backdrop { z-index: 1190 !important; }
   #btnBukaOrderAntrian.is-fab-hidden { display: none !important; }
 </style>
 
