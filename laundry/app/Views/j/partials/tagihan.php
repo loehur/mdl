@@ -116,10 +116,11 @@ $hasUnpaid = !empty($unpaid);
         </div>
         <div class="j-item-meta">
           <?= htmlspecialchars($it['durasi']) ?> · <?= htmlspecialchars($it['qty_show']) ?>
-          <?php if (!empty($it['layanan_done']) || !empty($it['layanan_pending'])) { ?>
+          <?php if (!empty($it['layanan'])) { ?>
             <br>
-            <?php foreach ($it['layanan_done'] as $ld) { ?>✓ <?= htmlspecialchars($ld) ?> <?php } ?>
-            <?php foreach ($it['layanan_pending'] as $lp) { ?>○ <?= htmlspecialchars($lp) ?> <?php } ?>
+            <?php foreach ($it['layanan'] as $ly) { ?>
+              <?= !empty($ly['done']) ? '✓' : '○' ?> <?= htmlspecialchars($ly['nama']) ?>
+            <?php } ?>
             <?= $it['ambil'] ? '· ✓ Ambil' : '· ○ Ambil' ?>
           <?php } ?>
         </div>

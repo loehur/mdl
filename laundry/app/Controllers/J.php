@@ -413,10 +413,12 @@ class J extends Controller
          $kategori = $mapKategori[$a['id_item_group']] ?? '';
          $durasi = strtoupper($mapDurasi[$a['id_durasi']] ?? '');
 
-         $layananDone = [];
-         $layananPending = [];
+         $layananList = [];
          $listLay = @unserialize($a['list_layanan']);
          if (is_array($listLay)) {
+            $listLay = array_map('intval', $listLay);
+            sort($listLay, SORT_NUMERIC);
+            $maxDoneId = 0;
             foreach ($listLay as $lid) {
                $nama = $mapLayanan[$lid] ?? ('#' . $lid);
                $done = false;
@@ -426,8 +428,19 @@ class J extends Controller
                      break;
                   }
                }
-               if ($done) $layananDone[] = $nama;
-               else $layananPending[] = $nama;
+               if ($done && $lid > $maxDoneId) {
+                  $maxDoneId = $lid;
+               }
+               $layananList[] = ['id' => $lid, 'nama' => $nama, 'done' => $done];
+            }
+            // Jika ID lebih besar sudah selesai, ID lebih kecil ikut terlihat tercentang
+            if ($maxDoneId > 0) {
+               foreach ($layananList as &$ly) {
+                  if ($ly['id'] < $maxDoneId) {
+                     $ly['done'] = true;
+                  }
+               }
+               unset($ly);
             }
          }
 
@@ -438,8 +451,7 @@ class J extends Controller
             'qty_show' => $this->fmtDecMax2($qty) . $satuan . ($qty < $min ? ' (Min.' . $this->fmtDecMax2($min) . ')' : ''),
             'total' => $line,
             'member' => $member,
-            'layanan_done' => $layananDone,
-            'layanan_pending' => $layananPending,
+            'layanan' => $layananList,
             'ambil' => (int) $a['id_user_ambil'] > 0,
          ];
          $orders[$ref]['subtotal'] += $line;
