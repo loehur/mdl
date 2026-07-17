@@ -568,10 +568,9 @@ $labeled = false;
                 }
               }
 
-              foreach ($this->userMerge as $p) {
-                if ($p['id_user'] == $sca['id_user']) {
-                  $userCas = $p['nama_user'];
-                }
+              $userCas = "?";
+              if (isset($this->userAll[$sca['id_user']]['nama_user'])) {
+                $userCas = $this->userAll[$sca['id_user']]['nama_user'];
               }
 
               $id_surcas = $sca['id_surcas'];
