@@ -594,7 +594,9 @@
     }
   }
 
-  $("form.ajax").on("submit", function (e) {
+  // Unbind to prevent duplicate handlers when view_load re-injected
+  $(document).off("submit", "form.ajax");
+  $(document).on("submit", "form.ajax", function (e) {
     e.preventDefault();
     $.ajax({
       url: $(this).attr("action"),
