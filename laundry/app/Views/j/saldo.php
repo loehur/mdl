@@ -54,6 +54,4 @@ $tampil = (int) $data['tampil'];
   </div>
 </section>
 
-<a class="j-link-classic" href="<?= $base ?>I/s/<?= $id ?>">Buka riwayat klasik</a>
-
 <?php require __DIR__ . '/_foot.php'; ?>

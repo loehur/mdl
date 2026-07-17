@@ -53,6 +53,4 @@ $satuan = $data['satuan'];
   </div>
 </section>
 
-<a class="j-link-classic" href="<?= $base ?>I/m/<?= $id ?>/<?= $idHarga ?>">Buka riwayat klasik</a>
-
 <?php require __DIR__ . '/_foot.php'; ?>

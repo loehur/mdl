@@ -2,6 +2,12 @@
 
 class I extends Controller
 {
+   /**
+    * Forward halaman view customer ke portal J.
+    * Set false untuk rollback ke UI klasik tanpa menghapus kode di bawah.
+    */
+   private $forwardToJ = true;
+
    // Backward compatibility: /I/i/123 still works, forwards to index()
    public function i($pelanggan)
    {
@@ -13,6 +19,12 @@ class I extends Controller
       if (!is_numeric($pelanggan)) {
          exit();
       }
+
+      if ($this->forwardToJ) {
+         header('Location: ' . URL::BASE_URL . 'J/' . (int) $pelanggan);
+         exit;
+      }
+
       $this->public_data($pelanggan);
       $viewData = 'invoice/invoice_main';
 
@@ -336,6 +348,11 @@ class I extends Controller
       $pelanggan = (int) $pelanggan;
       $id_harga = (int) $id_harga;
 
+      if ($this->forwardToJ) {
+         header('Location: ' . URL::BASE_URL . 'J/paketDetail/' . $pelanggan . '/' . $id_harga);
+         exit;
+      }
+
       // Slim master data — hanya yang dipakai member_history
       $this->dLayanan = $this->db(0)->get('layanan');
       $this->dDurasi = $this->db(0)->get('durasi');
@@ -380,6 +397,12 @@ class I extends Controller
       if (!is_numeric($pelanggan)) {
          exit();
       }
+
+      if ($this->forwardToJ) {
+         header('Location: ' . URL::BASE_URL . 'J/saldo/' . (int) $pelanggan);
+         exit;
+      }
+
       $this->public_data($pelanggan);
 
       $data = array();

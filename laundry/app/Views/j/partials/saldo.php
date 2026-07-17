@@ -52,5 +52,3 @@ $tampil = (int) $data['tampil'];
     <?php } ?>
   </div>
 </section>
-
-<a class="j-link-classic" href="<?= $base ?>I/s/<?= $id ?>">Buka riwayat klasik</a>

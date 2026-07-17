@@ -97,10 +97,4 @@ $summary = $data['summary'];
   </article>
 <?php } ?>
 
-<?php if ((float) $summary['sisa'] > 0) { ?>
-  <a class="j-btn j-btn-soft j-btn-block" href="<?= $base ?>I/<?= $id ?>">
-    Bayar via halaman klasik
-  </a>
-<?php } ?>
-
 <?php require __DIR__ . '/_foot.php'; ?>

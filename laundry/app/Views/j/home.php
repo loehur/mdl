@@ -72,6 +72,4 @@ $listPaket = $data['listPaket'];
   </div>
 </section>
 
-<a class="j-link-classic" href="<?= $base ?>I/<?= $id ?>">Buka halaman klasik (I)</a>
-
 <?php require __DIR__ . '/_foot.php'; ?>
