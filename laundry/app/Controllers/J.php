@@ -59,6 +59,11 @@ class J extends Controller
             $payload['orders'] = $full['orders'];
             $payload['members'] = $full['members'];
             $payload['summary'] = $full['summary'];
+            $payload['unpaid'] = $full['unpaid'];
+            $payload['finance_history'] = $full['finance_history'];
+            $payload['nonTunai'] = $full['nonTunai'];
+            $payload['nonTunaiGuide'] = $full['nonTunaiGuide'];
+            $payload['customer'] = $full['customer'];
             $this->view('j/partials/tagihan', $payload);
             break;
 
@@ -449,6 +454,7 @@ class J extends Controller
             $ord['subtotal'] += $jumlah;
          }
          $dibayar = 0;
+         $hasActivePay = false;
          foreach ($kasByRef[$ref] ?? [] as $k) {
             $st = (int) $k['status_mutasi'];
             $ord['payments'][] = [
@@ -456,13 +462,40 @@ class J extends Controller
                'status' => $st,
                'note' => $k['note'] ?? '',
                'time' => $k['insertTime'],
+               'ref_finance' => $k['ref_finance'] ?? '',
+               'id_user' => (int) ($k['id_user'] ?? 0),
             ];
             if ($st === 3) $dibayar += (float) $k['jumlah'];
+            if ($st !== 4) $hasActivePay = true;
          }
          $ord['dibayar'] = $dibayar;
          $ord['sisa'] = max(0, (int) round($ord['subtotal']) - (int) $dibayar);
+         $ord['has_payment'] = $hasActivePay;
          $totalTagihan += (int) round($ord['subtotal']);
          $totalDibayar += (int) $dibayar;
+      }
+      unset($ord);
+
+      // Notif nota (tipe=1)
+      $notifBon = [];
+      if (!empty($refs)) {
+         $safeRefs = [];
+         foreach (array_keys($refs) as $rk) {
+            $safeRefs[] = "'" . str_replace("'", "''", $rk) . "'";
+         }
+         $notifRows = $this->db(0)->get_where(
+            'notif',
+            'id_cabang = ' . (int) $this->id_cabang_p . ' AND tipe = 1 AND no_ref IN (' . implode(',', $safeRefs) . ')'
+         );
+         if (is_array($notifRows)) {
+            foreach ($notifRows as $nr) {
+               $notifBon[$nr['no_ref']] = $nr['state'] ?? 'sent';
+            }
+         }
+      }
+      foreach ($orders as $ref => &$ord) {
+         $ord['can_send_nota'] = !isset($notifBon[$ref]);
+         $ord['nota_state'] = $notifBon[$ref] ?? null;
       }
       unset($ord);
 
@@ -475,6 +508,7 @@ class J extends Controller
       if (!is_array($data_member)) $data_member = [];
 
       $membersOut = [];
+      $kasM = [];
       if (!empty($data_member)) {
          $memberIds = array_column($data_member, 'id_member');
          $safeM = implode(',', array_map('intval', $memberIds));
@@ -506,6 +540,55 @@ class J extends Controller
          }
       }
 
+      // Unpaid list for bayar modal
+      $unpaid = [];
+      foreach ($orders as $ord) {
+         if ((float) $ord['sisa'] > 0) {
+            $unpaid[] = [
+               'ref' => 'T_' . $ord['no_ref'],
+               'label' => 'REF #' . $ord['no_ref'],
+               'amount' => (int) $ord['sisa'],
+            ];
+         }
+      }
+      foreach ($membersOut as $m) {
+         if ((float) $m['sisa'] > 0) {
+            $unpaid[] = [
+               'ref' => 'M_' . $m['id_member'],
+               'label' => 'Paket M' . $m['id_harga'] . ' #' . $m['id_member'],
+               'amount' => (int) round($m['sisa']),
+            ];
+         }
+      }
+
+      // Pending finance (status_mutasi = 2)
+      $finance_history = [];
+      $allKasPending = array_merge($kas, $kasM);
+      foreach ($allKasPending as $k) {
+         if (empty($k['ref_finance'])) continue;
+         if ((int) $k['status_mutasi'] !== 2) continue;
+         $rf = $k['ref_finance'];
+         if (!isset($finance_history[$rf])) {
+            $finance_history[$rf] = [
+               'ref_finance' => $rf,
+               'total' => 0,
+               'status' => (int) $k['status_mutasi'],
+               'note' => $k['note'] ?? '',
+               'insertTime' => $k['insertTime'],
+               'id_user' => (int) ($k['id_user'] ?? 0),
+            ];
+         }
+         $finance_history[$rf]['total'] += (int) $k['jumlah'];
+         if (($k['insertTime'] ?? '') > $finance_history[$rf]['insertTime']) {
+            $finance_history[$rf]['insertTime'] = $k['insertTime'];
+            $finance_history[$rf]['note'] = $k['note'] ?? '';
+            $finance_history[$rf]['id_user'] = (int) ($k['id_user'] ?? 0);
+         }
+      }
+
+      $nonTunaiGuide = URL::NON_TUNAI_GUIDE;
+      $nonTunai = URL::NON_TUNAI;
+
       return [
          'orders' => array_values($orders),
          'members' => $membersOut,
@@ -517,6 +600,15 @@ class J extends Controller
             'count_member' => count($membersOut),
          ],
          'filter' => $filter,
+         'unpaid' => $unpaid,
+         'finance_history' => array_values($finance_history),
+         'nonTunai' => $nonTunai,
+         'nonTunaiGuide' => $nonTunaiGuide,
+         'customer' => [
+            'id' => (int) $pelanggan,
+            'nama' => $this->pelanggan_p['nama_pelanggan'] ?? '',
+            'hp' => $this->pelanggan_p['nomor_pelanggan'] ?? '',
+         ],
       ];
    }
 

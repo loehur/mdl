@@ -5,7 +5,21 @@ $base = $data['base'];
 $orders = $data['orders'];
 $members = $data['members'];
 $summary = $data['summary'];
+$unpaid = $data['unpaid'] ?? [];
+$finance = $data['finance_history'] ?? [];
+$customer = $data['customer'] ?? ['id' => $id, 'nama' => $p['nama_pelanggan'], 'hp' => $p['nomor_pelanggan'] ?? ''];
+$hp = $customer['hp'] ?? ($p['nomor_pelanggan'] ?? '');
 ?>
+
+<script type="application/json" id="jPayConfig"><?= json_encode([
+  'id_pelanggan' => (int) $id,
+  'nama' => $customer['nama'] ?? $p['nama_pelanggan'],
+  'hp' => $hp,
+  'unpaid' => $unpaid,
+  'nonTunai' => $data['nonTunai'] ?? URL::NON_TUNAI,
+  'nonTunaiGuide' => $data['nonTunaiGuide'] ?? URL::NON_TUNAI_GUIDE,
+  'base' => $base,
+], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?></script>
 
 <div class="j-card" style="margin-bottom:12px">
   <div class="j-hero-grid" style="gap:8px">
@@ -20,6 +34,42 @@ $summary = $data['summary'];
   </div>
 </div>
 
+<?php if (!empty($finance)) { ?>
+<section class="j-section" style="margin-top:0">
+  <div class="j-section-head"><h2>Menunggu pembayaran</h2></div>
+  <?php foreach ($finance as $fh) {
+    $isQRIS = strtoupper($fh['note'] ?? '') === 'QRIS';
+    $canManage = (int) ($fh['id_user'] ?? 0) === 0;
+  ?>
+  <div class="j-card">
+    <div class="j-card-head">
+      <div>
+        <strong><?= htmlspecialchars($fh['note'] ?: 'Non-Tunai') ?></strong>
+        <small>Pending · <?= date('d M Y H:i', strtotime($fh['insertTime'])) ?></small>
+      </div>
+      <span class="j-badge warn">Rp<?= number_format((float) $fh['total']) ?></span>
+    </div>
+    <?php if ($canManage) { ?>
+    <div class="j-chip-row" style="margin-top:4px">
+      <button type="button" class="j-btn j-btn-primary j-tokopay"
+        data-ref="<?= htmlspecialchars($fh['ref_finance']) ?>"
+        data-total="<?= (int) $fh['total'] ?>"
+        data-note="<?= htmlspecialchars($fh['note']) ?>">
+        <?= $isQRIS ? 'Scan QR' : 'Cek Status' ?>
+      </button>
+      <button type="button" class="j-btn j-btn-soft j-cancel-pay"
+        data-ref="<?= htmlspecialchars($fh['ref_finance']) ?>"
+        data-total="<?= number_format((float) $fh['total']) ?>"
+        data-note="<?= htmlspecialchars($fh['note']) ?>">
+        <i class="fas fa-trash-alt"></i> Batalkan
+      </button>
+    </div>
+    <?php } ?>
+  </div>
+  <?php } ?>
+</section>
+<?php } ?>
+
 <?php if (empty($orders) && empty($members)) { ?>
   <div class="j-empty">
     <b>Tidak ada tagihan</b>
@@ -30,6 +80,7 @@ $summary = $data['summary'];
 <?php foreach ($orders as $ord) {
   $sisa = (float) $ord['sisa'];
   $badge = $sisa <= 0 ? ['ok', 'Lunas'] : ['danger', 'Belum lunas'];
+  $canNota = !empty($ord['can_send_nota']);
 ?>
   <article class="j-card">
     <div class="j-card-head">
@@ -37,7 +88,21 @@ $summary = $data['summary'];
         <strong>REF #<?= htmlspecialchars($ord['no_ref']) ?></strong>
         <small><?= date('d M Y H:i', strtotime($ord['insertTime'])) ?><?= $ord['letak'] !== '' ? ' · Rak ' . htmlspecialchars(strtoupper($ord['letak'])) : '' ?></small>
       </div>
-      <span class="j-badge <?= $badge[0] ?>"><?= $badge[1] ?></span>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+        <span class="j-badge <?= $badge[0] ?>"><?= $badge[1] ?></span>
+        <?php if ($canNota) { ?>
+          <button type="button" class="j-btn-icon j-send-nota"
+            title="Kirim Nota WA"
+            data-id-pelanggan="<?= $id ?>"
+            data-hp="<?= htmlspecialchars($hp) ?>"
+            data-ref="<?= htmlspecialchars($ord['no_ref']) ?>"
+            data-time="<?= htmlspecialchars($ord['insertTime']) ?>">
+            <i class="fab fa-whatsapp"></i>
+          </button>
+        <?php } else { ?>
+          <span class="j-badge ok" title="Nota sudah dikirim"><i class="fab fa-whatsapp"></i></span>
+        <?php } ?>
+      </div>
     </div>
 
     <?php foreach ($ord['items'] as $it) { ?>
@@ -96,8 +161,8 @@ $summary = $data['summary'];
   </article>
 <?php } ?>
 
-<?php if ((float) $summary['sisa'] > 0) { ?>
-  <a class="j-btn j-btn-soft j-btn-block" href="<?= $base ?>I/<?= $id ?>">
-    Bayar via halaman klasik
-  </a>
+<?php if (!empty($unpaid)) { ?>
+<button type="button" class="j-fab-bayar" id="jBtnBayar">
+  <i class="fas fa-wallet"></i> Bayar
+</button>
 <?php } ?>

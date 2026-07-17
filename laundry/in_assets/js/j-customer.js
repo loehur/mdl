@@ -71,6 +71,14 @@
       });
   }
 
+  window.JApp = {
+    loadPage: loadPage,
+    reload: function () {
+      var st = history.state || parsePath();
+      loadPage(st.page || 'home', st.extra || '', false);
+    }
+  };
+
   function parsePath() {
     var path = window.location.pathname;
     var mDetail = path.match(/\/J\/paketDetail\/(\d+)\/(\d+)/i);
