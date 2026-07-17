@@ -329,29 +329,45 @@ class I extends Controller
 
    public function m($pelanggan, $id_harga) //riwayat member
    {
-      if (!is_numeric($pelanggan)) {
+      if (!is_numeric($pelanggan) || !is_numeric($id_harga)) {
          exit();
       }
-      $this->public_data($pelanggan);
-      $data_main = [];
-      $data_main2 = [];
 
-      // FIX: use db(0) directly
-      $where = "id_pelanggan = " . $pelanggan . " AND id_harga = $id_harga AND bin = 0 AND member = 1 ORDER BY insertTime ASC";
-      $data_s = $this->db(0)->get_where('sale', $where);
-      if (count($data_s) > 0) {
-         foreach ($data_s as $ds) {
-            array_push($data_main, $ds);
-         }
+      $pelanggan = (int) $pelanggan;
+      $id_harga = (int) $id_harga;
+
+      // Slim master data — hanya yang dipakai member_history
+      $this->dLayanan = $this->db(0)->get('layanan');
+      $this->dDurasi = $this->db(0)->get('durasi');
+      $this->dPenjualan = $this->db(0)->get('penjualan_jenis');
+      $this->dSatuan = $this->db(0)->get('satuan');
+      $this->harga = $this->db(0)->get_order('harga', 'sort ASC');
+      $this->itemGroup = $this->db(0)->get('item_group');
+      $this->pelanggan_p = $this->db(0)->get_where_row('pelanggan', 'id_pelanggan = ' . $pelanggan);
+      if (!$this->pelanggan_p) {
+         exit();
+      }
+      $this->id_cabang_p = $this->pelanggan_p['id_cabang'];
+
+      $data_main = $this->db(0)->get_cols_where(
+         'sale',
+         'id_penjualan, id_penjualan_jenis, qty, min_order, insertTime',
+         "id_pelanggan = $pelanggan AND id_harga = $id_harga AND bin = 0 AND member = 1 ORDER BY insertTime ASC"
+      );
+      if (!is_array($data_main) || isset($data_main['errno'])) {
+         $data_main = [];
       }
 
-      $where2 = "id_pelanggan = " . $pelanggan . " AND id_harga = $id_harga AND bin = 0 ORDER BY insertTime ASC";
-      $data_main2 = $this->db(0)->get_where('member', $where2);
+      $data_main2 = $this->db(0)->get_cols_where(
+         'member',
+         'id_member, qty, insertTime',
+         "id_pelanggan = $pelanggan AND id_harga = $id_harga AND bin = 0 ORDER BY insertTime ASC"
+      );
+      if (!is_array($data_main2) || isset($data_main2['errno'])) {
+         $data_main2 = [];
+      }
 
-
-      $viewData = 'member/member_history';
-
-      $this->view($viewData, [
+      $this->view('member/member_history', [
          'data_pelanggan' => $this->pelanggan_p,
          'data_main' => $data_main,
          'data_main2' => $data_main2,
