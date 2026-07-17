@@ -6,145 +6,85 @@
  */
 class J extends Controller
 {
+   private $dCabangPublic = [];
+
    public function index($pelanggan)
    {
-      $pelanggan = $this->bootCustomer($pelanggan);
-      $saldo = $this->getSaldoTunai($pelanggan);
-      $listPaket = $this->getListPaket($pelanggan);
-      $tagihan = $this->getTagihanSummary($pelanggan);
-
-      $this->render('j/home', [
-         'active' => 'home',
-         'title' => 'Beranda',
-         'data_pelanggan' => $this->pelanggan_p,
-         'cabang' => $this->dCabangPublic,
-         'saldoTunai' => $saldo,
-         'listPaket' => $listPaket,
-         'tagihan' => $tagihan,
-      ]);
+      $this->shell($pelanggan, 'home');
    }
 
    public function tagihan($pelanggan)
    {
-      $pelanggan = $this->bootCustomer($pelanggan);
-      $payload = $this->getTagihanFull($pelanggan, '', '');
-
-      $this->render('j/tagihan', [
-         'active' => 'tagihan',
-         'title' => 'Tagihan',
-         'data_pelanggan' => $this->pelanggan_p,
-         'cabang' => $this->dCabangPublic,
-         'orders' => $payload['orders'],
-         'members' => $payload['members'],
-         'summary' => $payload['summary'],
-         'saldoTunai' => $this->getSaldoTunai($pelanggan),
-      ]);
+      $this->shell($pelanggan, 'tagihan');
    }
 
    public function saldo($pelanggan)
    {
-      $pelanggan = $this->bootCustomer($pelanggan);
-
-      $cols = 'id_kas, id_client, jumlah, metode_mutasi, note, insertTime, jenis_mutasi, jenis_transaksi';
-      $where = "id_client = $pelanggan AND status_mutasi = 3 AND ((jenis_transaksi = 1 AND metode_mutasi = 3) OR (jenis_transaksi = 3 AND metode_mutasi = 3) OR jenis_transaksi = 6) ORDER BY insertTime ASC";
-      $rows = $this->db(0)->get_cols_where('kas', $cols, $where, 1);
-      if (!is_array($rows) || isset($rows['errno'])) $rows = [];
-
-      $saldo = 0;
-      $history = [];
-      foreach ($rows as $v) {
-         if ((int) $v['jenis_mutasi'] === 1) {
-            $saldo += (float) $v['jumlah'];
-         } else {
-            $saldo -= (float) $v['jumlah'];
-         }
-         $v['saldo'] = $saldo;
-         $history[] = $v;
-      }
-
-      $tampil = 30;
-      $show = count($history) > $tampil ? array_slice($history, -$tampil) : $history;
-
-      $this->render('j/saldo', [
-         'active' => 'saldo',
-         'title' => 'Saldo Deposit',
-         'data_pelanggan' => $this->pelanggan_p,
-         'cabang' => $this->dCabangPublic,
-         'saldoTunai' => $saldo,
-         'history' => array_reverse($show),
-         'tampil' => $tampil,
-      ]);
+      $this->shell($pelanggan, 'saldo');
    }
 
    public function paket($pelanggan)
    {
-      $pelanggan = $this->bootCustomer($pelanggan);
-      $list = $this->getListPaket($pelanggan);
-      $enriched = [];
-
-      foreach ($list as $lp) {
-         $idHarga = (int) $lp['id_harga'];
-         $info = $this->resolveHargaInfo($idHarga);
-         $saldoQty = $this->calcPaketSaldo($pelanggan, $idHarga);
-         $enriched[] = [
-            'id_harga' => $idHarga,
-            'label' => $info['label'],
-            'satuan' => $info['satuan'],
-            'saldo' => $saldoQty,
-         ];
-      }
-
-      $this->render('j/paket', [
-         'active' => 'paket',
-         'title' => 'Paket Member',
-         'data_pelanggan' => $this->pelanggan_p,
-         'cabang' => $this->dCabangPublic,
-         'listPaket' => $enriched,
-      ]);
+      $this->shell($pelanggan, 'paket');
    }
 
-   public function paketDetail($pelanggan, $id_harga)
+   public function paketDetail($pelanggan, $id_harga = 0)
+   {
+      $this->shell($pelanggan, 'paketDetail', $id_harga);
+   }
+
+   /** AJAX: HTML partial only */
+   public function load($page, $pelanggan, $extra = null)
    {
       $pelanggan = $this->bootCustomer($pelanggan);
-      if (!is_numeric($id_harga)) exit();
-      $id_harga = (int) $id_harga;
-
-      $this->dLayanan = $this->db(0)->get('layanan');
-      $this->dDurasi = $this->db(0)->get('durasi');
-      $this->dPenjualan = $this->db(0)->get('penjualan_jenis');
-      $this->dSatuan = $this->db(0)->get('satuan');
-      $this->harga = $this->db(0)->get_order('harga', 'sort ASC');
-      $this->itemGroup = $this->db(0)->get('item_group');
-
-      $sales = $this->db(0)->get_cols_where(
-         'sale',
-         'id_penjualan, id_penjualan_jenis, qty, min_order, insertTime',
-         "id_pelanggan = $pelanggan AND id_harga = $id_harga AND bin = 0 AND member = 1 ORDER BY insertTime ASC"
-      );
-      if (!is_array($sales) || isset($sales['errno'])) $sales = [];
-
-      $topups = $this->db(0)->get_cols_where(
-         'member',
-         'id_member, qty, insertTime',
-         "id_pelanggan = $pelanggan AND id_harga = $id_harga AND bin = 0 ORDER BY insertTime ASC"
-      );
-      if (!is_array($topups) || isset($topups['errno'])) $topups = [];
-
-      $info = $this->resolveHargaInfo($id_harga);
-      $built = $this->buildPaketHistory(array_values($sales), array_values($topups), $info['satuan']);
-
-      $this->render('j/paket_detail', [
-         'active' => 'paket',
-         'title' => 'Paket M' . $id_harga,
+      $page = preg_replace('/[^a-zA-Z]/', '', (string) $page);
+      $payload = [
+         'base' => URL::BASE_URL,
+         'assets' => URL::IN_ASSETS,
+         'ex' => URL::EX_ASSETS,
          'data_pelanggan' => $this->pelanggan_p,
          'cabang' => $this->dCabangPublic,
-         'id_harga' => $id_harga,
-         'info' => $info,
-         'history' => $built['tampil'],
-         'lastSaldo' => $built['lastSaldo'],
-         'satuan' => $built['satuan'],
-         'jumlah_tampil' => 20,
-      ]);
+      ];
+
+      switch ($page) {
+         case 'home':
+            $payload['tagihan'] = $this->getTagihanSummary($pelanggan);
+            $payload['saldoTunai'] = $this->getSaldoTunai($pelanggan);
+            $payload['listPaket'] = $this->getListPaket($pelanggan);
+            $this->view('j/partials/home', $payload);
+            break;
+
+         case 'tagihan':
+            $full = $this->getTagihanFull($pelanggan, '', '');
+            $payload['orders'] = $full['orders'];
+            $payload['members'] = $full['members'];
+            $payload['summary'] = $full['summary'];
+            $this->view('j/partials/tagihan', $payload);
+            break;
+
+         case 'saldo':
+            $payload = array_merge($payload, $this->buildSaldoPayload($pelanggan));
+            $this->view('j/partials/saldo', $payload);
+            break;
+
+         case 'paket':
+            $payload['listPaket'] = $this->buildPaketList($pelanggan);
+            $this->view('j/partials/paket', $payload);
+            break;
+
+         case 'paketDetail':
+            if (!is_numeric($extra)) {
+               echo '<div class="j-empty"><b>Paket tidak ditemukan</b></div>';
+               return;
+            }
+            $payload = array_merge($payload, $this->buildPaketDetailPayload($pelanggan, (int) $extra));
+            $this->view('j/partials/paket_detail', $payload);
+            break;
+
+         default:
+            http_response_code(404);
+            echo '<div class="j-empty"><b>Halaman tidak ditemukan</b></div>';
+      }
    }
 
    /** Customer-scoped PWA manifest */
@@ -187,11 +127,34 @@ class J extends Controller
       exit;
    }
 
-   // -------------------------------------------------------------------------
-   // Internals
-   // -------------------------------------------------------------------------
+   private function shell($pelanggan, $page, $extra = null)
+   {
+      $pelanggan = $this->bootShell($pelanggan);
+      $this->render('j/shell', [
+         'active' => ($page === 'paketDetail') ? 'paket' : $page,
+         'title' => 'MDL',
+         'page' => $page,
+         'extra' => $extra,
+         'data_pelanggan' => $this->pelanggan_p,
+         'cabang' => $this->dCabangPublic,
+      ]);
+   }
 
-   private $dCabangPublic = [];
+   private function bootShell($pelanggan)
+   {
+      if (!is_numeric($pelanggan)) {
+         exit();
+      }
+      $pelanggan = (int) $pelanggan;
+      $this->pelanggan_p = $this->db(0)->get_where_row('pelanggan', 'id_pelanggan = ' . $pelanggan);
+      if (empty($this->pelanggan_p) || !isset($this->pelanggan_p['id_pelanggan'])) {
+         exit();
+      }
+      $this->id_cabang_p = $this->pelanggan_p['id_cabang'];
+      $cabang = $this->db(0)->get_where_row('cabang', 'id_cabang = ' . (int) $this->id_cabang_p);
+      $this->dCabangPublic = is_array($cabang) ? $cabang : ['kode_cabang' => '00', 'nama_cabang' => 'MDL Laundry'];
+      return $pelanggan;
+   }
 
    private function bootCustomer($pelanggan)
    {
@@ -214,6 +177,87 @@ class J extends Controller
       $data['assets'] = URL::IN_ASSETS;
       $data['ex'] = URL::EX_ASSETS;
       $this->view($view, $data);
+   }
+
+   private function buildSaldoPayload($pelanggan)
+   {
+      $cols = 'id_kas, id_client, jumlah, metode_mutasi, note, insertTime, jenis_mutasi, jenis_transaksi';
+      $where = "id_client = $pelanggan AND status_mutasi = 3 AND ((jenis_transaksi = 1 AND metode_mutasi = 3) OR (jenis_transaksi = 3 AND metode_mutasi = 3) OR jenis_transaksi = 6) ORDER BY insertTime ASC";
+      $rows = $this->db(0)->get_cols_where('kas', $cols, $where, 1);
+      if (!is_array($rows) || isset($rows['errno'])) $rows = [];
+
+      $saldo = 0;
+      $history = [];
+      foreach ($rows as $v) {
+         if ((int) $v['jenis_mutasi'] === 1) {
+            $saldo += (float) $v['jumlah'];
+         } else {
+            $saldo -= (float) $v['jumlah'];
+         }
+         $v['saldo'] = $saldo;
+         $history[] = $v;
+      }
+
+      $tampil = 30;
+      $show = count($history) > $tampil ? array_slice($history, -$tampil) : $history;
+
+      return [
+         'saldoTunai' => $saldo,
+         'history' => array_reverse($show),
+         'tampil' => $tampil,
+      ];
+   }
+
+   private function buildPaketList($pelanggan)
+   {
+      $list = $this->getListPaket($pelanggan);
+      $enriched = [];
+      foreach ($list as $lp) {
+         $idHarga = (int) $lp['id_harga'];
+         $info = $this->resolveHargaInfo($idHarga);
+         $enriched[] = [
+            'id_harga' => $idHarga,
+            'label' => $info['label'],
+            'satuan' => $info['satuan'],
+            'saldo' => $this->calcPaketSaldo($pelanggan, $idHarga),
+         ];
+      }
+      return $enriched;
+   }
+
+   private function buildPaketDetailPayload($pelanggan, $id_harga)
+   {
+      $this->dLayanan = $this->db(0)->get('layanan');
+      $this->dDurasi = $this->db(0)->get('durasi');
+      $this->dPenjualan = $this->db(0)->get('penjualan_jenis');
+      $this->dSatuan = $this->db(0)->get('satuan');
+      $this->harga = $this->db(0)->get_order('harga', 'sort ASC');
+      $this->itemGroup = $this->db(0)->get('item_group');
+
+      $sales = $this->db(0)->get_cols_where(
+         'sale',
+         'id_penjualan, id_penjualan_jenis, qty, min_order, insertTime',
+         "id_pelanggan = $pelanggan AND id_harga = $id_harga AND bin = 0 AND member = 1 ORDER BY insertTime ASC"
+      );
+      if (!is_array($sales) || isset($sales['errno'])) $sales = [];
+
+      $topups = $this->db(0)->get_cols_where(
+         'member',
+         'id_member, qty, insertTime',
+         "id_pelanggan = $pelanggan AND id_harga = $id_harga AND bin = 0 ORDER BY insertTime ASC"
+      );
+      if (!is_array($topups) || isset($topups['errno'])) $topups = [];
+
+      $info = $this->resolveHargaInfo($id_harga);
+      $built = $this->buildPaketHistory(array_values($sales), array_values($topups), $info['satuan']);
+
+      return [
+         'id_harga' => $id_harga,
+         'info' => $info,
+         'history' => $built['tampil'],
+         'lastSaldo' => $built['lastSaldo'],
+         'satuan' => $built['satuan'],
+      ];
    }
 
    private function getSaldoTunai($pelanggan)

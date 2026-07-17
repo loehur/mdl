@@ -432,3 +432,38 @@ a { color: inherit; text-decoration: none; }
 
 .j-paket-card .grow { flex: 1; min-width: 0; }
 .j-paket-card .arrow { color: var(--j-muted); }
+
+.j-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 42vh;
+  color: var(--j-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.j-spinner {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 3px solid rgba(11, 61, 58, 0.12);
+  border-top-color: var(--j-mint);
+  animation: j-spin 0.7s linear infinite;
+}
+
+@keyframes j-spin {
+  to { transform: rotate(360deg); }
+}
+
+.j-fade-in {
+  animation: j-fade 0.22s ease;
+}
+
+@keyframes j-fade {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
