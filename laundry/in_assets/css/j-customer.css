@@ -486,8 +486,8 @@ a { color: inherit; text-decoration: none; }
   z-index: 45;
   border: 0;
   border-radius: 16px;
-  padding: 13px 26px;
-  min-width: 160px;
+  padding: 11px 16px;
+  min-width: 0;
   background: linear-gradient(145deg, var(--j-ink) 0%, #1A6B63 100%);
   color: #F8FFFE;
   font-family: inherit;
@@ -498,7 +498,7 @@ a { color: inherit; text-decoration: none; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 7px;
 }
 
 .j-fab-bayar:active {
