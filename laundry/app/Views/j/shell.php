@@ -27,7 +27,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/fontawesome-free-5.15.4-web/css/all.css">
   <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/css/bootstrap.min.css">
-  <link rel="stylesheet" href="<?= $assets ?>css/j-customer.css?v=8">
+  <link rel="stylesheet" href="<?= $assets ?>css/j-customer.css?v=9">
 </head>
 <body>
 <div class="j-app"
@@ -75,25 +75,32 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
 <!-- Modal Bayar -->
 <div class="modal fade" id="jModalBayar" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content j-modal">
-      <div class="modal-header">
-        <h5 class="modal-title">Pembayaran Tagihan</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    <div class="modal-content j-sheet">
+      <div class="j-sheet-head">
+        <div>
+          <p class="j-sheet-kicker">Checkout</p>
+          <h5 class="j-sheet-title">Pembayaran Tagihan</h5>
+        </div>
+        <button type="button" class="j-sheet-close" data-bs-dismiss="modal" aria-label="Close"><i class="fas fa-times"></i></button>
       </div>
-      <div class="modal-body">
-        <label class="form-label">Metode Pembayaran</label>
-        <select class="form-select mb-3" id="jMetodeBayar"></select>
-        <label class="form-label">Pilih Tagihan</label>
+      <div class="j-sheet-body">
+        <label class="j-field-label" for="jMetodeBayar">Metode pembayaran</label>
+        <div class="j-select-wrap">
+          <select id="jMetodeBayar" class="j-select"></select>
+        </div>
+
+        <label class="j-field-label">Pilih tagihan</label>
         <div id="jListTagihanBayar" class="j-pay-list"></div>
-        <div class="d-flex justify-content-between align-items-center mt-3">
-          <strong>Total Bayar</strong>
+
+        <div class="j-pay-total">
+          <span>Total bayar</span>
           <strong id="jTotalBayarModal">Rp0</strong>
         </div>
-        <div class="text-danger small mt-2" id="jBayarStatus"></div>
+        <div class="j-pay-status" id="jBayarStatus"></div>
       </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-        <button type="button" class="btn btn-primary" id="jBtnSubmitBayar">Bayar</button>
+      <div class="j-sheet-foot">
+        <button type="button" class="j-sheet-btn ghost" data-bs-dismiss="modal">Batal</button>
+        <button type="button" class="j-sheet-btn primary" id="jBtnSubmitBayar">Bayar sekarang</button>
       </div>
     </div>
   </div>
@@ -102,19 +109,22 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
 <!-- Modal QR -->
 <div class="modal fade" id="jModalQR" tabindex="-1" data-bs-backdrop="static">
   <div class="modal-dialog modal-dialog-centered modal-sm">
-    <div class="modal-content j-modal">
-      <div class="modal-header">
-        <h6 class="modal-title">Scan QRIS</h6>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    <div class="modal-content j-sheet">
+      <div class="j-sheet-head">
+        <div>
+          <p class="j-sheet-kicker">QRIS</p>
+          <h5 class="j-sheet-title">Scan untuk bayar</h5>
+        </div>
+        <button type="button" class="j-sheet-close" data-bs-dismiss="modal" aria-label="Close"><i class="fas fa-times"></i></button>
       </div>
-      <div class="modal-body text-center">
-        <div id="jQrcode" class="d-flex justify-content-center mb-3"></div>
-        <p class="mb-0 fw-bold" id="jQrTotal"></p>
-        <p class="mb-0 small text-muted" id="jQrNama"></p>
+      <div class="j-sheet-body j-sheet-center">
+        <div id="jQrcode" class="j-qr-box"></div>
+        <p class="j-qr-total" id="jQrTotal"></p>
+        <p class="j-qr-nama" id="jQrNama"></p>
       </div>
-      <div class="modal-footer justify-content-center">
-        <button type="button" class="btn btn-warning btn-sm" id="jBtnCekStatusQR"><i class="fas fa-sync"></i> Cek Status</button>
-        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Tutup</button>
+      <div class="j-sheet-foot">
+        <button type="button" class="j-sheet-btn ghost" data-bs-dismiss="modal">Tutup</button>
+        <button type="button" class="j-sheet-btn primary" id="jBtnCekStatusQR"><i class="fas fa-sync"></i> Cek status</button>
       </div>
     </div>
   </div>
@@ -123,14 +133,17 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
 <!-- Modal Status Transfer -->
 <div class="modal fade" id="jModalStatus" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content j-modal">
-      <div class="modal-header">
-        <h5 class="modal-title">Status Pembayaran</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    <div class="modal-content j-sheet">
+      <div class="j-sheet-head">
+        <div>
+          <p class="j-sheet-kicker">Transfer</p>
+          <h5 class="j-sheet-title">Status pembayaran</h5>
+        </div>
+        <button type="button" class="j-sheet-close" data-bs-dismiss="modal" aria-label="Close"><i class="fas fa-times"></i></button>
       </div>
-      <div class="modal-body" id="jStatusModalBody"></div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+      <div class="j-sheet-body" id="jStatusModalBody"></div>
+      <div class="j-sheet-foot">
+        <button type="button" class="j-sheet-btn primary" data-bs-dismiss="modal" style="flex:1">Mengerti</button>
       </div>
     </div>
   </div>
@@ -139,16 +152,16 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
 <!-- Modal Cancel -->
 <div class="modal fade" id="jModalCancel" tabindex="-1" data-bs-backdrop="static">
   <div class="modal-dialog modal-dialog-centered modal-sm">
-    <div class="modal-content j-modal border-0">
-      <div class="modal-body text-center p-4">
-        <i class="fas fa-exclamation-triangle text-warning mb-3" style="font-size:2.4rem"></i>
-        <h5 class="mb-2">Batalkan Pembayaran?</h5>
-        <p class="text-muted mb-2" id="jCancelPaymentInfo"></p>
-        <p class="small text-danger mb-3">Data pembayaran akan dihapus.</p>
-        <div class="d-flex gap-2 justify-content-center">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-          <button type="button" class="btn btn-danger" id="jBtnConfirmCancel"><i class="fas fa-trash-alt"></i> Hapus</button>
-        </div>
+    <div class="modal-content j-sheet">
+      <div class="j-sheet-body j-sheet-center" style="padding-top:22px">
+        <div class="j-alert-ico"><i class="fas fa-exclamation"></i></div>
+        <h5 class="j-sheet-title" style="margin:0 0 6px">Batalkan pembayaran?</h5>
+        <p class="j-sheet-desc" id="jCancelPaymentInfo"></p>
+        <p class="j-sheet-warn">Data pembayaran akan dihapus.</p>
+      </div>
+      <div class="j-sheet-foot">
+        <button type="button" class="j-sheet-btn ghost" data-bs-dismiss="modal">Batal</button>
+        <button type="button" class="j-sheet-btn danger" id="jBtnConfirmCancel"><i class="fas fa-trash-alt"></i> Hapus</button>
       </div>
     </div>
   </div>
@@ -157,7 +170,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
 <script src="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="<?= $assets ?>js/j-customer.js?v=2"></script>
-<script src="<?= $assets ?>js/j-payment.js?v=1"></script>
+<script src="<?= $assets ?>js/j-payment.js?v=2"></script>
 <script>
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('<?= $base ?>Pwa/sw', { scope: '<?= $base ?>' }).catch(function () {});

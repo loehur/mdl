@@ -274,24 +274,26 @@
             return;
           }
           var guide = (cfg.nonTunaiGuide && cfg.nonTunaiGuide[note]) || null;
-          var html = '<p class="mb-2">Status: <b>' + (res.status || 'PENDING') + '</b></p>';
+          var html = '<div class="j-status-card">';
+          html += '<div class="j-badge warn" style="margin-bottom:10px">' + (res.status || 'PENDING') + '</div>';
           if (guide) {
             html +=
-              '<p class="mb-1"><b>' +
+              '<p class="j-status-bank">' +
               guide.label +
-              '</b></p>' +
-              '<p class="mb-1">No. Rek: <b>' +
+              '</p>' +
+              '<p class="j-status-rek">' +
               guide.number +
-              '</b></p>' +
-              '<p class="mb-0">a.n. <b>' +
+              '</p>' +
+              '<p class="j-sheet-desc">a.n. <b>' +
               guide.name +
               '</b></p>' +
-              '<p class="mt-2 mb-0">Transfer sebesar <b>' +
+              '<div class="j-pay-total" style="margin-top:14px"><span>Transfer</span><strong>' +
               fmt(total) +
-              '</b></p>';
+              '</strong></div>';
           } else {
-            html += '<p>Silakan transfer sesuai metode ' + note + '.</p>';
+            html += '<p class="j-sheet-desc">Silakan transfer sesuai metode ' + note + '.</p>';
           }
+          html += '</div>';
           $('#jStatusModalBody').innerHTML = html;
           modalShow('jModalStatus');
         })
