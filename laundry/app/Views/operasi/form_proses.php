@@ -57,17 +57,7 @@ if ($data['id_pelanggan'] > 0) {
             <?php } else { ?>
               <div class="pl-0 pr-1">
                 <a href="<?= URL::BASE_URL ?>Antrian/index/1" type="button" class="btn btn-outline-primary">
-                  Terkini
-                </a>
-              </div>
-              <div class="pl-0 pr-1">
-                <a href="<?= URL::BASE_URL ?>Antrian/index/6" type="button" class="btn btn-outline-success">
-                  Minggu
-                </a>
-              </div>
-              <div class="pl-0 pr-1">
-                <a href="<?= URL::BASE_URL ?>Antrian/index/7" type="button" class="btn btn-outline-info">
-                  Bulan
+                  Laundry
                 </a>
               </div>
             <?php } ?>
