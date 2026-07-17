@@ -85,24 +85,22 @@ $hp = $customer['hp'] ?? ($p['nomor_pelanggan'] ?? '');
   <article class="j-card">
     <div class="j-card-head">
       <div>
-        <strong>REF #<?= htmlspecialchars($ord['no_ref']) ?></strong>
+        <div class="j-ref-line">
+          <strong>REF #<?= htmlspecialchars($ord['no_ref']) ?></strong>
+          <?php if ($canNota) { ?>
+            <button type="button" class="j-send-nota"
+              title="Kirim Nota WA"
+              data-id-pelanggan="<?= $id ?>"
+              data-hp="<?= htmlspecialchars($hp) ?>"
+              data-ref="<?= htmlspecialchars($ord['no_ref']) ?>"
+              data-time="<?= htmlspecialchars($ord['insertTime']) ?>">
+              <i class="fab fa-whatsapp"></i>
+            </button>
+          <?php } ?>
+        </div>
         <small><?= date('d M Y H:i', strtotime($ord['insertTime'])) ?><?= $ord['letak'] !== '' ? ' · Rak ' . htmlspecialchars(strtoupper($ord['letak'])) : '' ?></small>
       </div>
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
-        <span class="j-badge <?= $badge[0] ?>"><?= $badge[1] ?></span>
-        <?php if ($canNota) { ?>
-          <button type="button" class="j-btn-icon j-send-nota"
-            title="Kirim Nota WA"
-            data-id-pelanggan="<?= $id ?>"
-            data-hp="<?= htmlspecialchars($hp) ?>"
-            data-ref="<?= htmlspecialchars($ord['no_ref']) ?>"
-            data-time="<?= htmlspecialchars($ord['insertTime']) ?>">
-            <i class="fab fa-whatsapp"></i>
-          </button>
-        <?php } else { ?>
-          <span class="j-badge ok" title="Nota sudah dikirim"><i class="fab fa-whatsapp"></i></span>
-        <?php } ?>
-      </div>
+      <span class="j-badge <?= $badge[0] ?>"><?= $badge[1] ?></span>
     </div>
 
     <?php foreach ($ord['items'] as $it) { ?>
