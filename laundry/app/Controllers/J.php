@@ -27,13 +27,7 @@ class J extends Controller
    public function tagihan($pelanggan)
    {
       $pelanggan = $this->bootCustomer($pelanggan);
-
-      $bulan = isset($_GET['m']) ? preg_replace('/\D/', '', $_GET['m']) : '';
-      $tahun = isset($_GET['Y']) ? preg_replace('/\D/', '', $_GET['Y']) : '';
-      if (isset($_POST['m'])) $bulan = preg_replace('/\D/', '', $_POST['m']);
-      if (isset($_POST['Y'])) $tahun = preg_replace('/\D/', '', $_POST['Y']);
-
-      $payload = $this->getTagihanFull($pelanggan, $bulan, $tahun);
+      $payload = $this->getTagihanFull($pelanggan, '', '');
 
       $this->render('j/tagihan', [
          'active' => 'tagihan',
@@ -43,7 +37,6 @@ class J extends Controller
          'orders' => $payload['orders'],
          'members' => $payload['members'],
          'summary' => $payload['summary'],
-         'filter' => $payload['filter'],
          'saldoTunai' => $this->getSaldoTunai($pelanggan),
       ]);
    }

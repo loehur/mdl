@@ -6,9 +6,6 @@ $base = $data['base'];
 $orders = $data['orders'];
 $members = $data['members'];
 $summary = $data['summary'];
-$filter = $data['filter'];
-$curM = $filter['bulan'] !== '' ? $filter['bulan'] : date('m');
-$curY = $filter['tahun'] !== '' ? $filter['tahun'] : date('Y');
 ?>
 
 <div class="j-card" style="margin-bottom:12px">
@@ -24,31 +21,10 @@ $curY = $filter['tahun'] !== '' ? $filter['tahun'] : date('Y');
   </div>
 </div>
 
-<form class="j-filter" method="get" action="<?= $base ?>J/tagihan/<?= $id ?>">
-  <select name="m">
-    <?php for ($m = 1; $m <= 12; $m++) {
-      $mm = str_pad((string) $m, 2, '0', STR_PAD_LEFT); ?>
-      <option value="<?= $mm ?>" <?= $curM == $mm ? 'selected' : '' ?>><?= $mm ?></option>
-    <?php } ?>
-  </select>
-  <select name="Y">
-    <?php $yNow = (int) date('Y');
-    for ($y = $yNow - 1; $y <= $yNow; $y++) { ?>
-      <option value="<?= $y ?>" <?= (int) $curY === $y ? 'selected' : '' ?>><?= $y ?></option>
-    <?php } ?>
-  </select>
-  <button class="j-btn j-btn-primary" type="submit">Filter</button>
-</form>
-<?php if ($filter['active']) { ?>
-  <div style="margin:-4px 0 12px">
-    <a class="j-badge muted" href="<?= $base ?>J/tagihan/<?= $id ?>">Tampilkan semua</a>
-  </div>
-<?php } ?>
-
 <?php if (empty($orders) && empty($members)) { ?>
   <div class="j-empty">
     <b>Tidak ada tagihan</b>
-    Semua order sudah tuntas / tidak ada data periode ini.
+    Semua order sudah tuntas / tidak ada data.
   </div>
 <?php } ?>
 
