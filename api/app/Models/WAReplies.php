@@ -979,8 +979,9 @@ class WAReplies
         if (!$hasDropOffRef) {
             return false;
         }
+        // Harus ada pilihan layanan nyata — jangan anggap kata laundry/loundry/item saja sebagai layanan
         return (bool) preg_match(
-            '/\b(cuci\s*setrika|cuci\s*strika|setrika\s*aja|strika\s*aja|setrika\s*manual|cuci\s*aja|reguler|regular|ekspres|ekspress|express|kilat|manual|biasa|laundry|loundry|londri|pilih\s+(yang\s+)?(ekspres|express|reguler|kilat|setrika))\b/iu',
+            '/\b(cuci\s*setrika|cuci\s*strika|setrika\s*aja|strika\s*aja|setrika\s*manual|cuci\s*aja|reguler|regular|ekspres|ekspress|express|kilat|manual|biasa|pilih\s+(yang\s+)?(ekspres|express|reguler|kilat|setrika))\b/iu',
             $t
         );
     }
@@ -5257,7 +5258,7 @@ class WAReplies
             $prompt .= "PRIORITAS: Pesan yang merujuk order/waktu (yg td sore, yg tadi sore) DAN jadwal pengambilan (besok di ambil, besok dijemput) — meski ada 'iya kak/buk' — = BUKAN PENUTUP (info operasional untuk CS), pilih FALSE.\n";
             $prompt .= "PRIORITAS: Janji atau konfirmasi AKAN bayar/transfer/tf (belum dilakukan), misalnya 'nnti transfer', 'nntk byr ... deal ya kk', 'besok bayar ya' — = FALSE, BUKAN PENUTUP. PENUTUP untuk pembayaran hanya jika SUDAH: sudah transfer, sudah bayar, sudah kirim.\n";
             $prompt .= "PRIORITAS: Minta satu pakaian/item tertentu diambil/dulukan dulu dari order/cucian yang sudah di laundry (belum waktunya ambil semua) = PERMINTAAN, BUKAN MINTA_JEMPUT_ANTAR.\n";
-            $prompt .= "PRIORITAS: User memberitahu cucian/kain yang baru/kemarin diantar/masukkan (yg saya masukkan tadi, kain yang saya antar tadi malam, dll) sekaligus menjelaskan pilihan layanan (cuci setrika, reguler, ekspres, setrika aja, dll) = NOTA (konfirmasi detail order/bon), BUKAN FALSE.\n";
+            $prompt .= "PRIORITAS: User merujuk cucian yang baru/kemarin diantar/masukkan + sekaligus menjelaskan PILIHAN LAYANAN (cuci setrika, reguler, ekspres, setrika aja, dll) = NOTA. Jika HANYA memberitahu ada laundry + daftar item (celana putih, baju, dll) tanpa minta bon/nota dan tanpa pilihan layanan = FALSE, BUKAN NOTA. Contoh FALSE: 'saya kn kmrin ada loundry dlm nya ada clna putih'.\n";
             $prompt .= "Pesan: \"{$textBody}\"\n";
             $prompt .= "JAWAB HANYA DENGAN FORMAT JSON SEPERTI INI:\n";
             $prompt .= "{\"intent\": \"NAMA_KATEGORI\", \"reason\": \"Alasan singkat memilih kategori ini\"}\n";
