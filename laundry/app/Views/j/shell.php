@@ -41,7 +41,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
       <img class="j-logo" src="<?= $assets ?>icon/logo.png" alt="MDL">
       <div class="j-brand-text">
         <strong>MDL - <?= htmlspecialchars($kodeCabang) ?></strong>
-        <span>Customer Portal</span>
+        <span><?= strtoupper(htmlspecialchars($p['nama_pelanggan'])) ?></span>
       </div>
     </div>
   </header>

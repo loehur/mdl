@@ -100,7 +100,7 @@ $hasUnpaid = !empty($unpaid);
             </button>
           <?php } ?>
         </div>
-        <small><?= date('d M Y H:i', strtotime($ord['insertTime'])) ?><?= $ord['letak'] !== '' ? ' · Rak ' . htmlspecialchars(strtoupper($ord['letak'])) : '' ?></small>
+        <small><?= date('d M Y H:i', strtotime($ord['insertTime'])) ?></small>
       </div>
       <span class="j-badge <?= $badge[0] ?>"><?= $badge[1] ?></span>
     </div>

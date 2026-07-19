@@ -36,7 +36,7 @@ $summary = $data['summary'];
     <div class="j-card-head">
       <div>
         <strong>REF #<?= htmlspecialchars($ord['no_ref']) ?></strong>
-        <small><?= date('d M Y H:i', strtotime($ord['insertTime'])) ?><?= $ord['letak'] !== '' ? ' · Rak ' . htmlspecialchars(strtoupper($ord['letak'])) : '' ?></small>
+        <small><?= date('d M Y H:i', strtotime($ord['insertTime'])) ?></small>
       </div>
       <span class="j-badge <?= $badge[0] ?>"><?= $badge[1] ?></span>
     </div>
