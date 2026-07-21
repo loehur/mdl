@@ -29,6 +29,10 @@ if (isset($data['data_operasi'])) {
             src: url("<?= URL::EX_ASSETS ?>font/Titillium-Regular.otf");
         }
 
+        html {
+            font-size: 14px; /* Bootstrap rem scale — selaras chrome (topnav/sidebar tetap px) */
+        }
+
         html .table {
             font-family: 'fontku', sans-serif;
         }
@@ -39,6 +43,18 @@ if (isset($data['data_operasi'])) {
 
         html body {
             font-family: 'fontku', sans-serif;
+        }
+
+        /* Konten: longgarkan small/table agar tidak terlalu kecil vs chrome */
+        .content-wrapper small,
+        .content-wrapper .small {
+            font-size: 0.92em;
+        }
+        .content-wrapper .table {
+            font-size: 13px;
+        }
+        .content-wrapper .table.table-sm {
+            font-size: 12.5px;
         }
 
         @media print {
