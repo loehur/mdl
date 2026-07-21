@@ -198,9 +198,22 @@ if (isset($data['data_operasi'])) {
             font-size: 10px;
             opacity: 0.85;
         }
-        .mdl-tctrl--user {
-            background-color: #16a34a;
-            max-width: 120px;
+        .mdl-tbtn--user {
+            min-width: 52px;
+            padding: 0 12px;
+            border: 1.5px solid transparent;
+            background: #16a34a;
+            color: #fff;
+            gap: 6px;
+        }
+        .mdl-tbtn--user:hover {
+            background: #15803d;
+            border-color: transparent;
+            color: #fff;
+        }
+        .mdl-tbtn--user i.fa-chevron-down {
+            font-size: 10px;
+            opacity: 0.85;
         }
 
         /* ===== Custom cabang picker modal ===== */
@@ -324,6 +337,29 @@ if (isset($data['data_operasi'])) {
         .mdl-cmodal__item.is-active .mdl-cmodal__kode {
             color: #1d4ed8;
         }
+        .mdl-cmodal--user .mdl-cmodal__head {
+            background: linear-gradient(135deg, #14532d, #16a34a);
+        }
+        .mdl-cmodal--user .mdl-cmodal__item:hover {
+            border-color: #86efac;
+            background: #f0fdf4;
+            box-shadow: 0 4px 12px rgba(22, 163, 74, 0.12);
+        }
+        .mdl-cmodal--user .mdl-cmodal__item.is-active {
+            border-color: #16a34a;
+            background: linear-gradient(180deg, #dcfce7, #f0fdf4);
+            box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.2);
+        }
+        .mdl-cmodal--user .mdl-cmodal__kode {
+            color: #166534;
+            font-size: 14px;
+        }
+        .mdl-cmodal--user .mdl-cmodal__item.is-active .mdl-cmodal__kode {
+            color: #15803d;
+        }
+        .mdl-cmodal__grid--user {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
         .mdl-cmodal__meta {
             font-size: 10px;
             font-weight: 600;
@@ -421,6 +457,108 @@ if (isset($data['data_operasi'])) {
             border-color: #c2410c;
             background: #fed7aa;
         }
+
+        /* ===== Sidebar profile card ===== */
+        .mdl-side-card {
+            margin: 10px 10px 8px;
+            padding: 12px;
+            border-radius: 14px;
+            background: #f8fafc;
+            border: 1px solid rgba(255,255,255,.12);
+            box-shadow: 0 6px 16px rgba(0,0,0,.18);
+        }
+        .mdl-side-user {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .mdl-side-user-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            max-width: 100%;
+            height: 34px;
+            padding: 0 12px;
+            border-radius: 9px;
+            border: 1.5px solid #d5dde6;
+            background: #fff;
+            color: #0f172a;
+            font-family: 'fontku', sans-serif;
+            font-size: 13px;
+            font-weight: 800;
+            line-height: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .mdl-side-user-btn i {
+            color: #2563eb;
+            flex: 0 0 auto;
+        }
+        .mdl-side-wifi {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 28px;
+            padding: 0 4px;
+            margin-bottom: 10px;
+            color: #475569;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .mdl-side-wifi i {
+            color: #64748b;
+            width: 16px;
+            text-align: center;
+        }
+        .mdl-side-wifi span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .role-switch {
+            display: flex;
+            align-items: stretch;
+            width: 100%;
+            height: 36px;
+            padding: 3px;
+            gap: 2px;
+            border-radius: 10px;
+            border: 1.5px solid #d5dde6;
+            background: #e2e8f0;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,.06);
+        }
+        .role-switch .role-btn {
+            flex: 1 1 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            border: 0;
+            border-radius: 7px;
+            background: transparent;
+            color: #64748b;
+            font-family: 'fontku', sans-serif;
+            font-size: 12px;
+            font-weight: 800;
+            cursor: pointer;
+            transition: background .15s ease, color .15s ease, box-shadow .15s ease;
+        }
+        .role-switch .role-btn:hover:not(.is-active) {
+            color: #334155;
+            background: rgba(255,255,255,.45);
+        }
+        .role-switch .role-btn.is-active[data-mode="0"] {
+            background: #16a34a;
+            color: #fff;
+            box-shadow: 0 1px 2px rgba(22, 163, 74, 0.35);
+        }
+        .role-switch .role-btn.is-active[data-mode="1"] {
+            background: #dc2626;
+            color: #fff;
+            box-shadow: 0 1px 2px rgba(220, 38, 38, 0.35);
+        }
     </style>
 </head>
 
@@ -487,14 +625,10 @@ if ($log_mode == 1) {
                         <i class="fas fa-chevron-down"></i>
                     </button>
                     <?php if ($this->id_privilege == 100) { ?>
-                        <select id="userLog" class="mdl-tctrl mdl-tctrl--user" title="Login sebagai user">
-                            <option value="">——</option>
-                            <?php foreach ($this->user as $a) {
-                                if ($a['id_user'] <> $_SESSION[URL::SESSID]['user']['id_user']) { ?>
-                                    <option value="<?= $a['id_user'] ?>"><?= strtoupper($a['nama_user']) ?></option>
-                            <?php }
-                            } ?>
-                        </select>
+                        <button type="button" id="btnPilihUser" class="mdl-tbtn mdl-tbtn--user" title="Login sebagai user">
+                            <i class="fas fa-user"></i>
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
                     <?php } ?>
                 <?php } elseif ($isTrainingUi) { ?>
                     <span class="mdl-training-chip">TRAINING</span>
@@ -553,35 +687,82 @@ if ($log_mode == 1) {
                 </div>
             </div>
         </div>
+        <?php if ($this->id_privilege == 100) {
+            $userSwitchList = [];
+            foreach ($this->user as $a) {
+                if ($a['id_user'] <> $_SESSION[URL::SESSID]['user']['id_user']) {
+                    $userSwitchList[] = $a;
+                }
+            }
+        ?>
+        <div class="mdl-cmodal mdl-cmodal--user" id="mdlUserModal" aria-hidden="true">
+            <div class="mdl-cmodal__backdrop" data-umodal-close></div>
+            <div class="mdl-cmodal__panel" role="dialog" aria-modal="true" aria-labelledby="mdlUserTitle">
+                <div class="mdl-cmodal__head">
+                    <div>
+                        <h3 id="mdlUserTitle">Pilih User</h3>
+                        <small>Login sebagai kasir lain di cabang ini</small>
+                    </div>
+                    <button type="button" class="mdl-cmodal__close" data-umodal-close aria-label="Tutup">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="mdl-cmodal__body">
+                    <?php if (count($userSwitchList) === 0) { ?>
+                        <div style="padding:18px;text-align:center;color:#64748b;font-weight:600;font-size:13px;">
+                            Tidak ada user lain di cabang ini
+                        </div>
+                    <?php } else { ?>
+                    <div class="mdl-cmodal__grid mdl-cmodal__grid--user">
+                        <?php foreach ($userSwitchList as $a) { ?>
+                            <button type="button"
+                                class="mdl-cmodal__item"
+                                data-id-user="<?= (int) $a['id_user'] ?>">
+                                <span class="mdl-cmodal__kode"><?= htmlspecialchars(strtoupper((string) $a['nama_user'])) ?></span>
+                                <span class="mdl-cmodal__meta">ID <?= (int) $a['id_user'] ?></span>
+                            </button>
+                        <?php } ?>
+                    </div>
+                    <?php } ?>
+                </div>
+                <div class="mdl-cmodal__foot">
+                    User aktif: <b><?= htmlspecialchars((string) $this->nama_user) ?></b>
+                </div>
+            </div>
+        </div>
+        <?php } ?>
         <?php } ?>
 
         <aside class="main-sidebar sidebar-dark-yellow shadow-sm position-fixed">
             <div class="sidebar px-0">
-                <div class="row mx-0 py-2">
-                    <div class="col py-2 text-center rounded-3">
-                        <table class="text-secondary w-100">
-                            <tr>
-                                <td class="w-25 text-end pe-2"><i class="fas fa-user-circle"></i></td>
-                                <td class="w-50 text-start ps-2"><?= $this->nama_user . " #" . ($isTrainingUi ? 'TRAINING' : $this->id_cabang) ?></td>
-                            </tr>
-                            <tr>
-                                <td class="w-25 text-end pe-2"><i class="fas fa-wifi"></i></td>
-                                <td class="w-50 text-start ps-2"><?= $_SESSION[URL::SESSID]['data']['cabang']['wifi_pass'] ?? '' ?></td>
-                            </tr>
-                        </table>
+                <div class="mdl-side-card">
+                    <div class="mdl-side-user">
+                        <span class="mdl-side-user-btn" title="<?= htmlspecialchars((string) $this->nama_user) ?>">
+                            <i class="fas fa-user-circle"></i>
+                            <span><?= htmlspecialchars((string) $this->nama_user) ?></span>
+                        </span>
                     </div>
-                </div>
+                    <?php
+                    $wifiPass = trim((string) ($_SESSION[URL::SESSID]['data']['cabang']['wifi_pass'] ?? ''));
+                    if ($wifiPass !== '') {
+                    ?>
+                    <div class="mdl-side-wifi">
+                        <i class="fas fa-wifi"></i>
+                        <span><?= htmlspecialchars($wifiPass) ?></span>
+                    </div>
+                    <?php } ?>
 
-                <?php if ($this->id_privilege == 100) { ?>
-                    <div class="row mx-0 user-panel mb-2 pb-2 pt-1">
-                        <div class="col text-end mb-1">
-                            <span id="btnKasir" style="width: 42px;" class="btn <?= $classKasir ?> px-2"><i class="fas fa-cash-register"></i></span>
-                        </div>
-                        <div class="col text-start">
-                            <span id="btnAdmin" style="width: 42px;" class="btn <?= $classAdmin ?> px-2"><i class="fas fa-user-shield"></i></span>
-                        </div>
+                    <?php if ($this->id_privilege == 100) { ?>
+                    <div class="role-switch" id="roleSwitch" title="Ganti mode Kasir / Admin">
+                        <button type="button" id="btnKasir" class="role-btn<?= ($log_mode == 0) ? ' is-active' : '' ?>" data-mode="0">
+                            <i class="fas fa-cash-register"></i> Kasir
+                        </button>
+                        <button type="button" id="btnAdmin" class="role-btn<?= ($log_mode == 1) ? ' is-active' : '' ?>" data-mode="1">
+                            <i class="fas fa-user-shield"></i> Admin
+                        </button>
                     </div>
-                <?php } ?>
+                    <?php } ?>
+                </div>
 
                 <!-- MENU KASIR --------------------------------->
                 <nav class="ps-2 pb-5">
@@ -963,45 +1144,33 @@ if ($log_mode == 1) {
                     });
                 });
 
-                $("span#btnKasir").click(function() {
+                $("#roleSwitch .role-btn").on("click", function() {
+                    var mode = parseInt($(this).data("mode"), 10);
+                    if ($(this).hasClass("is-active")) {
+                        return;
+                    }
                     $.ajax({
                         url: "<?= URL::BASE_URL ?>Login/log_mode",
-                        data: {
-                            mode: 0
-                        },
+                        data: { mode: mode },
                         type: "POST",
-                        dataType: 'html',
-                        success: function(res) {
-                            $("#nav_0").removeClass('d-none');
-                            $("#nav_2").removeClass('d-none');
-                            $("#nav_1").addClass('d-none');
-                            $("#nav_3").addClass('d-none');
-
-                            $("span#btnKasir").removeClass("btn-secondary").addClass("btn-success");
-                            $("span#btnAdmin").removeClass("btn-danger").addClass("btn-secondary");
-                        },
+                        dataType: "html",
+                        success: function() {
+                            $("#roleSwitch .role-btn").removeClass("is-active");
+                            $('#roleSwitch .role-btn[data-mode="' + mode + '"]').addClass("is-active");
+                            if (mode === 0) {
+                                $("#nav_0").removeClass("d-none");
+                                $("#nav_2").removeClass("d-none");
+                                $("#nav_1").addClass("d-none");
+                                $("#nav_3").addClass("d-none");
+                            } else {
+                                $("#nav_0").addClass("d-none");
+                                $("#nav_2").addClass("d-none");
+                                $("#nav_1").removeClass("d-none");
+                                $("#nav_3").removeClass("d-none");
+                            }
+                        }
                     });
                 });
-
-                $("span#btnAdmin").click(function() {
-                    $.ajax({
-                        url: '<?= URL::BASE_URL ?>Login/log_mode',
-                        data: {
-                            mode: 1
-                        },
-                        type: "POST",
-                        dataType: 'html',
-                        success: function(response) {
-                            $("#nav_0").addClass('d-none');
-                            $("#nav_2").addClass('d-none');
-                            $("#nav_1").removeClass('d-none');
-                            $("#nav_3").removeClass('d-none');
-
-                            $("span#btnKasir").removeClass("btn-success").addClass("btn-secondary");
-                            $("span#btnAdmin").removeClass("btn-secondary").addClass("btn-danger");
-                        },
-                    });
-                })
 
                 $("select#selectCabang").on("change", function() {
                     var idCabang = $(this).val();
@@ -1138,6 +1307,57 @@ if ($log_mode == 1) {
                         },
                     });
                 });
+
+                (function initUserModal() {
+                    var $modal = $("#mdlUserModal");
+                    if (!$modal.length) return;
+
+                    function openUserModal() {
+                        $modal.addClass("is-open").attr("aria-hidden", "false");
+                    }
+                    function closeUserModal() {
+                        $modal.removeClass("is-open").attr("aria-hidden", "true");
+                    }
+                    function switchUser(idUser) {
+                        $.ajax({
+                            url: '<?= URL::BASE_URL ?>Login/switchUser',
+                            data: { id: idUser },
+                            type: "POST",
+                            beforeSend: function() {
+                                closeUserModal();
+                                $(".loaderDiv").fadeIn("fast");
+                            },
+                            success: function() {
+                                location.reload(true);
+                            },
+                            error: function(xhr) {
+                                $(".loaderDiv").fadeOut("fast");
+                                alert("Gagal ganti user: " + (xhr.responseText || xhr.status));
+                            }
+                        });
+                    }
+
+                    $("#btnPilihUser").on("click", function(e) {
+                        e.preventDefault();
+                        openUserModal();
+                    });
+                    $modal.on("click", "[data-umodal-close]", function() {
+                        closeUserModal();
+                    });
+                    $modal.on("click", ".mdl-cmodal__item", function() {
+                        var id = $(this).data("id-user");
+                        if (!id) {
+                            closeUserModal();
+                            return;
+                        }
+                        switchUser(id);
+                    });
+                    $(document).on("keydown", function(e) {
+                        if (e.key === "Escape" && $modal.hasClass("is-open")) {
+                            closeUserModal();
+                        }
+                    });
+                })();
 
                 function hide_modal() {
                     $(".modal").each(function() {
