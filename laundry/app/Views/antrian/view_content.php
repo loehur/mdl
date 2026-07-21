@@ -242,9 +242,9 @@ if (count($data['data_main']) == 0) {
               </span>
             </div>
             <div class="mdl-nota-head__right">
-              <span class="mdl-nota-chip <?= $waTone ?>"><?= $buttonNotif ?> <?= $stNotif ?></span>
               <span><?= htmlspecialchars($karyawan, ENT_QUOTES, 'UTF-8') ?></span>
               <span><?= $tgl_terima ?></span>
+              <span class="mdl-nota-chip <?= $waTone ?> mdl-nota-head__wa"><?= $buttonNotif ?> <?= $stNotif ?></span>
             </div>
           </div>
         </div>

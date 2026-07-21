@@ -148,17 +148,25 @@ if (isset($data['data_operasi'])) {
         .content-wrapper .mdl-nota-head__right {
             display: inline-flex;
             align-items: center;
+            justify-content: flex-end;
             gap: 5px;
-            flex-shrink: 0;
+            flex: 1 1 auto;
+            min-width: 0;
             font-size: 0.82em;
             font-weight: 700;
             color: #0d1117;
             white-space: nowrap;
             line-height: 1.2;
+            margin-left: auto;
+            text-align: right;
         }
         .content-wrapper .mdl-nota-head__right i {
             opacity: 1;
             color: #0d1117;
+        }
+        .content-wrapper .mdl-nota-head__wa {
+            margin-left: 2px;
+            flex-shrink: 0;
         }
         .content-wrapper .mdl-nota-head__actions {
             display: flex;
