@@ -11,15 +11,15 @@ $canEditPartner = ((int) $this->id_privilege === 100);
 
 <style>
   #plg-root {
-    --j-ink: #0B3D3A;
-    --j-ink-soft: #134E4A;
-    --j-foam: #F3F7F6;
+    --j-ink: #1e3a5f;
+    --j-ink-soft: #2a4a73;
+    --j-foam: #F4F7FB;
     --j-card: #FFFFFF;
-    --j-line: #D7E5E2;
-    --j-mint: #2A9D8F;
+    --j-line: #D5DEEA;
+    --j-mint: #3f74d4;
     --j-amber: #E9A319;
     --j-coral: #E76F51;
-    --j-muted: #5F7370;
+    --j-muted: #5a6a7c;
     --j-radius: 16px;
     --j-font: "Plus Jakarta Sans", "fontku", "Segoe UI", sans-serif;
 
@@ -37,7 +37,7 @@ $canEditPartner = ((int) $this->id_privilege === 100);
     border-radius: var(--j-radius);
     padding: 12px;
     margin-bottom: 10px;
-    box-shadow: 0 8px 22px rgba(11, 61, 58, 0.04);
+    box-shadow: 0 8px 22px rgba(36, 48, 65, 0.05);
   }
 
   #plg-root .plg-search-wrap {
@@ -69,9 +69,9 @@ $canEditPartner = ((int) $this->id_privilege === 100);
   #plg-root .plg-input--search { padding-left: 34px; }
   #plg-root .plg-input:focus {
     border-color: var(--j-mint);
-    box-shadow: 0 0 0 3px rgba(42, 157, 143, 0.18);
+    box-shadow: 0 0 0 3px rgba(63, 116, 212, 0.2);
   }
-  #plg-root .plg-input::placeholder { color: #8A9E9B; font-weight: 500; }
+  #plg-root .plg-input::placeholder { color: #8a96a3; font-weight: 500; }
 
   #plg-root .plg-form {
     display: grid;
@@ -92,14 +92,14 @@ $canEditPartner = ((int) $this->id_privilege === 100);
     border: 0;
     border-radius: 10px;
     padding: 9px 12px;
-    background: linear-gradient(145deg, var(--j-ink) 0%, var(--j-ink-soft) 100%);
-    color: #F8FFFE;
+    background: linear-gradient(145deg, #2f61bc 0%, #3f74d4 100%);
+    color: #F8FBFF;
     font-family: inherit;
     font-size: 0.92rem;
     font-weight: 700;
     letter-spacing: -0.01em;
     cursor: pointer;
-    box-shadow: 0 8px 18px rgba(11, 61, 58, 0.16);
+    box-shadow: 0 8px 18px rgba(47, 97, 188, 0.28);
     transition: transform .12s ease, opacity .12s ease;
   }
   #plg-root .plg-btn:active { transform: scale(0.98); opacity: 0.92; }
@@ -120,12 +120,12 @@ $canEditPartner = ((int) $this->id_privilege === 100);
     border-radius: var(--j-radius);
     padding: 11px 12px;
     margin: 0;
-    box-shadow: 0 6px 18px rgba(11, 61, 58, 0.04);
+    box-shadow: 0 6px 18px rgba(36, 48, 65, 0.05);
     transition: border-color .15s ease, box-shadow .15s ease;
   }
   #plg-root .plg-card:hover {
-    border-color: rgba(42, 157, 143, 0.45);
-    box-shadow: 0 8px 20px rgba(11, 61, 58, 0.07);
+    border-color: rgba(63, 116, 212, 0.45);
+    box-shadow: 0 8px 20px rgba(47, 97, 188, 0.1);
   }
 
   #plg-root .plg-card-head {
@@ -167,12 +167,12 @@ $canEditPartner = ((int) $this->id_privilege === 100);
     padding: 3px 7px;
     border-radius: 999px;
     white-space: nowrap;
-    background: #EEF3F2;
+    background: #EEF2F7;
     color: var(--j-muted);
   }
   #plg-root .plg-badge--partner {
-    background: rgba(42, 157, 143, 0.14);
-    color: #1A7A6E;
+    background: rgba(63, 116, 212, 0.14);
+    color: #2f61bc;
   }
 
   #plg-root .plg-edit {
@@ -181,7 +181,7 @@ $canEditPartner = ((int) $this->id_privilege === 100);
     padding: 0 1px;
   }
   #plg-root .plg-edit:hover {
-    background: rgba(42, 157, 143, 0.1);
+    background: rgba(63, 116, 212, 0.1);
   }
 
   #plg-root .plg-inline {
@@ -196,7 +196,7 @@ $canEditPartner = ((int) $this->id_privilege === 100);
     font-weight: 650;
     color: var(--j-ink);
     outline: none;
-    box-shadow: 0 0 0 3px rgba(42, 157, 143, 0.2);
+    box-shadow: 0 0 0 3px rgba(63, 116, 212, 0.2);
   }
   #plg-root .plg-inline--sm {
     min-width: 3rem;
