@@ -80,6 +80,12 @@ if (isset($data['data_operasi'])) {
             overflow-x: hidden;
             -webkit-overflow-scrolling: touch;
         }
+        .main-sidebar.sidebar-dark-yellow {
+            background: #0f172a !important;
+        }
+        body.mode-training .main-sidebar {
+            background: #431407 !important;
+        }
 
         /* ===== Top toolbar: tinggi seragam ===== */
         .main-header.mdl-topbar {
@@ -450,9 +456,6 @@ if (isset($data['data_operasi'])) {
             background: #ffedd5 !important;
             border-bottom-color: #fdba74;
         }
-        body.mode-training .main-sidebar {
-            background: #5c3200 !important;
-        }
         body.mode-training .mode-switch {
             border-color: #c2410c;
             background: #fed7aa;
@@ -558,6 +561,143 @@ if (isset($data['data_operasi'])) {
             background: #dc2626;
             color: #fff;
             box-shadow: 0 1px 2px rgba(220, 38, 38, 0.35);
+        }
+
+        /* ===== Sidebar menu card ===== */
+        .mdl-side-nav {
+            margin: 0 10px 12px;
+            padding: 8px;
+            border-radius: 14px;
+            background: #f8fafc;
+            border: 1px solid rgba(255,255,255,.08);
+            box-shadow: 0 6px 16px rgba(0,0,0,.16);
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
+        }
+        .mdl-side-nav > .nav {
+            padding: 0 !important;
+        }
+        .mdl-side-nav .nav-sidebar > .nav,
+        .mdl-side-nav .nav-sidebar {
+            gap: 2px;
+        }
+        .mdl-side-nav .nav-item {
+            margin: 0 0 2px;
+            width: 100%;
+        }
+        .mdl-side-nav .nav-link {
+            display: flex !important;
+            align-items: center;
+            gap: 10px;
+            min-height: 40px;
+            margin: 0 !important;
+            padding: 8px 12px !important;
+            border-radius: 10px !important;
+            border: 1.5px solid transparent;
+            background: transparent !important;
+            color: #334155 !important;
+            font-family: 'fontku', sans-serif;
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1.2;
+            transition: background .15s ease, color .15s ease, border-color .15s ease, box-shadow .15s ease;
+        }
+        .mdl-side-nav .nav-link p {
+            margin: 0 !important;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex: 1 1 auto;
+            width: auto !important;
+            white-space: nowrap;
+        }
+        .mdl-side-nav .nav-link > .nav-icon,
+        .mdl-side-nav .nav-link > i.nav-icon {
+            width: 18px !important;
+            margin-right: 0 !important;
+            font-size: 14px !important;
+            text-align: center;
+            color: #64748b !important;
+        }
+        .mdl-side-nav .nav-link:hover {
+            background: #eef2f7 !important;
+            color: #0f172a !important;
+            border-color: #e2e8f0;
+        }
+        .mdl-side-nav .nav-link:hover > .nav-icon,
+        .mdl-side-nav .nav-link:hover > i.nav-icon {
+            color: #2563eb !important;
+        }
+        .mdl-side-nav .nav-link.active {
+            background: #2563eb !important;
+            border-color: #2563eb !important;
+            color: #fff !important;
+            box-shadow: 0 4px 10px rgba(37, 99, 235, 0.28);
+        }
+        .mdl-side-nav .nav-link.active > .nav-icon,
+        .mdl-side-nav .nav-link.active > i.nav-icon {
+            color: #fff !important;
+        }
+        .mdl-side-nav .nav-link .right,
+        .mdl-side-nav .nav-link .fa-angle-left {
+            margin-left: auto;
+            font-size: 12px;
+            opacity: 0.7;
+            transition: transform .2s ease;
+        }
+        .mdl-side-nav .nav-item.menu-open > .nav-link .fa-angle-left,
+        .mdl-side-nav .nav-item.menu-is-opening > .nav-link .fa-angle-left {
+            transform: rotate(-90deg);
+        }
+        .mdl-side-nav .nav-item.menu-open > .nav-link:not(.active),
+        .mdl-side-nav .nav-item.menu-is-opening > .nav-link:not(.active) {
+            background: #e2e8f0 !important;
+            color: #0f172a !important;
+            border-color: #cbd5e1;
+        }
+        .mdl-side-nav .nav-treeview {
+            margin: 4px 0 6px !important;
+            padding: 4px !important;
+            border-radius: 10px;
+            background: #eef2f7;
+        }
+        .mdl-side-nav .nav-treeview .nav-item {
+            margin: 0 0 2px;
+        }
+        .mdl-side-nav .nav-treeview .nav-link {
+            min-height: 34px;
+            padding: 6px 10px 6px 12px !important;
+            font-size: 12.5px;
+            font-weight: 700;
+            color: #475569 !important;
+            background: transparent !important;
+            box-shadow: none !important;
+        }
+        .mdl-side-nav .nav-treeview .nav-link > .nav-icon,
+        .mdl-side-nav .nav-treeview .nav-link > i.nav-icon {
+            font-size: 8px !important;
+            color: #94a3b8 !important;
+        }
+        .mdl-side-nav .nav-treeview .nav-link:hover {
+            background: #fff !important;
+            color: #0f172a !important;
+            border-color: #e2e8f0;
+        }
+        .mdl-side-nav .nav-treeview .nav-link.active {
+            background: #fff !important;
+            border-color: #93c5fd !important;
+            color: #1d4ed8 !important;
+            box-shadow: 0 1px 4px rgba(37, 99, 235, 0.12) !important;
+        }
+        .mdl-side-nav .nav-treeview .nav-link.active > .nav-icon,
+        .mdl-side-nav .nav-treeview .nav-link.active > i.nav-icon {
+            color: #2563eb !important;
+        }
+        .mdl-side-nav .nav-treeview .nav-link p b {
+            font-weight: 700;
         }
     </style>
 </head>
@@ -764,8 +904,8 @@ if ($log_mode == 1) {
                     <?php } ?>
                 </div>
 
-                <!-- MENU KASIR --------------------------------->
-                <nav class="ps-2 pb-5">
+                <!-- MENU --------------------------------->
+                <nav class="mdl-side-nav pb-3">
                     <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="true">
                         <?php foreach ($menu as $key => $m) { ?>
                             <ul id="nav_<?= $key ?>" class="nav nav-pills nav-sidebar flex-column <?= $key == 0 ? $hideKasir : $hideAdmin ?>">
