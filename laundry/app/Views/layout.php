@@ -181,9 +181,166 @@ if (isset($data['data_operasi'])) {
         .mdl-tctrl--cabang {
             background-color: #2563eb;
         }
+        .mdl-tbtn--cabang {
+            min-width: 52px;
+            padding: 0 12px;
+            border: 1.5px solid transparent;
+            background: #2563eb;
+            color: #fff;
+            gap: 6px;
+        }
+        .mdl-tbtn--cabang:hover {
+            background: #1d4ed8;
+            border-color: transparent;
+            color: #fff;
+        }
+        .mdl-tbtn--cabang i {
+            font-size: 10px;
+            opacity: 0.85;
+        }
         .mdl-tctrl--user {
             background-color: #16a34a;
             max-width: 120px;
+        }
+
+        /* ===== Custom cabang picker modal ===== */
+        .mdl-cmodal {
+            position: fixed;
+            inset: 0;
+            z-index: 4000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+        .mdl-cmodal.is-open {
+            display: flex;
+        }
+        .mdl-cmodal__backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.55);
+            backdrop-filter: blur(3px);
+        }
+        .mdl-cmodal__panel {
+            position: relative;
+            z-index: 1;
+            width: min(420px, 100%);
+            max-height: min(78vh, 560px);
+            display: flex;
+            flex-direction: column;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 24px 48px rgba(15, 23, 42, 0.28);
+            overflow: hidden;
+            animation: mdlCmodalIn .18s ease-out;
+        }
+        @keyframes mdlCmodalIn {
+            from { opacity: 0; transform: translateY(10px) scale(0.98); }
+            to { opacity: 1; transform: none; }
+        }
+        .mdl-cmodal__head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 14px 16px;
+            background: linear-gradient(135deg, #1e3a8a, #2563eb);
+            color: #fff;
+        }
+        .mdl-cmodal__head h3 {
+            margin: 0;
+            font-size: 15px;
+            font-weight: 800;
+            letter-spacing: 0.02em;
+        }
+        .mdl-cmodal__head small {
+            display: block;
+            margin-top: 2px;
+            font-size: 11px;
+            font-weight: 600;
+            opacity: 0.8;
+        }
+        .mdl-cmodal__close {
+            width: 32px;
+            height: 32px;
+            border: 0;
+            border-radius: 8px;
+            background: rgba(255,255,255,.15);
+            color: #fff;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .mdl-cmodal__close:hover {
+            background: rgba(255,255,255,.28);
+        }
+        .mdl-cmodal__body {
+            padding: 12px;
+            overflow-y: auto;
+            background: #f1f5f9;
+        }
+        .mdl-cmodal__grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+        }
+        .mdl-cmodal__item {
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            min-height: 72px;
+            padding: 10px 8px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 12px;
+            background: #fff;
+            color: #0f172a;
+            cursor: pointer;
+            text-align: center;
+            transition: transform .12s ease, border-color .12s ease, box-shadow .12s ease, background .12s ease;
+        }
+        .mdl-cmodal__item:hover {
+            border-color: #93c5fd;
+            background: #eff6ff;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.12);
+            transform: translateY(-1px);
+        }
+        .mdl-cmodal__item.is-active {
+            border-color: #2563eb;
+            background: linear-gradient(180deg, #dbeafe, #eff6ff);
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+        }
+        .mdl-cmodal__kode {
+            font-size: 18px;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            color: #1e40af;
+            line-height: 1;
+        }
+        .mdl-cmodal__item.is-active .mdl-cmodal__kode {
+            color: #1d4ed8;
+        }
+        .mdl-cmodal__meta {
+            font-size: 10px;
+            font-weight: 600;
+            color: #64748b;
+            line-height: 1.25;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .mdl-cmodal__foot {
+            padding: 10px 14px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #64748b;
+            background: #fff;
+            border-top: 1px solid #e2e8f0;
         }
 
         .mode-switch {
@@ -322,12 +479,13 @@ if ($log_mode == 1) {
                     <button type="button" class="mode-btn<?= $isTrainingUi ? ' active-training' : '' ?>" data-mode="training">Training</button>
                 </div>
 
-                <?php if (!$isTrainingUi && ($this->id_privilege == 100 or $this->id_privilege == 12)) { ?>
-                    <select id="selectCabang" class="mdl-tctrl mdl-tctrl--cabang" title="Pilih cabang">
-                        <?php foreach ($this->listCabang as $lcb) { ?>
-                            <option value="<?= $lcb['id_cabang'] ?>" <?= ($this->id_cabang == $lcb['id_cabang']) ? "selected" : '' ?>><?= $lcb['kode_cabang'] ?></option>
-                        <?php } ?>
-                    </select>
+                <?php if (!$isTrainingUi && ($this->id_privilege == 100 or $this->id_privilege == 12)) {
+                    $kodeCabangAktif = $this->dCabang['kode_cabang'] ?? $this->id_cabang;
+                ?>
+                    <button type="button" id="btnPilihCabang" class="mdl-tbtn mdl-tbtn--cabang" title="Pilih cabang">
+                        <span id="btnPilihCabangLabel"><?= htmlspecialchars((string) $kodeCabangAktif) ?></span>
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
                     <?php if ($this->id_privilege == 100) { ?>
                         <select id="userLog" class="mdl-tctrl mdl-tctrl--user" title="Login sebagai user">
                             <option value="">——</option>
@@ -352,6 +510,50 @@ if ($log_mode == 1) {
                 </a>
             </div>
         </nav>
+
+        <?php if (!$isTrainingUi && ($this->id_privilege == 100 or $this->id_privilege == 12)) { ?>
+        <div class="mdl-cmodal" id="mdlCabangModal" aria-hidden="true">
+            <div class="mdl-cmodal__backdrop" data-cmodal-close></div>
+            <div class="mdl-cmodal__panel" role="dialog" aria-modal="true" aria-labelledby="mdlCabangTitle">
+                <div class="mdl-cmodal__head">
+                    <div>
+                        <h3 id="mdlCabangTitle">Pilih Cabang</h3>
+                        <small>Tap kode untuk pindah outlet</small>
+                    </div>
+                    <button type="button" class="mdl-cmodal__close" data-cmodal-close aria-label="Tutup">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="mdl-cmodal__body">
+                    <div class="mdl-cmodal__grid">
+                        <?php foreach ($this->listCabang as $lcb) {
+                            $cid = (int) $lcb['id_cabang'];
+                            $isActive = ($cid === (int) $this->id_cabang);
+                            $alamat = trim((string) ($lcb['alamat'] ?? ''));
+                            if (strlen($alamat) > 28) {
+                                $alamat = substr($alamat, 0, 28) . '…';
+                            }
+                        ?>
+                            <button type="button"
+                                class="mdl-cmodal__item<?= $isActive ? ' is-active' : '' ?>"
+                                data-id-cabang="<?= $cid ?>"
+                                data-kode="<?= htmlspecialchars((string) $lcb['kode_cabang']) ?>">
+                                <span class="mdl-cmodal__kode"><?= htmlspecialchars((string) $lcb['kode_cabang']) ?></span>
+                                <?php if ($alamat !== '') { ?>
+                                    <span class="mdl-cmodal__meta"><?= htmlspecialchars($alamat) ?></span>
+                                <?php } else { ?>
+                                    <span class="mdl-cmodal__meta">ID <?= $cid ?></span>
+                                <?php } ?>
+                            </button>
+                        <?php } ?>
+                    </div>
+                </div>
+                <div class="mdl-cmodal__foot">
+                    Cabang aktif: <b><?= htmlspecialchars((string) ($this->dCabang['kode_cabang'] ?? $this->id_cabang)) ?></b>
+                </div>
+            </div>
+        </div>
+        <?php } ?>
 
         <aside class="main-sidebar sidebar-dark-yellow shadow-sm position-fixed">
             <div class="sidebar px-0">
@@ -817,6 +1019,58 @@ if ($log_mode == 1) {
                         },
                     });
                 });
+
+                (function initCabangModal() {
+                    var $modal = $("#mdlCabangModal");
+                    if (!$modal.length) return;
+
+                    function openCabangModal() {
+                        $modal.addClass("is-open").attr("aria-hidden", "false");
+                    }
+                    function closeCabangModal() {
+                        $modal.removeClass("is-open").attr("aria-hidden", "true");
+                    }
+                    function switchCabang(idCabang) {
+                        $.ajax({
+                            url: '<?= URL::BASE_URL ?>Cabang_List/selectCabang',
+                            data: { id: idCabang },
+                            type: "POST",
+                            beforeSend: function() {
+                                closeCabangModal();
+                                $(".loaderDiv").fadeIn("fast");
+                            },
+                            success: function() {
+                                location.reload(true);
+                            },
+                            error: function(xhr) {
+                                $(".loaderDiv").fadeOut("fast");
+                                alert("Gagal pindah cabang: " + (xhr.responseText || xhr.status));
+                            }
+                        });
+                    }
+
+                    $("#btnPilihCabang").on("click", function(e) {
+                        e.preventDefault();
+                        openCabangModal();
+                    });
+                    $modal.on("click", "[data-cmodal-close]", function() {
+                        closeCabangModal();
+                    });
+                    $modal.on("click", ".mdl-cmodal__item", function() {
+                        var id = $(this).data("id-cabang");
+                        var current = <?= (int) $this->id_cabang ?>;
+                        if (!id || parseInt(id, 10) === current) {
+                            closeCabangModal();
+                            return;
+                        }
+                        switchCabang(id);
+                    });
+                    $(document).on("keydown", function(e) {
+                        if (e.key === "Escape" && $modal.hasClass("is-open")) {
+                            closeCabangModal();
+                        }
+                    });
+                })();
 
                 $("#modeSwitch .mode-btn").on("click", function() {
                     var mode = $(this).data("mode");
