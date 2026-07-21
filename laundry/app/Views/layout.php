@@ -30,7 +30,7 @@ if (isset($data['data_operasi'])) {
         }
 
         html {
-            font-size: 14px; /* Bootstrap rem scale — selaras chrome (topnav/sidebar tetap px) */
+            font-size: 15px; /* Bootstrap rem scale — lebih besar dari 14px */
         }
 
         html .table {
@@ -48,13 +48,13 @@ if (isset($data['data_operasi'])) {
         /* Konten: longgarkan small/table agar tidak terlalu kecil vs chrome */
         .content-wrapper small,
         .content-wrapper .small {
-            font-size: 0.92em;
+            font-size: 0.95em;
         }
         .content-wrapper .table {
-            font-size: 13px;
+            font-size: 14px;
         }
         .content-wrapper .table.table-sm {
-            font-size: 12.5px;
+            font-size: 13.5px;
         }
 
         @media print {
