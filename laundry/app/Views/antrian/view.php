@@ -1,4 +1,4 @@
-<div id="load"></div>
+<div id="load" class="antrian-load"></div>
 <script>
   var mode = "<?= $data['modeView'] ?>"
 

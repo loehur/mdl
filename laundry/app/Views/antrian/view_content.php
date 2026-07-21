@@ -622,38 +622,38 @@ $listAntri = "";
 if (count($arrRekapAntrianToday) > 0) {
   $listAntri .= "<b>Hari ini: </b>";
   foreach ($arrRekapAntrianToday as $key => $val) {
-    $listAntri .= "<span class='text-danger' onclick='filterDeadline(1)' style='cursor:pointer'>" . $key . " " . $val . ", </span>";
+    $listAntri .= "<span class='antrian-chip antrian-chip--today' onclick='filterDeadline(1)'>" . $key . " " . $val . ", </span>";
   }
 }
 if (count($arrRekapAntrianRak) > 0) {
   $listAntri .= "<b>Rak: </b>";
   foreach ($arrRekapAntrianRak as $key => $val) {
-    $listAntri .= "<span class='text-danger' onclick='filterDeadline(4)' style='cursor:pointer'>" . $key . " " . $val . ", </span>";
+    $listAntri .= "<span class='antrian-chip antrian-chip--rak' onclick='filterDeadline(4)'>" . $key . " " . $val . ", </span>";
   }
 }
 if (count($arrRekapAntrianMiss) > 0) {
   $listAntri .= "<b>Terlewat: </b>";
   foreach ($arrRekapAntrianMiss as $key => $val) {
-    $listAntri .= "<span class='text-danger' onclick='filterDeadline(3)' style='cursor:pointer'>" . $key . " " . $val . ", </span>";
+    $listAntri .= "<span class='antrian-chip antrian-chip--miss' onclick='filterDeadline(3)'>" . $key . " " . $val . ", </span>";
   }
 }
 
 if (count($arrPelangganBesok) > 0) {
   $listAntri .= "<b>Besok: </b>";
   foreach ($arrRekapAntrianBesok as $key => $val) {
-    $listAntri .= "<span class='text-primary' onclick='filterDeadline(2)' style='cursor:pointer'>" . $key . " " . $val . ", </span>";
+    $listAntri .= "<span class='antrian-chip antrian-chip--besok' onclick='filterDeadline(2)'>" . $key . " " . $val . ", </span>";
   }
 }
 if (count($arrPelangganKerja) > 0) {
   $listAntri .= "<b>Kerja: </b>";
   foreach ($arrRekapAntrianKerja as $key => $val) {
-    $listAntri .= "<span class='text-info' onclick='filterDeadline(5)' style='cursor:pointer'>" . $key . " " . $val . ", </span>";
+    $listAntri .= "<span class='antrian-chip antrian-chip--kerja' onclick='filterDeadline(5)'>" . $key . " " . $val . ", </span>";
   }
 }
 if (count($arrRekapAntrian) > 0) {
   $listAntri .= "<b>Antrian: </b>";
   foreach ($arrRekapAntrian as $key => $val) {
-    $listAntri .= "<span class='text-success'>" . $key . " " . $val . ", </span>";
+    $listAntri .= "<span class='antrian-chip antrian-chip--antri'>" . $key . " " . $val . ", </span>";
   }
 }
 ?>
@@ -662,7 +662,7 @@ if (count($arrRekapAntrian) > 0) {
   var view = [];
 
   $(document).ready(function() {
-    $("span#rekapAntri").html("<?= $listAntri ?>");
+    $("#rekapAntri").html(<?= json_encode($listAntri) ?>);
     view[1] = <?= json_encode($arrPelangganToday) ?>;
     view[2] = <?= json_encode($arrPelangganBesok) ?>;
     view[3] = <?= json_encode($arrPelangganMiss) ?>;
