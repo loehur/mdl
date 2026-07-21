@@ -766,7 +766,7 @@ if ($log_mode == 1) {
 
                 <!-- MENU KASIR --------------------------------->
                 <nav class="ps-2 pb-5">
-                    <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
+                    <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="true">
                         <?php foreach ($menu as $key => $m) { ?>
                             <ul id="nav_<?= $key ?>" class="nav nav-pills nav-sidebar flex-column <?= $key == 0 ? $hideKasir : $hideAdmin ?>">
                                 <?php foreach ($m as $mk) { ?>
@@ -1131,6 +1131,24 @@ if ($log_mode == 1) {
                         startX = null;
                         startY = null;
                     }, { passive: true });
+                })();
+
+                // Hanya satu dropdown menu terbuka di sidebar
+                (function initSidebarMenuAccordion() {
+                    var $sidebar = $(".main-sidebar");
+                    $sidebar.on("click", ".nav-item > a.nav-link", function() {
+                        var $item = $(this).parent(".nav-item");
+                        if (!$item.children(".nav-treeview").length) {
+                            return;
+                        }
+                        // Tutup dropdown lain di seluruh sidebar (kecuali item yang diklik)
+                        $sidebar.find(".nav-item.menu-open").not($item).each(function() {
+                            var $other = $(this);
+                            $other.removeClass("menu-open menu-is-opening");
+                            $other.children(".nav-treeview").stop(true, true).slideUp(200);
+                            $other.children("a.nav-link").removeClass("active");
+                        });
+                    });
                 })();
 
                 $("a.refresh").on('click', function() {
