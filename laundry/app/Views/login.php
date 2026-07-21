@@ -78,24 +78,6 @@
             opacity: .7;
         }
 
-        /* hanging shirts silhouette strip */
-        .login-rails {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 120px;
-            pointer-events: none;
-            overflow: hidden;
-            opacity: .22;
-        }
-        .login-rails svg {
-            width: 140%;
-            max-width: none;
-            height: 120px;
-            animation: rail-drift 28s linear infinite;
-        }
-
         .login-steam {
             position: absolute;
             inset: auto 0 0 0;
@@ -130,10 +112,6 @@
         .login-bubbles span:nth-child(4) { left: 67%; width: 12px; height: 12px; animation-duration: 13s; animation-delay: 1s; }
         .login-bubbles span:nth-child(5) { left: 84%; width: 7px; height: 7px; animation-duration: 12s; animation-delay: 3.5s; }
 
-        @keyframes rail-drift {
-            from { transform: translateX(0); }
-            to { transform: translateX(-12%); }
-        }
         @keyframes steam-rise {
             from { opacity: .75; transform: translateY(8px); }
             to { opacity: 1; transform: translateY(-6px); }
@@ -160,23 +138,6 @@
             margin: 0 0 22px;
             animation: rise-in .65s ease-out .05s both;
         }
-        .login-brand__mark {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            margin-bottom: 8px;
-        }
-        .login-brand__icon {
-            width: 44px;
-            height: 44px;
-            display: grid;
-            place-items: center;
-            background: linear-gradient(145deg, #2f61bc, #3db8a8);
-            color: #fff;
-            box-shadow: 0 8px 20px rgba(47, 97, 188, .35);
-        }
-        .login-brand__icon i { font-size: 20px; }
         .login-brand__name {
             margin: 0;
             font-family: 'Outfit', 'fontku', sans-serif;
@@ -208,7 +169,16 @@
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
             padding: 22px 20px 20px;
+            overflow: hidden;
             animation: rise-in .7s ease-out .12s both;
+        }
+
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 100%;
+            min-width: 0;
         }
 
         .login-lead {
@@ -268,18 +238,16 @@
             color: #1a6b45;
         }
 
-        .login-form {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
         .login-field {
             display: flex;
             align-items: stretch;
+            width: 100%;
+            min-width: 0;
+            max-width: 100%;
             border: 1.5px solid var(--line);
             background: #fff;
             transition: border-color .15s, box-shadow .15s;
+            overflow: hidden;
         }
         .login-field:focus-within {
             border-color: var(--accent);
@@ -288,8 +256,9 @@
         .login-field input {
             flex: 1 1 auto;
             min-width: 0;
+            width: 100%;
             height: 44px;
-            padding: 0 14px;
+            padding: 0 12px;
             border: 0;
             outline: none;
             background: transparent;
@@ -304,7 +273,8 @@
         }
         .login-field__action,
         .login-field__icon {
-            flex: 0 0 44px;
+            flex: 0 0 40px;
+            width: 40px;
             display: grid;
             place-items: center;
             border: 0;
@@ -323,24 +293,35 @@
             color: #fff;
         }
         .login-field__captcha {
-            flex: 0 0 56px;
+            flex: 0 0 52px;
+            width: 52px;
+            max-width: 52px;
             display: grid;
             place-items: center;
             border-left: 1.5px solid var(--line);
             background: #f8fafc;
-            padding: 0 4px;
+            padding: 0 2px;
             cursor: pointer;
+            overflow: hidden;
         }
         .login-field__captcha img {
             display: block;
-            max-height: 32px;
+            max-height: 28px;
+            max-width: 48px;
             width: auto;
+            height: auto;
         }
 
         .login-row {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
             gap: 10px;
+            width: 100%;
+            min-width: 0;
+        }
+        .login-row > .login-field {
+            min-width: 0;
+            max-width: 100%;
         }
 
         .login-actions {
@@ -402,7 +383,6 @@
         }
 
         @media (prefers-reduced-motion: reduce) {
-            .login-rails svg,
             .login-steam,
             .login-bubbles span,
             .login-shell,
@@ -414,34 +394,6 @@
 
 <body class="login-page">
     <div class="login-scene">
-        <div class="login-rails" aria-hidden="true">
-            <svg viewBox="0 0 1200 120" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
-                <line x1="0" y1="18" x2="1200" y2="18" stroke="#1a2740" stroke-width="2"/>
-                <!-- hangers + shirts -->
-                <g fill="#1a2740">
-                    <path d="M70 18v12c0 4-8 8-8 14h40c0-6-8-10-8-14V18"/>
-                    <path d="M62 44h32l6 50H56z"/>
-                    <path d="M190 18v12c0 4-8 8-8 14h40c0-6-8-10-8-14V18"/>
-                    <path d="M182 44h32l4 48h-40z"/>
-                    <path d="M310 18v12c0 4-8 8-8 14h40c0-6-8-10-8-14V18"/>
-                    <path d="M302 44h32l8 52H294z"/>
-                    <path d="M430 18v12c0 4-8 8-8 14h40c0-6-8-10-8-14V18"/>
-                    <path d="M422 44h32l5 46h-42z"/>
-                    <path d="M550 18v12c0 4-8 8-8 14h40c0-6-8-10-8-14V18"/>
-                    <path d="M542 44h32l7 54H535z"/>
-                    <path d="M670 18v12c0 4-8 8-8 14h40c0-6-8-10-8-14V18"/>
-                    <path d="M662 44h32l4 48h-40z"/>
-                    <path d="M790 18v12c0 4-8 8-8 14h40c0-6-8-10-8-14V18"/>
-                    <path d="M782 44h32l6 50H776z"/>
-                    <path d="M910 18v12c0 4-8 8-8 14h40c0-6-8-10-8-14V18"/>
-                    <path d="M902 44h32l5 46h-42z"/>
-                    <path d="M1030 18v12c0 4-8 8-8 14h40c0-6-8-10-8-14V18"/>
-                    <path d="M1022 44h32l7 54H1015z"/>
-                    <path d="M1150 18v12c0 4-8 8-8 14h40c0-6-8-10-8-14V18"/>
-                    <path d="M1142 44h32l4 48h-40z"/>
-                </g>
-            </svg>
-        </div>
         <div class="login-steam" aria-hidden="true"></div>
         <div class="login-bubbles" aria-hidden="true">
             <span></span><span></span><span></span><span></span><span></span>
@@ -449,11 +401,6 @@
 
         <div class="login-shell">
             <header class="login-brand">
-                <div class="login-brand__mark">
-                    <div class="login-brand__icon" aria-hidden="true">
-                        <i class="fas fa-tshirt"></i>
-                    </div>
-                </div>
                 <h1 class="login-brand__name">MDL <em>Laundry</em></h1>
                 <p class="login-brand__tag">Masuk ke kasir outlet</p>
             </header>
