@@ -264,6 +264,8 @@ class MainActivity : AppCompatActivity() {
 
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                 val url = request?.url?.toString() ?: return false
+                val uri = request.url ?: return false
+                val host = (uri.host ?: "").lowercase()
 
                 if (url.startsWith("intent://")) {
                     try {
@@ -301,11 +303,60 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
 
+                // Keep CRM itself inside WebView; open everything else externally
+                // (invoice ml.nalju.com, laundry portal, etc.)
+                val isCmsApp =
+                    host == "cms.nalju.com" ||
+                    host.endsWith(".cms.nalju.com") ||
+                    host == "localhost" ||
+                    host == "127.0.0.1"
+
+                if ((url.startsWith("http://") || url.startsWith("https://")) && !isCmsApp) {
+                    try {
+                        startActivity(Intent(Intent.ACTION_VIEW, uri))
+                        return true
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        return false
+                    }
+                }
+
                 return false
             }
         }
 
+        webView.settings.setSupportMultipleWindows(true)
+        webView.settings.javaScriptCanOpenWindowsAutomatically = true
+
         webView.webChromeClient = object : WebChromeClient() {
+            override fun onCreateWindow(
+                view: WebView?,
+                isDialog: Boolean,
+                isUserGesture: Boolean,
+                resultMsg: android.os.Message?
+            ): Boolean {
+                // target=_blank from bubble chat → open in external browser
+                val transport = resultMsg?.obj as? WebView.WebViewTransport ?: return false
+                val tempWebView = WebView(view?.context ?: this@MainActivity)
+                tempWebView.webViewClient = object : WebViewClient() {
+                    override fun shouldOverrideUrlLoading(
+                        v: WebView?,
+                        request: WebResourceRequest?
+                    ): Boolean {
+                        val target = request?.url?.toString() ?: return true
+                        try {
+                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target)))
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                        return true
+                    }
+                }
+                transport.webView = tempWebView
+                resultMsg.sendToTarget()
+                return true
+            }
+
             override fun onShowFileChooser(
                 webView: WebView?,
                 filePathCallback: ValueCallback<Array<Uri>>?,

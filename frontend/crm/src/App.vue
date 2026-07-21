@@ -4697,11 +4697,26 @@ const openExternalBrowser = (url) => {
 
   // Android WebView app: buka lewat Intent native
   if (window.Android && typeof window.Android.openUrl === "function") {
-    window.Android.openUrl(normalizedUrl);
-    return;
+    try {
+      window.Android.openUrl(normalizedUrl);
+      return;
+    } catch (e) {
+      console.warn("Android.openUrl failed, fallback", e);
+    }
   }
 
-  window.open(normalizedUrl, "_blank", "noopener,noreferrer");
+  // Browser / WebView dengan support window.open / target=_blank
+  const opened = window.open(normalizedUrl, "_blank", "noopener,noreferrer");
+  if (opened) return;
+
+  // Fallback terakhir: <a target=_blank> (ditangkap onCreateWindow di app Android)
+  const a = document.createElement("a");
+  a.href = normalizedUrl;
+  a.target = "_blank";
+  a.rel = "noopener noreferrer";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 };
 
 // Kept as alias so old callers still work (now redirects to external browser)

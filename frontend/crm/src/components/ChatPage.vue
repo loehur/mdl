@@ -299,8 +299,25 @@ const showCustomerInfo = () => {
 const openInvoice = () => {
     if (props.activeConversation?.cust_id) {
         const url = `https://ml.nalju.com/I/${props.activeConversation.cust_id}`;
-        emit('open-internal-browser', url);
+        emit('open-internal-browser', url); // App wires this to external browser
         showCustomerInfoModal.value = false;
+    }
+};
+
+const handleBubbleLinkClick = (e) => {
+    const link = e.target.closest("a[href]");
+    if (!link || !link.href) return;
+    if (!(link.href.startsWith("http://") || link.href.startsWith("https://"))) return;
+
+    try {
+        const host = new URL(link.href).hostname.toLowerCase();
+        if (host === "nalju.com" || host.endsWith(".nalju.com")) {
+            e.preventDefault();
+            e.stopPropagation();
+            emit("open-internal-browser", link.href);
+        }
+    } catch (_) {
+        // ignore invalid URL
     }
 };
 
@@ -921,7 +938,7 @@ onUnmounted(() => {
           </header>
 
          <!-- Messages -->
-         <div ref="chatContainer" class="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar pt-4 pb-2 relative">
+         <div ref="chatContainer" class="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar pt-4 pb-2 relative" @click.capture="handleBubbleLinkClick">
               <!-- Loading Indicator Overlay (initial load) -->
               <div v-if="isLoadingMessages" class="absolute inset-0 z-20 flex items-center justify-center bg-[var(--wa-bg-chat)]/50 backdrop-blur-[1px]">
                    <div class="bg-[var(--wa-bg-panel)] p-3 rounded-full shadow-lg border border-[var(--wa-border)]">
