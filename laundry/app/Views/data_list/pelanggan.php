@@ -13,51 +13,6 @@ $canEditPartner = ((int) $this->id_privilege === 100);
   }
   #plg-root * { box-sizing: border-box; }
 
-  #plg-root .plg-head {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 16px;
-  }
-  #plg-root .plg-eyebrow {
-    margin: 0;
-    font-size: 11px;
-    font-weight: 800;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--mdl-ink-soft);
-  }
-  #plg-root .plg-title {
-    margin: 4px 0 0;
-    font-size: 1.5rem;
-    font-weight: 800;
-    letter-spacing: -0.02em;
-    color: var(--mdl-ink);
-    line-height: 1.2;
-  }
-  #plg-root .plg-sub {
-    margin: 6px 0 0;
-    font-size: 0.875rem;
-    color: var(--mdl-ink-soft);
-  }
-  #plg-root .plg-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 12px;
-    border-radius: 999px;
-    background: var(--mdl-accent-soft);
-    color: var(--mdl-accent-deep);
-    font-size: 0.875rem;
-    font-weight: 800;
-  }
-  #plg-root .plg-badge span.plg-badge-label {
-    font-weight: 700;
-    color: var(--mdl-ink-soft);
-  }
-
   #plg-root .plg-panel {
     margin-bottom: 12px;
     overflow: hidden;
@@ -354,19 +309,6 @@ $canEditPartner = ((int) $this->id_privilege === 100);
 </style>
 
 <div id="plg-root">
-  <div class="plg-head">
-    <div>
-      <p class="plg-eyebrow">Master data</p>
-      <h1 class="plg-title">Data Pelanggan</h1>
-      <p class="plg-sub">Kelola nama, nomor HP, dan partner. Double-click untuk edit.</p>
-    </div>
-    <div class="plg-badge">
-      <i class="fas fa-address-book"></i>
-      <span id="plg-count"><?= (int) $total ?></span>
-      <span class="plg-badge-label">pelanggan</span>
-    </div>
-  </div>
-
   <div class="plg-panel">
     <div class="plg-panel-search">
       <label class="plg-label" for="plg-filter">Cari</label>
