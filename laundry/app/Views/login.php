@@ -440,11 +440,13 @@
 
                     <div class="login-row">
                         <div class="login-field">
-                            <input type="text" name="outlet" placeholder="ID Outlet" autocomplete="off">
+                            <input type="text" name="outlet" id="outlet" placeholder="ID Outlet" autocomplete="off"
+                                inputmode="numeric" pattern="[0-9]*" maxlength="12">
                             <span class="login-field__icon"><i class="fas fa-store-alt"></i></span>
                         </div>
                         <div class="login-field">
-                            <input type="text" name="cap" placeholder="Captcha" required autocomplete="off">
+                            <input type="text" name="cap" id="cap" placeholder="Captcha" required autocomplete="off"
+                                inputmode="numeric" pattern="[0-9]*" maxlength="6">
                             <span class="login-field__captcha" id="captchaWrap" title="Klik untuk refresh">
                                 <img id="captcha" src="<?= URL::BASE_URL ?>Login/captcha" alt="captcha">
                             </span>
@@ -544,7 +546,7 @@
             $("input#hp").val($(this).text().trim());
         });
 
-        $("#pin").on("input", function() {
+        $("#pin, #outlet, #cap").on("input", function() {
             this.value = this.value.replace(/\D/g, '');
         });
     });
