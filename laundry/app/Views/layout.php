@@ -119,6 +119,7 @@ if (isset($data['data_operasi'])) {
             align-items: center;
             justify-content: space-between;
             gap: 8px;
+            flex-wrap: wrap;
         }
         .content-wrapper .mdl-nota-head__left {
             display: flex;
@@ -271,37 +272,54 @@ if (isset($data['data_operasi'])) {
             margin-bottom: 0 !important;
         }
 
-        /* Grid nota Antrian/Operasi — sejajar kiri-kanan dengan card filter di atas */
+        /* Grid nota Antrian/Operasi — selalu selebar filter; multi-kolom hanya desktop lebar */
         .content-wrapper .mdl-nota-grid {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: flex-start;
-            align-items: stretch;
-            gap: 8px;
+            display: block;
             margin: 0;
             padding: 0;
-            width: 100%;
+            width: 100% !important;
+            max-width: 100% !important;
             box-sizing: border-box;
         }
         .content-wrapper .mdl-nota-grid__item {
-            flex: 1 1 100%;
-            width: 100%;
-            min-width: 0;
-            max-width: 100%;
-            margin: 0;
-            padding: 0;
+            display: block;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            margin: 0 0 8px 0 !important;
+            padding: 0 !important;
+            box-sizing: border-box;
+            float: none !important;
+        }
+        .content-wrapper .mdl-nota-grid__item > .mdl-nota-card,
+        .content-wrapper .mdl-nota-card {
+            width: 100% !important;
+            max-width: 100% !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
             box-sizing: border-box;
         }
-        @media (min-width: 576px) {
-            .content-wrapper .mdl-nota-grid__item {
-                flex: 1 1 calc(50% - 4px);
-                max-width: 500px;
-            }
+        .content-wrapper .mdl-nota-card > .table,
+        .content-wrapper .mdl-nota-grid__item .table {
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            table-layout: auto;
         }
-        @media (min-width: 992px) {
+        @media (min-width: 1100px) {
+            .content-wrapper .mdl-nota-grid {
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: flex-start;
+                align-items: stretch;
+                gap: 8px;
+            }
             .content-wrapper .mdl-nota-grid__item {
+                display: block;
                 flex: 0 1 500px;
-                max-width: 500px;
+                width: 500px !important;
+                max-width: 500px !important;
+                margin: 0 !important;
             }
         }
 

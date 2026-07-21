@@ -132,10 +132,35 @@
   #load.antrian-load {
     padding-top: 2px;
     width: 100%;
+    max-width: 100%;
+    margin: 0;
     box-sizing: border-box;
   }
-  #load.antrian-load .mdl-nota-grid {
+  #load.antrian-load .mdl-nota-grid,
+  #load.antrian-load .mdl-nota-grid__item,
+  #load.antrian-load .mdl-nota-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    box-sizing: border-box;
+  }
+  .antrian-filter {
     width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  @media (min-width: 1100px) {
+    #load.antrian-load .mdl-nota-grid {
+      display: flex !important;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    #load.antrian-load .mdl-nota-grid__item {
+      width: 500px !important;
+      max-width: 500px !important;
+      margin: 0 !important;
+    }
   }
 
   #btnBukaOrderAntrian {

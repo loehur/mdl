@@ -222,10 +222,35 @@ $modeOperasi = (int) $data['mode'];
   #load.operasi-load {
     padding-top: 0;
     width: 100%;
+    max-width: 100%;
+    margin: 0;
     box-sizing: border-box;
   }
-  #load.operasi-load .mdl-nota-grid {
+  #load.operasi-load .mdl-nota-grid,
+  #load.operasi-load .mdl-nota-grid__item,
+  #load.operasi-load .mdl-nota-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    box-sizing: border-box;
+  }
+  .operasi-filter {
     width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  @media (min-width: 1100px) {
+    #load.operasi-load .mdl-nota-grid {
+      display: flex !important;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    #load.operasi-load .mdl-nota-grid__item {
+      width: 500px !important;
+      max-width: 500px !important;
+      margin: 0 !important;
+    }
   }
 
   #fabOperasiButtons {

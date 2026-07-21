@@ -205,9 +205,8 @@ if (count($data['data_main']) == 0) {
     } ?>
 
     <div data-id_pelanggan='<?= $f17 ?>' id='grid<?= $ref ?>' class='R-<?= $ref ?> cekOperasi mdl-nota-grid__item backShow <?= strtoupper($pelanggan) ?>' style='cursor:pointer'>
-      <div class='bg-white mdl-nota-card'>
-        <table class='table table-sm m-0 w-100 bg-white'>
-          <?php
+      <div class='mdl-nota-card'>
+        <?php
           $totalBayar = 0;
           $subTotal = 0;
           $enHapus = true;
@@ -220,22 +219,36 @@ if (count($data['data_main']) == 0) {
           }
 
           $idLabel = $ref . "100";
-          $buttonNotif = '<b><i class="fab fa-whatsapp"></i></b>';
+          $buttonNotif = '<i class="fab fa-whatsapp"></i>';
           $stNotif = "...";
+          $waTone = 'mdl-nota-chip--wa';
 
           foreach ($data['data_notif'] as $notif) {
             if ($notif['no_ref'] == $ref) {
-              $stNotif = "<b>" . ucwords(strtolower($notif['state'])) . "</b>";
+              $stNotif = ucwords(strtolower($notif['state']));
+              $waTone = (stripos($stNotif, 'pending') !== false || stripos($stNotif, 'gagal') !== false)
+                ? 'mdl-nota-chip--pending'
+                : 'mdl-nota-chip--ok';
             }
           }
-          $buttonNotif = "<span>" . $buttonNotif .  " </span>" . $stNotif;
           $tgl_terima = date('d/m H:i', strtotime($f1));
-          echo "<tr class=' " . $classHead . " row" . $ref . "'>";
-          echo "<td nowrap><span style='cursor:pointer' title='" . $pelanggan . "'><b>" . strtoupper($pelanggan_show) . "</b> <small>" . $f17 . "</small></span></td>";
-          echo "<td nowrap><small>" . $buttonNotif . "</small></td>";
-          echo "<td nowrap class='text-right'><small><span class='text-dark'><span class='fw-bold'>" . $karyawan . "</span> " . $tgl_terima . "</span></small>          </td>";
-          echo "</tr>"; ?>
-
+        ?>
+        <div class="mdl-nota-head <?= $classHead ?> row<?= $ref ?>">
+          <div class="mdl-nota-head__top">
+            <div class="mdl-nota-head__left">
+              <span class="mdl-nota-head__name" style="cursor:pointer" title="<?= htmlspecialchars($pelanggan, ENT_QUOTES, 'UTF-8') ?>">
+                <?= strtoupper($pelanggan_show) ?>
+                <small style="font-weight:700;opacity:.9"><?= $f17 ?></small>
+              </span>
+            </div>
+            <div class="mdl-nota-head__right">
+              <span class="mdl-nota-chip <?= $waTone ?>"><?= $buttonNotif ?> <?= $stNotif ?></span>
+              <span><?= htmlspecialchars($karyawan, ENT_QUOTES, 'UTF-8') ?></span>
+              <span><?= $tgl_terima ?></span>
+            </div>
+          </div>
+        </div>
+        <table class='table table-sm m-0 w-100 bg-white'>
           <?php
           foreach ($data_order as $a) {
 
