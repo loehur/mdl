@@ -81,50 +81,188 @@ if (isset($data['data_operasi'])) {
             -webkit-overflow-scrolling: touch;
         }
 
+        /* ===== Top toolbar: tinggi seragam ===== */
+        .main-header.mdl-topbar {
+            display: block;
+            padding: 8px 10px !important;
+            background: #eceff3 !important;
+            background-image: none !important;
+            border-bottom: 1px solid #d5dbe3;
+            min-height: 0;
+        }
+        .mdl-topbar-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            margin: 0;
+            min-height: 34px;
+        }
+        .mdl-topbar-row .mdl-spacer {
+            flex: 1 1 auto;
+            min-width: 4px;
+        }
+
+        .mdl-tbtn,
+        .mdl-topbar select.mdl-tctrl,
+        .mode-switch {
+            box-sizing: border-box;
+            height: 34px;
+            border-radius: 8px;
+            font-family: 'fontku', sans-serif;
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1;
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        .mdl-tbtn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 0 12px;
+            border: 1.5px solid #c5ccd6;
+            background: #fff;
+            color: #2a3340;
+            cursor: pointer;
+            text-decoration: none;
+            white-space: nowrap;
+            transition: background .15s ease, border-color .15s ease, color .15s ease;
+        }
+        .mdl-tbtn:hover {
+            background: #f4f6f9;
+            border-color: #9aa6b5;
+            color: #1a222c;
+            text-decoration: none;
+        }
+        .mdl-tbtn:active {
+            transform: translateY(1px);
+        }
+        .mdl-tbtn--menu {
+            padding: 0 12px 0 10px;
+        }
+        .mdl-tbtn--icon {
+            width: 34px;
+            padding: 0;
+            flex: 0 0 34px;
+        }
+        .mdl-tbtn--refresh {
+            border-color: #7cbc8f;
+            color: #1f7a3d;
+            background: #f3faf5;
+        }
+        .mdl-tbtn--refresh:hover {
+            background: #e4f5ea;
+            border-color: #4fa86a;
+            color: #166530;
+        }
+        .mdl-tbtn--logout {
+            border-color: #b8c0ca;
+            color: #3a4450;
+        }
+
+        .mdl-topbar select.mdl-tctrl {
+            padding: 0 28px 0 10px;
+            border: 1.5px solid transparent;
+            color: #fff;
+            cursor: pointer;
+            max-width: 88px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23ffffff' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            background-size: 8px 5px;
+        }
+        .mdl-topbar select.mdl-tctrl:focus {
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+        }
+        .mdl-tctrl--cabang {
+            background-color: #2563eb;
+        }
+        .mdl-tctrl--user {
+            background-color: #16a34a;
+            max-width: 120px;
+        }
+
         .mode-switch {
             display: inline-flex;
-            border-radius: 6px;
+            align-items: stretch;
             overflow: hidden;
-            border: 2px solid #212529;
-            font-weight: 700;
-            font-size: 12px;
-            line-height: 1;
+            padding: 3px;
+            gap: 2px;
+            border: 1.5px solid #c5ccd6;
+            background: #dfe5ec;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,.06);
         }
         .mode-switch .mode-btn {
-            padding: 7px 10px;
-            cursor: pointer;
-            background: #f8f9fa;
-            color: #212529;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            min-width: 64px;
+            padding: 0 12px;
             border: 0;
+            border-radius: 6px;
+            background: transparent;
+            color: #5a6573;
+            font-family: inherit;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.02em;
+            cursor: pointer;
             user-select: none;
+            transition: background .15s ease, color .15s ease, box-shadow .15s ease;
+        }
+        .mode-switch .mode-btn:hover:not(.active-live):not(.active-training) {
+            color: #2a3340;
+            background: rgba(255,255,255,.45);
         }
         .mode-switch .mode-btn.active-live {
-            background: #198754;
+            background: #16a34a;
             color: #fff;
+            box-shadow: 0 1px 2px rgba(22, 163, 74, 0.35);
         }
         .mode-switch .mode-btn.active-training {
-            background: #fd7e14;
+            background: #ea580c;
             color: #fff;
+            box-shadow: 0 1px 2px rgba(234, 88, 12, 0.35);
         }
+
+        .mdl-training-chip {
+            display: inline-flex;
+            align-items: center;
+            height: 34px;
+            padding: 0 12px;
+            border-radius: 8px;
+            background: #1c1917;
+            color: #fff;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+        }
+
         .training-banner {
-            background: #fd7e14;
+            background: linear-gradient(90deg, #ea580c, #f59e0b);
             color: #1a1a1a;
             font-weight: 700;
-            font-size: 13px;
+            font-size: 12px;
             letter-spacing: 0.02em;
             text-align: center;
-            padding: 6px 10px;
+            padding: 7px 12px;
+            border-bottom: 1px solid rgba(0,0,0,.08);
         }
-        body.mode-training .main-header {
-            background: #fd7e14 !important;
-            background-image: none !important;
+        body.mode-training .main-header.mdl-topbar {
+            background: #ffedd5 !important;
+            border-bottom-color: #fdba74;
         }
         body.mode-training .main-sidebar {
             background: #5c3200 !important;
         }
-        body.mode-training .brand-training-label {
-            color: #fff;
-            font-weight: 800;
+        body.mode-training .mode-switch {
+            border-color: #c2410c;
+            background: #fed7aa;
         }
     </style>
 </head>
@@ -173,58 +311,45 @@ if ($log_mode == 1) {
                 MODE TRAINING — data latihan terpisah · WA &amp; payment tetap sungguhan · switch ke Live untuk operasional
             </div>
         <?php } ?>
-        <nav class="main-header navbar navbar-expand bg-secondary-subtle bg-gradient sticky-top pb-1 pt-3">
-            <div class="row w-100 mx-0 px-0 pb-1">
-                <div class="col-auto ps-0 pe-1 text-nowrap">
-                    <a class="nav-link p-0 ps-2" id="menu_utama" data-widget="pushmenu" href="#" role="button"> <span class="btn ><i class=" fas fa-bars"></i> Menu</span></a>
-                </div>
+        <nav class="main-header navbar navbar-expand mdl-topbar sticky-top">
+            <div class="mdl-topbar-row">
+                <a href="#" id="menu_utama" class="mdl-tbtn mdl-tbtn--menu" data-widget="pushmenu" role="button">
+                    <i class="fas fa-bars"></i><span>Menu</span>
+                </a>
 
-                <div class="col-auto ps-0 pe-1">
-                    <div class="mode-switch" id="modeSwitch" title="Ganti Mode Live / Training">
-                        <button type="button" class="mode-btn<?= !$isTrainingUi ? ' active-live' : '' ?>" data-mode="live">Live</button>
-                        <button type="button" class="mode-btn<?= $isTrainingUi ? ' active-training' : '' ?>" data-mode="training">Training</button>
-                    </div>
+                <div class="mode-switch" id="modeSwitch" title="Ganti Mode Live / Training">
+                    <button type="button" class="mode-btn<?= !$isTrainingUi ? ' active-live' : '' ?>" data-mode="live">Live</button>
+                    <button type="button" class="mode-btn<?= $isTrainingUi ? ' active-training' : '' ?>" data-mode="training">Training</button>
                 </div>
 
                 <?php if (!$isTrainingUi && ($this->id_privilege == 100 or $this->id_privilege == 12)) { ?>
-                    <div class="col-auto ps-0 pe-1">
-                        <select id="selectCabang" class="form-control bg-primary">
-                            <?php foreach ($this->listCabang as $lcb) { ?>
-                                <option class="font-weight-bold" value="<?= $lcb['id_cabang'] ?>" <?= ($this->id_cabang == $lcb['id_cabang']) ? "selected" : '' ?>><?= $lcb['kode_cabang'] ?></option>
-                            <?php } ?>
-                        </select>
-                    </div>
-                    <div class="col-auto ps-0 pe-1">
-                        <?php if ($this->id_privilege == 100) { ?>
-                            <select id="userLog" class="form-control bg-success">
-                                <option>------</option>
-                                <?php foreach ($this->user as $a) {
-                                    if ($a['id_user'] <> $_SESSION[URL::SESSID]['user']['id_user']) { ?>
-                                        <option value="<?= $a['id_user'] ?>"><?= strtoupper($a['nama_user']) ?></option>
-                                <?php }
-                                } ?>
-                            </select>
+                    <select id="selectCabang" class="mdl-tctrl mdl-tctrl--cabang" title="Pilih cabang">
+                        <?php foreach ($this->listCabang as $lcb) { ?>
+                            <option value="<?= $lcb['id_cabang'] ?>" <?= ($this->id_cabang == $lcb['id_cabang']) ? "selected" : '' ?>><?= $lcb['kode_cabang'] ?></option>
                         <?php } ?>
-                    </div>
-
+                    </select>
+                    <?php if ($this->id_privilege == 100) { ?>
+                        <select id="userLog" class="mdl-tctrl mdl-tctrl--user" title="Login sebagai user">
+                            <option value="">——</option>
+                            <?php foreach ($this->user as $a) {
+                                if ($a['id_user'] <> $_SESSION[URL::SESSID]['user']['id_user']) { ?>
+                                    <option value="<?= $a['id_user'] ?>"><?= strtoupper($a['nama_user']) ?></option>
+                            <?php }
+                            } ?>
+                        </select>
+                    <?php } ?>
                 <?php } elseif ($isTrainingUi) { ?>
-                    <div class="col-auto ps-0 pe-1 d-flex align-items-center">
-                        <span class="badge bg-dark brand-training-label px-2 py-2">TRAINING</span>
-                    </div>
+                    <span class="mdl-training-chip">TRAINING</span>
                 <?php } ?>
-                <div class="col-auto ps-0 me-auto pe-1">
-                    
-                </div>
-                <div class="col-auto ps-0 pe-2">
-                    <a class="refresh" href="#">
-                        <span class="btn btn-outline-success"><i class="fas fa-sync"></i></span>
-                    </a>
-                </div>
-                <div class="col-auto ps-0 pe-2">
-                    <a class="" href="<?= URL::BASE_URL ?>Login/logout" role="button">
-                        <span class="btn btn-outline-dark"><i class="fas fa-sign-out-alt"></i></span>
-                    </a>
-                </div>
+
+                <div class="mdl-spacer"></div>
+
+                <a class="mdl-tbtn mdl-tbtn--icon mdl-tbtn--refresh refresh" href="#" title="Refresh data">
+                    <i class="fas fa-sync"></i>
+                </a>
+                <a class="mdl-tbtn mdl-tbtn--icon mdl-tbtn--logout" href="<?= URL::BASE_URL ?>Login/logout" role="button" title="Logout">
+                    <i class="fas fa-sign-out-alt"></i>
+                </a>
             </div>
         </nav>
 
