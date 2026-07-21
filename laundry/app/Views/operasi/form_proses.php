@@ -12,7 +12,7 @@ $modeOperasi = (int) $data['mode'];
     position: sticky;
     top: var(--operasi-sticky-top, 50px);
     z-index: 100;
-    margin: 0 0 4px;
+    margin: 0 0 8px;
   }
   .operasi-filter-card {
     background: #fff;
