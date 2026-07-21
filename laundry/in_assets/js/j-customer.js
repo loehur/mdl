@@ -53,6 +53,10 @@
       })
       .then(function (html) {
         if (token !== reqToken) return;
+        document.querySelectorAll('body > #jInvoicePreview').forEach(function (el) {
+          el.remove();
+        });
+        document.body.style.overflow = '';
         content.innerHTML = html;
         content.classList.add('j-fade-in');
         window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
@@ -130,6 +134,39 @@
       var parsed = parsePath();
       loadPage(parsed.page, parsed.extra, false);
     }
+  });
+
+  document.addEventListener('click', function (e) {
+    var openPreview = e.target.closest('#jOpenPreview');
+    if (openPreview) {
+      var overlay = document.getElementById('jInvoicePreview');
+      if (!overlay) return;
+      e.preventDefault();
+      if (overlay.parentElement !== document.body) {
+        document.body.appendChild(overlay);
+      }
+      overlay.hidden = false;
+      document.body.style.overflow = 'hidden';
+      return;
+    }
+
+    var closePreview = e.target.closest('#jClosePreview, .j-preview-close');
+    if (closePreview || (e.target.id === 'jInvoicePreview')) {
+      var ov = document.getElementById('jInvoicePreview');
+      if (!ov || ov.hidden) return;
+      if (closePreview || e.target === ov) {
+        ov.hidden = true;
+        document.body.style.overflow = '';
+      }
+    }
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    var ov = document.getElementById('jInvoicePreview');
+    if (!ov || ov.hidden) return;
+    ov.hidden = true;
+    document.body.style.overflow = '';
   });
 
   var initialPage = app.getAttribute('data-page') || 'home';

@@ -219,6 +219,7 @@ $hasUnpaid = !empty($unpaid);
 
 <?php if (!empty($orders) || !empty($members)) {
   $diskonTotal = max(0, (float) ($summary['total_tagihan_asli'] ?? $summary['total_tagihan']) - (float) $summary['total_tagihan']);
+  $namaPelanggan = strtoupper($customer['nama'] ?? $p['nama_pelanggan']);
 ?>
 <article class="j-card j-rekap">
   <div class="j-card-head">
@@ -253,10 +254,103 @@ $hasUnpaid = !empty($unpaid);
     </div>
   </div>
 </article>
-<?php } ?>
 
-<?php if ($hasUnpaid) { ?>
 <div class="j-bayar-bottom">
+  <button type="button" class="j-preview-btn" id="jOpenPreview" title="Preview invoice" aria-label="Preview invoice">
+    <i class="fas fa-file-invoice"></i>
+  </button>
+  <?php if ($hasUnpaid) { ?>
   <button type="button" class="j-bayar-now j-open-bayar">Bayar Sekarang</button>
+  <?php } ?>
+</div>
+
+<div class="j-preview-overlay" id="jInvoicePreview" hidden>
+  <div class="j-preview-sheet">
+    <div class="j-preview-toolbar">
+      <strong>Preview Invoice</strong>
+      <button type="button" class="j-preview-close" id="jClosePreview" aria-label="Tutup">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="j-preview-page">
+      <div class="j-preview-customer"><?= htmlspecialchars($namaPelanggan) ?></div>
+
+      <?php foreach ($orders as $ord) {
+        $sisa = (float) $ord['sisa'];
+      ?>
+      <div class="j-preview-nota">
+        <div class="j-preview-nota-head">
+          <b>REF #<?= htmlspecialchars($ord['no_ref']) ?></b>
+          <span><?= date('d/m/y H:i', strtotime($ord['insertTime'])) ?></span>
+        </div>
+        <?php foreach ($ord['items'] as $it) { ?>
+        <div class="j-preview-line">
+          <span>
+            <?= htmlspecialchars($it['kategori'] ?: 'Item') ?>
+            <small><?= htmlspecialchars($it['durasi']) ?> · <?= htmlspecialchars($it['qty_show']) ?><?= !empty($it['member']) ? ' · Member' : '' ?></small>
+          </span>
+          <span>
+            <?php if (!empty($it['member'])) { ?>
+              —
+            <?php } elseif (!empty($it['has_diskon'])) { ?>
+              <del>Rp<?= number_format((float) $it['total_asli']) ?></del> Rp<?= number_format((float) $it['total']) ?>
+            <?php } else { ?>
+              Rp<?= number_format((float) $it['total']) ?>
+            <?php } ?>
+          </span>
+        </div>
+        <?php } ?>
+        <?php foreach ($ord['surcas'] as $sc) { ?>
+        <div class="j-preview-line">
+          <span><?= htmlspecialchars($sc['nama']) ?></span>
+          <span>Rp<?= number_format((float) $sc['jumlah']) ?></span>
+        </div>
+        <?php } ?>
+        <div class="j-preview-nota-foot">
+          <span>Subtotal Rp<?= number_format((float) $ord['subtotal']) ?></span>
+          <span class="<?= $sisa > 0 ? 'sisa' : 'ok' ?>"><?= $sisa > 0 ? 'Sisa Rp' . number_format($sisa) : 'Lunas' ?></span>
+        </div>
+      </div>
+      <?php } ?>
+
+      <?php foreach ($members as $m) { ?>
+      <div class="j-preview-nota">
+        <div class="j-preview-nota-head">
+          <b>Paket M<?= (int) $m['id_harga'] ?> #<?= (int) $m['id_member'] ?></b>
+          <span><?= date('d/m/y', strtotime($m['insertTime'])) ?></span>
+        </div>
+        <div class="j-preview-line">
+          <span><?= htmlspecialchars($m['label']) ?></span>
+          <span>Rp<?= number_format((float) $m['harga']) ?></span>
+        </div>
+        <div class="j-preview-nota-foot">
+          <span></span>
+          <span class="sisa">Sisa Rp<?= number_format((float) $m['sisa']) ?></span>
+        </div>
+      </div>
+      <?php } ?>
+
+      <div class="j-preview-rekap">
+        <div class="j-preview-line">
+          <span>Total</span>
+          <span>Rp<?= number_format((float) ($summary['total_tagihan_asli'] ?? $summary['total_tagihan'])) ?></span>
+        </div>
+        <?php if ($diskonTotal > 0) { ?>
+        <div class="j-preview-line">
+          <span>Diskon</span>
+          <span class="ok">-Rp<?= number_format($diskonTotal) ?></span>
+        </div>
+        <?php } ?>
+        <div class="j-preview-line">
+          <span>Sudah dibayar</span>
+          <span>Rp<?= number_format((float) ($summary['total_dibayar'] ?? 0)) ?></span>
+        </div>
+        <div class="j-preview-line total">
+          <span>Sisa tagihan</span>
+          <span class="sisa">Rp<?= number_format((float) $summary['sisa']) ?></span>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 <?php } ?>

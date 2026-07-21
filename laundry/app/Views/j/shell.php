@@ -27,7 +27,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/fontawesome-free-5.15.4-web/css/all.css">
   <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/css/bootstrap.min.css">
-  <link rel="stylesheet" href="<?= $assets ?>css/j-customer.css?v=16">
+  <link rel="stylesheet" href="<?= $assets ?>css/j-customer.css?v=17">
 </head>
 <body>
 <div class="j-app"
@@ -172,7 +172,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
 
 <script src="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="<?= $assets ?>js/j-customer.js?v=2"></script>
+<script src="<?= $assets ?>js/j-customer.js?v=3"></script>
 <script src="<?= $assets ?>js/j-payment.js?v=3"></script>
 <script>
 if ('serviceWorker' in navigator) {
