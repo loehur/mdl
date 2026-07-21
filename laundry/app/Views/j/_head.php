@@ -26,7 +26,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/fontawesome-free-5.15.4-web/css/all.css">
-  <link rel="stylesheet" href="<?= $assets ?>css/j-customer.css?v=5">
+  <link rel="stylesheet" href="<?= $assets ?>css/j-customer.css?v=6">
 </head>
 <body>
 <div class="j-app">
@@ -37,6 +37,9 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
         <strong>MDL - <?= htmlspecialchars($kodeCabang) ?></strong>
         <span><?= strtoupper(htmlspecialchars($p['nama_pelanggan'])) ?></span>
       </div>
+      <a class="j-classic-link" href="<?= $base ?>I/<?= $id ?>?classic=1" title="Mode klasik">
+        <i class="fas fa-exchange-alt"></i>
+      </a>
     </div>
   </header>
   <main class="j-main">

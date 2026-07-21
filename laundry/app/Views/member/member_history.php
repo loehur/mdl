@@ -173,7 +173,8 @@ $nTampil = count($tampil);
     <div class="row mx-0 px-1 pb-1">
       <div class="col m-auto" style="max-width: 480px;">
         Bpk/Ibu. <span class="text-success"><b><?= strtoupper($dPelanggan['nama_pelanggan']) ?></b></span>
-        <a href="<?= URL::BASE_URL ?>I/<?= $dPelanggan['id_pelanggan'] ?>" class="float-right"><span class='btn btn-sm btn-warning'>Tagihan</span></a>
+        <a href="<?= URL::BASE_URL ?>J/<?= (int) $dPelanggan['id_pelanggan'] ?>" class="float-right ms-1" title="Mode baru"><span class='btn btn-sm btn-success'>Baru</span></a>
+        <a href="<?= URL::BASE_URL ?>I/<?= $dPelanggan['id_pelanggan'] ?>?classic=1" class="float-right"><span class='btn btn-sm btn-warning'>Tagihan</span></a>
         <br><span class='text-bold text-primary'>M<?= $data['id_harga'] ?></span> | <?= $jenis_member ?>,
         <br><span id="sisa"></span> | <span><small>Last <?= $jumlah_tampil ?> transactions | Updated: <?php echo DATE('Y-m-d') ?></small></span>
       </div>

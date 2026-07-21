@@ -64,7 +64,7 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
                 <h5 class="modal-title" id="exampleModalLabel">Filter Periode</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form action="<?= URL::BASE_URL ?>I/<?= $dPelanggan['id_pelanggan'] ?>" method="POST">
+            <form action="<?= URL::BASE_URL ?>I/<?= $dPelanggan['id_pelanggan'] ?>?classic=1" method="POST">
                 <div class="modal-body">
                     <div class="row g-2">
                         <div class="col-6">
@@ -111,11 +111,12 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
         <div class="row p-1 mx-1"> <!-- header -->
             <div class="col m-auto" style="max-width: 480px;">
                 <h5>Bpk/Ibu. <span class="text-purple"><b><?= strtoupper($dPelanggan['nama_pelanggan']) ?></b></span></h5><span><?php echo $periode; ?></span>
+                <a href="<?= URL::BASE_URL ?>J/<?= (int) $dPelanggan['id_pelanggan'] ?>" class="btn btn-success float-end ms-1" title="Mode baru"><i class="fas fa-exchange-alt"></i></a>
                 <a href="#" data-bs-toggle="modal" class="btn btn-dark float-end" data-bs-target="#exampleModal"><i class="fas fa-filter"></i></a>
                 <?php
                 // saldo deposit
                 if ($data['saldoTunai'] > 0) {
-                    echo "<a class='mr-1' href='" . URL::BASE_URL . 'I/s/' . $dPelanggan['id_pelanggan'] . "'><span class='btn btn-sm btn-outline-primary'>Saldo Deposit</span></a>";
+                    echo "<a class='mr-1' href='" . URL::BASE_URL . 'I/s/' . $dPelanggan['id_pelanggan'] . "?classic=1'><span class='btn btn-sm btn-outline-primary'>Saldo Deposit</span></a>";
                 }
 
                 // paket
@@ -123,7 +124,7 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
                 if ($paket_count > 0) { ?>
                 <?php foreach ($data['listPaket'] as $lp) {
                         $id_harga = $lp['id_harga'];
-                        echo "<a class='mr-1' href='" . URL::BASE_URL . 'I/m/' .  $dPelanggan['id_pelanggan'] . '/' . $id_harga . "'><span class='btn btn-sm btn-outline-success'>Paket M" . $id_harga . '</span></a> ';
+                        echo "<a class='mr-1' href='" . URL::BASE_URL . 'I/m/' .  $dPelanggan['id_pelanggan'] . '/' . $id_harga . "?classic=1'><span class='btn btn-sm btn-outline-success'>Paket M" . $id_harga . '</span></a> ';
                     }
                 }
                 ?>

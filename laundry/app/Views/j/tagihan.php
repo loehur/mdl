@@ -137,14 +137,7 @@ $summary = $data['summary'];
   <div class="j-rekap-rows">
     <div class="j-rekap-row">
       <span>Total</span>
-      <span>
-        <?php if (!empty($summary['has_diskon'])) { ?>
-          <del>Rp<?= number_format((float) $summary['total_tagihan_asli']) ?></del>
-          Rp<?= number_format((float) $summary['total_tagihan']) ?>
-        <?php } else { ?>
-          Rp<?= number_format((float) $summary['total_tagihan']) ?>
-        <?php } ?>
-      </span>
+      <span>Rp<?= number_format((float) ($summary['total_tagihan_asli'] ?? $summary['total_tagihan'])) ?></span>
     </div>
     <?php if ($diskonTotal > 0) { ?>
     <div class="j-rekap-row">

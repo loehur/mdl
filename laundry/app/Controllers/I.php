@@ -5,8 +5,18 @@ class I extends Controller
    /**
     * Forward halaman view customer ke portal J.
     * Set false untuk rollback ke UI klasik tanpa menghapus kode di bawah.
+    * Bypass sementara: tambahkan ?classic=1 (mis. I/123?classic=1).
     */
    private $forwardToJ = true;
+
+   private function shouldForwardToJ()
+   {
+      if (!$this->forwardToJ) {
+         return false;
+      }
+      $classic = $_GET['classic'] ?? '';
+      return !($classic === '1' || $classic === 'true');
+   }
 
    // Backward compatibility: /I/i/123 still works, forwards to index()
    public function i($pelanggan)
@@ -20,7 +30,7 @@ class I extends Controller
          exit();
       }
 
-      if ($this->forwardToJ) {
+      if ($this->shouldForwardToJ()) {
          header('Location: ' . URL::BASE_URL . 'J/tagihan/' . (int) $pelanggan);
          exit;
       }
@@ -348,7 +358,7 @@ class I extends Controller
       $pelanggan = (int) $pelanggan;
       $id_harga = (int) $id_harga;
 
-      if ($this->forwardToJ) {
+      if ($this->shouldForwardToJ()) {
          header('Location: ' . URL::BASE_URL . 'J/paketDetail/' . $pelanggan . '/' . $id_harga);
          exit;
       }
@@ -398,7 +408,7 @@ class I extends Controller
          exit();
       }
 
-      if ($this->forwardToJ) {
+      if ($this->shouldForwardToJ()) {
          header('Location: ' . URL::BASE_URL . 'J/saldo/' . (int) $pelanggan);
          exit;
       }
