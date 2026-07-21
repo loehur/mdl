@@ -607,13 +607,15 @@ if (isset($data['data_operasi'])) {
         .mdl-side-user {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
             margin-bottom: 8px;
         }
         .mdl-side-user-btn {
             display: inline-flex;
             align-items: center;
             gap: 7px;
+            flex: 1 1 auto;
+            min-width: 0;
             max-width: 100%;
             height: 34px;
             padding: 0 12px;
@@ -629,9 +631,36 @@ if (isset($data['data_operasi'])) {
             overflow: hidden;
             text-overflow: ellipsis;
         }
+        .mdl-side-user-btn > span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
         .mdl-side-user-btn i {
             color: var(--mdl-accent);
             flex: 0 0 auto;
+        }
+        .mdl-side-switch-user {
+            box-sizing: border-box;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 auto;
+            width: 34px;
+            height: 34px;
+            padding: 0;
+            border-radius: 9px;
+            border: 1.5px solid transparent;
+            background: var(--mdl-live);
+            color: #fff;
+            cursor: pointer;
+            transition: background .15s ease, transform .12s ease;
+        }
+        .mdl-side-switch-user:hover {
+            background: var(--mdl-live-deep);
+            color: #fff;
+        }
+        .mdl-side-switch-user i {
+            font-size: 13px;
         }
         .mdl-side-wifi {
             display: flex;
@@ -1117,12 +1146,6 @@ if ($log_mode == 1) {
                         <span id="btnPilihCabangLabel"><?= htmlspecialchars((string) $kodeCabangAktif) ?></span>
                         <i class="fas fa-chevron-down"></i>
                     </button>
-                    <?php if ($this->id_privilege == 100) { ?>
-                        <button type="button" id="btnPilihUser" class="mdl-tbtn mdl-tbtn--user" title="Login sebagai user">
-                            <i class="fas fa-user"></i>
-                            <i class="fas fa-chevron-down"></i>
-                        </button>
-                    <?php } ?>
                 <?php } elseif ($isTrainingUi) { ?>
                     <span class="mdl-training-chip">TRAINING</span>
                 <?php } ?>
@@ -1234,6 +1257,11 @@ if ($log_mode == 1) {
                             <i class="fas fa-user-circle"></i>
                             <span><?= htmlspecialchars((string) $this->nama_user) ?></span>
                         </span>
+                        <?php if ($this->id_privilege == 100) { ?>
+                        <button type="button" id="btnPilihUser" class="mdl-side-switch-user" title="Ganti user login">
+                            <i class="fas fa-exchange-alt"></i>
+                        </button>
+                        <?php } ?>
                     </div>
                     <?php
                     $wifiPass = trim((string) ($_SESSION[URL::SESSID]['data']['cabang']['wifi_pass'] ?? ''));
