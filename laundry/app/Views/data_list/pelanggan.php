@@ -5,68 +5,349 @@ $total = is_array($rows) ? count($rows) : 0;
 $canEditPartner = ((int) $this->id_privilege === 100);
 ?>
 
-<div id="plg-root" class="font-sans text-mdl-ink px-1 pb-8">
-  <!-- Header -->
-  <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
+<style>
+  #plg-root {
+    font-family: 'fontku', sans-serif;
+    color: var(--mdl-ink);
+    padding: 0 4px 32px;
+  }
+  #plg-root * { box-sizing: border-box; }
+
+  #plg-root .plg-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  #plg-root .plg-eyebrow {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--mdl-ink-soft);
+  }
+  #plg-root .plg-title {
+    margin: 4px 0 0;
+    font-size: 1.5rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--mdl-ink);
+    line-height: 1.2;
+  }
+  #plg-root .plg-sub {
+    margin: 6px 0 0;
+    font-size: 0.875rem;
+    color: var(--mdl-ink-soft);
+  }
+  #plg-root .plg-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: var(--mdl-accent-soft);
+    color: var(--mdl-accent-deep);
+    font-size: 0.875rem;
+    font-weight: 800;
+  }
+  #plg-root .plg-badge span.plg-badge-label {
+    font-weight: 700;
+    color: var(--mdl-ink-soft);
+  }
+
+  #plg-root .plg-panel {
+    margin-bottom: 12px;
+    overflow: hidden;
+    border-radius: 16px;
+    border: 1px solid rgba(184, 196, 210, 0.7);
+    background: linear-gradient(135deg, #fff 0%, var(--mdl-surface) 55%, rgba(217, 230, 250, 0.45) 100%);
+    box-shadow: 0 8px 24px rgba(36, 48, 65, 0.08);
+  }
+  #plg-root .plg-panel-search {
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(184, 196, 210, 0.5);
+  }
+  #plg-root .plg-label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--mdl-ink-soft);
+  }
+  #plg-root .plg-search-wrap {
+    position: relative;
+  }
+  #plg-root .plg-search-wrap i {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--mdl-ink-soft);
+    pointer-events: none;
+  }
+  #plg-root .plg-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--mdl-line);
+    border-radius: 12px;
+    background: #fff;
+    font-family: inherit;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--mdl-ink);
+    outline: none;
+    transition: border-color .15s ease, box-shadow .15s ease;
+  }
+  #plg-root .plg-input--search {
+    padding-left: 40px;
+  }
+  #plg-root .plg-input:focus {
+    border-color: var(--mdl-accent);
+    box-shadow: 0 0 0 3px rgba(63, 116, 212, 0.22);
+  }
+
+  #plg-root .plg-form {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr auto;
+    gap: 12px;
+    padding: 12px 16px;
+    align-items: end;
+  }
+  #plg-root .plg-field { min-width: 0; }
+  #plg-root .plg-btn-wrap {
+    display: flex;
+    align-items: flex-end;
+  }
+  #plg-root .plg-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 42px;
+    min-width: 120px;
+    width: 100%;
+    padding: 0 20px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--mdl-accent);
+    color: #fff;
+    font-family: inherit;
+    font-size: 0.875rem;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 6px 16px rgba(63, 116, 212, 0.35);
+    transition: background .15s ease, transform .1s ease;
+  }
+  #plg-root .plg-btn:hover { background: var(--mdl-accent-deep); }
+  #plg-root .plg-btn:active { transform: scale(0.98); }
+  #plg-root .plg-btn:disabled { opacity: 0.65; cursor: not-allowed; }
+
+  #plg-root .plg-list-panel {
+    overflow: hidden;
+    border-radius: 16px;
+    border: 1px solid rgba(184, 196, 210, 0.7);
+    background: #fff;
+    box-shadow: 0 8px 24px rgba(36, 48, 65, 0.06);
+  }
+  #plg-root .plg-list-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 16px;
+    border-bottom: 1px solid rgba(184, 196, 210, 0.5);
+    background: rgba(244, 247, 251, 0.9);
+  }
+  #plg-root .plg-list-bar span {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--mdl-ink-soft);
+  }
+  #plg-root .plg-list-bar .plg-list-tip {
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 600;
+  }
+
+  #plg-root #plg-list {
+    max-height: min(70vh, 640px);
+    overflow-y: auto;
+  }
+
+  #plg-root .plg-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(184, 196, 210, 0.4);
+    transition: background .15s ease;
+  }
+  #plg-root .plg-row:last-child { border-bottom: 0; }
+  #plg-root .plg-row:hover { background: rgba(217, 230, 250, 0.4); }
+
+  #plg-root .plg-col-id {
+    display: flex;
+    flex-direction: column;
+    min-width: 3.5rem;
+  }
+  #plg-root .plg-col-nama {
+    flex: 1 1 12rem;
+    min-width: 12rem;
+  }
+  #plg-root .plg-col-hp { min-width: 9rem; }
+  #plg-root .plg-col-partner {
+    margin-left: auto;
+    min-width: 5.5rem;
+    text-align: right;
+  }
+  #plg-root .plg-k {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--mdl-ink-soft);
+  }
+  #plg-root .plg-id-val {
+    font-size: 0.875rem;
+    font-weight: 800;
+    color: var(--mdl-ink-soft);
+  }
+  #plg-root .plg-partner-val {
+    font-size: 0.875rem;
+    font-weight: 800;
+    color: var(--mdl-ink);
+  }
+  #plg-root .plg-edit {
+    cursor: text;
+    border-radius: 4px;
+    padding: 0 2px;
+    color: var(--mdl-ink);
+    transition: color .15s ease;
+  }
+  #plg-root .plg-edit--nama {
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+  }
+  #plg-root .plg-row:hover .plg-edit--nama { color: var(--mdl-accent-deep); }
+  #plg-root .plg-edit--hp {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.875rem;
+    font-weight: 700;
+  }
+
+  #plg-root .plg-inline {
+    width: auto;
+    min-width: 10rem;
+    max-width: 100%;
+    padding: 4px 8px;
+    border: 1px solid var(--mdl-accent);
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--mdl-ink);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(63, 116, 212, 0.25);
+  }
+  #plg-root .plg-inline--sm {
+    min-width: 4rem;
+    width: 4rem;
+  }
+
+  #plg-root .plg-empty {
+    padding: 56px 16px;
+    text-align: center;
+  }
+  #plg-root .plg-empty--filter {
+    padding: 48px 16px;
+  }
+  #plg-root .plg-empty.is-hidden { display: none; }
+  #plg-root .plg-empty-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    margin: 0 auto 12px;
+    border-radius: 16px;
+    background: var(--mdl-accent-soft);
+    color: var(--mdl-accent);
+    font-size: 1.125rem;
+  }
+  #plg-root .plg-empty-title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--mdl-ink);
+  }
+  #plg-root .plg-empty-sub {
+    margin: 6px 0 0;
+    font-size: 0.875rem;
+    color: var(--mdl-ink-soft);
+  }
+
+  @media (max-width: 720px) {
+    #plg-root .plg-form {
+      grid-template-columns: 1fr;
+    }
+    #plg-root .plg-btn { min-width: 0; }
+    #plg-root .plg-col-partner {
+      margin-left: 0;
+      text-align: left;
+      width: 100%;
+    }
+  }
+</style>
+
+<div id="plg-root">
+  <div class="plg-head">
     <div>
-      <p class="m-0 text-[11px] font-bold uppercase tracking-[0.14em] text-mdl-soft">Master data</p>
-      <h1 class="m-0 mt-1 text-2xl font-extrabold tracking-tight text-mdl-ink">Data Pelanggan</h1>
-      <p class="m-0 mt-1 text-sm text-mdl-soft">Kelola nama, nomor HP, dan partner. Double-click untuk edit.</p>
+      <p class="plg-eyebrow">Master data</p>
+      <h1 class="plg-title">Data Pelanggan</h1>
+      <p class="plg-sub">Kelola nama, nomor HP, dan partner. Double-click untuk edit.</p>
     </div>
-    <div class="inline-flex items-center gap-2 rounded-full bg-mdl-accent-soft px-3 py-1.5 text-sm font-bold text-mdl-accent-deep">
+    <div class="plg-badge">
       <i class="fas fa-address-book"></i>
       <span id="plg-count"><?= (int) $total ?></span>
-      <span class="font-semibold text-mdl-soft">pelanggan</span>
+      <span class="plg-badge-label">pelanggan</span>
     </div>
   </div>
 
-  <!-- Toolbar: search + add -->
-  <div class="mb-3 overflow-hidden rounded-2xl border border-mdl-line/70 bg-gradient-to-br from-white via-mdl-surface to-mdl-accent-soft/40 shadow-[0_8px_24px_rgba(36,48,65,0.08)]">
-    <div class="border-b border-mdl-line/50 px-4 py-3">
-      <label class="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-mdl-soft" for="plg-filter">Cari</label>
-      <div class="relative">
-        <i class="fas fa-search pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-mdl-soft"></i>
+  <div class="plg-panel">
+    <div class="plg-panel-search">
+      <label class="plg-label" for="plg-filter">Cari</label>
+      <div class="plg-search-wrap">
+        <i class="fas fa-search"></i>
         <input
           type="text"
           id="plg-filter"
+          class="plg-input plg-input--search"
           autocomplete="off"
           placeholder="Cari nama, nomor HP, atau ID…"
-          class="w-full rounded-xl border border-mdl-line bg-white py-2.5 pl-10 pr-3 text-sm font-semibold text-mdl-ink outline-none transition focus:border-mdl-accent focus:ring-2 focus:ring-mdl-accent/25"
         >
       </div>
     </div>
 
-    <form id="plg-form" action="<?= URL::BASE_URL; ?>Data_List/insert/<?= htmlspecialchars($page, ENT_QUOTES, 'UTF-8') ?>" method="POST" class="grid gap-3 px-4 py-3 sm:grid-cols-[1fr_1.2fr_auto]">
-      <div>
-        <label class="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-mdl-soft" for="plg-hp">Nomor HP</label>
-        <input
-          type="text"
-          id="plg-hp"
-          name="f2"
-          required
-          autocomplete="off"
-          placeholder="08…"
-          class="w-full rounded-xl border border-mdl-line bg-white px-3 py-2.5 text-sm font-semibold text-mdl-ink outline-none transition focus:border-mdl-accent focus:ring-2 focus:ring-mdl-accent/25"
-        >
+    <form id="plg-form" class="plg-form" action="<?= URL::BASE_URL; ?>Data_List/insert/<?= htmlspecialchars($page, ENT_QUOTES, 'UTF-8') ?>" method="POST">
+      <div class="plg-field">
+        <label class="plg-label" for="plg-hp">Nomor HP</label>
+        <input type="text" id="plg-hp" name="f2" class="plg-input" required autocomplete="off" placeholder="08…">
       </div>
-      <div>
-        <label class="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-mdl-soft" for="plg-nama">Nama pelanggan</label>
-        <input
-          type="text"
-          id="plg-nama"
-          name="f1"
-          required
-          autocomplete="off"
-          placeholder="Nama lengkap"
-          class="w-full rounded-xl border border-mdl-line bg-white px-3 py-2.5 text-sm font-semibold text-mdl-ink outline-none transition focus:border-mdl-accent focus:ring-2 focus:ring-mdl-accent/25"
-        >
+      <div class="plg-field">
+        <label class="plg-label" for="plg-nama">Nama pelanggan</label>
+        <input type="text" id="plg-nama" name="f1" class="plg-input" required autocomplete="off" placeholder="Nama lengkap">
       </div>
-      <div class="flex items-end">
-        <button
-          type="submit"
-          id="plg-submit"
-          class="inline-flex h-[42px] w-full items-center justify-center gap-2 rounded-xl bg-mdl-accent px-5 text-sm font-extrabold text-white shadow-[0_6px_16px_rgba(63,116,212,0.35)] transition hover:bg-mdl-accent-deep active:scale-[0.98] sm:min-w-[120px]"
-        >
+      <div class="plg-btn-wrap">
+        <button type="submit" id="plg-submit" class="plg-btn">
           <i class="fas fa-plus"></i>
           Tambah
         </button>
@@ -74,21 +355,18 @@ $canEditPartner = ((int) $this->id_privilege === 100);
     </form>
   </div>
 
-  <!-- List -->
-  <div class="overflow-hidden rounded-2xl border border-mdl-line/70 bg-white shadow-[0_8px_24px_rgba(36,48,65,0.06)]">
-    <div class="flex items-center justify-between border-b border-mdl-line/50 bg-mdl-surface/80 px-4 py-2.5">
-      <span class="text-[11px] font-bold uppercase tracking-wider text-mdl-soft">Daftar</span>
-      <span class="text-[11px] font-semibold text-mdl-soft">Double-click nama / HP<?= $canEditPartner ? ' / partner' : '' ?> untuk edit</span>
+  <div class="plg-list-panel">
+    <div class="plg-list-bar">
+      <span>Daftar</span>
+      <span class="plg-list-tip">Double-click nama / HP<?= $canEditPartner ? ' / partner' : '' ?> untuk edit</span>
     </div>
 
-    <div id="plg-list" class="max-h-[min(70vh,640px)] overflow-y-auto">
+    <div id="plg-list">
       <?php if ($total === 0) { ?>
-        <div class="px-4 py-14 text-center" id="plg-empty-all">
-          <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-mdl-accent-soft text-mdl-accent">
-            <i class="fas fa-user-plus text-lg"></i>
-          </div>
-          <p class="m-0 text-base font-extrabold text-mdl-ink">Belum ada pelanggan</p>
-          <p class="m-0 mt-1 text-sm text-mdl-soft">Tambah pelanggan baru lewat form di atas.</p>
+        <div class="plg-empty" id="plg-empty-all">
+          <div class="plg-empty-icon"><i class="fas fa-user-plus"></i></div>
+          <p class="plg-empty-title">Belum ada pelanggan</p>
+          <p class="plg-empty-sub">Tambah pelanggan baru lewat form di atas.</p>
         </div>
       <?php } else { ?>
         <?php foreach ($rows as $a) {
@@ -112,20 +390,16 @@ $canEditPartner = ((int) $this->id_privilege === 100);
           $f5Attr = htmlspecialchars((string) $f5, ENT_QUOTES, 'UTF-8');
           $searchBlob = strtolower($id . ' ' . $f1Show . ' ' . $f2 . ' ' . $f5);
         ?>
-          <div
-            class="plg-row group flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-mdl-line/40 px-4 py-3 transition hover:bg-mdl-accent-soft/35 last:border-b-0"
-            data-search="<?= htmlspecialchars($searchBlob, ENT_QUOTES, 'UTF-8') ?>"
-          >
-            <div class="flex min-w-[3.5rem] flex-col">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-mdl-soft">ID</span>
-              <span class="text-sm font-extrabold text-mdl-soft">#<?= $id ?></span>
+          <div class="plg-row" data-search="<?= htmlspecialchars($searchBlob, ENT_QUOTES, 'UTF-8') ?>">
+            <div class="plg-col-id">
+              <span class="plg-k">ID</span>
+              <span class="plg-id-val">#<?= $id ?></span>
             </div>
-
-            <div class="min-w-[12rem] flex-1">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-mdl-soft">Nama</span>
+            <div class="plg-col-nama">
+              <span class="plg-k">Nama</span>
               <div>
                 <span
-                  class="plg-edit cursor-text rounded px-0.5 text-base font-extrabold tracking-tight text-mdl-ink transition group-hover:text-mdl-accent-deep"
+                  class="plg-edit plg-edit--nama"
                   data-mode="1"
                   data-id_value="<?= $id ?>"
                   data-value="<?= $f1Attr ?>"
@@ -133,12 +407,11 @@ $canEditPartner = ((int) $this->id_privilege === 100);
                 ><?= $f1Html ?></span>
               </div>
             </div>
-
-            <div class="min-w-[9rem]">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-mdl-soft">HP</span>
+            <div class="plg-col-hp">
+              <span class="plg-k">HP</span>
               <div>
                 <span
-                  class="plg-edit cursor-text rounded px-0.5 font-mono text-sm font-bold text-mdl-ink"
+                  class="plg-edit plg-edit--hp"
                   data-mode="2"
                   data-id_value="<?= $id ?>"
                   data-value="<?= $f2Attr ?>"
@@ -146,13 +419,12 @@ $canEditPartner = ((int) $this->id_privilege === 100);
                 ><?= $f2Html ?></span>
               </div>
             </div>
-
-            <div class="ml-auto min-w-[5.5rem] text-right">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-mdl-soft">Partner</span>
-              <div class="text-sm font-bold text-mdl-ink">
+            <div class="plg-col-partner">
+              <span class="plg-k">Partner</span>
+              <div class="plg-partner-val">
                 <?php if ($canEditPartner) { ?>
                   <span
-                    class="plg-edit cursor-text rounded px-0.5"
+                    class="plg-edit"
                     data-mode="5"
                     data-id_value="<?= $id ?>"
                     data-value="<?= $f5Attr ?>"
@@ -166,9 +438,9 @@ $canEditPartner = ((int) $this->id_privilege === 100);
           </div>
         <?php } ?>
 
-        <div id="plg-empty-filter" class="hidden px-4 py-12 text-center">
-          <p class="m-0 text-base font-extrabold text-mdl-ink">Tidak ada hasil</p>
-          <p class="m-0 mt-1 text-sm text-mdl-soft">Coba kata kunci lain.</p>
+        <div id="plg-empty-filter" class="plg-empty plg-empty--filter is-hidden">
+          <p class="plg-empty-title">Tidak ada hasil</p>
+          <p class="plg-empty-sub">Coba kata kunci lain.</p>
         </div>
       <?php } ?>
     </div>
@@ -209,7 +481,7 @@ $canEditPartner = ((int) $this->id_privilege === 100);
 
     var $emptyFilter = $('#plg-empty-filter');
     if ($emptyFilter.length) {
-      $emptyFilter.toggleClass('hidden', visible > 0 || $root.find('.plg-row').length === 0);
+      $emptyFilter.toggleClass('is-hidden', visible > 0 || $root.find('.plg-row').length === 0);
     }
   }
 
@@ -246,13 +518,11 @@ $canEditPartner = ((int) $this->id_privilege === 100);
     var mode = $span.attr('data-mode');
     var value_before = value;
 
-    var inputHtml;
-    if (mode === '5') {
-      inputHtml = "<input type='number' id='plg-value' class='w-16 rounded-lg border border-mdl-accent px-2 py-1 text-sm font-bold outline-none ring-2 ring-mdl-accent/30' value='" + escapeHtml(value) + "'>";
-    } else {
-      inputHtml = "<input type='text' id='plg-value' class='min-w-[10rem] rounded-lg border border-mdl-accent px-2 py-1 text-sm font-bold outline-none ring-2 ring-mdl-accent/30' value='" + escapeHtml(value) + "'>";
-    }
-    $span.html(inputHtml);
+    var inputClass = mode === '5' ? 'plg-inline plg-inline--sm' : 'plg-inline';
+    var inputType = mode === '5' ? 'number' : 'text';
+    $span.html(
+      "<input type='" + inputType + "' id='plg-value' class='" + inputClass + "' value='" + escapeHtml(value) + "'>"
+    );
 
     var $input = $('#plg-value');
     $input.focus().select();

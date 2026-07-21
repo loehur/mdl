@@ -23,38 +23,6 @@ if (isset($data['data_operasi'])) {
     <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>css/selectize.bootstrap3.min.css" rel="stylesheet" />
     <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>css/jquery-ui.css" rel="stylesheet" />
 
-    <!-- Tailwind CSS (global) — preflight off agar AdminLTE/Bootstrap tetap aman -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            corePlugins: {
-                preflight: false,
-            },
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['fontku', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-                    },
-                    colors: {
-                        mdl: {
-                            shell: '#c5d0dc',
-                            surface: '#f4f7fb',
-                            surface2: '#e5ecf4',
-                            ink: '#243041',
-                            soft: '#5a6a7c',
-                            line: '#b8c4d2',
-                            accent: '#3f74d4',
-                            'accent-deep': '#2f61bc',
-                            'accent-soft': '#d9e6fa',
-                            live: '#2f9e5f',
-                            train: '#e08a35',
-                        },
-                    },
-                },
-            },
-        };
-    </script>
-
     <style>
         @font-face {
             font-family: "fontku";
