@@ -267,12 +267,14 @@ $hasUnpaid = !empty($unpaid);
 <div class="j-preview-overlay" id="jInvoicePreview" hidden>
   <div class="j-preview-sheet">
     <div class="j-preview-toolbar">
-      <strong>Preview Invoice</strong>
+      <button type="button" class="j-preview-dl" id="jDownloadPreview" title="Download gambar" aria-label="Download gambar">
+        <i class="fas fa-download"></i>
+      </button>
       <button type="button" class="j-preview-close" id="jClosePreview" aria-label="Tutup">
         <i class="fas fa-times"></i>
       </button>
     </div>
-    <div class="j-preview-page">
+    <div class="j-preview-page" id="jPreviewPage" data-nama="<?= htmlspecialchars($namaPelanggan) ?>">
       <div class="j-preview-customer"><?= htmlspecialchars($namaPelanggan) ?></div>
 
       <?php foreach ($orders as $ord) {

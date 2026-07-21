@@ -788,18 +788,15 @@ a { color: inherit; text-decoration: none; }
 .j-preview-toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  justify-content: flex-end;
+  gap: 8px;
   padding: 10px 12px;
   background: #fff;
   border-bottom: 1px solid var(--j-line);
 }
 
-.j-preview-toolbar strong {
-  font-size: 0.86rem;
-}
-
-.j-preview-close {
+.j-preview-close,
+.j-preview-dl {
   width: 34px;
   height: 34px;
   border: 0;
@@ -809,6 +806,15 @@ a { color: inherit; text-decoration: none; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.j-preview-dl {
+  background: rgba(26, 107, 99, 0.12);
+  color: var(--j-ink);
+}
+
+.j-preview-dl:disabled {
+  opacity: 0.55;
 }
 
 .j-preview-page {

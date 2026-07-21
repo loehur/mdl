@@ -136,6 +136,51 @@
     }
   });
 
+  function slugName(name) {
+    return String(name || 'invoice')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/gi, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 40) || 'invoice';
+  }
+
+  function downloadPreviewImage(btn) {
+    var page = document.getElementById('jPreviewPage');
+    if (!page) return;
+    if (typeof html2canvas !== 'function') {
+      alert('Fitur download belum siap. Muat ulang halaman.');
+      return;
+    }
+
+    var prevOverflow = page.style.overflow;
+    var prevMaxHeight = page.style.maxHeight;
+    page.style.overflow = 'visible';
+    page.style.maxHeight = 'none';
+    btn.disabled = true;
+
+    html2canvas(page, {
+      backgroundColor: '#ffffff',
+      scale: Math.min(2, window.devicePixelRatio || 2),
+      useCORS: true,
+      logging: false
+    })
+      .then(function (canvas) {
+        var nama = page.getAttribute('data-nama') || 'invoice';
+        var link = document.createElement('a');
+        link.download = 'invoice-' + slugName(nama) + '.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      })
+      .catch(function () {
+        alert('Gagal membuat gambar invoice.');
+      })
+      .finally(function () {
+        page.style.overflow = prevOverflow;
+        page.style.maxHeight = prevMaxHeight;
+        btn.disabled = false;
+      });
+  }
+
   document.addEventListener('click', function (e) {
     var openPreview = e.target.closest('#jOpenPreview');
     if (openPreview) {
@@ -147,6 +192,14 @@
       }
       overlay.hidden = false;
       document.body.style.overflow = 'hidden';
+      return;
+    }
+
+    var dlPreview = e.target.closest('#jDownloadPreview');
+    if (dlPreview) {
+      e.preventDefault();
+      e.stopPropagation();
+      downloadPreviewImage(dlPreview);
       return;
     }
 
