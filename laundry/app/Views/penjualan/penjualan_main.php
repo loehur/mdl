@@ -176,7 +176,7 @@
   }
   #ord-root #sering > div:last-child { border-bottom: 0; }
   #ord-root #sering a.border,
-  #ord-root #sering #pilih_sering a {
+  #ord-root #sering .pilih-sering a {
     display: inline-flex;
     align-items: center;
     padding: 3px 8px;
@@ -298,19 +298,19 @@
           <p class="ord-card-title">Tambah item</p>
           <form id="main">
             <div class="ord-svc">
-              <button type="button" data-id_penjualan="1" class="ord-svc-btn orderPenjualanForm" data-bs-target="#modalPenjualan">
+              <button type="button" data-id_penjualan="1" class="ord-svc-btn orderPenjualanForm">
                 <i class="fas fa-weight"></i>
                 Kiloan
               </button>
-              <button type="button" data-id_penjualan="2" class="ord-svc-btn orderPenjualanForm" data-bs-target="#modalPenjualan">
+              <button type="button" data-id_penjualan="2" class="ord-svc-btn orderPenjualanForm">
                 <i class="fas fa-tshirt"></i>
                 Satuan
               </button>
-              <button type="button" data-id_penjualan="3" class="ord-svc-btn orderPenjualanForm" data-bs-target="#modalPenjualan">
+              <button type="button" data-id_penjualan="3" class="ord-svc-btn orderPenjualanForm">
                 <i class="fas fa-ruler-combined"></i>
                 Bidang
               </button>
-              <button type="button" data-id_penjualan="4" class="ord-svc-btn orderPenjualanForm" data-bs-target="#modalPenjualan">
+              <button type="button" data-id_penjualan="4" class="ord-svc-btn orderPenjualanForm">
                 <i class="fas fa-cube"></i>
                 Volume
               </button>
@@ -338,12 +338,46 @@
   </div>
 </div>
 
-<div class="modal" id="modalPenjualan">
-  <div class="modal-dialog" role="document">
-    <div class="modal-content orderPenjualanForm">
-    </div>
+<div class="ord-order-modal" id="ordOrderModal" aria-hidden="true">
+  <div class="ord-order-modal__backdrop" data-ord-order-close></div>
+  <div class="ord-order-modal__panel" role="dialog" aria-modal="true">
+    <div class="orderPenjualanForm"></div>
   </div>
 </div>
+
+<style>
+  .ord-order-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 5050;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  .ord-order-modal.is-open { display: flex; }
+  .ord-order-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(3px);
+  }
+  .ord-order-modal__panel {
+    position: relative;
+    z-index: 1;
+    width: min(520px, 100%);
+    max-height: min(90vh, 720px);
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 24px 48px rgba(15, 23, 42, 0.28);
+    overflow: hidden;
+    animation: ordOrderIn .18s ease-out;
+  }
+  @keyframes ordOrderIn {
+    from { opacity: 0; transform: translateY(10px) scale(0.98); }
+    to { opacity: 1; transform: none; }
+  }
+</style>
 
 <div class="modal" id="exampleModal2">
   <div class="modal-dialog modal-sm">
@@ -654,20 +688,33 @@
       });
     });
 
+    window.openOrdOrderModal = function () {
+      var $m = $("#ordOrderModal");
+      if ($m.parent()[0] !== document.body) {
+        $m.appendTo(document.body);
+      }
+      $m.addClass("is-open").attr("aria-hidden", "false");
+    };
+    window.closeOrdOrderModal = function () {
+      $("#ordOrderModal").removeClass("is-open").attr("aria-hidden", "true");
+    };
+
+    $(document).off("click.ordOrderClose", "[data-ord-order-close]").on("click.ordOrderClose", "[data-ord-order-close]", function () {
+      window.closeOrdOrderModal();
+    });
+    $(document).off("keydown.ordOrderEsc").on("keydown.ordOrderEsc", function (e) {
+      if (e.key === "Escape" && $("#ordOrderModal").hasClass("is-open")) {
+        window.closeOrdOrderModal();
+      }
+    });
+
     $("button.orderPenjualanForm").on("click", function(e) {
       var id_penjualan = $(this).attr('data-id_penjualan');
       var id_harga = 0;
       var saldo = 0;
+      window.openOrdOrderModal();
+      $('div.orderPenjualanForm').html('<div style="padding:28px;text-align:center;color:#5a6a7c"><i class="fas fa-spinner fa-spin"></i> Memuat…</div>');
       $('div.orderPenjualanForm').load('<?= URL::BASE_URL ?>Penjualan/orderPenjualanForm/' + id_penjualan + '/' + id_harga + '/' + saldo);
-
-      var target = $(this).attr('data-bs-target');
-      if (target) {
-        var modalEl = document.querySelector(target);
-        if (modalEl) {
-          var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-          modal.show();
-        }
-      }
     });
 
     $("a.removeItem").on('click', function(e) {

@@ -173,7 +173,6 @@ if (count($items) === 0) {
           data-saldo="<?= htmlspecialchars((string) $it['saldo'], ENT_QUOTES, 'UTF-8') ?>"
           data-id_penjualan="<?= (int) $it['id_penjualan'] ?>"
           data-id_harga="<?= (int) $it['id'] ?>"
-          data-bs-target="#modalPenjualan"
         >
           <i class="fas fa-bolt"></i> Pakai
         </button>
@@ -187,18 +186,13 @@ if (count($items) === 0) {
     var id_harga = $(this).attr("data-id_harga");
     var id_penjualan = $(this).attr("data-id_penjualan");
     var saldo = $(this).attr("data-saldo");
+    if (typeof window.openOrdOrderModal === "function") {
+      window.openOrdOrderModal();
+    }
+    $("div.orderPenjualanForm").html('<div style="padding:28px;text-align:center;color:#5a6a7c"><i class="fas fa-spinner fa-spin"></i> Memuat…</div>');
     $("div.orderPenjualanForm").load(
       "<?= URL::BASE_URL ?>Penjualan/orderPenjualanForm/" + id_penjualan + "/" + id_harga + "/" + saldo
     );
-
-    var target = $(this).attr("data-bs-target");
-    if (target) {
-      var modalEl = document.querySelector(target);
-      if (modalEl) {
-        var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-        modal.show();
-      }
-    }
   });
 
   $("#saldoMember .pakai-btn").each(function () {

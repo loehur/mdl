@@ -43,7 +43,7 @@ foreach ($data['data'] as $a) {
 ?>
   <div class="ord-sering-item">
     <span>#<?= $no ?> <?= htmlspecialchars($label) ?></span>
-    <span id="pilih_sering" data-id_penjualan="<?= $id_penjualan ?>" data-id_harga="<?= $id ?>">
+    <span class="pilih-sering" data-id_penjualan="<?= $id_penjualan ?>" data-id_harga="<?= $id ?>">
       <a href="#">Pilih</a>
     </span>
   </div>
@@ -51,17 +51,17 @@ foreach ($data['data'] as $a) {
 } ?>
 
 <script>
-  $("span#pilih_sering").click(function(e) {
+  $("#sering").off("click.sering", ".pilih-sering").on("click.sering", ".pilih-sering", function (e) {
     e.preventDefault();
     var id_harga = $(this).attr("data-id_harga");
-    var id_penjualan = $(this).attr('data-id_penjualan');
+    var id_penjualan = $(this).attr("data-id_penjualan");
     var saldo = 0;
-    $('div.orderPenjualanForm').load('<?= URL::BASE_URL ?>Penjualan/orderPenjualanForm/' + id_penjualan + '/' + id_harga + "/" + saldo, function() {
-      var modalEl = document.querySelector('#modalPenjualan');
-      if (modalEl) {
-        var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-        modal.show();
-      }
-    });
-  })
+    if (typeof window.openOrdOrderModal === "function") {
+      window.openOrdOrderModal();
+    }
+    $("div.orderPenjualanForm").html('<div style="padding:28px;text-align:center;color:#5a6a7c"><i class="fas fa-spinner fa-spin"></i> Memuat…</div>');
+    $("div.orderPenjualanForm").load(
+      "<?= URL::BASE_URL ?>Penjualan/orderPenjualanForm/" + id_penjualan + "/" + id_harga + "/" + saldo
+    );
+  });
 </script>
