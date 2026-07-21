@@ -573,26 +573,63 @@ if (isset($data['data_operasi'])) {
             box-shadow: 0 6px 16px rgba(0,0,0,.16);
             flex: 1 1 auto;
             min-height: 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .mdl-side-nav-scroll {
+            flex: 1 1 auto;
+            min-height: 0;
             overflow-y: auto;
             overflow-x: hidden;
             -webkit-overflow-scrolling: touch;
+            padding-right: 6px;
+            margin-right: 2px;
+            scrollbar-width: thin;
+            scrollbar-color: #94a3b8 #eef2f7;
         }
-        .mdl-side-nav > .nav {
+        .mdl-side-nav-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+        .mdl-side-nav-scroll::-webkit-scrollbar-track {
+            background: #eef2f7;
+            border-radius: 99px;
+        }
+        .mdl-side-nav-scroll::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 99px;
+        }
+        .mdl-side-nav-scroll::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        .mdl-side-nav > .nav,
+        .mdl-side-nav-scroll > .nav {
             padding: 0 !important;
+            box-sizing: border-box;
+            width: 100%;
+            max-width: 100%;
         }
         .mdl-side-nav .nav-sidebar > .nav,
         .mdl-side-nav .nav-sidebar {
             gap: 2px;
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
         }
         .mdl-side-nav .nav-item {
             margin: 0 0 2px;
             width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
         }
         .mdl-side-nav .nav-link {
             display: flex !important;
             align-items: center;
             gap: 10px;
             min-height: 40px;
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
             margin: 0 !important;
             padding: 8px 12px !important;
             border-radius: 10px !important;
@@ -906,6 +943,7 @@ if ($log_mode == 1) {
 
                 <!-- MENU --------------------------------->
                 <nav class="mdl-side-nav pb-3">
+                    <div class="mdl-side-nav-scroll">
                     <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="true">
                         <?php foreach ($menu as $key => $m) { ?>
                             <ul id="nav_<?= $key ?>" class="nav nav-pills nav-sidebar flex-column <?= $key == 0 ? $hideKasir : $hideAdmin ?>">
@@ -1139,6 +1177,7 @@ if ($log_mode == 1) {
                                 }
                             } ?>
                     </ul>
+                    </div>
                 </nav>
             </div>
         </aside>
