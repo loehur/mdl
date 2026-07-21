@@ -359,6 +359,7 @@
   .ord-order-modal__backdrop {
     position: absolute;
     inset: 0;
+    z-index: 0;
     background: rgba(15, 23, 42, 0.55);
     backdrop-filter: blur(3px);
   }
@@ -372,6 +373,7 @@
     box-shadow: 0 24px 48px rgba(15, 23, 42, 0.28);
     overflow: hidden;
     animation: ordOrderIn .18s ease-out;
+    pointer-events: auto;
   }
   @keyframes ordOrderIn {
     from { opacity: 0; transform: translateY(10px) scale(0.98); }
@@ -617,29 +619,15 @@
 
     $("span.addPelanggan, .addPelanggan").on("click", function(e) {
       e.preventDefault();
-      openOrdPlgModal();
+      window.openOrdPlgModal();
     });
 
-    function openOrdPlgModal() {
-      var $m = $("#ordPlgModal");
-      if ($m.parent()[0] !== document.body) {
-        $m.appendTo(document.body);
-      }
-      $("#ordPlgMsg").addClass("is-hidden").text("");
-      $("#ordPlgForm")[0].reset();
-      $m.addClass("is-open").attr("aria-hidden", "false");
-      setTimeout(function () { $("#ordPlgHp").focus(); }, 50);
-    }
-    function closeOrdPlgModal() {
-      $("#ordPlgModal").removeClass("is-open").attr("aria-hidden", "true");
-    }
-
     $(document).off("click.ordPlgClose", "[data-ord-plg-close]").on("click.ordPlgClose", "[data-ord-plg-close]", function () {
-      closeOrdPlgModal();
+      window.closeOrdPlgModal();
     });
     $(document).off("keydown.ordPlgEsc").on("keydown.ordPlgEsc", function (e) {
       if (e.key === "Escape" && $("#ordPlgModal").hasClass("is-open")) {
-        closeOrdPlgModal();
+        window.closeOrdPlgModal();
       }
     });
 
@@ -678,7 +666,7 @@
 
           $("#saldoMember").load("<?= URL::BASE_URL ?>Member/cekRekap/" + res.id);
           $("#sering").load("<?= URL::BASE_URL ?>Penjualan/sering/" + res.id);
-          closeOrdPlgModal();
+          window.closeOrdPlgModal();
           $btn.prop("disabled", false);
         },
         error: function () {
@@ -689,14 +677,21 @@
     });
 
     window.openOrdOrderModal = function () {
-      var $m = $("#ordOrderModal");
-      if ($m.parent()[0] !== document.body) {
-        $m.appendTo(document.body);
-      }
-      $m.addClass("is-open").attr("aria-hidden", "false");
+      // Tetap di DOM offcanvas agar focus trap Bootstrap tidak mengunci input
+      $("#ordOrderModal").addClass("is-open").attr("aria-hidden", "false");
     };
     window.closeOrdOrderModal = function () {
       $("#ordOrderModal").removeClass("is-open").attr("aria-hidden", "true");
+    };
+
+    window.openOrdPlgModal = function () {
+      $("#ordPlgMsg").addClass("is-hidden").text("");
+      $("#ordPlgForm")[0].reset();
+      $("#ordPlgModal").addClass("is-open").attr("aria-hidden", "false");
+      setTimeout(function () { $("#ordPlgHp").focus(); }, 50);
+    };
+    window.closeOrdPlgModal = function () {
+      $("#ordPlgModal").removeClass("is-open").attr("aria-hidden", "true");
     };
 
     $(document).off("click.ordOrderClose", "[data-ord-order-close]").on("click.ordOrderClose", "[data-ord-order-close]", function () {

@@ -126,9 +126,9 @@ if ($saldoNya_member > 0) {
     box-shadow: 0 0 0 3px rgba(63, 116, 212, 0.2);
   }
   .ord-fo__input--qty {
-    background: #edf3fc;
+    background: #fff;
     font-weight: 800;
-    color: #2f61bc;
+    color: #1e3a5f;
   }
   .ord-fo__input--total {
     background: #eef7f1;
@@ -138,7 +138,9 @@ if ($saldoNya_member > 0) {
   }
   .ord-fo__input--ro {
     text-align: center;
-    background: #f8fafc;
+    background: #e8eef6;
+    color: #5a6a7c;
+    cursor: default;
   }
   .ord-fo .selectize-input {
     border: 1px solid #D5DEEA !important;
@@ -349,21 +351,21 @@ if ($saldoNya_member > 0) {
       });
     });
 
-    $('.float').keypress(function(event) {
-      if ((event.which != 46 || $(this).val().indexOf('.') != -1) && (event.which < 48 || event.which > 57)) {
-        event.preventDefault();
-      }
-    });
-
-    $('select#kiloan').change(function() {
+    $('select#kiloan').on('change', function() {
       harga();
       updateTotal();
     });
 
     harga();
+    setTimeout(function () {
+      var $qty = $("#qtyNya");
+      if ($qty.length) {
+        $qty.prop("readonly", false).prop("disabled", false).trigger("focus");
+      }
+    }, 50);
   });
 
-  $("input#qtyNya").keyup(function() {
+  $(document).off("input.ordQty", "#qtyNya").on("input.ordQty", "#qtyNya", function() {
     updateTotal();
   });
 
@@ -411,7 +413,7 @@ if ($saldoNya_member > 0) {
     $('input#harga').val(harga);
   }
 
-  $("input.timb").on("keyup change", function() {
+  $(document).off("input.ordTimb change.ordTimb", "input.timb").on("input.ordTimb change.ordTimb", "input.timb", function() {
     var t1 = $("#timb1").val() || 0;
     var t2 = $("#timb2").val() || 0;
     var t3 = $("#timb3").val() || 0;
@@ -421,7 +423,7 @@ if ($saldoNya_member > 0) {
     updateTotal();
   });
 
-  $("input.bkali").on("keyup change", function() {
+  $(document).off("input.ordKali change.ordKali", "input.bkali").on("input.ordKali change.ordKali", "input.bkali", function() {
     var t1 = $("#bkali1").val() || 0;
     var t2 = $("#bkali2").val() || 0;
     var total = parseFloat(t1) * parseFloat(t2);
