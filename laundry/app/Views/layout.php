@@ -30,7 +30,7 @@ if (isset($data['data_operasi'])) {
         }
 
         html {
-            font-size: 15px; /* Bootstrap rem scale — lebih besar dari 14px */
+            font-size: 16px; /* Bootstrap rem scale */
         }
 
         html .table {
@@ -51,10 +51,10 @@ if (isset($data['data_operasi'])) {
             font-size: 0.95em;
         }
         .content-wrapper .table {
-            font-size: 14px;
+            font-size: 15px;
         }
         .content-wrapper .table.table-sm {
-            font-size: 13.5px;
+            font-size: 14px;
         }
 
         @media print {
