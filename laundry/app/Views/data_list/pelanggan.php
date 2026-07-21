@@ -106,12 +106,13 @@ $canEditPartner = ((int) $this->id_privilege === 100);
   #plg-root .plg-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
   #plg-root .plg-list {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
     gap: 8px;
     max-height: min(72vh, 680px);
     overflow-y: auto;
     padding-bottom: 4px;
+    align-content: start;
   }
 
   #plg-root .plg-card {
@@ -204,6 +205,7 @@ $canEditPartner = ((int) $this->id_privilege === 100);
   }
 
   #plg-root .plg-empty {
+    grid-column: 1 / -1;
     text-align: center;
     padding: 28px 14px;
     color: var(--j-muted);
