@@ -171,8 +171,8 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
 </div>
 
 <script src="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/js/bootstrap.bundle.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="<?= URL::EX_ASSETS ?>js/qrcode.min.js"></script>
+<script src="<?= URL::EX_ASSETS ?>js/html2canvas.min.js"></script>
 <script src="<?= $assets ?>js/j-customer.js?v=6"></script>
 <script src="<?= $assets ?>js/j-payment.js?v=3"></script>
 <script>
