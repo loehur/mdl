@@ -11,7 +11,7 @@ $customer = $data['customer'] ?? ['id' => $id, 'nama' => $p['nama_pelanggan'], '
 $hp = $customer['hp'] ?? ($p['nomor_pelanggan'] ?? '');
 $hasUnpaid = !empty($unpaid);
 $cabang = $data['cabang'] ?? [];
-$namaCabang = $cabang['nama_cabang'] ?? 'MDL Laundry';
+$namaLaundry = $cabang['nama'] ?? ($cabang['nama_cabang'] ?? 'Laundry');
 $kodeCabang = $cabang['kode_cabang'] ?? '00';
 ?>
 
@@ -282,7 +282,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
     </div>
     <div class="j-preview-page" id="jPreviewPage" data-nama="<?= htmlspecialchars($namaPelanggan) ?>">
       <div class="j-preview-head">
-        <div class="j-preview-branch"><?= htmlspecialchars($namaCabang) ?> · <?= htmlspecialchars($kodeCabang) ?></div>
+        <div class="j-preview-branch"><?= htmlspecialchars($namaLaundry) ?> - <?= htmlspecialchars($kodeCabang) ?></div>
         <div class="j-preview-customer"><?= htmlspecialchars($namaPelanggan) ?></div>
       </div>
 
