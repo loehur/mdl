@@ -231,9 +231,13 @@ $modeOperasi = (int) $data['mode'];
   #load.operasi-load .mdl-nota-card {
     width: 100% !important;
     max-width: 100% !important;
-    margin-left: 0 !important;
-    margin-right: 0 !important;
+    margin: 0 !important;
     box-sizing: border-box;
+  }
+  #load.operasi-load .mdl-nota-grid {
+    display: grid !important;
+    grid-template-columns: 1fr;
+    gap: 8px !important;
   }
   .operasi-filter {
     width: 100%;
@@ -242,9 +246,8 @@ $modeOperasi = (int) $data['mode'];
   }
   @media (min-width: 1100px) {
     #load.operasi-load .mdl-nota-grid {
-      display: flex !important;
-      flex-wrap: wrap;
-      gap: 8px;
+      grid-template-columns: repeat(auto-fill, 500px) !important;
+      gap: 8px !important;
     }
     #load.operasi-load .mdl-nota-grid__item {
       width: 500px !important;

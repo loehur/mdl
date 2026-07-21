@@ -109,7 +109,7 @@ if (isset($data['data_operasi'])) {
             border-radius: 0;
             background: #fff;
             box-shadow: 0 6px 16px rgba(36, 48, 65, 0.08);
-            margin-bottom: 8px;
+            margin-bottom: 0;
         }
         .content-wrapper .mdl-nota-head {
             padding: 6px 8px 5px;
@@ -272,9 +272,11 @@ if (isset($data['data_operasi'])) {
             margin-bottom: 0 !important;
         }
 
-        /* Grid nota Antrian/Operasi — selalu selebar filter; multi-kolom hanya desktop lebar */
+        /* Grid nota Antrian/Operasi — jarak atas-bawah = kanan-kiri (8px) */
         .content-wrapper .mdl-nota-grid {
-            display: block;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 8px;
             margin: 0;
             padding: 0;
             width: 100% !important;
@@ -286,7 +288,7 @@ if (isset($data['data_operasi'])) {
             width: 100% !important;
             max-width: 100% !important;
             min-width: 0 !important;
-            margin: 0 0 8px 0 !important;
+            margin: 0 !important;
             padding: 0 !important;
             box-sizing: border-box;
             float: none !important;
@@ -295,8 +297,7 @@ if (isset($data['data_operasi'])) {
         .content-wrapper .mdl-nota-card {
             width: 100% !important;
             max-width: 100% !important;
-            margin-left: 0 !important;
-            margin-right: 0 !important;
+            margin: 0 !important;
             box-sizing: border-box;
         }
         .content-wrapper .mdl-nota-card > .table,
@@ -308,18 +309,13 @@ if (isset($data['data_operasi'])) {
         }
         @media (min-width: 1100px) {
             .content-wrapper .mdl-nota-grid {
-                display: flex;
-                flex-wrap: wrap;
-                justify-content: flex-start;
-                align-items: stretch;
+                grid-template-columns: repeat(auto-fill, 500px);
+                justify-content: start;
                 gap: 8px;
             }
             .content-wrapper .mdl-nota-grid__item {
-                display: block;
-                flex: 0 1 500px;
                 width: 500px !important;
                 max-width: 500px !important;
-                margin: 0 !important;
             }
         }
 
