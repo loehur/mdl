@@ -319,6 +319,45 @@ a { color: inherit; text-decoration: none; }
   font-size: 0.86rem;
 }
 
+.j-pay-history {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--j-line);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.j-pay-history-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.72rem;
+  color: var(--j-muted);
+  line-height: 1.35;
+}
+
+.j-pay-history-row span:last-child {
+  white-space: nowrap;
+  font-weight: 650;
+}
+
+.j-pay-history-row.ok {
+  color: #1A7A4C;
+}
+
+.j-pay-history-row.warn {
+  color: #B7791F;
+}
+
+.j-pay-history-row.fail {
+  color: var(--j-coral);
+}
+
+.j-pay-history-row del {
+  opacity: 0.75;
+}
+
 .j-foot-row .sisa {
   color: var(--j-coral);
   font-weight: 750;

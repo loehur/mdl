@@ -151,6 +151,39 @@ $hasUnpaid = !empty($unpaid);
       </div>
     <?php } ?>
 
+    <?php if (!empty($ord['payments'])) { ?>
+      <div class="j-pay-history">
+        <?php foreach ($ord['payments'] as $pay) {
+          $st = (int) $pay['status'];
+          $note = strtoupper(trim((string) ($pay['note'] ?? '')));
+          $nominal = 'Rp' . number_format((float) $pay['jumlah']);
+          if ($st === 3) {
+            $label = '✓' . ($note !== '' ? ' ' . $note : ' Lunas');
+            $cls = 'ok';
+          } elseif ($st === 2) {
+            $label = 'Pending' . ($note !== '' ? ' (' . $note . ')' : '');
+            $cls = 'warn';
+          } elseif ($st === 4) {
+            $label = 'Gagal' . ($note !== '' ? ' (' . $note . ')' : '');
+            $cls = 'fail';
+            $nominal = '<del>' . $nominal . '</del>';
+          } else {
+            $label = 'Status #' . $st;
+            $cls = '';
+          }
+        ?>
+          <div class="j-pay-history-row <?= $cls ?>">
+            <span>
+              <?= htmlspecialchars($label) ?>
+              <?php if (!empty($pay['id_kas'])) { ?>#<?= (int) $pay['id_kas'] ?><?php } ?>
+              · <?= date('d/m H:i', strtotime($pay['time'])) ?>
+            </span>
+            <span>-<?= $nominal ?></span>
+          </div>
+        <?php } ?>
+      </div>
+    <?php } ?>
+
     <div class="j-foot-row">
       <span>
         <?php if (!empty($ord['has_diskon'])) { ?>

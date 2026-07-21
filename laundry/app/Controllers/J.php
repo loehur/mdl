@@ -480,6 +480,7 @@ class J extends Controller
          foreach ($kasByRef[$ref] ?? [] as $k) {
             $st = (int) $k['status_mutasi'];
             $ord['payments'][] = [
+               'id_kas' => (int) ($k['id_kas'] ?? 0),
                'jumlah' => (float) $k['jumlah'],
                'status' => $st,
                'note' => $k['note'] ?? '',
