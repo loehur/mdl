@@ -1,9 +1,240 @@
-<div class="row mt-3 mx-0">
-  <div class="col px-1" style="max-width: 500px;">
-    <form class="orderProses" action="<?= URL::BASE_URL ?>Penjualan/proses" method="POST">
-      <div class="row mx-0">
-        <div class="col">
-          <label>Pelanggan</label> <span class="float-right addPelanggan" style="cursor: pointer;" data-bs-toggle="modal" data-bs-target="#addPelanggan"><i class="fas fa-plus-square"></i> Tambah</span>
+<style>
+  #ord-root {
+    --ord-ink: #1e3a5f;
+    --ord-ink-soft: #2a4a73;
+    --ord-muted: #5a6a7c;
+    --ord-line: #D5DEEA;
+    --ord-card: #FFFFFF;
+    --ord-foam: #F4F7FB;
+    --ord-accent: #3f74d4;
+    --ord-accent-deep: #2f61bc;
+    --ord-accent-soft: #d9e6fa;
+    --ord-radius: 16px;
+    font-family: 'fontku', 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
+    font-size: 13px;
+    color: var(--ord-ink);
+    padding: 12px 12px 20px;
+    background:
+      radial-gradient(120% 80% at 100% -10%, rgba(63, 116, 212, 0.12), transparent 55%),
+      var(--ord-foam);
+    min-height: 100%;
+  }
+  #ord-root * { box-sizing: border-box; }
+
+  #ord-root .ord-card {
+    background: var(--ord-card);
+    border: 1px solid var(--ord-line);
+    border-radius: var(--ord-radius);
+    padding: 12px;
+    margin-bottom: 10px;
+    box-shadow: 0 8px 22px rgba(36, 48, 65, 0.05);
+  }
+  #ord-root .ord-card-title {
+    margin: 0 0 10px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ord-muted);
+  }
+
+  #ord-root .ord-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  #ord-root .ord-field label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 5px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ord-muted);
+  }
+  #ord-root .ord-link {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--ord-accent);
+    cursor: pointer;
+  }
+  #ord-root .ord-link:hover { color: var(--ord-accent-deep); }
+
+  /* Selectize soft override inside order */
+  #ord-root .selectize-input {
+    border: 1px solid var(--ord-line) !important;
+    border-radius: 10px !important;
+    box-shadow: none !important;
+    min-height: 38px;
+    padding: 7px 10px !important;
+    font-size: 0.88rem !important;
+    font-weight: 650;
+  }
+  #ord-root .selectize-input.focus {
+    border-color: var(--ord-accent) !important;
+    box-shadow: 0 0 0 3px rgba(63, 116, 212, 0.18) !important;
+  }
+  #ord-root .selectize-dropdown {
+    border-color: var(--ord-line) !important;
+    border-radius: 10px !important;
+    box-shadow: 0 10px 24px rgba(36, 48, 65, 0.12) !important;
+  }
+
+  #ord-root .ord-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    width: 100%;
+    border: 0;
+    border-radius: 11px;
+    padding: 10px 12px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: transform .12s ease, opacity .12s ease, background .15s ease;
+  }
+  #ord-root .ord-btn:active { transform: scale(0.98); }
+  #ord-root .ord-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  #ord-root .ord-btn--primary {
+    margin-top: 10px;
+    background: linear-gradient(145deg, var(--ord-accent-deep) 0%, var(--ord-accent) 100%);
+    color: #fff;
+    box-shadow: 0 8px 18px rgba(47, 97, 188, 0.28);
+  }
+  #ord-root .ord-btn--primary:hover:not(:disabled) {
+    background: linear-gradient(145deg, #274f9e 0%, var(--ord-accent-deep) 100%);
+  }
+
+  #ord-root .ord-svc {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+  #ord-root .ord-svc-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 72px;
+    padding: 10px 6px;
+    border: 1px solid var(--ord-line);
+    border-radius: 14px;
+    background: #fff;
+    color: var(--ord-ink);
+    font-family: inherit;
+    font-size: 0.72rem;
+    font-weight: 750;
+    cursor: pointer;
+    transition: border-color .15s ease, background .15s ease, transform .12s ease, box-shadow .15s ease;
+  }
+  #ord-root .ord-svc-btn i {
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    border-radius: 11px;
+    font-size: 0.95rem;
+  }
+  #ord-root .ord-svc-btn[data-id_penjualan='1'] i { background: rgba(42, 157, 143, 0.14); color: #1A7A6E; }
+  #ord-root .ord-svc-btn[data-id_penjualan='2'] i { background: rgba(63, 116, 212, 0.14); color: var(--ord-accent-deep); }
+  #ord-root .ord-svc-btn[data-id_penjualan='3'] i { background: rgba(36, 48, 65, 0.1); color: #243041; }
+  #ord-root .ord-svc-btn[data-id_penjualan='4'] i { background: rgba(231, 111, 81, 0.14); color: #C24A30; }
+  #ord-root .ord-svc-btn:hover {
+    border-color: rgba(63, 116, 212, 0.45);
+    background: var(--ord-accent-soft);
+    box-shadow: 0 6px 16px rgba(47, 97, 188, 0.12);
+  }
+  #ord-root .ord-svc-btn:active { transform: scale(0.97); }
+
+  #ord-root #sering:empty::before {
+    content: 'Pilih pelanggan untuk melihat layanan favorit.';
+    display: block;
+    color: var(--ord-muted);
+    font-size: 0.8rem;
+  }
+  #ord-root #sering .ord-sering-item,
+  #ord-root #sering > div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px dashed var(--ord-line);
+    font-size: 0.8rem;
+    white-space: normal !important;
+  }
+  #ord-root #sering > div:last-child { border-bottom: 0; }
+  #ord-root #sering a.border,
+  #ord-root #sering #pilih_sering a {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 8px;
+    border: 0 !important;
+    border-radius: 999px !important;
+    background: var(--ord-accent-soft);
+    color: var(--ord-accent-deep);
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-decoration: none;
+  }
+
+  #ord-root #saldoMember:empty { display: none; }
+  #ord-root #saldoMember { margin-bottom: 10px; }
+
+  #ord-root .ord-cart-wrap {
+    border-radius: var(--ord-radius);
+    border: 1px solid rgba(63, 116, 212, 0.25);
+    background: linear-gradient(180deg, #edf3fc 0%, #f7faff 100%);
+    padding: 10px;
+  }
+  #ord-root .ord-cart-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  #ord-root .ord-cart-head strong {
+    font-size: 0.8rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+  }
+  #ord-root #cart {
+    max-height: 220px;
+    overflow-y: auto;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  #ord-root #cart::-webkit-scrollbar { display: none; }
+
+  @media (max-width: 420px) {
+    #ord-root .ord-grid-2 { grid-template-columns: 1fr; }
+    #ord-root .ord-svc { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+
+<div id="ord-root">
+  <form class="orderProses" action="<?= URL::BASE_URL ?>Penjualan/proses" method="POST">
+    <div class="ord-card">
+      <p class="ord-card-title">Data order</p>
+      <div class="ord-grid-2">
+        <div class="ord-field">
+          <label>
+            Pelanggan
+            <span class="ord-link addPelanggan" data-bs-toggle="modal" data-bs-target="#addPelanggan">
+              <i class="fas fa-plus"></i> Tambah
+            </span>
+          </label>
           <select id="pelanggan_submit" name="f1" class="proses form-control tize" style="width: 100%;" required>
             <option value="" selected disabled></option>
             <?php foreach ($this->pelanggan as $a) { ?>
@@ -11,8 +242,8 @@
             <?php } ?>
           </select>
         </div>
-        <div class="col">
-          <label>Karyawan</label><br>
+        <div class="ord-field">
+          <label>Karyawan</label>
           <select name="f2" class="form-control tize karyawan" style="width: 100%;" required>
             <option value="" selected disabled></option>
             <optgroup label="<?= $this->dCabang['nama'] ?> [<?= $this->dCabang['kode_cabang'] ?>]">
@@ -29,60 +260,53 @@
             <?php } ?>
           </select>
         </div>
-        <div class="row mt-1 mx-0 px-2 mb-2">
-          <div class="col px-0">
-            <button id="proses" type="submit" class="btn btn-success w-100" disabled>
-              Proses Order
-            </button>
-          </div>
+      </div>
+      <button id="proses" type="submit" class="ord-btn ord-btn--primary" disabled>
+        <i class="fas fa-check-circle"></i>
+        Proses Order
+      </button>
+    </div>
+  </form>
+
+  <div class="ord-card">
+    <p class="ord-card-title">Layanan paling sering</p>
+    <div id="sering"></div>
+  </div>
+
+  <div id="waitReady" class="invisible">
+    <div class="ord-card">
+      <p class="ord-card-title">Tambah item</p>
+      <form id="main">
+        <div class="ord-svc">
+          <button type="button" data-id_penjualan="1" class="ord-svc-btn orderPenjualanForm" data-bs-target="#modalPenjualan">
+            <i class="fas fa-weight"></i>
+            Kiloan
+          </button>
+          <button type="button" data-id_penjualan="2" class="ord-svc-btn orderPenjualanForm" data-bs-target="#modalPenjualan">
+            <i class="fas fa-tshirt"></i>
+            Satuan
+          </button>
+          <button type="button" data-id_penjualan="3" class="ord-svc-btn orderPenjualanForm" data-bs-target="#modalPenjualan">
+            <i class="fas fa-ruler-combined"></i>
+            Bidang
+          </button>
+          <button type="button" data-id_penjualan="4" class="ord-svc-btn orderPenjualanForm" data-bs-target="#modalPenjualan">
+            <i class="fas fa-cube"></i>
+            Volume
+          </button>
         </div>
       </form>
     </div>
-    <div class="row mx-0">
-      <div class="col" style="max-width: 500px;">
-        <div class="p-1">
-          <label class="m-0">Layanan Paling Sering</label><br>
-          <div id="sering"></div>
-        </div>
-      </div>
-    </div>
-    <div class="row mx-0">
-      <div id="waitReady" class="col invisible" style="max-width: 500px;">
-        <div class="card p-1 mb-1">
-          <form id="main">
-            <div class="d-flex align-items-start align-items-end">
-              <div class="p-1">
-                <button type="button" data-id_penjualan='1' class="btn btn-outline-success orderPenjualanForm" data-bs-target="#modalPenjualan">
-                  Kiloan
-                </button>
-              </div>
-              <div class="p-1">
-                <button type="button" data-id_penjualan='2' class="btn btn-outline-info orderPenjualanForm" data-bs-target="#modalPenjualan">
-                  Satuan
-                </button>
-              </div>
-              <div class="p-1">
-                <button type="button" data-id_penjualan='3' class="btn btn-outline-dark orderPenjualanForm" data-bs-target="#modalPenjualan">
-                  Bidang
-                </button>
-              </div>
-              <div class="p-1">
-                <button type="button" data-id_penjualan='4' class="btn btn-outline-danger orderPenjualanForm" data-bs-target="#modalPenjualan">
-                  Volume
-                </button>
-              </div>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-    <div class="row mb-2 mx-0">
-      <div class="col" id="saldoMember"></div>
-    </div>
   </div>
-</div>
-<div class="row mx-2 p-1 bg-primary-subtle bg-gradient">
-  <div class="col mx-0 px-0" id="cart" style="max-width: 500px; height: 200px; overflow-y:scroll"></div>
+
+  <div id="saldoMember"></div>
+
+  <div class="ord-cart-wrap">
+    <div class="ord-cart-head">
+      <strong><i class="fas fa-shopping-basket me-1"></i> Keranjang</strong>
+    </div>
+    <div id="cart"></div>
+  </div>
 </div>
 
 <div class="modal" id="modalPenjualan">
@@ -142,20 +366,7 @@
   </div>
 </div>
 
-<style>
-  /* Hide scrollbar for Chrome, Safari and Opera */
-  #cart::-webkit-scrollbar {
-    display: none;
-  }
-
-  /* Hide scrollbar for IE, Edge and Firefox */
-  #cart {
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
-  }
-</style>
-
-<script script src="<?= URL::EX_ASSETS ?>js/selectize.min.js"></script>
+<script src="<?= URL::EX_ASSETS ?>js/selectize.min.js"></script>
 <script>
   $("form.orderProses").on("submit", function(e) {
     var pelanggan_submit = $('select#pelanggan_submit').val();
@@ -199,7 +410,7 @@
       $('div.addItemForm').load('<?= URL::BASE_URL ?>Penjualan/addItemForm/' + data);
     });
 
-    $("span.addPelanggan").on("click", function(e) {
+    $("span.addPelanggan, .addPelanggan").on("click", function(e) {
       e.preventDefault();
       $('#divPelanggan').load('<?= URL::BASE_URL ?>Penjualan/loadPelanggan');
     });
@@ -209,15 +420,14 @@
       var id_harga = 0;
       var saldo = 0;
       $('div.orderPenjualanForm').load('<?= URL::BASE_URL ?>Penjualan/orderPenjualanForm/' + id_penjualan + '/' + id_harga + '/' + saldo);
-      
-      // Manual trigger for modal
+
       var target = $(this).attr('data-bs-target');
-      if(target) {
-          var modalEl = document.querySelector(target);
-          if(modalEl) {
-              var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-              modal.show();
-          }
+      if (target) {
+        var modalEl = document.querySelector(target);
+        if (modalEl) {
+          var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+          modal.show();
+        }
       }
     });
 
@@ -243,7 +453,7 @@
 
   $('select.proses').on('change', function() {
     var id_pelanggan = this.value;
-    if(id_pelanggan == "") {
+    if (id_pelanggan == "") {
       $("#saldoMember").html("");
       $("#sering").html("");
       return;

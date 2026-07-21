@@ -446,14 +446,16 @@ $modeOperasi = (int) $data['mode'];
 </div>
 
 <!-- Offcanvas Buka Order -->
-<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasBukaOrderOp" aria-labelledby="offcanvasBukaOrderOpLabel" data-bs-backdrop="true" data-bs-scroll="true" style="z-index: 1100;">
-  <div class="offcanvas-header bg-warning bg-gradient">
-    <h5 class="offcanvas-title fw-bold text-dark" id="offcanvasBukaOrderOpLabel"><i class="fas fa-cash-register me-2"></i>Buka Order Baru</h5>
-    <button type="button" class="btn-close text-dark" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasBukaOrderOp" aria-labelledby="offcanvasBukaOrderOpLabel" data-bs-backdrop="true" data-bs-scroll="true" style="z-index: 1100; width: min(420px, 100vw);">
+  <div class="offcanvas-header" style="background:linear-gradient(145deg,#2f61bc,#3f74d4);color:#fff;border-bottom:0;">
+    <h5 class="offcanvas-title fw-bold mb-0" id="offcanvasBukaOrderOpLabel" style="font-family:'fontku',sans-serif;letter-spacing:-0.01em;">
+      <i class="fas fa-cash-register me-2"></i>Buka Order
+    </h5>
+    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
   </div>
-  <div class="offcanvas-body p-0" id="bukaOrderContentOp">
-    <div class="d-flex justify-content-center align-items-center h-100">
-        <div class="spinner-border text-warning" role="status">
+  <div class="offcanvas-body p-0" id="bukaOrderContentOp" style="background:#F4F7FB;">
+    <div class="d-flex justify-content-center align-items-center py-5">
+        <div class="spinner-border text-primary" role="status">
             <span class="visually-hidden">Loading...</span>
         </div>
     </div>

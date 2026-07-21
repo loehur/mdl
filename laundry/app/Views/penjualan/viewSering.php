@@ -39,8 +39,13 @@ foreach ($data['data'] as $a) {
     }
   }
   $no++;
+  $label = trim($jenis . ' ·' . $kategori . ' ·' . $layanan . ' ·' . $durasi);
 ?>
-  <div class="pt-1 text-sm" style="white-space: nowrap;">#<?= $no ?> <?= $jenis ?>, <?= $kategori ?>, <?= $layanan ?>, <?= $durasi ?> <span class="m-1" style="white-space: pre; cursor: pointer;" id="pilih_sering" data-id_penjualan="<?= $id_penjualan ?>" data-id_harga="<?= $id ?>"><a href="#" class="border pr-1 pl-1 rounded">Pilih</a></span>
+  <div class="ord-sering-item">
+    <span>#<?= $no ?> <?= htmlspecialchars($label) ?></span>
+    <span id="pilih_sering" data-id_penjualan="<?= $id_penjualan ?>" data-id_harga="<?= $id ?>">
+      <a href="#">Pilih</a>
+    </span>
   </div>
 <?php
 } ?>
@@ -52,9 +57,8 @@ foreach ($data['data'] as $a) {
     var id_penjualan = $(this).attr('data-id_penjualan');
     var saldo = 0;
     $('div.orderPenjualanForm').load('<?= URL::BASE_URL ?>Penjualan/orderPenjualanForm/' + id_penjualan + '/' + id_harga + "/" + saldo, function() {
-      // Trigger modal after content is loaded
       var modalEl = document.querySelector('#modalPenjualan');
-      if(modalEl) {
+      if (modalEl) {
         var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
         modal.show();
       }
