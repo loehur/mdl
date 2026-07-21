@@ -137,9 +137,17 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
           <?php if (!empty($it['layanan'])) { ?>
             <br>
             <?php foreach ($it['layanan'] as $ly) { ?>
-              <?= !empty($ly['done']) ? '✓' : '○' ?> <?= htmlspecialchars($ly['nama']) ?>
+              <?php if (!empty($ly['done'])) { ?>
+                <span class="j-ly-done">✓ <?= htmlspecialchars($ly['nama']) ?></span>
+              <?php } else { ?>
+                <span class="j-ly-pending">○ <?= htmlspecialchars($ly['nama']) ?></span>
+              <?php } ?>
             <?php } ?>
-            <?= $it['ambil'] ? '· ✓ Ambil' : '· ○ Ambil' ?>
+            <?php if (!empty($it['ambil'])) { ?>
+              <span class="j-ly-done">· ✓ Ambil</span>
+            <?php } else { ?>
+              <span class="j-ly-pending">· ○ Ambil</span>
+            <?php } ?>
           <?php } ?>
         </div>
       </div>

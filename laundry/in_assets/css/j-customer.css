@@ -309,6 +309,15 @@ a { color: inherit; text-decoration: none; }
   line-height: 1.4;
 }
 
+.j-ly-done {
+  color: #1A7A4C;
+  font-weight: 700;
+}
+
+.j-ly-pending {
+  color: var(--j-muted);
+}
+
 .j-foot-row {
   display: flex;
   justify-content: space-between;

@@ -69,9 +69,17 @@ $summary = $data['summary'];
           <?= htmlspecialchars($it['durasi']) ?> · <?= htmlspecialchars($it['qty_show']) ?>
           <?php if (!empty($it['layanan_done']) || !empty($it['layanan_pending'])) { ?>
             <br>
-            <?php foreach ($it['layanan_done'] as $ld) { ?>✓ <?= htmlspecialchars($ld) ?> <?php } ?>
-            <?php foreach ($it['layanan_pending'] as $lp) { ?>○ <?= htmlspecialchars($lp) ?> <?php } ?>
-            <?= $it['ambil'] ? '· ✓ Ambil' : '· ○ Ambil' ?>
+            <?php foreach ($it['layanan_done'] as $ld) { ?>
+              <span class="j-ly-done">✓ <?= htmlspecialchars($ld) ?></span>
+            <?php } ?>
+            <?php foreach ($it['layanan_pending'] as $lp) { ?>
+              <span class="j-ly-pending">○ <?= htmlspecialchars($lp) ?></span>
+            <?php } ?>
+            <?php if (!empty($it['ambil'])) { ?>
+              <span class="j-ly-done">· ✓ Ambil</span>
+            <?php } else { ?>
+              <span class="j-ly-pending">· ○ Ambil</span>
+            <?php } ?>
           <?php } ?>
         </div>
       </div>
