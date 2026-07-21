@@ -217,95 +217,124 @@
   }
   #ord-root #cart::-webkit-scrollbar { display: none; }
 
-  @media (max-width: 420px) {
+  #ord-root .ord-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0 12px;
+    align-items: start;
+  }
+  #ord-root .ord-col {
+    min-width: 0;
+  }
+
+  @media (min-width: 640px) {
+    #ord-root .ord-layout {
+      grid-template-columns: 1fr 1fr;
+    }
+    #ord-root #cart {
+      max-height: min(55vh, 420px);
+    }
+    #ord-root .ord-cart-wrap {
+      position: sticky;
+      top: 8px;
+    }
+  }
+
+  @media (max-width: 639px) {
     #ord-root .ord-grid-2 { grid-template-columns: 1fr; }
     #ord-root .ord-svc { grid-template-columns: repeat(2, 1fr); }
   }
 </style>
 
 <div id="ord-root">
-  <form class="orderProses" action="<?= URL::BASE_URL ?>Penjualan/proses" method="POST">
-    <div class="ord-card">
-      <p class="ord-card-title">Data order</p>
-      <div class="ord-grid-2">
-        <div class="ord-field">
-          <label>
-            Pelanggan
-            <span class="ord-link addPelanggan" data-bs-toggle="modal" data-bs-target="#addPelanggan">
-              <i class="fas fa-plus"></i> Tambah
-            </span>
-          </label>
-          <select id="pelanggan_submit" name="f1" class="proses form-control tize" style="width: 100%;" required>
-            <option value="" selected disabled></option>
-            <?php foreach ($this->pelanggan as $a) { ?>
-              <option id=" <?= $a['id_pelanggan'] ?>" value="<?= $a['id_pelanggan'] ?>"><?= strtoupper($a['nama_pelanggan']) . ", " . $a['nomor_pelanggan']  ?></option>
-            <?php } ?>
-          </select>
-        </div>
-        <div class="ord-field">
-          <label>Karyawan</label>
-          <select name="f2" class="form-control tize karyawan" style="width: 100%;" required>
-            <option value="" selected disabled></option>
-            <optgroup label="<?= $this->dCabang['nama'] ?> [<?= $this->dCabang['kode_cabang'] ?>]">
-              <?php foreach ($this->user as $a) { ?>
-                <option id="<?= $a['id_user'] ?>" value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
-              <?php } ?>
-            </optgroup>
-            <?php if (count($this->userCabang) > 0) { ?>
-              <optgroup label="----- Cabang Lain -----">
-                <?php foreach ($this->userCabang as $a) { ?>
-                  <option id="<?= $a['id_user'] ?>" value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
+  <div class="ord-layout">
+    <div class="ord-col ord-col-main">
+      <form class="orderProses" action="<?= URL::BASE_URL ?>Penjualan/proses" method="POST">
+        <div class="ord-card">
+          <p class="ord-card-title">Data order</p>
+          <div class="ord-grid-2">
+            <div class="ord-field">
+              <label>
+                Pelanggan
+                <span class="ord-link addPelanggan" data-bs-toggle="modal" data-bs-target="#addPelanggan">
+                  <i class="fas fa-plus"></i> Tambah
+                </span>
+              </label>
+              <select id="pelanggan_submit" name="f1" class="proses form-control tize" style="width: 100%;" required>
+                <option value="" selected disabled></option>
+                <?php foreach ($this->pelanggan as $a) { ?>
+                  <option id=" <?= $a['id_pelanggan'] ?>" value="<?= $a['id_pelanggan'] ?>"><?= strtoupper($a['nama_pelanggan']) . ", " . $a['nomor_pelanggan']  ?></option>
                 <?php } ?>
-              </optgroup>
-            <?php } ?>
-          </select>
-        </div>
-      </div>
-      <button id="proses" type="submit" class="ord-btn ord-btn--primary" disabled>
-        <i class="fas fa-check-circle"></i>
-        Proses Order
-      </button>
-    </div>
-  </form>
-
-  <div class="ord-card">
-    <p class="ord-card-title">Layanan paling sering</p>
-    <div id="sering"></div>
-  </div>
-
-  <div id="waitReady" class="invisible">
-    <div class="ord-card">
-      <p class="ord-card-title">Tambah item</p>
-      <form id="main">
-        <div class="ord-svc">
-          <button type="button" data-id_penjualan="1" class="ord-svc-btn orderPenjualanForm" data-bs-target="#modalPenjualan">
-            <i class="fas fa-weight"></i>
-            Kiloan
-          </button>
-          <button type="button" data-id_penjualan="2" class="ord-svc-btn orderPenjualanForm" data-bs-target="#modalPenjualan">
-            <i class="fas fa-tshirt"></i>
-            Satuan
-          </button>
-          <button type="button" data-id_penjualan="3" class="ord-svc-btn orderPenjualanForm" data-bs-target="#modalPenjualan">
-            <i class="fas fa-ruler-combined"></i>
-            Bidang
-          </button>
-          <button type="button" data-id_penjualan="4" class="ord-svc-btn orderPenjualanForm" data-bs-target="#modalPenjualan">
-            <i class="fas fa-cube"></i>
-            Volume
+              </select>
+            </div>
+            <div class="ord-field">
+              <label>Karyawan</label>
+              <select name="f2" class="form-control tize karyawan" style="width: 100%;" required>
+                <option value="" selected disabled></option>
+                <optgroup label="<?= $this->dCabang['nama'] ?> [<?= $this->dCabang['kode_cabang'] ?>]">
+                  <?php foreach ($this->user as $a) { ?>
+                    <option id="<?= $a['id_user'] ?>" value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
+                  <?php } ?>
+                </optgroup>
+                <?php if (count($this->userCabang) > 0) { ?>
+                  <optgroup label="----- Cabang Lain -----">
+                    <?php foreach ($this->userCabang as $a) { ?>
+                      <option id="<?= $a['id_user'] ?>" value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
+                    <?php } ?>
+                  </optgroup>
+                <?php } ?>
+              </select>
+            </div>
+          </div>
+          <button id="proses" type="submit" class="ord-btn ord-btn--primary" disabled>
+            <i class="fas fa-check-circle"></i>
+            Proses Order
           </button>
         </div>
       </form>
-    </div>
-  </div>
 
-  <div id="saldoMember"></div>
+      <div id="waitReady" class="invisible">
+        <div class="ord-card">
+          <p class="ord-card-title">Tambah item</p>
+          <form id="main">
+            <div class="ord-svc">
+              <button type="button" data-id_penjualan="1" class="ord-svc-btn orderPenjualanForm" data-bs-target="#modalPenjualan">
+                <i class="fas fa-weight"></i>
+                Kiloan
+              </button>
+              <button type="button" data-id_penjualan="2" class="ord-svc-btn orderPenjualanForm" data-bs-target="#modalPenjualan">
+                <i class="fas fa-tshirt"></i>
+                Satuan
+              </button>
+              <button type="button" data-id_penjualan="3" class="ord-svc-btn orderPenjualanForm" data-bs-target="#modalPenjualan">
+                <i class="fas fa-ruler-combined"></i>
+                Bidang
+              </button>
+              <button type="button" data-id_penjualan="4" class="ord-svc-btn orderPenjualanForm" data-bs-target="#modalPenjualan">
+                <i class="fas fa-cube"></i>
+                Volume
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
 
-  <div class="ord-cart-wrap">
-    <div class="ord-cart-head">
-      <strong><i class="fas fa-shopping-basket me-1"></i> Keranjang</strong>
+      <div id="saldoMember"></div>
     </div>
-    <div id="cart"></div>
+
+    <div class="ord-col ord-col-side">
+      <div class="ord-card">
+        <p class="ord-card-title">Layanan paling sering</p>
+        <div id="sering"></div>
+      </div>
+
+      <div class="ord-cart-wrap">
+        <div class="ord-cart-head">
+          <strong><i class="fas fa-shopping-basket me-1"></i> Keranjang</strong>
+        </div>
+        <div id="cart"></div>
+      </div>
+    </div>
   </div>
 </div>
 

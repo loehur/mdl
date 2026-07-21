@@ -446,7 +446,7 @@ $modeOperasi = (int) $data['mode'];
 </div>
 
 <!-- Offcanvas Buka Order -->
-<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasBukaOrderOp" aria-labelledby="offcanvasBukaOrderOpLabel" data-bs-backdrop="true" data-bs-scroll="true" style="z-index: 1100; width: min(420px, 100vw);">
+<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasBukaOrderOp" aria-labelledby="offcanvasBukaOrderOpLabel" data-bs-backdrop="true" data-bs-scroll="true" style="z-index: 1100; --bs-offcanvas-width: min(820px, 100vw);">
   <div class="offcanvas-header" style="background:linear-gradient(145deg,#2f61bc,#3f74d4);color:#fff;border-bottom:0;">
     <h5 class="offcanvas-title fw-bold mb-0" id="offcanvasBukaOrderOpLabel" style="font-family:'fontku',sans-serif;letter-spacing:-0.01em;">
       <i class="fas fa-cash-register me-2"></i>Buka Order
