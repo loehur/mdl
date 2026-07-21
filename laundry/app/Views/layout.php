@@ -14,7 +14,7 @@ if (isset($data['data_operasi'])) {
     <link rel="icon" href="<?= URL::IN_ASSETS ?>icon/logo.png">
     <?php require_once __DIR__ . '/pwa_head.php'; ?>
     <title><?= !empty($this->isTrainingMode) ? '[TRAINING] ' : '' ?><?= $title ?> | MDL</title>
-    <meta name="viewport" content="width=470, user-scalable=no">
+    <meta name="viewport" content="width=500, user-scalable=no">
     <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>css/ionicons.min.css">
     <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/fontawesome-free-5.15.4-web/css/all.css" rel="stylesheet">
     <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/css/bootstrap.min.css">
