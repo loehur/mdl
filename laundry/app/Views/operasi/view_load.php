@@ -52,15 +52,15 @@ $labeled = false;
       $cs_code = strtoupper(substr($cs_penerima, 0, 2)) . substr($f18, -1);
       $tgl_terima = date('d/m H:i', strtotime($f1));
 
-      $buttonNotif_londri = "<a href='#' data-urutRef='" . $ref . "' data-hp='" . $no_pelanggan . "' data-ref='" . $ref . "' data-time='" . $timeRef . "' class='text-dark sendNotif bg-white rounded col px-1'> <i class='fab fa-whatsapp'></i><span id='notif" . $ref . "'></span></a>";
+      $buttonNotif_londri = "<a href='#' data-urutRef='" . $ref . "' data-hp='" . $no_pelanggan . "' data-ref='" . $ref . "' data-time='" . $timeRef . "' class='mdl-nota-chip sendNotif'><i class='fab fa-whatsapp'></i><span id='notif" . $ref . "'></span></a>";
       foreach ($data['notif_bon'] as $notif) {
         if ($notif['no_ref'] == $ref) {
           $statusWA = $notif['state'];
           if ($statusWA == '') {
             $statusWA = 'Pending';
           }
-          $stNotif = "<b>" . ucwords(strtolower($statusWA)) . "</b>";
-          $buttonNotif_londri = "<span class='bg-white rounded px-1'><i class='fab fa-whatsapp'></i> " . $stNotif . "</span>";
+          $stNotif = ucwords(strtolower($statusWA));
+          $buttonNotif_londri = "<span class='mdl-nota-chip'><i class='fab fa-whatsapp'></i> " . $stNotif . "</span>";
         }
       }
 
@@ -70,35 +70,36 @@ $labeled = false;
       } else {
         $classHead = 'mdl-nota-past';
       }
+      $id = $first_item['id_penjualan'] ?? '';
       break;
     } ?>
 
     <div class='col px-1' style="min-width: 420px; max-width: 500px;">
-      <div class="p-0 rounded overflow-hidden">
-        <table class='table table-sm m-0 w-100 bg-white shadow-sm mb-2'>
-          <tr class='<?= $classHead ?> row<?= $ref ?>' id='tr<?= $id ?>'>
-            <td class='text-center border-bottom-0 pb-0'><a href='#' class='text-dark' data-print-ref='<?= $ref ?>'
-                data-print-pelanggan='<?= $id_pelanggan ?>'><i class='fas fa-print'></i></a></td>
-            <td colspan='3' class="border-bottom-0 pb-0">
-              <span style='cursor:pointer' title='<?= $nama_pelanggan ?>'><b><?= strtoupper($pelanggan_show) ?></b></span>
-              <small><span class="float-end"><b><i class='fas fa-check-circle'></i> <?= $cs_penerima ?></b> <span
-                    style='white-space: pre;'><?= $tgl_terima ?></span></span></small>
-            </td>
-          </tr>
-          <tr class="<?= $classHead ?>">
-            <td class="border-top-0 pt-0"></td>
-            <td colspan="3" class="border-top-0 pt-0">
-              <small>
-                <span class="shadow-sm me-1"><?= $buttonNotif_londri ?></span><a href='#'><span data-print-id='Label'
-                    class='bg-white rounded px-1 shadow-sm me-1'><i class='fa fa-tag'></i></span></a><a href='#'
-                  class='tambahCas bg-white rounded px-1 shadow-sm me-1' data-ref="<?= $ref ?>"
-                  data-tr='id_transaksi'><span data-bs-toggle='modal' data-bs-target='#exampleModalSurcas'><i
-                      class='fa fa-plus'></i></span></a><span class='bg-white rounded shadow-sm px-1 me-1'><a
-                    class='text-dark' href='<?= URL::BASE_URL . "I/" . $id_pelanggan ?>' target='_blank'><i
-                      class='fas fa-file-invoice'></i></a></span>
-              </small>
-            </td>
-          </tr>
+      <div class="mdl-nota-card">
+        <div class="mdl-nota-head <?= $classHead ?> row<?= $ref ?>" id="tr<?= $id ?>">
+          <div class="mdl-nota-head__top">
+            <div class="mdl-nota-head__left">
+              <a href="#" class="mdl-nota-head__print" data-print-ref="<?= $ref ?>" data-print-pelanggan="<?= $id_pelanggan ?>" title="Cetak">
+                <i class="fas fa-print"></i>
+              </a>
+              <span class="mdl-nota-head__name" style="cursor:pointer" title="<?= htmlspecialchars($nama_pelanggan, ENT_QUOTES, 'UTF-8') ?>">
+                <?= strtoupper($pelanggan_show) ?>
+              </span>
+            </div>
+            <div class="mdl-nota-head__right">
+              <i class="fas fa-check-circle"></i>
+              <span><?= htmlspecialchars($cs_penerima, ENT_QUOTES, 'UTF-8') ?></span>
+              <span><?= $tgl_terima ?></span>
+            </div>
+          </div>
+          <div class="mdl-nota-head__actions">
+            <?= $buttonNotif_londri ?>
+            <a href="#" class="mdl-nota-chip" data-print-id="Label" title="Label"><i class="fa fa-tag"></i></a>
+            <a href="#" class="mdl-nota-chip tambahCas" data-ref="<?= $ref ?>" data-tr="id_transaksi" data-bs-toggle="modal" data-bs-target="#exampleModalSurcas" title="Surcharge"><i class="fa fa-plus"></i></a>
+            <a class="mdl-nota-chip" href="<?= URL::BASE_URL . "I/" . $id_pelanggan ?>" target="_blank" title="Tagihan"><i class="fas fa-file-invoice"></i></a>
+          </div>
+        </div>
+        <table class='table table-sm m-0 w-100 bg-white'>
 
           <?php
 
@@ -918,11 +919,11 @@ $labeled = false;
     }
 
     //BUTTON NOTIF MEMBER
-    $buttonNotif_Member = "<a href='#' data-ref='" . $id . "' class='sendNotifMember bg-white rounded px-1 mr-1'><i class='fab fa-whatsapp'></i> <span id='notif" . $id . "'></span></a>";
+    $buttonNotif_Member = "<a href='#' data-ref='" . $id . "' class='mdl-nota-chip sendNotifMember'><i class='fab fa-whatsapp'></i> <span id='notif" . $id . "'></span></a>";
     foreach ($data['notif_member'] as $notif) {
       if ($notif['no_ref'] == $id) {
-        $stNotif = "<b>" . ucwords($notif['state']) . "</b>";
-        $buttonNotif_Member = "<span class='bg-white rounded px-1 mr-1'><i class='fab fa-whatsapp'></i> " . $stNotif . "</span>";
+        $stNotif = ucwords($notif['state']);
+        $buttonNotif_Member = "<span class='mdl-nota-chip'><i class='fab fa-whatsapp'></i> " . $stNotif . "</span>";
       }
     }
 
@@ -933,23 +934,31 @@ $labeled = false;
       $loadRekap['M#' . $id] = $sisa;
     ?>
       <div class='col px-1' style="min-width: 420px; max-width: 500px;">
-        <div class="p-0 rounded overflow-hidden">
-          <table class="table bg-white table-sm w-100 pb-0 mb-0">
+        <div class="mdl-nota-card">
+          <div class="mdl-nota-head mdl-nota-member">
+            <div class="mdl-nota-head__top">
+              <div class="mdl-nota-head__left">
+                <a href="#" class="mdl-nota-head__print" data-print-id="<?= $id ?>" title="Cetak">
+                  <i class="fas fa-print"></i>
+                </a>
+                <span class="mdl-nota-head__name" title="<?= htmlspecialchars($nama_pelanggan, ENT_QUOTES, 'UTF-8') ?>">
+                  <?= strtoupper($pelanggan_show) ?>
+                </span>
+              </div>
+              <div class="mdl-nota-head__right">
+                <i class="fas fa-check-circle"></i>
+                <span><?= htmlspecialchars($cs, ENT_QUOTES, 'UTF-8') ?></span>
+              </div>
+            </div>
+            <div class="mdl-nota-head__actions">
+              <?= $buttonNotif_Member ?>
+              <a class="mdl-nota-chip" href="<?= URL::BASE_URL ?>I/<?= $id_pelanggan ?>" target="_blank" title="Tagihan">
+                <i class="fas fa-file-invoice"></i>
+              </a>
+            </div>
+          </div>
+          <table class="table bg-white table-sm w-100 m-0">
             <tbody>
-              <tr class="table-info">
-                <td><a href='#' class='ml-1 text-dark' data-print-id='<?= $id ?>'><i class='fas fa-print'></i></a></td>
-                <td colspan="2"><b><?= strtoupper($nama_pelanggan) ?></b>
-                  <div class="float-right">
-                    <?= $buttonNotif_Member ?></span>
-                    <span class='bg-white rounded pr-1 pl-1'><a class="text-dark"
-                        href="<?= URL::BASE_URL ?>I/<?= $id_pelanggan ?>" target='_blank'><i
-                          class='fas fa-file-invoice'></i></a></span>
-                    <span class='rounded bg-white border pr-1 pl-1'><?= $cs ?></span>
-
-                  </div>
-                </td>
-              </tr>
-
               <tr>
                 <td class="text-center">
                   <?php if ($adaBayar == false || $this->id_privilege >= 100) { ?>

@@ -59,26 +59,129 @@ if (isset($data['data_operasi'])) {
 
         /* Header warna nota Antrian/Operasi — tema MDL (bukan Bootstrap) */
         .content-wrapper tr.mdl-nota-today > td,
-        .content-wrapper tr.mdl-nota-past > td {
+        .content-wrapper tr.mdl-nota-past > td,
+        .content-wrapper tr.mdl-nota-member > td,
+        .content-wrapper .mdl-nota-head.mdl-nota-today,
+        .content-wrapper .mdl-nota-head.mdl-nota-past,
+        .content-wrapper .mdl-nota-head.mdl-nota-member {
             border-color: transparent !important;
             color: var(--mdl-ink) !important;
             vertical-align: middle;
         }
-        .content-wrapper tr.mdl-nota-today > td {
+        .content-wrapper tr.mdl-nota-today > td,
+        .content-wrapper .mdl-nota-head.mdl-nota-today {
             background: linear-gradient(to bottom, #9ec0f0 0%, #b6d0f5 45%, #cfe0f8 100%) !important;
             box-shadow: inset 0 -1px 0 rgba(47, 97, 188, 0.35);
         }
-        .content-wrapper tr.mdl-nota-past > td {
+        .content-wrapper tr.mdl-nota-past > td,
+        .content-wrapper .mdl-nota-head.mdl-nota-past {
             background: linear-gradient(to bottom, #8fd4ad 0%, #a8dfbf 45%, #c5ebd4 100%) !important;
             box-shadow: inset 0 -1px 0 rgba(38, 135, 80, 0.35);
         }
+        .content-wrapper tr.mdl-nota-member > td,
+        .content-wrapper .mdl-nota-head.mdl-nota-member {
+            background: linear-gradient(to bottom, #8eb8ef 0%, #a9caf4 45%, #c5ddf8 100%) !important;
+            box-shadow: inset 0 -1px 0 rgba(47, 97, 188, 0.32);
+        }
         .content-wrapper tr.mdl-nota-today a,
-        .content-wrapper tr.mdl-nota-past a {
+        .content-wrapper tr.mdl-nota-past a,
+        .content-wrapper tr.mdl-nota-member a,
+        .content-wrapper .mdl-nota-head a {
             color: var(--mdl-ink) !important;
         }
         .content-wrapper tr.mdl-nota-today .text-dark,
-        .content-wrapper tr.mdl-nota-past .text-dark {
+        .content-wrapper tr.mdl-nota-past .text-dark,
+        .content-wrapper tr.mdl-nota-member .text-dark {
             color: var(--mdl-ink) !important;
+        }
+
+        /* Head nota Operasi — padding & alignment seimbang */
+        .content-wrapper .mdl-nota-card {
+            overflow: hidden;
+            border-radius: 0;
+            background: #fff;
+            box-shadow: 0 6px 16px rgba(36, 48, 65, 0.08);
+            margin-bottom: 8px;
+        }
+        .content-wrapper .mdl-nota-head {
+            padding: 10px 12px 9px;
+        }
+        .content-wrapper .mdl-nota-head__top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        .content-wrapper .mdl-nota-head__left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+        }
+        .content-wrapper .mdl-nota-head__print {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            flex-shrink: 0;
+            text-decoration: none;
+        }
+        .content-wrapper .mdl-nota-head__name {
+            font-weight: 800;
+            letter-spacing: -0.01em;
+            line-height: 1.2;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .content-wrapper .mdl-nota-head__right {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+            font-size: 0.82em;
+            font-weight: 700;
+            white-space: nowrap;
+            line-height: 1.2;
+        }
+        .content-wrapper .mdl-nota-head__right i {
+            opacity: 0.85;
+        }
+        .content-wrapper .mdl-nota-head__actions {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px;
+            margin-top: 8px;
+            padding-top: 2px;
+        }
+        .content-wrapper .mdl-nota-chip {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            min-height: 26px;
+            min-width: 26px;
+            padding: 3px 8px;
+            background: #fff;
+            border: 1px solid rgba(36, 48, 65, 0.08);
+            border-radius: 0;
+            box-shadow: 0 1px 3px rgba(36, 48, 65, 0.06);
+            color: var(--mdl-ink);
+            font-size: 0.78em;
+            font-weight: 700;
+            line-height: 1;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+        .content-wrapper .mdl-nota-chip:hover {
+            background: #f8fafc;
+            color: var(--mdl-ink);
+            text-decoration: none;
+        }
+        .content-wrapper .mdl-nota-card > .table {
+            margin-bottom: 0 !important;
         }
 
         @media print {
