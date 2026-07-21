@@ -89,25 +89,25 @@ if (isset($data['data_operasi'])) {
 
         /* ===== Soft chrome theme (topnav + sidebar) ===== */
         :root {
-            --mdl-shell: #dce3eb;
-            --mdl-shell-deep: #cfd8e3;
-            --mdl-surface: #f7f9fc;
-            --mdl-surface-2: #eef2f7;
-            --mdl-ink: #3a4553;
-            --mdl-ink-soft: #6b7785;
-            --mdl-line: #d5dde6;
-            --mdl-accent: #6b8fd4;
-            --mdl-accent-deep: #5a7ec4;
-            --mdl-accent-soft: #e8eef8;
-            --mdl-live: #6aaa86;
-            --mdl-live-deep: #5a9975;
-            --mdl-train: #d4a06a;
-            --mdl-train-deep: #c48f58;
-            --mdl-train-shell: #e8d5c0;
-            --mdl-train-surface: #f7eee4;
-            --mdl-admin: #c4878f;
-            --mdl-admin-deep: #b5767e;
-            --mdl-shadow: 0 4px 14px rgba(58, 69, 83, 0.08);
+            --mdl-shell: #c5d0dc;
+            --mdl-shell-deep: #b3bfcd;
+            --mdl-surface: #f4f7fb;
+            --mdl-surface-2: #e5ecf4;
+            --mdl-ink: #243041;
+            --mdl-ink-soft: #5a6a7c;
+            --mdl-line: #b8c4d2;
+            --mdl-accent: #3f74d4;
+            --mdl-accent-deep: #2f61bc;
+            --mdl-accent-soft: #d9e6fa;
+            --mdl-live: #2f9e5f;
+            --mdl-live-deep: #268750;
+            --mdl-train: #e08a35;
+            --mdl-train-deep: #c97422;
+            --mdl-train-shell: #f0c49a;
+            --mdl-train-surface: #fbebe0;
+            --mdl-admin: #d45363;
+            --mdl-admin-deep: #bc3f4f;
+            --mdl-shadow: 0 5px 16px rgba(36, 48, 65, 0.12);
         }
 
         /* ===== Top toolbar ===== */
@@ -286,36 +286,35 @@ if (isset($data['data_operasi'])) {
             box-shadow: 0 1px 2px rgba(212, 160, 106, 0.3);
         }
 
+        .training-banner {
+            background: linear-gradient(90deg, #e08a35, #f0a85a);
+            color: #4a2e12;
+            font-weight: 700;
+            font-size: 12px;
+            letter-spacing: 0.02em;
+            text-align: center;
+            padding: 7px 12px;
+            border-bottom: 1px solid rgba(74, 46, 18, 0.12);
+        }
+        body.mode-training .main-header.mdl-topbar {
+            background: var(--mdl-train-shell) !important;
+            border-bottom-color: #e0a86a;
+        }
+        body.mode-training .mode-switch {
+            border-color: #e0a86a;
+            background: #e8b888;
+        }
         .mdl-training-chip {
             display: inline-flex;
             align-items: center;
             height: 34px;
             padding: 0 12px;
             border-radius: 8px;
-            background: #8a6a4e;
+            background: #9a5a20;
             color: #fff;
             font-size: 12px;
             font-weight: 800;
             letter-spacing: 0.04em;
-        }
-
-        .training-banner {
-            background: linear-gradient(90deg, #e0b48a, #ecc996);
-            color: #5c4030;
-            font-weight: 700;
-            font-size: 12px;
-            letter-spacing: 0.02em;
-            text-align: center;
-            padding: 7px 12px;
-            border-bottom: 1px solid rgba(92, 64, 48, 0.1);
-        }
-        body.mode-training .main-header.mdl-topbar {
-            background: var(--mdl-train-shell) !important;
-            border-bottom-color: #d9b896;
-        }
-        body.mode-training .mode-switch {
-            border-color: #d4b08a;
-            background: #e6d0b8;
         }
 
         /* ===== Sidebar profile card ===== */
@@ -597,26 +596,20 @@ if (isset($data['data_operasi'])) {
 
         /* Soft modal accents */
         .mdl-cmodal__head {
-            background: linear-gradient(135deg, #6b8fd4, #89a6db) !important;
+            background: linear-gradient(135deg, #3f74d4, #5b8de0) !important;
         }
         .mdl-cmodal--user .mdl-cmodal__head {
-            background: linear-gradient(135deg, #6aaa86, #86b89a) !important;
-        }
-        .mdl-cmodal__kode {
-            color: var(--mdl-accent-deep) !important;
+            background: linear-gradient(135deg, #2f9e5f, #45b575) !important;
         }
         .mdl-cmodal__item.is-active {
             border-color: var(--mdl-accent) !important;
-            background: linear-gradient(180deg, #e8eef8, #f5f8fc) !important;
-            box-shadow: 0 0 0 2px rgba(107, 143, 212, 0.18) !important;
+            background: linear-gradient(180deg, #d9e6fa, #eef4fc) !important;
+            box-shadow: 0 0 0 2px rgba(63, 116, 212, 0.22) !important;
         }
         .mdl-cmodal--user .mdl-cmodal__item.is-active {
             border-color: var(--mdl-live) !important;
-            background: linear-gradient(180deg, #e8f3ec, #f5faf7) !important;
-            box-shadow: 0 0 0 2px rgba(106, 170, 134, 0.18) !important;
-        }
-        .mdl-cmodal--user .mdl-cmodal__kode {
-            color: var(--mdl-live-deep) !important;
+            background: linear-gradient(180deg, #d6f0e1, #eaf8f0) !important;
+            box-shadow: 0 0 0 2px rgba(47, 158, 95, 0.22) !important;
         }
         /* ===== Custom cabang picker modal ===== */
         .mdl-cmodal {
@@ -660,7 +653,7 @@ if (isset($data['data_operasi'])) {
             justify-content: space-between;
             gap: 12px;
             padding: 14px 16px;
-            background: linear-gradient(135deg, #6b8fd4, #89a6db);
+            background: linear-gradient(135deg, #3f74d4, #5b8de0);
             color: #fff;
         }
         .mdl-cmodal__head h3 {
@@ -740,7 +733,7 @@ if (isset($data['data_operasi'])) {
             color: var(--mdl-accent-deep);
         }
         .mdl-cmodal--user .mdl-cmodal__head {
-            background: linear-gradient(135deg, #6aaa86, #86b89a);
+            background: linear-gradient(135deg, #2f9e5f, #45b575);
         }
         .mdl-cmodal--user .mdl-cmodal__item:hover {
             border-color: #b7d4c2;
