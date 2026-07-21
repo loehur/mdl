@@ -8,6 +8,8 @@ $members = $data['members'];
 $summary = $data['summary'];
 ?>
 
+<div class="j-tagihan">
+
 <div class="j-card" style="margin-bottom:12px">
   <div class="j-hero-grid" style="gap:8px">
     <div class="j-hero-stat" style="background:#F7FBFA;border-color:var(--j-line);color:var(--j-ink)">
@@ -197,5 +199,7 @@ $summary = $data['summary'];
   </div>
 </article>
 <?php } ?>
+
+</div>
 
 <?php require __DIR__ . '/_foot.php'; ?>

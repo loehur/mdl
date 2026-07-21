@@ -15,6 +15,8 @@ $namaLaundry = $cabang['nama'] ?? ($cabang['nama_cabang'] ?? 'Laundry');
 $kodeCabang = $cabang['kode_cabang'] ?? '00';
 ?>
 
+<div class="j-tagihan">
+
 <script type="application/json" id="jPayConfig"><?= json_encode([
   'id_pelanggan' => (int) $id,
   'nama' => $customer['nama'] ?? $p['nama_pelanggan'],
@@ -373,3 +375,5 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
   </div>
 </div>
 <?php } ?>
+
+</div>
