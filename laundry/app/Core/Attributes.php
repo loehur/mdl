@@ -9,6 +9,91 @@ trait Attributes
     public $dLaundry, $dCabang, $listCabang, $surcasPublic, $mdl_setting;
     public $pelanggan_p;
     public $kode_cabang;
+    /** @var bool Mode Training aktif (cabang virtual) */
+    public $isTrainingMode = false;
+
+    /**
+     * Apakah session sedang Mode Training.
+     */
+    public function isTrainingMode()
+    {
+        return !empty($_SESSION[URL::SESSID]['training']['active']);
+    }
+
+    /**
+     * id_cabang virtual training (0 jika belum di-seed).
+     */
+    public function getTrainingCabangId()
+    {
+        static $cached = null;
+        if ($cached !== null) {
+            return $cached;
+        }
+        try {
+            $row = $this->db(0)->get_where_row('cabang', 'is_training = 1');
+            $cached = (is_array($row) && !empty($row['id_cabang'])) ? (int) $row['id_cabang'] : 0;
+        } catch (\Throwable $e) {
+            $cached = 0;
+        }
+        return $cached;
+    }
+
+    /**
+     * Semua cabang operasional (tanpa cabang virtual training).
+     */
+    public function getCabangOperasional()
+    {
+        $all = $this->db(0)->get('cabang');
+        return $this->filterCabangOperasional($all);
+    }
+
+    /**
+     * Filter array baris cabang: buang is_training = 1.
+     */
+    public function filterCabangOperasional($rows)
+    {
+        if (!is_array($rows)) {
+            return [];
+        }
+        $out = [];
+        foreach ($rows as $key => $c) {
+            if (!is_array($c)) {
+                continue;
+            }
+            if (!empty($c['is_training'])) {
+                continue;
+            }
+            $out[$key] = $c;
+        }
+        return array_values($out);
+    }
+
+    /**
+     * Filter daftar pelanggan sesuai mode Live / Training.
+     */
+    protected function filterPelangganByMode($rows, $trainingMode, $trainId)
+    {
+        if (!is_array($rows) || $trainId <= 0) {
+            return is_array($rows) ? $rows : [];
+        }
+        $out = [];
+        foreach ($rows as $key => $p) {
+            if (!is_array($p)) {
+                continue;
+            }
+            $cid = (int) ($p['id_cabang'] ?? 0);
+            if ($trainingMode) {
+                if ($cid === $trainId) {
+                    $out[$key] = $p;
+                }
+            } else {
+                if ($cid !== $trainId) {
+                    $out[$key] = $p;
+                }
+            }
+        }
+        return $out;
+    }
 
     public function operating_data()
     {
@@ -18,6 +103,7 @@ trait Attributes
                 $id_user = $_SESSION[URL::SESSID]['user']['id_user'];
                 $this->nama_user = $_SESSION[URL::SESSID]['user']['nama_user'];
 
+                $this->isTrainingMode = $this->isTrainingMode();
                 $this->id_cabang = $_SESSION[URL::SESSID]['user']['id_cabang'];
                 $this->id_privilege = $_SESSION[URL::SESSID]['user']['id_privilege'];
 
@@ -94,22 +180,77 @@ trait Attributes
 
     public function parameter($data_user)
     {
-        $_SESSION[URL::SESSID]['user'] = $this->db(0)->get_where_row("user", "id_user = '" . $data_user['id_user'] . "'");
+        $userRow = $this->db(0)->get_where_row("user", "id_user = '" . $data_user['id_user'] . "'");
+        if (!is_array($userRow) || empty($userRow['id_user'])) {
+            return;
+        }
+
+        if (!isset($_SESSION[URL::SESSID]['training']) || !is_array($_SESSION[URL::SESSID]['training'])) {
+            $_SESSION[URL::SESSID]['training'] = ['active' => false, 'id_cabang_origin' => (int) $userRow['id_cabang']];
+        }
+
+        $trainId = $this->getTrainingCabangId();
+        $trainingActive = !empty($_SESSION[URL::SESSID]['training']['active']);
+
+        // Jangan biarkan mode training tanpa cabang seed
+        if ($trainingActive && $trainId <= 0) {
+            $_SESSION[URL::SESSID]['training']['active'] = false;
+            $trainingActive = false;
+        }
+
+        $realCabangId = (int) $userRow['id_cabang'];
+        // Jika DB user kebetulan menunjuk cabang TRAIN, pakai origin / cabang operasional pertama
+        if ($trainId > 0 && $realCabangId === $trainId) {
+            $origin = (int) ($_SESSION[URL::SESSID]['training']['id_cabang_origin'] ?? 0);
+            if ($origin <= 0 || $origin === $trainId) {
+                $ops = $this->getCabangOperasional();
+                $origin = !empty($ops[0]['id_cabang']) ? (int) $ops[0]['id_cabang'] : 0;
+            }
+            $realCabangId = $origin > 0 ? $origin : $realCabangId;
+        }
+
+        if (!$trainingActive) {
+            $_SESSION[URL::SESSID]['training']['id_cabang_origin'] = $realCabangId;
+        } else {
+            if (empty($_SESSION[URL::SESSID]['training']['id_cabang_origin'])) {
+                $_SESSION[URL::SESSID]['training']['id_cabang_origin'] = $realCabangId;
+            }
+        }
+
+        $effectiveCabangId = $trainingActive ? $trainId : $realCabangId;
+
+        $_SESSION[URL::SESSID]['user'] = $userRow;
+        // Override session saja — tidak menulis TRAIN ke tabel user
+        $_SESSION[URL::SESSID]['user']['id_cabang'] = $effectiveCabangId;
+
+        $pelangganCabang = $this->db(0)->get_where("pelanggan", "id_cabang = " . $effectiveCabangId . " ORDER by sort DESC", 'id_pelanggan');
+        $pelangganLaundry = $this->filterPelangganByMode(
+            $this->db(0)->get_order("pelanggan", "sort DESC"),
+            $trainingActive,
+            $trainId
+        );
+
         $_SESSION[URL::SESSID]['order'] = array(
-            'user' => $this->db(0)->get_where("user", "en = 1 AND id_cabang = " . $_SESSION[URL::SESSID]['user']['id_cabang'], 'id_user'),
+            'user' => $this->db(0)->get_where("user", "en = 1 AND id_cabang = " . $effectiveCabangId, 'id_user'),
             'userAll' => $this->db(0)->get("user", 'id_user'),
-            'userCabang' => $this->db(0)->get_where("user", "en = 1 AND id_cabang <> " . $_SESSION[URL::SESSID]['user']['id_cabang'], 'id_user'),
-            'pelanggan' => $this->db(0)->get_where("pelanggan", "id_cabang = " . $_SESSION[URL::SESSID]['user']['id_cabang'] . " ORDER by sort DESC", 'id_pelanggan'),
-            'pelangganLaundry' => $this->db(0)->get_order("pelanggan", "sort DESC"),
+            'userCabang' => $this->db(0)->get_where("user", "en = 1 AND id_cabang <> " . $effectiveCabangId, 'id_user'),
+            'pelanggan' => $pelangganCabang,
+            'pelangganLaundry' => $pelangganLaundry,
             'harga' => $this->db(0)->get_order("harga", "sort DESC"),
             'itemGroup' => $this->db(0)->get("item_group"),
             "surcas" => $this->db(0)->get("surcas_jenis"),
             'diskon' => $this->db(0)->get("diskon_qty"),
         );
 
+        $cabangRow = $this->db(0)->get_where_row('cabang', 'id_cabang = ' . $effectiveCabangId);
+        if ($trainingActive && is_array($cabangRow)) {
+            $cabangRow['kode_cabang'] = 'TRAINING';
+            $cabangRow['alamat'] = $cabangRow['alamat'] ?: 'Mode Training';
+        }
+
         $_SESSION[URL::SESSID]['data'] = array(
-            'cabang' => $this->db(0)->get_where_row('cabang', 'id_cabang = ' . $_SESSION[URL::SESSID]['user']['id_cabang']),
-            'listCabang' => $this->db(0)->get('cabang'),
+            'cabang' => $cabangRow,
+            'listCabang' => $this->getCabangOperasional(),
             'layanan' => $this->db(0)->get('layanan'),
             'privilege' => $this->db(0)->get('privilege'),
             'durasi' => $this->db(0)->get('durasi'),
@@ -122,7 +263,8 @@ trait Attributes
             'item_pengeluaran' => $this->db(0)->get("item_pengeluaran"),
         );
 
-        $_SESSION[URL::SESSID]['mdl_setting'] = $this->db(0)->get_where_row('setting', 'id_cabang = ' . $_SESSION[URL::SESSID]['user']['id_cabang']);
+        $setting = $this->db(0)->get_where_row('setting', 'id_cabang = ' . $effectiveCabangId);
+        $_SESSION[URL::SESSID]['mdl_setting'] = is_array($setting) ? $setting : [];
     }
 
     public function dataSynchrone($id_user)

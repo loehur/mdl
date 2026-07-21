@@ -25,6 +25,10 @@ class Pindah_Outlet extends Controller
 
    function pindah()
    {
+      if ($this->isTrainingMode()) {
+         echo "Pindah outlet tidak tersedia di Mode Training";
+         return;
+      }
       $hp = $_POST['karyawan'];
       $pin = $_POST['pin'];
 

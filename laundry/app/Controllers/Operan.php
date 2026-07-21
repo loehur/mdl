@@ -37,6 +37,10 @@ class Operan extends Controller
 
    public function index()
    {
+      if ($this->isTrainingMode()) {
+         echo "Operan tidak tersedia di Mode Training. Switch ke Live terlebih dahulu.";
+         return;
+      }
       $idOperan = "";
       $idCabang = "";
       $data_operasi = ['title' => 'Operan'];
@@ -47,6 +51,10 @@ class Operan extends Controller
 
    public function load($idOperan, $idCabang)
    {
+      if ($this->isTrainingMode()) {
+         echo "Operan tidak tersedia di Mode Training";
+         exit();
+      }
       if ($idCabang == $_SESSION[URL::SESSID]['user']['id_cabang']) {
          $this->writeLog('load', 'ERROR', 'ID Outlet Operan sama dengan ID Outlet saat ini', [
             'idOperan' => $idOperan,

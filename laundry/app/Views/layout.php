@@ -13,7 +13,7 @@ if (isset($data['data_operasi'])) {
     <meta charset="utf-8">
     <link rel="icon" href="<?= URL::IN_ASSETS ?>icon/logo.png">
     <?php require_once __DIR__ . '/pwa_head.php'; ?>
-    <title><?= $title ?> | MDL</title>
+    <title><?= !empty($this->isTrainingMode) ? '[TRAINING] ' : '' ?><?= $title ?> | MDL</title>
     <meta name="viewport" content="width=460, user-scalable=no">
     <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>css/ionicons.min.css">
     <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/fontawesome-free-5.15.4-web/css/all.css" rel="stylesheet">
@@ -80,6 +80,52 @@ if (isset($data['data_operasi'])) {
             overflow-x: hidden;
             -webkit-overflow-scrolling: touch;
         }
+
+        .mode-switch {
+            display: inline-flex;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 2px solid #212529;
+            font-weight: 700;
+            font-size: 12px;
+            line-height: 1;
+        }
+        .mode-switch .mode-btn {
+            padding: 7px 10px;
+            cursor: pointer;
+            background: #f8f9fa;
+            color: #212529;
+            border: 0;
+            user-select: none;
+        }
+        .mode-switch .mode-btn.active-live {
+            background: #198754;
+            color: #fff;
+        }
+        .mode-switch .mode-btn.active-training {
+            background: #fd7e14;
+            color: #fff;
+        }
+        .training-banner {
+            background: #fd7e14;
+            color: #1a1a1a;
+            font-weight: 700;
+            font-size: 13px;
+            letter-spacing: 0.02em;
+            text-align: center;
+            padding: 6px 10px;
+        }
+        body.mode-training .main-header {
+            background: #fd7e14 !important;
+            background-image: none !important;
+        }
+        body.mode-training .main-sidebar {
+            background: #5c3200 !important;
+        }
+        body.mode-training .brand-training-label {
+            color: #fff;
+            font-weight: 800;
+        }
     </style>
 </head>
 
@@ -116,18 +162,31 @@ if ($log_mode == 1) {
 
 ?>
 
-<body class="hold-transition sidebar-mini">
+<?php $isTrainingUi = !empty($this->isTrainingMode); ?>
+<body class="hold-transition sidebar-mini<?= $isTrainingUi ? ' mode-training' : '' ?>">
     <div class="loaderDiv" style="display: none;">
         <div class="loader"></div>
     </div>
     <div class="wrapper">
+        <?php if ($isTrainingUi) { ?>
+            <div class="training-banner sticky-top">
+                MODE TRAINING — data latihan terpisah · WA &amp; payment tetap sungguhan · switch ke Live untuk operasional
+            </div>
+        <?php } ?>
         <nav class="main-header navbar navbar-expand bg-secondary-subtle bg-gradient sticky-top pb-1 pt-3">
             <div class="row w-100 mx-0 px-0 pb-1">
                 <div class="col-auto ps-0 pe-1 text-nowrap">
                     <a class="nav-link p-0 ps-2" id="menu_utama" data-widget="pushmenu" href="#" role="button"> <span class="btn ><i class=" fas fa-bars"></i> Menu</span></a>
                 </div>
 
-                <?php if ($this->id_privilege == 100 or $this->id_privilege == 12) { ?>
+                <div class="col-auto ps-0 pe-1">
+                    <div class="mode-switch" id="modeSwitch" title="Ganti Mode Live / Training">
+                        <button type="button" class="mode-btn<?= !$isTrainingUi ? ' active-live' : '' ?>" data-mode="live">Live</button>
+                        <button type="button" class="mode-btn<?= $isTrainingUi ? ' active-training' : '' ?>" data-mode="training">Training</button>
+                    </div>
+                </div>
+
+                <?php if (!$isTrainingUi && ($this->id_privilege == 100 or $this->id_privilege == 12)) { ?>
                     <div class="col-auto ps-0 pe-1">
                         <select id="selectCabang" class="form-control bg-primary">
                             <?php foreach ($this->listCabang as $lcb) { ?>
@@ -148,6 +207,10 @@ if ($log_mode == 1) {
                         <?php } ?>
                     </div>
 
+                <?php } elseif ($isTrainingUi) { ?>
+                    <div class="col-auto ps-0 pe-1 d-flex align-items-center">
+                        <span class="badge bg-dark brand-training-label px-2 py-2">TRAINING</span>
+                    </div>
                 <?php } ?>
                 <div class="col-auto ps-0 me-auto pe-1">
                     
@@ -172,7 +235,7 @@ if ($log_mode == 1) {
                         <table class="text-secondary w-100">
                             <tr>
                                 <td class="w-25 text-end pe-2"><i class="fas fa-user-circle"></i></td>
-                                <td class="w-50 text-start ps-2"><?= $this->nama_user . " #" . $this->id_cabang ?></td>
+                                <td class="w-50 text-start ps-2"><?= $this->nama_user . " #" . ($isTrainingUi ? 'TRAINING' : $this->id_cabang) ?></td>
                             </tr>
                             <tr>
                                 <td class="w-25 text-end pe-2"><i class="fas fa-wifi"></i></td>
@@ -202,6 +265,10 @@ if ($log_mode == 1) {
                                     <?php 
                                     // Skip menu if show_if_multi_cabang is true but only 1 cabang exists
                                     if (isset($mk['show_if_multi_cabang']) && $mk['show_if_multi_cabang'] && count($this->listCabang) <= 1) {
+                                        continue;
+                                    }
+                                    // Hide Operan (dan menu sejenis) saat Mode Training
+                                    if (!empty($mk['hide_if_training']) && !empty($this->isTrainingMode)) {
                                         continue;
                                     }
                                     ?>
@@ -623,6 +690,35 @@ if ($log_mode == 1) {
                         success: function(response) {
                             location.reload(true);
                         },
+                    });
+                });
+
+                $("#modeSwitch .mode-btn").on("click", function() {
+                    var mode = $(this).data("mode");
+                    var current = <?= $isTrainingUi ? "'training'" : "'live'" ?>;
+                    if (mode === current) {
+                        return;
+                    }
+                    $.ajax({
+                        url: '<?= URL::BASE_URL ?>Training/switchMode',
+                        data: { mode: mode },
+                        type: "POST",
+                        dataType: "json",
+                        beforeSend: function() {
+                            $(".loaderDiv").fadeIn("fast");
+                        },
+                        success: function(res) {
+                            if (res && res.code == 1) {
+                                location.reload(true);
+                            } else {
+                                $(".loaderDiv").fadeOut("fast");
+                                alert((res && res.msg) ? res.msg : "Gagal ganti mode");
+                            }
+                        },
+                        error: function(xhr) {
+                            $(".loaderDiv").fadeOut("fast");
+                            alert("Gagal ganti mode: " + (xhr.responseText || xhr.status));
+                        }
                     });
                 });
 

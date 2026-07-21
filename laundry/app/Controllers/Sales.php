@@ -81,7 +81,7 @@ class Sales extends Controller
       });
       
       // Get list cabang untuk modal transfer
-      $listCabang = $this->db(0)->get('cabang');
+      $listCabang = $this->getCabangOperasional();
       
       $data_operasi = ['title' => 'Sales Order'];
       $this->view('layout', ['data_operasi' => $data_operasi]);
@@ -1140,7 +1140,7 @@ class Sales extends Controller
       }
       
       // Get nama cabang untuk display
-      $cabangList = $this->db(0)->get('cabang');
+      $cabangList = $this->getCabangOperasional();
       $cabangMap = [];
       if (is_array($cabangList)) {
          foreach ($cabangList as $cb) {

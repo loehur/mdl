@@ -7,7 +7,7 @@ class Saldo extends Controller
     {
 
         if ($id_cabang == 0) {
-            $cabangs = $this->db(0)->get("cabang");
+            $cabangs = $this->getCabangOperasional();
 
             foreach ($cabangs as $a) {
                 $kredit = 0;

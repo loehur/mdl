@@ -78,7 +78,7 @@ class Rekap extends Controller
             $cabang = $this->db(0)->get_where_row('cabang', "id_cabang = " . $this->id_cabang);
             $listCabang = $cabang ? [$cabang] : [];
          } else {
-            $listCabang = $this->db(0)->get('cabang');
+            $listCabang = $this->getCabangOperasional();
             if (!is_array($listCabang)) $listCabang = [];
          }
 
@@ -390,7 +390,7 @@ class Rekap extends Controller
          $byBranch[$id]['post'] = (int) $r['total'];
       }
 
-      $cabangRows = $this->db(0)->get('cabang');
+      $cabangRows = $this->getCabangOperasional();
       if (!is_array($cabangRows)) {
          $cabangRows = [];
       }
@@ -727,7 +727,7 @@ class Rekap extends Controller
 
    private function rekapCabangMap()
    {
-      $cabangRows = $this->db(0)->get('cabang');
+      $cabangRows = $this->getCabangOperasional();
       if (!is_array($cabangRows)) {
          $cabangRows = [];
       }

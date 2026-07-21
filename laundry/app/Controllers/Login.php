@@ -32,6 +32,11 @@ class Login extends Controller
             $device = $_SERVER['HTTP_USER_AGENT'];
             if ($username == $user_data['username'] && $user_data['device'] == $device) {
                $_SESSION[URL::SESSID]['login'] = TRUE;
+               // Cookie auto-login selalu Mode Live
+               $_SESSION[URL::SESSID]['training'] = [
+                  'active' => false,
+                  'id_cabang_origin' => (int) ($user_data['id_cabang'] ?? 0),
+               ];
                $this->parameter($user_data);
                $this->save_cookie($user_data);
             }
@@ -136,7 +141,16 @@ class Login extends Controller
          //cek ada cabang
          $id_outlet = $_POST['outlet'];
          if (strlen($id_outlet) > 0) {
-            $cek_cb = $this->db(0)->count_where("cabang", "id_cabang = " . $id_outlet);
+            $trainId = $this->getTrainingCabangId();
+            if ($trainId > 0 && (int) $id_outlet === $trainId) {
+               $res = [
+                  'code' => 0,
+                  'msg' => "ID OUTLET TRAINING TIDAK BISA DIPAKAI UNTUK LOGIN"
+               ];
+               print_r(json_encode($res));
+               exit();
+            }
+            $cek_cb = $this->db(0)->count_where("cabang", "id_cabang = " . (int) $id_outlet . " AND (is_training = 0 OR is_training IS NULL)");
             if ($cek_cb > 0) {
                $up = $this->db(0)->update("user", [
                   'id_cabang' => $id_outlet
@@ -167,6 +181,11 @@ class Login extends Controller
 
    function login_parameter($data_user)
    {
+      // Login selalu mulai Mode Live
+      $_SESSION[URL::SESSID]['training'] = [
+         'active' => false,
+         'id_cabang_origin' => (int) ($data_user['id_cabang'] ?? 0),
+      ];
       $this->parameter($data_user);
       $this->save_cookie($data_user);
    }

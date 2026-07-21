@@ -12,7 +12,7 @@ class Cabang_List extends Controller
       $data_operasi = ['title' => 'Data Cabang'];
 
       $table = 'cabang';
-      $data_cabang = $this->db(0)->get($table);
+      $data_cabang = $this->getCabangOperasional();
 
       $this->view('layout', ['data_operasi' => $data_operasi]);
       $this->view('data_list/cabang', ['data_cabang' => $data_cabang]);
@@ -42,13 +42,24 @@ class Cabang_List extends Controller
    public function selectCabang()
    {
       $this->session_cek(2);
-      $id_cabang = $_POST['id'];
+      if ($this->isTrainingMode()) {
+         echo "Tidak bisa ganti cabang saat Mode Training";
+         return;
+      }
+      $id_cabang = (int) $_POST['id'];
+      $trainId = $this->getTrainingCabangId();
+      if ($trainId > 0 && $id_cabang === $trainId) {
+         echo "Cabang training tidak bisa dipilih";
+         return;
+      }
       $table  = 'user';
       $set = [
          'id_cabang' => $id_cabang
       ];
       $where = "id_user = " . $_SESSION[URL::SESSID]['user']['id_user'];
       $this->db(0)->update($table, $set, $where);
+      $_SESSION[URL::SESSID]['training']['active'] = false;
+      $_SESSION[URL::SESSID]['training']['id_cabang_origin'] = $id_cabang;
       $this->dataSynchrone($_SESSION[URL::SESSID]['user']['id_user']);
    }
 

@@ -49,7 +49,7 @@ class BarangMasuk extends Controller
       unset($group);
       
       // Get list cabang (might not be needed but kept for compatibility)
-      $listCabang = $this->db(0)->get('cabang');
+      $listCabang = $this->getCabangOperasional();
       
       $data_operasi = ['title' => 'Barang Masuk'];
       $this->view('layout', ['data_operasi' => $data_operasi]);

@@ -45,7 +45,7 @@ class Data_List extends Controller
             $z['mode'] = "aktif";
             $data_operasi = ['title' => 'Karyawan Aktif'];
             $table = $page;
-            $d2 = $this->db(0)->get('cabang');
+            $d2 = $this->getCabangOperasional();
             $where = "en = 1 ORDER BY id_cabang ASC";
             $data_main = $this->db(0)->get_where($table, $where);
             break;
@@ -55,7 +55,7 @@ class Data_List extends Controller
             $z['mode'] = "nonaktif";
             $data_operasi = ['title' => 'Karyawan Non Aktif'];
             $table = "user";
-            $d2 = $this->db(0)->get('cabang');
+            $d2 = $this->getCabangOperasional();
             $where = "en = 0 ORDER BY id_cabang ASC";
             $data_main = $this->db(0)->get_where($table, $where);
             break;

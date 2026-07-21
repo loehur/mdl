@@ -168,7 +168,7 @@ $menu[0] = [
             [
                 'c' => 'Setting/printer',
                 'title' => 'Printer Setting',
-                'txt' => 'Printer Setting',
+                'txt' => 'Printer',
             ],
         ]
     ],
@@ -178,6 +178,7 @@ $menu[0] = [
         'icon' => 'fas fa-random',
         'txt' => 'Operan',
         'show_if_multi_cabang' => true, // Only show if listCabang > 1
+        'hide_if_training' => true,
     ],
     [
         'c' => 'Kas',
