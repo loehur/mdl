@@ -38,6 +38,18 @@ class MainActivity : AppCompatActivity() {
                 finish()
             }
         }
+
+        @android.webkit.JavascriptInterface
+        fun openUrl(url: String) {
+            android.util.Log.d("JSBridge", "🔗 openUrl() called: $url")
+            runOnUiThread {
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
     }
 
     private val fileChooserLauncher = registerForActivityResult(

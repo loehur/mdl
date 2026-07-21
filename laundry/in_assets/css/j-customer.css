@@ -833,13 +833,24 @@ a { color: inherit; text-decoration: none; }
   border: 1px solid var(--j-line);
 }
 
+.j-preview-head {
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--j-line);
+}
+
+.j-preview-branch {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--j-muted);
+  letter-spacing: -0.01em;
+  margin-bottom: 2px;
+}
+
 .j-preview-customer {
   font-size: 0.95rem;
   font-weight: 800;
   letter-spacing: -0.02em;
-  margin-bottom: 8px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--j-line);
 }
 
 .j-preview-nota {

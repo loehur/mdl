@@ -4666,7 +4666,7 @@ const closeImageLightbox = () => {
   lightboxImageUrl.value = "";
 };
 
-// --- Internal Browser Functions (for nalju.com links) ---
+// --- External Browser (nalju.com links: invoice, portal, dll) ---
 const isNaljuDomain = (url) => {
   try {
     const urlObj = new URL(url);
@@ -4679,32 +4679,34 @@ const isNaljuDomain = (url) => {
   }
 };
 
-const openInternalBrowser = async (url) => {
-  // ✅ FIX: Normalize URL - remove double slashes (except after protocol)
-  let normalizedUrl = url;
-  
+const normalizeExternalUrl = (url) => {
   try {
     const urlObj = new URL(url);
-    // Fix path: replace multiple consecutive slashes with single slash
-    urlObj.pathname = urlObj.pathname.replace(/\/+/g, '/');
-    normalizedUrl = urlObj.toString();
-    
-    console.log('🔗 Opening internal browser:', normalizedUrl);
-    if (url !== normalizedUrl) {
-      console.warn('⚠️ URL normalized:', url, '→', normalizedUrl);
-    }
+    urlObj.pathname = urlObj.pathname.replace(/\/+/g, "/");
+    return urlObj.toString();
   } catch (e) {
-    console.error('❌ Invalid URL:', url, e);
+    console.error("❌ Invalid URL:", url, e);
+    return url;
   }
-  
-  internalBrowserUrl.value = normalizedUrl;
-  isInternalBrowserLoading.value = true;
-  isInternalBrowserEntering.value = true;
-  showInternalBrowser.value = true;
+};
 
-  // Allow CSS transition to complete
-  await new Promise((resolve) => setTimeout(resolve, 30));
-  isInternalBrowserEntering.value = false;
+const openExternalBrowser = (url) => {
+  const normalizedUrl = normalizeExternalUrl(url);
+  persistChatState();
+  console.log("🔗 Opening external browser:", normalizedUrl);
+
+  // Android WebView app: buka lewat Intent native
+  if (window.Android && typeof window.Android.openUrl === "function") {
+    window.Android.openUrl(normalizedUrl);
+    return;
+  }
+
+  window.open(normalizedUrl, "_blank", "noopener,noreferrer");
+};
+
+// Kept as alias so old callers still work (now redirects to external browser)
+const openInternalBrowser = async (url) => {
+  openExternalBrowser(url);
 };
 
 const closeInternalBrowser = () => {
@@ -4735,13 +4737,13 @@ const handleInternalBrowserError = (e) => {
       'Unable to load page in internal browser.\n\nOpen in external browser?'
     );
     if (openExternal && internalBrowserUrl.value) {
-      window.open(internalBrowserUrl.value, '_blank');
+      openExternalBrowser(internalBrowserUrl.value);
       closeInternalBrowser();
     }
   }
 };
 
-// Handle link clicks - intercept nalju.com links
+// Handle link clicks - nalju.com dibuka di browser eksternal
 const handleLinkClick = (e) => {
   const link = e.target.closest("a[href]");
   if (link && link.href) {
@@ -4749,7 +4751,7 @@ const handleLinkClick = (e) => {
     if (isNaljuDomain(link.href)) {
       e.preventDefault();
       e.stopPropagation();
-      openInternalBrowser(link.href);
+      openExternalBrowser(link.href);
       return;
     }
 
@@ -4891,7 +4893,7 @@ const handleLinkClick = (e) => {
       @load-more-messages="loadMoreMessages"
       @open-image-lightbox="openImageLightbox"
       @refresh-active-chat="refreshActiveChat"
-      @open-internal-browser="openInternalBrowser"
+      @open-internal-browser="openExternalBrowser"
       @open-approval="(custId) => { approvalCustId = custId; approvalCustomerName = activeConversation?.name ?? ''; showApprovalModal = true; }"
     />
 

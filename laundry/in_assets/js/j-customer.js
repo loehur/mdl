@@ -218,16 +218,8 @@
         return canvasToPngFile(canvas, filename);
       })
       .then(function (file) {
-        var data = {
-          files: [file],
-          title: 'Invoice ' + nama,
-          text: 'Invoice ' + nama
-        };
+        var data = { files: [file] };
         if (navigator.canShare && !navigator.canShare(data)) {
-          // Beberapa WebView hanya support share text; coba files saja
-          if (navigator.canShare({ files: [file] })) {
-            return navigator.share({ files: [file], title: data.title });
-          }
           throw new Error('Perangkat tidak bisa membagikan gambar. Gunakan tombol download.');
         }
         return navigator.share(data);
