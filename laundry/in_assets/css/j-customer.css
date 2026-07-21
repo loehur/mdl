@@ -796,7 +796,8 @@ a { color: inherit; text-decoration: none; }
 }
 
 .j-preview-close,
-.j-preview-dl {
+.j-preview-dl,
+.j-preview-share {
   width: 34px;
   height: 34px;
   border: 0;
@@ -813,7 +814,13 @@ a { color: inherit; text-decoration: none; }
   color: var(--j-ink);
 }
 
-.j-preview-dl:disabled {
+.j-preview-share {
+  background: rgba(37, 211, 102, 0.16);
+  color: #128C7E;
+}
+
+.j-preview-dl:disabled,
+.j-preview-share:disabled {
   opacity: 0.55;
 }
 

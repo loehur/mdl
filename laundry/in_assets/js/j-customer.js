@@ -144,26 +144,47 @@
       .slice(0, 40) || 'invoice';
   }
 
-  function downloadPreviewImage(btn) {
+  function capturePreviewCanvas() {
     var page = document.getElementById('jPreviewPage');
-    if (!page) return;
+    if (!page) return Promise.reject(new Error('Preview tidak ditemukan'));
     if (typeof html2canvas !== 'function') {
-      alert('Fitur download belum siap. Muat ulang halaman.');
-      return;
+      return Promise.reject(new Error('Fitur gambar belum siap. Muat ulang halaman.'));
     }
 
     var prevOverflow = page.style.overflow;
     var prevMaxHeight = page.style.maxHeight;
     page.style.overflow = 'visible';
     page.style.maxHeight = 'none';
-    btn.disabled = true;
 
-    html2canvas(page, {
+    return html2canvas(page, {
       backgroundColor: '#ffffff',
       scale: Math.min(2, window.devicePixelRatio || 2),
       useCORS: true,
       logging: false
-    })
+    }).finally(function () {
+      page.style.overflow = prevOverflow;
+      page.style.maxHeight = prevMaxHeight;
+    });
+  }
+
+  function canvasToPngFile(canvas, filename) {
+    return new Promise(function (resolve, reject) {
+      canvas.toBlob(function (blob) {
+        if (!blob) {
+          reject(new Error('Gagal membuat file gambar'));
+          return;
+        }
+        resolve(new File([blob], filename, { type: 'image/png' }));
+      }, 'image/png');
+    });
+  }
+
+  function downloadPreviewImage(btn) {
+    var page = document.getElementById('jPreviewPage');
+    if (!page) return;
+    btn.disabled = true;
+
+    capturePreviewCanvas()
       .then(function (canvas) {
         var nama = page.getAttribute('data-nama') || 'invoice';
         var link = document.createElement('a');
@@ -171,12 +192,51 @@
         link.href = canvas.toDataURL('image/png');
         link.click();
       })
-      .catch(function () {
-        alert('Gagal membuat gambar invoice.');
+      .catch(function (err) {
+        alert((err && err.message) || 'Gagal membuat gambar invoice.');
       })
       .finally(function () {
-        page.style.overflow = prevOverflow;
-        page.style.maxHeight = prevMaxHeight;
+        btn.disabled = false;
+      });
+  }
+
+  function sharePreviewImage(btn) {
+    var page = document.getElementById('jPreviewPage');
+    if (!page) return;
+
+    if (!navigator.share) {
+      alert('Perangkat ini belum mendukung bagikan langsung. Gunakan tombol download.');
+      return;
+    }
+
+    btn.disabled = true;
+    var nama = page.getAttribute('data-nama') || 'invoice';
+    var filename = 'invoice-' + slugName(nama) + '.png';
+
+    capturePreviewCanvas()
+      .then(function (canvas) {
+        return canvasToPngFile(canvas, filename);
+      })
+      .then(function (file) {
+        var data = {
+          files: [file],
+          title: 'Invoice ' + nama,
+          text: 'Invoice ' + nama
+        };
+        if (navigator.canShare && !navigator.canShare(data)) {
+          // Beberapa WebView hanya support share text; coba files saja
+          if (navigator.canShare({ files: [file] })) {
+            return navigator.share({ files: [file], title: data.title });
+          }
+          throw new Error('Perangkat tidak bisa membagikan gambar. Gunakan tombol download.');
+        }
+        return navigator.share(data);
+      })
+      .catch(function (err) {
+        if (err && (err.name === 'AbortError' || err.name === 'NotAllowedError')) return;
+        alert((err && err.message) || 'Gagal membagikan gambar.');
+      })
+      .finally(function () {
         btn.disabled = false;
       });
   }
@@ -192,6 +252,14 @@
       }
       overlay.hidden = false;
       document.body.style.overflow = 'hidden';
+      return;
+    }
+
+    var sharePreview = e.target.closest('#jSharePreview');
+    if (sharePreview) {
+      e.preventDefault();
+      e.stopPropagation();
+      sharePreviewImage(sharePreview);
       return;
     }
 

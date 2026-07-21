@@ -267,6 +267,9 @@ $hasUnpaid = !empty($unpaid);
 <div class="j-preview-overlay" id="jInvoicePreview" hidden>
   <div class="j-preview-sheet">
     <div class="j-preview-toolbar">
+      <button type="button" class="j-preview-share" id="jSharePreview" title="Bagikan ke WA" aria-label="Bagikan">
+        <i class="fas fa-share-alt"></i>
+      </button>
       <button type="button" class="j-preview-dl" id="jDownloadPreview" title="Download gambar" aria-label="Download gambar">
         <i class="fas fa-download"></i>
       </button>

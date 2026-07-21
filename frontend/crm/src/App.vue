@@ -5385,7 +5385,7 @@ const handleLinkClick = (e) => {
         class="flex-1 w-full border-0 bg-white"
         @load="handleInternalBrowserLoad"
         @error="handleInternalBrowserError"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
         sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals allow-downloads allow-top-navigation-by-user-activation"
         referrerpolicy="strict-origin-when-cross-origin"
       ></iframe>
