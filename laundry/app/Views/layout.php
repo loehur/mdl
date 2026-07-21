@@ -654,7 +654,7 @@ if (isset($data['data_operasi'])) {
             display: flex;
             flex-direction: column;
             background: #fff;
-            border-radius: 16px;
+            border-radius: 0;
             box-shadow: 0 24px 48px rgba(15, 23, 42, 0.28);
             overflow: hidden;
             animation: mdlCmodalIn .18s ease-out;
@@ -689,7 +689,7 @@ if (isset($data['data_operasi'])) {
             width: 32px;
             height: 32px;
             border: 0;
-            border-radius: 8px;
+            border-radius: 0;
             background: rgba(255,255,255,.15);
             color: #fff;
             cursor: pointer;
@@ -720,7 +720,7 @@ if (isset($data['data_operasi'])) {
             min-height: 72px;
             padding: 10px 8px;
             border: 1.5px solid #e2e8f0;
-            border-radius: 12px;
+            border-radius: 0;
             background: #fff;
             color: #0f172a;
             cursor: pointer;
