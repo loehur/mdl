@@ -425,7 +425,8 @@
 
                 <form class="login-form" action="<?= URL::BASE_URL ?>Login/cek_login" method="post">
                     <div class="login-field">
-                        <input id="hp" type="text" name="username" autocomplete="username" placeholder="Nomor WhatsApp" required>
+                        <input id="hp" type="text" name="username" autocomplete="username" placeholder="Nomor WhatsApp" required
+                            inputmode="numeric" pattern="[0-9]*" maxlength="15">
                         <button type="button" class="login-field__action" id="req_pin" title="Minta PIN via WA">
                             <i class="fas fa-mobile-alt"></i>
                         </button>
@@ -543,10 +544,10 @@
         });
 
         $(".freq_number").on("click", function() {
-            $("input#hp").val($(this).text().trim());
+            $("input#hp").val($(this).text().trim().replace(/\D/g, ''));
         });
 
-        $("#pin, #outlet, #cap").on("input", function() {
+        $("#hp, #pin, #outlet, #cap").on("input", function() {
             this.value = this.value.replace(/\D/g, '');
         });
     });
