@@ -113,7 +113,7 @@ $canEditPartner = ((int) $this->id_privilege === 100);
 
   #plg-root .plg-form {
     display: grid;
-    grid-template-columns: 1fr 1.2fr auto;
+    grid-template-columns: 1fr;
     gap: 12px;
     padding: 12px 16px;
     align-items: end;
@@ -129,7 +129,6 @@ $canEditPartner = ((int) $this->id_privilege === 100);
     justify-content: center;
     gap: 8px;
     height: 42px;
-    min-width: 120px;
     width: 100%;
     padding: 0 20px;
     border: 0;
@@ -171,6 +170,7 @@ $canEditPartner = ((int) $this->id_privilege === 100);
     color: var(--mdl-ink-soft);
   }
   #plg-root .plg-list-bar .plg-list-tip {
+    display: none;
     text-transform: none;
     letter-spacing: 0;
     font-weight: 600;
@@ -181,34 +181,42 @@ $canEditPartner = ((int) $this->id_privilege === 100);
     overflow-y: auto;
   }
 
+  /* Default = compact (viewport app ~430px) */
   #plg-root .plg-row {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas:
+      "id nama partner"
+      "id hp partner";
     align-items: center;
-    gap: 8px 16px;
-    padding: 12px 16px;
+    column-gap: 10px;
+    row-gap: 2px;
+    padding: 10px 12px;
     border-bottom: 1px solid rgba(184, 196, 210, 0.4);
     transition: background .15s ease;
   }
   #plg-root .plg-row:last-child { border-bottom: 0; }
   #plg-root .plg-row:hover { background: rgba(217, 230, 250, 0.4); }
 
-  #plg-root .plg-col-id {
-    display: flex;
-    flex-direction: column;
-    min-width: 3.5rem;
-  }
+  #plg-root .plg-col-id { grid-area: id; }
   #plg-root .plg-col-nama {
-    flex: 1 1 12rem;
-    min-width: 12rem;
+    grid-area: nama;
+    min-width: 0;
+    overflow: hidden;
   }
-  #plg-root .plg-col-hp { min-width: 9rem; }
+  #plg-root .plg-col-hp {
+    grid-area: hp;
+    min-width: 0;
+    overflow: hidden;
+  }
   #plg-root .plg-col-partner {
-    margin-left: auto;
-    min-width: 5.5rem;
+    grid-area: partner;
     text-align: right;
+    white-space: nowrap;
   }
+
   #plg-root .plg-k {
+    display: none;
     font-size: 10px;
     font-weight: 800;
     letter-spacing: 0.08em;
@@ -216,12 +224,12 @@ $canEditPartner = ((int) $this->id_privilege === 100);
     color: var(--mdl-ink-soft);
   }
   #plg-root .plg-id-val {
-    font-size: 0.875rem;
+    font-size: 0.75rem;
     font-weight: 800;
     color: var(--mdl-ink-soft);
   }
   #plg-root .plg-partner-val {
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
     font-weight: 800;
     color: var(--mdl-ink);
   }
@@ -233,20 +241,32 @@ $canEditPartner = ((int) $this->id_privilege === 100);
     transition: color .15s ease;
   }
   #plg-root .plg-edit--nama {
-    font-size: 1rem;
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.95rem;
     font-weight: 800;
     letter-spacing: -0.01em;
+    vertical-align: bottom;
   }
   #plg-root .plg-row:hover .plg-edit--nama { color: var(--mdl-accent-deep); }
   #plg-root .plg-edit--hp {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 0.875rem;
+    font-size: 0.8rem;
     font-weight: 700;
+    color: var(--mdl-ink-soft);
   }
 
   #plg-root .plg-inline {
     width: auto;
-    min-width: 10rem;
+    min-width: 8rem;
     max-width: 100%;
     padding: 4px 8px;
     border: 1px solid var(--mdl-accent);
@@ -259,8 +279,8 @@ $canEditPartner = ((int) $this->id_privilege === 100);
     box-shadow: 0 0 0 3px rgba(63, 116, 212, 0.25);
   }
   #plg-root .plg-inline--sm {
-    min-width: 4rem;
-    width: 4rem;
+    min-width: 3.5rem;
+    width: 3.5rem;
   }
 
   #plg-root .plg-empty {
@@ -295,16 +315,41 @@ $canEditPartner = ((int) $this->id_privilege === 100);
     color: var(--mdl-ink-soft);
   }
 
-  @media (max-width: 720px) {
+  @media (min-width: 768px) {
     #plg-root .plg-form {
-      grid-template-columns: 1fr;
+      grid-template-columns: 1fr 1.2fr auto;
     }
-    #plg-root .plg-btn { min-width: 0; }
+    #plg-root .plg-btn { min-width: 120px; }
+    #plg-root .plg-list-bar .plg-list-tip { display: inline; }
+    #plg-root .plg-k { display: block; }
+    #plg-root .plg-row {
+      display: flex;
+      flex-wrap: nowrap;
+      align-items: center;
+      gap: 8px 16px;
+      padding: 12px 16px;
+    }
+    #plg-root .plg-col-id {
+      display: flex;
+      flex-direction: column;
+      min-width: 3.5rem;
+    }
+    #plg-root .plg-col-nama {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    #plg-root .plg-col-hp { min-width: 9rem; }
     #plg-root .plg-col-partner {
-      margin-left: 0;
-      text-align: left;
-      width: 100%;
+      margin-left: auto;
+      min-width: 5.5rem;
     }
+    #plg-root .plg-id-val { font-size: 0.875rem; }
+    #plg-root .plg-edit--nama { font-size: 1rem; white-space: normal; }
+    #plg-root .plg-edit--hp {
+      font-size: 0.875rem;
+      color: var(--mdl-ink);
+    }
+    #plg-root .plg-partner-val { font-size: 0.875rem; }
   }
 </style>
 
