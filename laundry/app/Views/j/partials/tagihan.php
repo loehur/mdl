@@ -30,14 +30,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
 <div class="j-bill-bar<?= $hasUnpaid ? ' has-pay' : '' ?>">
   <div class="j-bill-stat">
     <small>Total</small>
-    <?php if (!empty($summary['has_diskon'])) { ?>
-      <b class="j-price">
-        <del>Rp<?= number_format((float) $summary['total_tagihan_asli']) ?></del><br>
-        Rp<?= number_format((float) $summary['total_tagihan']) ?>
-      </b>
-    <?php } else { ?>
-      <b>Rp<?= number_format((float) $summary['total_tagihan']) ?></b>
-    <?php } ?>
+    <b>Rp<?= number_format((float) $summary['total_tagihan']) ?></b>
   </div>
   <div class="j-bill-stat">
     <small>Sisa</small>
@@ -259,7 +252,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
     <?php } ?>
     <div class="j-rekap-row">
       <span>Sudah dibayar</span>
-      <span>Rp<?= number_format((float) ($summary['total_dibayar'] ?? 0)) ?></span>
+      <span>-Rp<?= number_format((float) ($summary['total_dibayar'] ?? 0)) ?></span>
     </div>
     <div class="j-rekap-row total">
       <span>Sisa tagihan</span>
@@ -364,7 +357,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
         <?php } ?>
         <div class="j-preview-line">
           <span>Sudah dibayar</span>
-          <span>Rp<?= number_format((float) ($summary['total_dibayar'] ?? 0)) ?></span>
+          <span>-Rp<?= number_format((float) ($summary['total_dibayar'] ?? 0)) ?></span>
         </div>
         <div class="j-preview-line total">
           <span>Sisa tagihan</span>

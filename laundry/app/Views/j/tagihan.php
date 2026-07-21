@@ -14,14 +14,7 @@ $summary = $data['summary'];
   <div class="j-hero-grid" style="gap:8px">
     <div class="j-hero-stat" style="background:#F7FBFA;border-color:var(--j-line);color:var(--j-ink)">
       <small style="opacity:1;color:var(--j-muted)">Total</small>
-      <?php if (!empty($summary['has_diskon'])) { ?>
-        <b class="j-price">
-          <del>Rp<?= number_format((float) $summary['total_tagihan_asli']) ?></del><br>
-          Rp<?= number_format((float) $summary['total_tagihan']) ?>
-        </b>
-      <?php } else { ?>
-        <b>Rp<?= number_format((float) $summary['total_tagihan']) ?></b>
-      <?php } ?>
+      <b>Rp<?= number_format((float) $summary['total_tagihan']) ?></b>
     </div>
     <div class="j-hero-stat" style="background:#F7FBFA;border-color:var(--j-line);color:var(--j-ink)">
       <small style="opacity:1;color:var(--j-muted)">Sisa</small>
@@ -190,7 +183,7 @@ $summary = $data['summary'];
     <?php } ?>
     <div class="j-rekap-row">
       <span>Sudah dibayar</span>
-      <span>Rp<?= number_format((float) ($summary['total_dibayar'] ?? 0)) ?></span>
+      <span>-Rp<?= number_format((float) ($summary['total_dibayar'] ?? 0)) ?></span>
     </div>
     <div class="j-rekap-row total">
       <span>Sisa tagihan</span>
