@@ -65,12 +65,12 @@ if (isset($data['data_operasi'])) {
             vertical-align: middle;
         }
         .content-wrapper tr.mdl-nota-today > td {
-            background: linear-gradient(135deg, #d9e6fa 0%, #e8f0fc 55%, #f3f7fd 100%) !important;
-            box-shadow: inset 0 -1px 0 rgba(63, 116, 212, 0.22);
+            background: linear-gradient(135deg, #9ec0f0 0%, #b6d0f5 45%, #cfe0f8 100%) !important;
+            box-shadow: inset 0 -1px 0 rgba(47, 97, 188, 0.35);
         }
         .content-wrapper tr.mdl-nota-past > td {
-            background: linear-gradient(135deg, #d8f0e4 0%, #e6f6ee 55%, #f3faf6 100%) !important;
-            box-shadow: inset 0 -1px 0 rgba(47, 158, 95, 0.22);
+            background: linear-gradient(135deg, #8fd4ad 0%, #a8dfbf 45%, #c5ebd4 100%) !important;
+            box-shadow: inset 0 -1px 0 rgba(38, 135, 80, 0.35);
         }
         .content-wrapper tr.mdl-nota-today a,
         .content-wrapper tr.mdl-nota-past a {
