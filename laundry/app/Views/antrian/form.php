@@ -131,6 +131,11 @@
 
   #load.antrian-load {
     padding-top: 2px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  #load.antrian-load .mdl-nota-grid {
+    width: 100%;
   }
 
   #btnBukaOrderAntrian {

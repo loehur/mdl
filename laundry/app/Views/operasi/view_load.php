@@ -12,7 +12,7 @@ if (strlen($nama_pelanggan) > 20) {
 $labeled = false;
 ?>
 
-<div class="row mx-0 mt-1" style="flex-wrap: wrap;">
+<div class="mdl-nota-grid">
 
   <?php
   $loadRekap = [];
@@ -77,7 +77,7 @@ $labeled = false;
       break;
     } ?>
 
-    <div class='col px-1' style="min-width: 420px; max-width: 500px;">
+    <div class="mdl-nota-grid__item">
       <div class="mdl-nota-card">
         <div class="mdl-nota-head <?= $classHead ?> row<?= $ref ?>" id="tr<?= $id ?>">
           <div class="mdl-nota-head__top">
@@ -939,7 +939,7 @@ $labeled = false;
     <?php if ($lunas[$ref] == false) {
       $loadRekap['M#' . $id] = $sisa;
     ?>
-      <div class='col px-1' style="min-width: 420px; max-width: 500px;">
+      <div class="mdl-nota-grid__item">
         <div class="mdl-nota-card">
           <div class="mdl-nota-head mdl-nota-member">
             <div class="mdl-nota-head__top">

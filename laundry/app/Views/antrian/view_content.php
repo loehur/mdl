@@ -159,7 +159,7 @@ if (count($data['data_main']) == 0) {
 }
 ?>
 
-<div class="row mx-0">
+<div class="mdl-nota-grid">
   <?php
   $arrRekapAntrian = [];
   $arrRekapAntrianToday = [];
@@ -204,9 +204,9 @@ if (count($data['data_main']) == 0) {
       }
     } ?>
 
-    <div data-id_pelanggan='<?= $f17 ?>' id='grid<?= $ref ?>' class='R-<?= $ref ?> cekOperasi col backShow <?= strtoupper($pelanggan) ?> p-0 px-1 mb-2 rounded' style='cursor:pointer;min-width:420px; max-width:500px'>
-      <div class='bg-white rounded p-0'>
-        <table class='table table-sm m-0 rounded w-100 shadow-sm bg-white'>
+    <div data-id_pelanggan='<?= $f17 ?>' id='grid<?= $ref ?>' class='R-<?= $ref ?> cekOperasi mdl-nota-grid__item backShow <?= strtoupper($pelanggan) ?>' style='cursor:pointer'>
+      <div class='bg-white mdl-nota-card'>
+        <table class='table table-sm m-0 w-100 bg-white'>
           <?php
           $totalBayar = 0;
           $subTotal = 0;

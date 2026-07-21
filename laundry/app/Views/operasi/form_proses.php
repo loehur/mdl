@@ -221,6 +221,11 @@ $modeOperasi = (int) $data['mode'];
 
   #load.operasi-load {
     padding-top: 0;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  #load.operasi-load .mdl-nota-grid {
+    width: 100%;
   }
 
   #fabOperasiButtons {

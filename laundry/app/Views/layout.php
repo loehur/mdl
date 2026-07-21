@@ -271,6 +271,40 @@ if (isset($data['data_operasi'])) {
             margin-bottom: 0 !important;
         }
 
+        /* Grid nota Antrian/Operasi — sejajar kiri-kanan dengan card filter di atas */
+        .content-wrapper .mdl-nota-grid {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-start;
+            align-items: stretch;
+            gap: 8px;
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .content-wrapper .mdl-nota-grid__item {
+            flex: 1 1 100%;
+            width: 100%;
+            min-width: 0;
+            max-width: 100%;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        @media (min-width: 576px) {
+            .content-wrapper .mdl-nota-grid__item {
+                flex: 1 1 calc(50% - 4px);
+                max-width: 500px;
+            }
+        }
+        @media (min-width: 992px) {
+            .content-wrapper .mdl-nota-grid__item {
+                flex: 0 1 500px;
+                max-width: 500px;
+            }
+        }
+
         @media print {
             p div {
                 font-family: 'fontku', sans-serif;
@@ -1451,7 +1485,7 @@ if ($log_mode == 1) {
         </aside>
 
         <span data-bs-dismiss="modal"></span>
-        <div class="content-wrapper px-2 pt-2" style="min-width: 400px;max-width: 100vw;">
+        <div class="content-wrapper px-2 pt-2" style="min-width: 0; max-width: 100vw;">
             <script src="<?= URL::EX_ASSETS ?>js/jquery-3.6.0.min.js"></script>
             <script src="<?= URL::EX_ASSETS ?>plugins/adminLTE-3.1.0/js/adminlte.js"></script>
             <script src="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/js/bootstrap.bundle.min.js"></script>
