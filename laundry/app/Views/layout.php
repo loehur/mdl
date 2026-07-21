@@ -65,7 +65,8 @@ if (isset($data['data_operasi'])) {
         .content-wrapper .mdl-nota-head.mdl-nota-past,
         .content-wrapper .mdl-nota-head.mdl-nota-member {
             border-color: transparent !important;
-            color: var(--mdl-ink) !important;
+            color: #0d1117 !important;
+            font-weight: 700;
             vertical-align: middle;
         }
         .content-wrapper tr.mdl-nota-today > td,
@@ -87,12 +88,19 @@ if (isset($data['data_operasi'])) {
         .content-wrapper tr.mdl-nota-past a,
         .content-wrapper tr.mdl-nota-member a,
         .content-wrapper .mdl-nota-head a {
-            color: var(--mdl-ink) !important;
+            color: #0d1117 !important;
         }
         .content-wrapper tr.mdl-nota-today .text-dark,
         .content-wrapper tr.mdl-nota-past .text-dark,
-        .content-wrapper tr.mdl-nota-member .text-dark {
-            color: var(--mdl-ink) !important;
+        .content-wrapper tr.mdl-nota-member .text-dark,
+        .content-wrapper tr.mdl-nota-today small,
+        .content-wrapper tr.mdl-nota-past small,
+        .content-wrapper tr.mdl-nota-member small,
+        .content-wrapper tr.mdl-nota-today b,
+        .content-wrapper tr.mdl-nota-past b,
+        .content-wrapper tr.mdl-nota-member b {
+            color: #0d1117 !important;
+            font-weight: 700 !important;
         }
 
         /* Head nota Operasi — padding & alignment seimbang */
@@ -129,8 +137,9 @@ if (isset($data['data_operasi'])) {
         }
         .content-wrapper .mdl-nota-head__name {
             font-weight: 800;
-            letter-spacing: -0.01em;
+            letter-spacing: 0;
             line-height: 1.2;
+            color: #0d1117;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -142,11 +151,13 @@ if (isset($data['data_operasi'])) {
             flex-shrink: 0;
             font-size: 0.82em;
             font-weight: 700;
+            color: #0d1117;
             white-space: nowrap;
             line-height: 1.2;
         }
         .content-wrapper .mdl-nota-head__right i {
-            opacity: 0.85;
+            opacity: 1;
+            color: #0d1117;
         }
         .content-wrapper .mdl-nota-head__actions {
             display: flex;
@@ -193,67 +204,67 @@ if (isset($data['data_operasi'])) {
             min-width: 24px;
         }
         .content-wrapper .mdl-nota-chip--wa {
-            color: #0b6b4a;
+            color: #062e22;
             background: linear-gradient(180deg, #e8faf2 0%, #d4f3e5 100%);
             border-color: rgba(18, 140, 126, 0.22);
         }
         .content-wrapper .mdl-nota-chip--wa i {
-            color: #128c7e;
+            color: #0a7a68;
         }
         .content-wrapper .mdl-nota-chip--wa:hover {
             background: linear-gradient(180deg, #dff7eb 0%, #c5edd9 100%);
-            color: #0b6b4a;
+            color: #062e22;
         }
         .content-wrapper .mdl-nota-chip--pending {
-            color: #8a5a00;
+            color: #3d2a00;
             background: linear-gradient(180deg, #fff8e8 0%, #ffefc8 100%);
             border-color: rgba(201, 148, 20, 0.28);
         }
         .content-wrapper .mdl-nota-chip--pending i {
-            color: #c99414;
+            color: #a67a00;
         }
         .content-wrapper .mdl-nota-chip--ok {
-            color: #1a6b3c;
+            color: #0d3d22;
             background: linear-gradient(180deg, #eaf8ef 0%, #d4efde 100%);
             border-color: rgba(38, 135, 80, 0.25);
         }
         .content-wrapper .mdl-nota-chip--ok i {
-            color: #2f9e5b;
+            color: #1f7a45;
         }
         .content-wrapper .mdl-nota-chip--label {
-            color: #6b4a12;
+            color: #3a2808;
             background: linear-gradient(180deg, #fff6e9 0%, #ffe8c8 100%);
             border-color: rgba(196, 130, 40, 0.28);
         }
         .content-wrapper .mdl-nota-chip--label i {
-            color: #d4891a;
+            color: #b87410;
         }
         .content-wrapper .mdl-nota-chip--label:hover {
-            color: #6b4a12;
+            color: #3a2808;
             background: linear-gradient(180deg, #ffefd6 0%, #ffdfb0 100%);
         }
         .content-wrapper .mdl-nota-chip--add {
-            color: #1d4f91;
+            color: #0f2d5c;
             background: linear-gradient(180deg, #eaf2fc 0%, #d6e6f8 100%);
             border-color: rgba(47, 97, 188, 0.28);
         }
         .content-wrapper .mdl-nota-chip--add i {
-            color: #2f61bc;
+            color: #1f4fa0;
         }
         .content-wrapper .mdl-nota-chip--add:hover {
-            color: #1d4f91;
+            color: #0f2d5c;
             background: linear-gradient(180deg, #ddebfa 0%, #c7dbf4 100%);
         }
         .content-wrapper .mdl-nota-chip--bill {
-            color: #3a2f7a;
+            color: #1f1848;
             background: linear-gradient(180deg, #f0edfb 0%, #e2dcf6 100%);
             border-color: rgba(90, 70, 170, 0.25);
         }
         .content-wrapper .mdl-nota-chip--bill i {
-            color: #6a55c0;
+            color: #4d3aa8;
         }
         .content-wrapper .mdl-nota-chip--bill:hover {
-            color: #3a2f7a;
+            color: #1f1848;
             background: linear-gradient(180deg, #e7e2f8 0%, #d6cef2 100%);
         }
         .content-wrapper .mdl-nota-card > .table {
