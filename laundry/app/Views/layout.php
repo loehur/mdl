@@ -57,6 +57,30 @@ if (isset($data['data_operasi'])) {
             font-size: 14px;
         }
 
+        /* Header warna nota Antrian/Operasi — tema MDL (bukan Bootstrap) */
+        .content-wrapper tr.mdl-nota-today > td,
+        .content-wrapper tr.mdl-nota-past > td {
+            border-color: transparent !important;
+            color: var(--mdl-ink) !important;
+            vertical-align: middle;
+        }
+        .content-wrapper tr.mdl-nota-today > td {
+            background: linear-gradient(135deg, #d9e6fa 0%, #e8f0fc 55%, #f3f7fd 100%) !important;
+            box-shadow: inset 0 -1px 0 rgba(63, 116, 212, 0.22);
+        }
+        .content-wrapper tr.mdl-nota-past > td {
+            background: linear-gradient(135deg, #d8f0e4 0%, #e6f6ee 55%, #f3faf6 100%) !important;
+            box-shadow: inset 0 -1px 0 rgba(47, 158, 95, 0.22);
+        }
+        .content-wrapper tr.mdl-nota-today a,
+        .content-wrapper tr.mdl-nota-past a {
+            color: var(--mdl-ink) !important;
+        }
+        .content-wrapper tr.mdl-nota-today .text-dark,
+        .content-wrapper tr.mdl-nota-past .text-dark {
+            color: var(--mdl-ink) !important;
+        }
+
         @media print {
             p div {
                 font-family: 'fontku', sans-serif;

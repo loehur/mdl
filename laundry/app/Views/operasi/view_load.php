@@ -66,9 +66,9 @@ $labeled = false;
 
       $dateToday = date("Y-m-d");
       if (strpos($f1, $dateToday) !== FALSE) {
-        $classHead = 'table-primary';
+        $classHead = 'mdl-nota-today';
       } else {
-        $classHead = 'table-success';
+        $classHead = 'mdl-nota-past';
       }
       break;
     } ?>

@@ -214,9 +214,9 @@ if (count($data['data_main']) == 0) {
 
           $dateToday = date("Y-m-d");
           if (strpos($f1, $dateToday) !== FALSE) {
-            $classHead = 'table-primary';
+            $classHead = 'mdl-nota-today';
           } else {
-            $classHead = 'table-success';
+            $classHead = 'mdl-nota-past';
           }
 
           $idLabel = $ref . "100";
