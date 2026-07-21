@@ -12,7 +12,7 @@ if (strlen($nama_pelanggan) > 20) {
 $labeled = false;
 ?>
 
-<div class="row mx-0 mt-2" style="flex-wrap: wrap;">
+<div class="row mx-0 mt-0" style="flex-wrap: wrap;">
 
   <?php
   $loadRekap = [];
