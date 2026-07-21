@@ -23,30 +23,34 @@ $modeOperasi = (int) $data['mode'];
   }
   .operasi-filter-row {
     display: flex;
-    align-items: flex-end;
-    gap: 8px;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 4px;
   }
-  .operasi-field {
-    flex: 1 1 220px;
-    min-width: 180px;
-  }
-  .operasi-field label,
-  .operasi-actions label,
-  .operasi-periods-wrap label {
+  .operasi-field-label {
     display: block;
-    margin: 0 0 4px;
+    margin: 0;
     font-size: 11px;
     font-weight: 800;
     letter-spacing: 0.03em;
     text-transform: uppercase;
     color: #64748b;
   }
+  .operasi-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+  }
+  .operasi-field {
+    flex: 1 1 auto;
+    min-width: 140px;
+  }
   .operasi-actions {
     display: inline-flex;
-    align-items: flex-end;
+    align-items: center;
     gap: 6px;
     flex: 0 0 auto;
+    height: 36px;
   }
   .operasi-btn {
     box-sizing: border-box;
@@ -54,8 +58,11 @@ $modeOperasi = (int) $data['mode'];
     align-items: center;
     justify-content: center;
     height: 36px;
+    min-height: 36px;
+    max-height: 36px;
     min-width: 42px;
     padding: 0 12px;
+    margin: 0;
     border-radius: 9px;
     border: 1.5px solid #d5dde6;
     background: #f8fafc;
@@ -63,6 +70,7 @@ $modeOperasi = (int) $data['mode'];
     font-family: 'fontku', sans-serif;
     font-size: 13px;
     font-weight: 800;
+    line-height: 1;
     text-decoration: none;
     cursor: pointer;
     white-space: nowrap;
@@ -95,16 +103,33 @@ $modeOperasi = (int) $data['mode'];
     color: #15803d;
   }
 
-  /* Selectize height align */
+  /* Selectize height align — sama persis 36px dengan tombol */
+  .operasi-filter .selectize-control {
+    height: 36px !important;
+  }
   .operasi-filter .selectize-control.single .selectize-input {
+    box-sizing: border-box !important;
+    display: flex !important;
+    align-items: center !important;
     min-height: 36px !important;
     height: 36px !important;
-    padding: 6px 12px !important;
+    max-height: 36px !important;
+    padding: 0 12px !important;
+    line-height: 1 !important;
     border: 1.5px solid #d5dde6 !important;
     border-radius: 9px !important;
     background: #f8fafc !important;
     box-shadow: none !important;
+    font-size: 13px !important;
     font-weight: 600;
+    overflow: hidden !important;
+  }
+  .operasi-filter .selectize-control.single .selectize-input > * {
+    line-height: 1 !important;
+  }
+  .operasi-filter .selectize-control.single .selectize-input input {
+    height: 20px !important;
+    line-height: 20px !important;
   }
   .operasi-filter .selectize-control.single .selectize-input.focus {
     border-color: #3b82f6 !important;
@@ -238,26 +263,19 @@ $modeOperasi = (int) $data['mode'];
 <div class="operasi-filter" id="operasiFilter">
   <div class="operasi-filter-card">
     <div class="operasi-filter-row">
-      <div class="operasi-field">
-        <label>Pelanggan</label>
-        <select name="pelanggan" data-id="<?= $id_pelanggan ?>" class="id_pelanggan tize form-control form-control-sm" required>
-          <option value="" selected disabled>...</option>
-          <?php foreach ($this->pelanggan as $a) { ?>
-            <option value="<?= $a['id_pelanggan'] ?>" <?= $a['id_pelanggan'] == $id_pelanggan ? 'selected' : '' ?>><?= (strlen($a['nama_pelanggan']) > 10 ? strtoupper(substr($a['nama_pelanggan'], 0, 10)) . '...' : strtoupper($a['nama_pelanggan'])) ?> | <?= $a['nomor_pelanggan'] ?></option>
-          <?php } ?>
-        </select>
-      </div>
-      <div class="operasi-actions">
-        <div>
-          <label>&nbsp;</label>
+      <label class="operasi-field-label">Pelanggan</label>
+      <div class="operasi-controls">
+        <div class="operasi-field">
+          <select name="pelanggan" data-id="<?= $id_pelanggan ?>" class="id_pelanggan tize form-control form-control-sm" required>
+            <option value="" selected disabled>...</option>
+            <?php foreach ($this->pelanggan as $a) { ?>
+              <option value="<?= $a['id_pelanggan'] ?>" <?= $a['id_pelanggan'] == $id_pelanggan ? 'selected' : '' ?>><?= (strlen($a['nama_pelanggan']) > 10 ? strtoupper(substr($a['nama_pelanggan'], 0, 10)) . '...' : strtoupper($a['nama_pelanggan'])) ?> | <?= $a['nomor_pelanggan'] ?></option>
+            <?php } ?>
+          </select>
+        </div>
+        <div class="operasi-actions">
           <span onclick="cekData()" class="operasi-btn operasi-btn--op" title="Reload operasi">OP</span>
-        </div>
-        <div>
-          <label>&nbsp;</label>
           <a class="hrfsp operasi-btn operasi-btn--sp" href="<?= URL::BASE_URL ?>Member/tambah_paket/<?= $id_pelanggan ?>" title="Saldo Paket">SP</a>
-        </div>
-        <div>
-          <label>&nbsp;</label>
           <a class="hrfsd operasi-btn operasi-btn--sd" href="<?= URL::BASE_URL ?>SaldoTunai/tambah/<?= $id_pelanggan ?>" title="Saldo Deposit">SD</a>
         </div>
       </div>
