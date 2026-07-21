@@ -32,6 +32,7 @@ $canEditPartner = ((int) $this->id_privilege === 100);
   #plg-root * { box-sizing: border-box; }
 
   #plg-root .plg-toolbar {
+    max-width: 520px;
     background: var(--j-card);
     border: 1px solid var(--j-line);
     border-radius: var(--j-radius);
