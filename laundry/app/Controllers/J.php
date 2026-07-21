@@ -400,11 +400,15 @@ class J extends Controller
          $diskonQty = (float) $a['diskon_qty'];
          $diskonPartner = (float) $a['diskon_partner'];
 
+         $totalAsli = 0;
+         $hasDiskon = false;
          if ($member === 0) {
+            $totalAsli = round($harga * $qtyReal);
             $line = $harga * $qtyReal;
             if ($diskonQty > 0) $line -= $line * ($diskonQty / 100);
             if ($diskonPartner > 0) $line -= $line * ($diskonPartner / 100);
             $line = round($line);
+            $hasDiskon = ($diskonQty > 0 || $diskonPartner > 0);
          } else {
             $line = 0;
          }
@@ -450,6 +454,8 @@ class J extends Controller
             'durasi' => $durasi,
             'qty_show' => $this->fmtDecMax2($qty) . $satuan . ($qty < $min ? ' (Min.' . $this->fmtDecMax2($min) . ')' : ''),
             'total' => $line,
+            'total_asli' => $totalAsli,
+            'has_diskon' => $hasDiskon,
             'member' => $member,
             'layanan' => $layananList,
             'ambil' => (int) $a['id_user_ambil'] > 0,

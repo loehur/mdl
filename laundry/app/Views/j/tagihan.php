@@ -48,7 +48,15 @@ $summary = $data['summary'];
             <strong><?= htmlspecialchars($it['kategori'] ?: 'Item') ?></strong>
             <?php if ($it['member']) { ?> <span class="j-badge ok">Member</span><?php } ?>
           </div>
-          <div><?= $it['member'] ? '—' : 'Rp' . number_format((float) $it['total']) ?></div>
+          <div class="j-price">
+            <?php if ($it['member']) { ?>
+              —
+            <?php } elseif (!empty($it['has_diskon'])) { ?>
+              <del>Rp<?= number_format((float) $it['total_asli']) ?></del><br>Rp<?= number_format((float) $it['total']) ?>
+            <?php } else { ?>
+              Rp<?= number_format((float) $it['total']) ?>
+            <?php } ?>
+          </div>
         </div>
         <div class="j-item-meta">
           <?= htmlspecialchars($it['durasi']) ?> · <?= htmlspecialchars($it['qty_show']) ?>
