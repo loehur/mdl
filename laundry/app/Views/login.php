@@ -432,7 +432,9 @@
                     </div>
 
                     <div class="login-field">
-                        <input type="password" name="pin" placeholder="PIN" required autocomplete="current-password">
+                        <input type="text" name="pin" id="pin" placeholder="PIN" required
+                            inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code"
+                            maxlength="12">
                         <span class="login-field__icon"><i class="fas fa-lock"></i></span>
                     </div>
 
@@ -540,6 +542,10 @@
 
         $(".freq_number").on("click", function() {
             $("input#hp").val($(this).text().trim());
+        });
+
+        $("#pin").on("input", function() {
+            this.value = this.value.replace(/\D/g, '');
         });
     });
     </script>
