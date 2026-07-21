@@ -664,7 +664,6 @@ $labeled = false;
 
       <!-- TOTAL TEXT FOR NOTIFICATION (used by JavaScript to send to controller) -->
       <span class="d-none" id="textTotal<?= $ref ?>"><?= $totalText ?></span>
-      </div>
 
       <!-- CETAK NOTA BESAR -->
       <div class="d-none" id="print<?= $ref ?>">
@@ -1041,9 +1040,9 @@ $labeled = false;
             </tr>
           </table>
         </span>
+      </div>
       <?php } ?>
     <?php } ?>
-      </div>
 </div>
 
 <div class="py-5"></div>
