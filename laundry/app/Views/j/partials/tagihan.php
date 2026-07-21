@@ -25,7 +25,14 @@ $hasUnpaid = !empty($unpaid);
 <div class="j-bill-bar<?= $hasUnpaid ? ' has-pay' : '' ?>">
   <div class="j-bill-stat">
     <small>Total</small>
-    <b>Rp<?= number_format((float) $summary['total_tagihan']) ?></b>
+    <?php if (!empty($summary['has_diskon'])) { ?>
+      <b class="j-price">
+        <del>Rp<?= number_format((float) $summary['total_tagihan_asli']) ?></del><br>
+        Rp<?= number_format((float) $summary['total_tagihan']) ?>
+      </b>
+    <?php } else { ?>
+      <b>Rp<?= number_format((float) $summary['total_tagihan']) ?></b>
+    <?php } ?>
   </div>
   <div class="j-bill-stat">
     <small>Sisa</small>
@@ -145,7 +152,14 @@ $hasUnpaid = !empty($unpaid);
     <?php } ?>
 
     <div class="j-foot-row">
-      <span>Subtotal Rp<?= number_format((float) $ord['subtotal']) ?></span>
+      <span>
+        <?php if (!empty($ord['has_diskon'])) { ?>
+          Subtotal <del>Rp<?= number_format((float) $ord['subtotal_asli']) ?></del>
+          Rp<?= number_format((float) $ord['subtotal']) ?>
+        <?php } else { ?>
+          Subtotal Rp<?= number_format((float) $ord['subtotal']) ?>
+        <?php } ?>
+      </span>
       <span class="<?= $sisa > 0 ? 'sisa' : '' ?>">
         <?= $sisa > 0 ? 'Sisa Rp' . number_format($sisa) : 'Lunas' ?>
       </span>
@@ -168,6 +182,51 @@ $hasUnpaid = !empty($unpaid);
       <span class="sisa">Sisa Rp<?= number_format((float) $m['sisa']) ?></span>
     </div>
   </article>
+<?php } ?>
+
+<?php if (!empty($orders) || !empty($members)) {
+  $diskonTotal = max(0, (float) ($summary['total_tagihan_asli'] ?? $summary['total_tagihan']) - (float) $summary['total_tagihan']);
+?>
+<article class="j-card j-rekap">
+  <div class="j-card-head">
+    <div>
+      <strong>Rekap Tagihan</strong>
+      <small>
+        <?= (int) ($summary['count_order'] ?? 0) ?> nota
+        <?php if ((int) ($summary['count_member'] ?? 0) > 0) { ?>
+          · <?= (int) $summary['count_member'] ?> paket
+        <?php } ?>
+      </small>
+    </div>
+  </div>
+  <div class="j-rekap-rows">
+    <div class="j-rekap-row">
+      <span>Total</span>
+      <span>
+        <?php if (!empty($summary['has_diskon'])) { ?>
+          <del>Rp<?= number_format((float) $summary['total_tagihan_asli']) ?></del>
+          Rp<?= number_format((float) $summary['total_tagihan']) ?>
+        <?php } else { ?>
+          Rp<?= number_format((float) $summary['total_tagihan']) ?>
+        <?php } ?>
+      </span>
+    </div>
+    <?php if ($diskonTotal > 0) { ?>
+    <div class="j-rekap-row">
+      <span>Diskon</span>
+      <span class="ok">-Rp<?= number_format($diskonTotal) ?></span>
+    </div>
+    <?php } ?>
+    <div class="j-rekap-row">
+      <span>Sudah dibayar</span>
+      <span>Rp<?= number_format((float) ($summary['total_dibayar'] ?? 0)) ?></span>
+    </div>
+    <div class="j-rekap-row total">
+      <span>Sisa tagihan</span>
+      <span class="sisa">Rp<?= number_format((float) $summary['sisa']) ?></span>
+    </div>
+  </div>
+</article>
 <?php } ?>
 
 <?php if ($hasUnpaid) { ?>

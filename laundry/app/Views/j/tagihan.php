@@ -12,7 +12,14 @@ $summary = $data['summary'];
   <div class="j-hero-grid" style="gap:8px">
     <div class="j-hero-stat" style="background:#F7FBFA;border-color:var(--j-line);color:var(--j-ink)">
       <small style="opacity:1;color:var(--j-muted)">Total</small>
-      <b>Rp<?= number_format((float) $summary['total_tagihan']) ?></b>
+      <?php if (!empty($summary['has_diskon'])) { ?>
+        <b class="j-price">
+          <del>Rp<?= number_format((float) $summary['total_tagihan_asli']) ?></del><br>
+          Rp<?= number_format((float) $summary['total_tagihan']) ?>
+        </b>
+      <?php } else { ?>
+        <b>Rp<?= number_format((float) $summary['total_tagihan']) ?></b>
+      <?php } ?>
     </div>
     <div class="j-hero-stat" style="background:#F7FBFA;border-color:var(--j-line);color:var(--j-ink)">
       <small style="opacity:1;color:var(--j-muted)">Sisa</small>
@@ -80,7 +87,14 @@ $summary = $data['summary'];
     <?php } ?>
 
     <div class="j-foot-row">
-      <span>Subtotal Rp<?= number_format((float) $ord['subtotal']) ?></span>
+      <span>
+        <?php if (!empty($ord['has_diskon'])) { ?>
+          Subtotal <del>Rp<?= number_format((float) $ord['subtotal_asli']) ?></del>
+          Rp<?= number_format((float) $ord['subtotal']) ?>
+        <?php } else { ?>
+          Subtotal Rp<?= number_format((float) $ord['subtotal']) ?>
+        <?php } ?>
+      </span>
       <span class="<?= $sisa > 0 ? 'sisa' : '' ?>">
         <?= $sisa > 0 ? 'Sisa Rp' . number_format($sisa) : 'Lunas' ?>
       </span>
@@ -103,6 +117,51 @@ $summary = $data['summary'];
       <span class="sisa">Sisa Rp<?= number_format((float) $m['sisa']) ?></span>
     </div>
   </article>
+<?php } ?>
+
+<?php if (!empty($orders) || !empty($members)) {
+  $diskonTotal = max(0, (float) ($summary['total_tagihan_asli'] ?? $summary['total_tagihan']) - (float) $summary['total_tagihan']);
+?>
+<article class="j-card j-rekap">
+  <div class="j-card-head">
+    <div>
+      <strong>Rekap Tagihan</strong>
+      <small>
+        <?= (int) ($summary['count_order'] ?? 0) ?> nota
+        <?php if ((int) ($summary['count_member'] ?? 0) > 0) { ?>
+          · <?= (int) $summary['count_member'] ?> paket
+        <?php } ?>
+      </small>
+    </div>
+  </div>
+  <div class="j-rekap-rows">
+    <div class="j-rekap-row">
+      <span>Total</span>
+      <span>
+        <?php if (!empty($summary['has_diskon'])) { ?>
+          <del>Rp<?= number_format((float) $summary['total_tagihan_asli']) ?></del>
+          Rp<?= number_format((float) $summary['total_tagihan']) ?>
+        <?php } else { ?>
+          Rp<?= number_format((float) $summary['total_tagihan']) ?>
+        <?php } ?>
+      </span>
+    </div>
+    <?php if ($diskonTotal > 0) { ?>
+    <div class="j-rekap-row">
+      <span>Diskon</span>
+      <span class="ok">-Rp<?= number_format($diskonTotal) ?></span>
+    </div>
+    <?php } ?>
+    <div class="j-rekap-row">
+      <span>Sudah dibayar</span>
+      <span>Rp<?= number_format((float) ($summary['total_dibayar'] ?? 0)) ?></span>
+    </div>
+    <div class="j-rekap-row total">
+      <span>Sisa tagihan</span>
+      <span class="sisa">Rp<?= number_format((float) $summary['sisa']) ?></span>
+    </div>
+  </div>
+</article>
 <?php } ?>
 
 <?php require __DIR__ . '/_foot.php'; ?>

@@ -566,6 +566,20 @@ a { color: inherit; text-decoration: none; }
   text-overflow: ellipsis;
 }
 
+.j-bill-stat b.j-price {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  line-height: 1.3;
+}
+
+.j-bill-stat b.j-price del,
+.j-hero-stat b.j-price del {
+  color: var(--j-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
 .j-bill-stat b.sisa {
   color: var(--j-coral);
 }
@@ -595,6 +609,54 @@ a { color: inherit; text-decoration: none; }
 
 .j-bayar-bottom {
   margin: 18px 0 8px;
+}
+
+.j-rekap {
+  margin-top: 8px;
+}
+
+.j-rekap-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.j-rekap-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 0.86rem;
+  color: var(--j-ink);
+}
+
+.j-rekap-row span:last-child {
+  text-align: right;
+  font-weight: 650;
+}
+
+.j-rekap-row del {
+  color: var(--j-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+.j-rekap-row .ok {
+  color: #1A7A4C;
+}
+
+.j-rekap-row.total {
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--j-line);
+  font-weight: 750;
+}
+
+.j-rekap-row.total .sisa {
+  color: var(--j-coral);
+  font-size: 1rem;
+  letter-spacing: -0.02em;
 }
 
 .j-bayar-now {

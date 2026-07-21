@@ -372,6 +372,7 @@ class J extends Controller
 
       $orders = [];
       $totalTagihan = 0;
+      $totalTagihanAsli = 0;
       $totalDibayar = 0;
 
       foreach ($sales as $a) {
@@ -382,6 +383,7 @@ class J extends Controller
                'insertTime' => $a['insertTime'],
                'items' => [],
                'subtotal' => 0,
+               'subtotal_asli' => 0,
                'dibayar' => 0,
                'sisa' => 0,
                'letak' => $a['letak'] ?? '',
@@ -461,6 +463,7 @@ class J extends Controller
             'ambil' => (int) $a['id_user_ambil'] > 0,
          ];
          $orders[$ref]['subtotal'] += $line;
+         $orders[$ref]['subtotal_asli'] += ($member === 0 ? $totalAsli : 0);
          if (!empty($a['letak'])) $orders[$ref]['letak'] = $a['letak'];
       }
 
@@ -470,6 +473,7 @@ class J extends Controller
             $jumlah = (float) $sc['jumlah'];
             $ord['surcas'][] = ['nama' => $nama, 'jumlah' => $jumlah];
             $ord['subtotal'] += $jumlah;
+            $ord['subtotal_asli'] += $jumlah;
          }
          $dibayar = 0;
          $hasActivePay = false;
@@ -489,7 +493,9 @@ class J extends Controller
          $ord['dibayar'] = $dibayar;
          $ord['sisa'] = max(0, (int) round($ord['subtotal']) - (int) $dibayar);
          $ord['has_payment'] = $hasActivePay;
+         $ord['has_diskon'] = (int) round($ord['subtotal_asli']) > (int) round($ord['subtotal']);
          $totalTagihan += (int) round($ord['subtotal']);
+         $totalTagihanAsli += (int) round($ord['subtotal_asli']);
          $totalDibayar += (int) $dibayar;
       }
       unset($ord);
@@ -554,6 +560,7 @@ class J extends Controller
                'insertTime' => $m['insertTime'],
             ];
             $totalTagihan += (float) $m['harga'];
+            $totalTagihanAsli += (float) $m['harga'];
             $totalDibayar += $paid;
          }
       }
@@ -612,6 +619,8 @@ class J extends Controller
          'members' => $membersOut,
          'summary' => [
             'total_tagihan' => $totalTagihan,
+            'total_tagihan_asli' => $totalTagihanAsli,
+            'has_diskon' => (int) round($totalTagihanAsli) > (int) round($totalTagihan),
             'total_dibayar' => $totalDibayar,
             'sisa' => max(0, $totalTagihan - $totalDibayar),
             'count_order' => count($orders),
