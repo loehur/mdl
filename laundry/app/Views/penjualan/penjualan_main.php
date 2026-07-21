@@ -256,7 +256,7 @@
             <div class="ord-field">
               <label>
                 Pelanggan
-                <span class="ord-link addPelanggan" data-bs-toggle="modal" data-bs-target="#addPelanggan">
+                <span class="ord-link addPelanggan" id="btnTambahPelangganOrder" role="button" tabindex="0">
                   <i class="fas fa-plus"></i> Tambah
                 </span>
               </label>
@@ -352,19 +352,161 @@
   </div>
 </div>
 
-<div class="modal" id="addPelanggan">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Tambah Pelanggan Baru</h5>
-        <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close">
-          <span>&times;</span>
-        </button>
+<!-- Custom modal: Tambah Pelanggan (tanpa Bootstrap) -->
+<div class="ord-plg-modal" id="ordPlgModal" aria-hidden="true">
+  <div class="ord-plg-modal__backdrop" data-ord-plg-close></div>
+  <div class="ord-plg-modal__panel" role="dialog" aria-modal="true" aria-labelledby="ordPlgTitle">
+    <div class="ord-plg-modal__head">
+      <div>
+        <h3 id="ordPlgTitle">Tambah Pelanggan</h3>
+        <small>Isi nama dan nomor HP</small>
       </div>
-      <div class="modal-body p-1" id="divPelanggan"></div>
+      <button type="button" class="ord-plg-modal__close" data-ord-plg-close aria-label="Tutup">
+        <i class="fas fa-times"></i>
+      </button>
     </div>
+    <form id="ordPlgForm" class="ord-plg-modal__body" autocomplete="off">
+      <label class="ord-plg-label" for="ordPlgHp">Nomor HP</label>
+      <input type="text" id="ordPlgHp" name="f2" class="ord-plg-input" required placeholder="08…" inputmode="tel">
+
+      <label class="ord-plg-label" for="ordPlgNama">Nama pelanggan</label>
+      <input type="text" id="ordPlgNama" name="f1" class="ord-plg-input" required placeholder="Nama lengkap">
+
+      <p class="ord-plg-msg is-hidden" id="ordPlgMsg"></p>
+
+      <button type="submit" class="ord-plg-submit" id="ordPlgSubmit">
+        <i class="fas fa-plus"></i> Simpan pelanggan
+      </button>
+    </form>
   </div>
 </div>
+
+<style>
+  .ord-plg-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 5000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  .ord-plg-modal.is-open { display: flex; }
+  .ord-plg-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(3px);
+  }
+  .ord-plg-modal__panel {
+    position: relative;
+    z-index: 1;
+    width: min(400px, 100%);
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 24px 48px rgba(15, 23, 42, 0.28);
+    overflow: hidden;
+    animation: ordPlgIn .18s ease-out;
+  }
+  @keyframes ordPlgIn {
+    from { opacity: 0; transform: translateY(10px) scale(0.98); }
+    to { opacity: 1; transform: none; }
+  }
+  .ord-plg-modal__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    background: linear-gradient(135deg, #2f61bc, #3f74d4);
+    color: #fff;
+  }
+  .ord-plg-modal__head h3 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    font-family: 'fontku', sans-serif;
+  }
+  .ord-plg-modal__head small {
+    display: block;
+    margin-top: 2px;
+    font-size: 11px;
+    font-weight: 600;
+    opacity: 0.85;
+  }
+  .ord-plg-modal__close {
+    width: 32px;
+    height: 32px;
+    border: 0;
+    border-radius: 8px;
+    background: rgba(255,255,255,.15);
+    color: #fff;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .ord-plg-modal__close:hover { background: rgba(255,255,255,.28); }
+  .ord-plg-modal__body {
+    padding: 14px 16px 16px;
+    background: #f4f7fb;
+  }
+  .ord-plg-label {
+    display: block;
+    margin: 0 0 5px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #5a6a7c;
+  }
+  .ord-plg-input {
+    width: 100%;
+    margin-bottom: 10px;
+    padding: 10px 12px;
+    border: 1px solid #D5DEEA;
+    border-radius: 10px;
+    background: #fff;
+    font-family: 'fontku', sans-serif;
+    font-size: 14px;
+    font-weight: 650;
+    color: #1e3a5f;
+    outline: none;
+  }
+  .ord-plg-input:focus {
+    border-color: #3f74d4;
+    box-shadow: 0 0 0 3px rgba(63, 116, 212, 0.2);
+  }
+  .ord-plg-msg {
+    margin: 0 0 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 650;
+    background: rgba(231, 111, 81, 0.12);
+    color: #C24A30;
+  }
+  .ord-plg-msg.is-hidden { display: none; }
+  .ord-plg-submit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    width: 100%;
+    border: 0;
+    border-radius: 11px;
+    padding: 11px 14px;
+    background: linear-gradient(145deg, #2f61bc, #3f74d4);
+    color: #fff;
+    font-family: 'fontku', sans-serif;
+    font-size: 14px;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 8px 18px rgba(47, 97, 188, 0.28);
+  }
+  .ord-plg-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+</style>
 
 <div class="modal fade" id="modalDiskonHarga" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-sm">
@@ -441,7 +583,75 @@
 
     $("span.addPelanggan, .addPelanggan").on("click", function(e) {
       e.preventDefault();
-      $('#divPelanggan').load('<?= URL::BASE_URL ?>Penjualan/loadPelanggan');
+      openOrdPlgModal();
+    });
+
+    function openOrdPlgModal() {
+      var $m = $("#ordPlgModal");
+      if ($m.parent()[0] !== document.body) {
+        $m.appendTo(document.body);
+      }
+      $("#ordPlgMsg").addClass("is-hidden").text("");
+      $("#ordPlgForm")[0].reset();
+      $m.addClass("is-open").attr("aria-hidden", "false");
+      setTimeout(function () { $("#ordPlgHp").focus(); }, 50);
+    }
+    function closeOrdPlgModal() {
+      $("#ordPlgModal").removeClass("is-open").attr("aria-hidden", "true");
+    }
+
+    $(document).off("click.ordPlgClose", "[data-ord-plg-close]").on("click.ordPlgClose", "[data-ord-plg-close]", function () {
+      closeOrdPlgModal();
+    });
+    $(document).off("keydown.ordPlgEsc").on("keydown.ordPlgEsc", function (e) {
+      if (e.key === "Escape" && $("#ordPlgModal").hasClass("is-open")) {
+        closeOrdPlgModal();
+      }
+    });
+
+    $(document).off("submit.ordPlg", "#ordPlgForm").on("submit.ordPlg", "#ordPlgForm", function (e) {
+      e.preventDefault();
+      var $btn = $("#ordPlgSubmit");
+      var $msg = $("#ordPlgMsg");
+      $msg.addClass("is-hidden").text("");
+      $btn.prop("disabled", true);
+
+      $.ajax({
+        url: "<?= URL::BASE_URL ?>Penjualan/tambahPelanggan",
+        type: "POST",
+        dataType: "json",
+        data: {
+          f1: $("#ordPlgNama").val(),
+          f2: $("#ordPlgHp").val()
+        },
+        success: function (res) {
+          if (!res || !res.ok) {
+            $msg.removeClass("is-hidden").text((res && res.msg) ? res.msg : "Gagal menambah pelanggan");
+            $btn.prop("disabled", false);
+            return;
+          }
+
+          var label = res.nama + ", " + res.hp;
+          var $sel = $("select#pelanggan_submit");
+          var selectize = $sel[0] && $sel[0].selectize ? $sel[0].selectize : null;
+          if (selectize) {
+            selectize.addOption({ value: String(res.id), text: label });
+            selectize.addItem(String(res.id), true);
+          } else {
+            $sel.append($("<option>", { value: res.id, text: label, selected: true }));
+            $sel.trigger("change");
+          }
+
+          $("#saldoMember").load("<?= URL::BASE_URL ?>Member/cekRekap/" + res.id);
+          $("#sering").load("<?= URL::BASE_URL ?>Penjualan/sering/" + res.id);
+          closeOrdPlgModal();
+          $btn.prop("disabled", false);
+        },
+        error: function () {
+          $msg.removeClass("is-hidden").text("Gagal menambah pelanggan");
+          $btn.prop("disabled", false);
+        }
+      });
     });
 
     $("button.orderPenjualanForm").on("click", function(e) {

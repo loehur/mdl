@@ -360,4 +360,57 @@ class Penjualan extends Controller
       $data_main = $this->db(0)->get_where_order("pelanggan", $where, $order);
       $this->view($view, ['data_main' => $data_main, 'z' => $z]);
    }
+
+   public function tambahPelanggan()
+   {
+      header('Content-Type: application/json; charset=utf-8');
+
+      $nama = trim($_POST['f1'] ?? '');
+      $hpRaw = (string) ($_POST['f2'] ?? '');
+      $hp = preg_replace('/\D/', '', $hpRaw);
+
+      if ($nama === '' || $hp === '') {
+         echo json_encode(['ok' => 0, 'msg' => 'Nama dan nomor HP wajib diisi']);
+         return;
+      }
+
+      $namaEsc = addslashes($nama);
+      $where = $this->wCabang . " AND nama_pelanggan = '" . $namaEsc . "'";
+      if ($this->db(0)->count_where('pelanggan', $where) > 0) {
+         echo json_encode(['ok' => 0, 'msg' => 'Gagal! nama ' . strtoupper($nama) . ' sudah digunakan']);
+         return;
+      }
+
+      $do = $this->db(0)->insert('pelanggan', [
+         'id_cabang' => $this->id_cabang,
+         'nama_pelanggan' => $nama,
+         'nomor_pelanggan' => $hp,
+      ]);
+
+      if (($do['errno'] ?? 1) != 0) {
+         $this->model('Log')->write("[Penjualan::tambahPelanggan] Error: " . ($do['error'] ?? ''));
+         echo json_encode(['ok' => 0, 'msg' => 'Gagal menyimpan pelanggan']);
+         return;
+      }
+
+      $this->dataSynchrone($_SESSION[URL::SESSID]['user']['id_user']);
+
+      $row = $this->db(0)->get_where_order(
+         'pelanggan',
+         $this->wCabang . " AND nama_pelanggan = '" . $namaEsc . "'",
+         'id_pelanggan DESC'
+      );
+      $new = is_array($row) && isset($row[0]) ? $row[0] : null;
+      if (!$new) {
+         echo json_encode(['ok' => 0, 'msg' => 'Tersimpan, tetapi ID tidak ditemukan. Refresh halaman.']);
+         return;
+      }
+
+      echo json_encode([
+         'ok' => 1,
+         'id' => (int) $new['id_pelanggan'],
+         'nama' => strtoupper($new['nama_pelanggan']),
+         'hp' => $new['nomor_pelanggan'],
+      ]);
+   }
 }
