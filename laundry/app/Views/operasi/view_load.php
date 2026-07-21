@@ -52,7 +52,7 @@ $labeled = false;
       $cs_code = strtoupper(substr($cs_penerima, 0, 2)) . substr($f18, -1);
       $tgl_terima = date('d/m H:i', strtotime($f1));
 
-      $buttonNotif_londri = "<a href='#' data-urutRef='" . $ref . "' data-hp='" . $no_pelanggan . "' data-ref='" . $ref . "' data-time='" . $timeRef . "' class='mdl-nota-chip sendNotif'><i class='fab fa-whatsapp'></i><span id='notif" . $ref . "'></span></a>";
+      $buttonNotif_londri = "<a href='#' data-urutRef='" . $ref . "' data-hp='" . $no_pelanggan . "' data-ref='" . $ref . "' data-time='" . $timeRef . "' class='mdl-nota-chip mdl-nota-chip--wa mdl-nota-chip--icon sendNotif' title='Kirim WA'><i class='fab fa-whatsapp'></i><span id='notif" . $ref . "'></span></a>";
       foreach ($data['notif_bon'] as $notif) {
         if ($notif['no_ref'] == $ref) {
           $statusWA = $notif['state'];
@@ -60,7 +60,10 @@ $labeled = false;
             $statusWA = 'Pending';
           }
           $stNotif = ucwords(strtolower($statusWA));
-          $buttonNotif_londri = "<span class='mdl-nota-chip'><i class='fab fa-whatsapp'></i> " . $stNotif . "</span>";
+          $waTone = (stripos($stNotif, 'pending') !== false || stripos($stNotif, 'gagal') !== false)
+            ? 'mdl-nota-chip--pending'
+            : 'mdl-nota-chip--ok';
+          $buttonNotif_londri = "<span class='mdl-nota-chip " . $waTone . "' title='Status WA'><i class='fab fa-whatsapp'></i> " . $stNotif . "</span>";
         }
       }
 
@@ -94,9 +97,9 @@ $labeled = false;
           </div>
           <div class="mdl-nota-head__actions">
             <?= $buttonNotif_londri ?>
-            <a href="#" class="mdl-nota-chip" data-print-id="Label" title="Label"><i class="fa fa-tag"></i></a>
-            <a href="#" class="mdl-nota-chip tambahCas" data-ref="<?= $ref ?>" data-tr="id_transaksi" data-bs-toggle="modal" data-bs-target="#exampleModalSurcas" title="Surcharge"><i class="fa fa-plus"></i></a>
-            <a class="mdl-nota-chip" href="<?= URL::BASE_URL . "I/" . $id_pelanggan ?>" target="_blank" title="Tagihan"><i class="fas fa-file-invoice"></i></a>
+            <a href="#" class="mdl-nota-chip mdl-nota-chip--label mdl-nota-chip--icon" data-print-id="Label" title="Cetak Label"><i class="fas fa-tags"></i></a>
+            <a href="#" class="mdl-nota-chip mdl-nota-chip--add mdl-nota-chip--icon tambahCas" data-ref="<?= $ref ?>" data-tr="id_transaksi" data-bs-toggle="modal" data-bs-target="#exampleModalSurcas" title="Tambah Surcharge"><i class="fas fa-plus"></i></a>
+            <a class="mdl-nota-chip mdl-nota-chip--bill mdl-nota-chip--icon" href="<?= URL::BASE_URL . "I/" . $id_pelanggan ?>" target="_blank" title="Tagihan"><i class="fas fa-receipt"></i></a>
           </div>
         </div>
         <table class='table table-sm m-0 w-100 bg-white'>
@@ -919,11 +922,14 @@ $labeled = false;
     }
 
     //BUTTON NOTIF MEMBER
-    $buttonNotif_Member = "<a href='#' data-ref='" . $id . "' class='mdl-nota-chip sendNotifMember'><i class='fab fa-whatsapp'></i> <span id='notif" . $id . "'></span></a>";
+    $buttonNotif_Member = "<a href='#' data-ref='" . $id . "' class='mdl-nota-chip mdl-nota-chip--wa mdl-nota-chip--icon sendNotifMember' title='Kirim WA'><i class='fab fa-whatsapp'></i> <span id='notif" . $id . "'></span></a>";
     foreach ($data['notif_member'] as $notif) {
       if ($notif['no_ref'] == $id) {
         $stNotif = ucwords($notif['state']);
-        $buttonNotif_Member = "<span class='mdl-nota-chip'><i class='fab fa-whatsapp'></i> " . $stNotif . "</span>";
+        $waTone = (stripos($stNotif, 'pending') !== false || stripos($stNotif, 'gagal') !== false)
+          ? 'mdl-nota-chip--pending'
+          : 'mdl-nota-chip--ok';
+        $buttonNotif_Member = "<span class='mdl-nota-chip " . $waTone . "' title='Status WA'><i class='fab fa-whatsapp'></i> " . $stNotif . "</span>";
       }
     }
 
@@ -952,8 +958,8 @@ $labeled = false;
             </div>
             <div class="mdl-nota-head__actions">
               <?= $buttonNotif_Member ?>
-              <a class="mdl-nota-chip" href="<?= URL::BASE_URL ?>I/<?= $id_pelanggan ?>" target="_blank" title="Tagihan">
-                <i class="fas fa-file-invoice"></i>
+              <a class="mdl-nota-chip mdl-nota-chip--bill mdl-nota-chip--icon" href="<?= URL::BASE_URL ?>I/<?= $id_pelanggan ?>" target="_blank" title="Tagihan">
+                <i class="fas fa-receipt"></i>
               </a>
             </div>
           </div>

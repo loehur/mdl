@@ -104,26 +104,26 @@ if (isset($data['data_operasi'])) {
             margin-bottom: 8px;
         }
         .content-wrapper .mdl-nota-head {
-            padding: 10px 12px 9px;
+            padding: 6px 8px 5px;
         }
         .content-wrapper .mdl-nota-head__top {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 10px;
+            gap: 8px;
         }
         .content-wrapper .mdl-nota-head__left {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
             min-width: 0;
         }
         .content-wrapper .mdl-nota-head__print {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 28px;
-            height: 28px;
+            width: 22px;
+            height: 22px;
             flex-shrink: 0;
             text-decoration: none;
         }
@@ -138,7 +138,7 @@ if (isset($data['data_operasi'])) {
         .content-wrapper .mdl-nota-head__right {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
+            gap: 5px;
             flex-shrink: 0;
             font-size: 0.82em;
             font-weight: 700;
@@ -152,33 +152,109 @@ if (isset($data['data_operasi'])) {
             display: flex;
             flex-wrap: wrap;
             align-items: center;
-            gap: 6px;
-            margin-top: 8px;
-            padding-top: 2px;
+            gap: 5px;
+            margin-top: 5px;
+            padding-top: 0;
         }
         .content-wrapper .mdl-nota-chip {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            gap: 4px;
-            min-height: 26px;
-            min-width: 26px;
+            gap: 5px;
+            min-height: 24px;
+            min-width: 24px;
             padding: 3px 8px;
-            background: #fff;
-            border: 1px solid rgba(36, 48, 65, 0.08);
-            border-radius: 0;
-            box-shadow: 0 1px 3px rgba(36, 48, 65, 0.06);
-            color: var(--mdl-ink);
-            font-size: 0.78em;
+            border: 1px solid transparent;
+            border-radius: 6px;
+            box-shadow: 0 1px 2px rgba(36, 48, 65, 0.08);
+            font-size: 0.76em;
             font-weight: 700;
             line-height: 1;
+            letter-spacing: 0.01em;
             text-decoration: none;
             white-space: nowrap;
+            transition: background-color .15s ease, box-shadow .15s ease, transform .12s ease;
+            color: #1e3a5f;
+            background: #fff;
+        }
+        .content-wrapper .mdl-nota-chip i {
+            font-size: 0.95em;
+            line-height: 1;
         }
         .content-wrapper .mdl-nota-chip:hover {
-            background: #f8fafc;
-            color: var(--mdl-ink);
             text-decoration: none;
+            transform: translateY(-1px);
+            box-shadow: 0 3px 8px rgba(36, 48, 65, 0.12);
+        }
+        .content-wrapper .mdl-nota-chip--icon {
+            padding: 0;
+            width: 24px;
+            height: 24px;
+            min-width: 24px;
+        }
+        .content-wrapper .mdl-nota-chip--wa {
+            color: #0b6b4a;
+            background: linear-gradient(180deg, #e8faf2 0%, #d4f3e5 100%);
+            border-color: rgba(18, 140, 126, 0.22);
+        }
+        .content-wrapper .mdl-nota-chip--wa i {
+            color: #128c7e;
+        }
+        .content-wrapper .mdl-nota-chip--wa:hover {
+            background: linear-gradient(180deg, #dff7eb 0%, #c5edd9 100%);
+            color: #0b6b4a;
+        }
+        .content-wrapper .mdl-nota-chip--pending {
+            color: #8a5a00;
+            background: linear-gradient(180deg, #fff8e8 0%, #ffefc8 100%);
+            border-color: rgba(201, 148, 20, 0.28);
+        }
+        .content-wrapper .mdl-nota-chip--pending i {
+            color: #c99414;
+        }
+        .content-wrapper .mdl-nota-chip--ok {
+            color: #1a6b3c;
+            background: linear-gradient(180deg, #eaf8ef 0%, #d4efde 100%);
+            border-color: rgba(38, 135, 80, 0.25);
+        }
+        .content-wrapper .mdl-nota-chip--ok i {
+            color: #2f9e5b;
+        }
+        .content-wrapper .mdl-nota-chip--label {
+            color: #6b4a12;
+            background: linear-gradient(180deg, #fff6e9 0%, #ffe8c8 100%);
+            border-color: rgba(196, 130, 40, 0.28);
+        }
+        .content-wrapper .mdl-nota-chip--label i {
+            color: #d4891a;
+        }
+        .content-wrapper .mdl-nota-chip--label:hover {
+            color: #6b4a12;
+            background: linear-gradient(180deg, #ffefd6 0%, #ffdfb0 100%);
+        }
+        .content-wrapper .mdl-nota-chip--add {
+            color: #1d4f91;
+            background: linear-gradient(180deg, #eaf2fc 0%, #d6e6f8 100%);
+            border-color: rgba(47, 97, 188, 0.28);
+        }
+        .content-wrapper .mdl-nota-chip--add i {
+            color: #2f61bc;
+        }
+        .content-wrapper .mdl-nota-chip--add:hover {
+            color: #1d4f91;
+            background: linear-gradient(180deg, #ddebfa 0%, #c7dbf4 100%);
+        }
+        .content-wrapper .mdl-nota-chip--bill {
+            color: #3a2f7a;
+            background: linear-gradient(180deg, #f0edfb 0%, #e2dcf6 100%);
+            border-color: rgba(90, 70, 170, 0.25);
+        }
+        .content-wrapper .mdl-nota-chip--bill i {
+            color: #6a55c0;
+        }
+        .content-wrapper .mdl-nota-chip--bill:hover {
+            color: #3a2f7a;
+            background: linear-gradient(180deg, #e7e2f8 0%, #d6cef2 100%);
         }
         .content-wrapper .mdl-nota-card > .table {
             margin-bottom: 0 !important;
