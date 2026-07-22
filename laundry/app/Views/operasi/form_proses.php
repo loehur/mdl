@@ -195,6 +195,10 @@ $modeOperasi = (int) $data['mode'];
     background: #0e7490;
     border-color: #155e75;
   }
+  .operasi-period--tahun {
+    background: #0f172a;
+    border-color: #020617;
+  }
   .operasi-year-nav {
     display: inline-flex;
     align-items: center;
@@ -351,6 +355,7 @@ $modeOperasi = (int) $data['mode'];
             <a href="<?= URL::BASE_URL ?>Antrian/index/1" class="operasi-period operasi-period--terkini">Terkini</a>
             <a href="<?= URL::BASE_URL ?>Antrian/index/6" class="operasi-period operasi-period--minggu">Minggu</a>
             <a href="<?= URL::BASE_URL ?>Antrian/index/7" class="operasi-period operasi-period--bulan">Bulan</a>
+            <a href="<?= URL::BASE_URL ?>Antrian/index/8" class="operasi-period operasi-period--tahun">Tahun</a>
           </div>
         <?php } ?>
       </form>

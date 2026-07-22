@@ -28,7 +28,7 @@ class Antrian extends Controller
             $viewData = 'antrian/view';
             break;
          case 7:
-            //DALAM PROSES > 30 HARI (termasuk >1 tahun)
+            //DALAM PROSES > 30 HARI dan <= 1 Tahun
             $data_operasi = ['title' => 'Data Order Proses H30+'];
             $viewData = 'antrian/view';
             break;
@@ -97,10 +97,11 @@ class Antrian extends Controller
             $where = $this->wCabang . " AND id_pelanggan <> 0 AND bin = 0 AND tuntas = 0 AND DATE(NOW()) > (insertTime + INTERVAL 7 DAY) AND DATE(NOW()) <= (insertTime + INTERVAL 30 DAY)" . $orderNewest;
             break;
          case 7:
-            // >30 hari (termasuk >1 tahun / mode 8)
-            $where = $this->wCabang . " AND id_pelanggan <> 0 AND bin = 0 AND tuntas = 0 AND DATE(NOW()) > (insertTime + INTERVAL 30 DAY)" . $orderNewest;
+            // >30 hari sampai 1 tahun
+            $where = $this->wCabang . " AND id_pelanggan <> 0 AND bin = 0 AND tuntas = 0 AND DATE(NOW()) > (insertTime + INTERVAL 30 DAY) AND DATE(NOW()) <= (insertTime + INTERVAL 365 DAY)" . $orderNewest;
             break;
          case 8:
+            // >1 tahun
             $where = $this->wCabang . " AND id_pelanggan <> 0 AND bin = 0 AND tuntas = 0 AND DATE(NOW()) > (insertTime + INTERVAL 365 DAY)" . $orderNewest;
             break;
          case 100:

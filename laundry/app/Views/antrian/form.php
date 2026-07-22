@@ -99,6 +99,7 @@
   .antrian-period.is-active[data-tone="blue"] { background: #1d4ed8; color: #fff; }
   .antrian-period.is-active[data-tone="green"] { background: #15803d; color: #fff; }
   .antrian-period.is-active[data-tone="cyan"] { background: #0e7490; color: #fff; }
+  .antrian-period.is-active[data-tone="black"] { background: #0f172a; color: #fff; }
 
   .antrian-rekap {
     margin-top: 6px;
@@ -255,6 +256,9 @@
         <a href="<?= URL::BASE_URL ?>Antrian/index/7"
            class="antrian-period<?= ($modeView == 7) ? ' is-active' : '' ?>"
            data-tone="cyan">Bulan</a>
+        <a href="<?= URL::BASE_URL ?>Antrian/index/8"
+           class="antrian-period<?= ($modeView == 8) ? ' is-active' : '' ?>"
+           data-tone="black">Tahun</a>
       </div>
     </div>
     <div class="antrian-rekap" id="rekapAntri"></div>
