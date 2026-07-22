@@ -9,126 +9,128 @@
   }
   .antrian-filter-card {
     background: #fff;
-    border: 1px solid #dde3ea;
-    border-radius: 12px;
-    box-shadow: 0 4px 14px rgba(30, 41, 59, 0.08);
-    padding: 10px 12px;
+    border: 2px solid #94a3b8;
+    border-radius: 8px;
+    box-shadow: none;
+    padding: 12px 14px;
   }
   .antrian-filter-row {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
     flex-wrap: wrap;
   }
   .antrian-search {
     position: relative;
-    flex: 1 1 180px;
-    min-width: 160px;
+    flex: 1 1 220px;
+    min-width: 180px;
   }
   .antrian-search i {
     position: absolute;
-    left: 11px;
+    left: 13px;
     top: 50%;
     transform: translateY(-50%);
-    color: #94a3b8;
-    font-size: 13px;
+    color: #475569;
+    font-size: 15px;
     pointer-events: none;
   }
   .antrian-search input {
     box-sizing: border-box;
     width: 100%;
-    height: 36px;
-    padding: 0 12px 0 34px;
-    border: 1.5px solid #d5dde6;
-    border-radius: 9px;
-    background: #f8fafc;
-    color: #1e293b;
+    height: 44px;
+    padding: 0 14px 0 40px;
+    border: 2px solid #64748b;
+    border-radius: 8px;
+    background: #fff;
+    color: #0f172a;
     font-family: 'fontku', sans-serif;
-    font-size: 14px;
-    font-weight: 600;
+    font-size: 16px;
+    font-weight: 700;
     outline: none;
-    transition: border-color .15s ease, background .15s ease, box-shadow .15s ease;
+    transition: border-color .12s ease, box-shadow .12s ease;
   }
   .antrian-search input::placeholder {
-    color: #94a3b8;
-    font-weight: 500;
+    color: #64748b;
+    font-weight: 600;
   }
   .antrian-search input:focus {
     background: #fff;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    border-color: #1d4ed8;
+    box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.25);
   }
   .antrian-periods {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 3px;
-    background: #e8eef5;
-    border-radius: 9px;
+    gap: 6px;
+    padding: 4px;
+    background: #e2e8f0;
+    border: 2px solid #64748b;
+    border-radius: 8px;
     flex: 0 0 auto;
   }
   .antrian-period {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    height: 30px;
-    padding: 0 12px;
-    border-radius: 7px;
+    height: 36px;
+    padding: 0 16px;
+    border-radius: 6px;
     border: 0;
     background: transparent;
-    color: #64748b;
+    color: #334155;
     font-family: 'fontku', sans-serif;
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 800;
+    letter-spacing: 0.01em;
     text-decoration: none;
     white-space: nowrap;
-    transition: background .15s ease, color .15s ease, box-shadow .15s ease;
+    transition: background .12s ease, color .12s ease;
   }
   .antrian-period:hover {
-    color: #1e293b;
-    background: rgba(255,255,255,.55);
+    color: #0f172a;
+    background: #f8fafc;
     text-decoration: none;
   }
   .antrian-period.is-active {
-    background: #fff;
-    color: #0f172a;
-    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+    background: #0f172a;
+    color: #fff;
+    box-shadow: none;
   }
-  .antrian-period.is-active[data-tone="blue"] { color: #1d4ed8; }
-  .antrian-period.is-active[data-tone="green"] { color: #15803d; }
-  .antrian-period.is-active[data-tone="cyan"] { color: #0e7490; }
+  .antrian-period.is-active[data-tone="blue"] { background: #1d4ed8; color: #fff; }
+  .antrian-period.is-active[data-tone="green"] { background: #15803d; color: #fff; }
+  .antrian-period.is-active[data-tone="cyan"] { background: #0e7490; color: #fff; }
 
   .antrian-rekap {
-    margin-top: 8px;
+    margin-top: 10px;
     min-height: 28px;
-    font-size: 16px;
+    font-size: 17px;
     line-height: 1.7;
-    color: #475569;
+    color: #1e293b;
   }
   .antrian-rekap:empty {
     display: none;
   }
   .antrian-rekap b {
-    color: #334155;
+    color: #0f172a;
     font-weight: 800;
   }
   .antrian-rekap .antrian-chip {
     display: inline;
     cursor: pointer;
-    font-size: 16px;
-    font-weight: 700;
+    font-size: 17px;
+    font-weight: 800;
     border-bottom: 1px dashed transparent;
-    transition: border-color .15s ease;
+    transition: border-color .12s ease;
   }
   .antrian-rekap .antrian-chip:hover {
     border-bottom-color: currentColor;
   }
   .antrian-chip--today,
   .antrian-chip--rak,
-  .antrian-chip--miss { color: #dc2626; }
-  .antrian-chip--besok { color: #2563eb; }
-  .antrian-chip--kerja { color: #0891b2; }
-  .antrian-chip--antri { color: #16a34a; }
+  .antrian-chip--miss { color: #b91c1c; }
+  .antrian-chip--besok { color: #1d4ed8; }
+  .antrian-chip--kerja { color: #0e7490; }
+  .antrian-chip--antri { color: #15803d; }
 
   #load.antrian-load {
     padding-top: 2px;
