@@ -147,17 +147,11 @@
   .antrian-rekap-group__label {
     display: inline-flex;
     align-items: center;
-    gap: 3px;
     font-size: 12px;
     font-weight: 600;
     letter-spacing: 0.01em;
     text-transform: uppercase;
     white-space: nowrap;
-    color: #fff;
-  }
-  .antrian-rekap-group__label i {
-    font-size: 10px;
-    opacity: 1;
     color: #fff;
   }
   .antrian-rekap-group__total {

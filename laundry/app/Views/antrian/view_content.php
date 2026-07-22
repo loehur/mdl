@@ -632,7 +632,7 @@ if (count($data['data_main']) == 0) {
 <?php
 $listAntri = "";
 
-$buildRekapGroup = function ($tone, $label, $icon, $items, $filterMode = null) {
+$buildRekapGroup = function ($tone, $label, $items, $filterMode = null) {
   if (!is_array($items) || count($items) === 0) {
     return "";
   }
@@ -641,7 +641,7 @@ $buildRekapGroup = function ($tone, $label, $icon, $items, $filterMode = null) {
   foreach ($items as $qty) {
     $total += (float) $qty;
   }
-  $totalShow = (fmod($total, 1) == 0.0) ? (string) intval($total) : rtrim(rtrim(number_format($total, 2, '.', ''), '0'), '.');
+  $totalShow = (string) (int) round($total);
   $clickable = ($filterMode !== null);
   $groupClass = 'antrian-rekap-group antrian-rekap-group--' . htmlspecialchars($tone, ENT_QUOTES, 'UTF-8');
   if ($clickable) {
@@ -654,12 +654,12 @@ $buildRekapGroup = function ($tone, $label, $icon, $items, $filterMode = null) {
   }
   $html .= ">";
   $html .= "<div class='antrian-rekap-group__head'>";
-  $html .= "<span class='antrian-rekap-group__label'><i class='fas " . htmlspecialchars($icon, ENT_QUOTES, 'UTF-8') . "'></i> " . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . "</span>";
+  $html .= "<span class='antrian-rekap-group__label'>" . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . "</span>";
   $html .= "<span class='antrian-rekap-group__total'>" . htmlspecialchars($totalShow, ENT_QUOTES, 'UTF-8') . "</span>";
   $html .= "</div><div class='antrian-rekap-group__items'>";
 
   foreach ($items as $layanan => $qty) {
-    $qtyShow = (fmod((float) $qty, 1) == 0.0) ? (string) intval($qty) : rtrim(rtrim(number_format((float) $qty, 2, '.', ''), '0'), '.');
+    $qtyShow = (string) (int) round((float) $qty);
     $html .= "<span class='antrian-rekap-item'>" . htmlspecialchars((string) $layanan, ENT_QUOTES, 'UTF-8') . " <b>" . htmlspecialchars($qtyShow, ENT_QUOTES, 'UTF-8') . "</b></span>";
   }
 
@@ -668,12 +668,12 @@ $buildRekapGroup = function ($tone, $label, $icon, $items, $filterMode = null) {
 };
 
 $groupsHtml = "";
-$groupsHtml .= $buildRekapGroup('miss', 'Terlewat', 'fa-exclamation-triangle', $arrRekapAntrianMiss, 3);
-$groupsHtml .= $buildRekapGroup('today', 'Hari ini', 'fa-bolt', $arrRekapAntrianToday, 1);
-$groupsHtml .= $buildRekapGroup('rak', 'Rak', 'fa-archive', $arrRekapAntrianRak, 4);
-$groupsHtml .= $buildRekapGroup('besok', 'Besok', 'fa-calendar-day', $arrRekapAntrianBesok, 2);
-$groupsHtml .= $buildRekapGroup('kerja', 'Kerja', 'fa-tasks', $arrRekapAntrianKerja, 5);
-$groupsHtml .= $buildRekapGroup('antri', 'Antrian', 'fa-layer-group', $arrRekapAntrian, null);
+$groupsHtml .= $buildRekapGroup('miss', 'LEWAT', $arrRekapAntrianMiss, 3);
+$groupsHtml .= $buildRekapGroup('today', 'TODAY', $arrRekapAntrianToday, 1);
+$groupsHtml .= $buildRekapGroup('rak', 'RAK', $arrRekapAntrianRak, 4);
+$groupsHtml .= $buildRekapGroup('besok', 'ESOK', $arrRekapAntrianBesok, 2);
+$groupsHtml .= $buildRekapGroup('kerja', 'WORK', $arrRekapAntrianKerja, 5);
+$groupsHtml .= $buildRekapGroup('antri', 'ANTRI', $arrRekapAntrian, null);
 
 if ($groupsHtml !== "") {
   $listAntri = "<div class='antrian-rekap-board'>" . $groupsHtml . "</div>";
