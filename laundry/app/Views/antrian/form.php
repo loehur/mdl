@@ -111,18 +111,17 @@
   .antrian-rekap-board {
     display: flex;
     flex-wrap: wrap;
-    gap: 3px 8px;
+    gap: 3px;
     align-items: center;
   }
   .antrian-rekap-group {
     display: inline-flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 2px 4px;
+    gap: 0;
     max-width: 100%;
-    padding: 0 8px 0 0;
+    padding: 0;
     border: 0;
-    border-right: 1px solid #94a3b8;
     background: transparent;
   }
   .antrian-rekap-group:last-child {
@@ -169,10 +168,7 @@
     color: #fff;
   }
   .antrian-rekap-group__items {
-    display: inline-flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 2px 5px;
+    display: none;
   }
   .antrian-rekap-item {
     display: inline-flex;
@@ -193,12 +189,6 @@
     font-size: 12px;
     font-weight: 700;
   }
-  .antrian-rekap-group--today { border-right-color: #ea580c; }
-  .antrian-rekap-group--rak { border-right-color: #dc2626; }
-  .antrian-rekap-group--miss { border-right-color: #e11d48; }
-  .antrian-rekap-group--besok { border-right-color: #2563eb; }
-  .antrian-rekap-group--kerja { border-right-color: #0891b2; }
-  .antrian-rekap-group--antri { border-right-color: #16a34a; }
   .antrian-rekap-group--today .antrian-rekap-group__head { background: #c2410c; }
   .antrian-rekap-group--rak .antrian-rekap-group__head { background: #b91c1c; }
   .antrian-rekap-group--miss .antrian-rekap-group__head { background: #9f1239; }
