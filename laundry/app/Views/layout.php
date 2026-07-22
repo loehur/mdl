@@ -153,16 +153,20 @@ if (isset($data['data_operasi'])) {
             flex: 1 1 auto;
             min-width: 0;
             font-size: 0.82em;
-            font-weight: 700;
-            color: #0d1117;
+            font-weight: 500 !important;
+            color: #0f172a !important;
             white-space: nowrap;
             line-height: 1.2;
             margin-left: auto;
             text-align: right;
         }
+        .content-wrapper .mdl-nota-head__right span {
+            font-weight: 500 !important;
+            color: #0f172a !important;
+        }
         .content-wrapper .mdl-nota-head__right i {
             opacity: 1;
-            color: #0d1117;
+            color: #0f172a;
         }
         .content-wrapper .mdl-nota-head__wa {
             margin-left: 2px;

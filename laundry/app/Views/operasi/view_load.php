@@ -73,7 +73,7 @@ $labeled = false;
 
       $cs_penerima = $data['users'][$f18]['nama_user'];
       $cs_code = strtoupper(substr($cs_penerima, 0, 2)) . substr($f18, -1);
-      $tgl_terima = date('d/m H:i', strtotime($f1));
+      $tgl_terima = date('d/m/Y H:i', strtotime($f1));
 
       $buttonNotif_londri = "<a href='#' data-urutRef='" . $ref . "' data-hp='" . $no_pelanggan . "' data-ref='" . $ref . "' data-time='" . $timeRef . "' class='mdl-nota-chip mdl-nota-chip--wa mdl-nota-chip--icon sendNotif' title='Kirim WA'><i class='fab fa-whatsapp'></i><span id='notif" . $ref . "'></span></a>";
       foreach ($data['notif_bon'] as $notif) {
@@ -113,7 +113,6 @@ $labeled = false;
               </span>
             </div>
             <div class="mdl-nota-head__right">
-              <i class="fas fa-check-circle"></i>
               <span><?= htmlspecialchars($cs_penerima, ENT_QUOTES, 'UTF-8') ?></span>
               <span><?= $tgl_terima ?></span>
             </div>
@@ -978,7 +977,6 @@ $labeled = false;
                 </span>
               </div>
               <div class="mdl-nota-head__right">
-                <i class="fas fa-check-circle"></i>
                 <span><?= htmlspecialchars($cs, ENT_QUOTES, 'UTF-8') ?></span>
               </div>
             </div>

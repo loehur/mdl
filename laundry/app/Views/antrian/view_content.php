@@ -231,7 +231,7 @@ if (count($data['data_main']) == 0) {
                 : 'mdl-nota-chip--ok';
             }
           }
-          $tgl_terima = date('d/m H:i', strtotime($f1));
+          $tgl_terima = date('d/m/Y H:i', strtotime($f1));
         ?>
         <div class="mdl-nota-head <?= $classHead ?> row<?= $ref ?>">
           <div class="mdl-nota-head__top">
