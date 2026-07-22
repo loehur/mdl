@@ -131,41 +131,23 @@
   .antrian-rekap-group__head {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    justify-content: center;
     height: 26px;
     padding: 0 10px;
     color: #fff;
     flex: 0 0 auto;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    line-height: 1;
+    text-transform: uppercase;
+    white-space: nowrap;
   }
   .antrian-rekap-group.is-clickable {
     cursor: pointer;
   }
   .antrian-rekap-group.is-clickable:hover .antrian-rekap-group__head {
     filter: brightness(1.08);
-  }
-  .antrian-rekap-group__label {
-    display: inline-flex;
-    align-items: center;
-    font-size: 13px;
-    font-weight: 500;
-    letter-spacing: 0.01em;
-    text-transform: uppercase;
-    white-space: nowrap;
-    color: #fff;
-  }
-  .antrian-rekap-group__total {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 14px;
-    height: auto;
-    padding: 0;
-    background: transparent;
-    border: 0;
-    font-size: 13px;
-    font-weight: 600;
-    line-height: 1;
-    color: #fff;
   }
   .antrian-rekap-group__items {
     display: none;

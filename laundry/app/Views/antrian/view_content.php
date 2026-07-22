@@ -655,8 +655,7 @@ $buildRekapGroup = function ($tone, $label, $items, $filterMode = null) {
   }
   $html .= ">";
   $html .= "<div class='antrian-rekap-group__head'>";
-  $html .= "<span class='antrian-rekap-group__label'>" . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . "</span>";
-  $html .= "<span class='antrian-rekap-group__total'>" . htmlspecialchars($totalShow, ENT_QUOTES, 'UTF-8') . "</span>";
+  $html .= htmlspecialchars($label . ' ' . $totalShow, ENT_QUOTES, 'UTF-8');
   $html .= "</div><div class='antrian-rekap-group__items'>";
 
   foreach ($items as $layanan => $qty) {
