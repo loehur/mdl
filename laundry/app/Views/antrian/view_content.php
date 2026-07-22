@@ -650,7 +650,8 @@ $buildRekapGroup = function ($tone, $label, $items, $filterMode = null) {
 
   $html = "<div class='" . $groupClass . "'";
   if ($clickable) {
-    $html .= " onclick='filterDeadline(" . (int) $filterMode . ")' title='Filter " . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . "'";
+    $title = ((int) $filterMode === 0) ? 'Tampilkan semua' : ('Filter ' . $label);
+    $html .= " onclick='filterDeadline(" . (int) $filterMode . ")' title='" . htmlspecialchars($title, ENT_QUOTES, 'UTF-8') . "'";
   }
   $html .= ">";
   $html .= "<div class='antrian-rekap-group__head'>";
@@ -673,7 +674,7 @@ $groupsHtml .= $buildRekapGroup('today', 'TODAY', $arrRekapAntrianToday, 1);
 $groupsHtml .= $buildRekapGroup('rak', 'RAK', $arrRekapAntrianRak, 4);
 $groupsHtml .= $buildRekapGroup('besok', 'ESOK', $arrRekapAntrianBesok, 2);
 $groupsHtml .= $buildRekapGroup('kerja', 'WORK', $arrRekapAntrianKerja, 5);
-$groupsHtml .= $buildRekapGroup('antri', 'ANTRI', $arrRekapAntrian, null);
+$groupsHtml .= $buildRekapGroup('antri', 'ANTRI', $arrRekapAntrian, 0);
 
 if ($groupsHtml !== "") {
   $listAntri = "<div class='antrian-rekap-board'>" . $groupsHtml . "</div>";
@@ -698,6 +699,10 @@ if ($groupsHtml !== "") {
   })
 
   function filterDeadline(mode) {
+    if (mode === 0) {
+      $("div.backShow").removeClass('d-none');
+      return;
+    }
     $("div.backShow").addClass('d-none');
     view[mode].forEach(filterFunction);
   }

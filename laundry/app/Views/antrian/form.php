@@ -131,9 +131,9 @@
   .antrian-rekap-group__head {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    height: 22px;
-    padding: 0 7px;
+    gap: 5px;
+    height: 26px;
+    padding: 0 10px;
     color: #fff;
     flex: 0 0 auto;
   }
@@ -146,8 +146,8 @@
   .antrian-rekap-group__label {
     display: inline-flex;
     align-items: center;
-    font-size: 12px;
-    font-weight: 600;
+    font-size: 13px;
+    font-weight: 500;
     letter-spacing: 0.01em;
     text-transform: uppercase;
     white-space: nowrap;
@@ -162,8 +162,8 @@
     padding: 0;
     background: transparent;
     border: 0;
-    font-size: 12px;
-    font-weight: 700;
+    font-size: 13px;
+    font-weight: 600;
     line-height: 1;
     color: #fff;
   }
@@ -179,15 +179,15 @@
     background: transparent;
     color: #0f172a;
     font-family: 'fontku', sans-serif;
-    font-size: 12px;
-    font-weight: 600;
+    font-size: 13px;
+    font-weight: 500;
     line-height: 1.2;
     white-space: nowrap;
   }
   .antrian-rekap-item b {
     color: #020617;
-    font-size: 12px;
-    font-weight: 700;
+    font-size: 13px;
+    font-weight: 600;
   }
   .antrian-rekap-group--today .antrian-rekap-group__head { background: #c2410c; }
   .antrian-rekap-group--rak .antrian-rekap-group__head { background: #b91c1c; }
