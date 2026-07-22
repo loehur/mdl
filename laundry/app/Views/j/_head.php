@@ -26,13 +26,13 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/fontawesome-free-5.15.4-web/css/all.css">
-  <link rel="stylesheet" href="<?= $assets ?>css/j-customer.css?v=10">
+  <link rel="stylesheet" href="<?= $assets ?>css/j-customer.css?v=26">
 </head>
 <body>
 <div class="j-app">
   <header class="j-top">
     <div class="j-top-row">
-      <img class="j-logo" src="<?= $assets ?>icon/logo.png" alt="MDL">
+      <span class="j-logo" aria-hidden="true"><i class="fas fa-tshirt"></i></span>
       <div class="j-brand-text">
         <strong>MDL - <?= htmlspecialchars($kodeCabang) ?></strong>
         <span><?= strtoupper(htmlspecialchars($p['nama_pelanggan'])) ?></span>
