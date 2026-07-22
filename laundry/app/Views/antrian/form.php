@@ -101,7 +101,7 @@
   .antrian-period.is-active[data-tone="cyan"] { background: #0e7490; color: #fff; }
 
   .antrian-rekap {
-    margin-top: 10px;
+    margin-top: 8px;
     min-height: 0;
     color: #334155;
   }
@@ -111,27 +111,28 @@
   .antrian-rekap-board {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 5px;
   }
   .antrian-rekap-group {
-    display: flex;
-    flex-direction: column;
-    min-width: min(100%, 220px);
-    flex: 1 1 220px;
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px 6px;
+    max-width: 100%;
+    padding: 4px 6px 4px 4px;
     border: 1px solid #d5dde6;
     background: #fff;
   }
   .antrian-rekap-group__head {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 7px 10px;
-    border-bottom: 1px solid #e2e8f0;
+    gap: 5px;
+    height: 24px;
+    padding: 0 7px;
     color: #fff;
-    cursor: default;
+    flex: 0 0 auto;
   }
-  .antrian-rekap-group.is-clickable .antrian-rekap-group__head {
+  .antrian-rekap-group.is-clickable {
     cursor: pointer;
   }
   .antrian-rekap-group.is-clickable:hover {
@@ -140,61 +141,53 @@
   .antrian-rekap-group__label {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    font-size: 12px;
+    gap: 4px;
+    font-size: 11px;
     font-weight: 800;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.01em;
     text-transform: uppercase;
+    white-space: nowrap;
   }
   .antrian-rekap-group__label i {
-    font-size: 11px;
+    font-size: 10px;
     opacity: 0.9;
   }
   .antrian-rekap-group__total {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 28px;
-    height: 22px;
-    padding: 0 7px;
+    min-width: 18px;
+    height: 16px;
+    padding: 0 4px;
     background: rgba(255,255,255,.22);
     border: 1px solid rgba(255,255,255,.35);
-    font-size: 13px;
+    font-size: 11px;
     font-weight: 800;
     line-height: 1;
   }
   .antrian-rekap-group__items {
-    display: flex;
+    display: inline-flex;
     flex-wrap: wrap;
-    gap: 5px;
-    padding: 8px 9px;
-    background: #f8fafc;
+    align-items: center;
+    gap: 3px;
   }
   .antrian-rekap-item {
     display: inline-flex;
     align-items: baseline;
-    gap: 5px;
-    padding: 4px 8px;
-    border: 1px solid #d5dde6;
-    background: #fff;
-    color: #334155;
+    gap: 3px;
+    padding: 2px 6px;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    color: #475569;
     font-family: 'fontku', sans-serif;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 700;
     line-height: 1.2;
-    cursor: default;
-  }
-  .antrian-rekap-group.is-clickable .antrian-rekap-item {
-    cursor: pointer;
-  }
-  .antrian-rekap-group.is-clickable .antrian-rekap-item:hover {
-    border-color: #64748b;
-    background: #fff;
-    color: #0f172a;
+    white-space: nowrap;
   }
   .antrian-rekap-item b {
     color: #0f172a;
-    font-size: 13px;
+    font-size: 11px;
     font-weight: 800;
   }
   .antrian-rekap-group--today .antrian-rekap-group__head { background: #c2410c; }
