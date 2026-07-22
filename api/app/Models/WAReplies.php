@@ -3195,7 +3195,7 @@ class WAReplies
                     }
 
                     $statusText = implode("\n\n", $statusBlocks);
-                    $text = "*" . $nama_pelanggan . ",*\nStatus Laundry:\n" . rtrim($list_link) . "\n\n" . $statusText;
+                    $text = "*" . $nama_pelanggan . ",*\n" . rtrim($list_link) . "\n\n" . $statusText;
                     $res = $waService->sendFreeText($waNumber, $text);
                     if ($res['success']) {
                         $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
