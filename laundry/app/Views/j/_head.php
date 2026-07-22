@@ -15,8 +15,8 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
   <title><?= htmlspecialchars($title) ?> · <?= strtoupper($p['nama_pelanggan']) ?></title>
-  <link rel="icon" href="<?= $assets ?>icon/logo.png">
-  <link rel="apple-touch-icon" href="<?= $assets ?>icon/logo.png">
+  <link rel="icon" href="<?= $assets ?>icon/j-icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="<?= $assets ?>icon/j-icon.svg">
   <link rel="manifest" href="<?= $base ?>J/manifest/<?= $id ?>">
   <meta name="theme-color" content="#0B3D3A">
   <meta name="apple-mobile-web-app-capable" content="yes">
