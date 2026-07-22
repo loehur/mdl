@@ -12,7 +12,7 @@ $layananOk = !empty($data['layanan_ok']);
     <div class="fw-bold">Antri Setrika/Pack — Ringkasan per Cabang</div>
   </div>
   <div class="card-body p-0 table-responsive">
-    <table class="table table-sm table-hover mb-0 dash-table">
+    <table class="table table-sm table-striped table-hover mb-0 dash-table">
       <thead class="table-light">
         <tr>
           <th class="ps-3">Cabang</th>
