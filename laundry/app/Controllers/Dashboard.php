@@ -43,8 +43,15 @@ class Dashboard extends Controller
             $sales = [];
          }
 
+         $operasiDone = $this->operasiDoneMap($sales);
+
          foreach ($sales as $sale) {
             if (!$this->listLayananContains((string) ($sale['list_layanan'] ?? ''), $idCuci)) {
+               continue;
+            }
+
+            // Tidak hitung jika layanan paling akhir sudah ceklist
+            if ($this->isEndLayananDone($sale, $operasiDone)) {
                continue;
             }
 
@@ -97,27 +104,7 @@ class Dashboard extends Controller
             $sales = [];
          }
 
-         $ids = [];
-         foreach ($sales as $sale) {
-            if (isset($sale['id_penjualan'])) {
-               $ids[] = (int) $sale['id_penjualan'];
-            }
-         }
-
-         $operasiDone = [];
-         if (count($ids) > 0) {
-            $inIds = implode(',', $ids);
-            $operasiRows = $this->db(0)->get_where(
-               'operasi',
-               "id_penjualan IN ($inIds) AND jenis_operasi = " . (int) $idSetrika
-            );
-            if (!is_array($operasiRows)) {
-               $operasiRows = [];
-            }
-            foreach ($operasiRows as $op) {
-               $operasiDone[(int) $op['id_penjualan']] = true;
-            }
-         }
+         $operasiDone = $this->operasiDoneMap($sales);
 
          foreach ($sales as $sale) {
             $list = $this->unserializeLayanan((string) ($sale['list_layanan'] ?? ''));
@@ -130,13 +117,8 @@ class Dashboard extends Controller
                continue;
             }
 
-            $idPenjualan = (int) ($sale['id_penjualan'] ?? 0);
-            $letak = trim((string) ($sale['letak'] ?? ''));
-            $setrikaDone = isset($operasiDone[$idPenjualan]);
-
-            $isPending = !$setrikaDone;
-            $isRak = $setrikaDone && $letak === '';
-            if (!$isPending && !$isRak) {
+            // Tidak hitung jika layanan paling akhir sudah ceklist
+            if ($this->isEndLayananDone($sale, $operasiDone)) {
                continue;
             }
 
@@ -248,6 +230,49 @@ class Dashboard extends Controller
    {
       $list = $this->unserializeLayanan($raw);
       return in_array((int) $idLayanan, $list, true);
+   }
+
+   /**
+    * Map operasi selesai: "id_penjualan|jenis_operasi" => true
+    */
+   private function operasiDoneMap($sales)
+   {
+      $map = [];
+      $ids = [];
+      if (!is_array($sales)) {
+         return $map;
+      }
+      foreach ($sales as $sale) {
+         if (isset($sale['id_penjualan'])) {
+            $ids[(int) $sale['id_penjualan']] = true;
+         }
+      }
+      if (count($ids) === 0) {
+         return $map;
+      }
+
+      $inIds = implode(',', array_keys($ids));
+      $operasiRows = $this->db(0)->get_where('operasi', "id_penjualan IN ($inIds)");
+      if (!is_array($operasiRows)) {
+         return $map;
+      }
+
+      foreach ($operasiRows as $op) {
+         $key = (int) ($op['id_penjualan'] ?? 0) . '|' . (int) ($op['jenis_operasi'] ?? 0);
+         $map[$key] = true;
+      }
+      return $map;
+   }
+
+   private function isEndLayananDone($sale, $operasiDone)
+   {
+      $list = $this->unserializeLayanan((string) ($sale['list_layanan'] ?? ''));
+      if (count($list) === 0) {
+         return false;
+      }
+      $endLayanan = (int) end($list);
+      $idPenjualan = (int) ($sale['id_penjualan'] ?? 0);
+      return isset($operasiDone[$idPenjualan . '|' . $endLayanan]);
    }
 
    private function deadlineDate($insertTime, $hari, $jam)

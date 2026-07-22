@@ -8,9 +8,8 @@ $layananOk = !empty($data['layanan_ok']);
 <?php } ?>
 
 <div class="card dash-card shadow-sm border-0">
-  <div class="card-header py-2 px-3 d-flex justify-content-between align-items-center">
+  <div class="card-header py-2 px-3">
     <div class="fw-bold">Antri Cuci — Ringkasan per Cabang</div>
-    <small class="text-muted">Order mengandung Cuci · by tanggal order</small>
   </div>
   <div class="card-body p-0 table-responsive">
     <table class="table table-sm table-hover mb-0 dash-table">
