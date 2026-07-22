@@ -3185,8 +3185,13 @@ class WAReplies
                         }
                         $statusBlocks[] = $block;
                     }
-                    foreach ($completedItems as $item) {
-                        $statusBlocks[] = "#" . $item['id'] . " Selesai";
+                    // Selesai digabung satu blok (tanpa baris kosong antar item)
+                    if (count($completedItems) > 0) {
+                        $selesaiLines = [];
+                        foreach ($completedItems as $item) {
+                            $selesaiLines[] = "#" . $item['id'] . " Selesai";
+                        }
+                        $statusBlocks[] = implode("\n", $selesaiLines);
                     }
 
                     $statusText = implode("\n\n", $statusBlocks);
