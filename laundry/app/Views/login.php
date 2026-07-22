@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="utf-8">
-    <link rel="icon" href="<?= URL::EX_ASSETS ?>icon/logo.png">
+    <link rel="icon" href="<?= URL::IN_ASSETS ?>icon/j-icon.svg" type="image/svg+xml">
     <?php require_once __DIR__ . '/pwa_head.php'; ?>
     <title>MDL Laundry — Login</title>
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">

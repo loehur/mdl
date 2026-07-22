@@ -2,8 +2,7 @@ var BASE = new URL('../', self.location).href;
 var CACHE_NAME = 'mdl-laundry-v1';
 var PRECACHE = [
   BASE + 'Pwa/manifest',
-  BASE + 'in_assets/icon/icon-192.png',
-  BASE + 'in_assets/icon/logo.png'
+  BASE + 'in_assets/icon/j-icon.svg'
 ];
 
 self.addEventListener('install', function (event) {

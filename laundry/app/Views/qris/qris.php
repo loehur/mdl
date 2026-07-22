@@ -7,7 +7,7 @@ $qrisUrl = $data['qris_url'] ?? '';
    <meta charset="utf-8">
    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
    <title>QRIS Pembayaran | Madinah Laundry</title>
-   <link rel="icon" href="<?= URL::IN_ASSETS ?>icon/logo.png">
+   <link rel="icon" href="<?= URL::IN_ASSETS ?>icon/j-icon.svg" type="image/svg+xml">
    <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
       body {

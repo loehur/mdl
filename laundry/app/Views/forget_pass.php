@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>MDL | Lupa Password</title>
 
-    <link rel="icon" href="<?= URL::EX_ASSETS ?>icon/logo.png">
+    <link rel="icon" href="<?= URL::IN_ASSETS ?>icon/j-icon.svg" type="image/svg+xml">
     <script src="<?= URL::EX_ASSETS ?>js/jquery-3.6.0.min.js"></script>
 
     <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,700&amp;display=fallback">
