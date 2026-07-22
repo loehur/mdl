@@ -16,10 +16,10 @@ $modeOperasi = (int) $data['mode'];
   }
   .operasi-filter-card {
     background: #fff;
-    border: 1px solid #dde3ea;
-    border-radius: 12px;
-    box-shadow: 0 4px 14px rgba(30, 41, 59, 0.08);
-    padding: 10px 12px;
+    border: 2px solid #94a3b8;
+    border-radius: 10px;
+    box-shadow: 0 2px 5px rgba(15, 23, 42, 0.14);
+    padding: 14px 16px;
   }
   .operasi-filter-row {
     display: flex;
@@ -29,11 +29,11 @@ $modeOperasi = (int) $data['mode'];
   .operasi-field-label {
     display: block;
     margin: 0;
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 800;
     letter-spacing: 0.03em;
     text-transform: uppercase;
-    color: #64748b;
+    color: #334155;
   }
   .operasi-controls {
     display: flex;
@@ -50,25 +50,25 @@ $modeOperasi = (int) $data['mode'];
     align-items: center;
     gap: 6px;
     flex: 0 0 auto;
-    height: 36px;
+    height: 44px;
   }
   .operasi-btn {
     box-sizing: border-box;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    height: 36px;
-    min-height: 36px;
-    max-height: 36px;
-    min-width: 42px;
-    padding: 0 12px;
+    height: 44px;
+    min-height: 44px;
+    max-height: 44px;
+    min-width: 48px;
+    padding: 0 15px;
     margin: 0;
-    border-radius: 9px;
-    border: 1.5px solid #d5dde6;
-    background: #f8fafc;
-    color: #334155;
+    border-radius: 8px;
+    border: 2px solid #94a3b8;
+    background: #fff;
+    color: #1e293b;
     font-family: 'fontku', sans-serif;
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 800;
     line-height: 1;
     text-decoration: none;
@@ -77,8 +77,8 @@ $modeOperasi = (int) $data['mode'];
     transition: background .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease;
   }
   .operasi-btn:hover {
-    background: #fff;
-    border-color: #94a3b8;
+    background: #f1f5f9;
+    border-color: #475569;
     color: #0f172a;
     text-decoration: none;
   }
@@ -105,31 +105,31 @@ $modeOperasi = (int) $data['mode'];
 
   /* Selectize height align — sama persis 36px dengan tombol */
   .operasi-filter .selectize-control {
-    height: 36px !important;
+    height: 44px !important;
   }
   .operasi-filter .selectize-control.single .selectize-input {
     box-sizing: border-box !important;
     display: flex !important;
     align-items: center !important;
-    min-height: 36px !important;
-    height: 36px !important;
-    max-height: 36px !important;
-    padding: 0 12px !important;
+    min-height: 44px !important;
+    height: 44px !important;
+    max-height: 44px !important;
+    padding: 0 14px !important;
     line-height: 1 !important;
-    border: 1.5px solid #d5dde6 !important;
-    border-radius: 9px !important;
-    background: #f8fafc !important;
+    border: 2px solid #94a3b8 !important;
+    border-radius: 8px !important;
+    background: #fff !important;
     box-shadow: none !important;
-    font-size: 13px !important;
-    font-weight: 600;
+    font-size: 15px !important;
+    font-weight: 700;
     overflow: hidden !important;
   }
   .operasi-filter .selectize-control.single .selectize-input > * {
     line-height: 1 !important;
   }
   .operasi-filter .selectize-control.single .selectize-input input {
-    height: 20px !important;
-    line-height: 20px !important;
+    height: 24px !important;
+    line-height: 24px !important;
   }
   .operasi-filter .selectize-control.single .selectize-input.focus {
     border-color: #3b82f6 !important;
@@ -137,9 +137,9 @@ $modeOperasi = (int) $data['mode'];
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15) !important;
   }
   .operasi-filter .selectize-dropdown {
-    border-radius: 10px;
-    border-color: #d5dde6;
-    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+    border-radius: 8px;
+    border: 2px solid #94a3b8;
+    box-shadow: 0 6px 12px rgba(15, 23, 42, 0.16);
   }
 
   .operasi-subrow {
@@ -152,23 +152,24 @@ $modeOperasi = (int) $data['mode'];
   .operasi-periods {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 3px;
-    background: #e8eef5;
-    border-radius: 9px;
+    gap: 5px;
+    padding: 4px;
+    background: #e2e8f0;
+    border: 1px solid #94a3b8;
+    border-radius: 8px;
   }
   .operasi-period {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    height: 30px;
-    padding: 0 12px;
-    border-radius: 7px;
+    height: 38px;
+    padding: 0 16px;
+    border-radius: 6px;
     border: 0;
     background: transparent;
-    color: #64748b;
+    color: #334155;
     font-family: 'fontku', sans-serif;
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 800;
     text-decoration: none;
     white-space: nowrap;
@@ -176,7 +177,7 @@ $modeOperasi = (int) $data['mode'];
   }
   .operasi-period:hover {
     color: #1e293b;
-    background: rgba(255,255,255,.55);
+    background: #fff;
     text-decoration: none;
   }
   .operasi-year-nav {
@@ -186,10 +187,10 @@ $modeOperasi = (int) $data['mode'];
   }
   .operasi-year-btn {
     box-sizing: border-box;
-    width: 34px;
-    height: 34px;
-    border-radius: 9px;
-    border: 1.5px solid #d5dde6;
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    border: 2px solid #94a3b8;
     background: #fff;
     color: #475569;
     cursor: pointer;
@@ -209,14 +210,14 @@ $modeOperasi = (int) $data['mode'];
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 72px;
-    height: 34px;
-    padding: 0 14px;
-    border-radius: 9px;
+    min-width: 82px;
+    height: 40px;
+    padding: 0 16px;
+    border-radius: 8px;
     background: #2563eb;
     color: #fff;
     font-weight: 800;
-    font-size: 14px;
+    font-size: 16px;
   }
 
   #load.operasi-load {
