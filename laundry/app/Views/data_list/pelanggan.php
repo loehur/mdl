@@ -20,7 +20,7 @@ $canEditPartner = ((int) $this->id_privilege === 100);
     --j-amber: #E9A319;
     --j-coral: #E76F51;
     --j-muted: #5a6a7c;
-    --j-radius: 16px;
+    --j-radius: 0;
     --j-font: "Plus Jakarta Sans", "fontku", "Segoe UI", sans-serif;
 
     font-family: var(--j-font);
@@ -58,7 +58,7 @@ $canEditPartner = ((int) $this->id_privilege === 100);
     width: 100%;
     border: 1px solid var(--j-line);
     background: #fff;
-    border-radius: 10px;
+    border-radius: 0;
     padding: 8px 10px;
     font-family: inherit;
     font-size: 0.92rem;
@@ -91,7 +91,7 @@ $canEditPartner = ((int) $this->id_privilege === 100);
     gap: 6px;
     width: 100%;
     border: 0;
-    border-radius: 10px;
+    border-radius: 0;
     padding: 9px 12px;
     background: linear-gradient(145deg, #2f61bc 0%, #3f74d4 100%);
     color: #F8FBFF;
@@ -167,7 +167,7 @@ $canEditPartner = ((int) $this->id_privilege === 100);
     font-size: 0.72rem;
     font-weight: 650;
     padding: 3px 7px;
-    border-radius: 999px;
+    border-radius: 0;
     white-space: nowrap;
     background: #EEF2F7;
     color: var(--j-muted);
@@ -179,7 +179,7 @@ $canEditPartner = ((int) $this->id_privilege === 100);
 
   #plg-root .plg-edit {
     cursor: text;
-    border-radius: 4px;
+    border-radius: 0;
     padding: 0 1px;
   }
   #plg-root .plg-edit:hover {
@@ -192,7 +192,7 @@ $canEditPartner = ((int) $this->id_privilege === 100);
     max-width: 100%;
     padding: 3px 7px;
     border: 1px solid var(--j-mint);
-    border-radius: 7px;
+    border-radius: 0;
     font-family: inherit;
     font-size: 0.92rem;
     font-weight: 650;
