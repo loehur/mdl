@@ -16,7 +16,7 @@ $layananOk = !empty($data['layanan_ok']);
       <thead class="table-light">
         <tr>
           <th class="ps-3">Cabang</th>
-          <th class="text-end">Lewat</th>
+          <th class="text-end">Prioritas</th>
           <th class="text-end">Hari Ini</th>
           <th class="text-end pe-3">Besok</th>
         </tr>
@@ -30,7 +30,7 @@ $layananOk = !empty($data['layanan_ok']);
           foreach ($rows as $row) { ?>
             <tr>
               <td class="ps-3 fw-semibold"><?= htmlspecialchars($row['label'], ENT_QUOTES, 'UTF-8') ?></td>
-              <td class="text-end"><span class="dash-qty"><?= htmlspecialchars($this->fmtDecMax2($row['lewat_qty']), ENT_QUOTES, 'UTF-8') ?></span></td>
+              <td class="text-end"><span class="dash-qty"><?= htmlspecialchars($this->fmtDecMax2($row['prioritas_qty'] ?? 0), ENT_QUOTES, 'UTF-8') ?></span></td>
               <td class="text-end"><span class="dash-qty"><?= htmlspecialchars($this->fmtDecMax2($row['today_qty']), ENT_QUOTES, 'UTF-8') ?></span></td>
               <td class="text-end pe-3"><span class="dash-qty"><?= htmlspecialchars($this->fmtDecMax2($row['besok_qty']), ENT_QUOTES, 'UTF-8') ?></span></td>
             </tr>

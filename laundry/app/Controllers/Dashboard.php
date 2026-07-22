@@ -97,7 +97,7 @@ class Dashboard extends Controller
          $rows[$idCabang] = [
             'id_cabang' => $idCabang,
             'label' => $this->cabangKode($cabangMap[$idCabang]),
-            'lewat_qty' => 0.0,
+            'prioritas_qty' => 0.0,
             'today_qty' => 0.0,
             'besok_qty' => 0.0,
          ];
@@ -139,10 +139,8 @@ class Dashboard extends Controller
             }
 
             $bucket = null;
-            if ($deadlineDate < $today) {
-               $bucket = 'lewat_qty';
-            } elseif ($deadlineDate === $today) {
-               $bucket = 'today_qty';
+            if ($deadlineDate <= $today) {
+               $bucket = 'today_qty'; // termasuk terlewat
             } elseif ($deadlineDate === $tomorrow) {
                $bucket = 'besok_qty';
             }
@@ -155,14 +153,20 @@ class Dashboard extends Controller
                continue;
             }
 
-            $rows[$idCabang][$bucket] += round((float) ($sale['qty'] ?? 0), 2);
+            $qty = round((float) ($sale['qty'] ?? 0), 2);
+            $rows[$idCabang][$bucket] += $qty;
+
+            // Prioritas: durasi deadline (hari + jam) < 2 hari
+            if ($this->isDeadlinePrioritas((int) ($sale['hari'] ?? 0), (int) ($sale['jam'] ?? 0))) {
+               $rows[$idCabang]['prioritas_qty'] += $qty;
+            }
          }
       }
 
       $outRows = array_values($rows);
       usort($outRows, function ($a, $b) {
-         $aScore = $a['lewat_qty'] + $a['today_qty'] + $a['besok_qty'];
-         $bScore = $b['lewat_qty'] + $b['today_qty'] + $b['besok_qty'];
+         $aScore = $a['prioritas_qty'] + $a['today_qty'] + $a['besok_qty'];
+         $bScore = $b['prioritas_qty'] + $b['today_qty'] + $b['besok_qty'];
          if ($aScore == $bScore) {
             return strcasecmp($a['label'], $b['label']);
          }
