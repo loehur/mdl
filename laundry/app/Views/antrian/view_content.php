@@ -632,42 +632,51 @@ if (count($data['data_main']) == 0) {
 <?php
 $listAntri = "";
 
-if (count($arrRekapAntrianToday) > 0) {
-  $listAntri .= "<b>Hari ini: </b>";
-  foreach ($arrRekapAntrianToday as $key => $val) {
-    $listAntri .= "<span class='antrian-chip antrian-chip--today' onclick='filterDeadline(1)'>" . $key . " " . $val . ", </span>";
+$buildRekapGroup = function ($tone, $label, $icon, $items, $filterMode = null) {
+  if (!is_array($items) || count($items) === 0) {
+    return "";
   }
-}
-if (count($arrRekapAntrianRak) > 0) {
-  $listAntri .= "<b>Rak: </b>";
-  foreach ($arrRekapAntrianRak as $key => $val) {
-    $listAntri .= "<span class='antrian-chip antrian-chip--rak' onclick='filterDeadline(4)'>" . $key . " " . $val . ", </span>";
-  }
-}
-if (count($arrRekapAntrianMiss) > 0) {
-  $listAntri .= "<b>Terlewat: </b>";
-  foreach ($arrRekapAntrianMiss as $key => $val) {
-    $listAntri .= "<span class='antrian-chip antrian-chip--miss' onclick='filterDeadline(3)'>" . $key . " " . $val . ", </span>";
-  }
-}
 
-if (count($arrPelangganBesok) > 0) {
-  $listAntri .= "<b>Besok: </b>";
-  foreach ($arrRekapAntrianBesok as $key => $val) {
-    $listAntri .= "<span class='antrian-chip antrian-chip--besok' onclick='filterDeadline(2)'>" . $key . " " . $val . ", </span>";
+  $total = 0;
+  foreach ($items as $qty) {
+    $total += (float) $qty;
   }
-}
-if (count($arrPelangganKerja) > 0) {
-  $listAntri .= "<b>Kerja: </b>";
-  foreach ($arrRekapAntrianKerja as $key => $val) {
-    $listAntri .= "<span class='antrian-chip antrian-chip--kerja' onclick='filterDeadline(5)'>" . $key . " " . $val . ", </span>";
+  $totalShow = (fmod($total, 1) == 0.0) ? (string) intval($total) : rtrim(rtrim(number_format($total, 2, '.', ''), '0'), '.');
+  $clickable = ($filterMode !== null);
+  $groupClass = 'antrian-rekap-group antrian-rekap-group--' . htmlspecialchars($tone, ENT_QUOTES, 'UTF-8');
+  if ($clickable) {
+    $groupClass .= ' is-clickable';
   }
-}
-if (count($arrRekapAntrian) > 0) {
-  $listAntri .= "<b>Antrian: </b>";
-  foreach ($arrRekapAntrian as $key => $val) {
-    $listAntri .= "<span class='antrian-chip antrian-chip--antri'>" . $key . " " . $val . ", </span>";
+
+  $html = "<div class='" . $groupClass . "'";
+  if ($clickable) {
+    $html .= " onclick='filterDeadline(" . (int) $filterMode . ")' title='Filter " . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . "'";
   }
+  $html .= ">";
+  $html .= "<div class='antrian-rekap-group__head'>";
+  $html .= "<span class='antrian-rekap-group__label'><i class='fas " . htmlspecialchars($icon, ENT_QUOTES, 'UTF-8') . "'></i> " . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . "</span>";
+  $html .= "<span class='antrian-rekap-group__total'>" . htmlspecialchars($totalShow, ENT_QUOTES, 'UTF-8') . "</span>";
+  $html .= "</div><div class='antrian-rekap-group__items'>";
+
+  foreach ($items as $layanan => $qty) {
+    $qtyShow = (fmod((float) $qty, 1) == 0.0) ? (string) intval($qty) : rtrim(rtrim(number_format((float) $qty, 2, '.', ''), '0'), '.');
+    $html .= "<span class='antrian-rekap-item'>" . htmlspecialchars((string) $layanan, ENT_QUOTES, 'UTF-8') . " <b>" . htmlspecialchars($qtyShow, ENT_QUOTES, 'UTF-8') . "</b></span>";
+  }
+
+  $html .= "</div></div>";
+  return $html;
+};
+
+$groupsHtml = "";
+$groupsHtml .= $buildRekapGroup('miss', 'Terlewat', 'fa-exclamation-triangle', $arrRekapAntrianMiss, 3);
+$groupsHtml .= $buildRekapGroup('today', 'Hari ini', 'fa-bolt', $arrRekapAntrianToday, 1);
+$groupsHtml .= $buildRekapGroup('rak', 'Rak', 'fa-archive', $arrRekapAntrianRak, 4);
+$groupsHtml .= $buildRekapGroup('besok', 'Besok', 'fa-calendar-day', $arrRekapAntrianBesok, 2);
+$groupsHtml .= $buildRekapGroup('kerja', 'Kerja', 'fa-tasks', $arrRekapAntrianKerja, 5);
+$groupsHtml .= $buildRekapGroup('antri', 'Antrian', 'fa-layer-group', $arrRekapAntrian, null);
+
+if ($groupsHtml !== "") {
+  $listAntri = "<div class='antrian-rekap-board'>" . $groupsHtml . "</div>";
 }
 ?>
 

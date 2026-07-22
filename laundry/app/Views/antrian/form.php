@@ -101,36 +101,108 @@
   .antrian-period.is-active[data-tone="cyan"] { background: #0e7490; color: #fff; }
 
   .antrian-rekap {
-    margin-top: 8px;
-    min-height: 28px;
-    font-size: 16px;
-    line-height: 1.7;
-    color: #475569;
+    margin-top: 10px;
+    min-height: 0;
+    color: #334155;
   }
   .antrian-rekap:empty {
     display: none;
   }
-  .antrian-rekap b {
+  .antrian-rekap-board {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .antrian-rekap-group {
+    display: flex;
+    flex-direction: column;
+    min-width: min(100%, 220px);
+    flex: 1 1 220px;
+    border: 1px solid #d5dde6;
+    background: #fff;
+  }
+  .antrian-rekap-group__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 7px 10px;
+    border-bottom: 1px solid #e2e8f0;
+    color: #fff;
+    cursor: default;
+  }
+  .antrian-rekap-group.is-clickable .antrian-rekap-group__head {
+    cursor: pointer;
+  }
+  .antrian-rekap-group.is-clickable:hover {
+    border-color: #94a3b8;
+  }
+  .antrian-rekap-group__label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+  .antrian-rekap-group__label i {
+    font-size: 11px;
+    opacity: 0.9;
+  }
+  .antrian-rekap-group__total {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 22px;
+    padding: 0 7px;
+    background: rgba(255,255,255,.22);
+    border: 1px solid rgba(255,255,255,.35);
+    font-size: 13px;
+    font-weight: 800;
+    line-height: 1;
+  }
+  .antrian-rekap-group__items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    padding: 8px 9px;
+    background: #f8fafc;
+  }
+  .antrian-rekap-item {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 5px;
+    padding: 4px 8px;
+    border: 1px solid #d5dde6;
+    background: #fff;
     color: #334155;
+    font-family: 'fontku', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.2;
+    cursor: default;
+  }
+  .antrian-rekap-group.is-clickable .antrian-rekap-item {
+    cursor: pointer;
+  }
+  .antrian-rekap-group.is-clickable .antrian-rekap-item:hover {
+    border-color: #64748b;
+    background: #fff;
+    color: #0f172a;
+  }
+  .antrian-rekap-item b {
+    color: #0f172a;
+    font-size: 13px;
     font-weight: 800;
   }
-  .antrian-rekap .antrian-chip {
-    display: inline;
-    cursor: pointer;
-    font-size: 16px;
-    font-weight: 700;
-    border-bottom: 1px dashed transparent;
-    transition: border-color .15s ease;
-  }
-  .antrian-rekap .antrian-chip:hover {
-    border-bottom-color: currentColor;
-  }
-  .antrian-chip--today,
-  .antrian-chip--rak,
-  .antrian-chip--miss { color: #dc2626; }
-  .antrian-chip--besok { color: #2563eb; }
-  .antrian-chip--kerja { color: #0891b2; }
-  .antrian-chip--antri { color: #16a34a; }
+  .antrian-rekap-group--today .antrian-rekap-group__head { background: #c2410c; }
+  .antrian-rekap-group--rak .antrian-rekap-group__head { background: #b91c1c; }
+  .antrian-rekap-group--miss .antrian-rekap-group__head { background: #9f1239; }
+  .antrian-rekap-group--besok .antrian-rekap-group__head { background: #1d4ed8; }
+  .antrian-rekap-group--kerja .antrian-rekap-group__head { background: #0e7490; }
+  .antrian-rekap-group--antri .antrian-rekap-group__head { background: #15803d; }
 
   #load.antrian-load {
     padding-top: 2px;
