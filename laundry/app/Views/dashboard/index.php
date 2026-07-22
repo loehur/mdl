@@ -198,7 +198,7 @@
     display: inline-flex;
     align-items: center;
     height: 22px;
-    margin-left: 6px;
+    margin-right: 6px;
     padding: 0 7px;
     border: 1.5px solid transparent;
     font-size: 12px;

@@ -55,12 +55,12 @@ if ($n > 0) {
             <tr>
               <td><span class="dash-cabang"><?= htmlspecialchars($row['label'], ENT_QUOTES, 'UTF-8') ?></span></td>
               <td class="dash-metric">
-                <span class="dash-qty"><?= htmlspecialchars($this->fmtDecMax2($today), ENT_QUOTES, 'UTF-8') ?></span>
                 <span class="dash-diff <?= $clsToday ?>"><?= htmlspecialchars($txtToday, ENT_QUOTES, 'UTF-8') ?></span>
+                <span class="dash-qty"><?= htmlspecialchars($this->fmtDecMax2($today), ENT_QUOTES, 'UTF-8') ?></span>
               </td>
               <td class="dash-metric">
-                <span class="dash-qty"><?= htmlspecialchars($this->fmtDecMax2($besok), ENT_QUOTES, 'UTF-8') ?></span>
                 <span class="dash-diff <?= $clsBesok ?>"><?= htmlspecialchars($txtBesok, ENT_QUOTES, 'UTF-8') ?></span>
+                <span class="dash-qty"><?= htmlspecialchars($this->fmtDecMax2($besok), ENT_QUOTES, 'UTF-8') ?></span>
               </td>
             </tr>
           <?php }
