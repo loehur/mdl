@@ -25,18 +25,12 @@ class Dashboard extends Controller
       $yesterday = date('Y-m-d', strtotime('-1 day'));
 
       $rows = [];
-      $totals = [
-         'today' => ['qty' => 0.0, 'nota' => 0],
-         'yesterday' => ['qty' => 0.0, 'nota' => 0],
-         'total' => ['qty' => 0.0, 'nota' => 0],
-      ];
-
       foreach ($cabangIds as $idCabang) {
          $rows[$idCabang] = [
             'id_cabang' => $idCabang,
-            'label' => $this->cabangLabel($cabangMap[$idCabang]),
-            'today' => ['qty' => 0.0, 'refs' => []],
-            'yesterday' => ['qty' => 0.0, 'refs' => []],
+            'label' => $this->cabangKode($cabangMap[$idCabang]),
+            'today_qty' => 0.0,
+            'yesterday_qty' => 0.0,
          ];
       }
 
@@ -59,54 +53,18 @@ class Dashboard extends Controller
                continue;
             }
 
-            $dayKey = (substr((string) ($sale['insertTime'] ?? ''), 0, 10) === $today) ? 'today' : 'yesterday';
-            $qty = round((float) ($sale['qty'] ?? 0), 2);
-            $ref = (string) ($sale['no_ref'] ?? '');
-
-            $rows[$idCabang][$dayKey]['qty'] += $qty;
-            if ($ref !== '') {
-               $rows[$idCabang][$dayKey]['refs'][$ref] = true;
-            }
+            $dayKey = (substr((string) ($sale['insertTime'] ?? ''), 0, 10) === $today) ? 'today_qty' : 'yesterday_qty';
+            $rows[$idCabang][$dayKey] += round((float) ($sale['qty'] ?? 0), 2);
          }
       }
 
-      $outRows = [];
-      foreach ($rows as $idCabang => $row) {
-         $todayNota = count($row['today']['refs']);
-         $yesterdayNota = count($row['yesterday']['refs']);
-         $todayQty = $row['today']['qty'];
-         $yesterdayQty = $row['yesterday']['qty'];
-         $totalQty = $todayQty + $yesterdayQty;
-         $totalNota = count($row['today']['refs'] + $row['yesterday']['refs']);
-
-         $outRows[] = [
-            'id_cabang' => $idCabang,
-            'label' => $row['label'],
-            'today_qty' => $todayQty,
-            'today_nota' => $todayNota,
-            'yesterday_qty' => $yesterdayQty,
-            'yesterday_nota' => $yesterdayNota,
-            'total_qty' => $totalQty,
-            'total_nota' => $totalNota,
-         ];
-
-         $totals['today']['qty'] += $todayQty;
-         $totals['today']['nota'] += $todayNota;
-         $totals['yesterday']['qty'] += $yesterdayQty;
-         $totals['yesterday']['nota'] += $yesterdayNota;
-         $totals['total']['qty'] += $totalQty;
-         $totals['total']['nota'] += $totalNota;
-      }
-
+      $outRows = array_values($rows);
       usort($outRows, function ($a, $b) {
          return strcasecmp($a['label'], $b['label']);
       });
 
       $this->view('dashboard/cuci', [
          'rows' => $outRows,
-         'totals' => $totals,
-         'today' => $today,
-         'yesterday' => $yesterday,
          'layanan_ok' => $idCuci > 0,
       ]);
    }
@@ -121,17 +79,13 @@ class Dashboard extends Controller
       $tomorrow = date('Y-m-d', strtotime('+1 day'));
 
       $rows = [];
-      $totals = [
-         'due' => ['qty' => 0.0, 'nota' => 0],
-         'besok' => ['qty' => 0.0, 'nota' => 0],
-      ];
-
       foreach ($cabangIds as $idCabang) {
          $rows[$idCabang] = [
             'id_cabang' => $idCabang,
-            'label' => $this->cabangLabel($cabangMap[$idCabang]),
-            'due' => ['qty' => 0.0, 'refs' => []],
-            'besok' => ['qty' => 0.0, 'refs' => []],
+            'label' => $this->cabangKode($cabangMap[$idCabang]),
+            'lewat_qty' => 0.0,
+            'today_qty' => 0.0,
+            'besok_qty' => 0.0,
          ];
       }
 
@@ -180,7 +134,6 @@ class Dashboard extends Controller
             $letak = trim((string) ($sale['letak'] ?? ''));
             $setrikaDone = isset($operasiDone[$idPenjualan]);
 
-            // Pending setrika OR pack/RAK (setrika done, letak empty)
             $isPending = !$setrikaDone;
             $isRak = $setrikaDone && $letak === '';
             if (!$isPending && !$isRak) {
@@ -197,10 +150,12 @@ class Dashboard extends Controller
             }
 
             $bucket = null;
-            if ($deadlineDate <= $today) {
-               $bucket = 'due';
+            if ($deadlineDate < $today) {
+               $bucket = 'lewat_qty';
+            } elseif ($deadlineDate === $today) {
+               $bucket = 'today_qty';
             } elseif ($deadlineDate === $tomorrow) {
-               $bucket = 'besok';
+               $bucket = 'besok_qty';
             }
             if ($bucket === null) {
                continue;
@@ -211,40 +166,14 @@ class Dashboard extends Controller
                continue;
             }
 
-            $qty = round((float) ($sale['qty'] ?? 0), 2);
-            $ref = (string) ($sale['no_ref'] ?? '');
-            $rows[$idCabang][$bucket]['qty'] += $qty;
-            if ($ref !== '') {
-               $rows[$idCabang][$bucket]['refs'][$ref] = true;
-            }
+            $rows[$idCabang][$bucket] += round((float) ($sale['qty'] ?? 0), 2);
          }
       }
 
-      $outRows = [];
-      foreach ($rows as $idCabang => $row) {
-         $dueQty = $row['due']['qty'];
-         $dueNota = count($row['due']['refs']);
-         $besokQty = $row['besok']['qty'];
-         $besokNota = count($row['besok']['refs']);
-
-         $outRows[] = [
-            'id_cabang' => $idCabang,
-            'label' => $row['label'],
-            'due_qty' => $dueQty,
-            'due_nota' => $dueNota,
-            'besok_qty' => $besokQty,
-            'besok_nota' => $besokNota,
-         ];
-
-         $totals['due']['qty'] += $dueQty;
-         $totals['due']['nota'] += $dueNota;
-         $totals['besok']['qty'] += $besokQty;
-         $totals['besok']['nota'] += $besokNota;
-      }
-
+      $outRows = array_values($rows);
       usort($outRows, function ($a, $b) {
-         $aScore = $a['due_qty'] + $a['besok_qty'];
-         $bScore = $b['due_qty'] + $b['besok_qty'];
+         $aScore = $a['lewat_qty'] + $a['today_qty'] + $a['besok_qty'];
+         $bScore = $b['lewat_qty'] + $b['today_qty'] + $b['besok_qty'];
          if ($aScore == $bScore) {
             return strcasecmp($a['label'], $b['label']);
          }
@@ -253,9 +182,6 @@ class Dashboard extends Controller
 
       $this->view('dashboard/setrika_pack', [
          'rows' => $outRows,
-         'totals' => $totals,
-         'today' => $today,
-         'tomorrow' => $tomorrow,
          'layanan_ok' => $idSetrika > 0,
       ]);
    }
@@ -293,20 +219,13 @@ class Dashboard extends Controller
       return $map;
    }
 
-   private function cabangLabel($cabang)
+   private function cabangKode($cabang)
    {
       $kode = trim((string) ($cabang['kode_cabang'] ?? ''));
-      $nama = trim((string) ($cabang['nama'] ?? ''));
-      if ($kode !== '' && $nama !== '') {
-         return strtoupper($kode) . ' — ' . $nama;
-      }
-      if ($nama !== '') {
-         return $nama;
-      }
       if ($kode !== '') {
          return strtoupper($kode);
       }
-      return 'Cabang #' . (int) ($cabang['id_cabang'] ?? 0);
+      return 'C' . (int) ($cabang['id_cabang'] ?? 0);
    }
 
    private function unserializeLayanan($raw)
