@@ -20,11 +20,19 @@
   $(document).off("click", ".editLayanan");
   $(document).off("change", "#ubahLayananSelect");
   $(document).off("click", "#btnSimpanLayanan");
+  $(document).off("click", ".hapusItemNota");
+  $(document).off("click", "[data-close-hapus-item]");
+  $(document).off("click", "#btnKonfirmasiHapusItem");
+  $(document).off("click", "a.hapusRef");
+  $(document).off("click", ".tutupModalHapusBtn");
+  $(document).off("click", "#btnHapusKonfirm");
 
   // Cleanup orphaned modals that were moved to body in previous executions
   // This prevents Duplicate ID errors and Bootstrap confusion which causes recursive errors
   $("body > #modalAlert").remove();
   $("body > #modalQR").remove();
+  $("body > #modalHapusItemNota").remove();
+  $("body > #modalHapusOrderInline").remove();
 
   if (window.viewLoadJsLoaded) {
     // Already loaded, and we just unbound everything. 
@@ -854,24 +862,50 @@
     $('#modalHapusItemNota').removeClass('is-open').attr('aria-hidden', 'true');
   }
 
-  $(document).on('click', '.hapusItemNota', function (e) {
-    e.preventDefault();
-    var $button = $(this);
+  function bukaModalHapusItem(id, ref, itemName) {
     var $modal = $('#modalHapusItemNota');
-    $('#hapusItemNama').text($button.data('item') || ('ID ' + $button.data('id')));
-    $('#hapusItemRef').text('#' + $button.data('ref'));
+    if ($modal.length === 0) {
+      console.error('Modal #modalHapusItemNota tidak ditemukan!');
+      return;
+    }
+
+    // Pindahkan ke body agar tidak tertutup overflow/stacking context di #load
+    if ($modal.parent()[0] !== document.body) {
+      $modal.appendTo('body');
+    }
+
+    $('#hapusItemNama').text(itemName || ('ID ' + id));
+    $('#hapusItemRef').text('#' + ref);
     $('#hapusItemNote').val('').css('border-color', '');
-    $('#btnKonfirmasiHapusItem').data('id', $button.data('id'));
+    $('#btnKonfirmasiHapusItem').attr('data-id', id);
     $modal.addClass('is-open').attr('aria-hidden', 'false');
     setTimeout(function () { $('#hapusItemNote').focus(); }, 100);
+  }
+
+  $(document).on('click', '.hapusItemNota', function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    var $button = $(this);
+    bukaModalHapusItem(
+      $button.attr('data-id'),
+      $button.attr('data-ref'),
+      $button.attr('data-item')
+    );
   });
 
-  $(document).on('click', '[data-close-hapus-item]', tutupModalHapusItem);
+  $(document).on('click', '[data-close-hapus-item]', function (e) {
+    e.preventDefault();
+    tutupModalHapusItem();
+  });
 
   $(document).on('click', '#btnKonfirmasiHapusItem', function () {
     var $button = $(this);
-    var id = $button.data('id');
+    var id = $button.attr('data-id');
     var note = $('#hapusItemNote').val().trim();
+    if (!id) {
+      alert('Item tidak ditemukan. Muat ulang halaman lalu coba lagi.');
+      return;
+    }
     if (!note) {
       $('#hapusItemNote').css('border-color', '#dc2626').focus();
       return;
@@ -892,8 +926,15 @@
         }
         alert((response && response.message) || 'Item tidak dapat dihapus.');
       },
-      error: function () {
-        alert('Gagal menghapus item. Periksa koneksi lalu coba lagi.');
+      error: function (xhr) {
+        var msg = 'Gagal menghapus item. Periksa koneksi lalu coba lagi.';
+        try {
+          var parsed = JSON.parse(xhr.responseText);
+          if (parsed && parsed.message) {
+            msg = parsed.message;
+          }
+        } catch (err) { }
+        alert(msg);
       },
       complete: function () {
         $button.prop('disabled', false).html(original);

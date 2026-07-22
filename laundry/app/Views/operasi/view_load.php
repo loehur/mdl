@@ -45,8 +45,8 @@ $labeled = false;
 
     // Hapus satu item hanya tersedia untuk nota yang benar-benar belum diproses.
     $canDeleteItemFromRef = ($modeView != 2 && $countItem[$ref] > 1);
-    foreach ($data['kas'] as $paymentCheck) {
-      if ($paymentCheck['ref_transaksi'] == $ref && (int) ($paymentCheck['status_mutasi'] ?? 0) !== 4) {
+    foreach ((array) ($data['kas'] ?? []) as $paymentCheck) {
+      if (($paymentCheck['ref_transaksi'] ?? '') == $ref && (int) ($paymentCheck['status_mutasi'] ?? 0) !== 4) {
         $canDeleteItemFromRef = false;
         break;
       }
@@ -57,8 +57,8 @@ $labeled = false;
           $canDeleteItemFromRef = false;
           break;
         }
-        foreach ($data['operasi'] as $operasiCheck) {
-          if ($operasiCheck['id_penjualan'] == $itemCheck['id_penjualan']) {
+        foreach ((array) ($data['operasi'] ?? []) as $operasiCheck) {
+          if (($operasiCheck['id_penjualan'] ?? '') == ($itemCheck['id_penjualan'] ?? '')) {
             $canDeleteItemFromRef = false;
             break 2;
           }
@@ -434,7 +434,7 @@ $labeled = false;
               <td nowrap class='text-center'>
                 <a href='#' class='mb-1 text-secondary' data-print-id='<?= $id ?>'><i class='fas fa-print'></i></a><br>
                 <?php if ($canDeleteItemFromRef) { ?>
-                  <a href="#" class="hapusItemNota text-danger" data-id="<?= htmlspecialchars($id, ENT_QUOTES, 'UTF-8') ?>" data-ref="<?= htmlspecialchars($ref, ENT_QUOTES, 'UTF-8') ?>" data-item="<?= htmlspecialchars($kategori, ENT_QUOTES, 'UTF-8') ?>" title="Hapus item"><i class="fas fa-trash-alt"></i></a><br>
+                  <a href="#" class="hapusItemNota text-danger" data-id="<?= htmlspecialchars((string) $id, ENT_QUOTES, 'UTF-8') ?>" data-ref="<?= htmlspecialchars((string) $ref, ENT_QUOTES, 'UTF-8') ?>" data-item="<?= htmlspecialchars((string) $kategori, ENT_QUOTES, 'UTF-8') ?>" title="Hapus item" role="button"><i class="fas fa-trash-alt"></i></a><br>
                 <?php } ?>
                 <?php
                 if (strlen($letak) > 0) {
@@ -638,7 +638,7 @@ $labeled = false;
 
           $buttonHapus = "";
           if ($enHapus == true || $this->id_privilege >= 100) {
-            $buttonHapus = "<small><a href='#' data-ref='" . $ref . "' class='hapusRef mb-1'><i class='fas fa-trash-alt text-secondary'></i></a><small> ";
+            $buttonHapus = "<small><a href='#' data-ref='" . $ref . "' class='hapusRef mb-1'><i class='fas fa-trash-alt text-danger'></i></a><small> ";
           }
           if ($sisaTagihanFinal < 1) {
             $lunas[$ref] = true;
@@ -1188,10 +1188,10 @@ $labeled = false;
   </div>
 </div>
 <style>
-  .hapus-item-modal { display:none; position:fixed; inset:0; z-index:1000000; align-items:center; justify-content:center; padding:18px; }
-  .hapus-item-modal.is-open { display:flex; }
-  .hapus-item-modal__backdrop { position:absolute; inset:0; background:rgba(15,23,42,.58); backdrop-filter:blur(3px); }
-  .hapus-item-modal__dialog { position:relative; width:100%; max-width:420px; padding:30px; border-radius:18px; background:#fff; box-shadow:0 24px 60px rgba(15,23,42,.3); }
+  .hapus-item-modal { display:none; position:fixed; inset:0; top:0; right:0; bottom:0; left:0; z-index:1000000; align-items:center; justify-content:center; padding:18px; }
+  .hapus-item-modal.is-open { display:flex !important; }
+  .hapus-item-modal__backdrop { position:absolute; inset:0; top:0; right:0; bottom:0; left:0; background:rgba(15,23,42,.58); backdrop-filter:blur(3px); }
+  .hapus-item-modal__dialog { position:relative; z-index:1; width:100%; max-width:420px; padding:30px; border-radius:18px; background:#fff; box-shadow:0 24px 60px rgba(15,23,42,.3); }
   .hapus-item-modal__icon { display:flex; align-items:center; justify-content:center; width:46px; height:46px; margin-bottom:14px; border-radius:14px; background:#fee2e2; color:#dc2626; font-size:20px; }
   .hapus-item-modal__close { position:absolute; top:13px; right:16px; border:0; background:transparent; color:#64748b; font-size:28px; line-height:1; }
   .hapus-item-modal h5 { margin:0 0 8px; color:#172033; font-weight:800; }

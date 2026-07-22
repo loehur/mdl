@@ -226,6 +226,10 @@ class Operasi extends Controller
       }
       if (!empty($ids)) {
          $operationCount = $this->db(0)->count_where('operasi', $this->wCabang . ' AND id_penjualan IN (' . implode(',', $ids) . ')');
+         if (!is_numeric($operationCount)) {
+            echo json_encode(['status' => 'error', 'message' => 'Gagal memeriksa status operasi. Silakan coba lagi.']);
+            return;
+         }
          if ((int) $operationCount > 0) {
             echo json_encode(['status' => 'error', 'message' => 'Item tidak dapat dihapus karena sudah ada layanan yang diselesaikan pada nota ini.']);
             return;
