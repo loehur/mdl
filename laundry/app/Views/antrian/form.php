@@ -9,8 +9,8 @@
   }
   .antrian-filter-card {
     background: #fff;
-    border: 1px solid #94a3b8;
-    border-radius: 10px;
+    border: 1px solid #dde3ea;
+    border-radius: 0;
     box-shadow: none;
     padding: 10px 12px;
   }
@@ -39,8 +39,8 @@
     width: 100%;
     height: 40px;
     padding: 0 12px 0 36px;
-    border: 1px solid #64748b;
-    border-radius: 8px;
+    border: 1px solid #d5dde6;
+    border-radius: 0;
     background: #fff;
     color: #0f172a;
     font-family: 'fontku', sans-serif;
@@ -55,17 +55,17 @@
   }
   .antrian-search input:focus {
     background: #fff;
-    border-color: #1d4ed8;
-    box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.18);
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
   }
   .antrian-periods {
     display: inline-flex;
     align-items: center;
     gap: 4px;
     padding: 3px;
-    background: #e2e8f0;
-    border: 1px solid #64748b;
-    border-radius: 8px;
+    background: #e8eef5;
+    border: 1px solid #d5dde6;
+    border-radius: 0;
     flex: 0 0 auto;
   }
   .antrian-period {
@@ -74,7 +74,7 @@
     justify-content: center;
     height: 34px;
     padding: 0 14px;
-    border-radius: 6px;
+    border-radius: 0;
     border: 0;
     background: transparent;
     color: #334155;
