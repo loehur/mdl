@@ -152,32 +152,48 @@ $modeOperasi = (int) $data['mode'];
   .operasi-periods {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 3px;
-    background: #e8eef5;
+    gap: 6px;
+    padding: 0;
+    background: transparent;
     border-radius: 0;
   }
   .operasi-period {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    height: 30px;
-    padding: 0 12px;
+    height: 34px;
+    padding: 0 14px;
     border-radius: 0;
-    border: 0;
-    background: transparent;
-    color: #64748b;
+    border: 1px solid transparent;
     font-family: 'fontku', sans-serif;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 800;
+    letter-spacing: 0.01em;
     text-decoration: none;
     white-space: nowrap;
-    transition: background .15s ease, color .15s ease, box-shadow .15s ease;
+    color: #fff;
+    transition: filter .12s ease, transform .12s ease, opacity .12s ease;
   }
   .operasi-period:hover {
-    color: #1e293b;
-    background: rgba(255,255,255,.55);
+    color: #fff;
     text-decoration: none;
+    filter: brightness(1.08);
+  }
+  .operasi-period:active {
+    transform: translateY(1px);
+    filter: brightness(0.95);
+  }
+  .operasi-period--terkini {
+    background: #1d4ed8;
+    border-color: #1e40af;
+  }
+  .operasi-period--minggu {
+    background: #15803d;
+    border-color: #166534;
+  }
+  .operasi-period--bulan {
+    background: #0e7490;
+    border-color: #155e75;
   }
   .operasi-year-nav {
     display: inline-flex;
@@ -332,9 +348,9 @@ $modeOperasi = (int) $data['mode'];
           </div>
         <?php } else { ?>
           <div class="operasi-periods">
-            <a href="<?= URL::BASE_URL ?>Antrian/index/1" class="operasi-period">Terkini</a>
-            <a href="<?= URL::BASE_URL ?>Antrian/index/6" class="operasi-period">Minggu</a>
-            <a href="<?= URL::BASE_URL ?>Antrian/index/7" class="operasi-period">Bulan</a>
+            <a href="<?= URL::BASE_URL ?>Antrian/index/1" class="operasi-period operasi-period--terkini">Terkini</a>
+            <a href="<?= URL::BASE_URL ?>Antrian/index/6" class="operasi-period operasi-period--minggu">Minggu</a>
+            <a href="<?= URL::BASE_URL ?>Antrian/index/7" class="operasi-period operasi-period--bulan">Bulan</a>
           </div>
         <?php } ?>
       </form>
