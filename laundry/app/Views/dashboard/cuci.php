@@ -1,38 +1,67 @@
 <?php
 $rows = $data['rows'] ?? [];
 $layananOk = !empty($data['layanan_ok']);
+$n = count($rows);
+
+$avgToday = 0.0;
+$avgYesterday = 0.0;
+if ($n > 0) {
+  foreach ($rows as $r) {
+    $avgToday += (float) ($r['today_qty'] ?? 0);
+    $avgYesterday += (float) ($r['yesterday_qty'] ?? 0);
+  }
+  $avgToday /= $n;
+  $avgYesterday /= $n;
+}
 ?>
 
 <?php if (!$layananOk) { ?>
-  <div class="alert alert-warning">Layanan <b>Cuci</b> tidak ditemukan di master layanan. Periksa nama layanan di database.</div>
+  <div class="dash-alert">Layanan <b>Cuci</b> tidak ditemukan di master layanan.</div>
 <?php } ?>
 
-<div class="card dash-card shadow-sm border-0">
-  <div class="card-header py-2 px-3">
-    <div class="fw-bold">Antri Cuci — Ringkasan per Cabang</div>
+<div class="dash-board dash-board--cuci">
+  <div class="dash-board__head">
+    <h2 class="dash-board__title">Antri Cuci — Ringkasan per Cabang</h2>
+    <span class="dash-board__badge">Cuci</span>
   </div>
-  <div class="card-body p-0 table-responsive">
-    <table class="table table-sm table-striped table-hover mb-0 dash-table">
-      <thead class="table-light">
+  <div style="overflow-x:auto;">
+    <table class="dash-grid">
+      <thead>
         <tr>
-          <th class="ps-3">Cabang</th>
-          <th class="text-end">Prioritas</th>
-          <th class="text-end">Hari Ini</th>
-          <th class="text-end pe-3">Kemarin</th>
+          <th>Cabang</th>
+          <th>Hari Ini</th>
+          <th>Kemarin</th>
         </tr>
       </thead>
       <tbody>
-        <?php if (count($rows) === 0) { ?>
+        <?php if ($n === 0) { ?>
           <tr>
-            <td colspan="4" class="text-center text-muted py-4">Tidak ada cabang operasional.</td>
+            <td colspan="3" class="dash-empty-row">Tidak ada cabang operasional.</td>
           </tr>
         <?php } else {
-          foreach ($rows as $row) { ?>
+          foreach ($rows as $row) {
+            $today = (float) ($row['today_qty'] ?? 0);
+            $yesterday = (float) ($row['yesterday_qty'] ?? 0);
+            $diffToday = round($avgToday - $today, 2);
+            $diffYesterday = round($avgYesterday - $yesterday, 2);
+
+            $fmtToday = $this->fmtDecMax2($diffToday);
+            $fmtYesterday = $this->fmtDecMax2($diffYesterday);
+            $txtToday = ($fmtToday === '0') ? '(0)' : ('(' . ($diffToday > 0 ? '+' : '') . $fmtToday . ')');
+            $txtYesterday = ($fmtYesterday === '0') ? '(0)' : ('(' . ($diffYesterday > 0 ? '+' : '') . $fmtYesterday . ')');
+            $clsToday = ($fmtToday === '0') ? 'dash-diff--flat' : (($diffToday > 0) ? 'dash-diff--below' : 'dash-diff--above');
+            $clsYesterday = ($fmtYesterday === '0') ? 'dash-diff--flat' : (($diffYesterday > 0) ? 'dash-diff--below' : 'dash-diff--above');
+            ?>
             <tr>
-              <td class="ps-3 fw-semibold"><?= htmlspecialchars($row['label'], ENT_QUOTES, 'UTF-8') ?></td>
-              <td class="text-end"><span class="dash-qty"><?= htmlspecialchars($this->fmtDecMax2($row['prioritas_qty'] ?? 0), ENT_QUOTES, 'UTF-8') ?></span></td>
-              <td class="text-end"><span class="dash-qty"><?= htmlspecialchars($this->fmtDecMax2($row['today_qty']), ENT_QUOTES, 'UTF-8') ?></span></td>
-              <td class="text-end pe-3"><span class="dash-qty"><?= htmlspecialchars($this->fmtDecMax2($row['yesterday_qty']), ENT_QUOTES, 'UTF-8') ?></span></td>
+              <td><span class="dash-cabang"><?= htmlspecialchars($row['label'], ENT_QUOTES, 'UTF-8') ?></span></td>
+              <td class="dash-metric">
+                <span class="dash-qty"><?= htmlspecialchars($this->fmtDecMax2($today), ENT_QUOTES, 'UTF-8') ?></span>
+                <span class="dash-diff <?= $clsToday ?>"><?= htmlspecialchars($txtToday, ENT_QUOTES, 'UTF-8') ?></span>
+              </td>
+              <td class="dash-metric">
+                <span class="dash-qty"><?= htmlspecialchars($this->fmtDecMax2($yesterday), ENT_QUOTES, 'UTF-8') ?></span>
+                <span class="dash-diff <?= $clsYesterday ?>"><?= htmlspecialchars($txtYesterday, ENT_QUOTES, 'UTF-8') ?></span>
+              </td>
             </tr>
           <?php }
         } ?>

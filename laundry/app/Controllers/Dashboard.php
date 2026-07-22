@@ -31,7 +31,6 @@ class Dashboard extends Controller
             'label' => $this->cabangKode($cabangMap[$idCabang]),
             'today_qty' => 0.0,
             'yesterday_qty' => 0.0,
-            'prioritas_qty' => 0.0,
          ];
       }
 
@@ -61,14 +60,8 @@ class Dashboard extends Controller
                continue;
             }
 
-            $qty = round((float) ($sale['qty'] ?? 0), 2);
             $dayKey = (substr((string) ($sale['insertTime'] ?? ''), 0, 10) === $today) ? 'today_qty' : 'yesterday_qty';
-            $rows[$idCabang][$dayKey] += $qty;
-
-            // Prioritas: durasi deadline (hari + jam) < 2 hari
-            if ($this->isDeadlinePrioritas((int) ($sale['hari'] ?? 0), (int) ($sale['jam'] ?? 0))) {
-               $rows[$idCabang]['prioritas_qty'] += $qty;
-            }
+            $rows[$idCabang][$dayKey] += round((float) ($sale['qty'] ?? 0), 2);
          }
       }
 
@@ -97,7 +90,6 @@ class Dashboard extends Controller
          $rows[$idCabang] = [
             'id_cabang' => $idCabang,
             'label' => $this->cabangKode($cabangMap[$idCabang]),
-            'prioritas_qty' => 0.0,
             'today_qty' => 0.0,
             'besok_qty' => 0.0,
          ];
@@ -153,20 +145,14 @@ class Dashboard extends Controller
                continue;
             }
 
-            $qty = round((float) ($sale['qty'] ?? 0), 2);
-            $rows[$idCabang][$bucket] += $qty;
-
-            // Prioritas: durasi deadline (hari + jam) < 2 hari
-            if ($this->isDeadlinePrioritas((int) ($sale['hari'] ?? 0), (int) ($sale['jam'] ?? 0))) {
-               $rows[$idCabang]['prioritas_qty'] += $qty;
-            }
+            $rows[$idCabang][$bucket] += round((float) ($sale['qty'] ?? 0), 2);
          }
       }
 
       $outRows = array_values($rows);
       usort($outRows, function ($a, $b) {
-         $aScore = $a['prioritas_qty'] + $a['today_qty'] + $a['besok_qty'];
-         $bScore = $b['prioritas_qty'] + $b['today_qty'] + $b['besok_qty'];
+         $aScore = $a['today_qty'] + $a['besok_qty'];
+         $bScore = $b['today_qty'] + $b['besok_qty'];
          if ($aScore == $bScore) {
             return strcasecmp($a['label'], $b['label']);
          }
@@ -284,16 +270,6 @@ class Dashboard extends Controller
       $endLayanan = (int) end($list);
       $idPenjualan = (int) ($sale['id_penjualan'] ?? 0);
       return isset($operasiDone[$idPenjualan . '|' . $endLayanan]);
-   }
-
-   /**
-    * Deadline SLA di bawah 2 hari: (hari * 24 + jam) < 48.
-    * Contoh: hari 0 jam 6 = prioritas.
-    */
-   private function isDeadlinePrioritas($hari, $jam)
-   {
-      $totalHours = ((int) $hari * 24) + (int) $jam;
-      return $totalHours < 48;
    }
 
    private function deadlineDate($insertTime, $hari, $jam)
