@@ -103,7 +103,7 @@
   .antrian-rekap {
     margin-top: 6px;
     min-height: 0;
-    color: #334155;
+    color: #0f172a;
   }
   .antrian-rekap:empty {
     display: none;
@@ -121,7 +121,7 @@
     gap: 2px 4px;
     max-width: 100%;
     padding: 2px 4px 2px 2px;
-    border: 1px solid #dde3ea;
+    border: 1px solid #94a3b8;
     background: transparent;
   }
   .antrian-rekap-group__head {
@@ -137,7 +137,7 @@
     cursor: pointer;
   }
   .antrian-rekap-group.is-clickable:hover {
-    border-color: #c5d0db;
+    border-color: #64748b;
   }
   .antrian-rekap-group.is-clickable:hover .antrian-rekap-group__head {
     filter: brightness(1.08);
@@ -151,10 +151,12 @@
     letter-spacing: 0.01em;
     text-transform: uppercase;
     white-space: nowrap;
+    color: #fff;
   }
   .antrian-rekap-group__label i {
     font-size: 9px;
-    opacity: 0.9;
+    opacity: 1;
+    color: #fff;
   }
   .antrian-rekap-group__total {
     display: inline-flex;
@@ -168,6 +170,7 @@
     font-size: 11px;
     font-weight: 800;
     line-height: 1;
+    color: #fff;
   }
   .antrian-rekap-group__items {
     display: inline-flex;
@@ -182,24 +185,24 @@
     padding: 0;
     border: 0;
     background: transparent;
-    color: #475569;
+    color: #0f172a;
     font-family: 'fontku', sans-serif;
     font-size: 11px;
-    font-weight: 700;
+    font-weight: 800;
     line-height: 1.2;
     white-space: nowrap;
   }
   .antrian-rekap-item b {
-    color: #0f172a;
+    color: #020617;
     font-size: 11px;
     font-weight: 800;
   }
-  .antrian-rekap-group--today { border-color: #fdba74; }
-  .antrian-rekap-group--rak { border-color: #fca5a5; }
-  .antrian-rekap-group--miss { border-color: #fda4af; }
-  .antrian-rekap-group--besok { border-color: #93c5fd; }
-  .antrian-rekap-group--kerja { border-color: #67e8f9; }
-  .antrian-rekap-group--antri { border-color: #86efac; }
+  .antrian-rekap-group--today { border-color: #ea580c; }
+  .antrian-rekap-group--rak { border-color: #dc2626; }
+  .antrian-rekap-group--miss { border-color: #e11d48; }
+  .antrian-rekap-group--besok { border-color: #2563eb; }
+  .antrian-rekap-group--kerja { border-color: #0891b2; }
+  .antrian-rekap-group--antri { border-color: #16a34a; }
   .antrian-rekap-group--today .antrian-rekap-group__head { background: #c2410c; }
   .antrian-rekap-group--rak .antrian-rekap-group__head { background: #b91c1c; }
   .antrian-rekap-group--miss .antrian-rekap-group__head { background: #9f1239; }
