@@ -100,9 +100,9 @@
 
   .antrian-rekap {
     margin-top: 8px;
-    min-height: 22px;
-    font-size: 12.5px;
-    line-height: 1.55;
+    min-height: 28px;
+    font-size: 16px;
+    line-height: 1.7;
     color: #475569;
   }
   .antrian-rekap:empty {
@@ -115,6 +115,7 @@
   .antrian-rekap .antrian-chip {
     display: inline;
     cursor: pointer;
+    font-size: 16px;
     font-weight: 700;
     border-bottom: 1px dashed transparent;
     transition: border-color .15s ease;
