@@ -9,42 +9,42 @@
   }
   .antrian-filter-card {
     background: #fff;
-    border: 2px solid #94a3b8;
-    border-radius: 8px;
+    border: 1px solid #94a3b8;
+    border-radius: 10px;
     box-shadow: none;
-    padding: 12px 14px;
+    padding: 10px 12px;
   }
   .antrian-filter-row {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     flex-wrap: wrap;
   }
   .antrian-search {
     position: relative;
-    flex: 1 1 220px;
-    min-width: 180px;
+    flex: 1 1 200px;
+    min-width: 170px;
   }
   .antrian-search i {
     position: absolute;
-    left: 13px;
+    left: 12px;
     top: 50%;
     transform: translateY(-50%);
-    color: #475569;
-    font-size: 15px;
+    color: #64748b;
+    font-size: 14px;
     pointer-events: none;
   }
   .antrian-search input {
     box-sizing: border-box;
     width: 100%;
-    height: 44px;
-    padding: 0 14px 0 40px;
-    border: 2px solid #64748b;
+    height: 40px;
+    padding: 0 12px 0 36px;
+    border: 1px solid #64748b;
     border-radius: 8px;
     background: #fff;
     color: #0f172a;
     font-family: 'fontku', sans-serif;
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 700;
     outline: none;
     transition: border-color .12s ease, box-shadow .12s ease;
@@ -56,15 +56,15 @@
   .antrian-search input:focus {
     background: #fff;
     border-color: #1d4ed8;
-    box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.25);
+    box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.18);
   }
   .antrian-periods {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 4px;
+    gap: 4px;
+    padding: 3px;
     background: #e2e8f0;
-    border: 2px solid #64748b;
+    border: 1px solid #64748b;
     border-radius: 8px;
     flex: 0 0 auto;
   }
@@ -72,14 +72,14 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    height: 36px;
-    padding: 0 16px;
+    height: 34px;
+    padding: 0 14px;
     border-radius: 6px;
     border: 0;
     background: transparent;
     color: #334155;
     font-family: 'fontku', sans-serif;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 800;
     letter-spacing: 0.01em;
     text-decoration: none;
@@ -101,36 +101,36 @@
   .antrian-period.is-active[data-tone="cyan"] { background: #0e7490; color: #fff; }
 
   .antrian-rekap {
-    margin-top: 10px;
+    margin-top: 8px;
     min-height: 28px;
-    font-size: 17px;
+    font-size: 16px;
     line-height: 1.7;
-    color: #1e293b;
+    color: #475569;
   }
   .antrian-rekap:empty {
     display: none;
   }
   .antrian-rekap b {
-    color: #0f172a;
+    color: #334155;
     font-weight: 800;
   }
   .antrian-rekap .antrian-chip {
     display: inline;
     cursor: pointer;
-    font-size: 17px;
-    font-weight: 800;
+    font-size: 16px;
+    font-weight: 700;
     border-bottom: 1px dashed transparent;
-    transition: border-color .12s ease;
+    transition: border-color .15s ease;
   }
   .antrian-rekap .antrian-chip:hover {
     border-bottom-color: currentColor;
   }
   .antrian-chip--today,
   .antrian-chip--rak,
-  .antrian-chip--miss { color: #b91c1c; }
-  .antrian-chip--besok { color: #1d4ed8; }
-  .antrian-chip--kerja { color: #0e7490; }
-  .antrian-chip--antri { color: #15803d; }
+  .antrian-chip--miss { color: #dc2626; }
+  .antrian-chip--besok { color: #2563eb; }
+  .antrian-chip--kerja { color: #0891b2; }
+  .antrian-chip--antri { color: #16a34a; }
 
   #load.antrian-load {
     padding-top: 2px;
