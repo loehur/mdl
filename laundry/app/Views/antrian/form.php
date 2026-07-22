@@ -176,7 +176,7 @@
     padding: 10px 18px;
     font-weight: 700;
     border: 0;
-    border-radius: 12px;
+    border-radius: 0;
     background: linear-gradient(135deg, #f59e0b, #ea580c);
     color: #1a1a1a;
     box-shadow: 0 8px 20px rgba(234, 88, 12, 0.35);

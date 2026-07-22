@@ -185,7 +185,7 @@ if (isset($data['data_operasi'])) {
             min-width: 24px;
             padding: 3px 8px;
             border: 1px solid transparent;
-            border-radius: 6px;
+            border-radius: 0;
             box-shadow: 0 1px 2px rgba(36, 48, 65, 0.08);
             font-size: 0.76em;
             font-weight: 700;
@@ -423,7 +423,7 @@ if (isset($data['data_operasi'])) {
         .mode-switch {
             box-sizing: border-box;
             height: 34px;
-            border-radius: 8px;
+            border-radius: 0;
             font-family: 'fontku', sans-serif;
             font-size: 13px;
             font-weight: 700;
@@ -546,7 +546,7 @@ if (isset($data['data_operasi'])) {
             min-width: 64px;
             padding: 0 12px;
             border: 0;
-            border-radius: 6px;
+            border-radius: 0;
             background: transparent;
             color: var(--mdl-ink-soft);
             font-family: inherit;
@@ -595,7 +595,7 @@ if (isset($data['data_operasi'])) {
             align-items: center;
             height: 34px;
             padding: 0 12px;
-            border-radius: 8px;
+            border-radius: 0;
             background: #9a5a20;
             color: #fff;
             font-size: 12px;
@@ -607,7 +607,7 @@ if (isset($data['data_operasi'])) {
         .mdl-side-card {
             margin: 10px 10px 8px;
             padding: 12px;
-            border-radius: 14px;
+            border-radius: 0;
             background: var(--mdl-surface);
             border: 1px solid rgba(255,255,255,.55);
             box-shadow: var(--mdl-shadow);
@@ -627,7 +627,7 @@ if (isset($data['data_operasi'])) {
             max-width: 100%;
             height: 34px;
             padding: 0 12px;
-            border-radius: 9px;
+            border-radius: 0;
             border: 1.5px solid var(--mdl-line);
             background: #fff;
             color: var(--mdl-ink);
@@ -656,7 +656,7 @@ if (isset($data['data_operasi'])) {
             width: 34px;
             height: 34px;
             padding: 0;
-            border-radius: 9px;
+            border-radius: 0;
             border: 1.5px solid transparent;
             background: var(--mdl-live);
             color: #fff;
@@ -698,7 +698,7 @@ if (isset($data['data_operasi'])) {
             height: 36px;
             padding: 3px;
             gap: 2px;
-            border-radius: 10px;
+            border-radius: 0;
             border: 1.5px solid var(--mdl-line);
             background: var(--mdl-surface-2);
             box-shadow: inset 0 1px 2px rgba(58, 69, 83, 0.04);
@@ -710,7 +710,7 @@ if (isset($data['data_operasi'])) {
             justify-content: center;
             gap: 6px;
             border: 0;
-            border-radius: 7px;
+            border-radius: 0;
             background: transparent;
             color: var(--mdl-ink-soft);
             font-family: 'fontku', sans-serif;
@@ -738,7 +738,7 @@ if (isset($data['data_operasi'])) {
         .mdl-side-nav {
             margin: 0 10px 12px;
             padding: 8px;
-            border-radius: 14px;
+            border-radius: 0;
             background: var(--mdl-surface);
             border: 1px solid rgba(255,255,255,.55);
             box-shadow: var(--mdl-shadow);
@@ -804,7 +804,7 @@ if (isset($data['data_operasi'])) {
             box-sizing: border-box !important;
             margin: 0 !important;
             padding: 8px 12px !important;
-            border-radius: 10px !important;
+            border-radius: 0 !important;
             border: 1.5px solid transparent;
             background: transparent !important;
             color: var(--mdl-ink) !important;
@@ -870,7 +870,7 @@ if (isset($data['data_operasi'])) {
         .mdl-side-nav .nav-treeview {
             margin: 4px 0 6px !important;
             padding: 4px !important;
-            border-radius: 10px;
+            border-radius: 0;
             background: var(--mdl-surface-2);
         }
         .mdl-side-nav .nav-treeview .nav-item {

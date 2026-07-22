@@ -17,8 +17,8 @@ $modeOperasi = (int) $data['mode'];
   .operasi-filter-card {
     background: #fff;
     border: 1px solid #dde3ea;
-    border-radius: 12px;
-    box-shadow: 0 4px 14px rgba(30, 41, 59, 0.08);
+    border-radius: 0;
+    box-shadow: none;
     padding: 10px 12px;
   }
   .operasi-filter-row {
@@ -63,7 +63,7 @@ $modeOperasi = (int) $data['mode'];
     min-width: 42px;
     padding: 0 12px;
     margin: 0;
-    border-radius: 9px;
+    border-radius: 0;
     border: 1.5px solid #d5dde6;
     background: #f8fafc;
     color: #334155;
@@ -117,7 +117,7 @@ $modeOperasi = (int) $data['mode'];
     padding: 0 12px !important;
     line-height: 1 !important;
     border: 1.5px solid #d5dde6 !important;
-    border-radius: 9px !important;
+    border-radius: 0 !important;
     background: #f8fafc !important;
     box-shadow: none !important;
     font-size: 13px !important;
@@ -137,7 +137,7 @@ $modeOperasi = (int) $data['mode'];
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15) !important;
   }
   .operasi-filter .selectize-dropdown {
-    border-radius: 10px;
+    border-radius: 0;
     border-color: #d5dde6;
     box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
   }
@@ -155,7 +155,7 @@ $modeOperasi = (int) $data['mode'];
     gap: 4px;
     padding: 3px;
     background: #e8eef5;
-    border-radius: 9px;
+    border-radius: 0;
   }
   .operasi-period {
     display: inline-flex;
@@ -163,7 +163,7 @@ $modeOperasi = (int) $data['mode'];
     justify-content: center;
     height: 30px;
     padding: 0 12px;
-    border-radius: 7px;
+    border-radius: 0;
     border: 0;
     background: transparent;
     color: #64748b;
@@ -188,7 +188,7 @@ $modeOperasi = (int) $data['mode'];
     box-sizing: border-box;
     width: 34px;
     height: 34px;
-    border-radius: 9px;
+    border-radius: 0;
     border: 1.5px solid #d5dde6;
     background: #fff;
     color: #475569;
@@ -212,7 +212,7 @@ $modeOperasi = (int) $data['mode'];
     min-width: 72px;
     height: 34px;
     padding: 0 14px;
-    border-radius: 9px;
+    border-radius: 0;
     background: #2563eb;
     color: #fff;
     font-weight: 800;
@@ -270,7 +270,7 @@ $modeOperasi = (int) $data['mode'];
     height: 44px;
     padding: 0 16px;
     border: 0;
-    border-radius: 12px;
+    border-radius: 0;
     font-family: 'fontku', sans-serif;
     font-size: 14px;
     font-weight: 800;
