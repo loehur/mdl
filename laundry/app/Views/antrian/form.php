@@ -133,8 +133,9 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    height: 26px;
-    padding: 0 10px;
+    height: auto;
+    min-height: 26px;
+    padding: 5px 10px;
     color: #fff;
     flex: 0 0 auto;
     font-size: 13px;
