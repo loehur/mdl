@@ -1,6 +1,12 @@
 <?php
 $menu[1] = [
     [
+        'c' => 'Dashboard',
+        'title' => 'Dashboard',
+        'icon' => 'fas fa-tachometer-alt',
+        'txt' => 'Dashboard'
+    ],
+    [
         'c' => 'AdminApproval/index/Setoran',
         'title' => 'Approval',
         'icon' => 'fas fa-tasks',
