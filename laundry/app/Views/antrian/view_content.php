@@ -668,12 +668,12 @@ $buildRekapGroup = function ($tone, $label, $items, $filterMode = null) {
 };
 
 $groupsHtml = "";
-$groupsHtml .= $buildRekapGroup('miss', 'LEWAT', $arrRekapAntrianMiss, 3);
-$groupsHtml .= $buildRekapGroup('today', 'TODAY', $arrRekapAntrianToday, 1);
-$groupsHtml .= $buildRekapGroup('rak', 'RAK', $arrRekapAntrianRak, 4);
-$groupsHtml .= $buildRekapGroup('besok', 'ESOK', $arrRekapAntrianBesok, 2);
-$groupsHtml .= $buildRekapGroup('kerja', 'WORK', $arrRekapAntrianKerja, 5);
-$groupsHtml .= $buildRekapGroup('antri', 'ANTRI', $arrRekapAntrian, 0);
+$groupsHtml .= $buildRekapGroup('miss', 'Lewat', $arrRekapAntrianMiss, 3);
+$groupsHtml .= $buildRekapGroup('today', 'Today', $arrRekapAntrianToday, 1);
+$groupsHtml .= $buildRekapGroup('rak', 'Rak', $arrRekapAntrianRak, 4);
+$groupsHtml .= $buildRekapGroup('besok', 'Esok', $arrRekapAntrianBesok, 2);
+$groupsHtml .= $buildRekapGroup('kerja', 'Work', $arrRekapAntrianKerja, 5);
+$groupsHtml .= $buildRekapGroup('antri', 'Antri', $arrRekapAntrian, 0);
 
 if ($groupsHtml !== "") {
   $listAntri = "<div class='antrian-rekap-board'>" . $groupsHtml . "</div>";

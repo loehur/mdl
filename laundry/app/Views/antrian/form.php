@@ -142,7 +142,7 @@
     font-weight: 500;
     letter-spacing: 0.01em;
     line-height: 1;
-    text-transform: uppercase;
+    text-transform: none;
     white-space: nowrap;
   }
   .antrian-rekap-group.is-clickable {
