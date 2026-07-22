@@ -135,7 +135,7 @@
     justify-content: center;
     height: auto;
     min-height: 26px;
-    padding: 5px 10px;
+    padding: 8px 12px;
     color: #fff;
     flex: 0 0 auto;
     font-size: 13px;
