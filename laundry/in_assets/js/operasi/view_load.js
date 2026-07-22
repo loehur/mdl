@@ -849,6 +849,59 @@
   });
   // --- Akhir Logika Modal Hapus Order ---
 
+  // --- Hapus satu item dari nota ---
+  function tutupModalHapusItem() {
+    $('#modalHapusItemNota').removeClass('is-open').attr('aria-hidden', 'true');
+  }
+
+  $(document).on('click', '.hapusItemNota', function (e) {
+    e.preventDefault();
+    var $button = $(this);
+    var $modal = $('#modalHapusItemNota');
+    $('#hapusItemNama').text($button.data('item') || ('ID ' + $button.data('id')));
+    $('#hapusItemRef').text('#' + $button.data('ref'));
+    $('#hapusItemNote').val('').css('border-color', '');
+    $('#btnKonfirmasiHapusItem').data('id', $button.data('id'));
+    $modal.addClass('is-open').attr('aria-hidden', 'false');
+    setTimeout(function () { $('#hapusItemNote').focus(); }, 100);
+  });
+
+  $(document).on('click', '[data-close-hapus-item]', tutupModalHapusItem);
+
+  $(document).on('click', '#btnKonfirmasiHapusItem', function () {
+    var $button = $(this);
+    var id = $button.data('id');
+    var note = $('#hapusItemNote').val().trim();
+    if (!note) {
+      $('#hapusItemNote').css('border-color', '#dc2626').focus();
+      return;
+    }
+
+    var original = $button.html();
+    $button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Menghapus...');
+    $.ajax({
+      url: BASE_URL + 'Operasi/hapusItem',
+      method: 'POST',
+      dataType: 'json',
+      data: { id: id, note: note },
+      success: function (response) {
+        if (response && response.status === 'success') {
+          tutupModalHapusItem();
+          loadDiv();
+          return;
+        }
+        alert((response && response.message) || 'Item tidak dapat dihapus.');
+      },
+      error: function () {
+        alert('Gagal menghapus item. Periksa koneksi lalu coba lagi.');
+      },
+      complete: function () {
+        $button.prop('disabled', false).html(original);
+      }
+    });
+  });
+  // --- Akhir hapus satu item dari nota ---
+
   $("a.ambil").on("click", function (e) {
     e.preventDefault();
     window.idNya = $(this).attr("data-id");

@@ -172,6 +172,78 @@ class Operasi extends Controller
       $this->payment_gateway_status_db($ref_finance, false);
    }
 
+   /**
+    * Soft-delete one item from a multi-item nota.
+    * The checks are intentionally repeated server-side; UI eligibility is only a convenience.
+    */
+   public function hapusItem()
+   {
+      header('Content-Type: application/json; charset=utf-8');
+
+      $idPenjualan = $this->normalizeSaleId($_POST['id'] ?? '');
+      $note = trim((string) ($_POST['note'] ?? ''));
+      if ($idPenjualan === '' || $note === '') {
+         echo json_encode(['status' => 'error', 'message' => 'Item dan alasan hapus wajib diisi.']);
+         return;
+      }
+
+      $sale = $this->db(0)->get_where_row('sale', $this->whereSaleById($idPenjualan) . ' AND bin = 0');
+      $err = $this->validateOrderModifiable($sale);
+      if ($err !== null) {
+         echo json_encode(['status' => 'error', 'message' => $err]);
+         return;
+      }
+
+      $ref = trim((string) ($sale['no_ref'] ?? ''));
+      if ($ref === '') {
+         echo json_encode(['status' => 'error', 'message' => 'Nota item tidak ditemukan.']);
+         return;
+      }
+      $refEsc = $this->db(0)->escape($ref);
+      $saleWhere = $this->wCabang . " AND no_ref = '$refEsc' AND bin = 0";
+      $items = $this->db(0)->get_where('sale', $saleWhere);
+      if (!is_array($items) || count($items) <= 1) {
+         echo json_encode(['status' => 'error', 'message' => 'Item tunggal tidak dapat dihapus. Gunakan tombol hapus nota untuk menghapus seluruh nota.']);
+         return;
+      }
+
+      // Semua pembayaran selain yang gagal (status 4) mengunci perubahan nota.
+      $payments = $this->db(0)->get_where('kas', $this->wCabang . " AND jenis_transaksi = 1 AND ref_transaksi = '$refEsc'");
+      foreach ((array) $payments as $payment) {
+         if ((int) ($payment['status_mutasi'] ?? 0) !== 4) {
+            echo json_encode(['status' => 'error', 'message' => 'Item tidak dapat dihapus karena nota sudah memiliki pembayaran.']);
+            return;
+         }
+      }
+
+      $ids = [];
+      foreach ($items as $item) {
+         if ((int) ($item['tuntas'] ?? 0) !== 0) {
+            echo json_encode(['status' => 'error', 'message' => 'Item tidak dapat dihapus karena nota sudah tuntas.']);
+            return;
+         }
+         $ids[] = "'" . $this->db(0)->escape($this->normalizeSaleId($item['id_penjualan'])) . "'";
+      }
+      if (!empty($ids)) {
+         $operationCount = $this->db(0)->count_where('operasi', $this->wCabang . ' AND id_penjualan IN (' . implode(',', $ids) . ')');
+         if ((int) $operationCount > 0) {
+            echo json_encode(['status' => 'error', 'message' => 'Item tidak dapat dihapus karena sudah ada layanan yang diselesaikan pada nota ini.']);
+            return;
+         }
+      }
+
+      $update = $this->db(0)->update('sale', ['bin' => 1, 'bin_note' => $note], $this->whereSaleById($idPenjualan) . ' AND bin = 0');
+      if (($update['errno'] ?? 1) != 0) {
+         $this->model('Log')->write("[Operasi::hapusItem] Gagal hapus item id=$idPenjualan: " . ($update['error'] ?? ''));
+         echo json_encode(['status' => 'error', 'message' => 'Gagal menghapus item. Silakan coba lagi.']);
+         return;
+      }
+
+      $this->resetBonNotif($ref);
+      $this->model('Log')->write("[Operasi::hapusItem] Item id=$idPenjualan dari nota $ref dihapus. Alasan: $note");
+      echo json_encode(['status' => 'success', 'message' => 'Item berhasil dihapus.']);
+   }
+
    public function bayarMulti($karyawan, $idPelanggan, $metode = 2, $note = "")
    {
       $rekap = isset($_POST['rekap']) ? $_POST['rekap'][0] : [];

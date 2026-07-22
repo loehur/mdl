@@ -43,6 +43,29 @@ $labeled = false;
     $countEndLayananDone[$ref] = 0;
     $countAmbil[$ref] = 0;
 
+    // Hapus satu item hanya tersedia untuk nota yang benar-benar belum diproses.
+    $canDeleteItemFromRef = ($modeView != 2 && $countItem[$ref] > 1);
+    foreach ($data['kas'] as $paymentCheck) {
+      if ($paymentCheck['ref_transaksi'] == $ref && (int) ($paymentCheck['status_mutasi'] ?? 0) !== 4) {
+        $canDeleteItemFromRef = false;
+        break;
+      }
+    }
+    if ($canDeleteItemFromRef) {
+      foreach ($c_list as $itemCheck) {
+        if ((int) ($itemCheck['tuntas'] ?? 0) !== 0) {
+          $canDeleteItemFromRef = false;
+          break;
+        }
+        foreach ($data['operasi'] as $operasiCheck) {
+          if ($operasiCheck['id_penjualan'] == $itemCheck['id_penjualan']) {
+            $canDeleteItemFromRef = false;
+            break 2;
+          }
+        }
+      }
+    }
+
     foreach ($c_list as $a) {
       $f18 = $a['id_user'];
       $f1 = $a['insertTime'];
@@ -410,6 +433,9 @@ $labeled = false;
               ?>
               <td nowrap class='text-center'>
                 <a href='#' class='mb-1 text-secondary' data-print-id='<?= $id ?>'><i class='fas fa-print'></i></a><br>
+                <?php if ($canDeleteItemFromRef) { ?>
+                  <a href="#" class="hapusItemNota text-danger" data-id="<?= htmlspecialchars($id, ENT_QUOTES, 'UTF-8') ?>" data-ref="<?= htmlspecialchars($ref, ENT_QUOTES, 'UTF-8') ?>" data-item="<?= htmlspecialchars($kategori, ENT_QUOTES, 'UTF-8') ?>" title="Hapus item"><i class="fas fa-trash-alt"></i></a><br>
+                <?php } ?>
                 <?php
                 if (strlen($letak) > 0) {
                   $statusRak = "<h6 class='m-0 p-0'><small><span data-id='" . $id . "' data-value='" . strtoupper($letak) . "' class='m-0 p-0 fw-bold " . $classs_rak . " " . $id . "'>" . strtoupper($letak) . "</span></small></h6>";
@@ -1143,6 +1169,40 @@ $labeled = false;
     </div>
   </div>
 </div>
+
+<!-- Modal konfirmasi hapus satu item nota -->
+<div id="modalHapusItemNota" class="hapus-item-modal" aria-hidden="true">
+  <div class="hapus-item-modal__backdrop" data-close-hapus-item></div>
+  <div class="hapus-item-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="hapusItemModalTitle">
+    <div class="hapus-item-modal__icon"><i class="fas fa-trash-alt"></i></div>
+    <button type="button" class="hapus-item-modal__close" data-close-hapus-item aria-label="Tutup">&times;</button>
+    <h5 id="hapusItemModalTitle">Hapus item dari nota?</h5>
+    <p>Item <strong id="hapusItemNama"></strong> akan dihapus dari nota <strong id="hapusItemRef"></strong>.</p>
+    <div class="hapus-item-modal__notice"><i class="fas fa-shield-alt"></i><span>Tindakan ini hanya berlaku karena nota belum dibayar, belum diproses, dan belum tuntas.</span></div>
+    <label for="hapusItemNote">Alasan hapus <span>*</span></label>
+    <input type="text" id="hapusItemNote" autocomplete="off" maxlength="255" placeholder="Contoh: salah input item">
+    <div class="hapus-item-modal__actions">
+      <button type="button" class="btn btn-light" data-close-hapus-item>Batal</button>
+      <button type="button" class="btn btn-danger" id="btnKonfirmasiHapusItem"><i class="fas fa-trash-alt me-1"></i> Hapus item</button>
+    </div>
+  </div>
+</div>
+<style>
+  .hapus-item-modal { display:none; position:fixed; inset:0; z-index:1000000; align-items:center; justify-content:center; padding:18px; }
+  .hapus-item-modal.is-open { display:flex; }
+  .hapus-item-modal__backdrop { position:absolute; inset:0; background:rgba(15,23,42,.58); backdrop-filter:blur(3px); }
+  .hapus-item-modal__dialog { position:relative; width:100%; max-width:420px; padding:30px; border-radius:18px; background:#fff; box-shadow:0 24px 60px rgba(15,23,42,.3); }
+  .hapus-item-modal__icon { display:flex; align-items:center; justify-content:center; width:46px; height:46px; margin-bottom:14px; border-radius:14px; background:#fee2e2; color:#dc2626; font-size:20px; }
+  .hapus-item-modal__close { position:absolute; top:13px; right:16px; border:0; background:transparent; color:#64748b; font-size:28px; line-height:1; }
+  .hapus-item-modal h5 { margin:0 0 8px; color:#172033; font-weight:800; }
+  .hapus-item-modal p { margin:0 0 15px; color:#475569; line-height:1.5; }
+  .hapus-item-modal__notice { display:flex; gap:9px; margin-bottom:16px; padding:10px 12px; border-radius:10px; background:#fef2f2; color:#991b1b; font-size:12px; line-height:1.45; }
+  .hapus-item-modal label { display:block; margin-bottom:6px; color:#334155; font-size:13px; font-weight:700; }
+  .hapus-item-modal label span { color:#dc2626; }
+  .hapus-item-modal input { width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:9px; outline:none; }
+  .hapus-item-modal input:focus { border-color:#ef4444; box-shadow:0 0 0 3px rgba(239,68,68,.14); }
+  .hapus-item-modal__actions { display:flex; justify-content:flex-end; gap:8px; margin-top:22px; }
+</style>
 
 <!-- SCRIPT -->
 
