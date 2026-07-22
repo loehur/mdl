@@ -101,7 +101,7 @@
   .antrian-period.is-active[data-tone="cyan"] { background: #0e7490; color: #fff; }
 
   .antrian-rekap {
-    margin-top: 8px;
+    margin-top: 6px;
     min-height: 0;
     color: #334155;
   }
@@ -111,37 +111,38 @@
   .antrian-rekap-board {
     display: flex;
     flex-wrap: wrap;
-    gap: 5px;
+    gap: 3px 8px;
+    align-items: center;
   }
   .antrian-rekap-group {
     display: inline-flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 4px 6px;
+    gap: 2px 4px;
     max-width: 100%;
-    padding: 4px 6px 4px 4px;
-    border: 1px solid #d5dde6;
-    background: #fff;
+    padding: 0;
+    border: 0;
+    background: transparent;
   }
   .antrian-rekap-group__head {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    height: 24px;
-    padding: 0 7px;
+    gap: 4px;
+    height: 20px;
+    padding: 0 6px;
     color: #fff;
     flex: 0 0 auto;
   }
   .antrian-rekap-group.is-clickable {
     cursor: pointer;
   }
-  .antrian-rekap-group.is-clickable:hover {
-    border-color: #94a3b8;
+  .antrian-rekap-group.is-clickable:hover .antrian-rekap-group__head {
+    filter: brightness(1.08);
   }
   .antrian-rekap-group__label {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 3px;
     font-size: 11px;
     font-weight: 800;
     letter-spacing: 0.01em;
@@ -149,18 +150,18 @@
     white-space: nowrap;
   }
   .antrian-rekap-group__label i {
-    font-size: 10px;
+    font-size: 9px;
     opacity: 0.9;
   }
   .antrian-rekap-group__total {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 18px;
-    height: 16px;
-    padding: 0 4px;
-    background: rgba(255,255,255,.22);
-    border: 1px solid rgba(255,255,255,.35);
+    min-width: 14px;
+    height: auto;
+    padding: 0;
+    background: transparent;
+    border: 0;
     font-size: 11px;
     font-weight: 800;
     line-height: 1;
@@ -169,15 +170,15 @@
     display: inline-flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 3px;
+    gap: 2px 5px;
   }
   .antrian-rekap-item {
     display: inline-flex;
     align-items: baseline;
-    gap: 3px;
-    padding: 2px 6px;
-    border: 1px solid #e2e8f0;
-    background: #f8fafc;
+    gap: 2px;
+    padding: 0;
+    border: 0;
+    background: transparent;
     color: #475569;
     font-family: 'fontku', sans-serif;
     font-size: 11px;
