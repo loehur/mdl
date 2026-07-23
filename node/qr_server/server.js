@@ -57,6 +57,7 @@ const ALLOWED_KASIR_IDS = [
     '12',
     '13',
     '14',
+    '15',
     // Add more kasir IDs as needed
 ];
 
