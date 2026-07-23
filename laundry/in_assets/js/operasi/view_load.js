@@ -228,9 +228,13 @@
       var modalEl = document.getElementById("modalQR");
       if (!modalEl) return;
 
-      // Store QR data
+      // Store QR data — pakai data-nama (lengkap), bukan teks dropdown yang dipotong
       var fmtTotal = new Intl.NumberFormat('id-ID').format(total);
-      var customerName = $("select[name=pelanggan] option:selected").text().split("|")[0].trim() || nama;
+      var $optPel = $("select[name=pelanggan] option:selected");
+      var customerName = ($optPel.attr("data-nama") || "").trim()
+        || $optPel.text().split("|")[0].trim()
+        || nama
+        || "";
       window.currentQRData = {
         qrString: text,
         total: fmtTotal,
@@ -256,8 +260,12 @@
       var fmtTotal = new Intl.NumberFormat('id-ID').format(total);
       $("#qrTotal").text("Rp " + fmtTotal);
 
-      // Try to find customer name from page if passed 'nama' is just generic
-      var customerName = $("select[name=pelanggan] option:selected").text().split("|")[0].trim() || nama;
+      // Nama lengkap dari data-nama (dropdown sengaja dipotong untuk UI)
+      var $optPel2 = $("select[name=pelanggan] option:selected");
+      var customerName = ($optPel2.attr("data-nama") || "").trim()
+        || $optPel2.text().split("|")[0].trim()
+        || nama
+        || "";
       $("#qrNama").text(customerName);
 
       // Dev Mode Handling

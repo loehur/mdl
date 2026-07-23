@@ -322,7 +322,7 @@ $modeOperasi = (int) $data['mode'];
           <select name="pelanggan" data-id="<?= $id_pelanggan ?>" class="id_pelanggan tize form-control form-control-sm" required>
             <option value="" selected disabled>...</option>
             <?php foreach ($this->pelanggan as $a) { ?>
-              <option value="<?= $a['id_pelanggan'] ?>" <?= $a['id_pelanggan'] == $id_pelanggan ? 'selected' : '' ?>><?= (strlen($a['nama_pelanggan']) > 10 ? strtoupper(substr($a['nama_pelanggan'], 0, 10)) . '...' : strtoupper($a['nama_pelanggan'])) ?> | <?= $a['nomor_pelanggan'] ?></option>
+              <option value="<?= $a['id_pelanggan'] ?>" data-nama="<?= htmlspecialchars(strtoupper($a['nama_pelanggan']), ENT_QUOTES, 'UTF-8') ?>" <?= $a['id_pelanggan'] == $id_pelanggan ? 'selected' : '' ?>><?= (strlen($a['nama_pelanggan']) > 10 ? strtoupper(substr($a['nama_pelanggan'], 0, 10)) . '...' : strtoupper($a['nama_pelanggan'])) ?> | <?= $a['nomor_pelanggan'] ?></option>
             <?php } ?>
           </select>
         </div>

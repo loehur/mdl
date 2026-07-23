@@ -96,9 +96,18 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         enterKioskMode()
         webView.onResume()
-        // Reconnect WebSocket setelah pause (cookie masih ada di halaman)
+        // Reconnect hanya jika socket belum hidup (jangan force tiap resume — bisa kehilangan payment_success)
         webView.evaluateJavascript(
-            "(function(){var id=document.cookie.match(/(?:^|; )kasir_id=([^;]+)/);if(id&&id[1]&&window.connectWebSocket){window.connectWebSocket(decodeURIComponent(id[1]),{force:true});}})();",
+            """
+            (function(){
+              if (typeof window.connectWebSocket !== 'function') return;
+              var m = document.cookie.match(/(?:^|; )kasir_id=([^;]+)/);
+              if (!m || !m[1]) return;
+              var id = decodeURIComponent(m[1]);
+              if (window.ws && (window.ws.readyState === 0 || window.ws.readyState === 1)) return;
+              window.connectWebSocket(id, {force:true});
+            })();
+            """.trimIndent(),
             null
         )
         networkMonitor?.let {
@@ -107,13 +116,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onPause() {
-        // Lepas slot WebSocket di server sebelum app background/kill
-        if (::webView.isInitialized) {
-            webView.evaluateJavascript(
-                "window.closeQrSocket && window.closeQrSocket()",
-                null
-            )
-        }
+        // Jangan tutup WebSocket di onPause — notifikasi/sistem dialog memicu pause
+        // dan membuat payment_success hilang. Tutup di onDestroy / exit kiosk.
         webView.onPause()
         super.onPause()
     }
@@ -121,6 +125,12 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         cancelExitProgress()
         immersiveRetryRunnable?.let { handler.removeCallbacks(it) }
+        if (::webView.isInitialized) {
+            webView.evaluateJavascript(
+                "window.closeQrSocket && window.closeQrSocket()",
+                null
+            )
+        }
         networkMonitor?.stop()
         super.onDestroy()
     }

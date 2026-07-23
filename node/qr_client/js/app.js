@@ -128,6 +128,8 @@ function closeWebSocket() {
         }
         ws = null;
     }
+    // Sinkron ke window.ws agar Android onResume bisa cek readyState
+    window.ws = null;
 }
 
 function logout() {
@@ -170,6 +172,7 @@ function connectWebSocket(kasirId, options) {
     showStatusLabel('MENGHUBUNGKAN...');
 
     ws = new WebSocket(WS_URL + '?kasir_id=' + encodeURIComponent(kasirId));
+    window.ws = ws;
 
     ws.onopen = function () {
         replaceRetryCount = 0;
@@ -184,6 +187,7 @@ function connectWebSocket(kasirId, options) {
 
     ws.onclose = function (e) {
         if (ws && ws.pingInterval) clearInterval(ws.pingInterval);
+        if (window.ws === ws) window.ws = null;
 
         // 4001-4003: auth rejected — kembali ke login
         if (e.code >= 4001 && e.code <= 4003) {
@@ -231,8 +235,13 @@ function connectWebSocket(kasirId, options) {
         }
 
         if (data.type === 'payment_success') {
-            if (currentQrString && data.qr_string === currentQrString) {
-                showPaymentSuccess(data.status);
+            // Server sudah filter per kasir_id. Tampilkan sukses jika ada QR di layar.
+            // Exact match preferred; fallback agar tidak gagal karena perbedaan whitespace/encoding.
+            var incoming = (data.qr_string || '').trim();
+            var current = (currentQrString || '').trim();
+            var matched = !incoming || !current || incoming === current;
+            if (data.status && current && matched) {
+                showPaymentSuccess(true);
             }
         }
     };
@@ -269,7 +278,14 @@ function displayQR(qrString, text) {
 
     const qrTextEl = document.getElementById('qr-text');
     if (text) {
-        qrTextEl.innerHTML = text.replace(/<br\s*\/?>/gi, '<br>').toUpperCase();
+        const parts = String(text).split(/<br\s*\/?>/gi);
+        qrTextEl.innerHTML = parts.map(function (part) {
+            const clean = part.trim().toUpperCase();
+            if (!clean) return '';
+            const isAmount = /^RP\s*[\d.,]+/i.test(clean);
+            const cls = isAmount ? 'qr-amount' : 'qr-name';
+            return '<span class="' + cls + '">' + clean + '</span>';
+        }).filter(Boolean).join('<br>');
     } else {
         qrTextEl.innerHTML = '';
     }

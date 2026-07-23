@@ -229,12 +229,29 @@ body {
     margin-top: 24px;
     margin-bottom: 0;
     padding: 0 8px;
-    font-size: 22px;
-    font-weight: normal;
     color: #cccccc;
     line-height: 1.4;
     text-transform: uppercase;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
     word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+
+.row-text .qr-name {
+    display: inline;
+    font-size: 16px;
+    font-weight: normal;
+    color: #cccccc;
+}
+
+.row-text .qr-amount {
+    display: inline;
+    font-size: 24px;
+    font-weight: bold;
+    color: #ffffff;
 }
 
 /* ---------- Payment success ---------- */
@@ -282,6 +299,9 @@ body {
     display: block;
     margin-top: 24px;
     font-size: 22px;
+    font-weight: bold;
+    line-height: 1.35;
     color: #cccccc;
+    text-align: center;
     text-transform: uppercase;
 }
