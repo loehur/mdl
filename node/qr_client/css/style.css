@@ -84,24 +84,17 @@ body {
 
 .qr-header {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 24px;
+    gap: 2em;
+    margin-bottom: 2.5em;
     width: 100%;
 }
 
-.status-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
-}
-
-/* Status Indicator */
+/* Status Indicator — large, prominent */
 .status-box {
-    width: 10px;
-    height: 10px;
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
     flex-shrink: 0;
     transition: background 0.3s, box-shadow 0.3s;
@@ -109,63 +102,54 @@ body {
 
 .status-box.disconnected {
     background: #e74c3c;
-    box-shadow: 0 0 8px rgba(231, 76, 60, 0.4);
+    box-shadow: 0 0 18px rgba(231, 76, 60, 0.65);
     animation: pulse-disconnected 1.5s ease-in-out infinite;
 }
 
 .status-box.connected {
     background: #2ecc71;
-    box-shadow: 0 0 8px rgba(46, 204, 113, 0.4);
+    box-shadow: 0 0 18px rgba(46, 204, 113, 0.65);
     animation: none;
 }
 
 .kasir-id-label {
-    font-size: 14px;
-    font-weight: 600;
-    color: #ffffff;
-    letter-spacing: 0.5px;
+    font-size: 15px;
+    font-weight: 500;
+    color: #777777;
+    letter-spacing: 1px;
     white-space: nowrap;
 }
 
 .status-label {
     display: none;
     font-size: 12px;
-    color: #666666;
+    color: #555555;
     white-space: nowrap;
+    margin-top: -1.2em;
 }
 
 .status-label.show {
-    display: inline;
-}
-
-.status-label.show::before {
-    content: '·';
-    margin-right: 6px;
-    color: #444444;
+    display: block;
 }
 
 .btn-logout {
-    flex-shrink: 0;
-    margin-left: auto;
-    padding: 6px 12px;
-    font-size: 12px;
-    font-weight: 500;
-    color: #666666;
+    padding: 0;
+    font-size: 13px;
+    font-weight: 400;
+    color: #555555;
     background: transparent;
-    border: 1px solid #2a2a2a;
-    border-radius: 6px;
+    border: none;
     cursor: pointer;
-    transition: color 0.2s, border-color 0.2s;
+    transition: color 0.2s;
 }
 
 .btn-logout:hover {
-    color: #ffffff;
-    border-color: #555555;
+    color: #888888;
 }
 
 @keyframes pulse-disconnected {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.55; transform: scale(0.92); }
 }
 
 /* QR Container */
