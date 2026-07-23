@@ -1,118 +1,145 @@
 <style>
   #ord-root {
-    --ord-ink: #1e3a5f;
-    --ord-ink-soft: #2a4a73;
-    --ord-muted: #5a6a7c;
-    --ord-line: #D5DEEA;
-    --ord-card: #FFFFFF;
-    --ord-foam: #F4F7FB;
-    --ord-accent: #3f74d4;
-    --ord-accent-deep: #2f61bc;
-    --ord-accent-soft: #d9e6fa;
+    --ord-ink: #0f172a;
+    --ord-muted: #1e293b;
+    --ord-line: #cbd5e1;
+    --ord-card: #ffffff;
+    --ord-blue: #2563eb;
+    --ord-blue-deep: #1d4ed8;
+    --ord-green: #16a34a;
+    --ord-green-deep: #15803d;
+    --ord-yellow: #f59e0b;
+    --ord-yellow-deep: #d97706;
+    --ord-red: #dc2626;
+    --ord-red-deep: #b91c1c;
     --ord-radius: 16px;
-    font-family: 'fontku', 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
-    font-size: 13px;
+    font-family: 'fontku', 'Segoe UI', sans-serif;
+    font-size: 13.5px;
     color: var(--ord-ink);
-    padding: 12px 12px 20px;
-    background:
-      radial-gradient(120% 80% at 100% -10%, rgba(63, 116, 212, 0.12), transparent 55%),
-      var(--ord-foam);
+    padding: 14px 14px 22px;
+    background: transparent;
     min-height: 100%;
   }
   #ord-root * { box-sizing: border-box; }
 
   #ord-root .ord-card {
     background: var(--ord-card);
-    border: 1px solid var(--ord-line);
+    border: 2px solid #e2e8f0;
     border-radius: var(--ord-radius);
-    padding: 12px;
-    margin-bottom: 10px;
-    box-shadow: 0 8px 22px rgba(36, 48, 65, 0.05);
+    padding: 14px;
+    margin-bottom: 12px;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
   }
+  #ord-root .ord-card--blue { border-color: #93c5fd; background: linear-gradient(180deg, #eff6ff, #fff); }
+  #ord-root .ord-card--green { border-color: #86efac; background: linear-gradient(180deg, #f0fdf4, #fff); }
+  #ord-root .ord-card--yellow { border-color: #fcd34d; background: linear-gradient(180deg, #fffbeb, #fff); }
+  #ord-root .ord-card--red { border-color: #fca5a5; background: linear-gradient(180deg, #fef2f2, #fff); }
+
   #ord-root .ord-card-title {
-    margin: 0 0 10px;
-    font-size: 0.72rem;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--ord-muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 12px;
+    font-size: 0.95rem;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    color: var(--ord-ink);
   }
+  #ord-root .ord-card-title i {
+    width: 30px;
+    height: 30px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    font-size: 0.85rem;
+    color: #fff;
+  }
+  #ord-root .ord-card-title i.is-blue { background: var(--ord-blue); }
+  #ord-root .ord-card-title i.is-green { background: var(--ord-green); }
+  #ord-root .ord-card-title i.is-yellow { background: var(--ord-yellow); color: #111; }
+  #ord-root .ord-card-title i.is-red { background: var(--ord-red); }
 
   #ord-root .ord-grid-2 {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8px;
+    gap: 10px;
   }
   #ord-root .ord-field label {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    margin-bottom: 5px;
-    font-size: 0.72rem;
-    font-weight: 800;
-    letter-spacing: 0.06em;
+    margin-bottom: 6px;
+    font-size: 0.78rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
     color: var(--ord-muted);
   }
   #ord-root .ord-link {
-    font-size: 0.75rem;
-    font-weight: 700;
+    font-size: 0.78rem;
+    font-weight: 900;
     letter-spacing: 0;
     text-transform: none;
-    color: var(--ord-accent);
+    color: var(--ord-yellow-deep);
     cursor: pointer;
   }
-  #ord-root .ord-link:hover { color: var(--ord-accent-deep); }
+  #ord-root .ord-link:hover { color: var(--ord-red-deep); }
 
-  /* Selectize soft override inside order */
   #ord-root .selectize-input {
-    border: 1px solid var(--ord-line) !important;
-    border-radius: 10px !important;
+    border: 2px solid #94a3b8 !important;
+    border-radius: 12px !important;
     box-shadow: none !important;
-    min-height: 38px;
-    padding: 7px 10px !important;
-    font-size: 0.88rem !important;
-    font-weight: 650;
+    min-height: 42px;
+    padding: 8px 12px !important;
+    font-size: 0.92rem !important;
+    font-weight: 800 !important;
+    color: var(--ord-ink) !important;
+    background: #fff !important;
   }
   #ord-root .selectize-input.focus {
-    border-color: var(--ord-accent) !important;
-    box-shadow: 0 0 0 3px rgba(63, 116, 212, 0.18) !important;
+    border-color: var(--ord-blue) !important;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.22) !important;
   }
   #ord-root .selectize-dropdown {
-    border-color: var(--ord-line) !important;
-    border-radius: 10px !important;
-    box-shadow: 0 10px 24px rgba(36, 48, 65, 0.12) !important;
+    border: 2px solid #94a3b8 !important;
+    border-radius: 12px !important;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16) !important;
+  }
+  #ord-root .selectize-dropdown .option {
+    font-weight: 700;
+    color: var(--ord-ink);
   }
 
   #ord-root .ord-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 7px;
+    gap: 8px;
     width: 100%;
     border: 0;
-    border-radius: 11px;
-    padding: 10px 12px;
+    border-radius: 12px;
+    padding: 12px 14px;
     font-family: inherit;
-    font-size: 0.9rem;
-    font-weight: 800;
+    font-size: 0.95rem;
+    font-weight: 900;
     cursor: pointer;
-    transition: transform .12s ease, opacity .12s ease, background .15s ease;
+    transition: transform .12s ease, filter .12s ease;
   }
   #ord-root .ord-btn:active { transform: scale(0.98); }
   #ord-root .ord-btn:disabled {
-    opacity: 0.45;
+    opacity: 0.4;
     cursor: not-allowed;
+    filter: grayscale(0.2);
   }
   #ord-root .ord-btn--primary {
-    margin-top: 10px;
-    background: linear-gradient(145deg, var(--ord-accent-deep) 0%, var(--ord-accent) 100%);
+    margin-top: 12px;
+    background: linear-gradient(135deg, var(--ord-green-deep), var(--ord-green));
     color: #fff;
-    box-shadow: 0 8px 18px rgba(47, 97, 188, 0.28);
+    box-shadow: 0 10px 22px rgba(22, 163, 74, 0.32);
   }
   #ord-root .ord-btn--primary:hover:not(:disabled) {
-    background: linear-gradient(145deg, #274f9e 0%, var(--ord-accent-deep) 100%);
+    filter: brightness(1.05);
   }
 
   #ord-root .ord-svc {
@@ -125,35 +152,51 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    min-height: 72px;
+    gap: 7px;
+    min-height: 86px;
     padding: 10px 6px;
-    border: 1px solid var(--ord-line);
+    border: 2px solid #cbd5e1;
     border-radius: 14px;
     background: #fff;
     color: var(--ord-ink);
     font-family: inherit;
-    font-size: 0.72rem;
-    font-weight: 750;
+    font-size: 0.78rem;
+    font-weight: 900;
     cursor: pointer;
     transition: border-color .15s ease, background .15s ease, transform .12s ease, box-shadow .15s ease;
   }
   #ord-root .ord-svc-btn i {
-    width: 34px;
-    height: 34px;
+    width: 36px;
+    height: 36px;
     display: grid;
     place-items: center;
     border-radius: 11px;
-    font-size: 0.95rem;
+    font-size: 1rem;
+    color: #fff;
   }
-  #ord-root .ord-svc-btn[data-id_penjualan='1'] i { background: rgba(42, 157, 143, 0.14); color: #1A7A6E; }
-  #ord-root .ord-svc-btn[data-id_penjualan='2'] i { background: rgba(63, 116, 212, 0.14); color: var(--ord-accent-deep); }
-  #ord-root .ord-svc-btn[data-id_penjualan='3'] i { background: rgba(36, 48, 65, 0.1); color: #243041; }
-  #ord-root .ord-svc-btn[data-id_penjualan='4'] i { background: rgba(231, 111, 81, 0.14); color: #C24A30; }
+  #ord-root .ord-svc-btn[data-id_penjualan='1'] {
+    border-color: #4ade80;
+    background: linear-gradient(180deg, #dcfce7, #fff);
+  }
+  #ord-root .ord-svc-btn[data-id_penjualan='1'] i { background: var(--ord-green); }
+  #ord-root .ord-svc-btn[data-id_penjualan='2'] {
+    border-color: #60a5fa;
+    background: linear-gradient(180deg, #dbeafe, #fff);
+  }
+  #ord-root .ord-svc-btn[data-id_penjualan='2'] i { background: var(--ord-blue); }
+  #ord-root .ord-svc-btn[data-id_penjualan='3'] {
+    border-color: #fbbf24;
+    background: linear-gradient(180deg, #fef3c7, #fff);
+  }
+  #ord-root .ord-svc-btn[data-id_penjualan='3'] i { background: var(--ord-yellow); color: #111; }
+  #ord-root .ord-svc-btn[data-id_penjualan='4'] {
+    border-color: #f87171;
+    background: linear-gradient(180deg, #fee2e2, #fff);
+  }
+  #ord-root .ord-svc-btn[data-id_penjualan='4'] i { background: var(--ord-red); }
   #ord-root .ord-svc-btn:hover {
-    border-color: rgba(63, 116, 212, 0.45);
-    background: var(--ord-accent-soft);
-    box-shadow: 0 6px 16px rgba(47, 97, 188, 0.12);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 18px rgba(15, 23, 42, 0.12);
   }
   #ord-root .ord-svc-btn:active { transform: scale(0.97); }
 
@@ -161,7 +204,8 @@
     content: 'Pilih pelanggan untuk melihat layanan favorit.';
     display: block;
     color: var(--ord-muted);
-    font-size: 0.8rem;
+    font-size: 0.84rem;
+    font-weight: 700;
   }
   #ord-root #sering .ord-sering-item,
   #ord-root #sering > div {
@@ -169,9 +213,11 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    padding: 8px 0;
-    border-bottom: 1px dashed var(--ord-line);
-    font-size: 0.8rem;
+    padding: 9px 0;
+    border-bottom: 2px dashed #cbd5e1;
+    font-size: 0.84rem;
+    font-weight: 750;
+    color: var(--ord-ink);
     white-space: normal !important;
   }
   #ord-root #sering > div:last-child { border-bottom: 0; }
@@ -179,14 +225,17 @@
   #ord-root #sering .pilih-sering a {
     display: inline-flex;
     align-items: center;
-    padding: 3px 8px;
+    padding: 4px 10px;
     border: 0 !important;
-    border-radius: 999px !important;
-    background: var(--ord-accent-soft);
-    color: var(--ord-accent-deep);
-    font-size: 0.7rem;
-    font-weight: 800;
+    border-radius: 8px !important;
+    background: var(--ord-blue);
+    color: #fff !important;
+    font-size: 0.72rem;
+    font-weight: 900;
     text-decoration: none;
+  }
+  #ord-root #sering .pilih-sering a:hover {
+    background: var(--ord-blue-deep);
   }
 
   #ord-root #saldoMember:empty { display: none; }
@@ -194,20 +243,35 @@
 
   #ord-root .ord-cart-wrap {
     border-radius: var(--ord-radius);
-    border: 1px solid rgba(63, 116, 212, 0.25);
-    background: linear-gradient(180deg, #edf3fc 0%, #f7faff 100%);
-    padding: 10px;
+    border: 2px solid #fbbf24;
+    background: linear-gradient(180deg, #fff7ed 0%, #ffffff 100%);
+    padding: 12px;
+    box-shadow: 0 10px 24px rgba(217, 119, 6, 0.12);
   }
   #ord-root .ord-cart-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
   }
   #ord-root .ord-cart-head strong {
-    font-size: 0.8rem;
-    font-weight: 800;
-    letter-spacing: -0.01em;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.95rem;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    color: var(--ord-ink);
+  }
+  #ord-root .ord-cart-head strong i {
+    width: 30px;
+    height: 30px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    background: var(--ord-yellow);
+    color: #111;
+    font-size: 0.85rem;
   }
   #ord-root #cart {
     max-height: 220px;
@@ -223,21 +287,12 @@
     gap: 0 12px;
     align-items: start;
   }
-  #ord-root .ord-col {
-    min-width: 0;
-  }
+  #ord-root .ord-col { min-width: 0; }
 
   @media (min-width: 640px) {
-    #ord-root .ord-layout {
-      grid-template-columns: 1fr 1fr;
-    }
-    #ord-root #cart {
-      max-height: min(55vh, 420px);
-    }
-    #ord-root .ord-cart-wrap {
-      position: sticky;
-      top: 8px;
-    }
+    #ord-root .ord-layout { grid-template-columns: 1fr 1fr; }
+    #ord-root #cart { max-height: min(55vh, 420px); }
+    #ord-root .ord-cart-wrap { position: sticky; top: 8px; }
   }
 
   @media (max-width: 639px) {
@@ -250,8 +305,8 @@
   <div class="ord-layout">
     <div class="ord-col ord-col-main">
       <form class="orderProses" action="<?= URL::BASE_URL ?>Penjualan/proses" method="POST">
-        <div class="ord-card">
-          <p class="ord-card-title">Data order</p>
+        <div class="ord-card ord-card--blue">
+          <p class="ord-card-title"><i class="fas fa-user-edit is-blue"></i> Data Order</p>
           <div class="ord-grid-2">
             <div class="ord-field">
               <label>
@@ -294,8 +349,8 @@
       </form>
 
       <div id="waitReady" class="invisible">
-        <div class="ord-card">
-          <p class="ord-card-title">Tambah item</p>
+        <div class="ord-card ord-card--green">
+          <p class="ord-card-title"><i class="fas fa-plus-square is-green"></i> Tambah Item</p>
           <form id="main">
             <div class="ord-svc">
               <button type="button" data-id_penjualan="1" class="ord-svc-btn orderPenjualanForm">
@@ -323,14 +378,14 @@
     </div>
 
     <div class="ord-col ord-col-side">
-      <div class="ord-card">
-        <p class="ord-card-title">Layanan paling sering</p>
+      <div class="ord-card ord-card--red">
+        <p class="ord-card-title"><i class="fas fa-fire is-red"></i> Layanan Paling Sering</p>
         <div id="sering"></div>
       </div>
 
       <div class="ord-cart-wrap">
         <div class="ord-cart-head">
-          <strong><i class="fas fa-shopping-basket me-1"></i> Keranjang</strong>
+          <strong><i class="fas fa-shopping-basket"></i> Keranjang</strong>
         </div>
         <div id="cart"></div>
       </div>
@@ -369,8 +424,8 @@
     width: min(520px, 100%);
     max-height: min(90vh, 720px);
     background: #fff;
-    border-radius: 0;
-    box-shadow: 0 24px 48px rgba(15, 23, 42, 0.28);
+    border-radius: 16px;
+    box-shadow: 0 24px 48px rgba(15, 23, 42, 0.3);
     overflow: hidden;
     animation: ordOrderIn .18s ease-out;
     pointer-events: auto;
@@ -431,7 +486,7 @@
   .ord-plg-modal__backdrop {
     position: absolute;
     inset: 0;
-    background: rgba(15, 23, 42, 0.55);
+    background: rgba(15, 23, 42, 0.6);
     backdrop-filter: blur(3px);
   }
   .ord-plg-modal__panel {
@@ -439,8 +494,8 @@
     z-index: 1;
     width: min(400px, 100%);
     background: #fff;
-    border-radius: 0;
-    box-shadow: 0 24px 48px rgba(15, 23, 42, 0.28);
+    border-radius: 16px;
+    box-shadow: 0 24px 48px rgba(15, 23, 42, 0.3);
     overflow: hidden;
     animation: ordPlgIn .18s ease-out;
   }
@@ -454,74 +509,75 @@
     justify-content: space-between;
     gap: 12px;
     padding: 14px 16px;
-    background: linear-gradient(135deg, #2f61bc, #3f74d4);
+    background: linear-gradient(105deg, #d97706, #f59e0b 55%, #dc2626);
     color: #fff;
   }
   .ord-plg-modal__head h3 {
     margin: 0;
-    font-size: 15px;
-    font-weight: 800;
-    letter-spacing: 0.02em;
+    font-size: 16px;
+    font-weight: 900;
+    letter-spacing: -0.02em;
     font-family: 'fontku', sans-serif;
   }
   .ord-plg-modal__head small {
     display: block;
     margin-top: 2px;
-    font-size: 11px;
-    font-weight: 600;
-    opacity: 0.85;
+    font-size: 12px;
+    font-weight: 750;
+    opacity: 0.95;
   }
   .ord-plg-modal__close {
-    width: 32px;
-    height: 32px;
+    width: 34px;
+    height: 34px;
     border: 0;
-    border-radius: 0;
-    background: rgba(255,255,255,.15);
+    border-radius: 10px;
+    background: rgba(255,255,255,.2);
     color: #fff;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
     justify-content: center;
   }
-  .ord-plg-modal__close:hover { background: rgba(255,255,255,.28); }
+  .ord-plg-modal__close:hover { background: rgba(255,255,255,.32); }
   .ord-plg-modal__body {
     padding: 14px 16px 16px;
-    background: #f4f7fb;
+    background: linear-gradient(180deg, #fffbeb, #fff);
   }
   .ord-plg-label {
     display: block;
     margin: 0 0 5px;
-    font-size: 11px;
-    font-weight: 800;
-    letter-spacing: 0.06em;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: #5a6a7c;
+    color: #0f172a;
   }
   .ord-plg-input {
     width: 100%;
     margin-bottom: 10px;
     padding: 10px 12px;
-    border: 1px solid #D5DEEA;
-    border-radius: 0;
+    border: 2px solid #94a3b8;
+    border-radius: 10px;
     background: #fff;
     font-family: 'fontku', sans-serif;
     font-size: 14px;
-    font-weight: 650;
-    color: #1e3a5f;
+    font-weight: 800;
+    color: #0f172a;
     outline: none;
   }
   .ord-plg-input:focus {
-    border-color: #3f74d4;
-    box-shadow: 0 0 0 3px rgba(63, 116, 212, 0.2);
+    border-color: #f59e0b;
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.25);
   }
   .ord-plg-msg {
     margin: 0 0 10px;
     padding: 8px 10px;
-    border-radius: 0;
+    border-radius: 10px;
     font-size: 12px;
-    font-weight: 650;
-    background: rgba(231, 111, 81, 0.12);
-    color: #C24A30;
+    font-weight: 800;
+    background: #fee2e2;
+    border: 1px solid #f87171;
+    color: #b91c1c;
   }
   .ord-plg-msg.is-hidden { display: none; }
   .ord-plg-submit {
@@ -531,15 +587,15 @@
     gap: 7px;
     width: 100%;
     border: 0;
-    border-radius: 0;
-    padding: 11px 14px;
-    background: linear-gradient(145deg, #2f61bc, #3f74d4);
+    border-radius: 10px;
+    padding: 12px 14px;
+    background: linear-gradient(135deg, #15803d, #16a34a);
     color: #fff;
     font-family: 'fontku', sans-serif;
     font-size: 14px;
-    font-weight: 800;
+    font-weight: 900;
     cursor: pointer;
-    box-shadow: 0 8px 18px rgba(47, 97, 188, 0.28);
+    box-shadow: 0 8px 18px rgba(22, 163, 74, 0.3);
   }
   .ord-plg-submit:disabled { opacity: 0.6; cursor: not-allowed; }
 </style>

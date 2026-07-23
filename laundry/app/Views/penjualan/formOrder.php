@@ -32,67 +32,67 @@ if ($saldoNya_member > 0) {
 ?>
 
 <style>
-  .ord-fo { font-family: 'fontku', sans-serif; color: #1e3a5f; }
+  .ord-fo { font-family: 'fontku', sans-serif; color: #0f172a; }
   .ord-fo__head {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
     padding: 14px 16px;
-    background: linear-gradient(135deg, #2f61bc, #3f74d4);
+    background: linear-gradient(105deg, #1d4ed8, #2563eb 45%, #16a34a);
     color: #fff;
   }
   .ord-fo__head h3 {
     margin: 0;
-    font-size: 15px;
-    font-weight: 800;
-    letter-spacing: 0.02em;
+    font-size: 16px;
+    font-weight: 900;
+    letter-spacing: -0.02em;
   }
   .ord-fo__head small {
     display: block;
     margin-top: 2px;
-    font-size: 11px;
-    font-weight: 600;
-    opacity: 0.88;
+    font-size: 12px;
+    font-weight: 750;
+    opacity: 0.95;
   }
   .ord-fo__close {
-    width: 32px;
-    height: 32px;
+    width: 34px;
+    height: 34px;
     border: 0;
-    border-radius: 0;
-    background: rgba(255,255,255,.15);
+    border-radius: 10px;
+    background: rgba(255,255,255,.2);
     color: #fff;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
     justify-content: center;
   }
-  .ord-fo__close:hover { background: rgba(255,255,255,.28); }
+  .ord-fo__close:hover { background: rgba(255,255,255,.32); }
   .ord-fo__body {
     padding: 14px 16px;
-    background: #f4f7fb;
+    background: linear-gradient(180deg, #eff6ff, #f0fdf4);
     max-height: min(70vh, 560px);
     overflow-y: auto;
   }
   .ord-fo__label {
     display: block;
     margin: 0 0 5px;
-    font-size: 11px;
-    font-weight: 800;
-    letter-spacing: 0.06em;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: #5a6a7c;
+    color: #0f172a;
   }
   .ord-fo__hint {
     display: block;
     margin-top: 2px;
-    font-size: 11px;
-    font-weight: 650;
+    font-size: 12px;
+    font-weight: 800;
     letter-spacing: 0;
     text-transform: none;
-    color: #2f61bc;
+    color: #1d4ed8;
   }
-  .ord-fo__hint--warn { color: #C24A30; }
+  .ord-fo__hint--warn { color: #dc2626; }
   .ord-fo__field { margin-bottom: 10px; }
   .ord-fo__grid {
     display: grid;
@@ -112,52 +112,55 @@ if ($saldoNya_member > 0) {
   .ord-fo__input {
     width: 100%;
     padding: 10px 12px;
-    border: 1px solid #D5DEEA;
-    border-radius: 0;
+    border: 2px solid #94a3b8;
+    border-radius: 10px;
     background: #fff;
     font-family: inherit;
     font-size: 14px;
-    font-weight: 650;
-    color: #1e3a5f;
+    font-weight: 800;
+    color: #0f172a;
     outline: none;
   }
   .ord-fo__input:focus {
-    border-color: #3f74d4;
-    box-shadow: 0 0 0 3px rgba(63, 116, 212, 0.2);
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.22);
   }
   .ord-fo__input--qty {
     background: #fff;
-    font-weight: 800;
-    color: #1e3a5f;
+    font-weight: 900;
+    color: #0f172a;
   }
   .ord-fo__input--total {
-    background: #eef7f1;
-    font-weight: 800;
-    color: #1f7a4d;
+    background: #dcfce7;
+    border-color: #16a34a;
+    font-weight: 900;
+    color: #15803d;
     text-align: center;
   }
   .ord-fo__input--ro {
     text-align: center;
-    background: #e8eef6;
-    color: #5a6a7c;
+    background: #fef3c7;
+    border-color: #f59e0b;
+    color: #92400e;
     cursor: default;
   }
   .ord-fo .selectize-input {
-    border: 1px solid #D5DEEA !important;
-    border-radius: 0 !important;
+    border: 2px solid #94a3b8 !important;
+    border-radius: 10px !important;
     box-shadow: none !important;
-    min-height: 40px;
+    min-height: 42px;
     padding: 8px 10px !important;
     font-size: 13px !important;
-    font-weight: 650;
+    font-weight: 800;
+    color: #0f172a !important;
   }
   .ord-fo .selectize-input.focus {
-    border-color: #3f74d4 !important;
-    box-shadow: 0 0 0 3px rgba(63, 116, 212, 0.2) !important;
+    border-color: #2563eb !important;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.22) !important;
   }
   .ord-fo .selectize-dropdown {
-    border-color: #D5DEEA !important;
-    border-radius: 0 !important;
+    border-color: #94a3b8 !important;
+    border-radius: 10px !important;
     z-index: 5100 !important;
   }
   .ord-fo__foot {
@@ -165,8 +168,8 @@ if ($saldoNya_member > 0) {
     grid-template-columns: 1fr 1.4fr;
     gap: 8px;
     padding: 12px 16px 16px;
-    background: #f4f7fb;
-    border-top: 1px solid #D5DEEA;
+    background: #fff7ed;
+    border-top: 2px solid #fbbf24;
   }
   .ord-fo__btn {
     display: inline-flex;
@@ -174,21 +177,21 @@ if ($saldoNya_member > 0) {
     justify-content: center;
     gap: 6px;
     border: 0;
-    border-radius: 0;
+    border-radius: 10px;
     padding: 11px 14px;
     font-family: inherit;
     font-size: 14px;
-    font-weight: 800;
+    font-weight: 900;
     cursor: pointer;
   }
   .ord-fo__btn--ghost {
-    background: #e8eef6;
-    color: #5a6a7c;
+    background: #e2e8f0;
+    color: #0f172a;
   }
   .ord-fo__btn--primary {
-    background: linear-gradient(145deg, #2f61bc, #3f74d4);
+    background: linear-gradient(135deg, #15803d, #16a34a);
     color: #fff;
-    box-shadow: 0 8px 18px rgba(47, 97, 188, 0.28);
+    box-shadow: 0 8px 18px rgba(22, 163, 74, 0.3);
   }
   @media (max-width: 480px) {
     .ord-fo__grid,

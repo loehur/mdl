@@ -304,14 +304,35 @@
 </button>
 
 <!-- Offcanvas Buka Order -->
+<style>
+  #offcanvasBukaOrder .offcanvas-header {
+    background: linear-gradient(105deg, #1d4ed8 0%, #2563eb 35%, #16a34a 70%, #f59e0b 100%);
+    color: #fff;
+    border-bottom: 0;
+    padding: 1rem 1.15rem;
+  }
+  #offcanvasBukaOrder .offcanvas-title {
+    font-family: 'fontku', sans-serif;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    margin: 0;
+    text-shadow: 0 1px 0 rgba(0,0,0,.18);
+  }
+  #offcanvasBukaOrder .offcanvas-body {
+    background:
+      radial-gradient(90% 60% at 0% 0%, rgba(37,99,235,.14), transparent 50%),
+      radial-gradient(80% 50% at 100% 0%, rgba(245,158,11,.14), transparent 45%),
+      linear-gradient(180deg, #eef4ff 0%, #f4fff8 50%, #fff8eb 100%);
+  }
+</style>
 <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasBukaOrder" aria-labelledby="offcanvasBukaOrderLabel" data-bs-backdrop="true" style="z-index: 1100; --bs-offcanvas-width: min(820px, 100vw);">
-  <div class="offcanvas-header" style="background:linear-gradient(145deg,#2f61bc,#3f74d4);color:#fff;border-bottom:0;">
-    <h5 class="offcanvas-title fw-bold mb-0" id="offcanvasBukaOrderLabel" style="font-family:'fontku',sans-serif;letter-spacing:-0.01em;">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title" id="offcanvasBukaOrderLabel">
       <i class="fas fa-cash-register me-2"></i>Buka Order
     </h5>
     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
   </div>
-  <div class="offcanvas-body p-0" id="bukaOrderContent" style="background:#F4F7FB;">
+  <div class="offcanvas-body p-0" id="bukaOrderContent">
     <div class="d-flex justify-content-center align-items-center py-5">
         <div class="spinner-border text-primary" role="status">
             <span class="visually-hidden">Loading...</span>

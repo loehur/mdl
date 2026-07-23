@@ -1,28 +1,30 @@
 <style>
   #saldoMember .ord-member {
-    background: #fff;
-    border: 1px solid #D5DEEA;
+    background: linear-gradient(180deg, #f0fdf4, #fff);
+    border: 2px solid #4ade80;
     border-radius: 16px;
-    padding: 12px;
+    padding: 14px;
     margin-bottom: 10px;
-    box-shadow: 0 8px 22px rgba(36, 48, 65, 0.05);
+    box-shadow: 0 10px 22px rgba(22, 163, 74, 0.12);
   }
   #saldoMember .ord-member-title {
-    margin: 0 0 10px;
-    font-size: 0.72rem;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: #5a6a7c;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0 0 12px;
+    font-size: 0.95rem;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    color: #0f172a;
   }
   #saldoMember .ord-member-title small {
     display: block;
-    margin-top: 3px;
-    font-size: 0.75rem;
-    font-weight: 600;
+    margin-top: 2px;
+    font-size: 0.8rem;
+    font-weight: 800;
     letter-spacing: 0;
     text-transform: none;
-    color: #3f74d4;
+    color: #15803d;
   }
   #saldoMember .ord-member-list {
     display: flex;
@@ -34,27 +36,28 @@
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    padding: 10px;
-    border: 1px solid #D5DEEA;
+    padding: 11px;
+    border: 2px solid #86efac;
     border-radius: 12px;
-    background: linear-gradient(180deg, #f7faff 0%, #fff 100%);
+    background: #fff;
   }
   #saldoMember .ord-member-item strong {
     display: block;
-    font-size: 0.84rem;
-    font-weight: 800;
-    color: #1e3a5f;
-    letter-spacing: -0.01em;
+    font-size: 0.88rem;
+    font-weight: 900;
+    color: #0f172a;
+    letter-spacing: -0.02em;
   }
   #saldoMember .ord-member-saldo {
-    color: #2f61bc;
-    font-weight: 800;
+    color: #16a34a;
+    font-weight: 900;
   }
   #saldoMember .ord-member-meta {
     display: block;
     margin-top: 3px;
-    font-size: 0.74rem;
-    color: #5a6a7c;
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: #1e293b;
     line-height: 1.35;
   }
   #saldoMember .ord-pakai-btn {
@@ -63,22 +66,24 @@
     align-items: center;
     justify-content: center;
     gap: 5px;
-    min-width: 72px;
-    padding: 7px 12px;
+    min-width: 74px;
+    padding: 8px 12px;
     border: 0;
-    border-radius: 999px;
-    background: linear-gradient(145deg, #2f61bc 0%, #3f74d4 100%);
+    border-radius: 10px;
+    background: linear-gradient(135deg, #15803d, #16a34a);
     color: #fff;
     font-family: inherit;
-    font-size: 0.75rem;
-    font-weight: 800;
+    font-size: 0.78rem;
+    font-weight: 900;
     cursor: pointer;
-    box-shadow: 0 6px 14px rgba(47, 97, 188, 0.25);
-    transition: transform .12s ease, opacity .12s ease;
+    box-shadow: 0 8px 16px rgba(22, 163, 74, 0.28);
+    transition: transform .12s ease, filter .12s ease;
   }
   #saldoMember .ord-pakai-btn:active {
     transform: scale(0.97);
-    opacity: 0.9;
+  }
+  #saldoMember .ord-pakai-btn:hover {
+    filter: brightness(1.05);
   }
 </style>
 

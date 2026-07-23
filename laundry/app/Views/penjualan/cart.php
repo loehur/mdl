@@ -1,17 +1,18 @@
 <style>
   #cart .ord-cart-empty {
-    padding: 18px 8px;
+    padding: 20px 8px;
     text-align: center;
-    color: #5a6a7c;
-    font-size: 0.8rem;
+    color: #0f172a;
+    font-size: 0.88rem;
+    font-weight: 800;
   }
   #cart .ord-cart-item {
     background: #fff;
-    border: 1px solid #D5DEEA;
+    border: 2px solid #cbd5e1;
     border-radius: 12px;
-    padding: 10px;
+    padding: 11px;
     margin-bottom: 8px;
-    box-shadow: 0 4px 12px rgba(36, 48, 65, 0.04);
+    box-shadow: 0 6px 14px rgba(15, 23, 42, 0.06);
   }
   #cart .ord-cart-item:last-child { margin-bottom: 0; }
   #cart .ord-cart-top {
@@ -22,68 +23,69 @@
   }
   #cart .ord-cart-top strong {
     display: block;
-    font-size: 0.84rem;
-    font-weight: 800;
-    color: #1e3a5f;
-    letter-spacing: -0.01em;
+    font-size: 0.9rem;
+    font-weight: 900;
+    color: #0f172a;
+    letter-spacing: -0.02em;
   }
   #cart .ord-cart-meta {
     display: block;
-    margin-top: 2px;
-    font-size: 0.72rem;
-    color: #5a6a7c;
+    margin-top: 3px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: #1e293b;
     line-height: 1.35;
   }
   #cart .ord-cart-price {
     text-align: right;
     white-space: nowrap;
-    font-size: 0.82rem;
-    font-weight: 800;
-    color: #1e3a5f;
+    font-size: 0.9rem;
+    font-weight: 900;
+    color: #16a34a;
     line-height: 1.3;
   }
   #cart .ord-cart-price del {
     display: block;
-    color: #8a96a3;
-    font-size: 0.7rem;
-    font-weight: 600;
-  }
-  #cart .ord-cart-qty {
+    color: #dc2626;
     font-size: 0.72rem;
     font-weight: 700;
-    color: #3f74d4;
+  }
+  #cart .ord-cart-qty {
+    font-size: 0.76rem;
+    font-weight: 900;
+    color: #1d4ed8;
   }
   #cart .ord-cart-actions {
     display: flex;
     align-items: center;
     gap: 6px;
-    margin-top: 8px;
-    padding-top: 8px;
-    border-top: 1px dashed #D5DEEA;
+    margin-top: 9px;
+    padding-top: 9px;
+    border-top: 2px dashed #cbd5e1;
   }
   #cart .ord-chip {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    padding: 3px 8px;
-    border-radius: 999px;
-    font-size: 0.68rem;
-    font-weight: 750;
+    padding: 5px 10px;
+    border-radius: 8px;
+    font-size: 0.72rem;
+    font-weight: 900;
     text-decoration: none;
     border: 0;
     cursor: pointer;
   }
   #cart .ord-chip--soft {
-    background: #d9e6fa;
-    color: #2f61bc;
+    background: #2563eb;
+    color: #fff;
   }
   #cart .ord-chip--warn {
-    background: rgba(233, 163, 25, 0.16);
-    color: #9A6700;
+    background: #f59e0b;
+    color: #111;
   }
   #cart .ord-chip--danger {
-    background: rgba(231, 111, 81, 0.12);
-    color: #C24A30;
+    background: #dc2626;
+    color: #fff;
     margin-left: auto;
   }
   #cart .ord-item-badges {
@@ -93,9 +95,10 @@
     margin-top: 6px;
   }
   #cart .ord-item-badges .badge {
-    background: #EEF2F7 !important;
-    color: #1e3a5f !important;
-    font-weight: 650;
+    background: #fef3c7 !important;
+    color: #92400e !important;
+    border: 1px solid #f59e0b;
+    font-weight: 800;
     border-radius: 8px;
   }
 </style>
