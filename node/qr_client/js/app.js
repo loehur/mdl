@@ -164,9 +164,17 @@ function connectWebSocket(kasirId) {
     ws.onclose = function (e) {
         if (ws && ws.pingInterval) clearInterval(ws.pingInterval);
 
+        // 4001-4003: auth rejected — kembali ke login
         if (e.code >= 4001 && e.code <= 4003) {
             clearCredentials();
             showLoginForm(e.reason || 'KONEKSI DITOLAK');
+            return;
+        }
+
+        // 4005: digantikan sesi lain — jangan auto-reconnect (hindari perang koneksi)
+        if (e.code === 4005) {
+            setConnected(false);
+            showStatusLabel('DIGANTIKAN PERANGKAT LAIN');
             return;
         }
 

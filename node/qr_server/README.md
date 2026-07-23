@@ -294,3 +294,4 @@ $result = json_decode($response, true);
 | 4001 | kasir_id is required | Tidak ada kasir_id pada query parameter |
 | 4002 | Invalid PIN | PIN tidak valid atau tidak disediakan |
 | 4003 | kasir_id is not allowed | kasir_id tidak terdaftar dalam allowed list |
+| 4005 | Replaced by a new connection | Digantikan sesi baru dengan kasir_id yang sama |

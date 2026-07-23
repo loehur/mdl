@@ -92,17 +92,27 @@ wss.on('connection', (ws, req) => {
         return;
     }
 
-    // Check if kasir_id is already connected (prevent duplicate connections)
+    // Replace existing connection for same kasir_id (avoid zombie lock after unclean close)
     const existingClient = clients.get(kasirId);
-    if (existingClient && existingClient.readyState === WebSocket.OPEN) {
-        console.log(`Connection rejected: kasir_id "${kasirId}" is already connected`);
-        ws.close(4004, 'kasir_id is already connected');
-        return;
+    if (existingClient && existingClient !== ws) {
+        console.log(`Kasir ${kasirId}: replacing previous connection`);
+        try {
+            existingClient.close(4005, 'Replaced by a new connection');
+        } catch (e) {
+            // ignore
+        }
+        try {
+            existingClient.terminate();
+        } catch (e) {
+            // ignore
+        }
+        clients.delete(kasirId);
     }
 
     console.log(`Kasir ${kasirId} connected (authenticated)`);
 
     // Store the client connection
+    ws.kasirId = kasirId;
     clients.set(kasirId, ws);
 
     // Send welcome message
@@ -129,16 +139,20 @@ wss.on('connection', (ws, req) => {
         }
     });
 
-    // Handle client disconnect
+    // Handle client disconnect — only clear map if this socket is still the active one
     ws.on('close', () => {
         console.log(`Kasir ${kasirId} disconnected`);
-        clients.delete(kasirId);
+        if (clients.get(kasirId) === ws) {
+            clients.delete(kasirId);
+        }
     });
 
     // Handle errors
     ws.on('error', (error) => {
         console.error(`Error for Kasir ${kasirId}:`, error.message);
-        clients.delete(kasirId);
+        if (clients.get(kasirId) === ws) {
+            clients.delete(kasirId);
+        }
     });
 
     // Heartbeat to keep connection alive
@@ -157,7 +171,7 @@ const heartbeatInterval = setInterval(() => {
         ws.isAlive = false;
         ws.ping();
     });
-}, 30000);
+}, 15000);
 
 wss.on('close', () => {
     clearInterval(heartbeatInterval);
