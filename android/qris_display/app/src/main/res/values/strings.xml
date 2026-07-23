@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">QRIS Display</string>
+    <string name="notification_channel_name">QRIS Display</string>
+    <string name="notification_title">QRIS Display aktif</string>
+    <string name="notification_text">Layar pembayaran QRIS sedang berjalan</string>
+    <string name="offline_title">Tidak Ada Koneksi Internet</string>
+    <string name="offline_subtitle">Menunggu koneksi…</string>
+    <string name="battery_dialog_title">Izin Baterai</string>
+    <string name="battery_dialog_message">Agar QRIS Display selalu aktif, izinkan aplikasi ini berjalan tanpa batasan baterai.</string>
+    <string name="battery_dialog_positive">Buka Pengaturan</string>
+    <string name="battery_dialog_negative">Nanti</string>
+    <string name="exit_hint">Tahan Back + Volume untuk keluar</string>
+</resources>

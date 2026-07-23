@@ -8,15 +8,15 @@
     <link rel="icon" type="image/svg+xml"
         href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23333' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='7' height='7'/%3E%3Crect x='14' y='3' width='7' height='7'/%3E%3Crect x='14' y='14' width='7' height='7'/%3E%3Cpath d='M14 14h7v7h-7z'/%3E%3C/svg%3E">
     <link rel="stylesheet" href="css/style.css">
-    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <script src="js/qrcode.min.js"></script>
 </head>
 
 <body>
     <div class="container">
-        <!-- Form Input Kasir ID -->
+        <!-- Form Input ID Cabang -->
         <div class="form-kasir" id="form-kasir">
-            <h2>Masukkan ID Kasir</h2>
-            <input type="text" id="kasir-id-input" placeholder="KASIR001" autofocus>
+            <h2>Masukan ID Cabang</h2>
+            <input type="tel" inputmode="numeric" pattern="[0-9]*" id="kasir-id-input" autofocus>
 
             <button onclick="saveKasirId()">Hubungkan</button>
         </div>
@@ -27,6 +27,12 @@
             <div id="qr-container"></div>
             <div id="qr-text"></div>
             <div class="kasir-id-label" id="kasir-id-label"></div>
+        </div>
+
+        <!-- Connection Overlay (WebSocket / network) -->
+        <div class="connection-overlay" id="connection-overlay">
+            <div class="connection-spinner"></div>
+            <div class="connection-text" id="connection-text">Menghubungkan ke server…</div>
         </div>
 
         <!-- Payment Success Overlay -->
