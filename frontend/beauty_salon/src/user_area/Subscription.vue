@@ -188,8 +188,14 @@
             <div class="p-4 space-y-3">
               <!-- QR Code Display -->
               <div class="flex justify-center">
-                <div v-if="paymentData?.qr_string" class="p-2 bg-white border-2 border-pink-200 rounded-xl flex justify-center">
+                <div v-if="paymentData?.qr_string && !paymentExpired" class="p-2 bg-white border-2 border-pink-200 rounded-xl flex justify-center">
                   <qrcode-vue :value="paymentData.qr_string" :size="180" level="H" />
+                </div>
+                <div v-else-if="paymentExpired" class="w-48 h-48 bg-red-50 rounded-xl flex flex-col items-center justify-center text-center px-3">
+                  <svg class="w-8 h-8 text-red-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p class="text-xs text-red-700 font-semibold">QRIS kadaluarsa</p>
                 </div>
                 <div v-else class="w-48 h-48 bg-gray-100 rounded-xl flex items-center justify-center">
                   <div class="animate-spin rounded-full h-8 w-8 border-4 border-pink-500 border-t-transparent"></div>
@@ -216,9 +222,14 @@
                 </div>
               </div>
 
-              <!-- Manual Status Info -->
+              <p v-if="!paymentSuccess && !paymentExpired" class="text-[10px] text-gray-500 text-center">
+                Status dicek otomatis setiap beberapa detik
+              </p>
+
+              <!-- Manual Status / Refresh -->
               <div v-if="!paymentSuccess" class="mt-2 space-y-2">
                  <button 
+                    v-if="!paymentExpired"
                     @click="manualCheckPayment" 
                     :disabled="checkingPayment"
                     class="w-full px-4 py-2 bg-blue-50 text-blue-700 font-semibold rounded-lg hover:bg-blue-100 transition flex items-center justify-center gap-2 border border-blue-200 text-sm"
@@ -232,9 +243,14 @@
                     </svg>
                     {{ checkingPayment ? 'Memeriksa...' : 'Cek Status Pembayaran' }}
                   </button>
-                  <p class="text-[10px] text-gray-500 text-center">
-                    Tekan tombol untuk verifikasi
-                  </p>
+                  <button
+                    v-else
+                    @click="refreshExpiredPayment"
+                    :disabled="processing"
+                    class="w-full px-4 py-2 bg-pink-50 text-pink-700 font-semibold rounded-lg hover:bg-pink-100 transition flex items-center justify-center gap-2 border border-pink-200 text-sm"
+                  >
+                    {{ processing ? 'Memperbarui...' : 'Perbarui QRIS' }}
+                  </button>
               </div>
 
               <!-- Success Message -->
@@ -302,6 +318,11 @@
               <div v-if="messageType === 'error'" class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
                 <svg class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div v-else-if="messageType === 'success'" class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+                <svg class="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
               <div v-else class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 mb-4">
@@ -384,7 +405,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { API_BASE_URL } from '../api';
 import QrcodeVue from 'qrcode.vue';
 
@@ -399,6 +420,7 @@ const showPaymentModal = ref(false);
 const paymentData = ref(null);
 const checkingPayment = ref(false);
 const paymentSuccess = ref(false);
+const paymentExpired = ref(false);
 let statusInterval = null;
 
 const PRICES = computed(() => {
@@ -491,6 +513,7 @@ async function fetchPaymentHistory() {
 async function createPayment() {
   processing.value = true;
   paymentSuccess.value = false;
+  paymentExpired.value = false;
   try {
     const res = await fetch(`${API_BASE_URL}/Beauty_Salon/Subscription/pay`, {
       method: 'POST',
@@ -502,11 +525,18 @@ async function createPayment() {
       })
     });
     const data = await res.json();
-    if (data.success) {
-      paymentData.value = data.data;
-      showPaymentModal.value = true;
+    if (data.success && data.status === 'paid') {
+      paymentSuccess.value = true;
+      await fetchSubscription();
+      await fetchPaymentHistory();
+      showAlert(data.message || 'Pembayaran sudah berhasil!', 'Sukses', 'success');
+      return;
+    }
+    if (data.success && data.data?.qr_string) {
+      openPaymentModal(data.data);
       fetchPaymentHistory();
     } else {
+      await fetchPaymentHistory();
       showAlert(data.message || 'Gagal membuat invoice', 'Gagal', 'error');
     }
   } catch (err) {
@@ -517,9 +547,18 @@ async function createPayment() {
   }
 }
 
+function openPaymentModal(data) {
+  paymentData.value = data;
+  paymentSuccess.value = false;
+  paymentExpired.value = false;
+  showPaymentModal.value = true;
+  startPollingPayment();
+}
+
 async function resumePayment(payment) {
   processing.value = true;
   paymentSuccess.value = false;
+  paymentExpired.value = false;
   try {
     const res = await fetch(`${API_BASE_URL}/Beauty_Salon/Subscription/resume`, {
       method: 'POST',
@@ -530,41 +569,48 @@ async function resumePayment(payment) {
       })
     });
     const data = await res.json();
-    
-    if (data.success) {
-      paymentData.value = data.data;
-      
-      // Try to determine months from amount for display
+
+    if (data.success && data.status === 'paid') {
+      await fetchSubscription();
+      await fetchPaymentHistory();
+      showAlert(data.message || 'Pembayaran sudah berhasil!', 'Sukses', 'success');
+      return;
+    }
+
+    if (data.success && data.data?.qr_string) {
       let months = 1;
       if (data.data.amount >= PRICES.value.yearly) months = 12;
       else if (data.data.amount >= PRICES.value.quarterly) months = 3;
-      selectedMonths.value = months; // for modal display
-      
-      showPaymentModal.value = true;
+      selectedMonths.value = months;
+
+      openPaymentModal(data.data);
       fetchPaymentHistory();
+      if (data.refreshed) {
+        showAlert('QRIS diperbarui. Silakan scan ulang.', 'QRIS Baru', 'info');
+      }
     } else if (data.expired) {
-       showConfirm(
-           'Invoice Kadaluarsa',
-           data.message || 'Pembayaran ini telah kadaluarsa. Apakah Anda ingin membuat pembayaran baru dengan paket yang sama?',
-           'Buat Baru',
-           'bg-pink-600 hover:bg-pink-700',
-           async () => {
-                showConfirmModal.value = false;
-                
-                // Auto create new with same plan
-                const amount = parseInt(payment.amount);
-                let planMonths = 1;
-                // Note: PRICES might be reactive/ref if not simple object. Assuming simple object from previous context.
-                if (amount >= PRICES.value.yearly) planMonths = 12;
-                else if (amount >= PRICES.value.quarterly) planMonths = 3;
-                
-                const planName = planMonths === 12 ? 'yearly' : (planMonths === 3 ? 'quarterly' : 'monthly');
-                selectPlan(planName, planMonths);
-                
-                await createPayment(); 
-           }
-       );
+      await fetchPaymentHistory();
+      showConfirm(
+        'Invoice Kadaluarsa',
+        data.message || 'Pembayaran ini telah kadaluarsa. Apakah Anda ingin membuat pembayaran baru dengan paket yang sama?',
+        'Buat Baru',
+        'bg-pink-600 hover:bg-pink-700',
+        async () => {
+          showConfirmModal.value = false;
+
+          const amount = parseInt(payment.amount);
+          let planMonths = 1;
+          if (amount >= PRICES.value.yearly) planMonths = 12;
+          else if (amount >= PRICES.value.quarterly) planMonths = 3;
+
+          const planName = planMonths === 12 ? 'yearly' : (planMonths === 3 ? 'quarterly' : 'monthly');
+          selectPlan(planName, planMonths);
+
+          await createPayment();
+        }
+      );
     } else {
+      await fetchPaymentHistory();
       showAlert(data.message || 'Gagal melanjutkan pembayaran', 'Gagal', 'error');
     }
   } catch (err) {
@@ -575,27 +621,109 @@ async function resumePayment(payment) {
   }
 }
 
-async function manualCheckPayment() {
+async function refreshExpiredPayment() {
+  const amount = parseInt(paymentData.value?.amount || selectedAmount.value || 0);
+  let planMonths = 1;
+  if (amount >= PRICES.value.yearly) planMonths = 12;
+  else if (amount >= PRICES.value.quarterly) planMonths = 3;
+  const planName = planMonths === 12 ? 'yearly' : (planMonths === 3 ? 'quarterly' : 'monthly');
+  selectPlan(planName, planMonths);
+
+  // Jika sudah failed di DB, buat invoice baru. Jika masih pending, coba refresh QR dulu.
+  if (paymentExpired.value) {
+    await createPayment();
+    return;
+  }
+
+  if (!paymentData.value?.payment_ref) {
+    await createPayment();
+    return;
+  }
+
+  await resumePayment({
+    payment_ref: paymentData.value.payment_ref,
+    amount: paymentData.value.amount
+  });
+}
+
+function startPollingPayment() {
+  stopCheckingPayment();
   if (!paymentData.value?.payment_ref) return;
-  
-  checkingPayment.value = true;
+
+  statusInterval = setInterval(() => {
+    pollPaymentStatus(true);
+  }, 3000);
+}
+
+async function pollPaymentStatus(silent = true) {
+  if (!paymentData.value?.payment_ref || paymentSuccess.value) return;
+
   try {
-    const res = await fetch(`${API_BASE_URL}/Beauty_Salon/Subscription/checkPayment?payment_ref=${paymentData.value.payment_ref}`, {
-      credentials: 'include'
-    });
+    const res = await fetch(
+      `${API_BASE_URL}/Beauty_Salon/Subscription/pollPayment?payment_ref=${encodeURIComponent(paymentData.value.payment_ref)}`,
+      { credentials: 'include' }
+    );
     const data = await res.json();
-    
-    if (data.success && (data.status === 'paid' || data.status === 'success')) {
+    const status = String(data.status || '').toLowerCase();
+
+    if (status === 'paid' || status === 'success') {
+      stopCheckingPayment();
       paymentSuccess.value = true;
+      paymentExpired.value = false;
       await fetchSubscription();
       await fetchPaymentHistory();
-      showAlert('Pembayaran berhasil dikonfirmasi!', 'Sukses', 'success');
+      if (!silent) {
+        showAlert(data.message || 'Pembayaran berhasil dikonfirmasi!', 'Sukses', 'success');
+      }
+      return;
+    }
+
+    if (status === 'expired' || status === 'failed' || status === 'cancelled') {
+      stopCheckingPayment();
+      paymentExpired.value = true;
+      await fetchPaymentHistory();
+      if (!silent) {
+        showAlert(data.message || 'Pembayaran kadaluarsa. Perbarui QRIS untuk melanjutkan.', 'Kadaluarsa', 'error');
+      }
+    }
+  } catch (err) {
+    if (!silent) {
+      console.error('Poll payment error:', err);
+    }
+  }
+}
+
+async function manualCheckPayment() {
+  if (!paymentData.value?.payment_ref) return;
+
+  checkingPayment.value = true;
+  try {
+    const res = await fetch(
+      `${API_BASE_URL}/Beauty_Salon/Subscription/checkPayment?payment_ref=${encodeURIComponent(paymentData.value.payment_ref)}`,
+      { credentials: 'include' }
+    );
+    const data = await res.json();
+    const status = String(data.status || '').toLowerCase();
+
+    if (data.success && (status === 'paid' || status === 'success')) {
+      stopCheckingPayment();
+      paymentSuccess.value = true;
+      paymentExpired.value = false;
+      await fetchSubscription();
+      await fetchPaymentHistory();
+      showAlert(data.message || 'Pembayaran berhasil dikonfirmasi!', 'Sukses', 'success');
+    } else if (status === 'expired' || status === 'failed') {
+      stopCheckingPayment();
+      paymentExpired.value = true;
+      await fetchPaymentHistory();
+      showAlert(data.message || 'QRIS kadaluarsa. Silakan perbarui QRIS.', 'Kadaluarsa', 'error');
     } else {
-       console.log("Tokopay Debug Response:", data.debug_response || data);
-       const isError = data.status === 'error';
-       const title = isError ? 'Gagal Cek' : 'Belum Lunas';
-       const msg = isError ? data.message : ('Status pembayaran saat ini: ' + (data.status || 'Menunggu') + '. Jika Anda sudah membayar, mohon tunggu sebentar dan coba lagi.');
-       showAlert(msg, title, isError ? 'error' : 'info');
+      const isError = status === 'error';
+      const title = isError ? 'Gagal Cek' : 'Belum Lunas';
+      const msg = isError
+        ? (data.message || 'Gagal mengecek status pembayaran')
+        : ('Status pembayaran saat ini: ' + (data.status || 'Menunggu') + '. Jika Anda sudah membayar, mohon tunggu sebentar.');
+      showAlert(msg, title, isError ? 'error' : 'info');
     }
   } catch (err) {
     console.error('Error checking payment status:', err);
@@ -699,24 +827,26 @@ function stopCheckingPayment() {
 function paymentStatusClass(status) {
   if (status === 'paid' || status === 'success') return 'bg-green-100 text-green-700';
   if (status === 'pending') return 'bg-yellow-100 text-yellow-700';
-  if (status === 'failed' || status === 'cancelled' || !status) return 'bg-red-100 text-red-700';
+  if (status === 'failed' || status === 'cancelled' || status === 'expired' || !status) return 'bg-red-100 text-red-700';
   return 'bg-gray-100 text-gray-700';
 }
 
 function paymentStatusLabel(status) {
   if (status === 'paid' || status === 'success') return 'Berhasil';
   if (status === 'pending') return 'Menunggu';
-  if (status === 'failed' || status === 'cancelled' || !status) return 'Dibatalkan';
+  if (status === 'expired') return 'Kadaluarsa';
+  if (status === 'failed' || status === 'cancelled' || !status) return 'Gagal';
   return status;
 }
 
 function closePaymentModal() {
   showPaymentModal.value = false;
   stopCheckingPayment();
+  fetchPaymentHistory();
   if (paymentSuccess.value) {
-    // Refresh page or redirect if needed
     fetchSubscription();
   }
+  paymentExpired.value = false;
 }
 
 function copyToClipboard(text) {
@@ -728,6 +858,10 @@ function copyToClipboard(text) {
 onMounted(async () => {
   await Promise.all([fetchSubscription(), fetchPaymentHistory()]);
   loading.value = false;
+});
+
+onUnmounted(() => {
+  stopCheckingPayment();
 });
 </script>
 

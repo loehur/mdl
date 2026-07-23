@@ -159,12 +159,12 @@ class Subscription extends Controller
 
         try {
             $salon_id = $this->getSalonId();
-            
+
             if (!$salon_id) {
                 $this->error('Salon ID tidak ditemukan. Silakan login ulang.', 401);
             }
-            
-            // Check for existing pending payment
+
+            // Resolve existing pending first (like laundry: reuse / refresh / mark failed)
             $pending_payment = $this->db($this->db_index)
                 ->get_where('subscription_payments', [
                     'salon_id' => $salon_id,
@@ -173,99 +173,78 @@ class Subscription extends Controller
                 ->row_array();
 
             if ($pending_payment) {
-            // Attempt to auto-resume existing pending payment
-            $payment_ref = $pending_payment['payment_ref'];
-            $tokopay = new \App\Models\Tokopay();
-            $amount_int = (int)floatval($pending_payment['amount']);
-            $response = $tokopay->createOrder($amount_int, $payment_ref, 'QRIS');
-            $data = json_decode($response, true);
-            
-            $isSuccess = false;
-            if (isset($data['status'])) {
-                $status = is_string($data['status']) ? strtolower($data['status']) : $data['status'];
-                if ($status === 'success' || $status === 'true' || $status === true || $status === 1) {
-                    $isSuccess = true;
+                // On pay: reuse/check pending, but do NOT silently refresh into old invoice.
+                // If expired → mark failed and allow creating the newly selected plan.
+                $resolved = $this->resolvePendingQris($pending_payment, false);
+
+                if (!empty($resolved['paid'])) {
+                    $this->json([
+                        'success' => true,
+                        'status' => 'paid',
+                        'data' => $resolved['data'] ?? null,
+                        'message' => $resolved['message'] ?? 'Pembayaran sudah berhasil'
+                    ]);
+                }
+
+                if (!empty($resolved['qr_string'])) {
+                    $this->json([
+                        'success' => true,
+                        'data' => $resolved['data'],
+                        'message' => $resolved['message'] ?? 'Melanjutkan pembayaran tertunda Anda'
+                    ]);
+                }
+
+                // Expired/failed already marked — continue create new payment below
+                if (empty($resolved['allow_new'])) {
+                    $this->error(
+                        $resolved['message'] ?? 'Anda memiliki pembayaran yang belum selesai. Mohon selesaikan atau batalkan di riwayat.',
+                        400
+                    );
                 }
             }
 
-            if ($isSuccess) {
-                 $qr_string = '';
-                 if (isset($data['data']['qr_string'])) {
-                     $qr_string = $data['data']['qr_string'];
-                 } elseif (isset($data['qr_string'])) {
-                     $qr_string = $data['qr_string'];
-                 }
-                 
-                 if (!empty($qr_string)) {
-                      $this->json([
-                        'success' => true,
-                        'data' => [
-                            'payment_ref' => $payment_ref,
-                            'amount' => $pending_payment['amount'],
-                            'period_start' => $pending_payment['period_start'],
-                            'period_end' => $pending_payment['period_end'],
-                            'qr_string' => $qr_string,
-                            'discount' => 0
-                        ],
-                        'message' => 'Melanjutkan pembayaran tertunda Anda'
-                    ]);
-                    return;
-                 }
-            }
-            
-            $this->error('Anda memiliki pembayaran yang belum selesai. Mohon selesaikan atau batalkan pembayaran sebelumnya di riwayat.', 400);
-        }
-
             $body = $this->getBody();
-            
+
             $months = isset($body['months']) ? (int)$body['months'] : 1;
             if ($months < 1 || $months > 12) {
                 $months = 1;
             }
 
-            // Apply discount for multi-month plans
             $base_amount = $this->monthly_price * $months;
             $discount = 0;
             if ($months >= 12) {
-                $discount = $base_amount * 0.15; // 15% discount for yearly
+                $discount = $base_amount * 0.15;
             } elseif ($months >= 3) {
-                $discount = $base_amount * 0.05; // 5% discount for quarterly
+                $discount = $base_amount * 0.05;
             }
             $amount = $base_amount - $discount;
 
             $subscription = $this->getSubscription($salon_id);
 
-            // Validate remaining days
             if ($subscription) {
-                 $end_date = new \DateTime($subscription['end_date']);
-                 $today = new \DateTime(date('Y-m-d'));
-                 if ($end_date > $today) {
-                     $interval = $today->diff($end_date);
-                     $days_remaining = (int)$interval->format('%a');
-                     if ($days_remaining > 31) {
-                         $this->error('Langganan Anda masih aktif ' . $days_remaining . ' hari lagi. Perpanjangan baru dapat dilakukan jika sisa kurang dari 31 hari.', 400);
-                     }
-                 }
+                $end_date_check = new \DateTime($subscription['end_date']);
+                $today_check = new \DateTime(date('Y-m-d'));
+                if ($end_date_check > $today_check) {
+                    $interval = $today_check->diff($end_date_check);
+                    $days_remaining = (int)$interval->format('%a');
+                    if ($days_remaining > 31) {
+                        $this->error('Langganan Anda masih aktif ' . $days_remaining . ' hari lagi. Perpanjangan baru dapat dilakukan jika sisa kurang dari 31 hari.', 400);
+                    }
+                }
             }
 
             if (!$subscription) {
                 $subscription = $this->createTrialSubscription($salon_id);
             }
 
-            // Determine new period dates
             $current_end = new \DateTime($subscription['end_date']);
             $today = new \DateTime(date('Y-m-d'));
-            
-            // If expired, start from today. Otherwise extend from current end date
             $start_date = $current_end < $today ? $today : $current_end;
             $end_date = clone $start_date;
             $end_date->modify("+{$months} months");
 
-            // Generate unique payment reference for Tokopay
-            // Format: SALONSUB_{salon_id}_{timestamp}
             $payment_ref = 'SALONSUB_' . $salon_id . '_' . time();
 
-            // Create payment record first
             $this->db($this->db_index)->insert('subscription_payments', [
                 'salon_id' => $salon_id,
                 'subscription_id' => $subscription['id'],
@@ -279,75 +258,35 @@ class Subscription extends Controller
                 'created_at' => date('Y-m-d H:i:s')
             ]);
 
-            // Generate QRIS via Tokopay
-            $tokopay = new \App\Models\Tokopay();
-            $amount_int = (int)$amount;
-            $response = $tokopay->createOrder($amount_int, $payment_ref, 'QRIS');
-            
-            // Log raw response for debugging
-            error_log("Tokopay Raw Response: " . $response);
-            
-            $data = json_decode($response, true);
+            $order = $this->createTokopayOrder((int)$amount, $payment_ref);
 
-            // Check status with multiple possibilities (Success, true, 1, etc)
-            $isSuccess = false;
-            
-            if (isset($data['status'])) {
-                $status = is_string($data['status']) ? strtolower($data['status']) : $data['status'];
-                if ($status === 'success' || $status === 'true' || $status === true || $status === 1) {
-                    $isSuccess = true;
-                }
+            if (empty($order['ok']) || empty($order['qr_string'])) {
+                $this->markPaymentFailed($payment_ref);
+                error_log('Tokopay createOrder failed for ' . $payment_ref . ': ' . ($order['raw'] ?? ''));
+                $this->error($order['message'] ?? 'Gagal membuat QRIS. Silakan coba lagi.', 500);
             }
 
-            if ($isSuccess) {
-                // ... success handling ...
-                // Extract qr_string
-                $qr_string = '';
-                if (isset($data['data']['qr_string'])) {
-                    $qr_string = $data['data']['qr_string'];
-                } elseif (isset($data['qr_string'])) {
-                    $qr_string = $data['qr_string'];
-                }
-
-                if (empty($qr_string)) {
-                    error_log("Tokopay: QR String not found in response: " . $response);
-                    $this->error('QR String tidak ditemukan dari Tokopay', 500);
-                }
-
-                $this->json([
-                    'success' => true,
-                    'data' => [
-                        'payment_ref' => $payment_ref,
-                        'amount' => $amount,
-                        'months' => $months,
-                        'discount' => $discount,
-                        'period_start' => $start_date->format('Y-m-d'),
-                        'period_end' => $end_date->format('Y-m-d'),
-                        'qr_string' => $qr_string
-                    ],
-                    'message' => "Scan QRIS untuk membayar Rp " . number_format($amount, 0, ',', '.')
-                ]);
-                // Tokopay API failed - log and return error
-                error_log("Tokopay API Error: " . $response);
-                
-                $error_msg = isset($data['message']) ? $data['message'] : 'Gagal membuat QRIS';
-                if (isset($data['error_msg'])) $error_msg .= ' - ' . $data['error_msg'];
-                
-                // DEBUG: Tambahkan raw response ke pesa error agar terlihat di frontend
-                if (!$data) {
-                    $error_msg .= " | Raw: " . substr($response, 0, 200);
-                }
-                
-                $this->error('Tokopay Error: ' . $error_msg, 500);
-            }
+            $this->json([
+                'success' => true,
+                'data' => [
+                    'payment_ref' => $payment_ref,
+                    'amount' => $amount,
+                    'months' => $months,
+                    'discount' => $discount,
+                    'period_start' => $start_date->format('Y-m-d'),
+                    'period_end' => $end_date->format('Y-m-d'),
+                    'qr_string' => $order['qr_string']
+                ],
+                'message' => 'Scan QRIS untuk membayar Rp ' . number_format($amount, 0, ',', '.')
+            ]);
         } catch (\Exception $e) {
-            error_log("Subscription pay error: " . $e->getMessage() . " | Trace: " . $e->getTraceAsString());
+            error_log('Subscription pay error: ' . $e->getMessage() . ' | Trace: ' . $e->getTraceAsString());
             $this->error('Terjadi kesalahan: ' . $e->getMessage(), 500);
         }
     }
 
     /**
-     * POST - Resume pending payment (< 5 minutes)
+     * POST - Resume pending payment (reuse QR if fresh, refresh if expired)
      */
     public function resume()
     {
@@ -360,14 +299,13 @@ class Subscription extends Controller
             if (!$salon_id) {
                 $this->error('Unauthorized', 401);
             }
-            
+
             $body = $this->getBody();
             if (empty($body['payment_ref'])) {
                 $this->error('Reference required', 400);
             }
             $payment_ref = $body['payment_ref'];
 
-            // Get payment
             $payment = $this->db($this->db_index)
                 ->get_where('subscription_payments', [
                     'payment_ref' => $payment_ref,
@@ -379,88 +317,57 @@ class Subscription extends Controller
                 $this->error('Payment not found', 404);
             }
 
-            if ($payment['payment_status'] !== 'pending') {
-                $this->error('Payment is not pending. Status: ' . $payment['payment_status'], 400);
-            }
-
-            $created_at = strtotime($payment['created_at']);
-            $now = time();
-            $diff = $now - $created_at;
-
-            // Call Tokopay to get QR (idempotent call with same ref_id)
-            $tokopay = new \App\Models\Tokopay();
-            // Ensure amount is integer
-            $amount_int = (int)floatval($payment['amount']);
-            $response = $tokopay->createOrder($amount_int, $payment_ref, 'QRIS');
-            
-             // Log raw response for debugging
-             error_log("Tokopay Resume Response: " . $response);
-            
-            $data = json_decode($response, true);
-
-            // Check status logic
-            $isSuccess = false;
-            
-            // Check status fields
-            if (isset($data['status'])) {
-                $status = is_string($data['status']) ? strtolower($data['status']) : $data['status'];
-                if ($status === 'success' || $status === 'true' || $status === true || $status === 1) {
-                    $isSuccess = true;
-                }
-            }
-
-            if ($isSuccess) {
-                // ... (success code remains same) ...
-                // Extract qr_string
-                $qr_string = '';
-                if (isset($data['data']['qr_string'])) {
-                    $qr_string = $data['data']['qr_string'];
-                } elseif (isset($data['qr_string'])) {
-                    $qr_string = $data['qr_string'];
-                }
-
-                if (empty($qr_string)) {
-                    $this->error('QR String tidak ditemukan dari Tokopay', 500);
-                }
-
+            if (in_array($payment['payment_status'], ['success', 'paid'], true)) {
                 $this->json([
                     'success' => true,
-                    'data' => [
-                        'payment_ref' => $payment_ref,
-                        'amount' => $payment['amount'],
-                        'period_start' => $payment['period_start'],
-                        'period_end' => $payment['period_end'],
-                        'qr_string' => $qr_string,
-                        'discount' => 0
-                    ],
-                    'message' => "Silakan scan QRIS kembali"
+                    'status' => 'paid',
+                    'message' => 'Pembayaran sudah berhasil'
                 ]);
-            } else {
-                 // Tokopay Failed. Check if it's likely expired based on time
-                 if ($diff > (5 * 60)) {
-                     // If failed and > 5 mins, assume expired
-                     $this->json([
-                        'success' => false,
-                        'expired' => true,
-                        'message' => 'Invoice kadaluarsa atau tidak valid. Silakan buat pembayaran baru.'
-                     ]);
-                     return;
-                 }
-                 
-                 // If not expired by time, return actual error
-                 $error_msg = isset($data['message']) ? $data['message'] : 'Gagal mengambil data QRIS';
-                 if (isset($data['error_msg'])) $error_msg .= ' - ' . $data['error_msg'];
-                 
-                 // DEBUG: Include raw response
-                 if (!$isSuccess) {
-                     $error_msg .= " | Raw: " . substr($response, 0, 200);
-                 }
-                 
-                 $this->error('Tokopay Error: ' . $error_msg, 500);
             }
 
+            if ($payment['payment_status'] !== 'pending') {
+                $this->json([
+                    'success' => false,
+                    'expired' => true,
+                    'status' => $payment['payment_status'],
+                    'message' => 'Pembayaran ini sudah tidak aktif. Silakan buat pembayaran baru.'
+                ]);
+            }
+
+            $resolved = $this->resolvePendingQris($payment, true);
+
+            if (!empty($resolved['paid'])) {
+                $this->json([
+                    'success' => true,
+                    'status' => 'paid',
+                    'data' => $resolved['data'] ?? null,
+                    'message' => $resolved['message'] ?? 'Pembayaran berhasil'
+                ]);
+            }
+
+            if (!empty($resolved['qr_string'])) {
+                $this->json([
+                    'success' => true,
+                    'data' => $resolved['data'],
+                    'message' => $resolved['message'] ?? 'Silakan scan QRIS kembali',
+                    'refreshed' => !empty($resolved['refreshed'])
+                ]);
+            }
+
+            // Could not refresh — mark failed so UI status updates
+            if (!empty($resolved['expired']) || !empty($resolved['allow_new'])) {
+                $this->markPaymentFailed($payment['payment_ref']);
+                $this->json([
+                    'success' => false,
+                    'expired' => true,
+                    'status' => 'failed',
+                    'message' => $resolved['message'] ?? 'Invoice kadaluarsa. Silakan buat pembayaran baru.'
+                ]);
+            }
+
+            $this->error($resolved['message'] ?? 'Gagal mengambil data QRIS', 500);
         } catch (\Exception $e) {
-            error_log("Subscription resume error: " . $e->getMessage());
+            error_log('Subscription resume error: ' . $e->getMessage());
             $this->error('Terjadi kesalahan: ' . $e->getMessage(), 500);
         }
     }
@@ -625,12 +532,11 @@ class Subscription extends Controller
     }
 
     /**
-     * GET - Check payment status from Tokopay
-     * Used for polling to check if QRIS payment is completed
+     * GET - Poll payment status from DB only (webhook is source of truth)
+     * Pattern from laundry payment_gateway_status_db
      */
-    public function checkPayment($payment_ref = null)
+    public function pollPayment($payment_ref = null)
     {
-        // Fix: Ambil dari query string jika argument null
         if (!$payment_ref && isset($_GET['payment_ref'])) {
             $payment_ref = $_GET['payment_ref'];
         }
@@ -645,7 +551,6 @@ class Subscription extends Controller
                 $this->error('Unauthorized', 401);
             }
 
-            // Get payment record
             $payment = $this->db($this->db_index)
                 ->get_where('subscription_payments', [
                     'payment_ref' => $payment_ref,
@@ -657,134 +562,121 @@ class Subscription extends Controller
                 $this->error('Payment not found', 404);
             }
 
-            // If already paid, return success
-            if ($payment['payment_status'] === 'paid' || $payment['payment_status'] === 'success') {
+            $dbStatus = strtolower((string)($payment['payment_status'] ?? ''));
+
+            if (in_array($dbStatus, ['success', 'paid'], true)) {
+                $this->json([
+                    'success' => true,
+                    'status' => 'paid',
+                    'message' => 'Pembayaran berhasil'
+                ]);
+            }
+
+            if (in_array($dbStatus, ['failed', 'expired', 'cancelled'], true)) {
+                $this->json([
+                    'success' => true,
+                    'status' => 'expired',
+                    'message' => 'Pembayaran kadaluarsa atau gagal'
+                ]);
+            }
+
+            $this->json([
+                'success' => true,
+                'status' => 'pending',
+                'message' => 'Menunggu pembayaran'
+            ]);
+        } catch (\Exception $e) {
+            error_log('Poll payment error: ' . $e->getMessage());
+            $this->error('Terjadi kesalahan: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * GET - Check payment status from Tokopay (manual verify)
+     * Updates local status on paid / expired / failed
+     */
+    public function checkPayment($payment_ref = null)
+    {
+        if (!$payment_ref && isset($_GET['payment_ref'])) {
+            $payment_ref = $_GET['payment_ref'];
+        }
+
+        try {
+            if (!$payment_ref) {
+                $this->error('Payment reference required', 400);
+            }
+
+            $salon_id = $this->getSalonId();
+            if (!$salon_id) {
+                $this->error('Unauthorized', 401);
+            }
+
+            $payment = $this->db($this->db_index)
+                ->get_where('subscription_payments', [
+                    'payment_ref' => $payment_ref,
+                    'salon_id' => $salon_id
+                ], 1)
+                ->row_array();
+
+            if (!$payment) {
+                $this->error('Payment not found', 404);
+            }
+
+            if (in_array($payment['payment_status'], ['paid', 'success'], true)) {
                 $this->json([
                     'success' => true,
                     'status' => 'paid',
                     'message' => 'Pembayaran berhasil!'
                 ]);
-                return;
             }
 
-            // Check status from Tokopay
-        // Check status from Tokopay using INLINE CURL to avoid Class Loading issues
-        $merchantId = 'M240926BMTGB612';
-        $secretKey = '4aea0ede516df65d88ccb773a443c61b3b3702fe1b9647deb9293cac07fd72bf';
-        
-        $amount_int = (int)floatval($payment['amount']); // Fix: Define amount_int
-        
-        $curl = curl_init();
-        curl_setopt_array($curl, array(
-            CURLOPT_URL => "https://api.tokopay.id/v1/order?merchant=" . $merchantId . "&secret=" . $secretKey . "&ref_id=" . $payment_ref . "&nominal=" . $amount_int . "&metode=QRIS",
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
-            CURLOPT_ENCODING => '',
-            CURLOPT_MAXREDIRS => 10,
-            CURLOPT_TIMEOUT => 30,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-            CURLOPT_CUSTOMREQUEST => 'GET',
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_SSL_VERIFYHOST => false,
-        ));
-        
-        $response = curl_exec($curl);
-        $err = curl_error($curl);
-        curl_close($curl);
-
-        if ($err) {
-             error_log("Tokopay Curl Error: $err");
-             $this->json([
-                'success' => true,
-                'status' => 'error',
-                'message' => 'Connection Error: ' . $err
-            ]);
-            return;
-        }
-        
-        $data = json_decode($response, true);
-        
-        // Handle connection/API error
-        if (!$data || (isset($data['status']) && $data['status'] === false && isset($data['message']))) {
-            $error_msg = isset($data['message']) ? $data['message'] : 'Respon tidak valid dari Payment Gateway';
-            $this->json([
-                'success' => true, // Still success true to show alert in frontend logic usually, but let's see frontend logic
-                'status' => 'error',
-                'message' => 'Gagal cek ke Tokopay: ' . $error_msg
-            ]);
-            return;
-        }
-
-        $isPaid = false;
-            
-            // Check various status fields
-            $status_trx = '';
-            
-            if (isset($data['data'])) {
-                // Check inside 'data' object
-                if (isset($data['data']['status_pembayaran'])) {
-                    $status_trx = $data['data']['status_pembayaran'];
-                } elseif (isset($data['data']['status'])) {
-                    $status_trx = $data['data']['status'];
-                }
-            } elseif (isset($data['status_pembayaran'])) {
-                // Check at root level (some endpoints return flat)
-                 $status_trx = $data['status_pembayaran'];
-            }
-            
-            $status_trx = strtolower($status_trx);
-            
-            // Log status for debug
-            error_log("Tokopay Check Status Ref [$payment_ref]: $status_trx | Full: " . substr($response, 0, 100));
-            
-            // Tokopay usually uses 'Success' or 'Paid' for paid transactions
-            if ($status_trx === 'success' || $status_trx === 'paid' || $status_trx === 'settlement') {
-                $isPaid = true;
+            if (in_array($payment['payment_status'], ['failed', 'expired', 'cancelled'], true)) {
+                $this->json([
+                    'success' => true,
+                    'status' => 'expired',
+                    'message' => 'Pembayaran sudah kadaluarsa/gagal. Silakan buat pembayaran baru.'
+                ]);
             }
 
-            if ($isPaid) {
-                // Update payment status
-                $this->db($this->db_index)->update('subscription_payments', [
-                    'payment_status' => 'success'
-                ], ['payment_ref' => $payment_ref]);
+            $amount_int = (int)floatval($payment['amount']);
+            $tokopay = new \App\Models\Tokopay();
+            $response = $tokopay->checkStatus($payment_ref, $amount_int, 'QRIS');
+            $data = json_decode($response, true);
+            $parsed = $this->parseTokopayStatus($data);
 
-                // Update subscription
-                $subscription = $this->getSubscription($salon_id);
-                if ($subscription) {
-                    $this->db($this->db_index)->update('subscriptions', [
-                        'status' => 'active',
-                        'start_date' => $payment['period_start'],
-                        'end_date' => $payment['period_end'],
-                        'last_payment_date' => date('Y-m-d'),
-                        'last_payment_amount' => $payment['amount'],
-                        'payment_ref' => $payment_ref
-                    ], ['salon_id' => $salon_id]);
+            if (!empty($parsed['connection_error'])) {
+                $this->json([
+                    'success' => true,
+                    'status' => 'error',
+                    'message' => $parsed['message'] ?? 'Gagal terhubung ke payment gateway'
+                ]);
+            }
 
-                    // Update salon table - DISABLED (Columns missing in production)
-                    /*
-                    $this->db($this->db_index)->update('salon', [
-                        'subscription_status' => 'active',
-                        'subscription_end_date' => $payment['period_end']
-                    ], ['salon_id' => $salon_id]);
-                    */
-                }
-
+            if (!empty($parsed['paid'])) {
+                $this->activatePayment($payment);
                 $this->json([
                     'success' => true,
                     'status' => 'paid',
                     'message' => 'Pembayaran berhasil! Langganan aktif hingga ' . $payment['period_end']
                 ]);
-            } else {
+            }
+
+            if (!empty($parsed['expired'])) {
+                $this->markPaymentFailed($payment_ref);
+                $this->json([
+                    'success' => true,
+                    'status' => 'expired',
+                    'message' => 'QRIS sudah kadaluarsa. Silakan buat / perbarui pembayaran.'
+                ]);
+            }
+
             $this->json([
                 'success' => true,
                 'status' => 'pending',
-                'message' => 'Menunggu pembayaran...',
-                'debug_response' => $data
+                'message' => 'Menunggu pembayaran...'
             ]);
-        }
         } catch (\Exception $e) {
-            error_log("Check payment error: " . $e->getMessage());
+            error_log('Check payment error: ' . $e->getMessage());
             $this->error('Terjadi kesalahan: ' . $e->getMessage(), 500);
         }
     }
@@ -889,6 +781,323 @@ class Subscription extends Controller
     }
 
     // ============ PRIVATE HELPERS ============
+
+    /**
+     * Resolve pending QRIS payment (laundry-style):
+     * - < 5 min: reuse same ref (idempotent createOrder)
+     * - >= 5 min: check gateway status first
+     *   - paid → activate
+     *   - expired/failed → refresh QR with new payment_ref (same row) OR allow new
+     *   - pending / unclear / API error → try reuse; if fail and old → refresh
+     */
+    private function resolvePendingQris(array $payment, $allowRefresh = true)
+    {
+        $payment_ref = $payment['payment_ref'];
+        $amount_int = (int)floatval($payment['amount']);
+        $created_at = !empty($payment['created_at']) ? strtotime($payment['created_at']) : 0;
+        $age_minutes = $created_at > 0 ? (time() - $created_at) / 60 : 999;
+
+        $payloadBase = [
+            'payment_ref' => $payment_ref,
+            'amount' => $payment['amount'],
+            'period_start' => $payment['period_start'],
+            'period_end' => $payment['period_end'],
+            'discount' => 0
+        ];
+
+        // Fresh QR window: reuse same Tokopay ref
+        if ($age_minutes < 5) {
+            $order = $this->createTokopayOrder($amount_int, $payment_ref);
+            if (!empty($order['ok']) && !empty($order['qr_string'])) {
+                return [
+                    'qr_string' => $order['qr_string'],
+                    'data' => array_merge($payloadBase, ['qr_string' => $order['qr_string']]),
+                    'message' => 'Melanjutkan pembayaran tertunda Anda'
+                ];
+            }
+
+            // Create failed while still "fresh" — check real status before giving up
+            $status = $this->fetchTokopayPaymentStatus($payment_ref, $amount_int);
+            if (!empty($status['paid'])) {
+                $this->activatePayment($payment);
+                return [
+                    'paid' => true,
+                    'data' => $payloadBase,
+                    'message' => 'Pembayaran sudah berhasil'
+                ];
+            }
+            if (!empty($status['expired'])) {
+                if ($allowRefresh) {
+                    return $this->refreshPaymentQr($payment);
+                }
+                $this->markPaymentFailed($payment_ref);
+                return [
+                    'expired' => true,
+                    'allow_new' => true,
+                    'message' => 'Invoice kadaluarsa. Silakan buat pembayaran baru.'
+                ];
+            }
+
+            return [
+                'message' => $order['message'] ?? 'Gagal memuat QRIS. Coba lagi sebentar.'
+            ];
+        }
+
+        // Older than 5 minutes — confirm status before regenerating (laundry rule)
+        $status = $this->fetchTokopayPaymentStatus($payment_ref, $amount_int);
+
+        if (!empty($status['paid'])) {
+            $this->activatePayment($payment);
+            return [
+                'paid' => true,
+                'data' => $payloadBase,
+                'message' => 'Pembayaran sudah berhasil'
+            ];
+        }
+
+        if (!empty($status['expired'])) {
+            if ($allowRefresh) {
+                return $this->refreshPaymentQr($payment);
+            }
+            $this->markPaymentFailed($payment_ref);
+            return [
+                'expired' => true,
+                'allow_new' => true,
+                'message' => 'Invoice kadaluarsa. Silakan buat pembayaran baru.'
+            ];
+        }
+
+        // Still pending or unclear: try reuse existing ref first
+        $order = $this->createTokopayOrder($amount_int, $payment_ref);
+        if (!empty($order['ok']) && !empty($order['qr_string'])) {
+            return [
+                'qr_string' => $order['qr_string'],
+                'data' => array_merge($payloadBase, ['qr_string' => $order['qr_string']]),
+                'message' => 'Silakan scan QRIS kembali'
+            ];
+        }
+
+        // Cannot reuse and no confirmed pending — refresh or allow new
+        if ($allowRefresh) {
+            return $this->refreshPaymentQr($payment);
+        }
+
+        $this->markPaymentFailed($payment_ref);
+        return [
+            'expired' => true,
+            'allow_new' => true,
+            'message' => 'Invoice tidak valid lagi. Silakan buat pembayaran baru.'
+        ];
+    }
+
+    /**
+     * Regenerate QRIS on same payment row with new payment_ref (Tokopay needs unique ref)
+     */
+    private function refreshPaymentQr(array $payment)
+    {
+        $salon_id = $payment['salon_id'];
+        $old_ref = $payment['payment_ref'];
+        $new_ref = 'SALONSUB_' . $salon_id . '_' . time();
+        $amount_int = (int)floatval($payment['amount']);
+
+        $this->db($this->db_index)->update('subscription_payments', [
+            'payment_ref' => $new_ref,
+            'created_at' => date('Y-m-d H:i:s')
+        ], ['id' => $payment['id']]);
+
+        $order = $this->createTokopayOrder($amount_int, $new_ref);
+        if (empty($order['ok']) || empty($order['qr_string'])) {
+            // Roll back ref if generate failed so history still points to old row identity
+            $this->db($this->db_index)->update('subscription_payments', [
+                'payment_ref' => $old_ref
+            ], ['id' => $payment['id']]);
+            $this->markPaymentFailed($old_ref);
+            return [
+                'expired' => true,
+                'allow_new' => true,
+                'message' => $order['message'] ?? 'Gagal memperbarui QRIS. Silakan buat pembayaran baru.'
+            ];
+        }
+
+        return [
+            'qr_string' => $order['qr_string'],
+            'refreshed' => true,
+            'data' => [
+                'payment_ref' => $new_ref,
+                'amount' => $payment['amount'],
+                'period_start' => $payment['period_start'],
+                'period_end' => $payment['period_end'],
+                'qr_string' => $order['qr_string'],
+                'discount' => 0
+            ],
+            'message' => 'QRIS diperbarui. Silakan scan ulang.'
+        ];
+    }
+
+    private function createTokopayOrder($amount_int, $payment_ref)
+    {
+        $tokopay = new \App\Models\Tokopay();
+        $response = $tokopay->createOrder((int)$amount_int, $payment_ref, 'QRIS');
+        $data = json_decode($response, true);
+
+        $apiOk = false;
+        if (isset($data['status'])) {
+            $status = is_string($data['status']) ? strtolower($data['status']) : $data['status'];
+            if ($status === 'success' || $status === 'true' || $status === true || $status === 1) {
+                $apiOk = true;
+            }
+        }
+
+        $qr_string = $this->extractQrString($data);
+        if ($apiOk && !empty($qr_string)) {
+            return [
+                'ok' => true,
+                'qr_string' => $qr_string,
+                'raw' => $response
+            ];
+        }
+
+        $message = 'Gagal membuat QRIS';
+        if (!empty($data['message'])) {
+            $message = $data['message'];
+        } elseif (!empty($data['error_msg'])) {
+            $message = $data['error_msg'];
+        } elseif ($apiOk && empty($qr_string)) {
+            $message = 'QR String tidak ditemukan dari payment gateway';
+        }
+
+        return [
+            'ok' => false,
+            'qr_string' => '',
+            'message' => $message,
+            'raw' => is_string($response) ? substr($response, 0, 300) : ''
+        ];
+    }
+
+    private function fetchTokopayPaymentStatus($payment_ref, $amount_int)
+    {
+        try {
+            $tokopay = new \App\Models\Tokopay();
+            $response = $tokopay->checkStatus($payment_ref, (int)$amount_int, 'QRIS');
+            $data = json_decode($response, true);
+            return $this->parseTokopayStatus($data);
+        } catch (\Exception $e) {
+            return [
+                'connection_error' => true,
+                'message' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Parse Tokopay/QRIS status response.
+     * IMPORTANT: root "status"=Success means API OK, NOT payment paid.
+     */
+    private function parseTokopayStatus($data)
+    {
+        if (!$data || !is_array($data)) {
+            return [
+                'connection_error' => true,
+                'message' => 'Respon tidak valid dari payment gateway'
+            ];
+        }
+
+        if (isset($data['status']) && $data['status'] === false && !empty($data['message'])) {
+            return [
+                'connection_error' => true,
+                'message' => 'Gagal cek ke Tokopay: ' . $data['message']
+            ];
+        }
+
+        $status_trx = '';
+        $payment_status = '';
+
+        if (!empty($data['payment_status']) && is_string($data['payment_status'])) {
+            $payment_status = strtolower(trim($data['payment_status']));
+        }
+
+        if (isset($data['data']) && is_array($data['data'])) {
+            if (!empty($data['data']['status_pembayaran'])) {
+                $status_trx = strtolower(trim($data['data']['status_pembayaran']));
+            } elseif (!empty($data['data']['status_detail'])) {
+                $status_trx = strtolower(trim($data['data']['status_detail']));
+            } elseif (!empty($data['data']['status']) && is_string($data['data']['status'])) {
+                $status_trx = strtolower(trim($data['data']['status']));
+            }
+        }
+
+        if ($status_trx === '' && !empty($data['status_pembayaran'])) {
+            $status_trx = strtolower(trim($data['status_pembayaran']));
+        } elseif ($status_trx === '' && !empty($data['status_detail'])) {
+            $status_trx = strtolower(trim($data['status_detail']));
+        } elseif ($status_trx === '' && !empty($data['trx_status'])) {
+            $status_trx = strtolower(trim($data['trx_status']));
+        }
+
+        $successList = ['success', 'paid', 'settlement', 'capture', 'completed', 'berhasil'];
+        $expiredList = ['expired', 'cancelled', 'cancel', 'timeout', 'failed', 'fail', 'kadaluarsa', 'gagal'];
+
+        if (class_exists('Env') && defined('Env::QRIS_STATUS_SUCCESS')) {
+            $successList = array_map('strtolower', (array)\Env::QRIS_STATUS_SUCCESS);
+        }
+        if (class_exists('Env') && defined('Env::QRIS_STATUS_EXPIRED')) {
+            $expiredList = array_map('strtolower', (array)\Env::QRIS_STATUS_EXPIRED);
+        }
+
+        $isPaid = ($payment_status === 'paid') || in_array($status_trx, $successList, true);
+        $isExpired = ($payment_status === 'expired') || in_array($status_trx, $expiredList, true);
+
+        return [
+            'paid' => $isPaid,
+            'expired' => $isExpired && !$isPaid,
+            'pending' => !$isPaid && !$isExpired,
+            'trx_status' => $status_trx ?: ($payment_status ?: 'unknown')
+        ];
+    }
+
+    private function extractQrString($data)
+    {
+        if (!is_array($data)) {
+            return '';
+        }
+        if (!empty($data['data']['qr_string'])) {
+            return trim($data['data']['qr_string']);
+        }
+        if (!empty($data['qr_string'])) {
+            return trim($data['qr_string']);
+        }
+        return '';
+    }
+
+    private function markPaymentFailed($payment_ref)
+    {
+        if (empty($payment_ref)) {
+            return;
+        }
+        $this->db($this->db_index)->update('subscription_payments', [
+            'payment_status' => 'failed'
+        ], ['payment_ref' => $payment_ref]);
+    }
+
+    private function activatePayment(array $payment)
+    {
+        $payment_ref = $payment['payment_ref'];
+        $salon_id = $payment['salon_id'];
+
+        $this->db($this->db_index)->update('subscription_payments', [
+            'payment_status' => 'success'
+        ], ['payment_ref' => $payment_ref]);
+
+        $this->db($this->db_index)->update('subscriptions', [
+            'status' => 'active',
+            'start_date' => $payment['period_start'],
+            'end_date' => $payment['period_end'],
+            'last_payment_date' => date('Y-m-d'),
+            'last_payment_amount' => $payment['amount'],
+            'payment_ref' => $payment_ref,
+            'reminder_sent' => 0
+        ], ['salon_id' => $salon_id]);
+    }
 
     private function getSalonId()
     {
