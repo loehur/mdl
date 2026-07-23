@@ -2,7 +2,7 @@
   #saldoMember .ord-member {
     background: linear-gradient(180deg, #f0fdf4, #fff);
     border: 2px solid #4ade80;
-    border-radius: 16px;
+    border-radius: 0;
     padding: 14px;
     margin-bottom: 10px;
     box-shadow: 0 10px 22px rgba(22, 163, 74, 0.12);
@@ -38,7 +38,7 @@
     gap: 10px;
     padding: 11px;
     border: 2px solid #86efac;
-    border-radius: 12px;
+    border-radius: 0;
     background: #fff;
   }
   #saldoMember .ord-member-item strong {
@@ -69,7 +69,7 @@
     min-width: 74px;
     padding: 8px 12px;
     border: 0;
-    border-radius: 10px;
+    border-radius: 0;
     background: linear-gradient(135deg, #15803d, #16a34a);
     color: #fff;
     font-family: inherit;

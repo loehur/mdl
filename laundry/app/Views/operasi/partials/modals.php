@@ -154,7 +154,7 @@
         </div>
         <div id="ubahMemberContent" class="d-none">
           <p class="small text-muted mb-2" id="ubahMemberInfo"></p>
-          <div class="small border rounded p-2 bg-light">
+          <div class="small border p-2 bg-light">
             <div>Paket: <strong id="ubahMemberPaket">-</strong></div>
             <div>Qty order: <strong id="ubahMemberQty">-</strong></div>
             <div>Saldo member: <strong id="ubahMemberSaldo">-</strong></div>
@@ -190,7 +190,7 @@
             <label class="small mb-1">Pilih Durasi</label>
             <select id="ubahDurasiSelect" class="form-control form-control-sm"></select>
           </div>
-          <div class="small border rounded p-2 bg-light">
+          <div class="small border p-2 bg-light">
             <div>Harga item: <strong id="ubahDurasiItemHarga">-</strong></div>
             <div>Total order: <strong id="ubahDurasiRefTotal">-</strong></div>
             <div id="ubahDurasiBayarInfo" class="text-warning d-none mt-1">Pembayaran Cek/Berhasil: <strong id="ubahDurasiDibayar">-</strong></div>
@@ -224,7 +224,7 @@
             <label class="small mb-1">Pilih Layanan</label>
             <select id="ubahLayananSelect" class="form-control form-control-sm"></select>
           </div>
-          <div class="small border rounded p-2 bg-light">
+          <div class="small border p-2 bg-light">
             <div>Harga item: <strong id="ubahLayananItemHarga">-</strong></div>
             <div>Total order: <strong id="ubahLayananRefTotal">-</strong></div>
             <div id="ubahLayananBayarInfo" class="text-warning d-none mt-1">Pembayaran Cek/Berhasil: <strong id="ubahLayananDibayar">-</strong></div>
@@ -307,9 +307,23 @@
     --pay-yellow-deep: #d97706;
     --pay-red: #dc2626;
     --pay-red-deep: #b91c1c;
-    --pay-radius: 16px;
+    --pay-radius: 0;
     font-family: 'fontku', 'Segoe UI', sans-serif;
     color: var(--pay-ink);
+  }
+  #offcanvasPayment,
+  #offcanvasPayment .offcanvas-header,
+  #offcanvasPayment .offcanvas-body,
+  #offcanvasPayment .btn,
+  #offcanvasPayment button,
+  #offcanvasPayment input,
+  #offcanvasPayment select,
+  #offcanvasPayment textarea,
+  #offcanvasPayment .form-control,
+  #offcanvasPayment .selectize-input,
+  #offcanvasPayment .selectize-dropdown,
+  #offcanvasPayment .badge {
+    border-radius: 0 !important;
   }
   #offcanvasPayment .offcanvas-header {
     background: linear-gradient(105deg, #1d4ed8 0%, #2563eb 35%, #16a34a 70%, #f59e0b 100%);
@@ -372,7 +386,7 @@
   #offcanvasPayment .pay-panel__title i {
     width: 30px;
     height: 30px;
-    border-radius: 10px;
+    border-radius: 0;
     display: grid;
     place-items: center;
     font-size: 0.85rem;
@@ -397,7 +411,7 @@
   #offcanvasPayment .pay-input {
     width: 100%;
     border: 2px solid #94a3b8;
-    border-radius: 12px;
+    border-radius: 0;
     background: #fff;
     color: var(--pay-ink);
     padding: 0.55rem 0.75rem;
@@ -429,7 +443,7 @@
   }
   #offcanvasPayment .selectize-control.single .selectize-input {
     border: 2px solid #94a3b8 !important;
-    border-radius: 12px !important;
+    border-radius: 0 !important;
     background: #fff !important;
     min-height: 42px;
     padding: 8px 12px !important;
@@ -476,7 +490,7 @@
     min-height: 86px;
     padding: 10px 6px;
     border: 2px solid #cbd5e1;
-    border-radius: 14px;
+    border-radius: 0;
     background: #f8fafc;
     color: #64748b;
     opacity: 0.72;
@@ -489,14 +503,14 @@
     right: 6px;
     width: 18px;
     height: 18px;
-    border-radius: 50%;
+    border-radius: 0;
     border: 2px solid #cbd5e1;
     background: #fff;
   }
   #offcanvasPayment .pay-opt__icon {
     width: 36px;
     height: 36px;
-    border-radius: 11px;
+    border-radius: 0;
     display: grid;
     place-items: center;
     font-size: 1rem;
@@ -592,7 +606,7 @@
   #offcanvasPayment .pay-note-grid .pay-opt__icon {
     width: 28px;
     height: 28px;
-    border-radius: 9px;
+    border-radius: 0;
     font-size: 0.82rem;
     flex-shrink: 0;
   }
@@ -650,7 +664,7 @@
     gap: 8px;
     width: 100%;
     border: 0;
-    border-radius: 12px;
+    border-radius: 0;
     padding: 12px 14px;
     font-size: 0.95rem;
     font-weight: 900;
@@ -687,7 +701,7 @@
     gap: 0.75rem;
     align-items: flex-start;
     padding: 0.85rem;
-    border-radius: 12px;
+    border-radius: 0;
     background: #fff7ed;
     border: 2px solid #fbbf24;
     color: #92400e;
@@ -717,7 +731,7 @@
     align-items: center;
     padding: 11px;
     border: 2px solid #cbd5e1;
-    border-radius: 12px;
+    border-radius: 0;
     background: #fff;
     box-shadow: 0 6px 14px rgba(15, 23, 42, 0.06);
     cursor: pointer;
@@ -748,7 +762,7 @@
     gap: 0.75rem;
     margin: 12px 0 10px;
     padding: 12px 14px;
-    border-radius: 14px;
+    border-radius: 0;
     background: linear-gradient(135deg, #fef2f2, #fee2e2);
     border: 2px solid #f87171;
   }
@@ -781,7 +795,7 @@
     border: 2px solid #f87171;
     background: #fef2f2;
     color: var(--pay-red-deep);
-    border-radius: 12px;
+    border-radius: 0;
     padding: 0.7rem 0.85rem;
     margin-bottom: 12px;
     text-align: center;
@@ -1005,7 +1019,7 @@
         <div id="listPenanggungBayar" style="max-height: 280px; overflow-y: auto;">
           <div class="text-center text-muted py-3"><i class="fas fa-spinner fa-spin"></i> Memuat...</div>
         </div>
-        <div id="tbKonfirmasi" class="d-none mt-3 p-2 border rounded bg-light">
+        <div id="tbKonfirmasi" class="d-none mt-3 p-2 border bg-light">
           <p class="small mb-2">
             Bayar tagihan <strong id="tbKonfirmasiOrder"></strong> menggunakan saldo:
           </p>

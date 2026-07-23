@@ -12,7 +12,7 @@
     --ord-yellow-deep: #d97706;
     --ord-red: #dc2626;
     --ord-red-deep: #b91c1c;
-    --ord-radius: 16px;
+    --ord-radius: 0;
     font-family: 'fontku', 'Segoe UI', sans-serif;
     font-size: 13.5px;
     color: var(--ord-ink);
@@ -21,6 +21,20 @@
     min-height: 100%;
   }
   #ord-root * { box-sizing: border-box; }
+  #ord-root .btn,
+  #ord-root button,
+  #ord-root input,
+  #ord-root select,
+  #ord-root textarea,
+  #ord-root .form-control,
+  #ord-root .selectize-input,
+  #ord-root .selectize-dropdown,
+  #ord-root .badge,
+  #ord-root .modal-content,
+  .ord-plg-modal__panel,
+  .ord-order-modal__panel {
+    border-radius: 0 !important;
+  }
 
   #ord-root .ord-card {
     background: var(--ord-card);
@@ -48,7 +62,7 @@
   #ord-root .ord-card-title i {
     width: 30px;
     height: 30px;
-    border-radius: 10px;
+    border-radius: 0;
     display: grid;
     place-items: center;
     font-size: 0.85rem;
@@ -88,7 +102,7 @@
 
   #ord-root .selectize-input {
     border: 2px solid #94a3b8 !important;
-    border-radius: 12px !important;
+    border-radius: 0 !important;
     box-shadow: none !important;
     min-height: 42px;
     padding: 8px 12px !important;
@@ -103,7 +117,7 @@
   }
   #ord-root .selectize-dropdown {
     border: 2px solid #94a3b8 !important;
-    border-radius: 12px !important;
+    border-radius: 0 !important;
     box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16) !important;
   }
   #ord-root .selectize-dropdown .option {
@@ -118,7 +132,7 @@
     gap: 8px;
     width: 100%;
     border: 0;
-    border-radius: 12px;
+    border-radius: 0;
     padding: 12px 14px;
     font-family: inherit;
     font-size: 0.95rem;
@@ -156,7 +170,7 @@
     min-height: 86px;
     padding: 10px 6px;
     border: 2px solid #cbd5e1;
-    border-radius: 14px;
+    border-radius: 0;
     background: #fff;
     color: var(--ord-ink);
     font-family: inherit;
@@ -170,7 +184,7 @@
     height: 36px;
     display: grid;
     place-items: center;
-    border-radius: 11px;
+    border-radius: 0;
     font-size: 1rem;
     color: #fff;
   }
@@ -227,7 +241,7 @@
     align-items: center;
     padding: 4px 10px;
     border: 0 !important;
-    border-radius: 8px !important;
+    border-radius: 0 !important;
     background: var(--ord-blue);
     color: #fff !important;
     font-size: 0.72rem;
@@ -266,7 +280,7 @@
   #ord-root .ord-cart-head strong i {
     width: 30px;
     height: 30px;
-    border-radius: 10px;
+    border-radius: 0;
     display: grid;
     place-items: center;
     background: var(--ord-yellow);

@@ -9,7 +9,7 @@
   #cart .ord-cart-item {
     background: #fff;
     border: 2px solid #cbd5e1;
-    border-radius: 12px;
+    border-radius: 0;
     padding: 11px;
     margin-bottom: 8px;
     box-shadow: 0 6px 14px rgba(15, 23, 42, 0.06);
@@ -68,7 +68,7 @@
     align-items: center;
     gap: 4px;
     padding: 5px 10px;
-    border-radius: 8px;
+    border-radius: 0;
     font-size: 0.72rem;
     font-weight: 900;
     text-decoration: none;
@@ -99,7 +99,7 @@
     color: #92400e !important;
     border: 1px solid #f59e0b;
     font-weight: 800;
-    border-radius: 8px;
+    border-radius: 0;
   }
 </style>
 

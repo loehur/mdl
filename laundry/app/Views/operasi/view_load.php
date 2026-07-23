@@ -1089,7 +1089,7 @@ $labeled = false;
 <!-- Riwayat Pembayaran -->
 <div class="position-fixed" style="z-index: 999; bottom: 80px; right: 22px">
   <?php if (isset($data['finance_history']) && count($data['finance_history']) > 0) { ?>
-    <div class="mx-1 bg-white px-2 py-2 rounded shadow">
+    <div class="mx-1 bg-white px-2 py-2 shadow">
       <table class='table table-sm m-0 table-borderless table-striped'>
         <?php foreach ($data['finance_history'] as $fh) {
           $stName = '';
@@ -1146,8 +1146,8 @@ $labeled = false;
 <!-- Modal Hapus Order - Inline -->
 <div id="modalHapusOrderInline" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; z-index:999999;">
   <div class="tutupModalHapusBtn" style="position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); cursor:pointer;"></div>
-  <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:white; border-radius:8px; width:90%; max-width:350px; box-shadow:0 10px 40px rgba(0,0,0,0.3);">
-    <div style="background:#dc3545; color:white; padding:12px 16px; border-radius:8px 8px 0 0; display:flex; justify-content:space-between; align-items:center;">
+  <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:white; border-radius:0; width:90%; max-width:350px; box-shadow:0 10px 40px rgba(0,0,0,0.3);">
+    <div style="background:#dc3545; color:white; padding:12px 16px; border-radius:0; display:flex; justify-content:space-between; align-items:center;">
       <h6 style="margin:0; font-size:14px;"><i class="fas fa-trash-alt"></i> Hapus Order</h6>
       <button class="tutupModalHapusBtn" style="background:none; border:none; color:white; font-size:18px; cursor:pointer;">&times;</button>
     </div>
@@ -1155,13 +1155,13 @@ $labeled = false;
       <p style="margin:0 0 12px;">Yakin ingin menghapus order <strong id="hapusRefText"></strong>?</p>
       <div style="margin-bottom:12px;">
         <label style="font-size:12px; margin-bottom:4px; display:block;">Alasan Hapus <span style="color:red;">*</span></label>
-        <input type="text" id="inputAlasanHapus" autocomplete="off" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; font-size:14px;" placeholder="Masukkan alasan...">
+        <input type="text" id="inputAlasanHapus" autocomplete="off" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:0; font-size:14px;" placeholder="Masukkan alasan...">
       </div>
       <p style="font-size:11px; color:#dc3545; margin:0;"><i class="fas fa-exclamation-triangle"></i> Data tidak dapat dikembalikan.</p>
     </div>
     <div style="padding:12px 16px; border-top:1px solid #eee; display:flex; gap:8px; justify-content:flex-end;">
-      <button class="tutupModalHapusBtn" style="padding:6px 16px; border:1px solid #ccc; background:#f8f9fa; border-radius:4px; cursor:pointer;">Batal</button>
-      <button id="btnHapusKonfirm" style="padding:6px 16px; border:none; background:#dc3545; color:white; border-radius:4px; cursor:pointer;">
+      <button class="tutupModalHapusBtn" style="padding:6px 16px; border:1px solid #ccc; background:#f8f9fa; border-radius:0; cursor:pointer;">Batal</button>
+      <button id="btnHapusKonfirm" style="padding:6px 16px; border:none; background:#dc3545; color:white; border-radius:0; cursor:pointer;">
         <i class="fas fa-trash-alt"></i> Hapus
       </button>
     </div>
@@ -1189,15 +1189,16 @@ $labeled = false;
   .hapus-item-modal { display:none; position:fixed; inset:0; top:0; right:0; bottom:0; left:0; z-index:1000000; align-items:center; justify-content:center; padding:18px; }
   .hapus-item-modal.is-open { display:flex !important; }
   .hapus-item-modal__backdrop { position:absolute; inset:0; top:0; right:0; bottom:0; left:0; background:rgba(15,23,42,.58); backdrop-filter:blur(3px); }
-  .hapus-item-modal__dialog { position:relative; z-index:1; width:100%; max-width:420px; padding:30px; border-radius:18px; background:#fff; box-shadow:0 24px 60px rgba(15,23,42,.3); }
-  .hapus-item-modal__icon { display:flex; align-items:center; justify-content:center; width:46px; height:46px; margin-bottom:14px; border-radius:14px; background:#fee2e2; color:#dc2626; font-size:20px; }
+  .hapus-item-modal__dialog { position:relative; z-index:1; width:100%; max-width:420px; padding:30px; border-radius:0; background:#fff; box-shadow:0 24px 60px rgba(15,23,42,.3); }
+  .hapus-item-modal__icon { display:flex; align-items:center; justify-content:center; width:46px; height:46px; margin-bottom:14px; border-radius:0; background:#fee2e2; color:#dc2626; font-size:20px; }
   .hapus-item-modal__close { position:absolute; top:13px; right:16px; border:0; background:transparent; color:#64748b; font-size:28px; line-height:1; }
   .hapus-item-modal h5 { margin:0 0 8px; color:#172033; font-weight:800; }
   .hapus-item-modal p { margin:0 0 15px; color:#475569; line-height:1.5; }
-  .hapus-item-modal__notice { display:flex; gap:9px; margin-bottom:16px; padding:10px 12px; border-radius:10px; background:#fef2f2; color:#991b1b; font-size:12px; line-height:1.45; }
+  .hapus-item-modal__notice { display:flex; gap:9px; margin-bottom:16px; padding:10px 12px; border-radius:0; background:#fef2f2; color:#991b1b; font-size:12px; line-height:1.45; }
   .hapus-item-modal label { display:block; margin-bottom:6px; color:#334155; font-size:13px; font-weight:700; }
   .hapus-item-modal label span { color:#dc2626; }
-  .hapus-item-modal input { width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:9px; outline:none; }
+  .hapus-item-modal input { width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:0; outline:none; }
+  .hapus-item-modal .btn { border-radius:0 !important; }
   .hapus-item-modal input:focus { border-color:#ef4444; box-shadow:0 0 0 3px rgba(239,68,68,.14); }
   .hapus-item-modal__actions { display:flex; justify-content:flex-end; gap:8px; margin-top:22px; }
 </style>

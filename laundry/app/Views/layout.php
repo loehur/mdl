@@ -351,6 +351,38 @@ if (isset($data['data_operasi'])) {
             overflow: hidden;
         }
 
+        /*
+         * AdminLTE full-close (bukan sidebar-mini icon rail).
+         * body tanpa class sidebar-mini → collapse = margin-left -250px.
+         * Override eksplisit agar tidak pernah jatuh ke mode ikon 4.6rem.
+         */
+        body.sidebar-collapse .main-sidebar,
+        body.sidebar-collapse .main-sidebar::before {
+            margin-left: -250px !important;
+            width: 250px !important;
+            box-shadow: none !important;
+        }
+        body.sidebar-collapse .content-wrapper,
+        body.sidebar-collapse .main-header,
+        body.sidebar-collapse .main-footer {
+            margin-left: 0 !important;
+        }
+        body.sidebar-collapse .main-sidebar:hover,
+        body.sidebar-collapse .main-sidebar.sidebar-focused {
+            width: 250px !important;
+            margin-left: -250px !important;
+        }
+        @media (max-width: 767.98px) {
+            body:not(.sidebar-open) .main-sidebar,
+            body:not(.sidebar-open) .main-sidebar::before {
+                margin-left: -250px !important;
+            }
+            body.sidebar-open .main-sidebar,
+            body.sidebar-open .main-sidebar::before {
+                margin-left: 0 !important;
+            }
+        }
+
         .main-sidebar .sidebar {
             display: flex;
             flex-direction: column;
@@ -400,6 +432,26 @@ if (isset($data['data_operasi'])) {
             --mdl-admin-deep: #b91c1c;
             --mdl-yellow: #f59e0b;
             --mdl-shadow: 0 10px 24px rgba(15, 23, 42, 0.1);
+            --mdl-radius: 0;
+        }
+
+        /* Wajib siku: tidak ada round di shell UI */
+        .modal-content,
+        .modal-header,
+        .modal-body,
+        .modal-footer,
+        .offcanvas,
+        .btn,
+        .form-control,
+        .form-select,
+        .input-group-text,
+        .badge,
+        .card,
+        .alert,
+        .dropdown-menu,
+        .selectize-input,
+        .selectize-dropdown {
+            border-radius: 0 !important;
         }
 
         /* ===== Top toolbar ===== */
@@ -1166,7 +1218,7 @@ if ($log_mode == 1) {
 ?>
 
 <?php $isTrainingUi = !empty($this->isTrainingMode); ?>
-<body class="hold-transition sidebar-mini<?= $isTrainingUi ? ' mode-training' : '' ?>">
+<body class="hold-transition<?= $isTrainingUi ? ' mode-training' : '' ?>">
     <div class="loaderDiv" style="display: none;">
         <div class="loader"></div>
     </div>
@@ -1178,7 +1230,7 @@ if ($log_mode == 1) {
         <?php } ?>
         <nav class="main-header navbar navbar-expand mdl-topbar sticky-top">
             <div class="mdl-topbar-row">
-                <a href="#" id="menu_utama" class="mdl-tbtn mdl-tbtn--menu" data-widget="pushmenu" role="button">
+                <a href="#" id="menu_utama" class="mdl-tbtn mdl-tbtn--menu" role="button" title="Tutup / buka menu">
                     <i class="fas fa-bars"></i><span>Menu</span>
                 </a>
 
@@ -1662,6 +1714,23 @@ if ($log_mode == 1) {
                         }
 
                         body.classList.add('sidebar-collapse');
+                        body.classList.remove('sidebar-open');
+                    }
+
+                    function toggleSidebarMenu(event) {
+                        if (event) {
+                            event.preventDefault();
+                        }
+                        if (isSidebarMenuVisible()) {
+                            closeSidebarMenu();
+                        } else {
+                            openSidebarMenu();
+                        }
+                    }
+
+                    var menuUtama = document.getElementById('menu_utama');
+                    if (menuUtama) {
+                        menuUtama.addEventListener('click', toggleSidebarMenu);
                     }
 
                     document.addEventListener('touchstart', function(event) {

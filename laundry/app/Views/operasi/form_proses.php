@@ -309,6 +309,13 @@ $modeOperasi = (int) $data['mode'];
   #offcanvasBukaOrderOp,
   #offcanvasPayment { z-index: 1100 !important; }
   .offcanvas-backdrop { z-index: 1090 !important; }
+  #offcanvasBukaOrderOp,
+  #offcanvasBukaOrderOp .offcanvas-header,
+  #offcanvasBukaOrderOp .btn,
+  #offcanvasBukaOrderOp button,
+  #offcanvasPayment {
+    border-radius: 0 !important;
+  }
   .modal { z-index: 1200 !important; }
   .modal-backdrop { z-index: 1190 !important; }
 </style>
