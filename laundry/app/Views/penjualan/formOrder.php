@@ -59,7 +59,7 @@ if ($saldoNya_member > 0) {
     width: 34px;
     height: 34px;
     border: 0;
-    border-radius: 10px;
+    border-radius: 0;
     background: rgba(255,255,255,.2);
     color: #fff;
     cursor: pointer;
@@ -113,7 +113,7 @@ if ($saldoNya_member > 0) {
     width: 100%;
     padding: 10px 12px;
     border: 2px solid #94a3b8;
-    border-radius: 10px;
+    border-radius: 0;
     background: #fff;
     font-family: inherit;
     font-size: 14px;
@@ -146,7 +146,7 @@ if ($saldoNya_member > 0) {
   }
   .ord-fo .selectize-input {
     border: 2px solid #94a3b8 !important;
-    border-radius: 10px !important;
+    border-radius: 0 !important;
     box-shadow: none !important;
     min-height: 42px;
     padding: 8px 10px !important;
@@ -160,7 +160,7 @@ if ($saldoNya_member > 0) {
   }
   .ord-fo .selectize-dropdown {
     border-color: #94a3b8 !important;
-    border-radius: 10px !important;
+    border-radius: 0 !important;
     z-index: 5100 !important;
   }
   .ord-fo__foot {
@@ -177,7 +177,7 @@ if ($saldoNya_member > 0) {
     justify-content: center;
     gap: 6px;
     border: 0;
-    border-radius: 10px;
+    border-radius: 0;
     padding: 11px 14px;
     font-family: inherit;
     font-size: 14px;

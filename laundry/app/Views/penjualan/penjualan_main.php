@@ -424,7 +424,7 @@
     width: min(520px, 100%);
     max-height: min(90vh, 720px);
     background: #fff;
-    border-radius: 16px;
+    border-radius: 0;
     box-shadow: 0 24px 48px rgba(15, 23, 42, 0.3);
     overflow: hidden;
     animation: ordOrderIn .18s ease-out;
@@ -494,7 +494,7 @@
     z-index: 1;
     width: min(400px, 100%);
     background: #fff;
-    border-radius: 16px;
+    border-radius: 0;
     box-shadow: 0 24px 48px rgba(15, 23, 42, 0.3);
     overflow: hidden;
     animation: ordPlgIn .18s ease-out;
@@ -530,7 +530,7 @@
     width: 34px;
     height: 34px;
     border: 0;
-    border-radius: 10px;
+    border-radius: 0;
     background: rgba(255,255,255,.2);
     color: #fff;
     cursor: pointer;
@@ -557,7 +557,7 @@
     margin-bottom: 10px;
     padding: 10px 12px;
     border: 2px solid #94a3b8;
-    border-radius: 10px;
+    border-radius: 0;
     background: #fff;
     font-family: 'fontku', sans-serif;
     font-size: 14px;
@@ -572,7 +572,7 @@
   .ord-plg-msg {
     margin: 0 0 10px;
     padding: 8px 10px;
-    border-radius: 10px;
+    border-radius: 0;
     font-size: 12px;
     font-weight: 800;
     background: #fee2e2;
@@ -587,7 +587,7 @@
     gap: 7px;
     width: 100%;
     border: 0;
-    border-radius: 10px;
+    border-radius: 0;
     padding: 12px 14px;
     background: linear-gradient(135deg, #15803d, #16a34a);
     color: #fff;

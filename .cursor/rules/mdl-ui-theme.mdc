@@ -1,0 +1,16 @@
+---
+description: Pedoman tema UI MDL (Order/Pembayaran) — wajib dibaca saat ubah tampilan
+globs: laundry/app/Views/**/*.php,laundry/in_assets/**/*.{css,js},laundry/docs/UI_THEME.md
+alwaysApply: false
+---
+
+# MDL UI Theme
+
+Saat membuat atau mengubah tampilan (offcanvas, modal, form, kartu, tombol, radio):
+
+1. **Baca dulu** `laundry/docs/UI_THEME.md` dan ikuti token + checklist di sana.
+2. **Rujuk implementasi** yang sudah sesuai:
+   - Order: `laundry/app/Views/penjualan/penjualan_main.php` (`#ord-root`)
+   - Pembayaran: `laundry/app/Views/operasi/partials/modals.php` (`#offcanvasPayment`)
+3. **Wajib**: tipografi tajam; warna biru/hijau/kuning/merah; selected state sangat jelas; **satu border saja** — input/select tunggal jangan dibungkus card; **modal sudut runcing** (`border-radius: 0`), bukan round.
+4. Jika menambah pola visual baru yang disetujui user, **perbarui** `laundry/docs/UI_THEME.md`.
