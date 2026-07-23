@@ -364,10 +364,11 @@
             display: none;
             width: 22px;
             height: 22px;
-            border: var(--border) solid var(--line-soft);
+            border: 2px solid var(--line-soft);
             border-top-color: var(--blue);
-            border-radius: var(--radius);
+            border-radius: 50%;
             animation: spin .7s linear infinite;
+            flex: 0 0 auto;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
 

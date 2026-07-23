@@ -100,6 +100,7 @@ Font stack: `'fontku', 'Segoe UI', sans-serif`
 - **Dilarang**: `border-radius` selain `0`, class Bootstrap `rounded` / `rounded-*` / `rounded-pill`, lingkaran `50%` / `999px`.
 - **Dilarang**: border default `2px` / `3px` / `1.5px` pada panel, input, tombol, chip.
 - Marker radio / centang / ikon: **kotak**, bukan lingkaran.
+- **Pengecualian**: indikator loading/spinner boleh `border-radius: 50%` agar tidak terlihat seperti kotak error.
 - Focus: `box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22)` (bukan 3px).
 - Offcanvas: `.offcanvas { border-radius: 0; }`.
 
