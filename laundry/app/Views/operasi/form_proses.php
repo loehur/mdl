@@ -64,7 +64,7 @@ $modeOperasi = (int) $data['mode'];
     padding: 0 12px;
     margin: 0;
     border-radius: 0;
-    border: 1.5px solid #d5dde6;
+    border: 1px solid #d5dde6;
     background: #f8fafc;
     color: #334155;
     font-family: 'fontku', sans-serif;
@@ -116,7 +116,7 @@ $modeOperasi = (int) $data['mode'];
     max-height: 36px !important;
     padding: 0 12px !important;
     line-height: 1 !important;
-    border: 1.5px solid #d5dde6 !important;
+    border: 1px solid #d5dde6 !important;
     border-radius: 0 !important;
     background: #f8fafc !important;
     box-shadow: none !important;
@@ -134,7 +134,7 @@ $modeOperasi = (int) $data['mode'];
   .operasi-filter .selectize-control.single .selectize-input.focus {
     border-color: #3b82f6 !important;
     background: #fff !important;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15) !important;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15) !important;
   }
   .operasi-filter .selectize-dropdown {
     border-radius: 0;
@@ -209,7 +209,7 @@ $modeOperasi = (int) $data['mode'];
     width: 34px;
     height: 34px;
     border-radius: 0;
-    border: 1.5px solid #d5dde6;
+    border: 1px solid #d5dde6;
     background: #fff;
     color: #475569;
     cursor: pointer;

@@ -1199,7 +1199,7 @@ $labeled = false;
   .hapus-item-modal label span { color:#dc2626; }
   .hapus-item-modal input { width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:0; outline:none; }
   .hapus-item-modal .btn { border-radius:0 !important; }
-  .hapus-item-modal input:focus { border-color:#ef4444; box-shadow:0 0 0 3px rgba(239,68,68,.14); }
+  .hapus-item-modal input:focus { border-color:#ef4444; box-shadow:0 0 0 2px rgba(239,68,68,.14); }
   .hapus-item-modal__actions { display:flex; justify-content:flex-end; gap:8px; margin-top:22px; }
 </style>
 

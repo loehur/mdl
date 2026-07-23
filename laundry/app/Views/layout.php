@@ -1,4 +1,4 @@
-ï»¿<?php
+<?php
 if (isset($data['data_operasi'])) {
     $title = $data['data_operasi']['title'];
 } else {
@@ -57,7 +57,7 @@ if (isset($data['data_operasi'])) {
             font-size: 14px;
         }
 
-        /* Header warna nota Antrian/Operasi â€” tema MDL (bukan Bootstrap) */
+        /* Header warna nota Antrian/Operasi — tema MDL (bukan Bootstrap) */
         .content-wrapper tr.mdl-nota-today > td,
         .content-wrapper tr.mdl-nota-past > td,
         .content-wrapper tr.mdl-nota-member > td,
@@ -103,7 +103,7 @@ if (isset($data['data_operasi'])) {
             font-weight: 700 !important;
         }
 
-        /* Head nota Operasi â€” padding & alignment seimbang */
+        /* Head nota Operasi — padding & alignment seimbang */
         .content-wrapper .mdl-nota-card {
             overflow: hidden;
             border-radius: 0;
@@ -284,7 +284,7 @@ if (isset($data['data_operasi'])) {
             margin-bottom: 0 !important;
         }
 
-        /* Grid nota Antrian/Operasi â€” jarak atas-bawah = kanan-kiri (8px) */
+        /* Grid nota Antrian/Operasi — jarak atas-bawah = kanan-kiri (8px) */
         .content-wrapper .mdl-nota-grid {
             display: grid;
             grid-template-columns: 1fr;
@@ -353,7 +353,7 @@ if (isset($data['data_operasi'])) {
 
         /*
          * AdminLTE full-close (bukan sidebar-mini icon rail).
-         * body tanpa class sidebar-mini â†’ collapse = margin-left -250px.
+         * body tanpa class sidebar-mini ? collapse = margin-left -250px.
          * Override eksplisit agar tidak pernah jatuh ke mode ikon 4.6rem.
          */
         body.sidebar-collapse .main-sidebar,
@@ -409,7 +409,7 @@ if (isset($data['data_operasi'])) {
             /* di-override oleh blok MDL UI Theme di bawah */
         }
 
-        /* ===== MDL UI Theme chrome (topnav + sidebar) â€” lihat laundry/docs/UI_THEME.md ===== */
+        /* ===== MDL UI Theme chrome (topnav + sidebar) — lihat laundry/docs/UI_THEME.md ===== */
         :root {
             --mdl-ink: #0f172a;
             --mdl-ink-soft: #1e293b;
@@ -460,7 +460,7 @@ if (isset($data['data_operasi'])) {
             padding: 8px 10px !important;
             background: linear-gradient(105deg, #1d4ed8 0%, #2563eb 35%, #16a34a 70%, #f59e0b 100%) !important;
             background-image: linear-gradient(105deg, #1d4ed8 0%, #2563eb 35%, #16a34a 70%, #f59e0b 100%) !important;
-            border-bottom: 2px solid #0f172a;
+            border-bottom: 1px solid #0f172a;
             min-height: 0;
             box-shadow: 0 4px 14px rgba(15, 23, 42, 0.18);
         }
@@ -498,7 +498,7 @@ if (isset($data['data_operasi'])) {
             justify-content: center;
             gap: 6px;
             padding: 0 12px;
-            border: 2px solid rgba(255,255,255,.55);
+            border: 1px solid rgba(255,255,255,.55);
             background: rgba(15, 23, 42, 0.22);
             color: #fff;
             cursor: pointer;
@@ -554,7 +554,7 @@ if (isset($data['data_operasi'])) {
 
         .mdl-topbar select.mdl-tctrl {
             padding: 0 28px 0 10px;
-            border: 2px solid transparent;
+            border: 1px solid transparent;
             color: #fff;
             cursor: pointer;
             max-width: 88px;
@@ -564,12 +564,12 @@ if (isset($data['data_operasi'])) {
             background-size: 8px 5px;
         }
         .mdl-topbar select.mdl-tctrl:focus {
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.28);
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.28);
         }
         .mdl-tbtn--cabang {
             min-width: 52px;
             padding: 0 12px;
-            border: 2px solid transparent;
+            border: 1px solid transparent;
             background: #0f172a;
             color: #fff;
             gap: 6px;
@@ -586,7 +586,7 @@ if (isset($data['data_operasi'])) {
         .mdl-tbtn--user {
             min-width: 52px;
             padding: 0 12px;
-            border: 2px solid transparent;
+            border: 1px solid transparent;
             background: var(--mdl-live);
             color: #fff;
             gap: 6px;
@@ -607,7 +607,7 @@ if (isset($data['data_operasi'])) {
             overflow: hidden;
             padding: 3px;
             gap: 2px;
-            border: 2px solid #0f172a;
+            border: 1px solid #0f172a;
             background: rgba(15, 23, 42, 0.28);
             box-shadow: none;
         }
@@ -653,7 +653,7 @@ if (isset($data['data_operasi'])) {
             letter-spacing: 0.02em;
             text-align: center;
             padding: 7px 12px;
-            border-bottom: 2px solid #92400e;
+            border-bottom: 1px solid #92400e;
         }
         body.mode-training .main-header.mdl-topbar {
             background: linear-gradient(105deg, #d97706 0%, #f59e0b 45%, #16a34a 100%) !important;
@@ -680,7 +680,7 @@ if (isset($data['data_operasi'])) {
             font-size: 12px;
             font-weight: 900;
             letter-spacing: 0.04em;
-            border: 2px solid #0f172a;
+            border: 1px solid #0f172a;
         }
 
         /* ===== Sidebar shell ===== */
@@ -689,7 +689,7 @@ if (isset($data['data_operasi'])) {
                 radial-gradient(90% 50% at 0% 0%, rgba(37,99,235,.14), transparent 50%),
                 radial-gradient(80% 40% at 100% 0%, rgba(245,158,11,.12), transparent 45%),
                 linear-gradient(180deg, #eef4ff 0%, #f4fff8 55%, #fff8eb 100%) !important;
-            border-right: 2px solid var(--mdl-line-soft);
+            border-right: 1px solid var(--mdl-line-soft);
         }
 
         /* ===== Sidebar profile card ===== */
@@ -698,7 +698,7 @@ if (isset($data['data_operasi'])) {
             padding: 12px;
             border-radius: 0;
             background: linear-gradient(180deg, #eff6ff, #fff);
-            border: 2px solid #93c5fd;
+            border: 1px solid #93c5fd;
             box-shadow: var(--mdl-shadow);
         }
         .mdl-side-user {
@@ -717,7 +717,7 @@ if (isset($data['data_operasi'])) {
             height: 34px;
             padding: 0 12px;
             border-radius: 0;
-            border: 2px solid var(--mdl-line);
+            border: 1px solid var(--mdl-line);
             background: #fff;
             color: var(--mdl-ink);
             font-family: 'fontku', sans-serif;
@@ -746,7 +746,7 @@ if (isset($data['data_operasi'])) {
             height: 34px;
             padding: 0;
             border-radius: 0;
-            border: 2px solid transparent;
+            border: 1px solid transparent;
             background: var(--mdl-live);
             color: #fff;
             cursor: pointer;
@@ -788,7 +788,7 @@ if (isset($data['data_operasi'])) {
             padding: 3px;
             gap: 2px;
             border-radius: 0;
-            border: 2px solid var(--mdl-line);
+            border: 1px solid var(--mdl-line);
             background: #f8fafc;
             box-shadow: none;
         }
@@ -829,7 +829,7 @@ if (isset($data['data_operasi'])) {
             padding: 8px;
             border-radius: 0;
             background: linear-gradient(180deg, #fffbeb, #fff);
-            border: 2px solid #fcd34d;
+            border: 1px solid #fcd34d;
             box-shadow: var(--mdl-shadow);
             flex: 1 1 auto;
             min-height: 0;
@@ -894,7 +894,7 @@ if (isset($data['data_operasi'])) {
             margin: 0 !important;
             padding: 8px 12px !important;
             border-radius: 0 !important;
-            border: 2px solid transparent;
+            border: 1px solid transparent;
             background: transparent !important;
             color: var(--mdl-ink) !important;
             font-family: 'fontku', sans-serif;
@@ -962,7 +962,7 @@ if (isset($data['data_operasi'])) {
             padding: 4px !important;
             border-radius: 0;
             background: #eff6ff;
-            border: 2px solid #bfdbfe;
+            border: 1px solid #bfdbfe;
         }
         .mdl-side-nav .nav-treeview .nav-item {
             margin: 0 0 2px;
@@ -1011,12 +1011,12 @@ if (isset($data['data_operasi'])) {
         .mdl-cmodal__item.is-active {
             border-color: var(--mdl-accent) !important;
             background: linear-gradient(180deg, #bfdbfe, #eff6ff) !important;
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.28) !important;
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.28) !important;
         }
         .mdl-cmodal--user .mdl-cmodal__item.is-active {
             border-color: var(--mdl-live) !important;
             background: linear-gradient(180deg, #bbf7d0, #f0fdf4) !important;
-            box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.28) !important;
+            box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.28) !important;
         }
         /* ===== Custom cabang picker modal ===== */
         .mdl-cmodal {
@@ -1110,7 +1110,7 @@ if (isset($data['data_operasi'])) {
             gap: 4px;
             min-height: 72px;
             padding: 10px 8px;
-            border: 1.5px solid #e2e8f0;
+            border: 1px solid #e2e8f0;
             border-radius: 0;
             background: #fff;
             color: #0f172a;
@@ -1225,7 +1225,7 @@ if ($log_mode == 1) {
     <div class="wrapper">
         <?php if ($isTrainingUi) { ?>
             <div class="training-banner sticky-top">
-                MODE TRAINING â€” data latihan terpisah Â· WA &amp; payment tetap sungguhan Â· switch ke Live untuk operasional
+                MODE TRAINING — data latihan terpisah · WA &amp; payment tetap sungguhan · switch ke Live untuk operasional
             </div>
         <?php } ?>
         <nav class="main-header navbar navbar-expand mdl-topbar sticky-top">
@@ -1281,7 +1281,7 @@ if ($log_mode == 1) {
                             $isActive = ($cid === (int) $this->id_cabang);
                             $alamat = trim((string) ($lcb['alamat'] ?? ''));
                             if (strlen($alamat) > 28) {
-                                $alamat = substr($alamat, 0, 28) . 'â€¦';
+                                $alamat = substr($alamat, 0, 28) . '…';
                             }
                         ?>
                             <button type="button"

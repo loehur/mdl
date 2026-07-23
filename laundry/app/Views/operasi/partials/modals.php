@@ -356,7 +356,7 @@
   }
   #offcanvasPayment .pay-panel {
     background: #fff;
-    border: 2px solid #e2e8f0;
+    border: 1px solid #e2e8f0;
     border-radius: var(--pay-radius);
     padding: 14px;
     box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
@@ -410,7 +410,7 @@
   }
   #offcanvasPayment .pay-input {
     width: 100%;
-    border: 2px solid #94a3b8;
+    border: 1px solid #94a3b8;
     border-radius: 0;
     background: #fff;
     color: var(--pay-ink);
@@ -422,7 +422,7 @@
   }
   #offcanvasPayment .pay-input:focus {
     border-color: var(--pay-blue);
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.22);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22);
   }
   #offcanvasPayment .pay-input.is-readonly {
     background: #fef3c7;
@@ -442,7 +442,7 @@
     background: transparent !important;
   }
   #offcanvasPayment .selectize-control.single .selectize-input {
-    border: 2px solid #94a3b8 !important;
+    border: 1px solid #94a3b8 !important;
     border-radius: 0 !important;
     background: #fff !important;
     min-height: 42px;
@@ -453,7 +453,7 @@
   }
   #offcanvasPayment .selectize-control.single .selectize-input.focus {
     border-color: var(--pay-blue) !important;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.22) !important;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22) !important;
   }
   #offcanvasPayment .selectize-control.single .selectize-input:after {
     border: 0 !important;
@@ -489,7 +489,7 @@
     gap: 7px;
     min-height: 86px;
     padding: 10px 6px;
-    border: 2px solid #cbd5e1;
+    border: 1px solid #cbd5e1;
     border-radius: 0;
     background: #f8fafc;
     color: #64748b;
@@ -504,7 +504,7 @@
     width: 18px;
     height: 18px;
     border-radius: 0;
-    border: 2px solid #cbd5e1;
+    border: 1px solid #cbd5e1;
     background: #fff;
   }
   #offcanvasPayment .pay-opt__icon {
@@ -540,7 +540,7 @@
   #offcanvasPayment .pay-opt input:checked + .pay-opt__face {
     opacity: 1;
     color: var(--pay-ink);
-    border-width: 3px;
+    border-width: 2px;
     transform: translateY(-2px);
     box-shadow: 0 10px 20px rgba(15, 23, 42, 0.14);
   }
@@ -558,7 +558,7 @@
   #offcanvasPayment .pay-opt[data-metode-id="1"] input:checked + .pay-opt__face {
     border-color: var(--pay-green);
     background: linear-gradient(180deg, #bbf7d0, #dcfce7);
-    box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.28), 0 10px 20px rgba(22, 163, 74, 0.18);
+    box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.28), 0 10px 20px rgba(22, 163, 74, 0.18);
   }
   #offcanvasPayment .pay-opt[data-metode-id="1"].is-selected .pay-opt__icon,
   #offcanvasPayment .pay-opt[data-metode-id="1"] input:checked + .pay-opt__face .pay-opt__icon {
@@ -568,7 +568,7 @@
   #offcanvasPayment .pay-opt[data-metode-id="2"] input:checked + .pay-opt__face {
     border-color: var(--pay-blue);
     background: linear-gradient(180deg, #bfdbfe, #dbeafe);
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.28), 0 10px 20px rgba(37, 99, 235, 0.18);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.28), 0 10px 20px rgba(37, 99, 235, 0.18);
   }
   #offcanvasPayment .pay-opt[data-metode-id="2"].is-selected .pay-opt__icon,
   #offcanvasPayment .pay-opt[data-metode-id="2"] input:checked + .pay-opt__face .pay-opt__icon {
@@ -578,7 +578,7 @@
   #offcanvasPayment .pay-opt[data-metode-id="3"] input:checked + .pay-opt__face {
     border-color: var(--pay-yellow-deep);
     background: linear-gradient(180deg, #fde68a, #fef3c7);
-    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.35), 0 10px 20px rgba(217, 119, 6, 0.18);
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.35), 0 10px 20px rgba(217, 119, 6, 0.18);
   }
   #offcanvasPayment .pay-opt[data-metode-id="3"].is-selected .pay-opt__icon,
   #offcanvasPayment .pay-opt[data-metode-id="3"] input:checked + .pay-opt__face .pay-opt__icon {
@@ -614,7 +614,7 @@
   #offcanvasPayment .pay-note-grid .pay-opt[data-note="QRIS"] input:checked + .pay-opt__face {
     border-color: var(--pay-blue);
     background: linear-gradient(180deg, #bfdbfe, #dbeafe);
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.28), 0 8px 16px rgba(37, 99, 235, 0.16);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.28), 0 8px 16px rgba(37, 99, 235, 0.16);
   }
   #offcanvasPayment .pay-note-grid .pay-opt[data-note="QRIS"].is-selected .pay-opt__icon,
   #offcanvasPayment .pay-note-grid .pay-opt[data-note="QRIS"] input:checked + .pay-opt__face .pay-opt__icon {
@@ -628,7 +628,7 @@
   #offcanvasPayment .pay-note-grid .pay-opt[data-note="BCA"] input:checked + .pay-opt__face {
     border-color: var(--pay-green);
     background: linear-gradient(180deg, #bbf7d0, #dcfce7);
-    box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.28), 0 8px 16px rgba(22, 163, 74, 0.16);
+    box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.28), 0 8px 16px rgba(22, 163, 74, 0.16);
   }
   #offcanvasPayment .pay-note-grid .pay-opt[data-note="BCA"].is-selected .pay-opt__icon,
   #offcanvasPayment .pay-note-grid .pay-opt[data-note="BCA"] input:checked + .pay-opt__face .pay-opt__icon {
@@ -642,7 +642,7 @@
   #offcanvasPayment .pay-note-grid .pay-opt[data-note="BRI"] input:checked + .pay-opt__face {
     border-color: var(--pay-yellow-deep);
     background: linear-gradient(180deg, #fde68a, #fef3c7);
-    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.35), 0 8px 16px rgba(217, 119, 6, 0.16);
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.35), 0 8px 16px rgba(217, 119, 6, 0.16);
   }
   #offcanvasPayment .pay-note-grid .pay-opt[data-note="BRI"].is-selected .pay-opt__icon,
   #offcanvasPayment .pay-note-grid .pay-opt[data-note="BRI"] input:checked + .pay-opt__face .pay-opt__icon {
@@ -703,7 +703,7 @@
     padding: 0.85rem;
     border-radius: 0;
     background: #fff7ed;
-    border: 2px solid #fbbf24;
+    border: 1px solid #fbbf24;
     color: #92400e;
     font-size: 0.84rem;
     font-weight: 750;
@@ -730,7 +730,7 @@
     gap: 0.65rem;
     align-items: center;
     padding: 11px;
-    border: 2px solid #cbd5e1;
+    border: 1px solid #cbd5e1;
     border-radius: 0;
     background: #fff;
     box-shadow: 0 6px 14px rgba(15, 23, 42, 0.06);
@@ -764,7 +764,7 @@
     padding: 12px 14px;
     border-radius: 0;
     background: linear-gradient(135deg, #fef2f2, #fee2e2);
-    border: 2px solid #f87171;
+    border: 1px solid #f87171;
   }
   #offcanvasPayment .pay-total__label {
     font-size: 0.78rem;
@@ -792,7 +792,7 @@
     margin-top: 12px;
   }
   #offcanvasPayment #alertRecap {
-    border: 2px solid #f87171;
+    border: 1px solid #f87171;
     background: #fef2f2;
     color: var(--pay-red-deep);
     border-radius: 0;

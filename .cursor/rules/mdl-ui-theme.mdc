@@ -12,5 +12,5 @@ Saat membuat atau mengubah tampilan (offcanvas, modal, form, kartu, tombol, radi
 2. **Rujuk implementasi** yang sudah sesuai:
    - Order: `laundry/app/Views/penjualan/penjualan_main.php` (`#ord-root`)
    - Pembayaran: `laundry/app/Views/operasi/partials/modals.php` (`#offcanvasPayment`)
-3. **Wajib**: tipografi tajam; warna biru/hijau/kuning/merah; selected state sangat jelas; **satu border saja** — input/select tunggal jangan dibungkus card; **semua sudut runcing** (`border-radius: 0`) — panel, tombol, input, badge, icon, radio mark; dilarang round/pill/`50%`/class `rounded*`.
+3. **Wajib**: tipografi tajam; warna biru/hijau/kuning/merah; selected state jelas; **satu border saja**; **sudut runcing** (`border-radius: 0`); **border tipis** default `1px`, focus ring `2px`, selected radio max `2px` — dilarang round/pill dan border tebal 2–3px sebagai default.
 4. Jika menambah pola visual baru yang disetujui user, **perbarui** `laundry/docs/UI_THEME.md`.

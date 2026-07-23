@@ -14,11 +14,12 @@ Referensi implementasi yang sudah sesuai tema:
 
 1. **Tajam, bukan soft** — teks gelap, font tebal, kontras tinggi.
 2. **Penuh warna** — biru, hijau, kuning, merah dipakai dengan jelas (bukan pastel pudar).
-3. **Satu komposisi** — panel berwarna dengan border 2px, judul + ikon solid.
-4. **State jelas** — opsi terpilih vs tidak harus langsung terbaca (centang, border tebal, opsi lain pudar).
+3. **Satu komposisi** — panel berwarna dengan **border tipis 1px**, judul + ikon solid.
+4. **State jelas** — opsi terpilih vs tidak harus langsung terbaca (centang, border sedikit lebih tegas, opsi lain pudar).
 5. **Satu border saja** — jangan double border bertumpuk (input dalam card, form-control + selectize, dll.).
 6. **Semua sudut runcing** — **tidak ada round** di seluruh style. Panel, modal, tombol, input, select, badge, icon box, radio mark, chip, FAB: semuanya kotak dengan `border-radius: 0`. Dilarang `rounded`, `rounded-*`, `pill`, `50%`, radius `> 0`.
-7. **Jangan default AI look** — hindari ungu/indigo generik, cream terracotta, tipografi soft abu-abu.
+7. **Border tipis** — default **`1px`**. Dilarang border `2px`/`3px`/`1.5px` sebagai default panel/input/tombol. Focus ring: `0 0 0 2px …`. Opsi terpilih boleh `border-width: 2px` (hanya 1 langkah lebih tegas dari default).
+8. **Jangan default AI look** — hindari ungu/indigo generik, cream terracotta, tipografi soft abu-abu.
 
 ---
 
@@ -81,20 +82,24 @@ Font stack: `'fontku', 'Segoe UI', sans-serif`
 
 ---
 
-## 4. Sudut — wajib siku
+## 4. Sudut & border — wajib siku + tipis
 
 ```css
 --ui-radius: 0;
+--ui-border: 1px;
 
 .panel, .modal-content, .btn, button, input, select, textarea,
 .selectize-input, .badge, .chip, .icon-box, .radio-mark {
   border-radius: 0 !important;
+  border-width: 1px; /* default */
 }
 ```
 
 - **Dilarang**: `border-radius` selain `0`, class Bootstrap `rounded` / `rounded-*` / `rounded-pill`, lingkaran `50%` / `999px`.
+- **Dilarang**: border default `2px` / `3px` / `1.5px` pada panel, input, tombol, chip.
 - Marker radio / centang / ikon: **kotak**, bukan lingkaran.
-- Offcanvas Bootstrap boleh tetap memakai radius framework-nya di outer shell jika tidak mudah diubah; konten di dalamnya harus siku. Prefer override: `.offcanvas { border-radius: 0; }`.
+- Focus: `box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22)` (bukan 3px).
+- Offcanvas: `.offcanvas { border-radius: 0; }`.
 
 ---
 
@@ -102,7 +107,7 @@ Font stack: `'fontku', 'Segoe UI', sans-serif`
 
 ### Panel / card
 
-- Border `2px`, radius **`0`**, padding `14px`
+- Border **`1px`**, radius **`0`**, padding `14px`
 - Shadow: `0 10px 24px rgba(15, 23, 42, 0.08)`
 - Judul: ikon `30×30`, radius **`0`**, warna solid putih di atas warna token
 
@@ -131,13 +136,13 @@ Font stack: `'fontku', 'Segoe UI', sans-serif`
 | Ghost / batal | `#e2e8f0` | `#0f172a` |
 | Danger | merah `#dc2626` | putih |
 
-Radius tombol: **`0`**. Weight: `900`.
+Radius tombol: **`0`**. Border (jika ada): **`1px`**. Weight: `900`.
 
 ### Input / Selectize
 
 - **Satu border saja** — jangan `form-control` + selectize bersamaan
-- Border `2px solid #94a3b8`, radius **`0`**, weight `800`
-- Focus: border biru + ring `0 0 0 3px rgba(37, 99, 235, 0.22)`
+- Border **`1px solid #94a3b8`**, radius **`0`**, weight `800`
+- Focus: border biru + ring `0 0 0 2px rgba(37, 99, 235, 0.22)`
 - Readonly khusus: background `#fef3c7`, border kuning
 
 ### Input / select tunggal — JANGAN dibungkus card
@@ -145,7 +150,7 @@ Radius tombol: **`0`**. Weight: `900`.
 Jika field hanya **satu** input atau select yang sudah punya border sendiri:
 
 - **Jangan** bungkus lagi dengan card / panel / kotak ber-border.
-- **Jangan** menumpuk dua kerangka berdekatan (terlihat seperti dua lingkaran/kotak bertumpuk).
+- **Jangan** menumpuk dua kerangka berdekatan.
 - Cukup: **label + kontrol** di atas background panel induk (atau langsung di body).
 - Card/panel hanya untuk **kelompok konten** (beberapa field, list, aksi), bukan untuk 1 kontrol tunggal.
 
@@ -170,12 +175,12 @@ Contoh yang sudah benar: select **Penerima** di Pembayaran (label saja, tanpa ca
 
 **Tidak dipilih**
 - Opacity ~`0.72`, background abu `#f8fafc`, ikon abu
-- Kotak kosong di pojok kanan atas (`border-radius: 0`)
+- Kotak kosong di pojok kanan atas (`border-radius: 0`, border `1px`)
 
 **Dipilih**
-- Opacity `1`, border `3px` warna token
+- Opacity `1`, border **`2px`** warna token (hanya sedikit lebih tegas dari default `1px`)
 - Background gradient saturasi tinggi
-- Ring luar + shadow berwarna
+- Ring luar `0 0 0 2px` + shadow berwarna
 - Kotak centang solid (hijau/biru/kuning sesuai opsi) — **bukan lingkaran**
 
 Mapping contoh:
@@ -198,11 +203,12 @@ Desktop: **2 kolom**. Mobile (`≤720px` / `≤639px`): 1 kolom.
 
 - [ ] Teks tajam (`#0f172a` / weight ≥ 800), bukan abu soft
 - [ ] Ada minimal 2–3 warna token (bukan monokrom)
-- [ ] Panel pakai border 2px + tint berwarna (untuk kelompok konten)
+- [ ] Panel pakai border **1px** + tint berwarna (untuk kelompok konten)
 - [ ] Input/select tunggal **tanpa** card pembungkus ber-border
 - [ ] Tidak ada double border bertumpuk (card + input, form-control + selectize)
-- [ ] **Semua** elemen `border-radius: 0` (panel, tombol, input, badge, icon, radio mark) — tidak ada round/pill/lingkaran
+- [ ] **Semua** elemen `border-radius: 0` — tidak ada round/pill/lingkaran
 - [ ] Tidak memakai class Bootstrap `rounded` / `rounded-*`
+- [ ] Border default **1px**; focus ring **2px**; selected radio max **2px**
 - [ ] Tombol primary hijau / info biru / warn kuning / danger merah
 - [ ] Radio/option terpilih sangat jelas vs yang tidak
 - [ ] Header offcanvas memakai gradient multiwarna (jika offcanvas)
@@ -213,14 +219,15 @@ Desktop: **2 kolom**. Mobile (`≤720px` / `≤639px`): 1 kolom.
 ## 7. Anti-pola
 
 - Soft muted labels `#5a6a7c` sebagai teks utama
-- Border 1px tipis + shadow lembut generik saja
+- Border tebal `2px`/`3px` sebagai default panel/input (kecuali selected radio = `2px`)
+- Shadow lembut generik saja tanpa warna token
 - Selected radio hanya beda ring tipis (sulit dibedakan)
 - `form-control` Bootstrap + class border kustom + selectize
 - Tema ungu/indigo default, cream terracotta, atau dark glow
 - Card di dalam card tanpa alasan (border ganda)
-- **Input/select tunggal dibungkus card** → dua border berdekatan berkeliling — dilarang
+- **Input/select tunggal dibungkus card** — dilarang
 - Field wrapper ber-border di sekitar kontrol yang sudah ber-border
-- **Sudut membulat / round / pill / `border-radius: 50%`** — dilarang di seluruh UI tema
+- **Sudut membulat / round / pill / `border-radius: 50%`** — dilarang
 - Class Bootstrap `rounded`, `rounded-pill`, `rounded-3`, dll. pada elemen bertema
 
 ---
@@ -238,6 +245,7 @@ Desktop: **2 kolom**. Mobile (`≤720px` / `≤639px`): 1 kolom.
 --ui-yellow: #f59e0b;
 --ui-red: #dc2626;
 --ui-radius: 0;
+--ui-border: 1px;
 ```
 
 4. Prefiks scope per halaman (`#ord-root`, `#offcanvasPayment`, dll.) agar tidak bocor ke global.
