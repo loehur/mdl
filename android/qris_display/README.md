@@ -38,19 +38,23 @@ Menyalin APK ke `laundry/in_assets/files/qris-display.apk` (auto-build jika APK 
 
 ## Kiosk Mode
 
+Setiap kali app dibuka (`onCreate` / `onResume`), kiosk diaktifkan ulang:
+- Immersive fullscreen (status/nav bar disembunyikan)
+- `startLockTask()` jika Screen Pinning diizinkan sistem
+
 | Aksi | Perilaku |
 |------|----------|
 | Tombol Back | Diabaikan |
-| Home / Recent | Disembunyikan (immersive mode) |
-| Keluar app | Tahan **Back + Volume Down** 3 detik |
+| Home / Recent | Dikunci jika Screen Pinning aktif; jika tidak, disembunyikan (immersive) |
+| Keluar app | Tahan **Back + Volume Down** 3 detik → `stopLockTask` + tutup app |
 
-### Screen Pinning (opsional, kiosk penuh)
+### Screen Pinning (disarankan untuk kiosk penuh)
 
-Untuk mengunci Home button sepenuhnya:
+Agar setelah keluar lalu dibuka lagi, Home tetap terkunci:
 
-1. Settings → Security → Screen pinning → ON
-2. Buka QRIS Display
-3. Recent apps → ikon pin di QRIS Display
+1. Settings → Security → **Screen pinning** → ON  
+2. Buka QRIS Display (app akan memanggil pin otomatis jika diizinkan)  
+3. Atau pin manual: Recent apps → ikon pin
 
 ## Arsitektur
 

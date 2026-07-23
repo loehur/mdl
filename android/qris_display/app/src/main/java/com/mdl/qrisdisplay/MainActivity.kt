@@ -12,6 +12,7 @@ import android.provider.Settings
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
+import android.app.ActivityManager
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -25,6 +26,9 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import android.Manifest
 import android.content.pm.PackageManager
 
@@ -52,6 +56,7 @@ class MainActivity : AppCompatActivity() {
     private var holdStartMs = 0L
     private val handler = Handler(Looper.getMainLooper())
     private var exitProgressRunnable: Runnable? = null
+    private var immersiveRetryRunnable: Runnable? = null
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -64,7 +69,8 @@ class MainActivity : AppCompatActivity() {
 
         window.addFlags(
             WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
-                WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
+                WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD or
+                WindowManager.LayoutParams.FLAG_FULLSCREEN
         )
 
         setContentView(R.layout.activity_main)
@@ -75,7 +81,7 @@ class MainActivity : AppCompatActivity() {
         exitProgressBar = findViewById(R.id.exitProgressBar)
         exitProgressText = findViewById(R.id.exitProgressText)
 
-        setupImmersiveMode()
+        enterKioskMode()
         setupWebView()
         setupBackHandler()
         setupNetworkMonitor()
@@ -88,7 +94,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        setupImmersiveMode()
+        enterKioskMode()
         webView.onResume()
         // Reconnect WebSocket setelah pause (cookie masih ada di halaman)
         webView.evaluateJavascript(
@@ -114,13 +120,14 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         cancelExitProgress()
+        immersiveRetryRunnable?.let { handler.removeCallbacks(it) }
         networkMonitor?.stop()
         super.onDestroy()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) setupImmersiveMode()
+        if (hasFocus) enterKioskMode()
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
@@ -155,7 +162,23 @@ class MainActivity : AppCompatActivity() {
         return super.onKeyUp(keyCode, event)
     }
 
+    /** Immersive fullscreen + lock task (jika diizinkan sistem). Dipanggil tiap create/resume/focus. */
+    private fun enterKioskMode() {
+        setupImmersiveMode()
+        scheduleImmersiveRetry()
+        tryStartLockTask()
+    }
+
     private fun setupImmersiveMode() {
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+
+        val controller = WindowInsetsControllerCompat(window, window.decorView)
+        controller.hide(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.navigationBars())
+        controller.systemBarsBehavior =
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+
+        // Fallback WebView/Android lama
+        @Suppress("DEPRECATION")
         window.decorView.systemUiVisibility = (
             View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
                 View.SYSTEM_UI_FLAG_FULLSCREEN or
@@ -164,6 +187,43 @@ class MainActivity : AppCompatActivity() {
                 View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
                 View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
             )
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes.layoutInDisplayCutoutMode =
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+    }
+
+    /** Beberapa device baru menerapkan immersive baru setelah window siap — retry singkat. */
+    private fun scheduleImmersiveRetry() {
+        immersiveRetryRunnable?.let { handler.removeCallbacks(it) }
+        immersiveRetryRunnable = Runnable {
+            if (!isFinishing) setupImmersiveMode()
+        }
+        handler.postDelayed(immersiveRetryRunnable!!, 300)
+        handler.postDelayed(immersiveRetryRunnable!!, 1000)
+    }
+
+    private fun tryStartLockTask() {
+        try {
+            val am = getSystemService(ACTIVITY_SERVICE) as ActivityManager
+            if (am.lockTaskModeState == ActivityManager.LOCK_TASK_MODE_NONE) {
+                startLockTask()
+            }
+        } catch (_: Exception) {
+            // Screen pinning belum diaktifkan / tidak diizinkan — immersive tetap jalan
+        }
+    }
+
+    private fun tryStopLockTask() {
+        try {
+            val am = getSystemService(ACTIVITY_SERVICE) as ActivityManager
+            if (am.lockTaskModeState != ActivityManager.LOCK_TASK_MODE_NONE) {
+                stopLockTask()
+            }
+        } catch (_: Exception) {
+            // ignore
+        }
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -329,6 +389,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun exitKiosk() {
         cancelExitProgress()
+        tryStopLockTask()
         KeepAliveService.stop(this)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             finishAndRemoveTask()
@@ -373,9 +434,14 @@ class MainActivity : AppCompatActivity() {
                 } catch (_: Exception) {
                     startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
                 }
+                enterKioskMode()
             }
             .setNegativeButton(R.string.battery_dialog_negative) { _, _ ->
                 prefs.edit().putBoolean(KEY_BATTERY_PROMPTED, true).apply()
+                enterKioskMode()
+            }
+            .setOnDismissListener {
+                enterKioskMode()
             }
             .show()
     }
