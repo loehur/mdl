@@ -41,14 +41,37 @@
   $(document).ready(function() {
     $("form").on("submit", function(e) {
       e.preventDefault();
+      var $form = $(this);
+      var $btn = $form.find('button[type="submit"]');
+      if ($btn.data("loading")) return;
+      var prevHtml = $btn.html();
+      $btn.data("loading", 1).prop("disabled", true).html('<i class="fas fa-spinner fa-spin"></i> Memuat…');
+      if (typeof window.setOrdCartLoading === "function") {
+        window.setOrdCartLoading(true);
+      }
       $.ajax({
-        url: $(this).attr('action'),
-        data: $(this).serialize(),
-        type: $(this).attr("method"),
+        url: $form.attr('action'),
+        data: $form.serialize(),
+        type: $form.attr("method"),
         success: function() {
-          $('div#cart').load('<?= URL::BASE_URL ?>Penjualan/cart');
+          if (typeof window.reloadOrdCart === "function") {
+            window.reloadOrdCart();
+          } else {
+            $('div#cart').load('<?= URL::BASE_URL ?>Penjualan/cart', function () {
+              if (typeof window.setOrdCartLoading === "function") {
+                window.setOrdCartLoading(false);
+              }
+            });
+          }
           $(".modal").hide();
         },
+        error: function () {
+          alert("Gagal menambah item.");
+          $btn.data("loading", 0).prop("disabled", false).html(prevHtml);
+          if (typeof window.setOrdCartLoading === "function") {
+            window.setOrdCartLoading(false);
+          }
+        }
       });
     });
   });

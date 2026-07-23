@@ -274,12 +274,45 @@
     font-size: 0.85rem;
   }
   #ord-root #cart {
+    position: relative;
     max-height: 220px;
     overflow-y: auto;
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
   #ord-root #cart::-webkit-scrollbar { display: none; }
+  #ord-root #cart.is-loading {
+    pointer-events: none;
+    min-height: 96px;
+  }
+  #ord-root #cart.is-loading::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    background: rgba(255, 247, 237, 0.82);
+  }
+  #ord-root .ord-cart-loading {
+    position: absolute;
+    z-index: 3;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border: 2px solid #f59e0b;
+    background: #fff;
+    color: #0f172a;
+    font-size: 0.84rem;
+    font-weight: 900;
+    white-space: nowrap;
+    box-shadow: 0 8px 18px rgba(217, 119, 6, 0.18);
+  }
+  #ord-root .ord-cart-loading i {
+    color: #d97706;
+  }
 
   #ord-root .ord-layout {
     display: grid;
@@ -648,6 +681,27 @@
     $(".orderProses .tize").selectize();
     $("div#waitReady").removeClass("invisible");
     $('div#cart').load('<?= URL::BASE_URL ?>Penjualan/cart');
+
+    window.setOrdCartLoading = function (on) {
+      var $cart = $("#cart");
+      if (!$cart.length) return;
+      $cart.toggleClass("is-loading", !!on);
+      if (on) {
+        if (!$cart.children(".ord-cart-loading").length) {
+          $cart.append(
+            '<div class="ord-cart-loading"><i class="fas fa-spinner fa-spin"></i> Memuat keranjang…</div>'
+          );
+        }
+      } else {
+        $cart.children(".ord-cart-loading").remove();
+      }
+    };
+    window.reloadOrdCart = function () {
+      window.setOrdCartLoading(true);
+      $("#cart").load("<?= URL::BASE_URL ?>Penjualan/cart", function () {
+        window.setOrdCartLoading(false);
+      });
+    };
 
     $(".removeRow").on("click", function(e) {
       e.preventDefault();

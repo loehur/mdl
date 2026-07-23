@@ -565,6 +565,8 @@ $modeOperasi = (int) $data['mode'];
           $fabOperasi.removeClass('is-fab-hidden');
       }
   }
+  window.hideFabOperasi = hideFabOperasi;
+  window.showFabOperasi = showFabOperasi;
 
   if (offcanvasBukaOrderEl) {
       var bsOffcanvas = new bootstrap.Offcanvas(offcanvasBukaOrderEl);

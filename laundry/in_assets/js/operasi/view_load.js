@@ -735,29 +735,48 @@
       },
       success: function (res) {
         if (res == 0) {
-          try {
-            var offcanvasEl = document.getElementById("offcanvasPayment");
-            if (offcanvasEl && window.bootstrap && bootstrap.Offcanvas) {
-              var instance = bootstrap.Offcanvas.getInstance(offcanvasEl);
-              if (instance) instance.hide();
-            }
-          } catch (e) { }
+          var reloadAfterPay = function () {
+            try {
+              // Paksa tampil: saat timeout, offcanvas bisa masih ber-class "show"
+              $("#fabOperasiButtons").removeClass("is-fab-hidden");
+              if (typeof window.showFabOperasi === "function") {
+                window.showFabOperasi();
+              }
+            } catch (e) { }
 
-          try {
-            // Robust cleanup with delay to override Bootstrap race conditions
-            setTimeout(function () {
+            try {
               $(".modal-backdrop").remove();
               $(".offcanvas-backdrop").remove();
               $("body").removeClass("modal-open offcanvas-open").removeAttr("style").css({ overflow: "auto", "padding-right": "0" });
-            }, 300);
+            } catch (e) { }
+
+            if (typeof hide_modal === "function") {
+              try {
+                hide_modal();
+              } catch (e) { }
+            }
+            loadDiv();
+          };
+
+          try {
+            var offcanvasEl = document.getElementById("offcanvasPayment");
+            if (offcanvasEl && window.bootstrap && bootstrap.Offcanvas) {
+              var instance = bootstrap.Offcanvas.getInstance(offcanvasEl) || bootstrap.Offcanvas.getOrCreateInstance(offcanvasEl);
+              var done = false;
+              var finish = function () {
+                if (done) return;
+                done = true;
+                reloadAfterPay();
+              };
+              $(offcanvasEl).one("hidden.bs.offcanvas", finish);
+              instance.hide();
+              // Fallback: loadDiv bisa menghancurkan elemen sebelum event hidden terpanggil
+              setTimeout(finish, 450);
+              return;
+            }
           } catch (e) { }
 
-          if (typeof hide_modal === "function") {
-            try {
-              hide_modal();
-            } catch (e) { }
-          }
-          loadDiv();
+          reloadAfterPay();
         } else {
           // Check for specific "lock" error or if we are in the offcanvasPayment
           var alertEl = $("#alertRecap");

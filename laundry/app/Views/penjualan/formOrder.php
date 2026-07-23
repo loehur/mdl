@@ -334,23 +334,59 @@ if ($saldoNya_member > 0) {
     $("form.addOrder").on("submit", function(e) {
       $("select.order[name=f1]").removeAttr('disabled');
       e.preventDefault();
+
+      var $form = $(this);
+      var $btn = $form.find('button[type="submit"]');
+      if ($btn.data("loading")) {
+        return;
+      }
+      var prevHtml = $btn.html();
+      $btn.data("loading", 1).prop("disabled", true)
+        .html('<i class="fas fa-spinner fa-spin"></i> Memuat…');
+      $form.find('button[type="button"]').prop("disabled", true);
+
+      if (typeof window.setOrdCartLoading === "function") {
+        window.setOrdCartLoading(true);
+      }
+
       $.ajax({
-        url: $(this).attr('action'),
-        data: $(this).serialize(),
-        type: $(this).attr("method"),
+        url: $form.attr('action'),
+        data: $form.serialize(),
+        type: $form.attr("method"),
         success: function(res) {
           if (res != 0) {
             alert(res);
+            $btn.data("loading", 0).prop("disabled", false).html(prevHtml);
+            $form.find('button[type="button"]').prop("disabled", false);
+            if (typeof window.setOrdCartLoading === "function") {
+              window.setOrdCartLoading(false);
+            }
+            return;
+          }
+          if (typeof window.closeOrdOrderModal === 'function') {
+            window.closeOrdOrderModal();
+          }
+          if (typeof hide_modal === 'function') {
+            hide_modal();
+          }
+          if (typeof window.reloadOrdCart === "function") {
+            window.reloadOrdCart();
           } else {
-            if (typeof window.closeOrdOrderModal === 'function') {
-              window.closeOrdOrderModal();
-            }
-            if (typeof hide_modal === 'function') {
-              hide_modal();
-            }
-            $('div#cart').load('<?= URL::BASE_URL ?>Penjualan/cart');
+            $('div#cart').load('<?= URL::BASE_URL ?>Penjualan/cart', function () {
+              if (typeof window.setOrdCartLoading === "function") {
+                window.setOrdCartLoading(false);
+              }
+            });
           }
         },
+        error: function () {
+          alert("Gagal menambah ke keranjang. Coba lagi.");
+          $btn.data("loading", 0).prop("disabled", false).html(prevHtml);
+          $form.find('button[type="button"]').prop("disabled", false);
+          if (typeof window.setOrdCartLoading === "function") {
+            window.setOrdCartLoading(false);
+          }
+        }
       });
     });
 

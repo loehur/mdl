@@ -371,43 +371,46 @@ if (isset($data['data_operasi'])) {
             -webkit-overflow-scrolling: touch;
         }
         .main-sidebar.sidebar-dark-yellow {
-            background: var(--mdl-shell) !important;
+            /* di-override oleh blok MDL UI Theme di bawah */
         }
         body.mode-training .main-sidebar {
-            background: var(--mdl-train-shell) !important;
+            /* di-override oleh blok MDL UI Theme di bawah */
         }
 
-        /* ===== Soft chrome theme (topnav + sidebar) ===== */
+        /* ===== MDL UI Theme chrome (topnav + sidebar) — lihat laundry/docs/UI_THEME.md ===== */
         :root {
-            --mdl-shell: #c5d0dc;
-            --mdl-shell-deep: #b3bfcd;
-            --mdl-surface: #f4f7fb;
-            --mdl-surface-2: #e5ecf4;
-            --mdl-ink: #243041;
-            --mdl-ink-soft: #5a6a7c;
-            --mdl-line: #b8c4d2;
-            --mdl-accent: #3f74d4;
-            --mdl-accent-deep: #2f61bc;
-            --mdl-accent-soft: #d9e6fa;
-            --mdl-live: #2f9e5f;
-            --mdl-live-deep: #268750;
-            --mdl-train: #e08a35;
-            --mdl-train-deep: #c97422;
-            --mdl-train-shell: #f0c49a;
-            --mdl-train-surface: #fbebe0;
-            --mdl-admin: #d45363;
-            --mdl-admin-deep: #bc3f4f;
-            --mdl-shadow: 0 5px 16px rgba(36, 48, 65, 0.12);
+            --mdl-ink: #0f172a;
+            --mdl-ink-soft: #1e293b;
+            --mdl-line: #94a3b8;
+            --mdl-line-soft: #cbd5e1;
+            --mdl-surface: #ffffff;
+            --mdl-surface-2: #eff6ff;
+            --mdl-shell: #dbeafe;
+            --mdl-shell-deep: #bfdbfe;
+            --mdl-accent: #2563eb;
+            --mdl-accent-deep: #1d4ed8;
+            --mdl-accent-soft: #dbeafe;
+            --mdl-live: #16a34a;
+            --mdl-live-deep: #15803d;
+            --mdl-train: #f59e0b;
+            --mdl-train-deep: #d97706;
+            --mdl-train-shell: #fef3c7;
+            --mdl-train-surface: #fffbeb;
+            --mdl-admin: #dc2626;
+            --mdl-admin-deep: #b91c1c;
+            --mdl-yellow: #f59e0b;
+            --mdl-shadow: 0 10px 24px rgba(15, 23, 42, 0.1);
         }
 
         /* ===== Top toolbar ===== */
         .main-header.mdl-topbar {
             display: block;
             padding: 8px 10px !important;
-            background: var(--mdl-shell) !important;
-            background-image: none !important;
-            border-bottom: 1px solid var(--mdl-line);
+            background: linear-gradient(105deg, #1d4ed8 0%, #2563eb 35%, #16a34a 70%, #f59e0b 100%) !important;
+            background-image: linear-gradient(105deg, #1d4ed8 0%, #2563eb 35%, #16a34a 70%, #f59e0b 100%) !important;
+            border-bottom: 2px solid #0f172a;
             min-height: 0;
+            box-shadow: 0 4px 14px rgba(15, 23, 42, 0.18);
         }
         .mdl-topbar-row {
             display: flex;
@@ -430,7 +433,7 @@ if (isset($data['data_operasi'])) {
             border-radius: 0;
             font-family: 'fontku', sans-serif;
             font-size: 13px;
-            font-weight: 700;
+            font-weight: 900;
             line-height: 1;
             outline: none;
             -webkit-appearance: none;
@@ -443,25 +446,33 @@ if (isset($data['data_operasi'])) {
             justify-content: center;
             gap: 6px;
             padding: 0 12px;
-            border: 1.5px solid var(--mdl-line);
-            background: var(--mdl-surface);
-            color: var(--mdl-ink);
+            border: 2px solid rgba(255,255,255,.55);
+            background: rgba(15, 23, 42, 0.22);
+            color: #fff;
             cursor: pointer;
             text-decoration: none;
             white-space: nowrap;
-            transition: background .15s ease, border-color .15s ease, color .15s ease;
+            text-shadow: 0 1px 0 rgba(0,0,0,.18);
+            transition: background .15s ease, border-color .15s ease, color .15s ease, filter .15s ease;
         }
         .mdl-tbtn:hover {
-            background: #fff;
-            border-color: #c0cad6;
-            color: #2c3642;
+            background: rgba(15, 23, 42, 0.38);
+            border-color: #fff;
+            color: #fff;
             text-decoration: none;
+            filter: brightness(1.05);
         }
         .mdl-tbtn:active {
             transform: translateY(1px);
         }
         .mdl-tbtn--menu {
             padding: 0 12px 0 10px;
+            background: #0f172a;
+            border-color: #0f172a;
+        }
+        .mdl-tbtn--menu:hover {
+            background: #1e293b;
+            border-color: #1e293b;
         }
         .mdl-tbtn--icon {
             width: 34px;
@@ -469,23 +480,29 @@ if (isset($data['data_operasi'])) {
             flex: 0 0 34px;
         }
         .mdl-tbtn--refresh {
-            border-color: #b7d4c2;
-            color: var(--mdl-live-deep);
-            background: #eef6f1;
+            border-color: transparent;
+            color: #fff;
+            background: var(--mdl-live);
         }
         .mdl-tbtn--refresh:hover {
-            background: #e3f0e8;
-            border-color: #9fc4ad;
-            color: #4d8666;
+            background: var(--mdl-live-deep);
+            border-color: transparent;
+            color: #fff;
         }
         .mdl-tbtn--logout {
-            border-color: var(--mdl-line);
-            color: var(--mdl-ink-soft);
+            border-color: transparent;
+            color: #fff;
+            background: var(--mdl-admin);
+        }
+        .mdl-tbtn--logout:hover {
+            background: var(--mdl-admin-deep);
+            border-color: transparent;
+            color: #fff;
         }
 
         .mdl-topbar select.mdl-tctrl {
             padding: 0 28px 0 10px;
-            border: 1.5px solid transparent;
+            border: 2px solid transparent;
             color: #fff;
             cursor: pointer;
             max-width: 88px;
@@ -495,29 +512,29 @@ if (isset($data['data_operasi'])) {
             background-size: 8px 5px;
         }
         .mdl-topbar select.mdl-tctrl:focus {
-            box-shadow: 0 0 0 3px rgba(107, 143, 212, 0.22);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.28);
         }
         .mdl-tbtn--cabang {
             min-width: 52px;
             padding: 0 12px;
-            border: 1.5px solid transparent;
-            background: var(--mdl-accent);
+            border: 2px solid transparent;
+            background: #0f172a;
             color: #fff;
             gap: 6px;
         }
         .mdl-tbtn--cabang:hover {
-            background: var(--mdl-accent-deep);
+            background: #1e293b;
             border-color: transparent;
             color: #fff;
         }
         .mdl-tbtn--cabang i {
             font-size: 10px;
-            opacity: 0.85;
+            opacity: 0.95;
         }
         .mdl-tbtn--user {
             min-width: 52px;
             padding: 0 12px;
-            border: 1.5px solid transparent;
+            border: 2px solid transparent;
             background: var(--mdl-live);
             color: #fff;
             gap: 6px;
@@ -529,7 +546,7 @@ if (isset($data['data_operasi'])) {
         }
         .mdl-tbtn--user i.fa-chevron-down {
             font-size: 10px;
-            opacity: 0.85;
+            opacity: 0.95;
         }
 
         .mode-switch {
@@ -538,9 +555,9 @@ if (isset($data['data_operasi'])) {
             overflow: hidden;
             padding: 3px;
             gap: 2px;
-            border: 1.5px solid var(--mdl-line);
-            background: var(--mdl-shell-deep);
-            box-shadow: inset 0 1px 2px rgba(58, 69, 83, 0.05);
+            border: 2px solid #0f172a;
+            background: rgba(15, 23, 42, 0.28);
+            box-shadow: none;
         }
         .mode-switch .mode-btn {
             display: inline-flex;
@@ -552,47 +569,53 @@ if (isset($data['data_operasi'])) {
             border: 0;
             border-radius: 0;
             background: transparent;
-            color: var(--mdl-ink-soft);
+            color: rgba(255,255,255,.88);
             font-family: inherit;
             font-size: 12px;
-            font-weight: 800;
+            font-weight: 900;
             letter-spacing: 0.02em;
             cursor: pointer;
             user-select: none;
             transition: background .15s ease, color .15s ease, box-shadow .15s ease;
         }
         .mode-switch .mode-btn:hover:not(.active-live):not(.active-training) {
-            color: var(--mdl-ink);
-            background: rgba(255,255,255,.45);
+            color: #fff;
+            background: rgba(255,255,255,.18);
         }
         .mode-switch .mode-btn.active-live {
             background: var(--mdl-live);
             color: #fff;
-            box-shadow: 0 1px 2px rgba(106, 170, 134, 0.3);
+            box-shadow: 0 2px 8px rgba(22, 163, 74, 0.35);
         }
         .mode-switch .mode-btn.active-training {
             background: var(--mdl-train);
-            color: #fff;
-            box-shadow: 0 1px 2px rgba(212, 160, 106, 0.3);
+            color: #111;
+            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.35);
         }
 
         .training-banner {
-            background: linear-gradient(90deg, #e08a35, #f0a85a);
-            color: #4a2e12;
-            font-weight: 700;
+            background: linear-gradient(90deg, #d97706, #f59e0b);
+            color: #111;
+            font-weight: 900;
             font-size: 12px;
             letter-spacing: 0.02em;
             text-align: center;
             padding: 7px 12px;
-            border-bottom: 1px solid rgba(74, 46, 18, 0.12);
+            border-bottom: 2px solid #92400e;
         }
         body.mode-training .main-header.mdl-topbar {
-            background: var(--mdl-train-shell) !important;
-            border-bottom-color: #e0a86a;
+            background: linear-gradient(105deg, #d97706 0%, #f59e0b 45%, #16a34a 100%) !important;
+            background-image: linear-gradient(105deg, #d97706 0%, #f59e0b 45%, #16a34a 100%) !important;
+            border-bottom-color: #92400e;
         }
         body.mode-training .mode-switch {
-            border-color: #e0a86a;
-            background: #e8b888;
+            border-color: #0f172a;
+            background: rgba(15, 23, 42, 0.28);
+        }
+        body.mode-training .main-sidebar {
+            background:
+                radial-gradient(90% 50% at 0% 0%, rgba(245,158,11,.18), transparent 50%),
+                linear-gradient(180deg, #fffbeb 0%, #fef3c7 100%) !important;
         }
         .mdl-training-chip {
             display: inline-flex;
@@ -600,11 +623,21 @@ if (isset($data['data_operasi'])) {
             height: 34px;
             padding: 0 12px;
             border-radius: 0;
-            background: #9a5a20;
+            background: #92400e;
             color: #fff;
             font-size: 12px;
-            font-weight: 800;
+            font-weight: 900;
             letter-spacing: 0.04em;
+            border: 2px solid #0f172a;
+        }
+
+        /* ===== Sidebar shell ===== */
+        .main-sidebar.sidebar-dark-yellow {
+            background:
+                radial-gradient(90% 50% at 0% 0%, rgba(37,99,235,.14), transparent 50%),
+                radial-gradient(80% 40% at 100% 0%, rgba(245,158,11,.12), transparent 45%),
+                linear-gradient(180deg, #eef4ff 0%, #f4fff8 55%, #fff8eb 100%) !important;
+            border-right: 2px solid var(--mdl-line-soft);
         }
 
         /* ===== Sidebar profile card ===== */
@@ -612,8 +645,8 @@ if (isset($data['data_operasi'])) {
             margin: 10px 10px 8px;
             padding: 12px;
             border-radius: 0;
-            background: var(--mdl-surface);
-            border: 1px solid rgba(255,255,255,.55);
+            background: linear-gradient(180deg, #eff6ff, #fff);
+            border: 2px solid #93c5fd;
             box-shadow: var(--mdl-shadow);
         }
         .mdl-side-user {
@@ -632,12 +665,12 @@ if (isset($data['data_operasi'])) {
             height: 34px;
             padding: 0 12px;
             border-radius: 0;
-            border: 1.5px solid var(--mdl-line);
+            border: 2px solid var(--mdl-line);
             background: #fff;
             color: var(--mdl-ink);
             font-family: 'fontku', sans-serif;
             font-size: 13px;
-            font-weight: 800;
+            font-weight: 900;
             line-height: 1;
             white-space: nowrap;
             overflow: hidden;
@@ -661,7 +694,7 @@ if (isset($data['data_operasi'])) {
             height: 34px;
             padding: 0;
             border-radius: 0;
-            border: 1.5px solid transparent;
+            border: 2px solid transparent;
             background: var(--mdl-live);
             color: #fff;
             cursor: pointer;
@@ -683,10 +716,10 @@ if (isset($data['data_operasi'])) {
             margin-bottom: 10px;
             color: var(--mdl-ink-soft);
             font-size: 12px;
-            font-weight: 700;
+            font-weight: 800;
         }
         .mdl-side-wifi i {
-            color: #8a96a3;
+            color: var(--mdl-accent);
             width: 16px;
             text-align: center;
         }
@@ -703,9 +736,9 @@ if (isset($data['data_operasi'])) {
             padding: 3px;
             gap: 2px;
             border-radius: 0;
-            border: 1.5px solid var(--mdl-line);
-            background: var(--mdl-surface-2);
-            box-shadow: inset 0 1px 2px rgba(58, 69, 83, 0.04);
+            border: 2px solid var(--mdl-line);
+            background: #f8fafc;
+            box-shadow: none;
         }
         .role-switch .role-btn {
             flex: 1 1 50%;
@@ -719,23 +752,23 @@ if (isset($data['data_operasi'])) {
             color: var(--mdl-ink-soft);
             font-family: 'fontku', sans-serif;
             font-size: 12px;
-            font-weight: 800;
+            font-weight: 900;
             cursor: pointer;
             transition: background .15s ease, color .15s ease, box-shadow .15s ease;
         }
         .role-switch .role-btn:hover:not(.is-active) {
             color: var(--mdl-ink);
-            background: rgba(255,255,255,.55);
+            background: #e2e8f0;
         }
         .role-switch .role-btn.is-active[data-mode="0"] {
             background: var(--mdl-live);
             color: #fff;
-            box-shadow: 0 1px 2px rgba(106, 170, 134, 0.28);
+            box-shadow: 0 2px 8px rgba(22, 163, 74, 0.28);
         }
         .role-switch .role-btn.is-active[data-mode="1"] {
             background: var(--mdl-admin);
             color: #fff;
-            box-shadow: 0 1px 2px rgba(196, 135, 143, 0.28);
+            box-shadow: 0 2px 8px rgba(220, 38, 38, 0.28);
         }
 
         /* ===== Sidebar menu card ===== */
@@ -743,8 +776,8 @@ if (isset($data['data_operasi'])) {
             margin: 0 10px 12px;
             padding: 8px;
             border-radius: 0;
-            background: var(--mdl-surface);
-            border: 1px solid rgba(255,255,255,.55);
+            background: linear-gradient(180deg, #fffbeb, #fff);
+            border: 2px solid #fcd34d;
             box-shadow: var(--mdl-shadow);
             flex: 1 1 auto;
             min-height: 0;
@@ -762,21 +795,21 @@ if (isset($data['data_operasi'])) {
             box-sizing: border-box;
             scrollbar-gutter: stable;
             scrollbar-width: thin;
-            scrollbar-color: #b8c4d0 transparent;
+            scrollbar-color: #94a3b8 transparent;
         }
         .mdl-side-nav-scroll::-webkit-scrollbar {
             width: 6px;
         }
         .mdl-side-nav-scroll::-webkit-scrollbar-track {
             background: transparent;
-            border-radius: 99px;
+            border-radius: 0;
         }
         .mdl-side-nav-scroll::-webkit-scrollbar-thumb {
-            background: #c5d0db;
-            border-radius: 99px;
+            background: #94a3b8;
+            border-radius: 0;
         }
         .mdl-side-nav-scroll::-webkit-scrollbar-thumb:hover {
-            background: #aebccd;
+            background: #64748b;
         }
         .mdl-side-nav > .nav,
         .mdl-side-nav-scroll > .nav {
@@ -809,12 +842,12 @@ if (isset($data['data_operasi'])) {
             margin: 0 !important;
             padding: 8px 12px !important;
             border-radius: 0 !important;
-            border: 1.5px solid transparent;
+            border: 2px solid transparent;
             background: transparent !important;
             color: var(--mdl-ink) !important;
             font-family: 'fontku', sans-serif;
             font-size: 13px;
-            font-weight: 700;
+            font-weight: 800;
             line-height: 1.2;
             transition: background .15s ease, color .15s ease, border-color .15s ease, box-shadow .15s ease;
         }
@@ -833,22 +866,23 @@ if (isset($data['data_operasi'])) {
             margin-right: 0 !important;
             font-size: 14px !important;
             text-align: center;
-            color: var(--mdl-ink-soft) !important;
+            color: var(--mdl-accent) !important;
         }
         .mdl-side-nav .nav-link:hover {
-            background: var(--mdl-surface-2) !important;
-            color: #2c3642 !important;
-            border-color: var(--mdl-line);
+            background: #dbeafe !important;
+            color: var(--mdl-ink) !important;
+            border-color: #60a5fa;
         }
         .mdl-side-nav .nav-link:hover > .nav-icon,
         .mdl-side-nav .nav-link:hover > i.nav-icon {
-            color: var(--mdl-accent) !important;
+            color: var(--mdl-accent-deep) !important;
         }
         .mdl-side-nav .nav-link.active {
             background: var(--mdl-accent) !important;
-            border-color: var(--mdl-accent) !important;
+            border-color: var(--mdl-accent-deep) !important;
             color: #fff !important;
-            box-shadow: 0 3px 8px rgba(107, 143, 212, 0.25);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+            font-weight: 900;
         }
         .mdl-side-nav .nav-link.active > .nav-icon,
         .mdl-side-nav .nav-link.active > i.nav-icon {
@@ -858,7 +892,7 @@ if (isset($data['data_operasi'])) {
         .mdl-side-nav .nav-link .fa-angle-left {
             margin-left: auto;
             font-size: 12px;
-            opacity: 0.7;
+            opacity: 0.85;
             transition: transform .2s ease;
         }
         .mdl-side-nav .nav-item.menu-open > .nav-link .fa-angle-left,
@@ -867,15 +901,16 @@ if (isset($data['data_operasi'])) {
         }
         .mdl-side-nav .nav-item.menu-open > .nav-link:not(.active),
         .mdl-side-nav .nav-item.menu-is-opening > .nav-link:not(.active) {
-            background: var(--mdl-surface-2) !important;
+            background: #fef3c7 !important;
             color: var(--mdl-ink) !important;
-            border-color: var(--mdl-line);
+            border-color: #fbbf24;
         }
         .mdl-side-nav .nav-treeview {
             margin: 4px 0 6px !important;
             padding: 4px !important;
             border-radius: 0;
-            background: var(--mdl-surface-2);
+            background: #eff6ff;
+            border: 2px solid #bfdbfe;
         }
         .mdl-side-nav .nav-treeview .nav-item {
             margin: 0 0 2px;
@@ -884,7 +919,7 @@ if (isset($data['data_operasi'])) {
             min-height: 34px;
             padding: 6px 10px 6px 12px !important;
             font-size: 12.5px;
-            font-weight: 700;
+            font-weight: 800;
             color: var(--mdl-ink-soft) !important;
             background: transparent !important;
             box-shadow: none !important;
@@ -892,43 +927,44 @@ if (isset($data['data_operasi'])) {
         .mdl-side-nav .nav-treeview .nav-link > .nav-icon,
         .mdl-side-nav .nav-treeview .nav-link > i.nav-icon {
             font-size: 8px !important;
-            color: #a0aab6 !important;
+            color: var(--mdl-accent) !important;
         }
         .mdl-side-nav .nav-treeview .nav-link:hover {
             background: #fff !important;
             color: var(--mdl-ink) !important;
-            border-color: var(--mdl-line);
+            border-color: #60a5fa;
         }
         .mdl-side-nav .nav-treeview .nav-link.active {
-            background: #fff !important;
-            border-color: #c5d4ec !important;
-            color: var(--mdl-accent-deep) !important;
-            box-shadow: 0 1px 4px rgba(107, 143, 212, 0.1) !important;
+            background: #dcfce7 !important;
+            border-color: #16a34a !important;
+            color: #15803d !important;
+            box-shadow: none !important;
+            font-weight: 900;
         }
         .mdl-side-nav .nav-treeview .nav-link.active > .nav-icon,
         .mdl-side-nav .nav-treeview .nav-link.active > i.nav-icon {
-            color: var(--mdl-accent) !important;
+            color: #16a34a !important;
         }
         .mdl-side-nav .nav-treeview .nav-link p b {
-            font-weight: 700;
+            font-weight: 900;
         }
 
-        /* Soft modal accents */
+        /* Modal accents (sudut runcing, warna tajam) */
         .mdl-cmodal__head {
-            background: linear-gradient(135deg, #3f74d4, #5b8de0) !important;
+            background: linear-gradient(105deg, #1d4ed8 0%, #2563eb 45%, #16a34a 100%) !important;
         }
         .mdl-cmodal--user .mdl-cmodal__head {
-            background: linear-gradient(135deg, #2f9e5f, #45b575) !important;
+            background: linear-gradient(105deg, #15803d 0%, #16a34a 55%, #f59e0b 100%) !important;
         }
         .mdl-cmodal__item.is-active {
             border-color: var(--mdl-accent) !important;
-            background: linear-gradient(180deg, #d9e6fa, #eef4fc) !important;
-            box-shadow: 0 0 0 2px rgba(63, 116, 212, 0.22) !important;
+            background: linear-gradient(180deg, #bfdbfe, #eff6ff) !important;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.28) !important;
         }
         .mdl-cmodal--user .mdl-cmodal__item.is-active {
             border-color: var(--mdl-live) !important;
-            background: linear-gradient(180deg, #d6f0e1, #eaf8f0) !important;
-            box-shadow: 0 0 0 2px rgba(47, 158, 95, 0.22) !important;
+            background: linear-gradient(180deg, #bbf7d0, #f0fdf4) !important;
+            box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.28) !important;
         }
         /* ===== Custom cabang picker modal ===== */
         .mdl-cmodal {
@@ -977,16 +1013,16 @@ if (isset($data['data_operasi'])) {
         }
         .mdl-cmodal__head h3 {
             margin: 0;
-            font-size: 15px;
-            font-weight: 800;
-            letter-spacing: 0.02em;
+            font-size: 16px;
+            font-weight: 900;
+            letter-spacing: -0.02em;
         }
         .mdl-cmodal__head small {
             display: block;
             margin-top: 2px;
-            font-size: 11px;
-            font-weight: 600;
-            opacity: 0.8;
+            font-size: 12px;
+            font-weight: 750;
+            opacity: 0.95;
         }
         .mdl-cmodal__close {
             width: 32px;
