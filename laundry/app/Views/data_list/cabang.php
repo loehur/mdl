@@ -32,17 +32,18 @@
                   $phoneDisp = strlen($phone) > 0 ? $phone : '[ ]';
                   $pmode = isset($a['print_mode']) ? $a['print_mode'] : 'bluetooth';
                   $rent = isset($a['rent']) ? $a['rent'] : 0;
-                  foreach ($this->dKota as $a) {
-                    if ($a['id_kota'] == $id_kota) {
-                      $kota = $a['nama_kota'];
+                  $isTraining = !empty($a['is_training']);
+                  foreach ($this->dKota as $dk) {
+                    if ($dk['id_kota'] == $id_kota) {
+                      $kota = $dk['nama_kota'];
                     }
                   }
-                  echo "<tr>";
-                  echo "<td class='text-right'>" . $id . "</td>";
-                  echo "<td><span class='cell' data-mode='1' data-id_value='" . $id . "' data-value='" . $kode . "'>" . $kode . "</span></td>";
-                  echo "<td><span class='cell' data-mode='2' data-id_value='" . $id . "' data-value='" . $alamat . "'>" . $alamat . "</span></td>";
-                  echo "<td><span class='cell' data-mode='3' data-id_value='" . $id . "' data-value='" . $id_kota . "'>" . $kota . "</span></td>";
-                  echo "<td><span class='cell' data-mode='4' data-id_value='" . $id . "' data-value='" . $phone . "' title='Double click to edit'>" . $phoneDisp . "</span></td>";
+                  echo "<tr" . ($isTraining ? " class='table-warning'" : "") . ">";
+                  echo "<td class='text-right'>" . $id . ($isTraining ? " <span class='badge bg-warning text-dark'>TRAINING</span>" : "") . "</td>";
+                  echo "<td><span class='cell' data-mode='1' data-id_value='" . $id . "' data-value='" . htmlspecialchars($kode, ENT_QUOTES) . "'>" . htmlspecialchars($kode) . "</span></td>";
+                  echo "<td><span class='cell' data-mode='2' data-id_value='" . $id . "' data-value='" . htmlspecialchars($alamat, ENT_QUOTES) . "'>" . htmlspecialchars($alamat) . "</span></td>";
+                  echo "<td><span class='cell' data-mode='3' data-id_value='" . $id . "' data-value='" . $id_kota . "'>" . htmlspecialchars($kota) . "</span></td>";
+                  echo "<td><span class='cell' data-mode='4' data-id_value='" . $id . "' data-value='" . htmlspecialchars($phone, ENT_QUOTES) . "' title='Double click to edit'>" . htmlspecialchars($phoneDisp) . "</span></td>";
                   echo "<td class='text-end'><span class='cell' data-mode='6' data-id_value='" . $id . "' data-value='" . $rent . "' title='Double click to edit'>" . number_format($rent) . "</span></td>";
                   echo "</tr>";
                 }

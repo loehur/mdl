@@ -12,7 +12,8 @@ class Cabang_List extends Controller
       $data_operasi = ['title' => 'Data Cabang'];
 
       $table = 'cabang';
-      $data_cabang = $this->getCabangOperasional();
+      // Tampilkan semua cabang termasuk cabang khusus training
+      $data_cabang = $this->db(0)->get($table);
 
       $this->view('layout', ['data_operasi' => $data_operasi]);
       $this->view('data_list/cabang', ['data_cabang' => $data_cabang]);
