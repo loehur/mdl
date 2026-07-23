@@ -296,126 +296,145 @@
 <style>
   #offcanvasPayment {
     --bs-offcanvas-width: min(820px, 100vw);
-    --pay-accent: #0f9f6e;
-    --pay-accent-soft: #e8f8f1;
-    --pay-accent-deep: #0b7a55;
-    --pay-ink: #16302a;
-    --pay-muted: #5f746d;
-    --pay-line: #d7e5df;
-    --pay-card: #ffffff;
-    --pay-warn: #d97706;
-    --pay-warn-soft: #fff7ed;
-    --pay-danger: #dc2626;
-    background: #f3f8f6;
+    --pay-ink: #0f172a;
+    --pay-muted: #1e293b;
+    --pay-line: #cbd5e1;
+    --pay-blue: #2563eb;
+    --pay-blue-deep: #1d4ed8;
+    --pay-green: #16a34a;
+    --pay-green-deep: #15803d;
+    --pay-yellow: #f59e0b;
+    --pay-yellow-deep: #d97706;
+    --pay-red: #dc2626;
+    --pay-red-deep: #b91c1c;
+    --pay-radius: 16px;
+    font-family: 'fontku', 'Segoe UI', sans-serif;
+    color: var(--pay-ink);
   }
   #offcanvasPayment .offcanvas-header {
-    background: linear-gradient(145deg, #0f9f6e, #17b981);
+    background: linear-gradient(105deg, #1d4ed8 0%, #2563eb 35%, #16a34a 70%, #f59e0b 100%);
     color: #fff;
     border-bottom: 0;
     padding: 1rem 1.15rem;
   }
   #offcanvasPayment .offcanvas-title {
-    font-weight: 800;
-    letter-spacing: -0.01em;
+    font-family: 'fontku', sans-serif;
+    font-weight: 900;
+    letter-spacing: -0.02em;
     margin: 0;
+    text-shadow: 0 1px 0 rgba(0,0,0,.18);
   }
   #offcanvasPayment .offcanvas-body {
     background:
-      radial-gradient(120% 80% at 100% 0%, rgba(15,159,110,0.10), transparent 45%),
-      linear-gradient(180deg, #f7fbf9 0%, #eef5f2 100%);
+      radial-gradient(90% 60% at 0% 0%, rgba(37,99,235,.14), transparent 50%),
+      radial-gradient(80% 50% at 100% 0%, rgba(245,158,11,.14), transparent 45%),
+      linear-gradient(180deg, #eef4ff 0%, #f4fff8 50%, #fff8eb 100%);
     padding: 0;
   }
   #offcanvasPayment .pay-shell {
-    padding: 1rem 1.1rem 1.2rem;
+    padding: 14px 14px 22px;
   }
   #offcanvasPayment .pay-layout {
     display: grid;
     grid-template-columns: 1.05fr 0.95fr;
-    gap: 1rem;
+    gap: 12px;
     align-items: start;
   }
   #offcanvasPayment .pay-panel {
-    background: var(--pay-card);
-    border: 1px solid rgba(215, 229, 223, 0.95);
-    border-radius: 18px;
-    padding: 1rem;
-    box-shadow: 0 10px 28px rgba(22, 48, 42, 0.05);
+    background: #fff;
+    border: 2px solid #e2e8f0;
+    border-radius: var(--pay-radius);
+    padding: 14px;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  }
+  #offcanvasPayment .pay-panel--blue {
+    border-color: #93c5fd;
+    background: linear-gradient(180deg, #eff6ff, #fff);
+  }
+  #offcanvasPayment .pay-panel--yellow {
+    border-color: #fcd34d;
+    background: linear-gradient(180deg, #fffbeb, #fff);
   }
   #offcanvasPayment .pay-panel + .pay-panel {
     position: sticky;
-    top: 0.75rem;
+    top: 8px;
   }
   #offcanvasPayment .pay-panel__title {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    margin: 0 0 0.85rem;
+    gap: 8px;
+    margin: 0 0 12px;
     color: var(--pay-ink);
     font-size: 0.95rem;
-    font-weight: 800;
+    font-weight: 900;
+    letter-spacing: -0.02em;
   }
   #offcanvasPayment .pay-panel__title i {
-    width: 28px;
-    height: 28px;
-    border-radius: 9px;
+    width: 30px;
+    height: 30px;
+    border-radius: 10px;
     display: grid;
     place-items: center;
-    background: var(--pay-accent-soft);
-    color: var(--pay-accent);
-    font-size: 0.8rem;
+    font-size: 0.85rem;
+    color: #fff;
   }
+  #offcanvasPayment .pay-panel__title i.is-blue { background: var(--pay-blue); }
+  #offcanvasPayment .pay-panel__title i.is-yellow { background: var(--pay-yellow); color: #111; }
   #offcanvasPayment .pay-field {
-    margin-bottom: 0.9rem;
+    margin-bottom: 12px;
   }
   #offcanvasPayment .pay-field:last-child {
     margin-bottom: 0;
   }
   #offcanvasPayment .pay-field-label {
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
+    font-size: 0.78rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
     color: var(--pay-muted);
-    margin-bottom: 0.45rem;
+    margin-bottom: 6px;
   }
   #offcanvasPayment .pay-select,
   #offcanvasPayment .pay-input {
     width: 100%;
-    border: 1.5px solid var(--pay-line);
+    border: 2px solid #94a3b8;
     border-radius: 12px;
-    background: #fbfffd;
+    background: #fff;
     color: var(--pay-ink);
     padding: 0.55rem 0.75rem;
     font-size: 0.92rem;
-    font-weight: 600;
+    font-weight: 800;
     outline: none;
-    transition: border-color .18s ease, box-shadow .18s ease;
+    transition: border-color .15s ease, box-shadow .15s ease;
   }
   #offcanvasPayment .pay-input:focus,
   #offcanvasPayment .pay-select:focus {
-    border-color: var(--pay-accent);
-    box-shadow: 0 0 0 3px rgba(15,159,110,0.14);
+    border-color: var(--pay-blue);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.22);
   }
   #offcanvasPayment .pay-input.is-readonly {
-    background: #f3f7f5;
-    color: var(--pay-muted);
+    background: #fef3c7;
+    border-color: #f59e0b;
+    color: #92400e;
   }
   #offcanvasPayment .selectize-control.single .selectize-input {
-    border: 1.5px solid var(--pay-line) !important;
+    border: 2px solid #94a3b8 !important;
     border-radius: 12px !important;
-    background: #fbfffd !important;
+    background: #fff !important;
     min-height: 42px;
     padding: 8px 12px !important;
     box-shadow: none !important;
+    font-weight: 800 !important;
+    color: var(--pay-ink) !important;
   }
   #offcanvasPayment .selectize-control.single .selectize-input.focus {
-    border-color: var(--pay-accent) !important;
-    box-shadow: 0 0 0 3px rgba(15,159,110,0.14) !important;
+    border-color: var(--pay-blue) !important;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.22) !important;
   }
   #offcanvasPayment .pay-method-grid,
   #offcanvasPayment .pay-note-grid {
     display: grid;
-    gap: 0.5rem;
+    gap: 8px;
   }
   #offcanvasPayment .pay-method-grid {
     grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
@@ -439,62 +458,77 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 0.35rem;
-    min-height: 82px;
-    padding: 0.7rem 0.45rem;
-    border: 1.5px solid var(--pay-line);
+    gap: 7px;
+    min-height: 86px;
+    padding: 10px 6px;
+    border: 2px solid #cbd5e1;
     border-radius: 14px;
-    background:
-      linear-gradient(180deg, rgba(255,255,255,0.96), rgba(247,252,250,0.96)),
-      radial-gradient(120% 80% at 50% 0%, rgba(15,159,110,0.08), transparent 55%);
-    box-shadow: 0 1px 0 rgba(255,255,255,0.8) inset;
+    background: #fff;
     color: var(--pay-ink);
-    transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease, background .18s ease;
+    transition: border-color .15s ease, background .15s ease, transform .12s ease, box-shadow .15s ease;
   }
   #offcanvasPayment .pay-opt__icon {
-    width: 34px;
-    height: 34px;
+    width: 36px;
+    height: 36px;
     border-radius: 11px;
     display: grid;
     place-items: center;
-    background: #edf6f2;
-    color: var(--pay-accent);
-    font-size: 0.95rem;
+    font-size: 1rem;
+    color: #fff;
+    background: var(--pay-blue);
   }
   #offcanvasPayment .pay-opt__name {
     font-size: 0.78rem;
-    font-weight: 700;
+    font-weight: 900;
     line-height: 1.15;
     text-align: center;
   }
   #offcanvasPayment .pay-opt__extra {
-    font-size: 0.65rem;
-    font-weight: 600;
+    font-size: 0.68rem;
+    font-weight: 800;
     color: var(--pay-muted);
     line-height: 1.1;
     text-align: center;
     min-height: 0.85em;
   }
+  #offcanvasPayment .pay-opt[data-metode-id="1"] .pay-opt__face {
+    border-color: #4ade80;
+    background: linear-gradient(180deg, #dcfce7, #fff);
+  }
+  #offcanvasPayment .pay-opt[data-metode-id="1"] .pay-opt__icon { background: var(--pay-green); }
+  #offcanvasPayment .pay-opt[data-metode-id="2"] .pay-opt__face {
+    border-color: #60a5fa;
+    background: linear-gradient(180deg, #dbeafe, #fff);
+  }
+  #offcanvasPayment .pay-opt[data-metode-id="2"] .pay-opt__icon { background: var(--pay-blue); }
+  #offcanvasPayment .pay-opt[data-metode-id="3"] .pay-opt__face {
+    border-color: #fbbf24;
+    background: linear-gradient(180deg, #fef3c7, #fff);
+  }
+  #offcanvasPayment .pay-opt[data-metode-id="3"] .pay-opt__icon { background: var(--pay-yellow); color: #111; }
   #offcanvasPayment .pay-opt__face:hover {
-    border-color: #9fd4bf;
-    transform: translateY(-1px);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 18px rgba(15, 23, 42, 0.12);
   }
   #offcanvasPayment .pay-opt.is-selected .pay-opt__face,
   #offcanvasPayment .pay-opt input:checked + .pay-opt__face {
-    border-color: var(--pay-accent);
-    background: linear-gradient(180deg, #f3fcf8, var(--pay-accent-soft));
-    box-shadow: 0 0 0 3px rgba(15,159,110,0.16), 0 8px 18px rgba(15,159,110,0.12);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.22), 0 10px 18px rgba(15, 23, 42, 0.12);
   }
-  #offcanvasPayment .pay-opt.is-selected .pay-opt__icon,
-  #offcanvasPayment .pay-opt input:checked + .pay-opt__face .pay-opt__icon {
-    background: var(--pay-accent);
-    color: #fff;
+  #offcanvasPayment .pay-opt[data-metode-id="1"].is-selected .pay-opt__face,
+  #offcanvasPayment .pay-opt[data-metode-id="1"] input:checked + .pay-opt__face {
+    box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.28), 0 10px 18px rgba(15, 23, 42, 0.12);
+  }
+  #offcanvasPayment .pay-opt[data-metode-id="3"].is-selected .pay-opt__face,
+  #offcanvasPayment .pay-opt[data-metode-id="3"] input:checked + .pay-opt__face {
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.35), 0 10px 18px rgba(15, 23, 42, 0.12);
   }
   #offcanvasPayment .pay-note-grid .pay-opt__face {
     min-height: 58px;
     flex-direction: row;
     gap: 0.45rem;
     padding: 0.55rem 0.5rem;
+    border-color: #f87171;
+    background: linear-gradient(180deg, #fee2e2, #fff);
   }
   #offcanvasPayment .pay-note-grid .pay-opt__icon {
     width: 28px;
@@ -502,66 +536,88 @@
     border-radius: 9px;
     font-size: 0.82rem;
     flex-shrink: 0;
+    background: var(--pay-red);
+  }
+  #offcanvasPayment .pay-note-grid .pay-opt[data-note="QRIS"] .pay-opt__face {
+    border-color: #60a5fa;
+    background: linear-gradient(180deg, #dbeafe, #fff);
+  }
+  #offcanvasPayment .pay-note-grid .pay-opt[data-note="QRIS"] .pay-opt__icon { background: var(--pay-blue); }
+  #offcanvasPayment .pay-note-grid .pay-opt[data-note="BCA"] .pay-opt__face {
+    border-color: #4ade80;
+    background: linear-gradient(180deg, #dcfce7, #fff);
+  }
+  #offcanvasPayment .pay-note-grid .pay-opt[data-note="BCA"] .pay-opt__icon { background: var(--pay-green); }
+  #offcanvasPayment .pay-note-grid .pay-opt[data-note="BRI"] .pay-opt__face {
+    border-color: #fbbf24;
+    background: linear-gradient(180deg, #fef3c7, #fff);
+  }
+  #offcanvasPayment .pay-note-grid .pay-opt[data-note="BRI"] .pay-opt__icon { background: var(--pay-yellow); color: #111; }
+  #offcanvasPayment .pay-note-grid .pay-opt.is-selected .pay-opt__face,
+  #offcanvasPayment .pay-note-grid .pay-opt input:checked + .pay-opt__face {
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.22), 0 8px 16px rgba(15, 23, 42, 0.12);
   }
   #offcanvasPayment .pay-note-grid .pay-opt__name {
     font-size: 0.82rem;
+    font-weight: 900;
   }
   #offcanvasPayment .pay-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.4rem;
+    gap: 8px;
     width: 100%;
     border: 0;
     border-radius: 12px;
-    padding: 0.7rem 0.9rem;
-    font-size: 0.88rem;
-    font-weight: 750;
+    padding: 12px 14px;
+    font-size: 0.95rem;
+    font-weight: 900;
     cursor: pointer;
     text-decoration: none;
-    transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+    transition: transform .12s ease, filter .12s ease;
   }
   #offcanvasPayment .pay-btn:hover {
     transform: translateY(-1px);
-    filter: brightness(1.02);
+    filter: brightness(1.05);
   }
   #offcanvasPayment .pay-btn--warn {
-    background: linear-gradient(135deg, #f59e0b, #ea580c);
-    color: #1a1208;
-    box-shadow: 0 8px 18px rgba(234, 88, 12, 0.18);
+    background: linear-gradient(135deg, var(--pay-yellow-deep), var(--pay-yellow));
+    color: #111;
+    box-shadow: 0 10px 22px rgba(217, 119, 6, 0.28);
   }
   #offcanvasPayment .pay-btn--ghost {
-    background: #e8efec;
-    color: #33443e;
+    background: #e2e8f0;
+    color: var(--pay-ink);
   }
   #offcanvasPayment .pay-btn--pass {
-    background: linear-gradient(135deg, #38bdf8, #0284c7);
+    background: linear-gradient(135deg, var(--pay-blue-deep), var(--pay-blue));
     color: #fff;
-    box-shadow: 0 8px 18px rgba(2, 132, 199, 0.18);
+    box-shadow: 0 10px 22px rgba(37, 99, 235, 0.28);
   }
   #offcanvasPayment .pay-btn--primary {
-    background: linear-gradient(135deg, var(--pay-accent), var(--pay-accent-deep));
+    background: linear-gradient(135deg, var(--pay-green-deep), var(--pay-green));
     color: #fff;
-    box-shadow: 0 10px 22px rgba(15, 159, 110, 0.22);
+    box-shadow: 0 10px 22px rgba(22, 163, 74, 0.32);
   }
   #offcanvasPayment .pay-tb-info {
     display: flex;
     justify-content: space-between;
     gap: 0.75rem;
     align-items: flex-start;
-    padding: 0.75rem 0.85rem;
+    padding: 0.85rem;
     border-radius: 12px;
-    background: var(--pay-warn-soft);
-    border: 1px solid #fdba74;
-    color: #9a3412;
-    font-size: 0.82rem;
+    background: #fff7ed;
+    border: 2px solid #fbbf24;
+    color: #92400e;
+    font-size: 0.84rem;
+    font-weight: 750;
     line-height: 1.35;
   }
   #offcanvasPayment .pay-tb-info button {
     border: 0;
     background: transparent;
-    color: var(--pay-danger);
-    font-weight: 700;
+    color: var(--pay-red);
+    font-weight: 900;
     padding: 0;
     cursor: pointer;
   }
@@ -569,7 +625,7 @@
     max-height: 240px;
     overflow-y: auto;
     display: grid;
-    gap: 0.45rem;
+    gap: 8px;
     padding-right: 0.15rem;
   }
   #offcanvasPayment .pay-bill-item {
@@ -577,28 +633,30 @@
     grid-template-columns: 1fr auto auto;
     gap: 0.65rem;
     align-items: center;
-    padding: 0.7rem 0.8rem;
-    border: 1.5px solid var(--pay-line);
+    padding: 11px;
+    border: 2px solid #cbd5e1;
     border-radius: 12px;
-    background: linear-gradient(180deg, #ffffff, #f7fbf9);
+    background: #fff;
+    box-shadow: 0 6px 14px rgba(15, 23, 42, 0.06);
+    cursor: pointer;
   }
   #offcanvasPayment .pay-bill-item__ref {
-    font-size: 0.84rem;
-    font-weight: 700;
+    font-size: 0.88rem;
+    font-weight: 900;
     color: var(--pay-ink);
     word-break: break-all;
   }
   #offcanvasPayment .pay-bill-item__amt {
-    font-size: 0.84rem;
-    font-weight: 750;
-    color: var(--pay-ink);
+    font-size: 0.88rem;
+    font-weight: 900;
+    color: var(--pay-green);
     min-width: 4.5rem;
     text-align: right;
   }
   #offcanvasPayment .pay-bill-item input.cek {
-    width: 1.05rem;
-    height: 1.05rem;
-    accent-color: var(--pay-accent);
+    width: 1.1rem;
+    height: 1.1rem;
+    accent-color: var(--pay-blue);
     cursor: pointer;
   }
   #offcanvasPayment .pay-total {
@@ -606,46 +664,47 @@
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
-    margin: 0.85rem 0 0.75rem;
-    padding: 0.85rem 0.95rem;
+    margin: 12px 0 10px;
+    padding: 12px 14px;
     border-radius: 14px;
-    background: linear-gradient(135deg, #fff1f2, #ffe4e6);
-    border: 1px solid #fecdd3;
+    background: linear-gradient(135deg, #fef2f2, #fee2e2);
+    border: 2px solid #f87171;
   }
   #offcanvasPayment .pay-total__label {
     font-size: 0.78rem;
-    font-weight: 800;
+    font-weight: 900;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: #9f1239;
+    color: var(--pay-red-deep);
   }
   #offcanvasPayment .pay-total__value {
-    font-size: 1.2rem;
-    font-weight: 850;
-    color: var(--pay-danger);
+    font-size: 1.25rem;
+    font-weight: 900;
+    color: var(--pay-red);
     letter-spacing: -0.02em;
   }
   #offcanvasPayment .pay-money-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 0.65rem;
-    margin-top: 0.75rem;
+    gap: 10px;
+    margin-top: 10px;
   }
   #offcanvasPayment .pay-actions {
     display: grid;
     grid-template-columns: 0.85fr 1.35fr;
-    gap: 0.65rem;
-    margin-top: 0.95rem;
+    gap: 8px;
+    margin-top: 12px;
   }
   #offcanvasPayment #alertRecap {
-    border: 1px solid #fecaca;
+    border: 2px solid #f87171;
     background: #fef2f2;
-    color: #991b1b;
+    color: var(--pay-red-deep);
     border-radius: 12px;
-    padding: 0.65rem 0.8rem;
-    margin-bottom: 0.85rem;
+    padding: 0.7rem 0.85rem;
+    margin-bottom: 12px;
     text-align: center;
     font-size: 0.9rem;
+    font-weight: 800;
     line-height: 1.25;
   }
   #offcanvasPayment .pay-sr-only {
@@ -686,8 +745,8 @@
         <div id="alertRecap" class="d-none"></div>
 
         <div class="pay-layout">
-          <section class="pay-panel">
-            <h6 class="pay-panel__title"><i class="fas fa-sliders-h"></i> Metode & Penerima</h6>
+          <section class="pay-panel pay-panel--blue">
+            <h6 class="pay-panel__title"><i class="fas fa-sliders-h is-blue"></i> Metode & Penerima</h6>
 
             <div class="pay-field">
               <div class="pay-field-label">Penerima</div>
@@ -794,8 +853,8 @@
             </div>
           </section>
 
-          <section class="pay-panel">
-            <h6 class="pay-panel__title"><i class="fas fa-receipt"></i> Tagihan & Bayar</h6>
+          <section class="pay-panel pay-panel--yellow">
+            <h6 class="pay-panel__title"><i class="fas fa-receipt is-yellow"></i> Tagihan & Bayar</h6>
 
             <div class="pay-bill-list">
               <?php
