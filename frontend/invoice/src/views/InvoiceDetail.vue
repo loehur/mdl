@@ -84,10 +84,19 @@
         Invoice ini telah dibatalkan dan tidak dapat dibagikan atau dibayar.
       </div>
 
+      <button
+        v-if="invoice.payment_status !== 'paid' && invoice.status !== 'cancelled'"
+        class="btn-primary w-full"
+        :disabled="markingPaid"
+        @click="markAsPaid"
+      >
+        {{ markingPaid ? "Memproses..." : "Tandai Lunas" }}
+      </button>
+
       <router-link
         v-if="invoice.payment_status !== 'paid' && invoice.status !== 'cancelled'"
         :to="`/edit/${invoice.id}`"
-        class="btn-primary block w-full text-center"
+        class="btn-ghost block w-full text-center"
       >
         Edit Invoice
       </router-link>
@@ -129,6 +138,7 @@ const invoice = ref(null);
 const copied = ref(false);
 const message = ref("");
 const isError = ref(false);
+const markingPaid = ref(false);
 
 async function loadDetail() {
   loading.value = true;
@@ -170,6 +180,36 @@ async function copyLink() {
   } catch {
     message.value = "Gagal menyalin link";
     isError.value = true;
+  }
+}
+
+async function markAsPaid() {
+  if (!confirm("Tandai invoice ini sebagai LUNAS secara manual?\n\nGunakan jika pelanggan sudah bayar di luar QRIS (transfer/tunai).")) {
+    return;
+  }
+
+  markingPaid.value = true;
+  message.value = "";
+  try {
+    const res = await fetch("/api/Invoice/Invoices/markPaid", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: invoice.value.id }),
+    });
+    const data = await res.json();
+    if (res.ok && data.status) {
+      await loadDetail();
+      message.value = data.message || "Invoice berhasil ditandai lunas";
+      isError.value = false;
+    } else {
+      message.value = data.message || "Gagal menandai lunas";
+      isError.value = true;
+    }
+  } catch {
+    message.value = "Gagal menandai lunas";
+    isError.value = true;
+  } finally {
+    markingPaid.value = false;
   }
 }
 

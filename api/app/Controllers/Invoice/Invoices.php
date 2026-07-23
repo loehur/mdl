@@ -274,6 +274,72 @@ class Invoices extends InvoiceController
         }
     }
 
+    /**
+     * POST - Tandai invoice lunas secara manual (tanpa menunggu pembayaran client)
+     */
+    public function markPaid()
+    {
+        $this->verifyAuth();
+
+        if (!$this->isPost()) {
+            $this->error('Method not allowed', 405);
+        }
+
+        $userId = (int) $this->currentUser()['id'];
+        $body = $this->getBody();
+        $id = (int) ($body['id'] ?? 0);
+
+        if ($id <= 0) {
+            $this->error('ID invoice tidak valid', 400);
+        }
+
+        try {
+            $invoice = $this->db($this->db_index)->query(
+                "SELECT id, total, payment_status, status FROM invoices WHERE id = ? AND user_id = ? LIMIT 1",
+                [$id, $userId]
+            )->row_array();
+
+            if (!$invoice) {
+                $this->error('Invoice tidak ditemukan', 404);
+            }
+
+            if ($invoice['status'] === 'cancelled') {
+                $this->error('Invoice yang dibatalkan tidak dapat ditandai lunas', 400);
+            }
+
+            if ($invoice['payment_status'] === 'paid') {
+                $this->error('Invoice sudah lunas', 400);
+            }
+
+            // Batalkan QRIS/pembayaran pending agar tidak bisa dibayar ganda
+            $this->db($this->db_index)->update('invoice_payments', [
+                'payment_status' => 'expired',
+            ], ['invoice_id' => $id, 'payment_status' => 'pending']);
+
+            $paymentRef = 'MDLINV_' . $id . '_MANUAL_' . time();
+            $now = date('Y-m-d H:i:s');
+
+            $this->db($this->db_index)->insert('invoice_payments', [
+                'invoice_id' => $id,
+                'amount' => $invoice['total'],
+                'payment_method' => 'manual',
+                'payment_ref' => $paymentRef,
+                'payment_status' => 'success',
+                'paid_at' => $now,
+            ]);
+
+            $this->markInvoicePaid($id, $paymentRef);
+
+            $this->success([
+                'id' => $id,
+                'payment_ref' => $paymentRef,
+                'payment_status' => 'paid',
+            ], 'Invoice berhasil ditandai lunas');
+        } catch (\Throwable $e) {
+            $this->error('Gagal menandai lunas: ' . $e->getMessage(), 500);
+        }
+    }
+
     public function delete()
     {
         $this->verifyAuth();
