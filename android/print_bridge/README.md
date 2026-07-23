@@ -19,6 +19,16 @@ Buka folder ini di Android Studio, sync Gradle, lalu **Build > Build APK(s)** at
 
 APK: `app/build/outputs/apk/debug/app-debug.apk`
 
+### Sync ke download laundry (Setting → Printer)
+
+Setelah build, jalankan:
+
+```bat
+sync-apk.bat
+```
+
+Menyalin APK ke `laundry/in_assets/files/print-bridge.apk` (auto-build jika APK belum ada).
+
 ## Endpoint (kompatibel PC)
 
 | Method | Path | Keterangan |

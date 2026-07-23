@@ -49,6 +49,51 @@
                 </div>
             </div>
         </div>
+
+        <div class="row g-4 mt-1">
+            <div class="col-12">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body p-4">
+                        <h6 class="text-uppercase text-muted mb-3" style="letter-spacing: 1px; font-size: 12px;">
+                            <i class="fas fa-download me-2"></i>Download Aplikasi Print
+                        </h6>
+                        <p class="text-muted small mb-3 mb-md-4">
+                            Unduh dan pasang di perangkat kasir. Android: Print Bridge (Bluetooth). Windows: installer print server (COM port).
+                        </p>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="border rounded-3 p-3 h-100 bg-light">
+                                    <div class="d-flex align-items-start gap-3">
+                                        <div class="text-success fs-4"><i class="fab fa-android"></i></div>
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-1">Print Bridge (Android)</h6>
+                                            <p class="text-muted small mb-3 mb-0">Server lokal di HP untuk cetak thermal Bluetooth dari browser laundry.</p>
+                                            <a href="<?= URL::IN_ASSETS ?>files/print-bridge.apk" class="btn btn-success btn-sm" download="print-bridge.apk">
+                                                <i class="fas fa-download me-1"></i> Download APK
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="border rounded-3 p-3 h-100 bg-light">
+                                    <div class="d-flex align-items-start gap-3">
+                                        <div class="text-primary fs-4"><i class="fab fa-windows"></i></div>
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-1">Printer Server (Windows)</h6>
+                                            <p class="text-muted small mb-3 mb-0">Jalankan di PC kasir. Butuh Git + Node.js. Install ke D:\printer_server atau C:\printer_server.</p>
+                                            <a href="<?= URL::IN_ASSETS ?>files/printer-server-install.bat" class="btn btn-primary btn-sm" download="printer-server-install.bat">
+                                                <i class="fas fa-download me-1"></i> Download INSTALL.bat
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
