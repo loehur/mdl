@@ -112,7 +112,7 @@ if ($saldoNya_member > 0) {
   .ord-fo__input {
     width: 100%;
     padding: 10px 12px;
-    border: 2px solid #94a3b8;
+    border: 1px solid #94a3b8;
     border-radius: 0;
     background: #fff;
     font-family: inherit;
@@ -123,7 +123,7 @@ if ($saldoNya_member > 0) {
   }
   .ord-fo__input:focus {
     border-color: #2563eb;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.22);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22);
   }
   .ord-fo__input--qty {
     background: #fff;
@@ -145,7 +145,7 @@ if ($saldoNya_member > 0) {
     cursor: default;
   }
   .ord-fo .selectize-input {
-    border: 2px solid #94a3b8 !important;
+    border: 1px solid #94a3b8 !important;
     border-radius: 0 !important;
     box-shadow: none !important;
     min-height: 42px;
@@ -156,7 +156,7 @@ if ($saldoNya_member > 0) {
   }
   .ord-fo .selectize-input.focus {
     border-color: #2563eb !important;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.22) !important;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22) !important;
   }
   .ord-fo .selectize-dropdown {
     border-color: #94a3b8 !important;
@@ -169,7 +169,7 @@ if ($saldoNya_member > 0) {
     gap: 8px;
     padding: 12px 16px 16px;
     background: #fff7ed;
-    border-top: 2px solid #fbbf24;
+    border-top: 1px solid #fbbf24;
   }
   .ord-fo__btn {
     display: inline-flex;

@@ -1,7 +1,7 @@
 <style>
   #saldoMember .ord-member {
     background: linear-gradient(180deg, #f0fdf4, #fff);
-    border: 2px solid #4ade80;
+    border: 1px solid #4ade80;
     border-radius: 0;
     padding: 14px;
     margin-bottom: 10px;
@@ -37,7 +37,7 @@
     justify-content: space-between;
     gap: 10px;
     padding: 11px;
-    border: 2px solid #86efac;
+    border: 1px solid #86efac;
     border-radius: 0;
     background: #fff;
   }

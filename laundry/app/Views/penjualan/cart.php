@@ -8,7 +8,7 @@
   }
   #cart .ord-cart-item {
     background: #fff;
-    border: 2px solid #cbd5e1;
+    border: 1px solid #cbd5e1;
     border-radius: 0;
     padding: 11px;
     margin-bottom: 8px;
@@ -61,7 +61,7 @@
     gap: 6px;
     margin-top: 9px;
     padding-top: 9px;
-    border-top: 2px dashed #cbd5e1;
+    border-top: 1px dashed #cbd5e1;
   }
   #cart .ord-chip {
     display: inline-flex;

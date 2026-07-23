@@ -38,7 +38,7 @@
 
   #ord-root .ord-card {
     background: var(--ord-card);
-    border: 2px solid #e2e8f0;
+    border: 1px solid #e2e8f0;
     border-radius: var(--ord-radius);
     padding: 14px;
     margin-bottom: 12px;
@@ -101,7 +101,7 @@
   #ord-root .ord-link:hover { color: var(--ord-red-deep); }
 
   #ord-root .selectize-input {
-    border: 2px solid #94a3b8 !important;
+    border: 1px solid #94a3b8 !important;
     border-radius: 0 !important;
     box-shadow: none !important;
     min-height: 42px;
@@ -113,10 +113,10 @@
   }
   #ord-root .selectize-input.focus {
     border-color: var(--ord-blue) !important;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.22) !important;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22) !important;
   }
   #ord-root .selectize-dropdown {
-    border: 2px solid #94a3b8 !important;
+    border: 1px solid #94a3b8 !important;
     border-radius: 0 !important;
     box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16) !important;
   }
@@ -169,7 +169,7 @@
     gap: 7px;
     min-height: 86px;
     padding: 10px 6px;
-    border: 2px solid #cbd5e1;
+    border: 1px solid #cbd5e1;
     border-radius: 0;
     background: #fff;
     color: var(--ord-ink);
@@ -228,7 +228,7 @@
     justify-content: space-between;
     gap: 8px;
     padding: 9px 0;
-    border-bottom: 2px dashed #cbd5e1;
+    border-bottom: 1px dashed #cbd5e1;
     font-size: 0.84rem;
     font-weight: 750;
     color: var(--ord-ink);
@@ -257,7 +257,7 @@
 
   #ord-root .ord-cart-wrap {
     border-radius: var(--ord-radius);
-    border: 2px solid #fbbf24;
+    border: 1px solid #fbbf24;
     background: linear-gradient(180deg, #fff7ed 0%, #ffffff 100%);
     padding: 12px;
     box-shadow: 0 10px 24px rgba(217, 119, 6, 0.12);
@@ -316,7 +316,7 @@
     align-items: center;
     gap: 8px;
     padding: 10px 14px;
-    border: 2px solid #f59e0b;
+    border: 1px solid #f59e0b;
     background: #fff;
     color: #0f172a;
     font-size: 0.84rem;
@@ -603,7 +603,7 @@
     width: 100%;
     margin-bottom: 10px;
     padding: 10px 12px;
-    border: 2px solid #94a3b8;
+    border: 1px solid #94a3b8;
     border-radius: 0;
     background: #fff;
     font-family: 'fontku', sans-serif;
@@ -614,7 +614,7 @@
   }
   .ord-plg-input:focus {
     border-color: #f59e0b;
-    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.25);
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.25);
   }
   .ord-plg-msg {
     margin: 0 0 10px;
