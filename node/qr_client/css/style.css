@@ -1,246 +1,277 @@
-* {
+/* ============================================
+   QR Client — CSS klasik WebView Android lama
+   Kotak keras, tanpa radius. Semua teks HURUF BESAR.
+   ============================================ */
+
+html, body {
     margin: 0;
     padding: 0;
-    box-sizing: border-box;
+    width: 100%;
+    height: 100%;
+    background: #000000;
+    color: #cccccc;
+    font-family: Arial, Helvetica, sans-serif;
+    text-transform: uppercase;
+    -webkit-text-size-adjust: 100%;
 }
 
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: #000000;
-    min-height: 100vh;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    color: #ffffff;
+    overflow-x: hidden;
 }
 
-.container {
+.page {
+    width: 100%;
+    max-width: 420px;
+    margin: 0 auto;
+    padding: 80px 20px 40px 20px;
     text-align: center;
-    padding: 20px;
 }
 
-/* Form Input Kasir ID */
+/* ---------- Login (kecil, kotak) ---------- */
+
 .form-kasir {
+    display: block;
     background: #111111;
-    padding: 40px;
-    border-radius: 16px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
     border: 1px solid #333333;
-}
-
-.form-kasir h2 {
-    margin-bottom: 24px;
-    font-weight: 500;
-    color: #ffffff;
+    padding: 20px;
+    margin: 0 auto;
+    width: 200px;
 }
 
 .form-kasir input {
-    padding: 14px 20px;
-    font-size: 18px;
-    border: 2px solid #333333;
-    border-radius: 8px;
-    background: #000000;
-    color: #ffffff;
-    width: 250px;
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 12px 8px;
+    font-size: 16px;
     text-align: center;
+    text-transform: uppercase;
+    color: #ffffff;
+    background: #000000;
+    border: 1px solid #444444;
     outline: none;
-    transition: border-color 0.3s;
+    -webkit-appearance: none;
+    -webkit-border-radius: 0;
+    border-radius: 0;
 }
 
-.form-kasir input:focus {
-    border-color: #ffffff;
+.form-kasir input::-webkit-input-placeholder {
+    color: #666666;
+    text-transform: uppercase;
+}
+
+.form-kasir input::-moz-placeholder {
+    color: #666666;
+    text-transform: uppercase;
+}
+
+.form-kasir input:-ms-input-placeholder {
+    color: #666666;
+    text-transform: uppercase;
 }
 
 .form-kasir input::placeholder {
     color: #666666;
+    text-transform: uppercase;
 }
 
 .form-kasir button {
     display: block;
     width: 100%;
-    margin-top: 20px;
-    padding: 14px;
-    font-size: 16px;
-    font-weight: 600;
-    background: #ffffff;
+    box-sizing: border-box;
+    margin-top: 12px;
+    padding: 12px 8px;
+    font-size: 14px;
+    font-weight: bold;
+    text-transform: uppercase;
     color: #000000;
+    background: #ffffff;
     border: none;
-    border-radius: 8px;
     cursor: pointer;
-    transition: background 0.3s;
+    -webkit-appearance: none;
+    -webkit-border-radius: 0;
+    border-radius: 0;
 }
 
-.form-kasir button:hover {
-    background: #cccccc;
+.form-error {
+    display: block;
+    min-height: 16px;
+    margin-top: 10px;
+    font-size: 11px;
+    color: #e74c3c;
+    text-transform: uppercase;
 }
 
-/* QR Display */
+/* ---------- QR Display ---------- */
+
 .qr-display {
     display: none;
     width: 100%;
-    max-width: 420px;
-    margin: 0 auto;
+    text-align: center;
 }
 
-.qr-header {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2em;
-    margin-bottom: 2.5em;
-    width: 100%;
+.row-id {
+    display: block;
+    font-size: 16px;
+    font-weight: normal;
+    color: #777777;
+    letter-spacing: 1px;
+    line-height: 24px;
+    text-transform: uppercase;
+    margin: 0;
+    padding: 0;
 }
 
-/* Status Indicator — large, prominent */
+.row-status {
+    display: block;
+    margin-top: 40px;
+    margin-bottom: 0;
+    padding: 0;
+    height: 36px;
+    line-height: 36px;
+    text-align: center;
+}
+
+/* kotak status (bukan lingkaran) */
 .status-box {
+    display: inline-block;
     width: 28px;
     height: 28px;
-    border-radius: 50%;
-    flex-shrink: 0;
-    transition: background 0.3s, box-shadow 0.3s;
+    vertical-align: middle;
+    background: #e74c3c;
+    border: none;
+    -webkit-border-radius: 0;
+    border-radius: 0;
 }
 
 .status-box.disconnected {
     background: #e74c3c;
-    box-shadow: 0 0 18px rgba(231, 76, 60, 0.65);
-    animation: pulse-disconnected 1.5s ease-in-out infinite;
 }
 
 .status-box.connected {
     background: #2ecc71;
-    box-shadow: 0 0 18px rgba(46, 204, 113, 0.65);
-    animation: none;
 }
 
-.kasir-id-label {
-    font-size: 15px;
-    font-weight: 500;
-    color: #777777;
-    letter-spacing: 1px;
-    white-space: nowrap;
-}
-
-.status-label {
-    display: none;
+.row-status-msg {
+    display: block;
+    height: 20px;
+    line-height: 20px;
+    margin-top: 12px;
+    margin-bottom: 0;
+    padding: 0;
     font-size: 12px;
     color: #555555;
-    white-space: nowrap;
-    margin-top: -1.2em;
+    text-transform: uppercase;
+    overflow: hidden;
 }
 
-.status-label.show {
+.row-logout {
     display: block;
+    margin-top: 40px;
+    margin-bottom: 0;
+    padding: 0;
 }
 
 .btn-logout {
-    padding: 0;
-    font-size: 13px;
-    font-weight: 400;
+    display: inline;
+    padding: 8px 4px;
+    margin: 0;
+    font-size: 14px;
+    font-weight: normal;
+    text-transform: uppercase;
     color: #555555;
     background: transparent;
     border: none;
     cursor: pointer;
-    transition: color 0.2s;
+    -webkit-appearance: none;
 }
 
-.btn-logout:hover {
-    color: #888888;
+.row-qr {
+    display: block;
+    margin-top: 48px;
+    margin-bottom: 0;
+    padding: 0;
+    text-align: center;
 }
 
-@keyframes pulse-disconnected {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.55; transform: scale(0.92); }
-}
-
-/* QR Container */
 #qr-container {
-    background: #ffffff;
-    padding: 20px;
-    border-radius: 12px;
     display: none;
+    width: 280px;
+    margin: 0 auto;
+    padding: 16px;
+    background: #ffffff;
     overflow: hidden;
+    text-align: center;
+    -webkit-border-radius: 0;
+    border-radius: 0;
 }
 
-/* Text */
-#qr-text {
-    margin-top: 20px;
-    font-size: 24px;
-    font-weight: 500;
-    color: #ffffff;
-    max-width: 400px;
+#qr-container img,
+#qr-container canvas,
+#qr-container table {
+    display: block;
+    margin: 0 auto;
+    max-width: 100%;
+}
+
+.row-text {
+    display: block;
+    margin-top: 24px;
+    margin-bottom: 0;
+    padding: 0 8px;
+    font-size: 22px;
+    font-weight: normal;
+    color: #cccccc;
+    line-height: 1.4;
+    text-transform: uppercase;
     word-wrap: break-word;
 }
 
-/* Payment Success Overlay */
+/* ---------- Payment success ---------- */
+
 .payment-success-overlay {
     display: none;
     position: fixed;
-    top: 0;
     left: 0;
+    top: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.95);
-    justify-content: center;
-    align-items: center;
-    flex-direction: column;
+    background: #000000;
     z-index: 1000;
-    animation: fadeIn 0.3s ease-out;
+    text-align: center;
 }
 
 .payment-success-overlay.show {
-    display: flex;
+    display: block;
+}
+
+.payment-success-inner {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 40%;
+    margin-top: -60px;
+    width: 100%;
+    text-align: center;
 }
 
 .success-icon {
-    width: 120px;
-    height: 120px;
+    display: inline-block;
+    width: 100px;
+    height: 100px;
+    line-height: 100px;
     background: #ffffff;
-    border-radius: 50%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 60px;
     color: #000000;
-    box-shadow: 0 0 40px rgba(255, 255, 255, 0.3);
-    animation: scaleIn 0.4s ease-out;
+    font-size: 48px;
+    font-weight: bold;
+    -webkit-border-radius: 0;
+    border-radius: 0;
 }
 
 .success-text {
+    display: block;
     margin-top: 24px;
-    font-size: 28px;
-    font-weight: 600;
-    color: #ffffff;
-    animation: fadeInUp 0.4s ease-out 0.2s both;
-}
-
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-    }
-
-    to {
-        opacity: 1;
-    }
-}
-
-@keyframes scaleIn {
-    from {
-        transform: scale(0);
-    }
-
-    to {
-        transform: scale(1);
-    }
-}
-
-@keyframes fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    font-size: 22px;
+    color: #cccccc;
+    text-transform: uppercase;
 }

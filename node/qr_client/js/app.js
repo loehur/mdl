@@ -68,15 +68,14 @@ function showLoginForm(errorMessage) {
     const input = document.getElementById('kasir-id-input');
     input.value = '';
 
+    const err = document.getElementById('form-error');
     if (errorMessage) {
-        const h2 = document.querySelector('.form-kasir h2');
-        const originalText = h2.textContent;
-        h2.textContent = errorMessage;
-        h2.style.color = '#e74c3c';
-        setTimeout(() => {
-            h2.textContent = originalText;
-            h2.style.color = '';
+        err.textContent = String(errorMessage).toUpperCase();
+        setTimeout(function () {
+            err.textContent = '';
         }, 3000);
+    } else {
+        err.textContent = '';
     }
 }
 
@@ -87,14 +86,11 @@ function clearCredentials() {
 
 function showStatusLabel(message) {
     const label = document.getElementById('status-label');
-    label.textContent = message || 'Menghubungkan…';
-    label.classList.add('show');
+    label.textContent = (message || 'MENGHUBUNGKAN...').toUpperCase();
 }
 
 function hideStatusLabel() {
-    const label = document.getElementById('status-label');
-    label.textContent = '';
-    label.classList.remove('show');
+    document.getElementById('status-label').textContent = '';
 }
 
 function setConnected(connected) {
@@ -141,13 +137,13 @@ function connectWebSocket(kasirId) {
 
     if (!navigator.onLine) {
         setConnected(false);
-        showStatusLabel('Tidak ada internet');
+        showStatusLabel('TIDAK ADA INTERNET');
         reconnectTimer = setTimeout(() => connectWebSocket(kasirId), 3000);
         return;
     }
 
     setConnected(false);
-    showStatusLabel('Menghubungkan…');
+    showStatusLabel('MENGHUBUNGKAN...');
 
     ws = new WebSocket(`${WS_URL}?kasir_id=${kasirId}`);
 
@@ -166,20 +162,20 @@ function connectWebSocket(kasirId) {
 
         if (e.code >= 4001 && e.code <= 4003) {
             clearCredentials();
-            showLoginForm(e.reason || 'Koneksi ditolak');
+            showLoginForm(e.reason || 'KONEKSI DITOLAK');
             return;
         }
 
         if (!getCookie('kasir_id')) return;
 
         setConnected(false);
-        showStatusLabel('Menghubungkan…');
+        showStatusLabel('MENGHUBUNGKAN...');
         reconnectTimer = setTimeout(() => connectWebSocket(kasirId), 3000);
     };
 
     ws.onerror = function () {
         setConnected(false);
-        showStatusLabel('Menghubungkan…');
+        showStatusLabel('MENGHUBUNGKAN...');
     };
 
     ws.onmessage = function (event) {
@@ -228,7 +224,7 @@ function displayQR(qrString, text) {
 
     const qrTextEl = document.getElementById('qr-text');
     if (text) {
-        qrTextEl.innerHTML = text.replace(/<br\s*\/?>/gi, '<br>');
+        qrTextEl.innerHTML = text.replace(/<br\s*\/?>/gi, '<br>').toUpperCase();
     } else {
         qrTextEl.innerHTML = '';
     }
@@ -278,7 +274,7 @@ document.addEventListener('DOMContentLoaded', function () {
     window.addEventListener('offline', function () {
         if (document.getElementById('qr-display').style.display === 'none') return;
         setConnected(false);
-        showStatusLabel('Tidak ada internet');
+        showStatusLabel('TIDAK ADA INTERNET');
     });
 
     window.addEventListener('online', function () {
