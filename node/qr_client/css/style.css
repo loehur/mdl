@@ -231,7 +231,6 @@ body {
     padding: 0 8px;
     color: #cccccc;
     line-height: 1.4;
-    text-transform: uppercase;
     white-space: normal;
     overflow: visible;
     text-overflow: clip;
@@ -245,6 +244,7 @@ body {
     font-size: 16px;
     font-weight: normal;
     color: #cccccc;
+    text-transform: uppercase;
 }
 
 .row-text .qr-amount {
@@ -252,6 +252,7 @@ body {
     font-size: 24px;
     font-weight: bold;
     color: #ffffff;
+    text-transform: none;
 }
 
 /* ---------- Payment success ---------- */

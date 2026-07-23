@@ -280,11 +280,15 @@ function displayQR(qrString, text) {
     if (text) {
         const parts = String(text).split(/<br\s*\/?>/gi);
         qrTextEl.innerHTML = parts.map(function (part) {
-            const clean = part.trim().toUpperCase();
+            var clean = part.trim();
             if (!clean) return '';
-            const isAmount = /^RP\s*[\d.,]+/i.test(clean);
-            const cls = isAmount ? 'qr-amount' : 'qr-name';
-            return '<span class="' + cls + '">' + clean + '</span>';
+            var isAmount = /^rp\s*[\d.,]+/i.test(clean);
+            if (isAmount) {
+                // Tampilkan "Rp" (bukan "RP") + angka
+                clean = clean.replace(/^rp\s*/i, 'Rp');
+                return '<span class="qr-amount">' + clean + '</span>';
+            }
+            return '<span class="qr-name">' + clean.toUpperCase() + '</span>';
         }).filter(Boolean).join('<br>');
     } else {
         qrTextEl.innerHTML = '';
