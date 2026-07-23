@@ -109,40 +109,65 @@ body {
 .qr-display {
     display: none;
     width: 100%;
-    max-width: 420px;
+    max-width: 480px;
     margin: 0 auto;
-    padding: 48px 20px 40px 20px;
+    /* margin atas besar: hindari kamera/notch tengah Android */
+    padding: 56px 16px 40px 16px;
     box-sizing: border-box;
     text-align: center;
 }
 
-.row-id {
-    display: block;
-    font-size: 16px;
-    font-weight: normal;
-    color: #777777;
-    letter-spacing: 1px;
-    line-height: 24px;
-    text-transform: uppercase;
+/* Top bar 4 kolom sejajar — table paling aman di HP lama */
+.top-bar {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
     margin: 0;
     padding: 0;
 }
 
-.row-status {
-    display: block;
-    margin-top: 40px;
-    margin-bottom: 0;
-    padding: 0;
+.top-bar td {
+    width: 25%;
     height: 36px;
-    line-height: 36px;
+    vertical-align: middle;
     text-align: center;
+    border-right: 1px solid #333333;
+    font-size: 13px;
+    line-height: 14px;
+    color: #777777;
+    padding: 0 4px;
 }
 
-/* kotak status (bukan lingkaran) */
+.top-bar td.col-status {
+    border-right: none;
+}
+
+.col-id {
+    font-weight: bold;
+    color: #999999;
+    letter-spacing: 1px;
+}
+
+.btn-bar {
+    display: inline;
+    margin: 0;
+    padding: 6px 2px;
+    font-size: 13px;
+    font-weight: normal;
+    line-height: 14px;
+    text-transform: uppercase;
+    color: #777777;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    -webkit-appearance: none;
+}
+
+/* kotak status seukuran font (~13px) */
 .status-box {
     display: inline-block;
-    width: 28px;
-    height: 28px;
+    width: 12px;
+    height: 12px;
     vertical-align: middle;
     background: #e74c3c;
     border: none;
@@ -160,41 +185,20 @@ body {
 
 .row-status-msg {
     display: block;
-    height: 20px;
-    line-height: 20px;
-    margin-top: 12px;
+    height: 18px;
+    line-height: 18px;
+    margin-top: 10px;
     margin-bottom: 0;
     padding: 0;
-    font-size: 12px;
+    font-size: 11px;
     color: #555555;
     text-transform: uppercase;
     overflow: hidden;
 }
 
-.row-logout {
-    display: block;
-    margin-top: 40px;
-    margin-bottom: 0;
-    padding: 0;
-}
-
-.btn-logout {
-    display: inline;
-    padding: 8px 4px;
-    margin: 0;
-    font-size: 14px;
-    font-weight: normal;
-    text-transform: uppercase;
-    color: #555555;
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    -webkit-appearance: none;
-}
-
 .row-qr {
     display: block;
-    margin-top: 48px;
+    margin-top: 40px;
     margin-bottom: 0;
     padding: 0;
     text-align: center;

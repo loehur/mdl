@@ -57,7 +57,7 @@ function saveKasirId() {
 function showQrDisplay(kasirId) {
     document.getElementById('form-kasir').style.display = 'none';
     document.getElementById('qr-display').style.display = 'block';
-    document.getElementById('kasir-id-label').textContent = 'MDL ' + kasirId;
+    document.getElementById('kasir-id-label').textContent = '#' + kasirId;
 }
 
 function showLoginForm(errorMessage) {
@@ -129,6 +129,10 @@ function logout() {
     hideQR();
     document.getElementById('payment-success-overlay').classList.remove('show');
     showLoginForm();
+}
+
+function reloadPage() {
+    window.location.reload();
 }
 
 function connectWebSocket(kasirId) {

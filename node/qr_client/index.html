@@ -24,17 +24,23 @@
 
         <!-- Display -->
         <div class="qr-display" id="qr-display">
-            <div class="row-id" id="kasir-id-label"></div>
-
-            <div class="row-status">
-                <div class="status-box disconnected" id="status-box"></div>
-            </div>
+            <!-- Top bar: ID | RELOAD | LOGOUT | STATUS -->
+            <table class="top-bar" cellspacing="0" cellpadding="0">
+                <tr>
+                    <td class="col-id" id="kasir-id-label">#</td>
+                    <td class="col-action">
+                        <button type="button" class="btn-bar" onclick="reloadPage()">RELOAD</button>
+                    </td>
+                    <td class="col-action">
+                        <button type="button" class="btn-bar" onclick="logout()">LOGOUT</button>
+                    </td>
+                    <td class="col-status">
+                        <span class="status-box disconnected" id="status-box"></span>
+                    </td>
+                </tr>
+            </table>
 
             <div class="row-status-msg" id="status-label"></div>
-
-            <div class="row-logout">
-                <button type="button" class="btn-logout" id="btn-logout" onclick="logout()">LOGOUT</button>
-            </div>
 
             <div class="row-qr">
                 <div id="qr-container"></div>
