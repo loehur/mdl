@@ -2,6 +2,9 @@ const WS_URL = 'wss://qrs.nalju.com';
 let ws = null;
 let currentQrString = null;
 let reconnectTimer = null;
+let currentKasirId = null;
+let replaceRetryCount = 0;
+const MAX_REPLACE_RETRIES = 3;
 
 function setCookie(name, value, days) {
     const expires = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toUTCString();
@@ -117,13 +120,18 @@ function closeWebSocket() {
         ws.onmessage = null;
         ws.onopen = null;
         if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
-            ws.close();
+            try {
+                ws.close();
+            } catch (e) {
+                // ignore
+            }
         }
         ws = null;
     }
 }
 
 function logout() {
+    replaceRetryCount = 0;
     closeWebSocket();
     clearCredentials();
     hideQR();
@@ -135,26 +143,39 @@ function reloadPage() {
     window.location.reload();
 }
 
-function connectWebSocket(kasirId) {
+function connectWebSocket(kasirId, options) {
+    options = options || {};
+    const force = !!options.force;
+
+    // Hindari double-connect yang mengisi slot sia-sia
+    if (!force && ws && currentKasirId === kasirId &&
+        (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+        return;
+    }
+
     clearReconnectTimer();
     closeWebSocket();
+    currentKasirId = kasirId;
 
     if (!navigator.onLine) {
         setConnected(false);
         showStatusLabel('TIDAK ADA INTERNET');
-        reconnectTimer = setTimeout(() => connectWebSocket(kasirId), 3000);
+        reconnectTimer = setTimeout(function () {
+            connectWebSocket(kasirId, { force: true });
+        }, 3000);
         return;
     }
 
     setConnected(false);
     showStatusLabel('MENGHUBUNGKAN...');
 
-    ws = new WebSocket(`${WS_URL}?kasir_id=${kasirId}`);
+    ws = new WebSocket(WS_URL + '?kasir_id=' + encodeURIComponent(kasirId));
 
     ws.onopen = function () {
+        replaceRetryCount = 0;
         setConnected(true);
 
-        ws.pingInterval = setInterval(() => {
+        ws.pingInterval = setInterval(function () {
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({ type: 'ping' }));
             }
@@ -166,15 +187,25 @@ function connectWebSocket(kasirId) {
 
         // 4001-4003: auth rejected — kembali ke login
         if (e.code >= 4001 && e.code <= 4003) {
+            replaceRetryCount = 0;
             clearCredentials();
             showLoginForm(e.reason || 'KONEKSI DITOLAK');
             return;
         }
 
-        // 4005: digantikan sesi lain — jangan auto-reconnect (hindari perang koneksi)
+        // 4005: slot penuh / digantikan — retry terbatas
         if (e.code === 4005) {
             setConnected(false);
-            showStatusLabel('DIGANTIKAN PERANGKAT LAIN');
+            if (replaceRetryCount < MAX_REPLACE_RETRIES && getCookie('kasir_id')) {
+                replaceRetryCount += 1;
+                showStatusLabel('MENGHUBUNGKAN... (' + replaceRetryCount + '/' + MAX_REPLACE_RETRIES + ')');
+                reconnectTimer = setTimeout(function () {
+                    connectWebSocket(kasirId, { force: true });
+                }, 500);
+                return;
+            }
+            replaceRetryCount = 0;
+            showStatusLabel('KONEKSI PENUH');
             return;
         }
 
@@ -182,7 +213,9 @@ function connectWebSocket(kasirId) {
 
         setConnected(false);
         showStatusLabel('MENGHUBUNGKAN...');
-        reconnectTimer = setTimeout(() => connectWebSocket(kasirId), 3000);
+        reconnectTimer = setTimeout(function () {
+            connectWebSocket(kasirId, { force: true });
+        }, 3000);
     };
 
     ws.onerror = function () {
@@ -242,7 +275,9 @@ function displayQR(qrString, text) {
     }
 
     if (qrHideTimeout) clearTimeout(qrHideTimeout);
-    qrHideTimeout = setTimeout(() => hideQR(), 180000);
+    qrHideTimeout = setTimeout(function () {
+        hideQR();
+    }, 180000);
 }
 
 function hideQR() {
@@ -266,7 +301,9 @@ function showPaymentSuccess(status) {
         qrText.textContent = '';
         overlay.classList.add('show');
 
-        setTimeout(() => overlay.classList.remove('show'), 60000);
+        setTimeout(function () {
+            overlay.classList.remove('show');
+        }, 60000);
         currentQrString = null;
     }
 }
@@ -276,7 +313,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (credentials) {
         showQrDisplay(credentials.kasirId);
-        connectWebSocket(credentials.kasirId);
+        connectWebSocket(credentials.kasirId, { force: true });
     }
 
     document.getElementById('kasir-id-input').addEventListener('keypress', function (e) {
@@ -295,4 +332,8 @@ document.addEventListener('DOMContentLoaded', function () {
             connectWebSocket(kasirId);
         }
     });
+
+    // Bridge untuk Android WebView (setelah semua fungsi tersedia)
+    window.closeQrSocket = closeWebSocket;
+    window.connectWebSocket = connectWebSocket;
 });

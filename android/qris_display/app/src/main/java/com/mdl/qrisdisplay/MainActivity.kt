@@ -90,12 +90,24 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         setupImmersiveMode()
         webView.onResume()
+        // Reconnect WebSocket setelah pause (cookie masih ada di halaman)
+        webView.evaluateJavascript(
+            "(function(){var id=document.cookie.match(/(?:^|; )kasir_id=([^;]+)/);if(id&&id[1]&&window.connectWebSocket){window.connectWebSocket(decodeURIComponent(id[1]),{force:true});}})();",
+            null
+        )
         networkMonitor?.let {
             if (!it.hasInternet()) showOfflineOverlay() else hideOfflineOverlay()
         }
     }
 
     override fun onPause() {
+        // Lepas slot WebSocket di server sebelum app background/kill
+        if (::webView.isInitialized) {
+            webView.evaluateJavascript(
+                "window.closeQrSocket && window.closeQrSocket()",
+                null
+            )
+        }
         webView.onPause()
         super.onPause()
     }

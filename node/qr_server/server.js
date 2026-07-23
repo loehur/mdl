@@ -69,8 +69,59 @@ const server = http.createServer(app);
 // Create WebSocket server
 const wss = new WebSocket.Server({ server });
 
-// Store connected clients by kasir_id
+// Store connected clients by kasir_id → WebSocket[]
 const clients = new Map();
+const MAX_CONNECTIONS_PER_KASIR = 3;
+
+function getSocketList(kasirId) {
+    return clients.get(kasirId) || [];
+}
+
+function getOpenSockets(kasirId) {
+    return getSocketList(kasirId).filter((ws) => ws.readyState === WebSocket.OPEN);
+}
+
+function removeSocket(kasirId, ws) {
+    const list = getSocketList(kasirId);
+    if (!list.length) return;
+    const next = list.filter((s) => s !== ws);
+    if (next.length === 0) {
+        clients.delete(kasirId);
+    } else {
+        clients.set(kasirId, next);
+    }
+}
+
+function evictOldest(kasirId) {
+    const list = getSocketList(kasirId);
+    if (!list.length) return;
+    const oldest = list.shift();
+    clients.set(kasirId, list);
+    if (!oldest) return;
+    console.log(`Kasir ${kasirId}: evicting oldest connection (max ${MAX_CONNECTIONS_PER_KASIR})`);
+    try {
+        oldest.close(4005, 'Replaced by a new connection');
+    } catch (e) {
+        // ignore
+    }
+    try {
+        oldest.terminate();
+    } catch (e) {
+        // ignore
+    }
+}
+
+function broadcast(kasirId, message) {
+    const open = getOpenSockets(kasirId);
+    open.forEach((ws) => {
+        try {
+            ws.send(message);
+        } catch (e) {
+            console.error(`Broadcast error Kasir ${kasirId}:`, e.message);
+        }
+    });
+    return open.length;
+}
 
 // WebSocket connection handler
 wss.on('connection', (ws, req) => {
@@ -92,28 +143,17 @@ wss.on('connection', (ws, req) => {
         return;
     }
 
-    // Replace existing connection for same kasir_id (avoid zombie lock after unclean close)
-    const existingClient = clients.get(kasirId);
-    if (existingClient && existingClient !== ws) {
-        console.log(`Kasir ${kasirId}: replacing previous connection`);
-        try {
-            existingClient.close(4005, 'Replaced by a new connection');
-        } catch (e) {
-            // ignore
-        }
-        try {
-            existingClient.terminate();
-        } catch (e) {
-            // ignore
-        }
-        clients.delete(kasirId);
+    // Add to pool; evict oldest while over max
+    ws.kasirId = kasirId;
+    const list = getSocketList(kasirId);
+    list.push(ws);
+    clients.set(kasirId, list);
+    while (getSocketList(kasirId).length > MAX_CONNECTIONS_PER_KASIR) {
+        evictOldest(kasirId);
     }
 
-    console.log(`Kasir ${kasirId} connected (authenticated)`);
-
-    // Store the client connection
-    ws.kasirId = kasirId;
-    clients.set(kasirId, ws);
+    const count = getSocketList(kasirId).length;
+    console.log(`Kasir ${kasirId} connected (${count}/${MAX_CONNECTIONS_PER_KASIR})`);
 
     // Send welcome message
     ws.send(JSON.stringify({
@@ -139,20 +179,16 @@ wss.on('connection', (ws, req) => {
         }
     });
 
-    // Handle client disconnect — only clear map if this socket is still the active one
+    // Handle client disconnect — remove only this socket from the pool
     ws.on('close', () => {
         console.log(`Kasir ${kasirId} disconnected`);
-        if (clients.get(kasirId) === ws) {
-            clients.delete(kasirId);
-        }
+        removeSocket(kasirId, ws);
     });
 
     // Handle errors
     ws.on('error', (error) => {
         console.error(`Error for Kasir ${kasirId}:`, error.message);
-        if (clients.get(kasirId) === ws) {
-            clients.delete(kasirId);
-        }
+        removeSocket(kasirId, ws);
     });
 
     // Heartbeat to keep connection alive
@@ -208,16 +244,6 @@ app.post('/send-qr', (req, res) => {
         });
     }
 
-    const clientWs = clients.get(kasir_id);
-
-    if (!clientWs || clientWs.readyState !== WebSocket.OPEN) {
-        return res.status(404).json({
-            success: false,
-            error: `Kasir ${kasir_id} is not connected`
-        });
-    }
-
-    // Send QR string and text to the kasir
     const message = JSON.stringify({
         type: 'qr_code',
         qr_string: qr_string,
@@ -225,16 +251,24 @@ app.post('/send-qr', (req, res) => {
         timestamp: new Date().toISOString()
     });
 
-    clientWs.send(message);
+    const sent = broadcast(kasir_id, message);
 
-    console.log(`QR sent to Kasir ${kasir_id}: ${qr_string}${text ? ' | Text: ' + text : ''}`);
+    if (sent === 0) {
+        return res.status(404).json({
+            success: false,
+            error: `Kasir ${kasir_id} is not connected`
+        });
+    }
+
+    console.log(`QR sent to Kasir ${kasir_id} (${sent} socket(s)): ${qr_string}${text ? ' | Text: ' + text : ''}`);
 
     return res.json({
         success: true,
         message: `QR string sent to Kasir ${kasir_id}`,
         kasir_id: kasir_id,
         qr_string: qr_string,
-        text: text || ''
+        text: text || '',
+        sockets: sent
     });
 });
 
@@ -244,9 +278,10 @@ app.post('/send-qr', (req, res) => {
  */
 app.get('/clients', (req, res) => {
     const connectedClients = [];
-    clients.forEach((ws, kasirId) => {
-        if (ws.readyState === WebSocket.OPEN) {
-            connectedClients.push(kasirId);
+    clients.forEach((list, kasirId) => {
+        const openCount = list.filter((ws) => ws.readyState === WebSocket.OPEN).length;
+        if (openCount > 0) {
+            connectedClients.push({ kasir_id: kasirId, sockets: openCount });
         }
     });
 
@@ -263,13 +298,13 @@ app.get('/clients', (req, res) => {
  */
 app.get('/client/:kasir_id', (req, res) => {
     const kasirId = req.params.kasir_id;
-    const clientWs = clients.get(kasirId);
-    const isConnected = clientWs && clientWs.readyState === WebSocket.OPEN;
+    const openCount = getOpenSockets(kasirId).length;
 
     return res.json({
         success: true,
         kasir_id: kasirId,
-        connected: isConnected
+        connected: openCount > 0,
+        sockets: openCount
     });
 });
 
@@ -295,16 +330,6 @@ app.post('/payment-success', (req, res) => {
         });
     }
 
-    const clientWs = clients.get(kasir_id);
-
-    if (!clientWs || clientWs.readyState !== WebSocket.OPEN) {
-        return res.status(404).json({
-            success: false,
-            error: `Kasir ${kasir_id} is not connected`
-        });
-    }
-
-    // Send payment success notification to the kasir
     const message = JSON.stringify({
         type: 'payment_success',
         qr_string: qr_string,
@@ -312,16 +337,24 @@ app.post('/payment-success', (req, res) => {
         timestamp: new Date().toISOString()
     });
 
-    clientWs.send(message);
+    const sent = broadcast(kasir_id, message);
 
-    console.log(`Payment success sent to Kasir ${kasir_id}: qr_string=${qr_string}, status=${status}`);
+    if (sent === 0) {
+        return res.status(404).json({
+            success: false,
+            error: `Kasir ${kasir_id} is not connected`
+        });
+    }
+
+    console.log(`Payment success sent to Kasir ${kasir_id} (${sent} socket(s)): qr_string=${qr_string}, status=${status}`);
 
     return res.json({
         success: true,
         message: `Payment success notification sent to Kasir ${kasir_id}`,
         kasir_id: kasir_id,
         qr_string: qr_string,
-        status: status
+        status: status,
+        sockets: sent
     });
 });
 
@@ -350,6 +383,7 @@ server.listen(PORT, HOST, () => {
     console.log('========================================');
     console.log(`  HTTP API : http://localhost:${PORT}`);
     console.log(`  WebSocket: ws://localhost:${PORT}`);
+    console.log(`  Max sockets / kasir: ${MAX_CONNECTIONS_PER_KASIR}`);
     console.log('========================================');
     console.log('');
     console.log('Endpoints:');

@@ -294,4 +294,9 @@ $result = json_decode($response, true);
 | 4001 | kasir_id is required | Tidak ada kasir_id pada query parameter |
 | 4002 | Invalid PIN | PIN tidak valid atau tidak disediakan |
 | 4003 | kasir_id is not allowed | kasir_id tidak terdaftar dalam allowed list |
-| 4005 | Replaced by a new connection | Digantikan sesi baru dengan kasir_id yang sama |
+| 4005 | Replaced by a new connection | Socket tertua di-evict karena melebihi max 3 koneksi per kasir_id |
+
+## Multi-connection (max 3 per kasir_id)
+
+Setiap `kasir_id` boleh hingga **3** WebSocket bersamaan. Koneksi ke-4 menendang yang **tertua** (close 4005).  
+`POST /send-qr` dan `POST /payment-success` di-broadcast ke semua socket yang masih OPEN untuk ID tersebut.
