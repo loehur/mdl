@@ -112,6 +112,31 @@
     }
   };
 
+  // Local print server helpers — see print_server.js (loaded before this file)
+  // Fallbacks if print_server.js missing
+  if (typeof window.printServerFetch !== "function") {
+    window.printServerFetch = function (path, bodyObj, timeoutMs) {
+      timeoutMs = timeoutMs || 3000;
+      var controller = new AbortController();
+      var timer = setTimeout(function () {
+        controller.abort();
+      }, timeoutMs);
+      return fetch("http://localhost:3000" + path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(bodyObj || {}),
+        signal: controller.signal,
+      }).finally(function () {
+        clearTimeout(timer);
+      });
+    };
+  }
+  if (typeof window.printServerErrorMessage !== "function") {
+    window.printServerErrorMessage = function () {
+      return "Print server / Print Bridge tidak aktif di localhost:3000.";
+    };
+  }
+
   // Copy to clipboard helper
   window.copyToClipboard = function (text, btn) {
     navigator.clipboard.writeText(text).then(function () {
@@ -340,18 +365,12 @@
         $(btn).addClass('disabled').prop('disabled', true);
         $(btn).html('<i class="fas fa-spinner fa-spin"></i> Printing...');
 
-        // POST to print server
-        fetch("http://localhost:3000/printqr", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            qr_string: data.qrString,
-            text: printText,
-            margin_top: marginTop,
-            feed_lines: feedLines
-          })
+        // POST to print server / Android Print Bridge
+        window.printServerFetch("/printqr", {
+          qr_string: data.qrString,
+          text: printText,
+          margin_top: marginTop,
+          feed_lines: feedLines
         })
           .then(function (res) {
             console.log("Print server response:", res.status);
@@ -362,7 +381,7 @@
           })
           .catch(function (err) {
             console.error("Print server error:", err);
-            showAlert("Gagal mengirim ke printer: " + err.message, "error");
+            showAlert(window.printServerErrorMessage(err), "error");
           })
           .finally(function () {
             $(btn).removeClass('disabled').prop('disabled', false);
@@ -2391,16 +2410,10 @@
             })
             .join(pmode === "server" ? "" : "\n") +
           (pmode === "server" ? "" : "\n");
-        fetch("http://localhost:3000/print", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            text: plain,
-            margin_top: marginTop,
-            feed_lines: feedLines
-          }),
+        window.printServerFetch("/print", {
+          text: plain,
+          margin_top: marginTop,
+          feed_lines: feedLines
         })
           .then(function (res) {
             console.log("Server print status:", res.status);
@@ -2414,6 +2427,9 @@
           })
           .catch(function (err) {
             console.log("Server print error:", err);
+            if (typeof showAlert === "function") {
+              showAlert(window.printServerErrorMessage(err), "error");
+            }
           });
       } catch (e) { }
     } else {
@@ -2746,17 +2762,11 @@
       trySerial();
     } else if (pmode === "server") {
       try {
-        fetch("http://localhost:3000/printqr", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            qr_string: t,
-            text: label,
-            margin_top: marginTop,
-            feed_lines: feedLines
-          }),
+        window.printServerFetch("/printqr", {
+          qr_string: t,
+          text: label,
+          margin_top: marginTop,
+          feed_lines: feedLines
         })
           .then(function (res) {
             console.log("Server printqr status:", res.status);
@@ -2769,6 +2779,9 @@
           })
           .catch(function (err) {
             console.log("Server printqr error:", err);
+            if (typeof showAlert === "function") {
+              showAlert(window.printServerErrorMessage(err), "error");
+            }
           });
       } catch (e) { }
     } else {

@@ -706,16 +706,19 @@
       
       btn.addClass('disabled').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
       
-      fetch("http://localhost:3000/printqr", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+      var printFn = (window.PrintServer && window.PrintServer.fetch)
+        ? function(path, body) { return window.PrintServer.fetch(path, body); }
+        : window.printServerFetch;
+      var errMsg = (window.PrintServer && window.PrintServer.errorMessage)
+        ? window.PrintServer.errorMessage
+        : (window.printServerErrorMessage || function() { return 'Print server tidak aktif'; });
+
+      printFn("/printqr", {
             qr_string: currentQRString,
             text: printText,
             margin_top: typeof printerMarginTop !== 'undefined' ? printerMarginTop : 0,
             feed_lines: typeof printerFeedLines !== 'undefined' ? printerFeedLines : 0
           })
-        })
         .then(res => {
             console.log("Print Res:", res.status);
             if(res.ok) {
@@ -726,7 +729,7 @@
         })
         .catch(err => {
             console.error("Print Error:", err);
-            showSalesAlert('Gagal koneksi printer', 'error');
+            showSalesAlert(errMsg(err), 'error');
         })
         .finally(() => {
             btn.removeClass('disabled').prop('disabled', false).html('<i class="fas fa-print"></i> Print');
@@ -1520,6 +1523,7 @@
     feedLines: <?= $this->mdl_setting["margin_printer_bottom"] ?? 0 ?>
   };
 </script>
+<script src="<?= URL::IN_ASSETS ?>js/print_server.js?v=<?= time() ?>"></script>
 <script src="<?= URL::IN_ASSETS ?>js/operasi/view_load.js?v=<?= time() ?>"></script>
 
 <script>

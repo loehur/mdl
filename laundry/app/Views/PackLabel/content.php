@@ -64,6 +64,7 @@ $hasCabangSelected = isset($c['cabang']) && !empty($c['cabang']);
 <script src="<?= URL::EX_ASSETS ?>js/jquery-3.6.0.min.js"></script>
 <script src="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/js/bootstrap.bundle.min.js"></script>
 <script src="<?= URL::EX_ASSETS ?>js/selectize.min.js"></script>
+<script src="<?= URL::IN_ASSETS ?>js/print_server.js?v=<?= time() ?>"></script>
 
 <script>
   var selectizePelanggan = null;
@@ -327,17 +328,18 @@ $hasCabangSelected = isset($c['cabang']) && !empty($c['cabang']);
       return s;
     }).join("");
 
-    // Send to print server
-    fetch("http://localhost:3000/print", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        text: plain,
-        margin_top: 0,
-        feed_lines: 3
-      })
+    // Send to print server / Android Print Bridge (probe + fail-fast)
+    var printFn = (window.PrintServer && window.PrintServer.fetch)
+      ? window.PrintServer.fetch.bind(window.PrintServer)
+      : window.printServerFetch;
+    var errMsg = (window.PrintServer && window.PrintServer.errorMessage)
+      ? window.PrintServer.errorMessage
+      : window.printServerErrorMessage;
+
+    printFn("/print", {
+      text: plain,
+      margin_top: 0,
+      feed_lines: 3
     })
     .then(function(res) {
       console.log("Print server status:", res.status);
@@ -348,6 +350,7 @@ $hasCabangSelected = isset($c['cabang']) && !empty($c['cabang']);
     })
     .catch(function(err) {
       console.error("Print server error:", err);
+      alert(typeof errMsg === "function" ? errMsg(err) : "Print server tidak aktif");
       // Fallback to browser print
       var divContents = el.innerHTML;
       var a = window.open('');

@@ -1223,6 +1223,7 @@ $labeled = false;
     feedLines: <?= $this->mdl_setting["margin_printer_bottom"] ?? 0 ?>
   };
 </script>
+<script src="<?= URL::IN_ASSETS ?>js/print_server.js?v=<?= time() ?>"></script>
 <script src="<?= URL::IN_ASSETS ?>js/operasi/view_load.js?v=<?= time() ?>"></script>
 <script>
   $(document).ready(function() {

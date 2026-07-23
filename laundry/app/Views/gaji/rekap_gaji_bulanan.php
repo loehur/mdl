@@ -564,6 +564,7 @@ $totalTerima = 0;
 
 <!-- SCRIPT -->
 <script src="<?= URL::EX_ASSETS ?>plugins/select2/select2.min.js"></script>
+<script src="<?= URL::IN_ASSETS ?>js/print_server.js?v=<?= time() ?>"></script>
 
 <script>
   function showToast(msg, type) {
@@ -680,24 +681,24 @@ $totalTerima = 0;
     var originalHtml = btn.html();
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Printing...');
     
-    // Kirim ke print server dengan parameter 'text' bukan 'html'
-    fetch('http://localhost:3000/print', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        text: printText,  // 'text' bukan 'html'
-        margin_top: <?= $this->mdl_setting["margin_printer_top"] ?? 0 ?>,
-        feed_lines: <?= $this->mdl_setting["margin_printer_bottom"] ?? 0 ?>
-      })
+    // Kirim ke print server / Android Print Bridge (probe + fail-fast)
+    var printFn = (window.PrintServer && window.PrintServer.fetch)
+      ? function(path, body) { return window.PrintServer.fetch(path, body); }
+      : window.printServerFetch;
+    var errMsg = (window.PrintServer && window.PrintServer.errorMessage)
+      ? window.PrintServer.errorMessage
+      : (window.printServerErrorMessage || function() { return 'Print server tidak aktif'; });
+
+    printFn('/print', {
+      text: printText,
+      margin_top: <?= $this->mdl_setting["margin_printer_top"] ?? 0 ?>,
+      feed_lines: <?= $this->mdl_setting["margin_printer_bottom"] ?? 0 ?>
     })
     .then(function(res) {
       console.log('Print server response:', res.status);
       if (!res.ok) {
         showToast('Gagal print: ' + res.status, 'danger');
       } else {
-        // Success feedback
         btn.html('<i class="fas fa-check"></i> Printed!');
         setTimeout(function() {
           btn.html(originalHtml);
@@ -709,7 +710,7 @@ $totalTerima = 0;
     })
     .catch(function(err) {
       console.error('Print error:', err);
-      showToast('Gagal mengirim ke printer. Pastikan print server berjalan di localhost:3000', 'danger');
+      showToast(errMsg(err), 'danger');
       btn.prop('disabled', false).html(originalHtml);
     });
   });

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="primary">#1B4F72</color>
+    <color name="primary_dark">#0E2F44</color>
+    <color name="accent">#2E86C1</color>
+    <color name="bg">#F4F7FA</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="text">#1A2330</color>
+    <color name="muted">#5D6D7E</color>
+    <color name="ok">#1E8449</color>
+    <color name="warn">#B9770E</color>
+    <color name="err">#C0392B</color>
+</resources>
