@@ -15,10 +15,10 @@
     $("div#load").html(`
       <div class="d-flex justify-content-center align-items-center py-5">
         <div class="text-center">
-          <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
+          <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem; color:#2563eb;">
             <span class="visually-hidden">Loading...</span>
           </div>
-          <p class="text-muted mb-0">Memuat antrian...</p>
+          <p class="text-muted mb-0" style="color:#1e293b;">Memuat antrian...</p>
         </div>
       </div>
     `);

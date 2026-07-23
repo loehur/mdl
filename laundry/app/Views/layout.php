@@ -57,7 +57,7 @@ if (isset($data['data_operasi'])) {
             font-size: 14px;
         }
 
-        /* Header warna nota Antrian/Operasi — tema MDL (bukan Bootstrap) */
+        /* Header warna nota Antrian/Operasi ? tema MDL (bukan Bootstrap) */
         .content-wrapper tr.mdl-nota-today > td,
         .content-wrapper tr.mdl-nota-past > td,
         .content-wrapper tr.mdl-nota-member > td,
@@ -65,30 +65,33 @@ if (isset($data['data_operasi'])) {
         .content-wrapper .mdl-nota-head.mdl-nota-past,
         .content-wrapper .mdl-nota-head.mdl-nota-member {
             border-color: transparent !important;
-            color: #0d1117 !important;
+            color: #0f172a !important;
             font-weight: 700;
             vertical-align: middle;
         }
+        /* Today ? UI Theme blue */
         .content-wrapper tr.mdl-nota-today > td,
         .content-wrapper .mdl-nota-head.mdl-nota-today {
-            background: linear-gradient(to bottom, #9ec0f0 0%, #b6d0f5 45%, #cfe0f8 100%) !important;
-            box-shadow: inset 0 -1px 0 rgba(47, 97, 188, 0.35);
+            background: linear-gradient(to bottom, #93c5fd 0%, #bfdbfe 45%, #eff6ff 100%) !important;
+            box-shadow: inset 0 -1px 0 rgba(37, 99, 235, 0.35);
         }
+        /* Past ? UI Theme green */
         .content-wrapper tr.mdl-nota-past > td,
         .content-wrapper .mdl-nota-head.mdl-nota-past {
-            background: linear-gradient(to bottom, #8fd4ad 0%, #a8dfbf 45%, #c5ebd4 100%) !important;
-            box-shadow: inset 0 -1px 0 rgba(38, 135, 80, 0.35);
+            background: linear-gradient(to bottom, #86efac 0%, #bbf7d0 45%, #f0fdf4 100%) !important;
+            box-shadow: inset 0 -1px 0 rgba(22, 163, 74, 0.35);
         }
+        /* Member ? UI Theme blue (nuansa biru lama) */
         .content-wrapper tr.mdl-nota-member > td,
         .content-wrapper .mdl-nota-head.mdl-nota-member {
-            background: linear-gradient(to bottom, #8eb8ef 0%, #a9caf4 45%, #c5ddf8 100%) !important;
-            box-shadow: inset 0 -1px 0 rgba(47, 97, 188, 0.32);
+            background: linear-gradient(to bottom, #60a5fa 0%, #93c5fd 45%, #dbeafe 100%) !important;
+            box-shadow: inset 0 -1px 0 rgba(29, 78, 216, 0.32);
         }
         .content-wrapper tr.mdl-nota-today a,
         .content-wrapper tr.mdl-nota-past a,
         .content-wrapper tr.mdl-nota-member a,
         .content-wrapper .mdl-nota-head a {
-            color: #0d1117 !important;
+            color: #0f172a !important;
         }
         .content-wrapper tr.mdl-nota-today .text-dark,
         .content-wrapper tr.mdl-nota-past .text-dark,
@@ -99,11 +102,11 @@ if (isset($data['data_operasi'])) {
         .content-wrapper tr.mdl-nota-today b,
         .content-wrapper tr.mdl-nota-past b,
         .content-wrapper tr.mdl-nota-member b {
-            color: #0d1117 !important;
+            color: #0f172a !important;
             font-weight: 700 !important;
         }
 
-        /* Head nota Operasi — padding & alignment seimbang */
+        /* Head nota Operasi ? padding & alignment seimbang */
         .content-wrapper .mdl-nota-card {
             overflow: hidden;
             border-radius: 0;
@@ -140,7 +143,7 @@ if (isset($data['data_operasi'])) {
             font-weight: 800;
             letter-spacing: 0;
             line-height: 1.2;
-            color: #0d1117;
+            color: #0f172a;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -198,7 +201,7 @@ if (isset($data['data_operasi'])) {
             text-decoration: none;
             white-space: nowrap;
             transition: background-color .15s ease, box-shadow .15s ease, transform .12s ease;
-            color: #1e3a5f;
+            color: #0f172a;
             background: #fff;
         }
         .content-wrapper .mdl-nota-chip i {
@@ -208,7 +211,7 @@ if (isset($data['data_operasi'])) {
         .content-wrapper .mdl-nota-chip:hover {
             text-decoration: none;
             transform: translateY(-1px);
-            box-shadow: 0 3px 8px rgba(36, 48, 65, 0.12);
+            box-shadow: 0 3px 8px rgba(15, 23, 42, 0.12);
         }
         .content-wrapper .mdl-nota-chip--icon {
             padding: 0;
@@ -216,75 +219,81 @@ if (isset($data['data_operasi'])) {
             height: 24px;
             min-width: 24px;
         }
+        /* WA ? theme green */
         .content-wrapper .mdl-nota-chip--wa {
-            color: #062e22;
-            background: linear-gradient(180deg, #e8faf2 0%, #d4f3e5 100%);
-            border-color: rgba(18, 140, 126, 0.22);
+            color: #14532d;
+            background: linear-gradient(180deg, #f0fdf4 0%, #dcfce7 100%);
+            border-color: #86efac;
         }
         .content-wrapper .mdl-nota-chip--wa i {
-            color: #0a7a68;
+            color: #16a34a;
         }
         .content-wrapper .mdl-nota-chip--wa:hover {
-            background: linear-gradient(180deg, #dff7eb 0%, #c5edd9 100%);
-            color: #062e22;
+            background: linear-gradient(180deg, #dcfce7 0%, #bbf7d0 100%);
+            color: #14532d;
         }
+        /* Pending ? theme yellow */
         .content-wrapper .mdl-nota-chip--pending {
-            color: #3d2a00;
-            background: linear-gradient(180deg, #fff8e8 0%, #ffefc8 100%);
-            border-color: rgba(201, 148, 20, 0.28);
+            color: #78350f;
+            background: linear-gradient(180deg, #fffbeb 0%, #fef3c7 100%);
+            border-color: #fcd34d;
         }
         .content-wrapper .mdl-nota-chip--pending i {
-            color: #a67a00;
+            color: #d97706;
         }
+        /* OK ? theme green */
         .content-wrapper .mdl-nota-chip--ok {
-            color: #0d3d22;
-            background: linear-gradient(180deg, #eaf8ef 0%, #d4efde 100%);
-            border-color: rgba(38, 135, 80, 0.25);
+            color: #14532d;
+            background: linear-gradient(180deg, #f0fdf4 0%, #dcfce7 100%);
+            border-color: #86efac;
         }
         .content-wrapper .mdl-nota-chip--ok i {
-            color: #1f7a45;
+            color: #15803d;
         }
+        /* Label ? theme yellow */
         .content-wrapper .mdl-nota-chip--label {
-            color: #3a2808;
-            background: linear-gradient(180deg, #fff6e9 0%, #ffe8c8 100%);
-            border-color: rgba(196, 130, 40, 0.28);
+            color: #78350f;
+            background: linear-gradient(180deg, #fffbeb 0%, #fef3c7 100%);
+            border-color: #fcd34d;
         }
         .content-wrapper .mdl-nota-chip--label i {
-            color: #b87410;
+            color: #d97706;
         }
         .content-wrapper .mdl-nota-chip--label:hover {
-            color: #3a2808;
-            background: linear-gradient(180deg, #ffefd6 0%, #ffdfb0 100%);
+            color: #78350f;
+            background: linear-gradient(180deg, #fef3c7 0%, #fde68a 100%);
         }
+        /* Add ? theme blue */
         .content-wrapper .mdl-nota-chip--add {
-            color: #0f2d5c;
-            background: linear-gradient(180deg, #eaf2fc 0%, #d6e6f8 100%);
-            border-color: rgba(47, 97, 188, 0.28);
+            color: #1e3a8a;
+            background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%);
+            border-color: #93c5fd;
         }
         .content-wrapper .mdl-nota-chip--add i {
-            color: #1f4fa0;
+            color: #2563eb;
         }
         .content-wrapper .mdl-nota-chip--add:hover {
-            color: #0f2d5c;
-            background: linear-gradient(180deg, #ddebfa 0%, #c7dbf4 100%);
+            color: #1e3a8a;
+            background: linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%);
         }
+        /* Bill ? theme yellow (bukan ungu) */
         .content-wrapper .mdl-nota-chip--bill {
-            color: #1f1848;
-            background: linear-gradient(180deg, #f0edfb 0%, #e2dcf6 100%);
-            border-color: rgba(90, 70, 170, 0.25);
+            color: #78350f;
+            background: linear-gradient(180deg, #fffbeb 0%, #fef3c7 100%);
+            border-color: #fcd34d;
         }
         .content-wrapper .mdl-nota-chip--bill i {
-            color: #4d3aa8;
+            color: #d97706;
         }
         .content-wrapper .mdl-nota-chip--bill:hover {
-            color: #1f1848;
-            background: linear-gradient(180deg, #e7e2f8 0%, #d6cef2 100%);
+            color: #78350f;
+            background: linear-gradient(180deg, #fef3c7 0%, #fde68a 100%);
         }
         .content-wrapper .mdl-nota-card > .table {
             margin-bottom: 0 !important;
         }
 
-        /* Grid nota Antrian/Operasi — jarak atas-bawah = kanan-kiri (8px) */
+        /* Grid nota Antrian/Operasi ? jarak atas-bawah = kanan-kiri (8px) */
         .content-wrapper .mdl-nota-grid {
             display: grid;
             grid-template-columns: 1fr;
@@ -409,7 +418,7 @@ if (isset($data['data_operasi'])) {
             /* di-override oleh blok MDL UI Theme di bawah */
         }
 
-        /* ===== MDL UI Theme chrome (topnav + sidebar) — lihat laundry/docs/UI_THEME.md ===== */
+        /* ===== MDL UI Theme chrome (topnav + sidebar) ? lihat laundry/docs/UI_THEME.md ===== */
         :root {
             --mdl-ink: #0f172a;
             --mdl-ink-soft: #1e293b;
@@ -1225,7 +1234,7 @@ if ($log_mode == 1) {
     <div class="wrapper">
         <?php if ($isTrainingUi) { ?>
             <div class="training-banner sticky-top">
-                MODE TRAINING — data latihan terpisah · WA &amp; payment tetap sungguhan · switch ke Live untuk operasional
+                MODE TRAINING ? data latihan terpisah ? WA &amp; payment tetap sungguhan ? switch ke Live untuk operasional
             </div>
         <?php } ?>
         <nav class="main-header navbar navbar-expand mdl-topbar sticky-top">
@@ -1281,7 +1290,7 @@ if ($log_mode == 1) {
                             $isActive = ($cid === (int) $this->id_cabang);
                             $alamat = trim((string) ($lcb['alamat'] ?? ''));
                             if (strlen($alamat) > 28) {
-                                $alamat = substr($alamat, 0, 28) . '…';
+                                $alamat = substr($alamat, 0, 28) . '?';
                             }
                         ?>
                             <button type="button"

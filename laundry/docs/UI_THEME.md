@@ -7,6 +7,7 @@ Referensi implementasi yang sudah sesuai tema:
 - Offcanvas Order → `laundry/app/Views/penjualan/penjualan_main.php` (`#ord-root`)
 - Offcanvas Pembayaran → `laundry/app/Views/operasi/partials/modals.php` (`#offcanvasPayment`)
 - Top nav + Sidebar → `laundry/app/Views/layout.php` (`.mdl-topbar`, `.main-sidebar`)
+- Antrian view → `laundry/app/Views/antrian/view_content.php` + `form.php` (warna token; layout/spacing dipertahankan)
 
 ---
 

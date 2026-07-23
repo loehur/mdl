@@ -9,7 +9,7 @@
   }
   .antrian-filter-card {
     background: #fff;
-    border: 1px solid #dde3ea;
+    border: 1px solid #cbd5e1;
     border-radius: 0;
     box-shadow: none;
     padding: 10px 12px;
@@ -30,7 +30,7 @@
     left: 12px;
     top: 50%;
     transform: translateY(-50%);
-    color: #64748b;
+    color: #94a3b8;
     font-size: 14px;
     pointer-events: none;
   }
@@ -39,7 +39,7 @@
     width: 100%;
     height: 40px;
     padding: 0 12px 0 36px;
-    border: 1px solid #d5dde6;
+    border: 1px solid #94a3b8;
     border-radius: 0;
     background: #fff;
     color: #0f172a;
@@ -50,21 +50,21 @@
     transition: border-color .12s ease, box-shadow .12s ease;
   }
   .antrian-search input::placeholder {
-    color: #64748b;
+    color: #94a3b8;
     font-weight: 600;
   }
   .antrian-search input:focus {
     background: #fff;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+    border-color: #2563eb;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22);
   }
   .antrian-periods {
     display: inline-flex;
     align-items: center;
     gap: 4px;
     padding: 3px;
-    background: #e8eef5;
-    border: 1px solid #d5dde6;
+    background: #eff6ff;
+    border: 1px solid #cbd5e1;
     border-radius: 0;
     flex: 0 0 auto;
   }
@@ -77,7 +77,7 @@
     border-radius: 0;
     border: 0;
     background: transparent;
-    color: #334155;
+    color: #1e293b;
     font-family: 'fontku', sans-serif;
     font-size: 13px;
     font-weight: 800;
@@ -88,7 +88,7 @@
   }
   .antrian-period:hover {
     color: #0f172a;
-    background: #f8fafc;
+    background: #dbeafe;
     text-decoration: none;
   }
   .antrian-period.is-active {
@@ -96,9 +96,9 @@
     color: #fff;
     box-shadow: none;
   }
-  .antrian-period.is-active[data-tone="blue"] { background: #1d4ed8; color: #fff; }
-  .antrian-period.is-active[data-tone="green"] { background: #15803d; color: #fff; }
-  .antrian-period.is-active[data-tone="cyan"] { background: #0e7490; color: #fff; }
+  .antrian-period.is-active[data-tone="blue"] { background: #2563eb; color: #fff; }
+  .antrian-period.is-active[data-tone="green"] { background: #16a34a; color: #fff; }
+  .antrian-period.is-active[data-tone="cyan"] { background: #1d4ed8; color: #fff; }
   .antrian-period.is-active[data-tone="black"] { background: #0f172a; color: #fff; }
 
   .antrian-rekap {
@@ -173,12 +173,13 @@
     font-size: 13px;
     font-weight: 600;
   }
-  .antrian-rekap-group--today .antrian-rekap-group__head { background: #c2410c; }
-  .antrian-rekap-group--rak .antrian-rekap-group__head { background: #b91c1c; }
-  .antrian-rekap-group--miss .antrian-rekap-group__head { background: #9f1239; }
-  .antrian-rekap-group--besok .antrian-rekap-group__head { background: #1d4ed8; }
-  .antrian-rekap-group--kerja .antrian-rekap-group__head { background: #0e7490; }
-  .antrian-rekap-group--antri .antrian-rekap-group__head { background: #15803d; }
+  /* Rekap tones → UI theme (nuansa lama: oranye→kuning, merah, biru, cyan→biru deep, hijau) */
+  .antrian-rekap-group--today .antrian-rekap-group__head { background: #d97706; }
+  .antrian-rekap-group--rak .antrian-rekap-group__head { background: #dc2626; }
+  .antrian-rekap-group--miss .antrian-rekap-group__head { background: #b91c1c; }
+  .antrian-rekap-group--besok .antrian-rekap-group__head { background: #2563eb; }
+  .antrian-rekap-group--kerja .antrian-rekap-group__head { background: #1d4ed8; }
+  .antrian-rekap-group--antri .antrian-rekap-group__head { background: #16a34a; }
 
   #load.antrian-load {
     padding-top: 2px;
@@ -225,13 +226,13 @@
     font-weight: 700;
     border: 0;
     border-radius: 0;
-    background: linear-gradient(135deg, #f59e0b, #ea580c);
-    color: #1a1a1a;
-    box-shadow: 0 8px 20px rgba(234, 88, 12, 0.35);
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: #0f172a;
+    box-shadow: 0 8px 20px rgba(217, 119, 6, 0.35);
   }
   #btnBukaOrderAntrian:hover {
     filter: brightness(1.05);
-    color: #1a1a1a;
+    color: #0f172a;
   }
   #btnBukaOrderAntrian.is-fab-hidden { display: none !important; }
   #offcanvasBukaOrder { z-index: 1100 !important; }

@@ -2,6 +2,74 @@
 $kodeCabang = $this->dCabang['kode_cabang'];
 $modeView = $data['modeView'];
 ?>
+<style>
+  /* Antrian view — warna UI Theme saja (layout/padding/margin tetap) */
+  #load.antrian-load,
+  #waHistoryModal,
+  #confirmCloseModal {
+    --ui-ink: #0f172a;
+    --ui-muted: #1e293b;
+    --ui-line: #94a3b8;
+    --ui-blue: #2563eb;
+    --ui-blue-deep: #1d4ed8;
+    --ui-green: #16a34a;
+    --ui-green-deep: #15803d;
+    --ui-yellow: #f59e0b;
+    --ui-yellow-deep: #d97706;
+    --ui-red: #dc2626;
+    --ui-red-deep: #b91c1c;
+  }
+  #load.antrian-load .text-primary,
+  #load.antrian-load .spinner-border.text-primary { color: var(--ui-blue) !important; }
+  #load.antrian-load .text-success,
+  #load.antrian-load .text-success i { color: var(--ui-green) !important; }
+  #load.antrian-load .text-danger,
+  #load.antrian-load .text-danger i { color: var(--ui-red) !important; }
+  #load.antrian-load .text-info,
+  #load.antrian-load .text-info i { color: var(--ui-blue) !important; }
+  #load.antrian-load .text-muted { color: var(--ui-muted) !important; }
+  #load.antrian-load .text-dark { color: var(--ui-ink) !important; }
+  #load.antrian-load .badge-success,
+  #load.antrian-load .badge.badge-success {
+    background-color: var(--ui-green) !important;
+    color: #fff !important;
+  }
+  #load.antrian-load .badge-light {
+    background-color: #eff6ff !important;
+    color: var(--ui-ink) !important;
+    border: 1px solid #93c5fd;
+  }
+  #load.antrian-load .open-wa-modal.btn-outline-danger {
+    color: var(--ui-red) !important;
+    border-color: var(--ui-red) !important;
+    background: #fff !important;
+  }
+  #load.antrian-load .open-wa-modal.btn-outline-danger:hover {
+    color: #fff !important;
+    background: var(--ui-red) !important;
+    border-color: var(--ui-red-deep) !important;
+  }
+  #waHistoryModal .modal-header.bg-danger,
+  #waHistoryModal .modal-header {
+    background: var(--ui-red) !important;
+    color: #fff !important;
+  }
+  #waHistoryModal .spinner-border.text-danger,
+  #waHistoryModal .text-danger { color: var(--ui-red) !important; }
+  #waHistoryModal .btn-success,
+  #confirmCloseModal .btn-success {
+    background: linear-gradient(180deg, var(--ui-green-deep), var(--ui-green)) !important;
+    border-color: var(--ui-green-deep) !important;
+    color: #fff !important;
+  }
+  #confirmCloseModal .text-success { color: var(--ui-green) !important; }
+  #confirmCloseModal .text-muted { color: var(--ui-muted) !important; }
+  #confirmCloseModal .btn-secondary {
+    background: #e2e8f0 !important;
+    border-color: #cbd5e1 !important;
+    color: var(--ui-ink) !important;
+  }
+</style>
 
 <?php if (!empty($data['customersWithOpenCases'])) { ?>
 <div class="row mx-0 mt-2 mb-2">
