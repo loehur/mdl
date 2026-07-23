@@ -394,7 +394,6 @@
     color: var(--pay-muted);
     margin-bottom: 6px;
   }
-  #offcanvasPayment .pay-select,
   #offcanvasPayment .pay-input {
     width: 100%;
     border: 2px solid #94a3b8;
@@ -407,8 +406,7 @@
     outline: none;
     transition: border-color .15s ease, box-shadow .15s ease;
   }
-  #offcanvasPayment .pay-input:focus,
-  #offcanvasPayment .pay-select:focus {
+  #offcanvasPayment .pay-input:focus {
     border-color: var(--pay-blue);
     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.22);
   }
@@ -416,6 +414,18 @@
     background: #fef3c7;
     border-color: #f59e0b;
     color: #92400e;
+  }
+  /* Penerima: satu border saja (hindari double form-control + selectize) */
+  #offcanvasPayment #karyawanBill.form-control,
+  #offcanvasPayment #karyawanBill.pay-select {
+    border: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+  }
+  #offcanvasPayment .selectize-control {
+    border: 0 !important;
+    background: transparent !important;
   }
   #offcanvasPayment .selectize-control.single .selectize-input {
     border: 2px solid #94a3b8 !important;
@@ -430,6 +440,9 @@
   #offcanvasPayment .selectize-control.single .selectize-input.focus {
     border-color: var(--pay-blue) !important;
     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.22) !important;
+  }
+  #offcanvasPayment .selectize-control.single .selectize-input:after {
+    border: 0 !important;
   }
   #offcanvasPayment .pay-method-grid,
   #offcanvasPayment .pay-note-grid {
@@ -454,6 +467,7 @@
     pointer-events: none;
   }
   #offcanvasPayment .pay-opt__face {
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -463,9 +477,21 @@
     padding: 10px 6px;
     border: 2px solid #cbd5e1;
     border-radius: 14px;
+    background: #f8fafc;
+    color: #64748b;
+    opacity: 0.72;
+    transition: border-color .15s ease, background .15s ease, transform .12s ease, box-shadow .15s ease, opacity .15s ease, color .15s ease;
+  }
+  #offcanvasPayment .pay-opt__face::after {
+    content: '';
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid #cbd5e1;
     background: #fff;
-    color: var(--pay-ink);
-    transition: border-color .15s ease, background .15s ease, transform .12s ease, box-shadow .15s ease;
   }
   #offcanvasPayment .pay-opt__icon {
     width: 36px;
@@ -475,7 +501,7 @@
     place-items: center;
     font-size: 1rem;
     color: #fff;
-    background: var(--pay-blue);
+    background: #94a3b8;
   }
   #offcanvasPayment .pay-opt__name {
     font-size: 0.78rem;
@@ -486,49 +512,82 @@
   #offcanvasPayment .pay-opt__extra {
     font-size: 0.68rem;
     font-weight: 800;
-    color: var(--pay-muted);
+    color: #64748b;
     line-height: 1.1;
     text-align: center;
     min-height: 0.85em;
   }
-  #offcanvasPayment .pay-opt[data-metode-id="1"] .pay-opt__face {
-    border-color: #4ade80;
-    background: linear-gradient(180deg, #dcfce7, #fff);
-  }
-  #offcanvasPayment .pay-opt[data-metode-id="1"] .pay-opt__icon { background: var(--pay-green); }
-  #offcanvasPayment .pay-opt[data-metode-id="2"] .pay-opt__face {
-    border-color: #60a5fa;
-    background: linear-gradient(180deg, #dbeafe, #fff);
-  }
-  #offcanvasPayment .pay-opt[data-metode-id="2"] .pay-opt__icon { background: var(--pay-blue); }
-  #offcanvasPayment .pay-opt[data-metode-id="3"] .pay-opt__face {
-    border-color: #fbbf24;
-    background: linear-gradient(180deg, #fef3c7, #fff);
-  }
-  #offcanvasPayment .pay-opt[data-metode-id="3"] .pay-opt__icon { background: var(--pay-yellow); color: #111; }
   #offcanvasPayment .pay-opt__face:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 10px 18px rgba(15, 23, 42, 0.12);
+    opacity: 0.92;
+    transform: translateY(-1px);
   }
+  /* Selected: sangat jelas */
   #offcanvasPayment .pay-opt.is-selected .pay-opt__face,
   #offcanvasPayment .pay-opt input:checked + .pay-opt__face {
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.22), 0 10px 18px rgba(15, 23, 42, 0.12);
+    opacity: 1;
+    color: var(--pay-ink);
+    border-width: 3px;
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(15, 23, 42, 0.14);
+  }
+  #offcanvasPayment .pay-opt.is-selected .pay-opt__face::after,
+  #offcanvasPayment .pay-opt input:checked + .pay-opt__face::after {
+    border: 0;
+    background: var(--pay-green);
+    box-shadow: 0 0 0 2px #fff;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round' d='M3.5 8.5l3 3 6-6'/%3E%3C/svg%3E");
+    background-size: 12px 12px;
+    background-repeat: no-repeat;
+    background-position: center;
   }
   #offcanvasPayment .pay-opt[data-metode-id="1"].is-selected .pay-opt__face,
   #offcanvasPayment .pay-opt[data-metode-id="1"] input:checked + .pay-opt__face {
-    box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.28), 0 10px 18px rgba(15, 23, 42, 0.12);
+    border-color: var(--pay-green);
+    background: linear-gradient(180deg, #bbf7d0, #dcfce7);
+    box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.28), 0 10px 20px rgba(22, 163, 74, 0.18);
+  }
+  #offcanvasPayment .pay-opt[data-metode-id="1"].is-selected .pay-opt__icon,
+  #offcanvasPayment .pay-opt[data-metode-id="1"] input:checked + .pay-opt__face .pay-opt__icon {
+    background: var(--pay-green);
+  }
+  #offcanvasPayment .pay-opt[data-metode-id="2"].is-selected .pay-opt__face,
+  #offcanvasPayment .pay-opt[data-metode-id="2"] input:checked + .pay-opt__face {
+    border-color: var(--pay-blue);
+    background: linear-gradient(180deg, #bfdbfe, #dbeafe);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.28), 0 10px 20px rgba(37, 99, 235, 0.18);
+  }
+  #offcanvasPayment .pay-opt[data-metode-id="2"].is-selected .pay-opt__icon,
+  #offcanvasPayment .pay-opt[data-metode-id="2"] input:checked + .pay-opt__face .pay-opt__icon {
+    background: var(--pay-blue);
   }
   #offcanvasPayment .pay-opt[data-metode-id="3"].is-selected .pay-opt__face,
   #offcanvasPayment .pay-opt[data-metode-id="3"] input:checked + .pay-opt__face {
-    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.35), 0 10px 18px rgba(15, 23, 42, 0.12);
+    border-color: var(--pay-yellow-deep);
+    background: linear-gradient(180deg, #fde68a, #fef3c7);
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.35), 0 10px 20px rgba(217, 119, 6, 0.18);
+  }
+  #offcanvasPayment .pay-opt[data-metode-id="3"].is-selected .pay-opt__icon,
+  #offcanvasPayment .pay-opt[data-metode-id="3"] input:checked + .pay-opt__face .pay-opt__icon {
+    background: var(--pay-yellow);
+    color: #111;
+  }
+  #offcanvasPayment .pay-opt[data-metode-id="1"].is-selected .pay-opt__face::after,
+  #offcanvasPayment .pay-opt[data-metode-id="1"] input:checked + .pay-opt__face::after {
+    background-color: var(--pay-green);
+  }
+  #offcanvasPayment .pay-opt[data-metode-id="2"].is-selected .pay-opt__face::after,
+  #offcanvasPayment .pay-opt[data-metode-id="2"] input:checked + .pay-opt__face::after {
+    background-color: var(--pay-blue);
+  }
+  #offcanvasPayment .pay-opt[data-metode-id="3"].is-selected .pay-opt__face::after,
+  #offcanvasPayment .pay-opt[data-metode-id="3"] input:checked + .pay-opt__face::after {
+    background-color: var(--pay-yellow-deep);
   }
   #offcanvasPayment .pay-note-grid .pay-opt__face {
     min-height: 58px;
     flex-direction: row;
     gap: 0.45rem;
     padding: 0.55rem 0.5rem;
-    border-color: #f87171;
-    background: linear-gradient(180deg, #fee2e2, #fff);
   }
   #offcanvasPayment .pay-note-grid .pay-opt__icon {
     width: 28px;
@@ -536,26 +595,49 @@
     border-radius: 9px;
     font-size: 0.82rem;
     flex-shrink: 0;
-    background: var(--pay-red);
   }
-  #offcanvasPayment .pay-note-grid .pay-opt[data-note="QRIS"] .pay-opt__face {
-    border-color: #60a5fa;
-    background: linear-gradient(180deg, #dbeafe, #fff);
+  #offcanvasPayment .pay-note-grid .pay-opt[data-note="QRIS"].is-selected .pay-opt__face,
+  #offcanvasPayment .pay-note-grid .pay-opt[data-note="QRIS"] input:checked + .pay-opt__face {
+    border-color: var(--pay-blue);
+    background: linear-gradient(180deg, #bfdbfe, #dbeafe);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.28), 0 8px 16px rgba(37, 99, 235, 0.16);
   }
-  #offcanvasPayment .pay-note-grid .pay-opt[data-note="QRIS"] .pay-opt__icon { background: var(--pay-blue); }
-  #offcanvasPayment .pay-note-grid .pay-opt[data-note="BCA"] .pay-opt__face {
-    border-color: #4ade80;
-    background: linear-gradient(180deg, #dcfce7, #fff);
+  #offcanvasPayment .pay-note-grid .pay-opt[data-note="QRIS"].is-selected .pay-opt__icon,
+  #offcanvasPayment .pay-note-grid .pay-opt[data-note="QRIS"] input:checked + .pay-opt__face .pay-opt__icon {
+    background: var(--pay-blue);
   }
-  #offcanvasPayment .pay-note-grid .pay-opt[data-note="BCA"] .pay-opt__icon { background: var(--pay-green); }
-  #offcanvasPayment .pay-note-grid .pay-opt[data-note="BRI"] .pay-opt__face {
-    border-color: #fbbf24;
-    background: linear-gradient(180deg, #fef3c7, #fff);
+  #offcanvasPayment .pay-note-grid .pay-opt[data-note="QRIS"].is-selected .pay-opt__face::after,
+  #offcanvasPayment .pay-note-grid .pay-opt[data-note="QRIS"] input:checked + .pay-opt__face::after {
+    background-color: var(--pay-blue);
   }
-  #offcanvasPayment .pay-note-grid .pay-opt[data-note="BRI"] .pay-opt__icon { background: var(--pay-yellow); color: #111; }
-  #offcanvasPayment .pay-note-grid .pay-opt.is-selected .pay-opt__face,
-  #offcanvasPayment .pay-note-grid .pay-opt input:checked + .pay-opt__face {
-    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.22), 0 8px 16px rgba(15, 23, 42, 0.12);
+  #offcanvasPayment .pay-note-grid .pay-opt[data-note="BCA"].is-selected .pay-opt__face,
+  #offcanvasPayment .pay-note-grid .pay-opt[data-note="BCA"] input:checked + .pay-opt__face {
+    border-color: var(--pay-green);
+    background: linear-gradient(180deg, #bbf7d0, #dcfce7);
+    box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.28), 0 8px 16px rgba(22, 163, 74, 0.16);
+  }
+  #offcanvasPayment .pay-note-grid .pay-opt[data-note="BCA"].is-selected .pay-opt__icon,
+  #offcanvasPayment .pay-note-grid .pay-opt[data-note="BCA"] input:checked + .pay-opt__face .pay-opt__icon {
+    background: var(--pay-green);
+  }
+  #offcanvasPayment .pay-note-grid .pay-opt[data-note="BCA"].is-selected .pay-opt__face::after,
+  #offcanvasPayment .pay-note-grid .pay-opt[data-note="BCA"] input:checked + .pay-opt__face::after {
+    background-color: var(--pay-green);
+  }
+  #offcanvasPayment .pay-note-grid .pay-opt[data-note="BRI"].is-selected .pay-opt__face,
+  #offcanvasPayment .pay-note-grid .pay-opt[data-note="BRI"] input:checked + .pay-opt__face {
+    border-color: var(--pay-yellow-deep);
+    background: linear-gradient(180deg, #fde68a, #fef3c7);
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.35), 0 8px 16px rgba(217, 119, 6, 0.16);
+  }
+  #offcanvasPayment .pay-note-grid .pay-opt[data-note="BRI"].is-selected .pay-opt__icon,
+  #offcanvasPayment .pay-note-grid .pay-opt[data-note="BRI"] input:checked + .pay-opt__face .pay-opt__icon {
+    background: var(--pay-yellow);
+    color: #111;
+  }
+  #offcanvasPayment .pay-note-grid .pay-opt[data-note="BRI"].is-selected .pay-opt__face::after,
+  #offcanvasPayment .pay-note-grid .pay-opt[data-note="BRI"] input:checked + .pay-opt__face::after {
+    background-color: var(--pay-yellow-deep);
   }
   #offcanvasPayment .pay-note-grid .pay-opt__name {
     font-size: 0.82rem;
@@ -750,7 +832,7 @@
 
             <div class="pay-field">
               <div class="pay-field-label">Penerima</div>
-              <select name="karyawanBill" id="karyawanBill" class="form-control form-control-sm tize pay-select" style="width: 100%;" required>
+              <select name="karyawanBill" id="karyawanBill" class="tize" style="width: 100%;" required>
                 <option value="" selected disabled></option>
                 <optgroup label="<?= $this->dCabang['nama'] ?> [<?= $this->dCabang['kode_cabang'] ?>]">
                   <?php foreach ($this->user as $a) { ?>
