@@ -702,6 +702,10 @@
       return;
     }
 
+    // Tujuan non-tunai hanya relevan untuk metode Non Tunai (2)
+    if (String(metodeBill) !== "2") {
+      noteBill = "";
+    }
     noteBill = (noteBill || "").replace(" ", "_SPACE_");
 
     var postData = {
@@ -1066,10 +1070,104 @@
     bayarBill();
   });
 
+  function metodeBillIcon(id) {
+    if (String(id) === "1") return "fa-money-bill-wave";
+    if (String(id) === "2") return "fa-credit-card";
+    if (String(id) === "3") return "fa-wallet";
+    return "fa-coins";
+  }
+
+  function parseMetodeOptionText(text) {
+    var raw = String(text || "").trim();
+    var match = raw.match(/^(.*?)(\[\s*.*?\s*\])\s*$/);
+    if (match) {
+      return { name: match[1].trim(), extra: match[2].trim() };
+    }
+    return { name: raw, extra: "" };
+  }
+
+  function syncMetodeRadiosFromSelect() {
+    var val = String($("#metodeBill").val() || "");
+    var $grid = $("#metodeBillRadios");
+    if (!$grid.length) return;
+    $grid.find(".pay-opt").removeClass("is-selected");
+    $grid.find('input[name="metodeBillRadio"]').prop("checked", false);
+    var $input = $grid.find('input[name="metodeBillRadio"][value="' + val + '"]');
+    if ($input.length) {
+      $input.prop("checked", true);
+      $input.closest(".pay-opt").addClass("is-selected");
+    }
+  }
+
+  function refreshMetodeRadios() {
+    var $grid = $("#metodeBillRadios");
+    var $sel = $("#metodeBill");
+    if (!$grid.length || !$sel.length) return;
+    var current = String($sel.val() || "");
+    var html = "";
+    $sel.find("option").each(function () {
+      var val = String($(this).val());
+      var parsed = parseMetodeOptionText($(this).text());
+      var selected = val === current;
+      html +=
+        '<label class="pay-opt' + (selected ? " is-selected" : "") + '" data-metode-id="' + val + '">' +
+        '<input type="radio" name="metodeBillRadio" value="' + val + '"' + (selected ? " checked" : "") + ">" +
+        '<span class="pay-opt__face">' +
+        '<span class="pay-opt__icon"><i class="fas ' + metodeBillIcon(val) + '"></i></span>' +
+        '<span class="pay-opt__name">' + $("<div>").text(parsed.name).html() + "</span>" +
+        '<span class="pay-opt__extra">' + $("<div>").text(parsed.extra).html() + "</span>" +
+        "</span></label>";
+    });
+    $grid.html(html);
+  }
+
+  function syncNoteRadiosFromSelect() {
+    var val = String($("#noteBill").val() || "QRIS");
+    var $grid = $("#noteBillRadios");
+    if (!$grid.length) return;
+    $grid.find(".pay-opt").removeClass("is-selected");
+    $grid.find('input[name="noteBillRadio"]').prop("checked", false);
+    var $input = $grid.find('input[name="noteBillRadio"][value="' + val + '"]');
+    if (!$input.length) {
+      $input = $grid.find('input[name="noteBillRadio"][value="QRIS"]');
+      if ($input.length) {
+        $("#noteBill").val("QRIS");
+        val = "QRIS";
+      }
+    }
+    if ($input.length) {
+      $input.prop("checked", true);
+      $input.closest(".pay-opt").addClass("is-selected");
+    }
+  }
+
+  function setDefaultNoteQris() {
+    var $note = $("#noteBill");
+    if (!$note.length) return;
+    if (!$note.find('option[value="QRIS"]').length) {
+      var first = $note.find("option").first().val();
+      if (first) $note.val(first);
+    } else {
+      $note.val("QRIS");
+    }
+    syncNoteRadiosFromSelect();
+  }
+
+  $(document).on("change", 'input[name="metodeBillRadio"]', function () {
+    $("#metodeBill").val($(this).val()).trigger("change");
+    syncMetodeRadiosFromSelect();
+  });
+
+  $(document).on("change", 'input[name="noteBillRadio"]', function () {
+    $("#noteBill").val($(this).val());
+    syncNoteRadiosFromSelect();
+  });
+
   $("select.metodeBayarBill").on("keyup change", function () {
     if ($(this).val() == 2) {
       $("tr#nTunaiBill").show();
       $("#noteBill").prop("required", true);
+      setDefaultNoteQris();
     } else {
       $("tr#nTunaiBill").hide();
       $("#noteBill").prop("required", false);
@@ -1077,6 +1175,7 @@
     if ($(this).val() != "3") {
       resetTanggungBayar();
     }
+    syncMetodeRadiosFromSelect();
   });
 
   var tbListData = [];
@@ -1090,17 +1189,25 @@
     $("#rowTanggungBayar").removeClass("d-none");
     tbSelected = null;
     $("#tbKonfirmasi").addClass("d-none");
+    var needRefresh = false;
     if (tbMetodeSaldoOrigText !== null) {
       $("#metodeBill option[value='3']").text(tbMetodeSaldoOrigText);
       tbMetodeSaldoOrigText = null;
+      needRefresh = true;
     }
     if (tbMetodeSaldoAdded) {
       $("#metodeBill option[value='3']").remove();
       tbMetodeSaldoAdded = false;
+      needRefresh = true;
+      refreshMetodeRadios();
       var $metode = $("#metodeBill");
       if ($metode.find("option").length > 0) {
         $metode.val($metode.find("option:first").val()).trigger("change");
       }
+      return;
+    }
+    if (needRefresh) {
+      refreshMetodeRadios();
     }
   }
 
@@ -1121,7 +1228,9 @@
       }
       $opt.text("Saldo Tunai (Tanggung Bayar) [ " + labelSaldo + " ]");
     }
-    $sel.val("3").trigger("change");
+    $sel.val("3");
+    refreshMetodeRadios();
+    $sel.trigger("change");
   }
 
   function renderListPenanggungBayar(filter) {

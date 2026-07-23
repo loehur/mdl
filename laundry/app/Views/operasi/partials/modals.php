@@ -293,6 +293,130 @@
 </form>
 </form>
 
+<style>
+  #offcanvasPayment {
+    --pay-accent: #0f9f6e;
+    --pay-accent-soft: #e8f8f1;
+    --pay-ink: #16302a;
+    --pay-muted: #5f746d;
+    --pay-line: #d7e5df;
+    --pay-card: #ffffff;
+  }
+  #offcanvasPayment .pay-field-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--pay-muted);
+    margin-bottom: 0.45rem;
+  }
+  #offcanvasPayment .pay-method-grid,
+  #offcanvasPayment .pay-note-grid {
+    display: grid;
+    gap: 0.5rem;
+  }
+  #offcanvasPayment .pay-method-grid {
+    grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  }
+  #offcanvasPayment .pay-note-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  #offcanvasPayment .pay-opt {
+    position: relative;
+    margin: 0;
+    cursor: pointer;
+    user-select: none;
+  }
+  #offcanvasPayment .pay-opt input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+  #offcanvasPayment .pay-opt__face {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    min-height: 78px;
+    padding: 0.7rem 0.45rem;
+    border: 1.5px solid var(--pay-line);
+    border-radius: 14px;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.96), rgba(247,252,250,0.96)),
+      radial-gradient(120% 80% at 50% 0%, rgba(15,159,110,0.08), transparent 55%);
+    box-shadow: 0 1px 0 rgba(255,255,255,0.8) inset;
+    color: var(--pay-ink);
+    transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease, background .18s ease;
+  }
+  #offcanvasPayment .pay-opt__icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 11px;
+    display: grid;
+    place-items: center;
+    background: #edf6f2;
+    color: var(--pay-accent);
+    font-size: 0.95rem;
+  }
+  #offcanvasPayment .pay-opt__name {
+    font-size: 0.78rem;
+    font-weight: 700;
+    line-height: 1.15;
+    text-align: center;
+  }
+  #offcanvasPayment .pay-opt__extra {
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: var(--pay-muted);
+    line-height: 1.1;
+    text-align: center;
+  }
+  #offcanvasPayment .pay-opt__face:hover {
+    border-color: #9fd4bf;
+    transform: translateY(-1px);
+  }
+  #offcanvasPayment .pay-opt.is-selected .pay-opt__face,
+  #offcanvasPayment .pay-opt input:checked + .pay-opt__face {
+    border-color: var(--pay-accent);
+    background:
+      linear-gradient(180deg, #f3fcf8, var(--pay-accent-soft));
+    box-shadow: 0 0 0 3px rgba(15,159,110,0.16), 0 8px 18px rgba(15,159,110,0.12);
+  }
+  #offcanvasPayment .pay-opt.is-selected .pay-opt__icon,
+  #offcanvasPayment .pay-opt input:checked + .pay-opt__face .pay-opt__icon {
+    background: var(--pay-accent);
+    color: #fff;
+  }
+  #offcanvasPayment .pay-note-grid .pay-opt__face {
+    min-height: 64px;
+    flex-direction: row;
+    gap: 0.45rem;
+    padding: 0.55rem 0.5rem;
+  }
+  #offcanvasPayment .pay-note-grid .pay-opt__icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 9px;
+    font-size: 0.82rem;
+    flex-shrink: 0;
+  }
+  #offcanvasPayment .pay-note-grid .pay-opt__name {
+    font-size: 0.82rem;
+  }
+  #offcanvasPayment .pay-sr-only {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+  }
+</style>
+
 <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasPayment" aria-labelledby="offcanvasPaymentLabel" data-bs-backdrop="true" data-bs-scroll="true" style="z-index: 1100;">
   <div class="offcanvas-header bg-success bg-gradient">
     <h5 class="offcanvas-title" id="offcanvasPaymentLabel">Pembayaran</h5>
@@ -325,16 +449,52 @@
                       </select></td>
                   </tr>
                   <tr>
-                    <td>Metode</td>
-                    <td colspan="2" class="pb-2"><select name="metodeBill" id="metodeBill" class="form-control form-control-sm metodeBayarBill" style="width: 100%;" required>
-                        <?php foreach ($this->dMetodeMutasi as $a) {
+                    <td colspan="3" class="pb-2 pt-2">
+                      <div class="pay-field-label">Metode Pembayaran</div>
+                      <div class="pay-method-grid" id="metodeBillRadios">
+                        <?php
+                        $metodeFirst = true;
+                        foreach ($this->dMetodeMutasi as $a) {
+                          if ($data['saldoTunai'] <= 0 && $a['id_metode_mutasi'] == 3) {
+                            continue;
+                          }
+                          $mid = (int)$a['id_metode_mutasi'];
+                          $mname = $a['metode_mutasi'];
+                          $mextra = ($mid == 3) ? ('[ ' . number_format($data['saldoTunai']) . ' ]') : '';
+                          $micon = 'fa-coins';
+                          if ($mid == 1) $micon = 'fa-money-bill-wave';
+                          elseif ($mid == 2) $micon = 'fa-credit-card';
+                          elseif ($mid == 3) $micon = 'fa-wallet';
+                          ?>
+                          <label class="pay-opt<?= $metodeFirst ? ' is-selected' : '' ?>" data-metode-id="<?= $mid ?>">
+                            <input type="radio" name="metodeBillRadio" value="<?= $mid ?>"<?= $metodeFirst ? ' checked' : '' ?>>
+                            <span class="pay-opt__face">
+                              <span class="pay-opt__icon"><i class="fas <?= $micon ?>"></i></span>
+                              <span class="pay-opt__name"><?= htmlspecialchars($mname) ?></span>
+                              <?php if ($mextra !== '') { ?>
+                                <span class="pay-opt__extra"><?= htmlspecialchars($mextra) ?></span>
+                              <?php } else { ?>
+                                <span class="pay-opt__extra"></span>
+                              <?php } ?>
+                            </span>
+                          </label>
+                        <?php
+                          $metodeFirst = false;
+                        } ?>
+                      </div>
+                      <select name="metodeBill" id="metodeBill" class="metodeBayarBill pay-sr-only" required tabindex="-1" aria-hidden="true">
+                        <?php
+                        $metodeFirstOpt = true;
+                        foreach ($this->dMetodeMutasi as $a) {
                           if ($data['saldoTunai'] <= 0 && $a['id_metode_mutasi'] == 3) {
                             continue;
                           } ?>
-                          <option value="<?= $a['id_metode_mutasi'] ?>"><?= $a['metode_mutasi'] ?> <?= ($a['id_metode_mutasi'] == 3) ? "[ " . number_format($data['saldoTunai']) . " ]" : "" ?></option>
-                        <?php } ?>
-                      </select></td>
-                    <td></td>
+                          <option value="<?= $a['id_metode_mutasi'] ?>"<?= $metodeFirstOpt ? ' selected' : '' ?>><?= $a['metode_mutasi'] ?> <?= ($a['id_metode_mutasi'] == 3) ? "[ " . number_format($data['saldoTunai']) . " ]" : "" ?></option>
+                        <?php
+                          $metodeFirstOpt = false;
+                        } ?>
+                      </select>
+                    </td>
                   </tr>
                   <tr id="rowTanggungBayar">
                     <td colspan="3" class="pb-2">
@@ -358,16 +518,30 @@
                     </td>
                   </tr>
                   <tr id="nTunaiBill" class="border-top">
-                    <td style="vertical-align: bottom;" class="pr-2 pb-2" nowrap><br>Tujuan</td>
-                    <td colspan="2" class="pb-2 pt-2">
-                      <select name="noteBill" id="noteBill" class="form-control border-danger" required>
-                        <option value="" selected>Pilih Pembayaran</option>
-                        <?php foreach (URL::NON_TUNAI as $ntm) { ?>
-                          <option value="<?= $ntm ?>"><?= $ntm ?></option>
+                    <td colspan="3" class="pb-2 pt-2">
+                      <div class="pay-field-label">Tujuan Non Tunai</div>
+                      <div class="pay-note-grid" id="noteBillRadios">
+                        <?php foreach (URL::NON_TUNAI as $ntm) {
+                          $isQris = strtoupper($ntm) === 'QRIS';
+                          $nicon = $isQris ? 'fa-qrcode' : 'fa-university';
+                          ?>
+                          <label class="pay-opt<?= $isQris ? ' is-selected' : '' ?>" data-note="<?= htmlspecialchars($ntm) ?>">
+                            <input type="radio" name="noteBillRadio" value="<?= htmlspecialchars($ntm) ?>"<?= $isQris ? ' checked' : '' ?>>
+                            <span class="pay-opt__face">
+                              <span class="pay-opt__icon"><i class="fas <?= $nicon ?>"></i></span>
+                              <span class="pay-opt__name"><?= htmlspecialchars($ntm) ?></span>
+                            </span>
+                          </label>
+                        <?php } ?>
+                      </div>
+                      <select name="noteBill" id="noteBill" class="pay-sr-only" tabindex="-1" aria-hidden="true">
+                        <?php foreach (URL::NON_TUNAI as $ntm) {
+                          $isQris = strtoupper($ntm) === 'QRIS';
+                          ?>
+                          <option value="<?= $ntm ?>"<?= $isQris ? ' selected' : '' ?>><?= $ntm ?></option>
                         <?php } ?>
                       </select>
                     </td>
-                    <td></td>
                   </tr>
                   <tr class="">
                     <td colspan="3" class="pb-1"></td>
