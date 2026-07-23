@@ -1,17 +1,19 @@
 /**
  * Local print server helper (PC printer_server / Android Print Bridge)
- * Endpoint: http://localhost:3000
+ * Tries localhost then 127.0.0.1. Always re-probes before print if not known-good.
  */
 (function (window) {
   "use strict";
 
-  var BASE = "http://localhost:3000";
-  var PROBE_MS = 800;
-  var PRINT_MS = 3000;
-  var CACHE_MS = 30000;
+  var BASES = ["http://localhost:3000", "http://127.0.0.1:3000"];
+  var PROBE_MS = 2000;
+  var PRINT_MS = 8000;
+  var CACHE_OK_MS = 30000;
+  var CACHE_FAIL_MS = 3000; // short — allow quick retry after Start Server
 
   var state = {
-    ready: null, // null = unknown, true/false after probe
+    ready: null,
+    base: BASES[0],
     checkedAt: 0,
     probing: null,
   };
@@ -22,7 +24,7 @@
 
   function offlineMessage() {
     if (isAndroid()) {
-      return "Print Bridge tidak aktif di localhost:3000. Buka app Print Bridge lalu Start Server.";
+      return "Print Bridge tidak aktif di localhost:3000. Pastikan app Print Bridge Start Server, lalu refresh halaman.";
     }
     return "Print server tidak aktif di localhost:3000. Jalankan printer_server di PC.";
   }
@@ -43,19 +45,30 @@
     var timer = setTimeout(function () {
       controller.abort();
     }, timeoutMs);
-    var opts = options || {};
-    opts.signal = controller.signal;
+    var opts = Object.assign({}, options || {}, { signal: controller.signal });
     return fetch(url, opts).finally(function () {
       clearTimeout(timer);
     });
   }
 
+  function probeOne(base) {
+    return fetchWithTimeout(
+      base + "/health",
+      { method: "GET", cache: "no-store", mode: "cors" },
+      PROBE_MS
+    ).then(function (res) {
+      if (res && res.ok) return base;
+      throw new Error("health not ok");
+    });
+  }
+
   function probe(force) {
     var now = Date.now();
+    var ttl = state.ready === true ? CACHE_OK_MS : CACHE_FAIL_MS;
     if (
       !force &&
       state.ready !== null &&
-      now - state.checkedAt < CACHE_MS
+      now - state.checkedAt < ttl
     ) {
       return Promise.resolve(state.ready);
     }
@@ -63,15 +76,24 @@
       return state.probing;
     }
 
-    state.probing = fetchWithTimeout(
-      BASE + "/health",
-      { method: "GET", cache: "no-store" },
-      PROBE_MS
-    )
-      .then(function (res) {
-        state.ready = !!(res && res.ok);
+    // Prefer last known good base first
+    var order = [state.base].concat(
+      BASES.filter(function (b) {
+        return b !== state.base;
+      })
+    );
+
+    state.probing = order
+      .reduce(function (p, base) {
+        return p.catch(function () {
+          return probeOne(base);
+        });
+      }, Promise.reject())
+      .then(function (base) {
+        state.base = base;
+        state.ready = true;
         state.checkedAt = Date.now();
-        return state.ready;
+        return true;
       })
       .catch(function () {
         state.ready = false;
@@ -86,25 +108,14 @@
   }
 
   /**
-   * Ensure server is up.
-   * - cache true + fresh → OK
-   * - cache false + fresh → fail instantly (0 lag)
-   * - unknown / stale → probe (800ms)
+   * Before print: if recently OK, skip; otherwise always re-probe
+   * (including after a short fail cache).
    */
   function ensureReady() {
     var now = Date.now();
-    var fresh = state.ready !== null && now - state.checkedAt < CACHE_MS;
-
-    if (fresh && state.ready === true) {
+    if (state.ready === true && now - state.checkedAt < CACHE_OK_MS) {
       return Promise.resolve(true);
     }
-    if (fresh && state.ready === false) {
-      var offline = new Error("PRINT_SERVER_OFFLINE");
-      offline.name = "PrintServerOffline";
-      return Promise.reject(offline);
-    }
-
-    // null or stale → re-probe
     return probe(true).then(function (ok) {
       if (!ok) {
         var err = new Error("PRINT_SERVER_OFFLINE");
@@ -118,7 +129,8 @@
   function isPrintServerReady() {
     var now = Date.now();
     if (state.ready === null) return null;
-    if (now - state.checkedAt >= CACHE_MS) return null;
+    var ttl = state.ready === true ? CACHE_OK_MS : CACHE_FAIL_MS;
+    if (now - state.checkedAt >= ttl) return null;
     return state.ready;
   }
 
@@ -126,21 +138,15 @@
     timeoutMs = timeoutMs || PRINT_MS;
     return ensureReady().then(function () {
       return fetchWithTimeout(
-        BASE + path,
+        state.base + path,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(bodyObj || {}),
+          mode: "cors",
         },
         timeoutMs
-      ).then(function (res) {
-        // Mark offline if connection somehow fails status-wise after ensure
-        if (!res.ok && res.status === 0) {
-          state.ready = false;
-          state.checkedAt = Date.now();
-        }
-        return res;
-      });
+      );
     }).catch(function (err) {
       if (
         err &&
@@ -178,7 +184,6 @@
     PROBE_MS: PROBE_MS,
   };
 
-  // Back-compat aliases used by view_load.js
   window.printServerFetch = function (path, bodyObj, timeoutMs) {
     return printFetch(path, bodyObj, timeoutMs);
   };
@@ -187,7 +192,6 @@
   window.printServerEnsureReady = ensureReady;
   window.isPrintServerReady = isPrintServerReady;
 
-  // Background probe on load (non-blocking)
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", function () {
       probe(false);

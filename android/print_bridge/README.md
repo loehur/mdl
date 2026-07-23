@@ -40,6 +40,8 @@ APK: `app/build/outputs/apk/debug/app-debug.apk`
 - Listen hanya di `127.0.0.1:3000` (bukan jaringan).
 - Butuh Classic Bluetooth SPP (bukan BLE/Web Bluetooth).
 - Laundry harus HTTP (bukan HTTPS) agar browser boleh memanggil `http://localhost`.
+- Chrome (halaman LAN → localhost) butuh CORS Private Network Access; bridge mengirim `Access-Control-Allow-Private-Network: true`.
+- Setelah update APK: uninstall/install ulang, Start Server, lalu **hard refresh** laundry.
 
 ## Checklist uji manual
 

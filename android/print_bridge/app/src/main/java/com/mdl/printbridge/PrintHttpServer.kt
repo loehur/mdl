@@ -31,25 +31,35 @@ class PrintHttpServer(
         }
     }
 
-    override fun serve(session: IHTTPSession): Response {
-        if (session.method == Method.OPTIONS) {
-            val cors = newFixedLengthResponse(Response.Status.OK, MIME_PLAINTEXT, "")
-            addCors(cors)
-            return cors
-        }
+    /** Current request — used so CORS can echo Origin / Private-Network. */
+    @Volatile
+    private var currentSession: IHTTPSession? = null
 
-        return try {
-            when {
-                session.method == Method.GET && session.uri == "/" -> handleRoot()
-                session.method == Method.GET && session.uri == "/health" -> handleHealth()
-                session.method == Method.POST && session.uri == "/print" -> handlePrint(session)
-                session.method == Method.POST && session.uri == "/printqr" -> handlePrintQr(session)
-                else -> jsonError(404, "Not found")
+    override fun serve(session: IHTTPSession): Response {
+        currentSession = session
+        try {
+            if (session.method == Method.OPTIONS) {
+                onLog("OPTIONS ${session.uri} origin=${session.headers["origin"]}")
+                val cors = newFixedLengthResponse(Response.Status.NO_CONTENT, MIME_PLAINTEXT, "")
+                addCors(cors)
+                return cors
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "serve error", e)
-            onLog("ERROR: ${e.message}")
-            jsonError(500, e.message ?: "Internal error")
+
+            return try {
+                when {
+                    session.method == Method.GET && session.uri == "/" -> handleRoot()
+                    session.method == Method.GET && session.uri == "/health" -> handleHealth()
+                    session.method == Method.POST && session.uri == "/print" -> handlePrint(session)
+                    session.method == Method.POST && session.uri == "/printqr" -> handlePrintQr(session)
+                    else -> jsonError(404, "Not found")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "serve error", e)
+                onLog("ERROR: ${e.message}")
+                jsonError(500, e.message ?: "Internal error")
+            }
+        } finally {
+            currentSession = null
         }
     }
 
@@ -259,10 +269,28 @@ class PrintHttpServer(
         return r
     }
 
+    /**
+     * CORS + Chrome Private Network Access (halaman LAN → localhost).
+     * Echo Origin (dibutuhkan bersama Allow-Private-Network di Chrome modern).
+     */
     private fun addCors(r: Response) {
-        r.addHeader("Access-Control-Allow-Origin", "*")
+        val session = currentSession
+        val origin = session?.headers?.get("origin")
+            ?: session?.headers?.get("Origin")
+
+        if (!origin.isNullOrBlank()) {
+            r.addHeader("Access-Control-Allow-Origin", origin)
+            r.addHeader("Vary", "Origin")
+        } else {
+            r.addHeader("Access-Control-Allow-Origin", "*")
+        }
+
         r.addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        r.addHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        r.addHeader(
+            "Access-Control-Allow-Headers",
+            "Content-Type, Authorization, Access-Control-Request-Private-Network"
+        )
+        r.addHeader("Access-Control-Allow-Private-Network", "true")
         r.addHeader("Access-Control-Max-Age", "86400")
     }
 }
