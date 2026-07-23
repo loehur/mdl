@@ -87,10 +87,10 @@
       <button
         v-if="invoice.payment_status !== 'paid' && invoice.status !== 'cancelled'"
         class="btn-primary w-full"
-        :disabled="markingPaid"
-        @click="markAsPaid"
+        :disabled="actionLoading"
+        @click="openConfirm('paid')"
       >
-        {{ markingPaid ? "Memproses..." : "Tandai Lunas" }}
+        Tandai Lunas
       </button>
 
       <router-link
@@ -104,7 +104,8 @@
       <button
         v-if="invoice.payment_status !== 'paid' && invoice.status !== 'cancelled'"
         class="btn-debit w-full"
-        @click="cancelInvoice"
+        :disabled="actionLoading"
+        @click="openConfirm('cancel')"
       >
         Batalkan Invoice
       </button>
@@ -112,21 +113,35 @@
       <button
         v-if="invoice.status === 'cancelled'"
         class="btn-debit w-full"
-        @click="deleteInvoice"
+        :disabled="actionLoading"
+        @click="openConfirm('delete')"
       >
         Hapus Invoice
       </button>
 
       <AlertBanner :message="message" :type="isError ? 'error' : 'success'" />
     </template>
+
+    <ConfirmModal
+      :open="confirmOpen"
+      :title="confirmConfig.title"
+      :message="confirmConfig.message"
+      :detail="confirmConfig.detail"
+      :confirm-label="confirmConfig.confirmLabel"
+      :variant="confirmConfig.variant"
+      :loading="actionLoading"
+      @confirm="runConfirmedAction"
+      @cancel="closeConfirm"
+    />
   </div>
 </template>
 
 <script setup>
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import PageLoader from "../components/PageLoader.vue";
 import AlertBanner from "../components/AlertBanner.vue";
+import ConfirmModal from "../components/ConfirmModal.vue";
 import { formatDate, formatRupiahDisplay } from "../utils/format";
 import { invoiceStatusChipClass, invoiceStatusLabel } from "../utils/invoiceStatus";
 
@@ -138,7 +153,65 @@ const invoice = ref(null);
 const copied = ref(false);
 const message = ref("");
 const isError = ref(false);
-const markingPaid = ref(false);
+const actionLoading = ref(false);
+const confirmOpen = ref(false);
+const confirmAction = ref(null);
+
+const confirmConfig = computed(() => {
+  const inv = invoice.value;
+  const number = inv?.invoice_number || "";
+  const total = inv ? formatRupiahDisplay(inv.total) : "";
+  const customer = inv?.customer_name || "";
+
+  if (confirmAction.value === "paid") {
+    return {
+      title: "Tandai Lunas?",
+      message: "Gunakan ini jika pelanggan sudah membayar di luar QRIS (transfer, tunai, atau metode lain).",
+      detail: `${number} · ${customer} · ${total}`,
+      confirmLabel: "Ya, Tandai Lunas",
+      variant: "success",
+    };
+  }
+
+  if (confirmAction.value === "cancel") {
+    return {
+      title: "Batalkan Invoice?",
+      message: "Invoice yang dibatalkan tidak bisa dibayar pelanggan. Anda masih bisa menghapusnya nanti.",
+      detail: `${number} · ${customer}`,
+      confirmLabel: "Ya, Batalkan",
+      variant: "danger",
+    };
+  }
+
+  if (confirmAction.value === "delete") {
+    return {
+      title: "Hapus Permanen?",
+      message: "Tindakan ini tidak dapat dibatalkan. Data invoice akan dihapus selamanya.",
+      detail: `${number} · ${customer}`,
+      confirmLabel: "Ya, Hapus",
+      variant: "danger",
+    };
+  }
+
+  return {
+    title: "Konfirmasi",
+    message: "",
+    detail: "",
+    confirmLabel: "Ya",
+    variant: "info",
+  };
+});
+
+function openConfirm(action) {
+  confirmAction.value = action;
+  confirmOpen.value = true;
+}
+
+function closeConfirm() {
+  if (actionLoading.value) return;
+  confirmOpen.value = false;
+  confirmAction.value = null;
+}
 
 async function loadDetail() {
   loading.value = true;
@@ -183,12 +256,18 @@ async function copyLink() {
   }
 }
 
-async function markAsPaid() {
-  if (!confirm("Tandai invoice ini sebagai LUNAS secara manual?\n\nGunakan jika pelanggan sudah bayar di luar QRIS (transfer/tunai).")) {
-    return;
+async function runConfirmedAction() {
+  if (confirmAction.value === "paid") {
+    await doMarkAsPaid();
+  } else if (confirmAction.value === "cancel") {
+    await doCancelInvoice();
+  } else if (confirmAction.value === "delete") {
+    await doDeleteInvoice();
   }
+}
 
-  markingPaid.value = true;
+async function doMarkAsPaid() {
+  actionLoading.value = true;
   message.value = "";
   try {
     const res = await fetch("/api/Invoice/Invoices/markPaid", {
@@ -198,6 +277,8 @@ async function markAsPaid() {
     });
     const data = await res.json();
     if (res.ok && data.status) {
+      confirmOpen.value = false;
+      confirmAction.value = null;
       await loadDetail();
       message.value = data.message || "Invoice berhasil ditandai lunas";
       isError.value = false;
@@ -209,13 +290,12 @@ async function markAsPaid() {
     message.value = "Gagal menandai lunas";
     isError.value = true;
   } finally {
-    markingPaid.value = false;
+    actionLoading.value = false;
   }
 }
 
-async function cancelInvoice() {
-  if (!confirm("Batalkan invoice ini?")) return;
-
+async function doCancelInvoice() {
+  actionLoading.value = true;
   try {
     const res = await fetch("/api/Invoice/Invoices/cancel", {
       method: "POST",
@@ -224,6 +304,8 @@ async function cancelInvoice() {
     });
     const data = await res.json();
     if (res.ok && data.status) {
+      confirmOpen.value = false;
+      confirmAction.value = null;
       await loadDetail();
       message.value = "Invoice berhasil dibatalkan";
       isError.value = false;
@@ -234,12 +316,13 @@ async function cancelInvoice() {
   } catch {
     message.value = "Gagal membatalkan invoice";
     isError.value = true;
+  } finally {
+    actionLoading.value = false;
   }
 }
 
-async function deleteInvoice() {
-  if (!confirm("Hapus invoice ini secara permanen?")) return;
-
+async function doDeleteInvoice() {
+  actionLoading.value = true;
   try {
     const res = await fetch("/api/Invoice/Invoices/delete", {
       method: "POST",
@@ -248,6 +331,8 @@ async function deleteInvoice() {
     });
     const data = await res.json();
     if (res.ok && data.status) {
+      confirmOpen.value = false;
+      confirmAction.value = null;
       router.push("/riwayat");
     } else {
       message.value = data.message || "Gagal menghapus invoice";
@@ -256,6 +341,8 @@ async function deleteInvoice() {
   } catch {
     message.value = "Gagal menghapus invoice";
     isError.value = true;
+  } finally {
+    actionLoading.value = false;
   }
 }
 
