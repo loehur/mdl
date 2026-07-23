@@ -23,16 +23,16 @@
 
         <!-- QR Display -->
         <div class="qr-display" id="qr-display">
-            <div class="status-box disconnected" id="status-box"></div>
+            <div class="qr-header">
+                <div class="status-row">
+                    <div class="status-box disconnected" id="status-box"></div>
+                    <span class="status-label" id="status-label"></span>
+                </div>
+                <button type="button" class="btn-logout" id="btn-logout" onclick="logout()">Keluar</button>
+            </div>
             <div id="qr-container"></div>
             <div id="qr-text"></div>
             <div class="kasir-id-label" id="kasir-id-label"></div>
-        </div>
-
-        <!-- Connection Overlay (WebSocket / network) -->
-        <div class="connection-overlay" id="connection-overlay">
-            <div class="connection-spinner"></div>
-            <div class="connection-text" id="connection-text">Menghubungkan ke server…</div>
         </div>
 
         <!-- Payment Success Overlay -->
