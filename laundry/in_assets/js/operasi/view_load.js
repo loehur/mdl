@@ -163,7 +163,7 @@
 
   $(document).ready(function () {
     clearTuntas();
-    $("tr#nTunaiBill").hide();
+    $("#nTunaiBill").hide();
     $("#noteBill").prop("required", false);
     $("select.tize").selectize();
     window.totalBill = $("span#totalBill").attr("data-total");
@@ -772,7 +772,7 @@
       },
       complete: function () {
         $(".loaderDiv").fadeOut("slow");
-        $("#btnBayarBill").prop("disabled", false).html("Bayar");
+        $("#btnBayarBill").prop("disabled", false).html('<i class="fas fa-wallet"></i> Bayar');
       },
     });
   });
@@ -1165,11 +1165,11 @@
 
   $("select.metodeBayarBill").on("keyup change", function () {
     if ($(this).val() == 2) {
-      $("tr#nTunaiBill").show();
+      $("#nTunaiBill").show();
       $("#noteBill").prop("required", true);
       setDefaultNoteQris();
     } else {
-      $("tr#nTunaiBill").hide();
+      $("#nTunaiBill").hide();
       $("#noteBill").prop("required", false);
     }
     if ($(this).val() != "3") {
