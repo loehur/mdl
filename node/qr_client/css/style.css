@@ -267,12 +267,12 @@ body {
 
 .success-icon {
     display: inline-block;
-    width: 100px;
-    height: 100px;
-    line-height: 100px;
-    background: #ffffff;
-    color: #000000;
-    font-size: 48px;
+    width: auto;
+    height: auto;
+    line-height: 1;
+    background: transparent;
+    color: #ffffff;
+    font-size: 120px;
     font-weight: bold;
     -webkit-border-radius: 0;
     border-radius: 0;
