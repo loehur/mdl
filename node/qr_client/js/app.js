@@ -57,7 +57,7 @@ function saveKasirId() {
 function showQrDisplay(kasirId) {
     document.getElementById('form-kasir').style.display = 'none';
     document.getElementById('qr-display').style.display = 'block';
-    document.getElementById('kasir-id-label').textContent = 'ID Cabang: ' + kasirId;
+    document.getElementById('kasir-id-label').textContent = 'MDL ' + kasirId;
 }
 
 function showLoginForm(errorMessage) {
