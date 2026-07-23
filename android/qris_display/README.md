@@ -12,12 +12,20 @@ Aplikasi Android kiosk untuk tablet kasir yang menampilkan QRIS secara real-time
 
 ```bash
 cd android/qris_display
-gradlew.bat assembleRelease
+gradlew.bat assembleDebug
 ```
 
-APK output: `app/build/outputs/apk/release/app-release-unsigned.apk`
+APK: `app/build/outputs/apk/debug/app-debug.apk`
 
-Untuk release signed, buat keystore sendiri lalu tambahkan signing config di `app/build.gradle.kts`.
+### Sync ke download laundry (Setting → Printer)
+
+Setelah build, jalankan:
+
+```bat
+sync-apk.bat
+```
+
+Menyalin APK ke `laundry/in_assets/files/qris-display.apk` (auto-build jika APK belum ada).
 
 ## Instalasi di Tablet Kasir
 

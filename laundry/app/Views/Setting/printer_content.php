@@ -58,10 +58,10 @@
                             <i class="fas fa-download me-2"></i>Download Aplikasi Print
                         </h6>
                         <p class="text-muted small mb-3 mb-md-4">
-                            Unduh dan pasang di perangkat kasir. Android: Print Bridge (Bluetooth). Windows: installer print server (COM port).
+                            Unduh dan pasang di perangkat kasir. Android: Print Bridge (Bluetooth) &amp; QRIS Display (tablet QR). Windows: installer print server (COM port).
                         </p>
                         <div class="row g-3">
-                            <div class="col-md-6">
+                            <div class="col-lg-4 col-md-6">
                                 <div class="border rounded-3 p-3 h-100 bg-light">
                                     <div class="d-flex align-items-start gap-3">
                                         <div class="text-success fs-4"><i class="fab fa-android"></i></div>
@@ -75,7 +75,21 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-6">
+                            <div class="col-lg-4 col-md-6">
+                                <div class="border rounded-3 p-3 h-100 bg-light">
+                                    <div class="d-flex align-items-start gap-3">
+                                        <div class="text-dark fs-4"><i class="fas fa-qrcode"></i></div>
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-1">QRIS Display (Android)</h6>
+                                            <p class="text-muted small mb-3 mb-0">Tablet kasir untuk tampilkan QRIS ke pelanggan. WebView ke qrc.nalju.com, layar selalu aktif.</p>
+                                            <a href="<?= URL::IN_ASSETS ?>files/qris-display.apk" class="btn btn-dark btn-sm" download="qris-display.apk">
+                                                <i class="fas fa-download me-1"></i> Download APK
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-4 col-md-6">
                                 <div class="border rounded-3 p-3 h-100 bg-light">
                                     <div class="d-flex align-items-start gap-3">
                                         <div class="text-primary fs-4"><i class="fab fa-windows"></i></div>
