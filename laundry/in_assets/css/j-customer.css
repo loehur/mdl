@@ -794,6 +794,12 @@ a { color: inherit; text-decoration: none; }
   font-size: 0.78rem;
 }
 
+.j-tagihan .j-price-member {
+  color: #1A7A6E;
+  font-weight: 700;
+  font-size: 0.72rem;
+}
+
 .j-tagihan .j-badge {
   font-size: 0.64rem;
   padding: 3px 7px;
