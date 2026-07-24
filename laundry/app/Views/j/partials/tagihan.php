@@ -228,16 +228,14 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
   $namaPelanggan = strtoupper($customer['nama'] ?? $p['nama_pelanggan']);
 ?>
 <article class="j-card j-rekap">
-  <div class="j-card-head">
-    <div>
-      <strong>Rekap Tagihan</strong>
-      <small>
-        <?= (int) ($summary['count_order'] ?? 0) ?> nota
-        <?php if ((int) ($summary['count_member'] ?? 0) > 0) { ?>
-          · <?= (int) $summary['count_member'] ?> paket
-        <?php } ?>
-      </small>
-    </div>
+  <div class="j-card-head j-rekap-head">
+    <strong>Rekap Tagihan</strong>
+    <small class="j-rekap-count">
+      <?= (int) ($summary['count_order'] ?? 0) ?> nota
+      <?php if ((int) ($summary['count_member'] ?? 0) > 0) { ?>
+        · <?= (int) $summary['count_member'] ?> paket
+      <?php } ?>
+    </small>
   </div>
   <div class="j-rekap-rows">
     <div class="j-rekap-row">
