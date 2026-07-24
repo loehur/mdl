@@ -735,7 +735,7 @@ a { color: inherit; text-decoration: none; }
   margin-top: 2px;
   font-size: 0.84rem;
   font-weight: 700;
-  color: #7C3AED;
+  color: var(--j-ink);
   letter-spacing: -0.01em;
   line-height: 1.25;
 }
@@ -757,7 +757,7 @@ a { color: inherit; text-decoration: none; }
 .j-tagihan .j-item-id {
   font-size: 0.66rem;
   font-weight: 800;
-  color: var(--j-ink);
+  color: #7C3AED;
   line-height: 1.2;
   margin-bottom: 1px;
 }
