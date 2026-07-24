@@ -8,7 +8,7 @@ export function apiUrl(path) {
 
 export function wsUrl(user) {
   if (!user) return null;
-  const base = isProd ? "wss://wadesk.nalju.com" : `ws://${window.location.hostname}:3010`;
+  const base = isProd ? "wss://wadeskserver.nalju.com" : `ws://${window.location.hostname}:3010`;
   const params = new URLSearchParams({
     tenant_id: String(user.tenant_id),
     user_id: String(user.id),
