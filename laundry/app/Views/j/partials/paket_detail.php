@@ -21,7 +21,7 @@ $satuan = $data['satuan'];
   <a class="j-badge muted" href="<?= $base ?>J/paket/<?= $id ?>"><i class="fas fa-arrow-left"></i> Semua paket</a>
 </div>
 
-<section class="j-section" style="margin-top:0">
+<section class="j-section j-paket-detail" style="margin-top:0">
   <div class="j-section-head"><h2>Riwayat</h2></div>
   <div class="j-card">
     <?php if (empty($history)) { ?>
@@ -35,14 +35,13 @@ $satuan = $data['satuan'];
       $isLatest = $idx === 0;
     ?>
       <div class="j-list-row">
-        <div>
+        <div class="j-list-main">
+          <div class="j-item-id">#<?= htmlspecialchars((string) $ok['id']) ?></div>
           <strong><?= $isTop ? 'Topup' : 'Pakai Laundry' ?></strong>
-          <small style="display:block;color:var(--j-muted)">
-            #<?= htmlspecialchars((string) $ok['id']) ?> · <?= htmlspecialchars($ok['tgl']) ?>
-          </small>
-          <small style="display:block;color:var(--j-muted)">
+          <div class="j-item-meta"><?= htmlspecialchars($ok['tgl']) ?></div>
+          <div class="j-item-meta">
             <?= $isLatest ? 'Saldo terkini' : 'Saldo' ?>: <?= number_format((float) $ok['saldo'], 2) ?><?= htmlspecialchars($satuan) ?>
-          </small>
+          </div>
         </div>
         <div class="<?= $isTop ? 'amt-plus' : 'amt-min' ?>">
           <?= $isTop ? '+' : '-' ?><?= $this->fmtDecMax2($ok['qty']) ?><?= htmlspecialchars($satuan) ?>
