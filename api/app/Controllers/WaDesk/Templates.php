@@ -33,8 +33,9 @@ class Templates extends WaDeskController
         $rows = $this->db($this->db_index)->query($sql, $binds)->result_array();
         foreach ($rows as &$row) {
             $row['params'] = $this->db($this->db_index)->query(
-                "SELECT id, param_index, label, example_value, is_required
-                 FROM wa_template_params WHERE template_id = ? ORDER BY param_index ASC",
+                "SELECT id, component, param_index, param_name, label, example_value, is_required
+                 FROM wa_template_params WHERE template_id = ?
+                 ORDER BY FIELD(component,'header','body','button'), param_index ASC",
                 [(int) $row['id']]
             )->result_array();
         }
@@ -139,9 +140,20 @@ class Templates extends WaDeskController
             if (!isset($p['param_index'], $p['label'])) {
                 continue;
             }
+            $component = strtolower(trim((string) ($p['component'] ?? 'body')));
+            if (!in_array($component, ['header', 'body', 'button'], true)) {
+                $component = 'body';
+            }
+            $paramName = trim((string) ($p['param_name'] ?? ''));
+            if ($paramName === '') {
+                $paramName = null;
+            }
+
             $this->db($this->db_index)->insert('wa_template_params', [
                 'template_id' => $templateId,
+                'component' => $component,
                 'param_index' => (int) $p['param_index'],
+                'param_name' => $paramName,
                 'label' => trim($p['label']),
                 'example_value' => $p['example_value'] ?? null,
                 'is_required' => isset($p['is_required']) ? (int) ((bool) $p['is_required']) : 1,

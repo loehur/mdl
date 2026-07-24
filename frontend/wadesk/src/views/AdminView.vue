@@ -107,15 +107,31 @@
             <input v-model="tplForm.template_name" required class="field" placeholder="Nama template YCloud" />
             <input v-model="tplForm.language" class="field" placeholder="Language (id)" />
           </div>
-          <textarea v-model="tplForm.body_preview" rows="3" class="field" placeholder="Preview body (opsional)" />
+          <textarea
+            v-model="tplForm.body_preview"
+            rows="5"
+            class="field"
+            :placeholder="previewPlaceholder"
+          />
+          <p class="text-[11px] text-slate-500 -mt-1 whitespace-pre-wrap">{{ previewHint }}</p>
           <div class="space-y-2">
             <div class="flex items-center justify-between">
-              <p class="text-sm text-slate-300">Parameter</p>
+              <p class="text-sm text-slate-300">Parameter (sesuai YCloud)</p>
               <button type="button" class="text-xs text-accent-soft" @click="addParam">+ Param</button>
             </div>
-            <div v-for="(p, idx) in tplForm.params" :key="idx" class="grid grid-cols-[3rem_1fr_1fr_auto] gap-2">
-              <input v-model.number="p.param_index" type="number" min="1" class="field" />
-              <input v-model="p.label" class="field" placeholder="Label" required />
+            <div
+              v-for="(p, idx) in tplForm.params"
+              :key="idx"
+              class="grid grid-cols-1 sm:grid-cols-[7rem_5rem_1fr_1fr_1fr_auto] gap-2 items-center"
+            >
+              <select v-model="p.component" class="field">
+                <option value="header">header</option>
+                <option value="body">body</option>
+                <option value="button">button</option>
+              </select>
+              <input v-model.number="p.param_index" type="number" min="1" class="field" title="Urutan dalam komponen" />
+              <input v-model="p.param_name" class="field" placeholder="Nama var (customer)" required />
+              <input v-model="p.label" class="field" placeholder="Label form" required />
               <input v-model="p.example_value" class="field" placeholder="Contoh" />
               <button type="button" class="text-rose-400 text-sm" @click="tplForm.params.splice(idx, 1)">✕</button>
             </div>
@@ -126,7 +142,10 @@
           <li v-for="t in templates" :key="t.id" class="py-3 flex justify-between gap-2">
             <div>
               <p class="font-medium">{{ t.template_name }} <span class="text-xs text-slate-500">{{ t.language }}</span></p>
-              <p class="text-xs text-slate-500">{{ t.key_label }} · {{ (t.params || []).length }} param</p>
+              <p class="text-xs text-slate-500">
+                {{ t.key_label }} ·
+                {{ (t.params || []).map((p) => `${p.component}:${p.param_name || p.param_index}`).join(", ") || "0 param" }}
+              </p>
             </div>
             <button class="text-xs text-rose-400" @click="removeTemplate(t.id)">Hapus</button>
           </li>
@@ -159,6 +178,10 @@ const keys = ref([]);
 const templates = ref([]);
 const msg = ref("");
 const err = ref("");
+const previewPlaceholder =
+  "Preview Body — teks lengkap seperti di WA. Pakai {{customer}} atau {{1}} di tempat variabel. Saat kirim diganti value di bubble chat.";
+const previewHint =
+  "Contoh (header named customer):\n{{customer}}\n\nMohon di perhatikan, tagihan anda pada aplikasi Pinjamin...";
 
 const teamForm = reactive({ name: "" });
 const userForm = reactive({ name: "", email: "", password: "", role: "agent", team_id: "" });
@@ -168,7 +191,7 @@ const tplForm = reactive({
   template_name: "",
   language: "id",
   body_preview: "",
-  params: [{ param_index: 1, label: "", example_value: "", is_required: 1 }],
+  params: [{ component: "header", param_index: 1, param_name: "customer", label: "Nama customer", example_value: "", is_required: 1 }],
 });
 
 function flash(ok, text) {
@@ -267,7 +290,14 @@ async function removeKey(id) {
 
 function addParam() {
   const next = (tplForm.params.at(-1)?.param_index || 0) + 1;
-  tplForm.params.push({ param_index: next, label: "", example_value: "", is_required: 1 });
+  tplForm.params.push({
+    component: "body",
+    param_index: next,
+    param_name: "",
+    label: "",
+    example_value: "",
+    is_required: 1,
+  });
 }
 
 async function createTemplate() {
@@ -287,7 +317,7 @@ async function createTemplate() {
       template_name: "",
       language: "id",
       body_preview: "",
-      params: [{ param_index: 1, label: "", example_value: "", is_required: 1 }],
+      params: [{ component: "header", param_index: 1, param_name: "customer", label: "Nama customer", example_value: "", is_required: 1 }],
     });
     flash(true, "Template disimpan");
     await refresh();

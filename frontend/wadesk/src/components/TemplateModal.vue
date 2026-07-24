@@ -30,17 +30,20 @@
               {{ t.template_name }} ({{ t.language }})
             </option>
           </select>
-          <p v-if="selectedTpl?.body_preview" class="mt-2 text-xs text-slate-400 whitespace-pre-wrap">
-            {{ selectedTpl.body_preview }}
+          <p v-if="livePreview" class="mt-2 text-xs text-slate-300 whitespace-pre-wrap rounded-lg bg-ink-950/60 p-2 border border-white/5">
+            {{ livePreview }}
           </p>
         </div>
 
-        <div v-for="p in selectedTpl?.params || []" :key="p.param_index" class="space-y-1">
+        <div v-for="p in selectedTpl?.params || []" :key="paramKey(p)" class="space-y-1">
           <label class="label">
-            {{ p.label }} <span class="text-slate-500">({{ '{' + '{' + p.param_index + '}' + '}' }})</span>
+            {{ p.label }}
+            <span class="text-slate-500">
+              ({{ p.component }} · {{ '{' + '{' + (p.param_name || p.param_index) + '}' + '}' }})
+            </span>
           </label>
           <input
-            v-model="paramValues[p.param_index]"
+            v-model="paramValues[paramKey(p)]"
             class="field"
             :placeholder="p.example_value || ''"
             :required="Number(p.is_required) === 1"
@@ -88,6 +91,35 @@ const selectedTpl = computed(() =>
   filteredTemplates.value.find((t) => Number(t.id) === Number(form.template_id))
 );
 
+function paramKey(p) {
+  return p.param_name ? String(p.param_name) : `idx_${p.param_index}`;
+}
+
+function renderPreview(text, valuesByName, valuesByIndex) {
+  let out = String(text || "");
+  for (const [name, val] of Object.entries(valuesByName)) {
+    out = out.split(`{{${name}}}`).join(val ?? "");
+  }
+  for (const [idx, val] of Object.entries(valuesByIndex)) {
+    out = out.split(`{{${idx}}}`).join(val ?? "");
+  }
+  return out;
+}
+
+const livePreview = computed(() => {
+  const tpl = selectedTpl.value;
+  if (!tpl?.body_preview) return "";
+  const named = {};
+  const indexed = {};
+  for (const p of tpl.params || []) {
+    const key = paramKey(p);
+    const val = paramValues[key] ?? "";
+    if (p.param_name) named[p.param_name] = val;
+    if (p.param_index) indexed[p.param_index] = val;
+  }
+  return renderPreview(tpl.body_preview, named, indexed);
+});
+
 watch(
   () => props.fixedKeyId,
   (v) => {
@@ -115,7 +147,7 @@ function onKeyChange() {
 function onTplChange() {
   Object.keys(paramValues).forEach((k) => delete paramValues[k]);
   for (const p of selectedTpl.value?.params || []) {
-    paramValues[p.param_index] = "";
+    paramValues[paramKey(p)] = "";
   }
 }
 
@@ -124,10 +156,17 @@ async function submit() {
   busy.value = true;
   try {
     const tpl = selectedTpl.value;
-    const params = (tpl?.params || [])
-      .slice()
-      .sort((a, b) => a.param_index - b.param_index)
-      .map((p) => paramValues[p.param_index] ?? "");
+    // Laundry-style named object: { customer: "Rangga" }
+    const template_params = {};
+    for (const p of tpl?.params || []) {
+      const key = paramKey(p);
+      const val = paramValues[key] ?? "";
+      if (p.param_name) {
+        template_params[p.param_name] = val;
+      } else {
+        template_params[String(p.param_index)] = val;
+      }
+    }
 
     emit("submit", {
       ycloud_key_id: Number(form.ycloud_key_id || props.fixedKeyId),
@@ -135,8 +174,8 @@ async function submit() {
       template_id: Number(form.template_id),
       template_name: tpl?.template_name,
       language: tpl?.language || "id",
-      template_params: params,
-      message: tpl?.body_preview || `[template] ${tpl?.template_name}`,
+      template_params,
+      message: tpl?.body_preview || "",
     });
   } catch (e) {
     error.value = e.message;

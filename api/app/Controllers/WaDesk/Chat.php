@@ -154,12 +154,13 @@ class Chat extends WaDeskController
             $templateId = (int) ($body['template_id'] ?? 0);
             $templateName = trim((string) ($body['template_name'] ?? ''));
             $language = trim((string) ($body['language'] ?? 'id')) ?: 'id';
-            $params = $body['template_params'] ?? [];
-            if (!is_array($params)) {
-                $params = [];
+            $rawParams = $body['template_params'] ?? [];
+            if (!is_array($rawParams)) {
+                $rawParams = [];
             }
-            $params = array_values($params);
 
+            $tpl = null;
+            $tplParamDefs = [];
             if ($templateId > 0) {
                 $tpl = $this->db($this->db_index)->query(
                     "SELECT * FROM wa_templates WHERE id = ? AND ycloud_key_id = ? LIMIT 1",
@@ -170,19 +171,35 @@ class Chat extends WaDeskController
                 }
                 $templateName = $tpl['template_name'];
                 $language = $tpl['language'] ?: $language;
+                $tplParamDefs = $this->db($this->db_index)->query(
+                    "SELECT component, param_index, param_name, label, is_required
+                     FROM wa_template_params WHERE template_id = ?
+                     ORDER BY FIELD(component,'header','body','button'), param_index ASC",
+                    [$templateId]
+                )->result_array();
             }
             if ($templateName === '') {
                 $this->error('template_name atau template_id wajib', 400);
             }
 
-            $preview = $body['message'] ?? ('[template] ' . $templateName);
-            $result = $client->sendTemplate($phone, $templateName, $language, $params);
+            [$sendParams, $named, $indexed, $paramsForStore] = $this->resolveTemplateParams(
+                $tplParamDefs,
+                $rawParams
+            );
+
+            $previewSource = (string) ($body['message'] ?? ($tpl['body_preview'] ?? ''));
+            if ($previewSource === '') {
+                $previewSource = '[template] ' . $templateName;
+            }
+            $preview = WaDeskYCloud::renderPreview($previewSource, $named, $indexed);
+
+            $result = $client->sendTemplate($phone, $templateName, $language, $sendParams);
             if (!$result['success']) {
                 $yErr = $result['data']['error']['message'] ?? ($result['data']['message'] ?? 'Template send failed');
                 $this->error('YCloud Reject: ' . $yErr, 502, $result['data']);
             }
 
-            $msgId = $this->storeOutbound($conv, $user, 'template', $preview, $templateName, $params, $result);
+            $msgId = $this->storeOutbound($conv, $user, 'template', $preview, $templateName, $paramsForStore, $result);
             $this->touchConversationOut($conv['id'], $preview);
 
             WaDeskServer::push([
@@ -198,6 +215,7 @@ class Chat extends WaDeskController
                 'conversation_id' => (int) $conv['id'],
                 'mode' => 'template',
                 'csw_open' => false,
+                'preview' => $preview,
                 'ycloud' => $result['data'],
             ], 'Template terkirim');
         }
@@ -299,12 +317,85 @@ class Chat extends WaDeskController
             'type' => $type,
             'body' => $body,
             'template_name' => $templateName,
-            'params_json' => $params !== null ? json_encode(array_values($params)) : null,
+            'params_json' => $params !== null ? json_encode($params, JSON_UNESCAPED_UNICODE) : null,
             'ycloud_msg_id' => $ycloudId,
             'external_id' => $result['external_id'] ?? null,
             'status' => 'sent',
             'sent_by_user_id' => (int) $user['id'],
         ]);
+    }
+
+    /**
+     * Map request values + template param definitions → YCloud send payload + preview maps.
+     *
+     * @return array{0:array,1:array<string,string>,2:array<int,string>,3:array}
+     */
+    private function resolveTemplateParams(array $defs, array $rawParams): array
+    {
+        $named = [];
+        $indexed = [];
+        $sendParams = [];
+        $paramsForStore = [];
+
+        // No defs: pass through laundry-style assoc or list
+        if ($defs === []) {
+            if ($rawParams !== [] && array_keys($rawParams) !== range(0, count($rawParams) - 1)) {
+                foreach ($rawParams as $k => $v) {
+                    $named[(string) $k] = (string) $v;
+                    $sendParams[] = [
+                        'component' => 'body',
+                        'param_name' => (string) $k,
+                        'text' => (string) $v,
+                    ];
+                }
+                return [$sendParams, $named, $indexed, $rawParams];
+            }
+            $list = array_values($rawParams);
+            foreach ($list as $i => $v) {
+                $indexed[$i + 1] = (string) $v;
+            }
+            return [$list, $named, $indexed, $list];
+        }
+
+        $isList = $rawParams === [] || array_keys($rawParams) === range(0, count($rawParams) - 1);
+        $listCursor = 0;
+
+        foreach ($defs as $def) {
+            $component = strtolower((string) ($def['component'] ?? 'body'));
+            $paramName = trim((string) ($def['param_name'] ?? ''));
+            $idx = (int) ($def['param_index'] ?? 0);
+
+            $value = '';
+            if ($paramName !== '' && !$isList && array_key_exists($paramName, $rawParams)) {
+                $value = (string) $rawParams[$paramName];
+            } elseif (!$isList && array_key_exists((string) $idx, $rawParams)) {
+                $value = (string) $rawParams[(string) $idx];
+            } elseif ($isList && array_key_exists($listCursor, $rawParams)) {
+                $value = (string) $rawParams[$listCursor];
+                $listCursor++;
+            } elseif ($isList && array_key_exists($idx - 1, $rawParams)) {
+                $value = (string) $rawParams[$idx - 1];
+            }
+
+            if ($paramName !== '') {
+                $named[$paramName] = $value;
+            }
+            if ($idx > 0) {
+                $indexed[$idx] = $value;
+            }
+
+            $entry = [
+                'component' => $component,
+                'text' => $value,
+            ];
+            if ($paramName !== '') {
+                $entry['param_name'] = $paramName;
+            }
+            $sendParams[] = $entry;
+            $paramsForStore[] = $entry;
+        }
+
+        return [$sendParams, $named, $indexed, $paramsForStore];
     }
 
     private function touchConversationOut(int $convId, string $preview): void

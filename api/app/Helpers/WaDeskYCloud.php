@@ -54,16 +54,20 @@ class WaDeskYCloud
         return $this->request('/whatsapp/messages', $payload);
     }
 
+    /**
+     * Send WhatsApp template.
+     *
+     * $parameters supports:
+     * - flat list of strings → all body positional (legacy)
+     * - list of maps:
+     *   ['component' => 'header'|'body'|'button', 'text' => '...', 'param_name' => 'customer'|null]
+     * - associative map name => value (treated as body named params, laundry-style keys)
+     *
+     * @param array $parameters
+     */
     public function sendTemplate(string $to, string $templateName, string $language, array $parameters = []): array
     {
-        $components = [];
-        if (!empty($parameters)) {
-            $bodyParams = [];
-            foreach ($parameters as $param) {
-                $bodyParams[] = ['type' => 'text', 'text' => (string) $param];
-            }
-            $components[] = ['type' => 'body', 'parameters' => $bodyParams];
-        }
+        $components = $this->buildTemplateComponents($parameters);
 
         $payload = [
             'from' => $this->formatPhone($this->whatsappNumber),
@@ -78,6 +82,118 @@ class WaDeskYCloud
         ];
 
         return $this->request('/whatsapp/messages', $payload);
+    }
+
+    /**
+     * Replace {{name}} and {{1}} placeholders in preview text.
+     *
+     * @param array<string,string> $named  e.g. ['customer' => 'Rangga']
+     * @param array<int,string>    $indexed e.g. [1 => 'Rangga']
+     */
+    public static function renderPreview(?string $preview, array $named = [], array $indexed = []): string
+    {
+        $text = (string) $preview;
+        if ($text === '') {
+            return '';
+        }
+
+        // Named first: {{customer}}
+        foreach ($named as $name => $value) {
+            $name = (string) $name;
+            if ($name === '') {
+                continue;
+            }
+            $text = str_replace('{{' . $name . '}}', (string) $value, $text);
+        }
+
+        // Positional: {{1}}, {{2}}
+        foreach ($indexed as $idx => $value) {
+            $text = str_replace('{{' . (int) $idx . '}}', (string) $value, $text);
+        }
+
+        return $text;
+    }
+
+    /**
+     * @param array $parameters
+     * @return array<int,array>
+     */
+    private function buildTemplateComponents(array $parameters): array
+    {
+        if ($parameters === []) {
+            return [];
+        }
+
+        // Associative name => value (no numeric 0 key) → body named params
+        if (!$this->isListArray($parameters)) {
+            $grouped = ['body' => []];
+            foreach ($parameters as $name => $value) {
+                $item = ['type' => 'text', 'text' => (string) $value];
+                if (is_string($name) && $name !== '' && !ctype_digit((string) $name)) {
+                    $item['parameter_name'] = $name;
+                }
+                $grouped['body'][] = $item;
+            }
+            return $this->componentsFromGrouped($grouped);
+        }
+
+        // List of strings → body positional
+        if (isset($parameters[0]) && !is_array($parameters[0])) {
+            $bodyParams = [];
+            foreach ($parameters as $param) {
+                $bodyParams[] = ['type' => 'text', 'text' => (string) $param];
+            }
+            return [['type' => 'body', 'parameters' => $bodyParams]];
+        }
+
+        // List of structured maps
+        $grouped = [];
+        foreach ($parameters as $p) {
+            if (!is_array($p)) {
+                continue;
+            }
+            $text = (string) ($p['text'] ?? $p['value'] ?? '');
+            $component = strtolower((string) ($p['component'] ?? 'body'));
+            if (!in_array($component, ['header', 'body', 'button'], true)) {
+                $component = 'body';
+            }
+            $item = ['type' => 'text', 'text' => $text];
+            $paramName = trim((string) ($p['param_name'] ?? $p['name'] ?? ''));
+            if ($paramName !== '') {
+                $item['parameter_name'] = $paramName;
+            }
+            if (!isset($grouped[$component])) {
+                $grouped[$component] = [];
+            }
+            $grouped[$component][] = $item;
+        }
+
+        return $this->componentsFromGrouped($grouped);
+    }
+
+    /** @param array<string,array> $grouped */
+    private function componentsFromGrouped(array $grouped): array
+    {
+        $order = ['header', 'body', 'button'];
+        $out = [];
+        foreach ($order as $type) {
+            if (empty($grouped[$type])) {
+                continue;
+            }
+            $out[] = [
+                'type' => $type,
+                'parameters' => $grouped[$type],
+            ];
+        }
+        return $out;
+    }
+
+    private function isListArray(array $arr): bool
+    {
+        if ($arr === []) {
+            return true;
+        }
+        return array_keys($arr) === range(0, count($arr) - 1);
     }
 
     private function request(string $endpoint, array $payload): array
