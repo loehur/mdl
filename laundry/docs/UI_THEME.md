@@ -10,6 +10,7 @@ Referensi implementasi yang sudah sesuai tema:
 - Top nav + Sidebar → `laundry/app/Views/layout.php` (`.mdl-topbar`, `.main-sidebar`)
 - Antrian view → `laundry/app/Views/antrian/view_content.php` + `form.php` (warna token; layout/spacing dipertahankan)
 - Login → `laundry/app/Views/login.php`
+- Absen → `laundry/app/Views/Absen/form.php` (`#absen-root`) + `content.php`
 
 ---
 
@@ -167,10 +168,93 @@ Radius tombol: **`0`**. Border (jika ada): **`1px`**. Weight: `900`.
 
 ### Input / Selectize
 
-- **Satu border saja** — jangan `form-control` + selectize bersamaan
-- Border **`1px solid #94a3b8`**, radius **`0`**, weight `800`
-- Focus: border biru + ring `0 0 0 2px rgba(37, 99, 235, 0.22)`
-- Readonly khusus: background `#fef3c7`, border kuning
+#### Aturan wajib — SATU BORDER SAJA
+
+Selectize membungkus `<select>` menjadi `.selectize-control` + `.selectize-input`.  
+**Hanya `.selectize-input` yang boleh punya border.** Semua lapisan lain harus `border: 0`.
+
+| Lapisan | Border? |
+|---------|---------|
+| `<select class="tize">` / `.selectized` | **Tidak** (`border: 0`) |
+| `.selectize-control` | **Tidak** (`border: 0`) |
+| `.selectize-input` | **Ya** — `1px solid #94a3b8` |
+| `.selectize-input:after` (panah) | **Tidak** (`border: 0`) |
+| Card / panel / field-wrapper di sekitar select tunggal | **Tidak** |
+
+```text
+❌ SALAH — double / triple border
+┌─ .selectize-control (border) ─────┐
+│ ┌─ .selectize-input (border) ───┐ │
+│ │ nilai                         │ │
+│ └───────────────────────────────┘ │
+└───────────────────────────────────┘
++ class form-control / op-input / pay-input pada <select>
+
+✅ BENAR — satu border
+.selectize-control  (border:0, transparan)
+  └─ .selectize-input  ← satu-satunya 1px border
+       nilai
+```
+
+#### HTML
+
+```html
+<!-- Selectize: JANGAN form-control / op-input / pay-input -->
+<label class="…">Penerima</label>
+<select name="…" class="tize" style="width:100%;" required>…</select>
+
+<!-- Select native (tanpa selectize): boleh satu class input -->
+<label class="…">Durasi</label>
+<select id="…" class="op-input">…</select>
+```
+
+**Dilarang pada select yang memakai `.tize` / Selectize:**
+- `form-control`, `form-control-sm`
+- `op-input`, `pay-input`, atau class lain yang menambah `border`
+- membungkus select tunggal dengan card / panel / kotak ber-border
+
+#### CSS wajib (salin ke scope halaman, ganti `#scope`)
+
+```css
+/* Satu border selectize — wajib di setiap scope yang pakai .tize */
+#scope select.tize,
+#scope select.selectized {
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+}
+#scope .selectize-control,
+#scope .selectize-control.single {
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  margin: 0;
+}
+#scope .selectize-control.single .selectize-input {
+  border: 1px solid #94a3b8 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: #fff !important;
+  font-weight: 800;
+}
+#scope .selectize-control.single .selectize-input.focus {
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22) !important;
+}
+#scope .selectize-control.single .selectize-input:after {
+  border: 0 !important;
+}
+```
+
+Referensi yang sudah benar:
+- Pembayaran → `#offcanvasPayment` + `#karyawanBill` di `operasi/partials/modals.php`
+- Modal Operasi → `.op-modal` selectize rules di file yang sama
+- Filter Pelanggan → `.operasi-filter` di `operasi/form_proses.php`
+
+Input native (bukan selectize): border **`1px solid #94a3b8`**, radius **`0`**, weight `800`.  
+Focus: border biru + ring `0 0 0 2px rgba(37, 99, 235, 0.22)`.  
+Readonly khusus: background `#fef3c7`, border kuning.
 
 ### Input / select tunggal — JANGAN dibungkus card
 
@@ -232,7 +316,9 @@ Desktop: **2 kolom**. Mobile (`≤720px` / `≤639px`): 1 kolom.
 - [ ] Ada minimal 2–3 warna token (bukan monokrom)
 - [ ] Panel pakai border **1px** + tint berwarna (untuk kelompok konten)
 - [ ] Input/select tunggal **tanpa** card pembungkus ber-border
-- [ ] Tidak ada double border bertumpuk (card + input, form-control + selectize)
+- [ ] Select `.tize`: **tanpa** `form-control` / `op-input` / `pay-input`
+- [ ] Selectize: border **hanya** di `.selectize-input`; `.selectize-control` + `<select>` = `border: 0`
+- [ ] Tidak ada double border bertumpuk (card + input, form-control + selectize, selectize-control + selectize-input)
 - [ ] **Semua** elemen `border-radius: 0` — tidak ada round/pill/lingkaran
 - [ ] Tidak memakai class Bootstrap `rounded` / `rounded-*`
 - [ ] Border default **1px**; focus ring **2px**; selected radio max **2px**
@@ -251,6 +337,8 @@ Desktop: **2 kolom**. Mobile (`≤720px` / `≤639px`): 1 kolom.
 - Shadow lembut generik saja tanpa warna token
 - Selected radio hanya beda ring tipis (sulit dibedakan)
 - `form-control` Bootstrap + class border kustom + selectize
+- **Select `.tize` sekaligus `form-control` / `op-input` / `pay-input`** — dilarang (double border)
+- **Border di `.selectize-control` sekaligus `.selectize-input`** — dilarang; hanya input
 - Tema ungu/indigo default, cream terracotta, atau dark glow
 - Card di dalam card tanpa alasan (border ganda)
 - **Input/select tunggal dibungkus card** — dilarang
@@ -263,7 +351,8 @@ Desktop: **2 kolom**. Mobile (`≤720px` / `≤639px`): 1 kolom.
 ## 8. Cara memakai di kode baru
 
 1. Baca file ini dulu.
-2. Salin pola CSS dari `#ord-root` atau `#offcanvasPayment` (bukan bootstrap default).
+2. Salin pola CSS dari `#ord-root`, `#offcanvasPayment`, atau `.op-modal` (bukan bootstrap default).
+   Untuk selectize: salin blok **“CSS wajib (satu border)”** di section Input/Selectize — jangan improvise.
 3. Pakai nama variabel lokal konsisten, contoh:
 
 ```css

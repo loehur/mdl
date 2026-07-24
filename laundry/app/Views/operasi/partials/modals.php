@@ -37,18 +37,32 @@
   .op-modal__panel {
     position: relative;
     z-index: 1;
-    width: min(420px, 100%);
-    max-height: min(86vh, 640px);
+    width: min(440px, 100%);
+    max-height: min(94vh, 920px);
     display: flex;
     flex-direction: column;
     background: #fff;
     border-radius: var(--op-radius);
     box-shadow: 0 24px 48px rgba(15, 23, 42, 0.3);
-    overflow: hidden;
+    overflow: visible;
     animation: opModalIn .18s ease-out;
   }
-  .op-modal__panel--sm { width: min(360px, 100%); }
-  .op-modal__panel--md { width: min(480px, 100%); }
+  /* Form + select: panel tinggi supaya dropdown selectize tidak memaksa scroll body */
+  .op-modal__panel--form {
+    min-height: min(78vh, 640px);
+  }
+  .op-modal__panel--sm {
+    width: min(400px, 100%);
+  }
+  .op-modal__panel--sm.op-modal__panel--form {
+    min-height: min(72vh, 580px);
+  }
+  .op-modal__panel--md {
+    width: min(520px, 100%);
+  }
+  .op-modal__panel--md.op-modal__panel--form {
+    min-height: min(82vh, 720px);
+  }
   @keyframes opModalIn {
     from { opacity: 0; transform: translateY(10px) scale(0.98); }
     to { opacity: 1; transform: none; }
@@ -61,6 +75,7 @@
     padding: 14px 16px;
     color: #fff;
     background: linear-gradient(105deg, #1d4ed8 0%, #2563eb 35%, #16a34a 70%, #f59e0b 100%);
+    flex-shrink: 0;
   }
   .op-modal__head--blue {
     background: linear-gradient(105deg, #1d4ed8 0%, #2563eb 100%);
@@ -114,6 +129,7 @@
   .op-modal__body {
     padding: 14px 16px;
     overflow-y: auto;
+    flex: 1 1 auto;
     background:
       radial-gradient(90% 60% at 0% 0%, rgba(37,99,235,.10), transparent 50%),
       radial-gradient(80% 50% at 100% 0%, rgba(245,158,11,.10), transparent 45%),
@@ -121,6 +137,15 @@
     color: var(--op-ink);
     font-weight: 750;
     font-size: 0.88rem;
+  }
+  /* Form modal: body mengisi tinggi panel + overflow visible agar dropdown select tidak memicu scroll */
+  .op-modal__panel--form .op-modal__body {
+    overflow: visible;
+    padding-bottom: 28px;
+  }
+  .op-modal__panel--form .op-modal__foot {
+    margin-top: auto;
+    flex-shrink: 0;
   }
   .op-modal__body--plain {
     background: linear-gradient(180deg, #fff, #f8fafc);
@@ -206,6 +231,7 @@
     border: 1px solid var(--op-line) !important;
     border-radius: 0 !important;
     box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+    z-index: 30 !important;
   }
   .op-btn {
     display: inline-flex;
@@ -299,7 +325,7 @@
 <form class="ajax" data-operasi="" action="<?= URL::BASE_URL; ?>Antrian/ambil" method="POST">
   <div class="op-modal" id="exampleModal4" aria-hidden="true">
     <div class="op-modal__backdrop" data-op-close></div>
-    <div class="op-modal__panel op-modal__panel--sm" role="dialog" aria-modal="true" aria-labelledby="opAmbilTitle">
+    <div class="op-modal__panel op-modal__panel--sm op-modal__panel--form" role="dialog" aria-modal="true" aria-labelledby="opAmbilTitle">
       <div class="op-modal__head op-modal__head--green">
         <div>
           <h3 id="opAmbilTitle">Ambil Laundry</h3>
@@ -340,7 +366,7 @@
 <form data-operasi="" class="operasi ajax" action="<?= URL::BASE_URL; ?>Antrian/operasi" method="POST">
   <div class="op-modal" id="exampleModal" aria-hidden="true">
     <div class="op-modal__backdrop" data-op-close></div>
-    <div class="op-modal__panel" role="dialog" aria-modal="true" aria-labelledby="opSelesaiTitle">
+    <div class="op-modal__panel op-modal__panel--form" role="dialog" aria-modal="true" aria-labelledby="opSelesaiTitle">
       <div class="op-modal__head op-modal__head--blue">
         <div>
           <h3 id="opSelesaiTitle">Selesai <b class="operasi"></b>!</h3>
@@ -401,7 +427,7 @@
 <form class="operasi ajax" action="<?= URL::BASE_URL; ?>Operasi/ganti_operasi" method="POST">
   <div class="op-modal" id="modalGanti" aria-hidden="true">
     <div class="op-modal__backdrop" data-op-close></div>
-    <div class="op-modal__panel op-modal__panel--sm" role="dialog" aria-modal="true" aria-labelledby="opGantiTitle">
+    <div class="op-modal__panel op-modal__panel--sm op-modal__panel--form" role="dialog" aria-modal="true" aria-labelledby="opGantiTitle">
       <div class="op-modal__head op-modal__head--red">
         <div>
           <h3 id="opGantiTitle">Ubah Penyelesai</h3>
@@ -441,7 +467,7 @@
 <!-- Ubah ke Member -->
 <div class="op-modal" id="modalUbahMember" aria-hidden="true">
   <div class="op-modal__backdrop" data-op-close></div>
-  <div class="op-modal__panel op-modal__panel--sm" role="dialog" aria-modal="true" aria-labelledby="opMemberTitle">
+  <div class="op-modal__panel op-modal__panel--sm op-modal__panel--form" role="dialog" aria-modal="true" aria-labelledby="opMemberTitle">
     <div class="op-modal__head op-modal__head--blue">
       <div>
         <h3 id="opMemberTitle">Ubah ke Member</h3>
@@ -475,7 +501,7 @@
 <!-- Ubah Durasi -->
 <div class="op-modal" id="modalUbahDurasi" aria-hidden="true">
   <div class="op-modal__backdrop" data-op-close></div>
-  <div class="op-modal__panel" role="dialog" aria-modal="true" aria-labelledby="opDurasiTitle">
+  <div class="op-modal__panel op-modal__panel--form" role="dialog" aria-modal="true" aria-labelledby="opDurasiTitle">
     <div class="op-modal__head op-modal__head--blue">
       <div>
         <h3 id="opDurasiTitle">Ubah Durasi</h3>
@@ -512,7 +538,7 @@
 <!-- Ubah Layanan -->
 <div class="op-modal" id="modalUbahLayanan" aria-hidden="true">
   <div class="op-modal__backdrop" data-op-close></div>
-  <div class="op-modal__panel" role="dialog" aria-modal="true" aria-labelledby="opLayananTitle">
+  <div class="op-modal__panel op-modal__panel--form" role="dialog" aria-modal="true" aria-labelledby="opLayananTitle">
     <div class="op-modal__head op-modal__head--blue">
       <div>
         <h3 id="opLayananTitle">Ubah Layanan</h3>
@@ -550,7 +576,7 @@
 <form class="ajax" action="<?= URL::BASE_URL; ?>Antrian/surcas" method="POST">
   <div class="op-modal" id="exampleModalSurcas" aria-hidden="true">
     <div class="op-modal__backdrop" data-op-close></div>
-    <div class="op-modal__panel op-modal__panel--sm" role="dialog" aria-modal="true" aria-labelledby="opSurcasTitle">
+    <div class="op-modal__panel op-modal__panel--sm op-modal__panel--form" role="dialog" aria-modal="true" aria-labelledby="opSurcasTitle">
       <div class="op-modal__head op-modal__head--yellow">
         <div>
           <h3 id="opSurcasTitle">Surcharge / Biaya Tambahan</h3>
@@ -1313,7 +1339,7 @@
 <!-- Modal Tanggung Bayar -->
 <div class="op-modal" id="modalTanggungBayar" aria-hidden="true" data-op-static="1">
   <div class="op-modal__backdrop" data-op-close></div>
-  <div class="op-modal__panel op-modal__panel--md" role="dialog" aria-modal="true" aria-labelledby="opTbTitle">
+  <div class="op-modal__panel op-modal__panel--md op-modal__panel--form" role="dialog" aria-modal="true" aria-labelledby="opTbTitle">
     <div class="op-modal__head op-modal__head--yellow">
       <div>
         <h3 id="opTbTitle"><i class="fas fa-user-friends"></i> Tanggung Bayar</h3>

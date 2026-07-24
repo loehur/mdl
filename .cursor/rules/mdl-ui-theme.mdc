@@ -1,5 +1,5 @@
 ---
-description: Pedoman tema UI MDL (Order/Pembayaran) — wajib dibaca saat ubah tampilan
+description: Pedoman tema UI MDL (Order/Pembayaran/Operasi) — wajib dibaca saat ubah tampilan
 globs: laundry/app/Views/**/*.php,laundry/in_assets/**/*.{css,js},laundry/docs/UI_THEME.md
 alwaysApply: false
 ---
@@ -14,4 +14,9 @@ Saat membuat atau mengubah tampilan (offcanvas, modal, form, kartu, tombol, radi
    - Pembayaran: `laundry/app/Views/operasi/partials/modals.php` (`#offcanvasPayment`)
    - Modal Operasi: `laundry/app/Views/operasi/partials/modals.php` (`.op-modal` + `OpModal`, tanpa Bootstrap Modal)
 3. **Wajib**: tipografi tajam; warna biru/hijau/kuning/merah; selected state jelas; **satu border saja**; **sudut runcing** (`border-radius: 0`); **border tipis** default `1px`, focus ring `2px`, selected radio max `2px` — dilarang round/pill dan border tebal 2–3px sebagai default.
-4. Jika menambah pola visual baru yang disetujui user, **perbarui** `laundry/docs/UI_THEME.md`.
+4. **Selectize — wajib satu border** (paling sering dilanggar):
+   - Select `.tize`: **jangan** tambah `form-control` / `op-input` / `pay-input`.
+   - CSS: `border: 0` pada `<select>`, `.selectize-control`, dan `:after`; **hanya** `.selectize-input` yang ber-border `1px`.
+   - Jangan bungkus select tunggal dengan card/panel ber-border.
+   - Salin blok CSS di `UI_THEME.md` § Input/Selectize; contoh hidup: `#offcanvasPayment`, `.op-modal`, `.operasi-filter`.
+5. Jika menambah pola visual baru yang disetujui user, **perbarui** `laundry/docs/UI_THEME.md`.

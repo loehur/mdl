@@ -21,35 +21,12 @@ class Login extends Controller
 
    function cek_cookie()
    {
-      if (isset($_COOKIE[URL::SESSID])) {
-         $cookie_value = $this->model("Enc")->dec_2($_COOKIE[URL::SESSID]);
-
-         $user_data = unserialize($cookie_value);
-         if (isset($user_data['username']) && isset($user_data['no_user']) && isset($user_data['device'])) {
-            $no_user = $user_data['no_user'];
-            $username = $this->model("Enc")->username($no_user);
-
-            $device = $_SERVER['HTTP_USER_AGENT'];
-            if ($username == $user_data['username'] && $user_data['device'] == $device) {
-               $_SESSION[URL::SESSID]['login'] = TRUE;
-               // Cookie auto-login selalu Mode Live
-               $_SESSION[URL::SESSID]['training'] = [
-                  'active' => false,
-                  'id_cabang_origin' => (int) ($user_data['id_cabang'] ?? 0),
-               ];
-               $this->parameter($user_data);
-               $this->save_cookie($user_data);
-            }
-         }
-      }
+      $this->restore_session_from_cookie();
    }
 
    function save_cookie($data_user)
    {
-      $device = $_SERVER['HTTP_USER_AGENT'];
-      $data_user['device'] = $device;
-      $cookie_value = $this->model("Enc")->enc_2(serialize($data_user));
-      setcookie(URL::SESSID, $cookie_value, time() + 86400, "/");
+      $this->save_auth_cookie($data_user);
    }
 
    function save_nums($usernum)

@@ -24,8 +24,40 @@ class Absen extends Controller
 
       $tgl_kemarin = date('Y-m-d', strtotime("-1 day"));
       $data['kemarin'] = $this->db(0)->get_where('absen', 'id_cabang = ' . $_SESSION[URL::SESSID]['user']['id_cabang'] . " AND tanggal LIKE '" . $tgl_kemarin . "%'");
+      $data['isAdmin'] = ((int) ($_SESSION[URL::SESSID]['user']['id_privilege'] ?? 0) === 100);
 
       $this->view($viewData, $data);
+   }
+
+   function hapus()
+   {
+      header('Content-Type: application/json; charset=utf-8');
+
+      if ((int) ($_SESSION[URL::SESSID]['user']['id_privilege'] ?? 0) !== 100) {
+         echo json_encode(['code' => 0, 'msg' => 'GAGAL - HANYA ADMIN YANG BOLEH MENGHAPUS ABSEN']);
+         exit;
+      }
+
+      $id = (int) ($_POST['id'] ?? 0);
+      if ($id <= 0) {
+         echo json_encode(['code' => 0, 'msg' => 'GAGAL - ID ABSEN TIDAK VALID']);
+         exit;
+      }
+
+      $idCabang = (int) $_SESSION[URL::SESSID]['user']['id_cabang'];
+      $row = $this->db(0)->get_where_row('absen', 'id = ' . $id . ' AND id_cabang = ' . $idCabang);
+      if (!$row || empty($row['id'])) {
+         echo json_encode(['code' => 0, 'msg' => 'GAGAL - DATA ABSEN TIDAK DITEMUKAN']);
+         exit;
+      }
+
+      $del = $this->db(0)->delete('absen', 'id = ' . $id . ' AND id_cabang = ' . $idCabang);
+      if (isset($del['errno']) && (int) $del['errno'] === 0) {
+         echo json_encode(['code' => 1, 'msg' => 'ABSEN BERHASIL DIHAPUS']);
+      } else {
+         echo json_encode(['code' => 0, 'msg' => $del['error'] ?? 'GAGAL MENGHAPUS ABSEN']);
+      }
+      exit;
    }
 
    function absen()

@@ -30,28 +30,82 @@ class Controller extends URL
         return DB::getInstance($db);
     }
 
+    /**
+     * Restore $_SESSION from auth cookie (MDLSESSID) when PHP session expired but cookie still valid.
+     * @return bool true if session login restored
+     */
+    public function restore_session_from_cookie()
+    {
+        if (!empty($_SESSION[URL::SESSID]['login'])) {
+            return true;
+        }
+
+        if (!isset($_COOKIE[URL::SESSID]) || $_COOKIE[URL::SESSID] === '' || $_COOKIE[URL::SESSID] === '0') {
+            return false;
+        }
+
+        try {
+            $cookie_value = $this->model("Enc")->dec_2($_COOKIE[URL::SESSID]);
+            $user_data = @unserialize($cookie_value);
+        } catch (\Throwable $e) {
+            return false;
+        }
+
+        if (!is_array($user_data) || empty($user_data['username']) || empty($user_data['no_user']) || empty($user_data['device'])) {
+            return false;
+        }
+
+        $username = $this->model("Enc")->username($user_data['no_user']);
+        $device = $_SERVER['HTTP_USER_AGENT'] ?? '';
+        if ($username !== $user_data['username'] || $user_data['device'] !== $device) {
+            return false;
+        }
+
+        $_SESSION[URL::SESSID]['login'] = true;
+        $_SESSION[URL::SESSID]['training'] = [
+            'active' => false,
+            'id_cabang_origin' => (int) ($user_data['id_cabang'] ?? 0),
+        ];
+        $this->parameter($user_data);
+        $this->save_auth_cookie($user_data);
+        return !empty($_SESSION[URL::SESSID]['login']) && !empty($_SESSION[URL::SESSID]['user']['id_user']);
+    }
+
+    public function save_auth_cookie($data_user)
+    {
+        $data_user['device'] = $_SERVER['HTTP_USER_AGENT'] ?? '';
+        $cookie_value = $this->model("Enc")->enc_2(serialize($data_user));
+        setcookie(URL::SESSID, $cookie_value, time() + 86400, "/");
+    }
+
     public function session_cek($admin = 0)
     {
-        if (isset($_SESSION[URL::SESSID])) {
-            if ($_SESSION[URL::SESSID]['login'] == False) {
+        $loggedIn = !empty($_SESSION[URL::SESSID]['login']);
+
+        // Session PHP hilang tapi cookie masih aktif → restore di sini, jangan redirect
+        if (!$loggedIn) {
+            $loggedIn = $this->restore_session_from_cookie();
+        }
+
+        if (!$loggedIn) {
+            header("Location: " . URL::BASE_URL . "Login");
+            exit;
+        }
+
+        if ($admin == 1) {
+            if (($_SESSION[URL::SESSID]['user']['id_privilege'] ?? null) <> 100) {
                 session_destroy();
-                header("location: " . URL::BASE_URL . "Login");
-            } else {
-                if ($admin == 1) {
-                    if ($_SESSION[URL::SESSID]['user']['id_privilege'] <> 100) {
-                        session_destroy();
-                        header("location: " . URL::BASE_URL . "Login");
-                    }
-                }
-                if ($admin == 2) {
-                    if ($_SESSION[URL::SESSID]['user']['id_privilege'] <> 100 && $_SESSION[URL::SESSID]['user']['id_privilege'] <> 12) {
-                        session_destroy();
-                        header("location: " . URL::BASE_URL . "Login");
-                    }
-                }
+                header("Location: " . URL::BASE_URL . "Login");
+                exit;
             }
-        } else {
-            header("location: " . URL::BASE_URL . "Login");
+        }
+        if ($admin == 2) {
+            $priv = $_SESSION[URL::SESSID]['user']['id_privilege'] ?? null;
+            if ($priv <> 100 && $priv <> 12) {
+                session_destroy();
+                header("Location: " . URL::BASE_URL . "Login");
+                exit;
+            }
         }
     }
 
