@@ -46,13 +46,7 @@ $kodeCabang = strtoupper((string) ($this->dCabang['kode_cabang'] ?? ''));
       min-width: 0;
       margin-top: 0;
     }
-    /* Layar sedang+: Hari Ini | Kemarin berdampingan */
-    @media (min-width: 720px) {
-      #absen-root #load.absen-lists {
-        grid-template-columns: 1fr 1fr;
-      }
-    }
-    /* Layar lebar: Form | Daftar */
+    /* Layar lebar: Form | Daftar (Hari Ini & Kemarin tetap 1 kolom, bertumpuk) */
     @media (min-width: 960px) {
       #absen-root .absen-layout {
         grid-template-columns: minmax(340px, 420px) minmax(0, 1fr);
