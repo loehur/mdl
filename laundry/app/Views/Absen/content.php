@@ -29,7 +29,8 @@ if (!function_exists('absen_jenis_label')) {
   #absen-root .absen-list {
     border: 1px solid #cbd5e1;
     background: #fff;
-    margin-bottom: 10px;
+    margin-bottom: 0;
+    min-width: 0;
   }
   #absen-root .absen-list--today {
     border-color: #86efac;

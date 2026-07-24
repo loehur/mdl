@@ -19,9 +19,44 @@ $kodeCabang = strtoupper((string) ($this->dCabang['kode_cabang'] ?? ''));
       --abs-red: #dc2626;
       --abs-radius: 0;
       --abs-border: 1px;
-      max-width: 460px;
+      max-width: 1100px;
+      width: 100%;
       margin: 8px 0 24px;
       font-family: 'fontku', 'Segoe UI', sans-serif;
+    }
+    #absen-root .absen-layout {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+    #absen-root .absen-shell {
+      min-width: 0;
+      background:
+        radial-gradient(90% 60% at 0% 0%, rgba(37,99,235,.12), transparent 50%),
+        radial-gradient(80% 50% at 100% 0%, rgba(245,158,11,.12), transparent 45%),
+        linear-gradient(180deg, #eef4ff 0%, #f4fff8 55%, #fff8eb 100%);
+      border: 1px solid #cbd5e1;
+      padding: 14px;
+    }
+    #absen-root #load.absen-lists {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      min-width: 0;
+      margin-top: 0;
+    }
+    /* Layar sedang+: Hari Ini | Kemarin berdampingan */
+    @media (min-width: 720px) {
+      #absen-root #load.absen-lists {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+    /* Layar lebar: Form | Daftar */
+    @media (min-width: 960px) {
+      #absen-root .absen-layout {
+        grid-template-columns: minmax(340px, 420px) minmax(0, 1fr);
+      }
     }
     #absen-root,
     #absen-root .btn,
@@ -34,14 +69,6 @@ $kodeCabang = strtoupper((string) ($this->dCabang['kode_cabang'] ?? ''));
     #absen-root .absen-opt__face,
     #absen-root .absen-modal__panel {
       border-radius: 0 !important;
-    }
-    #absen-root .absen-shell {
-      background:
-        radial-gradient(90% 60% at 0% 0%, rgba(37,99,235,.12), transparent 50%),
-        radial-gradient(80% 50% at 100% 0%, rgba(245,158,11,.12), transparent 45%),
-        linear-gradient(180deg, #eef4ff 0%, #f4fff8 55%, #fff8eb 100%);
-      border: 1px solid #cbd5e1;
-      padding: 14px;
     }
     #absen-root .absen-head {
       display: flex;
@@ -303,9 +330,6 @@ $kodeCabang = strtoupper((string) ($this->dCabang['kode_cabang'] ?? ''));
       background: linear-gradient(180deg, #f0fdf4, #fff);
       color: #15803d;
     }
-    #absen-root #load {
-      margin-top: 12px;
-    }
     /* Confirm modal */
     #absen-root .absen-modal {
       position: fixed;
@@ -461,6 +485,7 @@ $kodeCabang = strtoupper((string) ($this->dCabang['kode_cabang'] ?? ''));
     }
   </style>
 
+  <div class="absen-layout">
   <div class="absen-shell">
     <div class="absen-head">
       <div>
@@ -548,7 +573,8 @@ $kodeCabang = strtoupper((string) ($this->dCabang['kode_cabang'] ?? ''));
     </form>
   </div>
 
-  <div id="load"></div>
+  <div id="load" class="absen-lists"></div>
+  </div>
 
   <div class="absen-modal" id="modalKonfirmasiAbsen" aria-hidden="true">
     <div class="absen-modal__backdrop" data-absen-close></div>
