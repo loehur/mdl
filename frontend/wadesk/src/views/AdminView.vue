@@ -49,21 +49,51 @@
           <input v-model="userForm.name" required class="field" placeholder="Nama" />
           <input v-model="userForm.email" type="email" required class="field" placeholder="Email" />
           <input v-model="userForm.password" type="password" required minlength="6" class="field" placeholder="Password" />
-          <select v-model="userForm.role" required class="field">
+          <select v-model="userForm.role" required class="field" @change="onRoleChange">
             <option value="team_leader">Team Leader</option>
             <option value="agent">Agent</option>
           </select>
-          <select v-model="userForm.team_id" required class="field sm:col-span-2">
+
+          <!-- Team Leader: pilih team -->
+          <select
+            v-if="userForm.role === 'team_leader'"
+            v-model="userForm.team_id"
+            required
+            class="field sm:col-span-2"
+          >
             <option disabled value="">Pilih team</option>
-            <option v-for="t in teams" :key="t.id" :value="t.id">{{ t.name }}</option>
+            <option v-for="t in teamsWithoutLeader" :key="t.id" :value="t.id">{{ t.name }}</option>
           </select>
-          <button class="btn sm:col-span-2">Tambah user</button>
+          <p v-if="userForm.role === 'team_leader' && !teamsWithoutLeader.length" class="sm:col-span-2 text-xs text-amber-300">
+            Semua team sudah punya Team Leader. Buat team baru dulu.
+          </p>
+
+          <!-- Agent: wajib pilih team leader -->
+          <select
+            v-else
+            v-model="userForm.team_leader_user_id"
+            required
+            class="field sm:col-span-2"
+          >
+            <option disabled value="">Pilih Team Leader</option>
+            <option v-for="l in teamLeaders" :key="l.id" :value="l.id">
+              {{ l.name }} ({{ l.team_name || "tanpa team" }})
+            </option>
+          </select>
+          <p v-if="userForm.role === 'agent' && !teamLeaders.length" class="sm:col-span-2 text-xs text-amber-300">
+            Belum ada Team Leader. Buat Team Leader dulu sebelum menambah Agent.
+          </p>
+
+          <button class="btn sm:col-span-2" :disabled="!canSubmitUser">Tambah user</button>
         </form>
         <ul class="divide-y divide-white/5">
           <li v-for="u in users" :key="u.id" class="py-3 flex justify-between gap-2">
             <div>
               <p class="font-medium">{{ u.name }} <span class="text-xs text-slate-500">({{ u.role }})</span></p>
-              <p class="text-xs text-slate-500">{{ u.email }} · {{ u.team_name }}</p>
+              <p class="text-xs text-slate-500">
+                {{ u.email }} · {{ u.team_name || "—" }}
+                <span v-if="u.role === 'agent' && u.team_leader_name"> · TL: {{ u.team_leader_name }}</span>
+              </p>
             </div>
             <button class="text-xs text-rose-400" @click="removeUser(u.id)">Hapus</button>
           </li>
@@ -159,7 +189,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import { api } from "../api";
 import { useAuthStore } from "../stores/auth";
 
@@ -184,7 +214,14 @@ const previewHint =
   "Contoh (header named customer):\n{{customer}}\n\nMohon di perhatikan, tagihan anda pada aplikasi Pinjamin...";
 
 const teamForm = reactive({ name: "" });
-const userForm = reactive({ name: "", email: "", password: "", role: "agent", team_id: "" });
+const userForm = reactive({
+  name: "",
+  email: "",
+  password: "",
+  role: "agent",
+  team_id: "",
+  team_leader_user_id: "",
+});
 const keyForm = reactive({ label: "", api_key: "", phone_number: "", ycloud_phone_id: "", team_id: "" });
 const tplForm = reactive({
   ycloud_key_id: "",
@@ -193,6 +230,26 @@ const tplForm = reactive({
   body_preview: "",
   params: [{ component: "header", param_index: 1, param_name: "customer", label: "Nama customer", example_value: "", is_required: 1 }],
 });
+
+const teamLeaders = computed(() =>
+  users.value.filter((u) => u.role === "team_leader" && Number(u.is_active) === 1)
+);
+
+const teamsWithoutLeader = computed(() =>
+  teams.value.filter((t) => !t.team_leader_user_id)
+);
+
+const canSubmitUser = computed(() => {
+  if (userForm.role === "team_leader") {
+    return !!userForm.team_id && teamsWithoutLeader.value.length > 0;
+  }
+  return !!userForm.team_leader_user_id && teamLeaders.value.length > 0;
+});
+
+function onRoleChange() {
+  userForm.team_id = "";
+  userForm.team_leader_user_id = "";
+}
 
 function flash(ok, text) {
   msg.value = ok ? text : "";
@@ -236,11 +293,39 @@ async function removeTeam(id) {
 
 async function createUser() {
   try {
+    if (userForm.role === "agent" && !userForm.team_leader_user_id) {
+      flash(false, "Agent wajib memilih Team Leader");
+      return;
+    }
+    if (userForm.role === "team_leader" && !userForm.team_id) {
+      flash(false, "Team Leader wajib memilih team");
+      return;
+    }
+
+    const payload = {
+      name: userForm.name,
+      email: userForm.email,
+      password: userForm.password,
+      role: userForm.role,
+    };
+    if (userForm.role === "team_leader") {
+      payload.team_id = Number(userForm.team_id);
+    } else {
+      payload.team_leader_user_id = Number(userForm.team_leader_user_id);
+    }
+
     await api("/WaDesk/Users/create", {
       method: "POST",
-      body: { ...userForm, team_id: Number(userForm.team_id) },
+      body: payload,
     });
-    Object.assign(userForm, { name: "", email: "", password: "", role: "agent", team_id: "" });
+    Object.assign(userForm, {
+      name: "",
+      email: "",
+      password: "",
+      role: "agent",
+      team_id: "",
+      team_leader_user_id: "",
+    });
     flash(true, "User dibuat");
     await refresh();
   } catch (e) {
