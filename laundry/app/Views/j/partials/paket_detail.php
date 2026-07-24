@@ -40,12 +40,14 @@ $satuan = $data['satuan'];
           <small>
             <span class="j-item-id">#<?= htmlspecialchars((string) $ok['id']) ?></span> · <?= htmlspecialchars($ok['tgl']) ?>
           </small>
+        </div>
+        <div class="j-list-amt">
+          <div class="<?= $isTop ? 'amt-plus' : 'amt-min' ?>">
+            <?= $isTop ? '+' : '-' ?><?= $this->fmtDecMax2($ok['qty']) ?><?= htmlspecialchars($satuan) ?>
+          </div>
           <small>
             <?= $isLatest ? 'Saldo terkini' : 'Saldo' ?>: <?= number_format((float) $ok['saldo'], 2) ?><?= htmlspecialchars($satuan) ?>
           </small>
-        </div>
-        <div class="<?= $isTop ? 'amt-plus' : 'amt-min' ?>">
-          <?= $isTop ? '+' : '-' ?><?= $this->fmtDecMax2($ok['qty']) ?><?= htmlspecialchars($satuan) ?>
         </div>
       </div>
     <?php } ?>

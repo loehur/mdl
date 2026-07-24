@@ -479,6 +479,15 @@ a { color: inherit; text-decoration: none; }
   font-size: 0.78rem;
 }
 
+.j-paket-detail .j-list-amt {
+  text-align: right;
+  flex: 0 0 auto;
+}
+
+.j-paket-detail .j-list-amt small {
+  margin-top: 1px;
+}
+
 .j-chip-row {
   display: flex;
   flex-wrap: wrap;
