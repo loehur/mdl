@@ -57,6 +57,7 @@ $jenis_member = $kategori . ',' . $layanan . ',' . $durasi;
 // Merge topup + pemakaian (keduanya ASC) — O(n+m), hitung saldo full history
 $sales = array_values($data['data_main']);
 $topups = array_values($data['data_main2']);
+$topups = $this->helper('PaketHistory')->withMergeTimes($topups, $sales);
 $iSale = 0;
 $iTop = 0;
 $nSale = count($sales);
@@ -66,16 +67,18 @@ $arrHistory = [];
 
 while ($iSale < $nSale || $iTop < $nTop) {
   $saleTime = ($iSale < $nSale) ? strtotime($sales[$iSale]['insertTime']) : PHP_INT_MAX;
-  $topTime = ($iTop < $nTop) ? strtotime($topups[$iTop]['insertTime']) : PHP_INT_MAX;
+  if ($saleTime === false) $saleTime = PHP_INT_MAX;
+  $topTime = ($iTop < $nTop) ? (int) ($topups[$iTop]['_mergeTime'] ?? 0) : PHP_INT_MAX;
 
   // Topup yang lebih awal dari sale berikutnya ikut dulu (sama perilaku lama: topup < tgl_terima)
   if ($iTop < $nTop && $topTime < $saleTime) {
     $m = $topups[$iTop];
     $saldo_member += (float) $m['qty'];
+    $ts = strtotime($m['insertTime'] ?? '');
     $arrHistory[] = [
       'tipe' => 1,
       'id' => $m['id_member'],
-      'tgl' => date('d-m-Y', $topTime),
+      'tgl' => date('d-m-Y', $ts !== false ? $ts : time()),
       'qty' => $m['qty'],
       'saldo' => $saldo_member,
     ];
@@ -110,10 +113,11 @@ while ($iSale < $nSale || $iTop < $nTop) {
   // Sisa topup setelah semua sale (topup >= last tgl_terima)
   $m = $topups[$iTop];
   $saldo_member += (float) $m['qty'];
+  $ts = strtotime($m['insertTime'] ?? '');
   $arrHistory[] = [
     'tipe' => 1,
     'id' => $m['id_member'],
-    'tgl' => date('d-m-Y', $topTime),
+    'tgl' => date('d-m-Y', $ts !== false ? $ts : time()),
     'qty' => $m['qty'],
     'saldo' => $saldo_member,
   ];

@@ -707,6 +707,8 @@ class J extends Controller
          $mapSatuanByJenis[$l['id_penjualan_jenis']] = $satuan;
       }
 
+      $topups = $this->helper('PaketHistory')->withMergeTimes($topups, $sales);
+
       $iSale = 0;
       $iTop = 0;
       $nSale = count($sales);
@@ -715,18 +717,17 @@ class J extends Controller
       $arr = [];
       $satuan = $satuanDefault;
 
-      // Mirror klasik member_history: merge ASC by insertTime, lalu reverse untuk tampil newest-first
+      // Merge ASC by waktu efektif, lalu reverse untuk tampil newest-first
       while ($iSale < $nSale || $iTop < $nTop) {
          $saleTime = ($iSale < $nSale) ? strtotime($sales[$iSale]['insertTime']) : PHP_INT_MAX;
-         $topTime = ($iTop < $nTop) ? strtotime($topups[$iTop]['insertTime']) : PHP_INT_MAX;
          if ($saleTime === false) $saleTime = PHP_INT_MAX;
-         if ($topTime === false) $topTime = PHP_INT_MAX;
+         $topTime = ($iTop < $nTop) ? (int) ($topups[$iTop]['_mergeTime'] ?? 0) : PHP_INT_MAX;
 
-         // Topup yang lebih awal dari sale berikutnya ikut dulu (klasik: topup < tgl_terima)
+         // Topup yang lebih awal dari sale berikutnya ikut dulu
          if ($iTop < $nTop && $topTime < $saleTime) {
             $m = $topups[$iTop];
             $saldo += (float) $m['qty'];
-            $ts = strtotime($m['insertTime']);
+            $ts = strtotime($m['insertTime'] ?? '');
             $arr[] = [
                'tipe' => 1,
                'id' => $m['id_member'],
@@ -760,10 +761,10 @@ class J extends Controller
             continue;
          }
 
-         // Sisa topup setelah semua sale (topup >= last tgl_terima)
+         // Sisa topup setelah semua sale
          $m = $topups[$iTop];
          $saldo += (float) $m['qty'];
-         $ts = strtotime($m['insertTime']);
+         $ts = strtotime($m['insertTime'] ?? '');
          $arr[] = [
             'tipe' => 1,
             'id' => $m['id_member'],
