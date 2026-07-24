@@ -379,7 +379,7 @@ class I extends Controller
       $data_main = $this->db(0)->get_cols_where(
          'sale',
          'id_penjualan, id_penjualan_jenis, qty, min_order, insertTime',
-         "id_pelanggan = $pelanggan AND id_harga = $id_harga AND bin = 0 AND member = 1 ORDER BY insertTime ASC"
+         "id_pelanggan = $pelanggan AND id_harga = $id_harga AND bin = 0 AND member = 1 ORDER BY insertTime ASC, id_penjualan ASC"
       );
       if (!is_array($data_main) || isset($data_main['errno'])) {
          $data_main = [];
@@ -388,7 +388,7 @@ class I extends Controller
       $data_main2 = $this->db(0)->get_cols_where(
          'member',
          'id_member, qty, insertTime',
-         "id_pelanggan = $pelanggan AND id_harga = $id_harga AND bin = 0 ORDER BY insertTime ASC"
+         "id_pelanggan = $pelanggan AND id_harga = $id_harga AND bin = 0 ORDER BY insertTime ASC, id_member ASC"
       );
       if (!is_array($data_main2) || isset($data_main2['errno'])) {
          $data_main2 = [];

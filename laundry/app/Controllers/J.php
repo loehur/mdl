@@ -236,14 +236,14 @@ class J extends Controller
       $sales = $this->db(0)->get_cols_where(
          'sale',
          'id_penjualan, id_penjualan_jenis, qty, min_order, insertTime',
-         "id_pelanggan = $pelanggan AND id_harga = $id_harga AND bin = 0 AND member = 1 ORDER BY insertTime ASC"
+         "id_pelanggan = $pelanggan AND id_harga = $id_harga AND bin = 0 AND member = 1 ORDER BY insertTime ASC, id_penjualan ASC"
       );
       if (!is_array($sales) || isset($sales['errno'])) $sales = [];
 
       $topups = $this->db(0)->get_cols_where(
          'member',
          'id_member, qty, insertTime',
-         "id_pelanggan = $pelanggan AND id_harga = $id_harga AND bin = 0 ORDER BY insertTime ASC"
+         "id_pelanggan = $pelanggan AND id_harga = $id_harga AND bin = 0 ORDER BY insertTime ASC, id_member ASC"
       );
       if (!is_array($topups) || isset($topups['errno'])) $topups = [];
 
@@ -715,14 +715,25 @@ class J extends Controller
       $arr = [];
       $satuan = $satuanDefault;
 
+      // Mirror klasik member_history: merge ASC by insertTime, lalu reverse untuk tampil newest-first
       while ($iSale < $nSale || $iTop < $nTop) {
          $saleTime = ($iSale < $nSale) ? strtotime($sales[$iSale]['insertTime']) : PHP_INT_MAX;
          $topTime = ($iTop < $nTop) ? strtotime($topups[$iTop]['insertTime']) : PHP_INT_MAX;
+         if ($saleTime === false) $saleTime = PHP_INT_MAX;
+         if ($topTime === false) $topTime = PHP_INT_MAX;
 
+         // Topup yang lebih awal dari sale berikutnya ikut dulu (klasik: topup < tgl_terima)
          if ($iTop < $nTop && $topTime < $saleTime) {
             $m = $topups[$iTop];
             $saldo += (float) $m['qty'];
-            $arr[] = ['tipe' => 1, 'id' => $m['id_member'], 'tgl' => date('d M Y', $topTime), 'qty' => $m['qty'], 'saldo' => $saldo];
+            $ts = strtotime($m['insertTime']);
+            $arr[] = [
+               'tipe' => 1,
+               'id' => $m['id_member'],
+               'tgl' => date('d M Y', $ts !== false ? $ts : time()),
+               'qty' => $m['qty'],
+               'saldo' => $saldo,
+            ];
             $iTop++;
             continue;
          }
@@ -735,15 +746,31 @@ class J extends Controller
             $qty = round((float) $a['qty'], 2);
             $min = round(isset($a['min_order']) ? (float) $a['min_order'] : 0, 2);
             $qtyReal = $qty < $min ? round($min, 2) : round($qty, 2);
+            // Saldo debit tetap pakai qty (bukan qty_real) — perilaku klasik
             $saldo -= $qty;
-            $arr[] = ['tipe' => 0, 'id' => $a['id_penjualan'], 'tgl' => date('d M Y', $saleTime), 'qty' => $qtyReal, 'saldo' => $saldo];
+            $ts = strtotime($a['insertTime']);
+            $arr[] = [
+               'tipe' => 0,
+               'id' => $a['id_penjualan'],
+               'tgl' => date('d M Y', $ts !== false ? $ts : time()),
+               'qty' => $qtyReal,
+               'saldo' => $saldo,
+            ];
             $iSale++;
             continue;
          }
 
+         // Sisa topup setelah semua sale (topup >= last tgl_terima)
          $m = $topups[$iTop];
          $saldo += (float) $m['qty'];
-         $arr[] = ['tipe' => 1, 'id' => $m['id_member'], 'tgl' => date('d M Y', $topTime), 'qty' => $m['qty'], 'saldo' => $saldo];
+         $ts = strtotime($m['insertTime']);
+         $arr[] = [
+            'tipe' => 1,
+            'id' => $m['id_member'],
+            'tgl' => date('d M Y', $ts !== false ? $ts : time()),
+            'qty' => $m['qty'],
+            'saldo' => $saldo,
+         ];
          $iTop++;
       }
 
