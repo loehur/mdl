@@ -93,6 +93,12 @@ export const useChatStore = defineStore("chat", {
         ws.onmessage = async (ev) => {
           try {
             const msg = JSON.parse(ev.data);
+            if (msg.type === "message_status") {
+              const mid = Number(msg.message_id);
+              const m = this.messages.find((x) => Number(x.id) === mid);
+              if (m) m.status = msg.status;
+              return;
+            }
             if (msg.type === "message_in" || msg.type === "message_out") {
               await this.loadConversations();
               if (this.activeId && Number(msg.conversation_id) === Number(this.activeId)) {

@@ -186,17 +186,78 @@ class WaDesk extends Controller
 
     private function handleStatus(array $data): void
     {
-        $status = $data['whatsappMessageStatus'] ?? ($data['data'] ?? []);
-        $wamid = $status['wamid'] ?? ($status['id'] ?? null);
-        $st = $status['status'] ?? null;
-        if (!$wamid || !$st) {
+        // YCloud uses whatsappMessageStatusUpdate (same as CRM webhook)
+        $status = $data['whatsappMessageStatusUpdate']
+            ?? ($data['whatsappMessageStatus'] ?? null)
+            ?? ($data['whatsappMessage'] ?? null)
+            ?? ($data['data'] ?? []);
+
+        if (!is_array($status) || $status === []) {
             return;
         }
 
-        $this->db($this->dbIndex)->query(
-            "UPDATE messages SET status = ? WHERE ycloud_msg_id = ? LIMIT 1",
-            [$st, $wamid]
-        );
+        $wamid = $status['wamid'] ?? null;
+        $messageId = $status['id'] ?? ($status['messageId'] ?? null);
+        $externalId = $status['externalId'] ?? ($status['external_id'] ?? null);
+        $st = strtolower((string) ($status['status'] ?? ''));
+        if ($st === '') {
+            return;
+        }
+
+        // Normalize common aliases
+        if (in_array($st, ['accepted', 'pending'], true)) {
+            $st = 'sent';
+        }
+
+        $db = $this->db($this->dbIndex);
+        $row = null;
+
+        if ($wamid) {
+            $row = $db->query(
+                "SELECT id, conversation_id, ycloud_msg_id, external_id, status
+                 FROM messages WHERE ycloud_msg_id = ? LIMIT 1",
+                [$wamid]
+            )->row_array();
+        }
+        if (!$row && $messageId) {
+            $row = $db->query(
+                "SELECT id, conversation_id, ycloud_msg_id, external_id, status
+                 FROM messages WHERE ycloud_msg_id = ? LIMIT 1",
+                [$messageId]
+            )->row_array();
+        }
+        if (!$row && $externalId) {
+            $row = $db->query(
+                "SELECT id, conversation_id, ycloud_msg_id, external_id, status
+                 FROM messages WHERE external_id = ? LIMIT 1",
+                [$externalId]
+            )->row_array();
+        }
+        if (!$row) {
+            return;
+        }
+
+        $db->update('messages', [
+            'status' => $st,
+            'ycloud_msg_id' => $wamid ?: ($messageId ?: ($row['ycloud_msg_id'] ?? null)),
+        ], ['id' => (int) $row['id']]);
+
+        $conv = $db->query(
+            "SELECT tenant_id, team_id FROM conversations WHERE id = ? LIMIT 1",
+            [(int) $row['conversation_id']]
+        )->row_array();
+
+        if ($conv) {
+            WaDeskServer::push([
+                'type' => 'message_status',
+                'tenant_id' => (int) $conv['tenant_id'],
+                'team_id' => (int) $conv['team_id'],
+                'conversation_id' => (int) $row['conversation_id'],
+                'message_id' => (int) $row['id'],
+                'status' => $st,
+                'ycloud_msg_id' => $wamid ?: $messageId,
+            ]);
+        }
     }
 
     private function resolveKey(string $businessPhone, $phoneId): ?array

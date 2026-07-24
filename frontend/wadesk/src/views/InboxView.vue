@@ -113,7 +113,32 @@
               >
                 <p v-if="m.type === 'template'" class="text-[10px] opacity-70 mb-1">template: {{ m.template_name }}</p>
                 {{ m.body }}
-                <p class="text-[10px] opacity-60 mt-1 text-right">{{ formatTime(m.created_at) }}</p>
+                <div
+                  class="mt-1 flex items-center justify-end gap-1 text-[10px]"
+                  :class="m.direction === 'out' ? 'opacity-80' : 'opacity-60'"
+                >
+                  <span>{{ formatTime(m.created_at) }}</span>
+                  <span v-if="m.direction === 'out'" class="inline-flex items-center" :title="m.status || 'sent'">
+                    <!-- failed -->
+                    <svg v-if="isFailed(m.status)" class="w-3.5 h-3.5 text-rose-300" viewBox="0 0 16 16" fill="currentColor">
+                      <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 10.5a.9.9 0 110-1.8.9.9 0 010 1.8zM7.25 4.5h1.5v5h-1.5v-5z"/>
+                    </svg>
+                    <!-- read: double blue -->
+                    <svg v-else-if="isRead(m.status)" class="w-4 h-3" viewBox="0 0 16 11" fill="none">
+                      <path d="M11.07 0.73L4.51 7.29L1.79 4.57L0.38 5.98L4.51 10.12L12.48 2.14L11.07 0.73Z" fill="#53bdeb"/>
+                      <path d="M14.07 0.73L7.51 7.29L6.79 6.57L5.38 7.98L7.51 10.12L15.48 2.14L14.07 0.73Z" fill="#53bdeb"/>
+                    </svg>
+                    <!-- delivered: double grey -->
+                    <svg v-else-if="isDelivered(m.status)" class="w-4 h-3 opacity-70" viewBox="0 0 16 11" fill="none">
+                      <path d="M11.07 0.73L4.51 7.29L1.79 4.57L0.38 5.98L4.51 10.12L12.48 2.14L11.07 0.73Z" fill="currentColor"/>
+                      <path d="M14.07 0.73L7.51 7.29L6.79 6.57L5.38 7.98L7.51 10.12L15.48 2.14L14.07 0.73Z" fill="currentColor"/>
+                    </svg>
+                    <!-- sent / default: single check -->
+                    <svg v-else class="w-3 h-3 opacity-70" viewBox="0 0 12 11" fill="none">
+                      <path d="M10.07 0.73L3.51 7.29L0.79 4.57L0 5.36L3.51 8.87L10.86 1.52L10.07 0.73Z" fill="currentColor"/>
+                    </svg>
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -190,6 +215,19 @@ function formatTime(v) {
   } catch {
     return v;
   }
+}
+
+function normStatus(s) {
+  return String(s || "sent").toLowerCase();
+}
+function isFailed(s) {
+  return ["failed", "undelivered", "error", "rejected"].includes(normStatus(s));
+}
+function isRead(s) {
+  return ["read", "played"].includes(normStatus(s));
+}
+function isDelivered(s) {
+  return ["delivered", "delivery"].includes(normStatus(s));
 }
 
 async function openChat(id) {
