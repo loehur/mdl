@@ -16,9 +16,13 @@ class Users extends WaDeskController
         $teamId = $this->query('team_id');
 
         $sql = "SELECT u.id, u.email, u.name, u.role, u.team_id, u.is_active, u.created_at,
-                       t.name AS team_name
+                       t.name AS team_name,
+                       t.team_leader_user_id,
+                       tl.name AS team_leader_name,
+                       tl.email AS team_leader_email
                 FROM users u
                 LEFT JOIN teams t ON t.id = u.team_id
+                LEFT JOIN users tl ON tl.id = t.team_leader_user_id
                 WHERE u.tenant_id = ? AND u.role IN ('team_leader', 'agent')";
         $binds = [(int) $admin['tenant_id']];
 
@@ -45,30 +49,60 @@ class Users extends WaDeskController
         }
 
         $body = $this->getBody();
-        $this->validate($body, ['name', 'email', 'password', 'role', 'team_id']);
+        $this->validate($body, ['name', 'email', 'password', 'role']);
 
         $role = $body['role'];
         if (!in_array($role, ['team_leader', 'agent'], true)) {
             $this->error('Role harus team_leader atau agent', 400);
         }
 
-        $teamId = (int) $body['team_id'];
-        $team = $this->db($this->db_index)->query(
-            "SELECT * FROM teams WHERE id = ? AND tenant_id = ? LIMIT 1",
-            [$teamId, (int) $admin['tenant_id']]
-        )->row_array();
-        if (!$team) {
-            $this->error('Team tidak ditemukan', 404);
+        $teamId = 0;
+
+        if ($role === 'team_leader') {
+            if (empty($body['team_id'])) {
+                $this->error('Team Leader wajib memilih team', 400);
+            }
+            $teamId = (int) $body['team_id'];
+            $team = $this->db($this->db_index)->query(
+                "SELECT * FROM teams WHERE id = ? AND tenant_id = ? LIMIT 1",
+                [$teamId, (int) $admin['tenant_id']]
+            )->row_array();
+            if (!$team) {
+                $this->error('Team tidak ditemukan', 404);
+            }
+            if (!empty($team['team_leader_user_id'])) {
+                $this->error('Team sudah punya team leader', 400);
+            }
+        } else {
+            // Agent wajib punya team leader
+            if (empty($body['team_leader_user_id'])) {
+                $this->error('Agent wajib memilih team leader', 400);
+            }
+            $leaderId = (int) $body['team_leader_user_id'];
+            $leader = $this->db($this->db_index)->query(
+                "SELECT u.id, u.team_id, u.role, t.team_leader_user_id
+                 FROM users u
+                 INNER JOIN teams t ON t.id = u.team_id
+                 WHERE u.id = ? AND u.tenant_id = ? AND u.role = 'team_leader' AND u.is_active = 1
+                 LIMIT 1",
+                [$leaderId, (int) $admin['tenant_id']]
+            )->row_array();
+            if (!$leader) {
+                $this->error('Team leader tidak ditemukan / tidak aktif', 404);
+            }
+            if ((int) ($leader['team_leader_user_id'] ?? 0) !== $leaderId) {
+                $this->error('User tersebut bukan team leader resmi pada team-nya', 400);
+            }
+            if (empty($leader['team_id'])) {
+                $this->error('Team leader belum terhubung ke team', 400);
+            }
+            $teamId = (int) $leader['team_id'];
         }
 
         $email = strtolower(trim($body['email']));
         $exists = $this->db($this->db_index)->get_where('users', ['email' => $email], 1)->row_array();
         if ($exists) {
             $this->error('Email sudah terdaftar', 409);
-        }
-
-        if ($role === 'team_leader' && !empty($team['team_leader_user_id'])) {
-            $this->error('Team sudah punya team leader', 400);
         }
 
         $password = (string) $body['password'];
@@ -92,7 +126,11 @@ class Users extends WaDeskController
             ], ['id' => $teamId]);
         }
 
-        $this->success(['id' => $userId], 'User dibuat');
+        $this->success([
+            'id' => $userId,
+            'team_id' => $teamId,
+            'role' => $role,
+        ], 'User dibuat');
     }
 
     public function update()
@@ -139,16 +177,51 @@ class Users extends WaDeskController
         if (isset($body['is_active'])) {
             $data['is_active'] = (int) ((bool) $body['is_active']);
         }
-        if (isset($body['team_id'])) {
-            $teamId = (int) $body['team_id'];
-            $team = $this->db($this->db_index)->query(
-                "SELECT * FROM teams WHERE id = ? AND tenant_id = ? LIMIT 1",
-                [$teamId, (int) $admin['tenant_id']]
-            )->row_array();
-            if (!$team) {
-                $this->error('Team tidak ditemukan', 404);
+        if (isset($body['team_id']) || isset($body['team_leader_user_id'])) {
+            if ($user['role'] === 'agent' || (isset($body['role']) && $body['role'] === 'agent')) {
+                // Agent: pindah via team leader
+                if (empty($body['team_leader_user_id']) && empty($body['team_id'])) {
+                    $this->error('Agent wajib memilih team leader', 400);
+                }
+                if (!empty($body['team_leader_user_id'])) {
+                    $leaderId = (int) $body['team_leader_user_id'];
+                    $leader = $this->db($this->db_index)->query(
+                        "SELECT u.id, u.team_id, t.team_leader_user_id
+                         FROM users u
+                         INNER JOIN teams t ON t.id = u.team_id
+                         WHERE u.id = ? AND u.tenant_id = ? AND u.role = 'team_leader' AND u.is_active = 1
+                         LIMIT 1",
+                        [$leaderId, (int) $admin['tenant_id']]
+                    )->row_array();
+                    if (!$leader || (int) $leader['team_leader_user_id'] !== $leaderId) {
+                        $this->error('Team leader tidak valid', 400);
+                    }
+                    $data['team_id'] = (int) $leader['team_id'];
+                } elseif (isset($body['team_id'])) {
+                    $teamId = (int) $body['team_id'];
+                    $team = $this->db($this->db_index)->query(
+                        "SELECT * FROM teams WHERE id = ? AND tenant_id = ? LIMIT 1",
+                        [$teamId, (int) $admin['tenant_id']]
+                    )->row_array();
+                    if (!$team) {
+                        $this->error('Team tidak ditemukan', 404);
+                    }
+                    if (empty($team['team_leader_user_id'])) {
+                        $this->error('Team belum punya team leader; agent wajib punya TL', 400);
+                    }
+                    $data['team_id'] = $teamId;
+                }
+            } elseif (isset($body['team_id'])) {
+                $teamId = (int) $body['team_id'];
+                $team = $this->db($this->db_index)->query(
+                    "SELECT * FROM teams WHERE id = ? AND tenant_id = ? LIMIT 1",
+                    [$teamId, (int) $admin['tenant_id']]
+                )->row_array();
+                if (!$team) {
+                    $this->error('Team tidak ditemukan', 404);
+                }
+                $data['team_id'] = $teamId;
             }
-            $data['team_id'] = $teamId;
         }
 
         if ($data) {
