@@ -434,10 +434,6 @@ a { color: inherit; text-decoration: none; }
   margin-bottom: 6px;
 }
 
-.j-paket-detail .j-section-head h2 {
-  font-size: 0.84rem;
-}
-
 .j-paket-detail .j-card {
   padding: 10px 12px;
   margin-bottom: 8px;
@@ -449,8 +445,7 @@ a { color: inherit; text-decoration: none; }
   gap: 8px;
   font-size: 0.78rem;
   line-height: 1.25;
-  border-bottom: 1px dashed var(--j-line);
-  align-items: flex-start;
+  border-bottom: 1px solid var(--j-line);
 }
 
 .j-paket-detail .j-list-row:first-child {
@@ -462,42 +457,26 @@ a { color: inherit; text-decoration: none; }
   border-bottom: 0;
 }
 
-.j-paket-detail .j-list-main {
-  min-width: 0;
-  flex: 1;
+.j-paket-detail .j-list-row strong {
+  font-size: 0.78rem;
+}
+
+.j-paket-detail .j-list-row small {
+  display: block;
+  color: var(--j-muted);
+  font-size: 0.66rem;
+  margin-top: 1px;
+  line-height: 1.25;
 }
 
 .j-paket-detail .j-item-id {
-  font-size: 0.66rem;
-  font-weight: 800;
   color: #7C3AED;
-  line-height: 1.2;
-  margin-bottom: 1px;
-}
-
-.j-paket-detail .j-list-main strong {
-  display: block;
-  font-size: 0.78rem;
-  font-weight: 500;
-  letter-spacing: -0.01em;
-  color: var(--j-ink);
-  line-height: 1.25;
-}
-
-.j-paket-detail .j-item-meta {
-  margin-top: 1px;
-  font-size: 0.66rem;
-  line-height: 1.25;
-  color: var(--j-ink-soft);
-  font-weight: 500;
-  letter-spacing: -0.01em;
+  font-weight: 700;
 }
 
 .j-paket-detail .j-list-row .amt-plus,
 .j-paket-detail .j-list-row .amt-min {
   font-size: 0.78rem;
-  line-height: 1.25;
-  white-space: nowrap;
 }
 
 .j-chip-row {

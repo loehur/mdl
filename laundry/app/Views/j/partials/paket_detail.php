@@ -35,13 +35,14 @@ $satuan = $data['satuan'];
       $isLatest = $idx === 0;
     ?>
       <div class="j-list-row">
-        <div class="j-list-main">
-          <div class="j-item-id">#<?= htmlspecialchars((string) $ok['id']) ?></div>
+        <div>
           <strong><?= $isTop ? 'Topup' : 'Pakai Laundry' ?></strong>
-          <div class="j-item-meta"><?= htmlspecialchars($ok['tgl']) ?></div>
-          <div class="j-item-meta">
+          <small>
+            <span class="j-item-id">#<?= htmlspecialchars((string) $ok['id']) ?></span> · <?= htmlspecialchars($ok['tgl']) ?>
+          </small>
+          <small>
             <?= $isLatest ? 'Saldo terkini' : 'Saldo' ?>: <?= number_format((float) $ok['saldo'], 2) ?><?= htmlspecialchars($satuan) ?>
-          </div>
+          </small>
         </div>
         <div class="<?= $isTop ? 'amt-plus' : 'amt-min' ?>">
           <?= $isTop ? '+' : '-' ?><?= $this->fmtDecMax2($ok['qty']) ?><?= htmlspecialchars($satuan) ?>
