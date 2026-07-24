@@ -741,14 +741,15 @@ a { color: inherit; text-decoration: none; }
 }
 
 .j-tagihan .j-item-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: 8px 10px;
-  align-items: start;
+  display: flex;
+  gap: 8px 12px;
+  align-items: flex-start;
 }
 
 .j-tagihan .j-item-main {
+  flex: 0 1 auto;
   min-width: 0;
+  max-width: 58%;
   font-size: 0.78rem;
   line-height: 1.25;
 }
@@ -770,12 +771,17 @@ a { color: inherit; text-decoration: none; }
 
 .j-tagihan .j-item-main .j-item-meta {
   margin-top: 2px;
+  color: var(--j-ink-soft);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
 }
 
 .j-tagihan .j-item-checks {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  flex: 0 0 auto;
   gap: 1px;
   font-size: 0.66rem;
   line-height: 1.25;
@@ -783,7 +789,8 @@ a { color: inherit; text-decoration: none; }
 }
 
 .j-tagihan .j-item-grid .j-price {
-  justify-self: end;
+  margin-left: auto;
+  flex: 0 0 auto;
   font-size: 0.78rem;
 }
 
