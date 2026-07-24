@@ -42,7 +42,7 @@
           </div>
         </div>
         <div class="flex-1 overflow-y-auto">
-          <div v-if="chat.loadingList" class="p-4 text-sm text-slate-500">Memuat...</div>
+          <div v-if="chat.loadingList && !chat.conversations.length" class="p-4 text-sm text-slate-500">Memuat...</div>
           <button
             v-for="c in chat.conversations"
             :key="c.id"
@@ -100,7 +100,7 @@
           </div>
 
           <div ref="scrollEl" class="flex-1 overflow-y-auto p-4 space-y-3">
-            <div v-if="chat.loadingMessages" class="text-sm text-slate-500">Memuat pesan...</div>
+            <div v-if="chat.loadingMessages && !chat.messages.length" class="text-sm text-slate-500">Memuat pesan...</div>
             <div
               v-for="m in chat.messages"
               :key="m.id"
@@ -304,7 +304,7 @@ onMounted(async () => {
   await chat.loadConversations();
   await chat.loadKeys();
   chat.connectWs(auth.user);
-  pollTimer = setInterval(() => chat.loadConversations(), 20000);
+  pollTimer = setInterval(() => chat.loadConversations({ silent: true }), 20000);
 });
 
 onUnmounted(() => {

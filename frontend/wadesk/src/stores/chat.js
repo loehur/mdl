@@ -19,19 +19,25 @@ export const useChatStore = defineStore("chat", {
     },
   },
   actions: {
-    async loadConversations() {
-      this.loadingList = true;
+    async loadConversations({ silent = false } = {}) {
+      // Jangan tampilkan "Memuat..." kalau list sudah ada (polling/WS)
+      const showLoading = !silent && this.conversations.length === 0;
+      if (showLoading) this.loadingList = true;
       try {
         const q = this.search ? `?q=${encodeURIComponent(this.search)}` : "";
         const res = await api(`/WaDesk/Chat/getConversations${q}`);
         this.conversations = res.data.conversations || [];
       } finally {
-        this.loadingList = false;
+        if (showLoading) this.loadingList = false;
       }
     },
-    async selectConversation(id) {
+    async selectConversation(id, { silent = false } = {}) {
+      const prevId = this.activeId;
       this.activeId = id;
-      this.loadingMessages = true;
+      // Loading hanya saat buka/ganti thread, bukan refresh WS di thread yang sama
+      const showLoading =
+        !silent && (Number(prevId) !== Number(id) || this.messages.length === 0);
+      if (showLoading) this.loadingMessages = true;
       try {
         const res = await api(`/WaDesk/Chat/getMessages?conversation_id=${id}`);
         this.messages = res.data.messages || [];
@@ -47,7 +53,7 @@ export const useChatStore = defineStore("chat", {
         const c = this.conversations.find((x) => Number(x.id) === Number(id));
         if (c) c.unread = 0;
       } finally {
-        this.loadingMessages = false;
+        if (showLoading) this.loadingMessages = false;
       }
     },
     async loadKeys() {
@@ -100,9 +106,9 @@ export const useChatStore = defineStore("chat", {
               return;
             }
             if (msg.type === "message_in" || msg.type === "message_out") {
-              await this.loadConversations();
+              await this.loadConversations({ silent: true });
               if (this.activeId && Number(msg.conversation_id) === Number(this.activeId)) {
-                await this.selectConversation(this.activeId);
+                await this.selectConversation(this.activeId, { silent: true });
               }
             }
           } catch {
