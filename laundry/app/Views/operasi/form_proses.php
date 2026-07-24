@@ -316,8 +316,7 @@ $modeOperasi = (int) $data['mode'];
   #offcanvasPayment {
     border-radius: 0 !important;
   }
-  .modal { z-index: 1200 !important; }
-  .modal-backdrop { z-index: 1190 !important; }
+  /* Operasi dialogs use .op-modal (z-index 5200) — above offcanvas */
 </style>
 
 <div class="operasi-filter" id="operasiFilter">
@@ -548,15 +547,6 @@ $modeOperasi = (int) $data['mode'];
 </div>
 
 <script>
-  document.addEventListener('show.bs.modal', function (e) {
-      var el = e.target;
-      if (!el || !el.classList.contains('modal')) return;
-      var wrapper = el.closest('form') || el;
-      if (wrapper.parentNode !== document.body) {
-          document.body.appendChild(wrapper);
-      }
-  });
-
   var orderLoaded = false;
   var offcanvasBukaOrderEl = document.getElementById('offcanvasBukaOrderOp');
   var $fabOperasi = $('#fabOperasiButtons');

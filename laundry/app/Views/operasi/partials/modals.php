@@ -1,296 +1,577 @@
 <?php if (!isset($this)) { /* ensure scope remains same as parent view */
 } ?>
+
+<style>
+  /* ===== Operasi custom modal (MDL theme, no Bootstrap Modal) ===== */
+  .op-modal {
+    --op-ink: #0f172a;
+    --op-muted: #1e293b;
+    --op-line: #94a3b8;
+    --op-blue: #2563eb;
+    --op-blue-deep: #1d4ed8;
+    --op-green: #16a34a;
+    --op-green-deep: #15803d;
+    --op-yellow: #f59e0b;
+    --op-yellow-deep: #d97706;
+    --op-red: #dc2626;
+    --op-red-deep: #b91c1c;
+    --op-radius: 0;
+    --op-border: 1px;
+    position: fixed;
+    inset: 0;
+    z-index: 5200;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  .op-modal.is-open { display: flex; }
+  .op-modal.is-static .op-modal__backdrop { cursor: default; }
+  .op-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.58);
+    backdrop-filter: blur(3px);
+    cursor: pointer;
+  }
+  .op-modal__panel {
+    position: relative;
+    z-index: 1;
+    width: min(420px, 100%);
+    max-height: min(86vh, 640px);
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    border-radius: var(--op-radius);
+    box-shadow: 0 24px 48px rgba(15, 23, 42, 0.3);
+    overflow: hidden;
+    animation: opModalIn .18s ease-out;
+  }
+  .op-modal__panel--sm { width: min(360px, 100%); }
+  .op-modal__panel--md { width: min(480px, 100%); }
+  @keyframes opModalIn {
+    from { opacity: 0; transform: translateY(10px) scale(0.98); }
+    to { opacity: 1; transform: none; }
+  }
+  .op-modal__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    color: #fff;
+    background: linear-gradient(105deg, #1d4ed8 0%, #2563eb 35%, #16a34a 70%, #f59e0b 100%);
+  }
+  .op-modal__head--blue {
+    background: linear-gradient(105deg, #1d4ed8 0%, #2563eb 100%);
+  }
+  .op-modal__head--green {
+    background: linear-gradient(105deg, #15803d 0%, #16a34a 100%);
+  }
+  .op-modal__head--yellow {
+    background: linear-gradient(105deg, #d97706 0%, #f59e0b 100%);
+    color: #111;
+  }
+  .op-modal__head--red {
+    background: linear-gradient(105deg, #b91c1c 0%, #dc2626 100%);
+  }
+  .op-modal__head h3,
+  .op-modal__head h5,
+  .op-modal__head h6 {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    font-family: 'fontku', 'Segoe UI', sans-serif;
+    text-shadow: 0 1px 0 rgba(0,0,0,.18);
+  }
+  .op-modal__head--yellow h3,
+  .op-modal__head--yellow h5,
+  .op-modal__head--yellow h6 {
+    text-shadow: none;
+  }
+  .op-modal__head small {
+    display: block;
+    margin-top: 2px;
+    font-size: 0.72rem;
+    font-weight: 750;
+    opacity: 0.95;
+  }
+  .op-modal__close {
+    width: 34px;
+    height: 34px;
+    border: 0;
+    border-radius: 0;
+    background: rgba(255,255,255,.2);
+    color: inherit;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .op-modal__close:hover { background: rgba(255,255,255,.32); }
+  .op-modal__body {
+    padding: 14px 16px;
+    overflow-y: auto;
+    background:
+      radial-gradient(90% 60% at 0% 0%, rgba(37,99,235,.10), transparent 50%),
+      radial-gradient(80% 50% at 100% 0%, rgba(245,158,11,.10), transparent 45%),
+      linear-gradient(180deg, #eef4ff 0%, #f4fff8 50%, #fff8eb 100%);
+    color: var(--op-ink);
+    font-weight: 750;
+    font-size: 0.88rem;
+  }
+  .op-modal__body--plain {
+    background: linear-gradient(180deg, #fff, #f8fafc);
+  }
+  .op-modal__foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 12px 16px;
+    background: #fff;
+    border-top: 1px solid #e2e8f0;
+  }
+  .op-modal__foot--center { justify-content: center; }
+  .op-label {
+    display: block;
+    margin: 0 0 5px;
+    font-size: 0.78rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--op-muted);
+  }
+  .op-field { margin-bottom: 12px; }
+  .op-field:last-child { margin-bottom: 0; }
+  .op-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .op-input,
+  .op-modal select.op-input,
+  .op-modal .form-control {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--op-line);
+    border-radius: 0 !important;
+    background: #fff;
+    color: var(--op-ink);
+    font-weight: 800;
+    font-size: 0.88rem;
+    outline: none;
+  }
+  .op-input:focus,
+  .op-modal .form-control:focus {
+    border-color: var(--op-blue);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22);
+  }
+  .op-modal .selectize-control { margin: 0; }
+  .op-modal .selectize-control.single .selectize-input {
+    border: 1px solid var(--op-line) !important;
+    border-radius: 0 !important;
+    padding: 10px 12px !important;
+    min-height: 42px;
+    box-shadow: none !important;
+    font-weight: 800;
+  }
+  .op-modal .selectize-control.single .selectize-input.focus {
+    border-color: var(--op-blue) !important;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22) !important;
+  }
+  .op-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 14px;
+    border: 1px solid transparent;
+    border-radius: 0 !important;
+    font-size: 0.9rem;
+    font-weight: 900;
+    cursor: pointer;
+    line-height: 1.2;
+  }
+  .op-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  .op-btn--ghost {
+    background: #e2e8f0;
+    color: var(--op-ink);
+    border-color: #cbd5e1;
+  }
+  .op-btn--primary {
+    background: linear-gradient(180deg, var(--op-green), var(--op-green-deep));
+    color: #fff;
+  }
+  .op-btn--blue {
+    background: linear-gradient(180deg, var(--op-blue), var(--op-blue-deep));
+    color: #fff;
+  }
+  .op-btn--warn {
+    background: linear-gradient(180deg, var(--op-yellow), var(--op-yellow-deep));
+    color: #111;
+  }
+  .op-btn--danger {
+    background: linear-gradient(180deg, var(--op-red), var(--op-red-deep));
+    color: #fff;
+  }
+  .op-btn--block { width: 100%; }
+  .op-summary {
+    padding: 10px 12px;
+    border: 1px solid #cbd5e1;
+    background: linear-gradient(180deg, #f8fafc, #fff);
+    font-size: 0.84rem;
+    font-weight: 750;
+    color: var(--op-ink);
+  }
+  .op-summary > div + div { margin-top: 4px; }
+  .op-alert {
+    margin-top: 10px;
+    padding: 8px 10px;
+    border: 1px solid #fca5a5;
+    background: linear-gradient(180deg, #fef2f2, #fff);
+    color: var(--op-red-deep);
+    font-size: 0.8rem;
+    font-weight: 750;
+  }
+  .op-alert--warn {
+    border-color: #fcd34d;
+    background: linear-gradient(180deg, #fffbeb, #fff);
+    color: #92400e;
+  }
+  .op-muted { color: #475569; font-weight: 700; font-size: 0.82rem; }
+  .op-loading {
+    text-align: center;
+    padding: 18px 8px;
+    color: var(--op-muted);
+    font-weight: 800;
+  }
+  .op-modal .d-none { display: none !important; }
+  .op-qr-wrap {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 12px;
+  }
+  .op-cancel-icon {
+    width: 52px;
+    height: 52px;
+    margin: 0 auto 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fef3c7;
+    color: #d97706;
+    font-size: 1.6rem;
+  }
+  body.op-modal-open {
+    overflow: hidden;
+  }
+</style>
+
+<!-- Ambil Laundry -->
 <form class="ajax" data-operasi="" action="<?= URL::BASE_URL; ?>Antrian/ambil" method="POST">
-  <div class="modal" id="exampleModal4">
-    <div class="modal-dialog modal-sm">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">Ambil Laundry</b></h5>
-          <button data-bs-dismiss="modal" class="btn-close"></button>
+  <div class="op-modal" id="exampleModal4" aria-hidden="true">
+    <div class="op-modal__backdrop" data-op-close></div>
+    <div class="op-modal__panel op-modal__panel--sm" role="dialog" aria-modal="true" aria-labelledby="opAmbilTitle">
+      <div class="op-modal__head op-modal__head--green">
+        <div>
+          <h3 id="opAmbilTitle">Ambil Laundry</h3>
+          <small>Pilih pengembali</small>
         </div>
-        <div class="modal-body">
-          <div class="card-body">
-            <div class="form-group">
-              <label>Pengembali</label>
-              <select name="f1" class="ambil form-control form-control-sm tize userChange" style="width: 100%;" required>
-                <option value="" selected disabled></option>
-                <optgroup label="<?= $this->dCabang['nama'] ?> [<?= $this->dCabang['kode_cabang'] ?>]">
-                  <?php foreach ($this->user as $a) { ?>
-                    <option id="<?= $a['id_user'] ?>" value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
-                  <?php } ?>
-                </optgroup>
-                <?php if (count($this->userCabang) > 0) { ?>
-                  <optgroup label="----- Cabang Lain -----">
-                    <?php foreach ($this->userCabang as $a) { ?>
-                      <option id="<?= $a['id_user'] ?>" value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
-                    <?php } ?>
-                  </optgroup>
+        <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="op-modal__body">
+        <div class="op-field">
+          <label class="op-label">Pengembali</label>
+          <select name="f1" class="ambil tize userChange op-input" style="width: 100%;" required>
+            <option value="" selected disabled></option>
+            <optgroup label="<?= $this->dCabang['nama'] ?> [<?= $this->dCabang['kode_cabang'] ?>]">
+              <?php foreach ($this->user as $a) { ?>
+                <option id="<?= $a['id_user'] ?>" value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
+              <?php } ?>
+            </optgroup>
+            <?php if (count($this->userCabang) > 0) { ?>
+              <optgroup label="----- Cabang Lain -----">
+                <?php foreach ($this->userCabang as $a) { ?>
+                  <option id="<?= $a['id_user'] ?>" value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
                 <?php } ?>
-              </select>
-              <input type="hidden" class="idItem" name="f2" value="" required>
-            </div>
-          </div>
+              </optgroup>
+            <?php } ?>
+          </select>
+          <input type="hidden" class="idItem" name="f2" value="" required>
         </div>
-        <div class="modal-footer">
-          <button type="button" data-bs-dismiss="modal" class="btn btn-dark">Batal</button>
-          <button type="submit" class="btn btn-success">Submit</button>
-        </div>
+      </div>
+      <div class="op-modal__foot">
+        <button type="button" class="op-btn op-btn--ghost" data-op-close>Batal</button>
+        <button type="submit" class="op-btn op-btn--primary">Submit</button>
       </div>
     </div>
   </div>
 </form>
 
+<!-- Selesai Operasi -->
 <form data-operasi="" class="operasi ajax" action="<?= URL::BASE_URL; ?>Antrian/operasi" method="POST">
-  <div class="modal" id="exampleModal">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">Selesai <b class="operasi"></b>!</h5>
-          <button data-bs-dismiss="modal" class="btn-close"></button>
+  <div class="op-modal" id="exampleModal" aria-hidden="true">
+    <div class="op-modal__backdrop" data-op-close></div>
+    <div class="op-modal__panel" role="dialog" aria-modal="true" aria-labelledby="opSelesaiTitle">
+      <div class="op-modal__head op-modal__head--blue">
+        <div>
+          <h3 id="opSelesaiTitle">Selesai <b class="operasi"></b>!</h3>
+          <small>Catat karyawan &amp; letak</small>
         </div>
-        <div class="modal-body">
-          <div class="card-body">
-            <div class="form-group">
-              <div class="row">
-                <div class="col">
-                  <label>Karyawan</label>
-                  <select name="f1" class="operasi form-control tize form-control-sm userChange" style="width: 100%;" required>
-                    <option value="" selected disabled></option>
-                    <optgroup label="<?= $this->dCabang['nama'] ?> [<?= $this->dCabang['kode_cabang'] ?>]">
-                      <?php foreach ($this->user as $a) { ?>
-                        <option id="<?= $a['id_user'] ?>" value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
-                      <?php } ?>
-                    </optgroup>
-                    <?php if (count($this->userCabang) > 0) { ?>
-                      <optgroup label="----- Cabang Lain -----">
-                        <?php foreach ($this->userCabang as $a) { ?>
-                          <option id="<?= $a['id_user'] ?>" value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
-                        <?php } ?>
-                      </optgroup>
-                    <?php } ?>
-                  </select>
-                </div>
-                <div class="col">
-                  <label>Letak / Rak</label>
-                  <input id='letakRAK' type="text" maxlength="2" name="rak" style="text-transform: uppercase" class="form-control">
-                </div>
-              </div>
-              <input type="hidden" class="idItem" name="f2" value="" required>
-              <input type="hidden" class="valueItem" name="f3" value="" required>
-              <input type="hidden" name="inTotalNotif" value="" required>
+        <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="op-modal__body">
+        <div class="op-row op-field">
+          <div>
+            <label class="op-label">Karyawan</label>
+            <select name="f1" class="operasi tize userChange op-input" style="width: 100%;" required>
+              <option value="" selected disabled></option>
+              <optgroup label="<?= $this->dCabang['nama'] ?> [<?= $this->dCabang['kode_cabang'] ?>]">
+                <?php foreach ($this->user as $a) { ?>
+                  <option id="<?= $a['id_user'] ?>" value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
+                <?php } ?>
+              </optgroup>
+              <?php if (count($this->userCabang) > 0) { ?>
+                <optgroup label="----- Cabang Lain -----">
+                  <?php foreach ($this->userCabang as $a) { ?>
+                    <option id="<?= $a['id_user'] ?>" value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
+                  <?php } ?>
+                </optgroup>
+              <?php } ?>
+            </select>
+          </div>
+          <div>
+            <label class="op-label">Letak / Rak</label>
+            <input id="letakRAK" type="text" maxlength="2" name="rak" style="text-transform: uppercase" class="op-input">
+          </div>
+        </div>
+        <input type="hidden" class="idItem" name="f2" value="" required>
+        <input type="hidden" class="valueItem" name="f3" value="" required>
+        <input type="hidden" name="inTotalNotif" value="" required>
+        <div class="op-field letakRAK">
+          <div class="op-row">
+            <div>
+              <label class="op-label">Pack</label>
+              <input type="number" min="0" value="1" name="pack" class="op-input" required>
             </div>
-            <div class="form-group letakRAK">
-              <div class="row">
-                <div class="col">
-                  <label>Pack</label>
-                  <input type="number" min="0" value="1" name="pack" style="text-transform: uppercase" class="form-control" required>
-                </div>
-                <div class="col">
-                  <label>Hanger</label>
-                  <input type="number" min="0" value="0" name="hanger" style="text-transform: uppercase" class="form-control" required>
-                </div>
-              </div>
+            <div>
+              <label class="op-label">Hanger</label>
+              <input type="number" min="0" value="0" name="hanger" class="op-input" required>
             </div>
           </div>
         </div>
-        <div class="modal-footer">
-          <button type="button" data-bs-dismiss="modal" class="btn btn-dark">Batal</button>
-          <button type="submit" class="btn btn-success">Submit</button>
-        </div>
+      </div>
+      <div class="op-modal__foot">
+        <button type="button" class="op-btn op-btn--ghost" data-op-close>Batal</button>
+        <button type="submit" class="op-btn op-btn--primary">Submit</button>
       </div>
     </div>
   </div>
 </form>
 
+<!-- Ubah Penyelesai -->
 <form class="operasi ajax" action="<?= URL::BASE_URL; ?>Operasi/ganti_operasi" method="POST">
-  <div class="modal" id="modalGanti">
-    <div class="modal-dialog modal-sm">
-      <div class="modal-content">
-        <div class="modal-header bg-danger">
-          <h5 class="modal-title">Ubah Penyelesai</h5>
+  <div class="op-modal" id="modalGanti" aria-hidden="true">
+    <div class="op-modal__backdrop" data-op-close></div>
+    <div class="op-modal__panel op-modal__panel--sm" role="dialog" aria-modal="true" aria-labelledby="opGantiTitle">
+      <div class="op-modal__head op-modal__head--red">
+        <div>
+          <h3 id="opGantiTitle">Ubah Penyelesai</h3>
+          <small>Ganti karyawan yang menyelesaikan</small>
         </div>
-        <div class="modal-body">
-          <div class="card-body">
-            <div class="form-group">
-              <label>Ubah dari <span class="text-danger" id="awalOP"></span> menjadi:</label>
-              <select name="f1" class="operasi form-control tize form-control-sm userChange" style="width: 100%;" required>
-                <option value="" selected disabled></option>
-                <optgroup label="<?= $this->dCabang['nama'] ?> [<?= $this->dCabang['kode_cabang'] ?>]">
-                  <?php foreach ($this->user as $a) { ?>
-                    <option id="<?= $a['id_user'] ?>" value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
-                  <?php } ?>
-                </optgroup>
-                <?php if (count($this->userCabang) > 0) { ?>
-                  <optgroup label="----- Cabang Lain -----">
-                    <?php foreach ($this->userCabang as $a) { ?>
-                      <option id="<?= $a['id_user'] ?>" value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
-                    <?php } ?>
-                  </optgroup>
+        <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="op-modal__body">
+        <div class="op-field">
+          <label class="op-label">Ubah dari <span style="color:#dc2626;text-transform:none;letter-spacing:0;" id="awalOP"></span> menjadi</label>
+          <select name="f1" class="operasi tize userChange op-input" style="width: 100%;" required>
+            <option value="" selected disabled></option>
+            <optgroup label="<?= $this->dCabang['nama'] ?> [<?= $this->dCabang['kode_cabang'] ?>]">
+              <?php foreach ($this->user as $a) { ?>
+                <option id="<?= $a['id_user'] ?>" value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
+              <?php } ?>
+            </optgroup>
+            <?php if (count($this->userCabang) > 0) { ?>
+              <optgroup label="----- Cabang Lain -----">
+                <?php foreach ($this->userCabang as $a) { ?>
+                  <option id="<?= $a['id_user'] ?>" value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
                 <?php } ?>
-              </select>
-              <input type="hidden" id="id_ganti" name="id" required>
-            </div>
-          </div>
+              </optgroup>
+            <?php } ?>
+          </select>
+          <input type="hidden" id="id_ganti" name="id" required>
         </div>
-        <div class="modal-footer">
-          <button type="button" data-bs-dismiss="modal" class="btn btn-dark">Batal</button>
-          <button type="submit" class="btn btn-success">Submit</button>
-        </div>
+      </div>
+      <div class="op-modal__foot">
+        <button type="button" class="op-btn op-btn--ghost" data-op-close>Batal</button>
+        <button type="submit" class="op-btn op-btn--primary">Submit</button>
       </div>
     </div>
   </div>
 </form>
 
-<div class="modal" id="modalUbahMember" tabindex="-1">
-  <div class="modal-dialog modal-sm">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Ubah ke Member</h5>
-        <button type="button" data-bs-dismiss="modal" class="btn-close"></button>
+<!-- Ubah ke Member -->
+<div class="op-modal" id="modalUbahMember" aria-hidden="true">
+  <div class="op-modal__backdrop" data-op-close></div>
+  <div class="op-modal__panel op-modal__panel--sm" role="dialog" aria-modal="true" aria-labelledby="opMemberTitle">
+    <div class="op-modal__head op-modal__head--blue">
+      <div>
+        <h3 id="opMemberTitle">Ubah ke Member</h3>
+        <small>Konversi item ke paket member</small>
       </div>
-      <div class="modal-body">
-        <div id="ubahMemberLoading" class="text-center py-3">
-          <i class="fas fa-spinner fa-spin"></i> Memuat...
+      <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="op-modal__body">
+      <div id="ubahMemberLoading" class="op-loading">
+        <i class="fas fa-spinner fa-spin"></i> Memuat...
+      </div>
+      <div id="ubahMemberContent" class="d-none">
+        <p class="op-muted" id="ubahMemberInfo"></p>
+        <div class="op-summary">
+          <div>Paket: <strong id="ubahMemberPaket">-</strong></div>
+          <div>Qty order: <strong id="ubahMemberQty">-</strong></div>
+          <div>Saldo member: <strong id="ubahMemberSaldo">-</strong></div>
+          <div>Total order: <strong id="ubahMemberRefTotal">-</strong></div>
+          <div id="ubahMemberBayarInfo" class="d-none" style="color:#d97706;margin-top:6px;">Pembayaran Cek/Berhasil: <strong id="ubahMemberDibayar">-</strong></div>
         </div>
-        <div id="ubahMemberContent" class="d-none">
-          <p class="small text-muted mb-2" id="ubahMemberInfo"></p>
-          <div class="small border p-2 bg-light">
-            <div>Paket: <strong id="ubahMemberPaket">-</strong></div>
-            <div>Qty order: <strong id="ubahMemberQty">-</strong></div>
-            <div>Saldo member: <strong id="ubahMemberSaldo">-</strong></div>
-            <div>Total order: <strong id="ubahMemberRefTotal">-</strong></div>
-            <div id="ubahMemberBayarInfo" class="text-warning d-none mt-1">Pembayaran Cek/Berhasil: <strong id="ubahMemberDibayar">-</strong></div>
-          </div>
-          <div id="ubahMemberAlert" class="alert alert-danger d-none small mt-2 mb-0 py-2"></div>
-        </div>
+        <div id="ubahMemberAlert" class="op-alert d-none"></div>
       </div>
-      <div class="modal-footer">
-        <button type="button" data-bs-dismiss="modal" class="btn btn-dark btn-sm">Batal</button>
-        <button type="button" id="btnSimpanMember" class="btn btn-success btn-sm" disabled>Simpan</button>
-      </div>
+    </div>
+    <div class="op-modal__foot">
+      <button type="button" class="op-btn op-btn--ghost" data-op-close>Batal</button>
+      <button type="button" id="btnSimpanMember" class="op-btn op-btn--primary" disabled>Simpan</button>
     </div>
   </div>
 </div>
 
-<div class="modal" id="modalUbahDurasi" tabindex="-1">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Ubah Durasi</h5>
-        <button type="button" data-bs-dismiss="modal" class="btn-close"></button>
+<!-- Ubah Durasi -->
+<div class="op-modal" id="modalUbahDurasi" aria-hidden="true">
+  <div class="op-modal__backdrop" data-op-close></div>
+  <div class="op-modal__panel" role="dialog" aria-modal="true" aria-labelledby="opDurasiTitle">
+    <div class="op-modal__head op-modal__head--blue">
+      <div>
+        <h3 id="opDurasiTitle">Ubah Durasi</h3>
+        <small>Ganti durasi item</small>
       </div>
-      <div class="modal-body">
-        <div id="ubahDurasiLoading" class="text-center py-3">
-          <i class="fas fa-spinner fa-spin"></i> Memuat...
+      <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="op-modal__body">
+      <div id="ubahDurasiLoading" class="op-loading">
+        <i class="fas fa-spinner fa-spin"></i> Memuat...
+      </div>
+      <div id="ubahDurasiContent" class="d-none">
+        <p class="op-muted" id="ubahDurasiInfo"></p>
+        <div class="op-field"><strong>Item:</strong> <span id="ubahDurasiItem"></span></div>
+        <div class="op-field">
+          <label class="op-label" for="ubahDurasiSelect">Pilih Durasi</label>
+          <select id="ubahDurasiSelect" class="op-input"></select>
         </div>
-        <div id="ubahDurasiContent" class="d-none">
-          <p class="small text-muted mb-2" id="ubahDurasiInfo"></p>
-          <div class="mb-2"><strong>Item:</strong> <span id="ubahDurasiItem"></span></div>
-          <div class="form-group mb-2">
-            <label class="small mb-1">Pilih Durasi</label>
-            <select id="ubahDurasiSelect" class="form-control form-control-sm"></select>
-          </div>
-          <div class="small border p-2 bg-light">
-            <div>Harga item: <strong id="ubahDurasiItemHarga">-</strong></div>
-            <div>Total order: <strong id="ubahDurasiRefTotal">-</strong></div>
-            <div id="ubahDurasiBayarInfo" class="text-warning d-none mt-1">Pembayaran Cek/Berhasil: <strong id="ubahDurasiDibayar">-</strong></div>
-          </div>
-          <div id="ubahDurasiAlert" class="alert alert-danger d-none small mt-2 mb-0 py-2"></div>
+        <div class="op-summary">
+          <div>Harga item: <strong id="ubahDurasiItemHarga">-</strong></div>
+          <div>Total order: <strong id="ubahDurasiRefTotal">-</strong></div>
+          <div id="ubahDurasiBayarInfo" class="d-none" style="color:#d97706;margin-top:6px;">Pembayaran Cek/Berhasil: <strong id="ubahDurasiDibayar">-</strong></div>
         </div>
+        <div id="ubahDurasiAlert" class="op-alert d-none"></div>
       </div>
-      <div class="modal-footer">
-        <button type="button" data-bs-dismiss="modal" class="btn btn-dark btn-sm">Batal</button>
-        <button type="button" id="btnSimpanDurasi" class="btn btn-success btn-sm" disabled>Simpan</button>
-      </div>
+    </div>
+    <div class="op-modal__foot">
+      <button type="button" class="op-btn op-btn--ghost" data-op-close>Batal</button>
+      <button type="button" id="btnSimpanDurasi" class="op-btn op-btn--primary" disabled>Simpan</button>
     </div>
   </div>
 </div>
 
-<div class="modal" id="modalUbahLayanan" tabindex="-1">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Ubah Layanan</h5>
-        <button type="button" data-bs-dismiss="modal" class="btn-close"></button>
+<!-- Ubah Layanan -->
+<div class="op-modal" id="modalUbahLayanan" aria-hidden="true">
+  <div class="op-modal__backdrop" data-op-close></div>
+  <div class="op-modal__panel" role="dialog" aria-modal="true" aria-labelledby="opLayananTitle">
+    <div class="op-modal__head op-modal__head--blue">
+      <div>
+        <h3 id="opLayananTitle">Ubah Layanan</h3>
+        <small>Ganti layanan item</small>
       </div>
-      <div class="modal-body">
-        <div id="ubahLayananLoading" class="text-center py-3">
-          <i class="fas fa-spinner fa-spin"></i> Memuat...
+      <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="op-modal__body">
+      <div id="ubahLayananLoading" class="op-loading">
+        <i class="fas fa-spinner fa-spin"></i> Memuat...
+      </div>
+      <div id="ubahLayananContent" class="d-none">
+        <p class="op-muted" id="ubahLayananInfo"></p>
+        <div class="op-field"><strong>Item:</strong> <span id="ubahLayananItem"></span></div>
+        <div class="op-field">
+          <label class="op-label" for="ubahLayananSelect">Pilih Layanan</label>
+          <select id="ubahLayananSelect" class="op-input"></select>
         </div>
-        <div id="ubahLayananContent" class="d-none">
-          <p class="small text-muted mb-2" id="ubahLayananInfo"></p>
-          <div class="mb-2"><strong>Item:</strong> <span id="ubahLayananItem"></span></div>
-          <div class="form-group mb-2">
-            <label class="small mb-1">Pilih Layanan</label>
-            <select id="ubahLayananSelect" class="form-control form-control-sm"></select>
-          </div>
-          <div class="small border p-2 bg-light">
-            <div>Harga item: <strong id="ubahLayananItemHarga">-</strong></div>
-            <div>Total order: <strong id="ubahLayananRefTotal">-</strong></div>
-            <div id="ubahLayananBayarInfo" class="text-warning d-none mt-1">Pembayaran Cek/Berhasil: <strong id="ubahLayananDibayar">-</strong></div>
-          </div>
-          <div id="ubahLayananAlert" class="alert alert-danger d-none small mt-2 mb-0 py-2"></div>
+        <div class="op-summary">
+          <div>Harga item: <strong id="ubahLayananItemHarga">-</strong></div>
+          <div>Total order: <strong id="ubahLayananRefTotal">-</strong></div>
+          <div id="ubahLayananBayarInfo" class="d-none" style="color:#d97706;margin-top:6px;">Pembayaran Cek/Berhasil: <strong id="ubahLayananDibayar">-</strong></div>
         </div>
+        <div id="ubahLayananAlert" class="op-alert d-none"></div>
       </div>
-      <div class="modal-footer">
-        <button type="button" data-bs-dismiss="modal" class="btn btn-dark btn-sm">Batal</button>
-        <button type="button" id="btnSimpanLayanan" class="btn btn-success btn-sm" disabled>Simpan</button>
-      </div>
+    </div>
+    <div class="op-modal__foot">
+      <button type="button" class="op-btn op-btn--ghost" data-op-close>Batal</button>
+      <button type="button" id="btnSimpanLayanan" class="op-btn op-btn--primary" disabled>Simpan</button>
     </div>
   </div>
 </div>
 
+<!-- Surcharge -->
 <form class="ajax" action="<?= URL::BASE_URL; ?>Antrian/surcas" method="POST">
-  <div class="modal" id="exampleModalSurcas">
-    <div class="modal-dialog modal-sm">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">Surcharge/Biaya Tambahan</h5>
+  <div class="op-modal" id="exampleModalSurcas" aria-hidden="true">
+    <div class="op-modal__backdrop" data-op-close></div>
+    <div class="op-modal__panel op-modal__panel--sm" role="dialog" aria-modal="true" aria-labelledby="opSurcasTitle">
+      <div class="op-modal__head op-modal__head--yellow">
+        <div>
+          <h3 id="opSurcasTitle">Surcharge / Biaya Tambahan</h3>
+          <small>Tambah biaya di luar layanan</small>
         </div>
-        <div class="modal-body">
-          <div class="card-body">
-            <div class="form-group">
-              <label>Jenis Surcharge</label>
-              <select name="surcas" class="form-control form-control-sm" style="width: 100%;" required>
-                <option value="" selected disabled></option>
-                <?php foreach ($this->surcas as $sc) { ?>
-                  <option value="<?= $sc['id_surcas_jenis'] ?>"><?= $sc['surcas_jenis'] ?></option>
+        <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="op-modal__body">
+        <div class="op-field">
+          <label class="op-label">Jenis Surcharge</label>
+          <select name="surcas" class="op-input" style="width: 100%;" required>
+            <option value="" selected disabled></option>
+            <?php foreach ($this->surcas as $sc) { ?>
+              <option value="<?= $sc['id_surcas_jenis'] ?>"><?= $sc['surcas_jenis'] ?></option>
+            <?php } ?>
+          </select>
+        </div>
+        <input type="hidden" name="no_ref" id="id_transaksi">
+        <div class="op-field">
+          <label class="op-label">Jumlah Biaya</label>
+          <input type="number" name="jumlah" class="op-input">
+        </div>
+        <div class="op-field">
+          <label class="op-label">Di input Oleh</label>
+          <select name="user" class="tize userSurcas op-input" style="width: 100%;" required>
+            <option value="" selected disabled></option>
+            <optgroup label="<?= $this->dCabang['nama'] ?> [<?= $this->dCabang['kode_cabang'] ?>]">
+              <?php foreach ($this->user as $a) { ?>
+                <option id="<?= $a['id_user'] ?>" value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
+              <?php } ?>
+            </optgroup>
+            <?php if (count($this->userCabang) > 0) { ?>
+              <optgroup label="---- Cabang Lain ----">
+                <?php foreach ($this->userCabang as $a) { ?>
+                  <option id="<?= $a['id_user'] ?>" value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
                 <?php } ?>
-              </select>
-            </div>
-            <input type="hidden" name="no_ref" id="id_transaksi">
-            <div class="form-group">
-              <label>Jumlah Biaya</label>
-              <input type="number" name="jumlah" class="form-control">
-            </div>
-            <div class="form-group">
-              <label>Di input Oleh</label>
-              <select name="user" class="form-control tize form-control-sm userSurcas" style="width: 100%;" required>
-                <option value="" selected disabled></option>
-                <optgroup label="<?= $this->dCabang['nama'] ?> [<?= $this->dCabang['kode_cabang'] ?>]">
-                  <?php foreach ($this->user as $a) { ?>
-                    <option id="<?= $a['id_user'] ?>" value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
-                  <?php } ?>
-                </optgroup>
-                <?php if (count($this->userCabang) > 0) { ?>
-                  <optgroup label="---- Cabang Lain ----">
-                    <?php foreach ($this->userCabang as $a) { ?>
-                      <option id="<?= $a['id_user'] ?>" value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
-                    <?php } ?>
-                  </optgroup>
-                <?php } ?>
-              </select>
-            </div>
-          </div>
+              </optgroup>
+            <?php } ?>
+          </select>
         </div>
-        <div class="modal-footer">
-          <button type="button" data-bs-dismiss="modal" class="btn btn-dark">Batal</button>
-          <button type="submit" class="btn btn-success">Submit</button>
-        </div>
+      </div>
+      <div class="op-modal__foot">
+        <button type="button" class="op-btn op-btn--ghost" data-op-close>Batal</button>
+        <button type="submit" class="op-btn op-btn--primary">Submit</button>
       </div>
     </div>
   </div>
-</form>
 </form>
 
 <style>
@@ -1001,144 +1282,122 @@
   </div>
 </div>
 
+
+
 <!-- Modal Tanggung Bayar -->
-<div class="modal" id="modalTanggungBayar" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" style="z-index: 10070 !important;">
-  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-    <div class="modal-content border-0 shadow">
-      <div class="modal-header bg-warning py-2">
-        <h6 class="modal-title"><i class="fas fa-user-friends me-2"></i>Tanggung Bayar</h6>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+<div class="op-modal" id="modalTanggungBayar" aria-hidden="true" data-op-static="1">
+  <div class="op-modal__backdrop" data-op-close></div>
+  <div class="op-modal__panel op-modal__panel--md" role="dialog" aria-modal="true" aria-labelledby="opTbTitle">
+    <div class="op-modal__head op-modal__head--yellow">
+      <div>
+        <h3 id="opTbTitle"><i class="fas fa-user-friends"></i> Tanggung Bayar</h3>
+        <small>Pilih penanggung dengan saldo</small>
       </div>
-      <div class="modal-body p-3">
-        <div class="alert alert-danger py-2 small mb-3">
-          <i class="fas fa-exclamation-triangle me-1"></i>
-          Penggunaan saldo untuk tanggung bayar diawasi ketat oleh Admin. Mohon hati-hati dalam memilih penanggung bayar — kesalahan pilih dapat menimbulkan perselisihan di kemudian hari.
-        </div>
-        <p class="small text-muted mb-2">Order atas nama: <strong><?= strtoupper($nama_pelanggan ?? '') ?></strong></p>
-        <input type="text" id="searchPenanggungBayar" class="form-control form-control-sm mb-2" placeholder="Cari nama atau nomor HP..." autocomplete="off">
-        <div id="listPenanggungBayar" style="max-height: 280px; overflow-y: auto;">
-          <div class="text-center text-muted py-3"><i class="fas fa-spinner fa-spin"></i> Memuat...</div>
-        </div>
-        <div id="tbKonfirmasi" class="d-none mt-3 p-2 border bg-light">
-          <p class="small mb-2">
-            Bayar tagihan <strong id="tbKonfirmasiOrder"></strong> menggunakan saldo:
-          </p>
-          <p class="mb-2">
-            <strong id="tbKonfirmasiNama" class="text-primary"></strong><br>
-            <span class="text-muted small">Saldo: Rp <span id="tbKonfirmasiSaldo"></span></span>
-          </p>
-          <button type="button" class="btn btn-success btn-sm w-100" id="btnKonfirmasiTanggungBayar">
-            <i class="fas fa-check"></i> Gunakan Saldo Ini
-          </button>
-        </div>
+      <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="op-modal__body">
+      <div class="op-alert" style="margin-top:0;margin-bottom:12px;">
+        <i class="fas fa-exclamation-triangle"></i>
+        Penggunaan saldo untuk tanggung bayar diawasi ketat oleh Admin. Mohon hati-hati dalam memilih penanggung bayar.
       </div>
-      <div class="modal-footer py-2">
-        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Tutup</button>
+      <p class="op-muted" style="margin-bottom:8px;">Order atas nama: <strong><?= strtoupper($nama_pelanggan ?? '') ?></strong></p>
+      <div class="op-field">
+        <label class="op-label" for="searchPenanggungBayar">Cari</label>
+        <input type="text" id="searchPenanggungBayar" class="op-input" placeholder="Cari nama atau nomor HP..." autocomplete="off">
       </div>
+      <div id="listPenanggungBayar" style="max-height: 280px; overflow-y: auto; border: 1px solid #cbd5e1; background:#fff;">
+        <div class="op-loading"><i class="fas fa-spinner fa-spin"></i> Memuat...</div>
+      </div>
+      <div id="tbKonfirmasi" class="d-none" style="margin-top:12px;padding:10px 12px;border:1px solid #fcd34d;background:linear-gradient(180deg,#fffbeb,#fff);">
+        <p class="op-muted" style="margin-bottom:8px;">
+          Bayar tagihan <strong id="tbKonfirmasiOrder"></strong> menggunakan saldo:
+        </p>
+        <p style="margin-bottom:10px;">
+          <strong id="tbKonfirmasiNama" style="color:#2563eb;"></strong><br>
+          <span class="op-muted">Saldo: Rp <span id="tbKonfirmasiSaldo"></span></span>
+        </p>
+        <button type="button" class="op-btn op-btn--primary op-btn--block" id="btnKonfirmasiTanggungBayar">
+          <i class="fas fa-check"></i> Gunakan Saldo Ini
+        </button>
+      </div>
+    </div>
+    <div class="op-modal__foot">
+      <button type="button" class="op-btn op-btn--ghost" data-op-close>Tutup</button>
     </div>
   </div>
 </div>
 
-<!-- Modal Alert Profesional -->
-<div class="modal" id="modalAlert" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" style="z-index: 10060 !important; background: rgba(0,0,0,0.5);">
-  <div class="modal-dialog modal-dialog-centered" style="max-width: 400px;">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h6 class="modal-title">
-          <i class="fas fa-info-circle text-primary" id="modalAlertIcon"></i>
+<!-- Modal Alert -->
+<div class="op-modal" id="modalAlert" aria-hidden="true" data-op-static="1">
+  <div class="op-modal__backdrop" data-op-close></div>
+  <div class="op-modal__panel op-modal__panel--sm" role="dialog" aria-modal="true" aria-labelledby="modalAlertTitle">
+    <div class="op-modal__head op-modal__head--blue" id="modalAlertHead">
+      <div>
+        <h3>
+          <i class="fas fa-info-circle" id="modalAlertIcon"></i>
           <span id="modalAlertTitle">Informasi</span>
-        </h6>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </h3>
       </div>
-      <div class="modal-body">
-        <p id="modalAlertMessage" class="mb-0"></p>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-primary btn-sm" data-bs-dismiss="modal">OK</button>
-      </div>
+      <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="op-modal__body op-modal__body--plain">
+      <p id="modalAlertMessage" style="margin:0;white-space:pre-wrap;"></p>
+    </div>
+    <div class="op-modal__foot">
+      <button type="button" class="op-btn op-btn--blue" data-op-close>OK</button>
     </div>
   </div>
 </div>
 
 <!-- Modal QR Code -->
-<div class="modal" id="modalQR" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" style="z-index: 10050 !important;">
-  <div class="modal-dialog modal-dialog-centered modal-sm">
-    <div class="modal-content" style="z-index: 10051 !important;">
-      <div class="modal-header">
-        <h6 class="modal-title">Scan QRIS</h6>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+<div class="op-modal" id="modalQR" aria-hidden="true" data-op-static="1">
+  <div class="op-modal__backdrop" data-op-close></div>
+  <div class="op-modal__panel op-modal__panel--sm" role="dialog" aria-modal="true" aria-labelledby="opQrTitle">
+    <div class="op-modal__head op-modal__head--blue">
+      <div>
+        <h3 id="opQrTitle">Scan QRIS</h3>
+        <small>Tunggu konfirmasi pembayaran</small>
       </div>
-      <div class="modal-body text-center">
-        <div id="qrcode" class="d-flex justify-content-center mb-3"></div>
-        <p class="mb-0 fw-bold" id="qrTotal"></p>
-        <p class="mb-0" id="qrNama"></p>
-        <div id="devModeLabel" class="mt-2 d-none">
-          <span class="badge bg-warning text-dark">DEV MODE - FAKE QR</span>
-          <div class="alert alert-secondary mt-1 p-1 small text-start" style="font-size: 0.7rem; overflow-wrap: break-word;" id="devApiRes"></div>
-        </div>
+      <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="op-modal__body" style="text-align:center;">
+      <div id="qrcode" class="op-qr-wrap"></div>
+      <p style="margin:0;font-weight:900;" id="qrTotal"></p>
+      <p style="margin:4px 0 0;" id="qrNama"></p>
+      <div id="devModeLabel" class="d-none" style="margin-top:10px;">
+        <span style="display:inline-block;padding:4px 8px;background:#f59e0b;color:#111;font-weight:900;font-size:0.72rem;">DEV MODE - FAKE QR</span>
+        <div class="op-summary" style="margin-top:8px;text-align:left;font-size:0.7rem;overflow-wrap:break-word;" id="devApiRes"></div>
       </div>
-      <div class="modal-footer justify-content-center">
-        <button type="button" class="btn btn-warning btn-sm" id="btnCekStatusQR"><i class="fas fa-sync"></i> Cek Status</button>
-        <button type="button" class="btn btn-primary btn-sm" id="btnPrintQR"><i class="fas fa-print"></i> Print</button>
-        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Tutup</button>
-      </div>
+    </div>
+    <div class="op-modal__foot op-modal__foot--center">
+      <button type="button" class="op-btn op-btn--warn" id="btnCekStatusQR"><i class="fas fa-sync"></i> Cek Status</button>
+      <button type="button" class="op-btn op-btn--blue" id="btnPrintQR"><i class="fas fa-print"></i> Print</button>
+      <button type="button" class="op-btn op-btn--ghost" data-op-close>Tutup</button>
     </div>
   </div>
 </div>
 
-<!-- Modal Cancel Payment Confirmation -->
-<div class="modal" id="modalCancelPayment" tabindex="-1" data-bs-backdrop="static" style="z-index: 10060;">
-  <div class="modal-dialog modal-dialog-centered modal-sm">
-    <div class="modal-content border-0 shadow" style="z-index: 10061;">
-      <div class="modal-body text-center p-4">
-        <div class="mb-3">
-          <i class="fas fa-exclamation-triangle text-warning" style="font-size: 3rem;"></i>
-        </div>
-        <h5 class="mb-2">Batalkan Pembayaran?</h5>
-        <p class="text-muted mb-2" id="cancelPaymentInfo"></p>
-        <p class="small text-danger mb-3">Data pembayaran akan dihapus permanen.</p>
-        <div class="d-flex gap-2 justify-content-center">
-          <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">Batal</button>
-          <button type="button" class="btn btn-danger px-4" id="btnConfirmCancel">
-            <i class="fas fa-trash-alt"></i> Hapus
-          </button>
-        </div>
+<!-- Modal Cancel Payment -->
+<div class="op-modal" id="modalCancelPayment" aria-hidden="true" data-op-static="1">
+  <div class="op-modal__backdrop" data-op-close></div>
+  <div class="op-modal__panel op-modal__panel--sm" role="dialog" aria-modal="true" aria-labelledby="opCancelPayTitle">
+    <div class="op-modal__head op-modal__head--red">
+      <div>
+        <h3 id="opCancelPayTitle">Batalkan Pembayaran?</h3>
+        <small>Data akan dihapus permanen</small>
       </div>
+      <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="op-modal__body" style="text-align:center;">
+      <div class="op-cancel-icon"><i class="fas fa-exclamation-triangle"></i></div>
+      <p style="margin:0 0 8px;font-weight:800;" id="cancelPaymentInfo"></p>
+      <p class="op-muted" style="color:#b91c1c;margin:0;">Data pembayaran akan dihapus permanen.</p>
+    </div>
+    <div class="op-modal__foot op-modal__foot--center">
+      <button type="button" class="op-btn op-btn--ghost" data-op-close>Batal</button>
+      <button type="button" class="op-btn op-btn--danger" id="btnConfirmCancel">
+        <i class="fas fa-trash-alt"></i> Hapus
+      </button>
     </div>
   </div>
 </div>
-
-<!-- Modal Konfirmasi Hapus Order -->
-<div class="modal" id="modalHapusOrder" tabindex="-1" aria-hidden="true" style="z-index: 99999 !important;">
-  <div class="modal-dialog modal-dialog-centered modal-sm" style="z-index: 100000 !important;">
-    <div class="modal-content border-0 shadow">
-      <div class="modal-header bg-danger text-white py-2">
-        <h6 class="modal-title"><i class="fas fa-trash-alt me-2"></i>Hapus Order</h6>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body p-3">
-        <p class="mb-2">Yakin ingin menghapus order <strong id="hapusOrderRef"></strong>?</p>
-        <div class="mb-2">
-          <label class="form-label small mb-1">Alasan Hapus <span class="text-danger">*</span></label>
-          <input type="text" class="form-control form-control-sm" id="hapusOrderNote" placeholder="Masukkan alasan..." required>
-        </div>
-        <p class="small text-danger mb-0"><i class="fas fa-exclamation-triangle me-1"></i>Data tidak dapat dikembalikan.</p>
-      </div>
-      <div class="modal-footer py-2">
-        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
-        <button type="button" class="btn btn-danger btn-sm" id="btnKonfirmasiHapus">
-          <i class="fas fa-trash-alt me-1"></i>Hapus
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Offcanvas Buka Order -->
-
-
-<style>
-  #modalHapusOrder + .modal-backdrop {
-    z-index: 99998 !important;
-  }
-</style>

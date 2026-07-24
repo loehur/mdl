@@ -6,6 +6,7 @@ Setiap pembuatan atau perubahan tampilan **wajib merujuk file ini**.
 Referensi implementasi yang sudah sesuai tema:
 - Offcanvas Order → `laundry/app/Views/penjualan/penjualan_main.php` (`#ord-root`)
 - Offcanvas Pembayaran → `laundry/app/Views/operasi/partials/modals.php` (`#offcanvasPayment`)
+- Modal Operasi → `laundry/app/Views/operasi/partials/modals.php` (`.op-modal` + `window.OpModal`)
 - Top nav + Sidebar → `laundry/app/Views/layout.php` (`.mdl-topbar`, `.main-sidebar`)
 - Antrian view → `laundry/app/Views/antrian/view_content.php` + `form.php` (warna token; layout/spacing dipertahankan)
 - Login → `laundry/app/Views/login.php`
@@ -118,12 +119,35 @@ Font stack: `'fontku', 'Segoe UI', sans-serif`
 
 - **Sudut runcing** — `border-radius: 0` pada `.modal-content`, panel dialog, tombol, input di dalamnya
 - Shadow tetap boleh keras: mis. `0 24px 48px rgba(15, 23, 42, 0.3)`
-- Header modal: gradient token (biru/hijau/kuning) + teks putih tebal, sama semangat offcanvas
+- Header modal: gradient token (biru/hijau/kuning/merah) + teks putih tebal, sama semangat offcanvas
+- **Operasi:** jangan pakai Bootstrap Modal. Pakai `.op-modal` + `window.OpModal.open/close` (lihat `modals.php` / `view_load.js`)
+
+```html
+<div class="op-modal" id="…" aria-hidden="true">
+  <div class="op-modal__backdrop" data-op-close></div>
+  <div class="op-modal__panel" role="dialog" aria-modal="true">
+    <div class="op-modal__head op-modal__head--blue|green|yellow|red">…</div>
+    <div class="op-modal__body">…</div>
+    <div class="op-modal__foot">…</div>
+  </div>
+</div>
+```
+
+```js
+OpModal.open("modalAlert", { static: true }); // static = backdrop/Escape tidak menutup
+OpModal.close("modalAlert");
+OpModal.closeAll();
+```
+
+- Trigger UI: `data-op-target="#idModal"` (bukan `data-bs-toggle` / `data-bs-target`)
+- Z-index `.op-modal`: `5200` (di atas offcanvas Payment/Order ~1100)
+- Backdrop milik tiap modal — **jangan** membuat `.modal-backdrop` Bootstrap
 
 ```css
 .modal-content,
 .ord-plg-modal__panel,
 .ord-order-modal__panel,
+.op-modal__panel,
 .offcanvas {
   border-radius: 0 !important;
 }
@@ -215,6 +239,7 @@ Desktop: **2 kolom**. Mobile (`≤720px` / `≤639px`): 1 kolom.
 - [ ] Tombol primary hijau / info biru / warn kuning / danger merah
 - [ ] Radio/option terpilih sangat jelas vs yang tidak
 - [ ] Header offcanvas memakai gradient multiwarna (jika offcanvas)
+- [ ] Modal Operasi memakai `.op-modal` / `OpModal` (bukan Bootstrap Modal + backdrop)
 - [ ] Konsisten dengan Order / Pembayaran yang sudah ada
 
 ---

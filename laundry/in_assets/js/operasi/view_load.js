@@ -34,6 +34,94 @@
   $("body > #modalHapusItemNota").remove();
   $("body > #modalHapusOrderInline").remove();
 
+
+  // Custom Operasi modal helper (MDL theme — no Bootstrap Modal)
+  window.OpModal = (function () {
+    function el(id) {
+      if (!id) return null;
+      if (id.charAt(0) === "#") id = id.slice(1);
+      return document.getElementById(id);
+    }
+
+    function syncLock() {
+      var n = document.querySelectorAll(".op-modal.is-open").length;
+      if (n === 0) {
+        document.body.classList.remove("op-modal-open");
+      } else {
+        document.body.classList.add("op-modal-open");
+      }
+    }
+
+    function open(id, opts) {
+      opts = opts || {};
+      var modal = el(id);
+      if (!modal) return null;
+      var isStatic = opts.static === true || modal.getAttribute("data-op-static") === "1";
+      if (isStatic) {
+        modal.classList.add("is-static");
+        modal.setAttribute("data-op-static", "1");
+      } else {
+        modal.classList.remove("is-static");
+      }
+      if (!modal.classList.contains("is-open")) {
+        modal.classList.add("is-open");
+        modal.setAttribute("aria-hidden", "false");
+        syncLock();
+        try {
+          modal.dispatchEvent(new CustomEvent("op-modal:open", { bubbles: true }));
+        } catch (e) {}
+      }
+      return modal;
+    }
+
+    function close(id) {
+      var modal = typeof id === "string" ? el(id) : id;
+      if (!modal || !modal.classList.contains("is-open")) return;
+      modal.classList.remove("is-open");
+      modal.setAttribute("aria-hidden", "true");
+      syncLock();
+      try {
+        modal.dispatchEvent(new CustomEvent("op-modal:close", { bubbles: true }));
+      } catch (e) {}
+    }
+
+    function closeAll() {
+      document.querySelectorAll(".op-modal.is-open").forEach(function (m) {
+        m.classList.remove("is-open");
+        m.setAttribute("aria-hidden", "true");
+        try {
+          m.dispatchEvent(new CustomEvent("op-modal:close", { bubbles: true }));
+        } catch (e) {}
+      });
+      syncLock();
+    }
+
+    if (!window.__opModalDelegatesBound) {
+      window.__opModalDelegatesBound = true;
+      document.addEventListener("click", function (e) {
+        var closeBtn = e.target.closest("[data-op-close]");
+        if (!closeBtn) return;
+        var modal = closeBtn.closest(".op-modal");
+        if (!modal) return;
+        if (closeBtn.classList.contains("op-modal__backdrop") && modal.classList.contains("is-static")) {
+          return;
+        }
+        e.preventDefault();
+        if (window.OpModal) window.OpModal.close(modal);
+      });
+      document.addEventListener("keydown", function (e) {
+        if (e.key !== "Escape") return;
+        var openModals = document.querySelectorAll(".op-modal.is-open:not(.is-static)");
+        if (!openModals.length) return;
+        if (window.OpModal) window.OpModal.close(openModals[openModals.length - 1]);
+      });
+    }
+
+    syncLock();
+    return { open: open, close: close, closeAll: closeAll, syncLock: syncLock };
+  })();
+
+
   if (window.viewLoadJsLoaded) {
     // Already loaded, and we just unbound everything. 
     // We will re-bind below as the script execution continues.
@@ -55,58 +143,36 @@
   // Fungsi untuk menampilkan alert modal profesional
   window.showAlert = function (message, type) {
     type = type || "info"; // info, success, warning, error
-    var iconClass = "fa-info-circle text-primary";
+    var iconClass = "fa-info-circle";
     var title = "Informasi";
+    var headClass = "op-modal__head op-modal__head--blue";
 
     if (type === "success") {
-      iconClass = "fa-check-circle text-success";
+      iconClass = "fa-check-circle";
       title = "Berhasil";
+      headClass = "op-modal__head op-modal__head--green";
     } else if (type === "warning") {
-      iconClass = "fa-exclamation-triangle text-warning";
+      iconClass = "fa-exclamation-triangle";
       title = "Peringatan";
+      headClass = "op-modal__head op-modal__head--yellow";
     } else if (type === "error") {
-      iconClass = "fa-times-circle text-danger";
+      iconClass = "fa-times-circle";
       title = "Error";
+      headClass = "op-modal__head op-modal__head--red";
     }
 
     try {
       var modalEl = document.getElementById("modalAlert");
-
-      // If we found the one in the body (orphaned) but we have a new one in the DOM, prefer the new one?
-      // Actually, we cleaned up body > #modalAlert at the top. 
-      // So document.getElementById should find the one inside the new HTML.
-
-      // Cek apakah modal element ada
-      if (!modalEl) {
+      if (!modalEl || typeof window.OpModal === "undefined") {
         alert(message);
         return;
       }
 
-      // Pastikan Bootstrap 5 tersedia
-      if (typeof bootstrap === 'undefined' || typeof bootstrap.Modal === 'undefined') {
-        alert(message);
-        return;
-      }
-
-      // Pindahkan modal ke body untuk menghindari masalah z-index/overflow
-      if (modalEl.parentNode !== document.body) {
-        document.body.appendChild(modalEl);
-      }
-
-      // Set content modal
+      $("#modalAlertHead").attr("class", headClass);
       $("#modalAlertIcon").attr("class", "fas " + iconClass);
       $("#modalAlertTitle").text(title);
       $("#modalAlertMessage").css("white-space", "pre-wrap").text(message);
-
-      // Tutup modal yang mungkin sedang terbuka (prevent backdrop sticking)
-      var existingModal = bootstrap.Modal.getInstance(modalEl);
-      if (existingModal) {
-        existingModal.show();
-      } else {
-        var newModal = new bootstrap.Modal(modalEl);
-        newModal.show();
-      }
-
+      window.OpModal.open("modalAlert", { static: true });
     } catch (e) {
       alert(message);
     }
@@ -324,11 +390,7 @@
             $("#qrcode").html('<div class="text-success text-center"><i class="fas fa-check-circle fa-5x"></i><h3 class="mt-2">LUNAS/PAID</h3></div>');
             $("#btnCekStatusQR").removeClass("btn-warning").addClass("btn-success").html('<i class="fas fa-check"></i> PAID');
             setTimeout(function () {
-              var modalEl2 = document.getElementById("modalQR");
-              if (modalEl2 && window.bootstrap && bootstrap.Modal) {
-                var mFn = bootstrap.Modal.getInstance(modalEl2);
-                if (mFn) mFn.hide();
-              }
+              if (window.OpModal) window.OpModal.close("modalQR");
               if (typeof load_data_operasi === "function" && id_pelanggan) {
                 load_data_operasi(id_pelanggan);
               } else if (typeof loadDiv === "function") {
@@ -341,32 +403,23 @@
         });
       }
       if (operasiQRPollInterval) stopOperasiQRPoll();
-      modalEl.addEventListener("shown.bs.modal", function () {
+      var onOpenQR = function () {
         if (!isDev && ref_id) {
           stopOperasiQRPoll();
           operasiQRPollInterval = setInterval(doPoll, 3000);
           doPoll();
         }
-      }, { once: true });
-      modalEl.addEventListener("hidden.bs.modal", stopOperasiQRPoll, { once: true });
-
-      // Show Modal
-      try {
-        // Move modal to body to avoid z-index/overflow issues (same fix as modalAlert)
-        if (modalEl.parentNode !== document.body) {
-          document.body.appendChild(modalEl);
-        }
-
-        if (window.bootstrap && bootstrap.Modal) {
-          var mFn = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
-          mFn.show();
-
-          // Force backdrop z-index after a short delay
-          setTimeout(function () {
-            $(".modal-backdrop").css("z-index", "10049");
-          }, 50);
-        }
-      } catch (e) { }
+        modalEl.removeEventListener("op-modal:open", onOpenQR);
+      };
+      var onCloseQR = function () {
+        stopOperasiQRPoll();
+        modalEl.removeEventListener("op-modal:close", onCloseQR);
+      };
+      modalEl.addEventListener("op-modal:open", onOpenQR);
+      modalEl.addEventListener("op-modal:close", onCloseQR);
+      if (window.OpModal) {
+        window.OpModal.open("modalQR", { static: true });
+      }
     }
 
     // Print QR button handler
@@ -444,11 +497,7 @@
 
             // Reload after 2 seconds
             setTimeout(function () {
-              var modalEl = document.getElementById("modalQR");
-              if (modalEl && window.bootstrap && bootstrap.Modal) {
-                var mFn = bootstrap.Modal.getInstance(modalEl);
-                if (mFn) mFn.hide();
-              }
+              if (window.OpModal) window.OpModal.close("modalQR");
 
               if (typeof load_data_operasi === 'function' && id_pelanggan) {
                 load_data_operasi(id_pelanggan);
@@ -593,13 +642,9 @@
           $('#modalAlertTitle').text('Panduan Pembayaran');
           $('#modalAlertIcon').attr('class', 'fas fa-info-circle text-primary');
 
-          var modalEl = document.getElementById('modalAlert');
-          if (modalEl) {
-            if (modalEl.parentNode !== document.body) {
-              document.body.appendChild(modalEl);
-            }
-            var alertModal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
-            alertModal.show();
+          $("#modalAlertHead").attr("class", "op-modal__head op-modal__head--blue");
+          if (window.OpModal) {
+            window.OpModal.open("modalAlert", { static: true });
           }
         } else {
           showAlert("Fitur ini hanya tersedia untuk pembayaran QRIS", "warning");
@@ -658,26 +703,13 @@
             }
           } catch (e) { }
 
-          try {
-            var mEl = document.querySelector(".modal.show");
-            if (mEl && window.bootstrap && bootstrap.Modal) {
-              var instance = bootstrap.Modal.getInstance(mEl) || new bootstrap.Modal(mEl);
-              instance.hide();
-            }
-          } catch (e) { }
-
-          // Robust cleanup with delay to override Bootstrap race conditions
-          setTimeout(function () {
-            try {
-              $(".modal-backdrop").remove();
-              $(".offcanvas-backdrop").remove();
-              $("body").removeClass("modal-open offcanvas-open").removeAttr("style").css({ overflow: "auto", "padding-right": "0" });
-            } catch (e) { }
-          }, 300); // 300ms delay matches bootstrap transition
-
-          if (typeof hide_modal === "function") {
-            hide_modal();
+          if (window.OpModal) {
+            window.OpModal.closeAll();
           }
+          try {
+            $(".offcanvas-backdrop").remove();
+            $("body").removeClass("offcanvas-open").css({ overflow: "auto", "padding-right": "0" });
+          } catch (e) { }
           loadDiv();
         } else {
           showAlert(res, "error");
@@ -744,17 +776,13 @@
               }
             } catch (e) { }
 
-            try {
-              $(".modal-backdrop").remove();
-              $(".offcanvas-backdrop").remove();
-              $("body").removeClass("modal-open offcanvas-open").removeAttr("style").css({ overflow: "auto", "padding-right": "0" });
-            } catch (e) { }
-
-            if (typeof hide_modal === "function") {
-              try {
-                hide_modal();
-              } catch (e) { }
+            if (window.OpModal) {
+              window.OpModal.closeAll();
             }
+            try {
+              $(".offcanvas-backdrop").remove();
+              $("body").removeClass("offcanvas-open").css({ overflow: "auto", "padding-right": "0" });
+            } catch (e) { }
             loadDiv();
           };
 
@@ -849,17 +877,12 @@
   window.bukaModalHapus = function (ref) {
     var modal = $('#modalHapusOrderInline');
     if (modal.length > 0) {
-      // Pindahkan ke body agar z-index benar (jika belum)
-      if (modal.parent()[0] !== document.body) {
-        modal.appendTo('body');
-      }
-
       $('#hapusRefText').text('#' + ref);
       $('#inputAlasanHapus').val('').css('borderColor', '#ccc');
       $('#btnHapusKonfirm').data('ref', ref);
-
-      modal.show();
-
+      if (window.OpModal) {
+        window.OpModal.open('modalHapusOrderInline', { static: true });
+      }
       setTimeout(function () {
         $('#inputAlasanHapus').focus();
       }, 100);
@@ -877,7 +900,7 @@
 
   // Event handler tutup modal
   $(document).on('click', '.tutupModalHapusBtn', function () {
-    $('#modalHapusOrderInline').hide();
+    if (window.OpModal) window.OpModal.close('modalHapusOrderInline');
   });
 
   // Event handler konfirmasi hapus
@@ -902,7 +925,7 @@
       },
       type: "POST",
       success: function (response) {
-        $('#modalHapusOrderInline').hide();
+        if (window.OpModal) window.OpModal.close('modalHapusOrderInline');
         loadDiv();
       },
       error: function () {
@@ -917,7 +940,8 @@
 
   // --- Hapus satu item dari nota ---
   function tutupModalHapusItem() {
-    $('#modalHapusItemNota').removeClass('is-open').attr('aria-hidden', 'true');
+    if (window.OpModal) window.OpModal.close('modalHapusItemNota');
+    else $('#modalHapusItemNota').removeClass('is-open').attr('aria-hidden', 'true');
   }
 
   function bukaModalHapusItem(id, ref, itemName) {
@@ -927,16 +951,12 @@
       return;
     }
 
-    // Pindahkan ke body agar tidak tertutup overflow/stacking context di #load
-    if ($modal.parent()[0] !== document.body) {
-      $modal.appendTo('body');
-    }
-
     $('#hapusItemNama').text(itemName || ('ID ' + id));
     $('#hapusItemRef').text('#' + ref);
     $('#hapusItemNote').val('').css('border-color', '');
     $('#btnKonfirmasiHapusItem').attr('data-id', id);
-    $modal.addClass('is-open').attr('aria-hidden', 'false');
+    if (window.OpModal) window.OpModal.open('modalHapusItemNota', { static: true });
+    else $modal.addClass('is-open').attr('aria-hidden', 'false');
     setTimeout(function () { $('#hapusItemNote').focus(); }, 100);
   }
 
@@ -1303,14 +1323,8 @@
     $("#tbKonfirmasi").addClass("d-none");
     $("#searchPenanggungBayar").val("");
     loadListPenanggungBayar();
-    var modalEl = document.getElementById("modalTanggungBayar");
-    if (modalEl) {
-      if (modalEl.parentNode !== document.body) {
-        document.body.appendChild(modalEl);
-      }
-      if (window.bootstrap && bootstrap.Modal) {
-        bootstrap.Modal.getOrCreateInstance(modalEl).show();
-      }
+    if (window.OpModal) {
+      window.OpModal.open("modalTanggungBayar", { static: true });
     }
   });
 
@@ -1340,11 +1354,7 @@
     $("#rowTanggungBayarInfo").removeClass("d-none");
     $("#rowTanggungBayar").addClass("d-none");
     ensureMetodeSaldoTanggungBayar(Number(tbSelected.saldo).toLocaleString("id-ID"));
-    var modalEl = document.getElementById("modalTanggungBayar");
-    if (modalEl && window.bootstrap && bootstrap.Modal) {
-      var inst = bootstrap.Modal.getInstance(modalEl);
-      if (inst) inst.hide();
-    }
+    if (window.OpModal) window.OpModal.close("modalTanggungBayar");
   });
 
   $("#btnBatalTanggungBayar").on("click", function () {
@@ -1577,10 +1587,7 @@
         if (!res || res.status !== "success") {
           showAlert((res && res.message) || "Gagal memuat pilihan durasi", "error");
           try {
-            var modalEl = document.getElementById("modalUbahDurasi");
-            if (modalEl && bootstrap.Modal) {
-              bootstrap.Modal.getInstance(modalEl).hide();
-            }
+            if (window.OpModal) window.OpModal.close("modalUbahDurasi");
           } catch (e) {}
           return;
         }
@@ -1664,11 +1671,7 @@
       success: function (res) {
         if (res && res.status === "success") {
           try {
-            var modalEl = document.getElementById("modalUbahDurasi");
-            if (modalEl && bootstrap.Modal) {
-              var instance = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
-              instance.hide();
-            }
+            if (window.OpModal) window.OpModal.close("modalUbahDurasi");
           } catch (e) {}
           loadDiv();
         } else {
@@ -1754,10 +1757,7 @@
         if (!res || res.status !== "success") {
           showAlert((res && res.message) || "Gagal memuat pilihan layanan", "error");
           try {
-            var modalEl = document.getElementById("modalUbahLayanan");
-            if (modalEl && bootstrap.Modal) {
-              bootstrap.Modal.getInstance(modalEl).hide();
-            }
+            if (window.OpModal) window.OpModal.close("modalUbahLayanan");
           } catch (e) {}
           return;
         }
@@ -1843,11 +1843,7 @@
       success: function (res) {
         if (res && res.status === "success") {
           try {
-            var modalEl = document.getElementById("modalUbahLayanan");
-            if (modalEl && bootstrap.Modal) {
-              var instance = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
-              instance.hide();
-            }
+            if (window.OpModal) window.OpModal.close("modalUbahLayanan");
           } catch (e) {}
           loadDiv();
         } else {
@@ -1884,10 +1880,7 @@
         if (!res || res.status !== "success") {
           showAlert((res && res.message) || "Gagal memuat data member", "error");
           try {
-            var modalEl = document.getElementById("modalUbahMember");
-            if (modalEl && bootstrap.Modal) {
-              bootstrap.Modal.getInstance(modalEl).hide();
-            }
+            if (window.OpModal) window.OpModal.close("modalUbahMember");
           } catch (e) {}
           return;
         }
@@ -1953,11 +1946,7 @@
       success: function (res) {
         if (res && res.status === "success") {
           try {
-            var modalEl = document.getElementById("modalUbahMember");
-            if (modalEl && bootstrap.Modal) {
-              var instance = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
-              instance.hide();
-            }
+            if (window.OpModal) window.OpModal.close("modalUbahMember");
           } catch (e) {}
           loadDiv();
         } else {
@@ -2942,31 +2931,9 @@
 
     cancelPaymentRef = ref;
     $('#cancelPaymentInfo').html('<strong>' + note + '</strong> - Rp' + total);
-
-    // Move modal to body if not already there
-    var modal = $('#modalCancelPayment');
-    if (modal.parent()[0] !== document.body) {
-      modal.appendTo('body');
+    if (window.OpModal) {
+      window.OpModal.open('modalCancelPayment', { static: true });
     }
-
-    // Close any open modals first
-    $('.modal.show').each(function () {
-      $(this).removeClass('show').css('display', 'none');
-    });
-    $('.modal-backdrop').remove();
-
-    // Show our modal with proper styling
-    modal.css({
-      'display': 'block',
-      'z-index': '10055',
-      'position': 'fixed',
-      'top': '0',
-      'left': '0',
-      'width': '100%',
-      'height': '100%'
-    }).addClass('show');
-
-    $('body').addClass('modal-open').append('<div class="modal-backdrop fade show" style="z-index: 10050;"></div>');
   });
 
   $(document).on('click', '#btnConfirmCancel', function () {
@@ -2980,11 +2947,7 @@
       dataType: 'JSON',
       success: function (response) {
         btn.prop('disabled', false).html(originalHtml);
-        // Hide modal manually
-        $('#modalCancelPayment').removeClass('show').css('display', 'none');
-        $('body').removeClass('modal-open');
-        $('.modal-backdrop').remove();
-
+        if (window.OpModal) window.OpModal.close('modalCancelPayment');
         if (response.status === 'success') {
           loadDiv();
         }
@@ -2993,12 +2956,5 @@
         btn.prop('disabled', false).html(originalHtml);
       }
     });
-  });
-
-  // Handle modal close buttons
-  $(document).on('click', '#modalCancelPayment [data-bs-dismiss="modal"]', function () {
-    $('#modalCancelPayment').removeClass('show').css('display', 'none');
-    $('body').removeClass('modal-open');
-    $('.modal-backdrop').remove();
   });
 })();

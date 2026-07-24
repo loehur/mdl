@@ -120,7 +120,7 @@ $labeled = false;
           <div class="mdl-nota-head__actions">
             <?= $buttonNotif_londri ?>
             <a href="#" class="mdl-nota-chip mdl-nota-chip--label mdl-nota-chip--icon" data-print-id="Label" title="Cetak Label"><i class="fas fa-tags"></i></a>
-            <a href="#" class="mdl-nota-chip mdl-nota-chip--add mdl-nota-chip--icon tambahCas" data-ref="<?= $ref ?>" data-tr="id_transaksi" data-bs-toggle="modal" data-bs-target="#exampleModalSurcas" title="Tambah Surcharge"><i class="fas fa-plus"></i></a>
+            <a href="#" class="mdl-nota-chip mdl-nota-chip--add mdl-nota-chip--icon tambahCas" data-ref="<?= $ref ?>" data-tr="id_transaksi" data-op-target="#exampleModalSurcas" title="Tambah Surcharge"><i class="fas fa-plus"></i></a>
             <a class="mdl-nota-chip mdl-nota-chip--bill mdl-nota-chip--icon" href="<?= URL::BASE_URL . "I/" . $id_pelanggan ?>" target="_blank" title="Tagihan"><i class="fas fa-receipt"></i></a>
           </div>
         </div>
@@ -266,7 +266,7 @@ $labeled = false;
                       }
 
                       if ($this->id_privilege >= 100) {
-                        $list_layanan .= "<span style='cursor:pointer' data-awal='" . $user . "' data-id='" . $o['id_operasi'] . "' class='gantiOperasi' data-bs-target='#modalGanti'><b><i class='fas fa-check-circle text-success'></i> <span class='fw-bold text-purple'>" . $c['kode'] . "</span> " . $user . "</b> <span style='white-space: pre;'>" . date('d/m H:i', strtotime($o['insertTime'])) . "</span></span><br>" . $buttonNotifSelesai;
+                        $list_layanan .= "<span style='cursor:pointer' data-awal='" . $user . "' data-id='" . $o['id_operasi'] . "' class='gantiOperasi' data-op-target='#modalGanti'><b><i class='fas fa-check-circle text-success'></i> <span class='fw-bold text-purple'>" . $c['kode'] . "</span> " . $user . "</b> <span style='white-space: pre;'>" . date('d/m H:i', strtotime($o['insertTime'])) . "</span></span><br>" . $buttonNotifSelesai;
                       } else {
                         $list_layanan .= "<b><i class='fas fa-check-circle text-success'></i> <span class='fw-bold text-purple'>" . $c['kode'] . "</span> " . $user . "</b> <span style='white-space: pre;'>" . date('d/m H:i', strtotime($o['insertTime'])) . "</span><br>" . $buttonNotifSelesai;
                       }
@@ -277,9 +277,9 @@ $labeled = false;
                   }
                   if ($check == 0) {
                     if ($b == $endLayanan) {
-                      $list_layanan .= "<span style='cursor:pointer' id='" . $id . $b . "' data-layanan='" . $c['layanan'] . "' data-value='" . $c['id_layanan'] . "' data-id='" . $id . "' data-ref='" . $ref . "' data-bs-target='#exampleModal' class='endLayanan'><i class='far fa-circle text-info'></i> " . $c['layanan'] . "</span><br><span class='d-none ambilAfterSelesai" . $id . $b . "'><a href='#' data-id='" . $id . "' data-ref='" . $ref . "' data-bs-target='#exampleModal4' class='ambil text-dark ambil" . $id . "'><i class='far fa-circle'></i> Ambil</a></span>";
+                      $list_layanan .= "<span style='cursor:pointer' id='" . $id . $b . "' data-layanan='" . $c['layanan'] . "' data-value='" . $c['id_layanan'] . "' data-id='" . $id . "' data-ref='" . $ref . "' data-op-target='#exampleModal' class='endLayanan'><i class='far fa-circle text-info'></i> " . $c['layanan'] . "</span><br><span class='d-none ambilAfterSelesai" . $id . $b . "'><a href='#' data-id='" . $id . "' data-ref='" . $ref . "' data-op-target='#exampleModal4' class='ambil text-dark ambil" . $id . "'><i class='far fa-circle'></i> Ambil</a></span>";
                     } else {
-                      $list_layanan .= "<span style='cursor:pointer' id='" . $id . $b . "' data-layanan='" . $c['layanan'] . "' data-value='" . $c['id_layanan'] . "' data-id='" . $id . "' data-ref='" . $ref . "' data-bs-target='#exampleModal' class='addOperasi'><i class='far fa-circle text-info'></i> " . $c['layanan'] . "</span><br>";
+                      $list_layanan .= "<span style='cursor:pointer' id='" . $id . $b . "' data-layanan='" . $c['layanan'] . "' data-value='" . $c['id_layanan'] . "' data-id='" . $id . "' data-ref='" . $ref . "' data-op-target='#exampleModal' class='addOperasi'><i class='far fa-circle text-info'></i> " . $c['layanan'] . "</span><br>";
                     }
                     $layananNow = $c['layanan'];
                   }
@@ -301,12 +301,12 @@ $labeled = false;
 
             $buttonAmbil = "";
             if ($id_ambil == 0 && $endLayananDone == true) {
-              $buttonAmbil = "<a href='#' data-id='" . $id . "' data-ref='" . $ref . "' data-bs-toggle='modal' data-bs-target='#exampleModal4' class='ambil text-dark ambil" . $id . "'><i class='far fa-circle'></i> Ambil</a>";
+              $buttonAmbil = "<a href='#' data-id='" . $id . "' data-ref='" . $ref . "' data-op-target='#exampleModal4' class='ambil text-dark ambil" . $id . "'><i class='far fa-circle'></i> Ambil</a>";
             }
 
             $buttonUbahLayanan = "";
             if ($canEditItem && $doneLayanan == 0 && $id_ambil == 0 && $buttonAmbil === "") {
-              $buttonUbahLayanan = "<span style='cursor:pointer' data-id='" . $id . "' data-ref='" . $ref . "' data-bs-target='#modalUbahLayanan' class='editLayanan text-purple'><i class='fas fa-circle text-purple'></i> Ganti</span>";
+              $buttonUbahLayanan = "<span style='cursor:pointer' data-id='" . $id . "' data-ref='" . $ref . "' data-op-target='#modalUbahLayanan' class='editLayanan text-purple'><i class='fas fa-circle text-purple'></i> Ganti</span>";
             }
 
 
@@ -394,7 +394,7 @@ $labeled = false;
 
             $show_total_cell = $show_total;
             if ($canEditItem) {
-              $show_total_cell = "<span class='editMember' style='cursor:pointer;' data-id='" . $id . "' data-ref='" . $ref . "' data-bs-target='#modalUbahMember' title='Klik untuk ubah ke member'>" . $show_total . "</span>";
+              $show_total_cell = "<span class='editMember' style='cursor:pointer;' data-id='" . $id . "' data-ref='" . $ref . "' data-op-target='#modalUbahMember' title='Klik untuk ubah ke member'>" . $show_total . "</span>";
             }
 
             $showNote = "";
@@ -409,7 +409,7 @@ $labeled = false;
 
             $durasiHtml = "<span class='" . $classDurasi . "' style='white-space: pre;'>" . $durasi . $f12 . "h " . $f13 . "j</span>";
             if ($canEditItem) {
-              $durasiHtml = "<span class='" . $classDurasi . " editDurasi' style='cursor:pointer; white-space: pre;' data-id='" . $id . "' data-ref='" . $ref . "' data-bs-target='#modalUbahDurasi' title='Klik untuk ubah durasi'>" . $durasi . $f12 . "h " . $f13 . "j</span>";
+              $durasiHtml = "<span class='" . $classDurasi . " editDurasi' style='cursor:pointer; white-space: pre;' data-id='" . $id . "' data-ref='" . $ref . "' data-op-target='#modalUbahDurasi' title='Klik untuk ubah durasi'>" . $durasi . $f12 . "h " . $f13 . "j</span>";
             }
 
             $classTRDurasi = "";
@@ -1143,25 +1143,28 @@ $labeled = false;
 
 <?php include __DIR__ . '/partials/modals.php'; ?>
 
-<!-- Modal Hapus Order - Inline -->
-<div id="modalHapusOrderInline" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; z-index:999999;">
-  <div class="tutupModalHapusBtn" style="position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); cursor:pointer;"></div>
-  <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:white; border-radius:0; width:90%; max-width:350px; box-shadow:0 10px 40px rgba(0,0,0,0.3);">
-    <div style="background:#dc3545; color:white; padding:12px 16px; border-radius:0; display:flex; justify-content:space-between; align-items:center;">
-      <h6 style="margin:0; font-size:14px;"><i class="fas fa-trash-alt"></i> Hapus Order</h6>
-      <button class="tutupModalHapusBtn" style="background:none; border:none; color:white; font-size:18px; cursor:pointer;">&times;</button>
-    </div>
-    <div style="padding:16px;">
-      <p style="margin:0 0 12px;">Yakin ingin menghapus order <strong id="hapusRefText"></strong>?</p>
-      <div style="margin-bottom:12px;">
-        <label style="font-size:12px; margin-bottom:4px; display:block;">Alasan Hapus <span style="color:red;">*</span></label>
-        <input type="text" id="inputAlasanHapus" autocomplete="off" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:0; font-size:14px;" placeholder="Masukkan alasan...">
+<!-- Modal Hapus Order -->
+<div class="op-modal" id="modalHapusOrderInline" aria-hidden="true" data-op-static="1">
+  <div class="op-modal__backdrop" data-op-close></div>
+  <div class="op-modal__panel op-modal__panel--sm" role="dialog" aria-modal="true" aria-labelledby="opHapusOrderTitle">
+    <div class="op-modal__head op-modal__head--red">
+      <div>
+        <h3 id="opHapusOrderTitle"><i class="fas fa-trash-alt"></i> Hapus Order</h3>
+        <small>Data tidak dapat dikembalikan</small>
       </div>
-      <p style="font-size:11px; color:#dc3545; margin:0;"><i class="fas fa-exclamation-triangle"></i> Data tidak dapat dikembalikan.</p>
+      <button type="button" class="op-modal__close tutupModalHapusBtn" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
     </div>
-    <div style="padding:12px 16px; border-top:1px solid #eee; display:flex; gap:8px; justify-content:flex-end;">
-      <button class="tutupModalHapusBtn" style="padding:6px 16px; border:1px solid #ccc; background:#f8f9fa; border-radius:0; cursor:pointer;">Batal</button>
-      <button id="btnHapusKonfirm" style="padding:6px 16px; border:none; background:#dc3545; color:white; border-radius:0; cursor:pointer;">
+    <div class="op-modal__body">
+      <p style="margin:0 0 12px;">Yakin ingin menghapus order <strong id="hapusRefText"></strong>?</p>
+      <div class="op-field">
+        <label class="op-label" for="inputAlasanHapus">Alasan Hapus <span style="color:#dc2626;">*</span></label>
+        <input type="text" id="inputAlasanHapus" class="op-input" autocomplete="off" placeholder="Masukkan alasan...">
+      </div>
+      <p class="op-muted" style="color:#b91c1c;margin:0;"><i class="fas fa-exclamation-triangle"></i> Data tidak dapat dikembalikan.</p>
+    </div>
+    <div class="op-modal__foot">
+      <button type="button" class="op-btn op-btn--ghost tutupModalHapusBtn" data-op-close>Batal</button>
+      <button type="button" id="btnHapusKonfirm" class="op-btn op-btn--danger">
         <i class="fas fa-trash-alt"></i> Hapus
       </button>
     </div>
@@ -1169,39 +1172,33 @@ $labeled = false;
 </div>
 
 <!-- Modal konfirmasi hapus satu item nota -->
-<div id="modalHapusItemNota" class="hapus-item-modal" aria-hidden="true">
-  <div class="hapus-item-modal__backdrop" data-close-hapus-item></div>
-  <div class="hapus-item-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="hapusItemModalTitle">
-    <div class="hapus-item-modal__icon"><i class="fas fa-trash-alt"></i></div>
-    <button type="button" class="hapus-item-modal__close" data-close-hapus-item aria-label="Tutup">&times;</button>
-    <h5 id="hapusItemModalTitle">Hapus item dari nota?</h5>
-    <p>Item <strong id="hapusItemNama"></strong> akan dihapus dari nota <strong id="hapusItemRef"></strong>.</p>
-    <div class="hapus-item-modal__notice"><i class="fas fa-shield-alt"></i><span>Tindakan ini hanya berlaku karena nota belum dibayar, belum diproses, dan belum tuntas.</span></div>
-    <label for="hapusItemNote">Alasan hapus <span>*</span></label>
-    <input type="text" id="hapusItemNote" autocomplete="off" maxlength="255" placeholder="Contoh: salah input item">
-    <div class="hapus-item-modal__actions">
-      <button type="button" class="btn btn-light" data-close-hapus-item>Batal</button>
-      <button type="button" class="btn btn-danger" id="btnKonfirmasiHapusItem"><i class="fas fa-trash-alt me-1"></i> Hapus item</button>
+<div class="op-modal" id="modalHapusItemNota" aria-hidden="true" data-op-static="1">
+  <div class="op-modal__backdrop" data-op-close data-close-hapus-item></div>
+  <div class="op-modal__panel" role="dialog" aria-modal="true" aria-labelledby="hapusItemModalTitle">
+    <div class="op-modal__head op-modal__head--red">
+      <div>
+        <h3 id="hapusItemModalTitle">Hapus item dari nota?</h3>
+        <small>Hanya untuk nota belum dibayar / diproses</small>
+      </div>
+      <button type="button" class="op-modal__close" data-op-close data-close-hapus-item aria-label="Tutup"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="op-modal__body">
+      <p style="margin:0 0 12px;">Item <strong id="hapusItemNama"></strong> akan dihapus dari nota <strong id="hapusItemRef"></strong>.</p>
+      <div class="op-alert" style="margin-top:0;margin-bottom:12px;">
+        <i class="fas fa-shield-alt"></i>
+        Tindakan ini hanya berlaku karena nota belum dibayar, belum diproses, dan belum tuntas.
+      </div>
+      <div class="op-field">
+        <label class="op-label" for="hapusItemNote">Alasan hapus <span style="color:#dc2626;">*</span></label>
+        <input type="text" id="hapusItemNote" class="op-input" autocomplete="off" maxlength="255" placeholder="Contoh: salah input item">
+      </div>
+    </div>
+    <div class="op-modal__foot">
+      <button type="button" class="op-btn op-btn--ghost" data-op-close data-close-hapus-item>Batal</button>
+      <button type="button" class="op-btn op-btn--danger" id="btnKonfirmasiHapusItem"><i class="fas fa-trash-alt"></i> Hapus item</button>
     </div>
   </div>
 </div>
-<style>
-  .hapus-item-modal { display:none; position:fixed; inset:0; top:0; right:0; bottom:0; left:0; z-index:1000000; align-items:center; justify-content:center; padding:18px; }
-  .hapus-item-modal.is-open { display:flex !important; }
-  .hapus-item-modal__backdrop { position:absolute; inset:0; top:0; right:0; bottom:0; left:0; background:rgba(15,23,42,.58); backdrop-filter:blur(3px); }
-  .hapus-item-modal__dialog { position:relative; z-index:1; width:100%; max-width:420px; padding:30px; border-radius:0; background:#fff; box-shadow:0 24px 60px rgba(15,23,42,.3); }
-  .hapus-item-modal__icon { display:flex; align-items:center; justify-content:center; width:46px; height:46px; margin-bottom:14px; border-radius:0; background:#fee2e2; color:#dc2626; font-size:20px; }
-  .hapus-item-modal__close { position:absolute; top:13px; right:16px; border:0; background:transparent; color:#64748b; font-size:28px; line-height:1; }
-  .hapus-item-modal h5 { margin:0 0 8px; color:#172033; font-weight:800; }
-  .hapus-item-modal p { margin:0 0 15px; color:#475569; line-height:1.5; }
-  .hapus-item-modal__notice { display:flex; gap:9px; margin-bottom:16px; padding:10px 12px; border-radius:0; background:#fef2f2; color:#991b1b; font-size:12px; line-height:1.45; }
-  .hapus-item-modal label { display:block; margin-bottom:6px; color:#334155; font-size:13px; font-weight:700; }
-  .hapus-item-modal label span { color:#dc2626; }
-  .hapus-item-modal input { width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:0; outline:none; }
-  .hapus-item-modal .btn { border-radius:0 !important; }
-  .hapus-item-modal input:focus { border-color:#ef4444; box-shadow:0 0 0 2px rgba(239,68,68,.14); }
-  .hapus-item-modal__actions { display:flex; justify-content:flex-end; gap:8px; margin-top:22px; }
-</style>
 
 <!-- SCRIPT -->
 
@@ -1228,17 +1225,11 @@ $labeled = false;
 <script src="<?= URL::IN_ASSETS ?>js/operasi/view_load.js?v=<?= time() ?>"></script>
 <script>
   $(document).ready(function() {
-      
-      // Manual Modal Trigger to prevent Bootstrap 5 null reading hide error on spans
-      $(document).on('click', '.gantiOperasi, .endLayanan, .addOperasi, .ambil, .editDurasi, .editMember, .editLayanan', function(e) {
+      $(document).off('click.opModalTrigger').on('click.opModalTrigger', '.gantiOperasi, .endLayanan, .addOperasi, .ambil, .editDurasi, .editMember, .editLayanan, .tambahCas', function(e) {
           e.preventDefault();
-          var target = $(this).attr('data-bs-target');
-          if(target) {
-              var modalEl = document.querySelector(target);
-              if(modalEl) {
-                  var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-                  modal.show();
-              }
+          var target = $(this).attr('data-op-target');
+          if (target && window.OpModal) {
+              window.OpModal.open(target.replace(/^#/, ''));
           }
       });
   });
