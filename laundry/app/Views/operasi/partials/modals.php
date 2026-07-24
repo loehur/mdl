@@ -150,9 +150,10 @@
     grid-template-columns: 1fr 1fr;
     gap: 10px;
   }
+  /* Input native: satu border saja */
   .op-input,
-  .op-modal select.op-input,
-  .op-modal .form-control {
+  .op-modal select.op-input:not(.tize):not(.selectized),
+  .op-modal .form-control:not(.tize):not(.selectized) {
     width: 100%;
     padding: 10px 12px;
     border: 1px solid var(--op-line);
@@ -164,11 +165,27 @@
     outline: none;
   }
   .op-input:focus,
-  .op-modal .form-control:focus {
+  .op-modal .form-control:not(.tize):not(.selectized):focus {
     border-color: var(--op-blue);
     box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22);
   }
-  .op-modal .selectize-control { margin: 0; }
+  /* Selectize: jangan double border (select/form-control + selectize-control + selectize-input) */
+  .op-modal select.tize,
+  .op-modal select.selectized,
+  .op-modal select.op-input.tize,
+  .op-modal select.op-input.selectized {
+    border: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+  }
+  .op-modal .selectize-control,
+  .op-modal .selectize-control.single {
+    margin: 0;
+    border: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
   .op-modal .selectize-control.single .selectize-input {
     border: 1px solid var(--op-line) !important;
     border-radius: 0 !important;
@@ -176,10 +193,19 @@
     min-height: 42px;
     box-shadow: none !important;
     font-weight: 800;
+    background: #fff !important;
   }
   .op-modal .selectize-control.single .selectize-input.focus {
     border-color: var(--op-blue) !important;
     box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22) !important;
+  }
+  .op-modal .selectize-control.single .selectize-input:after {
+    border: 0 !important;
+  }
+  .op-modal .selectize-dropdown {
+    border: 1px solid var(--op-line) !important;
+    border-radius: 0 !important;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
   }
   .op-btn {
     display: inline-flex;
@@ -284,7 +310,7 @@
       <div class="op-modal__body">
         <div class="op-field">
           <label class="op-label">Pengembali</label>
-          <select name="f1" class="ambil tize userChange op-input" style="width: 100%;" required>
+          <select name="f1" class="ambil tize userChange" style="width: 100%;" required>
             <option value="" selected disabled></option>
             <optgroup label="<?= $this->dCabang['nama'] ?> [<?= $this->dCabang['kode_cabang'] ?>]">
               <?php foreach ($this->user as $a) { ?>
@@ -326,7 +352,7 @@
         <div class="op-row op-field">
           <div>
             <label class="op-label">Karyawan</label>
-            <select name="f1" class="operasi tize userChange op-input" style="width: 100%;" required>
+            <select name="f1" class="operasi tize userChange" style="width: 100%;" required>
               <option value="" selected disabled></option>
               <optgroup label="<?= $this->dCabang['nama'] ?> [<?= $this->dCabang['kode_cabang'] ?>]">
                 <?php foreach ($this->user as $a) { ?>
@@ -386,7 +412,7 @@
       <div class="op-modal__body">
         <div class="op-field">
           <label class="op-label">Ubah dari <span style="color:#dc2626;text-transform:none;letter-spacing:0;" id="awalOP"></span> menjadi</label>
-          <select name="f1" class="operasi tize userChange op-input" style="width: 100%;" required>
+          <select name="f1" class="operasi tize userChange" style="width: 100%;" required>
             <option value="" selected disabled></option>
             <optgroup label="<?= $this->dCabang['nama'] ?> [<?= $this->dCabang['kode_cabang'] ?>]">
               <?php foreach ($this->user as $a) { ?>
@@ -549,7 +575,7 @@
         </div>
         <div class="op-field">
           <label class="op-label">Di input Oleh</label>
-          <select name="user" class="tize userSurcas op-input" style="width: 100%;" required>
+          <select name="user" class="tize userSurcas" style="width: 100%;" required>
             <option value="" selected disabled></option>
             <optgroup label="<?= $this->dCabang['nama'] ?> [<?= $this->dCabang['kode_cabang'] ?>]">
               <?php foreach ($this->user as $a) { ?>

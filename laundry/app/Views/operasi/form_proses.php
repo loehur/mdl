@@ -103,9 +103,20 @@ $modeOperasi = (int) $data['mode'];
     color: #15803d;
   }
 
-  /* Selectize height align — sama persis 36px dengan tombol */
+  /* Selectize height align — sama persis 36px dengan tombol; satu border saja */
+  .operasi-filter .id_pelanggan.form-control,
+  .operasi-filter select.tize,
+  .operasi-filter select.selectized {
+    border: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+  }
   .operasi-filter .selectize-control {
     height: 36px !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
   }
   .operasi-filter .selectize-control.single .selectize-input {
     box-sizing: border-box !important;
@@ -123,6 +134,9 @@ $modeOperasi = (int) $data['mode'];
     font-size: 13px !important;
     font-weight: 600;
     overflow: hidden !important;
+  }
+  .operasi-filter .selectize-control.single .selectize-input:after {
+    border: 0 !important;
   }
   .operasi-filter .selectize-control.single .selectize-input > * {
     line-height: 1 !important;
@@ -325,7 +339,7 @@ $modeOperasi = (int) $data['mode'];
       <label class="operasi-field-label">Pelanggan</label>
       <div class="operasi-controls">
         <div class="operasi-field">
-          <select name="pelanggan" data-id="<?= $id_pelanggan ?>" class="id_pelanggan tize form-control form-control-sm" required>
+          <select name="pelanggan" data-id="<?= $id_pelanggan ?>" class="id_pelanggan tize" required>
             <option value="" selected disabled>...</option>
             <?php foreach ($this->pelanggan as $a) { ?>
               <option value="<?= $a['id_pelanggan'] ?>" data-nama="<?= htmlspecialchars(strtoupper($a['nama_pelanggan']), ENT_QUOTES, 'UTF-8') ?>" <?= $a['id_pelanggan'] == $id_pelanggan ? 'selected' : '' ?>><?= (strlen($a['nama_pelanggan']) > 10 ? strtoupper(substr($a['nama_pelanggan'], 0, 10)) . '...' : strtoupper($a['nama_pelanggan'])) ?> | <?= $a['nomor_pelanggan'] ?></option>
