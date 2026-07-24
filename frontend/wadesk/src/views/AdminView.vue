@@ -55,34 +55,36 @@
           </select>
 
           <!-- Team Leader: pilih team -->
-          <select
-            v-if="userForm.role === 'team_leader'"
-            v-model="userForm.team_id"
-            required
-            class="field sm:col-span-2"
-          >
-            <option disabled value="">Pilih team</option>
-            <option v-for="t in teamsWithoutLeader" :key="t.id" :value="t.id">{{ t.name }}</option>
-          </select>
-          <p v-if="userForm.role === 'team_leader' && !teamsWithoutLeader.length" class="sm:col-span-2 text-xs text-amber-300">
-            Semua team sudah punya Team Leader. Buat team baru dulu.
-          </p>
+          <template v-if="userForm.role === 'team_leader'">
+            <select
+              v-model="userForm.team_id"
+              required
+              class="field sm:col-span-2"
+            >
+              <option disabled value="">Pilih team</option>
+              <option v-for="t in teamsWithoutLeader" :key="t.id" :value="t.id">{{ t.name }}</option>
+            </select>
+            <p v-if="!teamsWithoutLeader.length" class="sm:col-span-2 text-xs text-amber-300">
+              Semua team sudah punya Team Leader. Buat team baru dulu.
+            </p>
+          </template>
 
           <!-- Agent: wajib pilih team leader -->
-          <select
-            v-else
-            v-model="userForm.team_leader_user_id"
-            required
-            class="field sm:col-span-2"
-          >
-            <option disabled value="">Pilih Team Leader</option>
-            <option v-for="l in teamLeaders" :key="l.id" :value="l.id">
-              {{ l.name }} ({{ l.team_name || "tanpa team" }})
-            </option>
-          </select>
-          <p v-if="userForm.role === 'agent' && !teamLeaders.length" class="sm:col-span-2 text-xs text-amber-300">
-            Belum ada Team Leader. Buat Team Leader dulu sebelum menambah Agent.
-          </p>
+          <template v-else>
+            <select
+              v-model="userForm.team_leader_user_id"
+              required
+              class="field sm:col-span-2"
+            >
+              <option disabled value="">Pilih Team Leader</option>
+              <option v-for="l in teamLeaders" :key="l.id" :value="l.id">
+                {{ l.name }} ({{ l.team_name || "tanpa team" }})
+              </option>
+            </select>
+            <p v-if="!teamLeaders.length" class="sm:col-span-2 text-xs text-amber-300">
+              Belum ada Team Leader. Buat Team Leader dulu sebelum menambah Agent.
+            </p>
+          </template>
 
           <button class="btn sm:col-span-2" :disabled="!canSubmitUser">Tambah user</button>
         </form>
