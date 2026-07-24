@@ -37,33 +37,24 @@ $summary = $data['summary'];
   <article class="j-card">
     <div class="j-card-head">
       <div>
-        <strong>REF #<?= htmlspecialchars($ord['no_ref']) ?></strong>
-        <small><?= date('d M Y H:i', strtotime($ord['insertTime'])) ?></small>
+        <span class="j-ref">REF #<?= htmlspecialchars($ord['no_ref']) ?></span>
+        <strong class="j-nota-date"><?= date('d M Y H:i', strtotime($ord['insertTime'])) ?></strong>
       </div>
       <span class="j-badge <?= $badge[0] ?>"><?= $badge[1] ?></span>
     </div>
 
     <?php foreach ($ord['items'] as $it) { ?>
-      <div class="j-item">
-        <div class="j-item-row">
-          <div>
-            <strong><?= htmlspecialchars($it['kategori'] ?: 'Item') ?></strong>
-            <?php if ($it['member']) { ?> <span class="j-badge ok">Member</span><?php } ?>
-          </div>
-          <div class="j-price">
-            <?php if ($it['member']) { ?>
-              —
-            <?php } elseif (!empty($it['has_diskon'])) { ?>
-              <del>Rp<?= number_format((float) $it['total_asli']) ?></del><br>Rp<?= number_format((float) $it['total']) ?>
-            <?php } else { ?>
-              Rp<?= number_format((float) $it['total']) ?>
-            <?php } ?>
+      <div class="j-item j-item-grid">
+        <div class="j-item-main">
+          <div class="j-item-id">#<?= (int) ($it['id'] ?? 0) ?></div>
+          <strong><?= htmlspecialchars($it['kategori'] ?: 'Item') ?></strong>
+          <?php if ($it['member']) { ?> <span class="j-badge ok">Member</span><?php } ?>
+          <div class="j-item-meta">
+            <?= htmlspecialchars($it['durasi']) ?> · <?= htmlspecialchars($it['qty_show']) ?>
           </div>
         </div>
-        <div class="j-item-meta">
-          <?= htmlspecialchars($it['durasi']) ?> · <?= htmlspecialchars($it['qty_show']) ?>
+        <div class="j-item-checks">
           <?php if (!empty($it['layanan_done']) || !empty($it['layanan_pending'])) { ?>
-            <br>
             <?php foreach ($it['layanan_done'] as $ld) { ?>
               <span class="j-ly-done">✓ <?= htmlspecialchars($ld) ?></span>
             <?php } ?>
@@ -71,10 +62,19 @@ $summary = $data['summary'];
               <span class="j-ly-pending">○ <?= htmlspecialchars($lp) ?></span>
             <?php } ?>
             <?php if (!empty($it['ambil'])) { ?>
-              <span class="j-ly-done">· ✓ Ambil</span>
+              <span class="j-ly-done">✓ Ambil</span>
             <?php } else { ?>
-              <span class="j-ly-pending">· ○ Ambil</span>
+              <span class="j-ly-pending">○ Ambil</span>
             <?php } ?>
+          <?php } ?>
+        </div>
+        <div class="j-price">
+          <?php if ($it['member']) { ?>
+            —
+          <?php } elseif (!empty($it['has_diskon'])) { ?>
+            <del>Rp<?= number_format((float) $it['total_asli']) ?></del><br>Rp<?= number_format((float) $it['total']) ?>
+          <?php } else { ?>
+            Rp<?= number_format((float) $it['total']) ?>
           <?php } ?>
         </div>
       </div>

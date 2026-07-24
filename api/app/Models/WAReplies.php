@@ -3100,7 +3100,8 @@ class WAReplies
                 $inProgressItems = [];  // Dalam Pengerjaan (deadline <= today)
                 $completedItems = [];   // Selesai (notif tipe 2 + letak)
                 $today = date('Y-m-d');
-                $pelangganIdsForLink = $id_pelanggans;
+                // Hanya id_pelanggan yang punya item status (jangan kirim link kosong / sudah tuntas semua)
+                $pelangganIdsForLink = [];
 
                 foreach ($noRefs as $noRef) {
                     $get_penjualan = $db1->query(
@@ -3121,6 +3122,7 @@ class WAReplies
 
                     foreach ($get_penjualan as $sale) {
                         $id_penjualan = $sale['id_penjualan'];
+                        $idPelangganSale = (int) ($sale['id_pelanggan'] ?? 0);
                         $letak = $sale['letak'] ?? '';
 
                         // Skip if this id_penjualan already has pending notif (already sent above)
@@ -3132,7 +3134,13 @@ class WAReplies
                         $hasLocation = !empty(trim($letak));
 
                         if ($hasNotif && $hasLocation) {
-                            $completedItems[] = ['id' => $id_penjualan];
+                            $completedItems[] = [
+                                'id' => $id_penjualan,
+                                'id_pelanggan' => $idPelangganSale,
+                            ];
+                            if ($idPelangganSale > 0) {
+                                $pelangganIdsForLink[$idPelangganSale] = true;
+                            }
                             continue;
                         }
 
@@ -3151,6 +3159,7 @@ class WAReplies
 
                         $entry = [
                             'id' => $id_penjualan,
+                            'id_pelanggan' => $idPelangganSale,
                             'estimasi' => $estimasi,
                             'prioritas' => $isPrioritas,
                         ];
@@ -3160,14 +3169,17 @@ class WAReplies
                         } else {
                             $queuedItems[] = $entry;
                         }
+                        if ($idPelangganSale > 0) {
+                            $pelangganIdsForLink[$idPelangganSale] = true;
+                        }
                     }
                 }
 
                 $hasAnyStatus = count($queuedItems) > 0 || count($inProgressItems) > 0 || count($completedItems) > 0;
                 if ($hasAnyStatus) {
                     $list_link = "";
-                    foreach (array_unique($pelangganIdsForLink) as $id_pelanggan) {
-                        $list_link .= "https://ml.nalju.com/I/" . $id_pelanggan . "\n";
+                    foreach (array_keys($pelangganIdsForLink) as $id_pelanggan) {
+                        $list_link .= "https://ml.nalju.com/I/" . (int) $id_pelanggan . "\n";
                     }
 
                     $statusBlocks = [];

@@ -93,7 +93,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
     <div class="j-card-head">
       <div>
         <div class="j-ref-line">
-          <strong>REF #<?= htmlspecialchars($ord['no_ref']) ?></strong>
+          <span class="j-ref">REF #<?= htmlspecialchars($ord['no_ref']) ?></span>
           <?php if ($canNota) { ?>
             <button type="button" class="j-send-nota"
               title="Kirim Nota WA"
@@ -105,32 +105,23 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
             </button>
           <?php } ?>
         </div>
-        <small><?= date('d M Y H:i', strtotime($ord['insertTime'])) ?></small>
+        <strong class="j-nota-date"><?= date('d M Y H:i', strtotime($ord['insertTime'])) ?></strong>
       </div>
       <span class="j-badge <?= $badge[0] ?>"><?= $badge[1] ?></span>
     </div>
 
     <?php foreach ($ord['items'] as $it) { ?>
-      <div class="j-item">
-        <div class="j-item-row">
-          <div>
-            <strong><?= htmlspecialchars($it['kategori'] ?: 'Item') ?></strong>
-            <?php if ($it['member']) { ?> <span class="j-badge ok">Member</span><?php } ?>
-          </div>
-          <div class="j-price">
-            <?php if ($it['member']) { ?>
-              —
-            <?php } elseif (!empty($it['has_diskon'])) { ?>
-              <del>Rp<?= number_format((float) $it['total_asli']) ?></del><br>Rp<?= number_format((float) $it['total']) ?>
-            <?php } else { ?>
-              Rp<?= number_format((float) $it['total']) ?>
-            <?php } ?>
+      <div class="j-item j-item-grid">
+        <div class="j-item-main">
+          <div class="j-item-id">#<?= (int) $it['id'] ?></div>
+          <strong><?= htmlspecialchars($it['kategori'] ?: 'Item') ?></strong>
+          <?php if ($it['member']) { ?> <span class="j-badge ok">Member</span><?php } ?>
+          <div class="j-item-meta">
+            <?= htmlspecialchars($it['durasi']) ?> · <?= htmlspecialchars($it['qty_show']) ?>
           </div>
         </div>
-        <div class="j-item-meta">
-          <?= htmlspecialchars($it['durasi']) ?> · <?= htmlspecialchars($it['qty_show']) ?>
+        <div class="j-item-checks">
           <?php if (!empty($it['layanan'])) { ?>
-            <br>
             <?php foreach ($it['layanan'] as $ly) { ?>
               <?php if (!empty($ly['done'])) { ?>
                 <span class="j-ly-done">✓ <?= htmlspecialchars($ly['nama']) ?></span>
@@ -139,10 +130,19 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
               <?php } ?>
             <?php } ?>
             <?php if (!empty($it['ambil'])) { ?>
-              <span class="j-ly-done">· ✓ Ambil</span>
+              <span class="j-ly-done">✓ Ambil</span>
             <?php } else { ?>
-              <span class="j-ly-pending">· ○ Ambil</span>
+              <span class="j-ly-pending">○ Ambil</span>
             <?php } ?>
+          <?php } ?>
+        </div>
+        <div class="j-price">
+          <?php if ($it['member']) { ?>
+            —
+          <?php } elseif (!empty($it['has_diskon'])) { ?>
+            <del>Rp<?= number_format((float) $it['total_asli']) ?></del><br>Rp<?= number_format((float) $it['total']) ?>
+          <?php } else { ?>
+            Rp<?= number_format((float) $it['total']) ?>
           <?php } ?>
         </div>
       </div>
