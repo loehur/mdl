@@ -20,7 +20,7 @@ header("Access-Control-Allow-Origin: $allowed_origin");
 header('Access-Control-Allow-Credentials: true');
 header('Access-Control-Max-Age: 86400');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Accept, Origin, User-Agent, X-Investasi-Token, X-Invoice-Token');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Accept, Origin, User-Agent, X-Investasi-Token, X-Invoice-Token, X-Wadesk-Token');
 
 // Handle OPTIONS preflight request
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -49,7 +49,7 @@ function setCorsHeadersForError() {
     header('Access-Control-Allow-Credentials: true');
     header('Access-Control-Max-Age: 86400');
     header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-    header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Accept, Origin, User-Agent, X-Investasi-Token, X-Invoice-Token');
+    header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Accept, Origin, User-Agent, X-Investasi-Token, X-Invoice-Token, X-Wadesk-Token');
 }
 
 // Error handler to output errors as JSON (for debugging)

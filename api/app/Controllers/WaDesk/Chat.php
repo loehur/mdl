@@ -1,0 +1,319 @@
+<?php
+
+namespace App\Controllers\WaDesk;
+
+use App\Helpers\WaDeskCrypto;
+use App\Helpers\WaDeskServer;
+use App\Helpers\WaDeskYCloud;
+
+/**
+ * Chat — conversations, messages, send free/template
+ */
+class Chat extends WaDeskController
+{
+    public function getConversations()
+    {
+        $this->verifyAuth();
+        $user = $this->requireChatUser();
+
+        [$visSql, $binds] = $this->visibilitySql('c');
+        $q = trim((string) $this->query('q', ''));
+
+        $sql = "SELECT c.*, k.label AS key_label, k.phone_number AS wa_number, t.name AS team_name
+                FROM conversations c
+                INNER JOIN ycloud_keys k ON k.id = c.ycloud_key_id
+                LEFT JOIN teams t ON t.id = c.team_id
+                WHERE {$visSql}";
+        if ($q !== '') {
+            $sql .= ' AND (c.phone LIKE ? OR c.name LIKE ? OR c.last_message LIKE ?)';
+            $like = '%' . $q . '%';
+            $binds[] = $like;
+            $binds[] = $like;
+            $binds[] = $like;
+        }
+        $sql .= ' ORDER BY COALESCE(c.last_message_at, c.updated_at, c.created_at) DESC LIMIT 200';
+
+        $rows = $this->db($this->db_index)->query($sql, $binds)->result_array();
+        foreach ($rows as &$row) {
+            $row['csw_open'] = WaDeskYCloud::isWithinCsw($row['last_in_at'] ?? null);
+        }
+
+        $this->success(['conversations' => $rows]);
+    }
+
+    public function getMessages()
+    {
+        $this->verifyAuth();
+        $this->requireChatUser();
+
+        $convId = (int) $this->query('conversation_id', 0);
+        if ($convId <= 0) {
+            $this->error('conversation_id required', 400);
+        }
+
+        $conv = $this->findAccessibleConversation($convId);
+        if (!$conv) {
+            $this->error('Conversation tidak ditemukan', 404);
+        }
+
+        $beforeId = (int) $this->query('before_id', 0);
+        $limit = min(100, max(1, (int) $this->query('limit', 50)));
+
+        $sql = "SELECT m.*, u.name AS sender_name
+                FROM messages m
+                LEFT JOIN users u ON u.id = m.sent_by_user_id
+                WHERE m.conversation_id = ?";
+        $binds = [$convId];
+        if ($beforeId > 0) {
+            $sql .= ' AND m.id < ?';
+            $binds[] = $beforeId;
+        }
+        $sql .= ' ORDER BY m.id DESC LIMIT ' . (int) $limit;
+
+        $rows = array_reverse($this->db($this->db_index)->query($sql, $binds)->result_array());
+        foreach ($rows as &$m) {
+            if (!empty($m['params_json']) && is_string($m['params_json'])) {
+                $m['params'] = json_decode($m['params_json'], true);
+            }
+        }
+
+        $this->success([
+            'conversation' => array_merge($conv, [
+                'csw_open' => WaDeskYCloud::isWithinCsw($conv['last_in_at'] ?? null),
+            ]),
+            'messages' => $rows,
+        ]);
+    }
+
+    public function markRead()
+    {
+        $this->verifyAuth();
+        $this->requireChatUser();
+        if (!$this->isPost()) {
+            $this->error('Method not allowed', 405);
+        }
+
+        $body = $this->getBody();
+        $convId = (int) ($body['conversation_id'] ?? 0);
+        $conv = $this->findAccessibleConversation($convId);
+        if (!$conv) {
+            $this->error('Conversation tidak ditemukan', 404);
+        }
+
+        $this->db($this->db_index)->update('conversations', ['unread' => 0], ['id' => $convId]);
+        $this->success(null, 'Marked read');
+    }
+
+    public function send()
+    {
+        $this->verifyAuth();
+        $user = $this->requireChatUser();
+        if (!$this->isPost()) {
+            $this->error('Method not allowed', 405);
+        }
+
+        $body = $this->getBody();
+        $mode = $body['mode'] ?? 'free';
+        $ycloudKeyId = (int) ($body['ycloud_key_id'] ?? 0);
+        $phone = $this->normalizePhone((string) ($body['phone'] ?? ''));
+        $conversationId = (int) ($body['conversation_id'] ?? 0);
+
+        if ($conversationId > 0) {
+            $conv = $this->findAccessibleConversation($conversationId);
+            if (!$conv) {
+                $this->error('Conversation tidak ditemukan', 404);
+            }
+            $ycloudKeyId = (int) $conv['ycloud_key_id'];
+            $phone = $conv['phone'];
+        } else {
+            if ($ycloudKeyId <= 0 || $phone === '') {
+                $this->error('ycloud_key_id dan phone wajib untuk chat baru', 400);
+            }
+            $conv = null;
+        }
+
+        $key = $this->findAccessibleKey($ycloudKeyId);
+        if (!$key) {
+            $this->error('API key tidak dapat diakses', 403);
+        }
+
+        if (!$conv) {
+            $conv = $this->getOrCreateConversation($key, $phone, $body['name'] ?? null);
+        }
+
+        $cswOpen = WaDeskYCloud::isWithinCsw($conv['last_in_at'] ?? null);
+        $apiKey = WaDeskCrypto::decrypt($key['api_key_enc']);
+        $client = new WaDeskYCloud($apiKey, $key['phone_number']);
+
+        if ($mode === 'template') {
+            if ($cswOpen) {
+                $this->error('CSW terbuka — gunakan free text, bukan template', 400, [
+                    'csw_open' => true,
+                ]);
+            }
+            $templateId = (int) ($body['template_id'] ?? 0);
+            $templateName = trim((string) ($body['template_name'] ?? ''));
+            $language = trim((string) ($body['language'] ?? 'id')) ?: 'id';
+            $params = $body['template_params'] ?? [];
+            if (!is_array($params)) {
+                $params = [];
+            }
+            $params = array_values($params);
+
+            if ($templateId > 0) {
+                $tpl = $this->db($this->db_index)->query(
+                    "SELECT * FROM wa_templates WHERE id = ? AND ycloud_key_id = ? LIMIT 1",
+                    [$templateId, $ycloudKeyId]
+                )->row_array();
+                if (!$tpl) {
+                    $this->error('Template tidak ditemukan', 404);
+                }
+                $templateName = $tpl['template_name'];
+                $language = $tpl['language'] ?: $language;
+            }
+            if ($templateName === '') {
+                $this->error('template_name atau template_id wajib', 400);
+            }
+
+            $preview = $body['message'] ?? ('[template] ' . $templateName);
+            $result = $client->sendTemplate($phone, $templateName, $language, $params);
+            if (!$result['success']) {
+                $yErr = $result['data']['error']['message'] ?? ($result['data']['message'] ?? 'Template send failed');
+                $this->error('YCloud Reject: ' . $yErr, 502, $result['data']);
+            }
+
+            $msgId = $this->storeOutbound($conv, $user, 'template', $preview, $templateName, $params, $result);
+            $this->touchConversationOut($conv['id'], $preview);
+
+            WaDeskServer::push([
+                'type' => 'message_out',
+                'tenant_id' => (int) $key['tenant_id'],
+                'team_id' => (int) $key['team_id'],
+                'conversation_id' => (int) $conv['id'],
+                'message_id' => $msgId,
+            ]);
+
+            $this->success([
+                'message_id' => $msgId,
+                'conversation_id' => (int) $conv['id'],
+                'mode' => 'template',
+                'csw_open' => false,
+                'ycloud' => $result['data'],
+            ], 'Template terkirim');
+        }
+
+        // free text
+        if (!$cswOpen) {
+            $this->error('CSW tertutup — kirim template untuk membuka percakapan', 400, [
+                'csw_open' => false,
+            ]);
+        }
+
+        $message = trim((string) ($body['message'] ?? ''));
+        if ($message === '') {
+            $this->error('message wajib', 400);
+        }
+
+        $result = $client->sendFreeText($phone, $message, $body['reply_to'] ?? null);
+        if (!$result['success']) {
+            $yErr = $result['data']['error']['message'] ?? ($result['data']['message'] ?? 'Send failed');
+            $this->error('YCloud Reject: ' . $yErr, 502, $result['data']);
+        }
+
+        $msgId = $this->storeOutbound($conv, $user, 'text', $message, null, null, $result);
+        $this->touchConversationOut($conv['id'], $message);
+
+        WaDeskServer::push([
+            'type' => 'message_out',
+            'tenant_id' => (int) $key['tenant_id'],
+            'team_id' => (int) $key['team_id'],
+            'conversation_id' => (int) $conv['id'],
+            'message_id' => $msgId,
+        ]);
+
+        $this->success([
+            'message_id' => $msgId,
+            'conversation_id' => (int) $conv['id'],
+            'mode' => 'free',
+            'csw_open' => true,
+            'ycloud' => $result['data'],
+        ], 'Pesan terkirim');
+    }
+
+    private function findAccessibleConversation(int $id): ?array
+    {
+        [$visSql, $binds] = $this->visibilitySql('c');
+        $binds[] = $id;
+        return $this->db($this->db_index)->query(
+            "SELECT c.* FROM conversations c WHERE {$visSql} AND c.id = ? LIMIT 1",
+            $binds
+        )->row_array() ?: null;
+    }
+
+    private function findAccessibleKey(int $keyId): ?array
+    {
+        $user = $this->currentUser();
+        if ($user['role'] === 'admin') {
+            return $this->db($this->db_index)->query(
+                "SELECT * FROM ycloud_keys WHERE id = ? AND tenant_id = ? AND status = 'active' LIMIT 1",
+                [$keyId, (int) $user['tenant_id']]
+            )->row_array() ?: null;
+        }
+        return $this->db($this->db_index)->query(
+            "SELECT * FROM ycloud_keys WHERE id = ? AND tenant_id = ? AND team_id = ? AND status = 'active' LIMIT 1",
+            [$keyId, (int) $user['tenant_id'], (int) $user['team_id']]
+        )->row_array() ?: null;
+    }
+
+    private function getOrCreateConversation(array $key, string $phone, ?string $name): array
+    {
+        $existing = $this->db($this->db_index)->query(
+            "SELECT * FROM conversations WHERE ycloud_key_id = ? AND phone = ? LIMIT 1",
+            [(int) $key['id'], $phone]
+        )->row_array();
+        if ($existing) {
+            return $existing;
+        }
+
+        $id = (int) $this->db($this->db_index)->insert('conversations', [
+            'tenant_id' => (int) $key['tenant_id'],
+            'team_id' => (int) $key['team_id'],
+            'ycloud_key_id' => (int) $key['id'],
+            'phone' => $phone,
+            'name' => $name,
+            'unread' => 0,
+        ]);
+
+        return $this->db($this->db_index)->query(
+            "SELECT * FROM conversations WHERE id = ? LIMIT 1",
+            [$id]
+        )->row_array();
+    }
+
+    private function storeOutbound(array $conv, array $user, string $type, string $body, ?string $templateName, ?array $params, array $result): int
+    {
+        $ycloudId = $result['data']['id'] ?? ($result['data']['wamid'] ?? null);
+        return (int) $this->db($this->db_index)->insert('messages', [
+            'conversation_id' => (int) $conv['id'],
+            'direction' => 'out',
+            'type' => $type,
+            'body' => $body,
+            'template_name' => $templateName,
+            'params_json' => $params !== null ? json_encode(array_values($params)) : null,
+            'ycloud_msg_id' => $ycloudId,
+            'external_id' => $result['external_id'] ?? null,
+            'status' => 'sent',
+            'sent_by_user_id' => (int) $user['id'],
+        ]);
+    }
+
+    private function touchConversationOut(int $convId, string $preview): void
+    {
+        $now = date('Y-m-d H:i:s');
+        $this->db($this->db_index)->update('conversations', [
+            'last_message' => mb_substr($preview, 0, 500),
+            'last_out_at' => $now,
+            'last_message_at' => $now,
+        ], ['id' => $convId]);
+    }
+}

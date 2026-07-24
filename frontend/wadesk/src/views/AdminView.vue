@@ -1,0 +1,323 @@
+<template>
+  <div class="min-h-full bg-ink-950">
+    <header class="h-14 px-4 border-b border-white/10 flex items-center justify-between bg-ink-900/80 sticky top-0 z-10">
+      <div class="flex items-center gap-3">
+        <router-link to="/" class="text-slate-400 hover:text-white">← Inbox</router-link>
+        <span class="font-display font-semibold">Admin</span>
+      </div>
+      <span class="text-xs text-slate-500">{{ auth.user?.email }}</span>
+    </header>
+
+    <div class="max-w-5xl mx-auto p-4 space-y-6">
+      <nav class="flex flex-wrap gap-2">
+        <button
+          v-for="t in tabs"
+          :key="t.id"
+          type="button"
+          class="px-3 py-1.5 rounded-lg text-sm"
+          :class="tab === t.id ? 'bg-accent text-white' : 'bg-white/5 text-slate-300'"
+          @click="tab = t.id"
+        >
+          {{ t.label }}
+        </button>
+      </nav>
+
+      <!-- Teams -->
+      <section v-if="tab === 'teams'" class="card space-y-4">
+        <h2 class="font-display font-semibold text-lg">Teams</h2>
+        <form class="flex flex-col sm:flex-row gap-2" @submit.prevent="createTeam">
+          <input v-model="teamForm.name" required class="field flex-1" placeholder="Nama team" />
+          <button class="btn">Tambah</button>
+        </form>
+        <ul class="divide-y divide-white/5">
+          <li v-for="t in teams" :key="t.id" class="py-3 flex items-center justify-between gap-2">
+            <div>
+              <p class="font-medium">{{ t.name }}</p>
+              <p class="text-xs text-slate-500">
+                Leader: {{ t.leader_name || "—" }} · Agents: {{ t.agent_count }}
+              </p>
+            </div>
+            <button class="text-xs text-rose-400" @click="removeTeam(t.id)">Hapus</button>
+          </li>
+        </ul>
+      </section>
+
+      <!-- Users -->
+      <section v-if="tab === 'users'" class="card space-y-4">
+        <h2 class="font-display font-semibold text-lg">Team Leader & Agent</h2>
+        <form class="grid sm:grid-cols-2 gap-3" @submit.prevent="createUser">
+          <input v-model="userForm.name" required class="field" placeholder="Nama" />
+          <input v-model="userForm.email" type="email" required class="field" placeholder="Email" />
+          <input v-model="userForm.password" type="password" required minlength="6" class="field" placeholder="Password" />
+          <select v-model="userForm.role" required class="field">
+            <option value="team_leader">Team Leader</option>
+            <option value="agent">Agent</option>
+          </select>
+          <select v-model="userForm.team_id" required class="field sm:col-span-2">
+            <option disabled value="">Pilih team</option>
+            <option v-for="t in teams" :key="t.id" :value="t.id">{{ t.name }}</option>
+          </select>
+          <button class="btn sm:col-span-2">Tambah user</button>
+        </form>
+        <ul class="divide-y divide-white/5">
+          <li v-for="u in users" :key="u.id" class="py-3 flex justify-between gap-2">
+            <div>
+              <p class="font-medium">{{ u.name }} <span class="text-xs text-slate-500">({{ u.role }})</span></p>
+              <p class="text-xs text-slate-500">{{ u.email }} · {{ u.team_name }}</p>
+            </div>
+            <button class="text-xs text-rose-400" @click="removeUser(u.id)">Hapus</button>
+          </li>
+        </ul>
+      </section>
+
+      <!-- Keys -->
+      <section v-if="tab === 'keys'" class="card space-y-4">
+        <h2 class="font-display font-semibold text-lg">YCloud API Keys</h2>
+        <form class="grid sm:grid-cols-2 gap-3" @submit.prevent="createKey">
+          <input v-model="keyForm.label" required class="field" placeholder="Label" />
+          <input v-model="keyForm.phone_number" required class="field" placeholder="Nomor WA bisnis 628..." />
+          <input v-model="keyForm.api_key" required class="field sm:col-span-2" placeholder="API Key YCloud" />
+          <input v-model="keyForm.ycloud_phone_id" class="field" placeholder="Phone Number ID (opsional)" />
+          <select v-model="keyForm.team_id" required class="field">
+            <option disabled value="">Assign ke team</option>
+            <option v-for="t in teams" :key="t.id" :value="t.id">{{ t.name }}</option>
+          </select>
+          <button class="btn sm:col-span-2">Simpan key</button>
+        </form>
+        <ul class="divide-y divide-white/5">
+          <li v-for="k in keys" :key="k.id" class="py-3 flex justify-between gap-2">
+            <div>
+              <p class="font-medium">{{ k.label }}</p>
+              <p class="text-xs text-slate-500">{{ k.phone_number }} · {{ k.team_name }} · {{ k.status }}</p>
+            </div>
+            <button class="text-xs text-rose-400" @click="removeKey(k.id)">Hapus</button>
+          </li>
+        </ul>
+      </section>
+
+      <!-- Templates -->
+      <section v-if="tab === 'templates'" class="card space-y-4">
+        <h2 class="font-display font-semibold text-lg">Templates</h2>
+        <form class="space-y-3" @submit.prevent="createTemplate">
+          <select v-model="tplForm.ycloud_key_id" required class="field">
+            <option disabled value="">API key</option>
+            <option v-for="k in keys" :key="k.id" :value="k.id">{{ k.label }} ({{ k.phone_number }})</option>
+          </select>
+          <div class="grid sm:grid-cols-2 gap-3">
+            <input v-model="tplForm.template_name" required class="field" placeholder="Nama template YCloud" />
+            <input v-model="tplForm.language" class="field" placeholder="Language (id)" />
+          </div>
+          <textarea v-model="tplForm.body_preview" rows="3" class="field" placeholder="Preview body (opsional)" />
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <p class="text-sm text-slate-300">Parameter</p>
+              <button type="button" class="text-xs text-accent-soft" @click="addParam">+ Param</button>
+            </div>
+            <div v-for="(p, idx) in tplForm.params" :key="idx" class="grid grid-cols-[3rem_1fr_1fr_auto] gap-2">
+              <input v-model.number="p.param_index" type="number" min="1" class="field" />
+              <input v-model="p.label" class="field" placeholder="Label" required />
+              <input v-model="p.example_value" class="field" placeholder="Contoh" />
+              <button type="button" class="text-rose-400 text-sm" @click="tplForm.params.splice(idx, 1)">✕</button>
+            </div>
+          </div>
+          <button class="btn w-full">Simpan template</button>
+        </form>
+        <ul class="divide-y divide-white/5">
+          <li v-for="t in templates" :key="t.id" class="py-3 flex justify-between gap-2">
+            <div>
+              <p class="font-medium">{{ t.template_name }} <span class="text-xs text-slate-500">{{ t.language }}</span></p>
+              <p class="text-xs text-slate-500">{{ t.key_label }} · {{ (t.params || []).length }} param</p>
+            </div>
+            <button class="text-xs text-rose-400" @click="removeTemplate(t.id)">Hapus</button>
+          </li>
+        </ul>
+      </section>
+
+      <p v-if="msg" class="text-sm text-emerald-400">{{ msg }}</p>
+      <p v-if="err" class="text-sm text-rose-400">{{ err }}</p>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { onMounted, reactive, ref } from "vue";
+import { api } from "../api";
+import { useAuthStore } from "../stores/auth";
+
+const auth = useAuthStore();
+const tab = ref("teams");
+const tabs = [
+  { id: "teams", label: "Teams" },
+  { id: "users", label: "Users" },
+  { id: "keys", label: "API Keys" },
+  { id: "templates", label: "Templates" },
+];
+
+const teams = ref([]);
+const users = ref([]);
+const keys = ref([]);
+const templates = ref([]);
+const msg = ref("");
+const err = ref("");
+
+const teamForm = reactive({ name: "" });
+const userForm = reactive({ name: "", email: "", password: "", role: "agent", team_id: "" });
+const keyForm = reactive({ label: "", api_key: "", phone_number: "", ycloud_phone_id: "", team_id: "" });
+const tplForm = reactive({
+  ycloud_key_id: "",
+  template_name: "",
+  language: "id",
+  body_preview: "",
+  params: [{ param_index: 1, label: "", example_value: "", is_required: 1 }],
+});
+
+function flash(ok, text) {
+  msg.value = ok ? text : "";
+  err.value = ok ? "" : text;
+}
+
+async function refresh() {
+  const [t, u, k, tp] = await Promise.all([
+    api("/WaDesk/Teams/list"),
+    api("/WaDesk/Users/list"),
+    api("/WaDesk/Keys/list"),
+    api("/WaDesk/Templates/list"),
+  ]);
+  teams.value = t.data.teams || [];
+  users.value = u.data.users || [];
+  keys.value = k.data.keys || [];
+  templates.value = tp.data.templates || [];
+}
+
+async function createTeam() {
+  try {
+    await api("/WaDesk/Teams/create", { method: "POST", body: { name: teamForm.name } });
+    teamForm.name = "";
+    flash(true, "Team dibuat");
+    await refresh();
+  } catch (e) {
+    flash(false, e.message);
+  }
+}
+
+async function removeTeam(id) {
+  if (!confirm("Hapus team?")) return;
+  try {
+    await api("/WaDesk/Teams/delete", { method: "POST", body: { id } });
+    flash(true, "Team dihapus");
+    await refresh();
+  } catch (e) {
+    flash(false, e.message);
+  }
+}
+
+async function createUser() {
+  try {
+    await api("/WaDesk/Users/create", {
+      method: "POST",
+      body: { ...userForm, team_id: Number(userForm.team_id) },
+    });
+    Object.assign(userForm, { name: "", email: "", password: "", role: "agent", team_id: "" });
+    flash(true, "User dibuat");
+    await refresh();
+  } catch (e) {
+    flash(false, e.message);
+  }
+}
+
+async function removeUser(id) {
+  if (!confirm("Hapus user?")) return;
+  try {
+    await api("/WaDesk/Users/delete", { method: "POST", body: { id } });
+    flash(true, "User dihapus");
+    await refresh();
+  } catch (e) {
+    flash(false, e.message);
+  }
+}
+
+async function createKey() {
+  try {
+    await api("/WaDesk/Keys/create", {
+      method: "POST",
+      body: {
+        ...keyForm,
+        team_id: Number(keyForm.team_id),
+        ycloud_phone_id: keyForm.ycloud_phone_id || null,
+      },
+    });
+    Object.assign(keyForm, { label: "", api_key: "", phone_number: "", ycloud_phone_id: "", team_id: "" });
+    flash(true, "API key disimpan");
+    await refresh();
+  } catch (e) {
+    flash(false, e.message);
+  }
+}
+
+async function removeKey(id) {
+  if (!confirm("Hapus API key?")) return;
+  try {
+    await api("/WaDesk/Keys/delete", { method: "POST", body: { id } });
+    flash(true, "Key dihapus");
+    await refresh();
+  } catch (e) {
+    flash(false, e.message);
+  }
+}
+
+function addParam() {
+  const next = (tplForm.params.at(-1)?.param_index || 0) + 1;
+  tplForm.params.push({ param_index: next, label: "", example_value: "", is_required: 1 });
+}
+
+async function createTemplate() {
+  try {
+    await api("/WaDesk/Templates/create", {
+      method: "POST",
+      body: {
+        ycloud_key_id: Number(tplForm.ycloud_key_id),
+        template_name: tplForm.template_name,
+        language: tplForm.language || "id",
+        body_preview: tplForm.body_preview,
+        params: tplForm.params,
+      },
+    });
+    Object.assign(tplForm, {
+      ycloud_key_id: "",
+      template_name: "",
+      language: "id",
+      body_preview: "",
+      params: [{ param_index: 1, label: "", example_value: "", is_required: 1 }],
+    });
+    flash(true, "Template disimpan");
+    await refresh();
+  } catch (e) {
+    flash(false, e.message);
+  }
+}
+
+async function removeTemplate(id) {
+  if (!confirm("Hapus template?")) return;
+  try {
+    await api("/WaDesk/Templates/delete", { method: "POST", body: { id } });
+    flash(true, "Template dihapus");
+    await refresh();
+  } catch (e) {
+    flash(false, e.message);
+  }
+}
+
+onMounted(refresh);
+</script>
+
+<style scoped>
+.card {
+  @apply rounded-2xl border border-white/10 bg-ink-900/50 p-4;
+}
+.field {
+  @apply w-full rounded-xl bg-ink-950 border border-white/10 px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-accent/40;
+}
+.btn {
+  @apply px-4 py-2.5 rounded-xl bg-accent font-medium text-sm hover:bg-accent-soft transition;
+}
+</style>

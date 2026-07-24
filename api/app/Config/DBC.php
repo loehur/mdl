@@ -19,6 +19,7 @@ class DBC
                 4 => ['db' => 'mdl_salon', 'user' => 'root', 'pass' => ''],
                 5 => ['db' => 'mdl_investasi', 'user' => 'root', 'pass' => ''],
                 6 => ['db' => 'mdl_invoice', 'user' => 'root', 'pass' => ''],
+                7 => ['db' => 'mdl_wadesk', 'user' => 'root', 'pass' => ''],
             ],
             'pro' => [
                 0 => ['db' => 'mdl_main', 'user' => 'mdl_main', 'pass' => 'wB5KjfjRYfPXBtFF'],
@@ -28,6 +29,7 @@ class DBC
                 4 => ['db' => 'mdl_salon', 'user' => 'mdl_salon', 'pass' => 'W6FLRYyeKFZdTpHC'],
                 5 => ['db' => 'mdl_investasi', 'user' => 'mdl_investasi', 'pass' => ''],
                 6 => ['db' => 'mdl_invoice', 'user' => 'mdl_invoice', 'pass' => ''],
+                7 => ['db' => 'mdl_wadesk', 'user' => 'mdl_wadesk', 'pass' => ''],
             ],
         ];
     }
