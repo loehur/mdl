@@ -230,10 +230,21 @@ function isDelivered(s) {
   return ["delivered", "delivery"].includes(normStatus(s));
 }
 
+function scrollToBottom() {
+  nextTick(() => {
+    const el = scrollEl.value;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    // DOM bubble bisa belum selesai layout (tinggi berubah)
+    requestAnimationFrame(() => {
+      if (scrollEl.value) scrollEl.value.scrollTop = scrollEl.value.scrollHeight;
+    });
+  });
+}
+
 async function openChat(id) {
   await chat.selectConversation(id);
-  await nextTick();
-  if (scrollEl.value) scrollEl.value.scrollTop = scrollEl.value.scrollHeight;
+  scrollToBottom();
 }
 
 async function sendFree() {
@@ -243,14 +254,21 @@ async function sendFree() {
   try {
     await chat.sendFree(draft.value.trim());
     draft.value = "";
-    await nextTick();
-    if (scrollEl.value) scrollEl.value.scrollTop = scrollEl.value.scrollHeight;
+    scrollToBottom();
   } catch (e) {
     sendError.value = e.message;
   } finally {
     sending.value = false;
   }
 }
+
+// Pesan baru (WS / reload) → auto scroll ke bawah selama thread aktif
+watch(
+  () => [chat.activeId, chat.messages.length, chat.messages[chat.messages.length - 1]?.id],
+  () => {
+    if (chat.activeId) scrollToBottom();
+  }
+);
 
 function openTemplateForActive() {
   tplKeyId.value = chat.active?.ycloud_key_id || null;
