@@ -307,25 +307,24 @@ abstract class InvoiceController extends BaseController
     protected function buildShareText(array $invoice, string $publicUrl): string
     {
         $total = number_format((float) $invoice['total'], 0, ',', '.');
-        $due = $invoice['due_date']
-            ? date('d M Y', strtotime($invoice['due_date']))
+        $date = !empty($invoice['issue_date'])
+            ? date('d/m/Y', strtotime($invoice['issue_date']))
             : '-';
-
-        $lines = ["Invoice {$invoice['invoice_number']}"];
-
         $title = trim((string) ($invoice['title'] ?? ''));
-        if ($title !== '') {
-            $lines[] = "Judul: {$title}";
-        }
+        $customerName = trim((string) ($invoice['customer_name'] ?? ''));
 
-        $lines[] = "Kepada: {$invoice['customer_name']}";
-        $lines[] = "Total: Rp {$total}";
-        $lines[] = "Jatuh tempo: {$due}";
-        $lines[] = '';
-        $lines[] = 'Lihat & bayar invoice:';
-        $lines[] = $publicUrl;
-
-        return implode("\n", $lines);
+        return "INVOICE PEMBAYARAN\n"
+            . "Halo {$customerName},\n"
+            . "Berikut rincian tagihan {$title},\n"
+            . "\n"
+            . "- No. Invoice: {$invoice['invoice_number']}\n"
+            . "- Tanggal: {$date}\n"
+            . "- Total: Rp{$total},-\n"
+            . "\n"
+            . "Lihat & bayar invoice:\n"
+            . "{$publicUrl}\n"
+            . "\n"
+            . "Terima kasih";
     }
 
     protected function isTokopaySuccess(?array $data): bool
