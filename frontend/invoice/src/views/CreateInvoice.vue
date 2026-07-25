@@ -84,12 +84,23 @@
             <p class="mt-2 text-xs text-mist">
               Invoice berikutnya dibuat otomatis sesuai periode.
             </p>
-            <div v-if="form.recurring_enabled" class="mt-3">
-              <label class="field-label">Periode *</label>
-              <select v-model="form.recurring_period" class="field-input">
-                <option value="monthly">Bulanan</option>
-                <option value="yearly">Tahunan</option>
-              </select>
+            <div v-if="form.recurring_enabled" class="mt-3 space-y-3">
+              <div>
+                <label class="field-label">Periode *</label>
+                <select v-model="form.recurring_period" class="field-input">
+                  <option value="monthly">Bulanan</option>
+                  <option value="yearly">Tahunan</option>
+                </select>
+              </div>
+              <div>
+                <label class="field-label">Subscription ID</label>
+                <input
+                  v-model="form.subscription_id"
+                  class="field-input"
+                  placeholder="Kosongkan = otomatis"
+                />
+                <p class="mt-1 text-xs text-mist">Untuk integrasi app multi-tenant.</p>
+              </div>
             </div>
           </div>
         </form>
@@ -220,6 +231,7 @@ const form = ref({
   notes: "",
   recurring_enabled: false,
   recurring_period: "monthly",
+  subscription_id: "",
   items: [{ description: "", quantity: 1, unit_price: "" }],
 });
 
@@ -279,6 +291,7 @@ function buildPayload() {
     recurring: {
       enabled: !!form.value.recurring_enabled,
       period: form.value.recurring_period || "monthly",
+      subscription_id: form.value.subscription_id.trim() || null,
     },
     items: form.value.items.map((item) => ({
       description: item.description,
@@ -346,6 +359,7 @@ async function loadInvoiceForEdit() {
       notes: inv.notes || "",
       recurring_enabled: !!inv.recurring?.enabled,
       recurring_period: inv.recurring?.period || "monthly",
+      subscription_id: inv.recurring?.subscription_id || "",
       items: inv.items.map((item) => ({
         description: item.description,
         quantity: item.quantity,

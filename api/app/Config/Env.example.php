@@ -43,6 +43,9 @@ class Env
 
     /** Secret untuk endpoint Cron (query ?secret= atau header X-Cron-Secret). */
     const CRON_SECRET = 'change-me-cron-secret';
+
+    /** API key untuk endpoint status subscription (header X-Invoice-Api-Key). */
+    const INVOICE_API_KEY = 'change-me-invoice-api-key';
 }
 
 // URL internal push ke wa_server (Node.js port 3003, sama VPS dengan API)

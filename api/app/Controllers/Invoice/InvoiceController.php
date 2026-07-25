@@ -386,7 +386,26 @@ abstract class InvoiceController extends BaseController
                 'enabled' => false,
                 'period' => null,
                 'next_issue_date' => null,
+                'subscription_id' => null,
             ];
+        }
+
+        $existingSubId = null;
+        if ($existingId) {
+            $existingRow = $this->db($this->db_index)->query(
+                "SELECT subscription_id FROM recurring_bills WHERE id = ? AND user_id = ? LIMIT 1",
+                [$existingId, $userId]
+            )->row_array();
+            $existingSubId = trim((string) ($existingRow['subscription_id'] ?? '')) ?: null;
+        }
+
+        $requestedSubId = trim((string) ($recurring['subscription_id'] ?? ''));
+        if ($requestedSubId !== '') {
+            $subscriptionId = substr($requestedSubId, 0, 64);
+        } elseif ($existingSubId) {
+            $subscriptionId = $existingSubId;
+        } else {
+            $subscriptionId = 'sub_' . bin2hex(random_bytes(12));
         }
 
         $itemsJson = array_map(static function ($item) {
@@ -404,6 +423,7 @@ abstract class InvoiceController extends BaseController
         $payload = [
             'user_id' => $userId,
             'customer_id' => $parsed['customer_id'],
+            'subscription_id' => $subscriptionId,
             'title' => $parsed['title'],
             'tax_percent' => $parsed['tax_percent'],
             'notes' => $parsed['notes'],
@@ -439,6 +459,7 @@ abstract class InvoiceController extends BaseController
             'period' => $period,
             'next_issue_date' => $nextIssue,
             'recurring_bill_id' => $billId,
+            'subscription_id' => $subscriptionId,
         ];
     }
 
@@ -450,22 +471,33 @@ abstract class InvoiceController extends BaseController
                 'enabled' => false,
                 'period' => null,
                 'next_issue_date' => null,
+                'subscription_id' => null,
             ];
         }
 
         $row = $this->db($this->db_index)->query(
-            "SELECT id, period, next_issue_date, is_active
+            "SELECT id, period, next_issue_date, is_active, subscription_id
              FROM recurring_bills
              WHERE id = ? AND user_id = ?
              LIMIT 1",
             [$billId, (int) $invoice['user_id']]
         )->row_array();
 
-        if (!$row || !(int) $row['is_active']) {
+        if (!$row) {
             return [
                 'enabled' => false,
                 'period' => null,
                 'next_issue_date' => null,
+                'subscription_id' => null,
+            ];
+        }
+
+        if (!(int) $row['is_active']) {
+            return [
+                'enabled' => false,
+                'period' => null,
+                'next_issue_date' => null,
+                'subscription_id' => $row['subscription_id'] ?? null,
             ];
         }
 
@@ -474,6 +506,7 @@ abstract class InvoiceController extends BaseController
             'period' => $row['period'],
             'next_issue_date' => $row['next_issue_date'],
             'recurring_bill_id' => (int) $row['id'],
+            'subscription_id' => $row['subscription_id'] ?? null,
         ];
     }
 

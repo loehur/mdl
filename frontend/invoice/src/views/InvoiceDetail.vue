@@ -38,6 +38,9 @@
               · berikutnya {{ formatDate(invoice.recurring.next_issue_date) }}
             </template>
           </p>
+          <p v-if="invoice.recurring.subscription_id" class="mt-1 break-all text-xs text-mist">
+            Sub: {{ invoice.recurring.subscription_id }}
+          </p>
         </div>
       </div>
 
