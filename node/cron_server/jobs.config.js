@@ -16,4 +16,12 @@ module.exports = [
     url: '/Cron/InvoiceRecurring/index',
     enabled: true,
   },
+  {
+    id: 'invoice-due-reminder',
+    description: 'Kirim WA template reminder invoice H-3 s/d H',
+    schedule: '0 8 * * *', // setiap hari jam 08:00
+    method: 'GET',
+    url: '/Cron/InvoiceDueReminder/index',
+    enabled: true,
+  },
 ];

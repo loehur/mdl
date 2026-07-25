@@ -123,11 +123,18 @@ class WhatsAppService
         // Add body parameters if provided
         if (!empty($parameters)) {
             $bodyParams = [];
-            foreach ($parameters as $param) {
-                $bodyParams[] = [
+            $isList = array_keys($parameters) === range(0, count($parameters) - 1);
+
+            foreach ($parameters as $key => $param) {
+                $item = [
                     'type' => 'text',
-                    'text' => $param
+                    'text' => (string) $param,
                 ];
+                // Associative map → named template params (Meta / yCloud)
+                if (!$isList && is_string($key) && $key !== '' && !ctype_digit((string) $key)) {
+                    $item['parameter_name'] = $key;
+                }
+                $bodyParams[] = $item;
             }
             
             $components[] = [
