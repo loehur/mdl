@@ -256,9 +256,13 @@ abstract class InvoiceController extends BaseController
             'id' => (int) $invoice['id'],
             'invoice_number' => $invoice['invoice_number'],
             'public_token' => $invoice['public_token'],
+            'customer_id' => isset($invoice['customer_id']) && $invoice['customer_id'] !== null
+                ? (int) $invoice['customer_id']
+                : null,
             'customer_name' => $invoice['customer_name'],
             'customer_email' => $invoice['customer_email'],
             'customer_phone' => $invoice['customer_phone'],
+            'title' => $invoice['title'] ?? null,
             'issue_date' => $invoice['issue_date'],
             'due_date' => $invoice['due_date'],
             'subtotal' => (float) $invoice['subtotal'],
@@ -307,11 +311,21 @@ abstract class InvoiceController extends BaseController
             ? date('d M Y', strtotime($invoice['due_date']))
             : '-';
 
-        return "Invoice {$invoice['invoice_number']}\n"
-            . "Kepada: {$invoice['customer_name']}\n"
-            . "Total: Rp {$total}\n"
-            . "Jatuh tempo: {$due}\n\n"
-            . "Lihat & bayar invoice:\n{$publicUrl}";
+        $lines = ["Invoice {$invoice['invoice_number']}"];
+
+        $title = trim((string) ($invoice['title'] ?? ''));
+        if ($title !== '') {
+            $lines[] = "Judul: {$title}";
+        }
+
+        $lines[] = "Kepada: {$invoice['customer_name']}";
+        $lines[] = "Total: Rp {$total}";
+        $lines[] = "Jatuh tempo: {$due}";
+        $lines[] = '';
+        $lines[] = 'Lihat & bayar invoice:';
+        $lines[] = $publicUrl;
+
+        return implode("\n", $lines);
     }
 
     protected function isTokopaySuccess(?array $data): bool

@@ -26,11 +26,12 @@
         class="glass block p-4 transition hover:border-ledger/30"
       >
         <div class="flex items-start justify-between gap-3">
-          <div>
-            <p class="text-sm font-bold text-pearl">{{ inv.invoice_number }}</p>
-            <p class="text-sm text-mist">{{ inv.customer_name }}</p>
-            <p class="mt-1 text-xs text-mist">{{ formatDate(inv.issue_date) }}</p>
-          </div>
+            <div>
+              <p class="text-sm font-bold text-pearl">{{ inv.invoice_number }}</p>
+              <p v-if="inv.title" class="text-sm font-semibold text-pearl">{{ inv.title }}</p>
+              <p class="text-sm text-mist">{{ inv.customer_name }}</p>
+              <p class="mt-1 text-xs text-mist">{{ formatDate(inv.issue_date) }}</p>
+            </div>
           <div class="text-right">
             <p class="text-sm font-bold text-pearl">Rp {{ formatRupiah(inv.total) }}</p>
             <span class="chip mt-1" :class="invoiceStatusChipClass(inv)">

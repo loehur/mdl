@@ -8,6 +8,7 @@
           <div>
             <p class="label-caps">Invoice</p>
             <h2 class="section-title mt-1">{{ invoice.invoice_number }}</h2>
+            <p v-if="invoice.title" class="mt-1 font-semibold text-pearl">{{ invoice.title }}</p>
             <p class="text-sm text-mist">{{ invoice.customer_name }}</p>
           </div>
           <span class="chip" :class="invoiceStatusChipClass(invoice)">

@@ -34,7 +34,7 @@
           :key="item.path"
           :to="item.path"
           class="dock-link"
-          :class="$route.path === item.path || ($route.path.startsWith('/detail') && item.path === '/riwayat') || ($route.path.startsWith('/edit') && item.path === '/riwayat') ? 'dock-link-active' : ''"
+          :class="isNavActive($route.path, item.path) ? 'dock-link-active' : ''"
         >
           <component :is="item.icon" />
           <span>{{ item.label }}</span>
@@ -65,6 +65,13 @@ const IconCreate = () =>
     h("path", { d: "M12 5v14M5 12h14", strokeLinecap: "round" }),
   ]);
 
+const IconCustomers = () =>
+  h("svg", iconProps, [
+    h("path", { d: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2", strokeLinecap: "round", strokeLinejoin: "round" }),
+    h("circle", { cx: "9", cy: "7", r: "4" }),
+    h("path", { d: "M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75", strokeLinecap: "round", strokeLinejoin: "round" }),
+  ]);
+
 const IconHistory = () =>
   h("svg", iconProps, [
     h("path", { d: "M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01", strokeLinecap: "round" }),
@@ -73,18 +80,29 @@ const IconHistory = () =>
 const navItems = [
   { path: "/dashboard", label: "Home", icon: IconHome },
   { path: "/buat", label: "Buat", icon: IconCreate },
+  { path: "/pelanggan", label: "Pelanggan", icon: IconCustomers },
   { path: "/riwayat", label: "Riwayat", icon: IconHistory },
 ];
 
 const titles = {
   "/dashboard": "Overview",
   "/buat": "Buat Invoice",
+  "/pelanggan": "Pelanggan",
+  "/pelanggan/buat": "Tambah Pelanggan",
   "/riwayat": "Riwayat",
 };
+
+function isNavActive(path, itemPath) {
+  if (path === itemPath) return true;
+  if (itemPath === "/riwayat" && (path.startsWith("/detail") || path.startsWith("/edit"))) return true;
+  if (itemPath === "/pelanggan" && path.startsWith("/pelanggan")) return true;
+  return false;
+}
 
 const pageTitle = computed(() => {
   if (route.path.startsWith("/detail")) return "Detail Invoice";
   if (route.path.startsWith("/edit")) return "Edit Invoice";
+  if (route.path.startsWith("/pelanggan/edit")) return "Edit Pelanggan";
   return titles[route.path] || "Invoice";
 });
 

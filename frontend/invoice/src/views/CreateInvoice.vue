@@ -9,23 +9,57 @@
       </section>
 
       <section class="glass-strong p-5">
-        <h2 class="section-title mb-4">Data Pelanggan</h2>
+        <div class="mb-4 flex items-center justify-between gap-3">
+          <h2 class="section-title">Data Pelanggan</h2>
+          <router-link to="/pelanggan/buat" class="btn-ghost px-3 py-2 text-sm">
+            + Pelanggan
+          </router-link>
+        </div>
 
         <form class="space-y-4" @submit.prevent="onSubmit">
+          <div v-if="!customers.length && !loadingCustomers">
+            <EmptyState
+              title="Belum ada pelanggan"
+              subtitle="Tambahkan pelanggan terlebih dahulu sebelum membuat invoice."
+            />
+            <router-link to="/pelanggan/buat" class="btn-primary mt-2 block w-full text-center">
+              Tambah Pelanggan
+            </router-link>
+          </div>
+
+          <template v-else>
+            <div>
+              <label class="field-label">Pilih Pelanggan *</label>
+              <select v-model="form.customer_id" class="field-input" required>
+                <option value="" disabled>Pilih pelanggan...</option>
+                <option v-for="c in customers" :key="c.id" :value="String(c.id)">
+                  {{ c.name }} — {{ c.phone }}
+                </option>
+              </select>
+            </div>
+
+            <div
+              v-if="selectedCustomer"
+              class="rounded-2xl border border-ink-200 bg-ink-50 px-4 py-3 text-sm"
+            >
+              <p class="font-semibold text-pearl">{{ selectedCustomer.name }}</p>
+              <p class="mt-1 text-mist">{{ selectedCustomer.phone }}</p>
+              <p v-if="selectedCustomer.email" class="mt-0.5 text-mist">
+                {{ selectedCustomer.email }}
+              </p>
+            </div>
+          </template>
+
           <div>
-            <label class="field-label">Nama Pelanggan *</label>
-            <input v-model="form.customer_name" class="field-input" required placeholder="Nama lengkap" />
+            <label class="field-label">Judul *</label>
+            <input
+              v-model="form.title"
+              class="field-input"
+              required
+              placeholder="Instalasi Listrik Rumah"
+            />
           </div>
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="field-label">Email</label>
-              <input v-model="form.customer_email" class="field-input" type="email" placeholder="email@..." />
-            </div>
-            <div>
-              <label class="field-label">Telepon</label>
-              <input v-model="form.customer_phone" class="field-input" placeholder="08..." />
-            </div>
-          </div>
+
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label class="field-label">Tanggal Invoice</label>
@@ -117,7 +151,11 @@
           <textarea v-model="form.notes" class="field-input min-h-[80px]" placeholder="Catatan tambahan (opsional)" />
         </div>
 
-        <button class="btn-primary mt-5 w-full" :disabled="saving" @click="onSubmit">
+        <button
+          class="btn-primary mt-5 w-full"
+          :disabled="saving || !customers.length"
+          @click="onSubmit"
+        >
           {{ saving ? "Menyimpan..." : isEdit ? "Simpan Perubahan" : "Buat Invoice" }}
         </button>
 
@@ -136,6 +174,7 @@ import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import AmountInput from "../components/AmountInput.vue";
 import AlertBanner from "../components/AlertBanner.vue";
+import EmptyState from "../components/EmptyState.vue";
 import PageLoader from "../components/PageLoader.vue";
 import { amountInputToNumber, formatRupiah, todayISO, toAmountDigits } from "../utils/format";
 
@@ -150,9 +189,8 @@ const editId = computed(() => {
 const isEdit = computed(() => editId.value !== null);
 
 const form = ref({
-  customer_name: "",
-  customer_email: "",
-  customer_phone: "",
+  customer_id: "",
+  title: "",
   issue_date: todayISO(),
   due_date: "",
   tax_percent: 0,
@@ -160,11 +198,19 @@ const form = ref({
   items: [{ description: "", quantity: 1, unit_price: "" }],
 });
 
+const customers = ref([]);
+const loadingCustomers = ref(false);
 const loadingInvoice = ref(false);
 const invoiceNumber = ref("");
 const saving = ref(false);
 const message = ref("");
 const isError = ref(false);
+
+const selectedCustomer = computed(() => {
+  const id = Number(form.value.customer_id);
+  if (!id) return null;
+  return customers.value.find((c) => c.id === id) || null;
+});
 
 function addItem() {
   form.value.items.push({ description: "", quantity: 1, unit_price: "" });
@@ -193,9 +239,8 @@ const total = computed(() => subtotal.value + taxAmount.value);
 
 function buildPayload() {
   return {
-    customer_name: form.value.customer_name,
-    customer_email: form.value.customer_email,
-    customer_phone: form.value.customer_phone,
+    customer_id: Number(form.value.customer_id),
+    title: form.value.title.trim(),
     issue_date: form.value.issue_date,
     due_date: form.value.due_date || null,
     tax_percent: form.value.tax_percent || 0,
@@ -206,6 +251,21 @@ function buildPayload() {
       unit_price: amountInputToNumber(item.unit_price),
     })),
   };
+}
+
+async function loadCustomers() {
+  loadingCustomers.value = true;
+  try {
+    const res = await fetch("/api/Invoice/Customers/list");
+    const data = await res.json();
+    if (res.ok && data.status) {
+      customers.value = data.data.customers || [];
+    }
+  } catch {
+    /* ignore */
+  } finally {
+    loadingCustomers.value = false;
+  }
 }
 
 async function loadInvoiceForEdit() {
@@ -243,9 +303,8 @@ async function loadInvoiceForEdit() {
 
     invoiceNumber.value = inv.invoice_number;
     form.value = {
-      customer_name: inv.customer_name,
-      customer_email: inv.customer_email || "",
-      customer_phone: inv.customer_phone || "",
+      customer_id: inv.customer_id ? String(inv.customer_id) : "",
+      title: inv.title || "",
       issue_date: inv.issue_date,
       due_date: inv.due_date || "",
       tax_percent: inv.tax_percent || 0,
@@ -265,6 +324,18 @@ async function loadInvoiceForEdit() {
 }
 
 async function onSubmit() {
+  if (!form.value.customer_id) {
+    message.value = "Pilih pelanggan terlebih dahulu";
+    isError.value = true;
+    return;
+  }
+
+  if (!form.value.title.trim()) {
+    message.value = "Judul invoice wajib diisi";
+    isError.value = true;
+    return;
+  }
+
   if (total.value <= 0) {
     message.value = "Total invoice harus lebih dari 0";
     isError.value = true;
@@ -305,9 +376,10 @@ async function onSubmit() {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
+  await loadCustomers();
   if (isEdit.value) {
-    loadInvoiceForEdit();
+    await loadInvoiceForEdit();
   }
 });
 </script>

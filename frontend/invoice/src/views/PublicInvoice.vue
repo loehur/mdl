@@ -14,6 +14,7 @@
       <template v-else>
         <div class="page-enter mb-6 text-center">
           <h1 class="page-title mt-2">{{ invoice.invoice_number }}</h1>
+          <p v-if="invoice.title" class="mt-1 font-semibold text-pearl">{{ invoice.title }}</p>
           <p class="mt-1 text-sm text-mist">Dari {{ invoice.issuer?.name }}</p>
         </div>
 

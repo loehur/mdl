@@ -45,6 +45,7 @@
           >
             <div>
               <p class="text-sm font-bold text-pearl">{{ inv.invoice_number }}</p>
+              <p v-if="inv.title" class="text-sm font-semibold text-pearl">{{ inv.title }}</p>
               <p class="text-sm text-mist">{{ inv.customer_name }}</p>
             </div>
             <div class="text-right">

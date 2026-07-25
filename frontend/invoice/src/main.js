@@ -53,6 +53,8 @@ import CreateInvoice from "./views/CreateInvoice.vue";
 import History from "./views/History.vue";
 import InvoiceDetail from "./views/InvoiceDetail.vue";
 import PublicInvoice from "./views/PublicInvoice.vue";
+import Customers from "./views/Customers.vue";
+import CustomerForm from "./views/CustomerForm.vue";
 
 const router = createRouter({
   history: createWebHashHistory(),
@@ -69,6 +71,9 @@ const router = createRouter({
         { path: "edit/:id", component: CreateInvoice },
         { path: "riwayat", component: History },
         { path: "detail/:id", component: InvoiceDetail },
+        { path: "pelanggan", component: Customers },
+        { path: "pelanggan/buat", component: CustomerForm },
+        { path: "pelanggan/edit/:id", component: CustomerForm },
       ],
     },
   ],

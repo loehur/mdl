@@ -17,7 +17,7 @@ class Invoices extends InvoiceController
         $status = trim($_GET['status'] ?? '');
 
         try {
-            $sql = "SELECT id, invoice_number, public_token, customer_name, total,
+            $sql = "SELECT id, invoice_number, public_token, title, customer_name, total,
                            payment_status, status, issue_date, due_date, created_at
                     FROM invoices
                     WHERE user_id = ? AND DATE_FORMAT(issue_date, '%Y-%m') = ?";
@@ -94,18 +94,20 @@ class Invoices extends InvoiceController
 
         try {
             $body = $this->getBody();
-            $parsed = $this->parseInvoiceBody($body);
+            $parsed = $this->parseInvoiceBody($body, $userId);
 
             $invoiceNumber = $this->generateInvoiceNumber($userId);
             $publicToken = $this->generatePublicToken();
 
             $invoiceId = (int) $this->db($this->db_index)->insert('invoices', [
                 'user_id' => $userId,
+                'customer_id' => $parsed['customer_id'],
                 'invoice_number' => $invoiceNumber,
                 'public_token' => $publicToken,
                 'customer_name' => $parsed['customer_name'],
                 'customer_email' => $parsed['customer_email'],
                 'customer_phone' => $parsed['customer_phone'],
+                'title' => $parsed['title'],
                 'issue_date' => $parsed['issue_date'],
                 'due_date' => $parsed['due_date'],
                 'subtotal' => $parsed['subtotal'],
@@ -180,12 +182,14 @@ class Invoices extends InvoiceController
                 $this->error('Invoice yang sudah dibatalkan tidak dapat diedit', 400);
             }
 
-            $parsed = $this->parseInvoiceBody($body);
+            $parsed = $this->parseInvoiceBody($body, $userId);
 
             $updateData = [
+                'customer_id' => $parsed['customer_id'],
                 'customer_name' => $parsed['customer_name'],
                 'customer_email' => $parsed['customer_email'],
                 'customer_phone' => $parsed['customer_phone'],
+                'title' => $parsed['title'],
                 'issue_date' => $parsed['issue_date'],
                 'due_date' => $parsed['due_date'],
                 'subtotal' => $parsed['subtotal'],
@@ -418,9 +422,28 @@ class Invoices extends InvoiceController
     }
 
     /** @return array<string, mixed> */
-    protected function parseInvoiceBody(array $body): array
+    protected function parseInvoiceBody(array $body, int $userId): array
     {
-        $this->validate($body, ['customer_name', 'items']);
+        $this->validate($body, ['customer_id', 'title', 'items']);
+
+        $title = trim((string) ($body['title'] ?? ''));
+        if ($title === '') {
+            $this->error('Judul invoice wajib diisi', 400);
+        }
+
+        $customerId = (int) ($body['customer_id'] ?? 0);
+        if ($customerId <= 0) {
+            $this->error('Pelanggan wajib dipilih', 400);
+        }
+
+        $customer = $this->db($this->db_index)->query(
+            "SELECT id, name, phone, email FROM customers WHERE id = ? AND user_id = ? LIMIT 1",
+            [$customerId, $userId]
+        )->row_array();
+
+        if (!$customer) {
+            $this->error('Pelanggan tidak ditemukan', 404);
+        }
 
         if (!is_array($body['items']) || count($body['items']) === 0) {
             $this->error('Minimal 1 item invoice', 400);
@@ -470,9 +493,11 @@ class Invoices extends InvoiceController
         $total = round($subtotal + $taxAmount, 2);
 
         return [
-            'customer_name' => trim($body['customer_name']),
-            'customer_email' => trim($body['customer_email'] ?? '') ?: null,
-            'customer_phone' => trim($body['customer_phone'] ?? '') ?: null,
+            'customer_id' => (int) $customer['id'],
+            'customer_name' => $customer['name'],
+            'customer_email' => $customer['email'] ?: null,
+            'customer_phone' => $customer['phone'] ?: null,
+            'title' => $title,
             'issue_date' => $issueDate,
             'due_date' => $dueDate ?: null,
             'subtotal' => $subtotal,
