@@ -263,6 +263,9 @@ abstract class InvoiceController extends BaseController
             'customer_email' => $invoice['customer_email'],
             'customer_phone' => $invoice['customer_phone'],
             'title' => $invoice['title'] ?? null,
+            'recurring_bill_id' => isset($invoice['recurring_bill_id']) && $invoice['recurring_bill_id'] !== null
+                ? (int) $invoice['recurring_bill_id']
+                : null,
             'issue_date' => $invoice['issue_date'],
             'due_date' => $invoice['due_date'],
             'subtotal' => (float) $invoice['subtotal'],
@@ -314,17 +317,164 @@ abstract class InvoiceController extends BaseController
         $customerName = trim((string) ($invoice['customer_name'] ?? ''));
 
         return "INVOICE PEMBAYARAN\n"
-            . "Halo {$customerName},\n"
-            . "Berikut rincian tagihan {$title},\n"
+            . "Halo *{$customerName}*,\n"
+            . "Berikut rincian tagihan *{$title}*,\n"
             . "\n"
-            . "- No. Invoice: {$invoice['invoice_number']}\n"
-            . "- Tanggal: {$date}\n"
-            . "- Total: Rp{$total},-\n"
+            . "* No. Invoice: {$invoice['invoice_number']}\n"
+            . "* Tanggal: {$date}\n"
+            . "* Total: *Rp{$total},-*\n"
             . "\n"
             . "Lihat & bayar invoice:\n"
             . "{$publicUrl}\n"
             . "\n"
             . "Terima kasih";
+    }
+
+    protected function advanceIssueDate(string $issueDate, string $period): string
+    {
+        $dt = new \DateTimeImmutable($issueDate);
+        if ($period === 'yearly') {
+            return $dt->modify('+1 year')->format('Y-m-d');
+        }
+        return $dt->modify('+1 month')->format('Y-m-d');
+    }
+
+    protected function calcDueDays(?string $issueDate, ?string $dueDate): ?int
+    {
+        if (!$issueDate || !$dueDate) {
+            return null;
+        }
+        try {
+            $issue = new \DateTimeImmutable($issueDate);
+            $due = new \DateTimeImmutable($dueDate);
+            $days = (int) $issue->diff($due)->format('%r%a');
+            return $days >= 0 ? $days : null;
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $parsed from parseInvoiceBody
+     * @param array{enabled?: bool, period?: string}|null $recurring
+     */
+    protected function syncRecurringBill(int $userId, int $invoiceId, array $parsed, ?array $recurring): ?array
+    {
+        $enabled = !empty($recurring['enabled']);
+        $period = trim((string) ($recurring['period'] ?? 'monthly'));
+        if (!in_array($period, ['monthly', 'yearly'], true)) {
+            $period = 'monthly';
+        }
+
+        $existingId = null;
+        $invoice = $this->db($this->db_index)->query(
+            "SELECT recurring_bill_id FROM invoices WHERE id = ? AND user_id = ? LIMIT 1",
+            [$invoiceId, $userId]
+        )->row_array();
+        if (!empty($invoice['recurring_bill_id'])) {
+            $existingId = (int) $invoice['recurring_bill_id'];
+        }
+
+        if (!$enabled) {
+            if ($existingId) {
+                $this->db($this->db_index)->update('recurring_bills', [
+                    'is_active' => 0,
+                    'updated_at' => date('Y-m-d H:i:s'),
+                ], ['id' => $existingId, 'user_id' => $userId]);
+            }
+            return [
+                'enabled' => false,
+                'period' => null,
+                'next_issue_date' => null,
+            ];
+        }
+
+        $itemsJson = array_map(static function ($item) {
+            return [
+                'description' => $item['description'],
+                'quantity' => $item['quantity'],
+                'unit_price' => $item['unit_price'],
+            ];
+        }, $parsed['items']);
+
+        $nextIssue = $this->advanceIssueDate($parsed['issue_date'], $period);
+        $dueDays = $this->calcDueDays($parsed['issue_date'], $parsed['due_date'] ?? null);
+        $now = date('Y-m-d H:i:s');
+
+        $payload = [
+            'user_id' => $userId,
+            'customer_id' => $parsed['customer_id'],
+            'title' => $parsed['title'],
+            'tax_percent' => $parsed['tax_percent'],
+            'notes' => $parsed['notes'],
+            'items_json' => json_encode($itemsJson, JSON_UNESCAPED_UNICODE),
+            'period' => $period,
+            'next_issue_date' => $nextIssue,
+            'due_days' => $dueDays,
+            'source_invoice_id' => $invoiceId,
+            'is_active' => 1,
+            'updated_at' => $now,
+        ];
+
+        if ($existingId) {
+            $this->db($this->db_index)->update('recurring_bills', $payload, [
+                'id' => $existingId,
+                'user_id' => $userId,
+            ]);
+            $billId = $existingId;
+        } else {
+            $payload['created_at'] = $now;
+            $billId = (int) $this->db($this->db_index)->insert('recurring_bills', $payload);
+            if ($billId <= 0) {
+                $this->error('Gagal menyimpan jadwal tagihan berulang', 500);
+            }
+        }
+
+        $this->db($this->db_index)->update('invoices', [
+            'recurring_bill_id' => $billId,
+        ], ['id' => $invoiceId]);
+
+        return [
+            'enabled' => true,
+            'period' => $period,
+            'next_issue_date' => $nextIssue,
+            'recurring_bill_id' => $billId,
+        ];
+    }
+
+    protected function getRecurringInfoForInvoice(array $invoice): array
+    {
+        $billId = isset($invoice['recurring_bill_id']) ? (int) $invoice['recurring_bill_id'] : 0;
+        if ($billId <= 0) {
+            return [
+                'enabled' => false,
+                'period' => null,
+                'next_issue_date' => null,
+            ];
+        }
+
+        $row = $this->db($this->db_index)->query(
+            "SELECT id, period, next_issue_date, is_active
+             FROM recurring_bills
+             WHERE id = ? AND user_id = ?
+             LIMIT 1",
+            [$billId, (int) $invoice['user_id']]
+        )->row_array();
+
+        if (!$row || !(int) $row['is_active']) {
+            return [
+                'enabled' => false,
+                'period' => null,
+                'next_issue_date' => null,
+            ];
+        }
+
+        return [
+            'enabled' => true,
+            'period' => $row['period'],
+            'next_issue_date' => $row['next_issue_date'],
+            'recurring_bill_id' => (int) $row['id'],
+        ];
     }
 
     protected function isTokopaySuccess(?array $data): bool

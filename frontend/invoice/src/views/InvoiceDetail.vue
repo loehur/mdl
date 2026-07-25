@@ -26,6 +26,19 @@
             <p class="font-semibold text-pearl">{{ invoice.due_date ? formatDate(invoice.due_date) : '-' }}</p>
           </div>
         </div>
+
+        <div
+          v-if="invoice.recurring?.enabled"
+          class="mt-4 rounded-2xl border border-ledger/30 bg-ledger/5 px-4 py-3 text-sm"
+        >
+          <p class="font-semibold text-ledger-dim">Tagihan berulang aktif</p>
+          <p class="mt-1 text-mist">
+            Periode {{ invoice.recurring.period === 'yearly' ? 'tahunan' : 'bulanan' }}
+            <template v-if="invoice.recurring.next_issue_date">
+              · berikutnya {{ formatDate(invoice.recurring.next_issue_date) }}
+            </template>
+          </p>
+        </div>
       </div>
 
       <section
@@ -46,12 +59,11 @@
 
         <template v-else>
           <label class="field-label">Pilih Pelanggan *</label>
-          <select v-model="selectedCustomerId" class="field-input" :disabled="settingCustomer">
-            <option value="" disabled>Pilih pelanggan...</option>
-            <option v-for="c in customers" :key="c.id" :value="String(c.id)">
-              {{ c.name }} — {{ c.phone }}
-            </option>
-          </select>
+          <CustomerSelect
+            v-model="selectedCustomerId"
+            :options="customers"
+            :disabled="settingCustomer"
+          />
 
           <button
             class="btn-primary mt-4 w-full"
@@ -178,6 +190,7 @@ import { useRoute, useRouter } from "vue-router";
 import PageLoader from "../components/PageLoader.vue";
 import AlertBanner from "../components/AlertBanner.vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
+import CustomerSelect from "../components/CustomerSelect.vue";
 import { formatDate, formatRupiahDisplay } from "../utils/format";
 import { invoiceStatusChipClass, invoiceStatusLabel } from "../utils/invoiceStatus";
 

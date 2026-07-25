@@ -49,6 +49,14 @@ export function todayISO() {
   return localDateISO();
 }
 
+/** Tambah N hari ke tanggal ISO (YYYY-MM-DD), hasil lokal. */
+export function addDaysISO(isoDate, days) {
+  const date = new Date(`${isoDate}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return isoDate;
+  date.setDate(date.getDate() + Number(days || 0));
+  return localDateISO(date);
+}
+
 export function localDateISO(date = new Date()) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");

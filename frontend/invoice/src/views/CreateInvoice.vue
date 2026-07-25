@@ -30,12 +30,7 @@
           <template v-else>
             <div>
               <label class="field-label">Pilih Pelanggan *</label>
-              <select v-model="form.customer_id" class="field-input" required>
-                <option value="" disabled>Pilih pelanggan...</option>
-                <option v-for="c in customers" :key="c.id" :value="String(c.id)">
-                  {{ c.name }} — {{ c.phone }}
-                </option>
-              </select>
+              <CustomerSelect v-model="form.customer_id" :options="customers" />
             </div>
 
             <div
@@ -63,11 +58,38 @@
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label class="field-label">Tanggal Invoice</label>
-              <input v-model="form.issue_date" class="field-input" type="date" required />
+              <input
+                v-model="form.issue_date"
+                class="field-input"
+                type="date"
+                required
+                @change="onIssueDateChange"
+              />
             </div>
             <div>
               <label class="field-label">Jatuh Tempo</label>
               <input v-model="form.due_date" class="field-input" type="date" />
+            </div>
+          </div>
+
+          <div class="rounded-2xl border border-ink-200 bg-ink-50 p-4">
+            <label class="flex items-center gap-3">
+              <input
+                v-model="form.recurring_enabled"
+                type="checkbox"
+                class="h-4 w-4 rounded border-ink-200"
+              />
+              <span class="text-sm font-semibold text-pearl">Tagihan berulang</span>
+            </label>
+            <p class="mt-2 text-xs text-mist">
+              Invoice berikutnya dibuat otomatis sesuai periode.
+            </p>
+            <div v-if="form.recurring_enabled" class="mt-3">
+              <label class="field-label">Periode *</label>
+              <select v-model="form.recurring_period" class="field-input">
+                <option value="monthly">Bulanan</option>
+                <option value="yearly">Tahunan</option>
+              </select>
             </div>
           </div>
         </form>
@@ -174,9 +196,10 @@ import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import AmountInput from "../components/AmountInput.vue";
 import AlertBanner from "../components/AlertBanner.vue";
+import CustomerSelect from "../components/CustomerSelect.vue";
 import EmptyState from "../components/EmptyState.vue";
 import PageLoader from "../components/PageLoader.vue";
-import { amountInputToNumber, formatRupiah, todayISO, toAmountDigits } from "../utils/format";
+import { amountInputToNumber, addDaysISO, formatRupiah, todayISO, toAmountDigits } from "../utils/format";
 
 const route = useRoute();
 const router = useRouter();
@@ -192,9 +215,11 @@ const form = ref({
   customer_id: "",
   title: "",
   issue_date: todayISO(),
-  due_date: "",
+  due_date: addDaysISO(todayISO(), 7),
   tax_percent: 0,
   notes: "",
+  recurring_enabled: false,
+  recurring_period: "monthly",
   items: [{ description: "", quantity: 1, unit_price: "" }],
 });
 
@@ -211,6 +236,12 @@ const selectedCustomer = computed(() => {
   if (!id) return null;
   return customers.value.find((c) => c.id === id) || null;
 });
+
+function onIssueDateChange() {
+  if (isEdit.value) return;
+  if (!form.value.issue_date) return;
+  form.value.due_date = addDaysISO(form.value.issue_date, 7);
+}
 
 function addItem() {
   form.value.items.push({ description: "", quantity: 1, unit_price: "" });
@@ -245,6 +276,10 @@ function buildPayload() {
     due_date: form.value.due_date || null,
     tax_percent: form.value.tax_percent || 0,
     notes: form.value.notes,
+    recurring: {
+      enabled: !!form.value.recurring_enabled,
+      period: form.value.recurring_period || "monthly",
+    },
     items: form.value.items.map((item) => ({
       description: item.description,
       quantity: Number(item.quantity) || 1,
@@ -309,6 +344,8 @@ async function loadInvoiceForEdit() {
       due_date: inv.due_date || "",
       tax_percent: inv.tax_percent || 0,
       notes: inv.notes || "",
+      recurring_enabled: !!inv.recurring?.enabled,
+      recurring_period: inv.recurring?.period || "monthly",
       items: inv.items.map((item) => ({
         description: item.description,
         quantity: item.quantity,

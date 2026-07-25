@@ -40,6 +40,9 @@ class Env
 
     /** Token verifikasi webhook YCloud untuk WaDesk (boleh beda dari WA_VERIFY_TOKEN CRM). */
     const WADESK_VERIFY_TOKEN = 'wadesk_verify_token_change_me';
+
+    /** Secret untuk endpoint Cron (query ?secret= atau header X-Cron-Secret). */
+    const CRON_SECRET = 'change-me-cron-secret';
 }
 
 // URL internal push ke wa_server (Node.js port 3003, sama VPS dengan API)

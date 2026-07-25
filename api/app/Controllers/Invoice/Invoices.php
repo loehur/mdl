@@ -75,6 +75,7 @@ class Invoices extends InvoiceController
             ]);
             $data['public_url'] = $publicUrl;
             $data['share_text'] = $this->buildShareText($invoice, $publicUrl);
+            $data['recurring'] = $this->getRecurringInfoForInvoice($invoice);
 
             $this->success($data, 'Detail invoice');
         } catch (\Throwable $e) {
@@ -128,6 +129,13 @@ class Invoices extends InvoiceController
                 $this->db($this->db_index)->insert('invoice_items', $item);
             }
 
+            $recurringInfo = $this->syncRecurringBill(
+                $userId,
+                $invoiceId,
+                $parsed,
+                is_array($body['recurring'] ?? null) ? $body['recurring'] : null
+            );
+
             $invoice = $this->db($this->db_index)->get_where('invoices', ['id' => $invoiceId], 1)->row_array();
             $items = $this->getInvoiceItems($invoiceId);
             $user = $this->currentUser();
@@ -140,6 +148,7 @@ class Invoices extends InvoiceController
             ]);
             $data['public_url'] = $publicUrl;
             $data['share_text'] = $this->buildShareText($invoice, $publicUrl);
+            $data['recurring'] = $recurringInfo;
 
             $this->success($data, 'Invoice berhasil dibuat');
         } catch (\Throwable $e) {
@@ -215,6 +224,13 @@ class Invoices extends InvoiceController
                 $this->db($this->db_index)->insert('invoice_items', $item);
             }
 
+            $recurringInfo = $this->syncRecurringBill(
+                $userId,
+                $id,
+                $parsed,
+                is_array($body['recurring'] ?? null) ? $body['recurring'] : null
+            );
+
             $updated = $this->db($this->db_index)->get_where('invoices', ['id' => $id], 1)->row_array();
             $items = $this->getInvoiceItems($id);
             $user = $this->currentUser();
@@ -227,6 +243,7 @@ class Invoices extends InvoiceController
             ]);
             $data['public_url'] = $publicUrl;
             $data['share_text'] = $this->buildShareText($updated, $publicUrl);
+            $data['recurring'] = $recurringInfo;
 
             $this->success($data, 'Invoice berhasil diperbarui');
         } catch (\Throwable $e) {
