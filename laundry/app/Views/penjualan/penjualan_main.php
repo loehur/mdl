@@ -32,7 +32,8 @@
   #ord-root .badge,
   #ord-root .modal-content,
   .ord-plg-modal__panel,
-  .ord-order-modal__panel {
+  .ord-order-modal__panel,
+  .ord-item-modal__panel {
     border-radius: 0 !important;
   }
 
@@ -483,12 +484,48 @@
   }
 </style>
 
-<div class="modal" id="exampleModal2">
-  <div class="modal-dialog modal-sm">
-    <div class="modal-content addItemForm">
-    </div>
+<div class="ord-item-modal" id="ordItemModal" aria-hidden="true">
+  <div class="ord-item-modal__backdrop" data-ord-item-close></div>
+  <div class="ord-item-modal__panel" role="dialog" aria-modal="true" aria-labelledby="ordItemTitle">
+    <div class="addItemForm"></div>
   </div>
 </div>
+
+<style>
+  .ord-item-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 5100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  .ord-item-modal.is-open { display: flex; }
+  .ord-item-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(3px);
+  }
+  .ord-item-modal__panel {
+    position: relative;
+    z-index: 1;
+    width: min(420px, 100%);
+    max-height: min(90vh, 640px);
+    background: #fff;
+    border-radius: 0;
+    box-shadow: 0 24px 48px rgba(15, 23, 42, 0.3);
+    overflow: visible;
+    animation: ordItemIn .18s ease-out;
+    pointer-events: auto;
+  }
+  @keyframes ordItemIn {
+    from { opacity: 0; transform: translateY(10px) scale(0.98); }
+    to { opacity: 1; transform: none; }
+  }
+</style>
 
 <!-- Custom modal: Tambah Pelanggan (tanpa Bootstrap) -->
 <div class="ord-plg-modal" id="ordPlgModal" aria-hidden="true">
@@ -735,10 +772,12 @@
 
     $(".addItem").on("click", function(e) {
       e.preventDefault();
-      var id_group = $(this).attr('data-id_group');
-      var id_penjualan = "'" + $(this).attr('data-id_penjualan') + "'";
-      var data = id_group + "|" + id_penjualan;
-      $('div.addItemForm').load('<?= URL::BASE_URL ?>Penjualan/addItemForm/' + data);
+      var id_penjualan = $(this).attr('data-id_penjualan');
+      if (typeof window.openOrdItemModal === "function") {
+        window.openOrdItemModal();
+        $('div.addItemForm').html('<div style="padding:28px;text-align:center;color:#1e293b;font-weight:800"><i class="fas fa-spinner fa-spin"></i> Memuat…</div>');
+      }
+      $('div.addItemForm').load('<?= URL::BASE_URL ?>Penjualan/addItemForm/' + id_penjualan);
     });
 
     $("span.addPelanggan, .addPelanggan").on("click", function(e) {
@@ -817,6 +856,28 @@
     window.closeOrdPlgModal = function () {
       $("#ordPlgModal").removeClass("is-open").attr("aria-hidden", "true");
     };
+
+    window.openOrdItemModal = function () {
+      $("#ordItemModal").addClass("is-open").attr("aria-hidden", "false");
+    };
+    window.closeOrdItemModal = function () {
+      var $sel = $("#ord_item_select");
+      if ($sel.length && $sel[0].selectize) {
+        try { $sel[0].selectize.destroy(); } catch (err) {}
+      }
+      $("#ordItemModal").removeClass("is-open").attr("aria-hidden", "true");
+      $("div.addItemForm").empty();
+    };
+
+    $(document).off("click.ordItemCloseShell", "#ordItemModal [data-ord-item-close]").on("click.ordItemCloseShell", "#ordItemModal [data-ord-item-close]", function (e) {
+      e.preventDefault();
+      window.closeOrdItemModal();
+    });
+    $(document).off("keydown.ordItemEsc").on("keydown.ordItemEsc", function (e) {
+      if (e.key === "Escape" && $("#ordItemModal").hasClass("is-open")) {
+        window.closeOrdItemModal();
+      }
+    });
 
     $(document).off("click.ordOrderClose", "[data-ord-order-close]").on("click.ordOrderClose", "[data-ord-order-close]", function () {
       window.closeOrdOrderModal();

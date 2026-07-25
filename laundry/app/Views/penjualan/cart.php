@@ -228,7 +228,7 @@ if (empty($data['data_main'])) {
       <div class="ord-item-badges"><?= $itemList ?></div>
     <?php } ?>
     <div class="ord-cart-actions">
-      <a href="#" class="ord-chip ord-chip--soft addItem" data-id_group="<?= $f3 ?>" data-id_penjualan="<?= $id ?>" data-bs-toggle="modal" data-bs-target="#exampleModal2">
+      <a href="#" class="ord-chip ord-chip--soft addItem" data-id_penjualan="<?= $id ?>">
         <i class="fas fa-plus-circle"></i> Item
       </a>
       <a href="#" class="ord-chip ord-chip--warn setDiskonBtn" data-id_penjualan="<?= $id ?>" data-harga="<?= $f7 ?>" data-harga_diskon="<?= round($harga_diskon_now, 2) ?>" data-bs-toggle="modal" data-bs-target="#modalDiskonHarga">
@@ -277,10 +277,12 @@ if (empty($data['data_main'])) {
 
     $(".addItem").on("click", function(e) {
       e.preventDefault();
-      var id_group = $(this).attr('data-id_group');
       var id_penjualan = $(this).attr('data-id_penjualan');
-      var data = id_group + "|" + id_penjualan;
-      $('div.addItemForm').load('<?= URL::BASE_URL ?>Penjualan/addItemForm/' + data);
+      if (typeof window.openOrdItemModal === "function") {
+        window.openOrdItemModal();
+        $('div.addItemForm').html('<div style="padding:28px;text-align:center;color:#1e293b;font-weight:800"><i class="fas fa-spinner fa-spin"></i> Memuat…</div>');
+      }
+      $('div.addItemForm').load('<?= URL::BASE_URL ?>Penjualan/addItemForm/' + id_penjualan);
     });
 
     $("a.removeItem").on('click', function(e) {

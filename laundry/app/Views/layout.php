@@ -1477,44 +1477,6 @@ if ($log_mode == 1) {
 
 
                                 <li class="nav-item 
-                <?php if (strpos($title, 'Produk') !== FALSE) {
-                                echo 'menu-is-opening menu-open';
-                            } ?>">
-                                    <a href="#" class="nav-link 
-                <?php if (strpos($title, 'Produk') !== FALSE) {
-                                echo 'active';
-                            } ?>">
-                                        <i class="nav-icon fas fa-layer-group"></i>
-                                        <p>
-                                            Produk
-                                            <i class="fas fa-angle-left right"></i>
-                                        </p>
-                                    </a>
-                                    <ul class="nav nav-treeview" style="display: 
-                <?php if (strpos($title, 'Produk') !== FALSE) {
-                                echo 'block;';
-                            } else {
-                                echo 'none;';
-                            } ?>;">
-                                        <?php foreach ($this->dPenjualan as $a) {
-                                            if ($a['id_penjualan_jenis'] < 5) { ?>
-                                                <li class="nav-item">
-                                                    <a href="<?= URL::BASE_URL ?>SetGroup/i/<?= $a['id_penjualan_jenis'] ?>" class="nav-link 
-                    <?php if ($title == 'Produk ' . $a['penjualan_jenis']) {
-                                                    echo 'active';
-                                                } ?>">
-                                                        <i class="far fa-circle nav-icon"></i>
-                                                        <p>
-                                                            <?= $a['penjualan_jenis'] ?>
-                                                        </p>
-                                                    </a>
-                                                </li>
-                                        <?php }
-                                        } ?>
-                                    </ul>
-                                </li>
-
-                                <li class="nav-item 
                 <?php if (strpos($title, 'Harga') !== FALSE) {
                                 echo 'menu-is-opening menu-open';
                             } ?>">

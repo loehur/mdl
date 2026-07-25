@@ -32,9 +32,35 @@ class SetHarga extends Controller
 
    public function insert($page)
    {
+      $page = (int) $page;
       $layanan = serialize($_POST['f2']);
-      $durasi = $_POST['f3'];
-      $item_group = $_POST['f1'];
+      $durasi = (int) $_POST['f3'];
+      $kategoriBaru = trim((string) ($_POST['f1_new'] ?? ''));
+      $item_group = (int) ($_POST['f1'] ?? 0);
+
+      if ($kategoriBaru !== '') {
+         $kategoriEsc = $this->db(0)->escape($kategoriBaru);
+         $whereGrup = "item_kategori = '" . $kategoriEsc . "' AND id_penjualan_jenis = " . $page;
+         $existing = $this->db(0)->get_where_row('item_group', $whereGrup);
+         if (!empty($existing['id_item_group'])) {
+            $item_group = (int) $existing['id_item_group'];
+         } else {
+            $ins = $this->db(0)->insert('item_group', [
+               'id_penjualan_jenis' => $page,
+               'item_kategori' => $kategoriBaru,
+            ]);
+            if (($ins['errno'] ?? 1) !== 0) {
+               return;
+            }
+            $existing = $this->db(0)->get_where_row('item_group', $whereGrup);
+            $item_group = (int) ($existing['id_item_group'] ?? 0);
+         }
+      }
+
+      if ($item_group < 1) {
+         return;
+      }
+
       $setOne = 'id_penjualan_jenis = ' . $page;
       $where = $setOne . " AND list_layanan = '$layanan' AND id_durasi = $durasi AND id_item_group = $item_group";
       $data_main = $this->db(0)->count_where($this->table, $where);
@@ -52,6 +78,8 @@ class SetHarga extends Controller
          if ($query) {
             $this->dataSynchrone($_SESSION[URL::SESSID]['user']['id_user']);
          }
+      } elseif ($kategoriBaru !== '') {
+         $this->dataSynchrone($_SESSION[URL::SESSID]['user']['id_user']);
       }
    }
 

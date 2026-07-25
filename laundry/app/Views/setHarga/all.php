@@ -132,12 +132,20 @@ foreach ($this->dSatuan as $a) {
                     <!-- ======================================================== -->
                     <div class="form-group" id="kategori_select">
                       <label>Kategori</label>
-                      <select id="sel_kategori" name="f1" class="form-control form-control-sm select2" style="width: 100%" required>
+                      <select id="sel_kategori" name="f1" class="form-control form-control-sm select2" style="width: 100%">
                         <option value="" disabled selected></option>
                         <?php foreach ($data['d2'] as $a) { ?>
-                          <option value="<?= $a['id_item_group'] ?>"><?= $a['item_kategori'] ?></option>
+                          <option value="<?= $a['id_item_group'] ?>"><?= htmlspecialchars($a['item_kategori']) ?></option>
                         <?php } ?>
                       </select>
+                      <div class="mt-1">
+                        <a href="#" id="btn_kategori_baru" class="small">+ Buat kategori baru</a>
+                        <a href="#" id="btn_kategori_pilih" class="small" style="display:none">Pilih kategori yang ada</a>
+                      </div>
+                    </div>
+                    <div class="form-group" id="kategori_baru_wrap" style="display:none">
+                      <label>Nama kategori baru</label>
+                      <input type="text" id="inp_kategori_baru" name="f1_new" class="form-control form-control-sm" placeholder="Contoh: Cuci Kering" maxlength="100" disabled>
                     </div>
                     <div class="form-group" id="layanan_select">
                       <label>Layanan</label>
@@ -202,8 +210,46 @@ foreach ($this->dSatuan as $a) {
       dropdownParent: $("#kategori_select"),
     });
 
+    function setKategoriMode(baru) {
+      if (baru) {
+        $("#kategori_select").hide();
+        $("#sel_kategori").val(null).trigger("change").prop("disabled", true).prop("required", false);
+        $("#kategori_baru_wrap").show();
+        $("#inp_kategori_baru").prop("disabled", false).prop("required", true).focus();
+        $("#btn_kategori_baru").hide();
+        $("#btn_kategori_pilih").show();
+      } else {
+        $("#kategori_baru_wrap").hide();
+        $("#inp_kategori_baru").val("").prop("disabled", true).prop("required", false);
+        $("#kategori_select").show();
+        $("#sel_kategori").prop("disabled", false).prop("required", true);
+        $("#btn_kategori_pilih").hide();
+        $("#btn_kategori_baru").show();
+      }
+    }
+
+    $("#btn_kategori_baru").on("click", function(e) {
+      e.preventDefault();
+      setKategoriMode(true);
+    });
+    $("#btn_kategori_pilih").on("click", function(e) {
+      e.preventDefault();
+      setKategoriMode(false);
+    });
+    setKategoriMode(false);
+
     $("form").on("submit", function(e) {
       e.preventDefault();
+      var pakaiBaru = !$("#inp_kategori_baru").prop("disabled");
+      if (pakaiBaru) {
+        if ($.trim($("#inp_kategori_baru").val()) === "") {
+          alert("Nama kategori baru wajib diisi.");
+          return;
+        }
+      } else if (!$("#sel_kategori").val()) {
+        alert("Pilih kategori atau buat kategori baru.");
+        return;
+      }
       $.ajax({
         url: $(this).attr('action'),
         data: $(this).serialize(),

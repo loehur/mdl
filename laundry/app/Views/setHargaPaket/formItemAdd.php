@@ -1,5 +1,3 @@
-<?php $b = unserialize($data['data']); ?>
-
 <form action="<?= URL::BASE_URL ?>Penjualan/addItem/<?= $data['id'] ?>" method="POST">
   <div class="modal-header">
     <h5 class="modal-title">Tambah Item</h5>
@@ -10,13 +8,8 @@
         <label>Item</label>
         <select name="f1" class="select2a form-control form-control-sm" style="width: 100%" required>
           <option value="" selected></option>
-          <?php foreach ($b as $a) { ?>
-            <option value="<?= $a ?>">
-              <?php foreach ($this->dItem as $c) {
-                if ($c['id_item'] == $a) {
-                  echo $c['item'];
-                }
-              } ?></option>
+          <?php foreach ($this->dItem as $c) { ?>
+            <option value="<?= $c['id_item'] ?>"><?= htmlspecialchars($c['item']) ?></option>
           <?php } ?>
         </select>
       </div>

@@ -80,10 +80,8 @@
 
     $(".addItem").on("click", function(e) {
       e.preventDefault();
-      var id_group = $(this).attr('data-id_group');
-      var id_penjualan = "'" + $(this).attr('data-id_penjualan') + "'";
-      var data = id_group + "|" + id_penjualan;
-      $('div.addItemForm').load('<?= URL::BASE_URL ?>Penjualan/addItemForm/' + data);
+      var id_penjualan = $(this).attr('data-id_penjualan');
+      $('div.addItemForm').load('<?= URL::BASE_URL ?>Penjualan/addItemForm/' + id_penjualan);
     });
 
     $("button.orderPenjualanForm").on("click", function(e) {

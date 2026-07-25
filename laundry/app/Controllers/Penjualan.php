@@ -257,12 +257,9 @@ class Penjualan extends Controller
       }
    }
 
-   public function addItemForm($data)
+   public function addItemForm($id)
    {
-      $data = explode("|", $data);
-      $b = $this->db(0)->get_where_row("item_group", "id_item_group = " . $data[0])['item_list'];
-      $c = $data[1];
-      $this->view('penjualan/formItemAdd', ['data' => $b, 'id' => $c]);
+      $this->view('penjualan/formItemAdd', ['id' => $id]);
    }
 
    public function orderPenjualanForm($id_penjualan, $id_harga, $saldo = false)
