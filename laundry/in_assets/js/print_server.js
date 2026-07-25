@@ -40,6 +40,129 @@
     return base;
   }
 
+  /**
+   * Themed alert modal (MDL UI) — replaces native alert for print errors.
+   */
+  function ensureAlertModal() {
+    if (document.getElementById("mdlPrintAlert")) return;
+
+    if (!document.getElementById("mdlPrintAlertStyle")) {
+      var style = document.createElement("style");
+      style.id = "mdlPrintAlertStyle";
+      style.textContent = [
+        "#mdlPrintAlert{position:fixed;inset:0;z-index:5300;display:none;align-items:center;justify-content:center;padding:16px;}",
+        "#mdlPrintAlert.is-open{display:flex;}",
+        "#mdlPrintAlert .mdl-pa__backdrop{position:absolute;inset:0;background:rgba(15,23,42,.58);backdrop-filter:blur(3px);}",
+        "#mdlPrintAlert .mdl-pa__panel{position:relative;z-index:1;width:min(400px,100%);background:#fff;border-radius:0;box-shadow:0 24px 48px rgba(15,23,42,.3);overflow:hidden;animation:mdlPaIn .18s ease-out;}",
+        "@keyframes mdlPaIn{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}",
+        "#mdlPrintAlert .mdl-pa__head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;color:#fff;}",
+        "#mdlPrintAlert .mdl-pa__head--red{background:linear-gradient(105deg,#b91c1c,#dc2626 55%,#f59e0b);}",
+        "#mdlPrintAlert .mdl-pa__head--yellow{background:linear-gradient(105deg,#d97706,#f59e0b 55%,#dc2626);color:#111;}",
+        "#mdlPrintAlert .mdl-pa__head--blue{background:linear-gradient(105deg,#1d4ed8,#2563eb 55%,#16a34a);}",
+        "#mdlPrintAlert .mdl-pa__head h3{margin:0;font-size:16px;font-weight:900;letter-spacing:-.02em;font-family:'fontku','Segoe UI',sans-serif;}",
+        "#mdlPrintAlert .mdl-pa__close{width:34px;height:34px;border:0;border-radius:0;background:rgba(255,255,255,.2);color:inherit;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;}",
+        "#mdlPrintAlert .mdl-pa__body{padding:14px 16px;background:linear-gradient(180deg,#fef2f2,#fff);font-family:'fontku','Segoe UI',sans-serif;font-size:14px;font-weight:750;color:#0f172a;white-space:pre-wrap;}",
+        "#mdlPrintAlert .mdl-pa__foot{display:flex;justify-content:flex-end;padding:12px 16px 16px;border-top:1px solid #e2e8f0;}",
+        "#mdlPrintAlert .mdl-pa__btn{border:0;border-radius:0;padding:12px 14px;font-family:'fontku','Segoe UI',sans-serif;font-size:.95rem;font-weight:900;cursor:pointer;background:linear-gradient(135deg,#1d4ed8,#2563eb);color:#fff;}",
+      ].join("");
+      document.head.appendChild(style);
+    }
+
+    var wrap = document.createElement("div");
+    wrap.id = "mdlPrintAlert";
+    wrap.setAttribute("aria-hidden", "true");
+    wrap.innerHTML =
+      '<div class="mdl-pa__backdrop" data-mdl-pa-close></div>' +
+      '<div class="mdl-pa__panel" role="dialog" aria-modal="true" aria-labelledby="mdlPrintAlertTitle">' +
+      '  <div class="mdl-pa__head mdl-pa__head--red" id="mdlPrintAlertHead">' +
+      '    <h3 id="mdlPrintAlertTitle"><i class="fas fa-times-circle" id="mdlPrintAlertIcon"></i> <span id="mdlPrintAlertTitleText">Error</span></h3>' +
+      '    <button type="button" class="mdl-pa__close" data-mdl-pa-close aria-label="Tutup"><i class="fas fa-times"></i></button>' +
+      "  </div>" +
+      '  <div class="mdl-pa__body" id="mdlPrintAlertMessage"></div>' +
+      '  <div class="mdl-pa__foot"><button type="button" class="mdl-pa__btn" data-mdl-pa-close>OK</button></div>' +
+      "</div>";
+    document.body.appendChild(wrap);
+
+    wrap.addEventListener("click", function (e) {
+      if (e.target && e.target.closest && e.target.closest("[data-mdl-pa-close]")) {
+        closeAlert();
+      }
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && wrap.classList.contains("is-open")) {
+        closeAlert();
+      }
+    });
+  }
+
+  function closeAlert() {
+    var el = document.getElementById("mdlPrintAlert");
+    if (!el) return;
+    el.classList.remove("is-open");
+    el.setAttribute("aria-hidden", "true");
+  }
+
+  function showAlert(message, type) {
+    // Prefer Operasi OpModal if available on the same page
+    if (typeof window.showAlert === "function" && window.showAlert !== showAlert) {
+      try {
+        window.showAlert(message, type || "error");
+        return;
+      } catch (e) {}
+    }
+    if (typeof window.OpModal !== "undefined" && document.getElementById("modalAlert")) {
+      try {
+        var headClass = "op-modal__head op-modal__head--red";
+        var iconClass = "fa-times-circle";
+        var title = "Error";
+        if (type === "warning" || type === "warn") {
+          headClass = "op-modal__head op-modal__head--yellow";
+          iconClass = "fa-exclamation-triangle";
+          title = "Peringatan";
+        } else if (type === "info" || type === "success") {
+          headClass = "op-modal__head op-modal__head--blue";
+          iconClass = "fa-info-circle";
+          title = "Informasi";
+        }
+        if (window.jQuery) {
+          window.jQuery("#modalAlertHead").attr("class", headClass);
+          window.jQuery("#modalAlertIcon").attr("class", "fas " + iconClass);
+          window.jQuery("#modalAlertTitle").text(title);
+          window.jQuery("#modalAlertMessage").css("white-space", "pre-wrap").text(message);
+        }
+        window.OpModal.open("modalAlert", { static: true });
+        return;
+      } catch (e2) {}
+    }
+
+    ensureAlertModal();
+    var head = document.getElementById("mdlPrintAlertHead");
+    var icon = document.getElementById("mdlPrintAlertIcon");
+    var titleEl = document.getElementById("mdlPrintAlertTitleText");
+    var msgEl = document.getElementById("mdlPrintAlertMessage");
+    var wrap = document.getElementById("mdlPrintAlert");
+    var headCls = "mdl-pa__head mdl-pa__head--red";
+    var iconCls = "fas fa-times-circle";
+    var title = "Error";
+    if (type === "warning" || type === "warn") {
+      headCls = "mdl-pa__head mdl-pa__head--yellow";
+      iconCls = "fas fa-exclamation-triangle";
+      title = "Peringatan";
+    } else if (type === "info" || type === "success") {
+      headCls = "mdl-pa__head mdl-pa__head--blue";
+      iconCls = "fas fa-info-circle";
+      title = "Informasi";
+    }
+    if (head) head.className = headCls;
+    if (icon) icon.className = iconCls;
+    if (titleEl) titleEl.textContent = title;
+    if (msgEl) msgEl.textContent = message || "";
+    if (wrap) {
+      wrap.classList.add("is-open");
+      wrap.setAttribute("aria-hidden", "false");
+    }
+  }
+
   function fetchWithTimeout(url, options, timeoutMs) {
     var controller = new AbortController();
     var timer = setTimeout(function () {
@@ -180,6 +303,7 @@
     markOffline: markOffline,
     getCachedReady: getCachedReady,
     isPrintServerReady: isPrintServerReady,
+    showAlert: showAlert,
     PRINT_MS: PRINT_MS,
     PROBE_MS: PROBE_MS,
   };
@@ -191,6 +315,7 @@
   window.printServerProbe = probe;
   window.printServerEnsureReady = ensureReady;
   window.isPrintServerReady = isPrintServerReady;
+  window.showPrintServerAlert = showAlert;
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", function () {

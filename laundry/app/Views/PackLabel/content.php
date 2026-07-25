@@ -350,7 +350,16 @@ $hasCabangSelected = isset($c['cabang']) && !empty($c['cabang']);
     })
     .catch(function(err) {
       console.error("Print server error:", err);
-      alert(typeof errMsg === "function" ? errMsg(err) : "Print server tidak aktif");
+      var msg = typeof errMsg === "function" ? errMsg(err) : "Print server tidak aktif";
+      if (window.PrintServer && typeof window.PrintServer.showAlert === "function") {
+        window.PrintServer.showAlert(msg, "error");
+      } else if (typeof window.showPrintServerAlert === "function") {
+        window.showPrintServerAlert(msg, "error");
+      } else if (typeof window.showAlert === "function") {
+        window.showAlert(msg, "error");
+      } else {
+        alert(msg);
+      }
       // Fallback to browser print
       var divContents = el.innerHTML;
       var a = window.open('');

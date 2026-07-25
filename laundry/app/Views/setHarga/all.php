@@ -139,13 +139,15 @@ foreach ($this->dSatuan as $a) {
                         <?php } ?>
                       </select>
                       <div class="mt-1">
-                        <a href="#" id="btn_kategori_baru" class="small">+ Buat kategori baru</a>
-                        <a href="#" id="btn_kategori_pilih" class="small" style="display:none">Pilih kategori yang ada</a>
+                        <button type="button" id="btn_kategori_baru" class="btn btn-sm btn-outline-secondary">+ Buat kategori baru</button>
                       </div>
                     </div>
                     <div class="form-group" id="kategori_baru_wrap" style="display:none">
                       <label>Nama kategori baru</label>
-                      <input type="text" id="inp_kategori_baru" name="f1_new" class="form-control form-control-sm" placeholder="Contoh: Cuci Kering" maxlength="100" disabled>
+                      <input type="text" id="inp_kategori_baru" name="f1_new" class="form-control form-control-sm" maxlength="100" disabled>
+                      <div class="mt-1">
+                        <button type="button" id="btn_kategori_pilih" class="btn btn-sm btn-outline-primary">Gunakan Kategori yang sudah ada</button>
+                      </div>
                     </div>
                     <div class="form-group" id="layanan_select">
                       <label>Layanan</label>
@@ -216,15 +218,11 @@ foreach ($this->dSatuan as $a) {
         $("#sel_kategori").val(null).trigger("change").prop("disabled", true).prop("required", false);
         $("#kategori_baru_wrap").show();
         $("#inp_kategori_baru").prop("disabled", false).prop("required", true).focus();
-        $("#btn_kategori_baru").hide();
-        $("#btn_kategori_pilih").show();
       } else {
         $("#kategori_baru_wrap").hide();
         $("#inp_kategori_baru").val("").prop("disabled", true).prop("required", false);
         $("#kategori_select").show();
         $("#sel_kategori").prop("disabled", false).prop("required", true);
-        $("#btn_kategori_pilih").hide();
-        $("#btn_kategori_baru").show();
       }
     }
 
