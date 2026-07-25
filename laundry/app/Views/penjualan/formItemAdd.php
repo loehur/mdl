@@ -198,13 +198,10 @@
         placeholder: "Cari item…",
         allowEmptyOption: true,
         sortField: "text",
+        openOnFocus: false,
         dropdownParent: "body",
         onDropdownOpen: function ($dropdown) {
           $dropdown.css("z-index", 5200);
-        },
-        onInitialize: function () {
-          var self = this;
-          setTimeout(function () { self.focus(); }, 80);
         }
       });
     }
