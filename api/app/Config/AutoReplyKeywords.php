@@ -161,8 +161,9 @@ return [
          '/\bbukti\s+(lunas(\s+bayar)?|bayar|transfer|pembayaran|tf)\b/i',
          '/\blunas\s+bayar\b/i',
          '/\b(info\s+)?pelunasan\b/i',
-         '/^\s*(sudah|udah|udh|sdh)\s+lunas(\s+(ya\s*)?(kak|kk|bang|min|mbak|pak|bu))?\s*$/i',
-         '/^\s*lunas(\s+ya)?(\s+(kak|kk|bang|min|mbak|pak|bu))?\s*$/i',
+         // Trailing ellipsis/emoji/punctuation OK: "Lunas ya kak...🙏"
+         '/^\s*(sudah|udah|udh|sdh)\s+lunas(\s+(ya\s*)?(kak|kk|bang|min|mbak|pak|bu))?\s*[^\p{L}\p{N}]*$/iu',
+         '/^\s*lunas(\s+ya)?(\s+(kak|kk|bang|min|mbak|pak|bu))?\s*[^\p{L}\p{N}]*$/iu',
          // Ucapan terima kasih
          '/\bma*ka*(s|c)(i|e)*h\b/i',
          '/\bte*ri*ma*ka*si*h\b/i',

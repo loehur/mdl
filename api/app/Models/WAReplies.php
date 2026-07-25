@@ -795,7 +795,11 @@ class WAReplies
         if (preg_match('/\bbukti\s+(lunas(\s+bayar)?|bayar|transfer|pembayaran|tf|trf)\b/iu', $t)) {
             return true;
         }
-        if (preg_match('/^\s*lunas(\s+ya)?(\s+(kak|kk|bang|min|mbak|pak|bu))?\s*$/iu', $t)) {
+        // Trailing ellipsis/emoji/punctuation OK: "Lunas ya kak...🙏"
+        if (preg_match('/^\s*lunas(\s+ya)?(\s+(kak|kk|bang|min|mbak|pak|bu))?\s*[^\p{L}\p{N}]*$/iu', $t)) {
+            return true;
+        }
+        if (preg_match('/^\s*(sudah|udah|udh|sdh)\s+lunas(\s+(ya\s*)?(kak|kk|bang|min|mbak|pak|bu))?\s*[^\p{L}\p{N}]*$/iu', $t)) {
             return true;
         }
 
