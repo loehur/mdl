@@ -16,13 +16,13 @@ if ($n > 0) {
 ?>
 
 <?php if (!$layananOk) { ?>
-  <div class="dash-alert">Layanan <b>Setrika</b> tidak ditemukan di master layanan.</div>
+  <div class="dash-alert">Layanan yang mengandung <b>Setrika</b> / <b>Pack</b> tidak ditemukan di master layanan.</div>
 <?php } ?>
 
 <div class="dash-board dash-board--setrika">
   <div class="dash-board__head">
     <h2 class="dash-board__title">Antri Setrika/Pack — Ringkasan per Cabang</h2>
-    <span class="dash-board__badge">Setrika</span>
+    <span class="dash-board__badge">Setrika/Pack</span>
   </div>
   <div style="overflow-x:auto;">
     <table class="dash-grid">

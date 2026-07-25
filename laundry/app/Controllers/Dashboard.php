@@ -78,7 +78,9 @@ class Dashboard extends Controller
 
    public function loadSetrikaPack()
    {
-      $idSetrika = $this->resolveLayananIdByName('Setrika');
+      // Layanan akhir yang namanya mengandung "setrika" atau "pack".
+      // Hari Ini = deadline hari ini + yang lewat; Besok = deadline esok.
+      $idSetrikaPack = $this->resolveLayananIdsContaining(['setrika', 'pack']);
       $cabangMap = $this->cabangOperasionalMap();
       $cabangIds = array_keys($cabangMap);
 
@@ -95,7 +97,7 @@ class Dashboard extends Controller
          ];
       }
 
-      if ($idSetrika > 0 && count($cabangIds) > 0) {
+      if (count($idSetrikaPack) > 0 && count($cabangIds) > 0) {
          $inCabang = implode(',', array_map('intval', $cabangIds));
          $where = "bin = 0 AND tuntas = 0 AND id_pelanggan <> 0 AND id_cabang IN ($inCabang)";
          $sales = $this->db(0)->get_where('sale', $where);
@@ -112,11 +114,11 @@ class Dashboard extends Controller
             }
 
             $endLayanan = (int) end($list);
-            if ($endLayanan !== $idSetrika) {
+            if (!isset($idSetrikaPack[$endLayanan])) {
                continue;
             }
 
-            // Tidak hitung jika layanan paling akhir sudah ceklist
+            // Tidak hitung jika layanan paling akhir sudah ceklist (sama rekap operasi)
             if ($this->isEndLayananDone($sale, $operasiDone)) {
                continue;
             }
@@ -161,7 +163,7 @@ class Dashboard extends Controller
 
       $this->view('dashboard/setrika_pack', [
          'rows' => $outRows,
-         'layanan_ok' => $idSetrika > 0,
+         'layanan_ok' => count($idSetrikaPack) > 0,
       ]);
    }
 
@@ -180,6 +182,49 @@ class Dashboard extends Controller
          }
       }
       return 0;
+   }
+
+   /**
+    * Map id_layanan => true untuk nama layanan yang mengandung salah satu keyword.
+    * @param string[] $needles
+    * @return array<int,bool>
+    */
+   private function resolveLayananIdsContaining(array $needles)
+   {
+      $map = [];
+      if (!is_array($this->dLayanan) || count($needles) === 0) {
+         return $map;
+      }
+      $needlesLower = [];
+      foreach ($needles as $n) {
+         $n = strtolower(trim((string) $n));
+         if ($n !== '') {
+            $needlesLower[] = $n;
+         }
+      }
+      if (count($needlesLower) === 0) {
+         return $map;
+      }
+
+      foreach ($this->dLayanan as $layanan) {
+         if (!is_array($layanan)) {
+            continue;
+         }
+         $nama = strtolower(trim((string) ($layanan['layanan'] ?? '')));
+         if ($nama === '') {
+            continue;
+         }
+         foreach ($needlesLower as $needle) {
+            if (strpos($nama, $needle) !== false) {
+               $id = (int) ($layanan['id_layanan'] ?? 0);
+               if ($id > 0) {
+                  $map[$id] = true;
+               }
+               break;
+            }
+         }
+      }
+      return $map;
    }
 
    private function cabangOperasionalMap()
