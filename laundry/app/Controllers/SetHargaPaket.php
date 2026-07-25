@@ -70,7 +70,6 @@ class SetHargaPaket extends Controller
       if ($mode !== 'a' && $mode !== 'b') {
          return;
       }
-      $col = ($mode === 'a') ? 'harga' : 'harga_b';
 
       $db = $this->db(0);
       $edited = $db->get_where('harga_paket', 'id_harga_paket = ' . $id);
@@ -83,6 +82,35 @@ class SetHargaPaket extends Controller
       if ($qtyEdit <= 0) {
          $qtyEdit = 1.0;
       }
+
+      // Mode b = override cabang (tanpa propagasi sibling)
+      if ($mode === 'b') {
+         $hargaCabang = (int) round($valueNew, 0);
+         $idCabang = (int) $this->id_cabang;
+         $whereCabang = "id_cabang = " . $idCabang . " AND id_harga_paket = " . $id;
+         if ($hargaCabang <= 0) {
+            $db->delete('harga_paket_cabang', $whereCabang);
+            $this->dataSynchrone($_SESSION[URL::SESSID]['user']['id_user']);
+            return;
+         }
+         $existing = $db->get_where_row('harga_paket_cabang', $whereCabang);
+         if (!empty($existing['id_harga_paket_cabang'])) {
+            $query = $db->update('harga_paket_cabang', ['harga' => (string) $hargaCabang], $whereCabang);
+         } else {
+            $query = $db->insert('harga_paket_cabang', [
+               'id_cabang' => $idCabang,
+               'id_harga_paket' => $id,
+               'harga' => $hargaCabang,
+            ]);
+         }
+         if (($query['errno'] ?? 1) == 0) {
+            $this->dataSynchrone($_SESSION[URL::SESSID]['user']['id_user']);
+         }
+         return;
+      }
+
+      // Mode a = harga global (+ propagasi sibling qty)
+      $col = 'harga';
 
       // Nilai 0 = hanya baris ini (tanpa propagasi), agar tidak mengosongkan semua tier
       if ($valueNew <= 0) {

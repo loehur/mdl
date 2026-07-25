@@ -9,8 +9,102 @@ trait Attributes
     public $dLaundry, $dCabang, $listCabang, $surcasPublic, $mdl_setting;
     public $pelanggan_p;
     public $kode_cabang;
+    /** @var array<int,int> id_harga => harga override cabang */
+    public $hargaCabang = [];
+    /** @var array<int,int> id_harga_paket => harga override cabang */
+    public $hargaPaketCabang = [];
     /** @var bool Mode Training aktif (cabang virtual) */
     public $isTrainingMode = false;
+
+    /**
+     * Map override harga unit untuk satu cabang: id_harga => harga.
+     */
+    public function loadHargaCabangMap($idCabang)
+    {
+        $map = [];
+        $idCabang = (int) $idCabang;
+        if ($idCabang <= 0) {
+            return $map;
+        }
+        try {
+            $rows = $this->db(0)->get_where('harga_cabang', 'id_cabang = ' . $idCabang);
+        } catch (\Throwable $e) {
+            return $map;
+        }
+        if (!is_array($rows)) {
+            return $map;
+        }
+        foreach ($rows as $r) {
+            if (!is_array($r)) {
+                continue;
+            }
+            $idHarga = (int) ($r['id_harga'] ?? 0);
+            $harga = (int) round((float) ($r['harga'] ?? 0), 0);
+            if ($idHarga > 0 && $harga > 0) {
+                $map[$idHarga] = $harga;
+            }
+        }
+        return $map;
+    }
+
+    /**
+     * Map override harga paket untuk satu cabang: id_harga_paket => harga.
+     */
+    public function loadHargaPaketCabangMap($idCabang)
+    {
+        $map = [];
+        $idCabang = (int) $idCabang;
+        if ($idCabang <= 0) {
+            return $map;
+        }
+        try {
+            $rows = $this->db(0)->get_where('harga_paket_cabang', 'id_cabang = ' . $idCabang);
+        } catch (\Throwable $e) {
+            return $map;
+        }
+        if (!is_array($rows)) {
+            return $map;
+        }
+        foreach ($rows as $r) {
+            if (!is_array($r)) {
+                continue;
+            }
+            $idPaket = (int) ($r['id_harga_paket'] ?? 0);
+            $harga = (int) round((float) ($r['harga'] ?? 0), 0);
+            if ($idPaket > 0 && $harga > 0) {
+                $map[$idPaket] = $harga;
+            }
+        }
+        return $map;
+    }
+
+    /**
+     * Harga unit efektif: override cabang jika > 0, else harga global.
+     */
+    public function resolveHargaUnit($hargaRow)
+    {
+        if (!is_array($hargaRow)) {
+            return 0;
+        }
+        $idHarga = (int) ($hargaRow['id_harga'] ?? 0);
+        $global = (int) round((float) str_replace(',', '.', (string) ($hargaRow['harga'] ?? 0)), 0);
+        $self = (int) ($this->hargaCabang[$idHarga] ?? 0);
+        return $self > 0 ? $self : $global;
+    }
+
+    /**
+     * Harga paket efektif: override cabang jika > 0, else harga global paket.
+     */
+    public function resolveHargaPaketUnit($paketRow)
+    {
+        if (!is_array($paketRow)) {
+            return 0;
+        }
+        $idPaket = (int) ($paketRow['id_harga_paket'] ?? 0);
+        $global = (int) round((float) str_replace(',', '.', (string) ($paketRow['harga'] ?? 0)), 0);
+        $self = (int) ($this->hargaPaketCabang[$idPaket] ?? 0);
+        return $self > 0 ? $self : $global;
+    }
 
     /**
      * Apakah session sedang Mode Training.
@@ -131,10 +225,15 @@ trait Attributes
                 $this->itemGroup = $_SESSION[URL::SESSID]['order']['itemGroup'];
                 $this->surcas = $_SESSION[URL::SESSID]['order']['surcas'];
                 $this->diskon = $_SESSION[URL::SESSID]['order']['diskon'];
+                $this->hargaCabang = isset($_SESSION[URL::SESSID]['order']['hargaCabang']) && is_array($_SESSION[URL::SESSID]['order']['hargaCabang'])
+                    ? $_SESSION[URL::SESSID]['order']['hargaCabang']
+                    : $this->loadHargaCabangMap($this->id_cabang);
+                $this->hargaPaketCabang = isset($_SESSION[URL::SESSID]['order']['hargaPaketCabang']) && is_array($_SESSION[URL::SESSID]['order']['hargaPaketCabang'])
+                    ? $_SESSION[URL::SESSID]['order']['hargaPaketCabang']
+                    : $this->loadHargaPaketCabangMap($this->id_cabang);
 
                 if (count($_SESSION[URL::SESSID]['mdl_setting']) == 0) {
                     $_SESSION[URL::SESSID]['mdl_setting']['print_ms'] = 0;
-                    $_SESSION[URL::SESSID]['mdl_setting']['def_price'] = 0;
                 }
                 $this->mdl_setting = $_SESSION[URL::SESSID]['mdl_setting'];
 
@@ -175,6 +274,8 @@ trait Attributes
         $this->dStatusMutasi = $this->db(0)->get('mutasi_status');
         $this->pelanggan_p = $this->db(0)->get_where_row("pelanggan", "id_pelanggan = " . $pelanggan);
         $this->id_cabang_p = $this->pelanggan_p['id_cabang'];
+        $this->hargaCabang = $this->loadHargaCabangMap($this->id_cabang_p);
+        $this->hargaPaketCabang = $this->loadHargaPaketCabangMap($this->id_cabang_p);
         $this->surcasPublic = $this->db(0)->get('surcas_jenis');
     }
 
@@ -237,6 +338,8 @@ trait Attributes
             'pelanggan' => $pelangganCabang,
             'pelangganLaundry' => $pelangganLaundry,
             'harga' => $this->db(0)->get_order("harga", "sort DESC"),
+            'hargaCabang' => $this->loadHargaCabangMap($effectiveCabangId),
+            'hargaPaketCabang' => $this->loadHargaPaketCabangMap($effectiveCabangId),
             'itemGroup' => $this->db(0)->get("item_group"),
             "surcas" => $this->db(0)->get("surcas_jenis"),
             'diskon' => $this->db(0)->get("diskon_qty"),

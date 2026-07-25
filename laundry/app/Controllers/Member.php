@@ -176,14 +176,7 @@ class Member extends Controller
       $id_harga = $data['id_harga'];
       $qty = $data['qty'];
 
-      if ($this->mdl_setting['def_price'] == 0) {
-         $harga = $data['harga'];
-      } else {
-         $harga = $data['harga_b'];
-         if ($harga == 0) {
-            $harga = $data['harga'];
-         }
-      }
+      $harga = $this->resolveHargaPaketUnit($data);
 
       $today = date('Y-m-d');
       $setOne = "id_pelanggan = '" . $id_pelanggan . "' AND id_harga = " . $id_harga . " AND qty = " . $qty . " AND insertTime LIKE '" . $today . "%'";

@@ -236,14 +236,7 @@ if ($saldoNya_member > 0) {
                 $kategori = $kategori . " " . $c['item_kategori'];
               }
             }
-            if ($this->mdl_setting['def_price'] == 0) {
-              $harga = $a['harga'];
-            } else {
-              $harga = $a['harga_b'];
-              if ($harga == 0) {
-                $harga = $a['harga'];
-              }
-            }
+            $harga = $this->resolveHargaUnit($a);
         ?>
             <option id="op<?= $a['id_harga'] ?>" data-harga="<?= $harga ?>" value="<?= $a['id_harga'] ?>"><?= $kategori ?> - <?= $layanan ?> - <?= $durasi ?> - <?= $harga ?></option>
         <?php }

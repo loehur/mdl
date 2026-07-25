@@ -6,8 +6,8 @@
           <tr>
             <th>Paket</th>
             <th>Qty</th>
-            <th>Rp (A)</th>
-            <th>Rp (B)</th>
+            <th>Rp Global</th>
+            <th>Rp Cabang</th>
           </tr>
         </thead>
         <tbody>
@@ -18,7 +18,7 @@
             $f1 = $a['id_harga'];
             $f2 = $a['qty'];
             $f3 = $a['harga'];
-            $f3_b = $a['harga_b'];
+            $f3_b = (int) ($this->hargaPaketCabang[(int) $id] ?? 0);
 
             foreach ($this->harga as $h) {
               $kategori = "";

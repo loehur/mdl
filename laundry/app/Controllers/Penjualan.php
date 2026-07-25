@@ -45,14 +45,7 @@ class Penjualan extends Controller
             $jam = $a['jam'];
             $item_group = $a['id_item_group'];
 
-            if ($this->mdl_setting['def_price'] == 0) {
-               $harga = $a['harga'];
-            } else {
-               $harga = $a['harga_b'];
-               if ($harga == 0) {
-                  $harga = $a['harga'];
-               }
-            }
+            $harga = $this->resolveHargaUnit($a);
 
             $layanan = $a['list_layanan'];
             $minOrder = round((float) str_replace(',', '.', (string) ($a['min_order'] ?? 0)), 2);

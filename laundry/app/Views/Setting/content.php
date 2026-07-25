@@ -1,21 +1,6 @@
 <div class="content mt-3">
     <div class="container-fluid">
         <div class="row g-4">
-            <!-- Card Set Harga -->
-            <div class="col-md-4">
-                <div class="card border-0 shadow-sm h-100">
-                    <div class="card-body p-4">
-                        <h6 class="text-uppercase text-muted mb-3" style="letter-spacing: 1px; font-size: 12px;">Set Harga</h6>
-                        <div class="d-flex gap-2">
-                            <select class="form-select def_price" id="defPrice" data-mode="def_price">
-                                <option value="0" <?= ($this->mdl_setting['def_price'] == 0) ? "selected" : "" ?>>Set A</option>
-                                <option value="1" <?= ($this->mdl_setting['def_price'] == 1) ? "selected" : "" ?>>Set B</option>
-                            </select>
-                            <button type="button" class="btn btn-dark px-4" id="btnSavePrice">Save</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
             <!-- Card Salin Gaji -->
             <div class="col-md-4">
                 <div class="card border-0 shadow-sm h-100">
@@ -118,27 +103,6 @@
         if (val < 0) {
             el.val(0);
         }
-    });
-
-    // Save Set Harga
-    $("#btnSavePrice").on('click', function() {
-        var btn = $(this);
-        var select = $("#defPrice");
-        btn.prop('disabled', true).text('...');
-        
-        $.ajax({
-            url: '<?= URL::BASE_URL ?>Setting/updateCell',
-            data: { 'value': select.val(), 'mode': select.attr('data-mode') },
-            type: 'POST',
-            success: function() {
-                btn.prop('disabled', false).text('Saved');
-                setTimeout(function() { btn.text('Save'); }, 1500);
-            },
-            error: function() {
-                btn.prop('disabled', false).text('Save');
-                alert('Gagal menyimpan');
-            }
-        });
     });
 
     // Salin Gaji

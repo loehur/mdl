@@ -30,8 +30,8 @@ foreach ($this->dSatuan as $a) {
                   <th>Durasi</th>
                   <th>Hari</th>
                   <th>Jam</th>
-                  <th class="text-right">Rp/<?= $satuan ?> (A)</th>
-                  <th class="text-right">Rp/<?= $satuan ?> (B)</th>
+                  <th class="text-right">Rp/<?= $satuan ?> Global</th>
+                  <th class="text-right">Rp/<?= $satuan ?> Cabang</th>
                   <th>Min Order</th>
                   <th class="text-center">Aktif</th>
                   <th class="text-right">Used</th>
@@ -52,7 +52,7 @@ foreach ($this->dSatuan as $a) {
                   $f3 = $a['list_layanan'];
                   $f4 = $a['id_durasi'];
                   $f5 = $a['harga'];
-                  $f5_b = $a['harga_b'];
+                  $f5_b = (int) ($this->hargaCabang[(int) $id] ?? 0);
                   $f6 = $a['hari'];
                   $f7 = $a['jam'];
                   $f8 = $a['sort'];

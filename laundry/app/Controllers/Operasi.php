@@ -806,15 +806,7 @@ class Operasi extends Controller
 
    private function hargaUnitPrice($hargaRow)
    {
-      if ($this->mdl_setting['def_price'] == 0) {
-         $harga = $hargaRow['harga'];
-      } else {
-         $harga = $hargaRow['harga_b'];
-         if ($harga == 0) {
-            $harga = $hargaRow['harga'];
-         }
-      }
-      return (int) $harga;
+      return $this->resolveHargaUnit($hargaRow);
    }
 
    private function calcSaleItemTotal($sale)

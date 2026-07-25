@@ -50,14 +50,7 @@
                     }
                   }
 
-                  if ($this->mdl_setting['def_price'] == 0) {
-                    $harga = $z['harga'];
-                  } else {
-                    $harga = $z['harga_b'];
-                    if ($harga == 0) {
-                      $harga = $z['harga'];
-                    }
-                  }
+                  $harga = $this->resolveHargaPaketUnit($z);
             ?>
                   <option value="<?= $z['id_harga_paket'] ?>">M<?= $z['id_harga'] ?> | <?= $kategori ?> * <?= $layanan ?> * <?= $durasi ?> | <?= $z['qty'] . $unit ?>. <?= "Rp" . number_format($harga) ?></option>
             <?php

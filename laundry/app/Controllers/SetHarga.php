@@ -105,8 +105,28 @@ class SetHarga extends Controller
             $payload['harga'] = (string) (int) round((float) str_replace(',', '.', (string) $value), 0);
             break;
          case "6":
-            $payload['harga_b'] = (string) (int) round((float) str_replace(',', '.', (string) $value), 0);
-            break;
+            $hargaCabang = (int) round((float) str_replace(',', '.', (string) $value), 0);
+            $idCabang = (int) $this->id_cabang;
+            $whereCabang = "id_cabang = " . $idCabang . " AND id_harga = " . $id;
+            if ($hargaCabang <= 0) {
+               $this->db(0)->delete('harga_cabang', $whereCabang);
+               $this->dataSynchrone($_SESSION[URL::SESSID]['user']['id_user']);
+               return;
+            }
+            $existing = $this->db(0)->get_where_row('harga_cabang', $whereCabang);
+            if (!empty($existing['id_harga_cabang'])) {
+               $query = $this->db(0)->update('harga_cabang', ['harga' => (string) $hargaCabang], $whereCabang);
+            } else {
+               $query = $this->db(0)->insert('harga_cabang', [
+                  'id_cabang' => $idCabang,
+                  'id_harga' => $id,
+                  'harga' => $hargaCabang,
+               ]);
+            }
+            if (($query['errno'] ?? 1) == 0) {
+               $this->dataSynchrone($_SESSION[URL::SESSID]['user']['id_user']);
+            }
+            return;
          case "2":
             $payload['hari'] = (string) (int) $value;
             break;
