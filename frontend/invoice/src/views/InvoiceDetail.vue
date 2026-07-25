@@ -28,6 +28,41 @@
         </div>
       </div>
 
+      <section
+        v-if="needsCustomer"
+        class="glass-strong border border-ledger/30 p-5"
+      >
+        <h3 class="section-title mb-2">Set Pelanggan</h3>
+        <p class="mb-4 text-sm text-mist">
+          Invoice lama ini belum terhubung ke master pelanggan. Pilih pelanggan agar data tersinkron.
+        </p>
+
+        <div v-if="!customers.length && !loadingCustomers" class="space-y-3">
+          <p class="text-sm text-mist">Belum ada data pelanggan.</p>
+          <router-link to="/pelanggan/buat" class="btn-primary block w-full text-center">
+            Tambah Pelanggan
+          </router-link>
+        </div>
+
+        <template v-else>
+          <label class="field-label">Pilih Pelanggan *</label>
+          <select v-model="selectedCustomerId" class="field-input" :disabled="settingCustomer">
+            <option value="" disabled>Pilih pelanggan...</option>
+            <option v-for="c in customers" :key="c.id" :value="String(c.id)">
+              {{ c.name }} — {{ c.phone }}
+            </option>
+          </select>
+
+          <button
+            class="btn-primary mt-4 w-full"
+            :disabled="settingCustomer || !selectedCustomerId"
+            @click="setCustomer"
+          >
+            {{ settingCustomer ? "Menyimpan..." : "Set Pelanggan" }}
+          </button>
+        </template>
+      </section>
+
       <section class="glass-strong p-5">
         <h3 class="section-title mb-3">Item</h3>
         <div class="space-y-3">
@@ -157,6 +192,16 @@ const isError = ref(false);
 const actionLoading = ref(false);
 const confirmOpen = ref(false);
 const confirmAction = ref(null);
+const customers = ref([]);
+const loadingCustomers = ref(false);
+const selectedCustomerId = ref("");
+const settingCustomer = ref(false);
+
+const needsCustomer = computed(() => {
+  const inv = invoice.value;
+  if (!inv) return false;
+  return inv.customer_id == null || inv.customer_id === "" || Number(inv.customer_id) <= 0;
+});
 
 const confirmConfig = computed(() => {
   const inv = invoice.value;
@@ -221,6 +266,13 @@ async function loadDetail() {
     const data = await res.json();
     if (res.ok && data.status) {
       invoice.value = data.data;
+      if (
+        data.data.customer_id == null ||
+        data.data.customer_id === "" ||
+        Number(data.data.customer_id) <= 0
+      ) {
+        await loadCustomers();
+      }
     } else {
       message.value = data.message || "Invoice tidak ditemukan";
       isError.value = true;
@@ -230,6 +282,57 @@ async function loadDetail() {
     isError.value = true;
   } finally {
     loading.value = false;
+  }
+}
+
+async function loadCustomers() {
+  loadingCustomers.value = true;
+  try {
+    const res = await fetch("/api/Invoice/Customers/list");
+    const data = await res.json();
+    if (res.ok && data.status) {
+      customers.value = data.data.customers || [];
+    }
+  } catch {
+    /* ignore */
+  } finally {
+    loadingCustomers.value = false;
+  }
+}
+
+async function setCustomer() {
+  if (!selectedCustomerId.value || !invoice.value) return;
+
+  settingCustomer.value = true;
+  message.value = "";
+  isError.value = false;
+
+  try {
+    const res = await fetch("/api/Invoice/Invoices/setCustomer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: invoice.value.id,
+        customer_id: Number(selectedCustomerId.value),
+      }),
+    });
+    const data = await res.json();
+
+    if (!res.ok || !data.status) {
+      message.value = data.message || "Gagal menghubungkan pelanggan";
+      isError.value = true;
+      return;
+    }
+
+    invoice.value = data.data;
+    selectedCustomerId.value = "";
+    message.value = data.message || "Pelanggan berhasil dihubungkan";
+    isError.value = false;
+  } catch {
+    message.value = "Tidak dapat terhubung ke server";
+    isError.value = true;
+  } finally {
+    settingCustomer.value = false;
   }
 }
 

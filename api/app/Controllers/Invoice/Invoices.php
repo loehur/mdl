@@ -234,6 +234,79 @@ class Invoices extends InvoiceController
         }
     }
 
+    /**
+     * POST - Hubungkan invoice lama (tanpa customer_id) ke master pelanggan
+     */
+    public function setCustomer()
+    {
+        $this->verifyAuth();
+
+        if (!$this->isPost()) {
+            $this->error('Method not allowed', 405);
+        }
+
+        $userId = (int) $this->currentUser()['id'];
+        $body = $this->getBody();
+        $id = (int) ($body['id'] ?? 0);
+        $customerId = (int) ($body['customer_id'] ?? 0);
+
+        if ($id <= 0) {
+            $this->error('ID invoice tidak valid', 400);
+        }
+
+        if ($customerId <= 0) {
+            $this->error('Pelanggan wajib dipilih', 400);
+        }
+
+        try {
+            $invoice = $this->db($this->db_index)->query(
+                "SELECT * FROM invoices WHERE id = ? AND user_id = ? LIMIT 1",
+                [$id, $userId]
+            )->row_array();
+
+            if (!$invoice) {
+                $this->error('Invoice tidak ditemukan', 404);
+            }
+
+            if (!empty($invoice['customer_id'])) {
+                $this->error('Invoice ini sudah terhubung ke pelanggan', 400);
+            }
+
+            $customer = $this->db($this->db_index)->query(
+                "SELECT id, name, phone, email FROM customers WHERE id = ? AND user_id = ? LIMIT 1",
+                [$customerId, $userId]
+            )->row_array();
+
+            if (!$customer) {
+                $this->error('Pelanggan tidak ditemukan', 404);
+            }
+
+            $this->db($this->db_index)->update('invoices', [
+                'customer_id' => (int) $customer['id'],
+                'customer_name' => $customer['name'],
+                'customer_email' => $customer['email'] ?: null,
+                'customer_phone' => $customer['phone'] ?: null,
+            ], ['id' => $id]);
+
+            $updated = $this->db($this->db_index)->get_where('invoices', ['id' => $id], 1)->row_array();
+            $items = $this->getInvoiceItems($id);
+            $user = $this->currentUser();
+            $publicUrl = $this->buildPublicUrl($updated['public_token']);
+
+            $data = $this->formatInvoice($updated, $items, [
+                'name' => $user['business_name'] ?: $user['name'],
+                'phone' => $user['business_phone'] ?? '',
+                'address' => $user['business_address'] ?? '',
+            ]);
+            $data['public_url'] = $publicUrl;
+            $data['share_text'] = $this->buildShareText($updated, $publicUrl);
+
+            $this->success($data, 'Pelanggan berhasil dihubungkan ke invoice');
+        } catch (\Throwable $e) {
+            $this->error('Gagal menghubungkan pelanggan: ' . $e->getMessage(), 500);
+        }
+    }
+
     public function cancel()
     {
         $this->verifyAuth();
