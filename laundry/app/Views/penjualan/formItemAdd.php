@@ -180,7 +180,6 @@
     <div class="ord-item-fo__field">
       <label class="ord-item-fo__label" for="ord_item_select">Item</label>
       <select id="ord_item_select" name="f1" class="tize" style="width:100%" required>
-        <option value=""></option>
         <?php foreach ($this->dItem as $c) { ?>
           <option value="<?= (int) $c['id_item'] ?>"><?= htmlspecialchars($c['item']) ?></option>
         <?php } ?>
@@ -207,8 +206,13 @@
     if ($sel.length && !$sel[0].selectize) {
       $sel.selectize({
         placeholder: "Cari item…",
-        allowEmptyOption: true,
-        sortField: "text"
+        sortField: "text",
+        persist: false,
+        onInitialize: function () {
+          // Jangan biarkan item kosong/pertama "terpilih diam-diam"
+          // (gejala: harus Backspace dulu baru bisa ketik)
+          this.clear(true);
+        }
       });
     }
 
