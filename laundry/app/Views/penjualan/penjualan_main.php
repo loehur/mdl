@@ -33,7 +33,8 @@
   #ord-root .modal-content,
   .ord-plg-modal__panel,
   .ord-order-modal__panel,
-  .ord-item-modal__panel {
+  .ord-item-modal__panel,
+  .ord-diskon-modal__panel {
     border-radius: 0 !important;
   }
 
@@ -684,34 +685,182 @@
   .ord-plg-submit:disabled { opacity: 0.6; cursor: not-allowed; }
 </style>
 
-<div class="modal fade" id="modalDiskonHarga" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-sm">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h6 class="modal-title m-0">Atur Diskon</h6>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+<div class="ord-diskon-modal" id="ordDiskonModal" aria-hidden="true">
+  <div class="ord-diskon-modal__backdrop" data-ord-diskon-close></div>
+  <div class="ord-diskon-modal__panel" role="dialog" aria-modal="true" aria-labelledby="ordDiskonTitle">
+    <form id="formDiskonHarga" class="ord-diskon-fo" autocomplete="off">
+      <div class="ord-diskon-fo__head">
+        <div>
+          <h3 id="ordDiskonTitle">Atur Diskon</h3>
+          <small>Harga asli tidak diubah, hanya nilai diskon</small>
+        </div>
+        <button type="button" class="ord-diskon-fo__close" data-ord-diskon-close aria-label="Tutup">
+          <i class="fas fa-times"></i>
+        </button>
       </div>
-      <form id="formDiskonHarga">
-        <div class="modal-body">
-          <input type="hidden" id="diskon_id_penjualan" name="id" value="">
-          <input type="hidden" id="diskon_harga_asli" value="">
-          <div class="mb-2">
-            <label class="form-label form-label-sm mb-1">Harga Asli / item-kg-unit</label>
-            <input type="text" id="diskon_harga_asli_view" class="form-control form-control-sm" readonly>
-          </div>
-          <div>
-            <label class="form-label form-label-sm mb-1">Harga Setelah Diskon / item-kg-unit</label>
-            <input type="number" min="0" step="0.01" id="diskon_harga_input" name="harga_diskon" class="form-control form-control-sm" required>
-          </div>
-          <small class="text-muted">Harga asli tidak diubah, sistem hanya mengisi nilai diskon.</small>
+      <div class="ord-diskon-fo__body">
+        <input type="hidden" id="diskon_id_penjualan" name="id" value="">
+        <input type="hidden" id="diskon_harga_asli" value="">
+        <div class="ord-diskon-fo__field">
+          <label class="ord-diskon-fo__label" for="diskon_harga_asli_view">Harga asli / unit</label>
+          <input type="text" id="diskon_harga_asli_view" class="ord-diskon-fo__input ord-diskon-fo__input--ro" readonly>
         </div>
-        <div class="modal-footer">
-          <button type="submit" class="btn btn-sm btn-primary">Simpan</button>
+        <div class="ord-diskon-fo__field">
+          <label class="ord-diskon-fo__label" for="diskon_harga_input">Harga setelah diskon / unit</label>
+          <input type="number" min="0" step="0.01" id="diskon_harga_input" name="harga_diskon" class="ord-diskon-fo__input" required>
         </div>
-      </form>
-    </div>
+      </div>
+      <div class="ord-diskon-fo__foot">
+        <button type="button" class="ord-diskon-fo__btn ord-diskon-fo__btn--ghost" data-ord-diskon-close>Batal</button>
+        <button type="submit" class="ord-diskon-fo__btn ord-diskon-fo__btn--primary">
+          <i class="fas fa-check"></i> Simpan
+        </button>
+      </div>
+    </form>
   </div>
 </div>
+
+<style>
+  .ord-diskon-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 5100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  .ord-diskon-modal.is-open { display: flex; }
+  .ord-diskon-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(3px);
+  }
+  .ord-diskon-modal__panel {
+    position: relative;
+    z-index: 1;
+    width: min(400px, 100%);
+    background: #fff;
+    border-radius: 0;
+    box-shadow: 0 24px 48px rgba(15, 23, 42, 0.3);
+    overflow: hidden;
+    animation: ordDiskonIn .18s ease-out;
+    pointer-events: auto;
+  }
+  @keyframes ordDiskonIn {
+    from { opacity: 0; transform: translateY(10px) scale(0.98); }
+    to { opacity: 1; transform: none; }
+  }
+  .ord-diskon-fo {
+    font-family: 'fontku', 'Segoe UI', sans-serif;
+    color: #0f172a;
+  }
+  .ord-diskon-fo__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    background: linear-gradient(105deg, #d97706, #f59e0b 55%, #dc2626);
+    color: #fff;
+  }
+  .ord-diskon-fo__head h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    text-shadow: 0 1px 0 rgba(0,0,0,.18);
+  }
+  .ord-diskon-fo__head small {
+    display: block;
+    margin-top: 2px;
+    font-size: 12px;
+    font-weight: 750;
+    opacity: 0.95;
+  }
+  .ord-diskon-fo__close {
+    width: 34px;
+    height: 34px;
+    border: 0;
+    border-radius: 0;
+    background: rgba(255,255,255,.2);
+    color: #fff;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .ord-diskon-fo__close:hover { background: rgba(255,255,255,.32); }
+  .ord-diskon-fo__body {
+    padding: 14px 16px 8px;
+    background:
+      radial-gradient(90% 60% at 0% 0%, rgba(245,158,11,.12), transparent 50%),
+      linear-gradient(180deg, #fffbeb, #fff);
+  }
+  .ord-diskon-fo__foot {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    padding: 12px 16px 16px;
+    background: #fff;
+    border-top: 1px solid #e2e8f0;
+  }
+  .ord-diskon-fo__field { margin-bottom: 12px; }
+  .ord-diskon-fo__label {
+    display: block;
+    margin: 0 0 5px;
+    font-size: 0.78rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #1e293b;
+  }
+  .ord-diskon-fo__input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #94a3b8;
+    border-radius: 0;
+    background: #fff;
+    font-family: 'fontku', 'Segoe UI', sans-serif;
+    font-size: 14px;
+    font-weight: 800;
+    color: #0f172a;
+    outline: none;
+  }
+  .ord-diskon-fo__input:focus {
+    border-color: #f59e0b;
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.25);
+  }
+  .ord-diskon-fo__input--ro {
+    background: #f8fafc;
+    color: #334155;
+  }
+  .ord-diskon-fo__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    border: 0;
+    border-radius: 0;
+    padding: 12px 14px;
+    font-family: 'fontku', 'Segoe UI', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 900;
+    cursor: pointer;
+  }
+  .ord-diskon-fo__btn--ghost {
+    background: #e2e8f0;
+    color: #0f172a;
+  }
+  .ord-diskon-fo__btn--primary {
+    background: linear-gradient(135deg, #15803d, #16a34a);
+    color: #fff;
+    box-shadow: 0 8px 18px rgba(22, 163, 74, 0.3);
+  }
+</style>
 
 <script src="<?= URL::EX_ASSETS ?>js/selectize.min.js"></script>
 <script>
@@ -894,6 +1043,40 @@
     $(document).off("keydown.ordItemEsc").on("keydown.ordItemEsc", function (e) {
       if (e.key === "Escape" && $("#ordItemModal").hasClass("is-open")) {
         window.closeOrdItemModal();
+      }
+    });
+
+    window.openOrdDiskonModal = function () {
+      document.querySelectorAll(".offcanvas.show").forEach(function (el) {
+        if (typeof bootstrap === "undefined" || !bootstrap.Offcanvas) return;
+        var inst = bootstrap.Offcanvas.getInstance(el);
+        if (inst && inst._focustrap && typeof inst._focustrap.deactivate === "function") {
+          inst._focustrap.deactivate();
+          el.setAttribute("data-ord-diskon-trap", "1");
+        }
+      });
+      $("#ordDiskonModal").addClass("is-open").attr("aria-hidden", "false");
+      setTimeout(function () { $("#diskon_harga_input").trigger("focus"); }, 50);
+    };
+    window.closeOrdDiskonModal = function () {
+      $("#ordDiskonModal").removeClass("is-open").attr("aria-hidden", "true");
+      document.querySelectorAll('.offcanvas.show[data-ord-diskon-trap="1"]').forEach(function (el) {
+        el.removeAttribute("data-ord-diskon-trap");
+        if (typeof bootstrap === "undefined" || !bootstrap.Offcanvas) return;
+        var inst = bootstrap.Offcanvas.getInstance(el);
+        if (inst && inst._focustrap && typeof inst._focustrap.activate === "function") {
+          inst._focustrap.activate();
+        }
+      });
+    };
+
+    $(document).off("click.ordDiskonClose", "#ordDiskonModal [data-ord-diskon-close]").on("click.ordDiskonClose", "#ordDiskonModal [data-ord-diskon-close]", function (e) {
+      e.preventDefault();
+      window.closeOrdDiskonModal();
+    });
+    $(document).off("keydown.ordDiskonEsc").on("keydown.ordDiskonEsc", function (e) {
+      if (e.key === "Escape" && $("#ordDiskonModal").hasClass("is-open")) {
+        window.closeOrdDiskonModal();
       }
     });
 

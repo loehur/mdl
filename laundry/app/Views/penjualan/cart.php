@@ -231,7 +231,7 @@ if (empty($data['data_main'])) {
       <a href="#" class="ord-chip ord-chip--soft addItem" data-id_penjualan="<?= $id ?>">
         <i class="fas fa-plus-circle"></i> Item
       </a>
-      <a href="#" class="ord-chip ord-chip--warn setDiskonBtn" data-id_penjualan="<?= $id ?>" data-harga="<?= $f7 ?>" data-harga_diskon="<?= round($harga_diskon_now, 2) ?>" data-bs-toggle="modal" data-bs-target="#modalDiskonHarga">
+      <a href="#" class="ord-chip ord-chip--warn setDiskonBtn" data-id_penjualan="<?= $id ?>" data-harga="<?= $f7 ?>" data-harga_diskon="<?= round($harga_diskon_now, 2) ?>">
         <i class="fas fa-percent"></i> Diskon
       </a>
       <a href="#" class="ord-chip ord-chip--danger removeRow" data-id_value="<?= $id ?>">
@@ -253,10 +253,7 @@ if (empty($data['data_main'])) {
       $("button#proses").prop('disabled', true);
     }
 
-    $("#cart #modalDiskonHarga").remove();
-    if ($("#modalDiskonHarga").length && $("#modalDiskonHarga").parent()[0] !== document.body) {
-      $("#modalDiskonHarga").appendTo("body");
-    }
+    $("#cart #ordDiskonModal").remove();
 
     $(".removeRow").on("click", function(e) {
       e.preventDefault();
@@ -312,6 +309,9 @@ if (empty($data['data_main'])) {
     $("#diskon_harga_asli").val(harga);
     $("#diskon_harga_asli_view").val(harga.toLocaleString('id-ID'));
     $("#diskon_harga_input").val(hargaDiskon);
+    if (typeof window.openOrdDiskonModal === "function") {
+      window.openOrdDiskonModal();
+    }
   });
 
   $(document).off("submit.setDiskon", "#formDiskonHarga").on("submit.setDiskon", "#formDiskonHarga", function(e) {
@@ -335,15 +335,14 @@ if (empty($data['data_main'])) {
       type: 'POST',
       success: function(res) {
         if (res == 0) {
-          var modalEl = document.getElementById('modalDiskonHarga');
-          if (modalEl && modalEl.parentNode !== document.body) {
-            document.body.appendChild(modalEl);
+          if (typeof window.closeOrdDiskonModal === "function") {
+            window.closeOrdDiskonModal();
           }
-          var modalInstance = bootstrap.Modal.getInstance(modalEl);
-          if (modalInstance) {
-            modalInstance.hide();
+          if (typeof window.reloadOrdCart === "function") {
+            window.reloadOrdCart();
+          } else {
+            $('div#cart').load('<?= URL::BASE_URL ?>Penjualan/cart');
           }
-          $('div#cart').load('<?= URL::BASE_URL ?>Penjualan/cart');
         } else {
           alert(res);
         }
