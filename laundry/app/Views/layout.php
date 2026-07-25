@@ -654,16 +654,6 @@ if (isset($data['data_operasi'])) {
             box-shadow: 0 2px 8px rgba(245, 158, 11, 0.35);
         }
 
-        .training-banner {
-            background: linear-gradient(90deg, #d97706, #f59e0b);
-            color: #111;
-            font-weight: 900;
-            font-size: 12px;
-            letter-spacing: 0.02em;
-            text-align: center;
-            padding: 7px 12px;
-            border-bottom: 1px solid #92400e;
-        }
         body.mode-training .main-header.mdl-topbar {
             background: linear-gradient(105deg, #d97706 0%, #f59e0b 45%, #16a34a 100%) !important;
             background-image: linear-gradient(105deg, #d97706 0%, #f59e0b 45%, #16a34a 100%) !important;
@@ -1232,11 +1222,6 @@ if ($log_mode == 1) {
         <div class="loader"></div>
     </div>
     <div class="wrapper">
-        <?php if ($isTrainingUi) { ?>
-            <div class="training-banner sticky-top">
-                MODE TRAINING ? data latihan terpisah ? WA &amp; payment tetap sungguhan ? switch ke Live untuk operasional
-            </div>
-        <?php } ?>
         <nav class="main-header navbar navbar-expand mdl-topbar sticky-top">
             <div class="mdl-topbar-row">
                 <a href="#" id="menu_utama" class="mdl-tbtn mdl-tbtn--menu" role="button" title="Tutup / buka menu">
