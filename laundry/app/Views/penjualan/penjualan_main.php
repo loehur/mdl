@@ -858,6 +858,15 @@
     };
 
     window.openOrdItemModal = function () {
+      // Lepas focus trap offcanvas agar ketikan di Selectize tidak digagalkan
+      document.querySelectorAll(".offcanvas.show").forEach(function (el) {
+        if (typeof bootstrap === "undefined" || !bootstrap.Offcanvas) return;
+        var inst = bootstrap.Offcanvas.getInstance(el);
+        if (inst && inst._focustrap && typeof inst._focustrap.deactivate === "function") {
+          inst._focustrap.deactivate();
+          el.setAttribute("data-ord-item-trap", "1");
+        }
+      });
       $("#ordItemModal").addClass("is-open").attr("aria-hidden", "false");
     };
     window.closeOrdItemModal = function () {
@@ -867,6 +876,15 @@
       }
       $("#ordItemModal").removeClass("is-open").attr("aria-hidden", "true");
       $("div.addItemForm").empty();
+      // Aktifkan kembali focus trap offcanvas
+      document.querySelectorAll('.offcanvas.show[data-ord-item-trap="1"]').forEach(function (el) {
+        el.removeAttribute("data-ord-item-trap");
+        if (typeof bootstrap === "undefined" || !bootstrap.Offcanvas) return;
+        var inst = bootstrap.Offcanvas.getInstance(el);
+        if (inst && inst._focustrap && typeof inst._focustrap.activate === "function") {
+          inst._focustrap.activate();
+        }
+      });
     };
 
     $(document).off("click.ordItemCloseShell", "#ordItemModal [data-ord-item-close]").on("click.ordItemCloseShell", "#ordItemModal [data-ord-item-close]", function (e) {

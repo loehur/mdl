@@ -138,10 +138,21 @@
   .ord-item-fo .selectize-control.single .selectize-input:after {
     border: 0 !important;
   }
+  .ord-item-fo .selectize-control.single .selectize-input input {
+    width: auto !important;
+    min-width: 8rem !important;
+    opacity: 1 !important;
+    position: relative !important;
+    left: 0 !important;
+    pointer-events: auto !important;
+    color: #0f172a !important;
+    font-weight: 800 !important;
+  }
   .ord-item-fo .selectize-dropdown {
     border: 1px solid #94a3b8 !important;
     border-radius: 0 !important;
     box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12) !important;
+    z-index: 30 !important;
   }
   .ord-item-fo .selectize-dropdown .option {
     font-weight: 750;
@@ -197,12 +208,7 @@
       $sel.selectize({
         placeholder: "Cari item…",
         allowEmptyOption: true,
-        sortField: "text",
-        openOnFocus: false,
-        dropdownParent: "body",
-        onDropdownOpen: function ($dropdown) {
-          $dropdown.css("z-index", 5200);
-        }
+        sortField: "text"
       });
     }
 
