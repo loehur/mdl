@@ -231,7 +231,7 @@ class WAGenerator extends Controller
         }
 
         //TEXT SALDO MEMBER - Query tanpa wCabang untuk tabel member
-        $where = "bin = 0 AND id_pelanggan = " . $id_pelanggan . " GROUP BY id_harga";
+        $where = "bin = 0 AND lunas = 1 AND id_pelanggan = " . $id_pelanggan . " GROUP BY id_harga";
         $cols = "id_harga, SUM(qty) as saldo";
         $data = $this->db(0)->get_cols_where('member', $cols, $where, 1);
         $saldo = [];
@@ -249,7 +249,7 @@ class WAGenerator extends Controller
                 $id_harga = $a['id_harga'];
                 
                 // Query saldo manual dari tabel member (tanpa wCabang)
-                $where_member = "bin = 0 AND id_pelanggan = $id_pelanggan AND id_harga = $id_harga";
+                $where_member = "bin = 0 AND lunas = 1 AND id_pelanggan = $id_pelanggan AND id_harga = $id_harga";
                 $saldoManual = $this->db(0)->sum_col_where('member', 'qty', $where_member) ?? 0;
                 
                 // Query pengurangan dari tabel sale (dengan wCabang jika ada, fallback tanpa)

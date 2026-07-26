@@ -1133,7 +1133,7 @@ class Operasi extends Controller
       $idPelanggan = (int) $idPelanggan;
       $idHarga = (int) $idHarga;
 
-      $whereMember = "bin = 0 AND id_pelanggan = $idPelanggan AND id_harga = $idHarga";
+      $whereMember = "bin = 0 AND lunas = 1 AND id_pelanggan = $idPelanggan AND id_harga = $idHarga";
       $saldoManual = $this->db(0)->get_cols_where('member', 'SUM(qty) as saldo', $whereMember, 0)['saldo'] ?? 0;
 
       $whereSale = $this->wCabang . " AND id_pelanggan = $idPelanggan AND member = 1 AND bin = 0 AND id_harga = $idHarga";

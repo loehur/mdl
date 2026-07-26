@@ -78,7 +78,7 @@ class Saldo extends Controller
     {
         //SALDO
         $saldo = 0;
-        $where = "bin = 0 AND id_pelanggan = " . $idPelanggan . " AND id_harga = " . $idHarga;
+        $where = "bin = 0 AND lunas = 1 AND id_pelanggan = " . $idPelanggan . " AND id_harga = " . $idHarga;
         $cols = "SUM(qty) as saldo";
         $data = $this->db(0)->get_cols_where('member', $cols, $where, 0);
         $saldoManual = $data['saldo'];

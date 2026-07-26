@@ -185,7 +185,7 @@ class Penjualan extends Controller
          }
 
          // Saldo member: total - sudah terpakai di DB - sudah terpakai dalam loop ini
-         $where_member = "bin = 0 AND id_pelanggan = $pelanggan AND id_harga = $idHarga";
+         $where_member = "bin = 0 AND lunas = 1 AND id_pelanggan = $pelanggan AND id_harga = $idHarga";
          $saldoManual = $this->db(0)->get_cols_where('member', 'SUM(qty) as saldo', $where_member, 0)['saldo'] ?? 0;
          $where_sale = $this->wCabang . " AND id_pelanggan = $pelanggan AND member = 1 AND bin = 0 AND id_harga = $idHarga";
          $saldoPengurangan = $this->db(0)->get_cols_where('sale', 'SUM(qty) as saldo', $where_sale, 0)['saldo'] ?? 0;

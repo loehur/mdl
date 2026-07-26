@@ -67,7 +67,7 @@ class I extends Controller
          $refs[$dm['no_ref']] = $i;
       }
 
-      $where2 = "id_pelanggan = " . $pelanggan . " AND bin = 0 GROUP BY id_harga";
+      $where2 = "id_pelanggan = " . $pelanggan . " AND bin = 0 AND lunas = 1 GROUP BY id_harga";
       $list_paket = $this->db(0)->get_where('member', $where2);
 
       foreach ($numbers as $id => $book) {
@@ -388,7 +388,7 @@ class I extends Controller
       $data_main2 = $this->db(0)->get_cols_where(
          'member',
          'id_member, qty, insertTime',
-         "id_pelanggan = $pelanggan AND id_harga = $id_harga AND bin = 0 ORDER BY insertTime ASC, id_member ASC"
+         "id_pelanggan = $pelanggan AND id_harga = $id_harga AND bin = 0 AND lunas = 1 ORDER BY insertTime ASC, id_member ASC"
       );
       if (!is_array($data_main2) || isset($data_main2['errno'])) {
          $data_main2 = [];

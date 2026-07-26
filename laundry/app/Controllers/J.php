@@ -243,7 +243,7 @@ class J extends Controller
       $topups = $this->db(0)->get_cols_where(
          'member',
          'id_member, qty, insertTime',
-         "id_pelanggan = $pelanggan AND id_harga = $id_harga AND bin = 0 ORDER BY insertTime ASC, id_member ASC"
+         "id_pelanggan = $pelanggan AND id_harga = $id_harga AND bin = 0 AND lunas = 1 ORDER BY insertTime ASC, id_member ASC"
       );
       if (!is_array($topups) || isset($topups['errno'])) $topups = [];
 
@@ -269,7 +269,7 @@ class J extends Controller
 
    private function getListPaket($pelanggan)
    {
-      $rows = $this->db(0)->get_where('member', "id_pelanggan = $pelanggan AND bin = 0 GROUP BY id_harga");
+      $rows = $this->db(0)->get_where('member', "id_pelanggan = $pelanggan AND bin = 0 AND lunas = 1 GROUP BY id_harga");
       return is_array($rows) ? $rows : [];
    }
 
@@ -688,7 +688,7 @@ class J extends Controller
 
    private function calcPaketSaldo($pelanggan, $id_harga)
    {
-      $top = $this->db(0)->sum_col_where('member', 'qty', "id_pelanggan = $pelanggan AND id_harga = $id_harga AND bin = 0") ?? 0;
+      $top = $this->db(0)->sum_col_where('member', 'qty', "id_pelanggan = $pelanggan AND id_harga = $id_harga AND bin = 0 AND lunas = 1") ?? 0;
       $use = $this->db(0)->sum_col_where('sale', 'qty', "id_pelanggan = $pelanggan AND id_harga = $id_harga AND bin = 0 AND member = 1") ?? 0;
       return round((float) $top - (float) $use, 2);
    }

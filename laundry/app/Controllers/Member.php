@@ -82,7 +82,7 @@ class Member extends Controller
       $viewData = 'member/viewRekap';
       
       // ✅ OPTIMIZED: Get member deposits
-      $where = $this->wCabang . " AND bin = 0 GROUP BY id_pelanggan, id_harga ORDER BY saldo DESC";
+      $where = $this->wCabang . " AND bin = 0 AND lunas = 1 GROUP BY id_pelanggan, id_harga ORDER BY saldo DESC";
       $cols = "id_pelanggan, id_harga, SUM(qty) as saldo";
       $data = $this->db(0)->get_cols_where('member', $cols, $where, 1);
       
@@ -114,7 +114,7 @@ class Member extends Controller
    public function rekapTunggal($pelanggan)
    {
       // ✅ OPTIMIZED: Get member deposits for specific customer
-      $where = $this->wCabang . " AND bin = 0 AND id_pelanggan = " . $pelanggan . " GROUP BY id_harga ORDER BY saldo DESC";
+      $where = $this->wCabang . " AND bin = 0 AND lunas = 1 AND id_pelanggan = " . $pelanggan . " GROUP BY id_harga ORDER BY saldo DESC";
       $cols = "id_pelanggan, id_harga, SUM(qty) as saldo";
       $data = $this->db(0)->get_cols_where('member', $cols, $where, 1);
       
@@ -190,7 +190,8 @@ class Member extends Controller
             'id_harga' => $id_harga,
             'qty' => $qty,
             'harga' => $harga,
-            'id_user' => $id_user
+            'id_user' => $id_user,
+            'lunas' => ((float) $harga <= 0) ? 1 : 0,
          ];
          $do = $this->db(0)->insert('member', $data);
          if ($do['errno'] <> 0) {
@@ -204,7 +205,7 @@ class Member extends Controller
    {
       $viewData = 'penjualan/viewMember';
       $data = [];
-      $where = "bin = 0 AND id_pelanggan = " . $idPelanggan . " GROUP BY id_harga";
+      $where = "bin = 0 AND lunas = 1 AND id_pelanggan = " . $idPelanggan . " GROUP BY id_harga";
       $cols = "id_harga, SUM(qty) as saldo";
 
       $data_ = $this->db(0)->get_cols_where('member', $cols, $where, 1);
@@ -235,7 +236,7 @@ class Member extends Controller
    public function textSaldo()
    {
       $idPelanggan = $_POST['id'];
-      $where = $this->wCabang . " AND bin = 0 AND id_pelanggan = " . $idPelanggan . " GROUP BY id_harga";
+      $where = $this->wCabang . " AND bin = 0 AND lunas = 1 AND id_pelanggan = " . $idPelanggan . " GROUP BY id_harga";
       $cols = "id_harga, SUM(qty) as saldo";
       $data = $this->db(0)->get_cols_where('member', $cols, $where, 1);
       $saldo = [];
@@ -243,7 +244,7 @@ class Member extends Controller
          $id_harga = $a['id_harga'];
 
          // FIX: use db(0) directly for saldoMember
-         $where_member = "bin = 0 AND id_pelanggan = $idPelanggan AND id_harga = $id_harga";
+         $where_member = "bin = 0 AND lunas = 1 AND id_pelanggan = $idPelanggan AND id_harga = $id_harga";
          $saldoManual = $this->db(0)->get_cols_where('member', 'SUM(qty) as saldo', $where_member, 0)['saldo'] ?? 0;
          
          $where_sale = $this->wCabang . " AND id_pelanggan = $idPelanggan AND member = 1 AND bin = 0 AND id_harga = $id_harga";
