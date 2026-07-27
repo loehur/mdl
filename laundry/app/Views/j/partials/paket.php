@@ -21,21 +21,15 @@ $list = $data['listPaket'];
         <a href="<?= $base ?>J/topup/<?= $id ?>" class="j-btn j-btn-primary">Topup Paket</a>
       </div>
     </div>
-  <?php } ?>
-
-  <?php foreach ($list as $lp) { ?>
-    <a class="j-card j-paket-card" href="<?= $base ?>J/paketDetail/<?= $id ?>/<?= (int) $lp['id_harga'] ?>">
-      <div class="j-paket-ico">M<?= (int) $lp['id_harga'] ?></div>
-      <div class="grow">
-        <strong>Paket M<?= (int) $lp['id_harga'] ?></strong>
-        <small style="display:block;color:var(--j-muted);margin-top:2px">
-          <?= htmlspecialchars($lp['label']) ?>
-        </small>
-        <div class="j-chip-row">
+  <?php } else { ?>
+    <div class="j-paket-grid">
+      <?php foreach ($list as $lp) { ?>
+        <a class="j-card j-paket-card" href="<?= $base ?>J/paketDetail/<?= $id ?>/<?= (int) $lp['id_harga'] ?>">
+          <strong>M<?= (int) $lp['id_harga'] ?></strong>
+          <small><?= htmlspecialchars($lp['label']) ?></small>
           <span class="j-badge ok">Sisa <?= $this->fmtDecMax2($lp['saldo']) ?><?= htmlspecialchars($lp['satuan']) ?></span>
-        </div>
-      </div>
-      <i class="fas fa-chevron-right arrow"></i>
-    </a>
+        </a>
+      <?php } ?>
+    </div>
   <?php } ?>
 </section>
