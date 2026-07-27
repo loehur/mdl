@@ -17,8 +17,11 @@ $satuan = $data['satuan'];
   </div>
 </section>
 
-<div style="margin:12px 0">
+<div style="margin:12px 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
   <a class="j-badge muted" href="<?= $base ?>J/paket/<?= $id ?>"><i class="fas fa-arrow-left"></i> Semua paket</a>
+  <a class="j-btn j-btn-primary" href="<?= $base ?>J/topup/<?= $id ?>/<?= $idHarga ?>" style="padding:8px 12px;font-size:0.78rem">
+    <i class="fas fa-plus"></i> Topup
+  </a>
 </div>
 
 <section class="j-section j-paket-detail" style="margin-top:0">

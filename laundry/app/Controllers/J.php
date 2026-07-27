@@ -33,6 +33,63 @@ class J extends Controller
       $this->shell($pelanggan, 'paketDetail', $id_harga);
    }
 
+   public function topup($pelanggan, $id_harga = 0)
+   {
+      $this->shell($pelanggan, 'topup', $id_harga);
+   }
+
+   /** POST: create unpaid member topup, then pay via Tagihan */
+   public function topupSubmit($pelanggan)
+   {
+      header('Content-Type: application/json; charset=utf-8');
+      $pelanggan = $this->bootCustomer($pelanggan);
+
+      $idHargaPaket = isset($_POST['id_harga_paket']) ? (int) $_POST['id_harga_paket'] : 0;
+      if ($idHargaPaket <= 0) {
+         echo json_encode(['ok' => false, 'message' => 'Pilih paket terlebih dahulu']);
+         return;
+      }
+
+      $paket = $this->db(0)->get_where_row('harga_paket', 'id_harga_paket = ' . $idHargaPaket);
+      if (!is_array($paket) || empty($paket['id_harga_paket'])) {
+         echo json_encode(['ok' => false, 'message' => 'Paket tidak ditemukan']);
+         return;
+      }
+
+      $idHarga = (int) $paket['id_harga'];
+      $qty = is_numeric($paket['qty']) ? $paket['qty'] : 0;
+      $harga = $this->resolveHargaPaketUnit($paket);
+      $idCabang = (int) $this->id_cabang_p;
+
+      $today = date('Y-m-d');
+      $dupWhere = "id_cabang = $idCabang AND id_pelanggan = $pelanggan AND id_harga = $idHarga AND qty = $qty AND insertTime LIKE '" . $today . "%' AND bin = 0";
+      $dupCount = (int) ($this->db(0)->count_where('member', $dupWhere) ?? 0);
+
+      if ($dupCount < 1) {
+         $do = $this->db(0)->insert('member', [
+            'id_cabang' => $idCabang,
+            'id_pelanggan' => $pelanggan,
+            'id_harga' => $idHarga,
+            'qty' => $qty,
+            'harga' => $harga,
+            'id_user' => 0,
+            'lunas' => ((float) $harga <= 0) ? 1 : 0,
+         ]);
+         if (isset($do['errno']) && (int) $do['errno'] !== 0) {
+            $this->model('Log')->write(__CLASS__ . '->' . __FUNCTION__ . '() ' . ($do['error'] ?? ''));
+            echo json_encode(['ok' => false, 'message' => 'Gagal membuat topup']);
+            return;
+         }
+      }
+
+      $go = ((float) $harga <= 0) ? 'paket' : 'tagihan';
+      $message = ((float) $harga <= 0)
+         ? 'Topup berhasil. Saldo paket sudah bertambah.'
+         : 'Topup dibuat. Silakan bayar di Tagihan.';
+
+      echo json_encode(['ok' => true, 'go' => $go, 'message' => $message]);
+   }
+
    /** AJAX: HTML partial only */
    public function load($page, $pelanggan, $extra = null)
    {
@@ -86,6 +143,12 @@ class J extends Controller
             $this->view('j/partials/paket_detail', $payload);
             break;
 
+         case 'topup':
+            $filter = (is_numeric($extra) && (int) $extra > 0) ? (int) $extra : 0;
+            $payload = array_merge($payload, $this->buildTopupCatalog($pelanggan, $filter));
+            $this->view('j/partials/topup', $payload);
+            break;
+
          default:
             http_response_code(404);
             echo '<div class="j-empty"><b>Halaman tidak ditemukan</b></div>';
@@ -130,7 +193,7 @@ class J extends Controller
    {
       $pelanggan = $this->bootShell($pelanggan);
       $this->render('j/shell', [
-         'active' => ($page === 'paketDetail') ? 'paket' : $page,
+         'active' => ($page === 'paketDetail' || $page === 'topup') ? 'paket' : $page,
          'title' => 'MDL',
          'page' => $page,
          'extra' => $extra,
@@ -204,6 +267,43 @@ class J extends Controller
          'saldoTunai' => $saldo,
          'history' => array_reverse($show),
          'tampil' => $tampil,
+      ];
+   }
+
+   private function buildTopupCatalog($pelanggan, $idHargaFilter = 0)
+   {
+      $idHargaFilter = (int) $idHargaFilter;
+      if ($idHargaFilter > 0) {
+         $rows = $this->db(0)->get_where('harga_paket', 'id_harga = ' . $idHargaFilter);
+      } else {
+         $rows = $this->db(0)->get('harga_paket');
+      }
+      if (!is_array($rows) || isset($rows['errno'])) {
+         $rows = [];
+      }
+
+      $items = [];
+      foreach ($rows as $z) {
+         if (!is_array($z) || empty($z['id_harga_paket'])) {
+            continue;
+         }
+         $idHarga = (int) $z['id_harga'];
+         $info = $this->resolveHargaInfo($idHarga);
+         $harga = $this->resolveHargaPaketUnit($z);
+         $items[] = [
+            'id_harga_paket' => (int) $z['id_harga_paket'],
+            'id_harga' => $idHarga,
+            'label' => $info['label'],
+            'qty' => $z['qty'],
+            'satuan' => $info['satuan'],
+            'harga' => $harga,
+         ];
+      }
+
+      return [
+         'filterIdHarga' => $idHargaFilter,
+         'catalog' => $items,
+         'pelangganId' => (int) $pelanggan,
       ];
    }
 

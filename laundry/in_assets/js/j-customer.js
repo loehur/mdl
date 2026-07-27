@@ -12,7 +12,7 @@
   }
 
   function setActiveNav(page) {
-    var navKey = page === 'paketDetail' ? 'paket' : page;
+    var navKey = (page === 'paketDetail' || page === 'topup') ? 'paket' : page;
     document.querySelectorAll('.j-nav a').forEach(function (a) {
       a.classList.toggle('active', a.getAttribute('data-nav') === navKey);
     });
@@ -21,13 +21,34 @@
   function pageUrl(page, extra) {
     if (page === 'home') return base + 'J/' + pelangganId;
     if (page === 'paketDetail') return base + 'J/paketDetail/' + pelangganId + '/' + extra;
+    if (page === 'topup') {
+      var url = base + 'J/topup/' + pelangganId;
+      if (extra && String(extra) !== '0') url += '/' + extra;
+      return url;
+    }
     return base + 'J/' + page + '/' + pelangganId;
   }
 
   function loadUrl(page, extra) {
     var url = base + 'J/load/' + page + '/' + pelangganId;
-    if (page === 'paketDetail' && extra) url += '/' + extra;
+    if ((page === 'paketDetail' || page === 'topup') && extra && String(extra) !== '0') {
+      url += '/' + extra;
+    }
     return url;
+  }
+
+  function toast(msg, type) {
+    var t = document.getElementById('jToast');
+    if (!t) {
+      alert(msg);
+      return;
+    }
+    t.textContent = msg;
+    t.className = 'j-toast show ' + (type || '');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(function () {
+      t.className = 'j-toast';
+    }, 2800);
   }
 
   function loadPage(page, extra, push) {
@@ -87,6 +108,10 @@
     var path = window.location.pathname;
     var mDetail = path.match(/\/J\/paketDetail\/(\d+)\/(\d+)/i);
     if (mDetail) return { page: 'paketDetail', extra: mDetail[2] };
+    var mTopupFilter = path.match(/\/J\/topup\/(\d+)\/(\d+)/i);
+    if (mTopupFilter) return { page: 'topup', extra: mTopupFilter[2] };
+    var mTopup = path.match(/\/J\/topup\/(\d+)\/?$/i);
+    if (mTopup) return { page: 'topup', extra: '' };
     var mPage = path.match(/\/J\/(tagihan|saldo|paket)\/(\d+)/i);
     if (mPage) return { page: mPage[1], extra: '' };
     return { page: 'home', extra: '' };
@@ -113,6 +138,20 @@
       return;
     }
 
+    var mTopupFilter = href.match(/J\/topup\/(\d+)\/(\d+)/i);
+    if (mTopupFilter && String(mTopupFilter[1]) === String(pelangganId)) {
+      e.preventDefault();
+      loadPage('topup', mTopupFilter[2], true);
+      return;
+    }
+
+    var mTopup = href.match(/J\/topup\/(\d+)\/?$/i);
+    if (mTopup && String(mTopup[1]) === String(pelangganId)) {
+      e.preventDefault();
+      loadPage('topup', '', true);
+      return;
+    }
+
     var mPage = href.match(/J\/(tagihan|saldo|paket)\/(\d+)/i);
     if (mPage && String(mPage[2]) === String(pelangganId)) {
       e.preventDefault();
@@ -125,6 +164,50 @@
       e.preventDefault();
       loadPage('home', '', true);
     }
+  });
+
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('.j-topup-pick');
+    if (!btn || !content.contains(btn)) return;
+    e.preventDefault();
+
+    var idPaket = btn.getAttribute('data-id-harga-paket');
+    if (!idPaket) return;
+    if (btn.disabled) return;
+
+    var label = btn.getAttribute('data-label') || 'paket ini';
+    if (!window.confirm('Topup ' + label + '?')) return;
+
+    btn.disabled = true;
+    var body = new URLSearchParams();
+    body.set('id_harga_paket', idPaket);
+
+    fetch(base + 'J/topupSubmit/' + pelangganId, {
+      method: 'POST',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      credentials: 'same-origin',
+      body: body.toString()
+    })
+      .then(function (res) {
+        return res.json().catch(function () {
+          throw new Error('Respons tidak valid');
+        });
+      })
+      .then(function (data) {
+        if (!data || !data.ok) {
+          throw new Error((data && data.message) || 'Gagal topup');
+        }
+        toast(data.message || 'Berhasil', 'ok');
+        var go = data.go === 'paket' ? 'paket' : 'tagihan';
+        loadPage(go, '', true);
+      })
+      .catch(function (err) {
+        toast((err && err.message) || 'Gagal topup', 'warn');
+        btn.disabled = false;
+      });
   });
 
   window.addEventListener('popstate', function (e) {
