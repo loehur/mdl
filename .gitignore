@@ -1,6 +1,8 @@
-
 node_modules/
 Env.php
 .env
 *copy*
 *.sql
+
+# Sandbox API tester (lokal, jangan ikut commit)
+/api_tester/
