@@ -253,6 +253,13 @@ abstract class InvoiceController extends BaseController
 
     protected function formatInvoice(array $invoice, array $items = [], ?array $issuer = null): array
     {
+        $exchangeRate = isset($invoice['exchange_rate']) && $invoice['exchange_rate'] !== null && $invoice['exchange_rate'] !== ''
+            ? (float) $invoice['exchange_rate']
+            : null;
+        $totalUsd = isset($invoice['total_usd']) && $invoice['total_usd'] !== null && $invoice['total_usd'] !== ''
+            ? (float) $invoice['total_usd']
+            : null;
+
         $data = [
             'id' => (int) $invoice['id'],
             'invoice_number' => $invoice['invoice_number'],
@@ -273,6 +280,8 @@ abstract class InvoiceController extends BaseController
             'tax_percent' => (float) $invoice['tax_percent'],
             'tax_amount' => (float) $invoice['tax_amount'],
             'total' => (float) $invoice['total'],
+            'exchange_rate' => $exchangeRate,
+            'total_usd' => $totalUsd,
             'notes' => $invoice['notes'],
             'status' => $invoice['status'],
             'payment_status' => $invoice['payment_status'],
@@ -290,7 +299,7 @@ abstract class InvoiceController extends BaseController
     protected function getInvoiceItems(int $invoiceId): array
     {
         $rows = $this->db($this->db_index)->query(
-            "SELECT id, description, quantity, unit_price, amount, sort_order
+            "SELECT id, description, currency, quantity, unit_price, unit_price_usd, amount, amount_usd, sort_order
              FROM invoice_items
              WHERE invoice_id = ?
              ORDER BY sort_order ASC, id ASC",
@@ -298,12 +307,23 @@ abstract class InvoiceController extends BaseController
         )->result_array();
 
         return array_map(function ($row) {
+            $currency = strtoupper(trim((string) ($row['currency'] ?? 'IDR'))) ?: 'IDR';
+            $unitUsd = isset($row['unit_price_usd']) && $row['unit_price_usd'] !== null && $row['unit_price_usd'] !== ''
+                ? (float) $row['unit_price_usd']
+                : null;
+            $amountUsd = isset($row['amount_usd']) && $row['amount_usd'] !== null && $row['amount_usd'] !== ''
+                ? (float) $row['amount_usd']
+                : null;
+
             return [
                 'id' => (int) $row['id'],
                 'description' => $row['description'],
+                'currency' => $currency,
                 'quantity' => (float) $row['quantity'],
                 'unit_price' => (float) $row['unit_price'],
+                'unit_price_usd' => $unitUsd,
                 'amount' => (float) $row['amount'],
+                'amount_usd' => $amountUsd,
             ];
         }, $rows);
     }
@@ -337,6 +357,13 @@ abstract class InvoiceController extends BaseController
         $customerName = trim((string) ($invoice['customer_name'] ?? ''));
         $brand = $this->resolveIssuerName($issuerName);
 
+        $usdLine = '';
+        if (isset($invoice['total_usd']) && $invoice['total_usd'] !== null && $invoice['total_usd'] !== ''
+            && (float) $invoice['total_usd'] > 0) {
+            $usd = number_format((float) $invoice['total_usd'], 2, '.', ',');
+            $usdLine = "* Pedoman USD: *\${$usd}*\n";
+        }
+
         return "*{$brand}*\n"
             . "INVOICE PEMBAYARAN\n"
             . "\n"
@@ -346,12 +373,122 @@ abstract class InvoiceController extends BaseController
             . "* No. Invoice: {$invoice['invoice_number']}\n"
             . "* Tanggal: {$date}\n"
             . "* Total: *Rp{$total},-*\n"
+            . $usdLine
             . "\n"
             . "Lihat & bayar invoice:\n"
             . "{$publicUrl}\n"
             . "\n"
             . "Terima kasih\n"
             . "_{$brand}_";
+    }
+
+    /**
+     * Konversi item input (currency + unit_price) → baris invoice_items (IDR + optional USD).
+     *
+     * @param array<int, array<string, mixed>> $rawItems
+     * @return array{items: array<int, array<string, mixed>>, subtotal: float, exchange_rate: ?float, total_usd: ?float}
+     */
+    protected function convertInvoiceItems(array $rawItems): array
+    {
+        $needsRate = false;
+        foreach ($rawItems as $item) {
+            $currency = strtoupper(trim((string) ($item['currency'] ?? 'IDR')));
+            if ($currency === 'USD') {
+                $needsRate = true;
+                break;
+            }
+        }
+
+        $rate = null;
+        if ($needsRate) {
+            $info = \App\Helpers\InvoiceExchangeRate::getUsdToIdrRate($this->db($this->db_index));
+            $rate = (float) $info['rate'];
+            if ($rate <= 0) {
+                throw new \RuntimeException('Kurs USD tidak valid');
+            }
+        }
+
+        $subtotal = 0.0;
+        $totalUsd = 0.0;
+        $hasUsd = false;
+        $parsedItems = [];
+
+        foreach ($rawItems as $idx => $item) {
+            $desc = trim((string) ($item['description'] ?? ''));
+            if ($desc === '') {
+                throw new \InvalidArgumentException('Deskripsi item tidak boleh kosong');
+            }
+
+            $currency = strtoupper(trim((string) ($item['currency'] ?? 'IDR')));
+            if ($currency === '') {
+                $currency = 'IDR';
+            }
+            if (!in_array($currency, ['IDR', 'USD'], true)) {
+                throw new \InvalidArgumentException('Mata uang item harus IDR atau USD');
+            }
+
+            $qty = round((float) ($item['quantity'] ?? 1), 2);
+            $inputPrice = round((float) ($item['unit_price'] ?? 0), 4);
+
+            if ($qty <= 0 || $inputPrice < 0) {
+                throw new \InvalidArgumentException('Jumlah atau harga item tidak valid');
+            }
+
+            if ($currency === 'USD') {
+                $unitUsd = round($inputPrice, 4);
+                $amountUsd = round($qty * $unitUsd, 4);
+                $unitIdr = round($unitUsd * $rate, 2);
+                $amountIdr = round($qty * $unitIdr, 2);
+                $hasUsd = true;
+                $totalUsd += $amountUsd;
+            } else {
+                $unitUsd = null;
+                $amountUsd = null;
+                $unitIdr = round($inputPrice, 2);
+                $amountIdr = round($qty * $unitIdr, 2);
+            }
+
+            $subtotal += $amountIdr;
+
+            $parsedItems[] = [
+                'description' => $desc,
+                'currency' => $currency,
+                'quantity' => $qty,
+                'input_unit_price' => $inputPrice,
+                'unit_price' => $unitIdr,
+                'unit_price_usd' => $unitUsd,
+                'amount' => $amountIdr,
+                'amount_usd' => $amountUsd,
+                'sort_order' => $idx,
+            ];
+        }
+
+        if ($subtotal <= 0 || count($parsedItems) === 0) {
+            throw new \InvalidArgumentException('Total invoice harus lebih dari 0');
+        }
+
+        return [
+            'items' => $parsedItems,
+            'subtotal' => round($subtotal, 2),
+            'exchange_rate' => $hasUsd ? $rate : null,
+            'total_usd' => $hasUsd ? round($totalUsd, 4) : null,
+        ];
+    }
+
+    /** Strip fields that must not be inserted into invoice_items. */
+    protected function invoiceItemRowForDb(array $item, int $invoiceId): array
+    {
+        return [
+            'invoice_id' => $invoiceId,
+            'description' => $item['description'],
+            'currency' => $item['currency'] ?? 'IDR',
+            'quantity' => $item['quantity'],
+            'unit_price' => $item['unit_price'],
+            'unit_price_usd' => $item['unit_price_usd'],
+            'amount' => $item['amount'],
+            'amount_usd' => $item['amount_usd'],
+            'sort_order' => $item['sort_order'],
+        ];
     }
 
     protected function advanceIssueDate(string $issueDate, string $period): string
@@ -436,7 +573,8 @@ abstract class InvoiceController extends BaseController
             return [
                 'description' => $item['description'],
                 'quantity' => $item['quantity'],
-                'unit_price' => $item['unit_price'],
+                'currency' => $item['currency'] ?? 'IDR',
+                'unit_price' => $item['input_unit_price'] ?? $item['unit_price'],
             ];
         }, $parsed['items']);
 

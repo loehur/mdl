@@ -11,6 +11,19 @@ export function formatRupiahDisplay(value) {
   return `Rp\u00A0${formatRupiah(value)}`;
 }
 
+/** Format USD pedoman, mis. $25.00 */
+export function formatUsd(value) {
+  const num = Number(value) || 0;
+  return new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(num);
+}
+
+export function formatUsdDisplay(value) {
+  return `$\u00A0${formatUsd(value)}`;
+}
+
 /** Ambil digit saja dari input jumlah. */
 export function parseAmountInput(value) {
   return String(value ?? "").replace(/\D/g, "");
@@ -29,10 +42,23 @@ export function amountInputToNumber(value) {
   return Number.isFinite(num) ? num : 0;
 }
 
+/** Parse harga USD (boleh desimal) dari string input. */
+export function usdInputToNumber(value) {
+  const raw = String(value ?? "").replace(/,/g, ".").replace(/[^\d.]/g, "");
+  const num = Number(raw);
+  return Number.isFinite(num) ? num : 0;
+}
+
 /** Normalisasi nilai dari API ke string digit untuk form. */
 export function toAmountDigits(value) {
   const num = Math.round(Number(value) || 0);
   return num > 0 ? String(num) : "";
+}
+
+export function toUsdInput(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num <= 0) return "";
+  return String(num);
 }
 
 export function formatDate(value) {

@@ -112,4 +112,11 @@ class Env
 
     // Invoice Subscriptions API: header X-Invoice-Api-Key
     const INVOICE_API_KEY = 'change-me-invoice-api-key';
+
+    // -------------------------------------------------------------------------
+    // Exchange rate — freecurrencyapi (invoice USD → IDR)
+    // -------------------------------------------------------------------------
+    // Daftar: https://app.freecurrencyapi.com/register
+    // Docs: https://freecurrencyapi.com/docs/
+    const FREECURRENCYAPI_KEY = 'change-me-freecurrencyapi-key';
 }

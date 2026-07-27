@@ -88,11 +88,21 @@
           >
             <div class="min-w-0">
               <p class="text-sm font-semibold text-pearl">{{ item.description }}</p>
-              <p class="text-xs text-mist">{{ item.quantity }} × {{ formatRupiahDisplay(item.unit_price) }}</p>
+              <p class="text-xs text-mist">
+                {{ item.quantity }} × {{ formatRupiahDisplay(item.unit_price) }}
+                <span v-if="item.amount_usd != null" class="text-mist/80">
+                  ({{ formatUsdDisplay(item.unit_price_usd) }})
+                </span>
+              </p>
             </div>
-            <p class="min-w-max whitespace-nowrap text-right text-sm font-bold tabular-nums text-pearl">
-              {{ formatRupiahDisplay(item.amount) }}
-            </p>
+            <div class="min-w-max text-right">
+              <p class="text-sm font-bold tabular-nums text-pearl">
+                {{ formatRupiahDisplay(item.amount) }}
+              </p>
+              <p v-if="item.amount_usd != null" class="text-xs text-mist tabular-nums">
+                {{ formatUsdDisplay(item.amount_usd) }}
+              </p>
+            </div>
           </div>
         </div>
 
@@ -105,8 +115,15 @@
             <span>Pajak ({{ invoice.tax_percent }}%)</span>
             <span class="min-w-max whitespace-nowrap text-right tabular-nums">{{ formatRupiahDisplay(invoice.tax_amount) }}</span>
           </div>
+          <div
+            v-if="invoice.total_usd != null && Number(invoice.total_usd) > 0"
+            class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 text-sm text-mist"
+          >
+            <span>Pedoman USD</span>
+            <span class="min-w-max whitespace-nowrap text-right tabular-nums">{{ formatUsdDisplay(invoice.total_usd) }}</span>
+          </div>
           <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 pt-1">
-            <span class="font-bold text-pearl">Total</span>
+            <span class="font-bold text-pearl">Total dibayar</span>
             <span class="money-display-sm min-w-max whitespace-nowrap text-right tabular-nums text-ledger-dim">
               {{ formatRupiahDisplay(invoice.total) }}
             </span>
@@ -202,7 +219,7 @@ import PageLoader from "../components/PageLoader.vue";
 import AlertBanner from "../components/AlertBanner.vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
 import CustomerSelect from "../components/CustomerSelect.vue";
-import { formatDate, formatRupiahDisplay } from "../utils/format";
+import { formatDate, formatRupiahDisplay, formatUsdDisplay } from "../utils/format";
 import { invoiceStatusChipClass, invoiceStatusLabel } from "../utils/invoiceStatus";
 
 const route = useRoute();

@@ -1,10 +1,14 @@
 import { jsPDF } from "jspdf";
-import { formatDate, formatRupiah } from "./format";
+import { formatDate, formatRupiah, formatUsd } from "./format";
 
 const BRAND = "Nalju Digital Solutions (NDS)";
 
 function money(value) {
   return `Rp ${formatRupiah(value)}`;
+}
+
+function moneyUsd(value) {
+  return `$ ${formatUsd(value)}`;
 }
 
 function statusLabel(invoice) {
@@ -157,8 +161,16 @@ export function downloadInvoicePdf(invoice) {
 
     doc.text(descLines, colDesc, y);
     doc.text(String(item.quantity ?? 1), colQty, y);
-    doc.text(money(item.unit_price), colPrice, y);
-    doc.text(money(item.amount ?? item.quantity * item.unit_price), colAmt, y, {
+    const priceLabel =
+      item.unit_price_usd != null
+        ? `${money(item.unit_price)} (${moneyUsd(item.unit_price_usd)})`
+        : money(item.unit_price);
+    doc.text(priceLabel, colPrice, y);
+    const amtLabel =
+      item.amount_usd != null
+        ? `${money(item.amount ?? item.quantity * item.unit_price)}`
+        : money(item.amount ?? item.quantity * item.unit_price);
+    doc.text(amtLabel, colAmt, y, {
       align: "right",
     });
 
@@ -192,11 +204,14 @@ export function downloadInvoicePdf(invoice) {
   if (Number(invoice.tax_amount) > 0) {
     drawTotalRow(`Pajak (${invoice.tax_percent || 0}%)`, money(invoice.tax_amount));
   }
+  if (invoice.total_usd != null && Number(invoice.total_usd) > 0) {
+    drawTotalRow("Pedoman USD", moneyUsd(invoice.total_usd));
+  }
   doc.setDrawColor(180, 180, 190);
   doc.setLineWidth(0.4);
   doc.line(labelX, y - 2, pageW - margin, y - 2);
   y += 2;
-  drawTotalRow("TOTAL", money(invoice.total), true);
+  drawTotalRow("TOTAL DIBAYAR", money(invoice.total), true);
 
   // Notes
   if (invoice.notes) {

@@ -211,7 +211,7 @@ class RecurringBills extends InvoiceController
             $this->error('Minimal 1 item', 400);
         }
 
-        $subtotal = 0.0;
+        $subtotalIdr = 0.0;
         $parsedItems = [];
 
         foreach ($body['items'] as $item) {
@@ -220,22 +220,39 @@ class RecurringBills extends InvoiceController
                 $this->error('Deskripsi item tidak boleh kosong', 400);
             }
 
+            $currency = strtoupper(trim((string) ($item['currency'] ?? 'IDR')));
+            if ($currency === '') {
+                $currency = 'IDR';
+            }
+            if (!in_array($currency, ['IDR', 'USD'], true)) {
+                $this->error('Mata uang item harus IDR atau USD', 400);
+            }
+
             $qty = round((float) ($item['quantity'] ?? 1), 2);
-            $unitPrice = round((float) ($item['unit_price'] ?? 0), 2);
+            $unitPrice = round((float) ($item['unit_price'] ?? 0), 4);
 
             if ($qty <= 0 || $unitPrice < 0) {
                 $this->error('Jumlah atau harga item tidak valid', 400);
             }
 
-            $subtotal += round($qty * $unitPrice, 2);
             $parsedItems[] = [
                 'description' => $desc,
                 'quantity' => $qty,
+                'currency' => $currency,
                 'unit_price' => $unitPrice,
             ];
         }
 
-        if ($subtotal <= 0) {
+        try {
+            $converted = $this->convertInvoiceItems($parsedItems);
+            $subtotalIdr = $converted['subtotal'];
+        } catch (\InvalidArgumentException $e) {
+            $this->error($e->getMessage(), 400);
+        } catch (\Throwable $e) {
+            $this->error($e->getMessage(), 502);
+        }
+
+        if ($subtotalIdr <= 0) {
             $this->error('Total harus lebih dari 0', 400);
         }
 
@@ -263,7 +280,7 @@ class RecurringBills extends InvoiceController
             'items' => $parsedItems,
             'subscription_id' => $subscriptionId,
             'is_active' => $isActive,
-            'subtotal' => $subtotal,
+            'subtotal' => $subtotalIdr,
         ];
     }
 
@@ -279,20 +296,33 @@ class RecurringBills extends InvoiceController
         if (is_array($decoded)) {
             foreach ($decoded as $item) {
                 $qty = round((float) ($item['quantity'] ?? 0), 2);
-                $unitPrice = round((float) ($item['unit_price'] ?? 0), 2);
+                $unitPrice = round((float) ($item['unit_price'] ?? 0), 4);
+                $currency = strtoupper(trim((string) ($item['currency'] ?? 'IDR'))) ?: 'IDR';
                 $items[] = [
                     'description' => (string) ($item['description'] ?? ''),
                     'quantity' => $qty,
+                    'currency' => $currency,
                     'unit_price' => $unitPrice,
-                    'amount' => round($qty * $unitPrice, 2),
+                    'amount' => round($qty * $unitPrice, 4),
                 ];
             }
         }
 
         $subtotal = 0.0;
-        foreach ($items as $item) {
-            $subtotal += $item['amount'];
+        try {
+            if (count($items) > 0) {
+                $converted = $this->convertInvoiceItems($items);
+                $subtotal = $converted['subtotal'];
+            }
+        } catch (\Throwable $e) {
+            // Fallback: jumlahkan mentah (item IDR-only / tanpa kurs)
+            foreach ($items as $item) {
+                if (($item['currency'] ?? 'IDR') === 'IDR') {
+                    $subtotal += round($item['quantity'] * $item['unit_price'], 2);
+                }
+            }
         }
+
         $taxPercent = round((float) ($row['tax_percent'] ?? 0), 2);
         $taxAmount = round($subtotal * ($taxPercent / 100), 2);
         $total = round($subtotal + $taxAmount, 2);

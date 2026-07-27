@@ -116,31 +116,15 @@ class InvoiceRecurring extends InvoiceController
         }
 
         $taxPercent = round((float) $bill['tax_percent'], 2);
-        $subtotal = 0.0;
-        $parsedItems = [];
 
-        foreach ($items as $idx => $item) {
-            $desc = trim((string) ($item['description'] ?? ''));
-            $qty = round((float) ($item['quantity'] ?? 1), 2);
-            $unitPrice = round((float) ($item['unit_price'] ?? 0), 2);
-            if ($desc === '' || $qty <= 0 || $unitPrice < 0) {
-                continue;
-            }
-            $amount = round($qty * $unitPrice, 2);
-            $subtotal += $amount;
-            $parsedItems[] = [
-                'description' => $desc,
-                'quantity' => $qty,
-                'unit_price' => $unitPrice,
-                'amount' => $amount,
-                'sort_order' => $idx,
-            ];
+        try {
+            $converted = $this->convertInvoiceItems($items);
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'message' => $e->getMessage()];
         }
 
-        if ($subtotal <= 0 || count($parsedItems) === 0) {
-            return ['ok' => false, 'message' => 'invalid item totals'];
-        }
-
+        $subtotal = $converted['subtotal'];
+        $parsedItems = $converted['items'];
         $taxAmount = round($subtotal * ($taxPercent / 100), 2);
         $total = round($subtotal + $taxAmount, 2);
 
@@ -174,6 +158,8 @@ class InvoiceRecurring extends InvoiceController
             'tax_percent' => $taxPercent,
             'tax_amount' => $taxAmount,
             'total' => $total,
+            'exchange_rate' => $converted['exchange_rate'],
+            'total_usd' => $converted['total_usd'],
             'notes' => $bill['notes'] ?: null,
             'status' => 'sent',
             'payment_status' => 'unpaid',
@@ -184,8 +170,7 @@ class InvoiceRecurring extends InvoiceController
         }
 
         foreach ($parsedItems as $item) {
-            $item['invoice_id'] = $invoiceId;
-            $this->db($this->db_index)->insert('invoice_items', $item);
+            $this->db($this->db_index)->insert('invoice_items', $this->invoiceItemRowForDb($item, $invoiceId));
         }
 
         $nextIssue = $this->advanceIssueDate($issueDate, $period);

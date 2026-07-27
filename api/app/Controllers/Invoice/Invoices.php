@@ -112,6 +112,8 @@ class Invoices extends InvoiceController
                 'tax_percent' => $parsed['tax_percent'],
                 'tax_amount' => $parsed['tax_amount'],
                 'total' => $parsed['total'],
+                'exchange_rate' => $parsed['exchange_rate'],
+                'total_usd' => $parsed['total_usd'],
                 'notes' => $parsed['notes'],
                 'status' => 'sent',
                 'payment_status' => 'unpaid',
@@ -122,8 +124,7 @@ class Invoices extends InvoiceController
             }
 
             foreach ($parsed['items'] as $item) {
-                $item['invoice_id'] = $invoiceId;
-                $this->db($this->db_index)->insert('invoice_items', $item);
+                $this->db($this->db_index)->insert('invoice_items', $this->invoiceItemRowForDb($item, $invoiceId));
             }
 
             $recurringInfo = $this->syncRecurringBill(
@@ -199,6 +200,8 @@ class Invoices extends InvoiceController
                 'tax_percent' => $parsed['tax_percent'],
                 'tax_amount' => $parsed['tax_amount'],
                 'total' => $parsed['total'],
+                'exchange_rate' => $parsed['exchange_rate'],
+                'total_usd' => $parsed['total_usd'],
                 'notes' => $parsed['notes'],
                 'payment_status' => 'unpaid',
             ];
@@ -214,8 +217,7 @@ class Invoices extends InvoiceController
             $this->db($this->db_index)->delete('invoice_items', ['invoice_id' => $id]);
 
             foreach ($parsed['items'] as $item) {
-                $item['invoice_id'] = $id;
-                $this->db($this->db_index)->insert('invoice_items', $item);
+                $this->db($this->db_index)->insert('invoice_items', $this->invoiceItemRowForDb($item, $id));
             }
 
             $recurringInfo = $this->syncRecurringBill(
@@ -535,40 +537,16 @@ class Invoices extends InvoiceController
             $this->error('Pajak tidak valid (0-100%)', 400);
         }
 
-        $subtotal = 0;
-        $parsedItems = [];
-
-        foreach ($body['items'] as $idx => $item) {
-            $desc = trim($item['description'] ?? '');
-            if ($desc === '') {
-                $this->error('Deskripsi item tidak boleh kosong', 400);
-            }
-
-            $qty = round((float) ($item['quantity'] ?? 1), 2);
-            $unitPrice = round((float) ($item['unit_price'] ?? 0), 2);
-
-            if ($qty <= 0 || $unitPrice < 0) {
-                $this->error('Jumlah atau harga item tidak valid', 400);
-            }
-
-            $amount = round($qty * $unitPrice, 2);
-            $subtotal += $amount;
-
-            $parsedItems[] = [
-                'description' => $desc,
-                'quantity' => $qty,
-                'unit_price' => $unitPrice,
-                'amount' => $amount,
-                'sort_order' => $idx,
-            ];
+        try {
+            $converted = $this->convertInvoiceItems($body['items']);
+        } catch (\InvalidArgumentException $e) {
+            $this->error($e->getMessage(), 400);
+        } catch (\Throwable $e) {
+            $this->error($e->getMessage(), 502);
         }
 
-        if ($subtotal <= 0) {
-            $this->error('Total invoice harus lebih dari 0', 400);
-        }
-
-        $taxAmount = round($subtotal * ($taxPercent / 100), 2);
-        $total = round($subtotal + $taxAmount, 2);
+        $taxAmount = round($converted['subtotal'] * ($taxPercent / 100), 2);
+        $total = round($converted['subtotal'] + $taxAmount, 2);
 
         return [
             'customer_id' => (int) $customer['id'],
@@ -578,12 +556,14 @@ class Invoices extends InvoiceController
             'title' => $title,
             'issue_date' => $issueDate,
             'due_date' => $dueDate ?: null,
-            'subtotal' => $subtotal,
+            'subtotal' => $converted['subtotal'],
             'tax_percent' => $taxPercent,
             'tax_amount' => $taxAmount,
             'total' => $total,
+            'exchange_rate' => $converted['exchange_rate'],
+            'total_usd' => $converted['total_usd'],
             'notes' => trim($body['notes'] ?? '') ?: null,
-            'items' => $parsedItems,
+            'items' => $converted['items'],
         ];
     }
 }

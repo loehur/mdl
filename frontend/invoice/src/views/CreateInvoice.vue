@@ -136,7 +136,7 @@
                 placeholder="Deskripsi layanan/produk"
                 required
               />
-              <div class="grid grid-cols-2 gap-3">
+              <div class="grid grid-cols-3 gap-3">
                 <div>
                   <label class="field-label">Qty</label>
                   <input
@@ -148,12 +148,36 @@
                   />
                 </div>
                 <div>
+                  <label class="field-label">Mata uang</label>
+                  <select v-model="item.currency" class="field-input" @change="onCurrencyChange(item)">
+                    <option value="IDR">IDR</option>
+                    <option value="USD">USD</option>
+                  </select>
+                </div>
+                <div>
                   <label class="field-label">Harga Satuan</label>
-                  <AmountInput v-model="item.unit_price" />
+                  <AmountInput v-if="item.currency !== 'USD'" v-model="item.unit_price" />
+                  <input
+                    v-else
+                    v-model="item.unit_price"
+                    class="field-input"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    placeholder="0.00"
+                  />
                 </div>
               </div>
               <p class="text-right text-sm font-semibold text-pearl">
-                Subtotal: Rp {{ formatRupiah(itemSubtotal(item)) }}
+                <template v-if="item.currency === 'USD'">
+                  Subtotal: $ {{ formatUsd(itemSubtotalUsd(item)) }}
+                  <span v-if="usdRate" class="mt-1 block text-xs font-normal text-mist">
+                    ≈ Rp {{ formatRupiah(itemSubtotalIdr(item)) }}
+                  </span>
+                </template>
+                <template v-else>
+                  Subtotal: Rp {{ formatRupiah(itemSubtotalIdr(item)) }}
+                </template>
               </p>
             </div>
           </div>
@@ -165,8 +189,12 @@
         </div>
 
         <div class="mt-4 space-y-1 rounded-2xl bg-ledger/5 p-4">
+          <div v-if="totalUsdGuide > 0" class="flex justify-between text-sm text-mist">
+            <span>Pedoman USD</span>
+            <span>$ {{ formatUsd(totalUsdGuide) }}</span>
+          </div>
           <div class="flex justify-between text-sm text-mist">
-            <span>Subtotal</span>
+            <span>Subtotal (IDR)</span>
             <span>Rp {{ formatRupiah(subtotal) }}</span>
           </div>
           <div class="flex justify-between text-sm text-mist">
@@ -174,9 +202,12 @@
             <span>Rp {{ formatRupiah(taxAmount) }}</span>
           </div>
           <div class="flex justify-between border-t border-ink-200 pt-2">
-            <span class="font-bold text-pearl">Total</span>
+            <span class="font-bold text-pearl">Total dibayar (IDR)</span>
             <span class="money-display-sm text-ledger-dim">Rp {{ formatRupiah(total) }}</span>
           </div>
+          <p v-if="usdRate && hasUsdItems" class="pt-1 text-xs text-mist">
+            Kurs: 1 USD ≈ Rp {{ formatRupiah(usdRate) }}
+          </p>
         </div>
 
         <div class="mt-4">
@@ -203,14 +234,23 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import AmountInput from "../components/AmountInput.vue";
 import AlertBanner from "../components/AlertBanner.vue";
 import CustomerSelect from "../components/CustomerSelect.vue";
 import EmptyState from "../components/EmptyState.vue";
 import PageLoader from "../components/PageLoader.vue";
-import { amountInputToNumber, addDaysISO, formatRupiah, todayISO, toAmountDigits } from "../utils/format";
+import {
+  amountInputToNumber,
+  addDaysISO,
+  formatRupiah,
+  formatUsd,
+  todayISO,
+  toAmountDigits,
+  toUsdInput,
+  usdInputToNumber,
+} from "../utils/format";
 
 const route = useRoute();
 const router = useRouter();
@@ -232,7 +272,7 @@ const form = ref({
   recurring_enabled: false,
   recurring_period: "monthly",
   subscription_id: "",
-  items: [{ description: "", quantity: 1, unit_price: "" }],
+  items: [{ description: "", quantity: 1, currency: "IDR", unit_price: "" }],
 });
 
 const customers = ref([]);
@@ -242,12 +282,17 @@ const invoiceNumber = ref("");
 const saving = ref(false);
 const message = ref("");
 const isError = ref(false);
+const usdRate = ref(null);
 
 const selectedCustomer = computed(() => {
   const id = Number(form.value.customer_id);
   if (!id) return null;
   return customers.value.find((c) => c.id === id) || null;
 });
+
+const hasUsdItems = computed(() =>
+  form.value.items.some((item) => item.currency === "USD")
+);
 
 function onIssueDateChange() {
   if (isEdit.value) return;
@@ -256,21 +301,50 @@ function onIssueDateChange() {
 }
 
 function addItem() {
-  form.value.items.push({ description: "", quantity: 1, unit_price: "" });
+  form.value.items.push({ description: "", quantity: 1, currency: "IDR", unit_price: "" });
 }
 
 function removeItem(idx) {
   form.value.items.splice(idx, 1);
 }
 
-function itemSubtotal(item) {
+function onCurrencyChange(item) {
+  item.unit_price = "";
+  if (item.currency === "USD") {
+    ensureUsdRate();
+  }
+}
+
+function itemUnitPriceNumber(item) {
+  if (item.currency === "USD") {
+    return usdInputToNumber(item.unit_price);
+  }
+  return amountInputToNumber(item.unit_price);
+}
+
+function itemSubtotalUsd(item) {
   const qty = Number(item.quantity) || 0;
-  const price = amountInputToNumber(item.unit_price);
+  return qty * usdInputToNumber(item.unit_price);
+}
+
+function itemSubtotalIdr(item) {
+  const qty = Number(item.quantity) || 0;
+  const price = itemUnitPriceNumber(item);
+  if (item.currency === "USD") {
+    return qty * price * (Number(usdRate.value) || 0);
+  }
   return qty * price;
 }
 
 const subtotal = computed(() =>
-  form.value.items.reduce((sum, item) => sum + itemSubtotal(item), 0)
+  form.value.items.reduce((sum, item) => sum + itemSubtotalIdr(item), 0)
+);
+
+const totalUsdGuide = computed(() =>
+  form.value.items.reduce((sum, item) => {
+    if (item.currency !== "USD") return sum;
+    return sum + itemSubtotalUsd(item);
+  }, 0)
 );
 
 const taxAmount = computed(() => {
@@ -296,10 +370,28 @@ function buildPayload() {
     items: form.value.items.map((item) => ({
       description: item.description,
       quantity: Number(item.quantity) || 1,
-      unit_price: amountInputToNumber(item.unit_price),
+      currency: item.currency === "USD" ? "USD" : "IDR",
+      unit_price: itemUnitPriceNumber(item),
     })),
   };
 }
+
+async function ensureUsdRate() {
+  if (usdRate.value) return;
+  try {
+    const res = await fetch("/api/Invoice/ExchangeRate/usdIdr");
+    const data = await res.json();
+    if (res.ok && data.status && data.data?.rate) {
+      usdRate.value = Number(data.data.rate);
+    }
+  } catch {
+    /* ignore preview failure */
+  }
+}
+
+watch(hasUsdItems, (need) => {
+  if (need) ensureUsdRate();
+});
 
 async function loadCustomers() {
   loadingCustomers.value = true;
@@ -350,6 +442,10 @@ async function loadInvoiceForEdit() {
     }
 
     invoiceNumber.value = inv.invoice_number;
+    if (inv.exchange_rate) {
+      usdRate.value = Number(inv.exchange_rate);
+    }
+
     form.value = {
       customer_id: inv.customer_id ? String(inv.customer_id) : "",
       title: inv.title || "",
@@ -360,11 +456,19 @@ async function loadInvoiceForEdit() {
       recurring_enabled: !!inv.recurring?.enabled,
       recurring_period: inv.recurring?.period || "monthly",
       subscription_id: inv.recurring?.subscription_id || "",
-      items: inv.items.map((item) => ({
-        description: item.description,
-        quantity: item.quantity,
-        unit_price: toAmountDigits(item.unit_price),
-      })),
+      items: inv.items.map((item) => {
+        const isUsd =
+          item.currency === "USD" ||
+          (item.unit_price_usd !== null && item.unit_price_usd !== undefined);
+        return {
+          description: item.description,
+          quantity: item.quantity,
+          currency: isUsd ? "USD" : "IDR",
+          unit_price: isUsd
+            ? toUsdInput(item.unit_price_usd ?? item.unit_price)
+            : toAmountDigits(item.unit_price),
+        };
+      }),
     };
   } catch {
     message.value = "Gagal memuat invoice";
@@ -387,7 +491,7 @@ async function onSubmit() {
     return;
   }
 
-  if (total.value <= 0) {
+  if (total.value <= 0 && totalUsdGuide.value <= 0) {
     message.value = "Total invoice harus lebih dari 0";
     isError.value = true;
     return;
