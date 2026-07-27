@@ -18,9 +18,12 @@ $list = $data['listPaket'];
     <div class="j-paket-grid">
       <?php foreach ($list as $lp) { ?>
         <a class="j-card j-paket-card" href="<?= $base ?>J/paketDetail/<?= $id ?>/<?= (int) $lp['id_harga'] ?>">
-          <strong>M<?= (int) $lp['id_harga'] ?></strong>
+          <div class="j-paket-meta">
+            <strong>M<?= (int) $lp['id_harga'] ?></strong>
+            <span class="j-dot" aria-hidden="true"></span>
+            <span>Sisa <?= $this->fmtDecMax2($lp['saldo']) ?><?= htmlspecialchars($lp['satuan']) ?></span>
+          </div>
           <small><?= htmlspecialchars($lp['label']) ?></small>
-          <span class="j-badge ok">Sisa <?= $this->fmtDecMax2($lp['saldo']) ?><?= htmlspecialchars($lp['satuan']) ?></span>
         </a>
       <?php } ?>
     </div>

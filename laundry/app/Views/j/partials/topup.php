@@ -37,12 +37,14 @@ $subtitle = $filter > 0
          $hargaLabel = 'Rp' . number_format((int) $item['harga']);
       ?>
         <div class="j-card j-topup-card">
-          <strong>M<?= $idHarga ?></strong>
-          <small><?= htmlspecialchars($item['label']) ?></small>
-          <div class="j-chip-row">
-            <span class="j-badge ok"><?= $qtyLabel ?></span>
-            <span class="j-badge muted"><?= $hargaLabel ?></span>
+          <div class="j-paket-meta">
+            <strong>M<?= $idHarga ?></strong>
+            <span class="j-dot" aria-hidden="true"></span>
+            <span><?= $qtyLabel ?></span>
+            <span class="j-dot" aria-hidden="true"></span>
+            <span><?= $hargaLabel ?></span>
           </div>
+          <small><?= htmlspecialchars($item['label']) ?></small>
           <button
             type="button"
             class="j-btn j-btn-primary j-btn-block j-topup-pick"

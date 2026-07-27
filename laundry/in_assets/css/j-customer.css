@@ -572,6 +572,35 @@ a { color: inherit; text-decoration: none; }
   gap: 8px;
 }
 
+.j-paket-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  font-size: 0.78rem;
+  line-height: 1.25;
+  color: var(--j-ink);
+}
+
+.j-paket-meta strong {
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.j-paket-meta > span:not(.j-dot) {
+  font-weight: 650;
+  color: var(--j-ink);
+}
+
+.j-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--j-muted);
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
 .j-paket-card {
   display: flex;
   flex-direction: column;
@@ -583,13 +612,8 @@ a { color: inherit; text-decoration: none; }
   min-width: 0;
 }
 
-.j-paket-card strong {
-  font-size: 0.84rem;
-  font-weight: 800;
-  line-height: 1.2;
-}
-
-.j-paket-card small {
+.j-paket-card small,
+.j-topup-card small {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -597,12 +621,6 @@ a { color: inherit; text-decoration: none; }
   color: var(--j-muted);
   font-size: 0.7rem;
   line-height: 1.3;
-}
-
-.j-paket-card .j-badge {
-  align-self: flex-start;
-  margin-top: 2px;
-  font-size: 0.68rem;
 }
 
 .j-paket-ico {
@@ -616,32 +634,6 @@ a { color: inherit; text-decoration: none; }
   padding: 10px 12px;
   margin: 0;
   min-width: 0;
-}
-
-.j-topup-card strong {
-  font-size: 0.84rem;
-  font-weight: 800;
-  line-height: 1.2;
-}
-
-.j-topup-card small {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  color: var(--j-muted);
-  font-size: 0.7rem;
-  line-height: 1.3;
-}
-
-.j-topup-card .j-chip-row {
-  margin-top: 0;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.j-topup-card .j-badge {
-  font-size: 0.68rem;
 }
 
 .j-topup-card .j-topup-pick {
