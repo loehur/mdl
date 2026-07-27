@@ -176,7 +176,31 @@
     if (btn.disabled) return;
 
     var label = btn.getAttribute('data-label') || 'paket ini';
-    if (!window.confirm('Topup ' + label + '?')) return;
+    pendingTopup = { idPaket: idPaket, btn: btn };
+
+    var info = document.getElementById('jTopupConfirmInfo');
+    if (info) info.textContent = label;
+
+    var modalEl = document.getElementById('jModalTopup');
+    if (!modalEl || !window.bootstrap) {
+      if (!window.confirm('Topup ' + label + '?')) {
+        pendingTopup = null;
+        return;
+      }
+      submitTopup();
+      return;
+    }
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+  });
+
+  var pendingTopup = null;
+
+  function submitTopup() {
+    if (!pendingTopup) return;
+    var idPaket = pendingTopup.idPaket;
+    var btn = pendingTopup.btn;
+    pendingTopup = null;
+    if (!btn || !idPaket) return;
 
     btn.disabled = true;
     var body = new URLSearchParams();
@@ -208,7 +232,29 @@
         toast((err && err.message) || 'Gagal topup', 'warn');
         btn.disabled = false;
       });
+  }
+
+  document.addEventListener('click', function (e) {
+    var confirmBtn = e.target.closest('#jBtnConfirmTopup');
+    if (!confirmBtn) return;
+    e.preventDefault();
+    var modalEl = document.getElementById('jModalTopup');
+    if (modalEl && window.bootstrap) {
+      var inst = bootstrap.Modal.getInstance(modalEl);
+      if (inst) inst.hide();
+    }
+    submitTopup();
   });
+
+  var topupModal = document.getElementById('jModalTopup');
+  if (topupModal) {
+    topupModal.addEventListener('hidden.bs.modal', function () {
+      if (pendingTopup && pendingTopup.btn) {
+        pendingTopup.btn.disabled = false;
+      }
+      pendingTopup = null;
+    });
+  }
 
   window.addEventListener('popstate', function (e) {
     if (e.state && e.state.page) {

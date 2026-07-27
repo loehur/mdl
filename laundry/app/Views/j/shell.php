@@ -170,10 +170,28 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
   </div>
 </div>
 
+<!-- Modal Konfirmasi Topup -->
+<div class="modal fade" id="jModalTopup" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content j-sheet">
+      <div class="j-sheet-body j-sheet-center" style="padding-top:22px">
+        <div class="j-alert-ico" style="background:rgba(26,122,110,0.12);color:#1A7A6E"><i class="fas fa-box-open"></i></div>
+        <h5 class="j-sheet-title" style="margin:0 0 6px">Konfirmasi topup?</h5>
+        <p class="j-sheet-desc" id="jTopupConfirmInfo"></p>
+        <p class="j-sheet-warn">Setelah dibuat, bayar di halaman Tagihan.</p>
+      </div>
+      <div class="j-sheet-foot">
+        <button type="button" class="j-sheet-btn ghost" data-bs-dismiss="modal">Batal</button>
+        <button type="button" class="j-sheet-btn primary" id="jBtnConfirmTopup"><i class="fas fa-check"></i> Ya, topup</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/js/bootstrap.bundle.min.js"></script>
 <script src="<?= URL::EX_ASSETS ?>js/qrcode.min.js"></script>
 <script src="<?= URL::EX_ASSETS ?>js/html2canvas.min.js"></script>
-<script src="<?= $assets ?>js/j-customer.js?v=7"></script>
+<script src="<?= $assets ?>js/j-customer.js?v=8"></script>
 <script src="<?= $assets ?>js/j-payment.js?v=3"></script>
 <script>
 if ('serviceWorker' in navigator) {
