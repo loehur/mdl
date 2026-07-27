@@ -184,6 +184,53 @@
         </ul>
       </section>
 
+      <!-- Quota -->
+      <section v-if="tab === 'quota'" class="card space-y-4">
+        <h2 class="font-display font-semibold text-lg">Kuota Template</h2>
+        <p class="text-xs text-slate-500">
+          Saldo per team (Team Leader). Dipakai bersama TL + semua agent di team tersebut.
+          Potong 1 hanya jika kirim template sukses di YCloud.
+        </p>
+
+        <form class="grid sm:grid-cols-[1fr_8rem_1fr_auto] gap-2 items-end" @submit.prevent="doTopup">
+          <div>
+            <label class="label">Team</label>
+            <select v-model="quotaForm.team_id" required class="field">
+              <option disabled value="">Pilih team</option>
+              <option v-for="q in quotas" :key="q.team_id" :value="q.team_id">
+                {{ q.team_name }} — TL: {{ q.leader_name || "—" }} (saldo {{ q.balance }})
+              </option>
+            </select>
+          </div>
+          <div>
+            <label class="label">Jumlah</label>
+            <input v-model.number="quotaForm.amount" type="number" min="1" required class="field" placeholder="100" />
+          </div>
+          <div>
+            <label class="label">Catatan</label>
+            <input v-model="quotaForm.note" class="field" placeholder="Opsional" />
+          </div>
+          <button class="btn">Top-up</button>
+        </form>
+
+        <ul class="divide-y divide-white/5">
+          <li v-for="q in quotas" :key="q.team_id" class="py-3 flex items-center justify-between gap-2">
+            <div>
+              <p class="font-medium">{{ q.team_name }}</p>
+              <p class="text-xs text-slate-500">
+                TL: {{ q.leader_name || "—" }}
+                <span v-if="q.leader_email"> · {{ q.leader_email }}</span>
+              </p>
+            </div>
+            <div class="text-right">
+              <p class="text-lg font-semibold text-accent">{{ q.balance }}</p>
+              <p class="text-[10px] text-slate-500">sisa kuota</p>
+            </div>
+          </li>
+        </ul>
+        <p v-if="!quotas.length" class="text-sm text-slate-500 text-center py-2">Belum ada team</p>
+      </section>
+
       <p v-if="msg" class="text-sm text-emerald-400">{{ msg }}</p>
       <p v-if="err" class="text-sm text-rose-400">{{ err }}</p>
     </div>
@@ -202,12 +249,14 @@ const tabs = [
   { id: "users", label: "Users" },
   { id: "keys", label: "API Keys" },
   { id: "templates", label: "Templates" },
+  { id: "quota", label: "Quota" },
 ];
 
 const teams = ref([]);
 const users = ref([]);
 const keys = ref([]);
 const templates = ref([]);
+const quotas = ref([]);
 const msg = ref("");
 const err = ref("");
 const previewPlaceholder =
@@ -232,6 +281,7 @@ const tplForm = reactive({
   body_preview: "",
   params: [{ component: "header", param_index: 1, param_name: "customer", label: "Nama customer", example_value: "", is_required: 1 }],
 });
+const quotaForm = reactive({ team_id: "", amount: 100, note: "" });
 
 const teamLeaders = computed(() =>
   users.value.filter((u) => u.role === "team_leader" && Number(u.is_active) === 1)
@@ -259,16 +309,18 @@ function flash(ok, text) {
 }
 
 async function refresh() {
-  const [t, u, k, tp] = await Promise.all([
+  const [t, u, k, tp, q] = await Promise.all([
     api("/WaDesk/Teams/list"),
     api("/WaDesk/Users/list"),
     api("/WaDesk/Keys/list"),
     api("/WaDesk/Templates/list"),
+    api("/WaDesk/Quota/list"),
   ]);
   teams.value = t.data.teams || [];
   users.value = u.data.users || [];
   keys.value = k.data.keys || [];
   templates.value = tp.data.templates || [];
+  quotas.value = q.data.quotas || [];
 }
 
 async function createTeam() {
@@ -387,6 +439,24 @@ function addParam() {
   });
 }
 
+async function doTopup() {
+  try {
+    const res = await api("/WaDesk/Quota/topup", {
+      method: "POST",
+      body: {
+        team_id: Number(quotaForm.team_id),
+        amount: Number(quotaForm.amount),
+        note: quotaForm.note || null,
+      },
+    });
+    Object.assign(quotaForm, { amount: 100, note: "" });
+    flash(true, `Top-up berhasil. Saldo sekarang: ${res.data?.balance ?? "—"}`);
+    await refresh();
+  } catch (e) {
+    flash(false, e.message);
+  }
+}
+
 async function createTemplate() {
   try {
     await api("/WaDesk/Templates/create", {
@@ -430,6 +500,9 @@ onMounted(refresh);
 <style scoped>
 .card {
   @apply rounded-2xl border border-white/10 bg-ink-900/50 p-4;
+}
+.label {
+  @apply block text-xs text-slate-400 mb-1;
 }
 .field {
   @apply w-full rounded-xl bg-ink-950 border border-white/10 px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-accent/40;

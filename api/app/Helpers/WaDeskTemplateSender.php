@@ -51,6 +51,19 @@ class WaDeskTemplateSender
                 ];
             }
 
+            $teamId = (int) $key['team_id'];
+            $tenantId = (int) $key['tenant_id'];
+            $teamQuota = new WaDeskTemplateQuota($this->db);
+            $teamQuota->ensureRow($teamId, $tenantId);
+            if (!$teamQuota->canConsume($teamId, 1)) {
+                return [
+                    'success' => false,
+                    'message_id' => 0,
+                    'conversation_id' => 0,
+                    'error' => 'Kuota template team habis',
+                ];
+            }
+
             $apiKey = WaDeskCrypto::decrypt($key['api_key_enc']);
             $client = new WaDeskYCloud($apiKey, $key['phone_number']);
 
@@ -80,12 +93,21 @@ class WaDeskTemplateSender
             $msgId = $this->storeOutbound($conv, $fakeUser, 'template', $preview, $tpl['template_name'], $paramsForStore, $result);
             $this->touchConversationOut((int) $conv['id'], $preview);
 
+            $teamQuota->consume(
+                $teamId,
+                $tenantId,
+                $sentByUserId ?: null,
+                'blast',
+                'message',
+                $msgId
+            );
+
             // Push WS notification (best-effort)
             try {
                 WaDeskServer::push([
                     'type'            => 'message_out',
-                    'tenant_id'       => (int) $key['tenant_id'],
-                    'team_id'         => (int) $key['team_id'],
+                    'tenant_id'       => $tenantId,
+                    'team_id'         => $teamId,
                     'conversation_id' => (int) $conv['id'],
                     'message_id'      => $msgId,
                 ]);

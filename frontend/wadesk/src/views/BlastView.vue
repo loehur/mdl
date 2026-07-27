@@ -27,6 +27,10 @@
               {{ k.label }} ({{ k.phone_number }}) — {{ k.team_name }}
             </option>
           </select>
+          <p v-if="keyQuota !== null" class="text-xs mt-1.5" :class="keyQuota.balance > 0 ? 'text-slate-400' : 'text-rose-400'">
+            Kuota template team <span class="text-slate-200">{{ keyQuota.team_name }}</span>:
+            <span class="font-semibold text-accent">{{ keyQuota.balance }}</span>
+          </p>
         </div>
 
         <!-- Template -->
@@ -138,10 +142,16 @@
 
         <!-- Submit -->
         <div v-if="parsedRows.length > 0 && csvErrors.length === 0 && form.campaign_name.trim()">
+          <p
+            v-if="keyQuota !== null && parsedRows.length > keyQuota.balance"
+            class="text-sm text-rose-400 mb-2"
+          >
+            Kuota team tidak cukup: butuh {{ parsedRows.length }}, sisa {{ keyQuota.balance }}.
+          </p>
           <button
             type="button"
             class="btn w-full py-3"
-            :disabled="submitting"
+            :disabled="submitting || (keyQuota !== null && parsedRows.length > keyQuota.balance)"
             @click="submitBlast"
           >
             {{ submitting ? 'Membuat blast...' : `Mulai Blast (${parsedRows.length} penerima — maks. 250)` }}
@@ -325,6 +335,7 @@ const uploadedFile = ref(null);
 const parsedRows = ref([]);
 const csvErrors = ref([]);
 const fileInput = ref(null);
+const keyQuota = ref(null);
 
 const submitting = ref(false);
 const submitError = ref('');
@@ -424,7 +435,24 @@ function onKeyChange() {
   form.template_id = '';
   csvParams.value = [];
   csvHeaders.value = [];
+  keyQuota.value = null;
   resetUpload();
+  if (form.ycloud_key_id) {
+    loadKeyQuota(form.ycloud_key_id);
+  }
+}
+
+async function loadKeyQuota(keyId) {
+  try {
+    const res = await api(`/WaDesk/Quota/forKey?ycloud_key_id=${keyId}`);
+    keyQuota.value = {
+      team_id: res.data?.team_id,
+      team_name: res.data?.team_name,
+      balance: Number(res.data?.balance ?? 0),
+    };
+  } catch (_) {
+    keyQuota.value = null;
+  }
 }
 
 async function onTemplateChange() {
@@ -486,6 +514,10 @@ async function submitBlast() {
     submitError.value = `Maksimal 250 baris per blast. File ini berisi ${parsedRows.value.length} baris.`;
     return;
   }
+  if (keyQuota.value !== null && parsedRows.value.length > keyQuota.value.balance) {
+    submitError.value = `Kuota team tidak cukup: butuh ${parsedRows.value.length}, sisa ${keyQuota.value.balance}.`;
+    return;
+  }
   submitting.value = true;
   try {
     const tpl = filteredTemplates.value.find((t) => Number(t.id) === Number(form.template_id));
@@ -503,6 +535,7 @@ async function submitBlast() {
 
     resetUpload();
     form.campaign_name = '';
+    if (form.ycloud_key_id) await loadKeyQuota(form.ycloud_key_id);
     await loadBlasts();
   } catch (e) {
     submitError.value = e?.message ?? 'Gagal membuat blast';

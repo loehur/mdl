@@ -3,6 +3,7 @@
 namespace App\Controllers\WaDesk;
 
 use App\Helpers\WaDeskDailyKeyLimit;
+use App\Helpers\WaDeskTemplateQuota;
 
 /**
  * Blast — admin-only bulk WhatsApp template sender via CSV.
@@ -156,6 +157,22 @@ class Blast extends WaDeskController
                 'new_unique_in_blast' => $quota['new_unique'],
                 'remaining_today' => $quota['remaining'],
             ]);
+        }
+
+        $teamQuota = new WaDeskTemplateQuota($this->db($this->db_index));
+        $teamId = (int) $key['team_id'];
+        $teamQuota->ensureRow($teamId, (int) $admin['tenant_id']);
+        $rowCount = count($rows);
+        if (!$teamQuota->canConsume($teamId, $rowCount)) {
+            $this->error(
+                'Kuota template team tidak cukup. Saldo: ' . $teamQuota->getBalance($teamId) . ', dibutuhkan: ' . $rowCount,
+                422,
+                [
+                    'team_id' => $teamId,
+                    'balance' => $teamQuota->getBalance($teamId),
+                    'needed' => $rowCount,
+                ]
+            );
         }
 
         // Insert blast job
