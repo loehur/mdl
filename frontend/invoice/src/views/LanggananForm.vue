@@ -110,7 +110,9 @@
                 placeholder="Deskripsi layanan/produk"
                 required
               />
-              <div class="grid grid-cols-3 gap-2">`n                <div>`n                  <label class="field-label">Qty</label>
+              <div class="grid grid-cols-3 gap-2">
+                <div>
+                  <label class="field-label">Qty</label>
                   <input
                     v-model="item.quantity"
                     class="field-input"
