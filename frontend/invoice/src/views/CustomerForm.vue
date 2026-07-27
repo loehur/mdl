@@ -1,11 +1,11 @@
 <template>
-  <div class="space-y-5 pb-6">
+  <div class="space-y-3 pb-4">
     <PageLoader v-if="loading" />
 
-    <section v-else class="glass-strong p-5">
-      <h2 class="section-title mb-4">{{ isEdit ? "Edit Pelanggan" : "Data Pelanggan" }}</h2>
+    <section v-else class="glass-strong p-3.5">
+      <h2 class="section-title mb-2.5">{{ isEdit ? "Edit Pelanggan" : "Data Pelanggan" }}</h2>
 
-      <form class="space-y-4" @submit.prevent="onSubmit">
+      <form class="space-y-2.5" @submit.prevent="onSubmit">
         <div>
           <label class="field-label">Nama / Perusahaan *</label>
           <input

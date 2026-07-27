@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-5 pb-6">
+  <div class="space-y-3 pb-4">
     <div class="flex gap-2">
       <input
         v-model="search"
@@ -44,7 +44,7 @@
       <div
         v-for="bill in filtered"
         :key="bill.id"
-        class="glass flex items-start justify-between gap-3 p-4"
+        class="glass flex items-start justify-between gap-2.5 p-3"
       >
         <router-link :to="`/langganan/edit/${bill.id}`" class="min-w-0 flex-1">
           <div class="flex items-center gap-2">

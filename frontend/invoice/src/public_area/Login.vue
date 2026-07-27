@@ -16,7 +16,7 @@
         </p>
       </div>
 
-      <div class="space-y-4">
+      <div class="space-y-2.5">
         <div class="hairline" />
         <div class="flex gap-8">
           <div>
@@ -32,15 +32,15 @@
       <div class="absolute right-10 bottom-20 h-40 w-40 rounded-full border border-ledger/15 bg-ledger/5 blur-sm" />
     </aside>
 
-    <div class="flex flex-1 items-center justify-center px-5 py-12">
+    <div class="flex flex-1 items-center justify-center px-4 py-8">
       <div class="w-full max-w-sm page-enter">
-        <div class="mb-10 lg:hidden">
+        <div class="mb-6 lg:hidden">
           <p class="label-caps text-ledger/80">Invoice</p>
           <h1 class="mt-2 font-display text-3xl font-bold tracking-tight text-pearl">Masuk</h1>
         </div>
 
-        <div class="glass-strong p-8">
-          <div class="mb-8 flex items-center gap-3">
+        <div class="glass-strong p-5">
+          <div class="mb-4 flex items-center gap-2.5">
             <div class="flex h-11 w-11 items-center justify-center rounded-2xl border border-ledger/20 bg-ledger/10">
               <svg class="h-5 w-5 text-ledger" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
                 <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Z" stroke-linejoin="round" />
@@ -53,7 +53,7 @@
             </div>
           </div>
 
-          <form class="space-y-5" @submit.prevent="onSubmit">
+          <form class="space-y-3" @submit.prevent="onSubmit">
             <div>
               <label class="field-label">Email</label>
               <input

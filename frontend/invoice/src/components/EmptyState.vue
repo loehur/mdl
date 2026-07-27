@@ -1,6 +1,6 @@
 <template>
   <div class="flex flex-col items-center justify-center py-16 text-center">
-    <div class="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-ink-200 bg-ink-100">
+    <div class="mb-2.5 flex h-14 w-14 items-center justify-center rounded-2xl border border-ink-200 bg-ink-100">
       <slot name="icon">
         <svg class="h-6 w-6 text-mist" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
           <circle cx="12" cy="12" r="9" />

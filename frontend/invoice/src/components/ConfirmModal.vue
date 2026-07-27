@@ -16,9 +16,9 @@
         >
           <div class="h-1.5 w-full" :class="accentBarClass" />
 
-          <div class="px-5 pb-5 pt-6 text-center">
+          <div class="px-4 pb-4 pt-4 text-center">
             <div
-              class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl"
+              class="mx-auto mb-2.5 flex h-14 w-14 items-center justify-center rounded-2xl"
               :class="iconWrapClass"
             >
               <!-- success / paid -->
@@ -42,12 +42,12 @@
               {{ message }}
             </p>
 
-            <div v-if="detail" class="mt-4 rounded-2xl border border-ink-200 bg-ink-100/80 px-4 py-3 text-left">
+            <div v-if="detail" class="mt-3 rounded-xl border border-ink-200 bg-ink-100/80 px-3 py-2 text-left">
               <p class="label-caps mb-1">Detail</p>
               <p class="text-sm font-semibold text-pearl">{{ detail }}</p>
             </div>
 
-            <div class="mt-6 flex gap-3">
+            <div class="mt-4 flex gap-2">
               <button
                 type="button"
                 class="btn-ghost flex-1"

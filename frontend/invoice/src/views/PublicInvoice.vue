@@ -2,7 +2,7 @@
   <div class="relative min-h-screen pb-10">
     <MeshBackground />
 
-    <div class="mx-auto max-w-md px-5 pt-8">
+    <div class="mx-auto max-w-md px-4 pt-5">
       <PageLoader v-if="loading" />
 
       <EmptyState
@@ -12,16 +12,16 @@
       />
 
       <template v-else>
-        <div class="page-enter mb-6 text-center">
+        <div class="page-enter mb-4 text-center">
           <p class="font-display text-2xl font-bold tracking-tight text-pearl">
             {{ invoice.issuer?.name || "Nalju Digital Solutions (NDS)" }}
           </p>
-          <h1 class="mt-3 text-base font-semibold text-mist">{{ invoice.invoice_number }}</h1>
+          <h1 class="mt-1.5 text-sm font-semibold text-mist">{{ invoice.invoice_number }}</h1>
           <p v-if="invoice.title" class="mt-1 font-semibold text-pearl">{{ invoice.title }}</p>
         </div>
 
-        <div class="glass-strong page-enter p-5">
-          <div class="mb-4 flex items-center justify-between">
+        <div class="glass-strong page-enter p-3.5">
+          <div class="mb-2.5 flex items-center justify-between">
             <div>
               <p class="text-sm text-mist">Kepada</p>
               <p class="font-bold text-pearl">{{ invoice.customer_name }}</p>
@@ -31,7 +31,7 @@
             </span>
           </div>
 
-          <div class="mb-4 grid grid-cols-2 gap-3 text-sm">
+          <div class="mb-2.5 grid grid-cols-2 gap-3 text-sm">
             <div>
               <p class="text-mist">Tanggal</p>
               <p class="font-semibold">{{ formatDate(invoice.issue_date) }}</p>
@@ -70,7 +70,7 @@
             </div>
           </div>
 
-          <div class="mt-4 space-y-1 border-t border-ink-200 pt-3">
+          <div class="mt-2.5 space-y-1 border-t border-ink-200 pt-3">
             <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 text-sm text-mist">
               <span>Subtotal</span>
               <span class="min-w-max whitespace-nowrap text-right tabular-nums">{{ formatRupiahDisplay(invoice.subtotal) }}</span>
@@ -100,17 +100,17 @@
             </p>
           </div>
 
-          <p v-if="invoice.notes" class="mt-4 whitespace-pre-wrap rounded-2xl bg-ink-100 p-3 text-sm text-mist">
+          <p v-if="invoice.notes" class="mt-2.5 whitespace-pre-wrap rounded-xl bg-ink-100 p-2.5 text-sm text-mist">
             {{ invoice.notes }}
           </p>
 
-          <div v-if="invoice.issuer?.phone || invoice.issuer?.address" class="mt-4 text-sm text-mist">
+          <div v-if="invoice.issuer?.phone || invoice.issuer?.address" class="mt-2.5 text-sm text-mist">
             <p v-if="invoice.issuer.phone">📞 {{ invoice.issuer.phone }}</p>
             <p v-if="invoice.issuer.address" class="mt-1 whitespace-pre-wrap">{{ invoice.issuer.address }}</p>
           </div>
         </div>
 
-        <div v-if="invoice.can_pay" class="mt-5 page-enter space-y-3">
+        <div v-if="invoice.can_pay" class="mt-3 page-enter space-y-2">
           <button class="btn-primary w-full" :disabled="paying" @click="startPayment">
             {{ paying ? "Memproses..." : `Bayar Rp ${formatRupiah(invoice.total)}` }}
           </button>
@@ -119,7 +119,7 @@
           </button>
         </div>
 
-        <div v-else class="mt-5 page-enter space-y-3">
+        <div v-else class="mt-3 page-enter space-y-2">
           <div
             v-if="invoice.payment_status === 'paid'"
             class="alert-success text-center"

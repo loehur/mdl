@@ -3,7 +3,7 @@
     <MeshBackground />
 
     <header class="app-header" :class="{ 'app-header--hidden': !headerVisible }">
-      <div class="mx-auto flex max-w-md items-center justify-between px-5 pt-4 pb-3">
+      <div class="mx-auto flex max-w-md items-center justify-between px-4 pt-2.5 pb-2">
         <div class="page-enter">
           <h1 class="page-title">{{ pageTitle }}</h1>
         </div>
@@ -19,7 +19,7 @@
 
     <div class="header-spacer" aria-hidden="true" />
 
-    <main class="mx-auto max-w-md px-5 pt-3">
+    <main class="mx-auto max-w-md px-4 pt-2">
       <router-view v-slot="{ Component, route }">
         <transition name="page">
           <component :is="Component" :key="route.path" />
@@ -182,7 +182,7 @@ async function logout() {
 }
 
 .header-spacer {
-  height: 5rem;
+  height: 3.5rem;
 }
 
 .page-enter-active,

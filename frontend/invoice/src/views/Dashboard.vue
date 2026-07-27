@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-5 pb-6">
+  <div class="space-y-3 pb-4">
     <PageLoader v-if="loading" />
 
     <template v-else>
@@ -36,8 +36,8 @@
         <router-link to="/riwayat" class="btn-ghost flex-1">Riwayat</router-link>
       </div>
 
-      <section v-if="summary.overdue?.length" class="glass-strong border border-debit-dim/20 p-5">
-        <div class="mb-4 flex items-center justify-between gap-3">
+      <section v-if="summary.overdue?.length" class="glass-strong border border-debit-dim/20 p-3.5">
+        <div class="mb-2.5 flex items-center justify-between gap-3">
           <h2 class="section-title text-debit-dim">Lewat Jatuh Tempo</h2>
           <span class="chip chip-out">{{ summary.overdue.length }}</span>
         </div>
@@ -65,8 +65,8 @@
         </div>
       </section>
 
-      <section class="glass-strong p-5">
-        <h2 class="section-title mb-4">Invoice Terbaru</h2>
+      <section class="glass-strong p-3.5">
+        <h2 class="section-title mb-2.5">Invoice Terbaru</h2>
 
         <EmptyState
           v-if="!summary.recent?.length"

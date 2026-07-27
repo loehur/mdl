@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-5 pb-6">
+  <div class="space-y-3 pb-4">
     <div class="flex gap-2">
       <input v-model="month" class="field-input flex-1" type="month" @change="loadList" />
       <select v-model="statusFilter" class="field-input w-36" @change="loadList">
@@ -23,7 +23,7 @@
         v-for="inv in invoices"
         :key="inv.id"
         :to="`/detail/${inv.id}`"
-        class="glass block p-4 transition hover:border-ledger/30"
+        class="glass block p-3 transition hover:border-ledger/30"
       >
         <div class="flex items-start justify-between gap-3">
             <div>

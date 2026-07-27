@@ -1,12 +1,12 @@
 <template>
-  <div class="space-y-5 pb-6">
+  <div class="space-y-3 pb-4">
     <PageLoader v-if="loading" />
 
     <template v-else>
-      <section class="glass-strong p-5">
-        <h2 class="section-title mb-4">Data Langganan</h2>
+      <section class="glass-strong p-3.5">
+        <h2 class="section-title mb-2.5">Data Langganan</h2>
 
-        <form class="space-y-4" @submit.prevent="onSubmit">
+        <form class="space-y-2.5" @submit.prevent="onSubmit">
           <div>
             <label class="field-label">Pilih Pelanggan *</label>
             <CustomerSelect v-model="form.customer_id" :options="customers" />
@@ -69,7 +69,7 @@
             />
           </div>
 
-          <label class="flex items-center gap-3 rounded-2xl border border-ink-200 bg-ink-50 p-4">
+          <label class="flex items-center gap-3 rounded-xl border border-ink-200 bg-ink-50 p-3">
             <input
               v-model="form.is_active"
               type="checkbox"
@@ -80,17 +80,17 @@
         </form>
       </section>
 
-      <section class="glass-strong p-5">
-        <div class="mb-4 flex items-center justify-between">
+      <section class="glass-strong p-3.5">
+        <div class="mb-2.5 flex items-center justify-between">
           <h2 class="section-title">Item Tagihan</h2>
           <button type="button" class="btn-ghost px-3 py-2 text-sm" @click="addItem">+ Item</button>
         </div>
 
-        <div class="space-y-4">
+        <div class="space-y-2.5">
           <div
             v-for="(item, idx) in form.items"
             :key="idx"
-            class="rounded-2xl border border-ink-200 bg-ink-50 p-4"
+            class="rounded-xl border border-ink-200 bg-ink-50 p-3"
           >
             <div class="mb-3 flex items-center justify-between">
               <span class="text-sm font-semibold text-mist">Item {{ idx + 1 }}</span>
@@ -110,9 +110,7 @@
                 placeholder="Deskripsi layanan/produk"
                 required
               />
-              <div class="grid grid-cols-3 gap-3">
-                <div>
-                  <label class="field-label">Qty</label>
+              <div class="grid grid-cols-3 gap-2">`n                <div>`n                  <label class="field-label">Qty</label>
                   <input
                     v-model="item.quantity"
                     class="field-input"
@@ -157,7 +155,7 @@
           </div>
         </div>
 
-        <div class="mt-4 space-y-1 rounded-2xl bg-ledger/5 p-4">
+        <div class="mt-2.5 space-y-1 rounded-xl bg-ledger/5 p-3">
           <div v-if="totalUsdGuide > 0" class="flex justify-between text-sm text-mist">
             <span>Pedoman USD</span>
             <span>$ {{ formatUsd(totalUsdGuide) }}</span>
@@ -188,7 +186,7 @@
           />
         </div>
 
-        <button class="btn-primary mt-5 w-full" :disabled="saving" @click="onSubmit">
+        <button class="btn-primary mt-3 w-full" :disabled="saving" @click="onSubmit">
           {{ saving ? "Menyimpan..." : "Simpan Perubahan" }}
         </button>
 

@@ -1,9 +1,9 @@
 <template>
-  <div class="space-y-5 pb-6">
+  <div class="space-y-3 pb-4">
     <PageLoader v-if="loading" />
 
     <template v-else-if="invoice">
-      <div class="glass-strong p-5">
+      <div class="glass-strong p-3.5">
         <div class="flex items-start justify-between">
           <div>
             <p class="label-caps">Invoice</p>
@@ -16,7 +16,7 @@
           </span>
         </div>
 
-        <div class="mt-4 grid grid-cols-2 gap-3 text-sm">
+        <div class="mt-2.5 grid grid-cols-2 gap-2 text-sm">
           <div>
             <p class="text-mist">Tanggal</p>
             <p class="font-semibold text-pearl">{{ formatDate(invoice.issue_date) }}</p>
@@ -29,7 +29,7 @@
 
         <div
           v-if="invoice.recurring?.enabled"
-          class="mt-4 rounded-2xl border border-ledger/30 bg-ledger/5 px-4 py-3 text-sm"
+          class="mt-2.5 rounded-xl border border-ledger/30 bg-ledger/5 px-3 py-2 text-sm"
         >
           <p class="font-semibold text-ledger-dim">Tagihan berulang aktif</p>
           <p class="mt-1 text-mist">
@@ -46,10 +46,10 @@
 
       <section
         v-if="needsCustomer"
-        class="glass-strong border border-ledger/30 p-5"
+        class="glass-strong border border-ledger/30 p-3.5"
       >
         <h3 class="section-title mb-2">Set Pelanggan</h3>
-        <p class="mb-4 text-sm text-mist">
+        <p class="mb-2 text-sm text-mist">
           Invoice lama ini belum terhubung ke master pelanggan. Pilih pelanggan agar data tersinkron.
         </p>
 
@@ -69,7 +69,7 @@
           />
 
           <button
-            class="btn-primary mt-4 w-full"
+            class="btn-primary mt-2.5 w-full"
             :disabled="settingCustomer || !selectedCustomerId"
             @click="setCustomer"
           >
@@ -78,8 +78,8 @@
         </template>
       </section>
 
-      <section class="glass-strong p-5">
-        <h3 class="section-title mb-3">Item</h3>
+      <section class="glass-strong p-3.5">
+        <h3 class="section-title mb-2">Item</h3>
         <div class="space-y-3">
           <div
             v-for="item in invoice.items"
@@ -106,7 +106,7 @@
           </div>
         </div>
 
-        <div class="mt-4 space-y-1 border-t border-ink-200 pt-3">
+        <div class="mt-2.5 space-y-1 border-t border-ink-200 pt-3">
           <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 text-sm text-mist">
             <span>Subtotal</span>
             <span class="min-w-max whitespace-nowrap text-right tabular-nums">{{ formatRupiahDisplay(invoice.subtotal) }}</span>
@@ -131,15 +131,15 @@
         </div>
       </section>
 
-      <section v-if="invoice.notes" class="glass-strong p-5">
-        <h3 class="section-title mb-3">Catatan</h3>
+      <section v-if="invoice.notes" class="glass-strong p-3.5">
+        <h3 class="section-title mb-2">Catatan</h3>
         <p class="whitespace-pre-wrap text-sm text-mist">{{ invoice.notes }}</p>
       </section>
 
-      <section v-if="invoice.status !== 'cancelled'" class="glass-strong p-5">
-        <h3 class="section-title mb-3">Bagikan Invoice</h3>
+      <section v-if="invoice.status !== 'cancelled'" class="glass-strong p-3.5">
+        <h3 class="section-title mb-2">Bagikan Invoice</h3>
         <p class="mb-3 text-sm text-mist">Salin teks berikut dan kirim ke pelanggan:</p>
-        <pre class="whitespace-pre-wrap break-all rounded-2xl border border-ink-200 bg-ink-50 p-4 text-sm text-pearl">{{ invoice.share_text }}</pre>
+        <pre class="whitespace-pre-wrap break-all rounded-xl border border-ink-200 bg-ink-50 p-3 text-sm text-pearl">{{ invoice.share_text }}</pre>
         <div class="mt-3 flex gap-3">
           <button class="btn-primary flex-1" @click="copyShareText">
             {{ copied ? "Tersalin!" : "Salin Teks" }}
