@@ -1104,8 +1104,7 @@ class WhatsAppService
     }
 
     /**
-     * Cek apakah teks mengandung WA_PRIVATE_WORDS (kode otp, salary slip, gaji cash).
-     * Dengan logging lengkap dan fallback jika Env class tidak ter-load.
+     * Cek apakah teks mengandung WA_PRIVATE_WORDS (via EnvHelper).
      * @param string $content
      * @param string|null $messageText
      * @param string|null $lastMessageText
@@ -1115,62 +1114,21 @@ class WhatsAppService
      */
     private function checkPrivateWords($content, $messageText, $lastMessageText, $context = '', $extraText = '')
     {
-        $words = ['kode otp', 'salary slip', 'gaji cash', 'gaji tf', 'gaji transfer', 'gaji_tf'];
         $textsToCheck = array_filter([$content, $messageText, $lastMessageText, $extraText], function ($t) {
             return $t !== null && $t !== '';
         });
 
-        $isPrivate = false;
-        $envLoaded = false;
-        $envClass = null;
-
         try {
-            // 1. Coba load Env jika belum ada (global namespace)
-            if (!class_exists('\Env', false)) {
-                $envPath = __DIR__ . '/../Config/Env.php';
-                if (file_exists($envPath)) {
-                    require_once $envPath;
+            foreach ($textsToCheck as $t) {
+                if (\EnvHelper::textContainsPrivateWord($t)) {
+                    return true;
                 }
             }
-            $envLoaded = class_exists('\Env', false);
-            $envClass = $envLoaded ? '\Env' : 'NOT_FOUND';
-
-            if ($envLoaded && method_exists('\Env', 'textContainsPrivateWord')) {
-                foreach ($textsToCheck as $t) {
-                    if (\Env::textContainsPrivateWord($t)) {
-                        $isPrivate = true;
-                        break;
-                    }
-                }
-            } else {
-                // 2. Fallback: inline check (tidak tergantung Env)
-                $lower = function ($s) {
-                    return mb_strtolower((string) $s);
-                };
-                foreach ($textsToCheck as $t) {
-                    $tLower = $lower($t);
-                    foreach ($words as $w) {
-                        if ($w !== '' && mb_strpos($tLower, $lower($w)) !== false) {
-                            $isPrivate = true;
-                            break 2;
-                        }
-                    }
-                }
-            }
-
         } catch (\Throwable $e) {
             \Log::write("WA_PRIVATE check ERROR: " . $e->getMessage(), 'wa_error', 'Private');
-            // Fallback inline on error
-            $tLower = mb_strtolower((string) $content . (string) $messageText . (string) $lastMessageText);
-            foreach ($words as $w) {
-                if ($w !== '' && mb_strpos($tLower, mb_strtolower($w)) !== false) {
-                    $isPrivate = true;
-                    break;
-                }
-            }
         }
 
-        return $isPrivate;
+        return false;
     }
     
 

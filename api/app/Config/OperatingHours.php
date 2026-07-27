@@ -1,32 +1,9 @@
 <?php
 /**
- * Operating Hours Configuration
- * 
- * Konfigurasi jam kerja untuk auto-reply WhatsApp
- * 
- * CARA SETUP:
- * 1. Buka file Config/Env.php
- * 2. Tambahkan konstanta OPERATING_HOURS seperti contoh di bawah
- * 3. Ubah nilai sesuai kebutuhan
- * 
- * Jika tidak ada di Env.php, akan menggunakan default values di bawah
+ * Jam operasional untuk auto-reply WhatsApp.
+ * Edit nilai di bawah sesuai kebutuhan (bukan via Env.php).
  */
 
-// Load Env.php to get constants
-$envFile = __DIR__ . '/Env.php';
-if (file_exists($envFile)) {
-    require_once $envFile;
-}
-
-// Check if OPERATING_HOURS constant exists (defined in Env.php)
-$envHours = [];
-if (defined('OPERATING_HOURS')) {
-    $envHours = OPERATING_HOURS;
-} elseif (defined('Env::operating_hours')) {
-    $envHours = Env::operating_hours;
-}
-
-// Define function BEFORE return (dipanggil di 'holidays' array)
 if (!function_exists('expandHolidayRanges')) {
     function expandHolidayRanges(array $ranges): array
     {
@@ -34,7 +11,9 @@ if (!function_exists('expandHolidayRanges')) {
         foreach ($ranges as $range) {
             $start = $range['start'] ?? $range[0] ?? null;
             $end = $range['end'] ?? $range[1] ?? null;
-            if (!$start || !$end) continue;
+            if (!$start || !$end) {
+                continue;
+            }
             try {
                 $current = new \DateTime($start);
                 $endDate = new \DateTime($end);
@@ -42,30 +21,30 @@ if (!function_exists('expandHolidayRanges')) {
                     $dates[] = $current->format('Y-m-d');
                     $current->modify('+1 day');
                 }
-            } catch (\Exception $e) {}
+            } catch (\Exception $e) {
+            }
         }
         return $dates;
     }
 }
 
-// Default configuration (will be overridden by Env.php if set)
+$holiday_ranges = [
+    ['start' => '2026-01-01', 'end' => '2026-01-01'], // Tahun Baru
+];
+
 return [
-    // Jam buka (24-hour format)
-    'open_hour' => $envHours['open_hour'] ?? 7,
-    'open_minute' => $envHours['open_minute'] ?? 0,
-    
-    // Jam tutup (24-hour format)
-    'close_hour' => $envHours['close_hour'] ?? 21,
-    'close_minute' => $envHours['close_minute'] ?? 0,
-    
-    // Hari kerja (1 = Monday, 7 = Sunday)
-    'working_days' => $envHours['working_days'] ?? [1, 2, 3, 4, 5, 6, 7],
-    
-    // Timezone
-    'timezone' => $envHours['timezone'] ?? 'Asia/Jakarta',
-    
-    // Hari libur (hanya dari holiday_ranges, di-expand untuk cek tanggal)
-    'holidays' => array_values(array_unique(expandHolidayRanges($envHours['holiday_ranges'] ?? []))),
-    // Rentang libur asli (untuk format display yang benar saat beda bulan)
-    'holiday_ranges' => $envHours['holiday_ranges'] ?? [],
+    // Jam buka / tutup (24-hour)
+    'open_hour' => 7,
+    'open_minute' => 0,
+    'close_hour' => 21,
+    'close_minute' => 0,
+
+    // 1 = Senin … 7 = Minggu
+    'working_days' => [1, 2, 3, 4, 5, 6, 7],
+
+    'timezone' => 'Asia/Jakarta',
+
+    // Expanded dates (cek tanggal) + rentang asli (display lintas bulan)
+    'holidays' => array_values(array_unique(expandHolidayRanges($holiday_ranges))),
+    'holiday_ranges' => $holiday_ranges,
 ];

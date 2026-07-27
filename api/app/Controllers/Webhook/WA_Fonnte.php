@@ -105,11 +105,10 @@ class WA_Fonnte extends Controller
 
             $lastMessageSummary = $messageText;
             $isPrivateForLastMessage = false;
-            if (!class_exists('\Env')) {
-                require_once __DIR__ . '/../../Config/Env.php';
-            }
-            if (class_exists('\Env') && method_exists('\Env', 'textContainsPrivateWord')) {
-                $isPrivateForLastMessage = \Env::textContainsPrivateWord($lastMessageSummary ?? '');
+            try {
+                $isPrivateForLastMessage = \EnvHelper::textContainsPrivateWord($lastMessageSummary ?? '');
+            } catch (\Throwable $e) {
+                // Jangan gagalkan simpan chat jika cek private error
             }
             $lastMessage = $isPrivateForLastMessage
                 ? 'i- 🔒 _Private Chat_'

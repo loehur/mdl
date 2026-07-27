@@ -112,8 +112,9 @@ if (session_status() === PHP_SESSION_NONE) {
 
 // Load Environment Configuration
 require_once __DIR__ . '/Config/Env.php';
+require_once __DIR__ . '/Helpers/EnvHelper.php';
 
-if (Env::isDev()) {
+if (EnvHelper::isDev()) {
     ini_set('display_errors', 1);
     ini_set('display_startup_errors', 1);
     error_reporting(E_ALL);
