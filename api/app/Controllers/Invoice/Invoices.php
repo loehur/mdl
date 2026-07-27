@@ -68,13 +68,10 @@ class Invoices extends InvoiceController
             $user = $this->currentUser();
             $publicUrl = $this->buildPublicUrl($invoice['public_token']);
 
-            $data = $this->formatInvoice($invoice, $items, [
-                'name' => $user['business_name'] ?: $user['name'],
-                'phone' => $user['business_phone'] ?? '',
-                'address' => $user['business_address'] ?? '',
-            ]);
+            $issuer = $this->buildIssuerPayload($user);
+            $data = $this->formatInvoice($invoice, $items, $issuer);
             $data['public_url'] = $publicUrl;
-            $data['share_text'] = $this->buildShareText($invoice, $publicUrl);
+            $data['share_text'] = $this->buildShareText($invoice, $publicUrl, $issuer['name']);
             $data['recurring'] = $this->getRecurringInfoForInvoice($invoice);
 
             $this->success($data, 'Detail invoice');
@@ -141,13 +138,10 @@ class Invoices extends InvoiceController
             $user = $this->currentUser();
             $publicUrl = $this->buildPublicUrl($publicToken);
 
-            $data = $this->formatInvoice($invoice, $items, [
-                'name' => $user['business_name'] ?: $user['name'],
-                'phone' => $user['business_phone'] ?? '',
-                'address' => $user['business_address'] ?? '',
-            ]);
+            $issuer = $this->buildIssuerPayload($user);
+            $data = $this->formatInvoice($invoice, $items, $issuer);
             $data['public_url'] = $publicUrl;
-            $data['share_text'] = $this->buildShareText($invoice, $publicUrl);
+            $data['share_text'] = $this->buildShareText($invoice, $publicUrl, $issuer['name']);
             $data['recurring'] = $recurringInfo;
 
             $this->success($data, 'Invoice berhasil dibuat');
@@ -236,13 +230,10 @@ class Invoices extends InvoiceController
             $user = $this->currentUser();
             $publicUrl = $this->buildPublicUrl($updated['public_token']);
 
-            $data = $this->formatInvoice($updated, $items, [
-                'name' => $user['business_name'] ?: $user['name'],
-                'phone' => $user['business_phone'] ?? '',
-                'address' => $user['business_address'] ?? '',
-            ]);
+            $issuer = $this->buildIssuerPayload($user);
+            $data = $this->formatInvoice($updated, $items, $issuer);
             $data['public_url'] = $publicUrl;
-            $data['share_text'] = $this->buildShareText($updated, $publicUrl);
+            $data['share_text'] = $this->buildShareText($updated, $publicUrl, $issuer['name']);
             $data['recurring'] = $recurringInfo;
 
             $this->success($data, 'Invoice berhasil diperbarui');
@@ -310,13 +301,10 @@ class Invoices extends InvoiceController
             $user = $this->currentUser();
             $publicUrl = $this->buildPublicUrl($updated['public_token']);
 
-            $data = $this->formatInvoice($updated, $items, [
-                'name' => $user['business_name'] ?: $user['name'],
-                'phone' => $user['business_phone'] ?? '',
-                'address' => $user['business_address'] ?? '',
-            ]);
+            $issuer = $this->buildIssuerPayload($user);
+            $data = $this->formatInvoice($updated, $items, $issuer);
             $data['public_url'] = $publicUrl;
-            $data['share_text'] = $this->buildShareText($updated, $publicUrl);
+            $data['share_text'] = $this->buildShareText($updated, $publicUrl, $issuer['name']);
 
             $this->success($data, 'Pelanggan berhasil dihubungkan ke invoice');
         } catch (\Throwable $e) {

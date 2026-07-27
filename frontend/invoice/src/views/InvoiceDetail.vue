@@ -129,6 +129,14 @@
           </button>
           <button class="btn-ghost flex-1" @click="copyLink">Salin Link</button>
         </div>
+        <button
+          class="btn-ghost mt-3 w-full"
+          type="button"
+          :disabled="downloadingPdf"
+          @click="onDownloadPdf"
+        >
+          {{ downloadingPdf ? "Menyiapkan PDF..." : "Unduh PDF" }}
+        </button>
       </section>
 
       <div v-if="invoice.status === 'cancelled'" class="alert border-mist/30 bg-ink-100 text-mist">
@@ -203,6 +211,7 @@ const router = useRouter();
 const loading = ref(true);
 const invoice = ref(null);
 const copied = ref(false);
+const downloadingPdf = ref(false);
 const message = ref("");
 const isError = ref(false);
 const actionLoading = ref(false);
@@ -374,6 +383,24 @@ async function copyLink() {
     message.value = "Gagal menyalin link";
     isError.value = true;
   }
+}
+
+function onDownloadPdf() {
+  if (!invoice.value || downloadingPdf.value) return;
+  downloadingPdf.value = true;
+  import("../utils/invoicePdf")
+    .then(({ downloadInvoicePdf }) => {
+      downloadInvoicePdf(invoice.value);
+      message.value = "PDF berhasil diunduh";
+      isError.value = false;
+    })
+    .catch(() => {
+      message.value = "Gagal membuat PDF";
+      isError.value = true;
+    })
+    .finally(() => {
+      downloadingPdf.value = false;
+    });
 }
 
 async function runConfirmedAction() {

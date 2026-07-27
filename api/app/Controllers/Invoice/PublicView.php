@@ -36,7 +36,7 @@ class PublicView extends InvoiceController
             $items = $this->getInvoiceItems((int) $invoice['id']);
 
             $issuer = [
-                'name' => $invoice['business_name'] ?: $invoice['issuer_name'],
+                'name' => $this->resolveIssuerName($invoice['business_name'] ?? null),
                 'phone' => $invoice['business_phone'] ?? '',
                 'address' => $invoice['business_address'] ?? '',
             ];

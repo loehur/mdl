@@ -13,9 +13,11 @@
 
       <template v-else>
         <div class="page-enter mb-6 text-center">
-          <h1 class="page-title mt-2">{{ invoice.invoice_number }}</h1>
+          <p class="font-display text-2xl font-bold tracking-tight text-pearl">
+            {{ invoice.issuer?.name || "Nalju Digital Solutions (NDS)" }}
+          </p>
+          <h1 class="mt-3 text-base font-semibold text-mist">{{ invoice.invoice_number }}</h1>
           <p v-if="invoice.title" class="mt-1 font-semibold text-pearl">{{ invoice.title }}</p>
-          <p class="mt-1 text-sm text-mist">Dari {{ invoice.issuer?.name }}</p>
         </div>
 
         <div class="glass-strong page-enter p-5">
@@ -85,14 +87,25 @@
           </div>
         </div>
 
-        <div v-if="invoice.can_pay" class="mt-5 page-enter">
+        <div v-if="invoice.can_pay" class="mt-5 page-enter space-y-3">
           <button class="btn-primary w-full" :disabled="paying" @click="startPayment">
             {{ paying ? "Memproses..." : `Bayar Rp ${formatRupiah(invoice.total)}` }}
           </button>
+          <button class="btn-ghost w-full" type="button" :disabled="downloading" @click="onDownloadPdf">
+            {{ downloading ? "Menyiapkan PDF..." : "Unduh PDF / Cetak" }}
+          </button>
         </div>
 
-        <div v-else-if="invoice.payment_status === 'paid'" class="mt-5">
-          <div class="alert-success text-center">Invoice ini sudah lunas. Terima kasih!</div>
+        <div v-else class="mt-5 page-enter space-y-3">
+          <div
+            v-if="invoice.payment_status === 'paid'"
+            class="alert-success text-center"
+          >
+            Invoice ini sudah lunas. Terima kasih!
+          </div>
+          <button class="btn-ghost w-full" type="button" :disabled="downloading" @click="onDownloadPdf">
+            {{ downloading ? "Menyiapkan PDF..." : "Unduh PDF / Cetak" }}
+          </button>
         </div>
 
         <AlertBanner class="mt-4" :message="message" :type="isError ? 'error' : 'success'" />
@@ -163,6 +176,7 @@ const loading = ref(true);
 const invoice = ref(null);
 const paying = ref(false);
 const checking = ref(false);
+const downloading = ref(false);
 const showPaymentModal = ref(false);
 const paymentData = ref(null);
 const paymentSuccess = ref(false);
@@ -258,6 +272,25 @@ function closePaymentModal() {
   if (paymentSuccess.value) {
     loadInvoice();
   }
+}
+
+function onDownloadPdf() {
+  if (!invoice.value || downloading.value) return;
+  downloading.value = true;
+  message.value = "";
+  isError.value = false;
+  import("../utils/invoicePdf")
+    .then(({ downloadInvoicePdf }) => {
+      downloadInvoicePdf(invoice.value);
+      message.value = "PDF berhasil diunduh";
+    })
+    .catch(() => {
+      message.value = "Gagal membuat PDF";
+      isError.value = true;
+    })
+    .finally(() => {
+      downloading.value = false;
+    });
 }
 
 onMounted(loadInvoice);

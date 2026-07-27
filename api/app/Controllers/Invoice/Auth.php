@@ -42,6 +42,10 @@ class Auth extends InvoiceController
 
             unset($user['password']);
 
+            if (empty($user['business_name'])) {
+                $user['business_name'] = $this->defaultBusinessName;
+            }
+
             $this->establishSession($user);
             $this->extendSession();
             $token = $this->issueAuthToken((int) $user['id']);

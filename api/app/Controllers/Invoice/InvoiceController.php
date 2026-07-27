@@ -10,6 +10,7 @@ abstract class InvoiceController extends BaseController
     protected $session_key = 'invoice_user_session';
     protected $token_cookie = 'invoice_token';
     protected $token_lifetime = 604800;
+    protected $defaultBusinessName = 'Nalju Digital Solutions (NDS)';
 
     public function __construct()
     {
@@ -84,7 +85,7 @@ abstract class InvoiceController extends BaseController
                 'id' => (int) $row['id'],
                 'name' => $row['name'],
                 'email' => $row['email'],
-                'business_name' => $row['business_name'],
+                'business_name' => $this->resolveIssuerName($row['business_name'] ?? null),
                 'business_phone' => $row['business_phone'],
                 'business_address' => $row['business_address'],
             ];
@@ -307,7 +308,26 @@ abstract class InvoiceController extends BaseController
         }, $rows);
     }
 
-    protected function buildShareText(array $invoice, string $publicUrl): string
+    protected function resolveIssuerName(?string $businessName): string
+    {
+        $name = trim((string) $businessName);
+        return $name !== '' ? $name : $this->defaultBusinessName;
+    }
+
+    /**
+     * @param array<string, mixed> $user
+     * @return array{name: string, phone: string, address: string}
+     */
+    protected function buildIssuerPayload(array $user): array
+    {
+        return [
+            'name' => $this->resolveIssuerName($user['business_name'] ?? null),
+            'phone' => (string) ($user['business_phone'] ?? ''),
+            'address' => (string) ($user['business_address'] ?? ''),
+        ];
+    }
+
+    protected function buildShareText(array $invoice, string $publicUrl, ?string $issuerName = null): string
     {
         $total = number_format((float) $invoice['total'], 0, ',', '.');
         $date = !empty($invoice['issue_date'])
@@ -315,8 +335,11 @@ abstract class InvoiceController extends BaseController
             : '-';
         $title = trim((string) ($invoice['title'] ?? ''));
         $customerName = trim((string) ($invoice['customer_name'] ?? ''));
+        $brand = $this->resolveIssuerName($issuerName);
 
-        return "INVOICE PEMBAYARAN\n"
+        return "*{$brand}*\n"
+            . "INVOICE PEMBAYARAN\n"
+            . "\n"
             . "Halo *{$customerName}*,\n"
             . "Berikut rincian tagihan *{$title}*,\n"
             . "\n"
@@ -327,7 +350,8 @@ abstract class InvoiceController extends BaseController
             . "Lihat & bayar invoice:\n"
             . "{$publicUrl}\n"
             . "\n"
-            . "Terima kasih";
+            . "Terima kasih\n"
+            . "_{$brand}_";
     }
 
     protected function advanceIssueDate(string $issueDate, string $period): string
