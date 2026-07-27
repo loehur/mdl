@@ -77,10 +77,24 @@ const IconHistory = () =>
     h("path", { d: "M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01", strokeLinecap: "round" }),
   ]);
 
+const IconLangganan = () =>
+  h("svg", iconProps, [
+    h("path", {
+      d: "M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2H4V7Z",
+      strokeLinejoin: "round",
+    }),
+    h("path", {
+      d: "M4 11h16v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-6Z",
+      strokeLinejoin: "round",
+    }),
+    h("path", { d: "M8 15h4", strokeLinecap: "round" }),
+  ]);
+
 const navItems = [
   { path: "/dashboard", label: "Home", icon: IconHome },
   { path: "/buat", label: "Buat", icon: IconCreate },
   { path: "/pelanggan", label: "Pelanggan", icon: IconCustomers },
+  { path: "/langganan", label: "Langganan", icon: IconLangganan },
   { path: "/riwayat", label: "Riwayat", icon: IconHistory },
 ];
 
@@ -89,6 +103,7 @@ const titles = {
   "/buat": "Buat Invoice",
   "/pelanggan": "Pelanggan",
   "/pelanggan/buat": "Tambah Pelanggan",
+  "/langganan": "Langganan",
   "/riwayat": "Riwayat",
 };
 
@@ -96,6 +111,7 @@ function isNavActive(path, itemPath) {
   if (path === itemPath) return true;
   if (itemPath === "/riwayat" && (path.startsWith("/detail") || path.startsWith("/edit"))) return true;
   if (itemPath === "/pelanggan" && path.startsWith("/pelanggan")) return true;
+  if (itemPath === "/langganan" && path.startsWith("/langganan")) return true;
   return false;
 }
 
@@ -103,6 +119,7 @@ const pageTitle = computed(() => {
   if (route.path.startsWith("/detail")) return "Detail Invoice";
   if (route.path.startsWith("/edit")) return "Edit Invoice";
   if (route.path.startsWith("/pelanggan/edit")) return "Edit Pelanggan";
+  if (route.path.startsWith("/langganan/edit")) return "Edit Langganan";
   return titles[route.path] || "Invoice";
 });
 
