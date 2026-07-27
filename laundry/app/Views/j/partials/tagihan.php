@@ -116,7 +116,8 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
           <div class="j-item-id">#<?= (int) $it['id'] ?></div>
           <strong><?= htmlspecialchars($it['kategori'] ?: 'Item') ?></strong>
           <div class="j-item-meta">
-            <?= htmlspecialchars($it['durasi']) ?> · <?= htmlspecialchars($it['qty_show']) ?>
+            <span class="<?= !empty($it['durasi_urgent']) ? 'j-durasi-urgent' : '' ?>"><?= htmlspecialchars($it['durasi']) ?></span>
+            · <?= htmlspecialchars($it['qty_show']) ?>
           </div>
         </div>
         <div class="j-item-checks">
@@ -309,7 +310,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
         <div class="j-preview-line">
           <span>
             <?= htmlspecialchars($it['kategori'] ?: 'Item') ?>
-            <small><?= htmlspecialchars($it['durasi']) ?> · <?= htmlspecialchars($it['qty_show']) ?><?= !empty($it['member']) ? ' · Member' : '' ?></small>
+            <small><span class="<?= !empty($it['durasi_urgent']) ? 'j-durasi-urgent' : '' ?>"><?= htmlspecialchars($it['durasi']) ?></span> · <?= htmlspecialchars($it['qty_show']) ?><?= !empty($it['member']) ? ' · Member' : '' ?></small>
           </span>
           <span>
             <?php if (!empty($it['member'])) { ?>

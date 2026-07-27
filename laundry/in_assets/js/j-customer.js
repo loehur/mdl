@@ -222,7 +222,9 @@
       })
       .then(function (data) {
         if (!data || !data.ok) {
-          throw new Error((data && data.message) || 'Gagal topup');
+          var err = new Error((data && data.message) || 'Gagal topup');
+          err.go = data && data.go ? data.go : '';
+          throw err;
         }
         toast(data.message || 'Berhasil', 'ok');
         var go = data.go === 'paket' ? 'paket' : 'tagihan';
@@ -231,6 +233,9 @@
       .catch(function (err) {
         toast((err && err.message) || 'Gagal topup', 'warn');
         btn.disabled = false;
+        if (err && err.go === 'tagihan') {
+          loadPage('tagihan', '', true);
+        }
       });
   }
 

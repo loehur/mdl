@@ -61,6 +61,22 @@ class J extends Controller
       $harga = $this->resolveHargaPaketUnit($paket);
       $idCabang = (int) $this->id_cabang_p;
 
+      // Limit spam: max 2 topup belum lunas (paket berbayar)
+      if ((float) $harga > 0) {
+         $unpaidCount = (int) ($this->db(0)->count_where(
+            'member',
+            "id_cabang = $idCabang AND id_pelanggan = $pelanggan AND bin = 0 AND lunas = 0"
+         ) ?? 0);
+         if ($unpaidCount >= 2) {
+            echo json_encode([
+               'ok' => false,
+               'message' => 'Maksimal 2 topup belum lunas. Bayar atau batalkan dulu di Tagihan.',
+               'go' => 'tagihan',
+            ]);
+            return;
+         }
+      }
+
       $today = date('Y-m-d');
       $dupWhere = "id_cabang = $idCabang AND id_pelanggan = $pelanggan AND id_harga = $idHarga AND qty = $qty AND insertTime LIKE '" . $today . "%' AND bin = 0";
       $dupCount = (int) ($this->db(0)->count_where('member', $dupWhere) ?? 0);
@@ -360,10 +376,21 @@ class J extends Controller
          ];
       }
 
+      $maxUnpaid = 2;
+      $unpaidCount = (int) ($this->db(0)->count_where(
+         'member',
+         'id_cabang = ' . (int) $this->id_cabang_p
+            . ' AND id_pelanggan = ' . (int) $pelanggan
+            . ' AND bin = 0 AND lunas = 0'
+      ) ?? 0);
+
       return [
          'filterIdHarga' => $idHargaFilter,
          'catalog' => $items,
          'pelangganId' => (int) $pelanggan,
+         'maxUnpaid' => $maxUnpaid,
+         'unpaidCount' => $unpaidCount,
+         'topupBlocked' => $unpaidCount >= $maxUnpaid,
       ];
    }
 
@@ -572,6 +599,10 @@ class J extends Controller
          $satuan = $mapSatuan[$a['id_penjualan_jenis']] ?? '';
          $kategori = $mapKategori[$a['id_item_group']] ?? '';
          $durasi = strtoupper($mapDurasi[$a['id_durasi']] ?? '');
+         $hari = (int) ($a['hari'] ?? 0);
+         $jam = (int) ($a['jam'] ?? 0);
+         // Durasi layanan di bawah 2 hari → highlight merah
+         $durasiUrgent = (($hari * 24) + $jam) < 48;
 
          $layananList = [];
          $listLay = @unserialize($a['list_layanan']);
@@ -608,6 +639,7 @@ class J extends Controller
             'id' => $a['id_penjualan'],
             'kategori' => $kategori,
             'durasi' => $durasi,
+            'durasi_urgent' => $durasiUrgent,
             'qty_show' => $this->fmtDecMax2($qty) . $satuan . ($qty < $min ? ' (Min.' . $this->fmtDecMax2($min) . ')' : ''),
             'total' => $line,
             'total_asli' => $totalAsli,

@@ -4,6 +4,9 @@ $id = (int) $p['id_pelanggan'];
 $base = $data['base'];
 $filter = (int) ($data['filterIdHarga'] ?? 0);
 $catalog = $data['catalog'] ?? [];
+$unpaidCount = (int) ($data['unpaidCount'] ?? 0);
+$maxUnpaid = (int) ($data['maxUnpaid'] ?? 2);
+$blocked = !empty($data['topupBlocked']);
 $backHref = $filter > 0
    ? $base . 'J/paketDetail/' . $id . '/' . $filter
    : $base . 'J/paket/' . $id;
@@ -23,12 +26,24 @@ $subtitle = $filter > 0
   </div>
   <p style="margin:0 0 12px;font-size:0.82rem;color:var(--j-muted)"><?= htmlspecialchars($subtitle) ?></p>
 
-  <?php if (empty($catalog)) { ?>
+  <?php if ($blocked) { ?>
+    <div class="j-empty">
+      <b>Batas topup belum lunas</b>
+      Anda punya <?= $unpaidCount ?>/<?= $maxUnpaid ?> topup belum dibayar.
+      Bayar atau batalkan dulu di Tagihan sebelum menambah lagi.
+      <div style="margin-top:14px">
+        <a href="<?= $base ?>J/tagihan/<?= $id ?>" class="j-btn j-btn-primary">Ke Tagihan</a>
+      </div>
+    </div>
+  <?php } elseif (empty($catalog)) { ?>
     <div class="j-empty">
       <b>Belum ada opsi topup</b>
       Paket topup belum tersedia<?= $filter > 0 ? ' untuk M' . $filter : '' ?>.
     </div>
   <?php } else { ?>
+    <p style="margin:0 0 10px;font-size:0.75rem;color:var(--j-muted)">
+      Topup belum lunas: <?= $unpaidCount ?>/<?= $maxUnpaid ?>
+    </p>
     <div class="j-paket-grid">
       <?php foreach ($catalog as $item) {
          $idPaket = (int) $item['id_harga_paket'];
