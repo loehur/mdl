@@ -139,8 +139,20 @@
 
       <!-- Templates -->
       <section v-if="tab === 'templates'" class="card space-y-4">
-        <h2 class="font-display font-semibold text-lg">Templates</h2>
-        <form class="space-y-3" @submit.prevent="createTemplate">
+        <div class="flex items-center justify-between gap-2">
+          <h2 class="font-display font-semibold text-lg">
+            {{ editingTplId ? "Edit Template" : "Templates" }}
+          </h2>
+          <button
+            v-if="editingTplId"
+            type="button"
+            class="text-xs text-slate-400 hover:text-white"
+            @click="cancelEditTemplate"
+          >
+            Batal edit
+          </button>
+        </div>
+        <form class="space-y-3" @submit.prevent="saveTemplate">
           <select v-model="tplForm.ycloud_key_id" required class="field">
             <option disabled value="">API key</option>
             <option v-for="k in keys" :key="k.id" :value="k.id">{{ k.label }} ({{ k.phone_number }})</option>
@@ -164,32 +176,36 @@
             <div
               v-for="(p, idx) in tplForm.params"
               :key="idx"
-              class="grid grid-cols-1 sm:grid-cols-[7rem_5rem_1fr_1fr_1fr_auto] gap-2 items-center"
+              class="grid grid-cols-1 sm:grid-cols-[5rem_1fr_1fr_1fr_auto] gap-2 items-center"
             >
-              <select v-model="p.component" class="field">
-                <option value="header">header</option>
-                <option value="body">body</option>
-                <option value="button">button</option>
-              </select>
-              <input v-model.number="p.param_index" type="number" min="1" class="field" title="Urutan dalam komponen" />
+              <input v-model.number="p.param_index" type="number" min="1" class="field" title="Urutan param body" />
               <input v-model="p.param_name" class="field" placeholder="Nama var (customer)" required />
               <input v-model="p.label" class="field" placeholder="Label form" required />
               <input v-model="p.example_value" class="field" placeholder="Contoh" />
               <button type="button" class="text-rose-400 text-sm" @click="tplForm.params.splice(idx, 1)">✕</button>
             </div>
           </div>
-          <button class="btn w-full">Simpan template</button>
+          <button class="btn w-full">
+            {{ editingTplId ? "Update template" : "Simpan template" }}
+          </button>
         </form>
         <ul class="divide-y divide-white/5">
           <li v-for="t in templates" :key="t.id" class="py-3 flex justify-between gap-2">
             <div>
-              <p class="font-medium">{{ t.template_name }} <span class="text-xs text-slate-500">{{ t.language }}</span></p>
+              <p class="font-medium">
+                {{ t.template_name }}
+                <span class="text-xs text-slate-500">{{ t.language }}</span>
+                <span v-if="Number(editingTplId) === Number(t.id)" class="ml-2 text-[10px] text-accent">sedang diedit</span>
+              </p>
               <p class="text-xs text-slate-500">
                 {{ t.key_label }} ·
-                {{ (t.params || []).map((p) => `${p.component}:${p.param_name || p.param_index}`).join(", ") || "0 param" }}
+                {{ (t.params || []).map((p) => p.param_name || `body_${p.param_index}`).join(", ") || "0 param" }}
               </p>
             </div>
-            <button class="text-xs text-rose-400" @click="removeTemplate(t.id)">Hapus</button>
+            <div class="flex items-center gap-3 shrink-0">
+              <button type="button" class="text-xs text-accent hover:underline" @click="startEditTemplate(t)">Edit</button>
+              <button class="text-xs text-rose-400" @click="removeTemplate(t.id)">Hapus</button>
+            </div>
           </li>
         </ul>
       </section>
@@ -317,7 +333,7 @@ async function onDialogConfirm() {
 const previewPlaceholder =
   "Preview Body — teks lengkap seperti di WA. Pakai {{customer}} atau {{1}} di tempat variabel. Saat kirim diganti value di bubble chat.";
 const previewHint =
-  "Contoh (header named customer):\n{{customer}}\n\nMohon di perhatikan, tagihan anda pada aplikasi Pinjamin...";
+  "Contoh (body named customer):\nHalo {{customer}},\n\nMohon diperhatikan tagihan anda...";
 
 const teamForm = reactive({ name: "" });
 const userForm = reactive({
@@ -334,8 +350,9 @@ const tplForm = reactive({
   template_name: "",
   language: "id",
   body_preview: "",
-  params: [{ component: "header", param_index: 1, param_name: "customer", label: "Nama customer", example_value: "", is_required: 1 }],
+  params: [{ component: "body", param_index: 1, param_name: "customer", label: "Nama customer", example_value: "", is_required: 1 }],
 });
+const editingTplId = ref(null);
 const quotaForm = reactive({ team_id: "", amount: 100, note: "" });
 
 const teamLeaders = computed(() =>
@@ -579,26 +596,95 @@ async function doTopup() {
   }
 }
 
-async function createTemplate() {
+function defaultTplParams() {
+  return [
+    {
+      component: "body",
+      param_index: 1,
+      param_name: "customer",
+      label: "Nama customer",
+      example_value: "",
+      is_required: 1,
+    },
+  ];
+}
+
+function resetTplForm() {
+  editingTplId.value = null;
+  Object.assign(tplForm, {
+    ycloud_key_id: "",
+    template_name: "",
+    language: "id",
+    body_preview: "",
+    params: defaultTplParams(),
+  });
+}
+
+function startEditTemplate(t) {
+  editingTplId.value = t.id;
+  Object.assign(tplForm, {
+    ycloud_key_id: t.ycloud_key_id,
+    template_name: t.template_name,
+    language: t.language || "id",
+    body_preview: t.body_preview || "",
+    params:
+      t.params && t.params.length
+        ? t.params.map((p) => ({
+            component: "body",
+            param_index: Number(p.param_index) || 1,
+            param_name: p.param_name || "",
+            label: p.label || "",
+            example_value: p.example_value || "",
+            is_required: Number(p.is_required) === 0 ? 0 : 1,
+          }))
+        : defaultTplParams(),
+  });
+  // Ensure every param is body-only
+  tplForm.params.forEach((p) => {
+    p.component = "body";
+  });
+  flash(true, `Mengedit template: ${t.template_name}`);
+  // scroll form into view
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function cancelEditTemplate() {
+  resetTplForm();
+  flash(true, "Edit dibatalkan");
+}
+
+async function saveTemplate() {
   try {
-    await api("/WaDesk/Templates/create", {
-      method: "POST",
-      body: {
-        ycloud_key_id: Number(tplForm.ycloud_key_id),
-        template_name: tplForm.template_name,
-        language: tplForm.language || "id",
-        body_preview: tplForm.body_preview,
-        params: tplForm.params,
-      },
-    });
-    Object.assign(tplForm, {
-      ycloud_key_id: "",
-      template_name: "",
-      language: "id",
-      body_preview: "",
-      params: [{ component: "header", param_index: 1, param_name: "customer", label: "Nama customer", example_value: "", is_required: 1 }],
-    });
-    flash(true, "Template disimpan");
+    const payload = {
+      ycloud_key_id: Number(tplForm.ycloud_key_id),
+      template_name: tplForm.template_name,
+      language: tplForm.language || "id",
+      body_preview: tplForm.body_preview,
+      params: tplForm.params.map((p, i) => ({
+        component: "body",
+        param_index: Number(p.param_index) || i + 1,
+        param_name: p.param_name,
+        label: p.label,
+        example_value: p.example_value,
+        is_required: p.is_required,
+      })),
+    };
+
+    if (editingTplId.value) {
+      await api("/WaDesk/Templates/update", {
+        method: "POST",
+        body: { id: Number(editingTplId.value), ...payload },
+      });
+      flash(true, "Template diupdate");
+    } else {
+      await api("/WaDesk/Templates/create", {
+        method: "POST",
+        body: payload,
+      });
+      flash(true, "Template disimpan");
+    }
+
+    resetTplForm();
     await refresh();
   } catch (e) {
     flash(false, e.message);
@@ -606,6 +692,9 @@ async function createTemplate() {
 }
 
 async function removeTemplate(id) {
+  if (Number(editingTplId.value) === Number(id)) {
+    resetTplForm();
+  }
   askConfirm({
     title: "Hapus template",
     message: "Template yang dihapus tidak bisa dikembalikan. Lanjutkan?",

@@ -39,7 +39,7 @@
           <label class="label">
             {{ p.label }}
             <span class="text-slate-500">
-              ({{ p.component }} · {{ '{' + '{' + (p.param_name || p.param_index) + '}' + '}' }})
+              ({{ '{' + '{' + (p.param_name || p.param_index) + '}' + '}' }})
             </span>
           </label>
           <input

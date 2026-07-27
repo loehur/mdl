@@ -93,6 +93,17 @@ class Templates extends WaDeskController
         }
 
         $data = [];
+        if (isset($body['ycloud_key_id'])) {
+            $keyId = (int) $body['ycloud_key_id'];
+            $key = $this->db($this->db_index)->query(
+                "SELECT id FROM ycloud_keys WHERE id = ? AND tenant_id = ? LIMIT 1",
+                [$keyId, (int) $admin['tenant_id']]
+            )->row_array();
+            if (!$key) {
+                $this->error('API key tidak ditemukan', 404);
+            }
+            $data['ycloud_key_id'] = $keyId;
+        }
         if (isset($body['template_name'])) {
             $data['template_name'] = trim($body['template_name']);
         }
@@ -140,10 +151,7 @@ class Templates extends WaDeskController
             if (!isset($p['param_index'], $p['label'])) {
                 continue;
             }
-            $component = strtolower(trim((string) ($p['component'] ?? 'body')));
-            if (!in_array($component, ['header', 'body', 'button'], true)) {
-                $component = 'body';
-            }
+            $component = 'body';
             $paramName = trim((string) ($p['param_name'] ?? ''));
             if ($paramName === '') {
                 $paramName = null;
