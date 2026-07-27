@@ -17,11 +17,13 @@ use App\Helpers\WaDeskTemplateSender;
 class WaDeskBlast extends Controller
 {
     private const DB_INDEX   = 7;
-    private const SLEEP_US   = 1100000; // ~1.1 sec between YCloud calls
+    /** Conservative rate limit: ~2.5–4.0 sec between YCloud calls (jitter). */
+    private const SLEEP_MIN_US = 2500000;
+    private const SLEEP_MAX_US = 4000000;
 
     public function index()
     {
-        $limit = min(50, max(1, (int) ($_GET['limit'] ?? 30)));
+        $limit = min(30, max(1, (int) ($_GET['limit'] ?? 20)));
 
         $db = $this->db(self::DB_INDEX);
         $output = '';
@@ -142,8 +144,8 @@ class WaDeskBlast extends Controller
                 $processed++;
                 $output .= "recip#{$recipId} phone={$phone} " . ($result['success'] ? 'OK' : 'FAIL: ' . $result['error']) . "\n";
 
-                // Rate limit
-                usleep(self::SLEEP_US);
+                // Conservative rate limit with jitter (~2.5–4.0 sec)
+                usleep(random_int(self::SLEEP_MIN_US, self::SLEEP_MAX_US));
             }
 
             // Re-load blast to check completion

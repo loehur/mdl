@@ -373,22 +373,22 @@ onUnmounted(() => {
 async function loadKeys() {
   try {
     const res = await api('/WaDesk/Keys/list');
-    keys.value = res.keys ?? [];
+    keys.value = res.data?.keys ?? [];
   } catch (_) {}
 }
 
 async function loadTemplates() {
   try {
     const res = await api('/WaDesk/Templates/list');
-    templates.value = res.templates ?? [];
+    templates.value = res.data?.templates ?? [];
   } catch (_) {}
 }
 
 async function loadCsvHeaders(templateId) {
   try {
     const res = await api(`/WaDesk/Blast/csvHeaders?template_id=${templateId}`);
-    csvParams.value = res.params ?? [];
-    csvHeaders.value = buildTemplateHeaders(res.params ?? []);
+    csvParams.value = res.data?.params ?? [];
+    csvHeaders.value = buildTemplateHeaders(res.data?.params ?? []);
     if (parsedRows.value.length > 0) validateUpload();
   } catch (_) {
     csvParams.value = [];
@@ -402,9 +402,9 @@ async function loadBlasts() {
     const q = new URLSearchParams({ page: blastsPage.value });
     if (filter.campaign) q.set('campaign_name', filter.campaign);
     const res = await api(`/WaDesk/Blast/list?${q}`);
-    blasts.value = res.blasts ?? [];
-    blastsTotal.value = res.total ?? 0;
-    campaignOptions.value = res.campaigns ?? [];
+    blasts.value = res.data?.blasts ?? [];
+    blastsTotal.value = res.data?.total ?? 0;
+    campaignOptions.value = res.data?.campaigns ?? [];
   } catch (_) {}
   loadingBlasts.value = false;
 }
@@ -412,9 +412,9 @@ async function loadBlasts() {
 async function loadDetail(blastId, page = 1) {
   try {
     const res = await api(`/WaDesk/Blast/detail?id=${blastId}&page=${page}`);
-    detailBlast.value = res.blast;
-    detailRecipients.value = res.recipients ?? [];
-    detailTotal.value = res.recipient_total ?? 0;
+    detailBlast.value = res.data?.blast;
+    detailRecipients.value = res.data?.recipients ?? [];
+    detailTotal.value = res.data?.recipient_total ?? 0;
     detailPage.value = page;
   } catch (_) {}
 }
