@@ -24,4 +24,12 @@ module.exports = [
     url: '/Cron/InvoiceDueReminder/index',
     enabled: true,
   },
+  {
+    id: 'clean-kas-qris',
+    description: 'Cleanup QRIS pending > 1 jam (hapus kosong / sync Tokopay)',
+    schedule: '*/15 * * * *', // setiap 15 menit
+    method: 'GET',
+    url: '/Cron/CleanKas/index',
+    enabled: true,
+  },
 ];

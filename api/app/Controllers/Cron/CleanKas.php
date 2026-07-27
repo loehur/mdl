@@ -13,11 +13,21 @@ use App\Models\Tokopay;
  *   paid → status_mutasi=3, payment_state=status tokopay
  *   expired/failed/cancel/unpaid/pending → status_mutasi=4 (gagal; >1 jam tidak di-skip)
  * Log setiap cek ke kas_qris_cleanup_log (upsert by ref_finance).
+ *
+ * URL example:
+ * /Cron/CleanKas/index?secret=YOUR_CRON_SECRET
  */
 class CleanKas extends Controller
 {
     public function index()
     {
+        if (!$this->verifyCronSecret()) {
+            header('Content-Type: text/plain; charset=utf-8');
+            http_response_code(401);
+            echo "ERROR: Unauthorized\n";
+            return;
+        }
+
         $db = $this->db(1); // kas berada di db(1) - mdl_laundry
 
         if (!$db) {
@@ -253,5 +263,28 @@ class CleanKas extends Controller
         }
 
         return 'failed';
+    }
+
+    protected function verifyCronSecret(): bool
+    {
+        $expected = '';
+        if (class_exists('Env') && defined('Env::CRON_SECRET')) {
+            $expected = (string) \Env::CRON_SECRET;
+        }
+
+        if ($expected === '') {
+            $expected = getenv('CRON_SECRET') ?: '';
+        }
+
+        if ($expected === '') {
+            return false;
+        }
+
+        $provided = trim((string) ($_GET['secret'] ?? ''));
+        if ($provided === '' && !empty($_SERVER['HTTP_X_CRON_SECRET'])) {
+            $provided = trim((string) $_SERVER['HTTP_X_CRON_SECRET']);
+        }
+
+        return hash_equals($expected, $provided);
     }
 }
