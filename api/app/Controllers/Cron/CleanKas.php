@@ -11,8 +11,7 @@ use App\Models\Tokopay;
  * Hapus hanya jika: id_user = 0 dan payment_qr_string kosong.
  * Cek Tokopay jika sudah ada payment_trx_id:
  *   paid → status_mutasi=3, payment_state=status tokopay
- *   expired/failed/cancel → status_mutasi=4 (gagal, QR sudah tidak valid)
- *   unpaid/pending → tidak ubah kas (pelanggan masih bisa bayar)
+ *   expired/failed/cancel/unpaid/pending → status_mutasi=4 (gagal; >1 jam tidak di-skip)
  * Log setiap cek ke kas_qris_cleanup_log (upsert by ref_finance).
  */
 class CleanKas extends Controller
@@ -248,9 +247,9 @@ class CleanKas extends Controller
             return 'failed';
         }
 
-        // Unpaid = belum bayar, masih bisa lunas nanti — jangan ubah kas
+        // Unpaid/pending/not_found: query sudah filter umur > 1 jam → anggap gagal
         if ($statusTrx === 'unpaid' || $statusTrx === 'pending' || $statusTrx === 'not_found') {
-            return 'pending';
+            return 'failed';
         }
 
         return 'failed';
