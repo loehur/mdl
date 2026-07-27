@@ -462,13 +462,17 @@ class I extends Controller
       $this->public_data($id_pelanggan); // Load cabang data
       
       $rekap = $_POST['rekap']; // Array [ref => amount]
-      $metode_bayar = $_POST['metode']; // e.g. "Transfer"
-      
-      // Assume Non-Tunai (2) for online/invoice payments
-      // The specific method (BCA, etc) goes into note
-      $metode = 2; 
+      $metode_bayar = isset($_POST['metode']) ? trim((string) $_POST['metode']) : '';
+
+      // J/public: Non-tunai (2) atau potong Saldo Deposit (3). Tidak ada cash.
+      $metode = 2;
       $note = $metode_bayar;
-      $dibayar = 0; // For NON_TUNAI, usually 0 cash given, or equal to amount. KasModel logic handles it.
+      if ($metode_bayar === 'SALDO' || strcasecmp($metode_bayar, 'Saldo Deposit') === 0) {
+         $metode = 3;
+         $note = 'SALDO';
+      }
+
+      $dibayar = 0; // full amount per rekap item when dibayar=0
       
       // KasModel expects rekap as [ref => amount]
       // Ensure rekap is in correct format

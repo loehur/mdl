@@ -68,6 +68,13 @@
     var sel = $('#jMetodeBayar');
     if (!sel) return;
     sel.innerHTML = '';
+    var saldo = parseInt(cfg.saldoTunai, 10) || 0;
+    if (saldo > 0) {
+      var optSaldo = document.createElement('option');
+      optSaldo.value = 'SALDO';
+      optSaldo.textContent = 'Saldo Deposit (' + fmt(saldo) + ')';
+      sel.appendChild(optSaldo);
+    }
     (cfg.nonTunai || ['QRIS']).forEach(function (m) {
       var opt = document.createElement('option');
       opt.value = m;
@@ -127,22 +134,36 @@
     if (!cfg) return;
     var rekap = {};
     var count = 0;
+    var total = 0;
     $all('.j-check-tagihan:checked').forEach(function (cb) {
       rekap[cb.getAttribute('data-ref')] = cb.value;
+      total += parseInt(cb.value, 10) || 0;
       count++;
     });
     if (!count) {
       $('#jBayarStatus').textContent = 'Pilih minimal satu tagihan.';
       return;
     }
+    var metode = $('#jMetodeBayar').value;
+    var saldo = parseInt(cfg.saldoTunai, 10) || 0;
+    if (metode === 'SALDO' && saldo <= 0) {
+      $('#jBayarStatus').textContent = 'Saldo Deposit kosong.';
+      return;
+    }
+
     var btn = $('#jBtnSubmitBayar');
     var status = $('#jBayarStatus');
-    status.textContent = 'Memproses pembayaran...';
+    if (metode === 'SALDO' && total > saldo) {
+      status.textContent =
+        'Saldo ' + fmt(saldo) + ' kurang dari total. Akan dipotong sesuai sisa saldo...';
+    } else {
+      status.textContent = 'Memproses pembayaran...';
+    }
     btn.disabled = true;
 
     var body = new FormData();
     body.append('id_pelanggan', cfg.id_pelanggan);
-    body.append('metode', $('#jMetodeBayar').value);
+    body.append('metode', metode);
     Object.keys(rekap).forEach(function (k) {
       body.append('rekap[' + k + ']', rekap[k]);
     });
@@ -159,7 +180,12 @@
         btn.disabled = false;
         if (String(res).trim() === '0') {
           modalHide('jModalBayar');
-          toast('Pembayaran dibuat. Lanjutkan Scan QR / transfer.', 'ok');
+          toast(
+            metode === 'SALDO'
+              ? 'Berhasil dibayar dengan Saldo Deposit'
+              : 'Pembayaran dibuat. Lanjutkan Scan QR / transfer.',
+            'ok'
+          );
           reloadTagihan();
         } else {
           status.textContent = 'Error: ' + res;

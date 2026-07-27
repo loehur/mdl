@@ -45,16 +45,20 @@ class KasModel extends Controller
             }
         }
 
-        // Saldo tunai: bayar order laundry (U#) dulu, baru topup paket member (M#)
+        // Saldo tunai: bayar order laundry (T#/U#) dulu, baru topup paket member (M#)
         if ($metodeInt === 3) {
             uksort($data_rekap, function ($a, $b) {
                 $ta = substr((string) $a, 0, 1);
                 $tb = substr((string) $b, 0, 1);
-                if ($ta === 'U' && $tb === 'M') {
-                    return -1;
-                }
-                if ($ta === 'M' && $tb === 'U') {
-                    return 1;
+                $rank = function ($t) {
+                    if ($t === 'T' || $t === 'U') return 0;
+                    if ($t === 'M') return 1;
+                    return 2;
+                };
+                $ra = $rank($ta);
+                $rb = $rank($tb);
+                if ($ra !== $rb) {
+                    return $ra - $rb;
                 }
                 return strcmp((string) $a, (string) $b);
             });

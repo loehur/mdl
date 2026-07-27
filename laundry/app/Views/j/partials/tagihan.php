@@ -24,6 +24,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
   'unpaid' => $unpaid,
   'nonTunai' => $data['nonTunai'] ?? URL::NON_TUNAI,
   'nonTunaiGuide' => $data['nonTunaiGuide'] ?? URL::NON_TUNAI_GUIDE,
+  'saldoTunai' => (int) round((float) ($data['saldoTunai'] ?? 0)),
   'base' => $base,
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?></script>
 

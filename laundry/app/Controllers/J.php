@@ -277,6 +277,7 @@ class J extends Controller
             $payload['finance_history'] = $full['finance_history'];
             $payload['nonTunai'] = $full['nonTunai'];
             $payload['nonTunaiGuide'] = $full['nonTunaiGuide'];
+            $payload['saldoTunai'] = $full['saldoTunai'] ?? 0;
             $payload['customer'] = $full['customer'];
             $this->view('j/partials/tagihan', $payload);
             break;
@@ -948,6 +949,7 @@ class J extends Controller
          'finance_history' => array_values($finance_history),
          'nonTunai' => $nonTunai,
          'nonTunaiGuide' => $nonTunaiGuide,
+         'saldoTunai' => $this->getSaldoTunai($pelanggan),
          'customer' => [
             'id' => (int) $pelanggan,
             'nama' => $this->pelanggan_p['nama_pelanggan'] ?? '',

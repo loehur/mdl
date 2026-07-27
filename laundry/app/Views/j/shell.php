@@ -240,7 +240,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
 <script src="<?= URL::EX_ASSETS ?>js/qrcode.min.js"></script>
 <script src="<?= URL::EX_ASSETS ?>js/html2canvas.min.js"></script>
 <script src="<?= $assets ?>js/j-customer.js?v=10"></script>
-<script src="<?= $assets ?>js/j-payment.js?v=4"></script>
+<script src="<?= $assets ?>js/j-payment.js?v=5"></script>
 <script>
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('<?= $base ?>Pwa/sw', { scope: '<?= $base ?>' }).catch(function () {});
