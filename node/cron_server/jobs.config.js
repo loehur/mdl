@@ -27,7 +27,7 @@ module.exports = [
   {
     id: 'clean-kas-qris',
     description: 'Cleanup QRIS pending > 1 jam (hapus kosong / sync Tokopay)',
-    schedule: '*/15 * * * *', // setiap 15 menit
+    schedule: '*/11 * * * *', // setiap 11 menit
     method: 'GET',
     url: '/Cron/CleanKas/index',
     enabled: true,
