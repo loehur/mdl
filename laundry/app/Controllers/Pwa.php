@@ -19,7 +19,7 @@ class Pwa extends Controller
             'display' => 'standalone',
             'background_color' => '#ffffff',
             'theme_color' => '#ffc107',
-            'orientation' => 'any',
+            'orientation' => 'portrait',
             'lang' => 'id',
             'icons' => [
                 [
