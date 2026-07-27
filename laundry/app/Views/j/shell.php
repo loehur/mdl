@@ -27,7 +27,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/fontawesome-free-5.15.4-web/css/all.css">
   <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/css/bootstrap.min.css">
-  <link rel="stylesheet" href="<?= $assets ?>css/j-customer.css?v=41">
+  <link rel="stylesheet" href="<?= $assets ?>css/j-customer.css?v=42">
 </head>
 <body>
 <div class="j-app"
@@ -64,7 +64,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
       <i class="fas fa-receipt"></i> Tagihan
     </a>
     <a href="<?= $base ?>J/saldo/<?= $id ?>" data-nav="saldo" class="<?= $active === 'saldo' ? 'active' : '' ?>">
-      <i class="fas fa-wallet"></i> Saldo
+      <i class="fas fa-wallet"></i> Deposit
     </a>
     <a href="<?= $base ?>J/paket/<?= $id ?>" data-nav="paket" class="<?= $active === 'paket' ? 'active' : '' ?>">
       <i class="fas fa-box-open"></i> Paket
@@ -206,11 +206,41 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
   </div>
 </div>
 
+<!-- Modal Topup Saldo Tunai -->
+<div class="modal fade" id="jModalSaldoTopup" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content j-sheet">
+      <div class="j-sheet-head">
+        <div>
+          <p class="j-sheet-kicker">Saldo</p>
+          <h5 class="j-sheet-title">Topup Saldo</h5>
+        </div>
+        <button type="button" class="j-sheet-close" data-bs-dismiss="modal" aria-label="Close"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="j-sheet-body">
+        <label class="j-field-label" for="jSaldoTopupJumlah">Nominal</label>
+        <input type="number" id="jSaldoTopupJumlah" class="j-select j-input-amount" min="1000" step="1000" placeholder="0" inputmode="numeric">
+        <p class="j-sheet-desc" id="jSaldoTopupHint" style="margin-top:6px"></p>
+
+        <label class="j-field-label" for="jSaldoTopupMetode" style="margin-top:12px">Metode pembayaran</label>
+        <div class="j-select-wrap">
+          <select id="jSaldoTopupMetode" class="j-select"></select>
+        </div>
+        <div class="j-pay-status" id="jSaldoTopupStatus"></div>
+      </div>
+      <div class="j-sheet-foot">
+        <button type="button" class="j-sheet-btn ghost" data-bs-dismiss="modal">Batal</button>
+        <button type="button" class="j-sheet-btn primary" id="jBtnSubmitSaldoTopup">Lanjut bayar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/js/bootstrap.bundle.min.js"></script>
 <script src="<?= URL::EX_ASSETS ?>js/qrcode.min.js"></script>
 <script src="<?= URL::EX_ASSETS ?>js/html2canvas.min.js"></script>
 <script src="<?= $assets ?>js/j-customer.js?v=10"></script>
-<script src="<?= $assets ?>js/j-payment.js?v=3"></script>
+<script src="<?= $assets ?>js/j-payment.js?v=4"></script>
 <script>
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('<?= $base ?>Pwa/sw', { scope: '<?= $base ?>' }).catch(function () {});

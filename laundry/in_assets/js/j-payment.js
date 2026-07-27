@@ -379,11 +379,129 @@
       });
   }
 
+  function openSaldoTopupModal() {
+    var cfg = getConfig();
+    if (!cfg) return;
+    if (cfg.topupBlocked) {
+      toast('Tidak bisa topup saat ini', 'warn');
+      return;
+    }
+    var sel = $('#jSaldoTopupMetode');
+    if (sel) {
+      sel.innerHTML = '';
+      (cfg.nonTunai || ['QRIS']).forEach(function (m) {
+        var opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = m;
+        sel.appendChild(opt);
+      });
+    }
+    var room = parseInt(cfg.topupRoom, 10) || 0;
+    var input = $('#jSaldoTopupJumlah');
+    if (input) {
+      input.value = '';
+      input.max = String(room);
+      input.min = '1000';
+    }
+    var hint = $('#jSaldoTopupHint');
+    if (hint) {
+      hint.textContent =
+        'Maks. topup sekarang Rp' + Number(room).toLocaleString('id-ID') +
+        ' (batas saldo Rp' + Number(cfg.maxSaldo || 5000000).toLocaleString('id-ID') + ')';
+    }
+    var st = $('#jSaldoTopupStatus');
+    if (st) st.textContent = '';
+    modalShow('jModalSaldoTopup');
+  }
+
+  function submitSaldoTopup() {
+    var cfg = getConfig();
+    if (!cfg) return;
+    var input = $('#jSaldoTopupJumlah');
+    var metodeEl = $('#jSaldoTopupMetode');
+    var status = $('#jSaldoTopupStatus');
+    var btn = $('#jBtnSubmitSaldoTopup');
+    var jumlah = parseInt(input && input.value, 10) || 0;
+    var metode = (metodeEl && metodeEl.value) || '';
+    var room = parseInt(cfg.topupRoom, 10) || 0;
+
+    if (!metode) {
+      if (status) status.textContent = 'Pilih metode pembayaran.';
+      return;
+    }
+    if (jumlah <= 0) {
+      if (status) status.textContent = 'Isi nominal topup.';
+      return;
+    }
+    if (String(metode).toUpperCase() === 'QRIS' && jumlah < 1000) {
+      if (status) status.textContent = 'Minimal QRIS Rp1.000.';
+      return;
+    }
+    if (String(metode).toUpperCase() !== 'QRIS' && jumlah < 10000) {
+      if (status) status.textContent = 'Minimal transfer Rp10.000.';
+      return;
+    }
+    if (jumlah > room) {
+      if (status) status.textContent = 'Melebihi kapasitas saldo (sisa Rp' + Number(room).toLocaleString('id-ID') + ').';
+      return;
+    }
+
+    if (status) status.textContent = 'Memproses...';
+    if (btn) btn.disabled = true;
+
+    var body = new URLSearchParams();
+    body.set('jumlah', String(jumlah));
+    body.set('metode', metode);
+
+    fetch(cfg.base + 'J/saldoTopup/' + cfg.id_pelanggan, {
+      method: 'POST',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      credentials: 'same-origin',
+      body: body.toString(),
+    })
+      .then(function (r) {
+        return r.json().catch(function () {
+          throw new Error('Respons tidak valid');
+        });
+      })
+      .then(function (data) {
+        if (btn) btn.disabled = false;
+        if (!data || !data.ok) {
+          if (status) status.textContent = (data && data.message) || 'Gagal topup';
+          return;
+        }
+        modalHide('jModalSaldoTopup');
+        toast(data.message || 'Topup dibuat', 'ok');
+        reloadTagihan();
+      })
+      .catch(function (err) {
+        if (btn) btn.disabled = false;
+        if (status) status.textContent = (err && err.message) || 'Gagal jaringan';
+      });
+  }
+
   document.addEventListener('click', function (e) {
     var bayar = e.target.closest('.j-open-bayar');
     if (bayar) {
       e.preventDefault();
       openBayarModal();
+      return;
+    }
+
+    var saldoTopup = e.target.closest('.j-open-saldo-topup');
+    if (saldoTopup) {
+      e.preventDefault();
+      openSaldoTopupModal();
+      return;
+    }
+
+    var submitSaldo = e.target.closest('#jBtnSubmitSaldoTopup');
+    if (submitSaldo) {
+      e.preventDefault();
+      submitSaldoTopup();
       return;
     }
 

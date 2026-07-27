@@ -166,6 +166,87 @@ class J extends Controller
       echo json_encode(['ok' => true, 'message' => 'Topup paket dihapus']);
    }
 
+   /** POST: topup saldo tunai — non-tunai pending (jt=6), bayar via gateway seperti Tagihan */
+   public function saldoTopup($pelanggan)
+   {
+      header('Content-Type: application/json; charset=utf-8');
+      $pelanggan = $this->bootCustomer($pelanggan);
+
+      $jumlah = isset($_POST['jumlah']) ? (int) round((float) $_POST['jumlah']) : 0;
+      $note = isset($_POST['metode']) ? trim((string) $_POST['metode']) : '';
+      $note = preg_replace('/[^A-Za-z0-9_\-\s]/', '', $note);
+      $allowed = URL::NON_TUNAI;
+      if ($note === '' || !in_array($note, $allowed, true)) {
+         echo json_encode(['ok' => false, 'message' => 'Pilih metode pembayaran']);
+         return;
+      }
+      if ($jumlah <= 0) {
+         echo json_encode(['ok' => false, 'message' => 'Nominal tidak valid']);
+         return;
+      }
+      if (strtoupper($note) === 'QRIS' && $jumlah < 1000) {
+         echo json_encode(['ok' => false, 'message' => 'Minimal topup QRIS Rp1.000']);
+         return;
+      }
+      if (strtoupper($note) !== 'QRIS' && $jumlah < 10000) {
+         echo json_encode(['ok' => false, 'message' => 'Minimal topup transfer Rp10.000']);
+         return;
+      }
+
+      $idCabang = (int) $this->id_cabang_p;
+      $maxPending = 1;
+      $pendingWhere = "id_cabang = $idCabang AND id_client = $pelanggan AND jenis_transaksi = 6 AND jenis_mutasi = 1 AND status_mutasi = 2 AND id_user = 0";
+      $pendingCount = (int) ($this->db(0)->count_where('kas', $pendingWhere) ?? 0);
+      if ($pendingCount >= $maxPending) {
+         echo json_encode([
+            'ok' => false,
+            'message' => 'Masih ada topup saldo menunggu pembayaran. Bayar atau batalkan dulu.',
+         ]);
+         return;
+      }
+
+      $maxSaldo = 5000000;
+      $saldoNow = $this->getSaldoTunai($pelanggan);
+      $pendingSum = (float) ($this->db(0)->sum_col_where('kas', 'jumlah', $pendingWhere) ?? 0);
+      if (($saldoNow + $pendingSum + $jumlah) > $maxSaldo) {
+         $sisa = max(0, $maxSaldo - $saldoNow - $pendingSum);
+         echo json_encode([
+            'ok' => false,
+            'message' => 'Saldo maksimal Rp' . number_format($maxSaldo) . '. Sisa kapasitas Rp' . number_format($sisa),
+         ]);
+         return;
+      }
+
+      $refFinance = date('YmdHis') . rand(0, 9) . rand(0, 9) . rand(0, 9);
+      $idKas = (date('Y') - 2020) . substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 6);
+      $do = $this->db(0)->insert('kas', [
+         'id_kas' => $idKas,
+         'id_cabang' => $idCabang,
+         'jenis_mutasi' => 1,
+         'jenis_transaksi' => 6,
+         'metode_mutasi' => 2,
+         'note' => $note,
+         'status_mutasi' => 2,
+         'jumlah' => $jumlah,
+         'id_user' => 0,
+         'id_client' => $pelanggan,
+         'ref_finance' => $refFinance,
+      ]);
+      if (isset($do['errno']) && (int) $do['errno'] !== 0) {
+         $this->model('Log')->write(__CLASS__ . '->' . __FUNCTION__ . '() ' . ($do['error'] ?? ''));
+         echo json_encode(['ok' => false, 'message' => 'Gagal membuat topup saldo']);
+         return;
+      }
+
+      echo json_encode([
+         'ok' => true,
+         'ref_finance' => $refFinance,
+         'total' => $jumlah,
+         'note' => $note,
+         'message' => 'Topup dibuat. Lanjutkan pembayaran.',
+      ]);
+   }
+
    /** AJAX: HTML partial only */
    public function load($page, $pelanggan, $extra = null)
    {
@@ -319,7 +400,7 @@ class J extends Controller
 
    private function buildSaldoPayload($pelanggan)
    {
-      $cols = 'id_kas, id_client, jumlah, metode_mutasi, note, insertTime, jenis_mutasi, jenis_transaksi';
+      $cols = 'id_kas, id_client, jumlah, metode_mutasi, note, insertTime, jenis_mutasi, jenis_transaksi, status_mutasi, id_user, ref_finance';
       $where = "id_client = $pelanggan AND status_mutasi = 3 AND ((jenis_transaksi = 1 AND metode_mutasi = 3) OR (jenis_transaksi = 3 AND metode_mutasi = 3) OR jenis_transaksi = 6) ORDER BY insertTime ASC";
       $rows = $this->db(0)->get_cols_where('kas', $cols, $where, 1);
       if (!is_array($rows) || isset($rows['errno'])) $rows = [];
@@ -339,10 +420,59 @@ class J extends Controller
       $tampil = 30;
       $show = count($history) > $tampil ? array_slice($history, -$tampil) : $history;
 
+      $pendingWhere = 'id_cabang = ' . (int) $this->id_cabang_p
+         . " AND id_client = $pelanggan AND jenis_transaksi = 6 AND jenis_mutasi = 1 AND status_mutasi = 2 ORDER BY insertTime DESC";
+      $pendingRows = $this->db(0)->get_where('kas', $pendingWhere);
+      if (!is_array($pendingRows) || isset($pendingRows['errno'])) $pendingRows = [];
+
+      $finance = [];
+      $pendingSum = 0;
+      $selfPendingCount = 0;
+      foreach ($pendingRows as $k) {
+         $rf = $k['ref_finance'] ?? '';
+         if ($rf === '') continue;
+         $jumlah = (float) ($k['jumlah'] ?? 0);
+         $pendingSum += $jumlah;
+         if ((int) ($k['id_user'] ?? 0) === 0) $selfPendingCount++;
+         if (!isset($finance[$rf])) {
+            $finance[$rf] = [
+               'ref_finance' => $rf,
+               'total' => 0,
+               'note' => $k['note'] ?? '',
+               'insertTime' => $k['insertTime'] ?? '',
+               'id_user' => (int) ($k['id_user'] ?? 0),
+            ];
+         }
+         $finance[$rf]['total'] += $jumlah;
+         if (($k['insertTime'] ?? '') > ($finance[$rf]['insertTime'] ?? '')) {
+            $finance[$rf]['insertTime'] = $k['insertTime'];
+            $finance[$rf]['note'] = $k['note'] ?? '';
+            $finance[$rf]['id_user'] = (int) ($k['id_user'] ?? 0);
+         }
+      }
+
+      $maxSaldo = 5000000;
+      $maxPending = 1;
+      $room = max(0, $maxSaldo - $saldo - $pendingSum);
+
       return [
          'saldoTunai' => $saldo,
          'history' => array_reverse($show),
          'tampil' => $tampil,
+         'finance_history' => array_values($finance),
+         'nonTunai' => URL::NON_TUNAI,
+         'nonTunaiGuide' => URL::NON_TUNAI_GUIDE,
+         'maxSaldo' => $maxSaldo,
+         'maxPending' => $maxPending,
+         'pendingSum' => $pendingSum,
+         'selfPendingCount' => $selfPendingCount,
+         'topupRoom' => $room,
+         'topupBlocked' => $selfPendingCount >= $maxPending || $room < 1000,
+         'customer' => [
+            'id' => (int) $pelanggan,
+            'nama' => $this->pelanggan_p['nama_pelanggan'] ?? '',
+            'hp' => $this->pelanggan_p['nomor_pelanggan'] ?? '',
+         ],
       ];
    }
 

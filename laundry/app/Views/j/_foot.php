@@ -13,7 +13,7 @@ $base = $data['base'];
       <i class="fas fa-receipt"></i> Tagihan
     </a>
     <a href="<?= $base ?>J/saldo/<?= $id ?>" class="<?= $active === 'saldo' ? 'active' : '' ?>">
-      <i class="fas fa-wallet"></i> Saldo
+      <i class="fas fa-wallet"></i> Deposit
     </a>
     <a href="<?= $base ?>J/paket/<?= $id ?>" class="<?= $active === 'paket' ? 'active' : '' ?>">
       <i class="fas fa-box-open"></i> Paket

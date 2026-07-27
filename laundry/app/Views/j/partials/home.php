@@ -33,7 +33,7 @@ $listPaket = $data['listPaket'];
     </a>
     <a class="j-menu-tile" href="<?= $base ?>J/saldo/<?= $id ?>">
       <div class="j-menu-ico saldo"><i class="fas fa-wallet"></i></div>
-      <span>Saldo</span>
+      <span>Deposit</span>
     </a>
     <a class="j-menu-tile" href="<?= $base ?>J/paket/<?= $id ?>">
       <div class="j-menu-ico paket"><i class="fas fa-box-open"></i></div>
