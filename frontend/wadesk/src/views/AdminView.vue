@@ -97,7 +97,17 @@
                 <span v-if="u.role === 'agent' && u.team_leader_name"> · TL: {{ u.team_leader_name }}</span>
               </p>
             </div>
-            <button class="text-xs text-rose-400" @click="removeUser(u.id)">Hapus</button>
+            <div class="flex items-center gap-3 shrink-0">
+              <button
+                v-if="u.role === 'agent'"
+                type="button"
+                class="text-xs text-accent hover:underline"
+                @click="promoteAgent(u)"
+              >
+                Jadikan TL
+              </button>
+              <button class="text-xs text-rose-400" @click="removeUser(u)">Hapus</button>
+            </div>
           </li>
         </ul>
       </section>
@@ -234,6 +244,17 @@
       <p v-if="msg" class="text-sm text-emerald-400">{{ msg }}</p>
       <p v-if="err" class="text-sm text-rose-400">{{ err }}</p>
     </div>
+
+    <ConfirmModal
+      v-if="dialog.open"
+      :title="dialog.title"
+      :message="dialog.message"
+      :mode="dialog.mode"
+      :confirm-label="dialog.confirmLabel"
+      :danger="dialog.danger"
+      @confirm="onDialogConfirm"
+      @close="closeDialog"
+    />
   </div>
 </template>
 
@@ -241,6 +262,7 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import { api } from "../api";
 import { useAuthStore } from "../stores/auth";
+import ConfirmModal from "../components/ConfirmModal.vue";
 
 const auth = useAuthStore();
 const tab = ref("teams");
@@ -259,6 +281,39 @@ const templates = ref([]);
 const quotas = ref([]);
 const msg = ref("");
 const err = ref("");
+
+const dialog = reactive({
+  open: false,
+  mode: "confirm",
+  title: "Konfirmasi",
+  message: "",
+  confirmLabel: "Hapus",
+  danger: true,
+  action: null,
+});
+
+function askConfirm({ title, message, confirmLabel = "Hapus", danger = true, mode = "confirm", action }) {
+  dialog.open = true;
+  dialog.mode = mode;
+  dialog.title = title || "Konfirmasi";
+  dialog.message = message;
+  dialog.confirmLabel = confirmLabel;
+  dialog.danger = danger;
+  dialog.action = action;
+}
+
+function closeDialog() {
+  dialog.open = false;
+  dialog.action = null;
+}
+
+async function onDialogConfirm() {
+  const action = dialog.action;
+  closeDialog();
+  if (typeof action === "function") {
+    await action();
+  }
+}
 const previewPlaceholder =
   "Preview Body — teks lengkap seperti di WA. Pakai {{customer}} atau {{1}} di tempat variabel. Saat kirim diganti value di bubble chat.";
 const previewHint =
@@ -335,14 +390,19 @@ async function createTeam() {
 }
 
 async function removeTeam(id) {
-  if (!confirm("Hapus team?")) return;
-  try {
-    await api("/WaDesk/Teams/delete", { method: "POST", body: { id } });
-    flash(true, "Team dihapus");
-    await refresh();
-  } catch (e) {
-    flash(false, e.message);
-  }
+  askConfirm({
+    title: "Hapus team",
+    message: "Team yang dihapus tidak bisa dikembalikan. Lanjutkan?",
+    action: async () => {
+      try {
+        await api("/WaDesk/Teams/delete", { method: "POST", body: { id } });
+        flash(true, "Team dihapus");
+        await refresh();
+      } catch (e) {
+        flash(false, e.message);
+      }
+    },
+  });
 }
 
 async function createUser() {
@@ -387,15 +447,72 @@ async function createUser() {
   }
 }
 
-async function removeUser(id) {
-  if (!confirm("Hapus user?")) return;
-  try {
-    await api("/WaDesk/Users/delete", { method: "POST", body: { id } });
-    flash(true, "User dihapus");
-    await refresh();
-  } catch (e) {
-    flash(false, e.message);
+async function promoteAgent(u) {
+  const currentTl = users.value.find(
+    (x) => x.role === "team_leader" && Number(x.team_id) === Number(u.team_id)
+  );
+  const tlName = currentTl?.name || u.team_leader_name || "TL saat ini";
+
+  askConfirm({
+    title: "Jadikan Team Leader",
+    message: currentTl
+      ? `"${u.name}" akan jadi Team Leader. "${tlName}" otomatis turun jadi agent di team yang sama. Lanjutkan?`
+      : `"${u.name}" akan jadi Team Leader team ini. Lanjutkan?`,
+    confirmLabel: "Ya, promote",
+    danger: false,
+    action: async () => {
+      try {
+        await api("/WaDesk/Users/promoteToLeader", {
+          method: "POST",
+          body: { id: u.id },
+        });
+        flash(
+          true,
+          currentTl
+            ? `${u.name} sekarang TL; ${tlName} turun jadi agent`
+            : `${u.name} sekarang Team Leader`
+        );
+        await refresh();
+      } catch (e) {
+        flash(false, e.message);
+      }
+    },
+  });
+}
+
+async function removeUser(u) {
+  const isTl = u.role === "team_leader";
+  const agentCount = isTl
+    ? users.value.filter((x) => x.role === "agent" && Number(x.team_id) === Number(u.team_id)).length
+    : 0;
+
+  if (isTl && agentCount > 0) {
+    askConfirm({
+      title: "Tidak bisa hapus Team Leader",
+      message: `Masih ada ${agentCount} agent di bawah TL ini. Hapus atau pindahkan agent dulu.`,
+      mode: "alert",
+      confirmLabel: "OK",
+      danger: false,
+      action: null,
+    });
+    return;
   }
+
+  askConfirm({
+    title: isTl ? "Hapus Team Leader" : "Hapus user",
+    message: isTl
+      ? "Team Leader yang dihapus tidak bisa dikembalikan. Team akan tanpa leader. Lanjutkan?"
+      : "User yang dihapus tidak bisa dikembalikan. Lanjutkan?",
+    action: async () => {
+      try {
+        await api("/WaDesk/Users/delete", { method: "POST", body: { id: u.id } });
+        flash(true, "User dihapus");
+        await refresh();
+      } catch (e) {
+        flash(false, e.message);
+      }
+    },
+  });
 }
 
 async function createKey() {
@@ -417,14 +534,19 @@ async function createKey() {
 }
 
 async function removeKey(id) {
-  if (!confirm("Hapus API key?")) return;
-  try {
-    await api("/WaDesk/Keys/delete", { method: "POST", body: { id } });
-    flash(true, "Key dihapus");
-    await refresh();
-  } catch (e) {
-    flash(false, e.message);
-  }
+  askConfirm({
+    title: "Hapus API key",
+    message: "API key yang dihapus tidak bisa dikembalikan. Lanjutkan?",
+    action: async () => {
+      try {
+        await api("/WaDesk/Keys/delete", { method: "POST", body: { id } });
+        flash(true, "Key dihapus");
+        await refresh();
+      } catch (e) {
+        flash(false, e.message);
+      }
+    },
+  });
 }
 
 function addParam() {
@@ -484,14 +606,19 @@ async function createTemplate() {
 }
 
 async function removeTemplate(id) {
-  if (!confirm("Hapus template?")) return;
-  try {
-    await api("/WaDesk/Templates/delete", { method: "POST", body: { id } });
-    flash(true, "Template dihapus");
-    await refresh();
-  } catch (e) {
-    flash(false, e.message);
-  }
+  askConfirm({
+    title: "Hapus template",
+    message: "Template yang dihapus tidak bisa dikembalikan. Lanjutkan?",
+    action: async () => {
+      try {
+        await api("/WaDesk/Templates/delete", { method: "POST", body: { id } });
+        flash(true, "Template dihapus");
+        await refresh();
+      } catch (e) {
+        flash(false, e.message);
+      }
+    },
+  });
 }
 
 onMounted(refresh);

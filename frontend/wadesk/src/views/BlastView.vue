@@ -238,7 +238,7 @@
               v-if="['pending','processing'].includes(detailBlast.status)"
               class="px-3 py-1.5 rounded-lg bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 text-sm"
               :disabled="cancelling"
-              @click="cancelBlast"
+              @click="askCancelBlast"
             >
               {{ cancelling ? '...' : 'Batalkan' }}
             </button>
@@ -302,6 +302,17 @@
         </div>
       </div>
     </div>
+
+    <ConfirmModal
+      v-if="dialog.open"
+      :title="dialog.title"
+      :message="dialog.message"
+      :mode="dialog.mode"
+      :confirm-label="dialog.confirmLabel"
+      :danger="dialog.danger"
+      @confirm="onDialogConfirm"
+      @close="closeDialog"
+    />
   </div>
 </template>
 
@@ -309,6 +320,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import { api } from '../api';
+import ConfirmModal from '../components/ConfirmModal.vue';
 import {
   buildTemplateHeaders,
   downloadSampleCsv,
@@ -319,6 +331,48 @@ import {
 
 const auth = useAuthStore();
 
+const dialog = reactive({
+  open: false,
+  mode: 'confirm',
+  title: 'Konfirmasi',
+  message: '',
+  confirmLabel: 'Ya',
+  danger: false,
+  action: null,
+});
+
+function askConfirm({ title, message, confirmLabel = 'Ya', danger = false, action }) {
+  dialog.open = true;
+  dialog.mode = 'confirm';
+  dialog.title = title || 'Konfirmasi';
+  dialog.message = message;
+  dialog.confirmLabel = confirmLabel;
+  dialog.danger = danger;
+  dialog.action = action;
+}
+
+function showAlert(message, title = 'Info') {
+  dialog.open = true;
+  dialog.mode = 'alert';
+  dialog.title = title;
+  dialog.message = message;
+  dialog.confirmLabel = 'OK';
+  dialog.danger = false;
+  dialog.action = null;
+}
+
+function closeDialog() {
+  dialog.open = false;
+  dialog.action = null;
+}
+
+async function onDialogConfirm() {
+  const action = dialog.action;
+  closeDialog();
+  if (typeof action === 'function') {
+    await action();
+  }
+}
 // ---- state ----------------------------------------------------------------
 const keys = ref([]);
 const templates = ref([]);
@@ -568,6 +622,17 @@ function clearDetailPoll() {
   }
 }
 
+function askCancelBlast() {
+  if (!detailBlast.value) return;
+  askConfirm({
+    title: 'Batalkan blast',
+    message: `Batalkan campaign "${detailBlast.value.campaign_name}"? Penerima yang belum terkirim tidak akan dikirim.`,
+    confirmLabel: 'Batalkan',
+    danger: true,
+    action: () => cancelBlast(),
+  });
+}
+
 async function cancelBlast() {
   if (!detailBlast.value) return;
   cancelling.value = true;
@@ -577,7 +642,7 @@ async function cancelBlast() {
     await loadBlasts();
     clearDetailPoll();
   } catch (e) {
-    alert(e?.message ?? 'Gagal membatalkan');
+    showAlert(e?.message ?? 'Gagal membatalkan', 'Gagal');
   }
   cancelling.value = false;
 }

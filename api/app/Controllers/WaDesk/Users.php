@@ -257,6 +257,15 @@ class Users extends WaDeskController
         }
 
         if ($user['role'] === 'team_leader' && $user['team_id']) {
+            $agents = $this->db($this->db_index)->query(
+                "SELECT COUNT(*) AS c FROM users
+                 WHERE team_id = ? AND role = 'agent' AND id <> ?",
+                [(int) $user['team_id'], $id]
+            )->row_array();
+            if ((int) ($agents['c'] ?? 0) > 0) {
+                $this->error('Hapus/pindahkan agent di bawah Team Leader ini dulu', 400);
+            }
+
             $this->db($this->db_index)->update('teams', [
                 'team_leader_user_id' => null,
             ], ['id' => (int) $user['team_id']]);
@@ -265,5 +274,86 @@ class Users extends WaDeskController
         $this->db($this->db_index)->delete('wadesk_tokens', ['user_id' => $id]);
         $this->db($this->db_index)->delete('users', ['id' => $id]);
         $this->success(null, 'User dihapus');
+    }
+
+    /**
+     * Promote agent → team_leader; current TL of that team demotes → agent.
+     * POST body: { id }  (agent user id)
+     */
+    public function promoteToLeader()
+    {
+        $this->verifyAuth();
+        $admin = $this->requireAdmin();
+        if (!$this->isPost()) {
+            $this->error('Method not allowed', 405);
+        }
+
+        $body = $this->getBody();
+        $this->validate($body, ['id']);
+        $agentId = (int) $body['id'];
+
+        $agent = $this->db($this->db_index)->query(
+            "SELECT * FROM users
+             WHERE id = ? AND tenant_id = ? AND role = 'agent' AND is_active = 1
+             LIMIT 1",
+            [$agentId, (int) $admin['tenant_id']]
+        )->row_array();
+        if (!$agent) {
+            $this->error('Agent tidak ditemukan / tidak aktif', 404);
+        }
+
+        $teamId = (int) ($agent['team_id'] ?? 0);
+        if ($teamId <= 0) {
+            $this->error('Agent belum terhubung ke team', 400);
+        }
+
+        $team = $this->db($this->db_index)->query(
+            "SELECT * FROM teams WHERE id = ? AND tenant_id = ? LIMIT 1",
+            [$teamId, (int) $admin['tenant_id']]
+        )->row_array();
+        if (!$team) {
+            $this->error('Team tidak ditemukan', 404);
+        }
+
+        $oldLeaderId = (int) ($team['team_leader_user_id'] ?? 0);
+        if ($oldLeaderId > 0 && $oldLeaderId === $agentId) {
+            $this->error('User sudah menjadi team leader team ini', 400);
+        }
+
+        $oldLeader = null;
+        if ($oldLeaderId > 0) {
+            $oldLeader = $this->db($this->db_index)->query(
+                "SELECT * FROM users
+                 WHERE id = ? AND tenant_id = ? AND role = 'team_leader'
+                 LIMIT 1",
+                [$oldLeaderId, (int) $admin['tenant_id']]
+            )->row_array();
+        }
+
+        // Demote old TL → agent (same team)
+        if ($oldLeader) {
+            $this->db($this->db_index)->update('users', [
+                'role' => 'agent',
+                'team_id' => $teamId,
+            ], ['id' => $oldLeaderId]);
+        }
+
+        // Promote agent → TL
+        $this->db($this->db_index)->update('users', [
+            'role' => 'team_leader',
+            'team_id' => $teamId,
+        ], ['id' => $agentId]);
+
+        $this->db($this->db_index)->update('teams', [
+            'team_leader_user_id' => $agentId,
+        ], ['id' => $teamId]);
+
+        $this->success([
+            'team_id' => $teamId,
+            'new_leader_id' => $agentId,
+            'demoted_leader_id' => $oldLeaderId ?: null,
+        ], $oldLeader
+            ? 'Agent dipromosikan jadi Team Leader; TL lama turun jadi agent'
+            : 'Agent dipromosikan jadi Team Leader');
     }
 }
