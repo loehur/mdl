@@ -256,6 +256,92 @@
     });
   }
 
+  var pendingCancelTopup = null;
+
+  function submitCancelTopup() {
+    if (!pendingCancelTopup) return;
+    var idMember = pendingCancelTopup.idMember;
+    var btn = pendingCancelTopup.btn;
+    pendingCancelTopup = null;
+    if (!idMember) return;
+
+    if (btn) btn.disabled = true;
+    var body = new URLSearchParams();
+    body.set('id_member', idMember);
+
+    fetch(base + 'J/topupCancel/' + pelangganId, {
+      method: 'POST',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      credentials: 'same-origin',
+      body: body.toString()
+    })
+      .then(function (res) {
+        return res.json().catch(function () {
+          throw new Error('Respons tidak valid');
+        });
+      })
+      .then(function (data) {
+        if (!data || !data.ok) {
+          throw new Error((data && data.message) || 'Gagal membatalkan');
+        }
+        toast(data.message || 'Dibatalkan', 'ok');
+        loadPage('tagihan', '', false);
+      })
+      .catch(function (err) {
+        toast((err && err.message) || 'Gagal membatalkan', 'warn');
+        if (btn) btn.disabled = false;
+      });
+  }
+
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('.j-topup-cancel');
+    if (!btn || !content.contains(btn)) return;
+    e.preventDefault();
+
+    var idMember = btn.getAttribute('data-id-member');
+    if (!idMember || btn.disabled) return;
+
+    pendingCancelTopup = { idMember: idMember, btn: btn };
+    var info = document.getElementById('jCancelTopupInfo');
+    if (info) info.textContent = btn.getAttribute('data-label') || ('#' + idMember);
+
+    var modalEl = document.getElementById('jModalCancelTopup');
+    if (!modalEl || !window.bootstrap) {
+      if (!window.confirm('Batalkan topup ini?')) {
+        pendingCancelTopup = null;
+        return;
+      }
+      submitCancelTopup();
+      return;
+    }
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+  });
+
+  document.addEventListener('click', function (e) {
+    var confirmBtn = e.target.closest('#jBtnConfirmCancelTopup');
+    if (!confirmBtn) return;
+    e.preventDefault();
+    var modalEl = document.getElementById('jModalCancelTopup');
+    if (modalEl && window.bootstrap) {
+      var inst = bootstrap.Modal.getInstance(modalEl);
+      if (inst) inst.hide();
+    }
+    submitCancelTopup();
+  });
+
+  var cancelTopupModal = document.getElementById('jModalCancelTopup');
+  if (cancelTopupModal) {
+    cancelTopupModal.addEventListener('hidden.bs.modal', function () {
+      if (pendingCancelTopup && pendingCancelTopup.btn) {
+        pendingCancelTopup.btn.disabled = false;
+      }
+      pendingCancelTopup = null;
+    });
+  }
+
   window.addEventListener('popstate', function (e) {
     if (e.state && e.state.page) {
       loadPage(e.state.page, e.state.extra || '', false);

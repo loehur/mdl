@@ -90,6 +90,66 @@ class J extends Controller
       echo json_encode(['ok' => true, 'go' => $go, 'message' => $message]);
    }
 
+   /** POST: batalkan topup paket belum lunas (hapus permanen — tanpa pembayaran) */
+   public function topupCancel($pelanggan)
+   {
+      header('Content-Type: application/json; charset=utf-8');
+      $pelanggan = $this->bootCustomer($pelanggan);
+
+      $idMember = isset($_POST['id_member']) ? (int) $_POST['id_member'] : 0;
+      if ($idMember <= 0) {
+         echo json_encode(['ok' => false, 'message' => 'Topup tidak valid']);
+         return;
+      }
+
+      $row = $this->db(0)->get_where_row(
+         'member',
+         'id_member = ' . $idMember
+            . ' AND id_pelanggan = ' . $pelanggan
+            . ' AND id_cabang = ' . (int) $this->id_cabang_p
+            . ' AND bin = 0'
+      );
+      if (!is_array($row) || empty($row['id_member'])) {
+         echo json_encode(['ok' => false, 'message' => 'Topup tidak ditemukan']);
+         return;
+      }
+      if ((int) ($row['lunas'] ?? 0) === 1) {
+         echo json_encode(['ok' => false, 'message' => 'Topup sudah lunas, tidak bisa dibatalkan']);
+         return;
+      }
+
+      $kasRows = $this->db(0)->get_where(
+         'kas',
+         'id_cabang = ' . (int) $this->id_cabang_p
+            . ' AND jenis_transaksi = 3 AND (ref_transaksi = \'' . $idMember . '\' OR CAST(ref_transaksi AS UNSIGNED) = ' . $idMember . ')'
+      );
+      if (!is_array($kasRows)) $kasRows = [];
+      foreach ($kasRows as $k) {
+         $st = (int) ($k['status_mutasi'] ?? 0);
+         if ($st === 3) {
+            echo json_encode(['ok' => false, 'message' => 'Sudah ada pembayaran, tidak bisa dibatalkan']);
+            return;
+         }
+         if ($st === 2) {
+            echo json_encode(['ok' => false, 'message' => 'Batalkan dulu pembayaran yang menunggu']);
+            return;
+         }
+      }
+
+      $whereDel = 'id_member = ' . $idMember
+         . ' AND id_pelanggan = ' . $pelanggan
+         . ' AND id_cabang = ' . (int) $this->id_cabang_p
+         . ' AND bin = 0 AND lunas = 0';
+      $do = $this->db(0)->delete('member', $whereDel);
+      if (isset($do['errno']) && (int) $do['errno'] !== 0) {
+         $this->model('Log')->write(__CLASS__ . '->' . __FUNCTION__ . '() ' . ($do['error'] ?? ''));
+         echo json_encode(['ok' => false, 'message' => 'Gagal membatalkan topup']);
+         return;
+      }
+
+      echo json_encode(['ok' => true, 'message' => 'Topup paket dihapus']);
+   }
+
    /** AJAX: HTML partial only */
    public function load($page, $pelanggan, $extra = null)
    {

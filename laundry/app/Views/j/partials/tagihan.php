@@ -219,6 +219,17 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
       <span>Rp<?= number_format((float) $m['harga']) ?></span>
       <span class="sisa">Sisa Rp<?= number_format((float) $m['sisa']) ?></span>
     </div>
+    <?php if ((float) ($m['dibayar'] ?? 0) <= 0) { ?>
+    <div class="j-chip-row" style="margin-top:10px">
+      <button
+        type="button"
+        class="j-btn j-btn-soft j-topup-cancel"
+        data-id-member="<?= (int) $m['id_member'] ?>"
+        data-label="M<?= (int) $m['id_harga'] ?> #<?= (int) $m['id_member'] ?> · Rp<?= number_format((float) $m['sisa']) ?>">
+        <i class="fas fa-trash-alt"></i> Batalkan
+      </button>
+    </div>
+    <?php } ?>
   </article>
 <?php } ?>
 

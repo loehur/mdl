@@ -188,10 +188,28 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
   </div>
 </div>
 
+<!-- Modal Batalkan Topup -->
+<div class="modal fade" id="jModalCancelTopup" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content j-sheet">
+      <div class="j-sheet-body j-sheet-center" style="padding-top:22px">
+        <div class="j-alert-ico"><i class="fas fa-trash-alt"></i></div>
+        <h5 class="j-sheet-title" style="margin:0 0 6px">Batalkan topup?</h5>
+        <p class="j-sheet-desc" id="jCancelTopupInfo"></p>
+        <p class="j-sheet-warn">Topup belum lunas akan dihapus permanen.</p>
+      </div>
+      <div class="j-sheet-foot">
+        <button type="button" class="j-sheet-btn ghost" data-bs-dismiss="modal">Tidak</button>
+        <button type="button" class="j-sheet-btn danger" id="jBtnConfirmCancelTopup"><i class="fas fa-trash-alt"></i> Ya, batalkan</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/js/bootstrap.bundle.min.js"></script>
 <script src="<?= URL::EX_ASSETS ?>js/qrcode.min.js"></script>
 <script src="<?= URL::EX_ASSETS ?>js/html2canvas.min.js"></script>
-<script src="<?= $assets ?>js/j-customer.js?v=8"></script>
+<script src="<?= $assets ?>js/j-customer.js?v=9"></script>
 <script src="<?= $assets ?>js/j-payment.js?v=3"></script>
 <script>
 if ('serviceWorker' in navigator) {
