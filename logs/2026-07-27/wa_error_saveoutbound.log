@@ -1,0 +1,8 @@
+15:25:15 !! EXCEPTION in saveOutboundMessage: No connection could be made because the target machine actively refused it at C:\xampp82\htdocs\mdl\api\app\Core\DB.php:29
+15:25:15 !! Stack Trace: #0 C:\xampp82\htdocs\mdl\api\app\Core\DB.php(29): mysqli->__construct('localhost', 'mdl_main', Object(SensitiveParameterValue), 'mdl_main')
+#1 C:\xampp82\htdocs\mdl\api\app\Helpers\WhatsAppService.php(891): App\Core\DB->__construct(0)
+#2 C:\xampp82\htdocs\mdl\api\app\Helpers\WhatsAppService.php(599): App\Helpers\WhatsAppService->saveOutboundMessage(Array, Array, NULL, NULL, NULL)
+#3 C:\xampp82\htdocs\mdl\api\app\Helpers\WhatsAppService.php(161): App\Helpers\WhatsAppService->sendRequest('/whatsapp/messa...', Array, 'POST', NULL)
+#4 C:\xampp82\htdocs\mdl\api\test_invoice_wa_template.php(27): App\Helpers\WhatsAppService->sendTemplate('6281268098300', 'template_utilit...', 'id', Array)
+#5 {main}
+15:25:15 !! Payload was: {"from":"+6281170706611","to":"+6281268098300","type":"template","template":{"name":"template_utility_20260725132816","language":{"code":"id"},"components":[{"type":"body","parameters":[{"type":"text","text":"Test Reminder","parameter_name":"customer_name"},{"type":"text","text":"Invoice Test Cron","parameter_name":"invoice_title"},{"type":"text","text":"INV-TEST-20260727152511","parameter_name":"invoice_number"},{"type":"text","text":"27\/07\/2026","parameter_name":"date"},{"type":"text","text":"Rp100.000,-","parameter_name":"total"},{"type":"text","text":"https:\/\/invoice.nalju.com\/#\/i\/test-token","parameter_name":"invoice_link"}]}]}}
