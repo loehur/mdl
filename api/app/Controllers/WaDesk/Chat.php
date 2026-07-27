@@ -2,6 +2,7 @@
 
 namespace App\Controllers\WaDesk;
 
+use App\Helpers\WaDeskDailyKeyLimit;
 use App\Helpers\WaDeskCrypto;
 use App\Helpers\WaDeskServer;
 use App\Helpers\WaDeskYCloud;
@@ -182,6 +183,17 @@ class Chat extends WaDeskController
                 $this->error('template_name atau template_id wajib', 400);
             }
 
+            $limitGuard = new WaDeskDailyKeyLimit($this->db($this->db_index));
+            $quota = $limitGuard->reserve((int) $key['id'], $phone, (int) $user['id'], 'template');
+            if (!$quota['allowed']) {
+                $this->error($quota['error'], 422, [
+                    'daily_limit' => $quota['limit'],
+                    'used_today' => $quota['used'],
+                    'api_key_id' => (int) $key['id'],
+                    'phone' => $phone,
+                ]);
+            }
+
             [$sendParams, $named, $indexed, $paramsForStore] = $this->resolveTemplateParams(
                 $tplParamDefs,
                 $rawParams
@@ -230,6 +242,17 @@ class Chat extends WaDeskController
         $message = trim((string) ($body['message'] ?? ''));
         if ($message === '') {
             $this->error('message wajib', 400);
+        }
+
+        $limitGuard = new WaDeskDailyKeyLimit($this->db($this->db_index));
+        $quota = $limitGuard->reserve((int) $key['id'], $phone, (int) $user['id'], 'free');
+        if (!$quota['allowed']) {
+            $this->error($quota['error'], 422, [
+                'daily_limit' => $quota['limit'],
+                'used_today' => $quota['used'],
+                'api_key_id' => (int) $key['id'],
+                'phone' => $phone,
+            ]);
         }
 
         $result = $client->sendFreeText($phone, $message, $body['reply_to'] ?? null);

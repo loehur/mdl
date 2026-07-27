@@ -3,6 +3,7 @@ import { useAuthStore } from "./stores/auth";
 import LoginView from "./views/LoginView.vue";
 import InboxView from "./views/InboxView.vue";
 import AdminView from "./views/AdminView.vue";
+import BlastView from "./views/BlastView.vue";
 
 const router = createRouter({
   history: createWebHashHistory(),
@@ -10,6 +11,7 @@ const router = createRouter({
     { path: "/login", name: "login", component: LoginView, meta: { guest: true } },
     { path: "/", name: "inbox", component: InboxView, meta: { auth: true } },
     { path: "/admin", name: "admin", component: AdminView, meta: { auth: true, admin: true } },
+    { path: "/blast", name: "blast", component: BlastView, meta: { auth: true, admin: true } },
   ],
 });
 
