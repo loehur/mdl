@@ -611,6 +611,93 @@ if (isset($data['data_operasi'])) {
         @keyframes mdl-cabang-spin {
             to { transform: rotate(360deg); }
         }
+        /* Global toast (UI theme) */
+        .mdl-toast-host {
+            position: fixed;
+            left: 50%;
+            bottom: 18px;
+            transform: translateX(-50%);
+            z-index: 5400;
+            display: flex;
+            flex-direction: column-reverse;
+            align-items: center;
+            gap: 8px;
+            width: min(420px, calc(100vw - 24px));
+            pointer-events: none;
+        }
+        .mdl-toast {
+            pointer-events: auto;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid #93c5fd;
+            border-radius: 0;
+            background: linear-gradient(180deg, #eff6ff, #fff);
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.16);
+            color: #0f172a;
+            font-family: 'fontku', 'Segoe UI', sans-serif;
+            font-size: 0.88rem;
+            font-weight: 800;
+            line-height: 1.35;
+            opacity: 0;
+            transform: translateY(8px);
+            transition: opacity .18s ease, transform .18s ease;
+        }
+        .mdl-toast.is-show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .mdl-toast__icon {
+            width: 28px;
+            height: 28px;
+            flex: 0 0 auto;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            background: #2563eb;
+            border-radius: 0;
+        }
+        .mdl-toast__msg {
+            flex: 1 1 auto;
+            min-width: 0;
+            padding-top: 3px;
+        }
+        .mdl-toast__close {
+            flex: 0 0 auto;
+            width: 28px;
+            height: 28px;
+            border: 1px solid #cbd5e1;
+            background: #e2e8f0;
+            color: #0f172a;
+            border-radius: 0;
+            cursor: pointer;
+            font-weight: 900;
+            line-height: 1;
+        }
+        .mdl-toast--ok {
+            border-color: #86efac;
+            background: linear-gradient(180deg, #f0fdf4, #fff);
+        }
+        .mdl-toast--ok .mdl-toast__icon { background: #16a34a; }
+        .mdl-toast--warn {
+            border-color: #fcd34d;
+            background: linear-gradient(180deg, #fffbeb, #fff);
+        }
+        .mdl-toast--warn .mdl-toast__icon { background: #f59e0b; color: #111; }
+        .mdl-toast--error {
+            border-color: #fca5a5;
+            background: linear-gradient(180deg, #fef2f2, #fff);
+        }
+        .mdl-toast--error .mdl-toast__icon { background: #dc2626; }
+        .mdl-toast--error .mdl-toast__msg { color: #b91c1c; }
+        .mdl-toast--info {
+            border-color: #93c5fd;
+            background: linear-gradient(180deg, #eff6ff, #fff);
+        }
+        .mdl-toast--info .mdl-toast__icon { background: #2563eb; }
         .mdl-tbtn--user {
             min-width: 52px;
             padding: 0 12px;
@@ -2183,5 +2270,84 @@ if ($log_mode == 1) {
                     $('body').removeClass('modal-open');
                     $('.modal-backdrop').remove();
                 }
+
+                (function initMdlToast() {
+                    var host = document.getElementById("mdlToastHost");
+                    if (!host) {
+                        host = document.createElement("div");
+                        host.id = "mdlToastHost";
+                        host.className = "mdl-toast-host";
+                        host.setAttribute("aria-live", "polite");
+                        document.body.appendChild(host);
+                    }
+
+                    var ICONS = {
+                        ok: "fa-check",
+                        success: "fa-check",
+                        warn: "fa-exclamation-triangle",
+                        warning: "fa-exclamation-triangle",
+                        error: "fa-times",
+                        danger: "fa-times",
+                        info: "fa-info-circle"
+                    };
+                    var CLASS = {
+                        ok: "mdl-toast--ok",
+                        success: "mdl-toast--ok",
+                        warn: "mdl-toast--warn",
+                        warning: "mdl-toast--warn",
+                        error: "mdl-toast--error",
+                        danger: "mdl-toast--error",
+                        info: "mdl-toast--info"
+                    };
+
+                    function normalizeType(type) {
+                        type = String(type || "info").toLowerCase();
+                        if (type === "success") return "ok";
+                        if (type === "warning") return "warn";
+                        if (type === "danger") return "error";
+                        if (type === "ok" || type === "warn" || type === "error" || type === "info") return type;
+                        return "info";
+                    }
+
+                    function show(message, type, opts) {
+                        opts = opts || {};
+                        var t = normalizeType(type);
+                        var delay = opts.delay != null ? opts.delay : (t === "error" ? 4000 : 2800);
+                        var el = document.createElement("div");
+                        el.className = "mdl-toast " + (CLASS[t] || CLASS.info);
+                        el.setAttribute("role", t === "error" ? "alert" : "status");
+                        el.innerHTML =
+                            '<span class="mdl-toast__icon"><i class="fas ' + (ICONS[t] || ICONS.info) + '"></i></span>' +
+                            '<div class="mdl-toast__msg"></div>' +
+                            '<button type="button" class="mdl-toast__close" aria-label="Tutup">&times;</button>';
+                        el.querySelector(".mdl-toast__msg").textContent = String(message || "");
+                        host.appendChild(el);
+                        requestAnimationFrame(function() { el.classList.add("is-show"); });
+
+                        var timer = null;
+                        function dismiss() {
+                            if (timer) clearTimeout(timer);
+                            el.classList.remove("is-show");
+                            setTimeout(function() {
+                                if (el.parentNode) el.parentNode.removeChild(el);
+                            }, 200);
+                        }
+                        el.querySelector(".mdl-toast__close").addEventListener("click", dismiss);
+                        if (delay > 0) timer = setTimeout(dismiss, delay);
+
+                        while (host.children.length > 3) {
+                            host.removeChild(host.firstChild);
+                        }
+                        return { dismiss: dismiss };
+                    }
+
+                    window.MdlToast = {
+                        show: show,
+                        ok: function(msg, opts) { return show(msg, "ok", opts); },
+                        warn: function(msg, opts) { return show(msg, "warn", opts); },
+                        error: function(msg, opts) { return show(msg, "error", opts); },
+                        info: function(msg, opts) { return show(msg, "info", opts); }
+                    };
+                })();
             </script>
 <?php require_once __DIR__ . '/pwa_register.php'; ?>

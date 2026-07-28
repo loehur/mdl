@@ -108,6 +108,43 @@ $kodeCabang = strtoupper((string) ($this->dCabang['kode_cabang'] ?? ''));
       color: #fff;
       flex: 0 0 auto;
     }
+    #operan-root .opn-panel--guide {
+      border-color: #fcd34d;
+      background: linear-gradient(180deg, #fffbeb, #fff);
+    }
+    #operan-root .opn-panel--guide .opn-ico {
+      background: var(--opn-yellow);
+      color: #111;
+    }
+    #operan-root .opn-guide-list {
+      margin: 0;
+      padding: 0 0 0 18px;
+      color: var(--opn-ink);
+      font-size: 0.86rem;
+      font-weight: 750;
+      line-height: 1.5;
+    }
+    #operan-root .opn-guide-list li {
+      margin-bottom: 6px;
+    }
+    #operan-root .opn-guide-list li:last-child {
+      margin-bottom: 0;
+    }
+    #operan-root .opn-guide-list code {
+      display: inline-block;
+      padding: 1px 6px;
+      border: 1px solid #fcd34d;
+      background: #fff;
+      color: #0f172a;
+      font-family: 'fontku', 'Segoe UI', Consolas, monospace;
+      font-size: 0.82rem;
+      font-weight: 900;
+      border-radius: 0;
+    }
+    #operan-root .opn-guide-list b {
+      color: var(--opn-yellow-deep);
+      font-weight: 900;
+    }
     #operan-root .opn-grid {
       display: grid;
       grid-template-columns: 1fr;
@@ -222,6 +259,18 @@ $kodeCabang = strtoupper((string) ($this->dCabang['kode_cabang'] ?? ''));
       <?php } ?>
     </div>
 
+    <div class="opn-panel opn-panel--guide">
+      <h3 class="opn-panel__title">
+        <span class="opn-ico"><i class="fas fa-lightbulb"></i></span>
+        Panduan menemukan ID Outlet dan ID Item
+      </h3>
+      <ul class="opn-guide-list">
+        <li>Lihat pada nota laundry</li>
+        <li>ID Outlet berada pada tulisan <code>REFXX#012345</code>, 1–2 digit kode outlet <b>XX</b></li>
+        <li>ID Item berada pada tulisan <code>ID123-XXX</code>, 3 digit terakhir <b>XXX</b></li>
+      </ul>
+    </div>
+
     <div class="opn-panel">
       <h3 class="opn-panel__title">
         <span class="opn-ico"><i class="fas fa-search"></i></span>
@@ -232,13 +281,11 @@ $kodeCabang = strtoupper((string) ($this->dCabang['kode_cabang'] ?? ''));
           <label class="opn-label" for="opnIdCabang">ID Outlet</label>
           <input id="opnIdCabang" name="idCabang" class="opn-input" style="text-transform:uppercase"
             value="<?= htmlspecialchars((string) $idCabang) ?>" required autocomplete="off" />
-          <span class="opn-hint">Format REF<b>XX</b># — 1–2 digit kode outlet</span>
         </div>
         <div>
           <label class="opn-label" for="opnIdOperan">ID Item</label>
           <input id="opnIdOperan" name="idOperan" class="opn-input"
             value="<?= htmlspecialchars((string) $idOperan) ?>" required autocomplete="off" inputmode="numeric" />
-          <span class="opn-hint">3 digit terakhir IDXXX-<b>XXX</b></span>
         </div>
         <div>
           <label class="opn-label">&nbsp;</label>

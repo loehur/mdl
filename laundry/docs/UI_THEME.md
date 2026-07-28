@@ -8,6 +8,7 @@ Referensi implementasi yang sudah sesuai tema:
 - Offcanvas Pembayaran → `laundry/app/Views/operasi/partials/modals.php` (`#offcanvasPayment`)
 - Modal Operasi → `laundry/app/Views/operasi/partials/modals.php` (`.op-modal` + `window.OpModal`)
 - Top nav + Sidebar → `laundry/app/Views/layout.php` (`.mdl-topbar`, `.main-sidebar`)
+- Toast → `laundry/app/Views/layout.php` (`.mdl-toast` + `window.MdlToast`)
 - Antrian view → `laundry/app/Views/antrian/view_content.php` + `form.php` (warna token; layout/spacing dipertahankan)
 - Login → `laundry/app/Views/login.php`
 - Absen → `laundry/app/Views/Absen/form.php` (`#absen-root`) + `content.php`
@@ -309,6 +310,69 @@ Mapping contoh:
 
 Desktop: **2 kolom**. Mobile (`≤720px` / `≤639px`): 1 kolom.
 
+### Toast (feedback singkat)
+
+Toast untuk **pesan singkat** — sukses, error, warning, info — **tanpa memaksa klik OK**.  
+Jangan otomatis pakai modal/`alert()` untuk feedback sederhana.
+
+#### Kapan toast vs modal
+
+| Situasi | Pakai |
+|---------|--------|
+| Berhasil simpan / tambah / hapus singkat | **Toast** `ok` / `success` |
+| Validasi gagal, request gagal, peringatan singkat | **Toast** `warn` / `error` |
+| Info ringan (sudah dikirim, masih menunggu) | **Toast** `info` |
+| Konfirmasi aksi (hapus, checkout, ganti yang merusak data) | **Modal** (butuh Ya/Batal) |
+| Alur multi-field (pilih karyawan, isi pack, dll.) | **Modal** / offcanvas |
+| Instruksi panjang yang harus dibaca (kebijakan, panduan) | **Modal** |
+
+Aturan singkat:
+- **1 kalimat**, max ~2 baris — bukan paragraf.
+- Auto hilang ~2.5–4 detik (error boleh sedikit lebih lama).
+- Boleh ditutup manual (klik / tombol X).
+- **Jangan** stack 10 toast — ganti toast yang sama atau antri singkat (max 2–3).
+- **Jangan** toast `rounded` / Bootstrap Toast default — ikut token tema (siku, border 1px, warna solid).
+
+#### Varian warna
+
+| Type | Border / accent | Background | Teks | Ikon saran |
+|------|-----------------|------------|------|------------|
+| `ok` / `success` | `#86efac` / hijau | `#f0fdf4 → #fff` | `#0f172a` | `fa-check` |
+| `warn` / `warning` | `#fcd34d` / kuning | `#fffbeb → #fff` | `#0f172a` | `fa-exclamation-triangle` |
+| `error` / `danger` | `#fca5a5` / merah | `#fef2f2 → #fff` | `#0f172a` (+ aksen `#b91c1c` opsional) | `fa-times` |
+| `info` | `#93c5fd` / biru | `#eff6ff → #fff` | `#0f172a` | `fa-info-circle` |
+
+Posisi default: **bawah tengah** (mobile-friendly) atau bawah kanan desktop. `z-index` di atas konten (~`5400`), di bawah atau setara modal penting.
+
+#### API standar
+
+Global di layout laundry: `window.MdlToast`.
+
+```js
+MdlToast.show("Item ditambahkan ke keranjang", "ok");
+MdlToast.show("Gagal menyimpan", "error");
+MdlToast.show("Lengkapi ID Outlet", "warn");
+MdlToast.show("Menunggu pembayaran…", "info");
+
+// alias
+MdlToast.ok("Berhasil");
+MdlToast.warn("Perhatian");
+MdlToast.error("Gagal");
+MdlToast.info("Info");
+```
+
+Referensi: `laundry/app/Views/layout.php` (`.mdl-toast` + `window.MdlToast`).
+
+Halaman khusus (portal J, dll.) boleh punya toast sendiri, tapi **visual harus mengikuti token** di atas — bukan Bootstrap `rounded` toast generik.
+
+#### Anti-pola toast
+
+- `alert()` untuk error validasi biasa
+- Modal penuh hanya untuk “Berhasil” / “Gagal” 1 kalimat
+- Toast hijau muda pastel tanpa border token
+- Toast bulat / pill / shadow ungu
+- Toast yang tidak hilang sendiri tanpa tombol tutup jelas
+
 ---
 
 ## 6. Checklist sebelum merge UI
@@ -327,6 +391,8 @@ Desktop: **2 kolom**. Mobile (`≤720px` / `≤639px`): 1 kolom.
 - [ ] Radio/option terpilih sangat jelas vs yang tidak
 - [ ] Header offcanvas memakai gradient multiwarna (jika offcanvas)
 - [ ] Modal Operasi memakai `.op-modal` / `OpModal` (bukan Bootstrap Modal + backdrop)
+- [ ] Feedback singkat memakai **toast** (`MdlToast`), bukan `alert()` / modal OK-only
+- [ ] Konfirmasi destruktif / multi-step tetap modal (bukan toast)
 - [ ] Konsisten dengan Order / Pembayaran yang sudah ada
 
 ---
@@ -346,6 +412,8 @@ Desktop: **2 kolom**. Mobile (`≤720px` / `≤639px`): 1 kolom.
 - Field wrapper ber-border di sekitar kontrol yang sudah ber-border
 - **Sudut membulat / round / pill / `border-radius: 50%`** — dilarang
 - Class Bootstrap `rounded`, `rounded-pill`, `rounded-3`, dll. pada elemen bertema
+- Modal/`alert()` untuk pesan sukses atau error 1 baris — **pakai toast**
+- Bootstrap Toast default (rounded + shadow generik) tanpa token warna tema
 
 ---
 
