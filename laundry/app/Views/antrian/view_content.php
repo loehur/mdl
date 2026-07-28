@@ -272,7 +272,7 @@ if (count($data['data_main']) == 0) {
       }
     } ?>
 
-    <div data-id_pelanggan='<?= $f17 ?>' id='grid<?= $ref ?>' class='R-<?= $ref ?> cekOperasi mdl-nota-grid__item backShow <?= strtoupper($pelanggan) ?>' style='cursor:pointer'>
+    <div data-id_pelanggan='<?= $f17 ?>' data-search-name="<?= htmlspecialchars(strtoupper($pelanggan), ENT_QUOTES, 'UTF-8') ?>" id='grid<?= $ref ?>' class='R-<?= $ref ?> cekOperasi mdl-nota-grid__item backShow' style='cursor:pointer'>
       <div class='mdl-nota-card'>
         <?php
           $totalBayar = 0;

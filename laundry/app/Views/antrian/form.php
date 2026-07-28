@@ -383,8 +383,8 @@
     $("div.backShow").addClass('d-none');
     var matches = [];
     $("div.backShow").each(function() {
-      var cls = (this.className || "").toUpperCase();
-      if (cls.indexOf(pelanggan) !== -1) {
+      var name = String($(this).attr("data-search-name") || "").toUpperCase();
+      if (name.indexOf(pelanggan) !== -1) {
         matches.push(this);
       }
     });
