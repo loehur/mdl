@@ -33,7 +33,7 @@
         >
           <p class="font-semibold text-ledger-dim">Tagihan berulang aktif</p>
           <p class="mt-1 text-mist">
-            Periode {{ invoice.recurring.period === 'yearly' ? 'tahunan' : 'bulanan' }}
+            Periode {{ recurringPeriodLabel(invoice.recurring.period) }}
             <template v-if="invoice.recurring.next_issue_date">
               · berikutnya {{ formatDate(invoice.recurring.next_issue_date) }}
             </template>
@@ -244,6 +244,12 @@ const needsCustomer = computed(() => {
   if (!inv) return false;
   return inv.customer_id == null || inv.customer_id === "" || Number(inv.customer_id) <= 0;
 });
+
+function recurringPeriodLabel(period) {
+  if (period === "yearly") return "tahunan";
+  if (period === "quarterly") return "per 3 bulan";
+  return "bulanan";
+}
 
 const confirmConfig = computed(() => {
   const inv = invoice.value;

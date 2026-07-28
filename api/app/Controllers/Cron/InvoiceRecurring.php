@@ -93,7 +93,7 @@ class InvoiceRecurring extends InvoiceController
     {
         $userId = (int) $bill['user_id'];
         $customerId = (int) $bill['customer_id'];
-        $period = $bill['period'] === 'yearly' ? 'yearly' : 'monthly';
+        $period = $this->normalizeRecurringPeriod((string) ($bill['period'] ?? 'monthly'));
         $issueDate = $bill['next_issue_date'];
 
         $customer = $this->db($this->db_index)->query(

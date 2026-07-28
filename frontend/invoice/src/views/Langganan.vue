@@ -127,7 +127,9 @@ const filterOptions = [
 ];
 
 function periodLabel(period) {
-  return period === "yearly" ? "Tahunan" : "Bulanan";
+  if (period === "yearly") return "Tahunan";
+  if (period === "quarterly") return "Per 3 Bulan";
+  return "Bulanan";
 }
 
 const filtered = computed(() => {

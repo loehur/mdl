@@ -76,7 +76,7 @@ Semua response sukses/error memakai format JSON standar API:
 | `status` | string | Enum: lihat tabel di bawah |
 | `service_allowed` | boolean | Rekomendasi: boleh lanjutkan layanan? |
 | `recurring_active` | boolean | Jadwal tagihan berulang masih aktif (`is_active = 1`) |
-| `period` | string \| null | `monthly` \| `yearly` \| `null` |
+| `period` | string \| null | `monthly` \| `quarterly` \| `yearly` \| `null` |
 | `next_issue_date` | string \| null | Tanggal invoice berikutnya (YYYY-MM-DD) |
 | `invoice` | object \| null | Invoice terkait (lihat di bawah) |
 

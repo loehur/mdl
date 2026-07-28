@@ -182,8 +182,8 @@ class RecurringBills extends InvoiceController
             $this->error('Pelanggan tidak ditemukan', 404);
         }
 
-        $period = trim((string) ($body['period'] ?? 'monthly'));
-        if (!in_array($period, ['monthly', 'yearly'], true)) {
+        $period = $this->normalizeRecurringPeriod((string) ($body['period'] ?? 'monthly'));
+        if (!in_array($period, ['monthly', 'quarterly', 'yearly'], true)) {
             $this->error('Periode tidak valid', 400);
         }
 

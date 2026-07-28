@@ -27,6 +27,7 @@
               <label class="field-label">Periode *</label>
               <select v-model="form.period" class="field-input">
                 <option value="monthly">Bulanan</option>
+                <option value="quarterly">Per 3 Bulan</option>
                 <option value="yearly">Tahunan</option>
               </select>
             </div>

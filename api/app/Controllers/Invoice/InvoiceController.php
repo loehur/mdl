@@ -491,11 +491,24 @@ abstract class InvoiceController extends BaseController
         ];
     }
 
+    protected function normalizeRecurringPeriod(string $period): string
+    {
+        $period = trim($period);
+        if (in_array($period, ['monthly', 'quarterly', 'yearly'], true)) {
+            return $period;
+        }
+        return 'monthly';
+    }
+
     protected function advanceIssueDate(string $issueDate, string $period): string
     {
         $dt = new \DateTimeImmutable($issueDate);
+        $period = $this->normalizeRecurringPeriod($period);
         if ($period === 'yearly') {
             return $dt->modify('+1 year')->format('Y-m-d');
+        }
+        if ($period === 'quarterly') {
+            return $dt->modify('+3 months')->format('Y-m-d');
         }
         return $dt->modify('+1 month')->format('Y-m-d');
     }
@@ -522,10 +535,7 @@ abstract class InvoiceController extends BaseController
     protected function syncRecurringBill(int $userId, int $invoiceId, array $parsed, ?array $recurring): ?array
     {
         $enabled = !empty($recurring['enabled']);
-        $period = trim((string) ($recurring['period'] ?? 'monthly'));
-        if (!in_array($period, ['monthly', 'yearly'], true)) {
-            $period = 'monthly';
-        }
+        $period = $this->normalizeRecurringPeriod((string) ($recurring['period'] ?? 'monthly'));
 
         $existingId = null;
         $invoice = $this->db($this->db_index)->query(
