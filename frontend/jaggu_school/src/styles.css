@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --jaggu-red: #c1121f;
+  --jaggu-crimson: #9b0d18;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: "DM Sans", system-ui, sans-serif;
+  color: #1e293b;
+  background:
+    radial-gradient(1200px 500px at 10% -10%, #fecaca 0%, transparent 55%),
+    radial-gradient(900px 400px at 100% 0%, #fee2e2 0%, transparent 50%),
+    linear-gradient(180deg, #fff 0%, #f8fafc 100%);
+  background-attachment: fixed;
+}
+
+.font-display {
+  font-family: "Fraunces", Georgia, serif;
+}
