@@ -78,6 +78,7 @@ const currentPollingInterval = ref(30000); // Start with 30s
 const chatPollingInterval = ref(null);
 const localLastMessageAt = ref(null);
 const chatPollingPhone = ref(null); // Store phone being polled
+const isChatPolling = ref(false); // true while active-chat poll request in flight
 
 // Activity events to track
 const ACTIVITY_EVENTS = ['mousedown', 'keydown', 'scroll', 'touchstart', 'touchmove'];
@@ -1763,7 +1764,8 @@ const startChatPolling = (phone) => {
       stopChatPolling();
       return;
     }
-    
+
+    isChatPolling.value = true;
     try {
       const response = await fetch(`${API_BASE}/CRM/Chat/getLastMessageAt?phone=${encodeURIComponent(phone)}&_t=${Date.now()}`);
       if (response.ok) {
@@ -1836,6 +1838,8 @@ const startChatPolling = (phone) => {
       }
     } catch (error) {
       console.error('Failed to check last_message_at:', error);
+    } finally {
+      isChatPolling.value = false;
     }
   }, 5000); // Poll every 5 seconds
 };
@@ -1847,6 +1851,7 @@ const stopChatPolling = () => {
     chatPollingInterval.value = null;
   }
   localLastMessageAt.value = null;
+  isChatPolling.value = false;
   // Don't clear chatPollingPhone - needed for restart when user becomes active after idle
 };
 
@@ -4953,6 +4958,7 @@ const handleLinkClick = (e) => {
       :is-loading-messages="isLoadingMessages"
       :is-loading-more-messages="isLoadingMoreMessages"
       :is-connected="isConnected"
+      :is-chat-polling="isChatPolling"
       :font-size="fontSize"
       @back-to-menu="backToMenu"
       @load-more-messages="loadMoreMessages"

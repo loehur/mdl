@@ -65,7 +65,11 @@ const props = defineProps({
   isLoadingMoreMessages: {
     type: Boolean,
     default: false,
-  }
+  },
+  isChatPolling: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 // Computed font size class based on prop
@@ -884,7 +888,7 @@ onUnmounted(() => {
 
       <div v-if="activeConversation" class="w-full h-full relative z-10 flex flex-col">
          <!-- Chat Header -->
-          <header class="h-16 border-b flex items-center justify-between px-4 md:px-6 z-30 border-[var(--wa-border)] bg-[var(--wa-bg-panel)] flex-shrink-0">
+          <header class="h-16 relative flex items-center justify-between px-4 md:px-6 z-30 bg-[var(--wa-bg-panel)] flex-shrink-0">
                <div class="flex items-center gap-3 flex-1 min-w-0">
                   <button @click="backToMenu" class="md:hidden p-1 -ml-2 text-[var(--wa-icon-default)]"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg></button>
                   <div @click="showCustomerInfo" class="min-w-0 flex-1 cursor-pointer">
@@ -946,6 +950,12 @@ onUnmounted(() => {
                                </button>
                          </div>
                     </div>
+               </div>
+               <div class="absolute bottom-0 inset-x-0 h-[3px] bg-[var(--wa-border)] overflow-hidden pointer-events-none" aria-hidden="true">
+                 <div
+                   v-if="isChatPolling"
+                   class="chat-poll-bar h-full w-1/3 bg-[var(--wa-accent-green)]"
+                 />
                </div>
           </header>
 
@@ -1350,3 +1360,18 @@ onUnmounted(() => {
     </div>
     </main>
 </template>
+
+<style scoped>
+@keyframes chat-poll-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+.chat-poll-bar {
+  animation: chat-poll-indeterminate 1s ease-in-out infinite;
+}
+</style>
