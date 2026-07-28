@@ -34,6 +34,9 @@ class Penjualan extends Controller
 
    public function insert($page)
    {
+      if ($this->blockDriverCartAdd(false)) {
+         return;
+      }
       $id_harga = $_POST['f1'];
       $qty = round((float) str_replace(',', '.', (string) ($_POST['f2'] ?? '0')), 2);
       $note = $_POST['f3'];
@@ -252,11 +255,17 @@ class Penjualan extends Controller
 
    public function addItemForm($id)
    {
+      if ($this->blockDriverCartAdd(false)) {
+         return;
+      }
       $this->view('penjualan/formItemAdd', ['id' => $id]);
    }
 
    public function orderPenjualanForm($id_penjualan, $id_harga, $saldo = false)
    {
+      if ($this->blockDriverCartAdd(false)) {
+         return;
+      }
       $data[1] = $id_penjualan;
       $data[2] = $id_harga;
       $data[3] = $saldo;
@@ -265,6 +274,9 @@ class Penjualan extends Controller
 
    public function addItem($id)
    {
+      if ($this->blockDriverCartAdd(false)) {
+         return;
+      }
       $f1 = $_POST['f1'];
       $f2 = $_POST['f2'];
       $newItem = array($f1 => $f2);

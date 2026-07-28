@@ -109,6 +109,31 @@ class Controller extends URL
         }
     }
 
+    /** Privilege 12 = driver/kurir */
+    public function isDriverPrivilege(): bool
+    {
+        return (int) ($this->id_privilege ?? $_SESSION[URL::SESSID]['user']['id_privilege'] ?? 0) === 12;
+    }
+
+    /**
+     * Blok tambah cart/order baru untuk driver.
+     * @return bool true jika diblok (response sudah dikirim)
+     */
+    public function blockDriverCartAdd(bool $asJson = false): bool
+    {
+        if (!$this->isDriverPrivilege()) {
+            return false;
+        }
+        $msg = 'Driver tidak dapat membuka order baru, silahkan gunakan fitur ganti user pada tombol ganti user di pojok kiri atas';
+        if ($asJson) {
+            header('Content-Type: application/json');
+            echo json_encode(['status' => 'error', 'ok' => false, 'message' => $msg]);
+        } else {
+            echo $msg;
+        }
+        return true;
+    }
+
     /**
      * Pembayaran order (kas jenis_transaksi = 1) dengan status_mutasi = 2 masih menunggu verifikasi.
      * Dipanggil saat order dituntaskan agar entri pending tidak tertinggal.

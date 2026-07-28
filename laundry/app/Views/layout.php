@@ -592,6 +592,25 @@ if (isset($data['data_operasi'])) {
             font-size: 10px;
             opacity: 0.95;
         }
+        .mdl-tbtn--cabang.is-loading {
+            pointer-events: none;
+            opacity: 0.9;
+            min-width: 52px;
+        }
+        .mdl-tbtn--cabang .mdl-cabang-spin {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255, 255, 255, 0.35);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: mdl-cabang-spin 0.7s linear infinite;
+            vertical-align: middle;
+            flex: 0 0 auto;
+        }
+        @keyframes mdl-cabang-spin {
+            to { transform: rotate(360deg); }
+        }
         .mdl-tbtn--user {
             min-width: 52px;
             padding: 0 12px;
@@ -757,6 +776,109 @@ if (isset($data['data_operasi'])) {
         }
         .mdl-side-switch-user i {
             font-size: 13px;
+        }
+        /* Driver cart-block modal (UI theme / op-modal style) */
+        .drv-modal {
+            --drv-ink: #0f172a;
+            --drv-yellow: #f59e0b;
+            --drv-yellow-deep: #d97706;
+            --drv-live: #16a34a;
+            --drv-live-deep: #15803d;
+            position: fixed;
+            inset: 0;
+            z-index: 5300;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+        .drv-modal.is-open { display: flex; }
+        .drv-modal__backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.55);
+            cursor: pointer;
+        }
+        .drv-modal__panel {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 420px;
+            background: #fff;
+            border: 1px solid #cbd5e1;
+            border-radius: 0;
+            box-shadow: 0 24px 48px rgba(15, 23, 42, 0.3);
+            overflow: hidden;
+        }
+        .drv-modal__head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 14px 16px;
+            background: linear-gradient(180deg, var(--drv-yellow), var(--drv-yellow-deep));
+            color: #111;
+        }
+        .drv-modal__head h3 {
+            margin: 0;
+            font-size: 0.95rem;
+            font-weight: 900;
+            letter-spacing: -0.02em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .drv-modal__close {
+            border: 0;
+            background: rgba(0,0,0,.12);
+            color: #111;
+            width: 32px;
+            height: 32px;
+            border-radius: 0;
+            cursor: pointer;
+            flex: 0 0 auto;
+        }
+        .drv-modal__body {
+            padding: 16px;
+            font-size: 0.9rem;
+            font-weight: 750;
+            color: var(--drv-ink);
+            line-height: 1.45;
+        }
+        .drv-modal__body p { margin: 0; }
+        .drv-modal__icon-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            margin: 0 4px;
+            vertical-align: middle;
+            background: var(--drv-live);
+            color: #fff;
+            border: 1px solid transparent;
+            border-radius: 0;
+        }
+        .drv-modal__icon-btn i { font-size: 12px; }
+        .drv-modal__foot {
+            display: flex;
+            justify-content: flex-end;
+            padding: 12px 16px;
+            border-top: 1px solid #e2e8f0;
+            background: #f8fafc;
+        }
+        .drv-modal__ok {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px 16px;
+            border: 1px solid transparent;
+            border-radius: 0;
+            background: linear-gradient(180deg, var(--drv-yellow), var(--drv-yellow-deep));
+            color: #111;
+            font-size: 0.9rem;
+            font-weight: 900;
+            cursor: pointer;
         }
         .mdl-side-wifi {
             display: flex;
@@ -1297,12 +1419,23 @@ if ($log_mode == 1) {
                 </div>
             </div>
         </div>
-        <?php if ($this->id_privilege == 100) {
+        <?php } ?>
+
+        <?php if ($this->id_privilege == 100 || $this->id_privilege == 12) {
             $userSwitchList = [];
+            $currentUserId = (int) ($_SESSION[URL::SESSID]['user']['id_user'] ?? 0);
             foreach ($this->user as $a) {
-                if ($a['id_user'] <> $_SESSION[URL::SESSID]['user']['id_user']) {
-                    $userSwitchList[] = $a;
+                if ((int) $a['id_user'] === $currentUserId) {
+                    continue;
                 }
+                // Priv 12 (kurir): hanya boleh ganti ke user biasa (bukan admin / bukan priv 12)
+                if ((int) $this->id_privilege === 12) {
+                    $targetPriv = (int) ($a['id_privilege'] ?? 0);
+                    if ($targetPriv === 100 || $targetPriv === 12) {
+                        continue;
+                    }
+                }
+                $userSwitchList[] = $a;
             }
         ?>
         <div class="mdl-cmodal mdl-cmodal--user" id="mdlUserModal" aria-hidden="true">
@@ -1341,7 +1474,31 @@ if ($log_mode == 1) {
             </div>
         </div>
         <?php } ?>
-        <?php } ?>
+
+        <div class="drv-modal" id="drvCartBlockModal" aria-hidden="true">
+            <div class="drv-modal__backdrop" data-drv-close></div>
+            <div class="drv-modal__panel" role="dialog" aria-modal="true" aria-labelledby="drvCartBlockTitle">
+                <div class="drv-modal__head">
+                    <h3 id="drvCartBlockTitle">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <span>Tidak diizinkan</span>
+                    </h3>
+                    <button type="button" class="drv-modal__close" data-drv-close aria-label="Tutup">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="drv-modal__body">
+                    <p>
+                        Driver tidak dapat membuka order baru, silahkan gunakan fitur ganti user pada tombol
+                        <span class="drv-modal__icon-btn" title="Ganti user login" aria-hidden="true"><i class="fas fa-exchange-alt"></i></span>
+                        di pojok kiri atas
+                    </p>
+                </div>
+                <div class="drv-modal__foot">
+                    <button type="button" class="drv-modal__ok" data-drv-close>OK</button>
+                </div>
+            </div>
+        </div>
 
         <aside class="main-sidebar sidebar-dark-yellow shadow-sm position-fixed">
             <div class="sidebar px-0">
@@ -1351,7 +1508,7 @@ if ($log_mode == 1) {
                             <i class="fas fa-user-circle"></i>
                             <span><?= htmlspecialchars((string) $this->nama_user) ?></span>
                         </span>
-                        <?php if ($this->id_privilege == 100) { ?>
+                        <?php if ($this->id_privilege == 100 || $this->id_privilege == 12) { ?>
                         <button type="button" id="btnPilihUser" class="mdl-side-switch-user" title="Ganti user login">
                             <i class="fas fa-exchange-alt"></i>
                         </button>
@@ -1806,12 +1963,27 @@ if ($log_mode == 1) {
                 (function initCabangModal() {
                     var $modal = $("#mdlCabangModal");
                     if (!$modal.length) return;
+                    var $btn = $("#btnPilihCabang");
+                    var btnIdleHtml = $btn.html();
 
                     function openCabangModal() {
+                        if ($btn.hasClass("is-loading")) return;
                         $modal.addClass("is-open").attr("aria-hidden", "false");
                     }
                     function closeCabangModal() {
                         $modal.removeClass("is-open").attr("aria-hidden", "true");
+                    }
+                    function setCabangBtnLoading(on) {
+                        if (!$btn.length) return;
+                        if (on) {
+                            $btn.addClass("is-loading").prop("disabled", true)
+                                .attr("title", "Memuat cabang…")
+                                .html('<span class="mdl-cabang-spin" aria-hidden="true"></span>');
+                        } else {
+                            $btn.removeClass("is-loading").prop("disabled", false)
+                                .attr("title", "Pilih cabang")
+                                .html(btnIdleHtml);
+                        }
                     }
                     function switchCabang(idCabang) {
                         $.ajax({
@@ -1820,19 +1992,19 @@ if ($log_mode == 1) {
                             type: "POST",
                             beforeSend: function() {
                                 closeCabangModal();
-                                $(".loaderDiv").fadeIn("fast");
+                                setCabangBtnLoading(true);
                             },
                             success: function() {
                                 location.reload(true);
                             },
                             error: function(xhr) {
-                                $(".loaderDiv").fadeOut("fast");
+                                setCabangBtnLoading(false);
                                 alert("Gagal pindah cabang: " + (xhr.responseText || xhr.status));
                             }
                         });
                     }
 
-                    $("#btnPilihCabang").on("click", function(e) {
+                    $btn.on("click", function(e) {
                         e.preventDefault();
                         openCabangModal();
                     });
@@ -1921,6 +2093,37 @@ if ($log_mode == 1) {
                         },
                     });
                 });
+
+                (function initDriverCartBlock() {
+                    window.MDL_PRIVILEGE = <?= (int) ($this->id_privilege ?? 0) ?>;
+                    var $modal = $("#drvCartBlockModal");
+
+                    function openDrvModal() {
+                        if (!$modal.length) return;
+                        $modal.addClass("is-open").attr("aria-hidden", "false");
+                    }
+                    function closeDrvModal() {
+                        $modal.removeClass("is-open").attr("aria-hidden", "true");
+                    }
+
+                    /**
+                     * @returns {boolean} true jika aksi harus dihentikan (driver)
+                     */
+                    window.blockDriverNewOrder = function () {
+                        if (window.MDL_PRIVILEGE !== 12) return false;
+                        openDrvModal();
+                        return true;
+                    };
+
+                    $modal.on("click", "[data-drv-close]", function () {
+                        closeDrvModal();
+                    });
+                    $(document).on("keydown.drvCart", function (e) {
+                        if (e.key === "Escape" && $modal.hasClass("is-open")) {
+                            closeDrvModal();
+                        }
+                    });
+                })();
 
                 (function initUserModal() {
                     var $modal = $("#mdlUserModal");

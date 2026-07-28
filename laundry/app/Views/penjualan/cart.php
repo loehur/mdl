@@ -274,6 +274,9 @@ if (empty($data['data_main'])) {
 
     $(".addItem").on("click", function(e) {
       e.preventDefault();
+      if (typeof window.blockDriverNewOrder === "function" && window.blockDriverNewOrder()) {
+        return;
+      }
       var id_penjualan = $(this).attr('data-id_penjualan');
       if (typeof window.openOrdItemModal === "function") {
         window.openOrdItemModal();

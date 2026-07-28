@@ -588,7 +588,38 @@ class Login extends Controller
 
    function switchUser()
    {
-      $id = $_POST['id'];
+      $this->session_cek();
+      $id = (int) ($_POST['id'] ?? 0);
+      if ($id <= 0) {
+         http_response_code(400);
+         echo 'ID user tidak valid';
+         return;
+      }
+
+      $currentPriv = (int) ($_SESSION[URL::SESSID]['user']['id_privilege'] ?? 0);
+      if ($currentPriv !== 100 && $currentPriv !== 12) {
+         http_response_code(403);
+         echo 'Tidak diizinkan ganti user';
+         return;
+      }
+
+      $target = $this->db(0)->get_where_row('user', 'id_user = ' . $id . ' AND en = 1');
+      if (!$target || empty($target['id_user'])) {
+         http_response_code(404);
+         echo 'User tidak ditemukan';
+         return;
+      }
+
+      // Priv 12 (kurir): hanya ke user biasa — bukan admin (100) dan bukan kurir lain (12)
+      if ($currentPriv === 12) {
+         $targetPriv = (int) ($target['id_privilege'] ?? 0);
+         if ($targetPriv === 100 || $targetPriv === 12) {
+            http_response_code(403);
+            echo 'Kurir hanya boleh ganti ke user biasa';
+            return;
+         }
+      }
+
       $data_user = $this->dataSynchrone($id);
       $this->save_cookie($data_user);
    }

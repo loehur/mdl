@@ -66,6 +66,9 @@ $(document).ready(function() {
   
   // Add main item to cart (New)
   $(document).on('click', '.addToCartMainNew', function() {
+    if (typeof window.blockDriverNewOrder === "function" && window.blockDriverNewOrder()) {
+      return;
+    }
     var btn = $(this);
     var id_barang = $('#selectBarang').val();
     var qty = $('#qtyMain').val();
@@ -79,6 +82,15 @@ $(document).ready(function() {
       data: { id_barang: id_barang, qty: qty },
       dataType: 'json',
       success: function(res) {
+        if (res && res.status === 'error') {
+          if (typeof window.blockDriverNewOrder === "function" && window.MDL_PRIVILEGE === 12) {
+            window.blockDriverNewOrder();
+          } else {
+            showModalAlert(res.message || 'Gagal menambah ke keranjang', 'error');
+          }
+          btn.prop('disabled', false).html('<i class="fas fa-plus"></i>');
+          return;
+        }
         loadCart();
         showToast('Barang utama ditambahkan');
         btn.prop('disabled', false).html('<i class="fas fa-plus"></i>');
@@ -92,6 +104,9 @@ $(document).ready(function() {
   
   // Add sub item to cart (Existing)
   $(document).on('click', '.addToCartSub', function() {
+    if (typeof window.blockDriverNewOrder === "function" && window.blockDriverNewOrder()) {
+      return;
+    }
     var btn = $(this);
     var id_barang = $('#selectBarang').val();
     var id_sub = btn.data('id');
@@ -204,12 +219,23 @@ function showBarangDetail(res) {
 }
 
 function addToCart(id_barang, id_sub, qty) {
+  if (typeof window.blockDriverNewOrder === "function" && window.blockDriverNewOrder()) {
+    return;
+  }
   $.ajax({
     url: '<?= URL::BASE_URL ?>Sales/add_to_cart',
     type: 'POST',
     data: { id_barang: id_barang, id_sub: id_sub, qty: qty },
     dataType: 'json',
     success: function(res) {
+      if (res && res.status === 'error') {
+        if (typeof window.blockDriverNewOrder === "function" && window.MDL_PRIVILEGE === 12) {
+          window.blockDriverNewOrder();
+        } else {
+          showModalAlert(res.message || 'Gagal menambah ke keranjang', 'error');
+        }
+        return;
+      }
       loadCart();
       // Show feedback
       showToast('Item ditambahkan ke keranjang');

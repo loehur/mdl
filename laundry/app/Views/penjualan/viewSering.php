@@ -53,6 +53,9 @@ foreach ($data['data'] as $a) {
 <script>
   $("#sering").off("click.sering", ".pilih-sering").on("click.sering", ".pilih-sering", function (e) {
     e.preventDefault();
+    if (typeof window.blockDriverNewOrder === "function" && window.blockDriverNewOrder()) {
+      return;
+    }
     var id_harga = $(this).attr("data-id_harga");
     var id_penjualan = $(this).attr("data-id_penjualan");
     var saldo = 0;

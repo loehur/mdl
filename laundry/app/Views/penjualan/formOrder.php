@@ -328,6 +328,10 @@ if ($saldoNya_member > 0) {
       $("select.order[name=f1]").removeAttr('disabled');
       e.preventDefault();
 
+      if (typeof window.blockDriverNewOrder === "function" && window.blockDriverNewOrder()) {
+        return;
+      }
+
       var $form = $(this);
       var $btn = $form.find('button[type="submit"]');
       if ($btn.data("loading")) {

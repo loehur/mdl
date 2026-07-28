@@ -921,6 +921,9 @@
 
     $(".addItem").on("click", function(e) {
       e.preventDefault();
+      if (typeof window.blockDriverNewOrder === "function" && window.blockDriverNewOrder()) {
+        return;
+      }
       var id_penjualan = $(this).attr('data-id_penjualan');
       if (typeof window.openOrdItemModal === "function") {
         window.openOrdItemModal();
@@ -1090,6 +1093,9 @@
     });
 
     $("button.orderPenjualanForm").on("click", function(e) {
+      if (typeof window.blockDriverNewOrder === "function" && window.blockDriverNewOrder()) {
+        return;
+      }
       var id_penjualan = $(this).attr('data-id_penjualan');
       var id_harga = 0;
       var saldo = 0;

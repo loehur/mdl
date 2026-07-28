@@ -220,6 +220,12 @@ class Sales extends Controller
    public function add_to_cart()
    {
       ob_start(); // Capture any unexpected output
+
+      if ($this->isDriverPrivilege()) {
+         ob_end_clean();
+         $this->blockDriverCartAdd(true);
+         return;
+      }
       
       $id_barang = $_POST['id_barang'] ?? 0;
       $id_sub = $_POST['id_sub'] ?? 0;
@@ -302,6 +308,12 @@ class Sales extends Controller
    public function add_main_to_cart()
    {
       ob_start(); // Capture any unexpected output
+
+      if ($this->isDriverPrivilege()) {
+         ob_end_clean();
+         $this->blockDriverCartAdd(true);
+         return;
+      }
       
       $id_barang = $_POST['id_barang'] ?? 0;
       $qty = floatval($_POST['qty'] ?? 1);

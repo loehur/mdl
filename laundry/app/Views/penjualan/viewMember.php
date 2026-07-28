@@ -188,6 +188,9 @@ if (count($items) === 0) {
 
 <script>
   $("#saldoMember").off("click.pakai", ".pakai-btn").on("click.pakai", ".pakai-btn", function () {
+    if (typeof window.blockDriverNewOrder === "function" && window.blockDriverNewOrder()) {
+      return;
+    }
     var id_harga = $(this).attr("data-id_harga");
     var id_penjualan = $(this).attr("data-id_penjualan");
     var saldo = $(this).attr("data-saldo");
