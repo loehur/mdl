@@ -19,6 +19,9 @@ return [
         'mas',
         'om',
         'nte',
+        'ko',
+        'ce',
+        'cece',
         'tante', // tante
     ],
 ];

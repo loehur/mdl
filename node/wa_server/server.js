@@ -555,15 +555,67 @@ function isIdAllowed(id) {
     return includesIgnoreCase(ADMIN_IDS, id) || includesIgnoreCase(DRIVER_IDS, id) || includesIgnoreCase(CREW_IDS, id);
 }
 
-// Store connected clients: Map<id, Set<WebSocket>> to support multiple connections per ID
-// Using Set to allow easy addition/removal
+/** Normalize client map key (case-insensitive uniqueness) */
+function normalizeClientId(id) {
+    return String(id || '').trim().toUpperCase();
+}
+
+/**
+ * Verify device lock via CRM Auth API (authoritative).
+ * GET /CRM/Auth/verifyDevice?username=&device=
+ */
+function verifyDeviceLock(username, deviceId) {
+    return new Promise((resolve) => {
+        try {
+            const base = (process.env.API_BASE || API_URL.replace(/\/CRM\/Roles\/?$/i, '')).replace(/\/$/, '');
+            const url = `${base}/CRM/Auth/verifyDevice?username=${encodeURIComponent(username)}&device=${encodeURIComponent(deviceId)}`;
+            const client = url.startsWith('https') ? https : http;
+
+            const req = client.get(url, { timeout: 8000 }, (res) => {
+                let data = '';
+                res.on('data', (chunk) => { data += chunk; });
+                res.on('end', () => {
+                    try {
+                        const json = JSON.parse(data);
+                        resolve({
+                            ok: json.ok === true,
+                            message: json.message || '',
+                            raw: json,
+                        });
+                    } catch (e) {
+                        console.error('[DEVICE] verify parse error:', e.message);
+                        resolve({ ok: false, message: 'verify parse error' });
+                    }
+                });
+            });
+
+            req.on('error', (err) => {
+                console.error('[DEVICE] verify request error:', err.message);
+                resolve({ ok: false, message: 'verify request failed' });
+            });
+
+            req.on('timeout', () => {
+                req.destroy();
+                resolve({ ok: false, message: 'verify timeout' });
+            });
+        } catch (e) {
+            console.error('[DEVICE] verify exception:', e.message);
+            resolve({ ok: false, message: e.message });
+        }
+    });
+}
+
+// Store connected clients: Map<id, Set<WebSocket>> — max 1 live socket per ID
+// Same device may REPLACE old sockets (reconnect/zombie). Other device rejected via API lock.
 const clients = new Map();
 const MAX_CONNECTIONS_PER_ID = 1;
 
-wss.on('connection', (ws, req) => {
-    // Extract ID from query params (e.g. ?id=123)
+wss.on('connection', async (ws, req) => {
+    // Extract ID + device from query (e.g. ?id=123&device=uuid)
     const urlParams = new URLSearchParams(req.url.split('?')[1]);
-    const id = urlParams.get('id');
+    const rawId = urlParams.get('id');
+    const deviceId = (urlParams.get('device') || '').trim();
+    const id = normalizeClientId(rawId);
 
     if (!id) {
         console.log('Connection rejected: missing id');
@@ -571,39 +623,56 @@ wss.on('connection', (ws, req) => {
         return;
     }
 
-    // Check if ID is allowed
+    if (!deviceId) {
+        console.log(`Connection rejected for ID ${id}: missing device`);
+        ws.close(1008, 'device required');
+        return;
+    }
+
+    // Check if ID is allowed (role list)
     if (!isIdAllowed(id)) {
         console.log(`Connection rejected: ID "${id}" is not in the allowed list`);
         ws.close(1008, 'Unauthorized ID');
         return;
     }
 
-    console.log(`Client connected with ID: ${id}`);
+    // Device lock check (same device OK; other device rejected)
+    const verified = await verifyDeviceLock(id, deviceId);
 
-    // Manage Connections (Max 2)
+    if (!verified.ok) {
+        console.log(`Connection rejected for ID ${id}: device lock — ${verified.message}`);
+        const reason = String(verified.message || 'Device locked').slice(0, 120);
+        ws.close(1008, reason);
+        return;
+    }
+
+    console.log(`Client connected with ID: ${id} device=${deviceId.slice(0, 8)}…`);
+
     if (!clients.has(id)) {
         clients.set(id, new Set());
     }
 
     const userSockets = clients.get(id);
 
-    console.log(`[DEBUG] ID ${id}: Current connections = ${userSockets.size}, Max = ${MAX_CONNECTIONS_PER_ID}`);
-
-    // If limit reached, reject NEW connection
+    // Same device reclaim: replace any existing sockets for this ID (safe — lock verified)
     if (userSockets.size >= MAX_CONNECTIONS_PER_ID) {
-        console.log(`Connection rejected for ID ${id}: Max connections limit (${MAX_CONNECTIONS_PER_ID}) reached.`);
-        ws.close(1008, 'Connection Limit Reached');
-        return;
+        console.log(`[DEVICE] Replacing ${userSockets.size} existing socket(s) for ID ${id} (same-device reclaim)`);
+        for (const oldWs of [...userSockets]) {
+            try {
+                oldWs.close(4000, 'Replaced by same device');
+            } catch (e) { /* ignore */ }
+            userSockets.delete(oldWs);
+        }
     }
 
+    ws.deviceId = deviceId;
     userSockets.add(ws);
     console.log(`[DEBUG] ID ${id}: Connection accepted, total connections now = ${userSockets.size}`);
 
     const role = getUserRole(id);
-    ws.role = role; // Attach role to socket for filtering later
+    ws.role = role;
     console.log(`[DEBUG] ID ${id} assigned role: ${role}`);
 
-    // Send welcome message
     ws.send(JSON.stringify({
         type: 'connection',
         status: 'urip',
@@ -615,7 +684,6 @@ wss.on('connection', (ws, req) => {
     ws.isAlive = true;
     ws.on('pong', () => { ws.isAlive = true; });
 
-    // Handle incoming messages from client (if any)
     ws.on('message', (message) => {
         try {
             console.log(`Received from ${id}:`, message.toString());
@@ -627,9 +695,9 @@ wss.on('connection', (ws, req) => {
     ws.on('close', () => {
         console.log(`Client disconnected: ${id}`);
         if (clients.has(id)) {
-            const userSockets = clients.get(id);
-            userSockets.delete(ws);
-            if (userSockets.size === 0) {
+            const sockets = clients.get(id);
+            sockets.delete(ws);
+            if (sockets.size === 0) {
                 clients.delete(id);
             }
         }
@@ -638,23 +706,23 @@ wss.on('connection', (ws, req) => {
     ws.on('error', (err) => {
         console.error(`Client ${id} error:`, err);
         if (clients.has(id)) {
-            const userSockets = clients.get(id);
-            userSockets.delete(ws);
-            if (userSockets.size === 0) {
+            const sockets = clients.get(id);
+            sockets.delete(ws);
+            if (sockets.size === 0) {
                 clients.delete(id);
             }
         }
     });
 });
 
-// Heartbeat to keep connections alive
+// Heartbeat — 15s so zombie sockets clear faster (helps reconnect without long 1008 loops)
 const heartbeatInterval = setInterval(() => {
     wss.clients.forEach((ws) => {
         if (ws.isAlive === false) return ws.terminate();
         ws.isAlive = false;
         ws.ping();
     });
-}, 30000);
+}, 15000);
 
 wss.on('close', () => {
     clearInterval(heartbeatInterval);
@@ -707,11 +775,13 @@ function logPushNotifDecision(context, opts) {
 
 function sendToTarget(targetId, data, excludeId = null) {
     let sent = false;
+    const normalizedTarget = normalizeClientId(targetId);
+    const normalizedExclude = excludeId ? normalizeClientId(excludeId) : null;
 
     // 1. Send to the specific target_id (all connected sockets for this ID)
     // But NOT if target is the excluded sender
-    if (clients.has(targetId) && targetId !== excludeId) {
-        const userSockets = clients.get(targetId);
+    if (clients.has(normalizedTarget) && normalizedTarget !== normalizedExclude) {
+        const userSockets = clients.get(normalizedTarget);
         userSockets.forEach(client => {
             if (client.readyState === WebSocket.OPEN) {
                 client.send(JSON.stringify(data));
@@ -724,9 +794,9 @@ function sendToTarget(targetId, data, excludeId = null) {
     // Avoid double sending if targetId is the admin itself
     // AND avoid sending to the excludeId (sender)
     ADMIN_IDS.forEach(adminId => {
-        // Don't send to: 1) the target itself, 2) the sender (excludeId)
-        if (targetId !== adminId && adminId !== excludeId && clients.has(adminId)) {
-            const adminSockets = clients.get(adminId);
+        const normalizedAdmin = normalizeClientId(adminId);
+        if (normalizedTarget !== normalizedAdmin && normalizedAdmin !== normalizedExclude && clients.has(normalizedAdmin)) {
+            const adminSockets = clients.get(normalizedAdmin);
             adminSockets.forEach(adminSocket => {
                 if (adminSocket.readyState === WebSocket.OPEN) {
                     adminSocket.send(JSON.stringify(data));
@@ -800,8 +870,9 @@ app.post('/incoming', async (req, res) => {
         // Also broadcast to connected drivers via WebSocket
         let wsCount = 0;
         DRIVER_IDS.forEach(driverId => {
-            if (clients.has(driverId)) {
-                const driverSockets = clients.get(driverId);
+            const normalizedDriver = normalizeClientId(driverId);
+            if (clients.has(normalizedDriver)) {
+                const driverSockets = clients.get(normalizedDriver);
                 driverSockets.forEach(socket => {
                     if (socket.readyState === WebSocket.OPEN) {
                         socket.send(JSON.stringify(data));
@@ -1068,13 +1139,13 @@ app.post('/incoming', async (req, res) => {
         }
     }
 
-    if (shouldNotifyTarget && !clients.has(targetId)) {
+    if (shouldNotifyTarget && !clients.has(normalizeClientId(targetId))) {
         pushRecipients.push(targetId);
     }
 
     // 2. Admin Monitoring (Always Include Offline Admins)
     ADMIN_IDS.forEach(adminId => {
-        if (!clients.has(adminId) && adminId !== senderId) {
+        if (!clients.has(normalizeClientId(adminId)) && normalizeClientId(adminId) !== normalizeClientId(senderId)) {
             pushRecipients.push(adminId);
         }
     });

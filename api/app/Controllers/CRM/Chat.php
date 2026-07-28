@@ -76,7 +76,8 @@ class Chat extends Controller
                 )";
             }
             
-            // Get user role from database (case-insensitive like Auth.php)
+            // Get user role:
+            // admin/driver from crm_users; crew from mdl_laundry.cabang (id_cabang)
             $isAdmin = false;
             $isDriver = false;
             
@@ -87,10 +88,11 @@ class Chat extends Controller
                     ->row();
                     
                 if ($userRecord) {
-                    $role = strtolower($userRecord->role ?? 'crew');
+                    $role = strtolower($userRecord->role ?? '');
                     $isAdmin = ($role === 'admin');
                     $isDriver = ($role === 'driver');
                 }
+                // Non-admin/driver treated as crew (cabang id_cabang) below
             }
             
             if ($userId && !$isAdmin) {
@@ -360,16 +362,7 @@ class Chat extends Controller
         $senderCode = $body['sender_code'] ?? null;
         
         if (!$senderCode && isset($body['user_id'])) {
-            // Lookup code from crm_users directly
-            $userId = $body['user_id'];
-            $userRecord = $db
-                ->where('LOWER(username)', strtolower($userId))
-                ->get('crm_users')
-                ->row();
-            
-            if ($userRecord && !empty($userRecord->code)) {
-                $senderCode = $userRecord->code;
-            }
+            $senderCode = $this->resolveSenderCode($db, $body['user_id']);
         }
         
         // Fallback to session code
@@ -1033,15 +1026,7 @@ class Chat extends Controller
                 $senderCode = $body['sender_code'] ?? null;
                 
                 if (!$senderCode && $userId) {
-                    // Lookup code from crm_users directly
-                    $userRecord = $db
-                        ->where('LOWER(username)', strtolower($userId))
-                        ->get('crm_users')
-                        ->row();
-                    
-                    if ($userRecord && !empty($userRecord->code)) {
-                        $senderCode = $userRecord->code;
-                    }
+                    $senderCode = $this->resolveSenderCode($db, $userId);
                 }
                 
                 // Fallback to session code
@@ -1250,5 +1235,41 @@ class Chat extends Controller
         }
     }
 
+    /**
+     * Resolve sender code:
+     * - admin/driver: crm_users.code
+     * - crew (cabang id_cabang): hardcoded CR
+     */
+    private function resolveSenderCode($db, $userId): ?string
+    {
+        if ($userId === null || $userId === '') {
+            return null;
+        }
+
+        $userRecord = $db
+            ->where('LOWER(username)', strtolower((string) $userId))
+            ->get('crm_users')
+            ->row();
+
+        if ($userRecord) {
+            $role = strtolower($userRecord->role ?? '');
+            if ($role === 'admin' || $role === 'driver') {
+                return !empty($userRecord->code) ? $userRecord->code : null;
+            }
+        }
+
+        if (is_numeric($userId)) {
+            $cabang = $this->db(1)
+                ->where('id_cabang', (int) $userId)
+                ->get('cabang')
+                ->row();
+
+            if ($cabang) {
+                return 'CR';
+            }
+        }
+
+        return null;
+    }
 
 }

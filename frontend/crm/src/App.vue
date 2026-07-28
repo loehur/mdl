@@ -6,6 +6,27 @@ import LoginModal from "./components/LoginModal.vue";
 import ChatPage from "./components/ChatPage.vue";
 import ConversationList from "./components/ConversationList.vue";
 import ApprovalModal from "./components/ApprovalModal.vue";
+import { getDeviceId } from "./utils/deviceId.js";
+
+/** Debounce reconnect when visibility + Capacitor resume both fire */
+let resumeReconnectTimer = null;
+const scheduleResumeReconnect = (delayMs = 400) => {
+  if (resumeReconnectTimer) clearTimeout(resumeReconnectTimer);
+  resumeReconnectTimer = setTimeout(() => {
+    resumeReconnectTimer = null;
+    if (!authId.value) {
+      isReconnecting.value = false;
+      showLoginPrompt.value = true;
+      return;
+    }
+    if (socket.value && socket.value.readyState === WebSocket.OPEN) {
+      isReconnecting.value = false;
+      return;
+    }
+    console.log("🔄 Debounced resume reconnect...");
+    connectWebSocket();
+  }, delayMs);
+};
 
 // Import stores
 import {
@@ -704,26 +725,35 @@ const connect = async () => {
   duplicateWarning.value = ""; // Clear warning
 
   try {
-    // Step 1: Login to Backend
+    const deviceId = getDeviceId();
+
+    // Step 1: Login to Backend (claims device lock)
     const res = await fetch(`${API_BASE}/CRM/Auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         username: authId.value,
+        device_id: deviceId,
       }),
     });
 
-    // Handle non-JSON response gracefully
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(text || res.statusText);
+    let data = null;
+    try {
+      data = await res.json();
+    } catch (_) {
+      data = null;
     }
 
-    const data = await res.json();
-
-    if (!data.success) {
-      connectionError.value = data.message || "Login Failed";
+    if (!res.ok || !data?.success) {
+      const msg =
+        data?.message ||
+        (res.status === 409
+          ? "ID dikunci di device lain"
+          : "Login Failed");
+      connectionError.value = msg;
+      duplicateWarning.value = res.status === 409 ? msg : "";
       isConnecting.value = false;
+      showLoginPrompt.value = true;
       return;
     }
 
@@ -3007,7 +3037,8 @@ const connectWebSocket = () => {
 
   try {
     // Always connect to Production Server (as per user workflow)
-    const wsUrl = `wss://waserver.nalju.com?id=${authId.value.trim()}`;
+    const deviceId = encodeURIComponent(getDeviceId());
+    const wsUrl = `wss://waserver.nalju.com?id=${encodeURIComponent(authId.value.trim())}&device=${deviceId}`;
     const ws = new WebSocket(wsUrl);
     socket.value = ws;
 
@@ -3440,56 +3471,64 @@ const connectWebSocket = () => {
         );
         isConnected.value = false;
 
-        // Check if disconnected due to connection limit (code 1008 = duplicate connection)
+        // Same-device reclaim on server — this socket was replaced; ignore if stale
+        if (event.code === 4000) {
+          console.log("Socket replaced by same device reconnect — ignoring");
+          return;
+        }
+
+        // Device lock / unauthorized (1008)
         if (event.code === 1008) {
-          // GUARD: If this happens shortly after resume (within 5s), it's likely a false positive involving the old socket
+          const reason = String(event.reason || "");
+          const reasonLower = reason.toLowerCase();
+          const isDeviceLock =
+            reasonLower.includes("device") ||
+            reasonLower.includes("kunci") ||
+            reasonLower.includes("lock") ||
+            reasonLower.includes("login");
+
+          if (isDeviceLock) {
+            console.warn("Device lock rejected:", reason);
+            duplicateWarning.value =
+              reason ||
+              "ID dikunci di device lain. Logout dari device tersebut terlebih dahulu.";
+            connectionError.value = duplicateWarning.value;
+            isReconnecting.value = false;
+            showLoginPrompt.value = true;
+            return;
+          }
+
+          // Legacy duplicate / limit — retry (same device should usually reclaim now)
           const isRecentResume = Date.now() - resumeTimestamp.value < 5000;
 
           if (isRecentResume) {
             console.warn(
               "Ignoring duplicate connection error during resume grace period. Retrying..."
             );
-            // Retry once after delay
             setTimeout(() => {
               if (!isConnected.value && authId.value) connectWebSocket();
             }, 1500);
           } else if (duplicateRetryAttempts.value < maxDuplicateRetries) {
-            // NETWORK SWITCH HANDLING:
-            // When network switches (WiFi <-> Mobile), the old connection may still be "alive"
-            // on the server because the server heartbeat (30s) hasn't detected it as dead yet.
-            // We retry a few times with delay to give server time to clean up the zombie connection.
-            
             duplicateRetryAttempts.value++;
             const attempt = duplicateRetryAttempts.value;
-            
+
             console.warn(
-              `Duplicate connection detected (attempt ${attempt}/${maxDuplicateRetries}). ` +
-              `Waiting ${duplicateRetryDelay/1000}s for server cleanup before retry...`
+              `Duplicate connection detected (attempt ${attempt}). ` +
+              `Waiting ${duplicateRetryDelay / 1000}s before retry...`
             );
-            
+
             connectionError.value = `Reconnecting... (${attempt})`;
             isReconnecting.value = true;
-            
+
             setTimeout(() => {
               if (!isConnected.value && authId.value) {
-                console.log(`Retrying connection after duplicate error (attempt ${attempt})...`);
                 connectWebSocket();
               }
             }, duplicateRetryDelay);
           } else {
-            // All retries exhausted - this is likely a real duplicate connection
-            // (user is truly connected on another device/tab)
-            console.warn(
-              "Connection closed: Max duplicate retries exceeded. Another connection with same ID exists. Logging out..."
-            );
-            
-            // Reset retry counter for next time
             duplicateRetryAttempts.value = 0;
-            
-            // Set warning message for login card
-            duplicateWarning.value = "ID Anda sudah terkoneksi di tab/device lain. Silakan login ulang atau logout dari device lain.";
-            
-            // Clear session and show login
+            duplicateWarning.value =
+              "ID Anda sudah terkoneksi di device lain. Logout dari device tersebut untuk membuka kunci.";
             localStorage.removeItem("cms_chat_id");
             localStorage.removeItem("cms_chat_password");
             localStorage.removeItem("cms_chat_expiry");
@@ -3498,6 +3537,7 @@ const connectWebSocket = () => {
             isReconnecting.value = false;
             showLoginPrompt.value = true;
           }
+          return;
         } else if (
           wasConnected.value &&
           reconnectAttempts.value < maxReconnectAttempts
@@ -3540,41 +3580,59 @@ const connectWebSocket = () => {
         
         // IMPORTANT: Handle 1008 (duplicate connection) the same way as when isConnected was true
         // This happens when server rejects BEFORE sending welcome message
+        if (event.code === 4000) {
+          console.log("Socket replaced by same device (pre-welcome) — ignoring");
+          return;
+        }
+
         if (event.code === 1008) {
-          // Check if this is a recent resume (grace period)
+          const reason = String(event.reason || "");
+          const reasonLower = reason.toLowerCase();
+          const isDeviceLock =
+            reasonLower.includes("device") ||
+            reasonLower.includes("kunci") ||
+            reasonLower.includes("lock") ||
+            reasonLower.includes("login");
+
+          if (isDeviceLock) {
+            duplicateWarning.value =
+              reason ||
+              "ID dikunci di device lain. Logout dari device tersebut terlebih dahulu.";
+            connectionError.value = duplicateWarning.value;
+            isReconnecting.value = false;
+            showLoginPrompt.value = true;
+            return;
+          }
+
           const isRecentResume = Date.now() - resumeTimestamp.value < 5000;
-          
+
           if (isRecentResume) {
             console.warn("Ignoring duplicate connection error during resume (pre-welcome). Retrying...");
             setTimeout(() => {
               if (!isConnected.value && authId.value) connectWebSocket();
             }, 1500);
-            return; // Don't show error, just retry
+            return;
           } else if (duplicateRetryAttempts.value < maxDuplicateRetries) {
-            // Retry logic for duplicate connection
             duplicateRetryAttempts.value++;
             const attempt = duplicateRetryAttempts.value;
-            
+
             console.warn(
-              `Duplicate connection detected (pre-welcome, attempt ${attempt}/${maxDuplicateRetries}). ` +
-              `Waiting ${duplicateRetryDelay/1000}s for server cleanup before retry...`
+              `Duplicate connection detected (pre-welcome, attempt ${attempt}). Waiting ${duplicateRetryDelay / 1000}s...`
             );
-            
+
             connectionError.value = `Reconnecting... (${attempt})`;
             isReconnecting.value = true;
-            
+
             setTimeout(() => {
               if (!isConnected.value && authId.value) {
-                console.log(`Retrying connection after duplicate error (attempt ${attempt})...`);
                 connectWebSocket();
               }
             }, duplicateRetryDelay);
-            return; // Don't show login yet
+            return;
           } else {
-            // All retries exhausted - show duplicate warning and logout
-            console.warn("Max duplicate retries exceeded (pre-welcome). Logging out...");
             duplicateRetryAttempts.value = 0;
-            duplicateWarning.value = "ID Anda sudah terkoneksi di tab/device lain. Silakan login ulang atau logout dari device lain.";
+            duplicateWarning.value =
+              "ID Anda sudah terkoneksi di device lain. Logout dari device tersebut untuk membuka kunci.";
             localStorage.removeItem("cms_chat_id");
             localStorage.removeItem("cms_chat_password");
             localStorage.removeItem("cms_chat_expiry");
@@ -4031,20 +4089,25 @@ onMounted(() => {
   scrollToBottom({ force: true });
 
   // --- LOADING TIMEOUT SAFETY NET ---
-  // If app is stuck on loading screen for more than 5 seconds, force show login
-  // This prevents the "infinite loading" bug after Android sleep
+  // Only force login if truly idle (no auth / not reconnecting)
   setTimeout(() => {
-    if (!isConnected.value && !showLoginPrompt.value && !isConnecting.value) {
+    if (
+      !isConnected.value &&
+      !showLoginPrompt.value &&
+      !isConnecting.value &&
+      !isReconnecting.value &&
+      !authId.value
+    ) {
       console.log("⚠️ Loading timeout - forcing login prompt");
       showLoginPrompt.value = true;
     }
-  }, 3000);
+  }, 5000);
 
   // --- NO CACHE LOADING ---
   // Always fetch fresh data from server for 100% accuracy
 
   // --- VISIBILITY CHANGE HANDLER ---
-  // Fix for blank screen/disconnect after long backgrounding (Android sleep)
+  // Keep socket alive in background when possible; only reconnect if dead on resume.
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") {
       console.log("👁️ App became VISIBLE - checking connection...");
@@ -4057,110 +4120,44 @@ onMounted(() => {
 
       // Check if socket is dead or not connected
       if (!socket.value || socket.value.readyState !== WebSocket.OPEN) {
-        console.log("🔌 Socket disconnected, initiating reconnect...");
+        console.log("🔌 Socket disconnected, scheduling resume reconnect...");
 
-        // Reset reconnect state to allow fresh reconnection
         reconnectAttempts.value = 0;
         reconnectDelay.value = 3000;
         isReconnecting.value = true;
+        connectionError.value = "Reconnecting...";
 
-        // SMART DELAY: If we recently disconnected (network change scenario),
-        // wait longer to give server time to cleanup old connection
-        const timeSinceDisconnect = Date.now() - lastDisconnectTime.value;
-        const needsDelay = timeSinceDisconnect < 10000; // Within 10 seconds of disconnect
-        const reconnectDelayMs = needsDelay ? 3000 : 500; // 3s delay if recent disconnect, else quick
-
-        connectionError.value = needsDelay
-          ? "Reconnecting..."
-          : "Reconnecting...";
-
-        console.log(
-          `Reconnect delay: ${reconnectDelayMs}ms (recent disconnect: ${needsDelay})`
-        );
-
-        // Only reconnect if we have ID
-        if (authId.value) {
-          // Force disconnect any zombie socket first
-          forceDisconnect();
-
-          // Delayed reconnect to allow server cleanup
-          setTimeout(() => {
-            if (!isConnected.value && authId.value) {
-              console.log("🔄 Attempting reconnect after delay...");
-              connectWebSocket();
-            }
-          }, reconnectDelayMs);
-        } else {
-          // No ID - show login
-          isReconnecting.value = false;
-          showLoginPrompt.value = true;
-        }
+        scheduleResumeReconnect(500);
       } else {
         console.log("✅ Socket already connected, no reconnect needed");
       }
 
       // Refresh data to ensure sync
-      // Wait for conversations to load before resuming chat state
       fetchConversations().then(() => {
-        // Restore active chat state if user was viewing a chat before leaving
-        // This handles the case when user clicks a link and comes back
         resumeChatState();
       });
     } else if (document.visibilityState === "hidden") {
-      console.log("🙈 App became HIDDEN - cleaning up socket...");
-      
-      // When app is hidden, properly disconnect socket
-      // This prevents reconnect issues when app is reopened
-      if (socket.value && socket.value.readyState === WebSocket.OPEN) {
-        console.log("🔌 Force closing socket due to app hidden");
-        forceDisconnect();
-      }
+      // Do NOT force-disconnect — keeps session stable and avoids false "device locked"/duplicate logout
+      console.log("🙈 App became HIDDEN - keeping WebSocket alive");
     }
   });
 
   // --- ANDROID WEBVIEW RESUME HANDLER ---
-  // Handle custom event from Android MainActivity.onResume()
   window.addEventListener("androidResume", () => {
     console.log("📱 Android Resume event received");
 
-    // Clear search query on resume
     searchQuery.value = "";
-
     resumeTimestamp.value = Date.now();
 
-    // Check if socket is dead and reconnect
     if (!socket.value || socket.value.readyState !== WebSocket.OPEN) {
-      console.log("Socket disconnected, reconnecting from Android resume...");
-
-      // Reset reconnect state
+      console.log("Socket disconnected, scheduling reconnect from Android resume...");
       reconnectAttempts.value = 0;
       reconnectDelay.value = 3000;
       isReconnecting.value = true;
-
-      // Smart delay for network change scenario
-      const timeSinceDisconnect = Date.now() - lastDisconnectTime.value;
-      const needsDelay = timeSinceDisconnect < 10000;
-      const reconnectDelayMs = needsDelay ? 3000 : 500;
-
-      connectionError.value = needsDelay
-        ? "Reconnecting..."
-        : "Reconnecting...";
-
-      if (authId.value) {
-        forceDisconnect();
-        setTimeout(() => {
-          if (!isConnected.value && authId.value) {
-            connectWebSocket();
-          }
-        }, reconnectDelayMs);
-      } else {
-        isReconnecting.value = false;
-        showLoginPrompt.value = true;
-      }
+      connectionError.value = "Reconnecting...";
+      scheduleResumeReconnect(500);
     }
 
-    // Refresh conversations
-    // Wait for conversations to load before resuming chat state
     fetchConversations().then(() => {
       resumeChatState();
     });
@@ -4396,7 +4393,7 @@ onMounted(() => {
   if (storedName) userName.value = storedName;
   if (storedSenderCode) senderCode.value = storedSenderCode;
 
-  // Case 1: Valid session (ID + Valid Expiry)
+  // Case 1: Valid session (ID + Valid Expiry) — re-claim device lock then WS
   if (storedId && storedExpiry && now < parseInt(storedExpiry)) {
     // Force uppercase for OneSignal compatibility
     const uppercaseId = storedId.toUpperCase();
@@ -4411,14 +4408,8 @@ onMounted(() => {
     const newExpiry = new Date().getTime() + 3 * 24 * 60 * 60 * 1000;
     localStorage.setItem("cms_chat_expiry", newExpiry.toString());
 
-    connectWebSocket();
-    fetchConversations().then(() => {
-      // Restore active chat if persisted for resume
-      resumeChatState();
-    });
-
-    // Re-login to OneSignal with uppercase ID
-    oneSignalLogin(uppercaseId);
+    // Full login path claims/refreshes device lock (required before WS verify)
+    connect();
   }
   // Case 2: Has ID but expired - Keep ID, prompt to reconnect
   else if (storedId && storedExpiry && now >= parseInt(storedExpiry)) {
@@ -4537,31 +4528,21 @@ App.addListener("appStateChange", ({ isActive }) => {
   );
 
   if (isActive) {
-    // App resumed from background - same logic as visibilitychange
+    resumeTimestamp.value = Date.now();
+    searchQuery.value = "";
+
     if (!socket.value || socket.value.readyState !== WebSocket.OPEN) {
       console.log(
-        "App resumed (Capacitor), socket disconnected, reconnecting..."
+        "App resumed (Capacitor), socket disconnected, scheduling reconnect..."
       );
-
-      // Reset reconnect state
       reconnectAttempts.value = 0;
       reconnectDelay.value = 3000;
       isReconnecting.value = true;
       connectionError.value = "Reconnecting...";
-
-      if (authId.value) {
-        connectWebSocket();
-      } else {
-        isReconnecting.value = false;
-        showLoginPrompt.value = true;
-      }
+      scheduleResumeReconnect(500);
     }
 
-    // Refresh conversations
     fetchConversations();
-
-    // Update resume timestamp
-    resumeTimestamp.value = Date.now();
   }
 });
 
@@ -4684,20 +4665,40 @@ setTimeout(() => {
   }
 }, 1500); // Wait 1.5s before showing modal if not connected
 
-const logout = () => {
+const logout = async () => {
+  const user = authId.value;
+  const deviceId = getDeviceId();
+
+  try {
+    await fetch(`${API_BASE}/CRM/Auth/logout`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: user,
+        device_id: deviceId,
+      }),
+    });
+  } catch (e) {
+    console.warn("Logout API failed", e);
+  }
+
   if (socket.value) {
-    socket.value.close();
+    try {
+      socket.value.onclose = null;
+      socket.value.close();
+    } catch (_) { /* ignore */ }
     socket.value = null;
   }
   isConnected.value = false;
   authId.value = "";
   isConnecting.value = false;
+  isReconnecting.value = false;
   showLoginPrompt.value = true;
+  duplicateWarning.value = "";
 
-  // Clear Session
+  // Clear Session (keep crm_device_id — device identity persists)
   localStorage.removeItem("cms_chat_id");
   localStorage.removeItem("cms_chat_expiry");
-  // Note: conversations cache removed - data always from server
 
   // OneSignal: Logout from push notifications
   oneSignalLogout();

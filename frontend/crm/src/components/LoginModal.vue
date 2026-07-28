@@ -157,7 +157,7 @@ watch(() => props.initialUsername, (newVal) => {
           <!-- Footer Info -->
           <div class="mt-8 pt-6 border-t border-slate-800 text-center">
             <p class="text-slate-500 text-xs">
-              💡 ID Anda adalah nomor karyawan atau username yang diberikan admin
+              Login mengunci ID ke device/browser ini. Device lain tidak bisa masuk sampai logout dari device yang mengunci.
             </p>
           </div>
         </div>

@@ -36,6 +36,7 @@ class MainActivity : AppCompatActivity() {
         private const val VERSION_URL = "${WEB_URL}version.json"
         private const val PREFS_NAME = "cms_prefs"
         private const val PREF_WEB_VERSION = "web_app_version"
+        private const val PREF_DEVICE_ID = "crm_device_id"
         private const val VERSION_CHECK_MIN_INTERVAL_MS = 30_000L
         private val versionCheckExecutor = Executors.newSingleThreadExecutor()
     }
@@ -60,6 +61,22 @@ class MainActivity : AppCompatActivity() {
                     e.printStackTrace()
                 }
             }
+        }
+
+        /**
+         * Stable device ID for CRM device-lock (persists in SharedPreferences).
+         * Called from JS: window.Android.getDeviceId()
+         */
+        @android.webkit.JavascriptInterface
+        fun getDeviceId(): String {
+            val prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+            var id = prefs.getString(PREF_DEVICE_ID, null)
+            if (id.isNullOrBlank()) {
+                id = java.util.UUID.randomUUID().toString()
+                prefs.edit().putString(PREF_DEVICE_ID, id).apply()
+                android.util.Log.i("JSBridge", "Generated new device id")
+            }
+            return id
         }
     }
 
