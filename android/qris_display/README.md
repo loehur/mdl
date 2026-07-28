@@ -17,7 +17,7 @@ gradlew.bat assembleDebug
 
 APK: `app/build/outputs/apk/debug/app-debug.apk`
 
-### Sync ke download laundry (Setting → Printer)
+### Sync ke download laundry (Setting → Android)
 
 Setelah build, jalankan:
 

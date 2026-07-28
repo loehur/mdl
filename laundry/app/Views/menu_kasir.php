@@ -170,6 +170,11 @@ $menu[0] = [
                 'title' => 'Printer Setting',
                 'txt' => 'Printer',
             ],
+            [
+                'c' => 'Setting/android',
+                'title' => 'Android',
+                'txt' => 'Android',
+            ],
         ]
     ],
     [

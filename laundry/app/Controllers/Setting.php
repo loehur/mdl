@@ -182,6 +182,20 @@ class Setting extends Controller
       $this->view("Setting/printer_content");
    }
 
+   /**
+    * Halaman download aplikasi Android (QRIS Display, MDL Chat)
+    */
+   public function android()
+   {
+      $this->operating_data();
+      $this->view("layout", [
+         "content" => "Setting/android_content",
+         "data_operasi" => ['title' => "Android"]
+      ]);
+
+      $this->view("Setting/android_content");
+   }
+
    public function updatePrinterMargins()
    {
       header('Content-Type: application/json');
