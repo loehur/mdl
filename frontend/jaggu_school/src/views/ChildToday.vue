@@ -15,10 +15,11 @@
         <div
           v-for="(n, i) in notices"
           :key="i"
-          class="rounded-2xl px-4 py-3 text-sm border"
+          class="rounded-2xl px-4 py-3 text-sm border flex items-start gap-2"
           :class="noticeClass(n.type)"
         >
-          {{ n.text }}
+          <span v-if="n.type === 'ok'" class="shrink-0 font-bold" aria-hidden="true">✓</span>
+          <span>{{ n.text }}</span>
         </div>
       </section>
 

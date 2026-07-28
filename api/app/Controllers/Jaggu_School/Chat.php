@@ -58,6 +58,7 @@ class Chat extends JagguController
 
             $userId = (int) $child['id'];
             $childName = (string) ($child['name'] ?? 'Jaggu');
+            $aiCallName = 'Jaggu';
             $today = date('Y-m-d');
             $db = $this->db($this->db_index);
 
@@ -83,7 +84,7 @@ class Chat extends JagguController
             $aiMessages = [
                 [
                     'role' => 'system',
-                    'content' => $this->systemPrompt($childName),
+                    'content' => $this->systemPrompt($aiCallName, $childName),
                 ],
             ];
 
@@ -152,10 +153,11 @@ class Chat extends JagguController
         }
     }
 
-    private function systemPrompt(string $childName): string
+    private function systemPrompt(string $callName, string $accountName): string
     {
         return "Kamu adalah tutor AI ramah untuk aplikasi Jaggu School. "
-            . "Siswa bernama {$childName}, tingkat SD (bisa tumbuh sampai kuliah). "
+            . "Siswa ini punya nama akun {$accountName}, tetapi SELALU panggil dia \"{$callName}\" saja — jangan pakai nama lain. "
+            . "Tingkat SD (bisa tumbuh sampai kuliah). "
             . "Jawab dalam bahasa Indonesia yang sederhana, semangat, dan sopan. "
             . "Bantu soal pelajaran, PR, penjelasan konsep, dan motivasi belajar. "
             . "Jangan bahas topik berbahaya, kekerasan, atau konten dewasa. "
