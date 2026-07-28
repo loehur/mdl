@@ -23,13 +23,6 @@
       </section>
 
       <DayCard
-        title="Hari ini"
-        :day="today"
-        :busy-id="busyId"
-        @toggle="onToggle"
-      />
-
-      <DayCard
         v-if="tomorrow"
         title="Besok — siapkan dari sore"
         :day="tomorrow"
@@ -39,6 +32,13 @@
       <p v-else class="text-xs text-slate-500 text-center">
         Mapel besok muncul mulai jam {{ revealHour }}:00
       </p>
+
+      <DayCard
+        title="Hari ini"
+        :day="today"
+        :busy-id="busyId"
+        @toggle="onToggle"
+      />
     </template>
 
     <!-- Toast mengambang: tidak mengubah layout -->

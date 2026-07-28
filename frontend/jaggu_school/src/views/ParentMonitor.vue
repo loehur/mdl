@@ -23,7 +23,6 @@
         </div>
       </section>
 
-      <DayCard title="Hari ini" :day="today" :interactive="false" />
       <DayCard
         v-if="tomorrow"
         title="Besok — persiapan"
@@ -33,6 +32,8 @@
       <p v-else class="text-xs text-slate-500 text-center">
         Pantauan mapel besok aktif mulai jam {{ revealHour }}:00
       </p>
+
+      <DayCard title="Hari ini" :day="today" :interactive="false" />
 
       <button
         type="button"
