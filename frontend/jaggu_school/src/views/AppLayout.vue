@@ -21,7 +21,7 @@
     </main>
 
     <nav class="fixed bottom-0 inset-x-0 border-t border-red-100 bg-white/95 backdrop-blur safe-bottom">
-      <div class="max-w-3xl mx-auto grid" :class="isParent ? 'grid-cols-2' : 'grid-cols-1'">
+      <div class="max-w-3xl mx-auto grid" :class="isParent ? 'grid-cols-2' : 'grid-cols-2'">
         <template v-if="isParent">
           <router-link
             to="/monitor"
@@ -34,12 +34,18 @@
             :class="navClass('/jadwal')"
           >Jadwal</router-link>
         </template>
-        <router-link
-          v-else
-          to="/today"
-          class="py-3 text-center text-sm font-semibold"
-          :class="navClass('/today')"
-        >Hari ini</router-link>
+        <template v-else>
+          <router-link
+            to="/today"
+            class="py-3 text-center text-sm font-semibold"
+            :class="navClass('/today')"
+          >Hari ini</router-link>
+          <router-link
+            to="/chat"
+            class="py-3 text-center text-sm font-semibold"
+            :class="navClass('/chat')"
+          >Tanya AI</router-link>
+        </template>
       </div>
     </nav>
   </div>

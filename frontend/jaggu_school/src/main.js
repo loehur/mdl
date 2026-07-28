@@ -47,6 +47,7 @@ window.fetch = async (url, options = {}) => {
 import Login from "./public_area/Login.vue";
 import AppLayout from "./views/AppLayout.vue";
 import ChildToday from "./views/ChildToday.vue";
+import ChildChat from "./views/ChildChat.vue";
 import ParentMonitor from "./views/ParentMonitor.vue";
 import ParentSchedule from "./views/ParentSchedule.vue";
 
@@ -61,6 +62,7 @@ const router = createRouter({
       children: [
         { path: "home", redirect: () => (getUser()?.role === "parent" ? "/monitor" : "/today") },
         { path: "today", component: ChildToday, meta: { role: "child" } },
+        { path: "chat", component: ChildChat, meta: { role: "child" } },
         { path: "monitor", component: ParentMonitor, meta: { role: "parent" } },
         { path: "jadwal", component: ParentSchedule, meta: { role: "parent" } },
       ],
