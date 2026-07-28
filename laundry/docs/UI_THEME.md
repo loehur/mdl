@@ -11,6 +11,7 @@ Referensi implementasi yang sudah sesuai tema:
 - Antrian view → `laundry/app/Views/antrian/view_content.php` + `form.php` (warna token; layout/spacing dipertahankan)
 - Login → `laundry/app/Views/login.php`
 - Absen → `laundry/app/Views/Absen/form.php` (`#absen-root`) + `content.php`
+- Operan → `laundry/app/Views/operan/form.php` (`#operan-root`) + `content.php`
 
 ---
 
