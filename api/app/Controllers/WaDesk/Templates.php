@@ -151,7 +151,10 @@ class Templates extends WaDeskController
             if (!isset($p['param_index'], $p['label'])) {
                 continue;
             }
-            $component = 'body';
+            $component = strtolower(trim((string) ($p['component'] ?? 'body')));
+            if (!in_array($component, ['header', 'body', 'button'], true)) {
+                $component = 'body';
+            }
             $paramName = trim((string) ($p['param_name'] ?? ''));
             if ($paramName === '') {
                 $paramName = null;

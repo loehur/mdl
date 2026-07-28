@@ -176,9 +176,14 @@
             <div
               v-for="(p, idx) in tplForm.params"
               :key="idx"
-              class="grid grid-cols-1 sm:grid-cols-[5rem_1fr_1fr_1fr_auto] gap-2 items-center"
+              class="grid grid-cols-1 sm:grid-cols-[7rem_5rem_1fr_1fr_1fr_auto] gap-2 items-center"
             >
-              <input v-model.number="p.param_index" type="number" min="1" class="field" title="Urutan param body" />
+              <select v-model="p.component" class="field" title="Komponen template">
+                <option value="header">header</option>
+                <option value="body">body</option>
+                <option value="button">button</option>
+              </select>
+              <input v-model.number="p.param_index" type="number" min="1" class="field" title="Urutan dalam komponen" />
               <input v-model="p.param_name" class="field" placeholder="Nama var (customer)" required />
               <input v-model="p.label" class="field" placeholder="Label form" required />
               <input v-model="p.example_value" class="field" placeholder="Contoh" />
@@ -199,7 +204,7 @@
               </p>
               <p class="text-xs text-slate-500">
                 {{ t.key_label }} ·
-                {{ (t.params || []).map((p) => p.param_name || `body_${p.param_index}`).join(", ") || "0 param" }}
+                {{ (t.params || []).map((p) => `${p.component}:${p.param_name || p.param_index}`).join(", ") || "0 param" }}
               </p>
             </div>
             <div class="flex items-center gap-3 shrink-0">
@@ -567,9 +572,11 @@ async function removeKey(id) {
 }
 
 function addParam() {
-  const next = (tplForm.params.at(-1)?.param_index || 0) + 1;
+  const component = tplForm.params.at(-1)?.component || "body";
+  const sameComp = tplForm.params.filter((p) => p.component === component);
+  const next = (sameComp.at(-1)?.param_index || 0) + 1;
   tplForm.params.push({
-    component: "body",
+    component,
     param_index: next,
     param_name: "",
     label: "",
@@ -629,22 +636,20 @@ function startEditTemplate(t) {
     body_preview: t.body_preview || "",
     params:
       t.params && t.params.length
-        ? t.params.map((p) => ({
-            component: "body",
-            param_index: Number(p.param_index) || 1,
-            param_name: p.param_name || "",
-            label: p.label || "",
-            example_value: p.example_value || "",
-            is_required: Number(p.is_required) === 0 ? 0 : 1,
-          }))
+        ? t.params.map((p) => {
+            const comp = String(p.component || "body").toLowerCase();
+            return {
+              component: ["header", "body", "button"].includes(comp) ? comp : "body",
+              param_index: Number(p.param_index) || 1,
+              param_name: p.param_name || "",
+              label: p.label || "",
+              example_value: p.example_value || "",
+              is_required: Number(p.is_required) === 0 ? 0 : 1,
+            };
+          })
         : defaultTplParams(),
   });
-  // Ensure every param is body-only
-  tplForm.params.forEach((p) => {
-    p.component = "body";
-  });
   flash(true, `Mengedit template: ${t.template_name}`);
-  // scroll form into view
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -660,14 +665,17 @@ async function saveTemplate() {
       template_name: tplForm.template_name,
       language: tplForm.language || "id",
       body_preview: tplForm.body_preview,
-      params: tplForm.params.map((p, i) => ({
-        component: "body",
-        param_index: Number(p.param_index) || i + 1,
-        param_name: p.param_name,
-        label: p.label,
-        example_value: p.example_value,
-        is_required: p.is_required,
-      })),
+      params: tplForm.params.map((p, i) => {
+        const comp = String(p.component || "body").toLowerCase();
+        return {
+          component: ["header", "body", "button"].includes(comp) ? comp : "body",
+          param_index: Number(p.param_index) || i + 1,
+          param_name: p.param_name,
+          label: p.label,
+          example_value: p.example_value,
+          is_required: p.is_required,
+        };
+      }),
     };
 
     if (editingTplId.value) {
