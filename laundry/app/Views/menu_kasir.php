@@ -113,11 +113,6 @@ $menu[0] = [
         'submenu' =>
         [
             [
-                'c' => 'Karyawan/data',
-                'title' => 'Data Karyawan',
-                'txt' => 'Data Rekening',
-            ],
-            [
                 'c' => 'Absen',
                 'title' => 'Karyawan Absen',
                 'txt' => 'Absen Harian',
@@ -136,6 +131,11 @@ $menu[0] = [
                 'c' => 'Pindah_Outlet',
                 'title' => 'Karyawan Pindah Outlet',
                 'txt' => 'Pindah Outlet',
+            ],
+            [
+                'c' => 'Karyawan/data',
+                'title' => 'Data Karyawan',
+                'txt' => 'Data Rekening',
             ],
         ]
     ],
@@ -190,12 +190,6 @@ $menu[0] = [
         'title' => 'Kas Kasir',
         'icon' => 'fas fa-wallet',
         'txt' => 'Kas Kasir',
-    ],
-    [
-        'c' => 'PackLabel',
-        'title' => 'PackLabel',
-        'icon' => 'fas fa-tag',
-        'txt' => 'Pack Label',
     ],
     [
         'c' => 'Prepaid',

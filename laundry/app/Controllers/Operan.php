@@ -55,10 +55,28 @@ class Operan extends Controller
          echo "Operan tidak tersedia di Mode Training";
          exit();
       }
+
+      $idOperan = trim((string) $idOperan);
+      $idCabangIn = trim((string) $idCabang);
+
+      // Resolve kode outlet (REFXX#) atau id_cabang numerik
+      $cabangRow = null;
+      foreach ($this->listCabang as $c) {
+         if ((string) ($c['kode_cabang'] ?? '') === $idCabangIn || (string) ($c['id_cabang'] ?? '') === $idCabangIn) {
+            $cabangRow = $c;
+            break;
+         }
+      }
+      if (!$cabangRow) {
+         echo "Outlet tidak ditemukan: " . $idCabangIn;
+         exit();
+      }
+      $idCabang = (int) $cabangRow['id_cabang'];
+
       if ($idCabang == $_SESSION[URL::SESSID]['user']['id_cabang']) {
          $this->writeLog('load', 'ERROR', 'ID Outlet Operan sama dengan ID Outlet saat ini', [
             'idOperan' => $idOperan,
-            'idCabang_input' => $idCabang,
+            'idCabang_input' => $idCabangIn,
             'idCabang_session' => $_SESSION[URL::SESSID]['user']['id_cabang']
          ]);
          echo "ID Outlet Operan harus berbeda dengan ID Outlet saat ini";
@@ -71,14 +89,12 @@ class Operan extends Controller
             'length' => strlen($idOperan),
             'idCabang' => $idCabang
          ]);
-         echo "<div class='card py-3 px-3 mx-3'>";
          echo "Minimal 3 Digit";
-         echo "</div>";
          exit();
       }
 
       $id_penjualan = $idOperan;
-      $where = "id_penjualan LIKE '%" . $id_penjualan . "' AND tuntas = 0 AND bin = 0 AND id_cabang = " . $idCabang;
+      $where = "id_penjualan LIKE '%" . $this->db(0)->escape($id_penjualan) . "' AND tuntas = 0 AND bin = 0 AND id_cabang = " . $idCabang;
       $data_main = $this->db(0)->get_where('sale', $where);
       $idOperan = $id_penjualan;
 

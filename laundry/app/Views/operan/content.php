@@ -158,6 +158,62 @@ $idOperan = $data['idOperan'];
       font-weight: 800;
       color: #0f172a;
     }
+    #operan-root .opn-card__actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+      align-items: center;
+    }
+    #operan-root .opn-btn-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 12px;
+      border: 1px solid transparent;
+      background: linear-gradient(180deg, #16a34a, #15803d);
+      color: #fff;
+      font-size: 0.82rem;
+      font-weight: 900;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    #operan-root .opn-btn-label:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+    #operan-root .opn-btn-label .opn-spin {
+      width: 12px;
+      height: 12px;
+      border: 2px solid rgba(255,255,255,.35);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: opn-spin 0.7s linear infinite;
+    }
+    @keyframes opn-spin { to { transform: rotate(360deg); } }
+    #operan-root .opn-print-src {
+      position: absolute;
+      left: -9999px;
+      top: 0;
+      width: 280px;
+      background: #fff;
+    }
+    #operan-root .opn-print-src table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: center;
+    }
+    #operan-root .opn-print-src td {
+      padding: 4px 0;
+      font-weight: 800;
+      color: #0f172a;
+    }
+    #operan-root .opn-print-src h1 {
+      margin: 0;
+      font-size: 1.6rem;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
 
     /* Modal — UI theme */
     #operan-root .opn-modal {
@@ -476,6 +532,17 @@ $idOperan = $data['idOperan'];
 
       $isWarn = ((int) $f11 !== 11);
       $cardClass = $isWarn ? 'opn-card is-warn' : 'opn-card';
+
+      $kodeOutlet = (string) $id_cabang;
+      foreach ($this->listCabang as $lc) {
+        if ((int) ($lc['id_cabang'] ?? 0) === (int) $id_cabang) {
+          $kodeOutlet = (string) ($lc['kode_cabang'] ?? $id_cabang);
+          break;
+        }
+      }
+      $laundryNama = (string) ($this->dCabang['nama'] ?? 'MDL');
+      $printId = 'opnPrint_' . preg_replace('/[^a-zA-Z0-9_-]/', '', (string) $id);
+      $nowLabel = date('Y-m-d H:i:s');
       ?>
       <article class="<?= $cardClass ?>" id="tr<?= htmlspecialchars((string) $id) ?>">
         <div class="opn-card__head">
@@ -483,10 +550,20 @@ $idOperan = $data['idOperan'];
             <span class="opn-card__id">#<?= htmlspecialchars((string) $id) ?></span>
             <span class="opn-card__name"><?= htmlspecialchars(strtoupper($pelanggan)) ?></span>
           </div>
-          <div class="opn-card__meta">
-            <div><b><?= htmlspecialchars(substr($f1, 0, 5)) ?></b> <?= htmlspecialchars(substr($f1, 11, 5)) ?></div>
-            <?php if (strlen($f8) > 0) { ?>
-              <div><?= htmlspecialchars($f8) ?></div>
+          <div class="opn-card__actions">
+            <div class="opn-card__meta">
+              <div><b><?= htmlspecialchars(substr($f1, 0, 5)) ?></b> <?= htmlspecialchars(substr($f1, 11, 5)) ?></div>
+              <?php if (strlen($f8) > 0) { ?>
+                <div><?= htmlspecialchars($f8) ?></div>
+              <?php } ?>
+            </div>
+            <?php if ($pelanggan !== '') { ?>
+            <button type="button"
+              class="opn-btn-label opn-cetak-label"
+              data-print-id="<?= htmlspecialchars($printId) ?>"
+              title="Cetak pack label">
+              <i class="fas fa-tag"></i> Cetak Label
+            </button>
             <?php } ?>
           </div>
         </div>
@@ -519,6 +596,26 @@ $idOperan = $data['idOperan'];
           <div class="opn-ops-title">Operasi</div>
           <?= $list_layanan ?>
         </div>
+        <?php if ($pelanggan !== '') { ?>
+        <div class="opn-print-src" id="<?= htmlspecialchars($printId) ?>" aria-hidden="true">
+          <table>
+            <tr>
+              <td>
+                <b><?= htmlspecialchars($laundryNama) ?> - <?= htmlspecialchars($kodeOutlet) ?></b><br>
+                <?= htmlspecialchars($nowLabel) ?>
+              </td>
+            </tr>
+            <tr id="dashRow"><td></td></tr>
+            <tr>
+              <td><h1><b><?= htmlspecialchars(strtoupper($pelanggan)) ?></b></h1></td>
+            </tr>
+            <tr id="dashRow"><td></td></tr>
+            <tr>
+              <td><?= URL::PACK_ROWS ?><b>- <?= htmlspecialchars($kodeOutlet) ?> -</b></td>
+            </tr>
+          </table>
+        </div>
+        <?php } ?>
       </article>
       <span class="d-none selesai<?= $id ?>" data-hp="<?= htmlspecialchars($no_pelanggan) ?>"><?= strtoupper($pelanggan) ?> _#<?= $idCabangAsal ?>-|STAFF|_
 <?= "#" . $id ?> Selesai. |TOTAL|
@@ -690,14 +787,104 @@ $idOperan = $data['idOperan'];
           if (response == 0 || response === "" || response === "0") {
             if (typeof loadDiv === "function") loadDiv();
           } else {
-            alert(response);
+            if (window.MdlToast) MdlToast.error(response);
+            else alert(response);
           }
         },
         error: function(xhr) {
           $submit.prop("disabled", false).html(prev);
-          alert("Gagal: " + (xhr.responseText || xhr.status));
+          var msg = "Gagal: " + (xhr.responseText || xhr.status);
+          if (window.MdlToast) MdlToast.error(msg);
+          else alert(msg);
         }
       });
+    });
+
+    function opnPrintLabel(printId, btn) {
+      var el = document.getElementById(printId);
+      if (!el) return;
+      var prev = btn ? btn.innerHTML : "";
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="opn-spin" aria-hidden="true"></span> Cetak…';
+      }
+
+      var rows = el.querySelectorAll("tr");
+      var lines = [];
+      var width = parseInt(localStorage.getItem("escpos_width") || "32", 10) || 32;
+      var makeDash = function(w) { return Array(w + 1).join("-"); };
+      var sanitizeServerTd = function(td) {
+        try {
+          var s = td.innerHTML || "";
+          s = s.replace(/<br\s*\/?>/gi, "[[BR]]");
+          s = s.replace(/<h1[^>]*>/gi, "[[H1]]").replace(/<\/h1>/gi, "[[/H1]]");
+          s = s.replace(/<b[^>]*>/gi, "[[B]]").replace(/<\/b>/gi, "[[/B]]");
+          s = s.replace(/&nbsp;/gi, " ").replace(/\u00a0/g, " ");
+          s = s.replace(/<[^>]+>/gi, "");
+          s = s.replace(/[\r\n]+/g, " ").replace(/[ \t]+/g, " ").trim();
+          return s;
+        } catch (e) { return ""; }
+      };
+
+      for (var i = 0; i < rows.length; i++) {
+        var tr = rows[i];
+        var tds = tr.querySelectorAll("td");
+        if (tr.id && tr.id.toLowerCase() === "dashrow") {
+          lines.push("[[TR]][[TD]]" + makeDash(width) + "[[/TD]][[/TR]]");
+          continue;
+        }
+        if (!tds.length) continue;
+        lines.push("[[TR]][[TD]]" + sanitizeServerTd(tds[0]) + "[[/TD]][[/TR]]");
+      }
+      lines = lines.filter(function(s) {
+        return String(s || "").replace(/\[\[(?:\/)?(?:TR|TD)\]\]/g, "").trim().length > 0;
+      });
+      var plain = lines.map(function(s) {
+        s = String(s || "");
+        s = s.replace(/\[\[BR\]\]/g, "<br>");
+        s = s.replace(/\[\[B\]\]/g, "<b>").replace(/\[\[\/B\]\]/g, "</b>");
+        s = s.replace(/\[\[H1\]\]/g, "<h1>").replace(/\[\[\/H1\]\]/g, "</h1>");
+        s = s.replace(/\[\[TD\]\]/g, "<td>").replace(/\[\[\/TD\]\]/g, "</td>");
+        s = s.replace(/\[\[TR\]\]/g, "<tr>").replace(/\[\[\/TR\]\]/g, "</tr>");
+        return s;
+      }).join("");
+
+      var printFn = (window.PrintServer && window.PrintServer.fetch)
+        ? window.PrintServer.fetch.bind(window.PrintServer)
+        : window.printServerFetch;
+      var errMsg = (window.PrintServer && window.PrintServer.errorMessage)
+        ? window.PrintServer.errorMessage
+        : window.printServerErrorMessage;
+
+      if (typeof printFn !== "function") {
+        if (window.MdlToast) MdlToast.error("Print server tidak tersedia");
+        if (btn) { btn.disabled = false; btn.innerHTML = prev; }
+        return;
+      }
+
+      printFn("/print", { text: plain, margin_top: 0, feed_lines: 3 })
+        .then(function(res) { return res.text().catch(function() { return ""; }); })
+        .then(function() {
+          if (window.MdlToast) MdlToast.ok("Label dikirim ke printer");
+        })
+        .catch(function(err) {
+          var msg = typeof errMsg === "function" ? errMsg(err) : "Print server tidak aktif";
+          if (window.MdlToast) MdlToast.error(msg);
+          var a = window.open("");
+          a.document.write("<html><title>Print</title><body>" + el.innerHTML + "</body></html>");
+          a.print();
+          setTimeout(function() { try { a.close(); } catch (e) {} }, 1000);
+        })
+        .finally(function() {
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = prev || '<i class="fas fa-tag"></i> Cetak Label';
+          }
+        });
+    }
+
+    $(document).off("click.opnLabel", "#operan-root .opn-cetak-label").on("click.opnLabel", "#operan-root .opn-cetak-label", function() {
+      opnPrintLabel($(this).data("print-id"), this);
     });
   })();
 </script>

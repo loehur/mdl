@@ -252,7 +252,7 @@ $kodeCabang = strtoupper((string) ($this->dCabang['kode_cabang'] ?? ''));
     <div class="opn-head">
       <div>
         <h2><i class="fas fa-random"></i> Operan</h2>
-        <small>Cek &amp; selesaikan order dari outlet lain</small>
+        <small>Cek order outlet lain, selesaikan operasi, &amp; cetak pack label</small>
       </div>
       <?php if ($kodeCabang !== '') { ?>
         <span class="opn-cabang"><?= htmlspecialchars($kodeCabang) ?></span>
@@ -301,6 +301,7 @@ $kodeCabang = strtoupper((string) ($this->dCabang['kode_cabang'] ?? ''));
 </div>
 
 <script src="<?= URL::EX_ASSETS ?>js/selectize.min.js"></script>
+<script src="<?= URL::IN_ASSETS ?>js/print_server.js?v=<?= time() ?>"></script>
 <script>
   $(document).ready(function() {
     $("input[name=idCabang]").focus();
