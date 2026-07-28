@@ -161,16 +161,32 @@
             <div v-if="chat.active.csw_open" class="flex gap-2">
               <input
                 v-model="draft"
-                class="flex-1 rounded-xl bg-ink-950 border border-white/10 px-3 py-2.5 text-sm"
+                class="flex-1 rounded-xl bg-ink-950 border border-white/10 px-3 py-2.5 text-sm disabled:opacity-50"
                 placeholder="Tulis balasan..."
+                :disabled="sending"
                 @keyup.enter="sendFree"
               />
               <button
-                class="px-4 rounded-xl bg-accent font-medium disabled:opacity-40"
+                class="px-4 rounded-xl bg-accent font-medium disabled:opacity-40 inline-flex items-center justify-center gap-2 min-w-[5.5rem]"
                 :disabled="sending || !draft.trim()"
                 @click="sendFree"
               >
-                Kirim
+                <svg
+                  v-if="sending"
+                  class="h-4 w-4 animate-spin"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                  <path
+                    class="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
+                </svg>
+                {{ sending ? "Mengirim..." : "Kirim" }}
               </button>
             </div>
             <div v-else class="flex flex-col gap-2">
@@ -268,7 +284,7 @@ async function openChat(id) {
 }
 
 async function sendFree() {
-  if (!draft.value.trim()) return;
+  if (!draft.value.trim() || sending.value) return;
   sending.value = true;
   sendError.value = "";
   try {
