@@ -274,7 +274,8 @@ $idOperan = $data['idOperan'];
       flex: 0 0 auto;
     }
     #operan-root .opn-modal__body {
-      padding: 16px;
+      padding: 16px 16px 140px;
+      min-height: 220px;
       background:
         radial-gradient(90% 60% at 0% 0%, rgba(37,99,235,.08), transparent 50%),
         linear-gradient(180deg, #f8fafc, #fff);
@@ -329,6 +330,11 @@ $idOperan = $data['idOperan'];
       border-radius: 0 !important;
       box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
       z-index: 40 !important;
+      max-height: 160px;
+    }
+    #operan-root .selectize-dropdown .selectize-dropdown-content {
+      max-height: 160px;
+      overflow-y: auto;
     }
   </style>
 
@@ -868,12 +874,12 @@ $idOperan = $data['idOperan'];
           if (window.MdlToast) MdlToast.ok("Label dikirim ke printer");
         })
         .catch(function(err) {
-          var msg = typeof errMsg === "function" ? errMsg(err) : "Print server tidak aktif";
-          if (window.MdlToast) MdlToast.error(msg);
-          var a = window.open("");
-          a.document.write("<html><title>Print</title><body>" + el.innerHTML + "</body></html>");
-          a.print();
-          setTimeout(function() { try { a.close(); } catch (e) {} }, 1000);
+          var msg = typeof errMsg === "function" ? errMsg(err) : "Print server tidak aktif. Jalankan printer server dulu.";
+          if (window.PrintServer && typeof window.PrintServer.showAlert === "function") {
+            window.PrintServer.showAlert(msg, "warning");
+          } else if (window.MdlToast) {
+            MdlToast.warn(msg);
+          }
         })
         .finally(function() {
           if (btn) {

@@ -30,7 +30,7 @@
                   $kota = "";
                   $phone = isset($a['phone_number']) ? $a['phone_number'] : '';
                   $phoneDisp = strlen($phone) > 0 ? $phone : '[ ]';
-                  $pmode = isset($a['print_mode']) ? $a['print_mode'] : 'bluetooth';
+                  $pmode = 'server';
                   $rent = isset($a['rent']) ? $a['rent'] : 0;
                   $isTraining = !empty($a['is_training']);
                   foreach ($this->dKota as $dk) {
@@ -155,7 +155,7 @@
       } else if (mode == 6) {
         span.html("<input type='number' id='value_' value='" + value + "' min='0' step='1'>");
       } else if (mode == 5) {
-        var opts = ['esc/pos', 'bluetooth', 'server'];
+        var opts = ['server'];
         var h = '<select id="value_" required>';
         for (var i = 0; i < opts.length; i++) {
           var sel = (opts[i] === value) ? ' selected' : '';

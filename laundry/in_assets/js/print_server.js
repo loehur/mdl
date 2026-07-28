@@ -24,9 +24,9 @@
 
   function offlineMessage() {
     if (isAndroid()) {
-      return "Print Bridge tidak aktif di localhost:3000. Pastikan app Print Bridge Start Server, lalu refresh halaman.";
+      return "Print Bridge tidak aktif di localhost:3000.\nPastikan app Print Bridge sudah Start Server, lalu coba cetak lagi.";
     }
-    return "Print server tidak aktif di localhost:3000. Jalankan printer_server di PC.";
+    return "Print server tidak aktif di localhost:3000.\nJalankan printer_server di PC kasir terlebih dahulu, lalu coba cetak lagi.";
   }
 
   function errorMessage(err) {
@@ -103,10 +103,11 @@
   }
 
   function showAlert(message, type) {
+    type = type || "warning";
     // Prefer Operasi OpModal if available on the same page
     if (typeof window.showAlert === "function" && window.showAlert !== showAlert) {
       try {
-        window.showAlert(message, type || "error");
+        window.showAlert(message, type);
         return;
       } catch (e) {}
     }
@@ -118,7 +119,7 @@
         if (type === "warning" || type === "warn") {
           headClass = "op-modal__head op-modal__head--yellow";
           iconClass = "fa-exclamation-triangle";
-          title = "Peringatan";
+          title = "Print Server";
         } else if (type === "info" || type === "success") {
           headClass = "op-modal__head op-modal__head--blue";
           iconClass = "fa-info-circle";
@@ -147,7 +148,7 @@
     if (type === "warning" || type === "warn") {
       headCls = "mdl-pa__head mdl-pa__head--yellow";
       iconCls = "fas fa-exclamation-triangle";
-      title = "Peringatan";
+      title = "Print Server";
     } else if (type === "info" || type === "success") {
       headCls = "mdl-pa__head mdl-pa__head--blue";
       iconCls = "fas fa-info-circle";

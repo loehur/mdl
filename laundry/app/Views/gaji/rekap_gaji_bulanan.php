@@ -710,7 +710,14 @@ $totalTerima = 0;
     })
     .catch(function(err) {
       console.error('Print error:', err);
-      showToast(errMsg(err), 'danger');
+      var msg = errMsg(err);
+      if (window.PrintServer && typeof window.PrintServer.showAlert === 'function') {
+        window.PrintServer.showAlert(msg, 'warning');
+      } else if (window.MdlToast) {
+        MdlToast.warn(msg);
+      } else {
+        showToast(msg, 'warning');
+      }
       btn.prop('disabled', false).html(originalHtml);
     });
   });

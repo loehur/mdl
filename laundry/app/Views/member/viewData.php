@@ -401,22 +401,85 @@ foreach ($this->pelanggan as $dp) {
   });
 
   function Print(id) {
-    var divContents = document.getElementById("print" + id).innerHTML;
-    var a = window.open('');
-    a.document.write('<title>Print Page</title>');
-    a.document.write('<body style="margin-left: <?= isset($this->mdl_setting['print_ms']) ? $this->mdl_setting['print_ms'] : 0 ?>mm">');
-    a.document.write(divContents);
-    var window_width = $(window).width();
-    a.print();
+    var el = document.getElementById("print" + id);
+    if (!el) return;
 
-    if (window_width > 600) {
-      a.close()
-    } else {
-      setTimeout(function() {
-        a.close()
-      }, 60000);
+    var width = parseInt(localStorage.getItem("escpos_width") || "32", 10) || 32;
+    var makeDash = function(w) { return Array(w + 1).join("-"); };
+    var sanitize = function(td) {
+      var s = td.innerHTML || "";
+      s = s.replace(/<br\s*\/?>/gi, "[[BR]]");
+      s = s.replace(/<h1[^>]*>/gi, "[[H1]]").replace(/<\/h1>/gi, "[[/H1]]");
+      s = s.replace(/<b[^>]*>/gi, "[[B]]").replace(/<\/b>/gi, "[[/B]]");
+      s = s.replace(/&nbsp;/gi, " ").replace(/\u00a0/g, " ");
+      s = s.replace(/<[^>]+>/gi, "");
+      s = s.replace(/[\r\n]+/g, " ").replace(/[ \t]+/g, " ").trim();
+      return s;
+    };
+
+    var rows = el.querySelectorAll("tr");
+    var lines = [];
+    for (var i = 0; i < rows.length; i++) {
+      var tr = rows[i];
+      var tds = tr.querySelectorAll("td");
+      if (tr.id && tr.id.toLowerCase() === "dashrow") {
+        lines.push("[[TR]][[TD]]" + makeDash(width) + "[[/TD]][[/TR]]");
+        continue;
+      }
+      if (!tds.length) continue;
+      if (tds.length === 1 || tds[0].getAttribute("colspan") === "2") {
+        lines.push("[[TR]][[TD]]" + sanitize(tds[0]) + "[[/TD]][[/TR]]");
+      } else {
+        lines.push("[[TR]][[TD]]" + sanitize(tds[0]) + "[[/TD]][[TD]]" + sanitize(tds[1]) + "[[/TD]][[/TR]]");
+      }
+    }
+    lines = lines.filter(function(s) {
+      return String(s || "").replace(/\[\[(?:\/)?(?:TR|TD)\]\]/g, "").trim().length > 0;
+    });
+    var plain = lines.map(function(s) {
+      s = String(s || "");
+      s = s.replace(/\[\[BR\]\]/g, "<br>");
+      s = s.replace(/\[\[B\]\]/g, "<b>").replace(/\[\[\/B\]\]/g, "</b>");
+      s = s.replace(/\[\[H1\]\]/g, "<h1>").replace(/\[\[\/H1\]\]/g, "</h1>");
+      s = s.replace(/\[\[TD\]\]/g, "<td>").replace(/\[\[\/TD\]\]/g, "</td>");
+      s = s.replace(/\[\[TR\]\]/g, "<tr>").replace(/\[\[\/TR\]\]/g, "</tr>");
+      return s;
+    }).join("");
+
+    var printFn = (window.PrintServer && window.PrintServer.fetch)
+      ? window.PrintServer.fetch.bind(window.PrintServer)
+      : window.printServerFetch;
+    var errMsg = (window.PrintServer && window.PrintServer.errorMessage)
+      ? window.PrintServer.errorMessage
+      : window.printServerErrorMessage;
+
+    if (typeof printFn !== "function") {
+      if (window.PrintServer && window.PrintServer.showAlert) {
+        window.PrintServer.showAlert("Print server tidak tersedia. Jalankan printer server dulu.", "warning");
+      } else if (window.MdlToast) {
+        MdlToast.warn("Print server tidak tersedia. Jalankan printer server dulu.");
+      }
+      return;
     }
 
-    loadDiv();
+    printFn("/print", {
+      text: plain,
+      margin_top: <?= isset($this->mdl_setting['margin_printer_top']) ? (int)$this->mdl_setting['margin_printer_top'] : 0 ?>,
+      feed_lines: <?= isset($this->mdl_setting['margin_printer_bottom']) ? (int)$this->mdl_setting['margin_printer_bottom'] : 0 ?>
+    })
+      .then(function(res) { return res.text().catch(function() { return ""; }); })
+      .then(function() {
+        if (window.MdlToast) MdlToast.ok("Nota dikirim ke printer");
+        if (typeof loadDiv === "function") loadDiv();
+      })
+      .catch(function(err) {
+        var msg = typeof errMsg === "function" ? errMsg(err) : "Print server tidak aktif. Jalankan printer server dulu.";
+        if (window.PrintServer && window.PrintServer.showAlert) {
+          window.PrintServer.showAlert(msg, "warning");
+        } else if (window.MdlToast) {
+          MdlToast.warn(msg);
+        }
+      });
   }
 </script>
+<script src="<?= URL::IN_ASSETS ?>js/print_server.js?v=<?= time() ?>"></script>

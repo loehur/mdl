@@ -107,9 +107,35 @@ $isEmpty = empty($grouped);
         
         <!-- Footer Actions -->
         <div class="card-footer p-2 text-end">
-           <button class="btn btn-sm btn-outline-secondary" onclick="window.print()">
+           <button type="button" class="btn btn-sm btn-outline-secondary" data-print-ref="<?= htmlspecialchars((string) $ref) ?>">
              <i class="fas fa-print me-1"></i>Cetak
            </button>
+        </div>
+        <div id="print<?= htmlspecialchars((string) $ref) ?>" class="d-none">
+          <table style="width:100%">
+            <tr>
+              <td colspan="2" style="text-align:center">
+                <b><?= htmlspecialchars($this->dCabang['nama'] ?? 'LAUNDRY') ?> - <?= htmlspecialchars($this->dCabang['kode_cabang'] ?? '') ?></b><br>
+                #<?= htmlspecialchars((string) $ref) ?><br>
+                <?= date('d/m/y H:i', strtotime($group['date'])) ?>
+              </td>
+            </tr>
+            <tr id="dashRow"><td></td></tr>
+            <?php foreach ($group['items'] as $item) {
+              $margin = $item['margin'] ?? 0;
+              $displayPrice = $item['price'] + $margin;
+            ?>
+            <tr>
+              <td><?= htmlspecialchars($item['nama_barang']) ?><br><?= (int) $item['qty'] ?> x Rp<?= number_format($displayPrice) ?></td>
+              <td style="text-align:right">Rp<?= number_format($displayPrice * $item['qty']) ?></td>
+            </tr>
+            <?php } ?>
+            <tr id="dashRow"><td></td></tr>
+            <tr>
+              <td><b>TOTAL</b></td>
+              <td style="text-align:right"><b>Rp<?= number_format($group['total']) ?></b></td>
+            </tr>
+          </table>
         </div>
       </div>
       </div> <!-- /col-md-6 -->
@@ -117,3 +143,14 @@ $isEmpty = empty($grouped);
     </div> <!-- /row -->
   <?php } ?>
 </div>
+
+<script>
+  window.ViewLoadConfig = {
+    baseUrl: '<?= URL::BASE_URL ?>',
+    kodeCabang: '<?= $this->dCabang['id_cabang'] ?? '' ?>',
+    marginTop: <?= $this->mdl_setting["margin_printer_top"] ?? 0 ?>,
+    feedLines: <?= $this->mdl_setting["margin_printer_bottom"] ?? 0 ?>
+  };
+</script>
+<script src="<?= URL::IN_ASSETS ?>js/print_server.js?v=<?= time() ?>"></script>
+<script src="<?= URL::IN_ASSETS ?>js/operasi/view_load.js?v=<?= time() ?>"></script>

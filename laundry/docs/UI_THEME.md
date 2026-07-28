@@ -310,21 +310,39 @@ Mapping contoh:
 
 Desktop: **2 kolom**. Mobile (`≤720px` / `≤639px`): 1 kolom.
 
-### Toast (feedback singkat)
+### Toast vs Modal (pilih yang tepat)
+
+**Inti:** toast = info singkat non-blocking; modal = butuh perhatian / keputusan / aksi.
+
+| Situasi | Pakai | Contoh |
+|---------|--------|--------|
+| Berhasil singkat (simpan, cetak terkirim, item masuk keranjang) | **Toast** `ok` | “Nota dikirim ke printer” |
+| Validasi / error teknis 1–2 baris, user bisa lanjut kerja | **Toast** `warn` / `error` | “Lengkapi ID Outlet”, “Gagal menyimpan” |
+| Info ringan / status sementara | **Toast** `info` | “Menunggu pembayaran…” |
+| Konfirmasi destruktif / keputusan Ya–Batal | **Modal** | Hapus order, batalkan pembayaran |
+| Form multi-field / alur langkah | **Modal** / offcanvas | Pilih karyawan + pack/hanger |
+| Instruksi yang harus dibaca & ditindaklanjuti dulu | **Modal** | Print server offline → jalankan printer server |
+| Error lingkungan yang menghentikan aksi (cetak, bridge) | **Modal** (`PrintServer.showAlert` / `OpModal`) | “Print server tidak aktif…” |
+| Paragraf panjang / kebijakan / panduan | **Modal** | Syarat, panduan setup |
+
+**Aturan cepat**
+1. Bisa diabaikan sambil lanjut kerja → **toast**.
+2. Harus baca / klik OK / pilih Ya–Batal sebelum lanjut → **modal**.
+3. Satu kalimat status → **toast**. Multi kalimat + aksi perbaikan → **modal**.
+4. **Jangan** `alert()` / `confirm()` bawaan browser.
+5. **Jangan** modal penuh hanya untuk “Berhasil” 1 kata — pakai toast.
+6. **Jangan** toast untuk konfirmasi hapus / checkout / print-server-offline.
+
+#### Toast (feedback singkat)
 
 Toast untuk **pesan singkat** — sukses, error, warning, info — **tanpa memaksa klik OK**.  
 Jangan otomatis pakai modal/`alert()` untuk feedback sederhana.
 
-#### Kapan toast vs modal
-
-| Situasi | Pakai |
+| Situasi (ringkas) | Pakai |
 |---------|--------|
 | Berhasil simpan / tambah / hapus singkat | **Toast** `ok` / `success` |
-| Validasi gagal, request gagal, peringatan singkat | **Toast** `warn` / `error` |
-| Info ringan (sudah dikirim, masih menunggu) | **Toast** `info` |
-| Konfirmasi aksi (hapus, checkout, ganti yang merusak data) | **Modal** (butuh Ya/Batal) |
-| Alur multi-field (pilih karyawan, isi pack, dll.) | **Modal** / offcanvas |
-| Instruksi panjang yang harus dibaca (kebijakan, panduan) | **Modal** |
+| Validasi gagal, request gagal singkat | **Toast** `warn` / `error` |
+| Info ringan | **Toast** `info` |
 
 Aturan singkat:
 - **1 kalimat**, max ~2 baris — bukan paragraf.
@@ -333,6 +351,14 @@ Aturan singkat:
 - **Jangan** stack 10 toast — ganti toast yang sama atau antri singkat (max 2–3).
 - **Jangan** toast `rounded` / Bootstrap Toast default — ikut token tema (siku, border 1px, warna solid).
 
+#### Modal (perhatian / keputusan / aksi)
+
+- Konfirmasi aksi (hapus, checkout, ganti yang merusak data)
+- Alur multi-field (pilih karyawan, isi pack, dll.)
+- Instruksi setup / perbaikan yang harus ditindaklanjuti (contoh: **jalankan Print Server / Print Bridge**)
+- Dialog OK yang memblokir sampai user paham (print offline)
+
+Untuk error print server, pakai `PrintServer.showAlert(msg, "warning")` (atau `OpModal` `#modalAlert` di halaman Operasi) — **bukan** fallback `window.print()` / dialog browser.
 #### Varian warna
 
 | Type | Border / accent | Background | Teks | Ikon saran |
@@ -392,9 +418,9 @@ Halaman khusus (portal J, dll.) boleh punya toast sendiri, tapi **visual harus m
 - [ ] Header offcanvas memakai gradient multiwarna (jika offcanvas)
 - [ ] Modal Operasi memakai `.op-modal` / `OpModal` (bukan Bootstrap Modal + backdrop)
 - [ ] Feedback singkat memakai **toast** (`MdlToast`), bukan `alert()` / modal OK-only
+- [ ] Print server offline / instruksi aksi memakai **modal** (`PrintServer.showAlert` / `OpModal`), bukan toast singkat & bukan `window.print`
 - [ ] Konfirmasi destruktif / multi-step tetap modal (bukan toast)
-- [ ] Konsisten dengan Order / Pembayaran yang sudah ada
-
+- [ ] Cetak hanya via Print Server — tanpa fallback browser / bluetooth / serial langsung
 ---
 
 ## 7. Anti-pola
@@ -413,6 +439,8 @@ Halaman khusus (portal J, dll.) boleh punya toast sendiri, tapi **visual harus m
 - **Sudut membulat / round / pill / `border-radius: 50%`** — dilarang
 - Class Bootstrap `rounded`, `rounded-pill`, `rounded-3`, dll. pada elemen bertema
 - Modal/`alert()` untuk pesan sukses atau error 1 baris — **pakai toast**
+- Toast untuk print-server-offline / instruksi “jalankan server dulu” — **pakai modal**
+- Fallback cetak browser (`window.print` / `window.open` + print) saat print server mati — **dilarang**; tampilkan warning modal
 - Bootstrap Toast default (rounded + shadow generik) tanpa token warna tema
 
 ---

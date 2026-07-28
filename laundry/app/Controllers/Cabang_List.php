@@ -96,6 +96,7 @@ class Cabang_List extends Controller
          $kolom = "phone_number";
       } else if ($mode == 5) {
          $kolom = "print_mode";
+         $value = "server"; // hanya print server — mode lain dihapus
       } else if ($mode == 6) {
          $kolom = "rent";
       } else {

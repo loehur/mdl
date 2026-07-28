@@ -450,7 +450,14 @@
           })
           .catch(function (err) {
             console.error("Print server error:", err);
-            showAlert(window.printServerErrorMessage(err), "error");
+            var msg = window.printServerErrorMessage
+              ? window.printServerErrorMessage(err)
+              : "Print server tidak aktif. Jalankan printer server dulu.";
+            if (window.PrintServer && typeof window.PrintServer.showAlert === "function") {
+              window.PrintServer.showAlert(msg, "warning");
+            } else if (typeof showAlert === "function") {
+              showAlert(msg, "warning");
+            }
           })
           .finally(function () {
             $(btn).removeClass('disabled').prop('disabled', false);
@@ -2252,322 +2259,73 @@
       }
     }
 
-    var encoder = new TextEncoder();
-    var chunks = [];
-    chunks.push(new Uint8Array([27, 64]));
-    var esc_font = (localStorage.getItem("escpos_font") || "A").toUpperCase();
-    var esc_cp = parseInt(localStorage.getItem("escpos_codepage") || "16");
-    var esc_line = parseInt(localStorage.getItem("escpos_line") || "36");
-    var esc_size = (
-      localStorage.getItem("escpos_size") || "normal"
-    ).toLowerCase();
-    var sizeVal = 0;
-    if (esc_size === "doublew") sizeVal = 1;
-    if (esc_size === "doubleh") sizeVal = 16;
-    if (esc_size === "doublehw") sizeVal = 17;
-    chunks.push(new Uint8Array([27, 77, esc_font === "A" ? 0 : 1]));
-    chunks.push(new Uint8Array([27, 116, isNaN(esc_cp) ? 16 : esc_cp]));
-    chunks.push(new Uint8Array([27, 51, isNaN(esc_line) ? 24 : esc_line]));
-    chunks.push(new Uint8Array([29, 33, sizeVal]));
+    // Cetak hanya via Print Server / Print Bridge — tanpa fallback browser/bluetooth/serial
+    lines = lines.filter(function (s) {
+      var x = String(s || "");
+      if (x.indexOf("[[TR]]") === -1) return true;
+      var inner = x.replace(/\[\[(?:\/)?(?:TR|TD)\]\]/g, "");
+      return inner.trim().length > 0;
+    });
+    var plain = lines
+      .map(function (s) {
+        s = String(s || "");
+        s = s.replace(/\[\[B\]\]/g, "<b>");
+        s = s.replace(/\[\[\/B\]\]/g, "</b>");
+        s = s.replace(/\[\[H1\]\]/g, "<h1>");
+        s = s.replace(/\[\[\/H1\]\]/g, "</h1>");
+        s = s.replace(/\[\[(?:\/)?C\]\]/g, "");
+        s = s.replace(/\[\[(?:\/)?R\]\]/g, "");
+        s = s.replace(/\[\[(?:\/)?L\]\]/g, "");
+        s = s.replace(/\[\[TD\]\]/g, "<td>");
+        s = s.replace(/\[\[\/TD\]\]/g, "</td>");
+        s = s.replace(/\[\[TR\]\]/g, "<tr>");
+        s = s.replace(/\[\[\/TR\]\]/g, "</tr>");
+        s = s.replace(/\[\[(?:\/)?DEL\]\]/g, "");
+        return s;
+      })
+      .join("");
 
-    var addLine = function (s, align) {
-      s = s || "";
-      var center = false;
-      if (s.indexOf("[[C]]") === 0) {
-        center = true;
-        s = s.substring(5);
-      }
-      s = s.replace(/\[\[(?:\/)?(?:B|DEL|H1|C|R|L|TD)\]\]/g, "");
-      chunks.push(new Uint8Array([27, 97, center ? 1 : align]));
-      chunks.push(encoder.encode(s));
-      chunks.push(encoder.encode("\n"));
-    };
+    var printFn =
+      window.PrintServer && typeof window.PrintServer.fetch === "function"
+        ? window.PrintServer.fetch.bind(window.PrintServer)
+        : window.printServerFetch;
+    var errMsg =
+      window.PrintServer && typeof window.PrintServer.errorMessage === "function"
+        ? window.PrintServer.errorMessage
+        : window.printServerErrorMessage;
+    var warnFn =
+      window.PrintServer && typeof window.PrintServer.showAlert === "function"
+        ? window.PrintServer.showAlert
+        : typeof showAlert === "function"
+          ? showAlert
+          : null;
 
-    for (var j = 0; j < lines.length; j++) {
-      if (j < 2) {
-        addLine(lines[j], 1);
-      } else {
-        addLine(lines[j], 0);
-      }
+    if (typeof printFn !== "function") {
+      if (warnFn) warnFn("Print server tidak tersedia. Jalankan printer server dulu.", "warning");
+      return;
     }
 
-    chunks.push(encoder.encode("\n\n\n"));
-    var doCut = (localStorage.getItem("escpos_cut") || "0") === "1";
-    if (doCut) {
-      chunks.push(new Uint8Array([29, 86, 0]));
-    }
-
-    var totalLen = 0;
-    for (var k = 0; k < chunks.length; k++) totalLen += chunks[k].length;
-    var all = new Uint8Array(totalLen);
-    var offset = 0;
-    for (var m = 0; m < chunks.length; m++) {
-      all.set(chunks[m], offset);
-      offset += chunks[m].length;
-    }
-
-    function fallbackHtml() {
-      var divContents = el.innerHTML;
-      var a = window.open("");
-      a.document.write("<title>Print Page</title>");
-      a.document.write('<body style="margin-left: ' + print_ms + 'mm">');
-      a.document.write(divContents);
-      var window_width = $(window).width();
-      a.print();
-      if (window_width > 600) {
-        a.close();
-      } else {
-        setTimeout(function () {
-          a.close();
-        }, 60000);
-      }
-      loadDiv();
-    }
-
-    function tryBluetooth() {
-      if (!navigator.bluetooth) {
-        return;
-      }
-
-      function doWrite(characteristic, data) {
-        var size = 20;
-        var idx = 0;
-        var p = Promise.resolve();
-        while (idx < data.length) {
-          var chunk = data.slice(idx, Math.min(idx + size, data.length));
-          p = p.then(
-            function (c) {
-              return characteristic.writeValue(c);
-            }.bind(null, chunk)
-          );
-          idx += size;
-        }
-        return p;
-      }
-
-      navigator.bluetooth
-        .requestDevice({
-          acceptAllDevices: true,
-          optionalServices: [
-            "0000ffe0-0000-1000-8000-00805f9b34fb",
-            "0000ff00-0000-1000-8000-00805f9b34fb",
-          ],
-        })
-        .then(function (device) {
-          return device.gatt.connect();
-        })
-        .then(function (server) {
-          return server
-            .getPrimaryService("0000ffe0-0000-1000-8000-00805f9b34fb")
-            .catch(function () {
-              return server.getPrimaryService(
-                "0000ff00-0000-1000-8000-00805f9b34fb"
-              );
-            });
-        })
-        .then(function (service) {
-          return service
-            .getCharacteristic("0000ffe1-0000-1000-8000-00805f9b34fb")
-            .catch(function () {
-              return service.getCharacteristic(
-                "0000ff01-0000-1000-8000-00805f9b34fb"
-              );
-            });
-        })
-        .then(function (characteristic) {
-          return doWrite(characteristic, all);
-        })
-        .then(function () {
-          loadDiv();
-        })
-        .catch(function (err) { });
-    }
-
-    function escposGetSavedBaud() {
-      var b = parseInt(localStorage.getItem("escpos_baud") || "9600");
-      if (!b || isNaN(b)) b = 9600;
-      return b;
-    }
-
-    function escposGetSavedPort() {
-      return navigator.serial.getPorts().then(function (ports) {
-        if (!ports || ports.length === 0) {
-          return null;
-        }
-        var vid = parseInt(localStorage.getItem("escpos_vendor") || "0");
-        var pid = parseInt(localStorage.getItem("escpos_product") || "0");
-        if (vid && pid) {
-          for (var i = 0; i < ports.length; i++) {
-            var info = ports[i].getInfo ? ports[i].getInfo() : {};
-            if (info && info.usbVendorId === vid && info.usbProductId === pid) {
-              return ports[i];
-            }
-          }
-        }
-        return ports[0];
-      });
-    }
-
-    function escposSavePort(port, baud) {
-      try {
-        var info = port.getInfo ? port.getInfo() : {};
-        if (info && info.usbVendorId)
-          localStorage.setItem("escpos_vendor", String(info.usbVendorId));
-        if (info && info.usbProductId)
-          localStorage.setItem("escpos_product", String(info.usbProductId));
-        localStorage.setItem("escpos_baud", String(baud));
-      } catch (e) { }
-    }
-
-    function trySerial() {
-      if (!navigator.serial) {
-        tryBluetooth();
-        return;
-      }
-      if (!window.__escpos) {
-        window.__escpos = {
-          port: null,
-          writer: null,
-          open: false,
-          baud: 9600,
-        };
-      }
-
-      var openWithSettings = function (rate) {
-        return window.__escpos.port
-          .open({
-            baudRate: rate,
-            dataBits: 8,
-            stopBits: 1,
-            parity: "none",
-            flowControl: "none",
-          })
-          .then(function () {
-            if (window.__escpos.port.setSignals) {
-              return window.__escpos.port.setSignals({
-                dataTerminalReady: true,
-                requestToSend: true,
-              });
-            }
-          });
-      };
-
-      escposGetSavedPort()
-        .then(function (saved) {
-          if (saved) {
-            window.__escpos.port = saved;
-            var b = escposGetSavedBaud();
-            return openWithSettings(b).catch(function () {
-              return openWithSettings(9600);
-            });
-          }
-          var vid = parseInt(localStorage.getItem("escpos_vendor") || "0");
-          var pid = parseInt(localStorage.getItem("escpos_product") || "0");
-          var opts = {};
-          if (vid && pid) {
-            opts = {
-              filters: [
-                {
-                  usbVendorId: vid,
-                  usbProductId: pid,
-                },
-              ],
-            };
-          }
-          return navigator.serial.requestPort(opts).then(function (p) {
-            window.__escpos.port = p;
-            return openWithSettings(9600).catch(function () {
-              return openWithSettings(115200);
-            });
-          });
-        })
-        .then(function () {
-          var size = 256,
-            idx = 0,
-            p = Promise.resolve();
-          var writer = window.__escpos.port.writable.getWriter();
-          window.__escpos.open = true;
-          try {
-            escposSavePort(window.__escpos.port, escposGetSavedBaud());
-          } catch (e) { }
-          while (idx < all.length) {
-            var chunk = all.slice(idx, Math.min(idx + size, all.length));
-            p = p.then(
-              function (c) {
-                return writer.write(c);
-              }.bind(null, chunk)
-            );
-            idx += size;
-          }
-          return p.then(function () {
-            writer.releaseLock();
-            loadDiv();
-          });
-        })
-        .catch(function () {
-          tryBluetooth();
+    printFn("/print", {
+      text: plain,
+      margin_top: marginTop,
+      feed_lines: feedLines,
+    })
+      .then(function (res) {
+        return res.text().catch(function () {
+          return "";
         });
-    }
-
-    if (pmode === "bluetooth") {
-      tryBluetooth();
-    } else if (pmode === "esc/pos" || pmode === "escpos" || pmode === "esc") {
-      trySerial();
-    } else if (pmode === "server") {
-      try {
-        if (pmode === "server") {
-          lines = lines.filter(function (s) {
-            var x = String(s || "");
-            if (x.indexOf("[[TR]]") === -1) return true;
-            var inner = x.replace(/\[\[(?:\/)?(?:TR|TD)\]\]/g, "");
-            return inner.trim().length > 0;
-          });
-        }
-        var plain =
-          lines
-            .map(function (s) {
-              s = String(s || "");
-              s = s.replace(/\[\[B\]\]/g, "<b>");
-              s = s.replace(/\[\[\/B\]\]/g, "</b>");
-              s = s.replace(/\[\[H1\]\]/g, "<h1>");
-              s = s.replace(/\[\[\/H1\]\]/g, "</h1>");
-              s = s.replace(/\[\[(?:\/)?C\]\]/g, "");
-              s = s.replace(/\[\[(?:\/)?R\]\]/g, "");
-              s = s.replace(/\[\[(?:\/)?L\]\]/g, "");
-              s = s.replace(/\[\[TD\]\]/g, "<td>");
-              s = s.replace(/\[\[\/TD\]\]/g, "</td>");
-              s = s.replace(/\[\[TR\]\]/g, "<tr>");
-              s = s.replace(/\[\[\/TR\]\]/g, "</tr>");
-              s = s.replace(/\[\[(?:\/)?DEL\]\]/g, "");
-              return s;
-            })
-            .join(pmode === "server" ? "" : "\n") +
-          (pmode === "server" ? "" : "\n");
-        window.printServerFetch("/print", {
-          text: plain,
-          margin_top: marginTop,
-          feed_lines: feedLines
-        })
-          .then(function (res) {
-            console.log("Server print status:", res.status);
-            return res.text().catch(function () {
-              return "";
-            });
-          })
-          .then(function (body) {
-            console.log("Server print body:", body);
-            loadDiv();
-          })
-          .catch(function (err) {
-            console.log("Server print error:", err);
-            if (typeof showAlert === "function") {
-              showAlert(window.printServerErrorMessage(err), "error");
-            }
-          });
-      } catch (e) { }
-    } else {
-      tryBluetooth();
-    }
+      })
+      .then(function () {
+        if (window.MdlToast) MdlToast.ok("Nota dikirim ke printer");
+        loadDiv();
+      })
+      .catch(function (err) {
+        var msg =
+          typeof errMsg === "function"
+            ? errMsg(err)
+            : "Print server tidak aktif. Jalankan printer server dulu.";
+        if (warnFn) warnFn(msg, "warning");
+      });
   };
 
   window.cekQris = function (ref_id, jumlah) {
@@ -2654,273 +2412,50 @@
       window.__printLockUntil = 0;
     }, 3000);
 
-    var encoder = new TextEncoder();
-    var chunks = [];
-    chunks.push(new Uint8Array([27, 64]));
-    chunks.push(new Uint8Array([27, 97, 1]));
-    chunks.push(new Uint8Array([29, 40, 107, 4, 0, 49, 65, 49, 0]));
-    chunks.push(new Uint8Array([29, 40, 107, 3, 0, 49, 67, 5]));
-    chunks.push(new Uint8Array([29, 40, 107, 3, 0, 49, 69, 48]));
-    var db = encoder.encode(t);
-    var len = db.length + 3;
-    var pL = len & 255;
-    var pH = (len >> 8) & 255;
-    chunks.push(new Uint8Array([29, 40, 107, pL, pH, 49, 80, 48]));
-    chunks.push(db);
-    chunks.push(new Uint8Array([29, 40, 107, 3, 0, 49, 81, 48]));
-    chunks.push(encoder.encode("\n"));
-    if (label.length > 0) {
-      chunks.push(new Uint8Array([27, 97, 1]));
-      chunks.push(encoder.encode(label));
-      chunks.push(encoder.encode("\n"));
-    }
-    chunks.push(encoder.encode("\n"));
-    var qrFeed = parseInt(localStorage.getItem("escpos_qr_feed") || "6");
-    chunks.push(new Uint8Array([27, 100, isNaN(qrFeed) ? 6 : qrFeed]));
-    chunks.push(new Uint8Array([27, 97, 0]));
-    var doCutQr = (localStorage.getItem("escpos_cut") || "0") === "1";
-    if (doCutQr) {
-      chunks.push(new Uint8Array([29, 86, 0]));
+    // Cetak QR hanya via Print Server / Print Bridge
+    var printFn =
+      window.PrintServer && typeof window.PrintServer.fetch === "function"
+        ? window.PrintServer.fetch.bind(window.PrintServer)
+        : window.printServerFetch;
+    var errMsg =
+      window.PrintServer && typeof window.PrintServer.errorMessage === "function"
+        ? window.PrintServer.errorMessage
+        : window.printServerErrorMessage;
+    var warnFn =
+      window.PrintServer && typeof window.PrintServer.showAlert === "function"
+        ? window.PrintServer.showAlert
+        : typeof showAlert === "function"
+          ? showAlert
+          : null;
+
+    if (typeof printFn !== "function") {
+      if (warnFn) warnFn("Print server tidak tersedia. Jalankan printer server dulu.", "warning");
+      return;
     }
 
-    var total = 0;
-    for (var i = 0; i < chunks.length; i++) total += chunks[i].length;
-    var all = new Uint8Array(total);
-    var off = 0;
-    for (var j = 0; j < chunks.length; j++) {
-      all.set(chunks[j], off);
-      off += chunks[j].length;
-    }
-
-    var pmode = "server";
-
-    function tryBluetooth() {
-      if (!navigator.bluetooth) {
-        return;
-      }
-
-      function w(ch, d) {
-        var s = 20,
-          idx = 0,
-          p = Promise.resolve();
-        while (idx < d.length) {
-          var c = d.slice(idx, Math.min(idx + s, d.length));
-          p = p.then(
-            function (x) {
-              return ch.writeValue(x);
-            }.bind(null, c)
-          );
-          idx += s;
-        }
-        return p;
-      }
-
-      navigator.bluetooth
-        .requestDevice({
-          acceptAllDevices: true,
-          optionalServices: [
-            "0000ffe0-0000-1000-8000-00805f9b34fb",
-            "0000ff00-0000-1000-8000-00805f9b34fb",
-          ],
-        })
-        .then(function (dev) {
-          return dev.gatt.connect();
-        })
-        .then(function (srv) {
-          return srv
-            .getPrimaryService("0000ffe0-0000-1000-8000-00805f9b34fb")
-            .catch(function () {
-              return srv.getPrimaryService(
-                "0000ff00-0000-1000-8000-00805f9b34fb"
-              );
-            });
-        })
-        .then(function (svc) {
-          return svc
-            .getCharacteristic("0000ffe1-0000-1000-8000-00805f9b34fb")
-            .catch(function () {
-              return svc.getCharacteristic(
-                "0000ff01-0000-1000-8000-00805f9b34fb"
-              );
-            });
-        })
-        .then(function (ch) {
-          return w(ch, all);
+    printFn("/printqr", {
+      qr_string: t,
+      text: label,
+      margin_top: marginTop,
+      feed_lines: feedLines,
+    })
+      .then(function (res) {
+        return res.text().catch(function () {
+          return "";
         });
-    }
-
-    function escposGetSavedBaud() {
-      var b = parseInt(localStorage.getItem("escpos_baud") || "9600");
-      if (!b || isNaN(b)) b = 9600;
-      return b;
-    }
-
-    function escposGetSavedPort() {
-      return navigator.serial.getPorts().then(function (ports) {
-        if (!ports || ports.length === 0) {
-          return null;
-        }
-        var vid = parseInt(localStorage.getItem("escpos_vendor") || "0");
-        var pid = parseInt(localStorage.getItem("escpos_product") || "0");
-        if (vid && pid) {
-          for (var i = 0; i < ports.length; i++) {
-            var info = ports[i].getInfo ? ports[i].getInfo() : {};
-            if (info && info.usbVendorId === vid && info.usbProductId === pid) {
-              return ports[i];
-            }
-          }
-        }
-        return ports[0];
+      })
+      .then(function () {
+        if (window.MdlToast) MdlToast.ok("QR dikirim ke printer");
+      })
+      .catch(function (err) {
+        var msg =
+          typeof errMsg === "function"
+            ? errMsg(err)
+            : "Print server tidak aktif. Jalankan printer server dulu.";
+        if (warnFn) warnFn(msg, "warning");
       });
-    }
-
-    function escposSavePort(port, baud) {
-      try {
-        var info = port.getInfo ? port.getInfo() : {};
-        if (info && info.usbVendorId)
-          localStorage.setItem("escpos_vendor", String(info.usbVendorId));
-        if (info && info.usbProductId)
-          localStorage.setItem("escpos_product", String(info.usbProductId));
-        localStorage.setItem("escpos_baud", String(baud));
-      } catch (e) { }
-    }
-
-    function trySerial() {
-      if (!navigator.serial) {
-        tryBluetooth();
-        return;
-      }
-      if (!window.__escpos) {
-        window.__escpos = {
-          port: null,
-          open: false,
-          baud: escposGetSavedBaud(),
-        };
-      }
-      var port = window.__escpos.port;
-
-      var openWith = function (rate) {
-        return port
-          .open({
-            baudRate: rate,
-            dataBits: 8,
-            stopBits: 1,
-            parity: "none",
-            flowControl: "none",
-          })
-          .then(function () {
-            if (port.setSignals)
-              return port.setSignals({
-                dataTerminalReady: true,
-                requestToSend: true,
-              });
-          });
-      };
-
-      var writeAll = function () {
-        var writer = port.writable.getWriter();
-        var size = 256,
-          idx = 0,
-          p = Promise.resolve();
-        while (idx < all.length) {
-          var chunk = all.slice(idx, Math.min(idx + size, all.length));
-          p = p.then(
-            function (c) {
-              return writer.write(c);
-            }.bind(null, chunk)
-          );
-          idx += size;
-        }
-        return p.then(function () {
-          writer.releaseLock();
-        });
-      };
-
-      var startSerial = function () {
-        writeAll()
-          .then(function () {
-            window.__escpos.open = true;
-          })
-          .catch(function () {
-            tryBluetooth();
-          });
-      };
-
-      if (port && window.__escpos.open) {
-        startSerial();
-        return;
-      }
-      if (port && !window.__escpos.open) {
-        openWith(window.__escpos.baud)
-          .catch(function () {
-            return openWith(9600);
-          })
-          .then(function () {
-            startSerial();
-          });
-        return;
-      }
-
-      escposGetSavedPort()
-        .then(function (saved) {
-          if (saved) {
-            port = saved;
-            window.__escpos.port = port;
-            return openWith(window.__escpos.baud).catch(function () {
-              return openWith(9600);
-            });
-          }
-          return navigator.serial.requestPort().then(function (p) {
-            port = p;
-            window.__escpos.port = port;
-            return openWith(9600).catch(function () {
-              return openWith(115200);
-            });
-          });
-        })
-        .then(function () {
-          try {
-            escposSavePort(port, window.__escpos.baud);
-          } catch (e) { }
-          startSerial();
-        })
-        .catch(function () {
-          tryBluetooth();
-        });
-    }
-
-    if (pmode === "bluetooth") {
-      tryBluetooth();
-    } else if (pmode === "esc/pos" || pmode === "escpos" || pmode === "esc") {
-      trySerial();
-    } else if (pmode === "server") {
-      try {
-        window.printServerFetch("/printqr", {
-          qr_string: t,
-          text: label,
-          margin_top: marginTop,
-          feed_lines: feedLines
-        })
-          .then(function (res) {
-            console.log("Server printqr status:", res.status);
-            return res.text().catch(function () {
-              return "";
-            });
-          })
-          .then(function (body) {
-            console.log("Server printqr body:", body);
-          })
-          .catch(function (err) {
-            console.log("Server printqr error:", err);
-            if (typeof showAlert === "function") {
-              showAlert(window.printServerErrorMessage(err), "error");
-            }
-          });
-      } catch (e) { }
-    } else {
-      tryBluetooth();
-    }
   };
+
   // Cancel Payment Handler
   var cancelPaymentRef = '';
   $(document).on('click', '.cancelPayment', function (e) {

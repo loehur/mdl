@@ -729,7 +729,12 @@
         })
         .catch(err => {
             console.error("Print Error:", err);
-            showSalesAlert(errMsg(err), 'error');
+            var msg = errMsg(err);
+            if (window.PrintServer && typeof window.PrintServer.showAlert === 'function') {
+              window.PrintServer.showAlert(msg, 'warning');
+            } else {
+              showSalesAlert(msg, 'error');
+            }
         })
         .finally(() => {
             btn.removeClass('disabled').prop('disabled', false).html('<i class="fas fa-print"></i> Print');
