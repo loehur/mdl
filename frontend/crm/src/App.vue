@@ -78,7 +78,26 @@ const currentPollingInterval = ref(30000); // Start with 30s
 const chatPollingInterval = ref(null);
 const localLastMessageAt = ref(null);
 const chatPollingPhone = ref(null); // Store phone being polled
-const isChatPolling = ref(false); // true while active-chat poll request in flight
+const isChatPolling = ref(false); // true while active-chat poll bar visible
+const chatPollBarHideTimer = ref(null);
+const CHAT_POLL_BAR_MIN_MS = 900; // API lokal terlalu cepat — bar perlu durasi minimum
+
+const showChatPollBar = () => {
+  if (chatPollBarHideTimer.value) {
+    clearTimeout(chatPollBarHideTimer.value);
+    chatPollBarHideTimer.value = null;
+  }
+  isChatPolling.value = true;
+};
+
+const hideChatPollBar = (startedAt) => {
+  const remaining = Math.max(0, CHAT_POLL_BAR_MIN_MS - (Date.now() - startedAt));
+  if (chatPollBarHideTimer.value) clearTimeout(chatPollBarHideTimer.value);
+  chatPollBarHideTimer.value = setTimeout(() => {
+    isChatPolling.value = false;
+    chatPollBarHideTimer.value = null;
+  }, remaining);
+};
 
 // Activity events to track
 const ACTIVITY_EVENTS = ['mousedown', 'keydown', 'scroll', 'touchstart', 'touchmove'];
@@ -1765,7 +1784,8 @@ const startChatPolling = (phone) => {
       return;
     }
 
-    isChatPolling.value = true;
+    const pollStartedAt = Date.now();
+    showChatPollBar();
     try {
       const response = await fetch(`${API_BASE}/CRM/Chat/getLastMessageAt?phone=${encodeURIComponent(phone)}&_t=${Date.now()}`);
       if (response.ok) {
@@ -1839,7 +1859,7 @@ const startChatPolling = (phone) => {
     } catch (error) {
       console.error('Failed to check last_message_at:', error);
     } finally {
-      isChatPolling.value = false;
+      hideChatPollBar(pollStartedAt);
     }
   }, 5000); // Poll every 5 seconds
 };
@@ -1851,6 +1871,10 @@ const stopChatPolling = () => {
     chatPollingInterval.value = null;
   }
   localLastMessageAt.value = null;
+  if (chatPollBarHideTimer.value) {
+    clearTimeout(chatPollBarHideTimer.value);
+    chatPollBarHideTimer.value = null;
+  }
   isChatPolling.value = false;
   // Don't clear chatPollingPhone - needed for restart when user becomes active after idle
 };

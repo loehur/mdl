@@ -18,15 +18,26 @@ import androidx.appcompat.app.AppCompatActivity
 import com.onesignal.OneSignal
 import com.onesignal.notifications.INotificationClickEvent
 import com.onesignal.notifications.INotificationClickListener
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
     private var pendingPhone: String? = null // Store phone from notification
+    private var isVersionCheckRunning = false
+    private var lastVersionCheckAt = 0L
 
     companion object {
         private const val WEB_URL = "https://cms.nalju.com/"
+        private const val VERSION_URL = "${WEB_URL}version.json"
+        private const val PREFS_NAME = "cms_prefs"
+        private const val PREF_WEB_VERSION = "web_app_version"
+        private const val VERSION_CHECK_MIN_INTERVAL_MS = 30_000L
+        private val versionCheckExecutor = Executors.newSingleThreadExecutor()
     }
     
     // ⭐ JavaScript Bridge for Android functions
@@ -82,12 +93,15 @@ class MainActivity : AppCompatActivity() {
     // PURE WEBVIEW APPROACH: Let JavaScript handle all navigation logic
     override fun onResume() {
         super.onResume()
-        
+
         if (::webView.isInitialized) {
             android.util.Log.d("MainActivity", "🔄 App resumed - triggering JS handler")
-            
+
             // Simply trigger JavaScript handler - let Pinia/Vue handle the rest
             webView.evaluateJavascript("window.__ANDROID_RESUME && window.__ANDROID_RESUME()", null)
+
+            // Re-check web version on resume (throttled) so deploy is picked up without manual clear
+            checkWebVersion(reloadIfUpdated = true)
         }
     }
 
@@ -235,7 +249,8 @@ class MainActivity : AppCompatActivity() {
             javaScriptEnabled = true
             domStorageEnabled = true
             databaseEnabled = true
-            cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
+            // Prefer network when Cache-Control says so (index.html / version.json)
+            cacheMode = WebSettings.LOAD_DEFAULT
             allowFileAccess = true
             allowContentAccess = true
             mediaPlaybackRequiresUserGesture = false
@@ -381,7 +396,82 @@ class MainActivity : AppCompatActivity() {
 
         webView.addJavascriptInterface(OneSignalInterface(this), "OneSignalInterface")
         webView.addJavascriptInterface(JSBridge(), "Android") // For exitApp() bridge
-        webView.loadUrl(WEB_URL)
+
+        // Check remote version first; clear WebView cache when deploy is newer
+        checkWebVersion(reloadIfUpdated = false, forceLoad = true)
+    }
+
+    /**
+     * Fetch cms.nalju.com/version.json (no-cache). If version changed vs SharedPreferences,
+     * clear WebView HTTP cache and reload so JS/CSS updates appear without manual clear.
+     */
+    private fun checkWebVersion(reloadIfUpdated: Boolean, forceLoad: Boolean = false) {
+        val now = System.currentTimeMillis()
+        if (!forceLoad && now - lastVersionCheckAt < VERSION_CHECK_MIN_INTERVAL_MS) return
+        if (isVersionCheckRunning) return
+        isVersionCheckRunning = true
+        lastVersionCheckAt = now
+
+        versionCheckExecutor.execute {
+            var remoteVersion: String? = null
+            try {
+                val url = URL("$VERSION_URL?_t=$now")
+                val conn = (url.openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 5000
+                    readTimeout = 5000
+                    useCaches = false
+                    setRequestProperty("Cache-Control", "no-cache")
+                    setRequestProperty("Pragma", "no-cache")
+                }
+                conn.inputStream.bufferedReader().use { reader ->
+                    val body = reader.readText()
+                    remoteVersion = JSONObject(body).optString("version", "").ifBlank { null }
+                }
+                conn.disconnect()
+            } catch (e: Exception) {
+                android.util.Log.w("VersionCheck", "Failed to fetch version.json: ${e.message}")
+            }
+
+            val prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+            val localVersion = prefs.getString(PREF_WEB_VERSION, null)
+            val versionChanged =
+                !remoteVersion.isNullOrEmpty() && remoteVersion != localVersion
+            val shouldClear =
+                versionChanged && localVersion != null // skip clear on first install
+
+            runOnUiThread {
+                try {
+                    if (!::webView.isInitialized) return@runOnUiThread
+
+                    if (shouldClear) {
+                        android.util.Log.d(
+                            "VersionCheck",
+                            "New web version $remoteVersion (was $localVersion) — clearing cache"
+                        )
+                        webView.clearCache(true)
+                    } else if (versionChanged) {
+                        android.util.Log.d(
+                            "VersionCheck",
+                            "First web version recorded: $remoteVersion"
+                        )
+                    }
+
+                    if (!remoteVersion.isNullOrEmpty() && versionChanged) {
+                        prefs.edit().putString(PREF_WEB_VERSION, remoteVersion).apply()
+                    }
+
+                    when {
+                        forceLoad -> webView.loadUrl(WEB_URL)
+                        shouldClear && reloadIfUpdated -> {
+                            // Bust any leftover HTML cache
+                            webView.loadUrl("$WEB_URL?_v=${System.currentTimeMillis()}")
+                        }
+                    }
+                } finally {
+                    isVersionCheckRunning = false
+                }
+            }
+        }
     }
 
     private fun setupBackHandler() {

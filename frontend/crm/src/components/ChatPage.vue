@@ -1372,6 +1372,6 @@ onUnmounted(() => {
 }
 
 .chat-poll-bar {
-  animation: chat-poll-indeterminate 1s ease-in-out infinite;
+  animation: chat-poll-indeterminate 0.85s ease-in-out infinite;
 }
 </style>
