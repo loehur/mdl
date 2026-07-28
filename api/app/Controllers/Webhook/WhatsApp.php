@@ -386,7 +386,8 @@ class WhatsApp extends Controller
                     null
                 );
 
-                // Broadcast (target 0) + assignment_user_id → admin + crew assigned dapat realtime
+                // Broadcast cepat ke UI — tanpa OneSignal (notify=false).
+                // Push HP baru dikirim setelah intent jika notify=true.
                 $this->pushIncomingToWebSocket([
                     'type' => 'wa_masuk',
                     'conversation_id' => $conversationId,
@@ -394,7 +395,7 @@ class WhatsApp extends Controller
                     'contact_name' => $contact_name,
                     'case' => null,
                     'active_cases' => [],
-                    'notify' => true,
+                    'notify' => false,
                     'assignment_user_id' => $assigned_user_id,
                     'status' => 'open',
                     'message' => [
@@ -530,6 +531,38 @@ class WhatsApp extends Controller
                         'notify' => (bool) $notify,
                         'assignment_user_id' => $assigned_user_id,
                         'target_id' => '0',
+                    ]);
+                }
+
+                // OneSignal hanya jika intent meminta notify=true (sama seperti perilaku lama).
+                // Pakai message id yang sama → CRM UI anggap duplikat, tidak dobel bubble.
+                if ($notify) {
+                    $this->pushIncomingToWebSocket([
+                        'type' => 'wa_masuk',
+                        'conversation_id' => $conversationId,
+                        'phone' => $waNumber,
+                        'contact_name' => $contact_name,
+                        'case' => $currentCase,
+                        'active_cases' => $activeCases,
+                        'notify' => true,
+                        'assignment_user_id' => $assigned_user_id,
+                        'status' => 'open',
+                        'message' => [
+                            'id' => $msgId,
+                            'text' => $textBody,
+                            'type' => $messageType,
+                            'media_id' => $mediaId,
+                            'media_url' => $mediaUrl,
+                            'caption' => $mediaCaption,
+                            'quoted_message_id' => $quotedMessageId,
+                            'quoted_message_body' => $quotedMessageBody,
+                            'quoted_message_from' => $quotedMessageFrom,
+                            'time' => date('Y-m-d H:i:s'),
+                            'sender' => 'customer',
+                        ],
+                        'target_id' => '0',
+                        'kode_cabang' => $code,
+                        'cust_id' => $cust_id,
                     ]);
                 }
             } catch (\Exception $e) {

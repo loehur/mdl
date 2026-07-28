@@ -3,7 +3,7 @@ import { ref, computed, nextTick, watch, onMounted, onUnmounted } from "vue";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import EmojiPicker from "./EmojiPicker.vue";
 import twemoji from 'twemoji';
-import { messageUpdateTrigger } from "../stores/chatStore.js";
+import { messageUpdateTrigger, chatContainer } from "../stores/chatStore.js";
 
 const props = defineProps({
   activeConversation: {
@@ -86,7 +86,6 @@ const emit = defineEmits([
 
 // --- LOCAL STATE ---
 const messageInput = ref("");
-const chatContainer = ref(null);
 const fileInput = ref(null);
 const messageTextarea = ref(null);
 const replyToMessage = ref(null);
@@ -242,11 +241,21 @@ const filteredQuickReplies = computed(() => {
 });
 
 // --- METHODS: UTILS ---
-const scrollToBottom = () => {
+const NEAR_BOTTOM_THRESHOLD = 140;
+
+const isNearBottom = () => {
+  const el = chatContainer.value;
+  if (!el) return true;
+  return el.scrollHeight - el.scrollTop - el.clientHeight <= NEAR_BOTTOM_THRESHOLD;
+};
+
+/** @param {boolean|{force?:boolean}} [opts] */
+const scrollToBottom = (opts = {}) => {
+  const force = opts === true || (typeof opts === "object" && opts?.force === true);
   nextTick(() => {
-    if (chatContainer.value) {
-        chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
-    }
+    if (!chatContainer.value) return;
+    if (!force && !isNearBottom()) return;
+    chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
   });
 };
 
@@ -483,7 +492,7 @@ const sendMessage = async () => {
 
     messageInput.value = "";
     replyToMessage.value = null;
-    scrollToBottom();
+    scrollToBottom({ force: true });
     resetTextareaHeight();
 
     try {
@@ -528,7 +537,7 @@ const sendImage = async () => {
     };
     props.activeConversation.messages.push(newMsg);
     props.activeConversation.lastMessage = "You: 📷 Image";
-    scrollToBottom();
+    scrollToBottom({ force: true });
 
     // FormData upload
     try {
@@ -670,10 +679,27 @@ const closeQuotedMessageDetail = () => {
 };
 
 // Watchers
-// Watch for deep changes to scroll to bottom (new messages, etc)
-watch(() => props.activeConversation, () => {
-    scrollToBottom();
-}, { deep: true });
+// Jangan deep-watch seluruh conversation (status/case/patch → loncat ke bawah).
+// Scroll soft hanya saat ada bubble baru; load-more tetap restore posisi.
+watch(
+  () => props.activeConversation?.messages?.length,
+  (newCount, oldCount) => {
+    if (shouldRestoreScroll.value && newCount > oldCount) {
+      nextTick(() => {
+        if (chatContainer.value) {
+          const newScrollHeight = chatContainer.value.scrollHeight;
+          const scrollDiff = newScrollHeight - savedScrollHeight.value;
+          chatContainer.value.scrollTop = savedScrollTop.value + scrollDiff;
+          shouldRestoreScroll.value = false;
+        }
+      });
+      return;
+    }
+    if (newCount > (oldCount || 0)) {
+      scrollToBottom(); // soft: hanya jika dekat bawah
+    }
+  }
+);
 
 // Separate watcher: Only reset input when switching to a DIFFERENT conversation
 watch(() => props.activeChatId, (newId, oldId) => {
@@ -752,20 +778,6 @@ const handleScroll = () => {
   }
 };
 
-// Watch for message count change to restore scroll position
-watch(() => props.activeConversation?.messages?.length, (newCount, oldCount) => {
-  if (shouldRestoreScroll.value && newCount > oldCount) {
-    nextTick(() => {
-      if (chatContainer.value) {
-        const newScrollHeight = chatContainer.value.scrollHeight;
-        const scrollDiff = newScrollHeight - savedScrollHeight.value;
-        chatContainer.value.scrollTop = savedScrollTop.value + scrollDiff;
-        shouldRestoreScroll.value = false;
-      }
-    });
-  }
-});
-
 // Track if listener is attached
 let scrollListenerAttached = false;
 
@@ -801,7 +813,7 @@ watch(() => props.activeConversation, (newVal, oldVal) => {
 }, { immediate: true });
 
 onMounted(() => {
-    scrollToBottom();
+    scrollToBottom({ force: true });
     
     // Load recent emojis from localStorage
     const savedEmojis = localStorage.getItem("recent_emojis");

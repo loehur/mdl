@@ -820,7 +820,7 @@ watch(shouldBlinkTitle, (shouldBlink) => {
 
 // Scroll when active chat changes
 watch(activeChatId, () => {
-  scrollToBottom();
+  scrollToBottom({ force: true });
 });
 
 // ============================================
@@ -1281,12 +1281,21 @@ const loadMoreMessages = async () => {
   }
 };
 
-const scrollToBottom = () => {
+const NEAR_BOTTOM_THRESHOLD = 140;
+
+const isNearBottom = () => {
+  const el = chatContainer.value;
+  if (!el) return true;
+  return el.scrollHeight - el.scrollTop - el.clientHeight <= NEAR_BOTTOM_THRESHOLD;
+};
+
+/** @param {boolean|{force?:boolean}} [opts] force=true saat buka chat / kirim sendiri */
+const scrollToBottom = (opts = {}) => {
+  const force = opts === true || (typeof opts === "object" && opts?.force === true);
   nextTick(() => {
-    if (chatContainer.value) {
-      // Instant scroll without animation
-      chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
-    }
+    if (!chatContainer.value) return;
+    if (!force && !isNearBottom()) return;
+    chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
   });
 };
 
@@ -1657,7 +1666,7 @@ const selectChat = async (id, isRefresh = false) => {
   // Load messages
   // If we have cached messages, show them immediately and fetch in background
   if (chat.messages && chat.messages.length > 0) {
-    scrollToBottom(); // Show cache immediately
+    scrollToBottom({ force: true }); // Show cache immediately
     // Background fetch to sync and merge
     fetchMessages(chat.wa_number, 0, 20).then((result) => {
       if (result.messages.length > 0) {
@@ -1671,7 +1680,7 @@ const selectChat = async (id, isRefresh = false) => {
         if (chat.lastMessageTime) {
           localLastMessageAt.value = chat.lastMessageTime;
         }
-        scrollToBottom();
+        scrollToBottom({ force: true });
       }
     });
   } else {
@@ -1718,7 +1727,7 @@ const selectChat = async (id, isRefresh = false) => {
   
   // Save active chat state for restoration after returning from external links
   saveActiveChatState();
-  scrollToBottom();
+  scrollToBottom({ force: true });
   
   // Start polling to check for new messages every 5 seconds
   startChatPolling(chat.wa_number);
@@ -1794,7 +1803,7 @@ const startChatPolling = (phone) => {
                 chat.messages = sanitizeMessages(combined);
                 chat.hasMoreMessages = msgResult.has_more;
                 chat.messageOffset = chat.messages.length;
-                scrollToBottom();
+                scrollToBottom(); // soft: jangan ganggu user yang baca history
               } else {
                 // Status-only sync: upgrade ticks without reshuffling UI
                 let changed = false;
@@ -1923,10 +1932,10 @@ const restoreActiveChatState = () => {
           target.messages = result.messages;
           target.hasMoreMessages = result.has_more;
           target.messageOffset = result.messages.length;
-          scrollToBottom();
+          scrollToBottom({ force: true });
         });
       } else {
-        scrollToBottom();
+        scrollToBottom({ force: true });
       }
     }
   }
@@ -2199,7 +2208,7 @@ const sendMessage = async () => {
       delete chatDrafts.value[activeChatId.value];
     }
     resetTextareaHeight(); // Reset textarea size after sending
-    scrollToBottom();
+    scrollToBottom({ force: true });
 
     // API Call
     try {
@@ -2579,7 +2588,7 @@ const sendImage = async () => {
     activeConversation.value.lastMessage = "You: 📷 Image";
     activeConversation.value.lastTime = newMsg.time;
 
-    scrollToBottom();
+    scrollToBottom({ force: true });
 
     const response = await fetch(`${API_BASE}/CRM/Chat/sendImage`, {
       method: "POST",
@@ -3990,7 +3999,7 @@ onMounted(() => {
 
   window.addEventListener("paste", handlePaste);
 
-  scrollToBottom();
+  scrollToBottom({ force: true });
 
   // --- LOADING TIMEOUT SAFETY NET ---
   // If app is stuck on loading screen for more than 5 seconds, force show login
@@ -4219,11 +4228,11 @@ onMounted(() => {
             conversation.messages = result.messages;
             conversation.hasMoreMessages = result.has_more;
             conversation.messageOffset = result.messages.length;
-            nextTick(() => scrollToBottom());
+            nextTick(() => scrollToBottom({ force: true }));
           });
         } else {
           console.log('✅ Messages already loaded, scrolling to bottom');
-          nextTick(() => scrollToBottom());
+          nextTick(() => scrollToBottom({ force: true }));
         }
       } else {
         // Silent reset - conversation not found
