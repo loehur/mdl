@@ -26,7 +26,11 @@
     // Load content via AJAX
     var url = "<?= URL::BASE_URL ?>Antrian/loadList/" + <?= $data['modeView'] ?>;
     url += '?_=' + Date.now(); // Cache busting
-    $("div#load").load(url);
+    $("div#load").load(url, function() {
+      if (typeof window.antrianAfterLoad === "function") {
+        window.antrianAfterLoad();
+      }
+    });
   }
 
   $('span.clearTuntas').click(function() {

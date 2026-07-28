@@ -181,6 +181,54 @@
   .antrian-rekap-group--kerja .antrian-rekap-group__head { background: #1d4ed8; }
   .antrian-rekap-group--antri .antrian-rekap-group__head { background: #16a34a; }
 
+  .antrian-search-empty {
+    margin: 12px 0 0;
+    padding: 16px 18px;
+    border: 1px solid #fcd34d;
+    background: linear-gradient(180deg, #fffbeb, #fff);
+    color: #0f172a;
+    font-family: 'fontku', 'Segoe UI', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 750;
+    line-height: 1.45;
+  }
+  .antrian-search-empty__period {
+    font-weight: 900;
+    color: #1d4ed8;
+  }
+  .antrian-search-empty__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 4px;
+    padding: 6px 12px;
+    border: 1px solid transparent;
+    background: linear-gradient(180deg, #16a34a, #15803d);
+    color: #fff !important;
+    font-family: 'fontku', 'Segoe UI', sans-serif;
+    font-size: 0.88rem;
+    font-weight: 900;
+    text-decoration: none !important;
+    vertical-align: middle;
+    cursor: pointer;
+  }
+  .antrian-search-empty__btn:hover {
+    filter: brightness(1.06);
+    color: #fff !important;
+  }
+  .antrian-search-empty__btn[data-tone="cyan"] {
+    background: linear-gradient(180deg, #2563eb, #1d4ed8);
+  }
+  .antrian-search-empty__btn[data-tone="black"] {
+    background: linear-gradient(180deg, #334155, #0f172a);
+  }
+  .antrian-search-empty__final {
+    border-color: #fca5a5;
+    background: linear-gradient(180deg, #fef2f2, #fff);
+    color: #b91c1c;
+    font-weight: 800;
+  }
+
   #load.antrian-load {
     padding-top: 2px;
     width: 100%;
@@ -275,7 +323,6 @@
       var bar = document.querySelector('.mdl-topbar');
       if (banner) top += banner.offsetHeight;
       if (bar) top += bar.offsetHeight;
-      // sedikit jarak di bawah topbar
       top += 2;
       document.documentElement.style.setProperty('--antrian-sticky-top', top + 'px');
     }
@@ -283,19 +330,90 @@
     window.addEventListener('resize', apply);
   })();
 
-  $("input#searchInput").on("keyup change", function() {
+  window.ANTRIAN_MODE = <?= (int) $modeView ?>;
+  window.ANTRIAN_BASE = <?= json_encode(URL::BASE_URL) ?>;
+  window.ANTRIAN_NEXT = {
+    1: { mode: 6, current: 'Terkini', next: 'Minggu', tone: 'green' },
+    6: { mode: 7, current: 'Minggu', next: 'Bulan', tone: 'cyan' },
+    7: { mode: 8, current: 'Bulan', next: 'Tahun', tone: 'black' },
+    8: { mode: null, current: 'Tahun', next: null, tone: null }
+  };
+
+  $("input#searchInput").on("keyup change input", function() {
     search();
   });
 
-  function search() {
-    var pelanggan = $("input#searchInput").val().toUpperCase();
-    if (pelanggan.length > 0) {
-      $("div.backShow").addClass('d-none');
-      $("[class*=" + pelanggan + "]").removeClass('d-none');
+  function clearAntrianSearchEmpty() {
+    $("#antrianSearchEmpty").remove();
+  }
+
+  function showAntrianSearchEmpty() {
+    clearAntrianSearchEmpty();
+    var info = window.ANTRIAN_NEXT[window.ANTRIAN_MODE] || window.ANTRIAN_NEXT[1];
+    var html;
+    if (!info || !info.mode) {
+      html = '<div id="antrianSearchEmpty" class="antrian-search-empty antrian-search-empty__final">' +
+        'Tidak ada data ditemukan' +
+        '</div>';
     } else {
-      $(".backShow").removeClass('d-none');
+      html = '<div id="antrianSearchEmpty" class="antrian-search-empty">' +
+        'Tidak ditemukan di data <span class="antrian-search-empty__period">' + info.current + '</span>, coba cari di ' +
+        '<a href="' + window.ANTRIAN_BASE + 'Antrian/index/' + info.mode + '" ' +
+        'class="antrian-search-empty__btn" data-tone="' + info.tone + '" data-antrian-next="' + info.mode + '">' +
+        info.next + '</a>' +
+        '</div>';
+    }
+    var $load = $("div#load");
+    if ($load.length) {
+      $load.prepend(html);
+    } else {
+      $("#antrianFilter").after(html);
     }
   }
+
+  function search() {
+    var pelanggan = ($("input#searchInput").val() || "").toUpperCase().trim();
+    clearAntrianSearchEmpty();
+
+    if (pelanggan.length === 0) {
+      $(".backShow").removeClass('d-none');
+      return;
+    }
+
+    $("div.backShow").addClass('d-none');
+    var matches = [];
+    $("div.backShow").each(function() {
+      var cls = (this.className || "").toUpperCase();
+      if (cls.indexOf(pelanggan) !== -1) {
+        matches.push(this);
+      }
+    });
+    $(matches).removeClass('d-none');
+
+    if (matches.length === 0) {
+      showAntrianSearchEmpty();
+    }
+  }
+
+  $(document).on('click', '[data-antrian-next]', function() {
+    try {
+      sessionStorage.setItem('antrianSearchQ', $("input#searchInput").val() || '');
+    } catch (e) {}
+  });
+
+  window.antrianAfterLoad = function() {
+    var q = '';
+    try {
+      q = sessionStorage.getItem('antrianSearchQ') || '';
+      if (q) sessionStorage.removeItem('antrianSearchQ');
+    } catch (e) {}
+    if (q) {
+      $("input#searchInput").val(q);
+    }
+    if (($("input#searchInput").val() || '').trim().length > 0) {
+      search();
+    }
+  };
 </script>
 
 <!-- Floating Action Button - Buka Order -->
