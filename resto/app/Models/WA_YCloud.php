@@ -4,8 +4,8 @@ class WA_YCloud extends DB
 {
     // API Endpoint Lokal (Centralized Logic)
     // Arahkan ke endpoint API Backend yang sudah kita update
-    // Sesuaikan domain jika di hosting (misal https://laundry.com/api/WhatsApp/send)
-    private $local_api_url = 'https://api.nalju.com/WhatsApp/send';
+    // Sesuaikan domain jika di hosting (misal https://api.nalju.com/Laundry/WhatsApp/send)
+    private $local_api_url = 'https://api.nalju.com/Laundry/WhatsApp/send';
 
     // Modifikasi: param ke-3 jadi lastMessageAt (biar bisa bypass lookup di API Server)
     public function send($phone, $message, $lastMessageAt = null)

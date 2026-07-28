@@ -351,11 +351,11 @@ class Chat extends Controller
         // But for broadcast 'contact_name', it is useful.
 
         // 2. Send Message using Helper
-        if (!class_exists('\App\Helpers\WhatsAppService')) {
-            require_once __DIR__ . '/../../Helpers/WhatsAppService.php';
+        if (!class_exists('\App\Helpers\CRM\WhatsAppService')) {
+            require_once __DIR__ . '/../../Helpers/CRM/WhatsAppService.php';
         }
         
-        $wa = new \App\Helpers\WhatsAppService();
+        $wa = new \App\Helpers\CRM\WhatsAppService();
         
         $senderCode = $body['sender_code'] ?? null;
         
@@ -395,11 +395,11 @@ class Chat extends Controller
             ], ['wa_number' => $phone]);
 
             try {
-                if (!class_exists(\App\Helpers\SapaanStatsHelper::class)) {
-                    require_once __DIR__ . '/../../Helpers/SapaanStatsHelper.php';
+                if (!class_exists(\App\Helpers\CRM\SapaanStatsHelper::class)) {
+                    require_once __DIR__ . '/../../Helpers/CRM/SapaanStatsHelper.php';
                 }
                 // sapaan_stats di DB index 0 (sama wa_conversations / CRM)
-                \App\Helpers\SapaanStatsHelper::recordStats($db, $phone, $message);
+                \App\Helpers\CRM\SapaanStatsHelper::recordStats($db, $phone, $message);
             } catch (\Throwable $e) {
                 if (!class_exists('Log', false)) {
                     require_once __DIR__ . '/../../Helpers/Log.php';
@@ -463,10 +463,10 @@ class Chat extends Controller
             $this->success([], 'No unread messages (Local updated)');
         }
         
-        if (!class_exists('\App\Helpers\WhatsAppService')) {
-            require_once __DIR__ . '/../../Helpers/WhatsAppService.php';
+        if (!class_exists('\App\Helpers\CRM\WhatsAppService')) {
+            require_once __DIR__ . '/../../Helpers/CRM/WhatsAppService.php';
         }
-        $wa = new \App\Helpers\WhatsAppService();
+        $wa = new \App\Helpers\CRM\WhatsAppService();
         
         foreach ($unreads as $msg) {
             $wa->markAsRead($msg['wamid']);
@@ -923,10 +923,10 @@ class Chat extends Controller
              http_response_code(400); die('ID required');
         }
         
-        if (!class_exists('\App\Helpers\WhatsAppService')) {
-            require_once __DIR__ . '/../../Helpers/WhatsAppService.php';
+        if (!class_exists('\App\Helpers\CRM\WhatsAppService')) {
+            require_once __DIR__ . '/../../Helpers/CRM/WhatsAppService.php';
         }
-        $wa = new \App\Helpers\WhatsAppService();
+        $wa = new \App\Helpers\CRM\WhatsAppService();
         $media = $wa->retrieveMedia($id);
         
         if (isset($media['data'])) {
@@ -954,7 +954,7 @@ class Chat extends Controller
 
     private function pushToWebSocket($data)
     {
-        $url = \App\Helpers\WaServer::incomingUrl();
+        $url = \App\Helpers\CRM\WaServer::incomingUrl();
         
         // Log payload for debugging
         if (class_exists('\Log')) {
@@ -1024,11 +1024,11 @@ class Chat extends Controller
             
             // Send via WhatsApp Service
             if (!class_exists('\\App\\Helpers\\WhatsAppService')) {
-                require_once __DIR__ . '/../../Helpers/WhatsAppService.php';
+                require_once __DIR__ . '/../../Helpers/CRM/WhatsAppService.php';
             }
             
             try {
-                $waService = new \App\Helpers\WhatsAppService();
+                $waService = new \App\Helpers\CRM\WhatsAppService();
                 
                 $senderCode = $body['sender_code'] ?? null;
                 
@@ -1100,10 +1100,10 @@ class Chat extends Controller
                 ], ['wa_number' => $waNumber]);
 
                 try {
-                    if (!class_exists(\App\Helpers\SapaanStatsHelper::class)) {
-                        require_once __DIR__ . '/../../Helpers/SapaanStatsHelper.php';
+                    if (!class_exists(\App\Helpers\CRM\SapaanStatsHelper::class)) {
+                        require_once __DIR__ . '/../../Helpers/CRM/SapaanStatsHelper.php';
                     }
-                    \App\Helpers\SapaanStatsHelper::recordStats($db, $waNumber, (string) $caption);
+                    \App\Helpers\CRM\SapaanStatsHelper::recordStats($db, $waNumber, (string) $caption);
                 } catch (\Throwable $e) {
                     if (!class_exists('Log', false)) {
                         require_once __DIR__ . '/../../Helpers/Log.php';

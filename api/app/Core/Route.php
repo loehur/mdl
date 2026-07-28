@@ -4,9 +4,9 @@ namespace App\Core;
 
 /**
  * Route Handler
- * Supports nested controllers: Admin/Users, Salon/Product, etc.
+ * Supports nested controllers: Beauty_Salon/Orders, Laundry/WhatsApp, etc.
  * URL Pattern: /{App}/{Controller}/{method}/{params...}
- * Example: /Admin/Users/list -> Controllers/Admin/Users.php -> list()
+ * Example: /Laundry/WhatsApp/send -> Controllers/Laundry/WhatsApp.php -> send()
  */
 class Route extends Controller
 {
@@ -26,7 +26,7 @@ class Route extends Controller
         }
 
         // Try nested controller first: Controllers/{App}/{Controller}.php
-        // URL: /Admin/Users/list -> Controllers/Admin/Users.php
+        // URL: /Laundry/WhatsApp/send -> Controllers/Laundry/WhatsApp.php
         if (count($url) >= 2) {
             $nestedPath = $url[0] . '/' . $url[1];
             if ($this->controllerExists($nestedPath)) {

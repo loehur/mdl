@@ -3,8 +3,8 @@
 namespace App\Controllers\Cron;
 
 use App\Core\Controller;
-use App\Helpers\WaDeskCrypto;
-use App\Helpers\WaDeskTemplateSender;
+use App\Helpers\WaDesk\Crypto as WaDeskCrypto;
+use App\Helpers\WaDesk\TemplateSender as WaDeskTemplateSender;
 
 /**
  * WaDeskBlast — process wa_blast_recipients queue in batches.

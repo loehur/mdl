@@ -2,7 +2,7 @@
 
 namespace App\Controllers\Invoice;
 
-use App\Helpers\InvoiceExchangeRate;
+use App\Helpers\Invoice\ExchangeRate as InvoiceExchangeRate;
 
 /**
  * Preview kurs USD→IDR (dari DB hari ini atau fetch freecurrencyapi).

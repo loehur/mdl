@@ -3,7 +3,7 @@
 namespace App\Controllers\Cron;
 
 use App\Core\Controller;
-use App\Helpers\PostpaidTrStatus;
+use App\Helpers\Shared\PostpaidTrStatus;
 use App\Models\IAK;
 
 /**
@@ -489,9 +489,9 @@ class PayBill extends Controller
     {
         // Load WhatsApp Service if available
         if (!class_exists('\\App\\Helpers\\WhatsAppService')) {
-            require_once __DIR__ . '/../../Helpers/WhatsAppService.php';
+            require_once __DIR__ . '/../../Helpers/CRM/WhatsAppService.php';
         }
-        $waService = new \App\Helpers\WhatsAppService();
+        $waService = new \App\Helpers\CRM\WhatsAppService();
         return $waService->sendFreeText($phone, $message);
     }
 

@@ -2,8 +2,8 @@
 
 namespace App\Controllers\WaDesk;
 
-use App\Helpers\WaDeskDailyKeyLimit;
-use App\Helpers\WaDeskTemplateQuota;
+use App\Helpers\WaDesk\DailyKeyLimit as WaDeskDailyKeyLimit;
+use App\Helpers\WaDesk\TemplateQuota as WaDeskTemplateQuota;
 
 /**
  * Blast — admin-only bulk WhatsApp template sender via CSV.

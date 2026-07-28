@@ -2,7 +2,7 @@
 
 namespace App\Controllers\WaDesk;
 
-use App\Helpers\WaDeskTemplateQuota;
+use App\Helpers\WaDesk\TemplateQuota as WaDeskTemplateQuota;
 
 /**
  * Quota — admin top-up of per-team template balances; shared by TL + agents.

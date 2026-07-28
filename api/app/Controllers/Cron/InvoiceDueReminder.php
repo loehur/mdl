@@ -3,7 +3,7 @@
 namespace App\Controllers\Cron;
 
 use App\Controllers\Invoice\InvoiceController;
-use App\Helpers\WhatsAppService;
+use App\Helpers\CRM\WhatsAppService;
 
 /**
  * Kirim reminder WA template untuk invoice unpaid H-3 s/d H.

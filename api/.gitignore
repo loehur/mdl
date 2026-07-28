@@ -8,10 +8,8 @@ logs/
 # Config files
 app/Config/Env.php
 
-# Private keys (RSA for Doku SNAP API)
+# Private keys
 *.key
-doku_private.key
-doku_public.key
 
 # Scripts
 scripts/*

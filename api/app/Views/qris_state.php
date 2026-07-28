@@ -175,7 +175,7 @@
                 </div>
             </div>
 
-            <div class="footer">QRIS_State · ref_finance</div>
+            <div class="footer">Laundry/QRIS_State · ref_finance</div>
         </div>
     </div>
 

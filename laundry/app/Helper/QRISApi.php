@@ -6,7 +6,7 @@
  */
 class QRISApi
 {
-    private $apiUrl = 'https://api.nalju.com/QRIS';
+    private $apiUrl = 'https://api.nalju.com/Laundry/QRIS';
     
     /**
      * Generate QRIS payment

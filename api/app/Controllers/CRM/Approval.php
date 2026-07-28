@@ -129,7 +129,7 @@ class Approval extends Controller
                         'target_id' => '0',
                         'sender_id' => 'system',
                     ];
-                    $ch = curl_init(\App\Helpers\WaServer::incomingUrl());
+                    $ch = curl_init(\App\Helpers\CRM\WaServer::incomingUrl());
                     curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
                     curl_setopt_array($ch, [
                         CURLOPT_RETURNTRANSFER => true,

@@ -2,7 +2,7 @@
 
 namespace App\Controllers\WaDesk;
 
-use App\Helpers\WaDeskCrypto;
+use App\Helpers\WaDesk\Crypto as WaDeskCrypto;
 
 /**
  * Keys — Admin CRUD YCloud API keys (assigned to a team)

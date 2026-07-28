@@ -462,9 +462,9 @@ class WhatsApp extends Controller
                 if ($needsMediaDownload) {
                     try {
                         if (!class_exists('\\App\\Helpers\\WhatsAppService')) {
-                            require_once __DIR__ . '/../../Helpers/WhatsAppService.php';
+                            require_once __DIR__ . '/../../Helpers/CRM/WhatsAppService.php';
                         }
-                        $waService = new \App\Helpers\WhatsAppService();
+                        $waService = new \App\Helpers\CRM\WhatsAppService();
                         $savedUrl = $waService->downloadAndSaveMedia($mediaId, $mediaUrlDirect, $mediaMimeType);
                         if ($savedUrl) {
                             $mediaUrl = $savedUrl;
@@ -543,7 +543,7 @@ class WhatsApp extends Controller
      */
     private function pushIncomingToWebSocket($data)
     {
-        $url = \App\Helpers\WaServer::incomingUrl();
+        $url = \App\Helpers\CRM\WaServer::incomingUrl();
 
         $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
         if ($json === false) {
@@ -664,9 +664,9 @@ class WhatsApp extends Controller
         if (!$keepQueue && $phone) {
             try {
                 if (! class_exists('\\App\\Helpers\\WhatsAppService')) {
-                    require_once __DIR__ . '/../../Helpers/WhatsAppService.php';
+                    require_once __DIR__ . '/../../Helpers/CRM/WhatsAppService.php';
                 }
-                $wa = new \App\Helpers\WhatsAppService();
+                $wa = new \App\Helpers\CRM\WhatsAppService();
                 $conv = $db->get_where('wa_conversations', ['wa_number' => $phone])->row();
                 $lastIn = $conv->last_in_at ?? null;
                 if (! $wa->isWithinCsw($lastIn)) {

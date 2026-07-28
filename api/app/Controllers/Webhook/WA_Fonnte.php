@@ -118,11 +118,11 @@ class WA_Fonnte extends Controller
                 require_once __DIR__ . '/../../Models/WAReplies.php';
             }
             if (! class_exists('\\App\\Helpers\\FonnteReplyAdapter')) {
-                require_once __DIR__ . '/../../Helpers/FonnteReplyAdapter.php';
+                require_once __DIR__ . '/../../Helpers/CRM/FonnteReplyAdapter.php';
             }
 
             $replies = new \App\Models\WAReplies();
-            $replies->setCustomSender(new \App\Helpers\FonnteReplyAdapter($inboxid));
+            $replies->setCustomSender(new \App\Helpers\CRM\FonnteReplyAdapter($inboxid));
             $replies->setSkipConversationPersist(true);
             $replies->setAutoReplyProvider('B');
 
@@ -226,10 +226,10 @@ class WA_Fonnte extends Controller
         }
 
         if (! class_exists('\\App\\Helpers\\FonnteService')) {
-            require_once __DIR__ . '/../../Helpers/FonnteService.php';
+            require_once __DIR__ . '/../../Helpers/CRM/FonnteService.php';
         }
 
-        $fonnte = new \App\Helpers\FonnteService();
+        $fonnte = new \App\Helpers\CRM\FonnteService();
         $options = [];
         if ($inboxid) {
             $options['inboxid'] = (int) $inboxid;

@@ -2,11 +2,11 @@
 
 namespace App\Controllers\WaDesk;
 
-use App\Helpers\WaDeskDailyKeyLimit;
-use App\Helpers\WaDeskCrypto;
-use App\Helpers\WaDeskServer;
-use App\Helpers\WaDeskTemplateQuota;
-use App\Helpers\WaDeskYCloud;
+use App\Helpers\WaDesk\DailyKeyLimit as WaDeskDailyKeyLimit;
+use App\Helpers\WaDesk\Crypto as WaDeskCrypto;
+use App\Helpers\WaDesk\Server as WaDeskServer;
+use App\Helpers\WaDesk\TemplateQuota as WaDeskTemplateQuota;
+use App\Helpers\WaDesk\YCloud as WaDeskYCloud;
 
 /**
  * Chat — conversations, messages, send free/template

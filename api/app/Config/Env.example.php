@@ -86,14 +86,6 @@ class Env
     const GROQ_API_KEY = 'change-me-groq-api-key';
 
     // -------------------------------------------------------------------------
-    // Payment — Doku SNAP
-    // -------------------------------------------------------------------------
-    const DOKU_CLIENT_ID = 'BRN-....';
-    const DOKU_CLIENT_SECRET = 'change-me-doku-secret';
-    const DOKU_MERCHANT_ID = '....';
-    const DOKU_API_URL = 'https://api-sandbox.doku.com'; // Prod: https://api.doku.com
-
-    // -------------------------------------------------------------------------
     // Payment — TokoPay (QRIS laundry / invoice / salon)
     // -------------------------------------------------------------------------
     const TOKOPAY_MERCHANT_ID = 'M........';

@@ -3,7 +3,7 @@
 namespace App\Controllers\Webhook;
 
 use App\Core\Controller;
-use App\Helpers\WaDeskServer;
+use App\Helpers\WaDesk\Server as WaDeskServer;
 
 /**
  * YCloud webhook for WaDesk — /Webhook/WaDesk

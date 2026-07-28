@@ -3,8 +3,8 @@
 namespace App\Controllers\Webhook;
 
 use App\Core\Controller;
-use App\Helpers\FreeTextOutboundDispatcher;
-use App\Helpers\PostpaidTrStatus;
+use App\Helpers\CRM\FreeTextOutboundDispatcher;
+use App\Helpers\Shared\PostpaidTrStatus;
 
 /**
  * Webhook IAK — update tabel prepaid dan/atau postpaid sesuai ref_id.
@@ -189,9 +189,9 @@ class IAK extends Controller
             $waNumber = preg_replace('/[^0-9]/', '', $waNumber);
 
             if (!class_exists('\\App\\Helpers\\WhatsAppService')) {
-                require_once __DIR__ . '/../../Helpers/WhatsAppService.php';
+                require_once __DIR__ . '/../../Helpers/CRM/WhatsAppService.php';
             }
-            $waService = new \App\Helpers\WhatsAppService();
+            $waService = new \App\Helpers\CRM\WhatsAppService();
             if ($sn) {
                 $sn = explode('/', $sn)[0];
                 $text = "*" . $sn . "*";

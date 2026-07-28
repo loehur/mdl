@@ -4,5 +4,11 @@ Env.php
 *copy*
 *.sql
 
+# Schema & migrasi API (kecuali seed ber-kredensial)
+!api/database/
+!api/database/**/
+!api/database/**/*.sql
+api/database/**/seeds/
+
 # Sandbox API tester (lokal, jangan ikut commit)
 /api_tester/

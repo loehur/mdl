@@ -2,8 +2,8 @@
 
 namespace App\Controllers\WaDesk;
 
-use App\Helpers\WaDeskCrypto;
-use App\Helpers\WaDeskYCloud;
+use App\Helpers\WaDesk\Crypto as WaDeskCrypto;
+use App\Helpers\WaDesk\YCloud as WaDeskYCloud;
 
 /**
  * Templates — Admin CRUD WhatsApp templates + params + YCloud sync

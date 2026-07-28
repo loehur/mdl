@@ -66,7 +66,7 @@ class ResendWAQueue extends Controller
 
         $dbNotif = $this->db(1);
 
-        $waService = new \App\Helpers\WhatsAppService();
+        $waService = new \App\Helpers\CRM\WhatsAppService();
         $processed = 0;
         $skipped = 0;
         $deferredCsw = 0;
@@ -119,7 +119,7 @@ class ResendWAQueue extends Controller
                 }
             }
 
-            // yCloud free text hanya dalam CSW — sama dengan WhatsApp/send & isWithinCsw()
+            // yCloud free text hanya dalam CSW — sama dengan Laundry/WhatsApp/send & isWithinCsw()
             // CSW tutup (DB): jangan hapus baris; tetap status queue agar cron mencoba lagi (bukan failed / delete).
             $lastInAt = $this->getWaConversationLastInAt($db, $phone);
             if (!$waService->isWithinCsw($lastInAt)) {

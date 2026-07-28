@@ -71,9 +71,9 @@ class WAReplies
         }
         if ($this->waService === null) {
             if (!class_exists('\\App\\Helpers\\WhatsAppService')) {
-                require_once __DIR__ . '/../Helpers/WhatsAppService.php';
+                require_once __DIR__ . '/../Helpers/CRM/WhatsAppService.php';
             }
-            $this->waService = new \App\Helpers\WhatsAppService();
+            $this->waService = new \App\Helpers\CRM\WhatsAppService();
         }
         return $this->waService;
     }
@@ -3539,7 +3539,7 @@ class WAReplies
                         $note = "\n" . $d['note'];
                     }
 
-                    $ops_link = "https://api.nalju.com/R/" . $d['id'];
+                    $ops_link = "https://api.nalju.com/Laundry/R/" . $d['id'];
                     $text = "*" . $d['name'] . "*" . $note . "\n" . $text_count . "\n" . $ops_link;
 
                     $reminders[] = $text;
@@ -4579,7 +4579,7 @@ class WAReplies
                 $state = strtoupper($row['state'] ?? '-');
                 $tgl = !empty($row['date']) ? date('d/m/y H:i', strtotime($row['date'])) : '-';
                 $nominal = number_format((int) ($row['jumlah'] ?? 0), 0, ',', '.');
-                $link = 'https://api.nalju.com/QRIS_State/' . rawurlencode($ref);
+                $link = 'https://api.nalju.com/Laundry/QRIS_State/' . rawurlencode($ref);
                 $lines[] = "{$tgl}\nRp{$nominal} ({$state})\n{$link}";
             }
 
@@ -4617,7 +4617,7 @@ class WAReplies
             }
 
             // Cek saldo TokoPay menggunakan endpoint QRIS
-            $apiUrl = 'https://api.nalju.com/QRIS/balance';
+            $apiUrl = 'https://api.nalju.com/Laundry/QRIS/balance';
             
             $curl = curl_init();
             curl_setopt_array($curl, [
@@ -4779,10 +4779,10 @@ class WAReplies
             }
 
             if (!class_exists('\\App\\Helpers\\FonnteService')) {
-                require_once __DIR__ . '/../Helpers/FonnteService.php';
+                require_once __DIR__ . '/../Helpers/CRM/FonnteService.php';
             }
 
-            $fonnte = new \App\Helpers\FonnteService();
+            $fonnte = new \App\Helpers\CRM\FonnteService();
             $result = $fonnte->getDeviceProfile();
             $waService = $this->getWaService();
 
@@ -4850,7 +4850,7 @@ class WAReplies
             }
 
             // Call QRIS withdraw endpoint
-            $apiUrl = 'https://api.nalju.com/QRIS/withdraw';
+            $apiUrl = 'https://api.nalju.com/Laundry/QRIS/withdraw';
             
             $curl = curl_init();
             curl_setopt_array($curl, [
@@ -5170,7 +5170,7 @@ class WAReplies
             return null;
         }
 
-        $url = \App\Helpers\WaServer::incomingUrl();
+        $url = \App\Helpers\CRM\WaServer::incomingUrl();
 
 
 

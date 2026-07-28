@@ -401,7 +401,7 @@ abstract class InvoiceController extends BaseController
 
         $rate = null;
         if ($needsRate) {
-            $info = \App\Helpers\InvoiceExchangeRate::getUsdToIdrRate($this->db($this->db_index));
+            $info = \App\Helpers\Invoice\ExchangeRate::getUsdToIdrRate($this->db($this->db_index));
             $rate = (float) $info['rate'];
             if ($rate <= 0) {
                 throw new \RuntimeException('Kurs USD tidak valid');
