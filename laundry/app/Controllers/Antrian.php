@@ -91,10 +91,10 @@ class Antrian extends Controller
 
       switch ($antrian) {
          case 1:
-            $where = $this->wCabang . " AND id_pelanggan <> 0 AND bin = 0 AND tuntas = 0 AND DATE(NOW()) <= (insertTime + INTERVAL 7 DAY)" . $orderNewest;
+            $where = $this->wCabang . " AND id_pelanggan <> 0 AND bin = 0 AND tuntas = 0 AND DATE(NOW()) <= (insertTime + INTERVAL 6 DAY)" . $orderNewest;
             break;
          case 6:
-            $where = $this->wCabang . " AND id_pelanggan <> 0 AND bin = 0 AND tuntas = 0 AND DATE(NOW()) > (insertTime + INTERVAL 7 DAY) AND DATE(NOW()) <= (insertTime + INTERVAL 30 DAY)" . $orderNewest;
+            $where = $this->wCabang . " AND id_pelanggan <> 0 AND bin = 0 AND tuntas = 0 AND DATE(NOW()) > (insertTime + INTERVAL 6 DAY) AND DATE(NOW()) <= (insertTime + INTERVAL 30 DAY)" . $orderNewest;
             break;
          case 7:
             // >30 hari sampai 1 tahun
