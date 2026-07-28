@@ -195,14 +195,18 @@ class Chat extends WaDeskController
                 ]);
             }
 
+            // Admin has no team — skip per-team template quota (TL/agent only)
+            $isAdmin = ($user['role'] ?? '') === 'admin';
             $teamQuota = new WaDeskTemplateQuota($this->db($this->db_index));
             $teamId = (int) $key['team_id'];
-            $teamQuota->ensureRow($teamId, (int) $key['tenant_id']);
-            if (!$teamQuota->canConsume($teamId, 1)) {
-                $this->error('Kuota template team habis', 422, [
-                    'team_id' => $teamId,
-                    'balance' => $teamQuota->getBalance($teamId),
-                ]);
+            if (!$isAdmin) {
+                $teamQuota->ensureRow($teamId, (int) $key['tenant_id']);
+                if (!$teamQuota->canConsume($teamId, 1)) {
+                    $this->error('Kuota template team habis', 422, [
+                        'team_id' => $teamId,
+                        'balance' => $teamQuota->getBalance($teamId),
+                    ]);
+                }
             }
 
             [$sendParams, $named, $indexed, $paramsForStore] = $this->resolveTemplateParams(
@@ -225,25 +229,29 @@ class Chat extends WaDeskController
             $msgId = $this->storeOutbound($conv, $user, 'template', $preview, $templateName, $paramsForStore, $result);
             $this->touchConversationOut($conv['id'], $preview);
 
-            $consumed = $teamQuota->consume(
-                $teamId,
-                (int) $key['tenant_id'],
-                (int) $user['id'],
-                'chat',
-                'message',
-                $msgId
-            );
-            if (!$consumed['ok']) {
-                // Race: YCloud already charged; keep message, do not fail the send response
-                try {
-                    \Log::write(
-                        'WaDesk template quota consume failed after YCloud success: team=' . $teamId . ' msg=' . $msgId,
-                        'wadesk',
-                        'Quota'
-                    );
-                } catch (\Throwable $e) {
-                    /* ignore */
+            $consumedBalance = null;
+            if (!$isAdmin) {
+                $consumed = $teamQuota->consume(
+                    $teamId,
+                    (int) $key['tenant_id'],
+                    (int) $user['id'],
+                    'chat',
+                    'message',
+                    $msgId
+                );
+                if (!$consumed['ok']) {
+                    // Race: YCloud already charged; keep message, do not fail the send response
+                    try {
+                        \Log::write(
+                            'WaDesk template quota consume failed after YCloud success: team=' . $teamId . ' msg=' . $msgId,
+                            'wadesk',
+                            'Quota'
+                        );
+                    } catch (\Throwable $e) {
+                        /* ignore */
+                    }
                 }
+                $consumedBalance = $consumed['balance'] ?? $teamQuota->getBalance($teamId);
             }
 
             WaDeskServer::push([
@@ -261,7 +269,7 @@ class Chat extends WaDeskController
                 'csw_open' => false,
                 'preview' => $preview,
                 'ycloud' => $result['data'],
-                'template_quota_balance' => $consumed['balance'] ?? $teamQuota->getBalance($teamId),
+                'template_quota_balance' => $consumedBalance,
             ], 'Template terkirim');
         }
 

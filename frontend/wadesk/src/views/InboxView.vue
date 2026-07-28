@@ -49,7 +49,7 @@
             <button
               class="px-3 rounded-xl bg-accent text-white text-sm font-medium"
               title="Chat baru"
-              @click="showNew = true"
+              @click="openNewChat"
             >
               +
             </button>
@@ -194,6 +194,8 @@
       :templates="chat.templates"
       :fixed-key-id="tplKeyId"
       :fixed-phone="tplPhone"
+      :busy="tplSending"
+      :error="tplError"
       @close="closeModals"
       @load-templates="(id) => chat.loadTemplates(id)"
       @submit="onTemplateSubmit"
@@ -220,6 +222,8 @@ const showNew = ref(false);
 const showTpl = ref(false);
 const tplKeyId = ref(null);
 const tplPhone = ref("");
+const tplSending = ref(false);
+const tplError = ref("");
 const scrollEl = ref(null);
 const templateQuotaBalance = ref(null);
 let pollTimer = null;
@@ -286,28 +290,46 @@ watch(
   }
 );
 
+function openNewChat() {
+  tplKeyId.value = null;
+  tplPhone.value = "";
+  tplError.value = "";
+  showTpl.value = false;
+  showNew.value = true;
+}
+
 function openTemplateForActive() {
   tplKeyId.value = chat.active?.ycloud_key_id || null;
   tplPhone.value = chat.active?.phone || "";
+  tplError.value = "";
   showTpl.value = true;
   chat.loadTemplates(tplKeyId.value);
 }
 
 function closeModals() {
+  if (tplSending.value) return;
   showNew.value = false;
   showTpl.value = false;
   tplKeyId.value = null;
   tplPhone.value = "";
+  tplError.value = "";
 }
 
 async function onTemplateSubmit(payload) {
+  if (tplSending.value) return;
+  tplSending.value = true;
+  tplError.value = "";
   sendError.value = "";
   try {
     await chat.sendTemplate(payload);
+    tplSending.value = false;
     closeModals();
     await loadTemplateQuota();
   } catch (e) {
-    sendError.value = e.message;
+    tplError.value = e.message || "Gagal mengirim template";
+    sendError.value = tplError.value;
+  } finally {
+    tplSending.value = false;
   }
 }
 
