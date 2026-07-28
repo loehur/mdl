@@ -395,32 +395,63 @@ class WhatsApp extends Controller
             $notify = true;
 
             try {
-                // ========================================
-                // 🚀 BRILLIANT ARCHITECTURE (User's Idea!)
-                // ========================================
-                // Everything happens in WAReplies->process():
-                // 1. Detect intent/pattern
-                // 2. Create/update conversation (inbound message)
-                // 3. Call handler method (send auto-reply)
-                // 4. Auto-reply updates last_message via saveOutboundMessage()
-                // Result: NO RACE CONDITION! Sequential & atomic!
-                // ========================================
-                
                 if (!class_exists('\\App\\Models\\WAReplies')) {
                     require_once __DIR__ . '/../../Models/WAReplies.php';
                 }
-                
+
                 // Format last_message based on private status
                 if ($isPrivateForLastMessage) {
                     $lastMessage = 'i- 🔒 _Private Chat_';
                 } else {
                     $lastMessage = 'i- ' . mb_substr($lastMessageSummary, 0, 50);
                 }
-                
+
                 $replies = new \App\Models\WAReplies();
+
+                // 1) Open/create conversation + push WS SEBELUM intent/AI (biar CRM realtime seperti WaDesk)
+                $conversationId = (int) $replies->getOrCreateConversationWithCase(
+                    $db,
+                    $waNumber,
+                    $contact_name,
+                    $assigned_user_id,
+                    $code,
+                    $cust_id,
+                    $lastMessage,
+                    null
+                );
+
+                $this->pushIncomingToWebSocket([
+                    'type' => 'wa_masuk',
+                    'conversation_id' => $conversationId,
+                    'phone' => $waNumber,
+                    'contact_name' => $contact_name,
+                    'case' => null,
+                    'active_cases' => [],
+                    'notify' => true,
+                    'assignment_user_id' => $assigned_user_id,
+                    'status' => 'open',
+                    'message' => [
+                        'id' => $msgId,
+                        'text' => $textBody,
+                        'type' => $messageType,
+                        'media_id' => $mediaId,
+                        'media_url' => $mediaUrl,
+                        'caption' => $mediaCaption,
+                        'quoted_message_id' => $quotedMessageId,
+                        'quoted_message_body' => $quotedMessageBody,
+                        'quoted_message_from' => $quotedMessageFrom,
+                        'time' => date('Y-m-d H:i:s'),
+                        'sender' => 'customer',
+                    ],
+                    'target_id' => $assigned_user_id ? (string) $assigned_user_id : '0',
+                    'kode_cabang' => $code,
+                    'cust_id' => $cust_id,
+                ]);
+
+                // 2) Intent detect + auto-reply (bisa lambat: OpenAI/Groq) — setelah UI sudah ter-update
                 $autoReplyResult = $replies->process(
-                    $phoneIn, 
-                    $messageText, 
+                    $phoneIn,
+                    $messageText,
                     $waNumber,
                     $contact_name,
                     $assigned_user_id,
@@ -438,61 +469,48 @@ class WhatsApp extends Controller
                         self::DEFAULT_FALLBACK_COOLDOWN_MINUTES
                     );
                 }
-                
+
                 $currentCase = $autoReplyResult->case;
-                $conversationId = $autoReplyResult->conversation_id ?? 0;
+                if (!empty($autoReplyResult->conversation_id)) {
+                    $conversationId = (int) $autoReplyResult->conversation_id;
+                }
                 $notify = $autoReplyResult->notify ?? true;
-                
-                // Fetch active cases specific for Notification Logic (Driver needs to know if Case 2 active)
+
+                // Fetch active cases for agent UI / driver notify
                 $freshConv = $db->get_where('wa_conversations', ['id' => $conversationId])->row();
                 if ($freshConv && !empty($freshConv->conv_case)) {
                     $casesDecoded = json_decode($freshConv->conv_case, true);
                     if (is_array($casesDecoded)) {
-                         // Normalize List vs Object
-                         if (!isset($casesDecoded[0])) { $casesDecoded = [$casesDecoded]; }
-                         
-                         foreach ($casesDecoded as $c) {
-                             if (isset($c['case']) && isset($c['status']) && $c['status'] === 'open') {
-                                 $activeCases[] = (int)$c['case'];
-                             }
-                         }
-                    } else if (is_numeric($freshConv->conv_case)) {
-                         // Legacy single int
-                         $activeCases[] = (int)$freshConv->conv_case;
+                        if (!isset($casesDecoded[0])) {
+                            $casesDecoded = [$casesDecoded];
+                        }
+
+                        foreach ($casesDecoded as $c) {
+                            if (isset($c['case']) && isset($c['status']) && $c['status'] === 'open') {
+                                $activeCases[] = (int) $c['case'];
+                            }
+                        }
+                    } elseif (is_numeric($freshConv->conv_case)) {
+                        $activeCases[] = (int) $freshConv->conv_case;
                     }
                 }
 
+                // Push case update setelah intent selesai (pesan sudah tampil lebih dulu)
+                if ($currentCase !== null && (int) $currentCase !== 0) {
+                    $this->pushIncomingToWebSocket([
+                        'type' => 'case_updated',
+                        'phone' => $waNumber,
+                        'conversation_id' => $conversationId,
+                        'case' => (int) $currentCase,
+                        'active_cases' => $activeCases,
+                        'notify' => (bool) $notify,
+                        'assignment_user_id' => $assigned_user_id,
+                        'target_id' => $assigned_user_id ? (string) $assigned_user_id : '0',
+                    ]);
+                }
             } catch (\Exception $e) {
                 \Log::write("Error in auto-reply/conversation: " . $e->getMessage() . " | " . $e->getTraceAsString(), 'wa_error', 'AutoReply');
             }
-
-            // Push ke waserver (tetap jalan meski autoreply error)
-            $notifyBool = (bool) $notify;
-            $this->pushIncomingToWebSocket([
-                'type' => 'wa_masuk',
-                'conversation_id' => $conversationId,
-                'phone' => $waNumber,
-                'contact_name' => $contact_name,
-                'case' => $currentCase,
-                'active_cases' => $activeCases,
-                'notify' => $notifyBool,
-                'assignment_user_id' => $assigned_user_id,
-                'message' => [
-                    'id' => $msgId,
-                    'text' => $textBody,
-                    'type' => $messageType,
-                    'media_id' => $mediaId,
-                    'media_url' => $mediaUrl,
-                    'caption' => $mediaCaption,
-                    'quoted_message_id' => $quotedMessageId,
-                    'quoted_message_body' => $quotedMessageBody,
-                    'quoted_message_from' => $quotedMessageFrom,
-                    'time' => date('Y-m-d H:i:s'),
-                ],
-                'target_id' => $assigned_user_id ? (string)$assigned_user_id : '0',
-                'kode_cabang' => $code,
-                'cust_id' => $cust_id
-            ]);
         }
     }
 

@@ -1763,6 +1763,11 @@ const startChatPolling = (phone) => {
         const chat = conversations.value.find((c) => c.wa_number === phone);
         if (!chat) return;
 
+        // Keep CSW composer in sync even if WS only patched messages
+        if (result.data?.status) {
+          chat.status = result.data.status;
+        }
+
         const lastMessageChanged =
           serverLastMessageAt && serverLastMessageAt !== localLastMessageAt.value;
 
@@ -2723,7 +2728,7 @@ const handleIncomingMessage = (payload) => {
   );
 
   if (!conversation) {
-    // New conversation
+    // New conversation — inbound customer message opens CSW
     conversation = {
       id: conversationId,
       wa_number: phone, // ✅ Add wa_number
@@ -2734,12 +2739,18 @@ const handleIncomingMessage = (payload) => {
       cases: [{ case: parseInt(payload.case || payload.priority || 0) }], // Initialize cases
       initials: (name || payload.phone || "?").substring(0, 1).toUpperCase(),
       color: getAvatarColor(conversationId),
-      status: "online", // Assume online on new msg
+      status: payload.status || "open",
       messages: [],
       unread: 0,
     };
     conversations.value.unshift(conversation);
   } else {
+    // Inbound message always re-opens CSW (DB already set status=open before WS push)
+    if (sender === "customer" || payload.type === "wa_masuk") {
+      conversation.status = payload.status || "open";
+    } else if (payload.status) {
+      conversation.status = payload.status;
+    }
     // Update existing conversation details if available
     if (payload.kode_cabang) {
       conversation.kode_cabang = payload.kode_cabang;

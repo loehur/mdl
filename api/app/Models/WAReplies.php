@@ -5620,10 +5620,10 @@ class WAReplies
     }
     
     /**
-     * Get or create conversation with case management
-     * Moved from Webhook controller for better architecture
+     * Get or create conversation with case management.
+     * Public so webhook can open CSW + push WS before slow intent/AI.
      */
-    private function getOrCreateConversationWithCase($db, $waNumber, $contactName = null, $assigned_user_id = null, $code = null, $cust_id = null, $lastMessage = null, $case = null)
+    public function getOrCreateConversationWithCase($db, $waNumber, $contactName = null, $assigned_user_id = null, $code = null, $cust_id = null, $lastMessage = null, $case = null)
     {
         if ($contactName !== null) {
             $contactName = trim((string) $contactName);

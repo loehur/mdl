@@ -1240,7 +1240,8 @@ class Chat extends Controller
             $this->success([
                 'phone' => $phone,
                 'last_message_at' => $conversation->last_message_at ?? null,
-                'conversation_id' => $conversation->id ?? null
+                'conversation_id' => $conversation->id ?? null,
+                'status' => $conversation->status ?? null,
             ], 'Last message time retrieved');
             
         } catch (\Exception $e) {
