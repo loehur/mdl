@@ -6,9 +6,9 @@ namespace App\Controllers\Jaggu_School;
  * Pantauan orang tua.
  * GET /Jaggu_School/Monitor/index
  *
- * Window tampilan (bergantian jam 08:00):
- * - Sebelum 08:00: hari ini
- * - Mulai 08:00: besok
+ * Window tampilan (bergantian jam 07:00):
+ * - Sebelum 07:00: hari ini
+ * - Mulai 07:00: besok
  */
 class Monitor extends JagguController
 {

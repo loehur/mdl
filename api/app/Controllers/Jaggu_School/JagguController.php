@@ -15,7 +15,7 @@ abstract class JagguController extends BaseController
      * Jam pergantian list (Asia/Jakarta).
      * Sebelum jam ini: hari ini. Mulai jam ini: besok (saling menggantikan).
      */
-    protected const SWITCH_HOUR = 8;
+    protected const SWITCH_HOUR = 7;
 
     public function __construct()
     {
@@ -202,13 +202,13 @@ abstract class JagguController extends BaseController
         return (int) date('N', strtotime($ymd . ' 12:00:00'));
     }
 
-    /** List/info hari ini: sebelum jam 08:00. */
+    /** List/info hari ini: sebelum jam 07:00. */
     protected function showToday(): bool
     {
         return (int) date('G') < self::SWITCH_HOUR;
     }
 
-    /** List besok: mulai jam 08:00 (bergantian dengan hari ini). */
+    /** List besok: mulai jam 07:00 (bergantian dengan hari ini). */
     protected function showTomorrow(): bool
     {
         return (int) date('G') >= self::SWITCH_HOUR;

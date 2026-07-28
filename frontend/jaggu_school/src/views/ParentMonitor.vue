@@ -3,9 +3,9 @@
     <section class="rounded-3xl bg-white border border-red-100 p-5 shadow-sm">
       <p class="text-xs font-semibold uppercase tracking-wider text-jaggu-red">Pantauan</p>
       <h2 class="font-display text-2xl font-bold text-jaggu-crimson mt-1">
-        Progress {{ childName }}
+        Persiapan Mapel Harian
       </h2>
-      <p class="text-sm text-slate-500 mt-1">Bergantian jam 8.00: hari ini diganti persiapan besok</p>
+      <p class="text-sm text-slate-500 mt-1">Mapel bergulir setiap jam 7:00 pagi</p>
     </section>
 
     <div v-if="loading" class="text-sm text-slate-500">Memuat...</div>
@@ -48,7 +48,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { onMounted, ref } from "vue";
 import DayCard from "./DayCard.vue";
 
 const loading = ref(true);
@@ -56,9 +56,7 @@ const error = ref("");
 const today = ref(null);
 const tomorrow = ref(null);
 const summary = ref([]);
-const child = ref(null);
-const revealHour = ref(8);
-const childName = computed(() => child.value?.name || "anak");
+const revealHour = ref(7);
 
 onMounted(load);
 
@@ -73,8 +71,7 @@ async function load() {
     today.value = d.today;
     tomorrow.value = d.tomorrow;
     summary.value = d.summary || [];
-    child.value = d.child;
-    revealHour.value = d.switch_hour || d.tomorrow_reveal_hour || 8;
+    revealHour.value = d.switch_hour || d.tomorrow_reveal_hour || 7;
   } catch (e) {
     error.value = e.message || "Gagal memuat";
   } finally {

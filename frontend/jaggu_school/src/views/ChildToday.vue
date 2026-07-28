@@ -74,7 +74,7 @@ const error = ref("");
 const today = ref(null);
 const tomorrow = ref(null);
 const notices = ref([]);
-const revealHour = ref(8);
+const revealHour = ref(7);
 const busyId = ref(null);
 const toast = ref(null);
 let toastTimer = null;
@@ -98,7 +98,7 @@ async function load(silent = false) {
     today.value = d.today;
     tomorrow.value = d.tomorrow;
     notices.value = d.notices || [];
-    revealHour.value = d.switch_hour || d.tomorrow_reveal_hour || 8;
+    revealHour.value = d.switch_hour || d.tomorrow_reveal_hour || 7;
   } catch (e) {
     if (!silent) error.value = e.message || "Gagal memuat";
   } finally {

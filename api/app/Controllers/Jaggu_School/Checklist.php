@@ -7,9 +7,9 @@ namespace App\Controllers\Jaggu_School;
  * GET  /Jaggu_School/Checklist/today
  * POST /Jaggu_School/Checklist/toggle  { schedule_item_id, for_date, checked: bool }
  *
- * Window tampilan (bergantian jam 08:00):
- * - Sebelum 08:00: hari ini
- * - Mulai 08:00: besok
+ * Window tampilan (bergantian jam 07:00):
+ * - Sebelum 07:00: hari ini
+ * - Mulai 07:00: besok
  */
 class Checklist extends JagguController
 {
