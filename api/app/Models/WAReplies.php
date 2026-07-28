@@ -5642,16 +5642,25 @@ class WAReplies
         
         if ($conv) {           
             $updateData = [
-                'contact_name' => $contactName,
-                'assigned_user_id' => $assigned_user_id,
-                'code' => $code,
-                'cust_id' => $cust_id,
                 'status' => 'open',
                 'last_in_at' => date('Y-m-d H:i:s'),
                 'last_message_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s'),
                 'last_message' => $lastMessage,
             ];
+            // Jangan overwrite field penting dengan null (hot-path push sebelum getUserData)
+            if ($contactName !== null && trim((string) $contactName) !== '') {
+                $updateData['contact_name'] = $contactName;
+            }
+            if ($assigned_user_id !== null && $assigned_user_id !== '') {
+                $updateData['assigned_user_id'] = $assigned_user_id;
+            }
+            if ($code !== null && $code !== '') {
+                $updateData['code'] = $code;
+            }
+            if ($cust_id !== null && $cust_id !== '') {
+                $updateData['cust_id'] = $cust_id;
+            }
             
             // Only update case if not null and not 0 (Append to existing list)
             if ($case !== null && (int)$case !== 0) {

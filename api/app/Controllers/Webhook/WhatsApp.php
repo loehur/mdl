@@ -144,27 +144,7 @@ class WhatsApp extends Controller
             if (isset($msg['context']['from'])) {
                 $quotedMessageFrom = $msg['context']['from'];
             }
-            
-            // Try to get quoted message content from database
-            if ($quotedMessageId) {
-                try {
-                    // Try from wa_messages_in first
-                    $result = $db->get_where('wa_messages_in', ['wamid' => $quotedMessageId]);
-                    if ($result && $result->num_rows() > 0) {
-                        $quotedMsg = $result->row();
-                        $quotedMessageBody = $quotedMsg->text ?? $quotedMsg->media_caption ?? null;
-                    } else {
-                        // Try from wa_messages_out
-                        $result = $db->get_where('wa_messages_out', ['wamid' => $quotedMessageId]);
-                        if ($result && $result->num_rows() > 0) {
-                            $quotedMsg = $result->row();
-                            $quotedMessageBody = $quotedMsg->content ?? null;
-                        }
-                    }
-                } catch (\Exception $e) {
-                    \Log::write("ERROR fetching quoted message - WAMID: $quotedMessageId | " . $e->getMessage(), 'wa_error', 'Quote');
-                }
-            }
+            // Quote body lookup deferred until AFTER WS push (avoid DB latency on hot path)
         }
 
         if (!$waNumber) {
@@ -180,78 +160,61 @@ class WhatsApp extends Controller
             }
         }
 
-        try {
-            $cleanPhone = preg_replace('/[^0-9]/', '', $waNumber); // 628...
-            $phone0 = '0' . substr($cleanPhone, 2); // 08...
-            $phonePlus = '+' . $cleanPhone; // +62...
-            
-            $phoneNoPrefix = substr($cleanPhone, 2);
-            $phones = ["'$cleanPhone'", "'$phone0'", "'$phonePlus'", "'$phoneNoPrefix'"];
-            $phoneIn = implode(',', $phones);
+        $cleanPhone = preg_replace('/[^0-9]/', '', $waNumber); // 628...
+        $phone0 = '0' . substr($cleanPhone, 2); // 08...
+        $phonePlus = '+' . $cleanPhone; // +62...
+        $phoneNoPrefix = substr($cleanPhone, 2);
+        $phones = ["'$cleanPhone'", "'$phone0'", "'$phonePlus'", "'$phoneNoPrefix'"];
+        $phoneIn = implode(',', $phones);
 
-            //cari assigned_user_id
-            $user_data = $this->getUserData($phone0);
-            $assigned_user_id = $user_data ? ($user_data->assigned_user_id ?? null) : null;
-            $code = $user_data ? ($user_data->code ?? null) : null;
-            $cust_id = $user_data ? ($user_data->cust_id ?? null) : null;
-            $contact_name = $user_data ? ($user_data->customer_name ?? $contactName) : $contactName;
-            
+        // Hot path: jangan panggil getUserData dulu (LIKE pelanggan bisa lambat). Enrich setelah WS push.
+        $assigned_user_id = null;
+        $code = null;
+        $cust_id = null;
+        $contact_name = $contactName;
 
-            // Extract message text EARLY for lastMessageSummary
-            $messageText = '';
-            if ($messageType === 'text') {
-                $messageText = $msg['text']['body'] ?? '';
-            } elseif ($messageType === 'button') {
-                $messageText = $msg['button']['text'] ?? ($msg['button']['payload'] ?? '');
-            } elseif ($messageType === 'interactive') {
-                if (isset($msg['interactive']['button_reply'])) {
-                    $messageText = $msg['interactive']['button_reply']['title'] ?? '';
-                } elseif (isset($msg['interactive']['list_reply'])) {
-                    $messageText = $msg['interactive']['list_reply']['title'] ?? '';
-                }
-            } elseif ($messageType === 'reaction') {
-                // Extract reaction emoji
-                $reactionEmoji = $msg['reaction']['emoji'] ?? null;
-                $messageText = $reactionEmoji ? "Reacted $reactionEmoji" : "Removed reaction";
-            } elseif ($messageType === 'location') {
-                // Extract location name/address for preview
-                $locName = $msg['location']['name'] ?? null;
-                $locAddr = $msg['location']['address'] ?? null;
-                $messageText = '📍 ' . ($locName ?: ($locAddr ?: 'Shared Location'));
-            } elseif (isset($msg[$messageType]['caption'])) {
-                $messageText = $msg[$messageType]['caption'];
+        // Extract message text EARLY for lastMessageSummary
+        $messageText = '';
+        if ($messageType === 'text') {
+            $messageText = $msg['text']['body'] ?? '';
+        } elseif ($messageType === 'button') {
+            $messageText = $msg['button']['text'] ?? ($msg['button']['payload'] ?? '');
+        } elseif ($messageType === 'interactive') {
+            if (isset($msg['interactive']['button_reply'])) {
+                $messageText = $msg['interactive']['button_reply']['title'] ?? '';
+            } elseif (isset($msg['interactive']['list_reply'])) {
+                $messageText = $msg['interactive']['list_reply']['title'] ?? '';
             }
-            
-            // Build lastMessageSummary
-            $lastMessageSummary = $messageText;
-            if (empty($lastMessageSummary) && $messageType !== 'text') {
-                // Use emoji for better UX
-                $typeLabels = [
-                    'image' => '📷 Image',
-                    'video' => '🎥 Video',
-                    'audio' => '🎵 Audio',
-                    'voice' => '🎤 Voice',
-                    'document' => '📄 Document',
-                    'sticker' => '🎨 Sticker',
-                    'location' => '📍 Location',
-                ];
-                 $lastMessageSummary = $typeLabels[$messageType] ?? "[$messageType]";
-            }
-            
-            // Check if message is private (for last_message formatting, uses Env::WA_PRIVATE_WORDS)
-            $isPrivateForLastMessage = false;
-            try {
-                $isPrivateForLastMessage = \EnvHelper::textContainsPrivateWord($lastMessageSummary ?? '');
-            } catch (\Throwable $e) {
-                // Jangan gagalkan simpan chat jika cek private error
-            }
-
-        } catch (\Exception $e) {
-            \Log::write("Error processing user data: " . $e->getMessage(), 'wa_error', 'Webhook');
+        } elseif ($messageType === 'reaction') {
+            $reactionEmoji = $msg['reaction']['emoji'] ?? null;
+            $messageText = $reactionEmoji ? "Reacted $reactionEmoji" : "Removed reaction";
+        } elseif ($messageType === 'location') {
+            $locName = $msg['location']['name'] ?? null;
+            $locAddr = $msg['location']['address'] ?? null;
+            $messageText = '📍 ' . ($locName ?: ($locAddr ?: 'Shared Location'));
+        } elseif (isset($msg[$messageType]['caption'])) {
+            $messageText = $msg[$messageType]['caption'];
         }
 
-        if (!isset($isPrivateForLastMessage)) {
-            $isPrivateForLastMessage = false;
+        $lastMessageSummary = $messageText;
+        if ($lastMessageSummary === '' && $messageType !== 'text') {
+            $typeLabels = [
+                'image' => '📷 Image',
+                'video' => '🎥 Video',
+                'audio' => '🎵 Audio',
+                'voice' => '🎤 Voice',
+                'document' => '📄 Document',
+                'sticker' => '🎨 Sticker',
+                'location' => '📍 Location',
+            ];
+            $lastMessageSummary = $typeLabels[$messageType] ?? "[$messageType]";
+        }
+
+        $isPrivateForLastMessage = false;
+        try {
+            $isPrivateForLastMessage = \EnvHelper::textContainsPrivateWord($lastMessageSummary ?? '');
+        } catch (\Throwable $e) {
+            // ignore
         }
 
         $textBody = null;
@@ -260,7 +223,8 @@ class WhatsApp extends Controller
         $mediaMimeType = null;
         $mediaUrlDirect = null;
         $mediaCaption = null;
-        
+        $needsMediaDownload = false;
+
         // Initialize Metadata
         $messageId = $msg['id'] ?? null;
         $wamid = $msg['wamid'] ?? null;
@@ -270,38 +234,27 @@ class WhatsApp extends Controller
             case 'text':
                 $textBody = $msg['text']['body'] ?? null;
                 break;
-            
+
             case 'button':
-                // Extract text from button response
                 $textBody = $msg['button']['text'] ?? ($msg['button']['payload'] ?? null);
                 break;
-            
+
             case 'interactive':
-                // Handle interactive message (list reply, button reply)
                 if (isset($msg['interactive']['button_reply'])) {
                     $textBody = $msg['interactive']['button_reply']['title'] ?? null;
                 } elseif (isset($msg['interactive']['list_reply'])) {
                     $textBody = $msg['interactive']['list_reply']['title'] ?? null;
                 }
                 break;
-            
+
             case 'reaction':
-                // Handle reaction (emoji react to a message)
                 $reactionEmoji = $msg['reaction']['emoji'] ?? null;
                 $reactionMessageId = $msg['reaction']['message_id'] ?? null;
-                
-                if ($reactionEmoji) {
-                    $textBody = "Reacted: $reactionEmoji";
-                } else {
-                    $textBody = "Removed reaction"; // Unreact
-                }
-                
-                // Store reaction metadata in media fields (creative reuse)
-                $mediaCaption = $reactionMessageId; // Store which message was reacted to
+                $textBody = $reactionEmoji ? "Reacted: $reactionEmoji" : "Removed reaction";
+                $mediaCaption = $reactionMessageId;
                 break;
 
             case 'image':
-                // Process image (no verbose log)
             case 'video':
             case 'audio':
             case 'document':
@@ -311,50 +264,66 @@ class WhatsApp extends Controller
                 $mediaMimeType = $msg[$messageType]['mimeType'] ?? $msg[$messageType]['mime_type'] ?? null;
                 $mediaUrlDirect = $msg[$messageType]['link'] ?? null;
                 $mediaCaption = $msg[$messageType]['caption'] ?? null;
-                
-                if ($mediaId || $mediaUrlDirect) {
-                    try {
-                        if (!class_exists('\\App\\Helpers\\WhatsAppService')) {
-                            require_once __DIR__ . '/../../Helpers/WhatsAppService.php';
-                        }
-                        $waService = new \App\Helpers\WhatsAppService();
-                        $savedUrl = $waService->downloadAndSaveMedia($mediaId, $mediaUrlDirect, $mediaMimeType);
-                        if ($savedUrl) {
-                            $mediaUrl = $savedUrl;
-                        } else {
-                            // Download failed but don't block message save
-                            \Log::write("Media download failed for ID: $mediaId", 'wa_error', 'Webhook');
-                            $mediaUrl = $mediaUrlDirect; // Use direct URL as fallback
-                        }
-                    } catch (\Throwable $e) {
-                        // Catch ANY error (including PHP 8 errors) and continue
-                        \Log::write("Media download exception: " . $e->getMessage(), 'wa_error', 'Webhook');
-                        $mediaUrl = $mediaUrlDirect; // Use direct URL as fallback
-                    }
-                }
+                // Pakai URL langsung dulu — download file ditunda setelah WS push
+                $mediaUrl = $mediaUrlDirect;
+                $needsMediaDownload = ($mediaId || $mediaUrlDirect) ? true : false;
                 break;
-            
+
             case 'location':
-                // Handle location message
                 $latitude = $msg['location']['latitude'] ?? null;
                 $longitude = $msg['location']['longitude'] ?? null;
                 $locationName = $msg['location']['name'] ?? null;
                 $locationAddress = $msg['location']['address'] ?? null;
-                
-                // Build text representation of location
                 $locationParts = [];
-                if ($locationName) $locationParts[] = $locationName;
-                if ($locationAddress) $locationParts[] = $locationAddress;
-                
+                if ($locationName) {
+                    $locationParts[] = $locationName;
+                }
+                if ($locationAddress) {
+                    $locationParts[] = $locationAddress;
+                }
                 $locationLabel = !empty($locationParts) ? implode(', ', $locationParts) : 'Shared Location';
                 $textBody = "📍 $locationLabel";
-                
-                // Store coordinates in media_url as Google Maps link for easy access
                 if ($latitude && $longitude) {
                     $mediaUrl = "https://maps.google.com/maps?q={$latitude},{$longitude}";
-                    $mediaCaption = "{$latitude},{$longitude}"; // Raw coordinates
+                    $mediaCaption = "{$latitude},{$longitude}";
                 }
                 break;
+        }
+
+        // Reuse assignment from existing conversation for WS targeting (tanpa query pelanggan dulu)
+        try {
+            if (!class_exists('\\App\\Models\\WAReplies')) {
+                require_once __DIR__ . '/../../Models/WAReplies.php';
+            }
+            $repliesProbe = new \App\Models\WAReplies();
+            // Will be replaced by getOrCreate below; peek assignment via find is private — use light query
+            $existingQuick = $db->query(
+                "SELECT id, assigned_user_id, contact_name, code, cust_id FROM wa_conversations WHERE wa_number = ? LIMIT 1",
+                [$waNumber]
+            )->row();
+            if (!$existingQuick) {
+                $existingQuick = $db->query(
+                    "SELECT id, assigned_user_id, contact_name, code, cust_id FROM wa_conversations WHERE wa_number = ? LIMIT 1",
+                    [$phonePlus]
+                )->row();
+            }
+            if (!$existingQuick) {
+                $existingQuick = $db->query(
+                    "SELECT id, assigned_user_id, contact_name, code, cust_id FROM wa_conversations WHERE wa_number = ? LIMIT 1",
+                    [$cleanPhone]
+                )->row();
+            }
+            if ($existingQuick) {
+                $assigned_user_id = $existingQuick->assigned_user_id ?? null;
+                $code = $existingQuick->code ?? null;
+                $cust_id = $existingQuick->cust_id ?? null;
+                if (empty($contact_name) && !empty($existingQuick->contact_name)) {
+                    $contact_name = $existingQuick->contact_name;
+                }
+            }
+            unset($repliesProbe);
+        } catch (\Throwable $e) {
+            // ignore — push tetap jalan
         }
 
         // Step 4: Save message to wa_messages_in
@@ -372,9 +341,7 @@ class WhatsApp extends Controller
             'status' => $status,
             'created_at' => date('Y-m-d H:i:s'),
         ];
-        
-        // Add quoted message fields only if they exist (safe for backward compatibility)
-        // This prevents DB error if columns haven't been added yet
+
         if ($quotedMessageId !== null) {
             $messageData['quoted_message_id'] = $quotedMessageId;
         }
@@ -399,7 +366,6 @@ class WhatsApp extends Controller
                     require_once __DIR__ . '/../../Models/WAReplies.php';
                 }
 
-                // Format last_message based on private status
                 if ($isPrivateForLastMessage) {
                     $lastMessage = 'i- 🔒 _Private Chat_';
                 } else {
@@ -408,7 +374,7 @@ class WhatsApp extends Controller
 
                 $replies = new \App\Models\WAReplies();
 
-                // 1) Open/create conversation + push WS SEBELUM intent/AI (biar CRM realtime seperti WaDesk)
+                // 1) Open CSW + push WS segera (mirip WaDesk) — intent/AI belakangan
                 $conversationId = (int) $replies->getOrCreateConversationWithCase(
                     $db,
                     $waNumber,
@@ -420,6 +386,7 @@ class WhatsApp extends Controller
                     null
                 );
 
+                // Broadcast (target 0) + assignment_user_id → admin + crew assigned dapat realtime
                 $this->pushIncomingToWebSocket([
                     'type' => 'wa_masuk',
                     'conversation_id' => $conversationId,
@@ -443,12 +410,72 @@ class WhatsApp extends Controller
                         'time' => date('Y-m-d H:i:s'),
                         'sender' => 'customer',
                     ],
-                    'target_id' => $assigned_user_id ? (string) $assigned_user_id : '0',
+                    'target_id' => '0',
                     'kode_cabang' => $code,
                     'cust_id' => $cust_id,
                 ]);
 
-                // 2) Intent detect + auto-reply (bisa lambat: OpenAI/Groq) — setelah UI sudah ter-update
+                // 2) Enrich setelah UI sudah update: pelanggan, quote body, media file, intent
+                $user_data = $this->getUserData($phone0);
+                if ($user_data) {
+                    $assigned_user_id = $user_data->assigned_user_id ?? $assigned_user_id;
+                    $code = $user_data->code ?? $code;
+                    $cust_id = $user_data->cust_id ?? $cust_id;
+                    if (!empty($user_data->customer_name)) {
+                        $contact_name = $user_data->customer_name;
+                    }
+                    $replies->getOrCreateConversationWithCase(
+                        $db,
+                        $waNumber,
+                        $contact_name,
+                        $assigned_user_id,
+                        $code,
+                        $cust_id,
+                        $lastMessage,
+                        null
+                    );
+                }
+
+                if ($quotedMessageId && $quotedMessageBody === null) {
+                    try {
+                        $result = $db->get_where('wa_messages_in', ['wamid' => $quotedMessageId]);
+                        if ($result && $result->num_rows() > 0) {
+                            $quotedMsg = $result->row();
+                            $quotedMessageBody = $quotedMsg->text ?? $quotedMsg->media_caption ?? null;
+                        } else {
+                            $result = $db->get_where('wa_messages_out', ['wamid' => $quotedMessageId]);
+                            if ($result && $result->num_rows() > 0) {
+                                $quotedMsg = $result->row();
+                                $quotedMessageBody = $quotedMsg->content ?? null;
+                            }
+                        }
+                        if ($quotedMessageBody !== null) {
+                            $db->update('wa_messages_in', [
+                                'quoted_message_body' => $quotedMessageBody,
+                            ], ['id' => $msgId]);
+                        }
+                    } catch (\Throwable $e) {
+                        \Log::write("ERROR fetching quoted message - WAMID: $quotedMessageId | " . $e->getMessage(), 'wa_error', 'Quote');
+                    }
+                }
+
+                if ($needsMediaDownload) {
+                    try {
+                        if (!class_exists('\\App\\Helpers\\WhatsAppService')) {
+                            require_once __DIR__ . '/../../Helpers/WhatsAppService.php';
+                        }
+                        $waService = new \App\Helpers\WhatsAppService();
+                        $savedUrl = $waService->downloadAndSaveMedia($mediaId, $mediaUrlDirect, $mediaMimeType);
+                        if ($savedUrl) {
+                            $mediaUrl = $savedUrl;
+                            $db->update('wa_messages_in', ['media_url' => $mediaUrl], ['id' => $msgId]);
+                        }
+                    } catch (\Throwable $e) {
+                        \Log::write("Media download exception (deferred): " . $e->getMessage(), 'wa_error', 'Webhook');
+                    }
+                }
+
+                // 3) Intent detect + auto-reply (bisa lambat: OpenAI/Groq)
                 $autoReplyResult = $replies->process(
                     $phoneIn,
                     $messageText,
@@ -476,7 +503,6 @@ class WhatsApp extends Controller
                 }
                 $notify = $autoReplyResult->notify ?? true;
 
-                // Fetch active cases for agent UI / driver notify
                 $freshConv = $db->get_where('wa_conversations', ['id' => $conversationId])->row();
                 if ($freshConv && !empty($freshConv->conv_case)) {
                     $casesDecoded = json_decode($freshConv->conv_case, true);
@@ -484,7 +510,6 @@ class WhatsApp extends Controller
                         if (!isset($casesDecoded[0])) {
                             $casesDecoded = [$casesDecoded];
                         }
-
                         foreach ($casesDecoded as $c) {
                             if (isset($c['case']) && isset($c['status']) && $c['status'] === 'open') {
                                 $activeCases[] = (int) $c['case'];
@@ -495,7 +520,6 @@ class WhatsApp extends Controller
                     }
                 }
 
-                // Push case update setelah intent selesai (pesan sudah tampil lebih dulu)
                 if ($currentCase !== null && (int) $currentCase !== 0) {
                     $this->pushIncomingToWebSocket([
                         'type' => 'case_updated',
@@ -505,7 +529,7 @@ class WhatsApp extends Controller
                         'active_cases' => $activeCases,
                         'notify' => (bool) $notify,
                         'assignment_user_id' => $assigned_user_id,
-                        'target_id' => $assigned_user_id ? (string) $assigned_user_id : '0',
+                        'target_id' => '0',
                     ]);
                 }
             } catch (\Exception $e) {
@@ -535,38 +559,30 @@ class WhatsApp extends Controller
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, $json);
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 5);
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
+        // Match WaDesk: fail fast — jangan tahan hot path inbound
+        curl_setopt($ch, CURLOPT_TIMEOUT, 2);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 1);
         curl_setopt($ch, CURLOPT_NOSIGNAL, 1);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
 
         $result = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-
-        if (class_exists('\Log')) {
-            $notifyLog = isset($data['notify']) ? ($data['notify'] ? 'true' : 'false') : 'unset';
-            if (curl_errno($ch)) {
-                \Log::write('WS PUSH ERROR: ' . curl_error($ch) . " | url=$url | notify=$notifyLog", 'wa_error', 'WebSocket');
-            } elseif ($httpCode >= 400) {
-                \Log::write("WS PUSH HTTP $httpCode | notify=$notifyLog | " . substr((string) $result, 0, 500), 'wa_error', 'WebSocket');
-            } else {
-                \Log::write(
-                    'WS PUSH OK HTTP ' . $httpCode
-                    . ' | url=' . $url
-                    . ' | target=' . ($data['target_id'] ?? '?')
-                    . ' | phone=' . ($data['phone'] ?? '?')
-                    . ' | notify=' . $notifyLog
-                    . ' | response=' . substr((string) $result, 0, 300),
-                    'webhook',
-                    'WebSocket'
-                );
-            }
-        }
-
+        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlErr = curl_errno($ch) ? curl_error($ch) : '';
         curl_close($ch);
 
-        return $result;
+        // Log hanya saat gagal (sukses tiap pesan = I/O disk yang memperlambat)
+        if (class_exists('\Log') && ($curlErr !== '' || $httpCode >= 400 || $httpCode === 0)) {
+            $notifyLog = isset($data['notify']) ? ($data['notify'] ? 'true' : 'false') : 'unset';
+            if ($curlErr !== '') {
+                \Log::write('WS PUSH ERROR: ' . $curlErr . " | url=$url | notify=$notifyLog", 'wa_error', 'WebSocket');
+            } else {
+                \Log::write("WS PUSH HTTP $httpCode | notify=$notifyLog | " . substr((string) $result, 0, 500), 'wa_error', 'WebSocket');
+            }
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -924,23 +940,64 @@ class WhatsApp extends Controller
     {
         $db = $this->db(1);
         $return = new \stdClass();
-        
-        // cek nomor di data pelanggan limit 1 order by updated_at desc
-        $customer = $db->query("SELECT * FROM pelanggan WHERE nomor_pelanggan LIKE '%" . substr($phone0, 2) . "%' ORDER BY updated_at DESC LIMIT 1")->row();
-        
+
+        $digits = preg_replace('/[^0-9]/', '', (string) $phone0);
+        if (strlen($digits) < 8) {
+            return null;
+        }
+        $last8 = substr($digits, -8);
+        $last9 = strlen($digits) >= 9 ? substr($digits, -9) : $last8;
+        $variants = array_values(array_unique(array_filter([
+            $phone0,
+            $digits,
+            '0' . (str_starts_with($digits, '62') ? substr($digits, 2) : ltrim($digits, '0')),
+            '+' . (str_starts_with($digits, '62') ? $digits : '62' . ltrim($digits, '0')),
+        ])));
+
+        $customer = null;
+        // Exact match dulu (cepat / index-friendly)
+        if ($variants !== []) {
+            $placeholders = implode(',', array_fill(0, count($variants), '?'));
+            $customer = $db->query(
+                "SELECT * FROM pelanggan WHERE nomor_pelanggan IN ($placeholders) ORDER BY updated_at DESC LIMIT 1",
+                $variants
+            )->row();
+        }
+        // Fallback: 8–9 digit akhir tanpa leading-wildcard di tengah
+        if (!$customer) {
+            try {
+                $customer = $db->query(
+                    "SELECT * FROM pelanggan
+                     WHERE RIGHT(REPLACE(REPLACE(REPLACE(nomor_pelanggan,'+',''),'-',''),' ',''), 9) = ?
+                        OR RIGHT(REPLACE(REPLACE(REPLACE(nomor_pelanggan,'+',''),'-',''),' ',''), 8) = ?
+                     ORDER BY updated_at DESC LIMIT 1",
+                    [$last9, $last8]
+                )->row();
+            } catch (\Throwable $e) {
+                $customer = $db->query(
+                    "SELECT * FROM pelanggan WHERE nomor_pelanggan LIKE ? ORDER BY updated_at DESC LIMIT 1",
+                    ['%' . $last8]
+                )->row();
+            }
+        }
+
         if ($customer) {
             $return->customer_name = $customer->nama_pelanggan;
-            $return->cust_id = $customer->id_pelanggan; // id_pelanggan from pelanggan (same source as code)
+            $return->cust_id = $customer->id_pelanggan;
         } else {
             return null;
         }
 
-        $last_sale = $db->query("SELECT * FROM sale WHERE id_pelanggan = " . $customer->id_pelanggan . " ORDER BY insertTime DESC LIMIT 1")->row();
+        $last_sale = $db->query(
+            "SELECT id_cabang FROM sale WHERE id_pelanggan = ? ORDER BY insertTime DESC LIMIT 1",
+            [$customer->id_pelanggan]
+        )->row();
         if ($last_sale) {
             $return->assigned_user_id = $last_sale->id_cabang;
-            
-            // Get kode_cabang for this id_cabang
-            $cabang = $db->query("SELECT kode_cabang FROM cabang WHERE id_cabang = " . $last_sale->id_cabang)->row();
+            $cabang = $db->query(
+                "SELECT kode_cabang FROM cabang WHERE id_cabang = ? LIMIT 1",
+                [$last_sale->id_cabang]
+            )->row();
             if ($cabang) {
                 $return->code = $cabang->kode_cabang;
             }

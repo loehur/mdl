@@ -2,8 +2,11 @@
 
 namespace App\Controllers\WaDesk;
 
+use App\Helpers\WaDeskCrypto;
+use App\Helpers\WaDeskYCloud;
+
 /**
- * Templates — Admin CRUD WhatsApp templates + params
+ * Templates — Admin CRUD WhatsApp templates + params + YCloud sync
  */
 class Templates extends WaDeskController
 {
@@ -41,6 +44,106 @@ class Templates extends WaDeskController
         }
 
         $this->success(['templates' => $rows]);
+    }
+
+    /**
+     * Sync APPROVED templates from YCloud API into wa_templates for one API key.
+     * POST { ycloud_key_id }
+     */
+    public function syncFromYCloud()
+    {
+        $this->verifyAuth();
+        $admin = $this->requireAdmin();
+        if (!$this->isPost()) {
+            $this->error('Method not allowed', 405);
+        }
+
+        $body = $this->getBody();
+        $keyId = (int) ($body['ycloud_key_id'] ?? 0);
+        if ($keyId <= 0) {
+            $this->error('ycloud_key_id wajib', 400);
+        }
+
+        $key = $this->db($this->db_index)->query(
+            "SELECT * FROM ycloud_keys WHERE id = ? AND tenant_id = ? LIMIT 1",
+            [$keyId, (int) $admin['tenant_id']]
+        )->row_array();
+        if (!$key) {
+            $this->error('API key tidak ditemukan', 404);
+        }
+
+        try {
+            $apiKey = WaDeskCrypto::decrypt($key['api_key_enc']);
+        } catch (\Throwable $e) {
+            $this->error('Gagal decrypt API key', 500);
+        }
+        if ($apiKey === '') {
+            $this->error('API key kosong', 400);
+        }
+
+        $client = new WaDeskYCloud($apiKey, (string) ($key['phone_number'] ?? ''));
+        $fetched = $client->listAllTemplates(['status' => 'APPROVED']);
+        if (!$fetched['success']) {
+            $this->error('Gagal ambil template dari YCloud: ' . ($fetched['error'] ?: 'unknown'), 502);
+        }
+
+        $created = 0;
+        $updated = 0;
+        $skipped = 0;
+        $synced = [];
+
+        foreach ($fetched['templates'] as $remote) {
+            if (!is_array($remote)) {
+                continue;
+            }
+            $mapped = WaDeskYCloud::mapTemplateToWaDesk($remote);
+            $name = $mapped['template_name'];
+            $lang = $mapped['language'];
+            if ($name === '') {
+                $skipped++;
+                continue;
+            }
+            if ($mapped['status'] !== '' && $mapped['status'] !== 'APPROVED') {
+                $skipped++;
+                continue;
+            }
+
+            $existing = $this->db($this->db_index)->query(
+                "SELECT id FROM wa_templates
+                 WHERE ycloud_key_id = ? AND template_name = ? AND language = ?
+                 LIMIT 1",
+                [$keyId, $name, $lang]
+            )->row_array();
+
+            if ($existing) {
+                $tplId = (int) $existing['id'];
+                $this->db($this->db_index)->update('wa_templates', [
+                    'body_preview' => $mapped['body_preview'],
+                ], ['id' => $tplId]);
+                $this->replaceParams($tplId, $mapped['params']);
+                $updated++;
+                $synced[] = ['id' => $tplId, 'template_name' => $name, 'language' => $lang, 'action' => 'updated'];
+            } else {
+                $tplId = (int) $this->db($this->db_index)->insert('wa_templates', [
+                    'ycloud_key_id' => $keyId,
+                    'template_name' => $name,
+                    'language' => $lang,
+                    'body_preview' => $mapped['body_preview'],
+                ]);
+                $this->replaceParams($tplId, $mapped['params']);
+                $created++;
+                $synced[] = ['id' => $tplId, 'template_name' => $name, 'language' => $lang, 'action' => 'created'];
+            }
+        }
+
+        $this->success([
+            'ycloud_key_id' => $keyId,
+            'fetched' => count($fetched['templates']),
+            'created' => $created,
+            'updated' => $updated,
+            'skipped' => $skipped,
+            'templates' => $synced,
+        ], "Sinkron selesai: {$created} baru, {$updated} diupdate");
     }
 
     public function create()

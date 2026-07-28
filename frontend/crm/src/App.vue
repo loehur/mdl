@@ -2627,6 +2627,21 @@ const sendImage = async () => {
 };
 
 const handleIncomingMessage = (payload) => {
+  if (!payload || typeof payload !== "object") return;
+
+  // System WS events must never become chat bubbles (e.g. [case_updated])
+  const systemTypes = [
+    "case_updated",
+    "case_resolved",
+    "conversation_read",
+    "agent_message_sent",
+    "connection",
+    "priority_updated",
+  ];
+  if (payload.type && systemTypes.includes(payload.type)) {
+    return;
+  }
+
   // Check if this is a status update
   if (payload.type === "status_update") {
     const { conversation_id, message, phone } = payload;
@@ -3347,11 +3362,26 @@ const connectWebSocket = () => {
         }
 
         if (payload.type === "wa_masuk") {
-          // Real incoming WA message (wrapped format)
-          handleIncomingMessage(payload.data);
-        } else if (payload.conversation_id || payload.conversationId) {
-          // Direct message format (snake_case or camelCase)
-          // This is the format sent directly from server without type wrapper
+          // Real incoming WA message (wrapped format). Ignore if inner payload is a system event.
+          const inner = payload.data || payload;
+          if (
+            inner?.type &&
+            [
+              "case_updated",
+              "case_resolved",
+              "conversation_read",
+              "agent_message_sent",
+              "status_update",
+            ].includes(inner.type)
+          ) {
+            return;
+          }
+          handleIncomingMessage(inner);
+        } else if (
+          (payload.conversation_id || payload.conversationId) &&
+          (!payload.type || payload.type === "wa_masuk")
+        ) {
+          // Direct message format only — never treat case_updated/etc as chat
           handleIncomingMessage(payload);
         }
       } catch (e) {

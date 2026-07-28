@@ -139,80 +139,65 @@
 
       <!-- Templates -->
       <section v-if="tab === 'templates'" class="card space-y-4">
-        <div class="flex items-center justify-between gap-2">
-          <h2 class="font-display font-semibold text-lg">
-            {{ editingTplId ? "Edit Template" : "Templates" }}
-          </h2>
-          <button
-            v-if="editingTplId"
-            type="button"
-            class="text-xs text-slate-400 hover:text-white"
-            @click="cancelEditTemplate"
-          >
-            Batal edit
-          </button>
-        </div>
-        <form class="space-y-3" @submit.prevent="saveTemplate">
-          <select v-model="tplForm.ycloud_key_id" required class="field">
-            <option disabled value="">API key</option>
-            <option v-for="k in keys" :key="k.id" :value="k.id">{{ k.label }} ({{ k.phone_number }})</option>
-          </select>
-          <div class="grid sm:grid-cols-2 gap-3">
-            <input v-model="tplForm.template_name" required class="field" placeholder="Nama template YCloud" />
-            <input v-model="tplForm.language" class="field" placeholder="Language (id)" />
-          </div>
-          <textarea
-            v-model="tplForm.body_preview"
-            rows="5"
-            class="field"
-            :placeholder="previewPlaceholder"
-          />
-          <p class="text-[11px] text-slate-500 -mt-1 whitespace-pre-wrap">{{ previewHint }}</p>
-          <div class="space-y-2">
-            <div class="flex items-center justify-between">
-              <p class="text-sm text-slate-300">Parameter (sesuai YCloud)</p>
-              <button type="button" class="text-xs text-accent-soft" @click="addParam">+ Param</button>
-            </div>
-            <div
-              v-for="(p, idx) in tplForm.params"
-              :key="idx"
-              class="grid grid-cols-1 sm:grid-cols-[7rem_5rem_1fr_1fr_1fr_auto] gap-2 items-center"
+        <h2 class="font-display font-semibold text-lg">Templates</h2>
+
+        <div class="rounded-xl border border-white/10 bg-ink-950/40 p-3 space-y-2">
+          <p class="text-xs text-slate-400">
+            Sinkron template <span class="text-slate-200">APPROVED</span> dari YCloud
+            (nama, bahasa, preview body, parameter header/body/button).
+            Kelola template hanya lewat YCloud lalu sync di sini.
+          </p>
+          <div class="flex flex-col sm:flex-row gap-2">
+            <select v-model="syncKeyId" class="field flex-1" :disabled="syncing">
+              <option disabled value="">Pilih API key untuk sync</option>
+              <option v-for="k in keys" :key="k.id" :value="k.id">
+                {{ k.label }} ({{ k.phone_number }})
+              </option>
+            </select>
+            <button
+              type="button"
+              class="btn shrink-0 inline-flex items-center justify-center gap-2 min-w-[9rem]"
+              :disabled="syncing || !syncKeyId"
+              @click="syncTemplatesFromYCloud"
             >
-              <select v-model="p.component" class="field" title="Komponen template">
-                <option value="header">header</option>
-                <option value="body">body</option>
-                <option value="button">button</option>
-              </select>
-              <input v-model.number="p.param_index" type="number" min="1" class="field" title="Urutan dalam komponen" />
-              <input v-model="p.param_name" class="field" placeholder="Nama var (customer)" required />
-              <input v-model="p.label" class="field" placeholder="Label form" required />
-              <input v-model="p.example_value" class="field" placeholder="Contoh" />
-              <button type="button" class="text-rose-400 text-sm" @click="tplForm.params.splice(idx, 1)">✕</button>
-            </div>
+              <svg
+                v-if="syncing"
+                class="h-4 w-4 animate-spin"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                <path
+                  class="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                />
+              </svg>
+              {{ syncing ? "Sinkron..." : "Sync dari YCloud" }}
+            </button>
           </div>
-          <button class="btn w-full">
-            {{ editingTplId ? "Update template" : "Simpan template" }}
-          </button>
-        </form>
+        </div>
+
         <ul class="divide-y divide-white/5">
-          <li v-for="t in templates" :key="t.id" class="py-3 flex justify-between gap-2">
-            <div>
-              <p class="font-medium">
-                {{ t.template_name }}
-                <span class="text-xs text-slate-500">{{ t.language }}</span>
-                <span v-if="Number(editingTplId) === Number(t.id)" class="ml-2 text-[10px] text-accent">sedang diedit</span>
-              </p>
-              <p class="text-xs text-slate-500">
-                {{ t.key_label }} ·
-                {{ (t.params || []).map((p) => `${p.component}:${p.param_name || p.param_index}`).join(", ") || "0 param" }}
-              </p>
-            </div>
-            <div class="flex items-center gap-3 shrink-0">
-              <button type="button" class="text-xs text-accent hover:underline" @click="startEditTemplate(t)">Edit</button>
-              <button class="text-xs text-rose-400" @click="removeTemplate(t.id)">Hapus</button>
-            </div>
+          <li v-for="t in templates" :key="t.id" class="py-3">
+            <p class="font-medium">
+              {{ t.template_name }}
+              <span class="text-xs text-slate-500">{{ t.language }}</span>
+            </p>
+            <p class="text-xs text-slate-500 mt-0.5">
+              {{ t.key_label }} ·
+              {{ (t.params || []).map((p) => `${p.component}:${p.param_name || p.param_index}`).join(", ") || "0 param" }}
+            </p>
+            <p v-if="t.body_preview" class="mt-1 text-[11px] text-slate-400 whitespace-pre-wrap line-clamp-3">
+              {{ t.body_preview }}
+            </p>
           </li>
         </ul>
+        <p v-if="!templates.length" class="text-sm text-slate-500 text-center py-2">
+          Belum ada template. Pilih API key lalu sync.
+        </p>
       </section>
 
       <!-- Quota -->
@@ -335,11 +320,6 @@ async function onDialogConfirm() {
     await action();
   }
 }
-const previewPlaceholder =
-  "Preview Body — teks lengkap seperti di WA. Pakai {{customer}} atau {{1}} di tempat variabel. Saat kirim diganti value di bubble chat.";
-const previewHint =
-  "Contoh (body named customer):\nHalo {{customer}},\n\nMohon diperhatikan tagihan anda...";
-
 const teamForm = reactive({ name: "" });
 const userForm = reactive({
   name: "",
@@ -350,14 +330,8 @@ const userForm = reactive({
   team_leader_user_id: "",
 });
 const keyForm = reactive({ label: "", api_key: "", phone_number: "", ycloud_phone_id: "", team_id: "" });
-const tplForm = reactive({
-  ycloud_key_id: "",
-  template_name: "",
-  language: "id",
-  body_preview: "",
-  params: [{ component: "body", param_index: 1, param_name: "customer", label: "Nama customer", example_value: "", is_required: 1 }],
-});
-const editingTplId = ref(null);
+const syncKeyId = ref("");
+const syncing = ref(false);
 const quotaForm = reactive({ team_id: "", amount: 100, note: "" });
 
 const teamLeaders = computed(() =>
@@ -571,18 +545,24 @@ async function removeKey(id) {
   });
 }
 
-function addParam() {
-  const component = tplForm.params.at(-1)?.component || "body";
-  const sameComp = tplForm.params.filter((p) => p.component === component);
-  const next = (sameComp.at(-1)?.param_index || 0) + 1;
-  tplForm.params.push({
-    component,
-    param_index: next,
-    param_name: "",
-    label: "",
-    example_value: "",
-    is_required: 1,
-  });
+async function syncTemplatesFromYCloud() {
+  if (!syncKeyId.value || syncing.value) return;
+  syncing.value = true;
+  try {
+    const res = await api("/WaDesk/Templates/syncFromYCloud", {
+      method: "POST",
+      body: { ycloud_key_id: Number(syncKeyId.value) },
+    });
+    const created = res.data?.created ?? 0;
+    const updated = res.data?.updated ?? 0;
+    const fetched = res.data?.fetched ?? 0;
+    flash(true, `Sync OK: ${fetched} dari YCloud → ${created} baru, ${updated} diupdate`);
+    await refresh();
+  } catch (e) {
+    flash(false, e.message);
+  } finally {
+    syncing.value = false;
+  }
 }
 
 async function doTopup() {
@@ -601,121 +581,6 @@ async function doTopup() {
   } catch (e) {
     flash(false, e.message);
   }
-}
-
-function defaultTplParams() {
-  return [
-    {
-      component: "body",
-      param_index: 1,
-      param_name: "customer",
-      label: "Nama customer",
-      example_value: "",
-      is_required: 1,
-    },
-  ];
-}
-
-function resetTplForm() {
-  editingTplId.value = null;
-  Object.assign(tplForm, {
-    ycloud_key_id: "",
-    template_name: "",
-    language: "id",
-    body_preview: "",
-    params: defaultTplParams(),
-  });
-}
-
-function startEditTemplate(t) {
-  editingTplId.value = t.id;
-  Object.assign(tplForm, {
-    ycloud_key_id: t.ycloud_key_id,
-    template_name: t.template_name,
-    language: t.language || "id",
-    body_preview: t.body_preview || "",
-    params:
-      t.params && t.params.length
-        ? t.params.map((p) => {
-            const comp = String(p.component || "body").toLowerCase();
-            return {
-              component: ["header", "body", "button"].includes(comp) ? comp : "body",
-              param_index: Number(p.param_index) || 1,
-              param_name: p.param_name || "",
-              label: p.label || "",
-              example_value: p.example_value || "",
-              is_required: Number(p.is_required) === 0 ? 0 : 1,
-            };
-          })
-        : defaultTplParams(),
-  });
-  flash(true, `Mengedit template: ${t.template_name}`);
-  window.scrollTo({ top: 0, behavior: "smooth" });
-}
-
-function cancelEditTemplate() {
-  resetTplForm();
-  flash(true, "Edit dibatalkan");
-}
-
-async function saveTemplate() {
-  try {
-    const payload = {
-      ycloud_key_id: Number(tplForm.ycloud_key_id),
-      template_name: tplForm.template_name,
-      language: tplForm.language || "id",
-      body_preview: tplForm.body_preview,
-      params: tplForm.params.map((p, i) => {
-        const comp = String(p.component || "body").toLowerCase();
-        return {
-          component: ["header", "body", "button"].includes(comp) ? comp : "body",
-          param_index: Number(p.param_index) || i + 1,
-          param_name: p.param_name,
-          label: p.label,
-          example_value: p.example_value,
-          is_required: p.is_required,
-        };
-      }),
-    };
-
-    if (editingTplId.value) {
-      await api("/WaDesk/Templates/update", {
-        method: "POST",
-        body: { id: Number(editingTplId.value), ...payload },
-      });
-      flash(true, "Template diupdate");
-    } else {
-      await api("/WaDesk/Templates/create", {
-        method: "POST",
-        body: payload,
-      });
-      flash(true, "Template disimpan");
-    }
-
-    resetTplForm();
-    await refresh();
-  } catch (e) {
-    flash(false, e.message);
-  }
-}
-
-async function removeTemplate(id) {
-  if (Number(editingTplId.value) === Number(id)) {
-    resetTplForm();
-  }
-  askConfirm({
-    title: "Hapus template",
-    message: "Template yang dihapus tidak bisa dikembalikan. Lanjutkan?",
-    action: async () => {
-      try {
-        await api("/WaDesk/Templates/delete", { method: "POST", body: { id } });
-        flash(true, "Template dihapus");
-        await refresh();
-      } catch (e) {
-        flash(false, e.message);
-      }
-    },
-  });
 }
 
 onMounted(refresh);

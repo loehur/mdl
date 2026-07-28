@@ -1028,11 +1028,23 @@ app.post('/incoming', async (req, res) => {
     // Normal flow: Send to specific target
     // Exclude sender_id to prevent duplicate messages
     const senderId = data.sender_id ? data.sender_id.toString() : null;
-    const sent = sendToTarget(targetId, {
-        type: 'wa_masuk',
-        data: data,
-        timestamp: new Date().toISOString()
-    }, senderId);
+    // Keep system events as-is — do NOT wrap as wa_masuk (that turns case_updated into a fake chat bubble)
+    const systemEventTypes = [
+        'case_updated',
+        'case_resolved',
+        'status_update',
+        'conversation_read',
+        'agent_message_sent',
+        'driver_pickup_added',
+    ];
+    const outboundPayload = systemEventTypes.includes(eventType)
+        ? data
+        : {
+            type: 'wa_masuk',
+            data: data,
+            timestamp: new Date().toISOString(),
+        };
+    const sent = sendToTarget(targetId, outboundPayload, senderId);
 
     // Send Push Notification
     // Logic: 
