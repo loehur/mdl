@@ -1,387 +1,308 @@
-<?php 
-$c = $data['cetak']; 
-$hasCabangSelected = isset($c['cabang']) && !empty($c['cabang']);
+<?php
+$kodeCabang = strtoupper((string) ($this->dCabang['kode_cabang'] ?? ''));
 ?>
-    <div class="row mx-0 mt-2">
-      <div class="col">
-        <div class="card p-2" style="max-width: 500px;">
-          <form class="orderProses" action="<?= URL::BASE_URL ?>PackLabel/cetak" method="POST" style="display:none;">
-            <input type="hidden" name="pelanggan" id="hiddenPelanggan" value="">
-          </form>
-            <div class="row">
-              <div class="col">
-                <label>Cabang</label>
-                <select id="selectCabangPL" class="form-control form-control-sm">
-                  <option value="">-- Pilih Cabang --</option>
-                  <?php foreach ($this->listCabang as $dc) { ?>
-                    <option <?= ($hasCabangSelected && $c['cabang'] == $dc['kode_cabang'] ? "selected" : "") ?> value="<?= $dc['kode_cabang'] ?>"><?= strtoupper($dc['kode_cabang']) . " - " . $dc['nama'] ?></option>
-                  <?php } ?>
-                </select>
-              </div>
-              <div class="col">
-                <label>Label Pelanggan</label>
-                <select id="selectPelanggan" class="form-control form-control-sm" disabled>
-                  <option value="" selected>-- Pilih Cabang Terlebih Dahulu --</option>
-                </select>
-                <div id="loadingPelanggan" class="d-none">
-                  <small class="text-muted"><i class="fas fa-spinner fa-spin"></i> Memuat data pelanggan...</small>
-                </div>
-              </div>
-            </div>
+<div id="pl-root">
+  <style>
+    #pl-root {
+      --pl-ink: #0f172a;
+      --pl-muted: #1e293b;
+      --pl-line: #94a3b8;
+      --pl-blue: #2563eb;
+      --pl-blue-deep: #1d4ed8;
+      --pl-green: #16a34a;
+      --pl-green-deep: #15803d;
+      --pl-yellow: #f59e0b;
+      --pl-yellow-deep: #d97706;
+      --pl-red: #dc2626;
+      max-width: 1100px;
+      width: 100%;
+      margin: 8px 0 24px;
+      font-family: 'fontku', 'Segoe UI', sans-serif;
+    }
+    #pl-root,
+    #pl-root button,
+    #pl-root input,
+    #pl-root .pl-panel,
+    #pl-root .pl-card,
+    #pl-root code {
+      border-radius: 0 !important;
+    }
+    #pl-root .pl-shell {
+      min-width: 0;
+      background:
+        radial-gradient(90% 60% at 0% 0%, rgba(37,99,235,.12), transparent 50%),
+        radial-gradient(80% 50% at 100% 0%, rgba(245,158,11,.12), transparent 45%),
+        linear-gradient(180deg, #eef4ff 0%, #f4fff8 55%, #fff8eb 100%);
+      border: 1px solid #cbd5e1;
+      padding: 14px;
+    }
+    #pl-root .pl-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin: -14px -14px 14px;
+      padding: 14px 16px;
+      background: linear-gradient(105deg, #1d4ed8 0%, #2563eb 35%, #16a34a 70%, #f59e0b 100%);
+      color: #fff;
+    }
+    #pl-root .pl-head h2 {
+      margin: 0;
+      font-size: 0.95rem;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      text-shadow: 0 1px 0 rgba(0,0,0,.18);
+    }
+    #pl-root .pl-head small {
+      display: block;
+      margin-top: 2px;
+      font-size: 0.72rem;
+      font-weight: 750;
+      opacity: 0.95;
+    }
+    #pl-root .pl-cabang {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 52px;
+      padding: 8px 10px;
+      background: rgba(255,255,255,.2);
+      color: #fff;
+      font-weight: 900;
+      font-size: 0.95rem;
+      letter-spacing: 0.06em;
+    }
+    #pl-root .pl-panel {
+      border: 1px solid #93c5fd;
+      background: linear-gradient(180deg, #eff6ff, #fff);
+      padding: 14px;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+      margin-bottom: 12px;
+    }
+    #pl-root .pl-panel--guide {
+      border-color: #fcd34d;
+      background: linear-gradient(180deg, #fffbeb, #fff);
+    }
+    #pl-root .pl-panel__title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 12px;
+      font-size: 0.95rem;
+      font-weight: 900;
+      color: var(--pl-ink);
+    }
+    #pl-root .pl-ico {
+      width: 30px;
+      height: 30px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--pl-blue);
+      color: #fff;
+      flex: 0 0 auto;
+    }
+    #pl-root .pl-panel--guide .pl-ico {
+      background: var(--pl-yellow);
+      color: #111;
+    }
+    #pl-root .pl-guide-list {
+      margin: 0;
+      padding: 0 0 0 18px;
+      color: var(--pl-ink);
+      font-size: 0.86rem;
+      font-weight: 750;
+      line-height: 1.5;
+    }
+    #pl-root .pl-guide-list li { margin-bottom: 6px; }
+    #pl-root .pl-guide-list li:last-child { margin-bottom: 0; }
+    #pl-root .pl-guide-list code {
+      display: inline-block;
+      padding: 1px 6px;
+      border: 1px solid #fcd34d;
+      background: #fff;
+      color: #0f172a;
+      font-family: 'fontku', 'Segoe UI', Consolas, monospace;
+      font-size: 0.82rem;
+      font-weight: 900;
+    }
+    #pl-root .pl-guide-list b { color: var(--pl-yellow-deep); font-weight: 900; }
+    #pl-root .pl-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      align-items: end;
+    }
+    @media (min-width: 720px) {
+      #pl-root .pl-grid { grid-template-columns: 1fr 1fr auto; }
+    }
+    #pl-root .pl-label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 0.78rem;
+      font-weight: 900;
+      color: var(--pl-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    #pl-root .pl-input {
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid var(--pl-line);
+      background: #fff;
+      color: var(--pl-ink);
+      font-size: 0.92rem;
+      font-weight: 800;
+      padding: 10px 12px;
+      min-height: 42px;
+    }
+    #pl-root .pl-input:focus {
+      outline: none;
+      border-color: var(--pl-blue);
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22);
+    }
+    #pl-root .pl-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 42px;
+      padding: 12px 14px;
+      border: 1px solid transparent;
+      font-size: 0.95rem;
+      font-weight: 900;
+      cursor: pointer;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+    #pl-root .pl-btn--blue {
+      background: linear-gradient(180deg, var(--pl-blue), var(--pl-blue-deep));
+      color: #fff;
+    }
+    #pl-root .pl-btn--primary {
+      background: linear-gradient(180deg, var(--pl-green), var(--pl-green-deep));
+      color: #fff;
+    }
+    #pl-root .pl-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    #pl-root .pl-spin {
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,.35);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: pl-spin 0.7s linear infinite;
+    }
+    @keyframes pl-spin { to { transform: rotate(360deg); } }
+    #pl-root .pl-empty,
+    #pl-root .pl-error {
+      border: 1px solid #fcd34d;
+      background: linear-gradient(180deg, #fffbeb, #fff);
+      color: var(--pl-ink);
+      padding: 14px;
+      font-size: 0.88rem;
+      font-weight: 800;
+      margin-bottom: 12px;
+    }
+    #pl-root .pl-error {
+      border-color: #fca5a5;
+      background: linear-gradient(180deg, #fef2f2, #fff);
+      color: #b91c1c;
+    }
+  </style>
+
+  <div class="pl-shell">
+    <div class="pl-head">
+      <div>
+        <h2><i class="fas fa-tag"></i> Pack Label</h2>
+        <small>Cari order lewat ID Outlet + ID Item, lalu cetak label pelanggan</small>
+      </div>
+      <?php if ($kodeCabang !== '') { ?>
+        <span class="pl-cabang"><?= htmlspecialchars($kodeCabang) ?></span>
+      <?php } ?>
+    </div>
+
+    <div class="pl-panel pl-panel--guide">
+      <h3 class="pl-panel__title">
+        <span class="pl-ico"><i class="fas fa-lightbulb"></i></span>
+        Panduan menemukan ID Outlet dan ID Item
+      </h3>
+      <ul class="pl-guide-list">
+        <li>Lihat pada nota laundry</li>
+        <li>ID Outlet berada pada tulisan <code>REFXX#012345</code>, 1–2 digit kode outlet <b>XX</b></li>
+        <li>ID Item berada pada tulisan <code>ID123-XXX</code>, 3 digit terakhir <b>XXX</b></li>
+      </ul>
+    </div>
+
+    <div class="pl-panel">
+      <h3 class="pl-panel__title">
+        <span class="pl-ico"><i class="fas fa-search"></i></span>
+        Cari Order
+      </h3>
+      <div class="pl-grid">
+        <div>
+          <label class="pl-label" for="plIdOutlet">ID Outlet</label>
+          <input id="plIdOutlet" name="idOutlet" class="pl-input" style="text-transform:uppercase" autocomplete="off" required />
+        </div>
+        <div>
+          <label class="pl-label" for="plIdItem">ID Item</label>
+          <input id="plIdItem" name="idItem" class="pl-input" inputmode="numeric" autocomplete="off" required />
+        </div>
+        <div>
+          <label class="pl-label">&nbsp;</label>
+          <button type="button" id="plBtnCek" class="pl-btn pl-btn--blue" onclick="plLoad()">
+            <i class="fas fa-search"></i> Cek
+          </button>
         </div>
       </div>
     </div>
 
-<!-- Label Container - akan diupdate via AJAX -->
-<div id="labelContainer" class="<?= isset($c['pelanggan']) ? '' : 'd-none' ?>">
-  <div class="row mx-0">
-    <div class="col-auto px-2">
-      <div class="bg-white p-2">
-        <div id="print">
-          <div id="labelContent" class="w-100 text-center">
-            <?php if (isset($c['pelanggan'])) { ?>
-            <div class="py-1">
-              <b><?= $this->dCabang['nama'] ?> - <span id="labelCabang"><?= $c['cabang'] ?></span></b><br>
-              <span id="labelDate"><?= date('Y-m-d H:i:s') ?></span>
-            </div>
-            <div class="py-1">
-              <h1 class="mb-0"><b><span id="labelPelanggan"><?= strtoupper($c['pelanggan']) ?></span></b></h1>
-            </div>
-            <?php } ?>
-          </div>
-        </div>
-    </div>
-    </div>
-    <div class="col-auto">
-      <button type="button" id="btnCetakLabel" onclick="Print()" class="btn btn-sm btn-success">
-        <i class="fas fa-print"></i> Cetak Label
-      </button>
-    </div>
+    <div id="plLoad"></div>
   </div>
 </div>
 
-<!-- SCRIPT -->
-<script src="<?= URL::EX_ASSETS ?>js/jquery-3.6.0.min.js"></script>
-<script src="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/js/bootstrap.bundle.min.js"></script>
-<script src="<?= URL::EX_ASSETS ?>js/selectize.min.js"></script>
 <script src="<?= URL::IN_ASSETS ?>js/print_server.js?v=<?= time() ?>"></script>
-
 <script>
-  var selectizePelanggan = null;
-  var hasCabangSelected = <?= $hasCabangSelected ? 'true' : 'false' ?>;
-  var hasPelangganSelected = <?= (isset($c['pelanggan']) && !empty($c['pelanggan'])) ? 'true' : 'false' ?>;
-  var isInitialLoad = true; // Flag untuk mencegah auto-submit saat load pertama
-  
   $(document).ready(function() {
-    // Auto-load pelanggan jika cabang sudah terpilih
-    if (hasCabangSelected) {
-      var selectedCabang = $('#selectCabangPL').val();
-      if (selectedCabang && selectedCabang.trim() !== '') {
-        loadPelanggan(selectedCabang);
-      }
-    }
-    
-    // Set flag setelah initial load selesai (dengan delay)
-    setTimeout(function() {
-      isInitialLoad = false;
-    }, 1000);
+    $("#plIdOutlet").focus();
   });
 
-  // Event saat cabang dipilih
-  $('#selectCabangPL').on('change', function() {
-    var kodeCabang = $(this).val();
-    if (kodeCabang) {
-      loadPelanggan(kodeCabang);
-    } else {
-      resetPelangganDropdown();
-    }
-  });
+  function plLoad() {
+    var idItem = $("input[name=idItem]").val().trim();
+    var idOutlet = $("input[name=idOutlet]").val().trim();
+    var $load = $("#plLoad");
+    var $btn = $("#plBtnCek");
+    var prev = $btn.html();
 
-  function loadPelanggan(kodeCabang) {
-    console.log('loadPelanggan called with:', kodeCabang);
-    
-    // Show loading
-    $('#loadingPelanggan').removeClass('d-none');
-    $('#selectPelanggan').prop('disabled', true);
-    $('#btnCek').prop('disabled', true);
-    
-    // Destroy selectize jika sudah ada
-    if (selectizePelanggan) {
-      selectizePelanggan[0].selectize.destroy();
-      selectizePelanggan = null;
+    if (!idItem || !idOutlet) {
+      if (window.MdlToast) MdlToast.warn("Lengkapi ID Outlet dan ID Item");
+      $load.html('<div class="pl-error">Lengkapi ID Outlet dan ID Item.</div>');
+      return;
     }
 
-    $.ajax({
-      url: '<?= URL::BASE_URL ?>PackLabel/getPelangganByCabang',
-      type: 'POST',
-      data: { kode_cabang: kodeCabang },
-      dataType: 'json',
-      success: function(response) {
-        console.log('AJAX response:', response);
-        $('#loadingPelanggan').addClass('d-none');
-        
-        if (response.success) {
-          var options = '<option value="">-- Pilih Pelanggan --</option>';
-          var selectedPelanggan = '<?= isset($c['pelanggan']) ? strtoupper($c['pelanggan']) : '' ?>';
-          
-          response.data.forEach(function(item) {
-            var isSelected = (item.text === selectedPelanggan) ? 'selected' : '';
-            options += '<option value="' + item.value + '" ' + isSelected + '>' + item.text + '</option>';
-          });
-          
-          $('#selectPelanggan').html(options);
-          $('#selectPelanggan').prop('disabled', false);
-          
-          // Apply selectize
-          selectizePelanggan = $('#selectPelanggan').selectize({
-            placeholder: '-- Pilih Pelanggan --'
-          });
+    $btn.prop("disabled", true).html('<span class="pl-spin" aria-hidden="true"></span> Memuat…');
+    $load.html('<div class="pl-empty"><i class="fas fa-spinner fa-spin"></i> Memuat data…</div>');
 
-        } else {
-          console.error('AJAX error response:', response.message);
-          alert(response.message || 'Gagal memuat data pelanggan');
-          resetPelangganDropdown();
+    $load.load(
+      "<?= URL::BASE_URL ?>PackLabel/load/" + encodeURIComponent(idItem) + "/" + encodeURIComponent(idOutlet),
+      function(response, status) {
+        $btn.prop("disabled", false).html(prev);
+        if (status === "error") {
+          $load.html('<div class="pl-error">Gagal memuat data. Coba lagi.</div>');
+          return;
         }
-      },
-      error: function(xhr, status, error) {
-        console.error('AJAX error:', status, error);
-        console.error('Response:', xhr.responseText);
-        $('#loadingPelanggan').addClass('d-none');
-        alert('Terjadi kesalahan saat memuat data pelanggan');
-        resetPelangganDropdown();
+        var text = (typeof response === "string") ? $.trim(response) : "";
+        if (text && text.indexOf("pl-result") === -1) {
+          $load.html('<div class="pl-error">' + $("<div>").text(text).html() + "</div>");
+          if (window.MdlToast) MdlToast.error(text);
+        }
       }
-    });
+    );
   }
 
-  function resetPelangganDropdown() {
-    // Destroy selectize jika sudah ada
-    if (selectizePelanggan) {
-      selectizePelanggan[0].selectize.destroy();
-      selectizePelanggan = null;
-    }
-    
-    $('#selectPelanggan').html('<option value="">-- Pilih Cabang Terlebih Dahulu --</option>');
-    $('#selectPelanggan').prop('disabled', true);
-  }
-
-  // Update label saat pelanggan dipilih (tanpa reload halaman)
-  $(document).on('change', '#selectPelanggan', function() {
-    var selectedValue = $(this).val();
-    if (selectedValue && !isInitialLoad) {
-      // Parse value: NAMA_PELANGGAN_EXP_KODE_CABANG
-      var parts = selectedValue.split('_EXP_');
-      var namaPelanggan = parts[0];
-      var kodeCabang = parts[1];
-      
-      // Update label content
-      updateLabel(namaPelanggan, kodeCabang);
+  $("input[name=idItem], input[name=idOutlet]").on("keypress", function(e) {
+    if (e.keyCode == 13) {
+      e.preventDefault();
+      plLoad();
     }
   });
-  
-  function updateLabel(pelanggan, cabang) {
-    // Format tanggal
-    var now = new Date();
-    var dateStr = now.getFullYear() + '-' + 
-                  String(now.getMonth() + 1).padStart(2, '0') + '-' + 
-                  String(now.getDate()).padStart(2, '0') + ' ' +
-                  String(now.getHours()).padStart(2, '0') + ':' +
-                  String(now.getMinutes()).padStart(2, '0') + ':' +
-                  String(now.getSeconds()).padStart(2, '0');
-    
-    // Generate label HTML (sama dengan format PHP)
-    var labelHtml = `
-      <tr>
-        <td>
-          <b><?= $this->dCabang['nama'] ?> - ${cabang}</b><br>
-          ${dateStr}
-        </td>
-      </tr>
-      <tr id="dashRow">
-        <td></td>
-      </tr>
-      <tr>
-        <td>
-          <h1><b>${pelanggan}</b></h1>
-        </td>
-      </tr>
-      <tr id="dashRow">
-        <td></td>
-      </tr>
-      <tr>
-        <td>
-          <?= URL::PACK_ROWS ?>
-        </td>
-      </tr>
-    `;
-    
-    // Update DOM
-    $('#labelContent').html(labelHtml);
-    $('#labelContainer').removeClass('d-none');
-  }
-
-  function Print() {
-    var btn = document.getElementById('btnCetakLabel');
-    
-    // Start loading
-    if (btn) {
-      btn.classList.add('disabled');
-      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Mencetak...';
-    }
-
-    var el = document.getElementById("print");
-    var rows = el.querySelectorAll("tr");
-    var lines = [];
-    var pmode = "server";
-    var width = parseInt(localStorage.getItem("escpos_width") || "32");
-    if (!width || isNaN(width)) width = 32;
-
-    var makeDash = function(w) {
-      return Array(w + 1).join("-");
-    };
-
-    var sanitizeServerTd = function(td) {
-      try {
-        var s = td.innerHTML || "";
-        // Convert br first to placeholder
-        s = s.replace(/<br\s*\/?>/gi, "[[BR]]");
-        // Convert h1, b, del to placeholders
-        s = s.replace(/<h1[^>]*>/gi, "[[H1]]").replace(/<\/h1>/gi, "[[/H1]]");
-        s = s.replace(/<b[^>]*>/gi, "[[B]]").replace(/<\/b>/gi, "[[/B]]");
-        s = s.replace(/<del[^>]*>/gi, "[[DEL]]").replace(/<\/del>/gi, "[[/DEL]]");
-        s = s.replace(/&nbsp;/gi, " ");
-        s = s.replace(/\u00a0/g, " ");
-        // Remove all other HTML tags
-        s = s.replace(/<[^>]+>/gi, "");
-        s = s.replace(/[\r\n]+/g, " ");
-        s = s.replace(/[ \t]+/g, " ").trim();
-        return s;
-      } catch (e) {
-        return "";
-      }
-    };
-
-    var escLine = function(left, right, width) {
-      var token = /\[\[(?:\/)?(?:B|DEL|H1|C|R|L|TD)\]\]/g;
-      var rawL = (left || "").replace(/[ \t]+/g, " ").trim();
-      var rawR = (right || "").replace(/[ \t]+/g, " ").trim();
-      var plainL = rawL.replace(token, "");
-      var plainR = rawR.replace(token, "");
-      if (pmode === "server") {
-        var out = "";
-        if (plainL.length > 0) out += "[[TD]]" + rawL + "[[/TD]]";
-        if (plainR.length > 0) out += "[[TD]]" + rawR + "[[/TD]]";
-        return out;
-      }
-      var space = width - plainL.length - plainR.length;
-      if (space < 1) space = 1;
-      return rawL + Array(space + 1).join(" ") + rawR;
-    };
-
-    for (var i = 0; i < rows.length; i++) {
-      var tr = rows[i];
-      var tds = tr.querySelectorAll("td");
-      
-      if (tr.id && tr.id.toLowerCase() === "dashrow") {
-        var dash = makeDash(width);
-        lines.push("[[TR]][[TD]]" + dash + "[[/TD]][[/TR]]");
-        continue;
-      }
-
-      if (tds.length === 0) continue;
-
-      if (tds.length === 1 || tds[0].getAttribute("colspan") === "2") {
-        var v = sanitizeServerTd(tds[0]);
-        v = "[[TD]]" + v + "[[/TD]]";
-        lines.push("[[TR]]" + v + "[[/TR]]");
-      } else if (tds.length >= 2) {
-        var left0 = sanitizeServerTd(tds[0]);
-        var right0 = sanitizeServerTd(tds[1]);
-        var row0 = escLine(left0, right0, width);
-        lines.push("[[TR]]" + row0 + "[[/TR]]");
-      }
-    }
-
-    // Filter empty rows
-    lines = lines.filter(function(s) {
-      var x = String(s || "");
-      if (x.indexOf("[[TR]]") === -1) return true;
-      var inner = x.replace(/\[\[(?:\/)?(?:TR|TD)\]\]/g, "");
-      return inner.trim().length > 0;
-    });
-
-    // Convert to HTML
-    var plain = lines.map(function(s) {
-      s = String(s || "");
-      s = s.replace(/\[\[BR\]\]/g, "<br>");
-      s = s.replace(/\[\[B\]\]/g, "<b>");
-      s = s.replace(/\[\[\/B\]\]/g, "</b>");
-      s = s.replace(/\[\[H1\]\]/g, "<h1>");
-      s = s.replace(/\[\[\/H1\]\]/g, "</h1>");
-      s = s.replace(/\[\[(?:\/)?C\]\]/g, "");
-      s = s.replace(/\[\[(?:\/)?R\]\]/g, "");
-      s = s.replace(/\[\[(?:\/)?L\]\]/g, "");
-      s = s.replace(/\[\[TD\]\]/g, "<td>");
-      s = s.replace(/\[\[\/TD\]\]/g, "</td>");
-      s = s.replace(/\[\[TR\]\]/g, "<tr>");
-      s = s.replace(/\[\[\/TR\]\]/g, "</tr>");
-      s = s.replace(/\[\[(?:\/)?DEL\]\]/g, "");
-      return s;
-    }).join("");
-
-    // Send to print server / Android Print Bridge (probe + fail-fast)
-    var printFn = (window.PrintServer && window.PrintServer.fetch)
-      ? window.PrintServer.fetch.bind(window.PrintServer)
-      : window.printServerFetch;
-    var errMsg = (window.PrintServer && window.PrintServer.errorMessage)
-      ? window.PrintServer.errorMessage
-      : window.printServerErrorMessage;
-
-    printFn("/print", {
-      text: plain,
-      margin_top: 0,
-      feed_lines: 3
-    })
-    .then(function(res) {
-      console.log("Print server status:", res.status);
-      return res.text().catch(function() { return ""; });
-    })
-    .then(function(body) {
-      console.log("Print server body:", body);
-    })
-    .catch(function(err) {
-      console.error("Print server error:", err);
-      var msg = typeof errMsg === "function" ? errMsg(err) : "Print server tidak aktif";
-      if (window.PrintServer && typeof window.PrintServer.showAlert === "function") {
-        window.PrintServer.showAlert(msg, "error");
-      } else if (typeof window.showPrintServerAlert === "function") {
-        window.showPrintServerAlert(msg, "error");
-      } else if (typeof window.showAlert === "function") {
-        window.showAlert(msg, "error");
-      } else {
-        alert(msg);
-      }
-      // Fallback to browser print
-      var divContents = el.innerHTML;
-      var a = window.open('');
-      a.document.write('<html>');
-      a.document.write('<title>Print Page</title>');
-      a.document.write('<body>');
-      a.document.write(divContents);
-      a.document.write('</body></html>');
-      a.print();
-      var window_width = $(window).width();
-      if (window_width > 600) {
-        a.close();
-      } else {
-        setTimeout(function() { a.close(); }, 60000);
-      }
-    })
-    .finally(function() {
-      // End loading
-      if (btn) {
-        btn.classList.remove('disabled');
-        btn.innerHTML = 'Cetak Label';
-      }
-    });
-  }
 </script>

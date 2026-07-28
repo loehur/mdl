@@ -8,100 +8,107 @@ class PackLabel extends Controller
       $this->operating_data();
    }
 
-   function index($cetak = [])
+   function index()
    {
       $data_operasi = ['title' => __CLASS__];
       $this->view('layout', ['data_operasi' => $data_operasi]);
-
-      $data['cetak'] = $cetak;
-      $this->view(__CLASS__ . '/content', $data);
-   }
-
-   function cetak()
-   {
-      $post = explode("_EXP_", $_POST['pelanggan']);
-      $data['pelanggan'] = $post[0];
-      $data['cabang'] = $post[1];
-      $this->index($data);
+      $this->view(__CLASS__ . '/content');
    }
 
    /**
-    * Get pelanggan by kode cabang via AJAX
+    * Resolve cabang dari kode outlet (REFXX#) atau id_cabang.
     */
-   function getPelangganByCabang()
+   private function resolveCabang($idOutlet)
    {
-      header('Content-Type: application/json');
-      
-      // Pastikan ini adalah request POST
-      if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-         echo json_encode(['success' => false, 'message' => 'Invalid request method']);
-         return;
+      $idOutlet = trim((string) $idOutlet);
+      if ($idOutlet === '') {
+         return null;
       }
-      
-      $kode_cabang = $_POST['kode_cabang'] ?? '';
-      
-      if (empty($kode_cabang)) {
-         echo json_encode(['success' => false, 'message' => 'Kode cabang tidak ditemukan']);
-         return;
-      }
-
-      // Pastikan listCabang tersedia
-      if (empty($this->listCabang)) {
-         echo json_encode(['success' => false, 'message' => 'Data cabang tidak tersedia']);
-         return;
-      }
-
-      // Cari cabang berdasarkan kode_cabang atau id_cabang
-      $cabang = null;
       foreach ($this->listCabang as $c) {
-         // Coba cocokkan dengan kode_cabang dulu
-         if ($c['kode_cabang'] == $kode_cabang) {
-            $cabang = $c;
-            break;
+         if ((string) ($c['kode_cabang'] ?? '') === $idOutlet) {
+            return $c;
          }
-         // Fallback: cocokkan dengan id_cabang
-         if ($c['id_cabang'] == $kode_cabang) {
-            $cabang = $c;
-            break;
+         if ((string) ($c['id_cabang'] ?? '') === $idOutlet) {
+            return $c;
          }
       }
+      return null;
+   }
 
-      if (!$cabang) {
-         // Debug: tampilkan kode cabang yang tersedia
-         $available = array_map(function($c) { return $c['kode_cabang'] . '(id:' . $c['id_cabang'] . ')'; }, $this->listCabang);
-         echo json_encode(['success' => false, 'message' => 'Cabang tidak ditemukan: ' . $kode_cabang . '. Available: ' . implode(', ', $available)]);
+   /**
+    * Cari sale by ID Outlet + ID Item (3 digit terakhir), seperti Operan.
+    * Menampilkan preview nota/label yang akan dicetak.
+    */
+   function load($idItem = '', $idOutlet = '')
+   {
+      $idItem = trim((string) $idItem);
+      $idOutlet = trim((string) $idOutlet);
+
+      if ($idItem === '' || $idOutlet === '') {
+         echo 'Lengkapi ID Outlet dan ID Item';
          return;
       }
 
-      // Get pelanggan berdasarkan id_cabang
-      $pelanggan = $this->db(0)->get_where('pelanggan', 'id_cabang = ' . $cabang['id_cabang']);
+      if (strlen($idItem) < 3) {
+         echo 'Minimal 3 digit ID Item';
+         return;
+      }
 
-      $pelangganWithPendingSales = [];
-      $currentYear = (int) date('Y');
-      
-      
-         $pendingSales = $this->db(0)->get_where(
-            'sale', 
-            'tuntas = 0 AND id_cabang = ' . $cabang['id_cabang']
-         );
-         
-         foreach ($pendingSales as $sale) {
-            if (isset($sale['id_pelanggan'])) {
-               $pelangganWithPendingSales[$sale['id_pelanggan']] = true;
+      $cabang = $this->resolveCabang($idOutlet);
+      if (!$cabang) {
+         echo 'Outlet tidak ditemukan: ' . $idOutlet;
+         return;
+      }
+
+      $idCabang = (int) $cabang['id_cabang'];
+      $kodeCabang = (string) ($cabang['kode_cabang'] ?? $idOutlet);
+
+      // Escape for LIKE
+      $idItemEsc = $this->db(0)->escape($idItem);
+      $where = "id_penjualan LIKE '%" . $idItemEsc . "' AND tuntas = 0 AND bin = 0 AND id_cabang = " . $idCabang;
+      $data_main = $this->db(0)->get_where('sale', $where);
+
+      if (empty($data_main)) {
+         echo 'Data tidak ditemukan';
+         return;
+      }
+
+      // Ambil pelanggan unik dari sale yang cocok
+      $pelangganMap = [];
+      foreach ($data_main as $sale) {
+         $idPel = (int) ($sale['id_pelanggan'] ?? 0);
+         if ($idPel <= 0 || isset($pelangganMap[$idPel])) {
+            continue;
+         }
+         $nama = '';
+         foreach ($this->pelangganLaundry as $p) {
+            if ((int) $p['id_pelanggan'] === $idPel) {
+               $nama = (string) $p['nama_pelanggan'];
+               break;
             }
          }
-      
-      $result = [];
-      foreach ($pelanggan as $p) {
-         // Hanya tampilkan pelanggan yang memiliki sale tidak tuntas
-         if (isset($pelangganWithPendingSales[$p['id_pelanggan']])) {
-            $result[] = [
-               'value' => strtoupper($p['nama_pelanggan']) . '_EXP_' . $kode_cabang,
-               'text' => strtoupper($p['nama_pelanggan'])
-            ];
+         if ($nama === '') {
+            $row = $this->db(0)->get_where_row('pelanggan', 'id_pelanggan = ' . $idPel);
+            $nama = $row['nama_pelanggan'] ?? ('#' . $idPel);
          }
+         $pelangganMap[$idPel] = [
+            'id_pelanggan' => $idPel,
+            'nama_pelanggan' => strtoupper($nama),
+         ];
       }
 
-      echo json_encode(['success' => true, 'data' => $result]);
+      if (empty($pelangganMap)) {
+         echo 'Pelanggan tidak ditemukan pada order ini';
+         return;
+      }
+
+      $this->view(__CLASS__ . '/result', [
+         'data_main' => $data_main,
+         'pelanggan_list' => array_values($pelangganMap),
+         'cabang' => $cabang,
+         'kode_cabang' => $kodeCabang,
+         'id_item' => $idItem,
+         'id_outlet' => $idOutlet,
+      ]);
    }
 }
