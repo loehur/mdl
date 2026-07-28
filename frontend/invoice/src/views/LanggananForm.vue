@@ -4,7 +4,7 @@
 
     <template v-else>
       <section class="glass-strong p-3.5">
-        <h2 class="section-title mb-2.5">Data Langganan</h2>
+        <h2 class="section-title mb-2.5">{{ isEdit ? "Edit Langganan" : "Data Langganan" }}</h2>
 
         <form class="space-y-2.5" @submit.prevent="onSubmit">
           <div>
@@ -190,7 +190,7 @@
         </div>
 
         <button class="btn-primary mt-3 w-full" :disabled="saving" @click="onSubmit">
-          {{ saving ? "Menyimpan..." : "Simpan Perubahan" }}
+          {{ saving ? "Menyimpan..." : isEdit ? "Simpan Perubahan" : "Simpan Langganan" }}
         </button>
 
         <button class="btn-ghost mt-3 w-full" type="button" @click="router.push('/langganan')">
@@ -227,6 +227,8 @@ const editId = computed(() => {
   const id = Number(route.params.id);
   return Number.isFinite(id) && id > 0 ? id : null;
 });
+
+const isEdit = computed(() => editId.value !== null);
 
 const form = ref({
   customer_id: "",
@@ -337,8 +339,6 @@ async function loadCustomers() {
 
 async function loadDetail() {
   if (!editId.value) {
-    message.value = "ID langganan tidak valid";
-    isError.value = true;
     loading.value = false;
     return;
   }
@@ -424,7 +424,6 @@ async function onSubmit() {
 
   try {
     const payload = {
-      id: editId.value,
       customer_id: Number(form.value.customer_id),
       title: form.value.title.trim(),
       period: form.value.period || "monthly",
@@ -445,7 +444,15 @@ async function onSubmit() {
       })),
     };
 
-    const res = await fetch("/api/Invoice/RecurringBills/update", {
+    const url = isEdit.value
+      ? "/api/Invoice/RecurringBills/update"
+      : "/api/Invoice/RecurringBills/create";
+
+    if (isEdit.value) {
+      payload.id = editId.value;
+    }
+
+    const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -453,7 +460,9 @@ async function onSubmit() {
     const data = await res.json();
 
     if (!res.ok || !data.status) {
-      message.value = data.message || "Gagal memperbarui langganan";
+      message.value =
+        data.message ||
+        (isEdit.value ? "Gagal memperbarui langganan" : "Gagal menambah langganan");
       isError.value = true;
       return;
     }
@@ -469,6 +478,10 @@ async function onSubmit() {
 
 onMounted(async () => {
   await loadCustomers();
-  await loadDetail();
+  if (isEdit.value) {
+    await loadDetail();
+  } else {
+    loading.value = false;
+  }
 });
 </script>

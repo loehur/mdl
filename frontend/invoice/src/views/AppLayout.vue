@@ -104,6 +104,7 @@ const titles = {
   "/pelanggan": "Pelanggan",
   "/pelanggan/buat": "Tambah Pelanggan",
   "/langganan": "Langganan",
+  "/langganan/buat": "Tambah Langganan",
   "/riwayat": "Riwayat",
 };
 

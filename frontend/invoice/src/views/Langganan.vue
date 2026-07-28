@@ -7,6 +7,9 @@
         type="search"
         placeholder="Cari judul / pelanggan / ID"
       />
+      <router-link to="/langganan/buat" class="btn-primary shrink-0 px-4 py-2 text-sm">
+        + Tambah
+      </router-link>
     </div>
 
     <div class="flex gap-2">
@@ -31,7 +34,7 @@
     <EmptyState
       v-else-if="!bills.length"
       title="Belum ada langganan"
-      subtitle="Aktifkan tagihan berulang saat membuat invoice."
+      subtitle="Tambahkan langganan baru, atau aktifkan tagihan berulang saat membuat invoice."
     />
 
     <EmptyState

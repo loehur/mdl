@@ -77,6 +77,7 @@ const router = createRouter({
         { path: "pelanggan/buat", component: CustomerForm },
         { path: "pelanggan/edit/:id", component: CustomerForm },
         { path: "langganan", component: Langganan },
+        { path: "langganan/buat", component: LanggananForm },
         { path: "langganan/edit/:id", component: LanggananForm },
       ],
     },

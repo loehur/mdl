@@ -49,6 +49,49 @@ class RecurringBills extends InvoiceController
         }
     }
 
+    public function create()
+    {
+        $this->verifyAuth();
+
+        if (!$this->isPost()) {
+            $this->error('Method not allowed', 405);
+        }
+
+        $userId = (int) $this->currentUser()['id'];
+
+        try {
+            $body = $this->getBody();
+            $parsed = $this->parseRecurringBody($body, $userId);
+            $now = date('Y-m-d H:i:s');
+
+            $id = (int) $this->db($this->db_index)->insert('recurring_bills', [
+                'user_id' => $userId,
+                'customer_id' => $parsed['customer_id'],
+                'subscription_id' => $parsed['subscription_id'],
+                'title' => $parsed['title'],
+                'tax_percent' => $parsed['tax_percent'],
+                'notes' => $parsed['notes'],
+                'items_json' => json_encode($parsed['items'], JSON_UNESCAPED_UNICODE),
+                'period' => $parsed['period'],
+                'next_issue_date' => $parsed['next_issue_date'],
+                'due_days' => $parsed['due_days'],
+                'source_invoice_id' => null,
+                'is_active' => $parsed['is_active'],
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+
+            if ($id <= 0) {
+                $this->error('Gagal menyimpan langganan', 500);
+            }
+
+            $row = $this->findRecurringBill($id, $userId);
+            $this->success($this->formatRecurringBill($row, true), 'Langganan berhasil ditambahkan');
+        } catch (\Throwable $e) {
+            $this->error('Gagal menambah langganan: ' . $e->getMessage(), 500);
+        }
+    }
+
     public function update()
     {
         $this->verifyAuth();
