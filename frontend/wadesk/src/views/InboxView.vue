@@ -122,11 +122,11 @@
               :class="m.direction === 'out' ? 'justify-end' : 'justify-start'"
             >
               <div
-                class="max-w-[80%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap"
+                class="max-w-[80%] rounded-2xl px-3 py-2 text-sm"
                 :class="m.direction === 'out' ? 'bg-accent text-white rounded-br-md' : 'bg-ink-800 text-slate-100 rounded-bl-md'"
               >
                 <p v-if="m.type === 'template'" class="text-[10px] opacity-70 mb-1">template: {{ m.template_name }}</p>
-                {{ m.body }}
+                <div class="whitespace-pre-wrap">{{ m.body }}</div>
                 <div
                   class="mt-1 flex items-center justify-end gap-1 text-[10px]"
                   :class="m.direction === 'out' ? 'opacity-80' : 'opacity-60'"
