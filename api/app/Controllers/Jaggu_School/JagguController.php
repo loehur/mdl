@@ -11,8 +11,11 @@ abstract class JagguController extends BaseController
     protected $token_cookie = 'jaggu_token';
     protected $token_lifetime = 604800;
 
-    /** Jam mulai tampil mapel besok di dashboard/monitor (Asia/Jakarta). */
-    protected const TOMORROW_REVEAL_HOUR = 15;
+    /**
+     * Jam pergantian list (Asia/Jakarta).
+     * Sebelum jam ini: hari ini. Mulai jam ini: besok (saling menggantikan).
+     */
+    protected const SWITCH_HOUR = 8;
 
     public function __construct()
     {
@@ -199,11 +202,17 @@ abstract class JagguController extends BaseController
         return (int) date('N', strtotime($ymd . ' 12:00:00'));
     }
 
-    protected function showTomorrow(): bool
+    /** List/info hari ini: sebelum jam 08:00. */
+    protected function showToday(): bool
     {
-        return (int) date('G') >= self::TOMORROW_REVEAL_HOUR;
+        return (int) date('G') < self::SWITCH_HOUR;
     }
 
+    /** List besok: mulai jam 08:00 (bergantian dengan hari ini). */
+    protected function showTomorrow(): bool
+    {
+        return (int) date('G') >= self::SWITCH_HOUR;
+    }
     protected function nextSchoolDate(string $fromYmd): ?string
     {
         $ts = strtotime($fromYmd . ' 12:00:00');

@@ -25,16 +25,17 @@
 
       <DayCard
         v-if="tomorrow"
-        title="Besok — siapkan dari sore"
+        title="Besok — siapkan"
         :day="tomorrow"
         :busy-id="busyId"
         @toggle="onToggle"
       />
-      <p v-else class="text-xs text-slate-500 text-center">
-        Mapel besok muncul mulai jam {{ revealHour }}:00
+      <p v-else-if="!today" class="text-xs text-slate-500 text-center">
+        Persiapan besok aktif sejak jam {{ revealHour }}.00
       </p>
 
       <DayCard
+        v-if="today"
         title="Hari ini"
         :day="today"
         :busy-id="busyId"
@@ -73,7 +74,7 @@ const error = ref("");
 const today = ref(null);
 const tomorrow = ref(null);
 const notices = ref([]);
-const revealHour = ref(15);
+const revealHour = ref(8);
 const busyId = ref(null);
 const toast = ref(null);
 let toastTimer = null;
@@ -97,7 +98,7 @@ async function load(silent = false) {
     today.value = d.today;
     tomorrow.value = d.tomorrow;
     notices.value = d.notices || [];
-    revealHour.value = d.tomorrow_reveal_hour || 15;
+    revealHour.value = d.switch_hour || d.tomorrow_reveal_hour || 8;
   } catch (e) {
     if (!silent) error.value = e.message || "Gagal memuat";
   } finally {

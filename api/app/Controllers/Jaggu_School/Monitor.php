@@ -5,6 +5,10 @@ namespace App\Controllers\Jaggu_School;
 /**
  * Pantauan orang tua.
  * GET /Jaggu_School/Monitor/index
+ *
+ * Window tampilan (bergantian jam 08:00):
+ * - Sebelum 08:00: hari ini
+ * - Mulai 08:00: besok
  */
 class Monitor extends JagguController
 {
@@ -20,21 +24,28 @@ class Monitor extends JagguController
 
             $childId = (int) $child['id'];
             $today = date('Y-m-d');
+            $showToday = $this->showToday();
             $showTomorrow = $this->showTomorrow();
 
             $payload = [
                 'now' => date('Y-m-d H:i:s'),
+                'show_today' => $showToday,
                 'show_tomorrow' => $showTomorrow,
-                'tomorrow_reveal_hour' => self::TOMORROW_REVEAL_HOUR,
+                'switch_hour' => self::SWITCH_HOUR,
+                'tomorrow_reveal_hour' => self::SWITCH_HOUR,
                 'child' => [
                     'id' => $childId,
                     'name' => $child['name'],
                     'email' => $child['email'],
                 ],
-                'today' => $this->enrichDay($today, $childId, false),
+                'today' => null,
                 'tomorrow' => null,
                 'summary' => [],
             ];
+
+            if ($showToday) {
+                $payload['today'] = $this->enrichDay($today, $childId, false);
+            }
 
             $tomorrowDate = $this->nextSchoolDate($today);
             if ($tomorrowDate && $showTomorrow) {
@@ -42,21 +53,29 @@ class Monitor extends JagguController
             }
 
             $summary = [];
-            $td = $payload['today'];
-            if ($td['total'] === 0) {
+
+            if ($showToday && $payload['today']) {
+                $td = $payload['today'];
+                if ($td['total'] === 0) {
+                    $summary[] = [
+                        'type' => 'info',
+                        'text' => 'Tidak ada mapel hari ini.',
+                    ];
+                } elseif ($td['complete']) {
+                    $summary[] = [
+                        'type' => 'ok',
+                        'text' => 'Mapel hari ini telah Jaggu persiapkan.',
+                    ];
+                } else {
+                    $summary[] = [
+                        'type' => 'warn',
+                        'text' => "Jaggu belum selesai: {$td['pending']}/{$td['total']} mapel hari ini.",
+                    ];
+                }
+
                 $summary[] = [
                     'type' => 'info',
-                    'text' => 'Tidak ada mapel hari ini.',
-                ];
-            } elseif ($td['complete']) {
-                $summary[] = [
-                    'type' => 'ok',
-                    'text' => $child['name'] . ' sudah menyelesaikan semua mapel hari ini.',
-                ];
-            } else {
-                $summary[] = [
-                    'type' => 'warn',
-                    'text' => $child['name'] . " belum selesai: {$td['pending']}/{$td['total']} mapel hari ini.",
+                    'text' => 'Persiapan besok menggantikan list ini jam ' . self::SWITCH_HOUR . '.00.',
                 ];
             }
 
@@ -65,19 +84,14 @@ class Monitor extends JagguController
                 if ($tm['total'] > 0 && !$tm['complete']) {
                     $summary[] = [
                         'type' => 'prep',
-                        'text' => "Persiapan {$tm['day_name']}: {$tm['done']}/{$tm['total']} sudah diceklist.",
+                        'text' => "Persiapan Besok ({$tm['day_name']}): {$tm['done']}/{$tm['total']} sudah diceklist.",
                     ];
                 } elseif ($tm['total'] > 0) {
                     $summary[] = [
                         'type' => 'ok',
-                        'text' => "Persiapan {$tm['day_name']} sudah lengkap.",
+                        'text' => "Persiapan Besok ({$tm['day_name']}) telah Jaggu persiapkan.",
                     ];
                 }
-            } elseif (!$showTomorrow) {
-                $summary[] = [
-                    'type' => 'info',
-                    'text' => 'Pantauan mapel besok muncul mulai jam ' . self::TOMORROW_REVEAL_HOUR . ':00.',
-                ];
             }
 
             $payload['summary'] = $summary;

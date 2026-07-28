@@ -5,7 +5,7 @@
       <h2 class="font-display text-2xl font-bold text-jaggu-crimson mt-1">
         Progress {{ childName }}
       </h2>
-      <p class="text-sm text-slate-500 mt-1">Mapel besok muncul di pantauan mulai sore (jam {{ revealHour }}:00).</p>
+      <p class="text-sm text-slate-500 mt-1">Bergantian jam 8.00: hari ini diganti persiapan besok</p>
     </section>
 
     <div v-if="loading" class="text-sm text-slate-500">Memuat...</div>
@@ -30,11 +30,11 @@
         :day="tomorrow"
         :interactive="false"
       />
-      <p v-else class="text-xs text-slate-500 text-center">
-        Pantauan mapel besok aktif mulai jam {{ revealHour }}:00
+      <p v-else-if="!today" class="text-xs text-slate-500 text-center">
+        Persiapan besok aktif sejak jam {{ revealHour }}.00
       </p>
 
-      <DayCard title="Hari ini" :day="today" :interactive="false" />
+      <DayCard v-if="today" title="Hari ini" :day="today" :interactive="false" />
 
       <button
         type="button"
@@ -57,7 +57,7 @@ const today = ref(null);
 const tomorrow = ref(null);
 const summary = ref([]);
 const child = ref(null);
-const revealHour = ref(15);
+const revealHour = ref(8);
 const childName = computed(() => child.value?.name || "anak");
 
 onMounted(load);
@@ -74,7 +74,7 @@ async function load() {
     tomorrow.value = d.tomorrow;
     summary.value = d.summary || [];
     child.value = d.child;
-    revealHour.value = d.tomorrow_reveal_hour || 15;
+    revealHour.value = d.switch_hour || d.tomorrow_reveal_hour || 8;
   } catch (e) {
     error.value = e.message || "Gagal memuat";
   } finally {

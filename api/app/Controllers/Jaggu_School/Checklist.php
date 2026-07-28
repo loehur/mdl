@@ -6,6 +6,10 @@ namespace App\Controllers\Jaggu_School;
  * Ceklist mapel (anak).
  * GET  /Jaggu_School/Checklist/today
  * POST /Jaggu_School/Checklist/toggle  { schedule_item_id, for_date, checked: bool }
+ *
+ * Window tampilan (bergantian jam 08:00):
+ * - Sebelum 08:00: hari ini
+ * - Mulai 08:00: besok
  */
 class Checklist extends JagguController
 {
@@ -16,36 +20,53 @@ class Checklist extends JagguController
 
         try {
             $today = date('Y-m-d');
+            $showToday = $this->showToday();
+            $showTomorrow = $this->showTomorrow();
+
             $payload = [
                 'now' => date('Y-m-d H:i:s'),
-                'show_tomorrow' => $this->showTomorrow(),
-                'tomorrow_reveal_hour' => self::TOMORROW_REVEAL_HOUR,
-                'today' => $this->enrichDay($today, $childId, true),
+                'show_today' => $showToday,
+                'show_tomorrow' => $showTomorrow,
+                'switch_hour' => self::SWITCH_HOUR,
+                'tomorrow_reveal_hour' => self::SWITCH_HOUR,
+                'today' => null,
                 'tomorrow' => null,
                 'notices' => [],
             ];
 
+            if ($showToday) {
+                $payload['today'] = $this->enrichDay($today, $childId, true);
+            }
+
             $tomorrowDate = $this->nextSchoolDate($today);
-            if ($tomorrowDate && $this->showTomorrow()) {
+            if ($tomorrowDate && $showTomorrow) {
                 $payload['tomorrow'] = $this->enrichDay($tomorrowDate, $childId, true);
             }
 
             $notices = [];
-            $todayDay = $payload['today'];
-            if ($todayDay['total'] === 0) {
+
+            if ($showToday && $payload['today']) {
+                $todayDay = $payload['today'];
+                if ($todayDay['total'] === 0) {
+                    $notices[] = [
+                        'type' => 'info',
+                        'text' => 'Hari ini tidak ada mapel di jadwal (libur atau belum diisi orang tua).',
+                    ];
+                } elseif ($todayDay['pending'] > 0) {
+                    $notices[] = [
+                        'type' => 'warn',
+                        'text' => "Masih ada {$todayDay['pending']} mapel hari ini yang belum diceklist.",
+                    ];
+                } else {
+                    $notices[] = [
+                        'type' => 'ok',
+                        'text' => 'Semua mapel hari ini sudah diceklist. Hebat!',
+                    ];
+                }
+
                 $notices[] = [
                     'type' => 'info',
-                    'text' => 'Hari ini tidak ada mapel di jadwal (libur atau belum diisi orang tua).',
-                ];
-            } elseif ($todayDay['pending'] > 0) {
-                $notices[] = [
-                    'type' => 'warn',
-                    'text' => "Masih ada {$todayDay['pending']} mapel hari ini yang belum diceklist.",
-                ];
-            } else {
-                $notices[] = [
-                    'type' => 'ok',
-                    'text' => 'Semua mapel hari ini sudah diceklist. Hebat!',
+                    'text' => 'Persiapan besok menggantikan list ini jam ' . self::SWITCH_HOUR . '.00.',
                 ];
             }
 
@@ -62,11 +83,6 @@ class Checklist extends JagguController
                         'text' => "Mapel {$tm['day_name']} sudah siap semua.",
                     ];
                 }
-            } elseif (!$this->showTomorrow()) {
-                $notices[] = [
-                    'type' => 'info',
-                    'text' => 'Mapel besok muncul mulai jam ' . self::TOMORROW_REVEAL_HOUR . ':00.',
-                ];
             }
 
             $payload['notices'] = $notices;
@@ -103,10 +119,14 @@ class Checklist extends JagguController
                 $this->error('Tanggal ini hari libur (Minggu)', 400);
             }
 
-            // Besok hanya boleh diceklist setelah jam reveal (opsional ketat)
             $today = date('Y-m-d');
+
+            if ($forDate === $today && !$this->showToday()) {
+                $this->error('List hari ini sudah diganti sejak jam ' . self::SWITCH_HOUR . '.00', 400);
+            }
+
             if ($forDate > $today && !$this->showTomorrow()) {
-                $this->error('Mapel besok baru bisa diceklist mulai jam ' . self::TOMORROW_REVEAL_HOUR . ':00', 400);
+                $this->error('Mapel besok baru bisa diceklist mulai jam ' . self::SWITCH_HOUR . '.00', 400);
             }
 
             $item = $this->db($this->db_index)->query(
