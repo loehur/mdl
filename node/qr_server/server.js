@@ -1,6 +1,7 @@
 const WebSocket = require('ws');
 const express = require('express');
 const http = require('http');
+const https = require('https');
 
 
 const app = express();
@@ -43,23 +44,55 @@ app.use((req, res, next) => {
 });
 
 // ============================================
-// Configuration
+// Configuration — allowed kasir = id_cabang from DB (via API)
 // ============================================
+// CRM/Roles.crew is sourced from mdl_laundry.cabang.id_cabang
+const API_URL = process.env.API_URL || 'https://api.nalju.com/CRM/Roles';
+let ALLOWED_KASIR_IDS = [];
 
-// List of allowed kasir IDs that can connect to the server
-const ALLOWED_KASIR_IDS = [
-    '3',
-    '4',
-    '5',
-    '6',
-    '10',
-    '11',
-    '12',
-    '13',
-    '14',
-    '15',
-    // Add more kasir IDs as needed
-];
+function fetchAllowedKasirIds() {
+    return new Promise((resolve) => {
+        console.log(`Fetching cabang IDs from ${API_URL}...`);
+        const client = API_URL.startsWith('https') ? https : http;
+
+        const req = client.get(API_URL, { timeout: 10000 }, (res) => {
+            let data = '';
+            res.on('data', (chunk) => { data += chunk; });
+            res.on('end', () => {
+                try {
+                    const json = JSON.parse(data);
+                    const crew = (json.data && json.data.crew) ? json.data.crew : [];
+                    if (Array.isArray(crew) && crew.length > 0) {
+                        ALLOWED_KASIR_IDS = crew.map((id) => String(id).trim()).filter(Boolean);
+                        console.log(`✅ Allowed kasir (id_cabang): ${ALLOWED_KASIR_IDS.join(', ')}`);
+                    } else {
+                        console.error('❌ API returned empty crew/cabang list — keeping previous list');
+                    }
+                } catch (e) {
+                    console.error('❌ Error parsing cabang API response:', e.message);
+                }
+                resolve();
+            });
+        });
+
+        req.on('error', (err) => {
+            console.error('❌ Failed to fetch cabang IDs:', err.message);
+            resolve();
+        });
+
+        req.on('timeout', () => {
+            req.destroy();
+            console.error('❌ Cabang API timeout');
+            resolve();
+        });
+    });
+}
+
+function isKasirAllowed(kasirId) {
+    const id = String(kasirId || '').trim();
+    if (!id) return false;
+    return ALLOWED_KASIR_IDS.some((allowed) => String(allowed) === id);
+}
 
 // ============================================
 
@@ -125,9 +158,9 @@ function broadcast(kasirId, message) {
 
 // WebSocket connection handler
 wss.on('connection', (ws, req) => {
-    // Extract kasir_id from query parameter
+    // Extract kasir_id from query parameter (= id_cabang)
     const urlParams = new URLSearchParams(req.url.split('?')[1]);
-    const kasirId = urlParams.get('kasir_id');
+    const kasirId = String(urlParams.get('kasir_id') || '').trim();
 
     // Validate kasir_id is provided
     if (!kasirId) {
@@ -136,9 +169,9 @@ wss.on('connection', (ws, req) => {
         return;
     }
 
-    // Validate kasir_id is in allowed list
-    if (!ALLOWED_KASIR_IDS.includes(kasirId)) {
-        console.log(`Connection rejected: kasir_id "${kasirId}" is not allowed`);
+    // Validate kasir_id exists in cabang (synced from API)
+    if (!isKasirAllowed(kasirId)) {
+        console.log(`Connection rejected: kasir_id "${kasirId}" is not an allowed id_cabang`);
         ws.close(4003, 'kasir_id is not allowed');
         return;
     }
@@ -377,23 +410,31 @@ app.get('/health', (req, res) => {
 const PORT = process.env.PORT || 3001;
 const HOST = process.env.HOST || '0.0.0.0'; // Bind to all interfaces for VPS access
 
-server.listen(PORT, HOST, () => {
-    console.log('========================================');
-    console.log(`  QR WebSocket Server`);
-    console.log('========================================');
-    console.log(`  HTTP API : http://localhost:${PORT}`);
-    console.log(`  WebSocket: ws://localhost:${PORT}`);
-    console.log(`  Max sockets / kasir: ${MAX_CONNECTIONS_PER_KASIR}`);
-    console.log('========================================');
-    console.log('');
-    console.log('Endpoints:');
-    console.log('  POST /send-qr         - Send QR to kasir');
-    console.log('  POST /payment-success - Send payment success to kasir');
-    console.log('  GET  /clients         - List connected kasir');
-    console.log('  GET  /client/:id      - Check kasir connection');
-    console.log('  GET  /health          - Health check');
-    console.log('');
-    console.log('WebSocket connection:');
-    console.log(`  ws://localhost:${PORT}?kasir_id=YOUR_KASIR_ID`);
-    console.log('========================================');
+fetchAllowedKasirIds().then(() => {
+    server.listen(PORT, HOST, () => {
+        console.log('========================================');
+        console.log(`  QR WebSocket Server`);
+        console.log('========================================');
+        console.log(`  HTTP API : http://localhost:${PORT}`);
+        console.log(`  WebSocket: ws://localhost:${PORT}`);
+        console.log(`  Max sockets / kasir: ${MAX_CONNECTIONS_PER_KASIR}`);
+        console.log(`  Allowed id_cabang: ${ALLOWED_KASIR_IDS.length} (from DB via API)`);
+        console.log('========================================');
+        console.log('');
+        console.log('Endpoints:');
+        console.log('  POST /send-qr         - Send QR to kasir');
+        console.log('  POST /payment-success - Send payment success to kasir');
+        console.log('  GET  /clients         - List connected kasir');
+        console.log('  GET  /client/:id      - Check kasir connection');
+        console.log('  GET  /health          - Health check');
+        console.log('');
+        console.log('WebSocket connection:');
+        console.log(`  ws://localhost:${PORT}?kasir_id=ID_CABANG`);
+        console.log('========================================');
+    });
 });
+
+// Refresh cabang list every 5 minutes
+setInterval(() => {
+    fetchAllowedKasirIds();
+}, 5 * 60 * 1000);

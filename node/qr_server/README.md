@@ -10,22 +10,15 @@ npm install
 
 ## Konfigurasi
 
-### Allowed Kasir IDs
-Edit file `server.js` untuk mengatur daftar kasir yang diizinkan terhubung:
+### Allowed Kasir IDs (`id_cabang`)
+Tidak perlu list manual. Server mengambil `id_cabang` dari `mdl_laundry.cabang`
+lewat API `CRM/Roles` (field `data.crew`), di-refresh tiap 5 menit.
 
-```javascript
-const ALLOWED_KASIR_IDS = [
-    '3',
-    '4',
-    '5',
-    '6',
-    '7',
-    '8',
-    '9',
-    '10',
-    // Tambahkan kasir ID lainnya sesuai kebutuhan
-];
 ```
+API_URL=https://api.nalju.com/CRM/Roles
+```
+
+Login di `qr_client` cukup isi **ID CABANG** yang ada di tabel `cabang`.
 
 ### Connection PIN (Terenkripsi)
 PIN koneksi disimpan dalam bentuk **SHA256 hash** untuk keamanan. Edit file `server.js`:
