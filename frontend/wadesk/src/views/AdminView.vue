@@ -301,29 +301,89 @@
         </div>
 
         <ul class="divide-y divide-white/5">
-          <li v-for="t in templates" :key="t.id" class="py-3 flex items-start gap-3">
-            <div class="flex-1 min-w-0">
-              <p class="font-medium">
-                {{ t.template_name }}
-                <span class="text-xs text-slate-500">{{ t.language }}</span>
-              </p>
-              <p class="text-xs text-slate-500 mt-0.5">
-                {{ t.key_label }} ·
-                {{ (t.params || []).map((p) => `${p.component}:${p.param_name || p.param_index}`).join(", ") || "0 param" }}
-              </p>
-              <p v-if="t.body_preview" class="mt-1 text-[11px] text-slate-400 whitespace-pre-wrap line-clamp-3">
-                {{ t.body_preview }}
-              </p>
+          <li v-for="t in templates" :key="t.id" class="py-3">
+            <!-- Header row -->
+            <div class="flex items-start gap-3">
+              <div class="flex-1 min-w-0">
+                <p class="font-medium">
+                  {{ t.template_name }}
+                  <span class="text-xs text-slate-500 ml-1">{{ t.language }}</span>
+                  <span class="text-xs text-slate-500 ml-1">· {{ t.key_label }}</span>
+                </p>
+                <p class="text-xs text-slate-500 mt-0.5">
+                  {{ (t.params || []).length }} param ·
+                  <span
+                    v-for="comp in ['header','body','button']"
+                    :key="comp"
+                    class="mr-2"
+                  >
+                    <span v-if="(t.params||[]).some(p=>p.component===comp)">
+                      <span class="font-medium capitalize">{{ comp }}</span>:
+                      {{ (t.params||[]).filter(p=>p.component===comp).map(p=>p.param_name||('#'+p.param_index)).join(', ') }}
+                    </span>
+                  </span>
+                </p>
+                <p v-if="t.body_preview" class="mt-1 text-[11px] text-slate-400 whitespace-pre-wrap line-clamp-2">
+                  {{ t.body_preview }}
+                </p>
+              </div>
+              <div class="flex gap-1 shrink-0">
+                <button
+                  type="button"
+                  class="btn-sm text-xs"
+                  @click="expandedTemplate = expandedTemplate === t.id ? null : t.id"
+                >
+                  {{ expandedTemplate === t.id ? 'Tutup' : 'Detail' }}
+                </button>
+                <button
+                  type="button"
+                  class="btn-sm text-xs"
+                  :disabled="resyncingId === t.id || !syncKeyId"
+                  @click="resyncOneTemplate(t.template_name)"
+                  title="Resync params template ini dari YCloud"
+                >
+                  {{ resyncingId === t.id ? "..." : "Resync" }}
+                </button>
+              </div>
             </div>
-            <button
-              type="button"
-              class="btn-sm shrink-0 text-xs"
-              :disabled="resyncingId === t.id || !syncKeyId"
-              @click="resyncOneTemplate(t.template_name)"
-              title="Resync params template ini dari YCloud"
-            >
-              {{ resyncingId === t.id ? "..." : "Resync" }}
-            </button>
+
+            <!-- Detail params -->
+            <div v-if="expandedTemplate === t.id" class="mt-3 rounded-lg overflow-hidden border border-white/10 text-xs">
+              <table class="w-full">
+                <thead>
+                  <tr class="bg-white/5 text-left text-slate-400">
+                    <th class="px-3 py-2">Component</th>
+                    <th class="px-3 py-2">Index</th>
+                    <th class="px-3 py-2">Param Name</th>
+                    <th class="px-3 py-2">Label</th>
+                    <th class="px-3 py-2">Example</th>
+                    <th class="px-3 py-2">Button SubType</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-white/5">
+                  <tr v-if="!(t.params||[]).length">
+                    <td colspan="6" class="px-3 py-3 text-center text-slate-500">Tidak ada params — klik Resync</td>
+                  </tr>
+                  <tr v-for="p in (t.params||[])" :key="p.component+'-'+p.param_index" class="hover:bg-white/5">
+                    <td class="px-3 py-2">
+                      <span
+                        class="px-1.5 py-0.5 rounded text-[10px] font-medium"
+                        :class="{
+                          'bg-blue-500/20 text-blue-400': p.component==='header',
+                          'bg-green-500/20 text-green-400': p.component==='body',
+                          'bg-purple-500/20 text-purple-400': p.component==='button',
+                        }"
+                      >{{ p.component }}</span>
+                    </td>
+                    <td class="px-3 py-2 text-slate-400">{{ p.param_index }}</td>
+                    <td class="px-3 py-2 font-mono text-accent">{{ p.param_name || '-' }}</td>
+                    <td class="px-3 py-2 text-slate-300">{{ p.label }}</td>
+                    <td class="px-3 py-2 text-slate-500 italic">{{ p.example_value || '-' }}</td>
+                    <td class="px-3 py-2 text-slate-500">{{ p.button_sub_type || '-' }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </li>
         </ul>
         <p v-if="!templates.length" class="text-sm text-slate-500 text-center py-2">
@@ -481,6 +541,7 @@ const savingKey = ref(false);
 const syncKeyId = ref("");
 const syncing = ref(false);
 const resyncingId = ref(null);
+const expandedTemplate = ref(null);
 const quotaForm = reactive({ team_id: "", amount: 100, note: "" });
 
 const teamLeaders = computed(() =>
