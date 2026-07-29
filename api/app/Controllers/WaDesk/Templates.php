@@ -143,6 +143,57 @@ class Templates extends WaDeskController
      * Debug: GET /WaDesk/Templates/debugTemplate?ycloud_key_id=X&template_name=Y
      * Returns raw YCloud template data + mapped params (admin only, remove after use)
      */
+    /**
+     * POST { ycloud_key_id, template_name } — resync single template params from YCloud
+     */
+    public function resyncOne()
+    {
+        $this->verifyAuth();
+        $admin = $this->requireAdmin();
+        if (!$this->isPost()) $this->error('Method not allowed', 405);
+
+        $body = $this->getBody();
+        $keyId = (int) ($body['ycloud_key_id'] ?? 0);
+        $tplName = trim((string) ($body['template_name'] ?? ''));
+        if ($keyId <= 0 || $tplName === '') $this->error('ycloud_key_id dan template_name wajib', 400);
+
+        $key = $this->db($this->db_index)->query(
+            "SELECT * FROM ycloud_keys WHERE id = ? AND tenant_id = ? LIMIT 1",
+            [$keyId, (int) $admin['tenant_id']]
+        )->row_array();
+        if (!$key) $this->error('Key tidak ditemukan', 404);
+
+        $apiKey = WaDeskCrypto::decrypt($key['api_key_enc']);
+        $client = new WaDeskYCloud($apiKey, (string) ($key['phone_number'] ?? ''));
+        $fetched = $client->listAllTemplates(['status' => 'APPROVED']);
+
+        $found = null;
+        foreach ($fetched['templates'] ?? [] as $t) {
+            if (($t['name'] ?? '') === $tplName) { $found = $t; break; }
+        }
+        if (!$found) $this->error('Template tidak ditemukan di YCloud', 404);
+
+        $mapped = WaDeskYCloud::mapTemplateToWaDesk($found);
+
+        // Find template row in DB
+        $tplRow = $this->db($this->db_index)->query(
+            "SELECT id FROM wa_templates WHERE template_name = ? LIMIT 1", [$tplName]
+        )->row_array();
+        if (!$tplRow) $this->error('Template belum ada di DB, lakukan sync penuh dulu', 404);
+
+        $tplId = (int) $tplRow['id'];
+        $this->db($this->db_index)->update('wa_templates', [
+            'body_preview' => $mapped['body_preview'],
+        ], ['id' => $tplId]);
+        $this->replaceParams($tplId, $mapped['params']);
+
+        $this->success([
+            'template_id'   => $tplId,
+            'params_synced' => count($mapped['params']),
+            'params'        => $mapped['params'],
+        ], 'Params template berhasil di-resync');
+    }
+
     public function debugTemplate()
     {
         $this->verifyAuth();
