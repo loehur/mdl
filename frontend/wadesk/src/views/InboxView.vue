@@ -126,7 +126,7 @@
                 :class="m.direction === 'out' ? 'bg-accent text-white rounded-br-md' : 'bg-ink-800 text-slate-100 rounded-bl-md'"
               >
                 <p v-if="m.type === 'template'" class="text-[10px] opacity-70 mb-1">template: {{ m.template_name }}</p>
-                <div class="whitespace-pre-wrap">{{ m.body }}</div>
+                <div class="whitespace-pre-wrap">{{ formatMessageBody(m) }}</div>
                 <div
                   class="mt-1 flex items-center justify-end gap-1 text-[10px]"
                   :class="m.direction === 'out' ? 'opacity-80' : 'opacity-60'"
@@ -251,6 +251,58 @@ function formatTime(v) {
   } catch {
     return v;
   }
+}
+
+function escapeRegExp(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Fill {{customer}} / {{1}} in template bubbles from stored params when needed. */
+function formatMessageBody(m) {
+  const body = String(m?.body || "");
+  if (m?.type !== "template" || !Array.isArray(m.params) || !m.params.length) {
+    return body;
+  }
+
+  const textParams = m.params.filter((p) => {
+    const c = String(p?.component || "body").toLowerCase();
+    return c === "body" || c === "header";
+  });
+  if (!textParams.length) return body;
+
+  let out = body;
+  const missing = [];
+  for (const p of textParams) {
+    const token = p.param_name ? String(p.param_name) : "";
+    if (!token) continue;
+    const re = new RegExp(`\\{\\{\\s*${escapeRegExp(token)}\\s*\\}\\}`);
+    if (!re.test(out)) missing.push(`{{${token}}}`);
+  }
+  // Body stored without header placeholders and without values → show values on top
+  const hasPlaceholders = missing.length > 0 || /\{\{\s*[a-zA-Z0-9_]+\s*\}\}/.test(out);
+  if (missing.length) {
+    out = `${missing.join(" ")}${out ? `\n\n${out}` : ""}`;
+  } else if (!hasPlaceholders) {
+    // Already-sent messages: body has no {{}} and no filled header — prepend param values
+    const vals = textParams
+      .map((p) => String(p.text ?? "").trim())
+      .filter(Boolean);
+    if (vals.length && !vals.every((v) => out.includes(v))) {
+      out = `${vals.join(" ")}${out ? `\n\n${out}` : ""}`;
+      return out;
+    }
+  }
+
+  for (const p of textParams) {
+    const val = String(p.text ?? "");
+    if (p.param_name) {
+      out = out.replace(
+        new RegExp(`\\{\\{\\s*${escapeRegExp(String(p.param_name))}\\s*\\}\\}`, "g"),
+        val
+      );
+    }
+  }
+  return out;
 }
 
 function normStatus(s) {

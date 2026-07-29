@@ -382,21 +382,77 @@ class YCloud
             return '';
         }
 
-        // Named first: {{customer}}
+        // Named first: {{customer}} (allow optional spaces)
         foreach ($named as $name => $value) {
             $name = (string) $name;
             if ($name === '') {
                 continue;
             }
-            $text = str_replace('{{' . $name . '}}', (string) $value, $text);
+            $text = preg_replace(
+                '/\{\{\s*' . preg_quote($name, '/') . '\s*\}\}/',
+                (string) $value,
+                $text
+            ) ?? $text;
         }
 
         // Positional: {{1}}, {{2}}
         foreach ($indexed as $idx => $value) {
-            $text = str_replace('{{' . (int) $idx . '}}', (string) $value, $text);
+            $text = preg_replace(
+                '/\{\{\s*' . (int) $idx . '\s*\}\}/',
+                (string) $value,
+                $text
+            ) ?? $text;
         }
 
         return $text;
+    }
+
+    /**
+     * Build chat/blast preview text with values filled in.
+     * Prepends missing header/body placeholders (common when body_preview
+     * was synced without the TEXT header that holds {{customer}}).
+     *
+     * @param array<int,array>     $paramDefs
+     * @param array<string,string> $named
+     * @param array<int,string>    $indexed
+     */
+    public static function buildFilledPreview(
+        ?string $preview,
+        array $paramDefs,
+        array $named = [],
+        array $indexed = []
+    ): string {
+        $text = (string) $preview;
+        $missing = [];
+
+        foreach ($paramDefs as $def) {
+            if (!is_array($def)) {
+                continue;
+            }
+            $component = strtolower((string) ($def['component'] ?? 'body'));
+            if ($component !== 'body' && $component !== 'header') {
+                continue;
+            }
+            $token = trim((string) ($def['param_name'] ?? ''));
+            if ($token === '') {
+                $idx = (int) ($def['param_index'] ?? 0);
+                if ($idx <= 0) {
+                    continue;
+                }
+                $token = (string) $idx;
+            }
+            if (!preg_match('/\{\{\s*' . preg_quote($token, '/') . '\s*\}\}/', $text)) {
+                $missing[] = '{{' . $token . '}}';
+            }
+        }
+
+        if ($missing !== []) {
+            $synthetic = implode(' ', array_unique($missing));
+            $text = $text !== '' ? ($synthetic . "\n\n" . $text) : $synthetic;
+        }
+
+        $filled = self::renderPreview($text, $named, $indexed);
+        return $filled !== '' ? $filled : $text;
     }
 
     /**

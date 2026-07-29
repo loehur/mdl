@@ -245,7 +245,7 @@ function submit() {
     template_name: tpl?.template_name,
     language: tpl?.language || "id",
     template_params,
-    message: tpl?.body_preview || "",
+    message: livePreview.value || tpl?.body_preview || "",
   });
 }
 </script>

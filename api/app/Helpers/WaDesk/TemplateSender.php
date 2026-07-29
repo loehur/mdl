@@ -73,7 +73,7 @@ class TemplateSender
             if ($previewSource === '') {
                 $previewSource = '[template] ' . $tpl['template_name'];
             }
-            $preview = YCloud::renderPreview($previewSource, $named, $indexed);
+            $preview = YCloud::buildFilledPreview($previewSource, $paramDefs, $named, $indexed);
 
             $result = $client->sendTemplate(
                 $phone,

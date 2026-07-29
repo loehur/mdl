@@ -214,11 +214,19 @@ class Chat extends WaDeskController
                 $rawParams
             );
 
-            $previewSource = (string) ($body['message'] ?? ($tpl['body_preview'] ?? ''));
+            $previewSource = (string) ($tpl['body_preview'] ?? '');
+            if ($previewSource === '') {
+                $previewSource = (string) ($body['message'] ?? '');
+            }
             if ($previewSource === '') {
                 $previewSource = '[template] ' . $templateName;
             }
-            $preview = WaDeskYCloud::renderPreview($previewSource, $named, $indexed);
+            $preview = WaDeskYCloud::buildFilledPreview(
+                $previewSource,
+                $tplParamDefs,
+                $named,
+                $indexed
+            );
 
             $result = $client->sendTemplate($phone, $templateName, $language, $sendParams);
             if (!$result['success']) {
