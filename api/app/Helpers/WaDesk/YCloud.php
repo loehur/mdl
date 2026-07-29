@@ -473,11 +473,15 @@ class YCloud
             return [];
         }
 
-        // Associative name => value → body positional (no parameter_name in payload)
+        // Associative name => value → body named params
         if (!$this->isListArray($parameters)) {
             $grouped = ['body' => []];
             foreach ($parameters as $name => $value) {
-                $grouped['body'][] = ['type' => 'text', 'text' => (string) $value];
+                $item = ['type' => 'text', 'text' => (string) $value];
+                if (is_string($name) && $name !== '' && !ctype_digit($name)) {
+                    $item['parameter_name'] = $name;
+                }
+                $grouped['body'][] = $item;
             }
             return $this->componentsFromGrouped($grouped);
         }
@@ -526,10 +530,11 @@ class YCloud
                 continue;
             }
 
-            // Send only type+text — never include parameter_name in the YCloud payload.
-            // Meta counts params positionally regardless of how they are named in the template definition.
-            // Adding parameter_name causes "Param Count Mismatch" on positional templates.
             $item = ['type' => 'text', 'text' => $text];
+            $paramName = trim((string) ($p['param_name'] ?? $p['name'] ?? ''));
+            if ($paramName !== '' && !ctype_digit($paramName)) {
+                $item['parameter_name'] = $paramName;
+            }
             if (!isset($grouped[$component])) {
                 $grouped[$component] = [];
             }
