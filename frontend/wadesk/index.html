@@ -10,11 +10,16 @@
     <script>
       (function () {
         try {
-          var t = localStorage.getItem("wadesk-theme");
-          if (t !== "light" && t !== "dark") t = "dark";
-          document.documentElement.setAttribute("data-theme", t);
+          var mode = localStorage.getItem("wadesk-theme");
+          if (mode !== "auto" && mode !== "light" && mode !== "dark") mode = "auto";
+          var theme = mode;
+          if (mode === "auto") {
+            var h = new Date().getHours();
+            theme = h >= 6 && h < 18 ? "light" : "dark";
+          }
+          document.documentElement.setAttribute("data-theme", theme);
           var m = document.querySelector('meta[name="theme-color"]');
-          if (m) m.setAttribute("content", t === "light" ? "#f1f5f9" : "#0b1220");
+          if (m) m.setAttribute("content", theme === "light" ? "#f1f5f9" : "#0b1220");
         } catch (e) {
           document.documentElement.setAttribute("data-theme", "dark");
         }

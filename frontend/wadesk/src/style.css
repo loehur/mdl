@@ -83,6 +83,38 @@ body {
   color: #94a3b8;
 }
 
+/*
+ * Native <select>/<option> + scoped .field/@apply text-slate-100 bake white color
+ * into a higher-specificity rule, so remap form controls explicitly for light.
+ */
+[data-theme="light"] select,
+[data-theme="light"] select.field,
+[data-theme="light"] .field,
+[data-theme="light"] input,
+[data-theme="light"] textarea,
+[data-theme="light"] .input {
+  color: #0f172a !important;
+  color-scheme: light;
+}
+[data-theme="light"] select option,
+[data-theme="light"] select optgroup {
+  color: #0f172a;
+  background-color: #ffffff;
+}
+[data-theme="light"] select:disabled,
+[data-theme="light"] .field:disabled,
+[data-theme="light"] input:disabled {
+  color: #64748b !important;
+}
+
+/* Scoped @apply text-slate-* on .btn-sm stays pale in light — bump contrast */
+[data-theme="light"] .btn-sm {
+  color: #334155 !important;
+}
+[data-theme="light"] .btn-sm-accent {
+  color: #0f766e !important;
+}
+
 /* Login gradient softens in light mode */
 [data-theme="light"] .theme-login-glow {
   background:

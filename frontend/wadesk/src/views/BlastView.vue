@@ -70,7 +70,7 @@
         <div v-if="csvParams.length > 0" class="rounded-xl bg-ink-950/60 border border-white/5 p-4 space-y-3">
           <div class="flex items-center justify-between">
             <p class="text-sm font-medium text-slate-300">Kolom CSV untuk template ini</p>
-            <button type="button" class="btn-sm" @click="downloadSample">
+            <button type="button" class="btn-sm btn-sm-accent" @click="downloadSample">
               ↓ Download sample CSV
             </button>
           </div>
@@ -740,6 +740,9 @@ function formatDate(dt) {
 }
 .btn-sm {
   @apply px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-200 text-xs cursor-pointer transition;
+}
+.btn-sm-accent {
+  @apply text-accent font-semibold hover:text-accent-soft bg-accent/10 hover:bg-accent/15;
 }
 .status-badge {
   @apply text-xs font-medium uppercase tracking-wide;

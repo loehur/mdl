@@ -10,11 +10,16 @@
     <script>
       (function () {
         try {
-          var t = localStorage.getItem("wadesk-theme");
-          if (t !== "light" && t !== "dark") t = "dark";
-          document.documentElement.setAttribute("data-theme", t);
+          var mode = localStorage.getItem("wadesk-theme");
+          if (mode !== "auto" && mode !== "light" && mode !== "dark") mode = "auto";
+          var theme = mode;
+          if (mode === "auto") {
+            var h = new Date().getHours();
+            theme = h >= 6 && h < 18 ? "light" : "dark";
+          }
+          document.documentElement.setAttribute("data-theme", theme);
           var m = document.querySelector('meta[name="theme-color"]');
-          if (m) m.setAttribute("content", t === "light" ? "#f1f5f9" : "#0b1220");
+          if (m) m.setAttribute("content", theme === "light" ? "#f1f5f9" : "#0b1220");
         } catch (e) {
           document.documentElement.setAttribute("data-theme", "dark");
         }
@@ -23,8 +28,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet" />
-    <script type="module" crossorigin src="./assets/index-B4y7NMPo.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-N_1rCm24.css">
+    <script type="module" crossorigin src="./assets/index-qBW1VJOW.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-CpgWDiBq.css">
   </head>
   <body class="antialiased">
     <div id="app"></div>
