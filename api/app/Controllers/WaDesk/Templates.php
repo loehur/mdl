@@ -144,17 +144,16 @@ class Templates extends WaDeskController
      * Returns raw YCloud template data + mapped params (admin only, remove after use)
      */
     /**
-     * POST { ycloud_key_id, template_name } — resync single template params from YCloud
+     * GET or POST { ycloud_key_id, template_name } — resync single template params from YCloud
      */
     public function resyncOne()
     {
         $this->verifyAuth();
         $admin = $this->requireAdmin();
-        if (!$this->isPost()) $this->error('Method not allowed', 405);
 
-        $body = $this->getBody();
-        $keyId = (int) ($body['ycloud_key_id'] ?? 0);
-        $tplName = trim((string) ($body['template_name'] ?? ''));
+        $body = $this->isPost() ? $this->getBody() : [];
+        $keyId = (int) ($body['ycloud_key_id'] ?? $this->query('ycloud_key_id') ?? 0);
+        $tplName = trim((string) ($body['template_name'] ?? $this->query('template_name') ?? ''));
         if ($keyId <= 0 || $tplName === '') $this->error('ycloud_key_id dan template_name wajib', 400);
 
         $key = $this->db($this->db_index)->query(
