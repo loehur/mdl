@@ -258,10 +258,40 @@ class Templates extends WaDeskController
                 if ($hash !== '') {
                     $insertData['api_key_hash'] = $hash;
                 }
-                $tplId = (int) $this->db($this->db_index)->insert('wa_templates', $insertData);
-                $this->replaceParams($tplId, $mapped['params']);
-                $created++;
-                $synced[] = ['id' => $tplId, 'template_name' => $name, 'language' => $lang, 'action' => 'created'];
+                try {
+                    $tplId = (int) $this->db($this->db_index)->insert('wa_templates', $insertData);
+                    $this->replaceParams($tplId, $mapped['params']);
+                    $created++;
+                    $synced[] = ['id' => $tplId, 'template_name' => $name, 'language' => $lang, 'action' => 'created'];
+                } catch (\Throwable $insertEx) {
+                    // Duplicate key (race or hash-based unique constraint) — find and update
+                    $fallback = null;
+                    if ($hash !== '') {
+                        $fallback = $this->db($this->db_index)->query(
+                            "SELECT id FROM wa_templates WHERE api_key_hash = ? AND template_name = ? AND language = ? LIMIT 1",
+                            [$hash, $name, $lang]
+                        )->row_array();
+                    }
+                    if (!$fallback) {
+                        $fallback = $this->db($this->db_index)->query(
+                            "SELECT id FROM wa_templates WHERE ycloud_key_id = ? AND template_name = ? AND language = ? LIMIT 1",
+                            [$keyId, $name, $lang]
+                        )->row_array();
+                    }
+                    if ($fallback) {
+                        $tplId = (int) $fallback['id'];
+                        $updateData = ['body_preview' => $mapped['body_preview'], 'ycloud_key_id' => $keyId];
+                        if ($hash !== '') {
+                            $updateData['api_key_hash'] = $hash;
+                        }
+                        $this->db($this->db_index)->update('wa_templates', $updateData, ['id' => $tplId]);
+                        $this->replaceParams($tplId, $mapped['params']);
+                        $updated++;
+                        $synced[] = ['id' => $tplId, 'template_name' => $name, 'language' => $lang, 'action' => 'updated(fallback)'];
+                    } else {
+                        $skipped++;
+                    }
+                }
             }
         }
 
