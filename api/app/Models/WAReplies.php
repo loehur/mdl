@@ -1174,10 +1174,14 @@ class WAReplies
     /**
      * Kirim balasan salam/sapaan dulu jika pesan mengandung sapaan + intent lain.
      * Dipanggil sebelum handler lain (STATUS, dll) agar intent dijalankan satu per satu: PEMBUKA dulu, baru handler lain.
+     * Di luar jam operasional: jangan balas sapaan (biar hanya pesan tutup/jam operasional).
      * @return bool True jika sudah mengirim greeting
      */
     private function sendGreetingReplyFirst($waNumber, $textBody)
     {
+        if (!$this->isOperatingHours()) {
+            return false;
+        }
         $textLower = strtolower(trim($textBody ?? ''));
         if (mb_strlen($textLower) < 10) {
             return false;
@@ -2047,12 +2051,8 @@ class WAReplies
     private function handlePembuka($phoneIn, $waNumber, $textBody = '')
     {
         if (!$this->isOperatingHours()) {
-            // handleJam_tutup pakai cooldown JAM_TUTUP — hindari double pesan yang sama
-            // (mis. "Halo min" lalu "masih buka?" → dulu dua kali balasan tutup).
-            if (!$this->handleJam_tutup($phoneIn, $waNumber, $textBody)) {
-                $ctx = $this->getGreetingContext($waNumber);
-                $this->sendAutoreplyText($waNumber, "Halo {$ctx['sapaan']} 😊");
-            }
+            // Di luar jam: hanya pesan tutup (cooldown JAM_TUTUP). Jangan balas sapaan.
+            $this->handleJam_tutup($phoneIn, $waNumber, $textBody);
             return;
         }
 
