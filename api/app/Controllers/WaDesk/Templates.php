@@ -226,6 +226,11 @@ class Templates extends WaDeskController
             $mapped = WaDeskYCloud::mapTemplateToWaDesk($remote);
             $name = $mapped['template_name'];
             $lang = $mapped['language'];
+            \Log::write('SYNC_MAPPED: ' . json_encode([
+                'name'   => $name,
+                'params' => $mapped['params'],
+                'raw_components' => $remote['components'] ?? [],
+            ], JSON_UNESCAPED_UNICODE), 'wadesk', 'sync_template_map');
             if ($name === '') {
                 $skipped++;
                 continue;
