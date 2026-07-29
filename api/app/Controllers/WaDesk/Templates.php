@@ -141,6 +141,20 @@ class Templates extends WaDeskController
      */
     public function syncFromYCloud()
     {
+        // Temporary debug: wrap entire function to capture real exception
+        try {
+            $this->_syncFromYCloudInner();
+        } catch (\Throwable $e) {
+            $logLine = date('Y-m-d H:i:s') . ' syncFromYCloud EXCEPTION: '
+                . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine()
+                . "\nTrace: " . $e->getTraceAsString() . "\n---\n";
+            file_put_contents(__DIR__ . '/../../../../sync_debug.log', $logLine, FILE_APPEND);
+            throw $e; // re-throw so existing handler still responds
+        }
+    }
+
+    private function _syncFromYCloudInner()
+    {
         $this->verifyAuth();
         $admin = $this->requireAdmin();
         if (!$this->isPost()) {
