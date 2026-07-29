@@ -887,14 +887,18 @@ async function resyncOneTemplate(templateName) {
   const tpl = templates.value.find((t) => t.template_name === templateName);
   if (!tpl) return;
   resyncingId.value = tpl.id;
+  expandedTemplate.value = null; // close detail panel before refresh
   try {
     const res = await api("/WaDesk/Templates/resyncOne", {
       method: "POST",
       body: { ycloud_key_id: Number(syncKeyId.value), template_name: templateName },
     });
     const count = res.data?.params_synced ?? 0;
-    flash(true, `Resync OK: ${templateName} — ${count} params diupdate`);
     await refresh();
+    flash(true, `Resync OK: ${templateName} — ${count} params diupdate`);
+    // Re-open detail so user can see updated params
+    const updated = templates.value.find((t) => t.template_name === templateName);
+    if (updated) expandedTemplate.value = updated.id;
   } catch (e) {
     flash(false, e.message);
   } finally {
