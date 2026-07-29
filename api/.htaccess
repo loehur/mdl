@@ -4,6 +4,11 @@ RewriteEngine On
 RewriteCond %{REQUEST_METHOD} OPTIONS
 RewriteRule ^(.*)$ index.php [QSA,L]
 
+# Legacy: media saved under app/uploads/ (wrong path) — serve as /uploads/...
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{DOCUMENT_ROOT}/app/uploads/$1 -f
+RewriteRule ^uploads/(.*)$ app/uploads/$1 [L]
+
 # Redirect all requests to index.php with url parameter
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d

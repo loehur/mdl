@@ -265,9 +265,10 @@ class WhatsAppService
         
         if (!$mediaData) return null;
         
-        // Save Path: api/uploads/whatsapp/YYYY/MM/
+        // Save Path: api/uploads/whatsapp/YYYY/MM/ (web-accessible; must match URL /uploads/...)
+        // From Helpers/CRM go up 3 levels → api/
         $relativePath = '/uploads/whatsapp/' . date('Y/m');
-        $baseDir = __DIR__ . '/../../' . $relativePath;
+        $baseDir = __DIR__ . '/../../../uploads/whatsapp/' . date('Y/m');
         
         if (!is_dir($baseDir)) {
             @mkdir($baseDir, 0755, true);
@@ -903,6 +904,8 @@ class WhatsAppService
             $contactName = $userData['contact_name'] ?? null;
             $code = $userData['code'] ?? null;
             $cust_id = $userData['cust_id'] ?? null;
+            // Cabang from last sale — required so crew (filtered by assigned_user_id) can see outbound-only chats
+            $assignedUserId = $userData['assigned_user_id'] ?? null;
             
             // Get or create conversation (NO CUSTOMER CREATION on Outbound)
             // Try find customer
@@ -920,6 +923,7 @@ class WhatsAppService
                     $lastMessageDisplay = 'o- ' . mb_substr($lastMessageText, 0, 50);
                 }
                 
+                $convRow = $conv->row();
                 $updateData = [
                     'last_message' => $lastMessageDisplay,
                     'last_message_at' => date('Y-m-d H:i:s'),
@@ -928,6 +932,14 @@ class WhatsAppService
                 if ($contactName) $updateData['contact_name'] = $contactName;
                 if ($code) $updateData['code'] = $code;
                 if ($cust_id !== null) $updateData['cust_id'] = $cust_id;
+                // Fill assignment only when missing (do not overwrite an existing cabang assignment)
+                $existingAssigned = $convRow->assigned_user_id ?? null;
+                if (
+                    $assignedUserId !== null && $assignedUserId !== ''
+                    && ($existingAssigned === null || $existingAssigned === '')
+                ) {
+                    $updateData['assigned_user_id'] = $assignedUserId;
+                }
                 
                 $db->update('wa_conversations', $updateData, ['wa_number' => $waNumber]);
             } else {
@@ -950,6 +962,9 @@ class WhatsAppService
                 if ($contactName) $convData['contact_name'] = $contactName;
                 if ($code) $convData['code'] = $code;
                 if ($cust_id !== null) $convData['cust_id'] = $cust_id;
+                if ($assignedUserId !== null && $assignedUserId !== '') {
+                    $convData['assigned_user_id'] = $assignedUserId;
+                }
                 
                 $db->insert('wa_conversations', $convData);
             }
@@ -1031,20 +1046,34 @@ class WhatsAppService
                     $conv = $db->get_where('wa_conversations', ['wa_number' => $waNumber]);
                     $conversation_id = 0;
                     $kode_cabang = $code ?? '00';
+                    $convStatus = 'closed';
+                    $wsAssignedUserId = $assignedUserId;
                     
                     if ($conv && $conv->num_rows() > 0) {
                         $convRow = $conv->row();
                         $conversation_id = $convRow->id ?? 0;
+                        $convStatus = $convRow->status ?? 'closed';
+                        $existingAssigned = $convRow->assigned_user_id ?? null;
+                        if ($existingAssigned !== null && $existingAssigned !== '') {
+                            $wsAssignedUserId = $existingAssigned;
+                        }
+                        if (!empty($convRow->code)) {
+                            $kode_cabang = $convRow->code;
+                        }
                     }
                     
                     // Log WebSocket push with quote info
 
                     $wsPayload = [
                         'type' => 'agent_message_sent',
+                        'target_id' => '0', // Broadcast — wa_server filters crew by assignment_user_id
                         'conversation_id' => $conversation_id,
                         'phone' => $waNumber,
                         'contact_name' => $contactName,
                         'kode_cabang' => $kode_cabang,
+                        'cust_id' => $cust_id,
+                        'status' => $convStatus,
+                        'assignment_user_id' => $wsAssignedUserId,
                         'sender_id' => 0, // System/Auto = 0, or can be passed as parameter
                         'message' => [
                             'id' => $msgId, // Use local DB ID

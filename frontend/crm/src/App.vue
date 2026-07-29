@@ -3237,12 +3237,61 @@ const connectWebSocket = () => {
             match: senderId == authId.value,
           });
 
-          const conversation = conversations.value.find(
+          let conversation = conversations.value.find(
             (c) =>
               (conversationId && c.id == conversationId) ||
               (payload.phone && c.wa_number == payload.phone)
           );
+
+          // Outbound-only chat (e.g. template) may not be in crew list yet — create sidebar row
+          if (!conversation && (conversationId || payload.phone)) {
+            const name = payload.contact_name || payload.phone || "Unknown User";
+            const previewText =
+              messageData?.type === "image"
+                ? "You: 📷 Image"
+                : messageData?.type === "template"
+                  ? "You: " + (messageData.text || "Template")
+                  : "You: " + (messageData?.text || "");
+            conversation = {
+              id: conversationId || payload.phone,
+              wa_number: payload.phone,
+              name,
+              kode_cabang: payload.kode_cabang || "00",
+              cust_id: payload.cust_id || null,
+              cases: [],
+              initials: name.substring(0, 1).toUpperCase(),
+              color: getAvatarColor(conversationId || payload.phone),
+              status: payload.status || "closed",
+              assignment_user_id: payload.assignment_user_id ?? null,
+              lastMessage: previewText,
+              lastTime: messageData?.time
+                ? new Date(messageData.time).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: false,
+                  })
+                : "",
+              lastMessageTime: messageData?.time || null,
+              unread: 0,
+              messages: [],
+            };
+            conversations.value.unshift(conversation);
+          }
+
           if (conversation) {
+            if (payload.assignment_user_id !== undefined) {
+              conversation.assignment_user_id = payload.assignment_user_id;
+            }
+            if (payload.kode_cabang) {
+              conversation.kode_cabang = payload.kode_cabang;
+            }
+            if (payload.cust_id !== undefined) {
+              conversation.cust_id = payload.cust_id;
+            }
+            if (payload.contact_name) {
+              conversation.name = payload.contact_name;
+            }
+
             const isTempId = (id) => /^\d{13,}$/.test(String(id || ""));
             const isOptimistic = (m) =>
               m?.status === "pending" ||
