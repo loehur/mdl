@@ -90,6 +90,11 @@ $menu[1] = [
                 'c' => '@PrepaidList',
                 'title' => 'Prepaid',
                 'txt' => 'Prepaid'
+            ],
+            [
+                'c' => '@ImportPelanggan',
+                'title' => 'Import Pelanggan',
+                'txt' => 'Import Pelanggan'
             ]
         ]
     ],
