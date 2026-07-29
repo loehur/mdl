@@ -119,25 +119,82 @@
           <button class="btn sm:col-span-2" :disabled="!canSubmitUser">Tambah user</button>
         </form>
         <ul class="divide-y divide-white/5">
-          <li v-for="u in users" :key="u.id" class="py-3 flex justify-between gap-2">
-            <div>
-              <p class="font-medium">{{ u.name }} <span class="text-xs text-slate-500">({{ u.role }})</span></p>
-              <p class="text-xs text-slate-500">
-                {{ u.email }} · {{ u.team_name || "—" }}
-                <span v-if="u.role === 'agent' && u.team_leader_name"> · TL: {{ u.team_leader_name }}</span>
-              </p>
-            </div>
-            <div class="flex items-center gap-3 shrink-0">
-              <button
-                v-if="u.role === 'agent'"
-                type="button"
-                class="text-xs text-accent hover:underline"
-                @click="promoteAgent(u)"
-              >
-                Jadikan TL
-              </button>
-              <button class="text-xs text-rose-400" @click="removeUser(u)">Hapus</button>
-            </div>
+          <li v-for="u in users" :key="u.id" class="py-3">
+            <template v-if="editingUserId === u.id">
+              <form class="grid sm:grid-cols-2 gap-3 mt-1" @submit.prevent="saveUser(u)">
+                <input v-model="editUserForm.name" required class="field" placeholder="Nama" />
+                <input v-model="editUserForm.email" type="email" required class="field" placeholder="Email" />
+                <input
+                  v-model="editUserForm.password"
+                  type="password"
+                  minlength="6"
+                  class="field"
+                  placeholder="Password baru (kosongkan jika tidak diganti)"
+                />
+                <div class="field flex items-center gap-2 cursor-default select-none">
+                  <label class="flex items-center gap-2 text-sm cursor-pointer">
+                    <input v-model="editUserForm.is_active" type="checkbox" class="rounded" />
+                    Aktif
+                  </label>
+                </div>
+
+                <!-- Team leader: ganti team -->
+                <template v-if="u.role === 'team_leader'">
+                  <select v-model="editUserForm.team_id" class="field sm:col-span-2">
+                    <option value="">— Tetap di team saat ini —</option>
+                    <option v-for="t in teamsWithoutLeader" :key="t.id" :value="t.id">{{ t.name }}</option>
+                  </select>
+                </template>
+
+                <!-- Agent: ganti team leader -->
+                <template v-else>
+                  <select v-model="editUserForm.team_leader_user_id" class="field sm:col-span-2">
+                    <option value="">— Tetap di team saat ini —</option>
+                    <option v-for="l in teamLeaders" :key="l.id" :value="l.id">
+                      {{ l.name }} ({{ l.team_name || "tanpa team" }})
+                    </option>
+                  </select>
+                </template>
+
+                <div class="sm:col-span-2 flex gap-2">
+                  <button type="submit" class="btn" :disabled="savingUser">{{ savingUser ? "Menyimpan..." : "Simpan" }}</button>
+                  <button type="button" class="btn-sm" :disabled="savingUser" @click="cancelEditUser">Batal</button>
+                </div>
+              </form>
+            </template>
+            <template v-else>
+              <div class="flex justify-between gap-2">
+                <div>
+                  <p class="font-medium">
+                    {{ u.name }}
+                    <span class="text-xs text-slate-500">({{ u.role }})</span>
+                    <span v-if="!Number(u.is_active)" class="ml-1 text-xs text-rose-400">nonaktif</span>
+                  </p>
+                  <p class="text-xs text-slate-500">
+                    {{ u.email }} · {{ u.team_name || "—" }}
+                    <span v-if="u.role === 'agent' && u.team_leader_name"> · TL: {{ u.team_leader_name }}</span>
+                  </p>
+                </div>
+                <div class="flex items-center gap-3 shrink-0">
+                  <button
+                    type="button"
+                    class="text-xs text-accent hover:underline"
+                    @click="startEditUser(u)"
+                  >
+                    Ubah
+                  </button>
+                  <button
+                    v-if="u.role === 'agent'"
+                    type="button"
+                    class="text-xs text-accent hover:underline"
+                    @click="promoteAgent(u)"
+                  >
+                    Jadikan TL
+                  </button>
+                  <button type="button" class="text-xs text-rose-400" @click="removeUser(u)">Hapus</button>
+                </div>
+              </div>
+            </template>
           </li>
         </ul>
       </section>
@@ -157,12 +214,43 @@
           <button class="btn sm:col-span-2">Simpan key</button>
         </form>
         <ul class="divide-y divide-white/5">
-          <li v-for="k in keys" :key="k.id" class="py-3 flex justify-between gap-2">
-            <div>
-              <p class="font-medium">{{ k.label }}</p>
-              <p class="text-xs text-slate-500">{{ k.phone_number }} · {{ k.team_name }} · {{ k.status }}</p>
-            </div>
-            <button class="text-xs text-rose-400" @click="removeKey(k.id)">Hapus</button>
+          <li v-for="k in keys" :key="k.id" class="py-3">
+            <template v-if="editingKeyId === k.id">
+              <form class="grid sm:grid-cols-2 gap-3 mt-1" @submit.prevent="saveKey(k)">
+                <input v-model="editKeyForm.label" required class="field" placeholder="Label" />
+                <input v-model="editKeyForm.phone_number" required class="field" placeholder="Nomor WA bisnis 628..." />
+                <input
+                  v-model="editKeyForm.api_key"
+                  class="field sm:col-span-2"
+                  placeholder="API Key YCloud (kosongkan jika tidak diganti)"
+                />
+                <input v-model="editKeyForm.ycloud_phone_id" class="field" placeholder="Phone Number ID (opsional)" />
+                <select v-model="editKeyForm.team_id" required class="field">
+                  <option disabled value="">Assign ke team</option>
+                  <option v-for="t in teams" :key="t.id" :value="t.id">{{ t.name }}</option>
+                </select>
+                <div class="sm:col-span-2 flex gap-2">
+                  <button type="submit" class="btn" :disabled="savingKey">{{ savingKey ? "Menyimpan..." : "Simpan" }}</button>
+                  <button type="button" class="btn-sm" :disabled="savingKey" @click="cancelEditKey">Batal</button>
+                </div>
+              </form>
+            </template>
+            <template v-else>
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                  <p class="font-medium">{{ k.label }}</p>
+                  <p class="text-xs text-slate-500">
+                    {{ k.phone_number }}
+                    <span v-if="k.ycloud_phone_id"> · ID: {{ k.ycloud_phone_id }}</span>
+                    · {{ k.team_name }} · {{ k.status }}
+                  </p>
+                </div>
+                <div class="flex items-center gap-3 shrink-0">
+                  <button type="button" class="text-xs text-accent hover:underline" @click="startEditKey(k)">Ubah</button>
+                  <button type="button" class="text-xs text-rose-400" @click="removeKey(k.id)">Hapus</button>
+                </div>
+              </div>
+            </template>
           </li>
         </ul>
       </section>
@@ -365,7 +453,20 @@ const userForm = reactive({
   team_id: "",
   team_leader_user_id: "",
 });
+const editingUserId = ref(null);
+const editUserForm = reactive({
+  name: "",
+  email: "",
+  password: "",
+  is_active: true,
+  team_id: "",
+  team_leader_user_id: "",
+});
+const savingUser = ref(false);
 const keyForm = reactive({ label: "", api_key: "", phone_number: "", ycloud_phone_id: "", team_id: "" });
+const editingKeyId = ref(null);
+const editKeyForm = reactive({ label: "", api_key: "", phone_number: "", ycloud_phone_id: "", team_id: "" });
+const savingKey = ref(false);
 const syncKeyId = ref("");
 const syncing = ref(false);
 const quotaForm = reactive({ team_id: "", amount: 100, note: "" });
@@ -517,6 +618,52 @@ async function createUser() {
   }
 }
 
+function startEditUser(u) {
+  editingUserId.value = u.id;
+  Object.assign(editUserForm, {
+    name: u.name || "",
+    email: u.email || "",
+    password: "",
+    is_active: Number(u.is_active) === 1,
+    team_id: "",
+    team_leader_user_id: "",
+  });
+}
+
+function cancelEditUser() {
+  editingUserId.value = null;
+  savingUser.value = false;
+}
+
+async function saveUser(u) {
+  savingUser.value = true;
+  try {
+    const body = {
+      id: u.id,
+      name: editUserForm.name,
+      email: editUserForm.email,
+      is_active: editUserForm.is_active ? 1 : 0,
+    };
+    if (editUserForm.password.trim()) {
+      body.password = editUserForm.password.trim();
+    }
+    if (u.role === "team_leader" && editUserForm.team_id) {
+      body.team_id = Number(editUserForm.team_id);
+    }
+    if (u.role === "agent" && editUserForm.team_leader_user_id) {
+      body.team_leader_user_id = Number(editUserForm.team_leader_user_id);
+    }
+    await api("/WaDesk/Users/update", { method: "POST", body });
+    flash(true, "User diupdate");
+    cancelEditUser();
+    await refresh();
+  } catch (e) {
+    flash(false, e.message);
+  } finally {
+    savingUser.value = false;
+  }
+}
+
 async function promoteAgent(u) {
   const currentTl = users.value.find(
     (x) => x.role === "team_leader" && Number(x.team_id) === Number(u.team_id)
@@ -600,6 +747,46 @@ async function createKey() {
     await refresh();
   } catch (e) {
     flash(false, e.message);
+  }
+}
+
+function startEditKey(k) {
+  editingKeyId.value = k.id;
+  Object.assign(editKeyForm, {
+    label: k.label || "",
+    api_key: "",
+    phone_number: k.phone_number || "",
+    ycloud_phone_id: k.ycloud_phone_id || "",
+    team_id: String(k.team_id || ""),
+  });
+}
+
+function cancelEditKey() {
+  editingKeyId.value = null;
+  savingKey.value = false;
+}
+
+async function saveKey(k) {
+  savingKey.value = true;
+  try {
+    const body = {
+      id: k.id,
+      label: editKeyForm.label,
+      phone_number: editKeyForm.phone_number,
+      ycloud_phone_id: editKeyForm.ycloud_phone_id || null,
+      team_id: Number(editKeyForm.team_id),
+    };
+    if (editKeyForm.api_key.trim()) {
+      body.api_key = editKeyForm.api_key.trim();
+    }
+    await api("/WaDesk/Keys/update", { method: "POST", body });
+    flash(true, "API key diupdate");
+    cancelEditKey();
+    await refresh();
+  } catch (e) {
+    flash(false, e.message);
+  } finally {
+    savingKey.value = false;
   }
 }
 

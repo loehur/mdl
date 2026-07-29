@@ -136,11 +136,18 @@ const paramValues = reactive({});
 const filteredTemplates = computed(() => {
   const kid = Number(form.ycloud_key_id || props.fixedKeyId);
   if (!kid) return props.templates;
-  const key = props.keys.find((k) => Number(k.id) === kid);
-  const hash = key?.api_key_hash;
+
+  const key = (props.keys || []).find((k) => Number(k.id) === kid);
+  const keyHash = key?.api_key_hash || null;
+
   return props.templates.filter((t) => {
-    if (hash && t.api_key_hash && t.api_key_hash === hash) return true;
-    return Number(t.ycloud_key_id) === kid;
+    // Exact key match always works
+    if (Number(t.ycloud_key_id) === kid) return true;
+    // Hash-based sharing: same credential → show
+    if (keyHash && t.api_key_hash && t.api_key_hash === keyHash) return true;
+    // No hash info yet (not synced) → show all so user isn't blocked
+    if (!keyHash && !t.api_key_hash) return true;
+    return false;
   });
 });
 

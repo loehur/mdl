@@ -426,11 +426,15 @@ let listPollTimer = null;
 const filteredTemplates = computed(() => {
   const kid = Number(form.ycloud_key_id);
   if (!kid) return templates.value;
+
   const key = keys.value.find((k) => Number(k.id) === kid);
-  const hash = key?.api_key_hash;
+  const keyHash = key?.api_key_hash || null;
+
   return templates.value.filter((t) => {
-    if (hash && t.api_key_hash && t.api_key_hash === hash) return true;
-    return Number(t.ycloud_key_id) === kid;
+    if (Number(t.ycloud_key_id) === kid) return true;
+    if (keyHash && t.api_key_hash && t.api_key_hash === keyHash) return true;
+    if (!keyHash && !t.api_key_hash) return true;
+    return false;
   });
 });
 
