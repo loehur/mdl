@@ -16,7 +16,6 @@
         </span>
         <span class="hidden sm:inline text-slate-400">{{ auth.user?.name }}</span>
         <router-link
-          v-if="auth.isAdmin"
           to="/blast"
           class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-200"
         >

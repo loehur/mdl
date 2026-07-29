@@ -6,7 +6,7 @@ use App\Helpers\WaDesk\DailyKeyLimit as WaDeskDailyKeyLimit;
 use App\Helpers\WaDesk\TemplateQuota as WaDeskTemplateQuota;
 
 /**
- * Blast — admin-only bulk WhatsApp template sender via CSV.
+ * Blast — bulk WhatsApp template sender via CSV.
  *
  * Routes (add to your framework router):
  *   GET  /WaDesk/Blast/csvHeaders?template_id=
@@ -26,7 +26,8 @@ class Blast extends WaDeskController
     public function csvHeaders()
     {
         $this->verifyAuth();
-        $admin = $this->requireAdmin();
+        $user = $this->requireChatUser();
+        $isAdmin = ($user['role'] ?? '') === 'admin';
 
         $templateId = (int) $this->query('template_id', 0);
         if ($templateId <= 0) {
@@ -38,13 +39,16 @@ class Blast extends WaDeskController
              WHERE t.id = ? AND EXISTS (
                 SELECT 1 FROM ycloud_keys k
                 WHERE k.tenant_id = ?
+                  " . (!$isAdmin ? "AND k.team_id = ?" : "") . "
                   AND (
                     (t.api_key_hash IS NOT NULL AND t.api_key_hash <> '' AND k.api_key_hash = t.api_key_hash)
                     OR k.id = t.ycloud_key_id
                   )
              )
              LIMIT 1",
-            [$templateId, (int) $admin['tenant_id']]
+            $isAdmin
+                ? [$templateId, (int) $user['tenant_id']]
+                : [$templateId, (int) $user['tenant_id'], (int) $user['team_id']]
         )->row_array();
 
         if (!$tpl) {
@@ -75,7 +79,8 @@ class Blast extends WaDeskController
     public function create()
     {
         $this->verifyAuth();
-        $admin = $this->requireAdmin();
+        $user = $this->requireChatUser();
+        $isAdmin = ($user['role'] ?? '') === 'admin';
 
         if (!$this->isPost()) {
             $this->error('Method not allowed', 405);
@@ -100,8 +105,13 @@ class Blast extends WaDeskController
 
         // Validate key ownership
         $key = $this->db($this->db_index)->query(
-            "SELECT * FROM ycloud_keys WHERE id = ? AND tenant_id = ? AND status = 'active' LIMIT 1",
-            [$keyId, (int) $admin['tenant_id']]
+            "SELECT * FROM ycloud_keys
+             WHERE id = ? AND tenant_id = ? AND status = 'active'"
+             . (!$isAdmin ? " AND team_id = ?" : "")
+             . " LIMIT 1",
+            $isAdmin
+                ? [$keyId, (int) $user['tenant_id']]
+                : [$keyId, (int) $user['tenant_id'], (int) $user['team_id']]
         )->row_array();
         if (!$key) {
             $this->error('API key tidak ditemukan atau tidak aktif', 404);
@@ -165,7 +175,7 @@ class Blast extends WaDeskController
 
         $teamQuota = new WaDeskTemplateQuota($this->db($this->db_index));
         $teamId = (int) $key['team_id'];
-        $teamQuota->ensureRow($teamId, (int) $admin['tenant_id']);
+        $teamQuota->ensureRow($teamId, (int) $user['tenant_id']);
         $rowCount = count($rows);
         if (!$teamQuota->canConsume($teamId, $rowCount)) {
             $this->error(
@@ -181,10 +191,10 @@ class Blast extends WaDeskController
 
         // Insert blast job
         $blastId = (int) $this->db($this->db_index)->insert('wa_blasts', [
-            'tenant_id'     => (int) $admin['tenant_id'],
+            'tenant_id'     => (int) $user['tenant_id'],
             'ycloud_key_id' => $keyId,
             'template_id'   => $templateId,
-            'created_by'    => (int) $admin['id'],
+            'created_by'    => (int) $user['id'],
             'campaign_name' => $campaignName,
             'status'        => 'pending',
             'total'         => count($rows),
@@ -212,7 +222,8 @@ class Blast extends WaDeskController
     public function list()
     {
         $this->verifyAuth();
-        $admin = $this->requireAdmin();
+        $user = $this->requireChatUser();
+        $isAdmin = ($user['role'] ?? '') === 'admin';
 
         $campaign = trim((string) $this->query('campaign_name', ''));
         $page = max(1, (int) $this->query('page', 1));
@@ -226,7 +237,11 @@ class Blast extends WaDeskController
                 INNER JOIN ycloud_keys k ON k.id = b.ycloud_key_id
                 INNER JOIN users u ON u.id = b.created_by
                 WHERE b.tenant_id = ?";
-        $binds = [(int) $admin['tenant_id']];
+        $binds = [(int) $user['tenant_id']];
+        if (!$isAdmin) {
+            $sql .= ' AND k.team_id = ?';
+            $binds[] = (int) $user['team_id'];
+        }
 
         if ($campaign !== '') {
             $sql .= ' AND b.campaign_name LIKE ?';
@@ -237,8 +252,15 @@ class Blast extends WaDeskController
         $rows = $this->db($this->db_index)->query($sql, $binds)->result_array();
 
         // Count for pagination
-        $countSql = "SELECT COUNT(*) AS cnt FROM wa_blasts b WHERE b.tenant_id = ?";
-        $countBinds = [(int) $admin['tenant_id']];
+        $countSql = "SELECT COUNT(*) AS cnt
+                     FROM wa_blasts b
+                     INNER JOIN ycloud_keys k ON k.id = b.ycloud_key_id
+                     WHERE b.tenant_id = ?";
+        $countBinds = [(int) $user['tenant_id']];
+        if (!$isAdmin) {
+            $countSql .= ' AND k.team_id = ?';
+            $countBinds[] = (int) $user['team_id'];
+        }
         if ($campaign !== '') {
             $countSql .= ' AND b.campaign_name LIKE ?';
             $countBinds[] = '%' . $campaign . '%';
@@ -246,10 +268,17 @@ class Blast extends WaDeskController
         $total = (int) $this->db($this->db_index)->query($countSql, $countBinds)->row_array()['cnt'];
 
         // Distinct campaign names for filter dropdown
-        $campaigns = $this->db($this->db_index)->query(
-            "SELECT DISTINCT campaign_name FROM wa_blasts WHERE tenant_id = ? ORDER BY campaign_name ASC",
-            [(int) $admin['tenant_id']]
-        )->result_array();
+        $campaignSql = "SELECT DISTINCT b.campaign_name
+                        FROM wa_blasts b
+                        INNER JOIN ycloud_keys k ON k.id = b.ycloud_key_id
+                        WHERE b.tenant_id = ?";
+        $campaignBinds = [(int) $user['tenant_id']];
+        if (!$isAdmin) {
+            $campaignSql .= ' AND k.team_id = ?';
+            $campaignBinds[] = (int) $user['team_id'];
+        }
+        $campaignSql .= ' ORDER BY b.campaign_name ASC';
+        $campaigns = $this->db($this->db_index)->query($campaignSql, $campaignBinds)->result_array();
 
         $this->success([
             'blasts'    => $rows,
@@ -265,7 +294,8 @@ class Blast extends WaDeskController
     public function detail()
     {
         $this->verifyAuth();
-        $admin = $this->requireAdmin();
+        $user = $this->requireChatUser();
+        $isAdmin = ($user['role'] ?? '') === 'admin';
 
         $id = (int) $this->query('id', 0);
         if ($id <= 0) {
@@ -279,8 +309,12 @@ class Blast extends WaDeskController
              INNER JOIN wa_templates t ON t.id = b.template_id
              INNER JOIN ycloud_keys k ON k.id = b.ycloud_key_id
              INNER JOIN users u ON u.id = b.created_by
-             WHERE b.id = ? AND b.tenant_id = ? LIMIT 1",
-            [$id, (int) $admin['tenant_id']]
+             WHERE b.id = ? AND b.tenant_id = ?"
+             . (!$isAdmin ? " AND k.team_id = ?" : "")
+             . " LIMIT 1",
+            $isAdmin
+                ? [$id, (int) $user['tenant_id']]
+                : [$id, (int) $user['tenant_id'], (int) $user['team_id']]
         )->row_array();
 
         if (!$blast) {
@@ -320,7 +354,8 @@ class Blast extends WaDeskController
     public function cancel()
     {
         $this->verifyAuth();
-        $admin = $this->requireAdmin();
+        $user = $this->requireChatUser();
+        $isAdmin = ($user['role'] ?? '') === 'admin';
 
         if (!$this->isPost()) {
             $this->error('Method not allowed', 405);
@@ -333,8 +368,15 @@ class Blast extends WaDeskController
         }
 
         $blast = $this->db($this->db_index)->query(
-            "SELECT * FROM wa_blasts WHERE id = ? AND tenant_id = ? LIMIT 1",
-            [$blastId, (int) $admin['tenant_id']]
+            "SELECT b.*
+             FROM wa_blasts b
+             INNER JOIN ycloud_keys k ON k.id = b.ycloud_key_id
+             WHERE b.id = ? AND b.tenant_id = ?"
+             . (!$isAdmin ? " AND k.team_id = ?" : "")
+             . " LIMIT 1",
+            $isAdmin
+                ? [$blastId, (int) $user['tenant_id']]
+                : [$blastId, (int) $user['tenant_id'], (int) $user['team_id']]
         )->row_array();
 
         if (!$blast) {

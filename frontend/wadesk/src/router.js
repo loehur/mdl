@@ -11,7 +11,7 @@ const router = createRouter({
     { path: "/login", name: "login", component: LoginView, meta: { guest: true } },
     { path: "/", name: "inbox", component: InboxView, meta: { auth: true } },
     { path: "/admin", name: "admin", component: AdminView, meta: { auth: true, admin: true } },
-    { path: "/blast", name: "blast", component: BlastView, meta: { auth: true, admin: true } },
+    { path: "/blast", name: "blast", component: BlastView, meta: { auth: true } },
   ],
 });
 
