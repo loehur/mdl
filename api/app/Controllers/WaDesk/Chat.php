@@ -229,31 +229,21 @@ class Chat extends WaDeskController
                 $indexed
             );
 
-            // --- DEBUG LOG ---
-            $debugLog = [
-                'ts'            => date('Y-m-d H:i:s'),
-                'phone'         => $phone,
-                'template_name' => $templateName,
-                'language'      => $language,
-                'key_id'        => $key['id'],
-                'key_phone'     => $key['phone_number'] ?? '',
-                'api_key_hash'  => $key['api_key_hash'] ?? 'n/a',
-                'tpl_param_defs'=> $tplParamDefs,
-                'raw_params'    => $rawParams,
-                'send_params'   => $sendParams,
-            ];
-            file_put_contents(__DIR__ . '/../../../../wadesk_send_template.log',
-                json_encode($debugLog, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . "\n---\n",
-                FILE_APPEND);
-            // --- END DEBUG LOG ---
+            \Log::write(json_encode([
+                'phone'          => $phone,
+                'template_name'  => $templateName,
+                'language'       => $language,
+                'key_id'         => $key['id'],
+                'key_phone'      => $key['phone_number'] ?? '',
+                'api_key_hash'   => $key['api_key_hash'] ?? 'n/a',
+                'tpl_param_defs' => $tplParamDefs,
+                'raw_params'     => $rawParams,
+                'send_params'    => $sendParams,
+            ], JSON_UNESCAPED_UNICODE), 'wadesk', 'send_template_req');
 
             $result = $client->sendTemplate($phone, $templateName, $language, $sendParams);
 
-            // --- DEBUG LOG RESULT ---
-            file_put_contents(__DIR__ . '/../../../../wadesk_send_template.log',
-                'RESULT: ' . json_encode($result, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . "\n===\n",
-                FILE_APPEND);
-            // --- END DEBUG LOG RESULT ---
+            \Log::write('RESULT: ' . json_encode($result, JSON_UNESCAPED_UNICODE), 'wadesk', 'send_template_res');
 
             if (!$result['success']) {
                 $yErr = $result['data']['error']['message'] ?? ($result['data']['message'] ?? 'Template send failed');
