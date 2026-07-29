@@ -458,7 +458,9 @@ class Templates extends WaDeskController
         $created = 0;
         $updated = 0;
         $skipped = 0;
+        $deleted = 0;
         $synced = [];
+        $keepKeys = []; // "name|lang" still present in YCloud
 
         foreach ($fetched['templates'] as $remote) {
             if (!is_array($remote)) {
@@ -480,6 +482,8 @@ class Templates extends WaDeskController
                 $skipped++;
                 continue;
             }
+
+            $keepKeys[$name . '|' . $lang] = true;
 
             // Find existing row — search by hash first, then by key_id fallback
             $existing = null;
@@ -556,6 +560,9 @@ class Templates extends WaDeskController
             }
         }
 
+        // Remove local templates for this credential that no longer exist in YCloud
+        $deleted = $this->pruneMissingTemplates($keyId, $hash, $keepKeys);
+
         $this->success([
             'ycloud_key_id' => $keyId,
             'api_key_hash' => $hash,
@@ -564,9 +571,45 @@ class Templates extends WaDeskController
             'fetched' => count($fetched['templates']),
             'created' => $created,
             'updated' => $updated,
+            'deleted' => $deleted,
             'skipped' => $skipped,
             'templates' => $synced,
-        ], "Sinkron selesai: {$created} baru, {$updated} diupdate (dibagikan ke {$siblingCount} key dengan kredensial sama)");
+        ], "Sinkron selesai: {$created} baru, {$updated} diupdate, {$deleted} dihapus (dibagikan ke {$siblingCount} key dengan kredensial sama)");
+    }
+
+    /**
+     * Delete local templates for this API credential that are no longer APPROVED in YCloud.
+     *
+     * @param array<string,true> $keepKeys map of "template_name|language"
+     */
+    private function pruneMissingTemplates(int $keyId, string $hash, array $keepKeys): int
+    {
+        if ($hash !== '') {
+            $locals = $this->db($this->db_index)->query(
+                "SELECT id, template_name, language FROM wa_templates
+                 WHERE api_key_hash = ?
+                    OR (ycloud_key_id = ? AND (api_key_hash IS NULL OR api_key_hash = ''))",
+                [$hash, $keyId]
+            )->result_array();
+        } else {
+            $locals = $this->db($this->db_index)->query(
+                "SELECT id, template_name, language FROM wa_templates WHERE ycloud_key_id = ?",
+                [$keyId]
+            )->result_array();
+        }
+
+        $removed = 0;
+        foreach ($locals as $row) {
+            $key = ($row['template_name'] ?? '') . '|' . ($row['language'] ?? '');
+            if (isset($keepKeys[$key])) {
+                continue;
+            }
+            $tid = (int) $row['id'];
+            $this->db($this->db_index)->delete('wa_template_params', ['template_id' => $tid]);
+            $this->db($this->db_index)->delete('wa_templates', ['id' => $tid]);
+            $removed++;
+        }
+        return $removed;
     }
 
     public function create()

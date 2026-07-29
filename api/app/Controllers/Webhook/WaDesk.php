@@ -95,17 +95,21 @@ class WaDesk extends Controller
             return;
         }
 
-        $key = $this->resolveKey($businessPhone, $phoneId);
-        if (!$key) {
-            // try alternate: some payloads swap to/from for business
-            $key = $this->resolveKey($to, $phoneId) ?: $this->resolveKey($from, $phoneId);
-        }
-        if (!$key) {
+        // Prefer key that already has a thread / recent outbound for this customer
+        // (shared WA number across teams must not always land on the first-created key).
+        $resolved = $this->resolveInboundRoute($customerPhone, $businessPhone, $phoneId, $to, $from);
+        if (!$resolved) {
             if (class_exists('\Log')) {
-                \Log::write('WaDesk inbound: key not found for business=' . $businessPhone . ' phoneId=' . $phoneId, 'wadesk', 'Webhook');
+                \Log::write(
+                    'WaDesk inbound: key not found for business=' . $businessPhone . ' phoneId=' . $phoneId,
+                    'wadesk',
+                    'Webhook'
+                );
             }
             return;
         }
+        $key = $resolved['key'];
+        $conv = $resolved['conversation'];
 
         $wamid = $whatsapp['wamid'] ?? ($whatsapp['id'] ?? null);
         $db = $this->db($this->dbIndex);
@@ -131,11 +135,6 @@ class WaDesk extends Controller
         } else {
             $bodyText = '[' . $type . ']';
         }
-
-        $conv = $db->query(
-            "SELECT * FROM conversations WHERE ycloud_key_id = ? AND phone = ? LIMIT 1",
-            [(int) $key['id'], $customerPhone]
-        )->row_array();
 
         $now = date('Y-m-d H:i:s');
         $profileName = $whatsapp['customerProfile']['name'] ?? ($whatsapp['profile']['name'] ?? null);
@@ -172,10 +171,13 @@ class WaDesk extends Controller
             'status' => 'received',
         ]);
 
+        $teamId = (int) ($conv['team_id'] ?? $key['team_id']);
+        $tenantId = (int) ($conv['tenant_id'] ?? $key['tenant_id']);
+
         WaDeskServer::push([
             'type' => 'message_in',
-            'tenant_id' => (int) $key['tenant_id'],
-            'team_id' => (int) $key['team_id'],
+            'tenant_id' => $tenantId,
+            'team_id' => $teamId,
             'conversation_id' => $convId,
             'message_id' => $msgId,
             'preview' => $bodyText,
@@ -260,25 +262,178 @@ class WaDesk extends Controller
         }
     }
 
-    private function resolveKey(string $businessPhone, $phoneId): ?array
-    {
-        $db = $this->db($this->dbIndex);
-        if ($phoneId) {
-            $row = $db->query(
-                "SELECT * FROM ycloud_keys WHERE ycloud_phone_id = ? AND status = 'active' LIMIT 1",
-                [(string) $phoneId]
-            )->row_array();
-            if ($row) {
-                return $row;
-            }
+    /**
+     * Pick the right ycloud_key + existing conversation for an inbound message.
+     *
+     * When several teams share the same WA business number / credential, LIMIT 1
+     * would always hit the oldest key. Prefer a conversation that already exists
+     * for this customer (especially one with recent outbound).
+     *
+     * @return array{key: array, conversation: ?array}|null
+     */
+    private function resolveInboundRoute(
+        string $customerPhone,
+        string $businessPhone,
+        $phoneId,
+        string $altTo,
+        string $altFrom
+    ): ?array {
+        $candidates = $this->findCandidateKeys($businessPhone, $phoneId);
+        if ($candidates === []) {
+            $candidates = $this->findCandidateKeys($altTo, $phoneId);
         }
-        if ($businessPhone === '') {
+        if ($candidates === []) {
+            $candidates = $this->findCandidateKeys($altFrom, $phoneId);
+        }
+        if ($candidates === []) {
             return null;
         }
-        return $db->query(
-            "SELECT * FROM ycloud_keys WHERE phone_number = ? AND status = 'active' LIMIT 1",
-            [$businessPhone]
+
+        $byId = [];
+        foreach ($candidates as $row) {
+            $byId[(int) $row['id']] = $row;
+        }
+        $ids = array_keys($byId);
+        $db = $this->db($this->dbIndex);
+
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $binds = array_merge([$customerPhone], $ids);
+
+        $conv = $db->query(
+            "SELECT c.*
+             FROM conversations c
+             WHERE c.phone = ?
+               AND c.ycloud_key_id IN ($placeholders)
+             ORDER BY
+               (c.last_out_at IS NULL) ASC,
+               c.last_out_at DESC,
+               (c.last_message_at IS NULL) ASC,
+               c.last_message_at DESC,
+               c.id DESC
+             LIMIT 1",
+            $binds
         )->row_array() ?: null;
+
+        if ($conv) {
+            $keyId = (int) $conv['ycloud_key_id'];
+            $key = $byId[$keyId] ?? null;
+            if (!$key) {
+                $key = $db->query(
+                    "SELECT * FROM ycloud_keys WHERE id = ? LIMIT 1",
+                    [$keyId]
+                )->row_array() ?: null;
+            }
+            if ($key) {
+                if (class_exists('\Log') && count($byId) > 1) {
+                    \Log::write(
+                        'WaDesk inbound route: customer=' . $customerPhone
+                        . ' keys=' . implode(',', $ids)
+                        . ' picked_key=' . $keyId
+                        . ' conv=' . (int) $conv['id']
+                        . ' via=existing_conversation',
+                        'wadesk',
+                        'Webhook'
+                    );
+                }
+                return ['key' => $key, 'conversation' => $conv];
+            }
+        }
+
+        // No prior thread: prefer newest key (avoid always landing on first-created team)
+        usort($candidates, static function ($a, $b) {
+            return (int) $b['id'] <=> (int) $a['id'];
+        });
+        $key = $candidates[0];
+
+        if (class_exists('\Log') && count($candidates) > 1) {
+            \Log::write(
+                'WaDesk inbound route: customer=' . $customerPhone
+                . ' keys=' . implode(',', $ids)
+                . ' picked_key=' . (int) $key['id']
+                . ' via=fallback_newest_key',
+                'wadesk',
+                'Webhook'
+            );
+        }
+
+        return ['key' => $key, 'conversation' => null];
+    }
+
+    /**
+     * All active keys that could own this business WA number, including siblings
+     * that share the same api_key_hash (shared YCloud credential across teams).
+     *
+     * @return list<array>
+     */
+    private function findCandidateKeys(string $businessPhone, $phoneId): array
+    {
+        $db = $this->db($this->dbIndex);
+        $byId = [];
+
+        if ($phoneId) {
+            $rows = $db->query(
+                "SELECT * FROM ycloud_keys WHERE ycloud_phone_id = ? AND status = 'active'",
+                [(string) $phoneId]
+            )->result_array();
+            foreach ($rows as $row) {
+                $byId[(int) $row['id']] = $row;
+            }
+        }
+
+        if ($businessPhone !== '') {
+            $rows = $db->query(
+                "SELECT * FROM ycloud_keys WHERE phone_number = ? AND status = 'active'",
+                [$businessPhone]
+            )->result_array();
+            foreach ($rows as $row) {
+                $byId[(int) $row['id']] = $row;
+            }
+        }
+
+        if ($byId === []) {
+            return [];
+        }
+
+        if ($this->hasApiKeyHashColumn()) {
+            $hashes = [];
+            foreach ($byId as $row) {
+                $h = trim((string) ($row['api_key_hash'] ?? ''));
+                if ($h !== '') {
+                    $hashes[$h] = true;
+                }
+            }
+            if ($hashes !== []) {
+                $hashList = array_keys($hashes);
+                $ph = implode(',', array_fill(0, count($hashList), '?'));
+                $siblings = $db->query(
+                    "SELECT * FROM ycloud_keys
+                     WHERE api_key_hash IN ($ph) AND status = 'active'",
+                    $hashList
+                )->result_array();
+                foreach ($siblings as $row) {
+                    $byId[(int) $row['id']] = $row;
+                }
+            }
+        }
+
+        return array_values($byId);
+    }
+
+    private function hasApiKeyHashColumn(): bool
+    {
+        static $cached = null;
+        if ($cached !== null) {
+            return $cached;
+        }
+        try {
+            $row = $this->db($this->dbIndex)->query(
+                "SHOW COLUMNS FROM ycloud_keys LIKE 'api_key_hash'"
+            )->row_array();
+            $cached = !empty($row);
+        } catch (\Throwable $e) {
+            $cached = false;
+        }
+        return $cached;
     }
 
     private function normalizePhone(string $phone): string

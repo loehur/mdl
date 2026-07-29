@@ -916,8 +916,9 @@ async function syncTemplatesFromYCloud() {
     });
     const created = res.data?.created ?? 0;
     const updated = res.data?.updated ?? 0;
+    const deleted = res.data?.deleted ?? 0;
     const fetched = res.data?.fetched ?? 0;
-    flash(true, `Sync OK: ${fetched} dari YCloud → ${created} baru, ${updated} diupdate`);
+    flash(true, `Sync OK: ${fetched} dari YCloud → ${created} baru, ${updated} diupdate, ${deleted} dihapus`);
     await refresh();
   } catch (e) {
     flash(false, e.message);
