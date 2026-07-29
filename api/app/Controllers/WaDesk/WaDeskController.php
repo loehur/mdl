@@ -308,9 +308,20 @@ abstract class WaDeskController extends BaseController
             return '';
         }
         $hash = \App\Helpers\WaDesk\Crypto::fingerprint($plain);
-        $this->db($this->db_index)->update('ycloud_keys', [
-            'api_key_hash' => $hash,
-        ], ['id' => (int) $key['id']]);
+        // Only persist if migration has been applied
+        try {
+            $colCheck = $this->db($this->db_index)->query(
+                "SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'ycloud_keys' AND COLUMN_NAME = 'api_key_hash'"
+            )->row_array();
+            if ((int) ($colCheck['cnt'] ?? 0) > 0) {
+                $this->db($this->db_index)->update('ycloud_keys', [
+                    'api_key_hash' => $hash,
+                ], ['id' => (int) $key['id']]);
+            }
+        } catch (\Throwable $e) {
+            // ignore — migration not applied yet
+        }
         return $hash;
     }
 
@@ -319,17 +330,27 @@ abstract class WaDeskController extends BaseController
     {
         $hash = $this->ensureKeyApiHash($key);
         if ($hash !== '') {
-            $tpl = $this->db($this->db_index)->query(
-                "SELECT * FROM wa_templates
-                 WHERE id = ? AND (
-                    api_key_hash = ?
-                    OR (api_key_hash IS NULL AND ycloud_key_id = ?)
-                 )
-                 LIMIT 1",
-                [$templateId, $hash, (int) $key['id']]
-            )->row_array();
-            if ($tpl) {
-                return $tpl;
+            try {
+                $colCheck = $this->db($this->db_index)->query(
+                    "SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'wa_templates' AND COLUMN_NAME = 'api_key_hash'"
+                )->row_array();
+                if ((int) ($colCheck['cnt'] ?? 0) > 0) {
+                    $tpl = $this->db($this->db_index)->query(
+                        "SELECT * FROM wa_templates
+                         WHERE id = ? AND (
+                            api_key_hash = ?
+                            OR (api_key_hash IS NULL AND ycloud_key_id = ?)
+                         )
+                         LIMIT 1",
+                        [$templateId, $hash, (int) $key['id']]
+                    )->row_array();
+                    if ($tpl) {
+                        return $tpl;
+                    }
+                }
+            } catch (\Throwable $e) {
+                // fall through to legacy lookup
             }
         }
         return $this->db($this->db_index)->query(

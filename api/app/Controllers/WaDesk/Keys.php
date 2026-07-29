@@ -14,10 +14,22 @@ class Keys extends WaDeskController
         $this->verifyAuth();
         $user = $this->requireChatUser();
 
+        // Detect whether migration 006 has been applied
+        try {
+            $colCheck = $this->db($this->db_index)->query(
+                "SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'ycloud_keys' AND COLUMN_NAME = 'api_key_hash'"
+            )->row_array();
+            $hasHashCol = (int) ($colCheck['cnt'] ?? 0) > 0;
+        } catch (\Throwable $e) {
+            $hasHashCol = false;
+        }
+        $hashSel = $hasHashCol ? ", k.api_key_hash" : "";
+
         if ($user['role'] === 'admin') {
             $rows = $this->db($this->db_index)->query(
-                "SELECT k.id, k.tenant_id, k.team_id, k.label, k.phone_number, k.ycloud_phone_id, k.status,
-                        k.api_key_hash, k.created_at, t.name AS team_name
+                "SELECT k.id, k.tenant_id, k.team_id, k.label, k.phone_number, k.ycloud_phone_id, k.status{$hashSel},
+                        k.created_at, t.name AS team_name
                  FROM ycloud_keys k
                  LEFT JOIN teams t ON t.id = k.team_id
                  WHERE k.tenant_id = ?
@@ -26,8 +38,8 @@ class Keys extends WaDeskController
             )->result_array();
         } else {
             $rows = $this->db($this->db_index)->query(
-                "SELECT k.id, k.tenant_id, k.team_id, k.label, k.phone_number, k.ycloud_phone_id, k.status,
-                        k.api_key_hash, k.created_at, t.name AS team_name
+                "SELECT k.id, k.tenant_id, k.team_id, k.label, k.phone_number, k.ycloud_phone_id, k.status{$hashSel},
+                        k.created_at, t.name AS team_name
                  FROM ycloud_keys k
                  LEFT JOIN teams t ON t.id = k.team_id
                  WHERE k.tenant_id = ? AND k.team_id = ? AND k.status = 'active'
@@ -72,16 +84,26 @@ class Keys extends WaDeskController
         $plainKey = trim($body['api_key']);
         $enc = WaDeskCrypto::encrypt($plainKey);
 
-        $id = (int) $this->db($this->db_index)->insert('ycloud_keys', [
+        $insertData = [
             'tenant_id' => (int) $admin['tenant_id'],
             'team_id' => $teamId,
             'label' => trim($body['label']),
             'api_key_enc' => $enc,
-            'api_key_hash' => WaDeskCrypto::fingerprint($plainKey),
             'phone_number' => $phone,
             'ycloud_phone_id' => $body['ycloud_phone_id'] ?? null,
             'status' => 'active',
-        ]);
+        ];
+        // Only include api_key_hash if migration 006 has been applied
+        try {
+            $colCheck = $this->db($this->db_index)->query(
+                "SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'ycloud_keys' AND COLUMN_NAME = 'api_key_hash'"
+            )->row_array();
+            if ((int) ($colCheck['cnt'] ?? 0) > 0) {
+                $insertData['api_key_hash'] = WaDeskCrypto::fingerprint($plainKey);
+            }
+        } catch (\Throwable $e) { /* ignore */ }
+        $id = (int) $this->db($this->db_index)->insert('ycloud_keys', $insertData);
 
         $this->success(['id' => $id], 'API key disimpan');
     }
@@ -122,7 +144,15 @@ class Keys extends WaDeskController
         if (!empty($body['api_key'])) {
             $plain = trim($body['api_key']);
             $data['api_key_enc'] = WaDeskCrypto::encrypt($plain);
-            $data['api_key_hash'] = WaDeskCrypto::fingerprint($plain);
+            try {
+                $colCheck = $this->db($this->db_index)->query(
+                    "SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'ycloud_keys' AND COLUMN_NAME = 'api_key_hash'"
+                )->row_array();
+                if ((int) ($colCheck['cnt'] ?? 0) > 0) {
+                    $data['api_key_hash'] = WaDeskCrypto::fingerprint($plain);
+                }
+            } catch (\Throwable $e) { /* ignore */ }
         }
         if (isset($body['team_id'])) {
             $teamId = (int) $body['team_id'];
