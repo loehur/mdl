@@ -154,24 +154,38 @@ function escapeRegExp(s) {
 }
 
 /**
- * Replace {{name}} / {{1}} in body preview.
- * Only body (and text-header) params belong in body_preview — button params
- * often share the same param_index and must not overwrite body values.
+ * Replace {{name}} / {{1}} in preview text.
+ * Header vars (e.g. {{customer}}) are often missing from older body_preview
+ * rows that only stored BODY — prepend missing placeholders so live fill works
+ * before the next YCloud sync.
  */
 const livePreview = computed(() => {
   const tpl = selectedTpl.value;
-  if (!tpl?.body_preview) return "";
+  if (!tpl) return "";
 
-  // Touch the reactive object so any key change re-runs this computed
   const values = { ...paramValues };
-  let out = String(tpl.body_preview);
+  let out = String(tpl.body_preview || "");
 
-  const previewParams = (tpl.params || []).filter((p) => {
+  const textParams = (tpl.params || []).filter((p) => {
     const c = String(p.component || "body").toLowerCase();
     return c === "body" || c === "header";
   });
 
-  for (const p of previewParams) {
+  const missingTokens = [];
+  for (const p of textParams) {
+    const token = p.param_name ? String(p.param_name) : String(p.param_index ?? "");
+    if (!token) continue;
+    const re = new RegExp(`\\{\\{\\s*${escapeRegExp(token)}\\s*\\}\\}`);
+    if (!re.test(out)) {
+      missingTokens.push(token);
+    }
+  }
+  if (missingTokens.length) {
+    const synthetic = missingTokens.map((t) => `{{${t}}}`).join(" ");
+    out = out ? `${synthetic}\n\n${out}` : synthetic;
+  }
+
+  for (const p of textParams) {
     const key = paramKey(p);
     const val = values[key] ?? "";
     const token = p.param_name ? String(p.param_name) : String(p.param_index ?? "");

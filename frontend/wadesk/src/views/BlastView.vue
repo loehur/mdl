@@ -42,6 +42,13 @@
               {{ t.template_name }} ({{ t.language }})
             </option>
           </select>
+          <div
+            v-if="blastTemplatePreview"
+            class="mt-2 text-xs text-slate-300 whitespace-pre-wrap rounded-lg bg-ink-950/60 p-3 border border-white/5"
+          >
+            <p class="text-[10px] uppercase tracking-wide text-slate-500 mb-1.5">Preview teks (placeholder)</p>
+            {{ blastTemplatePreview }}
+          </div>
         </div>
 
         <!-- Campaign Name -->
@@ -417,6 +424,39 @@ const filteredTemplates = computed(() => {
   if (!kid) return templates.value;
   return templates.value.filter((t) => Number(t.ycloud_key_id) === kid);
 });
+
+const selectedTemplate = computed(() =>
+  filteredTemplates.value.find((t) => Number(t.id) === Number(form.template_id))
+);
+
+/** Template body with {{component}} placeholders only (no CSV values). */
+const blastTemplatePreview = computed(() => {
+  const tpl = selectedTemplate.value;
+  if (!tpl) return '';
+  let out = String(tpl.body_preview || '');
+
+  const textParams = (tpl.params || []).filter((p) => {
+    const c = String(p.component || 'body').toLowerCase();
+    return c === 'body' || c === 'header';
+  });
+
+  const missing = [];
+  for (const p of textParams) {
+    const token = p.param_name ? String(p.param_name) : String(p.param_index ?? '');
+    if (!token) continue;
+    const re = new RegExp(`\\{\\{\\s*${escapeRegExp(token)}\\s*\\}\\}`);
+    if (!re.test(out)) missing.push(token);
+  }
+  if (missing.length) {
+    const synthetic = missing.map((t) => `{{${t}}}`).join(' ');
+    out = out ? `${synthetic}\n\n${out}` : synthetic;
+  }
+  return out;
+});
+
+function escapeRegExp(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 // ---- lifecycle ------------------------------------------------------------
 onMounted(async () => {

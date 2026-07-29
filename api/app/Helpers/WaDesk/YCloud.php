@@ -178,6 +178,7 @@ class YCloud
         }
 
         $bodyPreview = null;
+        $headerPreview = null;
         $params = [];
 
         foreach ($components as $comp) {
@@ -199,6 +200,9 @@ class YCloud
                 $format = strtoupper((string) ($comp['format'] ?? 'TEXT'));
                 if ($format === 'TEXT') {
                     $text = (string) ($comp['text'] ?? '');
+                    if ($text !== '') {
+                        $headerPreview = $text;
+                    }
                     $examples = self::extractComponentExamples($comp, 'header');
                     foreach (self::extractPlaceholders($text) as $i => $ph) {
                         $params[] = self::makeParamRow('header', $i + 1, $ph, $examples[$i] ?? ($examples[$ph] ?? ''));
@@ -245,11 +249,21 @@ class YCloud
             }
         }
 
+        // Include TEXT header in preview so named vars like {{customer}} are visible/live-editable
+        $previewParts = [];
+        if ($headerPreview !== null && $headerPreview !== '') {
+            $previewParts[] = $headerPreview;
+        }
+        if ($bodyPreview !== null && $bodyPreview !== '') {
+            $previewParts[] = $bodyPreview;
+        }
+        $combinedPreview = $previewParts !== [] ? implode("\n\n", $previewParts) : null;
+
         return [
             'template_name' => $name,
             'language' => $language,
             'status' => $status,
-            'body_preview' => $bodyPreview,
+            'body_preview' => $combinedPreview,
             'params' => $params,
         ];
     }
