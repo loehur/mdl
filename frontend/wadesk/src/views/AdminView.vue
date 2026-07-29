@@ -301,18 +301,29 @@
         </div>
 
         <ul class="divide-y divide-white/5">
-          <li v-for="t in templates" :key="t.id" class="py-3">
-            <p class="font-medium">
-              {{ t.template_name }}
-              <span class="text-xs text-slate-500">{{ t.language }}</span>
-            </p>
-            <p class="text-xs text-slate-500 mt-0.5">
-              {{ t.key_label }} ·
-              {{ (t.params || []).map((p) => `${p.component}:${p.param_name || p.param_index}`).join(", ") || "0 param" }}
-            </p>
-            <p v-if="t.body_preview" class="mt-1 text-[11px] text-slate-400 whitespace-pre-wrap line-clamp-3">
-              {{ t.body_preview }}
-            </p>
+          <li v-for="t in templates" :key="t.id" class="py-3 flex items-start gap-3">
+            <div class="flex-1 min-w-0">
+              <p class="font-medium">
+                {{ t.template_name }}
+                <span class="text-xs text-slate-500">{{ t.language }}</span>
+              </p>
+              <p class="text-xs text-slate-500 mt-0.5">
+                {{ t.key_label }} ·
+                {{ (t.params || []).map((p) => `${p.component}:${p.param_name || p.param_index}`).join(", ") || "0 param" }}
+              </p>
+              <p v-if="t.body_preview" class="mt-1 text-[11px] text-slate-400 whitespace-pre-wrap line-clamp-3">
+                {{ t.body_preview }}
+              </p>
+            </div>
+            <button
+              type="button"
+              class="btn-sm shrink-0 text-xs"
+              :disabled="resyncingId === t.id || !syncKeyId"
+              @click="resyncOneTemplate(t.template_name)"
+              title="Resync params template ini dari YCloud"
+            >
+              {{ resyncingId === t.id ? "..." : "Resync" }}
+            </button>
           </li>
         </ul>
         <p v-if="!templates.length" class="text-sm text-slate-500 text-center py-2">
@@ -469,6 +480,7 @@ const editKeyForm = reactive({ label: "", api_key: "", phone_number: "", ycloud_
 const savingKey = ref(false);
 const syncKeyId = ref("");
 const syncing = ref(false);
+const resyncingId = ref(null);
 const quotaForm = reactive({ team_id: "", amount: 100, note: "" });
 
 const teamLeaders = computed(() =>
@@ -804,6 +816,29 @@ async function removeKey(id) {
       }
     },
   });
+}
+
+async function resyncOneTemplate(templateName) {
+  if (!syncKeyId.value) {
+    flash(false, "Pilih API key dulu sebelum resync");
+    return;
+  }
+  const tpl = templates.value.find((t) => t.template_name === templateName);
+  if (!tpl) return;
+  resyncingId.value = tpl.id;
+  try {
+    const res = await api("/WaDesk/Templates/resyncOne", {
+      method: "POST",
+      body: { ycloud_key_id: Number(syncKeyId.value), template_name: templateName },
+    });
+    const count = res.data?.params_synced ?? 0;
+    flash(true, `Resync OK: ${templateName} — ${count} params diupdate`);
+    await refresh();
+  } catch (e) {
+    flash(false, e.message);
+  } finally {
+    resyncingId.value = null;
+  }
 }
 
 async function syncTemplatesFromYCloud() {
