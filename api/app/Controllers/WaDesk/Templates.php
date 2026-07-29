@@ -569,7 +569,17 @@ class Templates extends WaDeskController
                     : null;
             }
 
-            $this->db($this->db_index)->insertIgnore('wa_template_params', $row);
+            try {
+                $this->db($this->db_index)->insertIgnore('wa_template_params', $row);
+            } catch (\Throwable $e) {
+                // insertIgnore not available on this DB version — fallback to raw query
+                $cols = implode(', ', array_keys($row));
+                $ph   = implode(', ', array_fill(0, count($row), '?'));
+                $this->db($this->db_index)->query(
+                    "INSERT IGNORE INTO wa_template_params ($cols) VALUES ($ph)",
+                    array_values($row)
+                );
+            }
         }
     }
 
