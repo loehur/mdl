@@ -196,6 +196,8 @@ class Templates extends WaDeskController
             $key['api_key_hash'] = $hash;
 
             $siblingCount = $this->backfillTenantKeyHashes((int) $admin['tenant_id'], $hash, $apiKey);
+            // Dedupe by key_id BEFORE backfilling hash (avoids UNIQUE constraint violation on UPDATE)
+            $this->dedupeTemplatesByKeyId($hash);
             $this->backfillTemplateHashesFromKeys($hash);
             $merged = $this->dedupeTemplatesForHash($hash);
         } else {
@@ -539,6 +541,49 @@ class Templates extends WaDeskController
             $count++;
         }
         return max(1, $count);
+    }
+
+    /**
+     * Before setting api_key_hash, remove duplicate (template_name+language) rows
+     * that belong to keys sharing the same credential — keeping the oldest row.
+     * This prevents UNIQUE constraint violation when the UPDATE sets api_key_hash.
+     */
+    private function dedupeTemplatesByKeyId(string $hash): void
+    {
+        // Find all key IDs that share this credential hash
+        $keys = $this->db($this->db_index)->query(
+            "SELECT id FROM ycloud_keys WHERE api_key_hash = ?",
+            [$hash]
+        )->result_array();
+        if (count($keys) < 2) {
+            return; // nothing to dedupe
+        }
+        $keyIds = array_column($keys, 'id');
+        $placeholders = implode(',', array_fill(0, count($keyIds), '?'));
+
+        // Find duplicates across those key_ids
+        $dupes = $this->db($this->db_index)->query(
+            "SELECT template_name, language, MIN(id) AS keep_id, COUNT(*) AS cnt
+             FROM wa_templates
+             WHERE ycloud_key_id IN ($placeholders)
+             GROUP BY template_name, language
+             HAVING cnt > 1",
+            $keyIds
+        )->result_array();
+
+        foreach ($dupes as $d) {
+            $extras = $this->db($this->db_index)->query(
+                "SELECT id FROM wa_templates
+                 WHERE ycloud_key_id IN ($placeholders)
+                   AND template_name = ? AND language = ? AND id <> ?",
+                array_merge($keyIds, [$d['template_name'], $d['language'], (int) $d['keep_id']])
+            )->result_array();
+            foreach ($extras as $ex) {
+                $eid = (int) $ex['id'];
+                $this->db($this->db_index)->delete('wa_template_params', ['template_id' => $eid]);
+                $this->db($this->db_index)->delete('wa_templates', ['id' => $eid]);
+            }
+        }
     }
 
     private function backfillTemplateHashesFromKeys(string $hash): void
