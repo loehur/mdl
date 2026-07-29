@@ -55,16 +55,31 @@ class Teams extends WaDeskController
         $body = $this->getBody();
         $this->validate($body, ['id', 'name']);
         $id = (int) $body['id'];
+        $name = trim((string) ($body['name'] ?? ''));
+        if ($name === '') {
+            $this->error('Nama team wajib diisi', 400);
+        }
+        if (mb_strlen($name) > 100) {
+            $this->error('Nama team maksimal 100 karakter', 400);
+        }
 
         if (!$this->getTenantTeam($id, (int) $admin['tenant_id'])) {
             $this->error('Team tidak ditemukan', 404);
         }
 
+        $dup = $this->db($this->db_index)->query(
+            "SELECT id FROM teams WHERE tenant_id = ? AND name = ? AND id <> ? LIMIT 1",
+            [(int) $admin['tenant_id'], $name, $id]
+        )->row_array();
+        if ($dup) {
+            $this->error('Nama team sudah dipakai', 400);
+        }
+
         $this->db($this->db_index)->update('teams', [
-            'name' => trim($body['name']),
+            'name' => $name,
         ], ['id' => $id]);
 
-        $this->success(null, 'Team diupdate');
+        $this->success(['id' => $id, 'name' => $name], 'Nama team diubah');
     }
 
     public function delete()

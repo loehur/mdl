@@ -34,13 +34,40 @@
         </form>
         <ul class="divide-y divide-white/5">
           <li v-for="t in teams" :key="t.id" class="py-3 flex items-center justify-between gap-2">
-            <div>
-              <p class="font-medium">{{ t.name }}</p>
-              <p class="text-xs text-slate-500">
-                Leader: {{ t.leader_name || "—" }} · Agents: {{ t.agent_count }}
-              </p>
+            <div class="min-w-0 flex-1">
+              <template v-if="editingTeamId === t.id">
+                <form class="flex flex-col sm:flex-row gap-2" @submit.prevent="saveTeamName(t)">
+                  <input
+                    v-model="editingTeamName"
+                    required
+                    maxlength="100"
+                    class="field flex-1"
+                    placeholder="Nama team"
+                    @keydown.esc.prevent="cancelEditTeam"
+                  />
+                  <div class="flex gap-2 shrink-0">
+                    <button type="submit" class="btn" :disabled="savingTeam">
+                      {{ savingTeam ? "Menyimpan..." : "Simpan" }}
+                    </button>
+                    <button type="button" class="btn-sm" :disabled="savingTeam" @click="cancelEditTeam">
+                      Batal
+                    </button>
+                  </div>
+                </form>
+              </template>
+              <template v-else>
+                <p class="font-medium truncate">{{ t.name }}</p>
+                <p class="text-xs text-slate-500">
+                  Leader: {{ t.leader_name || "—" }} · Agents: {{ t.agent_count }}
+                </p>
+              </template>
             </div>
-            <button class="text-xs text-rose-400" @click="removeTeam(t.id)">Hapus</button>
+            <div v-if="editingTeamId !== t.id" class="flex items-center gap-3 shrink-0">
+              <button type="button" class="text-xs text-accent hover:underline" @click="startEditTeam(t)">
+                Ubah
+              </button>
+              <button type="button" class="text-xs text-rose-400" @click="removeTeam(t.id)">Hapus</button>
+            </div>
           </li>
         </ul>
       </section>
@@ -325,6 +352,9 @@ async function onDialogConfirm() {
   }
 }
 const teamForm = reactive({ name: "" });
+const editingTeamId = ref(null);
+const editingTeamName = ref("");
+const savingTeam = ref(false);
 const userForm = reactive({
   name: "",
   email: "",
@@ -389,6 +419,43 @@ async function createTeam() {
   }
 }
 
+function startEditTeam(t) {
+  editingTeamId.value = t.id;
+  editingTeamName.value = t.name || "";
+}
+
+function cancelEditTeam() {
+  editingTeamId.value = null;
+  editingTeamName.value = "";
+  savingTeam.value = false;
+}
+
+async function saveTeamName(t) {
+  const name = String(editingTeamName.value || "").trim();
+  if (!name) {
+    flash(false, "Nama team wajib diisi");
+    return;
+  }
+  if (name === t.name) {
+    cancelEditTeam();
+    return;
+  }
+  savingTeam.value = true;
+  try {
+    await api("/WaDesk/Teams/update", {
+      method: "POST",
+      body: { id: t.id, name },
+    });
+    flash(true, "Nama team diubah");
+    cancelEditTeam();
+    await refresh();
+  } catch (e) {
+    flash(false, e.message);
+  } finally {
+    savingTeam.value = false;
+  }
+}
+
 async function removeTeam(id) {
   askConfirm({
     title: "Hapus team",
@@ -396,6 +463,7 @@ async function removeTeam(id) {
     action: async () => {
       try {
         await api("/WaDesk/Teams/delete", { method: "POST", body: { id } });
+        if (editingTeamId.value === id) cancelEditTeam();
         flash(true, "Team dihapus");
         await refresh();
       } catch (e) {
@@ -601,6 +669,9 @@ onMounted(refresh);
   @apply w-full rounded-xl bg-ink-950 border border-white/10 px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-accent/40;
 }
 .btn {
-  @apply px-4 py-2.5 rounded-xl bg-accent font-medium text-sm hover:bg-accent-soft transition;
+  @apply px-4 py-2.5 rounded-xl bg-accent font-medium text-sm hover:bg-accent-soft transition disabled:opacity-50;
+}
+.btn-sm {
+  @apply px-3 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-200 text-sm transition disabled:opacity-50;
 }
 </style>
