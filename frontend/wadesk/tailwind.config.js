@@ -9,10 +9,10 @@ export default {
       },
       colors: {
         ink: {
-          950: "#0b1220",
-          900: "#111827",
-          800: "#1e293b",
-          700: "#334155",
+          950: "rgb(var(--color-ink-950) / <alpha-value>)",
+          900: "rgb(var(--color-ink-900) / <alpha-value>)",
+          800: "rgb(var(--color-ink-800) / <alpha-value>)",
+          700: "rgb(var(--color-ink-700) / <alpha-value>)",
         },
         accent: {
           DEFAULT: "#0d9488",

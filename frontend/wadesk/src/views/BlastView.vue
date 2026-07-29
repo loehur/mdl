@@ -3,11 +3,14 @@
     <!-- Header -->
     <header class="h-14 px-4 border-b border-white/10 flex items-center justify-between bg-ink-900/80 sticky top-0 z-10">
       <div class="flex items-center gap-3">
-        <router-link to="/" class="text-slate-400 hover:text-white text-sm">← Inbox</router-link>
-        <span class="text-white/20">|</span>
-        <span class="font-display font-semibold text-lg">Blast</span>
+        <router-link to="/" class="text-slate-400 hover:text-slate-100 text-sm">← Inbox</router-link>
+        <span class="text-slate-400/40">|</span>
+        <span class="font-display font-semibold text-lg text-slate-100">Blast</span>
       </div>
-      <router-link v-if="auth.isAdmin" to="/admin" class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-200 text-sm">Admin</router-link>
+      <div class="flex items-center gap-2">
+        <ThemeToggle compact />
+        <router-link v-if="auth.isAdmin" to="/admin" class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-200 text-sm">Admin</router-link>
+      </div>
     </header>
 
     <div class="max-w-4xl mx-auto p-4 space-y-6">
@@ -249,7 +252,7 @@
             >
               {{ cancelling ? '...' : 'Batalkan' }}
             </button>
-            <button class="text-slate-400 hover:text-white text-lg" @click="detailBlast = null; clearDetailPoll()">✕</button>
+            <button class="text-slate-400 hover:text-slate-100 text-lg" @click="detailBlast = null; clearDetailPoll()">✕</button>
           </div>
         </div>
 
@@ -328,6 +331,7 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import { api } from '../api';
 import ConfirmModal from '../components/ConfirmModal.vue';
+import ThemeToggle from '../components/ThemeToggle.vue';
 import {
   buildTemplateHeaders,
   downloadSampleCsv,

@@ -2,10 +2,10 @@
   <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60">
     <div class="w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl bg-ink-900 border border-white/10 shadow-2xl max-h-[90vh] overflow-y-auto relative">
       <div class="p-4 border-b border-white/10 flex items-center justify-between sticky top-0 bg-ink-900 z-10">
-        <h2 class="font-display font-semibold text-lg">Kirim template</h2>
+        <h2 class="font-display font-semibold text-lg text-slate-100">Kirim template</h2>
         <button
           type="button"
-          class="text-slate-400 hover:text-white disabled:opacity-40 disabled:pointer-events-none"
+          class="text-slate-400 hover:text-slate-100 disabled:opacity-40 disabled:pointer-events-none"
           :disabled="busy"
           @click="$emit('close')"
         >
@@ -255,6 +255,6 @@ function submit() {
   @apply block text-xs text-slate-400 mb-1;
 }
 .field {
-  @apply w-full rounded-xl bg-ink-950 border border-white/10 px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-accent/40 disabled:opacity-50;
+  @apply w-full rounded-xl bg-ink-950 border border-white/10 px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-accent/40 disabled:opacity-50;
 }
 </style>

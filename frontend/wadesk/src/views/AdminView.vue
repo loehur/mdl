@@ -2,10 +2,13 @@
   <div class="min-h-full bg-ink-950">
     <header class="h-14 px-4 border-b border-white/10 flex items-center justify-between bg-ink-900/80 sticky top-0 z-10">
       <div class="flex items-center gap-3">
-        <router-link to="/" class="text-slate-400 hover:text-white">← Inbox</router-link>
-        <span class="font-display font-semibold">Admin</span>
+        <router-link to="/" class="text-slate-400 hover:text-slate-100">← Inbox</router-link>
+        <span class="font-display font-semibold text-slate-100">Admin</span>
       </div>
-      <span class="text-xs text-slate-500">{{ auth.user?.email }}</span>
+      <div class="flex items-center gap-3">
+        <span class="text-xs text-slate-500">{{ auth.user?.email }}</span>
+        <ThemeToggle compact />
+      </div>
     </header>
 
     <div class="max-w-5xl mx-auto p-4 space-y-6">
@@ -269,6 +272,7 @@ import { computed, onMounted, reactive, ref } from "vue";
 import { api } from "../api";
 import { useAuthStore } from "../stores/auth";
 import ConfirmModal from "../components/ConfirmModal.vue";
+import ThemeToggle from "../components/ThemeToggle.vue";
 
 const auth = useAuthStore();
 const tab = ref("teams");
@@ -594,7 +598,7 @@ onMounted(refresh);
   @apply block text-xs text-slate-400 mb-1;
 }
 .field {
-  @apply w-full rounded-xl bg-ink-950 border border-white/10 px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-accent/40;
+  @apply w-full rounded-xl bg-ink-950 border border-white/10 px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-accent/40;
 }
 .btn {
   @apply px-4 py-2.5 rounded-xl bg-accent font-medium text-sm hover:bg-accent-soft transition;

@@ -5,8 +5,8 @@
   >
     <div class="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl bg-ink-900 border border-white/10 shadow-2xl">
       <div class="p-4 border-b border-white/10 flex items-center justify-between">
-        <h2 class="font-display font-semibold text-lg text-white">{{ title }}</h2>
-        <button type="button" class="text-slate-400 hover:text-white" @click="onCancel">✕</button>
+        <h2 class="font-display font-semibold text-lg text-slate-100">{{ title }}</h2>
+        <button type="button" class="text-slate-400 hover:text-slate-100" @click="onCancel">✕</button>
       </div>
       <div class="p-4 space-y-4">
         <p class="text-sm text-slate-300 whitespace-pre-wrap">{{ message }}</p>

@@ -2,10 +2,92 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Dark (default) */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --color-ink-950: 11 18 32;
+  --color-ink-900: 17 24 39;
+  --color-ink-800: 30 41 59;
+  --color-ink-700: 51 65 85;
+  --theme-border: 255 255 255;
+  --theme-muted-bg: 255 255 255;
+  --theme-overlay: 0 0 0;
+}
+
+/* Light — teal accent kept; soft slate surfaces */
+[data-theme="light"] {
+  color-scheme: light;
+  --color-ink-950: 241 245 249;
+  --color-ink-900: 255 255 255;
+  --color-ink-800: 226 232 240;
+  --color-ink-700: 203 213 225;
+  --theme-border: 15 23 42;
+  --theme-muted-bg: 15 23 42;
+  --theme-overlay: 15 23 42;
+}
+
 html,
 body,
 #app {
   height: 100%;
+}
+
+body {
+  @apply bg-ink-950 text-slate-100 antialiased;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Remap dark-oriented utilities for light theme */
+[data-theme="light"] .text-slate-100 {
+  color: #0f172a;
+}
+[data-theme="light"] .text-slate-200 {
+  color: #1e293b;
+}
+[data-theme="light"] .text-slate-300 {
+  color: #334155;
+}
+[data-theme="light"] .text-slate-400 {
+  color: #64748b;
+}
+[data-theme="light"] .text-slate-500 {
+  color: #94a3b8;
+}
+[data-theme="light"] .hover\:text-white:hover,
+[data-theme="light"] .hover\:text-slate-100:hover {
+  color: #0f172a;
+}
+[data-theme="light"] .border-white\/10 {
+  border-color: rgb(var(--theme-border) / 0.1);
+}
+[data-theme="light"] .border-white\/5 {
+  border-color: rgb(var(--theme-border) / 0.06);
+}
+[data-theme="light"] .border-dashed.border-white\/10 {
+  border-color: rgb(var(--theme-border) / 0.14);
+}
+[data-theme="light"] .bg-white\/5 {
+  background-color: rgb(var(--theme-muted-bg) / 0.05);
+}
+[data-theme="light"] .hover\:bg-white\/10:hover {
+  background-color: rgb(var(--theme-muted-bg) / 0.08);
+}
+[data-theme="light"] .bg-black\/60 {
+  background-color: rgb(var(--theme-overlay) / 0.45);
+}
+[data-theme="light"] .text-white\/20 {
+  color: rgb(15 23 42 / 0.25);
+}
+[data-theme="light"] .placeholder\:text-slate-500::placeholder {
+  color: #94a3b8;
+}
+
+/* Login gradient softens in light mode */
+[data-theme="light"] .theme-login-glow {
+  background:
+    radial-gradient(ellipse at top, rgba(13, 148, 136, 0.14), transparent 55%),
+    radial-gradient(ellipse at bottom right, rgba(56, 189, 248, 0.08), transparent 50%);
 }
 
 ::-webkit-scrollbar {
@@ -15,4 +97,7 @@ body,
 ::-webkit-scrollbar-thumb {
   background: rgba(148, 163, 184, 0.35);
   border-radius: 999px;
+}
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.35);
 }

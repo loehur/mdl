@@ -2,10 +2,11 @@
   <div class="h-full flex flex-col bg-ink-950">
     <header class="shrink-0 h-14 px-4 border-b border-white/10 flex items-center justify-between bg-ink-900/80">
       <div class="flex items-center gap-3">
-        <span class="font-display text-xl font-semibold text-white">WaDesk</span>
+        <span class="font-display text-xl font-semibold text-slate-100">WaDesk</span>
         <span class="text-xs px-2 py-0.5 rounded-full bg-white/5 text-slate-400">{{ auth.user?.role }}</span>
       </div>
       <div class="flex items-center gap-2 text-sm">
+        <ThemeToggle compact />
         <span
           v-if="templateQuotaBalance !== null && !auth.isAdmin"
           class="hidden sm:inline text-xs px-2 py-1 rounded-lg bg-white/5 text-slate-300"
@@ -225,6 +226,7 @@ import { useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 import { useChatStore } from "../stores/chat";
 import TemplateModal from "../components/TemplateModal.vue";
+import ThemeToggle from "../components/ThemeToggle.vue";
 import { api } from "../api";
 
 const auth = useAuthStore();
