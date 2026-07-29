@@ -174,20 +174,27 @@ class Templates extends WaDeskController
 
         $mapped = WaDeskYCloud::mapTemplateToWaDesk($found);
 
-        // Find template row in DB
-        $tplRow = $this->db($this->db_index)->query(
-            "SELECT id FROM wa_templates WHERE template_name = ? LIMIT 1", [$tplName]
-        )->row_array();
-        if (!$tplRow) $this->error('Template belum ada di DB, lakukan sync penuh dulu', 404);
+        // Find ALL template rows with this name to detect duplicates
+        $allRows = $this->db($this->db_index)->query(
+            "SELECT id, ycloud_key_id, api_key_hash FROM wa_templates WHERE template_name = ?", [$tplName]
+        )->result_array();
 
-        $tplId = (int) $tplRow['id'];
-        $this->db($this->db_index)->update('wa_templates', [
-            'body_preview' => $mapped['body_preview'],
-        ], ['id' => $tplId]);
-        $this->replaceParams($tplId, $mapped['params']);
+        if (!$allRows) $this->error('Template belum ada di DB, lakukan sync penuh dulu', 404);
+
+        // Update ALL matching rows (in case there are duplicates)
+        $updatedIds = [];
+        foreach ($allRows as $tplRow) {
+            $tplId = (int) $tplRow['id'];
+            $this->db($this->db_index)->update('wa_templates', [
+                'body_preview' => $mapped['body_preview'],
+            ], ['id' => $tplId]);
+            $this->replaceParams($tplId, $mapped['params']);
+            $updatedIds[] = $tplId;
+        }
 
         $this->success([
-            'template_id'   => $tplId,
+            'template_ids'  => $updatedIds,
+            'rows_updated'  => count($updatedIds),
             'params_synced' => count($mapped['params']),
             'params'        => $mapped['params'],
         ], 'Params template berhasil di-resync');
