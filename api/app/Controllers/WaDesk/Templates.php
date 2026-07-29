@@ -435,6 +435,7 @@ class Templates extends WaDeskController
     {
         $this->db($this->db_index)->delete('wa_template_params', ['template_id' => $templateId]);
         $hasButtonMeta = $this->columnExists('wa_template_params', 'button_sub_type');
+        $seen = []; // dedup (component, param_index) within this template
         foreach ($params as $p) {
             if (!isset($p['param_index'], $p['label'])) {
                 continue;
@@ -443,6 +444,11 @@ class Templates extends WaDeskController
             if (!in_array($component, ['header', 'body', 'button'], true)) {
                 $component = 'body';
             }
+            $seenKey = $component . ':' . (int) $p['param_index'];
+            if (isset($seen[$seenKey])) {
+                continue; // skip duplicate (component, param_index)
+            }
+            $seen[$seenKey] = true;
             $paramName = trim((string) ($p['param_name'] ?? ''));
             if ($paramName === '') {
                 $paramName = null;

@@ -180,6 +180,7 @@ class YCloud
         $bodyPreview = null;
         $headerPreview = null;
         $params = [];
+        $buttonParamOrdinal = 0; // shared across all BUTTONS components
 
         foreach ($components as $comp) {
             if (!is_array($comp)) {
@@ -213,7 +214,6 @@ class YCloud
                 if (!is_array($buttons)) {
                     continue;
                 }
-                $paramOrdinal = 0;
                 foreach ($buttons as $metaIndex => $btn) {
                     if (!is_array($btn)) {
                         continue;
@@ -233,10 +233,10 @@ class YCloud
                     $subType = self::mapButtonSubType($btnType);
                     $examples = self::extractComponentExamples($comp, 'button');
                     foreach ($placeholders as $i => $ph) {
-                        $paramOrdinal++;
+                        $buttonParamOrdinal++;
                         $row = self::makeParamRow(
                             'button',
-                            $paramOrdinal,
+                            $buttonParamOrdinal,
                             $ph,
                             $examples[$i] ?? ($examples[$ph] ?? ''),
                             $text !== '' ? ('Tombol: ' . $text) : null
