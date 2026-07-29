@@ -219,21 +219,21 @@ class Templates extends WaDeskController
                 continue;
             }
 
+            // Find existing row — search by hash first, then by key_id fallback
+            $existing = null;
             if ($hash !== '') {
                 $existing = $this->db($this->db_index)->query(
                     "SELECT id FROM wa_templates
-                     WHERE template_name = ? AND language = ?
-                       AND (
-                         api_key_hash = ?
-                         OR (ycloud_key_id = ? AND (api_key_hash IS NULL OR api_key_hash = ''))
-                       )
-                     ORDER BY (api_key_hash = ?) DESC, id ASC
+                     WHERE api_key_hash = ? AND template_name = ? AND language = ?
                      LIMIT 1",
-                    [$name, $lang, $hash, $keyId, $hash]
+                    [$hash, $name, $lang]
                 )->row_array();
-            } else {
+            }
+            if (!$existing) {
                 $existing = $this->db($this->db_index)->query(
-                    "SELECT id FROM wa_templates WHERE ycloud_key_id = ? AND template_name = ? AND language = ? LIMIT 1",
+                    "SELECT id FROM wa_templates
+                     WHERE ycloud_key_id = ? AND template_name = ? AND language = ?
+                     LIMIT 1",
                     [$keyId, $name, $lang]
                 )->row_array();
             }
@@ -260,37 +260,36 @@ class Templates extends WaDeskController
                 }
                 try {
                     $tplId = (int) $this->db($this->db_index)->insert('wa_templates', $insertData);
-                    $this->replaceParams($tplId, $mapped['params']);
-                    $created++;
-                    $synced[] = ['id' => $tplId, 'template_name' => $name, 'language' => $lang, 'action' => 'created'];
                 } catch (\Throwable $insertEx) {
-                    // Duplicate key (race or hash-based unique constraint) — find and update
-                    $fallback = null;
-                    if ($hash !== '') {
-                        $fallback = $this->db($this->db_index)->query(
+                    // UNIQUE constraint hit (race / backfill already set hash) — re-fetch and update
+                    $tplId = 0;
+                    $retry = $hash !== ''
+                        ? $this->db($this->db_index)->query(
                             "SELECT id FROM wa_templates WHERE api_key_hash = ? AND template_name = ? AND language = ? LIMIT 1",
                             [$hash, $name, $lang]
-                        )->row_array();
-                    }
-                    if (!$fallback) {
-                        $fallback = $this->db($this->db_index)->query(
+                          )->row_array()
+                        : $this->db($this->db_index)->query(
                             "SELECT id FROM wa_templates WHERE ycloud_key_id = ? AND template_name = ? AND language = ? LIMIT 1",
                             [$keyId, $name, $lang]
-                        )->row_array();
-                    }
-                    if ($fallback) {
-                        $tplId = (int) $fallback['id'];
-                        $updateData = ['body_preview' => $mapped['body_preview'], 'ycloud_key_id' => $keyId];
-                        if ($hash !== '') {
-                            $updateData['api_key_hash'] = $hash;
-                        }
-                        $this->db($this->db_index)->update('wa_templates', $updateData, ['id' => $tplId]);
-                        $this->replaceParams($tplId, $mapped['params']);
+                          )->row_array();
+                    if ($retry) {
+                        $tplId = (int) $retry['id'];
+                        $upd = ['body_preview' => $mapped['body_preview'], 'ycloud_key_id' => $keyId];
+                        if ($hash !== '') $upd['api_key_hash'] = $hash;
+                        $this->db($this->db_index)->update('wa_templates', $upd, ['id' => $tplId]);
                         $updated++;
-                        $synced[] = ['id' => $tplId, 'template_name' => $name, 'language' => $lang, 'action' => 'updated(fallback)'];
+                        $synced[] = ['id' => $tplId, 'template_name' => $name, 'language' => $lang, 'action' => 'updated'];
                     } else {
                         $skipped++;
                     }
+                }
+                if ($tplId > 0) {
+                    $this->replaceParams($tplId, $mapped['params']);
+                    if (!isset($retry)) {
+                        $created++;
+                        $synced[] = ['id' => $tplId, 'template_name' => $name, 'language' => $lang, 'action' => 'created'];
+                    }
+                    unset($retry);
                 }
             }
         }
