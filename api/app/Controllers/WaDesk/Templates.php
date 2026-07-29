@@ -139,6 +139,47 @@ class Templates extends WaDeskController
      * Result is shared with every WaDesk key that uses the same API credential.
      * POST { ycloud_key_id }
      */
+    /**
+     * Debug: GET /WaDesk/Templates/debugTemplate?ycloud_key_id=X&template_name=Y
+     * Returns raw YCloud template data + mapped params (admin only, remove after use)
+     */
+    public function debugTemplate()
+    {
+        $this->verifyAuth();
+        $admin = $this->requireAdmin();
+
+        $keyId = (int) $this->query('ycloud_key_id');
+        $tplName = trim((string) $this->query('template_name'));
+
+        $key = $this->db($this->db_index)->query(
+            "SELECT * FROM ycloud_keys WHERE id = ? AND tenant_id = ? LIMIT 1",
+            [$keyId, (int) $admin['tenant_id']]
+        )->row_array();
+        if (!$key) $this->error('Key tidak ditemukan', 404);
+
+        $apiKey = WaDeskCrypto::decrypt($key['api_key_enc']);
+        $client = new WaDeskYCloud($apiKey, (string) ($key['phone_number'] ?? ''));
+        $fetched = $client->listAllTemplates(['status' => 'APPROVED']);
+
+        $found = null;
+        foreach ($fetched['templates'] ?? [] as $t) {
+            if (($t['name'] ?? '') === $tplName) {
+                $found = $t;
+                break;
+            }
+        }
+
+        if (!$found) $this->error('Template tidak ditemukan di YCloud', 404);
+
+        $mapped = WaDeskYCloud::mapTemplateToWaDesk($found);
+
+        $this->success([
+            'raw_components' => $found['components'] ?? [],
+            'mapped_params'  => $mapped['params'],
+            'body_preview'   => $mapped['body_preview'],
+        ]);
+    }
+
     public function syncFromYCloud()
     {
         // Temporary debug: wrap entire function to capture real exception
@@ -149,7 +190,7 @@ class Templates extends WaDeskController
                 . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine()
                 . "\nTrace: " . $e->getTraceAsString() . "\n---\n";
             \Log::write($logLine, 'wadesk', 'sync_exception');
-            throw $e; // re-throw so existing handler still responds
+            throw $e;
         }
     }
 
