@@ -477,19 +477,6 @@ class Templates extends WaDeskController
         }
     }
 
-    private function columnExists(string $table, string $column): bool
-    {
-        try {
-            $row = $this->db($this->db_index)->query(
-                "SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS
-                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?",
-                [$table, $column]
-            )->row_array();
-            return (int) ($row['cnt'] ?? 0) > 0;
-        } catch (\Throwable $e) {
-            return false;
-        }
-    }
 
     private function getTenantTemplate(int $id, int $tenantId): ?array
     {

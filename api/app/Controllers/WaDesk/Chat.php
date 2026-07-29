@@ -170,9 +170,13 @@ class Chat extends WaDeskController
                 }
                 $templateName = $tpl['template_name'];
                 $language = $tpl['language'] ?: $language;
+                // Check if button_meta migration has been applied
+                $hasButtonMeta = $this->columnExists('wa_template_params', 'button_sub_type');
+                $paramCols = $hasButtonMeta
+                    ? "component, button_sub_type, button_index, param_index, param_name, label, is_required"
+                    : "component, param_index, param_name, label, is_required";
                 $tplParamDefs = $this->db($this->db_index)->query(
-                    "SELECT component, button_sub_type, button_index, param_index, param_name, label, is_required
-                     FROM wa_template_params WHERE template_id = ?
+                    "SELECT $paramCols FROM wa_template_params WHERE template_id = ?
                      ORDER BY FIELD(component,'header','body','button'), param_index ASC",
                     [$templateId]
                 )->result_array();
@@ -234,6 +238,8 @@ class Chat extends WaDeskController
                 'key_id'        => $key['id'],
                 'key_phone'     => $key['phone_number'] ?? '',
                 'api_key_hash'  => $key['api_key_hash'] ?? 'n/a',
+                'tpl_param_defs'=> $tplParamDefs,
+                'raw_params'    => $rawParams,
                 'send_params'   => $sendParams,
             ];
             file_put_contents('/tmp/wadesk_send_template.log',

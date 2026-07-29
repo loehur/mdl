@@ -285,6 +285,20 @@ abstract class WaDeskController extends BaseController
         return $digits;
     }
 
+    protected function columnExists(string $table, string $column): bool
+    {
+        try {
+            $row = $this->db($this->db_index)->query(
+                "SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?",
+                [$table, $column]
+            )->row_array();
+            return (int) ($row['cnt'] ?? 0) > 0;
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
     /**
      * Ensure ycloud_keys.api_key_hash is set; returns the hash.
      * Same plaintext YCloud credential → same hash → shared templates.
