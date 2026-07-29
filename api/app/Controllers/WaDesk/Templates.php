@@ -531,9 +531,11 @@ class Templates extends WaDeskController
     {
         $this->db($this->db_index)->delete('wa_template_params', ['template_id' => $templateId]);
         $hasButtonMeta = $this->columnExists('wa_template_params', 'button_sub_type');
-        $seen = []; // dedup (component, param_index) within this template
+        $seen = [];
+        \Log::write('replaceParams start tpl=' . $templateId . ' count=' . count($params) . ' params=' . json_encode(array_map(fn($p)=>($p['component']??'?').':'.$p['param_index'].':'.$p['param_name']??'', $params), JSON_UNESCAPED_UNICODE), 'wadesk', 'replace_params');
         foreach ($params as $p) {
             if (!isset($p['param_index'], $p['label'])) {
+                \Log::write('SKIP missing param_index/label: ' . json_encode($p), 'wadesk', 'replace_params');
                 continue;
             }
             $component = strtolower(trim((string) ($p['component'] ?? 'body')));
@@ -542,7 +544,8 @@ class Templates extends WaDeskController
             }
             $seenKey = $component . ':' . (int) $p['param_index'];
             if (isset($seen[$seenKey])) {
-                continue; // skip duplicate (component, param_index)
+                \Log::write('SKIP seen: ' . $seenKey, 'wadesk', 'replace_params');
+                continue;
             }
             $seen[$seenKey] = true;
             $paramName = trim((string) ($p['param_name'] ?? ''));
@@ -571,14 +574,20 @@ class Templates extends WaDeskController
 
             try {
                 $this->db($this->db_index)->insertIgnore('wa_template_params', $row);
+                \Log::write('INSERT OK: ' . $seenKey, 'wadesk', 'replace_params');
             } catch (\Throwable $e) {
-                // insertIgnore not available on this DB version — fallback to raw query
-                $cols = implode(', ', array_keys($row));
-                $ph   = implode(', ', array_fill(0, count($row), '?'));
-                $this->db($this->db_index)->query(
-                    "INSERT IGNORE INTO wa_template_params ($cols) VALUES ($ph)",
-                    array_values($row)
-                );
+                \Log::write('insertIgnore FAIL: ' . $e->getMessage() . ' — trying raw query', 'wadesk', 'replace_params');
+                try {
+                    $cols = implode(', ', array_keys($row));
+                    $ph   = implode(', ', array_fill(0, count($row), '?'));
+                    $this->db($this->db_index)->query(
+                        "INSERT IGNORE INTO wa_template_params ($cols) VALUES ($ph)",
+                        array_values($row)
+                    );
+                    \Log::write('RAW INSERT OK: ' . $seenKey, 'wadesk', 'replace_params');
+                } catch (\Throwable $e2) {
+                    \Log::write('RAW INSERT FAIL: ' . $e2->getMessage(), 'wadesk', 'replace_params');
+                }
             }
         }
     }
