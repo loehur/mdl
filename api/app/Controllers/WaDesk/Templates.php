@@ -129,6 +129,9 @@ class Templates extends WaDeskController
                  ORDER BY FIELD(component,'header','body','button'), param_index ASC",
                 [(int) $row['id']]
             )->result_array();
+            if (stripos($row['template_name'] ?? '', 'utility') !== false) {
+                \Log::write('LIST tpl_id=' . $row['id'] . ' name=' . $row['template_name'] . ' param_count=' . count($row['params']) . ' params=' . json_encode(array_map(fn($p)=>($p['component']??'?').':'.$p['param_index'], $row['params'])), 'wadesk', 'list_params');
+            }
         }
 
         $this->success(['templates' => $rows]);
