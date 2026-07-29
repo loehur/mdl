@@ -177,27 +177,44 @@ class Templates extends WaDeskController
 
         $mapped = WaDeskYCloud::mapTemplateToWaDesk($found);
 
-        // Find ALL template rows with this name to detect duplicates
+        // Find ALL template rows with this name — may have duplicates from multi-key sync
         $allRows = $this->db($this->db_index)->query(
-            "SELECT id, ycloud_key_id, api_key_hash FROM wa_templates WHERE template_name = ?", [$tplName]
+            "SELECT id, ycloud_key_id, api_key_hash FROM wa_templates WHERE template_name = ? ORDER BY id ASC",
+            [$tplName]
         )->result_array();
 
         if (!$allRows) $this->error('Template belum ada di DB, lakukan sync penuh dulu', 404);
 
-        // Update ALL matching rows (in case there are duplicates)
-        $updatedIds = [];
-        foreach ($allRows as $tplRow) {
-            $tplId = (int) $tplRow['id'];
-            $this->db($this->db_index)->update('wa_templates', [
-                'body_preview' => $mapped['body_preview'],
-            ], ['id' => $tplId]);
-            $this->replaceParams($tplId, $mapped['params']);
-            $updatedIds[] = $tplId;
+        // Keep the row with the most params (or lowest id as tiebreak), delete the rest
+        $bestId = (int) $allRows[0]['id'];
+        $bestCount = 0;
+        foreach ($allRows as $r) {
+            $cnt = (int) $this->db($this->db_index)->query(
+                "SELECT COUNT(*) AS cnt FROM wa_template_params WHERE template_id = ?", [(int) $r['id']]
+            )->row_array()['cnt'];
+            if ($cnt > $bestCount) { $bestCount = $cnt; $bestId = (int) $r['id']; }
         }
 
+        // Delete duplicate rows (keep $bestId)
+        $deletedIds = [];
+        foreach ($allRows as $r) {
+            $rid = (int) $r['id'];
+            if ($rid !== $bestId) {
+                $this->db($this->db_index)->delete('wa_template_params', ['template_id' => $rid]);
+                $this->db($this->db_index)->delete('wa_templates', ['id' => $rid]);
+                $deletedIds[] = $rid;
+            }
+        }
+
+        // Update the surviving row with fresh data
+        $this->db($this->db_index)->update('wa_templates', [
+            'body_preview' => $mapped['body_preview'],
+        ], ['id' => $bestId]);
+        $this->replaceParams($bestId, $mapped['params']);
+
         $this->success([
-            'template_ids'  => $updatedIds,
-            'rows_updated'  => count($updatedIds),
+            'template_id'   => $bestId,
+            'deleted_dupes' => $deletedIds,
             'params_synced' => count($mapped['params']),
             'params'        => $mapped['params'],
         ], 'Params template berhasil di-resync');
