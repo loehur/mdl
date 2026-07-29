@@ -217,6 +217,77 @@ class Templates extends WaDeskController
         ], 'Params template berhasil di-resync');
     }
 
+    /**
+     * GET /WaDesk/Templates/runMigration007
+     * Fix UNIQUE constraint on wa_template_params to include component.
+     */
+    public function runMigration007()
+    {
+        $this->verifyAuth();
+        $this->requireAdmin();
+
+        $results = [];
+
+        // Check current unique indexes on wa_template_params
+        $indexes = $this->db($this->db_index)->query(
+            "SHOW INDEX FROM wa_template_params WHERE Key_name != 'PRIMARY'"
+        )->result_array();
+
+        $results['indexes_before'] = array_map(fn($i) => $i['Key_name'] . ':' . $i['Column_name'], $indexes);
+
+        // Find unique index names that do NOT include component
+        $uniqueNames = [];
+        foreach ($indexes as $idx) {
+            if ($idx['Non_unique'] == 0) {
+                $uniqueNames[$idx['Key_name']][] = $idx['Column_name'];
+            }
+        }
+
+        $dropped = [];
+        foreach ($uniqueNames as $idxName => $cols) {
+            // Drop if component not in columns
+            if (!in_array('component', $cols)) {
+                try {
+                    $this->db($this->db_index)->query("ALTER TABLE wa_template_params DROP INDEX `$idxName`");
+                    $dropped[] = $idxName;
+                } catch (\Throwable $e) {
+                    $results['drop_error_' . $idxName] = $e->getMessage();
+                }
+            }
+        }
+        $results['dropped'] = $dropped;
+
+        // Check if correct unique already exists
+        $newIndexes = $this->db($this->db_index)->query(
+            "SHOW INDEX FROM wa_template_params WHERE Key_name != 'PRIMARY'"
+        )->result_array();
+        $hasCorrect = false;
+        $byName = [];
+        foreach ($newIndexes as $idx) {
+            if ($idx['Non_unique'] == 0) $byName[$idx['Key_name']][] = $idx['Column_name'];
+        }
+        foreach ($byName as $cols) {
+            if (in_array('component', $cols) && in_array('param_index', $cols) && in_array('template_id', $cols)) {
+                $hasCorrect = true;
+            }
+        }
+
+        if (!$hasCorrect) {
+            try {
+                $this->db($this->db_index)->query(
+                    "ALTER TABLE wa_template_params ADD UNIQUE KEY uq_tpl_param (template_id, component, param_index)"
+                );
+                $results['added'] = 'uq_tpl_param (template_id, component, param_index)';
+            } catch (\Throwable $e) {
+                $results['add_error'] = $e->getMessage();
+            }
+        } else {
+            $results['already_correct'] = true;
+        }
+
+        $this->success($results, 'Migration 007 selesai');
+    }
+
     public function debugDB()
     {
         $this->verifyAuth();
