@@ -243,46 +243,42 @@ class Templates extends WaDeskController
             }
         }
 
-        $dropped = [];
-        foreach ($uniqueNames as $idxName => $cols) {
-            // Drop if component not in columns
-            if (!in_array('component', $cols)) {
-                try {
-                    $this->db($this->db_index)->query("ALTER TABLE wa_template_params DROP INDEX `$idxName`");
-                    $dropped[] = $idxName;
-                } catch (\Throwable $e) {
-                    $results['drop_error_' . $idxName] = $e->getMessage();
-                }
-            }
-        }
-        $results['dropped'] = $dropped;
-
-        // Check if correct unique already exists
-        $newIndexes = $this->db($this->db_index)->query(
-            "SHOW INDEX FROM wa_template_params WHERE Key_name != 'PRIMARY'"
-        )->result_array();
+        // Strategy: rename old index then add correct one, or use ALTER to replace in one statement
+        // Old index uq_tpl_param (template_id, param_index) — cannot drop due to FK, use ALTER TABLE RENAME INDEX
         $hasCorrect = false;
-        $byName = [];
-        foreach ($newIndexes as $idx) {
-            if ($idx['Non_unique'] == 0) $byName[$idx['Key_name']][] = $idx['Column_name'];
-        }
         foreach ($byName as $cols) {
             if (in_array('component', $cols) && in_array('param_index', $cols) && in_array('template_id', $cols)) {
                 $hasCorrect = true;
             }
         }
 
-        if (!$hasCorrect) {
+        if ($hasCorrect) {
+            $results['already_correct'] = true;
+        } else {
+            // Try ALTER TABLE ... RENAME INDEX (MySQL 5.7+)
             try {
                 $this->db($this->db_index)->query(
-                    "ALTER TABLE wa_template_params ADD UNIQUE KEY uq_tpl_param (template_id, component, param_index)"
+                    "ALTER TABLE wa_template_params
+                     RENAME INDEX uq_tpl_param TO uq_tpl_param_old,
+                     ADD UNIQUE KEY uq_tpl_param (template_id, component, param_index)"
                 );
-                $results['added'] = 'uq_tpl_param (template_id, component, param_index)';
+                $results['fixed'] = 'renamed old index, added uq_tpl_param (template_id, component, param_index)';
             } catch (\Throwable $e) {
-                $results['add_error'] = $e->getMessage();
+                $results['rename_error'] = $e->getMessage();
+                // Fallback: drop FK constraint temporarily, drop index, re-add both
+                try {
+                    $this->db($this->db_index)->query("SET FOREIGN_KEY_CHECKS=0");
+                    $this->db($this->db_index)->query("ALTER TABLE wa_template_params DROP INDEX uq_tpl_param");
+                    $this->db($this->db_index)->query(
+                        "ALTER TABLE wa_template_params ADD UNIQUE KEY uq_tpl_param (template_id, component, param_index)"
+                    );
+                    $this->db($this->db_index)->query("SET FOREIGN_KEY_CHECKS=1");
+                    $results['fixed'] = 'forced drop+add uq_tpl_param with FK checks off';
+                } catch (\Throwable $e2) {
+                    $this->db($this->db_index)->query("SET FOREIGN_KEY_CHECKS=1");
+                    $results['fallback_error'] = $e2->getMessage();
+                }
             }
-        } else {
-            $results['already_correct'] = true;
         }
 
         $this->success($results, 'Migration 007 selesai');
