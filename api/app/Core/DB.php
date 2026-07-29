@@ -205,10 +205,23 @@ class DB extends \DBC
     }
 
     /**
-     * Insert
+     * Insert — returns insert_id or false on failure (never throws)
      * Usage: insert('table', ['col' => 'val'])
      */
     public function insert($table, $data)
+    {
+        return $this->_doInsert('INSERT', $table, $data);
+    }
+
+    /**
+     * INSERT IGNORE — silently skips duplicate-key violations
+     */
+    public function insertIgnore($table, $data)
+    {
+        return $this->_doInsert('INSERT IGNORE', $table, $data);
+    }
+
+    private function _doInsert($verb, $table, $data)
     {
         // $data must be associative array
         $cols = array_keys($data);
@@ -216,7 +229,7 @@ class DB extends \DBC
 
         $placeholders = array_fill(0, count($cols), "?");
 
-        $sql = "INSERT INTO $table (" . implode(", ", $cols) . ") VALUES (" . implode(", ", $placeholders) . ")";
+        $sql = "$verb INTO $table (" . implode(", ", $cols) . ") VALUES (" . implode(", ", $placeholders) . ")";
 
         $types = "";
         foreach ($vals as $val) {

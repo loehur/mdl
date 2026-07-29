@@ -473,7 +473,7 @@ class Templates extends WaDeskController
                     : null;
             }
 
-            $this->db($this->db_index)->insert('wa_template_params', $row);
+            $this->db($this->db_index)->insertIgnore('wa_template_params', $row);
         }
     }
 
