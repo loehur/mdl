@@ -87,6 +87,8 @@ CREATE TABLE IF NOT EXISTS wa_template_params (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   template_id INT UNSIGNED NOT NULL,
   component ENUM('header','body','button') NOT NULL DEFAULT 'body',
+  button_sub_type VARCHAR(32) NULL,
+  button_index INT UNSIGNED NULL,
   param_index INT UNSIGNED NOT NULL,
   param_name VARCHAR(64) NULL,
   label VARCHAR(150) NOT NULL,

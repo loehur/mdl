@@ -187,6 +187,8 @@ class TemplateSender
      * Map request values + template param definitions → YCloud send payload + preview maps.
      * Identical to Chat::resolveTemplateParams.
      *
+     * Accepts raw keys as: param_name, "1"/"2", or component_index ("body_1", "button_1").
+     *
      * @return array{0:array,1:array<string,string>,2:array<int,string>,3:array}
      */
     private function resolveTemplateParams(array $defs, array $rawParams): array
@@ -222,10 +224,13 @@ class TemplateSender
             $component = strtolower((string) ($def['component'] ?? 'body'));
             $paramName = trim((string) ($def['param_name'] ?? ''));
             $idx       = (int) ($def['param_index'] ?? 0);
+            $csvKey    = $component . '_' . $idx;
 
             $value = '';
             if ($paramName !== '' && !$isList && array_key_exists($paramName, $rawParams)) {
                 $value = (string) $rawParams[$paramName];
+            } elseif (!$isList && array_key_exists($csvKey, $rawParams)) {
+                $value = (string) $rawParams[$csvKey];
             } elseif (!$isList && array_key_exists((string) $idx, $rawParams)) {
                 $value = (string) $rawParams[(string) $idx];
             } elseif ($isList && array_key_exists($listCursor, $rawParams)) {
@@ -245,6 +250,14 @@ class TemplateSender
             $entry = ['component' => $component, 'text' => $value];
             if ($paramName !== '') {
                 $entry['param_name'] = $paramName;
+            }
+            if ($component === 'button') {
+                $entry['button_sub_type'] = trim((string) ($def['button_sub_type'] ?? '')) ?: 'url';
+                $btnIndex = $def['button_index'] ?? null;
+                $entry['button_index'] = ($btnIndex === null || $btnIndex === '')
+                    ? max(0, $idx - 1)
+                    : (int) $btnIndex;
+                $entry['param_index'] = $idx;
             }
             $sendParams[]     = $entry;
             $paramsForStore[] = $entry;

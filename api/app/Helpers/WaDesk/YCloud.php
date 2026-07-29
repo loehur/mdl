@@ -209,28 +209,37 @@ class YCloud
                 if (!is_array($buttons)) {
                     continue;
                 }
-                $btnIndex = 0;
-                foreach ($buttons as $btn) {
+                $paramOrdinal = 0;
+                foreach ($buttons as $metaIndex => $btn) {
                     if (!is_array($btn)) {
                         continue;
                     }
+                    $btnType = strtoupper((string) ($btn['type'] ?? ''));
                     $url = (string) ($btn['url'] ?? '');
                     $text = (string) ($btn['text'] ?? '');
+                    // COPY_CODE may expose example/code instead of {{n}} in url/text
                     $hay = $url !== '' ? $url : $text;
                     $placeholders = self::extractPlaceholders($hay);
+                    if ($placeholders === [] && $btnType === 'COPY_CODE') {
+                        $placeholders = ['1'];
+                    }
                     if ($placeholders === []) {
                         continue;
                     }
+                    $subType = self::mapButtonSubType($btnType);
                     $examples = self::extractComponentExamples($comp, 'button');
                     foreach ($placeholders as $i => $ph) {
-                        $btnIndex++;
-                        $params[] = self::makeParamRow(
+                        $paramOrdinal++;
+                        $row = self::makeParamRow(
                             'button',
-                            $btnIndex,
+                            $paramOrdinal,
                             $ph,
                             $examples[$i] ?? ($examples[$ph] ?? ''),
                             $text !== '' ? ('Tombol: ' . $text) : null
                         );
+                        $row['button_sub_type'] = $subType;
+                        $row['button_index'] = (int) $metaIndex;
+                        $params[] = $row;
                     }
                 }
             }
@@ -326,7 +335,24 @@ class YCloud
             'label' => $label,
             'example_value' => $example !== '' ? $example : null,
             'is_required' => 1,
+            'button_sub_type' => null,
+            'button_index' => null,
         ];
+    }
+
+    /** Map YCloud/Meta button type → send payload sub_type. */
+    private static function mapButtonSubType(string $btnType): string
+    {
+        return match ($btnType) {
+            'URL' => 'url',
+            'QUICK_REPLY' => 'quick_reply',
+            'COPY_CODE' => 'copy_code',
+            'CATALOG' => 'catalog',
+            'MPM' => 'mpm',
+            'FLOW' => 'flow',
+            'ORDER_DETAILS' => 'order_details',
+            default => 'url',
+        };
     }
 
     /**
@@ -393,6 +419,7 @@ class YCloud
 
         // List of structured maps
         $grouped = [];
+        $buttonComponents = [];
         foreach ($parameters as $p) {
             if (!is_array($p)) {
                 continue;
@@ -402,6 +429,29 @@ class YCloud
             if (!in_array($component, ['header', 'body', 'button'], true)) {
                 $component = 'body';
             }
+
+            // Each button variable is its own component (Meta/YCloud require sub_type + index)
+            if ($component === 'button') {
+                $subType = strtolower(trim((string) ($p['button_sub_type'] ?? 'url'))) ?: 'url';
+                $btnIndex = $p['button_index'] ?? null;
+                if ($btnIndex === null || $btnIndex === '') {
+                    $btnIndex = max(0, ((int) ($p['param_index'] ?? 1)) - 1);
+                }
+                $param = ['type' => 'text', 'text' => $text];
+                if ($subType === 'copy_code') {
+                    $param = ['type' => 'coupon_code', 'coupon_code' => $text];
+                } elseif ($subType === 'quick_reply') {
+                    $param = ['type' => 'payload', 'payload' => $text];
+                }
+                $buttonComponents[] = [
+                    'type' => 'button',
+                    'sub_type' => $subType,
+                    'index' => (int) $btnIndex,
+                    'parameters' => [$param],
+                ];
+                continue;
+            }
+
             $item = ['type' => 'text', 'text' => $text];
             $paramName = trim((string) ($p['param_name'] ?? $p['name'] ?? ''));
             if ($paramName !== '') {
@@ -413,13 +463,13 @@ class YCloud
             $grouped[$component][] = $item;
         }
 
-        return $this->componentsFromGrouped($grouped);
+        return array_merge($this->componentsFromGrouped($grouped), $buttonComponents);
     }
 
     /** @param array<string,array> $grouped */
     private function componentsFromGrouped(array $grouped): array
     {
-        $order = ['header', 'body', 'button'];
+        $order = ['header', 'body'];
         $out = [];
         foreach ($order as $type) {
             if (empty($grouped[$type])) {

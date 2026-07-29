@@ -36,7 +36,7 @@ class Templates extends WaDeskController
         $rows = $this->db($this->db_index)->query($sql, $binds)->result_array();
         foreach ($rows as &$row) {
             $row['params'] = $this->db($this->db_index)->query(
-                "SELECT id, component, param_index, param_name, label, example_value, is_required
+                "SELECT id, component, button_sub_type, button_index, param_index, param_name, label, example_value, is_required
                  FROM wa_template_params WHERE template_id = ?
                  ORDER BY FIELD(component,'header','body','button'), param_index ASC",
                 [(int) $row['id']]
@@ -266,6 +266,12 @@ class Templates extends WaDeskController
             $this->db($this->db_index)->insert('wa_template_params', [
                 'template_id' => $templateId,
                 'component' => $component,
+                'button_sub_type' => $component === 'button'
+                    ? (trim((string) ($p['button_sub_type'] ?? '')) ?: 'url')
+                    : null,
+                'button_index' => $component === 'button' && array_key_exists('button_index', $p)
+                    ? (int) $p['button_index']
+                    : null,
                 'param_index' => (int) $p['param_index'],
                 'param_name' => $paramName,
                 'label' => trim($p['label']),

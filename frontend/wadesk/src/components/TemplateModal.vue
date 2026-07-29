@@ -144,7 +144,9 @@ const selectedTpl = computed(() =>
 );
 
 function paramKey(p) {
-  return p.param_name ? String(p.param_name) : `idx_${p.param_index}`;
+  if (p.param_name) return String(p.param_name);
+  const component = String(p.component || "body").toLowerCase();
+  return `${component}_${p.param_index}`;
 }
 
 function renderPreview(text, valuesByName, valuesByIndex) {
@@ -210,11 +212,8 @@ function submit() {
   for (const p of tpl?.params || []) {
     const key = paramKey(p);
     const val = paramValues[key] ?? "";
-    if (p.param_name) {
-      template_params[p.param_name] = val;
-    } else {
-      template_params[String(p.param_index)] = val;
-    }
+    // Prefer named; otherwise use component_index (matches Blast CSV + resolveTemplateParams)
+    template_params[key] = val;
   }
 
   emit("submit", {

@@ -174,7 +174,7 @@ class Chat extends WaDeskController
                 $templateName = $tpl['template_name'];
                 $language = $tpl['language'] ?: $language;
                 $tplParamDefs = $this->db($this->db_index)->query(
-                    "SELECT component, param_index, param_name, label, is_required
+                    "SELECT component, button_sub_type, button_index, param_index, param_name, label, is_required
                      FROM wa_template_params WHERE template_id = ?
                      ORDER BY FIELD(component,'header','body','button'), param_index ASC",
                     [$templateId]
@@ -392,6 +392,8 @@ class Chat extends WaDeskController
     /**
      * Map request values + template param definitions → YCloud send payload + preview maps.
      *
+     * Accepts raw keys as: param_name, "1"/"2", or component_index ("body_1", "button_1").
+     *
      * @return array{0:array,1:array<string,string>,2:array<int,string>,3:array}
      */
     private function resolveTemplateParams(array $defs, array $rawParams): array
@@ -428,10 +430,13 @@ class Chat extends WaDeskController
             $component = strtolower((string) ($def['component'] ?? 'body'));
             $paramName = trim((string) ($def['param_name'] ?? ''));
             $idx = (int) ($def['param_index'] ?? 0);
+            $csvKey = $component . '_' . $idx;
 
             $value = '';
             if ($paramName !== '' && !$isList && array_key_exists($paramName, $rawParams)) {
                 $value = (string) $rawParams[$paramName];
+            } elseif (!$isList && array_key_exists($csvKey, $rawParams)) {
+                $value = (string) $rawParams[$csvKey];
             } elseif (!$isList && array_key_exists((string) $idx, $rawParams)) {
                 $value = (string) $rawParams[(string) $idx];
             } elseif ($isList && array_key_exists($listCursor, $rawParams)) {
@@ -454,6 +459,14 @@ class Chat extends WaDeskController
             ];
             if ($paramName !== '') {
                 $entry['param_name'] = $paramName;
+            }
+            if ($component === 'button') {
+                $entry['button_sub_type'] = trim((string) ($def['button_sub_type'] ?? '')) ?: 'url';
+                $btnIndex = $def['button_index'] ?? null;
+                $entry['button_index'] = ($btnIndex === null || $btnIndex === '')
+                    ? max(0, $idx - 1)
+                    : (int) $btnIndex;
+                $entry['param_index'] = $idx;
             }
             $sendParams[] = $entry;
             $paramsForStore[] = $entry;
