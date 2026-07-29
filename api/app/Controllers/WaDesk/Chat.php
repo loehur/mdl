@@ -225,7 +225,30 @@ class Chat extends WaDeskController
                 $indexed
             );
 
+            // --- DEBUG LOG ---
+            $debugLog = [
+                'ts'            => date('Y-m-d H:i:s'),
+                'phone'         => $phone,
+                'template_name' => $templateName,
+                'language'      => $language,
+                'key_id'        => $key['id'],
+                'key_phone'     => $key['phone_number'] ?? '',
+                'api_key_hash'  => $key['api_key_hash'] ?? 'n/a',
+                'send_params'   => $sendParams,
+            ];
+            file_put_contents('/tmp/wadesk_send_template.log',
+                json_encode($debugLog, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . "\n---\n",
+                FILE_APPEND);
+            // --- END DEBUG LOG ---
+
             $result = $client->sendTemplate($phone, $templateName, $language, $sendParams);
+
+            // --- DEBUG LOG RESULT ---
+            file_put_contents('/tmp/wadesk_send_template.log',
+                'RESULT: ' . json_encode($result, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . "\n===\n",
+                FILE_APPEND);
+            // --- END DEBUG LOG RESULT ---
+
             if (!$result['success']) {
                 $yErr = $result['data']['error']['message'] ?? ($result['data']['message'] ?? 'Template send failed');
                 $this->error('YCloud Reject: ' . $yErr, 502, $result['data']);
