@@ -282,6 +282,40 @@ class Templates extends WaDeskController
             }
         }
 
+        // Drop leftover renamed old index if present
+        try {
+            $this->db($this->db_index)->query("ALTER TABLE wa_template_params DROP INDEX uq_tpl_param_old");
+            $results['dropped_old'] = 'uq_tpl_param_old';
+        } catch (\Throwable $e) {
+            $results['drop_old_note'] = $e->getMessage();
+        }
+
+        // Ensure ENUM allows header/body/button (migration 002 may have narrowed it)
+        try {
+            $col = $this->db($this->db_index)->query(
+                "SELECT COLUMN_TYPE FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'wa_template_params' AND COLUMN_NAME = 'component'"
+            )->row_array();
+            $results['component_type_before'] = $col['COLUMN_TYPE'] ?? null;
+            $ctype = strtolower((string) ($col['COLUMN_TYPE'] ?? ''));
+            if ($ctype !== '' && (strpos($ctype, 'header') === false || strpos($ctype, 'button') === false)) {
+                $this->db($this->db_index)->query(
+                    "ALTER TABLE wa_template_params
+                     MODIFY COLUMN component ENUM('header','body','button') NOT NULL DEFAULT 'body'"
+                );
+                $results['enum_fixed'] = "ENUM('header','body','button')";
+            } else {
+                $results['enum_ok'] = true;
+            }
+        } catch (\Throwable $e) {
+            $results['enum_error'] = $e->getMessage();
+        }
+
+        $indexesAfter = $this->db($this->db_index)->query(
+            "SHOW INDEX FROM wa_template_params WHERE Key_name != 'PRIMARY'"
+        )->result_array();
+        $results['indexes_after'] = array_map(fn($i) => $i['Key_name'] . ':' . $i['Column_name'], $indexesAfter);
+
         $this->success($results, 'Migration 007 selesai');
     }
 
@@ -689,21 +723,20 @@ class Templates extends WaDeskController
             }
 
             try {
-                $this->db($this->db_index)->insertIgnore('wa_template_params', $row);
-                \Log::write('INSERT OK: ' . $seenKey, 'wadesk', 'replace_params');
-            } catch (\Throwable $e) {
-                \Log::write('insertIgnore FAIL: ' . $e->getMessage() . ' — trying raw query', 'wadesk', 'replace_params');
-                try {
+                $insertId = $this->db($this->db_index)->insert('wa_template_params', $row);
+                if ($insertId === false || $insertId === 0) {
+                    // Fall back to raw INSERT so real MySQL error surfaces
                     $cols = implode(', ', array_keys($row));
                     $ph   = implode(', ', array_fill(0, count($row), '?'));
                     $this->db($this->db_index)->query(
-                        "INSERT IGNORE INTO wa_template_params ($cols) VALUES ($ph)",
+                        "INSERT INTO wa_template_params ($cols) VALUES ($ph)",
                         array_values($row)
                     );
-                    \Log::write('RAW INSERT OK: ' . $seenKey, 'wadesk', 'replace_params');
-                } catch (\Throwable $e2) {
-                    \Log::write('RAW INSERT FAIL: ' . $e2->getMessage(), 'wadesk', 'replace_params');
                 }
+                \Log::write('INSERT OK: ' . $seenKey . ' id=' . (int) $insertId, 'wadesk', 'replace_params');
+            } catch (\Throwable $e) {
+                \Log::write('INSERT FAIL: ' . $seenKey . ' — ' . $e->getMessage(), 'wadesk', 'replace_params');
+                throw $e; // surface real error to caller
             }
         }
     }
