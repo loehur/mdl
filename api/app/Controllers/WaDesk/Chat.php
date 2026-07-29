@@ -166,6 +166,12 @@ class Chat extends WaDeskController
             if ($templateId > 0) {
                 $tpl = $this->findTemplateForKey($templateId, $key);
                 if (!$tpl) {
+                    \Log::write(json_encode([
+                        'template_id'  => $templateId,
+                        'key_id'       => $key['id'] ?? null,
+                        'key_phone'    => $key['phone_number'] ?? null,
+                        'api_key_hash' => $key['api_key_hash'] ?? 'n/a',
+                    ], JSON_UNESCAPED_UNICODE), 'wadesk', 'template_not_found');
                     $this->error('Template tidak ditemukan', 404);
                 }
                 $templateName = $tpl['template_name'];
