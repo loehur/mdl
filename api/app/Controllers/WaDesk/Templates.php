@@ -217,6 +217,30 @@ class Templates extends WaDeskController
         ], 'Params template berhasil di-resync');
     }
 
+    public function debugDB()
+    {
+        $this->verifyAuth();
+        $this->requireAdmin();
+        $tplName = trim((string) $this->query('template_name'));
+
+        $rows = $this->db($this->db_index)->query(
+            "SELECT t.id, t.template_name, t.ycloud_key_id, t.api_key_hash,
+                    (SELECT COUNT(*) FROM wa_template_params p WHERE p.template_id = t.id) AS param_count
+             FROM wa_templates t
+             WHERE t.template_name = ?",
+            [$tplName]
+        )->result_array();
+
+        foreach ($rows as &$r) {
+            $r['params'] = $this->db($this->db_index)->query(
+                "SELECT id, component, param_index, param_name FROM wa_template_params WHERE template_id = ? ORDER BY component, param_index",
+                [(int) $r['id']]
+            )->result_array();
+        }
+
+        $this->success(['rows' => $rows]);
+    }
+
     public function debugTemplate()
     {
         $this->verifyAuth();
