@@ -129,9 +129,6 @@ class Templates extends WaDeskController
                  ORDER BY FIELD(component,'header','body','button'), param_index ASC",
                 [(int) $row['id']]
             )->result_array();
-            if (stripos($row['template_name'] ?? '', 'utility') !== false) {
-                \Log::write('LIST tpl_id=' . $row['id'] . ' name=' . $row['template_name'] . ' param_count=' . count($row['params']) . ' params=' . json_encode(array_map(fn($p)=>($p['component']??'?').':'.$p['param_index'], $row['params'])), 'wadesk', 'list_params');
-            }
         }
 
         $this->success(['templates' => $rows]);
@@ -698,7 +695,7 @@ class Templates extends WaDeskController
 
         // Find duplicates across those key_ids
         $dupes = $this->db($this->db_index)->query(
-            "SELECT template_name, language, MIN(id) AS keep_id, COUNT(*) AS cnt
+            "SELECT template_name, language, COUNT(*) AS cnt
              FROM wa_templates
              WHERE ycloud_key_id IN ($placeholders)
              GROUP BY template_name, language
@@ -707,13 +704,18 @@ class Templates extends WaDeskController
         )->result_array();
 
         foreach ($dupes as $d) {
-            $extras = $this->db($this->db_index)->query(
-                "SELECT id FROM wa_templates
-                 WHERE ycloud_key_id IN ($placeholders)
-                   AND template_name = ? AND language = ? AND id <> ?",
-                array_merge($keyIds, [$d['template_name'], $d['language'], (int) $d['keep_id']])
+            // Keep the row with the most params
+            $candidates = $this->db($this->db_index)->query(
+                "SELECT t.id,
+                        (SELECT COUNT(*) FROM wa_template_params p WHERE p.template_id = t.id) AS param_cnt
+                 FROM wa_templates t
+                 WHERE t.ycloud_key_id IN ($placeholders)
+                   AND t.template_name = ? AND t.language = ?
+                 ORDER BY param_cnt DESC, t.id ASC",
+                array_merge($keyIds, [$d['template_name'], $d['language']])
             )->result_array();
-            foreach ($extras as $ex) {
+            $keepId = (int) $candidates[0]['id'];
+            foreach (array_slice($candidates, 1) as $ex) {
                 $eid = (int) $ex['id'];
                 $this->db($this->db_index)->delete('wa_template_params', ['template_id' => $eid]);
                 $this->db($this->db_index)->delete('wa_templates', ['id' => $eid]);
@@ -736,11 +738,11 @@ class Templates extends WaDeskController
         );
     }
 
-    /** Keep one row per (hash, name, language); delete extras. */
+    /** Keep one row per (hash, name, language); delete extras. Keep the one with most params. */
     private function dedupeTemplatesForHash(string $hash): int
     {
         $dupes = $this->db($this->db_index)->query(
-            "SELECT template_name, language, MIN(id) AS keep_id, COUNT(*) AS cnt
+            "SELECT template_name, language, COUNT(*) AS cnt
              FROM wa_templates
              WHERE api_key_hash = ?
              GROUP BY template_name, language
@@ -749,11 +751,17 @@ class Templates extends WaDeskController
         )->result_array();
         $removed = 0;
         foreach ($dupes as $d) {
-            $extras = $this->db($this->db_index)->query(
-                "SELECT id FROM wa_templates
-                 WHERE api_key_hash = ? AND template_name = ? AND language = ? AND id <> ?",
-                [$hash, $d['template_name'], $d['language'], (int) $d['keep_id']]
+            // Find the row with the most params to keep
+            $candidates = $this->db($this->db_index)->query(
+                "SELECT t.id,
+                        (SELECT COUNT(*) FROM wa_template_params p WHERE p.template_id = t.id) AS param_cnt
+                 FROM wa_templates t
+                 WHERE t.api_key_hash = ? AND t.template_name = ? AND t.language = ?
+                 ORDER BY param_cnt DESC, t.id ASC",
+                [$hash, $d['template_name'], $d['language']]
             )->result_array();
+            $keepId = (int) $candidates[0]['id'];
+            $extras = array_filter($candidates, fn($r) => (int) $r['id'] !== $keepId);
             foreach ($extras as $ex) {
                 $eid = (int) $ex['id'];
                 $this->db($this->db_index)->delete('wa_template_params', ['template_id' => $eid]);
