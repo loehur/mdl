@@ -149,29 +149,37 @@ function paramKey(p) {
   return `${component}_${p.param_index}`;
 }
 
-function renderPreview(text, valuesByName, valuesByIndex) {
-  let out = String(text || "");
-  for (const [name, val] of Object.entries(valuesByName)) {
-    out = out.split(`{{${name}}}`).join(val ?? "");
-  }
-  for (const [idx, val] of Object.entries(valuesByIndex)) {
-    out = out.split(`{{${idx}}}`).join(val ?? "");
-  }
-  return out;
+function escapeRegExp(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/**
+ * Replace {{name}} / {{1}} in body preview.
+ * Only body (and text-header) params belong in body_preview — button params
+ * often share the same param_index and must not overwrite body values.
+ */
 const livePreview = computed(() => {
   const tpl = selectedTpl.value;
   if (!tpl?.body_preview) return "";
-  const named = {};
-  const indexed = {};
-  for (const p of tpl.params || []) {
+
+  // Touch the reactive object so any key change re-runs this computed
+  const values = { ...paramValues };
+  let out = String(tpl.body_preview);
+
+  const previewParams = (tpl.params || []).filter((p) => {
+    const c = String(p.component || "body").toLowerCase();
+    return c === "body" || c === "header";
+  });
+
+  for (const p of previewParams) {
     const key = paramKey(p);
-    const val = paramValues[key] ?? "";
-    if (p.param_name) named[p.param_name] = val;
-    if (p.param_index) indexed[p.param_index] = val;
+    const val = values[key] ?? "";
+    const token = p.param_name ? String(p.param_name) : String(p.param_index ?? "");
+    if (!token) continue;
+    out = out.replace(new RegExp(`\\{\\{\\s*${escapeRegExp(token)}\\s*\\}\\}`, "g"), val);
   }
-  return renderPreview(tpl.body_preview, named, indexed);
+
+  return out;
 });
 
 watch(
