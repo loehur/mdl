@@ -81,7 +81,15 @@ class YCloud
             ],
         ];
 
-        return $this->request('/whatsapp/messages', $payload);
+        \Log::write('YCLOUD_PAYLOAD: ' . json_encode($payload, JSON_UNESCAPED_UNICODE), 'wadesk', 'send_template_payload');
+
+        $result = $this->request('/whatsapp/messages', $payload);
+
+        if (!$result['success']) {
+            \Log::write('YCLOUD_REJECT: ' . json_encode($result, JSON_UNESCAPED_UNICODE), 'wadesk', 'send_template_payload');
+        }
+
+        return $result;
     }
 
     /**
@@ -524,7 +532,9 @@ class YCloud
 
             $item = ['type' => 'text', 'text' => $text];
             $paramName = trim((string) ($p['param_name'] ?? $p['name'] ?? ''));
-            if ($paramName !== '') {
+            // Only add parameter_name for truly named placeholders (non-digit names like {{customer}})
+            // Positional placeholders ({{1}}, {{2}}) must NOT include parameter_name or YCloud may count-mismatch
+            if ($paramName !== '' && !ctype_digit($paramName)) {
                 $item['parameter_name'] = $paramName;
             }
             if (!isset($grouped[$component])) {
