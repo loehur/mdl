@@ -245,6 +245,7 @@ class Templates extends WaDeskController
 
         // Strategy: rename old index then add correct one, or use ALTER to replace in one statement
         // Old index uq_tpl_param (template_id, param_index) — cannot drop due to FK, use ALTER TABLE RENAME INDEX
+        $byName = $uniqueNames; // already built above
         $hasCorrect = false;
         foreach ($byName as $cols) {
             if (in_array('component', $cols) && in_array('param_index', $cols) && in_array('template_id', $cols)) {
