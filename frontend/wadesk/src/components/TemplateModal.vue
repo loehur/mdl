@@ -136,7 +136,12 @@ const paramValues = reactive({});
 const filteredTemplates = computed(() => {
   const kid = Number(form.ycloud_key_id || props.fixedKeyId);
   if (!kid) return props.templates;
-  return props.templates.filter((t) => Number(t.ycloud_key_id) === kid);
+  const key = props.keys.find((k) => Number(k.id) === kid);
+  const hash = key?.api_key_hash;
+  return props.templates.filter((t) => {
+    if (hash && t.api_key_hash && t.api_key_hash === hash) return true;
+    return Number(t.ycloud_key_id) === kid;
+  });
 });
 
 const selectedTpl = computed(() =>

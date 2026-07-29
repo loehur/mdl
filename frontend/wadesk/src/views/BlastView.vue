@@ -426,7 +426,12 @@ let listPollTimer = null;
 const filteredTemplates = computed(() => {
   const kid = Number(form.ycloud_key_id);
   if (!kid) return templates.value;
-  return templates.value.filter((t) => Number(t.ycloud_key_id) === kid);
+  const key = keys.value.find((k) => Number(k.id) === kid);
+  const hash = key?.api_key_hash;
+  return templates.value.filter((t) => {
+    if (hash && t.api_key_hash && t.api_key_hash === hash) return true;
+    return Number(t.ycloud_key_id) === kid;
+  });
 });
 
 const selectedTemplate = computed(() =>

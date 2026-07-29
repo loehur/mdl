@@ -35,8 +35,15 @@ class Blast extends WaDeskController
 
         $tpl = $this->db($this->db_index)->query(
             "SELECT t.* FROM wa_templates t
-             INNER JOIN ycloud_keys k ON k.id = t.ycloud_key_id
-             WHERE t.id = ? AND k.tenant_id = ? LIMIT 1",
+             WHERE t.id = ? AND EXISTS (
+                SELECT 1 FROM ycloud_keys k
+                WHERE k.tenant_id = ?
+                  AND (
+                    (t.api_key_hash IS NOT NULL AND t.api_key_hash <> '' AND k.api_key_hash = t.api_key_hash)
+                    OR k.id = t.ycloud_key_id
+                  )
+             )
+             LIMIT 1",
             [$templateId, (int) $admin['tenant_id']]
         )->row_array();
 
@@ -100,13 +107,10 @@ class Blast extends WaDeskController
             $this->error('API key tidak ditemukan atau tidak aktif', 404);
         }
 
-        // Validate template ownership
-        $tpl = $this->db($this->db_index)->query(
-            "SELECT * FROM wa_templates WHERE id = ? AND ycloud_key_id = ? LIMIT 1",
-            [$templateId, $keyId]
-        )->row_array();
+        // Validate template ownership (shared by same YCloud credential hash)
+        $tpl = $this->findTemplateForKey($templateId, $key);
         if (!$tpl) {
-            $this->error('Template tidak ditemukan', 404);
+            $this->error('Template tidak ditemukan untuk API key ini', 404);
         }
 
         $rows = $body['rows'] ?? [];

@@ -164,10 +164,7 @@ class Chat extends WaDeskController
             $tpl = null;
             $tplParamDefs = [];
             if ($templateId > 0) {
-                $tpl = $this->db($this->db_index)->query(
-                    "SELECT * FROM wa_templates WHERE id = ? AND ycloud_key_id = ? LIMIT 1",
-                    [$templateId, $ycloudKeyId]
-                )->row_array();
+                $tpl = $this->findTemplateForKey($templateId, $key);
                 if (!$tpl) {
                     $this->error('Template tidak ditemukan', 404);
                 }

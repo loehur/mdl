@@ -284,4 +284,57 @@ abstract class WaDeskController extends BaseController
         }
         return $digits;
     }
+
+    /**
+     * Ensure ycloud_keys.api_key_hash is set; returns the hash.
+     * Same plaintext YCloud credential → same hash → shared templates.
+     */
+    protected function ensureKeyApiHash(array $key): string
+    {
+        $existing = trim((string) ($key['api_key_hash'] ?? ''));
+        if ($existing !== '' && strlen($existing) === 64) {
+            return $existing;
+        }
+        $enc = (string) ($key['api_key_enc'] ?? '');
+        if ($enc === '') {
+            return '';
+        }
+        try {
+            $plain = \App\Helpers\WaDesk\Crypto::decrypt($enc);
+        } catch (\Throwable $e) {
+            return '';
+        }
+        if ($plain === '') {
+            return '';
+        }
+        $hash = \App\Helpers\WaDesk\Crypto::fingerprint($plain);
+        $this->db($this->db_index)->update('ycloud_keys', [
+            'api_key_hash' => $hash,
+        ], ['id' => (int) $key['id']]);
+        return $hash;
+    }
+
+    /** Template usable with this WaDesk key row (shared by credential hash). */
+    protected function findTemplateForKey(int $templateId, array $key): ?array
+    {
+        $hash = $this->ensureKeyApiHash($key);
+        if ($hash !== '') {
+            $tpl = $this->db($this->db_index)->query(
+                "SELECT * FROM wa_templates
+                 WHERE id = ? AND (
+                    api_key_hash = ?
+                    OR (api_key_hash IS NULL AND ycloud_key_id = ?)
+                 )
+                 LIMIT 1",
+                [$templateId, $hash, (int) $key['id']]
+            )->row_array();
+            if ($tpl) {
+                return $tpl;
+            }
+        }
+        return $this->db($this->db_index)->query(
+            "SELECT * FROM wa_templates WHERE id = ? AND ycloud_key_id = ? LIMIT 1",
+            [$templateId, (int) $key['id']]
+        )->row_array() ?: null;
+    }
 }

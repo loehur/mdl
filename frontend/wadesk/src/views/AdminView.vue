@@ -174,8 +174,10 @@
         <div class="rounded-xl border border-white/10 bg-ink-950/40 p-3 space-y-2">
           <p class="text-xs text-slate-400">
             Sinkron template <span class="text-slate-200">APPROVED</span> dari YCloud
-            (nama, bahasa, preview body, parameter header/body/button).
-            Kelola template hanya lewat YCloud lalu sync di sini.
+            (nama, bahasa, preview, parameter). Template dibagikan ke
+            <span class="text-slate-200">semua key/team</span> yang memakai
+            kredensial API YCloud yang sama (meski nomor WA berbeda).
+            Kelola template di YCloud lalu sync di sini.
           </p>
           <div class="flex flex-col sm:flex-row gap-2">
             <select v-model="syncKeyId" class="field flex-1" :disabled="syncing">

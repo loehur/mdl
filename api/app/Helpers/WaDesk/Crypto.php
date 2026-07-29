@@ -33,6 +33,12 @@ class Crypto
         return $plain;
     }
 
+    /** Deterministic fingerprint so the same YCloud credential shares templates across team keys. */
+    public static function fingerprint(string $plainApiKey): string
+    {
+        return hash('sha256', trim($plainApiKey));
+    }
+
     private static function key(): string
     {
         $secret = defined('\Env::WADESK_ENCRYPT_KEY')

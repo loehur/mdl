@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS ycloud_keys (
   team_id INT UNSIGNED NOT NULL,
   label VARCHAR(150) NOT NULL,
   api_key_enc TEXT NOT NULL,
+  api_key_hash CHAR(64) NULL,
   phone_number VARCHAR(32) NOT NULL,
   ycloud_phone_id VARCHAR(64) NULL,
   status ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
@@ -67,20 +68,24 @@ CREATE TABLE IF NOT EXISTS ycloud_keys (
   INDEX idx_keys_team (team_id),
   INDEX idx_keys_phone (phone_number),
   INDEX idx_keys_phone_id (ycloud_phone_id),
+  INDEX idx_keys_hash (api_key_hash),
   CONSTRAINT fk_keys_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
   CONSTRAINT fk_keys_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS wa_templates (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  ycloud_key_id INT UNSIGNED NOT NULL,
+  ycloud_key_id INT UNSIGNED NULL,
+  api_key_hash CHAR(64) NULL,
   template_name VARCHAR(150) NOT NULL,
   language VARCHAR(16) NOT NULL DEFAULT 'id',
   body_preview TEXT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_tpl_key (ycloud_key_id),
-  CONSTRAINT fk_tpl_key FOREIGN KEY (ycloud_key_id) REFERENCES ycloud_keys(id) ON DELETE CASCADE
+  INDEX idx_tpl_hash (api_key_hash),
+  UNIQUE KEY uq_tpl_hash_name_lang (api_key_hash, template_name, language),
+  CONSTRAINT fk_tpl_key FOREIGN KEY (ycloud_key_id) REFERENCES ycloud_keys(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS wa_template_params (

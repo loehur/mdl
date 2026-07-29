@@ -17,7 +17,7 @@ class Keys extends WaDeskController
         if ($user['role'] === 'admin') {
             $rows = $this->db($this->db_index)->query(
                 "SELECT k.id, k.tenant_id, k.team_id, k.label, k.phone_number, k.ycloud_phone_id, k.status,
-                        k.created_at, t.name AS team_name
+                        k.api_key_hash, k.created_at, t.name AS team_name
                  FROM ycloud_keys k
                  LEFT JOIN teams t ON t.id = k.team_id
                  WHERE k.tenant_id = ?
@@ -27,7 +27,7 @@ class Keys extends WaDeskController
         } else {
             $rows = $this->db($this->db_index)->query(
                 "SELECT k.id, k.tenant_id, k.team_id, k.label, k.phone_number, k.ycloud_phone_id, k.status,
-                        k.created_at, t.name AS team_name
+                        k.api_key_hash, k.created_at, t.name AS team_name
                  FROM ycloud_keys k
                  LEFT JOIN teams t ON t.id = k.team_id
                  WHERE k.tenant_id = ? AND k.team_id = ? AND k.status = 'active'
@@ -38,6 +38,10 @@ class Keys extends WaDeskController
 
         foreach ($rows as &$r) {
             $r['api_key_masked'] = '••••••••';
+            // Expose hash so UI can group shared templates (not a secret)
+            if (empty($r['api_key_hash'])) {
+                // leave null; filled lazily on sync/send
+            }
             unset($r['api_key_enc']);
         }
 
@@ -65,13 +69,15 @@ class Keys extends WaDeskController
         }
 
         $phone = $this->normalizePhone($body['phone_number']);
-        $enc = WaDeskCrypto::encrypt(trim($body['api_key']));
+        $plainKey = trim($body['api_key']);
+        $enc = WaDeskCrypto::encrypt($plainKey);
 
         $id = (int) $this->db($this->db_index)->insert('ycloud_keys', [
             'tenant_id' => (int) $admin['tenant_id'],
             'team_id' => $teamId,
             'label' => trim($body['label']),
             'api_key_enc' => $enc,
+            'api_key_hash' => WaDeskCrypto::fingerprint($plainKey),
             'phone_number' => $phone,
             'ycloud_phone_id' => $body['ycloud_phone_id'] ?? null,
             'status' => 'active',
@@ -114,7 +120,9 @@ class Keys extends WaDeskController
             $data['status'] = $body['status'];
         }
         if (!empty($body['api_key'])) {
-            $data['api_key_enc'] = WaDeskCrypto::encrypt(trim($body['api_key']));
+            $plain = trim($body['api_key']);
+            $data['api_key_enc'] = WaDeskCrypto::encrypt($plain);
+            $data['api_key_hash'] = WaDeskCrypto::fingerprint($plain);
         }
         if (isset($body['team_id'])) {
             $teamId = (int) $body['team_id'];
