@@ -242,7 +242,7 @@ class Chat extends WaDeskController
                 'raw_params'    => $rawParams,
                 'send_params'   => $sendParams,
             ];
-            file_put_contents('/tmp/wadesk_send_template.log',
+            file_put_contents(__DIR__ . '/../../../../wadesk_send_template.log',
                 json_encode($debugLog, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . "\n---\n",
                 FILE_APPEND);
             // --- END DEBUG LOG ---
@@ -250,7 +250,7 @@ class Chat extends WaDeskController
             $result = $client->sendTemplate($phone, $templateName, $language, $sendParams);
 
             // --- DEBUG LOG RESULT ---
-            file_put_contents('/tmp/wadesk_send_template.log',
+            file_put_contents(__DIR__ . '/../../../../wadesk_send_template.log',
                 'RESULT: ' . json_encode($result, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . "\n===\n",
                 FILE_APPEND);
             // --- END DEBUG LOG RESULT ---

@@ -148,7 +148,7 @@ class Templates extends WaDeskController
             $logLine = date('Y-m-d H:i:s') . ' syncFromYCloud EXCEPTION: '
                 . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine()
                 . "\nTrace: " . $e->getTraceAsString() . "\n---\n";
-            file_put_contents('/tmp/sync_debug.log', $logLine, FILE_APPEND);
+            file_put_contents(__DIR__ . '/../../../../sync_debug.log', $logLine, FILE_APPEND);
             throw $e; // re-throw so existing handler still responds
         }
     }
