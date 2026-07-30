@@ -98,6 +98,8 @@ class SetHarga extends Controller
             'id_durasi' => $durasi,
             'harga' => (string) (int) round((float) str_replace(',', '.', (string) $_POST['f4']), 0),
             'min_order' => number_format(round((float) str_replace(',', '.', (string) ($_POST['f5'] ?? '0')), 2), 2, '.', ''),
+            'hari' => 2,
+            'jam' => 0,
             'is_active' => 1
          ];
          $query = $this->db(0)->insert($this->table, $data);
