@@ -467,11 +467,23 @@ if (isset($data['data_operasi'])) {
         .main-header.mdl-topbar {
             display: block;
             padding: 8px 10px !important;
-            background: linear-gradient(105deg, #1d4ed8 0%, #2563eb 35%, #16a34a 70%, #f59e0b 100%) !important;
-            background-image: linear-gradient(105deg, #1d4ed8 0%, #2563eb 35%, #16a34a 70%, #f59e0b 100%) !important;
+            background: linear-gradient(105deg, #1d4ed8 0%, #2563eb 100%) !important;
+            background-image: linear-gradient(105deg, #1d4ed8 0%, #2563eb 100%) !important;
             border-bottom: 1px solid #0f172a;
             min-height: 0;
             box-shadow: 0 4px 14px rgba(15, 23, 42, 0.18);
+        }
+        /* Priv 100 (admin): merah */
+        body.mode-priv-100 .main-header.mdl-topbar {
+            background: linear-gradient(105deg, #991b1b 0%, #dc2626 100%) !important;
+            background-image: linear-gradient(105deg, #991b1b 0%, #dc2626 100%) !important;
+            border-bottom-color: #7f1d1d;
+        }
+        /* Priv 12 (kurir): cyan */
+        body.mode-priv-12 .main-header.mdl-topbar {
+            background: linear-gradient(105deg, #0e7490 0%, #0891b2 100%) !important;
+            background-image: linear-gradient(105deg, #0e7490 0%, #0891b2 100%) !important;
+            border-bottom-color: #155e75;
         }
         .mdl-topbar-row {
             display: flex;
@@ -761,8 +773,8 @@ if (isset($data['data_operasi'])) {
         }
 
         body.mode-training .main-header.mdl-topbar {
-            background: linear-gradient(105deg, #d97706 0%, #f59e0b 45%, #16a34a 100%) !important;
-            background-image: linear-gradient(105deg, #d97706 0%, #f59e0b 45%, #16a34a 100%) !important;
+            background: linear-gradient(105deg, #d97706 0%, #f59e0b 100%) !important;
+            background-image: linear-gradient(105deg, #d97706 0%, #f59e0b 100%) !important;
             border-bottom-color: #92400e;
         }
         body.mode-training .mode-switch {
@@ -1211,10 +1223,10 @@ if (isset($data['data_operasi'])) {
 
         /* Modal accents (sudut runcing, warna tajam) */
         .mdl-cmodal__head {
-            background: linear-gradient(105deg, #1d4ed8 0%, #2563eb 45%, #16a34a 100%) !important;
+            background: linear-gradient(105deg, #1d4ed8 0%, #2563eb 100%) !important;
         }
         .mdl-cmodal--user .mdl-cmodal__head {
-            background: linear-gradient(105deg, #15803d 0%, #16a34a 55%, #f59e0b 100%) !important;
+            background: linear-gradient(105deg, #15803d 0%, #16a34a 100%) !important;
         }
         .mdl-cmodal__item.is-active {
             border-color: var(--mdl-accent) !important;
@@ -1425,8 +1437,17 @@ if ($log_mode == 1) {
 
 ?>
 
-<?php $isTrainingUi = !empty($this->isTrainingMode); ?>
-<body class="hold-transition<?= $isTrainingUi ? ' mode-training' : '' ?>">
+<?php
+$isTrainingUi = !empty($this->isTrainingMode);
+$privUi = (int) ($this->id_privilege ?? 0);
+$bodyPrivClass = '';
+if ($privUi === 100) {
+    $bodyPrivClass = ' mode-priv-100';
+} elseif ($privUi === 12) {
+    $bodyPrivClass = ' mode-priv-12';
+}
+?>
+<body class="hold-transition<?= $isTrainingUi ? ' mode-training' : '' ?><?= $bodyPrivClass ?>">
     <div class="loaderDiv" style="display: none;">
         <div class="loader"></div>
     </div>
@@ -2195,11 +2216,10 @@ if ($log_mode == 1) {
 
                     /**
                      * @returns {boolean} true jika aksi harus dihentikan (driver)
+                     * Dinonaktifkan: priv 12 boleh membuka order.
                      */
                     window.blockDriverNewOrder = function () {
-                        if (window.MDL_PRIVILEGE !== 12) return false;
-                        openDrvModal();
-                        return true;
+                        return false;
                     };
 
                     $modal.on("click", "[data-drv-close]", function () {

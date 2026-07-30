@@ -154,7 +154,7 @@
         }
         .login-brand__name em {
             font-style: normal;
-            background: linear-gradient(105deg, var(--blue-deep) 0%, var(--blue) 40%, var(--green) 100%);
+            background: linear-gradient(105deg, var(--blue-deep) 0%, var(--blue) 100%);
             -webkit-background-clip: text;
             background-clip: text;
             color: transparent;
@@ -179,7 +179,7 @@
         }
         .login-panel__head {
             padding: 12px 16px;
-            background: linear-gradient(105deg, #1d4ed8 0%, #2563eb 35%, #16a34a 70%, #f59e0b 100%);
+            background: linear-gradient(105deg, #1d4ed8 0%, #2563eb 100%);
             color: #fff;
             font-size: 0.95rem;
             font-weight: 900;

@@ -39,7 +39,7 @@ if ($saldoNya_member > 0) {
     justify-content: space-between;
     gap: 12px;
     padding: 14px 16px;
-    background: linear-gradient(105deg, #1d4ed8, #2563eb 45%, #16a34a);
+    background: linear-gradient(105deg, #1d4ed8 0%, #2563eb 100%);
     color: #fff;
   }
   .ord-fo__head h3 {

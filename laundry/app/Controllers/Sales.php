@@ -221,9 +221,8 @@ class Sales extends Controller
    {
       ob_start(); // Capture any unexpected output
 
-      if ($this->isDriverPrivilege()) {
+      if ($this->blockDriverCartAdd(true)) {
          ob_end_clean();
-         $this->blockDriverCartAdd(true);
          return;
       }
       
@@ -309,9 +308,8 @@ class Sales extends Controller
    {
       ob_start(); // Capture any unexpected output
 
-      if ($this->isDriverPrivilege()) {
+      if ($this->blockDriverCartAdd(true)) {
          ob_end_clean();
-         $this->blockDriverCartAdd(true);
          return;
       }
       

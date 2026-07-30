@@ -26,6 +26,7 @@ Referensi implementasi yang sudah sesuai tema:
 6. **Semua sudut runcing** — **tidak ada round** di seluruh style. Panel, modal, tombol, input, select, badge, icon box, radio mark, chip, FAB: semuanya kotak dengan `border-radius: 0`. Dilarang `rounded`, `rounded-*`, `pill`, `50%`, radius `> 0`.
 7. **Border tipis** — default **`1px`**. Dilarang border `2px`/`3px`/`1.5px` sebagai default panel/input/tombol. Focus ring: `0 0 0 2px …`. Opsi terpilih boleh `border-width: 2px` (hanya 1 langkah lebih tegas dari default).
 8. **Jangan default AI look** — hindari ungu/indigo generik, cream terracotta, tipografi soft abu-abu.
+9. **Header satu hue** — top nav, offcanvas header, modal head: **satu warna** (deep → light). **Dilarang** gradient pelangi 3+ warna (biru+hijau+kuning, merah+oranye, kuning+merah, dll.).
 
 ---
 
@@ -54,15 +55,35 @@ Referensi implementasi yang sudah sesuai tema:
 | Yellow | `#fcd34d` | `linear-gradient(180deg, #fffbeb, #fff)` |
 | Red | `#fca5a5` | `linear-gradient(180deg, #fef2f2, #fff)` |
 
-### Header offcanvas
+### Header (top nav / offcanvas / modal) — satu hue
+
+**Wajib** gradient 2 stop dalam **satu keluarga warna**. Variasikan hue antar konteks (biru default, hijau sukses, kuning warning, merah bahaya), jangan campur dalam satu bar.
 
 ```css
-background: linear-gradient(105deg, #1d4ed8 0%, #2563eb 35%, #16a34a 70%, #f59e0b 100%);
+/* Default / info (biru) — pakai ini untuk topnav kasir, offcanvas, modal head default */
+background: linear-gradient(105deg, #1d4ed8 0%, #2563eb 100%);
 color: #fff;
 font-weight: 900;
 letter-spacing: -0.02em;
 text-shadow: 0 1px 0 rgba(0,0,0,.18);
+
+/* Varian lain (pilih satu, jangan campur) */
+/* hijau  */ background: linear-gradient(105deg, #15803d 0%, #16a34a 100%);
+/* kuning */ background: linear-gradient(105deg, #d97706 0%, #f59e0b 100%);
+/* merah  */ background: linear-gradient(105deg, #b91c1c 0%, #dc2626 100%);
+/* cyan   */ background: linear-gradient(105deg, #0e7490 0%, #0891b2 100%);
 ```
+
+### Top nav (chrome) — beda privilege
+
+Body class di `layout.php`: `mode-priv-100` / `mode-priv-12`. Mode Training (`mode-training`) tetap override.
+
+| Privilege | Class | Topnav (satu hue) |
+|-----------|--------|-------------------|
+| Default / kasir | — | biru `#1d4ed8 → #2563eb` |
+| 100 (admin) | `mode-priv-100` | merah `#991b1b → #dc2626` |
+| 12 (kurir) | `mode-priv-12` | cyan `#0e7490 → #0891b2` |
+| Training | `mode-training` | kuning `#d97706 → #f59e0b` |
 
 ### Body offcanvas
 
@@ -122,7 +143,7 @@ Font stack: `'fontku', 'Segoe UI', sans-serif`
 
 - **Sudut runcing** — `border-radius: 0` pada `.modal-content`, panel dialog, tombol, input di dalamnya
 - Shadow tetap boleh keras: mis. `0 24px 48px rgba(15, 23, 42, 0.3)`
-- Header modal: gradient token (biru/hijau/kuning/merah) + teks putih tebal, sama semangat offcanvas
+- Header modal: gradient **satu hue** (biru/hijau/kuning/merah) + teks putih tebal — sama aturan offcanvas / topnav
 - **Operasi:** jangan pakai Bootstrap Modal. Pakai `.op-modal` + `window.OpModal.open/close` (lihat `modals.php` / `view_load.js`)
 
 ```html
@@ -415,7 +436,7 @@ Halaman khusus (portal J, dll.) boleh punya toast sendiri, tapi **visual harus m
 - [ ] Border default **1px**; focus ring **2px**; selected radio max **2px**
 - [ ] Tombol primary hijau / info biru / warn kuning / danger merah
 - [ ] Radio/option terpilih sangat jelas vs yang tidak
-- [ ] Header offcanvas memakai gradient multiwarna (jika offcanvas)
+- [ ] Header (topnav / offcanvas / modal) gradient **satu hue** — bukan pelangi 3+ warna
 - [ ] Modal Operasi memakai `.op-modal` / `OpModal` (bukan Bootstrap Modal + backdrop)
 - [ ] Feedback singkat memakai **toast** (`MdlToast`), bukan `alert()` / modal OK-only
 - [ ] Print server offline / instruksi aksi memakai **modal** (`PrintServer.showAlert` / `OpModal`), bukan toast singkat & bukan `window.print`
@@ -433,6 +454,7 @@ Halaman khusus (portal J, dll.) boleh punya toast sendiri, tapi **visual harus m
 - **Select `.tize` sekaligus `form-control` / `op-input` / `pay-input`** — dilarang (double border)
 - **Border di `.selectize-control` sekaligus `.selectize-input`** — dilarang; hanya input
 - Tema ungu/indigo default, cream terracotta, atau dark glow
+- **Header pelangi** (biru+hijau+kuning / merah+oranye / kuning+merah dalam satu bar) — dilarang; pakai satu hue
 - Card di dalam card tanpa alasan (border ganda)
 - **Input/select tunggal dibungkus card** — dilarang
 - Field wrapper ber-border di sekitar kontrol yang sudah ber-border

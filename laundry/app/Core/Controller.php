@@ -117,21 +117,12 @@ class Controller extends URL
 
     /**
      * Blok tambah cart/order baru untuk driver.
+     * Saat ini dinonaktifkan: priv 12 boleh membuka/menambah order.
      * @return bool true jika diblok (response sudah dikirim)
      */
     public function blockDriverCartAdd(bool $asJson = false): bool
     {
-        if (!$this->isDriverPrivilege()) {
-            return false;
-        }
-        $msg = 'Driver tidak dapat membuka order baru, silahkan gunakan fitur ganti user pada tombol ganti user di pojok kiri atas';
-        if ($asJson) {
-            header('Content-Type: application/json');
-            echo json_encode(['status' => 'error', 'ok' => false, 'message' => $msg]);
-        } else {
-            echo $msg;
-        }
-        return true;
+        return false;
     }
 
     /**

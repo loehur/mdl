@@ -74,7 +74,7 @@
     gap: 12px;
     padding: 14px 16px;
     color: #fff;
-    background: linear-gradient(105deg, #1d4ed8 0%, #2563eb 35%, #16a34a 70%, #f59e0b 100%);
+    background: linear-gradient(105deg, #1d4ed8 0%, #2563eb 100%);
     flex-shrink: 0;
   }
   .op-modal__head--blue {
@@ -662,7 +662,7 @@
     border-radius: 0 !important;
   }
   #offcanvasPayment .offcanvas-header {
-    background: linear-gradient(105deg, #1d4ed8 0%, #2563eb 35%, #16a34a 70%, #f59e0b 100%);
+    background: linear-gradient(105deg, #1d4ed8 0%, #2563eb 100%);
     color: #fff;
     border-bottom: 0;
     padding: 1rem 1.15rem;

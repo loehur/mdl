@@ -594,7 +594,7 @@
     justify-content: space-between;
     gap: 12px;
     padding: 14px 16px;
-    background: linear-gradient(105deg, #d97706, #f59e0b 55%, #dc2626);
+    background: linear-gradient(105deg, #d97706 0%, #f59e0b 100%);
     color: #fff;
   }
   .ord-plg-modal__head h3 {
@@ -763,7 +763,7 @@
     justify-content: space-between;
     gap: 12px;
     padding: 14px 16px;
-    background: linear-gradient(105deg, #d97706, #f59e0b 55%, #dc2626);
+    background: linear-gradient(105deg, #d97706 0%, #f59e0b 100%);
     color: #fff;
   }
   .ord-diskon-fo__head h3 {
