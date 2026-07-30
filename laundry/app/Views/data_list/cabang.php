@@ -18,6 +18,7 @@
                   <th>Alamat</th>
                   <th>Area</th>
                   <th>Phone</th>
+                  <th>Wifi</th>
                   <th class="text-end">Rent</th>
                 </tr>
               </thead>
@@ -30,6 +31,8 @@
                   $kota = "";
                   $phone = isset($a['phone_number']) ? $a['phone_number'] : '';
                   $phoneDisp = strlen($phone) > 0 ? $phone : '[ ]';
+                  $wifi = isset($a['wifi_pass']) ? $a['wifi_pass'] : '';
+                  $wifiDisp = strlen($wifi) > 0 ? $wifi : '[ ]';
                   $pmode = 'server';
                   $rent = isset($a['rent']) ? $a['rent'] : 0;
                   $isTraining = !empty($a['is_training']);
@@ -44,6 +47,7 @@
                   echo "<td><span class='cell' data-mode='2' data-id_value='" . $id . "' data-value='" . htmlspecialchars($alamat, ENT_QUOTES) . "'>" . htmlspecialchars($alamat) . "</span></td>";
                   echo "<td><span class='cell' data-mode='3' data-id_value='" . $id . "' data-value='" . $id_kota . "'>" . htmlspecialchars($kota) . "</span></td>";
                   echo "<td><span class='cell' data-mode='4' data-id_value='" . $id . "' data-value='" . htmlspecialchars($phone, ENT_QUOTES) . "' title='Double click to edit'>" . htmlspecialchars($phoneDisp) . "</span></td>";
+                  echo "<td><span class='cell' data-mode='7' data-id_value='" . $id . "' data-value='" . htmlspecialchars($wifi, ENT_QUOTES) . "' title='Double click to edit'>" . htmlspecialchars($wifiDisp) . "</span></td>";
                   echo "<td class='text-end'><span class='cell' data-mode='6' data-id_value='" . $id . "' data-value='" . $rent . "' title='Double click to edit'>" . number_format($rent) . "</span></td>";
                   echo "</tr>";
                 }
@@ -80,6 +84,10 @@
                     <div class="form-group">
                       <label for="exampleInputEmail1">Phone Number</label>
                       <input type="text" name="phone_number" class="form-control form-control-sm" placeholder="" required>
+                    </div>
+                    <div class="form-group">
+                      <label for="exampleInputEmail1">Wifi Password</label>
+                      <input type="text" name="wifi_pass" class="form-control form-control-sm" placeholder="">
                     </div>
                     <div class="form-group">
                       <label for="exampleInputEmail1">Kode Cabang</label>

@@ -28,6 +28,7 @@ class Cabang_List extends Controller
          'alamat' => $_POST["alamat"],
          'kode_cabang' => $_POST["kode_cabang"],
          'phone_number' => $_POST["phone_number"],
+         'wifi_pass' => $_POST["wifi_pass"] ?? '',
          'print_mode' => 'server',
          'rent' => $_POST["rent"] ?? 0
       ];
@@ -99,6 +100,8 @@ class Cabang_List extends Controller
          $value = "server"; // hanya print server — mode lain dihapus
       } else if ($mode == 6) {
          $kolom = "rent";
+      } else if ($mode == 7) {
+         $kolom = "wifi_pass";
       } else {
          $kolom = "id_kota";
       }
