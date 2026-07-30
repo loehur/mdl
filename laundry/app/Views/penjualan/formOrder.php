@@ -314,156 +314,172 @@ if ($saldoNya_member > 0) {
 
 <script src="<?= URL::EX_ASSETS ?>js/selectize.min.js"></script>
 <script>
-  $(document).ready(function() {
-    selectMember(<?= (int) $id_harga_member ?>, <?= (float) $saldoNya_member ?>);
-
-    $(".2tize").selectize({
-      sortField: [
-        { field: "$order", direction: "asc" },
-        { field: "$score", direction: "desc" }
-      ]
+  (function () {
+    // Selectize rebuilds <option>s and drops id/data-harga — cache first.
+    var hargaMap = {};
+    $("#kiloan option").each(function () {
+      var v = $(this).attr("value");
+      if (v != null && v !== "") {
+        hargaMap[String(v)] = $(this).attr("data-harga");
+      }
     });
 
-    $("form.addOrder").on("submit", function(e) {
-      $("select.order[name=f1]").removeAttr('disabled');
-      e.preventDefault();
+    function qtyFmtMax2(v) {
+      v = Math.round(parseFloat(v) * 100) / 100;
+      if (isNaN(v)) return "";
+      var s = v.toFixed(2);
+      if (s.indexOf(".") >= 0) {
+        s = s.replace(/0+$/, "");
+        s = s.replace(/\.$/, "");
+      }
+      return s;
+    }
 
-      if (typeof window.blockDriverNewOrder === "function" && window.blockDriverNewOrder()) {
+    function updateTotal() {
+      var qty = parseFloat($("input#qtyNya").val());
+      var hargaVal = parseFloat($("input#harga").val());
+      if (isNaN(qty) || isNaN(hargaVal)) {
+        $("input#total_harga").val("");
         return;
       }
+      var total = Math.round(qty * hargaVal);
+      $("input#total_harga").val(
+        total.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")
+      );
+    }
 
-      var $form = $(this);
-      var $btn = $form.find('button[type="submit"]');
-      if ($btn.data("loading")) {
-        return;
+    function selectMember(id_harga, saldoMember) {
+      if (id_harga > 0) {
+        $("select.order[name=f1] option[value=" + id_harga + "]").attr("selected", "selected");
+        $("select.order[name=f1] option[value=" + id_harga + "]").prop("selected", true);
+        $("select.order[name=f1]").attr("disabled", "true");
+        $("select.order[name=f1]").prop("disabled", true);
+        if (saldoMember > 0) {
+          $("input[name=f2]").attr("max", saldoMember);
+          $("input[name=f2]").prop("max", saldoMember);
+        }
+      } else {
+        $("select.order[name=f1]").removeAttr("disabled");
       }
-      var prevHtml = $btn.html();
-      $btn.data("loading", 1).prop("disabled", true)
-        .html('<i class="fas fa-spinner fa-spin"></i> Memuat…');
-      $form.find('button[type="button"]').prop("disabled", true);
+    }
 
-      if (typeof window.setOrdCartLoading === "function") {
-        window.setOrdCartLoading(true);
+    function harga() {
+      var id = $("select#kiloan").val();
+      var h = id != null && id !== "" ? hargaMap[String(id)] : "";
+      if (h == null || h === "") {
+        var $opt = $("select#kiloan option[value='" + id + "']");
+        h = $opt.attr("data-harga") || "";
       }
+      $("input#harga").val(h);
+    }
 
-      $.ajax({
-        url: $form.attr('action'),
-        data: $form.serialize(),
-        type: $form.attr("method"),
-        success: function(res) {
-          if (res != 0) {
-            alert(res);
+    $(document).ready(function () {
+      selectMember(<?= (int) $id_harga_member ?>, <?= (float) $saldoNya_member ?>);
+
+      $(".2tize").selectize({
+        sortField: [
+          { field: "$order", direction: "asc" },
+          { field: "$score", direction: "desc" }
+        ],
+        onChange: function () {
+          harga();
+          updateTotal();
+        }
+      });
+
+      $("form.addOrder").on("submit", function (e) {
+        $("select.order[name=f1]").removeAttr("disabled");
+        e.preventDefault();
+
+        if (typeof window.blockDriverNewOrder === "function" && window.blockDriverNewOrder()) {
+          return;
+        }
+
+        var $form = $(this);
+        var $btn = $form.find('button[type="submit"]');
+        if ($btn.data("loading")) {
+          return;
+        }
+        var prevHtml = $btn.html();
+        $btn.data("loading", 1).prop("disabled", true)
+          .html('<i class="fas fa-spinner fa-spin"></i> Memuat…');
+        $form.find('button[type="button"]').prop("disabled", true);
+
+        if (typeof window.setOrdCartLoading === "function") {
+          window.setOrdCartLoading(true);
+        }
+
+        $.ajax({
+          url: $form.attr("action"),
+          data: $form.serialize(),
+          type: $form.attr("method"),
+          success: function (res) {
+            if (res != 0) {
+              alert(res);
+              $btn.data("loading", 0).prop("disabled", false).html(prevHtml);
+              $form.find('button[type="button"]').prop("disabled", false);
+              if (typeof window.setOrdCartLoading === "function") {
+                window.setOrdCartLoading(false);
+              }
+              return;
+            }
+            if (typeof window.closeOrdOrderModal === "function") {
+              window.closeOrdOrderModal();
+            }
+            if (typeof hide_modal === "function") {
+              hide_modal();
+            }
+            if (typeof window.reloadOrdCart === "function") {
+              window.reloadOrdCart();
+            } else {
+              $("div#cart").load("<?= URL::BASE_URL ?>Penjualan/cart", function () {
+                if (typeof window.setOrdCartLoading === "function") {
+                  window.setOrdCartLoading(false);
+                }
+              });
+            }
+          },
+          error: function () {
+            alert("Gagal menambah ke keranjang. Coba lagi.");
             $btn.data("loading", 0).prop("disabled", false).html(prevHtml);
             $form.find('button[type="button"]').prop("disabled", false);
             if (typeof window.setOrdCartLoading === "function") {
               window.setOrdCartLoading(false);
             }
-            return;
           }
-          if (typeof window.closeOrdOrderModal === 'function') {
-            window.closeOrdOrderModal();
-          }
-          if (typeof hide_modal === 'function') {
-            hide_modal();
-          }
-          if (typeof window.reloadOrdCart === "function") {
-            window.reloadOrdCart();
-          } else {
-            $('div#cart').load('<?= URL::BASE_URL ?>Penjualan/cart', function () {
-              if (typeof window.setOrdCartLoading === "function") {
-                window.setOrdCartLoading(false);
-              }
-            });
-          }
-        },
-        error: function () {
-          alert("Gagal menambah ke keranjang. Coba lagi.");
-          $btn.data("loading", 0).prop("disabled", false).html(prevHtml);
-          $form.find('button[type="button"]').prop("disabled", false);
-          if (typeof window.setOrdCartLoading === "function") {
-            window.setOrdCartLoading(false);
-          }
-        }
+        });
       });
+
+      harga();
+      updateTotal();
+      setTimeout(function () {
+        var $qty = $("#qtyNya");
+        if ($qty.length) {
+          $qty.prop("readonly", false).prop("disabled", false).trigger("focus");
+        }
+      }, 50);
     });
 
-    $('select#kiloan').on('change', function() {
-      harga();
+    $(document).off("input.ordQty", "#qtyNya").on("input.ordQty", "#qtyNya", function () {
       updateTotal();
     });
 
-    harga();
-    setTimeout(function () {
-      var $qty = $("#qtyNya");
-      if ($qty.length) {
-        $qty.prop("readonly", false).prop("disabled", false).trigger("focus");
-      }
-    }, 50);
-  });
+    $(document).off("input.ordTimb change.ordTimb", "input.timb").on("input.ordTimb change.ordTimb", "input.timb", function () {
+      var t1 = $("#timb1").val() || 0;
+      var t2 = $("#timb2").val() || 0;
+      var t3 = $("#timb3").val() || 0;
+      var t4 = $("#timb4").val() || 0;
+      var total = parseFloat(t1) + parseFloat(t2) + parseFloat(t3) + parseFloat(t4);
+      $("input#qtyNya").val(qtyFmtMax2(total));
+      updateTotal();
+    });
 
-  $(document).off("input.ordQty", "#qtyNya").on("input.ordQty", "#qtyNya", function() {
-    updateTotal();
-  });
-
-  function qtyFmtMax2(v) {
-    v = Math.round(parseFloat(v) * 100) / 100;
-    if (isNaN(v)) return '';
-    var s = v.toFixed(2);
-    if (s.indexOf('.') >= 0) {
-      s = s.replace(/0+$/, '');
-      s = s.replace(/\.$/, '');
-    }
-    return s;
-  }
-
-  function updateTotal() {
-    var qty = $("input#qtyNya").val();
-    var harga = $("input#harga").val();
-    var total = parseInt(parseFloat(qty) * parseInt(harga));
-    total = total.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-    if (total != 'NaN') {
-      $("input#total_harga").val(total);
-    } else {
-      $("input#total_harga").val('');
-    }
-  }
-
-  function selectMember(id_harga, saldoMember) {
-    if (id_harga > 0) {
-      $("select.order[name=f1] option[value=" + id_harga + "]").attr('selected', 'selected');
-      $("select.order[name=f1] option[value=" + id_harga + "]").prop('selected', 'selected');
-      $("select.order[name=f1]").attr('disabled', 'true');
-      $("select.order[name=f1]").prop('disabled', 'true');
-      if (saldoMember > 0) {
-        $("input[name=f2]").attr("max", saldoMember);
-        $("input[name=f2]").prop("max", saldoMember);
-      }
-    } else {
-      $("select.order[name=f1]").removeAttr('disabled');
-    }
-  }
-
-  function harga() {
-    var id = $("select#kiloan").val();
-    var harga = $('option#op' + id).attr('data-harga');
-    $('input#harga').val(harga);
-  }
-
-  $(document).off("input.ordTimb change.ordTimb", "input.timb").on("input.ordTimb change.ordTimb", "input.timb", function() {
-    var t1 = $("#timb1").val() || 0;
-    var t2 = $("#timb2").val() || 0;
-    var t3 = $("#timb3").val() || 0;
-    var t4 = $("#timb4").val() || 0;
-    var total = parseFloat(t1) + parseFloat(t2) + parseFloat(t3) + parseFloat(t4);
-    $("input#qtyNya").val(qtyFmtMax2(total));
-    updateTotal();
-  });
-
-  $(document).off("input.ordKali change.ordKali", "input.bkali").on("input.ordKali change.ordKali", "input.bkali", function() {
-    var t1 = $("#bkali1").val() || 0;
-    var t2 = $("#bkali2").val() || 0;
-    var total = parseFloat(t1) * parseFloat(t2);
-    $("input#qtyNya").val(qtyFmtMax2(total));
-    updateTotal();
-  });
+    $(document).off("input.ordKali change.ordKali", "input.bkali").on("input.ordKali change.ordKali", "input.bkali", function () {
+      var t1 = $("#bkali1").val() || 0;
+      var t2 = $("#bkali2").val() || 0;
+      var total = parseFloat(t1) * parseFloat(t2);
+      $("input#qtyNya").val(qtyFmtMax2(total));
+      updateTotal();
+    });
+  })();
 </script>
