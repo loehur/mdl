@@ -238,6 +238,8 @@ foreach ($this->dSatuan as $a) {
 
     $("form").on("submit", function(e) {
       e.preventDefault();
+      var $form = $(this);
+      var $btn = $form.find('button[type="submit"]');
       var pakaiBaru = !$("#inp_kategori_baru").prop("disabled");
       if (pakaiBaru) {
         if ($.trim($("#inp_kategori_baru").val()) === "") {
@@ -248,15 +250,46 @@ foreach ($this->dSatuan as $a) {
         alert("Pilih kategori atau buat kategori baru.");
         return;
       }
-      $.ajax({
-        url: $(this).attr('action'),
-        data: $(this).serialize(),
-        type: $(this).attr("method"),
-        dataType: 'html',
+      if ($btn.data("loading")) {
+        return;
+      }
+      var prevHtml = $btn.html();
+      $btn.data("loading", 1).prop("disabled", true).text("Menyimpan…");
 
-        success: function(response) {
-          location.reload(true);
+      $.ajax({
+        url: $form.attr('action'),
+        data: $form.serialize(),
+        type: $form.attr("method"),
+        dataType: 'json',
+        success: function(res) {
+          if (res && res.ok == 1) {
+            if (window.MdlToast) {
+              MdlToast.ok(res.msg || "Berhasil");
+            }
+            location.reload(true);
+            return;
+          }
+          var msg = (res && res.msg) ? res.msg : "Gagal menambah harga.";
+          if (window.MdlToast) {
+            MdlToast.error(msg);
+          } else {
+            alert(msg);
+          }
+          $btn.data("loading", 0).prop("disabled", false).html(prevHtml);
         },
+        error: function(xhr) {
+          var msg = "Gagal menambah harga.";
+          try {
+            var parsed = JSON.parse(xhr.responseText || "{}");
+            if (parsed && parsed.msg) msg = parsed.msg;
+          } catch (err) {}
+          if (window.MdlToast) {
+            MdlToast.error(msg);
+          } else {
+            alert(msg);
+          }
+          $btn.data("loading", 0).prop("disabled", false).html(prevHtml);
+        }
       });
     });
   });

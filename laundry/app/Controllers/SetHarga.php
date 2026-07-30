@@ -33,6 +33,23 @@ class SetHarga extends Controller
    public function insert($page)
    {
       $page = (int) $page;
+      if ($page < 1) {
+         echo json_encode(['ok' => 0, 'msg' => 'Jenis penjualan tidak valid.']);
+         return;
+      }
+      if (empty($_POST['f2']) || !is_array($_POST['f2'])) {
+         echo json_encode(['ok' => 0, 'msg' => 'Layanan wajib dipilih.']);
+         return;
+      }
+      if (!isset($_POST['f3']) || $_POST['f3'] === '') {
+         echo json_encode(['ok' => 0, 'msg' => 'Durasi wajib dipilih.']);
+         return;
+      }
+      if (!isset($_POST['f4']) || $_POST['f4'] === '' || (float) $_POST['f4'] <= 0) {
+         echo json_encode(['ok' => 0, 'msg' => 'Harga tidak valid.']);
+         return;
+      }
+
       $layanan = serialize($_POST['f2']);
       $durasi = (int) $_POST['f3'];
       $kategoriBaru = trim((string) ($_POST['f1_new'] ?? ''));
@@ -49,20 +66,29 @@ class SetHarga extends Controller
                'id_penjualan_jenis' => $page,
                'item_kategori' => $kategoriBaru,
             ]);
-            if (($ins['errno'] ?? 1) !== 0) {
+            if ((int) ($ins['errno'] ?? 1) !== 0) {
+               echo json_encode([
+                  'ok' => 0,
+                  'msg' => 'Gagal membuat kategori: ' . ($ins['error'] ?: 'unknown'),
+               ]);
                return;
             }
-            $existing = $this->db(0)->get_where_row('item_group', $whereGrup);
-            $item_group = (int) ($existing['id_item_group'] ?? 0);
+            $item_group = (int) ($ins['insert_id'] ?? 0);
+            if ($item_group < 1) {
+               $existing = $this->db(0)->get_where_row('item_group', $whereGrup);
+               $item_group = (int) ($existing['id_item_group'] ?? 0);
+            }
          }
       }
 
       if ($item_group < 1) {
+         echo json_encode(['ok' => 0, 'msg' => 'Pilih kategori atau buat kategori baru.']);
          return;
       }
 
       $setOne = 'id_penjualan_jenis = ' . $page;
-      $where = $setOne . " AND list_layanan = '$layanan' AND id_durasi = $durasi AND id_item_group = $item_group";
+      $layananEsc = $this->db(0)->escape($layanan);
+      $where = $setOne . " AND list_layanan = '" . $layananEsc . "' AND id_durasi = " . $durasi . " AND id_item_group = " . $item_group;
       $data_main = $this->db(0)->count_where($this->table, $where);
       if ($data_main < 1) {
          $data = [
@@ -70,17 +96,24 @@ class SetHarga extends Controller
             'id_item_group' => $item_group,
             'list_layanan' => $layanan,
             'id_durasi' => $durasi,
-            'harga' => $_POST['f4'],
+            'harga' => (string) (int) round((float) str_replace(',', '.', (string) $_POST['f4']), 0),
             'min_order' => number_format(round((float) str_replace(',', '.', (string) ($_POST['f5'] ?? '0')), 2), 2, '.', ''),
             'is_active' => 1
          ];
          $query = $this->db(0)->insert($this->table, $data);
-         if ($query) {
-            $this->dataSynchrone($_SESSION[URL::SESSID]['user']['id_user']);
+         if ((int) ($query['errno'] ?? 1) !== 0) {
+            echo json_encode([
+               'ok' => 0,
+               'msg' => 'Gagal menambah harga: ' . ($query['error'] ?: 'unknown'),
+            ]);
+            return;
          }
-      } elseif ($kategoriBaru !== '') {
          $this->dataSynchrone($_SESSION[URL::SESSID]['user']['id_user']);
+         echo json_encode(['ok' => 1, 'msg' => 'Harga berhasil ditambahkan.']);
+         return;
       }
+
+      echo json_encode(['ok' => 0, 'msg' => 'Kombinasi kategori / layanan / durasi sudah ada.']);
    }
 
    public function updateCell()

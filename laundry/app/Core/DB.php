@@ -245,9 +245,19 @@ class DB extends DBC
         $query = "INSERT INTO $table ($columns) VALUES ($valuesString)";
         try {
             $this->mysqli->query($query);
-            return array('query' => $query, 'error' => $this->mysqli->error, 'errno' => $this->mysqli->errno);
+            return array(
+                'query' => $query,
+                'error' => $this->mysqli->error,
+                'errno' => (int) $this->mysqli->errno,
+                'insert_id' => (int) $this->mysqli->insert_id,
+            );
         } catch (\Throwable $th) {
-            return array('query' => $query, 'error' => $th->getMessage(), 'errno' => $this->mysqli->errno);
+            return array(
+                'query' => $query,
+                'error' => $th->getMessage(),
+                'errno' => (int) $this->mysqli->errno,
+                'insert_id' => 0,
+            );
         }
     }
 
