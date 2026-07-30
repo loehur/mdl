@@ -2194,7 +2194,6 @@
     var pmode = "server";
     var rows = el.querySelectorAll("tr");
     var lines = [];
-    var qrEmitted = {};
 
     for (var i = 0; i < rows.length; i++) {
       var tr = rows[i];
@@ -2221,7 +2220,7 @@
       }
 
       var escLine = function (left, right, width) {
-        var token = /\[\[(?:\/)?(?:B|DEL|H1|C|R|L|TD|QR)\]\]/g;
+        var token = /\[\[(?:\/)?(?:B|DEL|H1|C|R|L|TD)\]\]/g;
         var rawL = (left || "").replace(/[ \t]+/g, " ").trim();
         var rawR = (right || "").replace(/[ \t]+/g, " ").trim();
         var plainL = rawL.replace(token, "");
@@ -2303,38 +2302,14 @@
         }
       };
 
-      // QR invoice di kiri (rowspan Total/Bayar/Sisa)
-      var qrTd = tr.querySelector("td[data-qr]");
-      var valueTds = [];
-      if (qrTd) {
-        var qrUrl = (qrTd.getAttribute("data-qr") || "").trim();
-        if (qrUrl && !qrEmitted[qrUrl]) {
-          qrEmitted[qrUrl] = 1;
-          if (pmode === "server") {
-            lines.push("[[TR]][[TD]][[QR]]" + qrUrl + "[[/QR]][[/TD]][[/TR]]");
-          } else {
-            lines.push("[[QR]]" + qrUrl + "[[/QR]]");
-          }
-        }
-        for (var qi = 0; qi < tds.length; qi++) {
-          if (tds[qi] !== qrTd) valueTds.push(tds[qi]);
-        }
-      } else {
-        for (var ti = 0; ti < tds.length; ti++) valueTds.push(tds[ti]);
-      }
-
-      if (valueTds.length === 0) {
-        continue;
-      }
-
-      if (valueTds.length === 1 || valueTds[0].getAttribute("colspan") === "2") {
+      if (tds.length === 1 || tds[0].getAttribute("colspan") === "2") {
         if (pmode === "server") {
-          var v = sanitizeServerTd(valueTds[0]);
+          var v = sanitizeServerTd(tds[0]);
           v = "[[TD]]" + v + "[[/TD]]";
           lines.push("[[TR]]" + v + "[[/TR]]");
         } else {
-          var a0 = getAlign(valueTds[0]);
-          var arr1 = cellToLines(valueTds[0]);
+          var a0 = getAlign(tds[0]);
+          var arr1 = cellToLines(tds[0]);
           for (var x = 0; x < arr1.length; x++) {
             var v2 = arr1[x];
             if (a0 === "center") v2 = "[[C]]" + v2 + "[[/C]]";
@@ -2343,17 +2318,17 @@
             lines.push(v2);
           }
         }
-      } else if (valueTds.length >= 2) {
+      } else if (tds.length >= 2) {
         if (pmode === "server") {
-          var left0 = sanitizeServerTd(valueTds[0]);
-          var right0 = sanitizeServerTd(valueTds[1]);
+          var left0 = sanitizeServerTd(tds[0]);
+          var right0 = sanitizeServerTd(tds[1]);
           var row0 = escLine(left0, right0, width);
           lines.push("[[TR]]" + row0 + "[[/TR]]");
         } else {
-          var arrL = cellToLines(valueTds[0]);
-          var arrR = cellToLines(valueTds[1]);
-          var aL = getAlign(valueTds[0]);
-          var aR = getAlign(valueTds[1]);
+          var arrL = cellToLines(tds[0]);
+          var arrR = cellToLines(tds[1]);
+          var aL = getAlign(tds[0]);
+          var aR = getAlign(tds[1]);
           var max = Math.max(arrL.length, arrR.length);
           for (var y = 0; y < max; y++) {
             var left = arrL[y] || "";
@@ -2374,7 +2349,6 @@
     lines = lines.filter(function (s) {
       var x = String(s || "");
       if (x.indexOf("[[TR]]") === -1) return true;
-      if (x.indexOf("[[QR]]") !== -1) return true;
       var inner = x.replace(/\[\[(?:\/)?(?:TR|TD)\]\]/g, "");
       return inner.trim().length > 0;
     });
@@ -2385,8 +2359,6 @@
         s = s.replace(/\[\[\/B\]\]/g, "</b>");
         s = s.replace(/\[\[H1\]\]/g, "<h1>");
         s = s.replace(/\[\[\/H1\]\]/g, "</h1>");
-        s = s.replace(/\[\[QR\]\]/g, "<qr>");
-        s = s.replace(/\[\[\/QR\]\]/g, "</qr>");
         s = s.replace(/\[\[(?:\/)?C\]\]/g, "");
         s = s.replace(/\[\[(?:\/)?R\]\]/g, "");
         s = s.replace(/\[\[(?:\/)?L\]\]/g, "");

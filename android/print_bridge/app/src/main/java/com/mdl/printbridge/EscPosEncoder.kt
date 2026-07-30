@@ -135,17 +135,6 @@ class EscPosEncoder(
         val MARK_CENTER = "\u0001C"
         val MARK_RIGHT = "\u0001R"
         val MARK_LEFT = "\u0001L"
-        val MARK_QR_START = "\u0001Q"
-        val MARK_QR_END = "\u0001q"
-
-        // Extract <qr>…</qr> before stripping tags
-        val qrPayloads = ArrayList<String>()
-        processed = Regex("<qr>([\\s\\S]*?)</qr>", setOf(RegexOption.IGNORE_CASE))
-            .replace(processed) { m ->
-                val idx = qrPayloads.size
-                qrPayloads.add(m.groupValues[1].trim())
-                "$MARK_QR_START$idx$MARK_QR_END"
-            }
 
         processed = processed
             .replace(Regex("</center>", RegexOption.IGNORE_CASE), "")
@@ -162,7 +151,7 @@ class EscPosEncoder(
         // Strip remaining HTML tags
         processed = processed.replace(Regex("<[^>]+>"), "")
 
-        val out = ArrayList<Byte>(processed.length + 64 + qrPayloads.size * 128)
+        val out = ArrayList<Byte>(processed.length + 64)
         var i = 0
         while (i < processed.length) {
             val ch = processed[i]
@@ -177,29 +166,6 @@ class EscPosEncoder(
                             'C' -> out.addAll(centerAlign.toList())
                             'R' -> out.addAll(rightAlign.toList())
                             'L' -> out.addAll(leftAlign.toList())
-                            'Q' -> {
-                                // \u0001Q{idx}\u0001q
-                                var j = i + 2
-                                val num = StringBuilder()
-                                while (j < processed.length && processed[j].isDigit()) {
-                                    num.append(processed[j])
-                                    j++
-                                }
-                                val idx = num.toString().toIntOrNull() ?: -1
-                                if (idx in qrPayloads.indices) {
-                                    out.addAll(buildInlineQrBytes(qrPayloads[idx]).toList())
-                                }
-                                // skip to after MARK_QR_END if present
-                                if (j + 1 < processed.length &&
-                                    processed[j] == '\u0001' &&
-                                    processed[j + 1] == 'q'
-                                ) {
-                                    i = j + 2
-                                } else {
-                                    i = j
-                                }
-                                continue
-                            }
                         }
                         i += 2
                     } else {
@@ -219,37 +185,6 @@ class EscPosEncoder(
                 }
             }
         }
-        return out.toByteArray()
-    }
-
-    /** QR ESC/POS tanpa ESC @ agar tidak reset buffer di tengah nota. */
-    private fun buildInlineQrBytes(qrDataRaw: String): ByteArray {
-        var qrData = qrDataRaw
-        if (qrData.length > maxQrLength) {
-            qrData = qrData.substring(0, maxQrLength)
-        }
-        if (qrData.isEmpty()) return ByteArray(0)
-
-        val out = ArrayList<Byte>(qrData.length + 64)
-        out += ESC
-        out += 'a'.code.toByte()
-        out += 0x01 // center
-        out.addAll(listOf(GS, '('.code.toByte(), 'k'.code.toByte(), 4, 0, 49, 65, 50, 0))
-        out.addAll(listOf(GS, '('.code.toByte(), 'k'.code.toByte(), 3, 0, 49, 67, qrSize.toByte()))
-        out.addAll(listOf(GS, '('.code.toByte(), 'k'.code.toByte(), 3, 0, 49, 69, qrErrorLevel.toByte()))
-        val dataLength = qrData.length + 3
-        val pL = (dataLength % 256).toByte()
-        val pH = (dataLength / 256).toByte()
-        out.addAll(listOf(GS, '('.code.toByte(), 'k'.code.toByte(), pL, pH, 49, 80, 48))
-        out.addAll(qrData.toByteArray(Charsets.ISO_8859_1).toList())
-        out.addAll(listOf(GS, '('.code.toByte(), 'k'.code.toByte(), 3, 0, 49, 81, 48))
-        out += 0x0D
-        out += 0x0A
-        out += 0x0D
-        out += 0x0A
-        out += ESC
-        out += 'a'.code.toByte()
-        out += 0x00
         return out.toByteArray()
     }
 

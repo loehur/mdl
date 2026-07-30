@@ -721,19 +721,25 @@ $labeled = false;
             <td></td>
           </tr>
           <?= $listPrint ?>
-          <?php $invoiceQrUrl = rtrim(URL::HOST_URL, '/') . '/I/' . (int) $id_pelanggan; ?>
           <tr>
-            <td rowspan="3" data-qr="<?= htmlspecialchars($invoiceQrUrl, ENT_QUOTES, 'UTF-8') ?>">QR</td>
             <td>Total</td>
             <td><?= "" . number_format($subTotal) ?></td>
           </tr>
           <tr>
-            <td>Bayar</td>
-            <td><?= number_format($totalBayar) ?></td>
+            <td>
+              Bayar
+            </td>
+            <td>
+              <?= number_format($totalBayar) ?>
+            </td>
           </tr>
           <tr>
-            <td>Sisa</td>
-            <td><?= number_format($sisaTagihan) ?></td>
+            <td>
+              Sisa
+            </td>
+            <td>
+              <?= number_format($sisaTagihan) ?>
+            </td>
           </tr>
           <?php if ($countMember[$ref] > 0) { ?>
             <tr id="dashRow">
@@ -750,7 +756,7 @@ $labeled = false;
             <td></td>
           </tr>
           <tr>
-            <td>Scan QR untuk invoice online,<br>atau ketik <b>CEK</b> via WhatsApp.</td>
+            <td>Ketik <b>CEK</b> ke whatsapp kami,<br>untuk info status laundry.</td>
           </tr>
           <tr>
             <td><?= URL::PACK_ROWS ?><b>- <?= $this->dCabang['kode_cabang'] ?> -</b></td>
@@ -1045,19 +1051,29 @@ $labeled = false;
             <tr id="dashRow">
               <td></td>
             </tr>
-            <?php $invoiceQrUrlMember = rtrim(URL::HOST_URL, '/') . '/I/' . (int) $id_pelanggan; ?>
             <tr>
-              <td rowspan="3" data-qr="<?= htmlspecialchars($invoiceQrUrlMember, ENT_QUOTES, 'UTF-8') ?>">QR</td>
-              <td>Total</td>
-              <td><?= "" . number_format($harga) ?></td>
+              <td>
+                Total
+              </td>
+              <td>
+                <?= "" . number_format($harga) ?>
+              </td>
             </tr>
             <tr>
-              <td>Bayar</td>
-              <td><?= number_format($totalBayar) ?></td>
+              <td>
+                Bayar
+              </td>
+              <td>
+                <?= number_format($totalBayar) ?>
+              </td>
             </tr>
             <tr>
-              <td>Sisa</td>
-              <td><?= number_format($sisa) ?></td>
+              <td>
+                Sisa
+              </td>
+              <td>
+                <?= number_format($sisa) ?>
+              </td>
             </tr>
             <tr id="dashRow">
               <td></td>
