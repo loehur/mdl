@@ -693,6 +693,27 @@
   $(document).off("submit", "form.ajax");
   $(document).on("submit", "form.ajax", function (e) {
     e.preventDefault();
+
+    // Guard form Ubah Penyelesai
+    if ($(this).find("#modalGanti").length) {
+      if (parseInt(window.MDL_PRIVILEGE || "0", 10) !== 100) {
+        showAlert("Hanya admin yang dapat mengubah penyelesai.", "error");
+        return;
+      }
+      var valGanti = String($(this).find("select[name='f1']").val() || "");
+      var tuntasGanti = parseInt($(this).data("tuntas") || "0", 10);
+      var bulanOk = parseInt($(this).data("bulanOk") || "0", 10) === 1;
+      if (valGanti === "0" || valGanti === "") {
+        if (tuntasGanti === 1) {
+          showAlert("Tidak dapat mengosongkan penyelesai: order sudah tuntas.", "error");
+          return;
+        }
+      } else if (!bulanOk) {
+        showAlert("Ubah penyelesai hanya untuk order bulan ini.", "error");
+        return;
+      }
+    }
+
     $.ajax({
       url: $(this).attr("action"),
       data: $(this).serialize(),
@@ -849,10 +870,75 @@
 
   $("span.gantiOperasi").on("click", function (e) {
     e.preventDefault();
+    if (parseInt(window.MDL_PRIVILEGE || "0", 10) !== 100) {
+      showAlert("Hanya admin yang dapat mengubah penyelesai.", "error");
+      return;
+    }
+    if (!$("#modalGanti").length) {
+      showAlert("Hanya admin yang dapat mengubah penyelesai.", "error");
+      return;
+    }
     window.idNya = $(this).attr("data-id");
     var awal = $(this).attr("data-awal");
+    var tuntas = parseInt($(this).attr("data-tuntas") || "0", 10);
+    var bulanOrder = $(this).attr("data-bulan") || "";
+    var now = new Date();
+    var bulanSekarang =
+      now.getFullYear() +
+      "-" +
+      String(now.getMonth() + 1).padStart(2, "0");
+    var canGantiKaryawan = bulanOrder === bulanSekarang;
+
     $("input#id_ganti").val(window.idNya);
     $("span#awalOP").html(awal);
+
+    var $formGanti = $("#modalGanti").closest("form");
+    $formGanti.data("tuntas", tuntas);
+    $formGanti.data("bulanOk", canGantiKaryawan ? 1 : 0);
+
+    var selEl = document.querySelector("#modalGanti select[name='f1']");
+    if (selEl && selEl.selectize) {
+      var sz = selEl.selectize;
+      var kosongVal = "0";
+      var kosongText = "— Kosong (hapus penyelesai & notif selesai) —";
+
+      // Backup opsi karyawan sekali (agar bisa dikembalikan antar klik)
+      if (!window._gantiOperasiOptsBackup) {
+        window._gantiOperasiOptsBackup = [];
+        Object.keys(sz.options).forEach(function (val) {
+          if (val === "" || val === kosongVal) {
+            return;
+          }
+          window._gantiOperasiOptsBackup.push({
+            value: val,
+            text: sz.options[val].text,
+          });
+        });
+      }
+
+      // Reset opsi karyawan dari backup
+      Object.keys(sz.options).forEach(function (val) {
+        if (val !== "" && val !== kosongVal) {
+          sz.removeOption(val);
+        }
+      });
+      if (canGantiKaryawan) {
+        window._gantiOperasiOptsBackup.forEach(function (opt) {
+          sz.addOption(opt);
+        });
+      }
+
+      // Opsi Kosong hanya untuk order belum tuntas
+      if (tuntas === 1) {
+        if (sz.options[kosongVal]) {
+          sz.removeOption(kosongVal);
+        }
+      } else if (!sz.options[kosongVal]) {
+        sz.addOption({ value: kosongVal, text: kosongText });
+      }
+
+      sz.clear();
+    }
   });
 
   $("span.endLayanan").on("click", function (e) {

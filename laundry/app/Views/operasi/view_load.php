@@ -265,8 +265,9 @@ $labeled = false;
                         }
                       }
 
-                      if ($this->id_privilege >= 100) {
-                        $list_layanan .= "<span style='cursor:pointer' data-awal='" . $user . "' data-id='" . $o['id_operasi'] . "' class='gantiOperasi' data-op-target='#modalGanti'><b><i class='fas fa-check-circle text-success'></i> <span class='fw-bold text-purple'>" . $c['kode'] . "</span> " . $user . "</b> <span style='white-space: pre;'>" . date('d/m H:i', strtotime($o['insertTime'])) . "</span></span><br>" . $buttonNotifSelesai;
+                      if ((int) $this->id_privilege === 100) {
+                        $bulanOrder = date('Y-m', strtotime($a['insertTime'] ?? ''));
+                        $list_layanan .= "<span style='cursor:pointer' data-awal='" . $user . "' data-id='" . $o['id_operasi'] . "' data-tuntas='" . $tuntas . "' data-bulan='" . $bulanOrder . "' class='gantiOperasi' data-op-target='#modalGanti'><b><i class='fas fa-check-circle text-success'></i> <span class='fw-bold text-purple'>" . $c['kode'] . "</span> " . $user . "</b> <span style='white-space: pre;'>" . date('d/m H:i', strtotime($o['insertTime'])) . "</span></span><br>" . $buttonNotifSelesai;
                       } else {
                         $list_layanan .= "<b><i class='fas fa-check-circle text-success'></i> <span class='fw-bold text-purple'>" . $c['kode'] . "</span> " . $user . "</b> <span style='white-space: pre;'>" . date('d/m H:i', strtotime($o['insertTime'])) . "</span><br>" . $buttonNotifSelesai;
                       }

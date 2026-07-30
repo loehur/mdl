@@ -423,7 +423,8 @@
   </div>
 </form>
 
-<!-- Ubah Penyelesai -->
+<!-- Ubah Penyelesai (admin only) -->
+<?php if ((int) ($this->id_privilege ?? 0) === 100) { ?>
 <form class="operasi ajax" action="<?= URL::BASE_URL; ?>Operasi/ganti_operasi" method="POST">
   <div class="op-modal" id="modalGanti" aria-hidden="true">
     <div class="op-modal__backdrop" data-op-close></div>
@@ -431,7 +432,7 @@
       <div class="op-modal__head op-modal__head--red">
         <div>
           <h3 id="opGantiTitle">Ubah Penyelesai</h3>
-          <small>Ganti karyawan yang menyelesaikan</small>
+          <small>Ganti karyawan (hanya order bulan ini), atau Kosong jika belum tuntas</small>
         </div>
         <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
       </div>
@@ -440,6 +441,7 @@
           <label class="op-label">Ubah dari <span style="color:#dc2626;text-transform:none;letter-spacing:0;" id="awalOP"></span> menjadi</label>
           <select name="f1" class="operasi tize userChange" style="width: 100%;" required>
             <option value="" selected disabled></option>
+            <option value="0">— Kosong (hapus penyelesai &amp; notif selesai) —</option>
             <optgroup label="<?= $this->dCabang['nama'] ?> [<?= $this->dCabang['kode_cabang'] ?>]">
               <?php foreach ($this->user as $a) { ?>
                 <option id="<?= $a['id_user'] ?>" value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
@@ -463,6 +465,7 @@
     </div>
   </div>
 </form>
+<?php } ?>
 
 <!-- Ubah ke Member -->
 <div class="op-modal" id="modalUbahMember" aria-hidden="true">

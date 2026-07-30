@@ -371,18 +371,75 @@ class Operasi extends Controller
 
    public function ganti_operasi()
    {
-      if ((int) ($this->id_privilege ?? 0) !== 100) {
+      // Hanya admin (privilege 100) yang boleh ubah/kosongkan penyelesai
+      $priv = (int) ($this->id_privilege ?? $_SESSION[URL::SESSID]['user']['id_privilege'] ?? 0);
+      if ($priv !== 100) {
          echo 'Unauthorized: Hanya admin yang dapat mengubah penyelesai.';
          return;
       }
 
-      $karyawan = $_POST['f1'];
+      $karyawan = $_POST['f1'] ?? '';
       $id = $_POST['id'] ?? '';
 
       // id_operasi bisa alfanumerik (mis. 51681407012 atau A168070), harus di-quote agar tidak error "Truncated incorrect DOUBLE value"
       $idEsc = $this->db(0)->escape(trim((string) $id));
-      $set = ['id_user_operasi' => $karyawan];
       $where = $this->wCabang . " AND id_operasi = '" . $idEsc . "'";
+
+      $row = $this->db(0)->get_where_row('operasi', $where);
+      if (!isset($row['id_operasi'])) {
+         echo 'Data operasi tidak ditemukan.';
+         return;
+      }
+
+      $idPenjualanRaw = trim((string) ($row['id_penjualan'] ?? ''));
+      $sale = $this->db(0)->get_where_row('sale', $this->whereSaleById($idPenjualanRaw) . ' AND bin = 0');
+
+      // Kosong = hapus penyelesai (baris operasi) + hapus notif selesai (tipe 2)
+      // Hanya diizinkan jika order belum tuntas
+      if ((string) $karyawan === '0' || $karyawan === '') {
+         $err = $this->validateOrderModifiable($sale);
+         if ($err !== null) {
+            echo $err === 'Order sudah tuntas'
+               ? 'Tidak dapat mengosongkan penyelesai: order sudah tuntas.'
+               : $err;
+            return;
+         }
+
+         $idPenjualan = $this->db(0)->escape($this->normalizeSaleId($idPenjualanRaw));
+         $del = $this->db(0)->delete('operasi', $where);
+         if ($del['errno'] <> 0) {
+            $this->model('Log')->write("[ganti_operasi] Delete Operasi Error: " . $del['error']);
+            echo $del['error'];
+            return;
+         }
+
+         if ($idPenjualan !== '') {
+            $whereNotif = $this->wCabang . " AND no_ref = '" . $idPenjualan . "' AND tipe = 2";
+            $delNotif = $this->db(0)->delete('notif', $whereNotif);
+            if ($delNotif['errno'] <> 0) {
+               $this->model('Log')->write("[ganti_operasi] Delete Notif Selesai Error: " . $delNotif['error']);
+               echo $delNotif['error'];
+               return;
+            }
+         }
+
+         echo 0;
+         return;
+      }
+
+      // Ubah ke karyawan lain: wajib bulan order = bulan saat ini
+      if (!$sale || !is_array($sale)) {
+         echo 'Order tidak ditemukan.';
+         return;
+      }
+      $bulanOrder = date('Y-m', strtotime((string) ($sale['insertTime'] ?? '')));
+      $bulanSekarang = date('Y-m');
+      if ($bulanOrder !== $bulanSekarang) {
+         echo 'Ubah penyelesai hanya untuk order bulan ini.';
+         return;
+      }
+
+      $set = ['id_user_operasi' => $karyawan];
       $in = $this->db(0)->update('operasi', $set, $where); // Changed to db(0)
       if ($in['errno'] <> 0) {
          $this->model('Log')->write("[ganti_operasi] Update Operasi Error: " . $in['error']);
