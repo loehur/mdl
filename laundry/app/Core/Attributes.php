@@ -93,6 +93,40 @@ trait Attributes
     }
 
     /**
+     * Hanya harga is_active = 1 (untuk pilihan order / penjualan).
+     * @param array|null $rows
+     * @return array
+     */
+    public function filterHargaAktif($rows = null)
+    {
+        if ($rows === null) {
+            $rows = is_array($this->harga) ? $this->harga : [];
+        }
+        if (!is_array($rows)) {
+            return [];
+        }
+        $out = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            if ((int) ($row['is_active'] ?? 0) === 1) {
+                $out[] = $row;
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Load harga aktif langsung dari DB (sort ASC).
+     */
+    public function loadHargaAktif()
+    {
+        $rows = $this->db(0)->get_where_order('harga', 'is_active = 1', 'sort ASC');
+        return is_array($rows) ? $rows : [];
+    }
+
+    /**
      * Harga paket efektif: override cabang jika > 0, else harga global paket.
      */
     public function resolveHargaPaketUnit($paketRow)

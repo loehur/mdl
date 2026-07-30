@@ -218,6 +218,9 @@ if ($saldoNya_member > 0) {
           $kategori = "";
           $layanan = "";
           $durasi = "";
+          if ((int) ($a['is_active'] ?? 0) !== 1) {
+            continue;
+          }
           if ($a['id_penjualan_jenis'] == $idPenjualan) {
             foreach (unserialize($a['list_layanan']) as $b) {
               foreach ($this->dLayanan as $c) {

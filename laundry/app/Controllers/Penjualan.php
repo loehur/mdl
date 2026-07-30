@@ -6,8 +6,19 @@ class Penjualan extends Controller
    {
       $this->session_cek();
       $this->operating_data();
-      // Ambil harga ulang dengan is_active = 1 (tidak pakai dari operating_data)
-      $this->harga = $this->db(0)->get_where_order('harga', 'is_active = 1', 'sort ASC');
+      // Hanya harga aktif — view() memanggil operating_data() lagi, jadi filter diulang di view()
+      $this->harga = $this->loadHargaAktif();
+   }
+
+   /**
+    * view() di Controller memanggil operating_data() yang mengisi ulang $this->harga
+    * dari session (semua harga). Filter aktif harus diterapkan lagi di sini.
+    */
+   public function view($file, $data = [])
+   {
+      $this->operating_data();
+      $this->harga = $this->filterHargaAktif($this->harga);
+      require_once "app/Views/" . $file . ".php";
    }
 
    public function index()
@@ -37,22 +48,38 @@ class Penjualan extends Controller
       if ($this->blockDriverCartAdd(false)) {
          return;
       }
-      $id_harga = $_POST['f1'];
+      $id_harga = (int) ($_POST['f1'] ?? 0);
       $qty = round((float) str_replace(',', '.', (string) ($_POST['f2'] ?? '0')), 2);
-      $note = $_POST['f3'];
+      $note = $_POST['f3'] ?? '';
+
+      $durasi = null;
+      $hari = null;
+      $jam = null;
+      $item_group = null;
+      $harga = null;
+      $layanan = null;
+      $minOrder = 0;
+      $found = false;
 
       foreach ($this->harga as $a) {
-         if ($a['id_harga'] == $id_harga) {
-            $durasi = $a['id_durasi'];
-            $hari = $a['hari'];
-            $jam = $a['jam'];
-            $item_group = $a['id_item_group'];
-
-            $harga = $this->resolveHargaUnit($a);
-
-            $layanan = $a['list_layanan'];
-            $minOrder = round((float) str_replace(',', '.', (string) ($a['min_order'] ?? 0)), 2);
+         if ((int) $a['id_harga'] !== $id_harga) {
+            continue;
          }
+         // $this->harga sudah is_active = 1
+         $durasi = $a['id_durasi'];
+         $hari = $a['hari'];
+         $jam = $a['jam'];
+         $item_group = $a['id_item_group'];
+         $harga = $this->resolveHargaUnit($a);
+         $layanan = $a['list_layanan'];
+         $minOrder = round((float) str_replace(',', '.', (string) ($a['min_order'] ?? 0)), 2);
+         $found = true;
+         break;
+      }
+
+      if (!$found) {
+         echo "Harga tidak tersedia atau nonaktif.";
+         return;
       }
 
       $diskon_qty = 0;
@@ -347,9 +374,31 @@ class Penjualan extends Controller
    public function sering($idPelanggan)
    {
       $viewData = 'penjualan/viewSering';
-      $where = $this->wCabang . " AND id_harga <> 0 AND bin = 0 AND id_pelanggan = " . $idPelanggan . " GROUP BY id_harga, id_penjualan_jenis, id_item_group, list_layanan, id_durasi ORDER BY count(id_penjualan) DESC limit 2";
+      $idPelanggan = (int) $idPelanggan;
+      $where = $this->wCabang . " AND id_harga <> 0 AND bin = 0 AND id_pelanggan = " . $idPelanggan . " GROUP BY id_harga, id_penjualan_jenis, id_item_group, list_layanan, id_durasi ORDER BY count(id_penjualan) DESC limit 10";
       $cols = "id_harga, id_penjualan_jenis, id_item_group, list_layanan, id_durasi, count(id_penjualan)";
-      $data = $this->db(0)->get_cols_where('sale', $cols, $where, 1);
+      $raw = $this->db(0)->get_cols_where('sale', $cols, $where, 1);
+      if (!is_array($raw)) {
+         $raw = [];
+      }
+
+      $activeIds = [];
+      foreach ($this->harga as $h) {
+         $activeIds[(int) $h['id_harga']] = true;
+      }
+
+      $data = [];
+      foreach ($raw as $row) {
+         $idHarga = (int) ($row['id_harga'] ?? 0);
+         if ($idHarga < 1 || empty($activeIds[$idHarga])) {
+            continue;
+         }
+         $data[] = $row;
+         if (count($data) >= 2) {
+            break;
+         }
+      }
+
       $this->view($viewData, ['data' => $data]);
    }
 
