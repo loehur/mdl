@@ -66,7 +66,11 @@ class Gaji extends Controller
 
    public function set_gaji_pengali()
    {
-      $id_pengali = $_POST['pengali'];
+      $id_pengali = (int) $_POST['pengali'];
+      if ($id_pengali === 5) {
+         echo 'Fee jaga malam otomatis dari snapshot cabang';
+         return;
+      }
       $id_user = $_POST['id_user'];
       $fee = $_POST['fee'];
 
@@ -176,6 +180,11 @@ class Gaji extends Controller
       } elseif (in_array($idPengaliPost, [1, 2], true)) {
          $idPengali = $idPengaliPost;
       } else {
+         return;
+      }
+
+      // Fee jaga malam otomatis dari snapshot — tidak diedit manual
+      if ($idPengali === 5) {
          return;
       }
 

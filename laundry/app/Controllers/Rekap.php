@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 class Rekap extends Controller
 {
@@ -269,6 +269,13 @@ class Rekap extends Controller
          $margin_penjualan = intval(round($marginPenjualanResult[0]['total'] ?? 0));
       }
 
+      $snapshot = null;
+      $snapshotMeta = null;
+      if (!$isDaily && in_array((int) $mode, [2, 3], true)) {
+         $snapshotMeta = $this->getRekapSnapshotStatus((int) $mode, $today);
+         $snapshot = !empty($snapshotMeta['complete']) ? ($snapshotMeta['row'] ?? ['id' => 1]) : null;
+      }
+
       $this->view('layout', ['data_operasi' => $data_operasi]);
       $this->view('rekap/rekap', [
          'data_main' => $data_main,
@@ -284,7 +291,142 @@ class Rekap extends Controller
          'prepost_cost' => $prepost_cost,
          'gaji' => $gaji,
          'barang_pakai' => $barang_pakai,
-         'margin_penjualan' => $margin_penjualan
+         'margin_penjualan' => $margin_penjualan,
+         'snapshot' => $snapshot,
+         'snapshot_meta' => $snapshotMeta,
+         'rekap_mode' => (int) $mode,
+      ]);
+   }
+
+   /**
+    * Simpan snapshot rekap bulanan. Hanya bulan yang telah berlalu.
+    * Mode 2: satu cabang aktif. Mode 3: satu baris per cabang operasional (selalu mode=2 di DB).
+    * POST: y, m — skip cabang yang sudah punya snapshot (silent).
+    */
+   public function snapshot($mode)
+   {
+      header('Content-Type: application/json; charset=utf-8');
+
+      $mode = (int) $mode;
+      if (!in_array($mode, [2, 3], true)) {
+         echo json_encode(['ok' => false, 'msg' => 'Snapshot hanya untuk rekap bulanan']);
+         return;
+      }
+
+      $year = isset($_POST['y']) ? (int) $_POST['y'] : 0;
+      $monthNum = isset($_POST['m']) ? (int) $_POST['m'] : 0;
+      if ($year < 2021 || $year > 2100 || $monthNum < 1 || $monthNum > 12) {
+         echo json_encode(['ok' => false, 'msg' => 'Periode tidak valid']);
+         return;
+      }
+
+      $periode = sprintf('%04d-%02d', $year, $monthNum);
+      if ($periode >= date('Y-m')) {
+         echo json_encode(['ok' => false, 'msg' => 'Hanya bulan yang telah berlalu yang bisa di-snapshot']);
+         return;
+      }
+
+      $id_user = (int) ($_SESSION[URL::SESSID]['user']['id_user'] ?? 0);
+      $targets = [];
+
+      if ($mode === 2) {
+         $idCabang = (int) $this->id_cabang;
+         if ($idCabang < 1) {
+            echo json_encode(['ok' => false, 'msg' => 'Cabang tidak valid']);
+            return;
+         }
+         $targets[] = $idCabang;
+      } else {
+         $list = $this->getCabangOperasional();
+         if (!is_array($list)) {
+            $list = [];
+         }
+         foreach ($list as $c) {
+            $idC = (int) ($c['id_cabang'] ?? 0);
+            if ($idC > 0) {
+               $targets[] = $idC;
+            }
+         }
+      }
+
+      if (count($targets) < 1) {
+         echo json_encode(['ok' => false, 'msg' => 'Tidak ada cabang untuk di-snapshot']);
+         return;
+      }
+
+      $created = 0;
+      $skipped = 0;
+      $errors = 0;
+
+      foreach ($targets as $idCabang) {
+         $existing = $this->getRekapSnapshotRowForCabang($idCabang, $periode);
+         if ($existing) {
+            $skipped++;
+            continue;
+         }
+
+         $agg = $this->hitungRekapBulananSnapshot($idCabang, $periode);
+         if ($agg === null) {
+            $errors++;
+            continue;
+         }
+
+         $payload = [
+            'periode' => $periode,
+            'mode' => 2,
+            'id_cabang' => (int) $idCabang,
+            'kas_laundry' => (int) $agg['kas_laundry'],
+            'kas_member' => (int) $agg['kas_member'],
+            'margin_penjualan' => (int) $agg['margin_penjualan'],
+            'total_pendapatan' => (int) $agg['total_pendapatan'],
+            'kas_keluar_json' => json_encode($agg['kas_keluar'], JSON_UNESCAPED_UNICODE),
+            'gaji' => (int) $agg['gaji'],
+            'prepost_cost' => (int) $agg['prepost_cost'],
+            'barang_pakai' => (int) $agg['barang_pakai'],
+            'total_pengeluaran' => (int) $agg['total_pengeluaran'],
+            'laba_rugi' => (int) $agg['laba_rugi'],
+            'qty_json' => json_encode($agg['qty'], JSON_UNESCAPED_UNICODE),
+            'id_user' => $id_user,
+         ];
+
+         $do = $this->db(0)->insert('rekap_snapshot', $payload);
+         if (($do['errno'] ?? 1) != 0) {
+            $this->model('Log')->write('[Rekap::snapshot] Insert error cabang ' . $idCabang . ': ' . ($do['error'] ?? ''));
+            $errors++;
+            continue;
+         }
+         $created++;
+      }
+
+      $status = $this->getRekapSnapshotStatus($mode, $periode);
+      $allDone = !empty($status['complete']);
+
+      if ($created < 1 && $skipped > 0 && $errors < 1) {
+         echo json_encode([
+            'ok' => false,
+            'exists' => true,
+            'msg' => 'Snapshot periode ini sudah ada',
+            'created' => $created,
+            'skipped' => $skipped,
+         ]);
+         return;
+      }
+
+      if ($created < 1 && $errors > 0) {
+         echo json_encode(['ok' => false, 'msg' => 'Gagal menyimpan snapshot']);
+         return;
+      }
+
+      echo json_encode([
+         'ok' => true,
+         'msg' => $mode === 3
+            ? ("Snapshot cabang: {$created} baru, {$skipped} dilewati")
+            : 'Snapshot berhasil disimpan',
+         'periode' => $periode,
+         'created' => $created,
+         'skipped' => $skipped,
+         'errors' => $errors,
+         'complete' => $allDone,
       ]);
    }
 
@@ -796,5 +938,334 @@ class Rekap extends Controller
          'grand' => ['total' => (int) $grandTotal],
          'period_label' => $periodLabel,
       ]);
+   }
+
+   private function getRekapSnapshotRowForCabang($id_cabang, $periode)
+   {
+      $id_cabang = (int) $id_cabang;
+      $periodeEsc = $this->db(0)->escape($periode);
+      $row = $this->db(0)->get_where_row(
+         'rekap_snapshot',
+         "periode = '$periodeEsc' AND mode = 2 AND id_cabang = $id_cabang"
+      );
+      return is_array($row) && !empty($row['id']) ? $row : null;
+   }
+
+   /**
+    * Status snapshot untuk UI.
+    * Mode 2: cabang aktif. Mode 3: semua cabang operasional harus punya baris mode=2.
+    */
+   private function getRekapSnapshotStatus($mode, $periode)
+   {
+      $mode = (int) $mode;
+      $periodeEsc = $this->db(0)->escape($periode);
+
+      if ($mode === 2) {
+         $row = $this->getRekapSnapshotRowForCabang((int) $this->id_cabang, $periode);
+         return [
+            'complete' => $row !== null,
+            'count' => $row ? 1 : 0,
+            'total' => 1,
+            'row' => $row,
+         ];
+      }
+
+      $list = $this->getCabangOperasional();
+      if (!is_array($list)) {
+         $list = [];
+      }
+      $ids = [];
+      foreach ($list as $c) {
+         $idC = (int) ($c['id_cabang'] ?? 0);
+         if ($idC > 0) {
+            $ids[] = $idC;
+         }
+      }
+      $total = count($ids);
+      if ($total < 1) {
+         return ['complete' => false, 'count' => 0, 'total' => 0, 'row' => null];
+      }
+
+      $idList = implode(',', $ids);
+      $rows = $this->db(0)->query_array(
+         "SELECT id, id_cabang, created_at, updated_at FROM rekap_snapshot
+          WHERE periode = '$periodeEsc' AND mode = 2 AND id_cabang IN ($idList)"
+      );
+      if (!is_array($rows)) {
+         $rows = [];
+      }
+      $count = count($rows);
+      $latest = null;
+      foreach ($rows as $r) {
+         $ts = $r['updated_at'] ?: ($r['created_at'] ?? '');
+         if ($latest === null || $ts > ($latest['updated_at'] ?: ($latest['created_at'] ?? ''))) {
+            $latest = $r;
+         }
+      }
+
+      return [
+         'complete' => $count >= $total,
+         'count' => $count,
+         'total' => $total,
+         'row' => $latest,
+      ];
+   }
+
+   /**
+    * Hitung angka rekap bulanan untuk satu cabang (disimpan sebagai mode=2).
+    */
+   private function hitungRekapBulananSnapshot($id_cabang, $periode)
+   {
+      $id_cabang = (int) $id_cabang;
+      if ($id_cabang < 1) {
+         return null;
+      }
+      $whereCabang = "id_cabang = $id_cabang AND ";
+
+      $id_pengeluaran = 102;
+      $tgl_pertama = $periode . '-01';
+      $itemPengeluaran = $this->db(0)->get_where_row('item_pengeluaran', "id_item_pengeluaran = '$id_pengeluaran'");
+      $jenis_nama = $itemPengeluaran['item_pengeluaran'] ?? 'Rekap Bulanan';
+
+      $cabang = $this->db(0)->get_where_row('cabang', "id_cabang = $id_cabang");
+      $listCabang = $cabang ? [$cabang] : [];
+
+      foreach ($listCabang as $cabangRow) {
+         $rent = intval($cabangRow['rent'] ?? 0);
+         if ($rent <= 0) {
+            continue;
+         }
+         $whereCek = "jenis_transaksi = 8 AND ref_transaksi = '$id_pengeluaran' AND id_cabang = $id_cabang AND DATE_FORMAT(insertTime, '%Y-%m') = '$periode'";
+         $ada = $this->db(0)->count_where('kas', $whereCek);
+         if ($ada < 1) {
+            $dataKas = [
+               'id_kas' => (date('Y') - 2020) . substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 6),
+               'id_cabang' => $id_cabang,
+               'jenis_mutasi' => 2,
+               'jenis_transaksi' => 8,
+               'metode_mutasi' => 2,
+               'note' => 'Auto dari Rekap ' . $periode . ' (rent)',
+               'note_primary' => $jenis_nama,
+               'status_mutasi' => 3,
+               'jumlah' => $rent,
+               'id_user' => $_SESSION[URL::SESSID]['user']['id_user'] ?? 0,
+               'id_client' => 0,
+               'ref_transaksi' => $id_pengeluaran,
+               'insertTime' => $tgl_pertama . ' 00:00:00',
+            ];
+            $do = $this->db(0)->insert('kas', $dataKas);
+            if (($do['errno'] ?? 0) != 0) {
+               $this->model('Log')->write('[Rekap::snapshot] Auto insert Kas Besar error: ' . ($do['error'] ?? ''));
+            }
+         }
+      }
+
+      $kasSql = "SELECT jenis_transaksi, ref_transaksi, note_primary, SUM(jumlah) as total
+                 FROM kas
+                 WHERE {$whereCabang} status_mutasi <> 4 AND DATE_FORMAT(insertTime, '%Y-%m') = '$periode'
+                 GROUP BY jenis_transaksi, ref_transaksi, note_primary";
+      $kasResult = $this->db(0)->query_array($kasSql);
+      if (!is_array($kasResult)) {
+         $kasResult = [];
+      }
+
+      $nonExpenseIds = [];
+      $neRows = $this->db(0)->get_where('item_pengeluaran', 'is_expense = 0');
+      if (!is_array($neRows)) {
+         $neRows = $neRows ? iterator_to_array($neRows) : [];
+      }
+      foreach ($neRows as $r) {
+         $idNe = (int) ($r['id_item_pengeluaran'] ?? 0);
+         if ($idNe > 0) {
+            $nonExpenseIds[$idNe] = true;
+         }
+      }
+
+      $kas_laundry = 0;
+      $kas_member = 0;
+      $kas_keluar = [];
+      $rent_total = 0;
+
+      foreach ($kasResult as $row) {
+         switch ($row['jenis_transaksi']) {
+            case 1:
+               $kas_laundry += $row['total'];
+               break;
+            case 3:
+               $kas_member += $row['total'];
+               break;
+            case 4:
+               $ref4 = (int) ($row['ref_transaksi'] ?? 0);
+               if ($ref4 > 0 && isset($nonExpenseIds[$ref4])) {
+                  break;
+               }
+               $kas_keluar[] = ['note_primary' => $row['note_primary'], 'total' => (int) $row['total']];
+               break;
+            case 8:
+            case '8':
+               $ref = intval($row['ref_transaksi'] ?? 0);
+               if ($ref > 0 && isset($nonExpenseIds[$ref])) {
+                  break;
+               }
+               if ($ref == 102) {
+                  $rent_total += $row['total'];
+               } else {
+                  $kas_keluar[] = ['note_primary' => $row['note_primary'], 'total' => (int) $row['total']];
+               }
+               break;
+         }
+      }
+
+      if ($rent_total > 0) {
+         $itemRent = $this->db(0)->get_where_row('item_pengeluaran', "id_item_pengeluaran = '102'");
+         $rent_nama = $itemRent['item_pengeluaran'] ?? 'Rekap Bulanan';
+         $kas_keluar[] = ['note_primary' => $rent_nama, 'total' => (int) $rent_total];
+      } elseif (!isset($nonExpenseIds[102])) {
+         $total_rent = 0;
+         foreach ($listCabang as $c) {
+            $total_rent += intval($c['rent'] ?? 0);
+         }
+         if ($total_rent > 0) {
+            $itemRent = $this->db(0)->get_where_row('item_pengeluaran', "id_item_pengeluaran = '102'");
+            $rent_nama = $itemRent['item_pengeluaran'] ?? 'Rekap Bulanan';
+            $kas_keluar[] = ['note_primary' => $rent_nama, 'total' => (int) $total_rent];
+         }
+      }
+
+      $where_prepost = $whereCabang . "tr_status = 1 AND bisnis = 'laundry' AND DATE_FORMAT(insertTime, '%Y-%m') = '$periode'";
+      $cost_pre = $this->db(100)->sum_col_where('prepaid', 'price', $where_prepost);
+      $cost_post = $this->db(100)->sum_col_where('postpaid', 'price', $where_prepost);
+      $prepost_cost = (int) $cost_pre + (int) $cost_post;
+
+      $gajiSql = "SELECT SUM(gr.jumlah) as total
+                  FROM gaji_result gr
+                  INNER JOIN user u ON gr.id_karyawan = u.id_user
+                  WHERE gr.tipe = 1 AND gr.tgl = '$periode' AND u.id_cabang = $id_cabang";
+      $gajiResult = $this->db(0)->query_array($gajiSql);
+      $gaji = 0;
+      if ($gajiResult && is_array($gajiResult) && count($gajiResult) > 0) {
+         $gaji = (int) ($gajiResult[0]['total'] ?? 0);
+      }
+
+      $barangPakaiSql = "SELECT COALESCE(SUM(price * qty), 0) as total FROM barang_mutasi
+                         WHERE source_id = $id_cabang AND type = 3 AND DATE_FORMAT(created_at, '%Y-%m') = '$periode'";
+      $barangPakaiResult = $this->db(0)->query_array($barangPakaiSql);
+      $barang_pakai = 0;
+      if ($barangPakaiResult && is_array($barangPakaiResult) && count($barangPakaiResult) > 0) {
+         $barang_pakai = intval($barangPakaiResult[0]['total'] ?? 0);
+      }
+
+      $marginPenjualanSql = "SELECT COALESCE(SUM(margin * qty), 0) as total FROM barang_mutasi
+                             WHERE source_id = $id_cabang AND type = 1 AND state = 1 AND DATE_FORMAT(created_at, '%Y-%m') = '$periode'";
+      $marginPenjualanResult = $this->db(0)->query_array($marginPenjualanSql);
+      $margin_penjualan = 0;
+      if ($marginPenjualanResult && is_array($marginPenjualanResult) && count($marginPenjualanResult) > 0) {
+         $margin_penjualan = intval(round($marginPenjualanResult[0]['total'] ?? 0));
+      }
+
+      $whereSale = $whereCabang . "bin = 0 AND DATE_FORMAT(insertTime, '%Y-%m') = '$periode'";
+      $data_main = $this->db(0)->get_where('sale', $whereSale);
+      if (!is_array($data_main)) {
+         $data_main = $data_main ? iterator_to_array($data_main) : [];
+      }
+
+      $rekapQty = [];
+      $rekap = [];
+      foreach ($data_main as $a) {
+         $jenisId = (int) ($a['id_penjualan_jenis'] ?? 0);
+         $serLayanan = $a['list_layanan'] ?? '';
+         $qty = (float) ($a['qty'] ?? 0);
+         if (isset($rekap[$jenisId][$serLayanan])) {
+            $rekap[$jenisId][$serLayanan] += $qty;
+         } else {
+            $rekap[$jenisId][$serLayanan] = $qty;
+         }
+         if (isset($rekapQty[$jenisId])) {
+            $rekapQty[$jenisId] += $qty;
+         } else {
+            $rekapQty[$jenisId] = $qty;
+         }
+      }
+
+      $penjualanMap = [];
+      foreach ($this->dPenjualan as $b) {
+         $penjualanMap[(int) $b['id_penjualan_jenis']] = $b;
+      }
+      $satuanMap = [];
+      foreach ($this->dSatuan as $sa) {
+         $satuanMap[(int) $sa['id_satuan']] = $sa['nama_satuan'] ?? '';
+      }
+      $layananMap = [];
+      foreach ($this->dLayanan as $e) {
+         $layananMap[(int) $e['id_layanan']] = $e['layanan'] ?? '';
+      }
+
+      $qtySummary = [];
+      foreach ($rekapQty as $jenisId => $qty) {
+         $b = $penjualanMap[(int) $jenisId] ?? null;
+         $unit = '';
+         $jenisNama = 'Jenis #' . $jenisId;
+         if ($b) {
+            $jenisNama = $b['penjualan_jenis'] ?? $jenisNama;
+            $unit = $satuanMap[(int) ($b['id_satuan'] ?? 0)] ?? '';
+         }
+         $qtySummary[] = [
+            'id_penjualan_jenis' => (int) $jenisId,
+            'jenis' => $jenisNama,
+            'qty' => $qty,
+            'unit' => $unit,
+         ];
+      }
+
+      $qtyDetail = [];
+      foreach ($rekap as $jenisId => $byLayanan) {
+         $b = $penjualanMap[(int) $jenisId] ?? null;
+         $unit = '';
+         $jenisNama = 'Jenis #' . $jenisId;
+         if ($b) {
+            $jenisNama = $b['penjualan_jenis'] ?? $jenisNama;
+            $unit = $satuanMap[(int) ($b['id_satuan'] ?? 0)] ?? '';
+         }
+         foreach ($byLayanan as $serLayanan => $qty) {
+            $arrLayanan = @unserialize($serLayanan);
+            $layananNama = '';
+            if (is_array($arrLayanan)) {
+               foreach ($arrLayanan as $d) {
+                  $layananNama .= ' ' . ($layananMap[(int) $d] ?? '');
+               }
+            }
+            $qtyDetail[] = [
+               'id_penjualan_jenis' => (int) $jenisId,
+               'jenis' => $jenisNama,
+               'layanan' => trim($layananNama),
+               'qty' => $qty,
+               'unit' => $unit,
+            ];
+         }
+      }
+
+      $total_keluar = 0;
+      foreach ($kas_keluar as $a) {
+         $total_keluar += (int) $a['total'];
+      }
+      $total_keluar += $gaji + $prepost_cost + $barang_pakai;
+      $total_pendapatan = (int) $kas_laundry + (int) $kas_member + (int) $margin_penjualan;
+
+      return [
+         'kas_laundry' => (int) $kas_laundry,
+         'kas_member' => (int) $kas_member,
+         'margin_penjualan' => (int) $margin_penjualan,
+         'total_pendapatan' => $total_pendapatan,
+         'kas_keluar' => $kas_keluar,
+         'gaji' => $gaji,
+         'prepost_cost' => $prepost_cost,
+         'barang_pakai' => $barang_pakai,
+         'total_pengeluaran' => $total_keluar,
+         'laba_rugi' => $total_pendapatan - $total_keluar,
+         'qty' => [
+            'summary' => $qtySummary,
+            'detail' => $qtyDetail,
+         ],
+      ];
    }
 }

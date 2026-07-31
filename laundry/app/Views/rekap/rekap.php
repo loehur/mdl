@@ -184,6 +184,50 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
             </tr>
           </table>
         </form>
+        <?php
+        $isMonthlyRekap = !isset($data['dataTanggal']['tanggal']);
+        $rekapMode = (int) ($data['rekap_mode'] ?? $target_page_rekap);
+        $canSnapshotUi = $isMonthlyRekap && in_array($rekapMode, [2, 3], true);
+        $periodeUi = sprintf('%04d-%02d', (int) $currentYear, (int) $currentMonth);
+        $isPastMonth = $periodeUi < date('Y-m');
+        $hasSnapshot = !empty($data['snapshot']);
+        $snapshotMeta = $data['snapshot_meta'] ?? null;
+        $snapshotAt = '';
+        if ($hasSnapshot && is_array($data['snapshot'] ?? null)) {
+          $snapshotAt = ($data['snapshot']['updated_at'] ?? '') ?: ($data['snapshot']['created_at'] ?? '');
+        }
+        if ($canSnapshotUi) {
+          $statusHint = '';
+          if (!$isPastMonth) {
+            $statusHint = 'Snapshot hanya untuk bulan yang sudah berlalu';
+          } elseif ($hasSnapshot) {
+            if ($rekapMode === 3 && is_array($snapshotMeta)) {
+              $statusHint = 'Tersimpan semua cabang (' . (int) ($snapshotMeta['count'] ?? 0) . '/' . (int) ($snapshotMeta['total'] ?? 0) . ')';
+            } else {
+              $statusHint = 'Tersimpan' . ($snapshotAt ? ': ' . htmlspecialchars($snapshotAt, ENT_QUOTES, 'UTF-8') : '');
+            }
+          } else {
+            if ($rekapMode === 3 && is_array($snapshotMeta) && (int) ($snapshotMeta['count'] ?? 0) > 0) {
+              $statusHint = 'Sebagian: ' . (int) $snapshotMeta['count'] . '/' . (int) $snapshotMeta['total'] . ' cabang';
+            } else {
+              $statusHint = 'Belum ada snapshot';
+            }
+          }
+        ?>
+          <div class="d-flex align-items-center flex-wrap gap-2 px-1 pb-2" id="rekapSnapshotBar"
+            data-mode="<?= $rekapMode ?>"
+            data-periode="<?= htmlspecialchars($periodeUi, ENT_QUOTES, 'UTF-8') ?>"
+            data-past="<?= $isPastMonth ? '1' : '0' ?>"
+            data-has="<?= $hasSnapshot ? '1' : '0' ?>">
+            <button type="button" id="btnSnapshotRekap"
+              class="btn btn-sm <?= $hasSnapshot ? 'btn-outline-secondary' : 'btn-outline-primary' ?>"
+              <?= ($isPastMonth && !$hasSnapshot) ? '' : 'disabled' ?>
+              <?= !$isPastMonth ? 'title="Hanya bulan yang telah berlalu"' : ($hasSnapshot ? 'title="Snapshot sudah ada"' : '') ?>>
+              Snapshot
+            </button>
+            <small id="snapshotStatus" class="text-muted"><?= $statusHint ?></small>
+          </div>
+        <?php } ?>
       </div>
     </div>
 
@@ -903,6 +947,81 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
       detailWrapId: 'modalBarangPakaiDetailWrap'
     });
   });
+
+  // Snapshot rekap bulanan
+  (function () {
+    var bar = document.getElementById('rekapSnapshotBar');
+    var btn = document.getElementById('btnSnapshotRekap');
+    if (!bar || !btn) return;
+
+    var statusEl = document.getElementById('snapshotStatus');
+    var mode = bar.getAttribute('data-mode') || '2';
+
+    btn.addEventListener('click', function () {
+      if (bar.getAttribute('data-has') === '1') return;
+
+      var form = bar.closest('.card').querySelector('form');
+      var mEl = form ? form.querySelector('select[name="m"]') : null;
+      var yEl = form ? form.querySelector('select[name="y"]') : null;
+      var m = mEl ? mEl.value : '';
+      var y = yEl ? yEl.value : '';
+      if (!m || !y) return;
+
+      var periode = y + '-' + m;
+      var now = new Date();
+      var cur = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+      if (periode >= cur) return;
+
+      btn.disabled = true;
+      var prevText = btn.textContent;
+      btn.textContent = 'Menyimpan…';
+
+      var body = new URLSearchParams();
+      body.set('y', y);
+      body.set('m', m);
+
+      fetch('<?= URL::BASE_URL ?>Rekap/snapshot/' + encodeURIComponent(mode), {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: body.toString()
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data && data.exists) {
+            btn.classList.remove('btn-outline-primary');
+            btn.classList.add('btn-outline-secondary');
+            btn.textContent = 'Snapshot';
+            btn.disabled = true;
+            bar.setAttribute('data-has', '1');
+            if (statusEl) statusEl.textContent = 'Tersimpan';
+            return;
+          }
+          if (!data || !data.ok) {
+            btn.disabled = false;
+            btn.textContent = prevText;
+            return;
+          }
+          var allDone = data.complete !== false;
+          if (allDone) {
+            btn.classList.remove('btn-outline-primary');
+            btn.classList.add('btn-outline-secondary');
+            btn.disabled = true;
+            bar.setAttribute('data-has', '1');
+          } else {
+            btn.disabled = false;
+          }
+          btn.textContent = 'Snapshot';
+          if (statusEl) {
+            statusEl.textContent = data.msg || ('Tersimpan' + (data.periode ? ': ' + data.periode : ''));
+          }
+        })
+        .catch(function () {
+          btn.disabled = false;
+          btn.textContent = prevText;
+        });
+    });
+  })();
 })();
 </script>
 </div>

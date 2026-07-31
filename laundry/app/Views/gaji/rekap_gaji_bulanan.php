@@ -286,11 +286,44 @@ $totalTerima = 0;
             $dataPengali = $data['data'];
             if (count($dataPengali) > 0) {
               $feePTotal = 0;
+              $dGajiHelper = $this->helper('D_Gaji');
+              $gajiYm = $currentYear . '-' . $currentMonth;
               foreach ($dataPengali as $b) {
                 if ($b['id_karyawan'] == $id_user) {
 
-                  $idPengali = $b['id_pengali'];
+                  $idPengali = (int) $b['id_pengali'];
                   $idPengaliData = $b['id_pengali_data'];
+
+                  $pengaliJenis = "";
+                  foreach ($pengali_list as $pl) {
+                    if ((int) $pl['id_pengali'] == $idPengali) {
+                      $pengaliJenis = $pl['pengali_jenis'];
+                    }
+                  }
+
+                  if ($idPengali === 5) {
+                    $malam = $dGajiHelper->hitungJumlahGajiMalam((int) $id_user, $gajiYm);
+                    $qty = (int) $malam['qty'];
+                    if ($qty < 1) {
+                      $qty = (int) $b['qty'];
+                    }
+                    $feeP = (int) $malam['fee_display'];
+                    $feePTotal = (int) $malam['jumlah'];
+                    if ($feePTotal < 1 && $qty > 0) {
+                      $feeP = $dGajiHelper->feeMalamDariPendapatan(null);
+                      $feePTotal = $qty * $feeP;
+                    }
+                    echo "<tr>";
+                    echo "<td nowrap class=''><small>Laundry</small><br>" . htmlspecialchars($pengaliJenis) . "</td>";
+                    echo "<td class='text-right'><small>Qty</small><br>
+                    <span class='edit' data-table='gaji_pengali_data' data-col='qty' data-id_edit='" . $idPengaliData . "'>" . $qty . "</span>
+                    </td>";
+                    echo "<td class='text-right'><small>Fee</small><br>Rp" . number_format($feeP) . "<br><small class='text-muted'>otomatis</small></td>";
+                    echo "<td class='text-right'><small>Total</small><br>Rp" . number_format($feePTotal) . "</td>";
+                    echo "</tr>";
+                    $totalDapat += $feePTotal;
+                    continue;
+                  }
 
                   if (isset($r_pengali[$id_user][$idPengali])) {
                     $feeP = $r_pengali[$id_user][$idPengali];
@@ -298,13 +331,6 @@ $totalTerima = 0;
                   } else {
                     $feeP = 0;
                     $id_gp = 0;
-                  }
-
-                  $pengaliJenis = "";
-                  foreach ($pengali_list as $pl) {
-                    if ($pl['id_pengali'] == $idPengali) {
-                      $pengaliJenis = $pl['pengali_jenis'];
-                    }
                   }
 
                   $qty = $b['qty'];
@@ -496,7 +522,11 @@ $totalTerima = 0;
               <label for="exampleInputEmail1">Jenis Pengali</label>
               <select name="pengali" class="form-control form-control-sm userChange" style="width: 100%;" required>
                 <option value="" selected disabled></option>
-                <?php foreach ($pengali_list as $a) { ?>
+                <?php foreach ($pengali_list as $a) {
+                  if ((int) $a['id_pengali'] === 5) {
+                    continue; // fee malam otomatis dari snapshot
+                  }
+                ?>
                   <option value="<?= $a['id_pengali'] ?>"><?= $a['pengali_jenis'] ?></option>
                 <?php } ?>
               </select>

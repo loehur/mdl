@@ -372,22 +372,34 @@ class D_Gaji extends Controller
                 $feePTotal = 0;
                 foreach ($dataPengali as $b) {
                     if ($b['id_karyawan'] == $id_user) {
-                        $idPengali = $b['id_pengali'];
-                        if (isset($r_pengali[$id_user][$idPengali])) {
-                            $feeP = $r_pengali[$id_user][$idPengali];
-                        } else {
-                            $feeP = 0;
-                        }
+                        $idPengali = (int) $b['id_pengali'];
 
                         $pengaliJenis = "";
                         foreach ($pengali_list as $pl) {
-                            if ($pl['id_pengali'] == $idPengali) {
+                            if ((int) $pl['id_pengali'] == $idPengali) {
                                 $pengaliJenis = $pl['pengali_jenis'];
                             }
                         }
 
-                        $qty = $b['qty'];
-                        $feePTotal = $qty * $feeP;
+                        // Jaga malam (5): fee dari snapshot pendapatan cabang absen, bulan lalu
+                        if ($idPengali === 5) {
+                            $malam = $this->hitungJumlahGajiMalam((int) $id_user, $dateOn);
+                            $qty = (int) $malam['qty'];
+                            $feePTotal = (int) $malam['jumlah'];
+                            if ($qty < 1 && (int) ($b['qty'] ?? 0) > 0) {
+                                // fallback qty dari pengali_data jika absen belum terbaca
+                                $qty = (int) $b['qty'];
+                                $feePTotal = $qty * $this->feeMalamDariPendapatan(null);
+                            }
+                        } else {
+                            if (isset($r_pengali[$id_user][$idPengali])) {
+                                $feeP = $r_pengali[$id_user][$idPengali];
+                            } else {
+                                $feeP = 0;
+                            }
+                            $qty = $b['qty'];
+                            $feePTotal = $qty * $feeP;
+                        }
 
                         $noInject += 1;
                         $ref = "HT" . $idPengali;
@@ -471,5 +483,112 @@ class D_Gaji extends Controller
         }
 
         return $r;
+    }
+
+    /**
+     * Fee jaga malam per malam dari total pendapatan snapshot.
+     * round(pendapatan/1000), clamp 14000..32000. Null/missing → 14000.
+     */
+    public function feeMalamDariPendapatan($totalPendapatan): int
+    {
+        if ($totalPendapatan === null || $totalPendapatan === '') {
+            return 14000;
+        }
+        $fee = (int) round(((float) $totalPendapatan) / 1000);
+        if ($fee < 14000) {
+            return 14000;
+        }
+        if ($fee > 32000) {
+            return 32000;
+        }
+        return $fee;
+    }
+
+    /**
+     * Hitung qty & jumlah gaji jaga malam dari absen (group by id_cabang)
+     * × fee snapshot total_pendapatan bulan sebelum $dateYm.
+     *
+     * @return array{qty:int,jumlah:int,fee_display:int,by_cabang:array}
+     */
+    public function hitungJumlahGajiMalam($id_user, $dateYm): array
+    {
+        $id_user = (int) $id_user;
+        $dateYm = substr((string) $dateYm, 0, 7);
+        $empty = ['qty' => 0, 'jumlah' => 0, 'fee_display' => 14000, 'by_cabang' => []];
+        if ($id_user < 1 || !preg_match('/^\d{4}-\d{2}$/', $dateYm)) {
+            return $empty;
+        }
+
+        $periodeLalu = date('Y-m', strtotime($dateYm . '-01 -1 month'));
+        $dateEsc = $this->db(0)->escape($dateYm);
+        $rows = $this->db(0)->query_array(
+            "SELECT id_cabang, COUNT(*) AS qty
+             FROM absen
+             WHERE id_karyawan = $id_user AND jenis = 1 AND tanggal LIKE '{$dateEsc}%'
+             GROUP BY id_cabang"
+        );
+        if (!is_array($rows) || count($rows) < 1) {
+            return $empty;
+        }
+
+        $totalQty = 0;
+        $totalJumlah = 0;
+        $byCabang = [];
+        $fees = [];
+
+        foreach ($rows as $row) {
+            $idCabang = (int) ($row['id_cabang'] ?? 0);
+            $qty = (int) ($row['qty'] ?? 0);
+            if ($qty < 1) {
+                continue;
+            }
+            $pendapatan = $this->getSnapshotTotalPendapatanCabang($idCabang, $periodeLalu);
+            $fee = $this->feeMalamDariPendapatan($pendapatan);
+            $sub = $qty * $fee;
+            $totalQty += $qty;
+            $totalJumlah += $sub;
+            $fees[] = $fee;
+            $byCabang[] = [
+                'id_cabang' => $idCabang,
+                'qty' => $qty,
+                'fee' => $fee,
+                'jumlah' => $sub,
+                'pendapatan' => $pendapatan,
+            ];
+        }
+
+        $feeDisplay = 14000;
+        if (count($fees) === 1) {
+            $feeDisplay = $fees[0];
+        } elseif ($totalQty > 0) {
+            $feeDisplay = (int) round($totalJumlah / $totalQty);
+        }
+
+        return [
+            'qty' => $totalQty,
+            'jumlah' => $totalJumlah,
+            'fee_display' => $feeDisplay,
+            'by_cabang' => $byCabang,
+        ];
+    }
+
+    /**
+     * total_pendapatan snapshot mode=2 untuk cabang + periode, atau null jika belum ada.
+     */
+    public function getSnapshotTotalPendapatanCabang($id_cabang, $periode)
+    {
+        $id_cabang = (int) $id_cabang;
+        if ($id_cabang < 1) {
+            return null;
+        }
+        $periodeEsc = $this->db(0)->escape($periode);
+        $row = $this->db(0)->get_where_row(
+            'rekap_snapshot',
+            "periode = '$periodeEsc' AND mode = 2 AND id_cabang = $id_cabang"
+        );
+        if (!is_array($row) || !isset($row['total_pendapatan'])) {
+            return null;
+        }
+        return (int) $row['total_pendapatan'];
     }
 }

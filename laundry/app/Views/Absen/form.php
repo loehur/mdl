@@ -3,6 +3,7 @@ $hariIndo = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 $bulanIndo = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 $tanggalAbsen = $hariIndo[(int) date('w')] . ', ' . date('j') . ' ' . $bulanIndo[(int) date('n')] . ' ' . date('Y');
 $kodeCabang = strtoupper((string) ($this->dCabang['kode_cabang'] ?? ''));
+$feeJagaMalam = (int) ($data['fee_jaga_malam'] ?? 14000);
 ?>
 <div id="absen-root">
   <style>
@@ -227,6 +228,25 @@ $kodeCabang = strtoupper((string) ($this->dCabang['kode_cabang'] ?? ''));
       background: #cbd5e1;
       color: #475569;
       flex-shrink: 0;
+    }
+    #absen-root .absen-opt__text {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+      flex: 1;
+    }
+    #absen-root .absen-opt__title {
+      font-weight: 800;
+      font-size: 0.84rem;
+      line-height: 1.15;
+    }
+    #absen-root .absen-opt__fee {
+      font-size: 0.72rem;
+      font-weight: 800;
+      color: #1d4ed8;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.01em;
     }
     #absen-root .absen-opt input:checked + .absen-opt__face {
       opacity: 1;
@@ -531,7 +551,13 @@ $kodeCabang = strtoupper((string) ($this->dCabang['kode_cabang'] ?? ''));
           </label>
           <label class="absen-opt" data-tone="blue">
             <input type="radio" name="jenis" value="1">
-            <span class="absen-opt__face"><span class="absen-opt__icon"><i class="fas fa-moon"></i></span>Jaga Malam</span>
+            <span class="absen-opt__face">
+              <span class="absen-opt__icon"><i class="fas fa-moon"></i></span>
+              <span class="absen-opt__text">
+                <span class="absen-opt__title">Jaga Malam</span>
+                <span class="absen-opt__fee">Rp<?= number_format($feeJagaMalam) ?> / malam</span>
+              </span>
+            </span>
           </label>
           <label class="absen-opt" data-tone="yellow">
             <input type="radio" name="jenis" value="2">

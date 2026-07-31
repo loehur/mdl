@@ -123,8 +123,8 @@ class Setting extends Controller
          $id_pengali = $gl['id_pengali'];
          $fee = $gl['gaji_pengali'];
 
-         //Abaikan Jika Tunjangan
-         if ($id_pengali == 4) {
+         // Abaikan Tunjangan bulanan (4) dan Jaga malam (5 — fee otomatis snapshot)
+         if ($id_pengali == 4 || $id_pengali == 5) {
             continue;
          }
 
