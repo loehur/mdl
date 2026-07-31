@@ -35,8 +35,16 @@ class Gaji extends Controller
    public function set_gaji_pengali()
    {
       $id_pengali = (int) $_POST['pengali'];
+      if (in_array($id_pengali, [1, 2], true)) {
+         echo 'Fee Terima/Kembali global di Gaji → Pengaturan';
+         return;
+      }
       if ($id_pengali === 5) {
          echo 'Fee jaga malam otomatis dari snapshot cabang';
+         return;
+      }
+      if ($id_pengali === 6) {
+         echo 'Fee Cuci otomatis dari snapshot cabang';
          return;
       }
       $id_user = $_POST['id_user'];
@@ -123,8 +131,8 @@ class Gaji extends Controller
    }
 
    /**
-    * Untuk id_pengali 1 (Terima) dan 2 (Kembali): sinkron fee ke semua karyawan + insert yang belum punya baris.
-    * Jenis pengali lain tetap update satu baris saja.
+    * Update fee gaji_pengali per karyawan (Harian/Tunjangan dll).
+    * id_pengali 1/2 global di GajiPengaturan; id 5/6 otomatis snapshot — no-op.
     */
    private function updateGajiPengaliCell($idGajiPengali, $col, $value, $idPengaliPost = 0)
    {
@@ -145,56 +153,22 @@ class Gaji extends Controller
             return;
          }
          $idPengali = (int) $ref['id_pengali'];
-      } elseif (in_array($idPengaliPost, [1, 2], true)) {
+      } elseif ($idPengaliPost > 0) {
          $idPengali = $idPengaliPost;
       } else {
          return;
       }
 
-      // Fee jaga malam otomatis dari snapshot — tidak diedit manual
-      if ($idPengali === 5) {
+      // Global / otomatis — tidak diedit dari Gaji Bulanan
+      if (in_array($idPengali, [1, 2, 5, 6], true)) {
          return;
       }
 
-      if (!in_array($idPengali, [1, 2], true)) {
-         $this->db(0)->update('gaji_pengali', ['gaji_pengali' => $numVal], 'id_gaji_pengali = ' . $idGajiPengali);
+      if ($idGajiPengali < 1) {
          return;
       }
 
-      $whereP = 'id_pengali = ' . $idPengali;
-      $this->db(0)->update('gaji_pengali', ['gaji_pengali' => $numVal], $whereP);
-
-      $existing = $this->db(0)->get_cols_where('gaji_pengali', 'id_karyawan', $whereP, 1);
-      if (!is_array($existing)) {
-         $existing = [];
-      }
-      $have = [];
-      foreach ($existing as $row) {
-         if (isset($row['id_karyawan'])) {
-            $have[(int) $row['id_karyawan']] = true;
-         }
-      }
-
-      $karyawan = $this->db(0)->get_cols_where('user', 'id_user', 'en = 1', 1);
-      if (!is_array($karyawan)) {
-         $karyawan = [];
-      }
-
-      foreach ($karyawan as $k) {
-         if (!isset($k['id_user'])) {
-            continue;
-         }
-         $idKaryawan = (int) $k['id_user'];
-         if (isset($have[$idKaryawan])) {
-            continue;
-         }
-         $data = [
-            'id_karyawan' => $idKaryawan,
-            'id_pengali' => $idPengali,
-            'gaji_pengali' => $numVal,
-         ];
-         $this->db(0)->insert('gaji_pengali', $data);
-      }
+      $this->db(0)->update('gaji_pengali', ['gaji_pengali' => $numVal], 'id_gaji_pengali = ' . $idGajiPengali);
    }
 
    function penetapan($userID, $date)
@@ -208,35 +182,54 @@ class Gaji extends Controller
    function tambah_harian_malam() {}
 
    /**
-    * Proses tunjangan untuk satu user (HARIAN, MALAM, TUNJANGAN BULANAN)
+    * Proses tunjangan untuk satu user (CUCI, HARIAN, MALAM, TUNJANGAN BULANAN)
     * @param int $userID
     * @param string $date Format: Y-m
     * @return bool true jika sukses, false jika ada error
     */
    private function processUserTunjangan($userID, $date)
    {
-      // Gabungkan query HARIAN dan MALAM menjadi 1 query dengan GROUP BY
-      // jenis = 1 adalah MALAM, jenis <> 1 adalah HARIAN
+      // jenis 0 = Cuci, 1 = Malam, 2/3 = Harian (Delivery/Maintenance)
       $sql = "SELECT 
-                  CASE WHEN jenis = 1 THEN 'malam' ELSE 'harian' END as tipe,
+                  CASE
+                     WHEN jenis = 0 THEN 'cuci'
+                     WHEN jenis = 1 THEN 'malam'
+                     WHEN jenis IN (2, 3) THEN 'harian'
+                     ELSE 'lain'
+                  END as tipe,
                   COUNT(*) as qty 
                FROM absen 
                WHERE id_karyawan = " . (int)$userID . " 
                   AND tanggal LIKE '" . $this->db(0)->escape($date) . "%'
-               GROUP BY CASE WHEN jenis = 1 THEN 'malam' ELSE 'harian' END";
+               GROUP BY CASE
+                     WHEN jenis = 0 THEN 'cuci'
+                     WHEN jenis = 1 THEN 'malam'
+                     WHEN jenis IN (2, 3) THEN 'harian'
+                     ELSE 'lain'
+                  END";
       
       $absenData = $this->db(0)->query_array($sql);
       if (!is_array($absenData)) {
          $absenData = [];
       }
       
-      // Proses hasil query - convert ke array associative
-      $absenCount = ['harian' => 0, 'malam' => 0];
+      $absenCount = ['cuci' => 0, 'harian' => 0, 'malam' => 0];
       foreach ($absenData as $row) {
-         $absenCount[$row['tipe']] = (int)$row['qty'];
+         $tipe = $row['tipe'] ?? '';
+         if (isset($absenCount[$tipe])) {
+            $absenCount[$tipe] = (int)$row['qty'];
+         }
+      }
+
+      // CUCI (id_pengali = 6)
+      if ($absenCount['cuci'] > 0) {
+         $result = $this->insertTunjanganIfNotExists($userID, 6, $absenCount['cuci'], $date);
+         if ($result === 404) {
+            return ['success' => false, 'error' => 'CUCI'];
+         }
       }
       
-      // HARIAN (id_pengali = 3)
+      // HARIAN (id_pengali = 3) — Delivery + Maintenance saja
       if ($absenCount['harian'] > 0) {
          $result = $this->insertTunjanganIfNotExists($userID, 3, $absenCount['harian'], $date);
          if ($result === 404) {

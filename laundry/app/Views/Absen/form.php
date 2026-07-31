@@ -4,6 +4,7 @@ $bulanIndo = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli'
 $tanggalAbsen = $hariIndo[(int) date('w')] . ', ' . date('j') . ' ' . $bulanIndo[(int) date('n')] . ' ' . date('Y');
 $kodeCabang = strtoupper((string) ($this->dCabang['kode_cabang'] ?? ''));
 $feeJagaMalam = (int) ($data['fee_jaga_malam'] ?? 14000);
+$feeCuci = (int) ($data['fee_cuci'] ?? 65000);
 ?>
 <div id="absen-root">
   <style>
@@ -547,7 +548,13 @@ $feeJagaMalam = (int) ($data['fee_jaga_malam'] ?? 14000);
         <div class="absen-opt-grid">
           <label class="absen-opt" data-tone="green">
             <input type="radio" name="jenis" value="0" required>
-            <span class="absen-opt__face"><span class="absen-opt__icon"><i class="fas fa-tshirt"></i></span>Cuci</span>
+            <span class="absen-opt__face">
+              <span class="absen-opt__icon"><i class="fas fa-tshirt"></i></span>
+              <span class="absen-opt__text">
+                <span class="absen-opt__title">Cuci</span>
+                <span class="absen-opt__fee">Rp<?= number_format($feeCuci) ?> / cuci</span>
+              </span>
+            </span>
           </label>
           <label class="absen-opt" data-tone="blue">
             <input type="radio" name="jenis" value="1">

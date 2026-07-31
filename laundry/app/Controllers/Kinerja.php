@@ -38,7 +38,7 @@ class Kinerja extends Controller
       // ABSEN - dengan date yang sudah di-escape
       $absen = $this->db(0)->get_cols_where(
          'absen',
-         'id_karyawan, SUM(jenis IN (0,2,3)) as harian, SUM(jenis = 1) as malam',
+         'id_karyawan, SUM(jenis = 0) as cuci, SUM(jenis IN (2,3)) as harian, SUM(jenis = 1) as malam',
          "tanggal LIKE '{$escapedDate}%' GROUP BY id_karyawan",
          1,
          'id_karyawan'

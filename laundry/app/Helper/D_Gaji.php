@@ -136,6 +136,18 @@ class D_Gaji extends Controller
         $gaji['pengali_list'] = $this->db(0)->get('gaji_pengali_jenis');
         $gaji['gaji_pengali'] = $this->db(0)->get('gaji_pengali');
 
+        $pengaliRefRaw = $this->db(0)->get('gaji_pengali_ref');
+        if (!is_array($pengaliRefRaw)) {
+            $pengaliRefRaw = $pengaliRefRaw ? iterator_to_array($pengaliRefRaw) : [];
+        }
+        $gaji['pengali_ref'] = [1 => 0, 2 => 0];
+        foreach ($pengaliRefRaw as $pr) {
+            $idP = (int) ($pr['id_pengali'] ?? 0);
+            if ($idP === 1 || $idP === 2) {
+                $gaji['pengali_ref'][$idP] = (int) ($pr['gaji_pengali'] ?? 0);
+            }
+        }
+
         return $gaji;
     }
 
@@ -320,11 +332,9 @@ class D_Gaji extends Controller
                     }
                 }
 
-                if (isset($r_pengali[$id_user][1])) {
-                    $feeTerima = $r_pengali[$id_user][1];
-                } else {
-                    $feeTerima = 0;
-                }
+                $feeTerima = isset($data['setup']['pengali_ref'][1])
+                    ? (int) $data['setup']['pengali_ref'][1]
+                    : 0;
 
                 $totalFeeTerima = $totalTerima * $feeTerima;
 
@@ -349,11 +359,9 @@ class D_Gaji extends Controller
                     }
                 }
 
-                if (isset($r_pengali[$id_user][2])) {
-                    $feeKembali = $r_pengali[$id_user][2];
-                } else {
-                    $feeKembali = 0;
-                }
+                $feeKembali = isset($data['setup']['pengali_ref'][2])
+                    ? (int) $data['setup']['pengali_ref'][2]
+                    : 0;
 
                 $totalFeeKembali = $totalKembali * $feeKembali;
 
@@ -384,7 +392,7 @@ class D_Gaji extends Controller
                             }
                         }
 
-                        // Jaga malam (5): fee dari snapshot pendapatan cabang absen, bulan lalu
+                        // Jaga malam (5) / Cuci (6): fee dari snapshot pendapatan cabang absen, bulan lalu
                         if ($idPengali === 5) {
                             $malam = $this->hitungJumlahGajiMalam((int) $id_user, $dateOn);
                             $qty = (int) $malam['qty'];
@@ -393,6 +401,14 @@ class D_Gaji extends Controller
                                 // fallback qty dari pengali_data jika absen belum terbaca
                                 $qty = (int) $b['qty'];
                                 $feePTotal = $qty * $this->feeMalamDariPendapatan(null);
+                            }
+                        } elseif ($idPengali === 6) {
+                            $cuci = $this->hitungJumlahGajiCuci((int) $id_user, $dateOn);
+                            $qty = (int) $cuci['qty'];
+                            $feePTotal = (int) $cuci['jumlah'];
+                            if ($qty < 1 && (int) ($b['qty'] ?? 0) > 0) {
+                                $qty = (int) $b['qty'];
+                                $feePTotal = $qty * $this->feeCuciDariPendapatan(null);
                             }
                         } else {
                             if (isset($r_pengali[$id_user][$idPengali])) {
@@ -489,22 +505,97 @@ class D_Gaji extends Controller
     }
 
     /**
+     * Load rumus fee snapshot (cache per request).
+     * @return array{malam:array{pengali:float,clamp_min:int,clamp_max:int},cuci:array{pengali:float,clamp_min:int,clamp_max:int}}
+     */
+    private function getFeeFormulas(): array
+    {
+        static $cache = null;
+        if ($cache !== null) {
+            return $cache;
+        }
+
+        $defaults = [
+            'malam' => ['pengali' => 1.0, 'clamp_min' => 14000, 'clamp_max' => 32000],
+            'cuci' => ['pengali' => 4.0, 'clamp_min' => 65000, 'clamp_max' => 85000],
+        ];
+        $cache = $defaults;
+
+        try {
+            $raw = $this->db(0)->get('gaji_fee_formula');
+            if (!is_array($raw)) {
+                $raw = $raw ? iterator_to_array($raw) : [];
+            }
+            foreach ($raw as $row) {
+                $kode = (string) ($row['kode'] ?? '');
+                if (!isset($defaults[$kode])) {
+                    continue;
+                }
+                $pengali = (float) ($row['pengali'] ?? $defaults[$kode]['pengali']);
+                if ($pengali <= 0) {
+                    $pengali = (float) $defaults[$kode]['pengali'];
+                }
+                $min = (int) ($row['clamp_min'] ?? $defaults[$kode]['clamp_min']);
+                $max = (int) ($row['clamp_max'] ?? $defaults[$kode]['clamp_max']);
+                if ($min > $max) {
+                    $min = $defaults[$kode]['clamp_min'];
+                    $max = $defaults[$kode]['clamp_max'];
+                }
+                $cache[$kode] = [
+                    'pengali' => $pengali,
+                    'clamp_min' => $min,
+                    'clamp_max' => $max,
+                ];
+            }
+        } catch (\Throwable $e) {
+            // tabel belum ada → pakai default
+            $cache = $defaults;
+        }
+
+        return $cache;
+    }
+
+    /**
+     * Fee dari pendapatan snapshot: round((p/1000)*pengali) lalu clamp.
+     * Null/missing pendapatan → clamp_min.
+     */
+    private function feeDariPendapatanDenganFormula($totalPendapatan, string $kode): int
+    {
+        $f = $this->getFeeFormulas()[$kode] ?? ['pengali' => 1.0, 'clamp_min' => 0, 'clamp_max' => 0];
+        $min = (int) $f['clamp_min'];
+        $max = (int) $f['clamp_max'];
+        $pengali = (float) $f['pengali'];
+
+        if ($totalPendapatan === null || $totalPendapatan === '') {
+            return $min;
+        }
+
+        $fee = (int) round((((float) $totalPendapatan) / 1000) * $pengali);
+        if ($fee < $min) {
+            return $min;
+        }
+        if ($fee > $max) {
+            return $max;
+        }
+        return $fee;
+    }
+
+    /**
      * Fee jaga malam per malam dari total pendapatan snapshot.
-     * round(pendapatan/1000), clamp 14000..32000. Null/missing → 14000.
+     * round((pendapatan/1000)*pengali), clamp dari gaji_fee_formula. Null → clamp_min.
      */
     public function feeMalamDariPendapatan($totalPendapatan): int
     {
-        if ($totalPendapatan === null || $totalPendapatan === '') {
-            return 14000;
-        }
-        $fee = (int) round(((float) $totalPendapatan) / 1000);
-        if ($fee < 14000) {
-            return 14000;
-        }
-        if ($fee > 32000) {
-            return 32000;
-        }
-        return $fee;
+        return $this->feeDariPendapatanDenganFormula($totalPendapatan, 'malam');
+    }
+
+    /**
+     * Fee absen Cuci per hari dari total pendapatan snapshot.
+     * round((pendapatan/1000)*pengali), clamp dari gaji_fee_formula. Null → clamp_min.
+     */
+    public function feeCuciDariPendapatan($totalPendapatan): int
+    {
+        return $this->feeDariPendapatanDenganFormula($totalPendapatan, 'cuci');
     }
 
     /**
@@ -515,9 +606,51 @@ class D_Gaji extends Controller
      */
     public function hitungJumlahGajiMalam($id_user, $dateYm): array
     {
+        $min = (int) ($this->getFeeFormulas()['malam']['clamp_min'] ?? 14000);
+        return $this->hitungJumlahGajiAbsenSnapshot(
+            (int) $id_user,
+            $dateYm,
+            1,
+            function ($pendapatan) {
+                return $this->feeMalamDariPendapatan($pendapatan);
+            },
+            $min
+        );
+    }
+
+    /**
+     * Hitung qty & jumlah gaji Cuci dari absen jenis=0 (group by id_cabang)
+     * × fee snapshot total_pendapatan bulan sebelum $dateYm.
+     *
+     * @return array{qty:int,jumlah:int,fee_display:int,by_cabang:array}
+     */
+    public function hitungJumlahGajiCuci($id_user, $dateYm): array
+    {
+        $min = (int) ($this->getFeeFormulas()['cuci']['clamp_min'] ?? 65000);
+        return $this->hitungJumlahGajiAbsenSnapshot(
+            (int) $id_user,
+            $dateYm,
+            0,
+            function ($pendapatan) {
+                return $this->feeCuciDariPendapatan($pendapatan);
+            },
+            $min
+        );
+    }
+
+    /**
+     * Generic: absen by jenis, fee per cabang dari snapshot bulan lalu.
+     *
+     * @param callable $feeFn function($pendapatan): int
+     * @return array{qty:int,jumlah:int,fee_display:int,by_cabang:array}
+     */
+    private function hitungJumlahGajiAbsenSnapshot($id_user, $dateYm, $jenisAbsen, $feeFn, $feeFallback): array
+    {
         $id_user = (int) $id_user;
+        $jenisAbsen = (int) $jenisAbsen;
+        $feeFallback = (int) $feeFallback;
         $dateYm = substr((string) $dateYm, 0, 7);
-        $empty = ['qty' => 0, 'jumlah' => 0, 'fee_display' => 14000, 'by_cabang' => []];
+        $empty = ['qty' => 0, 'jumlah' => 0, 'fee_display' => $feeFallback, 'by_cabang' => []];
         if ($id_user < 1 || !preg_match('/^\d{4}-\d{2}$/', $dateYm)) {
             return $empty;
         }
@@ -527,7 +660,7 @@ class D_Gaji extends Controller
         $rows = $this->db(0)->query_array(
             "SELECT id_cabang, COUNT(*) AS qty
              FROM absen
-             WHERE id_karyawan = $id_user AND jenis = 1 AND tanggal LIKE '{$dateEsc}%'
+             WHERE id_karyawan = $id_user AND jenis = $jenisAbsen AND tanggal LIKE '{$dateEsc}%'
              GROUP BY id_cabang"
         );
         if (!is_array($rows) || count($rows) < 1) {
@@ -546,7 +679,7 @@ class D_Gaji extends Controller
                 continue;
             }
             $pendapatan = $this->getSnapshotTotalPendapatanCabang($idCabang, $periodeLalu);
-            $fee = $this->feeMalamDariPendapatan($pendapatan);
+            $fee = (int) $feeFn($pendapatan);
             $sub = $qty * $fee;
             $totalQty += $qty;
             $totalJumlah += $sub;
@@ -560,7 +693,7 @@ class D_Gaji extends Controller
             ];
         }
 
-        $feeDisplay = 14000;
+        $feeDisplay = $feeFallback;
         if (count($fees) === 1) {
             $feeDisplay = $fees[0];
         } elseif ($totalQty > 0) {

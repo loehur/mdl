@@ -346,6 +346,12 @@ foreach ($data['dKembali'] as $a) {
           echo "<td colspan='3'>Kehadiran</td>";
           echo "</tr>";
 
+          if (!empty($data['absen'][$uc['id_user']]['cuci']) && $data['absen'][$uc['id_user']]['cuci'] > 0) {
+            echo "<tr>";
+            echo "<td nowrap>Cuci</td>";
+            echo "<td class='text-right'><b>" . $data['absen'][$uc['id_user']]['cuci'] . "</b></td>";
+            echo "</tr>";
+          }
           if ($data['absen'][$uc['id_user']]['harian'] > 0) {
             echo "<tr>";
             echo "<td nowrap>Harian</td>";

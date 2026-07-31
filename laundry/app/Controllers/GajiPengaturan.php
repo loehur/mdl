@@ -1,11 +1,17 @@
 <?php
 
 /**
- * Acuan global fee layanan laundry (gaji_laundry_ref).
- * Satu set fee/target/max/bonus per jenis penjualan + layanan untuk semua karyawan.
+ * Acuan global fee layanan laundry (gaji_laundry_ref)
+ * + fee Laundry Terima / Kembali (gaji_pengali_ref id 1 & 2)
+ * + rumus fee snapshot Cuci / Jaga Malam (gaji_fee_formula).
  */
 class GajiPengaturan extends Controller
 {
+   private $formulaDefaults = [
+      'malam' => ['pengali' => 1.0, 'clamp_min' => 14000, 'clamp_max' => 32000],
+      'cuci' => ['pengali' => 4.0, 'clamp_min' => 65000, 'clamp_max' => 85000],
+   ];
+
    public function __construct()
    {
       $this->session_cek(1);
@@ -19,8 +25,160 @@ class GajiPengaturan extends Controller
          $rows = $rows ? iterator_to_array($rows) : [];
       }
 
+      $pengaliRefRaw = $this->db(0)->get('gaji_pengali_ref');
+      if (!is_array($pengaliRefRaw)) {
+         $pengaliRefRaw = $pengaliRefRaw ? iterator_to_array($pengaliRefRaw) : [];
+      }
+      $pengaliRef = [1 => 0, 2 => 0];
+      foreach ($pengaliRefRaw as $pr) {
+         $idP = (int) ($pr['id_pengali'] ?? 0);
+         if ($idP === 1 || $idP === 2) {
+            $pengaliRef[$idP] = (int) ($pr['gaji_pengali'] ?? 0);
+         }
+      }
+
       $this->view('layout', ['data_operasi' => ['title' => 'Pengaturan Gaji']]);
-      $this->view('gaji/pengaturan', ['rows' => $rows]);
+      $this->view('gaji/pengaturan', [
+         'rows' => $rows,
+         'pengali_ref' => $pengaliRef,
+         'fee_formula' => $this->loadFeeFormulas(),
+      ]);
+   }
+
+   private function loadFeeFormulas(): array
+   {
+      $out = $this->formulaDefaults;
+      $raw = $this->db(0)->get('gaji_fee_formula');
+      if (!is_array($raw)) {
+         $raw = $raw ? iterator_to_array($raw) : [];
+      }
+      foreach ($raw as $row) {
+         $kode = (string) ($row['kode'] ?? '');
+         if (!isset($out[$kode])) {
+            continue;
+         }
+         $out[$kode] = [
+            'pengali' => (float) ($row['pengali'] ?? $out[$kode]['pengali']),
+            'clamp_min' => (int) ($row['clamp_min'] ?? $out[$kode]['clamp_min']),
+            'clamp_max' => (int) ($row['clamp_max'] ?? $out[$kode]['clamp_max']),
+         ];
+      }
+      return $out;
+   }
+
+   /**
+    * Update rumus fee snapshot (malam / cuci).
+    */
+   public function updateFormula()
+   {
+      header('Content-Type: text/plain; charset=utf-8');
+
+      $kode = (string) ($_POST['kode'] ?? '');
+      $col = (string) ($_POST['col'] ?? '');
+      $valueRaw = $_POST['value'] ?? '';
+
+      if (!isset($this->formulaDefaults[$kode])) {
+         echo 'Kode tidak valid';
+         return;
+      }
+      if (!in_array($col, ['pengali', 'clamp_min', 'clamp_max'], true)) {
+         echo 'Kolom tidak valid';
+         return;
+      }
+
+      $defaults = $this->formulaDefaults[$kode];
+      $row = $this->db(0)->get_where_row('gaji_fee_formula', "kode = '" . $this->db(0)->escape($kode) . "'");
+      $pengali = isset($row['pengali']) ? (float) $row['pengali'] : (float) $defaults['pengali'];
+      $clampMin = isset($row['clamp_min']) ? (int) $row['clamp_min'] : (int) $defaults['clamp_min'];
+      $clampMax = isset($row['clamp_max']) ? (int) $row['clamp_max'] : (int) $defaults['clamp_max'];
+
+      if ($col === 'pengali') {
+         $pengali = (float) $valueRaw;
+         if (!is_finite($pengali) || $pengali <= 0) {
+            echo 'Pengali harus > 0';
+            return;
+         }
+      } else {
+         $intVal = (int) $valueRaw;
+         if ($intVal < 0) {
+            echo 'Clamp tidak boleh negatif';
+            return;
+         }
+         if ($col === 'clamp_min') {
+            $clampMin = $intVal;
+         } else {
+            $clampMax = $intVal;
+         }
+      }
+
+      if ($clampMin > $clampMax) {
+         echo 'Clamp min tidak boleh lebih besar dari clamp max';
+         return;
+      }
+
+      $payload = [
+         'pengali' => $pengali,
+         'clamp_min' => $clampMin,
+         'clamp_max' => $clampMax,
+      ];
+
+      $ada = $this->db(0)->count_where('gaji_fee_formula', "kode = '" . $this->db(0)->escape($kode) . "'");
+      if ($ada > 0) {
+         $do = $this->db(0)->update(
+            'gaji_fee_formula',
+            $payload,
+            "kode = '" . $this->db(0)->escape($kode) . "'"
+         );
+      } else {
+         $payload['kode'] = $kode;
+         $do = $this->db(0)->insert('gaji_fee_formula', $payload);
+      }
+
+      if (($do['errno'] ?? 1) == 0) {
+         echo 1;
+      } else {
+         echo $do['error'] ?? 'Gagal menyimpan';
+      }
+   }
+
+   /**
+    * Upsert fee global Terima (1) / Kembali (2).
+    */
+   public function upsertPengali()
+   {
+      header('Content-Type: text/plain; charset=utf-8');
+
+      $idPengali = (int) ($_POST['id_pengali'] ?? 0);
+      $fee = (int) ($_POST['gaji_pengali'] ?? 0);
+
+      if (!in_array($idPengali, [1, 2], true)) {
+         echo 'Hanya Laundry Terima / Kembali';
+         return;
+      }
+      if ($fee < 0) {
+         echo 'Nilai tidak boleh negatif';
+         return;
+      }
+
+      $ada = $this->db(0)->count_where('gaji_pengali_ref', 'id_pengali = ' . $idPengali);
+      if ($ada > 0) {
+         $do = $this->db(0)->update(
+            'gaji_pengali_ref',
+            ['gaji_pengali' => $fee],
+            'id_pengali = ' . $idPengali
+         );
+      } else {
+         $do = $this->db(0)->insert('gaji_pengali_ref', [
+            'id_pengali' => $idPengali,
+            'gaji_pengali' => $fee,
+         ]);
+      }
+
+      if (($do['errno'] ?? 1) == 0) {
+         echo 1;
+      } else {
+         echo $do['error'] ?? 'Gagal menyimpan';
+      }
    }
 
    public function insert()

@@ -18,10 +18,12 @@ class Absen extends Controller
       $dGaji = $this->helper('D_Gaji');
       $pendapatan = $dGaji->getSnapshotTotalPendapatanCabang($idCabang, $periodeLalu);
       $feeMalam = $dGaji->feeMalamDariPendapatan($pendapatan);
+      $feeCuci = $dGaji->feeCuciDariPendapatan($pendapatan);
 
       $this->view('layout', ['data_operasi' => $data_operasi]);
       $this->view($viewData, [
          'fee_jaga_malam' => $feeMalam,
+         'fee_cuci' => $feeCuci,
       ]);
    }
 
