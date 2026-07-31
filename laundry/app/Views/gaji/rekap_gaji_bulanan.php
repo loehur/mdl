@@ -69,7 +69,6 @@ foreach ($this->user as $uc) {
                 Set Gaji
               </button>
               <div class="dropdown-menu">
-                <a class="dropdown-item" href="#exampleModal" data-bs-toggle="modal">FEE Layanan Laundry</a>
                 <a class="dropdown-item" href="#exampleModal1" data-bs-toggle="modal">FEE Pengali</a>
                 <a class="dropdown-item" href="#exampleModal2" data-bs-toggle="modal">QTY Pengali</a>
               </div>
@@ -156,15 +155,13 @@ $totalTerima = 0;
                       $gaji_laundry = 0;
                       $bonus_target = 0;
                       $target = 0;
-                      $id_gl = 0;
                       $max_target = 0;
                       $max_target_fill = 0;
                       foreach ($data['setup']['gaji_laundry'] as $gp) {
-                        if ($gp['id_karyawan'] == $id_user && $gp['id_layanan'] == $id_layanan && $gp['jenis_penjualan'] == $id_penjualan) {
+                        if ($gp['id_layanan'] == $id_layanan && $gp['jenis_penjualan'] == $id_penjualan) {
                           $gaji_laundry = $gp['gaji_laundry'];
                           $target = $gp['target'];
                           $bonus_target = $gp['bonus_target'];
-                          $id_gl = $gp['id_gaji_laundry'];
                           $max_target = $gp['max_target'];
                           $max_target_fill = $max_target;
                         }
@@ -190,22 +187,12 @@ $totalTerima = 0;
                       $totalGajiLaundry = $gaji_laundry * $totalPerUser;
 
                       echo "<tr>";
-                      echo "<td nowrap><small>" . $penjualan . "</small><br>" . $layanan . "<br><small>Target</small><br>
-                  
-                      <span class='edit' data-table='gaji_laundry' data-col='target' data-id_edit='" . $id_gl . "'>" . $target . "</span></td>";
+                      echo "<td nowrap><small>" . $penjualan . "</small><br>" . $layanan . "<br><small>Target</small><br>" . $target . "</td>";
                       echo "<td class='text-right'><small>Qty</small><br>" . number_format($totalPerUser) . "
-                      
-                      <br><small>Max Target</small><br>
-                      <span class='edit' data-table='gaji_laundry' data-col='max_target' data-id_edit='" . $id_gl . "'>" . $max_target_fill . "</span>                  
-                  
+                      <br><small>Max Target</small><br>" . $max_target_fill . "
                   </td>";
-                      echo "<td class='text-right'><small>Fee</small><br>Rp
-                  
-                  <span class='edit' data-table='gaji_laundry' data-col='gaji_laundry' data-id_edit='" . $id_gl . "'>" . $gaji_laundry . "</span>
-                  
-                  <br><small>Bonus/Target</small><br>
-                      <span class='edit' data-table='gaji_laundry' data-col='bonus_target' data-id_edit='" . $id_gl . "'>" . $bonus_target . "</span>
-                  
+                      echo "<td class='text-right'><small>Fee</small><br>Rp" . number_format($gaji_laundry) . "
+                  <br><small>Bonus/Target</small><br>" . number_format($bonus_target) . "
                   </td>";
 
                       echo "<td class='text-right'><small>Total</small><br>Rp" . number_format($totalGajiLaundry) . "<br><small>Bonus</small><br>Rp" . number_format($bonus) . "</td>";
@@ -449,63 +436,6 @@ $totalTerima = 0;
       </div>
     </div>
   <?php } ?>
-</div>
-
-<div class="modal" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-sm">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="exampleModalLabel">FEE Layanan Laundry</h5>
-        <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close"> <span aria-hidden="true">&times;</span></button>
-      </div>
-      <div class="modal-body">
-        <form class="jq" action="<?= URL::BASE_URL; ?>Gaji/set_gaji_laundry" method="POST">
-          <div class="card-body">
-            <div class="form-group">
-              <label for="exampleInputEmail1">Jenis Penjualan</label>
-              <select name='penjualan_jenis' class="form-control form-control-sm userChange" style="width: 100%;" required>
-                <option value="" selected disabled></option>
-                <?php foreach ($this->dPenjualan as $a) { ?>
-                  <option id="<?= $a['id_penjualan_jenis'] ?>" value="<?= $a['id_penjualan_jenis'] ?>"><?= $a['penjualan_jenis'] ?></option>
-                <?php } ?>
-                </optgroup>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="exampleInputEmail1">Jenis Layanan</label>
-              <select name="layanan" class="form-control form-control-sm userChange" style="width: 100%;" required>
-                <option value="" selected disabled></option>
-                <?php foreach ($this->dLayanan as $a) { ?>
-                  <option id="<?= $a['id_layanan'] ?>" value="<?= $a['id_layanan'] ?>"><?= $a['layanan'] ?></option>
-                <?php } ?>
-                </optgroup>
-              </select>
-            </div>
-            <input name='id_user' type="hidden" value="<?= $data['user']['id'] ?>" />
-            <div class="form-group">
-              <label for="exampleInputEmail1">Fee (Rp)</label>
-              <input type="number" name="fee" min="1" class="form-control" id="exampleInputEmail1" placeholder="" required>
-            </div>
-            <div class="form-group">
-              <label for="exampleInputEmail1">Target <small>Berlaku Kelipatan</small></label>
-              <input type="number" name="target" min="0" class="form-control" value="0" id="exampleInputEmail1" placeholder="" required>
-            </div>
-            <div class="form-group">
-              <label for="exampleInputEmail1">Max Target <small>(0 Jika Tanpa Max Target)</small></label>
-              <input type="number" name="max_target" min="0" class="form-control" value="0" id="exampleInputEmail1" placeholder="" required>
-            </div>
-            <div class="form-group">
-              <label for="exampleInputEmail1">Bonus Target</label>
-              <input type="number" name="bonus_target" min="0" class="form-control" value="0" id="exampleInputEmail1" placeholder="" required>
-            </div>
-            <div class="modal-footer">
-              <button type="submit" class="btn btn-sm btn-primary">Simpan</button>
-            </div>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
 </div>
 
 <div class="modal" id="exampleModal1" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">

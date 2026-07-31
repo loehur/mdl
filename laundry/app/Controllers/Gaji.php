@@ -32,38 +32,6 @@ class Gaji extends Controller
       $this->view($viewData, $data);
    }
 
-   public function set_gaji_laundry()
-   {
-      $penjualan = $_POST['penjualan_jenis'];
-      $id_layanan = $_POST['layanan'];
-      $id_user = $_POST['id_user'];
-      $fee = $_POST['fee'];
-      $target = $_POST['target'];
-      $bonus_target = $_POST['bonus_target'];
-      $max_target = $_POST['max_target'];
-
-      $data_main = $this->db(0)->count_where('gaji_laundry', "id_karyawan = " . $id_user . " AND jenis_penjualan = " . $penjualan . " AND id_layanan = " . $id_layanan);
-      if ($data_main < 1) {
-         $data = [
-            'id_karyawan' => $id_user,
-            'jenis_penjualan' => $penjualan,
-            'id_layanan' => $id_layanan,
-            'gaji_laundry' => $fee,
-            'target' => $target,
-            'bonus_target' => $bonus_target,
-            'max_target' => $max_target
-         ];
-         $do = $this->db(0)->insert('gaji_laundry', $data);
-         if ($do['errno'] == 0) {
-            echo 1;
-         } else {
-            echo $do['error'];
-         }
-      } else {
-         echo "DATA SUDAH TER-SET!";
-      }
-   }
-
    public function set_gaji_pengali()
    {
       $id_pengali = (int) $_POST['pengali'];
@@ -131,7 +99,7 @@ class Gaji extends Controller
       $col = $_POST['col'];
 
       if ($table === 'gaji_laundry') {
-         $this->updateGajiLaundryCell((int) $id, $col, $value);
+         // Fee layanan laundry sekarang global di GajiPengaturan — tidak diedit dari Gaji Bulanan
          return;
       }
 
@@ -226,92 +194,6 @@ class Gaji extends Controller
             'gaji_pengali' => $numVal,
          ];
          $this->db(0)->insert('gaji_pengali', $data);
-      }
-   }
-
-   /**
-    * True jika pasangan jenis penjualan + layanan = Kiloan + Setrika (nama dari DB, case-insensitive).
-    * Sinkron gaji_laundry multi-karyawan hanya berlaku untuk pasangan ini.
-    */
-   private function isGajiLaundryKiloanSetrika(int $jenisPenjualanId, int $idLayananId): bool
-   {
-      $p = $this->db(0)->get_where_row('penjualan_jenis', 'id_penjualan_jenis = ' . $jenisPenjualanId);
-      $l = $this->db(0)->get_where_row('layanan', 'id_layanan = ' . $idLayananId);
-      if (empty($p) || empty($l)) {
-         return false;
-      }
-      $namaPenj = isset($p['penjualan_jenis']) ? trim((string) $p['penjualan_jenis']) : '';
-      $namaLay = isset($l['layanan']) ? trim((string) $l['layanan']) : '';
-      return strcasecmp($namaPenj, 'Kiloan') === 0 && strcasecmp($namaLay, 'Setrika') === 0;
-   }
-
-   /**
-    * gaji_laundry: sinkron ke semua karyawan + insert yang belum punya baris hanya untuk Kiloan + Setrika.
-    * Kombinasi lain hanya meng-update baris id_gaji_laundry yang diedit.
-    */
-   private function updateGajiLaundryCell($idGajiLaundry, $col, $value)
-   {
-      $allowed = ['target', 'max_target', 'gaji_laundry', 'bonus_target'];
-      if (!in_array($col, $allowed, true)) {
-         return;
-      }
-
-      $ref = $this->db(0)->get_where_row('gaji_laundry', 'id_gaji_laundry = ' . $idGajiLaundry);
-      if (empty($ref) || !isset($ref['jenis_penjualan'], $ref['id_layanan'])) {
-         return;
-      }
-
-      $jenis = (int) $ref['jenis_penjualan'];
-      $idLayanan = (int) $ref['id_layanan'];
-      $numVal = (int) $value;
-
-      if (!$this->isGajiLaundryKiloanSetrika($jenis, $idLayanan)) {
-         $this->db(0)->update('gaji_laundry', [$col => $numVal], 'id_gaji_laundry = ' . $idGajiLaundry);
-         return;
-      }
-
-      $wherePair = 'jenis_penjualan = ' . $jenis . ' AND id_layanan = ' . $idLayanan;
-      $this->db(0)->update('gaji_laundry', [$col => $numVal], $wherePair);
-
-      $gajiLaundry = $col === 'gaji_laundry' ? $numVal : (int) $ref['gaji_laundry'];
-      $target = $col === 'target' ? $numVal : (int) $ref['target'];
-      $maxTarget = $col === 'max_target' ? $numVal : (int) $ref['max_target'];
-      $bonusTarget = $col === 'bonus_target' ? $numVal : (int) $ref['bonus_target'];
-
-      $existing = $this->db(0)->get_cols_where('gaji_laundry', 'id_karyawan', $wherePair, 1);
-      if (!is_array($existing)) {
-         $existing = [];
-      }
-      $have = [];
-      foreach ($existing as $row) {
-         if (isset($row['id_karyawan'])) {
-            $have[(int) $row['id_karyawan']] = true;
-         }
-      }
-
-      $karyawan = $this->db(0)->get_cols_where('user', 'id_user', 'en = 1', 1);
-      if (!is_array($karyawan)) {
-         $karyawan = [];
-      }
-
-      foreach ($karyawan as $k) {
-         if (!isset($k['id_user'])) {
-            continue;
-         }
-         $idKaryawan = (int) $k['id_user'];
-         if (isset($have[$idKaryawan])) {
-            continue;
-         }
-         $data = [
-            'id_karyawan' => $idKaryawan,
-            'jenis_penjualan' => $jenis,
-            'id_layanan' => $idLayanan,
-            'gaji_laundry' => $gajiLaundry,
-            'target' => $target,
-            'bonus_target' => $bonusTarget,
-            'max_target' => $maxTarget,
-         ];
-         $this->db(0)->insert('gaji_laundry', $data);
       }
    }
 

@@ -129,7 +129,10 @@ class D_Gaji extends Controller
 
     function data_setup()
     {
-        $gaji['gaji_laundry'] = $this->db(0)->get('gaji_laundry');
+        $gaji['gaji_laundry'] = $this->db(0)->get('gaji_laundry_ref');
+        if (!is_array($gaji['gaji_laundry'])) {
+            $gaji['gaji_laundry'] = $gaji['gaji_laundry'] ? iterator_to_array($gaji['gaji_laundry']) : [];
+        }
         $gaji['pengali_list'] = $this->db(0)->get('gaji_pengali_jenis');
         $gaji['gaji_pengali'] = $this->db(0)->get('gaji_pengali');
 
@@ -259,7 +262,7 @@ class D_Gaji extends Controller
                         $target = 0;
                         $max_target = 0;
                         foreach ($data['setup']['gaji_laundry'] as $gp) {
-                            if ($gp['id_karyawan'] == $id_user && $gp['id_layanan'] == $id_layanan && $gp['jenis_penjualan'] == $id_penjualan) {
+                            if ($gp['id_layanan'] == $id_layanan && $gp['jenis_penjualan'] == $id_penjualan) {
                                 $gaji_laundry = $gp['gaji_laundry'];
                                 $target = $gp['target'];
                                 $bonus_target = $gp['bonus_target'];

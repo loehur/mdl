@@ -98,24 +98,6 @@ $menu[1] = [
             ]
         ]
     ],
-    [
-        'c' => '#',
-        'title' => 'System Ops',
-        'icon' => 'fas fa-cogs',
-        'txt' => 'System Ops',
-        'submenu' => [
-            [
-                'c' => '@Setting',
-                'title' => 'Setting',
-                'txt' => 'Setting'
-            ],
-            [
-                'c' => '@Troubleshoot',
-                'title' => 'Troubleshoot',
-                'txt' => 'Troubleshoot'
-            ]
-        ]
-    ],
 ];
 
 if ($this->id_cabang > 0) {
@@ -164,6 +146,11 @@ if ($this->id_cabang > 0) {
                 'c' => '@Gaji',
                 'title' => 'Gaji Bulanan',
                 'txt' => 'Gaji Bulanan'
+            ],
+            [
+                'c' => '@GajiPengaturan',
+                'title' => 'Pengaturan Gaji',
+                'txt' => 'Pengaturan'
             ],
             [
                 'c' => '@Payroll',
