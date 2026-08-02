@@ -3,8 +3,6 @@ $hariIndo = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 $bulanIndo = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 $tanggalAbsen = $hariIndo[(int) date('w')] . ', ' . date('j') . ' ' . $bulanIndo[(int) date('n')] . ' ' . date('Y');
 $kodeCabang = strtoupper((string) ($this->dCabang['kode_cabang'] ?? ''));
-$feeJagaMalam = (int) ($data['fee_jaga_malam'] ?? 14000);
-$feeCuci = (int) ($data['fee_cuci'] ?? 65000);
 ?>
 <div id="absen-root">
   <style>
@@ -548,23 +546,11 @@ $feeCuci = (int) ($data['fee_cuci'] ?? 65000);
         <div class="absen-opt-grid">
           <label class="absen-opt" data-tone="green">
             <input type="radio" name="jenis" value="0" required>
-            <span class="absen-opt__face">
-              <span class="absen-opt__icon"><i class="fas fa-tshirt"></i></span>
-              <span class="absen-opt__text">
-                <span class="absen-opt__title">Cuci</span>
-                <span class="absen-opt__fee">Rp<?= number_format($feeCuci) ?> / cuci</span>
-              </span>
-            </span>
+            <span class="absen-opt__face"><span class="absen-opt__icon"><i class="fas fa-tshirt"></i></span>Cuci</span>
           </label>
           <label class="absen-opt" data-tone="blue">
             <input type="radio" name="jenis" value="1">
-            <span class="absen-opt__face">
-              <span class="absen-opt__icon"><i class="fas fa-moon"></i></span>
-              <span class="absen-opt__text">
-                <span class="absen-opt__title">Jaga Malam</span>
-                <span class="absen-opt__fee">Rp<?= number_format($feeJagaMalam) ?> / malam</span>
-              </span>
-            </span>
+            <span class="absen-opt__face"><span class="absen-opt__icon"><i class="fas fa-moon"></i></span>Jaga Malam</span>
           </label>
           <label class="absen-opt" data-tone="yellow">
             <input type="radio" name="jenis" value="2">

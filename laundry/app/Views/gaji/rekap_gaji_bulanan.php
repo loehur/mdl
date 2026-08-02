@@ -277,18 +277,27 @@ $totalTerima = 0;
                     if ($qty < 1) {
                       $qty = (int) $b['qty'];
                     }
+                    $feeKaryawan = (int) ($malam['fee_karyawan'] ?? ($r_pengali[$id_user][5] ?? 0));
+                    $id_gp = isset($r_pengali_id[$id_user][5]) ? (int) $r_pengali_id[$id_user][5] : 0;
                     $feeP = (int) $malam['fee_display'];
                     $feePTotal = (int) $malam['jumlah'];
                     if ($feePTotal < 1 && $qty > 0) {
-                      $feeP = $dGajiHelper->feeMalamDariPendapatan(null);
+                      $feeP = $dGajiHelper->feeEfektifSnapshot(
+                        $dGajiHelper->feeMalamDariPendapatan(null),
+                        $feeKaryawan
+                      );
                       $feePTotal = $qty * $feeP;
                     }
+                    $sumber = ($feeKaryawan > 0 && $feeKaryawan >= $feeP) ? 'karyawan' : 'global';
                     echo "<tr>";
                     echo "<td nowrap class=''><small>Laundry</small><br>" . htmlspecialchars($pengaliJenis) . "</td>";
                     echo "<td class='text-right'><small>Qty</small><br>
                     <span class='edit' data-table='gaji_pengali_data' data-col='qty' data-id_edit='" . $idPengaliData . "'>" . $qty . "</span>
                     </td>";
-                    echo "<td class='text-right'><small>Fee</small><br>Rp" . number_format($feeP) . "<br><small class='text-muted'>otomatis</small></td>";
+                    echo "<td class='text-right'><small>Fee efektif</small><br>Rp" . number_format($feeP) . "
+                    <br><small>Karyawan</small><br>Rp
+                    <span class='edit' data-table='gaji_pengali' data-col='gaji_pengali' data-id_pengali='5' data-id_karyawan='" . (int) $id_user . "' data-id_edit='" . $id_gp . "'>" . $feeKaryawan . "</span>
+                    <br><small class='text-muted'>max(global, karyawan) · " . $sumber . "</small></td>";
                     echo "<td class='text-right'><small>Total</small><br>Rp" . number_format($feePTotal) . "</td>";
                     echo "</tr>";
                     $totalDapat += $feePTotal;
@@ -301,18 +310,27 @@ $totalTerima = 0;
                     if ($qty < 1) {
                       $qty = (int) $b['qty'];
                     }
+                    $feeKaryawan = (int) ($cuci['fee_karyawan'] ?? ($r_pengali[$id_user][6] ?? 0));
+                    $id_gp = isset($r_pengali_id[$id_user][6]) ? (int) $r_pengali_id[$id_user][6] : 0;
                     $feeP = (int) $cuci['fee_display'];
                     $feePTotal = (int) $cuci['jumlah'];
                     if ($feePTotal < 1 && $qty > 0) {
-                      $feeP = $dGajiHelper->feeCuciDariPendapatan(null);
+                      $feeP = $dGajiHelper->feeEfektifSnapshot(
+                        $dGajiHelper->feeCuciDariPendapatan(null),
+                        $feeKaryawan
+                      );
                       $feePTotal = $qty * $feeP;
                     }
+                    $sumber = ($feeKaryawan > 0 && $feeKaryawan >= $feeP) ? 'karyawan' : 'global';
                     echo "<tr>";
                     echo "<td nowrap class=''><small>Laundry</small><br>" . htmlspecialchars($pengaliJenis) . "</td>";
                     echo "<td class='text-right'><small>Qty</small><br>
                     <span class='edit' data-table='gaji_pengali_data' data-col='qty' data-id_edit='" . $idPengaliData . "'>" . $qty . "</span>
                     </td>";
-                    echo "<td class='text-right'><small>Fee</small><br>Rp" . number_format($feeP) . "<br><small class='text-muted'>otomatis</small></td>";
+                    echo "<td class='text-right'><small>Fee efektif</small><br>Rp" . number_format($feeP) . "
+                    <br><small>Karyawan</small><br>Rp
+                    <span class='edit' data-table='gaji_pengali' data-col='gaji_pengali' data-id_pengali='6' data-id_karyawan='" . (int) $id_user . "' data-id_edit='" . $id_gp . "'>" . $feeKaryawan . "</span>
+                    <br><small class='text-muted'>max(global, karyawan) · " . $sumber . "</small></td>";
                     echo "<td class='text-right'><small>Total</small><br>Rp" . number_format($feePTotal) . "</td>";
                     echo "</tr>";
                     $totalDapat += $feePTotal;
@@ -461,8 +479,8 @@ $totalTerima = 0;
                 <option value="" selected disabled></option>
                 <?php foreach ($pengali_list as $a) {
                   $idP = (int) $a['id_pengali'];
-                  // 1/2 global di Pengaturan; 5/6 otomatis snapshot
-                  if (in_array($idP, [1, 2, 5, 6], true)) {
+                  // 1/2 global di Pengaturan
+                  if (in_array($idP, [1, 2], true)) {
                     continue;
                   }
                 ?>
@@ -724,6 +742,10 @@ $totalTerima = 0;
         };
         if (id_pengali !== undefined && id_pengali !== '') {
           ajaxData.id_pengali = id_pengali;
+        }
+        var id_karyawan = span.attr('data-id_karyawan');
+        if (id_karyawan !== undefined && id_karyawan !== '') {
+          ajaxData.id_karyawan = id_karyawan;
         }
         $.ajax({
           url: '<?= URL::BASE_URL ?>Gaji/updateCell',

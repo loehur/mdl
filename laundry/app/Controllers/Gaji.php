@@ -39,14 +39,6 @@ class Gaji extends Controller
          echo 'Fee Terima/Kembali global di Gaji → Pengaturan';
          return;
       }
-      if ($id_pengali === 5) {
-         echo 'Fee jaga malam otomatis dari snapshot cabang';
-         return;
-      }
-      if ($id_pengali === 6) {
-         echo 'Fee Cuci otomatis dari snapshot cabang';
-         return;
-      }
       $id_user = $_POST['id_user'];
       $fee = $_POST['fee'];
 
@@ -131,8 +123,8 @@ class Gaji extends Controller
    }
 
    /**
-    * Update fee gaji_pengali per karyawan (Harian/Tunjangan dll).
-    * id_pengali 1/2 global di GajiPengaturan; id 5/6 otomatis snapshot — no-op.
+    * Update fee gaji_pengali per karyawan (Harian/Tunjangan/Cuci/Malam floor).
+    * id_pengali 1/2 global di GajiPengaturan — no-op.
     */
    private function updateGajiPengaliCell($idGajiPengali, $col, $value, $idPengaliPost = 0)
    {
@@ -159,16 +151,38 @@ class Gaji extends Controller
          return;
       }
 
-      // Global / otomatis — tidak diedit dari Gaji Bulanan
-      if (in_array($idPengali, [1, 2, 5, 6], true)) {
+      // Terima/Kembali global — tidak diedit dari Gaji Bulanan
+      if (in_array($idPengali, [1, 2], true)) {
          return;
       }
 
-      if ($idGajiPengali < 1) {
+      if ($idGajiPengali > 0) {
+         $this->db(0)->update('gaji_pengali', ['gaji_pengali' => $numVal], 'id_gaji_pengali = ' . $idGajiPengali);
          return;
       }
 
-      $this->db(0)->update('gaji_pengali', ['gaji_pengali' => $numVal], 'id_gaji_pengali = ' . $idGajiPengali);
+      // Insert baris baru (Cuci/Malam/dll) jika belum ada
+      $idKaryawan = (int) ($_POST['id_karyawan'] ?? 0);
+      if ($idKaryawan < 1 || $idPengali < 1) {
+         return;
+      }
+      $ada = $this->db(0)->count_where(
+         'gaji_pengali',
+         'id_karyawan = ' . $idKaryawan . ' AND id_pengali = ' . $idPengali
+      );
+      if ($ada > 0) {
+         $this->db(0)->update(
+            'gaji_pengali',
+            ['gaji_pengali' => $numVal],
+            'id_karyawan = ' . $idKaryawan . ' AND id_pengali = ' . $idPengali
+         );
+         return;
+      }
+      $this->db(0)->insert('gaji_pengali', [
+         'id_karyawan' => $idKaryawan,
+         'id_pengali' => $idPengali,
+         'gaji_pengali' => $numVal,
+      ]);
    }
 
    function penetapan($userID, $date)

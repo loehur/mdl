@@ -13,18 +13,8 @@ class Absen extends Controller
       $data_operasi = ['title' => 'Karyawan Absen'];
       $viewData = __CLASS__ . '/form';
 
-      $idCabang = (int) ($this->id_cabang ?? 0);
-      $periodeLalu = date('Y-m', strtotime('first day of last month'));
-      $dGaji = $this->helper('D_Gaji');
-      $pendapatan = $dGaji->getSnapshotTotalPendapatanCabang($idCabang, $periodeLalu);
-      $feeMalam = $dGaji->feeMalamDariPendapatan($pendapatan);
-      $feeCuci = $dGaji->feeCuciDariPendapatan($pendapatan);
-
       $this->view('layout', ['data_operasi' => $data_operasi]);
-      $this->view($viewData, [
-         'fee_jaga_malam' => $feeMalam,
-         'fee_cuci' => $feeCuci,
-      ]);
+      $this->view($viewData);
    }
 
    public function load()

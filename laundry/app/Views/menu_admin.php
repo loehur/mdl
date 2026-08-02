@@ -95,6 +95,11 @@ $menu[1] = [
                 'c' => '@ImportPelanggan',
                 'title' => 'Import Pelanggan',
                 'txt' => 'Import Pelanggan'
+            ],
+            [
+                'c' => '@GenerateKey',
+                'title' => 'Generate Key',
+                'txt' => 'Generate Key'
             ]
         ]
     ],

@@ -626,9 +626,76 @@ class Login extends Controller
 
    public function log_mode()
    {
-      $mode = $_POST['mode'];
+      header('Content-Type: application/json; charset=utf-8');
+
+      $priv = (int) ($_SESSION[URL::SESSID]['user']['id_privilege'] ?? 0);
+      if ($priv !== 100) {
+         echo json_encode(['ok' => 0, 'msg' => 'Akses ditolak']);
+         return;
+      }
+
+      $mode = (int) ($_POST['mode'] ?? 0);
+      if ($mode === 1) {
+         $key = trim((string) ($_POST['key'] ?? ''));
+         if (!$this->verifyAdminAccessKey($key)) {
+            echo json_encode(['ok' => 0, 'msg' => 'Admin Key tidak valid']);
+            return;
+         }
+         unset($_SESSION['log_mode']);
+         $_SESSION['log_mode'] = 1;
+         $_SESSION['admin_mode_last_active'] = time();
+         echo json_encode(['ok' => 1]);
+         return;
+      }
+
       unset($_SESSION['log_mode']);
-      $_SESSION['log_mode'] = $mode;
+      $_SESSION['log_mode'] = 0;
+      unset($_SESSION['admin_mode_last_active']);
+      echo json_encode(['ok' => 1]);
+   }
+
+   /**
+    * Touch idle timer mode Admin (dipanggil dari browser saat ada aktivitas).
+    */
+   public function admin_mode_ping()
+   {
+      header('Content-Type: application/json; charset=utf-8');
+
+      $priv = (int) ($_SESSION[URL::SESSID]['user']['id_privilege'] ?? 0);
+      if ($priv !== 100) {
+         echo json_encode(['ok' => 0]);
+         return;
+      }
+
+      if ((int) ($_SESSION['log_mode'] ?? 0) !== 1) {
+         echo json_encode(['ok' => 0, 'mode' => 0]);
+         return;
+      }
+
+      $idleLimit = 600; // 10 menit
+      $last = (int) ($_SESSION['admin_mode_last_active'] ?? 0);
+      if ($last > 0 && (time() - $last) > $idleLimit) {
+         $_SESSION['log_mode'] = 0;
+         unset($_SESSION['admin_mode_last_active']);
+         echo json_encode(['ok' => 0, 'mode' => 0, 'expired' => 1]);
+         return;
+      }
+
+      $_SESSION['admin_mode_last_active'] = time();
+      echo json_encode(['ok' => 1, 'mode' => 1]);
+   }
+
+   /**
+    * Validasi Admin Access Key 4 digit (hash Enc->otp).
+    */
+   private function verifyAdminAccessKey($key): bool
+   {
+      if (!preg_match('/^\d{4}$/', (string) $key)) {
+         return false;
+      }
+      $hash = $this->model('Enc')->otp($key);
+      $row = $this->db(0)->get_where_row('admin_access_key', "key_hash = '" . $this->db(0)->escape($hash) . "'");
+      return is_array($row) && !empty($row['id']);
    }
 
    function get_client_ip()

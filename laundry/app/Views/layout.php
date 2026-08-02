@@ -1420,10 +1420,22 @@ if ($this->id_privilege == 100) {
     $hideAdmin = "";
 }
 
+$adminIdleLimitSec = 600; // 10 menit
 if (isset($_SESSION['log_mode'])) {
-    $log_mode = $_SESSION['log_mode'];
+    $log_mode = (int) $_SESSION['log_mode'];
 } else {
     $log_mode = 0;
+}
+// Idle mode Admin: paksa kembali ke Kasir
+if ((int) ($this->id_privilege ?? 0) === 100 && $log_mode === 1) {
+    $lastActive = (int) ($_SESSION['admin_mode_last_active'] ?? 0);
+    if ($lastActive > 0 && (time() - $lastActive) > $adminIdleLimitSec) {
+        $_SESSION['log_mode'] = 0;
+        unset($_SESSION['admin_mode_last_active']);
+        $log_mode = 0;
+    } else {
+        $_SESSION['admin_mode_last_active'] = time();
+    }
 }
 if ($log_mode == 1) {
     $hideAdmin = "";
@@ -2028,28 +2040,144 @@ if ($privUi === 100) {
                     if ($(this).hasClass("is-active")) {
                         return;
                     }
-                    $.ajax({
-                        url: "<?= URL::BASE_URL ?>Login/log_mode",
-                        data: { mode: mode },
-                        type: "POST",
-                        dataType: "html",
-                        success: function() {
-                            $("#roleSwitch .role-btn").removeClass("is-active");
-                            $('#roleSwitch .role-btn[data-mode="' + mode + '"]').addClass("is-active");
-                            if (mode === 0) {
-                                $("#nav_0").removeClass("d-none");
-                                $("#nav_2").removeClass("d-none");
-                                $("#nav_1").addClass("d-none");
-                                $("#nav_3").addClass("d-none");
+
+                    var applyModeUi = function(mode) {
+                        $("#roleSwitch .role-btn").removeClass("is-active");
+                        $('#roleSwitch .role-btn[data-mode="' + mode + '"]').addClass("is-active");
+                        if (mode === 0) {
+                            $("#nav_0").removeClass("d-none");
+                            $("#nav_2").removeClass("d-none");
+                            $("#nav_1").addClass("d-none");
+                            $("#nav_3").addClass("d-none");
+                        } else {
+                            $("#nav_0").addClass("d-none");
+                            $("#nav_2").addClass("d-none");
+                            $("#nav_1").removeClass("d-none");
+                            $("#nav_3").removeClass("d-none");
+                        }
+                        if (window.MDL_adminIdle) {
+                            window.MDL_adminIdle.setMode(mode);
+                        }
+                    };
+
+                    var postMode = function(key) {
+                        $.ajax({
+                            url: "<?= URL::BASE_URL ?>Login/log_mode",
+                            data: { mode: mode, key: key || '' },
+                            type: "POST",
+                            dataType: "json",
+                            success: function(res) {
+                                if (res && res.ok == 1) {
+                                    applyModeUi(mode);
+                                    return;
+                                }
+                                alert((res && res.msg) || 'Gagal ganti mode');
+                            },
+                            error: function() {
+                                alert('Gagal ganti mode');
+                            }
+                        });
+                    };
+
+                    if (mode === 1) {
+                        var key = window.prompt('Masukkan Admin Key (4 digit):');
+                        if (key === null) {
+                            return;
+                        }
+                        key = String(key).trim();
+                        if (!/^\d{4}$/.test(key)) {
+                            alert('Key harus 4 digit angka');
+                            return;
+                        }
+                        postMode(key);
+                    } else {
+                        postMode('');
+                    }
+                });
+
+                <?php if ((int) ($this->id_privilege ?? 0) === 100) { ?>
+                (function () {
+                    var IDLE_MS = <?= (int) $adminIdleLimitSec ?> * 1000;
+                    var PING_MS = 30000;
+                    var mode = <?= (int) $log_mode ?>;
+                    var idleTimer = null;
+                    var lastPing = 0;
+
+                    function applyKasirUi() {
+                        $("#roleSwitch .role-btn").removeClass("is-active");
+                        $('#roleSwitch .role-btn[data-mode="0"]').addClass("is-active");
+                        $("#nav_0").removeClass("d-none");
+                        $("#nav_2").removeClass("d-none");
+                        $("#nav_1").addClass("d-none");
+                        $("#nav_3").addClass("d-none");
+                    }
+
+                    function forceKasir(showAlert) {
+                        mode = 0;
+                        clearTimeout(idleTimer);
+                        idleTimer = null;
+                        $.ajax({
+                            url: "<?= URL::BASE_URL ?>Login/log_mode",
+                            data: { mode: 0 },
+                            type: "POST",
+                            dataType: "json",
+                            complete: function () {
+                                applyKasirUi();
+                                if (showAlert) {
+                                    alert('Mode Admin berakhir karena idle 10 menit. Kembali ke Kasir.');
+                                }
+                            }
+                        });
+                    }
+
+                    function resetIdle() {
+                        if (mode !== 1) return;
+                        clearTimeout(idleTimer);
+                        idleTimer = setTimeout(function () {
+                            forceKasir(true);
+                        }, IDLE_MS);
+
+                        var now = Date.now();
+                        if (now - lastPing >= PING_MS) {
+                            lastPing = now;
+                            $.ajax({
+                                url: "<?= URL::BASE_URL ?>Login/admin_mode_ping",
+                                type: "POST",
+                                dataType: "json",
+                                success: function (res) {
+                                    if (res && res.expired == 1) {
+                                        mode = 0;
+                                        clearTimeout(idleTimer);
+                                        applyKasirUi();
+                                        alert('Mode Admin berakhir karena idle 10 menit. Kembali ke Kasir.');
+                                    }
+                                }
+                            });
+                        }
+                    }
+
+                    window.MDL_adminIdle = {
+                        setMode: function (m) {
+                            mode = parseInt(m, 10) || 0;
+                            if (mode === 1) {
+                                lastPing = 0;
+                                resetIdle();
                             } else {
-                                $("#nav_0").addClass("d-none");
-                                $("#nav_2").addClass("d-none");
-                                $("#nav_1").removeClass("d-none");
-                                $("#nav_3").removeClass("d-none");
+                                clearTimeout(idleTimer);
+                                idleTimer = null;
                             }
                         }
+                    };
+
+                    if (mode === 1) {
+                        resetIdle();
+                    }
+
+                    $(document).on('mousemove keydown click scroll touchstart', function () {
+                        resetIdle();
                     });
-                });
+                })();
+                <?php } ?>
 
                 $("select#selectCabang").on("change", function() {
                     var idCabang = $(this).val();

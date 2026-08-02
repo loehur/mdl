@@ -392,15 +392,18 @@ class D_Gaji extends Controller
                             }
                         }
 
-                        // Jaga malam (5) / Cuci (6): fee dari snapshot pendapatan cabang absen, bulan lalu
+                        // Jaga malam (5) / Cuci (6): max(fee snapshot, fee karyawan)
                         if ($idPengali === 5) {
                             $malam = $this->hitungJumlahGajiMalam((int) $id_user, $dateOn);
                             $qty = (int) $malam['qty'];
                             $feePTotal = (int) $malam['jumlah'];
                             if ($qty < 1 && (int) ($b['qty'] ?? 0) > 0) {
-                                // fallback qty dari pengali_data jika absen belum terbaca
                                 $qty = (int) $b['qty'];
-                                $feePTotal = $qty * $this->feeMalamDariPendapatan(null);
+                                $feeP = $this->feeEfektifSnapshot(
+                                    $this->feeMalamDariPendapatan(null),
+                                    (int) ($malam['fee_karyawan'] ?? 0)
+                                );
+                                $feePTotal = $qty * $feeP;
                             }
                         } elseif ($idPengali === 6) {
                             $cuci = $this->hitungJumlahGajiCuci((int) $id_user, $dateOn);
@@ -408,7 +411,11 @@ class D_Gaji extends Controller
                             $feePTotal = (int) $cuci['jumlah'];
                             if ($qty < 1 && (int) ($b['qty'] ?? 0) > 0) {
                                 $qty = (int) $b['qty'];
-                                $feePTotal = $qty * $this->feeCuciDariPendapatan(null);
+                                $feeP = $this->feeEfektifSnapshot(
+                                    $this->feeCuciDariPendapatan(null),
+                                    (int) ($cuci['fee_karyawan'] ?? 0)
+                                );
+                                $feePTotal = $qty * $feeP;
                             }
                         } else {
                             if (isset($r_pengali[$id_user][$idPengali])) {
@@ -599,43 +606,88 @@ class D_Gaji extends Controller
     }
 
     /**
+     * Fee gaji_pengali per karyawan (Rp), 0 jika belum di-set.
+     */
+    public function getFeePengaliKaryawan(int $idUser, int $idPengali): int
+    {
+        $idUser = (int) $idUser;
+        $idPengali = (int) $idPengali;
+        if ($idUser < 1 || $idPengali < 1) {
+            return 0;
+        }
+        $row = $this->db(0)->get_where_row(
+            'gaji_pengali',
+            'id_karyawan = ' . $idUser . ' AND id_pengali = ' . $idPengali
+        );
+        if (!is_array($row) || !isset($row['gaji_pengali'])) {
+            return 0;
+        }
+        return (int) $row['gaji_pengali'];
+    }
+
+    /**
+     * Fee efektif: max(fee global snapshot, fee karyawan). Fee karyawan 0 = abaikan.
+     */
+    public function feeEfektifSnapshot(int $feeGlobal, int $feeKaryawan): int
+    {
+        $feeGlobal = (int) $feeGlobal;
+        $feeKaryawan = (int) $feeKaryawan;
+        if ($feeKaryawan > $feeGlobal) {
+            return $feeKaryawan;
+        }
+        return $feeGlobal;
+    }
+
+    /**
      * Hitung qty & jumlah gaji jaga malam dari absen (group by id_cabang)
-     * × fee snapshot total_pendapatan bulan sebelum $dateYm.
+     * × max(fee snapshot cabang, fee karyawan id_pengali=5).
      *
-     * @return array{qty:int,jumlah:int,fee_display:int,by_cabang:array}
+     * @return array{qty:int,jumlah:int,fee_display:int,fee_karyawan:int,by_cabang:array}
      */
     public function hitungJumlahGajiMalam($id_user, $dateYm): array
     {
+        $id_user = (int) $id_user;
         $min = (int) ($this->getFeeFormulas()['malam']['clamp_min'] ?? 14000);
-        return $this->hitungJumlahGajiAbsenSnapshot(
-            (int) $id_user,
+        $feeKaryawan = $this->getFeePengaliKaryawan($id_user, 5);
+        $fallback = $this->feeEfektifSnapshot($min, $feeKaryawan);
+        $result = $this->hitungJumlahGajiAbsenSnapshot(
+            $id_user,
             $dateYm,
             1,
-            function ($pendapatan) {
-                return $this->feeMalamDariPendapatan($pendapatan);
+            function ($pendapatan) use ($feeKaryawan) {
+                $global = $this->feeMalamDariPendapatan($pendapatan);
+                return $this->feeEfektifSnapshot($global, $feeKaryawan);
             },
-            $min
+            $fallback
         );
+        $result['fee_karyawan'] = $feeKaryawan;
+        return $result;
     }
 
     /**
      * Hitung qty & jumlah gaji Cuci dari absen jenis=0 (group by id_cabang)
-     * × fee snapshot total_pendapatan bulan sebelum $dateYm.
+     * × max(fee snapshot cabang, fee karyawan id_pengali=6).
      *
-     * @return array{qty:int,jumlah:int,fee_display:int,by_cabang:array}
+     * @return array{qty:int,jumlah:int,fee_display:int,fee_karyawan:int,by_cabang:array}
      */
     public function hitungJumlahGajiCuci($id_user, $dateYm): array
     {
+        $id_user = (int) $id_user;
         $min = (int) ($this->getFeeFormulas()['cuci']['clamp_min'] ?? 65000);
-        return $this->hitungJumlahGajiAbsenSnapshot(
-            (int) $id_user,
+        $feeKaryawan = $this->getFeePengaliKaryawan($id_user, 6);
+        $fallback = $this->feeEfektifSnapshot($min, $feeKaryawan);
+        $result = $this->hitungJumlahGajiAbsenSnapshot(
+            $id_user,
             $dateYm,
             0,
-            function ($pendapatan) {
-                return $this->feeCuciDariPendapatan($pendapatan);
+            function ($pendapatan) use ($feeKaryawan) {
+                $global = $this->feeCuciDariPendapatan($pendapatan);
+                return $this->feeEfektifSnapshot($global, $feeKaryawan);
             },
-            $min
+            $fallback
         );
+        $result['fee_karyawan'] = $feeKaryawan;
+        return $result;
     }
 
     /**
