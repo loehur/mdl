@@ -269,4 +269,86 @@ class GajiPengaturan extends Controller
          echo $do['error'] ?? 'Gagal hapus';
       }
    }
+
+   /**
+    * Preview fee snapshot semua cabang untuk rumus malam/cuci.
+    * Fee bulan Y-m dihitung dari pendapatan snapshot mode=2 bulan sebelumnya.
+    * GET/POST: kode=malam|cuci, ym=YYYY-MM (opsional, default bulan ini).
+    */
+   public function previewFeeCabang()
+   {
+      header('Content-Type: application/json; charset=utf-8');
+
+      $kode = (string) ($_REQUEST['kode'] ?? '');
+      if (!isset($this->formulaDefaults[$kode])) {
+         echo json_encode(['ok' => 0, 'msg' => 'Kode tidak valid']);
+         return;
+      }
+
+      $ym = trim((string) ($_REQUEST['ym'] ?? date('Y-m')));
+      if (!preg_match('/^\d{4}-\d{2}$/', $ym)) {
+         $ym = date('Y-m');
+      }
+      $periodeLalu = date('Y-m', strtotime($ym . '-01 -1 month'));
+
+      $formulas = $this->loadFeeFormulas();
+      $f = $formulas[$kode];
+      $pengali = (float) $f['pengali'];
+      $clampMin = (int) $f['clamp_min'];
+      $clampMax = (int) $f['clamp_max'];
+
+      $dGaji = $this->helper('D_Gaji');
+      $listCabang = $this->getCabangOperasional();
+      if (!is_array($listCabang)) {
+         $listCabang = [];
+      }
+
+      $rows = [];
+      foreach ($listCabang as $c) {
+         $idCabang = (int) ($c['id_cabang'] ?? 0);
+         if ($idCabang < 1) {
+            continue;
+         }
+         $pendapatan = $dGaji->getSnapshotTotalPendapatanCabang($idCabang, $periodeLalu);
+         $hasSnapshot = ($pendapatan !== null);
+         if ($kode === 'malam') {
+            $fee = $dGaji->feeMalamDariPendapatan($pendapatan);
+         } else {
+            $fee = $dGaji->feeCuciDariPendapatan($pendapatan);
+         }
+
+         $raw = null;
+         if ($hasSnapshot) {
+            $raw = (int) round((((float) $pendapatan) / 1000) * $pengali);
+         }
+
+         $rows[] = [
+            'id_cabang' => $idCabang,
+            'kode_cabang' => (string) ($c['kode_cabang'] ?? ('#' . $idCabang)),
+            'alamat' => (string) ($c['alamat'] ?? ''),
+            'pendapatan' => $hasSnapshot ? (int) $pendapatan : null,
+            'fee_raw' => $raw,
+            'fee' => (int) $fee,
+            'has_snapshot' => $hasSnapshot ? 1 : 0,
+            'clamped' => ($hasSnapshot && $raw !== null && ($raw < $clampMin || $raw > $clampMax)) ? 1 : 0,
+         ];
+      }
+
+      usort($rows, function ($a, $b) {
+         return strcmp($a['kode_cabang'], $b['kode_cabang']);
+      });
+
+      $label = $kode === 'malam' ? 'Jaga Malam' : 'Cuci';
+      echo json_encode([
+         'ok' => 1,
+         'kode' => $kode,
+         'label' => $label,
+         'ym' => $ym,
+         'periode_lalu' => $periodeLalu,
+         'pengali' => $pengali,
+         'clamp_min' => $clampMin,
+         'clamp_max' => $clampMax,
+         'rows' => $rows,
+      ]);
+   }
 }
