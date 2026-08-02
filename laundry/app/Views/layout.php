@@ -1043,6 +1043,141 @@ if (isset($data['data_operasi'])) {
             box-shadow: 0 2px 8px rgba(220, 38, 38, 0.28);
         }
 
+        /* ===== Admin Key modal (theme) ===== */
+        .mdl-key-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 2100;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+        .mdl-key-modal.is-open {
+            display: flex;
+        }
+        .mdl-key-modal__backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.55);
+        }
+        .mdl-key-modal__panel {
+            position: relative;
+            width: 100%;
+            max-width: 360px;
+            background: #fff;
+            border: 1px solid var(--mdl-ink);
+            box-shadow: var(--mdl-shadow);
+            z-index: 1;
+        }
+        .mdl-key-modal__head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--mdl-line-soft);
+            background: linear-gradient(180deg, #fef2f2, #fff);
+        }
+        .mdl-key-modal__head h3 {
+            margin: 0;
+            font-family: 'fontku', sans-serif;
+            font-size: 15px;
+            font-weight: 900;
+            color: var(--mdl-admin-deep);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .mdl-key-modal__close {
+            border: 1px solid var(--mdl-line);
+            background: #fff;
+            color: var(--mdl-ink-soft);
+            width: 32px;
+            height: 32px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        .mdl-key-modal__close:hover {
+            background: #f1f5f9;
+            color: var(--mdl-ink);
+        }
+        .mdl-key-modal__body {
+            padding: 14px;
+        }
+        .mdl-key-modal__body p {
+            margin: 0 0 10px;
+            font-size: 13px;
+            color: var(--mdl-ink-soft);
+            font-weight: 700;
+        }
+        .mdl-key-modal__input {
+            width: 100%;
+            height: 44px;
+            border: 1px solid var(--mdl-line);
+            background: #f8fafc;
+            color: var(--mdl-ink);
+            font-family: monospace;
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: 0.35em;
+            text-align: center;
+            outline: none;
+        }
+        .mdl-key-modal__input:focus {
+            border-color: var(--mdl-admin);
+            background: #fff;
+            box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.18);
+        }
+        .mdl-key-modal__msg {
+            min-height: 18px;
+            margin-top: 8px;
+            font-size: 12px;
+            font-weight: 800;
+            color: var(--mdl-admin);
+        }
+        .mdl-key-modal__foot {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            padding: 12px 14px;
+            border-top: 1px solid var(--mdl-line-soft);
+            background: #f8fafc;
+        }
+        .mdl-key-modal__btn {
+            height: 36px;
+            padding: 0 14px;
+            border: 1px solid var(--mdl-line);
+            background: #fff;
+            color: var(--mdl-ink-soft);
+            font-family: 'fontku', sans-serif;
+            font-size: 13px;
+            font-weight: 900;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .mdl-key-modal__btn:hover {
+            background: #e2e8f0;
+            color: var(--mdl-ink);
+        }
+        .mdl-key-modal__btn--primary {
+            border-color: var(--mdl-admin-deep);
+            background: var(--mdl-admin);
+            color: #fff;
+        }
+        .mdl-key-modal__btn--primary:hover {
+            background: var(--mdl-admin-deep);
+            color: #fff;
+        }
+        .mdl-key-modal__btn:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+
         /* ===== Sidebar menu card ===== */
         .mdl-side-nav {
             margin: 0 10px 12px;
@@ -1426,15 +1561,19 @@ if (isset($_SESSION['log_mode'])) {
 } else {
     $log_mode = 0;
 }
-// Idle mode Admin: paksa kembali ke Kasir
-if ((int) ($this->id_privilege ?? 0) === 100 && $log_mode === 1) {
+// Unlock Admin: idle 10 menit → kunci lagi (perlu key untuk masuk Admin)
+$adminUnlocked = 0;
+if ((int) ($this->id_privilege ?? 0) === 100 && !empty($_SESSION['admin_unlocked'])) {
     $lastActive = (int) ($_SESSION['admin_mode_last_active'] ?? 0);
     if ($lastActive > 0 && (time() - $lastActive) > $adminIdleLimitSec) {
         $_SESSION['log_mode'] = 0;
-        unset($_SESSION['admin_mode_last_active']);
+        unset($_SESSION['admin_unlocked'], $_SESSION['admin_mode_last_active']);
         $log_mode = 0;
+        $adminUnlocked = 0;
     } else {
         $_SESSION['admin_mode_last_active'] = time();
+        $adminUnlocked = 1;
+        $log_mode = (int) ($_SESSION['log_mode'] ?? 0);
     }
 }
 if ($log_mode == 1) {
@@ -1859,6 +1998,29 @@ if ($privUi === 100) {
             </div>
         </aside>
 
+        <?php if ((int) ($this->id_privilege ?? 0) === 100) { ?>
+        <div class="mdl-key-modal" id="modalAdminKey" aria-hidden="true">
+            <div class="mdl-key-modal__backdrop" data-admin-key-close></div>
+            <div class="mdl-key-modal__panel" role="dialog" aria-modal="true" aria-labelledby="modalAdminKeyLabel">
+                <div class="mdl-key-modal__head">
+                    <h3 id="modalAdminKeyLabel"><i class="fas fa-user-shield"></i> Admin Key</h3>
+                    <button type="button" class="mdl-key-modal__close" data-admin-key-close aria-label="Tutup"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="mdl-key-modal__body">
+                    <p>Masukkan Admin Key 4 digit untuk membuka mode Admin.</p>
+                    <input type="password" id="adminKeyInput" class="mdl-key-modal__input" inputmode="numeric" maxlength="4" autocomplete="one-time-code" placeholder="••••">
+                    <div class="mdl-key-modal__msg" id="adminKeyMsg"></div>
+                </div>
+                <div class="mdl-key-modal__foot">
+                    <button type="button" class="mdl-key-modal__btn" data-admin-key-close>Batal</button>
+                    <button type="button" class="mdl-key-modal__btn mdl-key-modal__btn--primary" id="btnAdminKeySubmit">
+                        <i class="fas fa-unlock"></i> Buka Admin
+                    </button>
+                </div>
+            </div>
+        </div>
+        <?php } ?>
+
         <span data-bs-dismiss="modal"></span>
         <div class="content-wrapper px-2 pt-2" style="min-width: 0; max-width: 100vw;">
             <script src="<?= URL::EX_ASSETS ?>js/jquery-3.6.0.min.js"></script>
@@ -2035,13 +2197,95 @@ if ($privUi === 100) {
                     });
                 });
 
+                (function initAdminKeyModal() {
+                    var $keyModal = $("#modalAdminKey");
+                    if (!$keyModal.length) return;
+
+                    var $keyInput = $("#adminKeyInput");
+                    var $keyMsg = $("#adminKeyMsg");
+                    var keySubmitHandler = null;
+
+                    function notify(msg, type) {
+                        if (window.MdlToast) {
+                            if (type === 'warn' || type === 'warning') MdlToast.warn(msg);
+                            else if (type === 'error' || type === 'danger') MdlToast.error(msg);
+                            else if (type === 'ok' || type === 'success') MdlToast.ok(msg);
+                            else MdlToast.info(msg);
+                        } else {
+                            alert(msg);
+                        }
+                    }
+
+                    function closeKeyModal() {
+                        $keyModal.removeClass("is-open").attr("aria-hidden", "true");
+                        $keyInput.val("");
+                        $keyMsg.text("");
+                        keySubmitHandler = null;
+                    }
+
+                    function openKeyModal(onSubmit) {
+                        keySubmitHandler = onSubmit;
+                        $keyMsg.text("");
+                        $keyInput.val("");
+                        $keyModal.addClass("is-open").attr("aria-hidden", "false");
+                        setTimeout(function() { $keyInput.trigger("focus"); }, 50);
+                    }
+
+                    $keyModal.on('click', '[data-admin-key-close]', function() {
+                        closeKeyModal();
+                    });
+                    $('#btnAdminKeySubmit').on('click', function() {
+                        var key = String($keyInput.val() || '').trim();
+                        if (!/^\d{4}$/.test(key)) {
+                            $keyMsg.text('Key harus 4 digit angka');
+                            return;
+                        }
+                        if (typeof keySubmitHandler === 'function') {
+                            keySubmitHandler(key);
+                        }
+                    });
+                    $keyInput.on('input', function() {
+                        this.value = this.value.replace(/\D/g, '').slice(0, 4);
+                        $keyMsg.text('');
+                    });
+                    $keyInput.on('keydown', function(e) {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            $('#btnAdminKeySubmit').click();
+                        }
+                        if (e.key === 'Escape') {
+                            closeKeyModal();
+                        }
+                    });
+
+                    window.MDL_adminKeyModal = {
+                        open: openKeyModal,
+                        close: closeKeyModal,
+                        setError: function(msg) { $keyMsg.text(msg || ''); },
+                        notify: notify
+                    };
+                })();
+
                 $("#roleSwitch .role-btn").on("click", function() {
                     var mode = parseInt($(this).data("mode"), 10);
                     if ($(this).hasClass("is-active")) {
                         return;
                     }
 
-                    var applyModeUi = function(mode) {
+                    var notify = (window.MDL_adminKeyModal && window.MDL_adminKeyModal.notify)
+                        ? window.MDL_adminKeyModal.notify
+                        : function(msg, type) {
+                            if (window.MdlToast) {
+                                if (type === 'warn' || type === 'warning') MdlToast.warn(msg);
+                                else if (type === 'error' || type === 'danger') MdlToast.error(msg);
+                                else if (type === 'ok' || type === 'success') MdlToast.ok(msg);
+                                else MdlToast.info(msg);
+                            } else {
+                                alert(msg);
+                            }
+                        };
+
+                    var applyModeUi = function(mode, unlockedFlag) {
                         $("#roleSwitch .role-btn").removeClass("is-active");
                         $('#roleSwitch .role-btn[data-mode="' + mode + '"]').addClass("is-active");
                         if (mode === 0) {
@@ -2056,7 +2300,7 @@ if ($privUi === 100) {
                             $("#nav_3").removeClass("d-none");
                         }
                         if (window.MDL_adminIdle) {
-                            window.MDL_adminIdle.setMode(mode);
+                            window.MDL_adminIdle.setMode(mode, unlockedFlag);
                         }
                     };
 
@@ -2068,37 +2312,42 @@ if ($privUi === 100) {
                             dataType: "json",
                             success: function(res) {
                                 if (res && res.ok == 1) {
-                                    applyModeUi(mode);
+                                    if (window.MDL_adminKeyModal) window.MDL_adminKeyModal.close();
+                                    applyModeUi(mode, typeof res.unlocked !== 'undefined' ? res.unlocked : (mode === 1 ? 1 : undefined));
                                     if (mode === 1 && res.bootstrap == 1 && res.msg) {
-                                        alert(res.msg);
+                                        notify(res.msg, 'warn');
                                     }
                                     return;
                                 }
                                 if (mode === 1 && res && res.need_key == 1 && typeof afterFailNeedKey === 'function') {
-                                    afterFailNeedKey();
+                                    afterFailNeedKey(res);
                                     return;
                                 }
-                                alert((res && res.msg) || 'Gagal ganti mode');
+                                if (window.MDL_adminKeyModal && $("#modalAdminKey").hasClass("is-open")) {
+                                    window.MDL_adminKeyModal.setError((res && res.msg) || 'Gagal ganti mode');
+                                    return;
+                                }
+                                notify((res && res.msg) || 'Gagal ganti mode', 'error');
                             },
                             error: function() {
-                                alert('Gagal ganti mode');
+                                if (window.MDL_adminKeyModal && $("#modalAdminKey").hasClass("is-open")) {
+                                    window.MDL_adminKeyModal.setError('Gagal ganti mode');
+                                    return;
+                                }
+                                notify('Gagal ganti mode', 'error');
                             }
                         });
                     };
 
                     if (mode === 1) {
-                        // Coba tanpa key dulu (bootstrap jika belum ada key di DB)
                         postMode('', function() {
-                            var key = window.prompt('Masukkan Admin Key (4 digit):');
-                            if (key === null) {
-                                return;
+                            if (window.MDL_adminKeyModal) {
+                                window.MDL_adminKeyModal.open(function(key) {
+                                    postMode(key);
+                                });
+                            } else {
+                                notify('Modal Admin Key tidak tersedia', 'error');
                             }
-                            key = String(key).trim();
-                            if (!/^\d{4}$/.test(key)) {
-                                alert('Key harus 4 digit angka');
-                                return;
-                            }
-                            postMode(key);
                         });
                     } else {
                         postMode('');
@@ -2110,8 +2359,14 @@ if ($privUi === 100) {
                     var IDLE_MS = <?= (int) $adminIdleLimitSec ?> * 1000;
                     var PING_MS = 30000;
                     var mode = <?= (int) $log_mode ?>;
+                    var unlocked = <?= (int) $adminUnlocked ?>;
                     var idleTimer = null;
                     var lastPing = 0;
+
+                    function idleNotify(msg) {
+                        if (window.MdlToast) MdlToast.warn(msg);
+                        else alert(msg);
+                    }
 
                     function applyKasirUi() {
                         $("#roleSwitch .role-btn").removeClass("is-active");
@@ -2122,29 +2377,30 @@ if ($privUi === 100) {
                         $("#nav_3").addClass("d-none");
                     }
 
-                    function forceKasir(showAlert) {
+                    function forceLock(showAlert) {
                         mode = 0;
+                        unlocked = 0;
                         clearTimeout(idleTimer);
                         idleTimer = null;
                         $.ajax({
                             url: "<?= URL::BASE_URL ?>Login/log_mode",
-                            data: { mode: 0 },
+                            data: { mode: 0, lock: 1 },
                             type: "POST",
                             dataType: "json",
                             complete: function () {
                                 applyKasirUi();
                                 if (showAlert) {
-                                    alert('Mode Admin berakhir karena idle 10 menit. Kembali ke Kasir.');
+                                    idleNotify('Mode Admin berakhir karena idle 10 menit. Kembali ke Kasir.');
                                 }
                             }
                         });
                     }
 
                     function resetIdle() {
-                        if (mode !== 1) return;
+                        if (!unlocked) return;
                         clearTimeout(idleTimer);
                         idleTimer = setTimeout(function () {
-                            forceKasir(true);
+                            forceLock(true);
                         }, IDLE_MS);
 
                         var now = Date.now();
@@ -2157,9 +2413,10 @@ if ($privUi === 100) {
                                 success: function (res) {
                                     if (res && res.expired == 1) {
                                         mode = 0;
+                                        unlocked = 0;
                                         clearTimeout(idleTimer);
                                         applyKasirUi();
-                                        alert('Mode Admin berakhir karena idle 10 menit. Kembali ke Kasir.');
+                                        idleNotify('Mode Admin berakhir karena idle 10 menit. Kembali ke Kasir.');
                                     }
                                 }
                             });
@@ -2167,19 +2424,26 @@ if ($privUi === 100) {
                     }
 
                     window.MDL_adminIdle = {
-                        setMode: function (m) {
+                        setMode: function (m, isUnlocked) {
                             mode = parseInt(m, 10) || 0;
-                            if (mode === 1) {
+                            if (typeof isUnlocked !== 'undefined') {
+                                unlocked = isUnlocked ? 1 : 0;
+                            } else if (mode === 1) {
+                                unlocked = 1;
+                            }
+                            // mode Kasir manual: tetap unlocked + idle jalan
+                            if (unlocked) {
                                 lastPing = 0;
                                 resetIdle();
                             } else {
                                 clearTimeout(idleTimer);
                                 idleTimer = null;
                             }
-                        }
+                        },
+                        isUnlocked: function () { return !!unlocked; }
                     };
 
-                    if (mode === 1) {
+                    if (unlocked) {
                         resetIdle();
                     }
 

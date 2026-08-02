@@ -634,10 +634,13 @@ class Login extends Controller
          return;
       }
 
+      $idleLimit = 600; // 10 menit
       $mode = (int) ($_POST['mode'] ?? 0);
       if ($mode === 1) {
          $hasKey = $this->hasAdminAccessKey();
-         if ($hasKey) {
+         $unlocked = $this->isAdminUnlocked($idleLimit);
+
+         if ($hasKey && !$unlocked) {
             $key = trim((string) ($_POST['key'] ?? ''));
             if ($key === '') {
                echo json_encode([
@@ -657,11 +660,12 @@ class Login extends Controller
             }
          }
 
-         unset($_SESSION['log_mode']);
          $_SESSION['log_mode'] = 1;
+         $_SESSION['admin_unlocked'] = 1;
          $_SESSION['admin_mode_last_active'] = time();
          echo json_encode([
             'ok' => 1,
+            'unlocked' => 1,
             'bootstrap' => $hasKey ? 0 : 1,
             'msg' => $hasKey
                ? ''
@@ -670,14 +674,22 @@ class Login extends Controller
          return;
       }
 
-      unset($_SESSION['log_mode']);
+      // mode Kasir: lock=1 = idle/force (tutup unlock), selain itu tetap boleh bolak-balik Admin
+      $lock = (int) ($_POST['lock'] ?? 0);
       $_SESSION['log_mode'] = 0;
-      unset($_SESSION['admin_mode_last_active']);
-      echo json_encode(['ok' => 1]);
+      if ($lock === 1) {
+         unset($_SESSION['admin_unlocked'], $_SESSION['admin_mode_last_active']);
+      } elseif (!empty($_SESSION['admin_unlocked'])) {
+         $_SESSION['admin_mode_last_active'] = time();
+      }
+      echo json_encode([
+         'ok' => 1,
+         'unlocked' => !empty($_SESSION['admin_unlocked']) ? 1 : 0,
+      ]);
    }
 
    /**
-    * Touch idle timer mode Admin (dipanggil dari browser saat ada aktivitas).
+    * Touch idle timer unlock Admin (aktif meski sedang tampilan Kasir).
     */
    public function admin_mode_ping()
    {
@@ -689,22 +701,48 @@ class Login extends Controller
          return;
       }
 
-      if ((int) ($_SESSION['log_mode'] ?? 0) !== 1) {
-         echo json_encode(['ok' => 0, 'mode' => 0]);
+      $idleLimit = 600; // 10 menit
+      if (empty($_SESSION['admin_unlocked'])) {
+         echo json_encode([
+            'ok' => 0,
+            'mode' => (int) ($_SESSION['log_mode'] ?? 0),
+            'unlocked' => 0,
+         ]);
          return;
       }
 
-      $idleLimit = 600; // 10 menit
       $last = (int) ($_SESSION['admin_mode_last_active'] ?? 0);
       if ($last > 0 && (time() - $last) > $idleLimit) {
          $_SESSION['log_mode'] = 0;
-         unset($_SESSION['admin_mode_last_active']);
-         echo json_encode(['ok' => 0, 'mode' => 0, 'expired' => 1]);
+         unset($_SESSION['admin_unlocked'], $_SESSION['admin_mode_last_active']);
+         echo json_encode(['ok' => 0, 'mode' => 0, 'unlocked' => 0, 'expired' => 1]);
          return;
       }
 
       $_SESSION['admin_mode_last_active'] = time();
-      echo json_encode(['ok' => 1, 'mode' => 1]);
+      echo json_encode([
+         'ok' => 1,
+         'mode' => (int) ($_SESSION['log_mode'] ?? 0),
+         'unlocked' => 1,
+      ]);
+   }
+
+   /**
+    * True jika session masih unlocked dan belum lewat idle limit.
+    * Jika lewat idle: bersihkan unlock.
+    */
+   private function isAdminUnlocked(int $idleLimit = 600): bool
+   {
+      if (empty($_SESSION['admin_unlocked'])) {
+         return false;
+      }
+      $last = (int) ($_SESSION['admin_mode_last_active'] ?? 0);
+      if ($last > 0 && (time() - $last) > $idleLimit) {
+         $_SESSION['log_mode'] = 0;
+         unset($_SESSION['admin_unlocked'], $_SESSION['admin_mode_last_active']);
+         return false;
+      }
+      return true;
    }
 
    /**

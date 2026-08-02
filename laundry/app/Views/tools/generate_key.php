@@ -54,10 +54,102 @@ $hpMask = (string) ($data['hp_mask'] ?? '');
   </div>
 </div>
 
+<div class="mdl-key-modal" id="modalGkConfirm" aria-hidden="true">
+  <div class="mdl-key-modal__backdrop" data-gk-confirm-close></div>
+  <div class="mdl-key-modal__panel" role="dialog" aria-modal="true" aria-labelledby="modalGkConfirmLabel">
+    <div class="mdl-key-modal__head">
+      <h3 id="modalGkConfirmLabel"><i class="fas fa-key"></i> Generate Key</h3>
+      <button type="button" class="mdl-key-modal__close" data-gk-confirm-close aria-label="Tutup"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="mdl-key-modal__body">
+      <p>Generate key baru? Key lama tidak berlaku lagi.</p>
+    </div>
+    <div class="mdl-key-modal__foot">
+      <button type="button" class="mdl-key-modal__btn" data-gk-confirm-close>Batal</button>
+      <button type="button" class="mdl-key-modal__btn mdl-key-modal__btn--primary" id="gkBtnConfirmYes">
+        <i class="fas fa-check"></i> Ya, Generate
+      </button>
+    </div>
+  </div>
+</div>
+
 <script>
 (function () {
   var root = document.getElementById('generate-key-root');
   if (!root) return;
+
+  function notify(msg, type) {
+    if (window.MdlToast) {
+      if (type === 'warn' || type === 'warning') MdlToast.warn(msg);
+      else if (type === 'error' || type === 'danger') MdlToast.error(msg);
+      else if (type === 'ok' || type === 'success') MdlToast.ok(msg);
+      else MdlToast.info(msg);
+    } else {
+      alert(msg);
+    }
+  }
+
+  var $confirmModal = $('#modalGkConfirm');
+
+  function openConfirmModal() {
+    $confirmModal.addClass('is-open').attr('aria-hidden', 'false');
+  }
+
+  function closeConfirmModal() {
+    $confirmModal.removeClass('is-open').attr('aria-hidden', 'true');
+  }
+
+  function doGenerate() {
+    var $btn = $('#gkBtnGenerate');
+    var $confirmBtn = $('#gkBtnConfirmYes');
+    $btn.prop('disabled', true);
+    $confirmBtn.prop('disabled', true);
+    $.ajax({
+      url: '<?= URL::BASE_URL ?>GenerateKey/generate',
+      type: 'POST',
+      dataType: 'json',
+      success: function (res) {
+        $btn.prop('disabled', false);
+        $confirmBtn.prop('disabled', false);
+        closeConfirmModal();
+        if (res && res.ok == 1 && res.key) {
+          $('#gkReveal').removeClass('d-none');
+          $('#gkKeyValue').text(res.key);
+          $('#gkRevealMsg').text(res.msg || '');
+          $('#gkGenStep').addClass('d-none');
+          $('#gkPinStep').removeClass('d-none');
+          $('#gkPin').val('');
+          $('#gkPinMsg').text('');
+          $('#gkReqMsg').text('');
+          notify('Key berhasil digenerate. Salin sekarang.', 'ok');
+        } else {
+          notify((res && res.msg) || 'Gagal generate', 'error');
+          if (res && res.msg && String(res.msg).toLowerCase().indexOf('pin') >= 0) {
+            $('#gkGenStep').addClass('d-none');
+            $('#gkPinStep').removeClass('d-none');
+          }
+        }
+      },
+      error: function () {
+        $btn.prop('disabled', false);
+        $confirmBtn.prop('disabled', false);
+        closeConfirmModal();
+        notify('Gagal generate', 'error');
+      }
+    });
+  }
+
+  $confirmModal.on('click', '[data-gk-confirm-close]', function () {
+    closeConfirmModal();
+  });
+  $(document).on('keydown.gkConfirm', function (e) {
+    if (e.key === 'Escape' && $confirmModal.hasClass('is-open')) {
+      closeConfirmModal();
+    }
+  });
+  $('#gkBtnConfirmYes').on('click', function () {
+    doGenerate();
+  });
 
   $('#gkBtnReqPin').on('click', function () {
     var $btn = $(this);
@@ -120,37 +212,7 @@ $hpMask = (string) ($data['hp_mask'] ?? '');
   });
 
   $('#gkBtnGenerate').on('click', function () {
-    if (!confirm('Generate key baru? Key lama tidak berlaku lagi.')) return;
-    var $btn = $(this);
-    $btn.prop('disabled', true);
-    $.ajax({
-      url: '<?= URL::BASE_URL ?>GenerateKey/generate',
-      type: 'POST',
-      dataType: 'json',
-      success: function (res) {
-        $btn.prop('disabled', false);
-        if (res && res.ok == 1 && res.key) {
-          $('#gkReveal').removeClass('d-none');
-          $('#gkKeyValue').text(res.key);
-          $('#gkRevealMsg').text(res.msg || '');
-          $('#gkGenStep').addClass('d-none');
-          $('#gkPinStep').removeClass('d-none');
-          $('#gkPin').val('');
-          $('#gkPinMsg').text('');
-          $('#gkReqMsg').text('');
-        } else {
-          alert((res && res.msg) || 'Gagal generate');
-          if (res && res.msg && String(res.msg).toLowerCase().indexOf('pin') >= 0) {
-            $('#gkGenStep').addClass('d-none');
-            $('#gkPinStep').removeClass('d-none');
-          }
-        }
-      },
-      error: function () {
-        $btn.prop('disabled', false);
-        alert('Gagal generate');
-      }
-    });
+    openConfirmModal();
   });
 })();
 </script>
