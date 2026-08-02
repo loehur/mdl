@@ -2,6 +2,7 @@
 $hasKey = !empty($data['has_key']);
 $createdAt = $data['created_at'] ?? null;
 $pinOk = !empty($data['pin_ok']);
+$hpMask = (string) ($data['hp_mask'] ?? '');
 ?>
 <div class="content mt-3" id="generate-key-root" style="max-width: 480px;">
   <div class="card border-0 mb-3">
@@ -9,7 +10,8 @@ $pinOk = !empty($data['pin_ok']);
       <h6 class="mb-2">Admin Access Key</h6>
       <p class="small text-muted mb-3">
         Key 4 digit untuk membuka mode Admin di layout.
-        Key hanya ditampilkan sekali saat generate. Jika lupa, generate ulang.
+        Request PIN dulu via WhatsApp (aktif 5 menit), lalu generate.
+        Key hanya ditampilkan sekali. Jika lupa, generate ulang.
       </p>
 
       <?php if ($hasKey) { ?>
@@ -22,9 +24,17 @@ $pinOk = !empty($data['pin_ok']);
       <?php } ?>
 
       <div id="gkPinStep" class="<?= $pinOk ? 'd-none' : '' ?>">
-        <label class="form-label small mb-1">PIN (sama seperti login)</label>
+        <div class="small text-muted mb-2">
+          PIN dikirim ke WA<?= $hpMask !== '' ? ': <strong>' . htmlspecialchars($hpMask) . '</strong>' : '' ?>
+        </div>
+        <button type="button" class="btn btn-outline-dark btn-sm mb-3" id="gkBtnReqPin">
+          Request PIN
+        </button>
+        <div id="gkReqMsg" class="small text-muted mb-3"></div>
+
+        <label class="form-label small mb-1">Masukkan PIN dari WhatsApp</label>
         <div class="input-group input-group-sm mb-2">
-          <input type="password" id="gkPin" class="form-control" inputmode="numeric" maxlength="8" autocomplete="one-time-code" placeholder="PIN">
+          <input type="password" id="gkPin" class="form-control" inputmode="numeric" maxlength="4" autocomplete="one-time-code" placeholder="4 digit">
           <button type="button" class="btn btn-dark" id="gkBtnPin">Verifikasi PIN</button>
         </div>
         <div id="gkPinMsg" class="small text-muted"></div>
@@ -37,7 +47,7 @@ $pinOk = !empty($data['pin_ok']);
 
       <div id="gkReveal" class="d-none mt-3 p-3 border rounded text-center bg-light">
         <div class="small text-muted mb-1">Key (salin sekarang — tidak muncul lagi)</div>
-        <div id="gkKeyValue" class="display-4 fw-bold letter-spacing tracking" style="letter-spacing: 0.25em; font-family: monospace;"></div>
+        <div id="gkKeyValue" class="display-4 fw-bold" style="letter-spacing: 0.25em; font-family: monospace;"></div>
         <div id="gkRevealMsg" class="small text-danger mt-2"></div>
       </div>
     </div>
@@ -48,6 +58,31 @@ $pinOk = !empty($data['pin_ok']);
 (function () {
   var root = document.getElementById('generate-key-root');
   if (!root) return;
+
+  $('#gkBtnReqPin').on('click', function () {
+    var $btn = $(this);
+    var $msg = $('#gkReqMsg');
+    $btn.prop('disabled', true);
+    $msg.text('Mengirim PIN...').removeClass('text-danger text-success');
+    $.ajax({
+      url: '<?= URL::BASE_URL ?>GenerateKey/reqPin',
+      type: 'POST',
+      dataType: 'json',
+      success: function (res) {
+        $btn.prop('disabled', false);
+        if (res && res.ok == 1) {
+          $msg.addClass('text-success').text(res.msg || 'PIN dikirim');
+          $('#gkPin').focus();
+        } else {
+          $msg.addClass('text-danger').text((res && res.msg) || 'Gagal kirim PIN');
+        }
+      },
+      error: function () {
+        $btn.prop('disabled', false);
+        $msg.addClass('text-danger').text('Gagal kirim PIN');
+      }
+    });
+  });
 
   $('#gkBtnPin').on('click', function () {
     var pin = $('#gkPin').val().trim();
@@ -71,6 +106,10 @@ $pinOk = !empty($data['pin_ok']);
         $msg.addClass('text-danger').text('Gagal verifikasi');
       }
     });
+  });
+
+  $('#gkPin').on('input', function () {
+    this.value = this.value.replace(/\D/g, '').slice(0, 4);
   });
 
   $('#gkPin').on('keydown', function (e) {
@@ -98,9 +137,10 @@ $pinOk = !empty($data['pin_ok']);
           $('#gkPinStep').removeClass('d-none');
           $('#gkPin').val('');
           $('#gkPinMsg').text('');
+          $('#gkReqMsg').text('');
         } else {
           alert((res && res.msg) || 'Gagal generate');
-          if (res && res.msg && String(res.msg).indexOf('PIN') >= 0) {
+          if (res && res.msg && String(res.msg).toLowerCase().indexOf('pin') >= 0) {
             $('#gkGenStep').addClass('d-none');
             $('#gkPinStep').removeClass('d-none');
           }
