@@ -2060,7 +2060,7 @@ if ($privUi === 100) {
                         }
                     };
 
-                    var postMode = function(key) {
+                    var postMode = function(key, afterFailNeedKey) {
                         $.ajax({
                             url: "<?= URL::BASE_URL ?>Login/log_mode",
                             data: { mode: mode, key: key || '' },
@@ -2069,6 +2069,13 @@ if ($privUi === 100) {
                             success: function(res) {
                                 if (res && res.ok == 1) {
                                     applyModeUi(mode);
+                                    if (mode === 1 && res.bootstrap == 1 && res.msg) {
+                                        alert(res.msg);
+                                    }
+                                    return;
+                                }
+                                if (mode === 1 && res && res.need_key == 1 && typeof afterFailNeedKey === 'function') {
+                                    afterFailNeedKey();
                                     return;
                                 }
                                 alert((res && res.msg) || 'Gagal ganti mode');
@@ -2080,16 +2087,19 @@ if ($privUi === 100) {
                     };
 
                     if (mode === 1) {
-                        var key = window.prompt('Masukkan Admin Key (4 digit):');
-                        if (key === null) {
-                            return;
-                        }
-                        key = String(key).trim();
-                        if (!/^\d{4}$/.test(key)) {
-                            alert('Key harus 4 digit angka');
-                            return;
-                        }
-                        postMode(key);
+                        // Coba tanpa key dulu (bootstrap jika belum ada key di DB)
+                        postMode('', function() {
+                            var key = window.prompt('Masukkan Admin Key (4 digit):');
+                            if (key === null) {
+                                return;
+                            }
+                            key = String(key).trim();
+                            if (!/^\d{4}$/.test(key)) {
+                                alert('Key harus 4 digit angka');
+                                return;
+                            }
+                            postMode(key);
+                        });
                     } else {
                         postMode('');
                     }

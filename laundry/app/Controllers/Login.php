@@ -636,15 +636,37 @@ class Login extends Controller
 
       $mode = (int) ($_POST['mode'] ?? 0);
       if ($mode === 1) {
-         $key = trim((string) ($_POST['key'] ?? ''));
-         if (!$this->verifyAdminAccessKey($key)) {
-            echo json_encode(['ok' => 0, 'msg' => 'Admin Key tidak valid']);
-            return;
+         $hasKey = $this->hasAdminAccessKey();
+         if ($hasKey) {
+            $key = trim((string) ($_POST['key'] ?? ''));
+            if ($key === '') {
+               echo json_encode([
+                  'ok' => 0,
+                  'need_key' => 1,
+                  'msg' => 'Admin Key wajib',
+               ]);
+               return;
+            }
+            if (!$this->verifyAdminAccessKey($key)) {
+               echo json_encode([
+                  'ok' => 0,
+                  'need_key' => 1,
+                  'msg' => 'Admin Key tidak valid',
+               ]);
+               return;
+            }
          }
+
          unset($_SESSION['log_mode']);
          $_SESSION['log_mode'] = 1;
          $_SESSION['admin_mode_last_active'] = time();
-         echo json_encode(['ok' => 1]);
+         echo json_encode([
+            'ok' => 1,
+            'bootstrap' => $hasKey ? 0 : 1,
+            'msg' => $hasKey
+               ? ''
+               : 'Belum ada Admin Key. Segera buat di Tools → Generate Key.',
+         ]);
          return;
       }
 
@@ -683,6 +705,15 @@ class Login extends Controller
 
       $_SESSION['admin_mode_last_active'] = time();
       echo json_encode(['ok' => 1, 'mode' => 1]);
+   }
+
+   /**
+    * True jika sudah ada Admin Key di DB.
+    */
+   private function hasAdminAccessKey(): bool
+   {
+      $n = (int) $this->db(0)->count_where('admin_access_key', 'id > 0');
+      return $n > 0;
    }
 
    /**
