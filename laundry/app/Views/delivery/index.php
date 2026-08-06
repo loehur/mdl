@@ -13,6 +13,8 @@ $isEmptyCustomer = empty($customers);
      data-sales-options-url="<?= URL::BASE_URL ?>Delivery/sales_options/"
      data-selesai-url="<?= URL::BASE_URL ?>Delivery/selesai_customer"
      data-batal-url="<?= URL::BASE_URL ?>Delivery/batal_customer"
+     data-terima-pakai-url="<?= URL::BASE_URL ?>Sales/terimaPakai"
+     data-id-cabang="<?= (int) ($this->id_cabang ?? $this->dCabang['id_cabang'] ?? 0) ?>"
      data-ubah-sumber-url="<?= URL::BASE_URL ?>Delivery/ubah_sumber">
   <style>
     #dlv-root {
@@ -205,6 +207,10 @@ $isEmptyCustomer = empty($customers);
       background: linear-gradient(180deg, #ef4444, #b91c1c);
       color: #fff;
     }
+    #dlv-root .dlv-btn--pakai {
+      background: linear-gradient(135deg, #ff6b35 0%, #f7931e 50%, #ffc107 100%);
+      color: #fff;
+    }
     #dlv-root .dlv-btn:disabled { opacity: 0.55; cursor: wait; }
     #dlv-root .dlv-btn--ghost {
       background: #e2e8f0;
@@ -363,6 +369,9 @@ $isEmptyCustomer = empty($customers);
     }
     #dlv-root .op-modal__head--red {
       background: linear-gradient(105deg, #b91c1c 0%, #ef4444 100%);
+    }
+    #dlv-root .op-modal__head--pakai {
+      background: linear-gradient(105deg, #ea580c 0%, #f59e0b 100%);
     }
     #dlv-root .op-modal__confirm-msg {
       margin: 0;
@@ -794,8 +803,46 @@ $isEmptyCustomer = empty($customers);
       <div class="op-modal__body" id="dlvDetailBody">
         <div class="dlv-detail-loading">Memuat…</div>
       </div>
+      <div class="op-modal__foot op-modal__foot--selesai">
+        <button type="button" class="dlv-btn dlv-btn--pakai" id="dlvTerimaPakaiBtn" hidden>
+          <i class="fas fa-bolt"></i> Terima Pakai
+        </button>
+        <div class="op-modal__foot-right">
+          <button type="button" class="dlv-btn dlv-btn--ghost" data-op-close>Tutup</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="op-modal op-modal--confirm" id="dlvTerimaPakaiModal" aria-hidden="true">
+    <div class="op-modal__backdrop" data-op-close></div>
+    <div class="op-modal__panel op-modal__panel--sm" role="dialog" aria-modal="true" aria-labelledby="dlvTerimaPakaiTitle">
+      <div class="op-modal__head op-modal__head--pakai">
+        <div>
+          <h3 id="dlvTerimaPakaiTitle">Terima Pakai</h3>
+          <small id="dlvTerimaPakaiSub">Konfirmasi</small>
+        </div>
+        <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="op-modal__body">
+        <p class="op-modal__confirm-msg">
+          Terima dan langsung pakai semua barang dari
+          <strong id="dlvTerimaPakaiSource">—</strong>?
+        </p>
+        <div class="dlv-ref-box mt-2">
+          <small>No. Ref</small>
+          <strong id="dlvTerimaPakaiRef">—</strong>
+        </div>
+        <p class="dlv-hint mt-2 mb-0">
+          <i class="fas fa-info-circle me-1"></i>
+          Barang akan diterima lalu langsung status Pakai (type=3).
+        </p>
+      </div>
       <div class="op-modal__foot">
-        <button type="button" class="dlv-btn dlv-btn--ghost" data-op-close>Tutup</button>
+        <button type="button" class="dlv-btn dlv-btn--ghost" data-op-close>Batal</button>
+        <button type="button" class="dlv-btn dlv-btn--pakai" id="dlvTerimaPakaiConfirm">
+          <i class="fas fa-bolt"></i> Terima Pakai
+        </button>
       </div>
     </div>
   </div>
@@ -859,8 +906,11 @@ $isEmptyCustomer = empty($customers);
   var salesOptionsUrl = root.getAttribute('data-sales-options-url') || '';
   var selesaiUrl = root.getAttribute('data-selesai-url') || '';
   var batalUrl = root.getAttribute('data-batal-url') || '';
+  var terimaPakaiUrl = root.getAttribute('data-terima-pakai-url') || '';
+  var idCabangAktif = parseInt(root.getAttribute('data-id-cabang') || '0', 10) || 0;
   var ubahSumberUrl = root.getAttribute('data-ubah-sumber-url') || '';
   var karyawanSelectize = null;
+  var detailTerimaPakai = { ref: '', sourceKode: '', targetId: 0 };
 
   function toast(msg, type) {
     if (window.MdlToast) {
@@ -1202,11 +1252,102 @@ $isEmptyCustomer = empty($customers);
     return '<div class="dlv-chat">' + html + '</div>';
   }
 
+  function setTerimaPakaiBtn(data) {
+    var btn = document.getElementById('dlvTerimaPakaiBtn');
+    if (!btn) return;
+    detailTerimaPakai = {
+      ref: (data && data.ref) ? String(data.ref) : '',
+      sourceKode: (data && data.source_kode) ? String(data.source_kode) : '-',
+      targetId: data ? (parseInt(data.target_id, 10) || 0) : 0
+    };
+    // Sama Sales: hanya cabang penerima (target) yang bisa Terima Pakai
+    var can = !!detailTerimaPakai.ref
+      && detailTerimaPakai.targetId > 0
+      && detailTerimaPakai.targetId === idCabangAktif;
+    btn.hidden = !can;
+    btn.disabled = false;
+  }
+
+  function openTerimaPakaiConfirm() {
+    if (!detailTerimaPakai.ref) {
+      toast('Ref tidak valid', 'error');
+      return;
+    }
+    if (detailTerimaPakai.targetId !== idCabangAktif) {
+      toast('Anda bukan cabang penerima barang ini', 'warn');
+      return;
+    }
+    var refEl = document.getElementById('dlvTerimaPakaiRef');
+    var srcEl = document.getElementById('dlvTerimaPakaiSource');
+    var sub = document.getElementById('dlvTerimaPakaiSub');
+    if (refEl) refEl.textContent = '#' + detailTerimaPakai.ref;
+    if (srcEl) srcEl.textContent = detailTerimaPakai.sourceKode || '-';
+    if (sub) sub.textContent = detailTerimaPakai.sourceKode + ' → cabang ini';
+    openModal('dlvTerimaPakaiModal');
+  }
+
+  function confirmTerimaPakai() {
+    var ref = detailTerimaPakai.ref;
+    if (!ref || !terimaPakaiUrl) {
+      toast('Ref tidak valid', 'error');
+      return;
+    }
+    var btn = document.getElementById('dlvTerimaPakaiConfirm');
+    var footBtn = document.getElementById('dlvTerimaPakaiBtn');
+    var fd = new FormData();
+    fd.append('ref', ref);
+    if (btn) btn.disabled = true;
+    if (footBtn) footBtn.disabled = true;
+
+    fetch(terimaPakaiUrl, {
+      method: 'POST',
+      body: fd,
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      credentials: 'same-origin'
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || res.status !== 'success') {
+          toast((res && res.message) || 'Gagal Terima Pakai', 'error');
+          return;
+        }
+        toast(res.message || 'Barang berhasil diterima dan dipakai', 'success');
+        closeModal('dlvTerimaPakaiModal');
+        closeModal('dlvDetailModal');
+        removeTransferItem(ref);
+      })
+      .catch(function () { toast('Gagal Terima Pakai', 'error'); })
+      .finally(function () {
+        if (btn) btn.disabled = false;
+        if (footBtn) footBtn.disabled = false;
+      });
+  }
+
+  function removeTransferItem(ref) {
+    var item = null;
+    root.querySelectorAll('.dlv-item[data-ref]').forEach(function (el) {
+      if (el.getAttribute('data-ref') === String(ref)) item = el;
+    });
+    if (!item) return;
+    var list = item.closest('.dlv-list');
+    var body = item.closest('.dlv-body');
+    item.remove();
+    if (list && !list.querySelector('.dlv-item') && body) {
+      body.innerHTML =
+        '<div class="dlv-empty">' +
+          '<i class="fas fa-truck" aria-hidden="true"></i>' +
+          '<strong>Belum ada order delivery</strong>' +
+          '<span>Transfer barang antar cabang yang belum diterima akan tampil di sini.</span>' +
+        '</div>';
+    }
+  }
+
   function loadDetail(ref, btn) {
     var body = document.getElementById('dlvDetailBody');
     var sub = document.getElementById('dlvDetailSub');
     if (!body) return;
 
+    setTerimaPakaiBtn(null);
     body.innerHTML = '<div class="dlv-detail-loading"><i class="fas fa-spinner fa-spin me-1"></i>Memuat…</div>';
     if (sub) sub.textContent = '#' + ref;
     openModal('dlvDetailModal');
@@ -1220,14 +1361,17 @@ $isEmptyCustomer = empty($customers);
       .then(function (res) {
         if (!res || res.status !== 'success' || !res.data) {
           body.innerHTML = '<div class="dlv-detail-error">' + escapeHtml((res && res.message) || 'Gagal memuat detail') + '</div>';
+          setTerimaPakaiBtn(null);
           return;
         }
         var d = res.data;
         if (sub) sub.textContent = '#' + d.ref + ' · ' + d.source_kode + ' → ' + d.target_kode;
         body.innerHTML = renderDetail(d);
+        setTerimaPakaiBtn(d);
       })
       .catch(function () {
         body.innerHTML = '<div class="dlv-detail-error">Gagal memuat detail</div>';
+        setTerimaPakaiBtn(null);
       })
       .finally(function () {
         if (btn) btn.disabled = false;
@@ -1402,6 +1546,12 @@ $isEmptyCustomer = empty($customers);
 
   var confirmYesBtn = document.getElementById('dlvConfirmYes');
   if (confirmYesBtn) confirmYesBtn.addEventListener('click', confirmBatalDelivery);
+
+  var terimaPakaiBtn = document.getElementById('dlvTerimaPakaiBtn');
+  if (terimaPakaiBtn) terimaPakaiBtn.addEventListener('click', openTerimaPakaiConfirm);
+
+  var terimaPakaiConfirmBtn = document.getElementById('dlvTerimaPakaiConfirm');
+  if (terimaPakaiConfirmBtn) terimaPakaiConfirmBtn.addEventListener('click', confirmTerimaPakai);
 
   var form = document.getElementById('dlvSumberForm');
   if (form) form.addEventListener('submit', submitUbahSumber);

@@ -25,6 +25,7 @@ class Cabang_List extends Controller
       $table  = 'cabang';
       $data = [
          'id_kota' => $_POST["kota"],
+         'nama' => $_POST["nama"],
          'alamat' => $_POST["alamat"],
          'kode_cabang' => $_POST["kode_cabang"],
          'phone_number' => $_POST["phone_number"],
@@ -84,32 +85,29 @@ class Cabang_List extends Controller
 
    public function update()
    {
-      $table  = 'cabang';
-      $id = $_POST['id'];
-      $value = $_POST['value'];
-      $mode = $_POST['mode'];
-
-      if ($mode == 1) {
-         $kolom = "kode_cabang";
-      } else if ($mode == 2) {
-         $kolom = "alamat";
-      } else if ($mode == 4) {
-         $kolom = "phone_number";
-      } else if ($mode == 5) {
-         $kolom = "print_mode";
-         $value = "server"; // hanya print server — mode lain dihapus
-      } else if ($mode == 6) {
-         $kolom = "rent";
-      } else if ($mode == 7) {
-         $kolom = "wifi_pass";
-      } else {
-         $kolom = "id_kota";
+      $this->session_cek(1);
+      $id = (int) ($_POST['id'] ?? 0);
+      if ($id <= 0) {
+         echo 'ID cabang tidak valid';
+         return;
       }
+
       $set = [
-         $kolom => $value
+         'id_kota' => $_POST['kota'] ?? '',
+         'nama' => $_POST['nama'] ?? '',
+         'alamat' => $_POST['alamat'] ?? '',
+         'kode_cabang' => $_POST['kode_cabang'] ?? '',
+         'phone_number' => $_POST['phone_number'] ?? '',
+         'wifi_pass' => $_POST['wifi_pass'] ?? '',
+         'rent' => $_POST['rent'] ?? 0,
       ];
       $where = "id_cabang = $id";
-      $this->db(0)->update($table, $set, $where);
-      $this->dataSynchrone($_SESSION[URL::SESSID]['user']['id_user']);
+      $up = $this->db(0)->update('cabang', $set, $where);
+      if ($up['errno'] == 0) {
+         echo 0;
+         $this->dataSynchrone($_SESSION[URL::SESSID]['user']['id_user']);
+      } else {
+         echo $up['error'];
+      }
    }
 }

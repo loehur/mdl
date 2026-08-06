@@ -1,202 +1,585 @@
-<div class="content">
-  <div class="container-fluid">
-    <div class="row">
-      <div class="col-auto">
-        <div class="card">
-          <div class="card-header">
-            <h4 class="card-title">Data Cabang</h4>
-            <button type="button" class="btn btn-primary float-right" data-bs-toggle="modal" data-bs-target="#exampleModal">
-              +
-            </button>
-          </div>
-          <div class="card-body p-0">
-            <table class="table table-sm">
-              <thead>
-                <tr>
-                  <th>ID Cabang</th>
-                  <th>Kode</th>
-                  <th>Alamat</th>
-                  <th>Area</th>
-                  <th>Phone</th>
-                  <th>Wifi</th>
-                  <th class="text-end">Rent</th>
-                </tr>
-              </thead>
-              <tbody>
-                <?php foreach ($data['data_cabang'] as $a) {
-                  $id = $a['id_cabang'];
-                  $kode = $a['kode_cabang'];
-                  $alamat = $a['alamat'];
-                  $id_kota = $a['id_kota'];
-                  $kota = "";
-                  $phone = isset($a['phone_number']) ? $a['phone_number'] : '';
-                  $phoneDisp = strlen($phone) > 0 ? $phone : '[ ]';
-                  $wifi = isset($a['wifi_pass']) ? $a['wifi_pass'] : '';
-                  $wifiDisp = strlen($wifi) > 0 ? $wifi : '[ ]';
-                  $pmode = 'server';
-                  $rent = isset($a['rent']) ? $a['rent'] : 0;
-                  $isTraining = !empty($a['is_training']);
-                  foreach ($this->dKota as $dk) {
-                    if ($dk['id_kota'] == $id_kota) {
-                      $kota = $dk['nama_kota'];
-                    }
-                  }
-                  echo "<tr" . ($isTraining ? " class='table-warning'" : "") . ">";
-                  echo "<td class='text-right'>" . $id . ($isTraining ? " <span class='badge bg-warning text-dark'>TRAINING</span>" : "") . "</td>";
-                  echo "<td><span class='cell' data-mode='1' data-id_value='" . $id . "' data-value='" . htmlspecialchars($kode, ENT_QUOTES) . "'>" . htmlspecialchars($kode) . "</span></td>";
-                  echo "<td><span class='cell' data-mode='2' data-id_value='" . $id . "' data-value='" . htmlspecialchars($alamat, ENT_QUOTES) . "'>" . htmlspecialchars($alamat) . "</span></td>";
-                  echo "<td><span class='cell' data-mode='3' data-id_value='" . $id . "' data-value='" . $id_kota . "'>" . htmlspecialchars($kota) . "</span></td>";
-                  echo "<td><span class='cell' data-mode='4' data-id_value='" . $id . "' data-value='" . htmlspecialchars($phone, ENT_QUOTES) . "' title='Double click to edit'>" . htmlspecialchars($phoneDisp) . "</span></td>";
-                  echo "<td><span class='cell' data-mode='7' data-id_value='" . $id . "' data-value='" . htmlspecialchars($wifi, ENT_QUOTES) . "' title='Double click to edit'>" . htmlspecialchars($wifiDisp) . "</span></td>";
-                  echo "<td class='text-end'><span class='cell' data-mode='6' data-id_value='" . $id . "' data-value='" . $rent . "' title='Double click to edit'>" . number_format($rent) . "</span></td>";
-                  echo "</tr>";
-                }
-                ?>
-              </tbody>
-            </table>
-          </div>
-        </div>
+<?php
+$kotaOptions = is_array($this->dKota ?? null) ? $this->dKota : [];
+?>
+<div id="cabang-root">
+  <style>
+    #cabang-root {
+      --cb-ink: #0f172a;
+      --cb-muted: #1e293b;
+      --cb-line: #94a3b8;
+      --cb-blue: #2563eb;
+      --cb-blue-deep: #1d4ed8;
+      --cb-green: #16a34a;
+      --cb-green-deep: #15803d;
+      --cb-yellow: #f59e0b;
+      --cb-yellow-deep: #d97706;
+      --cb-red: #dc2626;
+      --cb-radius: 0;
+      --cb-border: 1px;
+      max-width: 720px;
+      width: 100%;
+      margin: 8px 0 24px;
+      font-family: 'fontku', 'Segoe UI', sans-serif;
+    }
+    #cabang-root,
+    #cabang-root .btn,
+    #cabang-root button,
+    #cabang-root input,
+    #cabang-root select,
+    #cabang-root .cb-chip,
+    #cabang-root .op-modal__panel {
+      border-radius: 0 !important;
+    }
+    #cabang-root .cb-shell {
+      min-width: 0;
+      background:
+        radial-gradient(90% 60% at 0% 0%, rgba(37,99,235,.12), transparent 50%),
+        radial-gradient(80% 50% at 100% 0%, rgba(245,158,11,.12), transparent 45%),
+        linear-gradient(180deg, #eef4ff 0%, #f4fff8 55%, #fff8eb 100%);
+      border: 1px solid #cbd5e1;
+      padding: 14px;
+    }
+    #cabang-root .cb-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin: -14px -14px 14px;
+      padding: 14px 16px;
+      background: linear-gradient(105deg, #1d4ed8 0%, #2563eb 100%);
+      color: #fff;
+    }
+    #cabang-root .cb-head h2 {
+      margin: 0;
+      font-size: 0.95rem;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      text-shadow: 0 1px 0 rgba(0,0,0,.18);
+    }
+    #cabang-root .cb-head small {
+      display: block;
+      margin-top: 2px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      opacity: .9;
+    }
+    #cabang-root .cb-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 10px 14px;
+      border: 1px solid transparent;
+      font-size: 0.88rem;
+      font-weight: 900;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    #cabang-root .cb-btn--primary {
+      background: linear-gradient(180deg, var(--cb-green), var(--cb-green-deep));
+      color: #fff;
+    }
+    #cabang-root .cb-btn--blue {
+      background: linear-gradient(180deg, var(--cb-blue), var(--cb-blue-deep));
+      color: #fff;
+    }
+    #cabang-root .cb-btn--ghost {
+      background: #e2e8f0;
+      color: var(--cb-ink);
+      border-color: #cbd5e1;
+    }
+    #cabang-root .cb-btn--sm {
+      padding: 6px 10px;
+      font-size: 0.76rem;
+    }
+    #cabang-root .cb-btn:disabled {
+      opacity: .55;
+      cursor: not-allowed;
+    }
+    #cabang-root .cb-table-wrap {
+      overflow-x: auto;
+      border: 1px solid #93c5fd;
+      background: linear-gradient(180deg, #eff6ff, #fff);
+    }
+    #cabang-root .cb-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0;
+    }
+    #cabang-root .cb-table th,
+    #cabang-root .cb-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #e2e8f0;
+      color: var(--cb-ink);
+      font-size: 0.84rem;
+      vertical-align: middle;
+    }
+    #cabang-root .cb-table th {
+      font-size: 0.72rem;
+      font-weight: 900;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--cb-muted);
+      background: rgba(255,255,255,.65);
+      white-space: nowrap;
+    }
+    #cabang-root .cb-table tbody tr:last-child td {
+      border-bottom: 0;
+    }
+    #cabang-root .cb-table tr.is-training {
+      background: linear-gradient(180deg, #fffbeb, #fff);
+    }
+    #cabang-root .cb-id {
+      font-weight: 900;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      width: 1%;
+    }
+    #cabang-root .cb-kode {
+      font-weight: 900;
+      white-space: nowrap;
+      width: 1%;
+    }
+    #cabang-root .cb-alamat {
+      font-weight: 750;
+      max-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    #cabang-root .cb-actions {
+      width: 1%;
+      white-space: nowrap;
+      text-align: right;
+    }
+    #cabang-root .cb-chip {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 2px 6px;
+      border: 1px solid #fcd34d;
+      background: #fef3c7;
+      color: #92400e;
+      font-size: 0.64rem;
+      font-weight: 900;
+      letter-spacing: 0.03em;
+      vertical-align: middle;
+    }
 
-        <div class="modal" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-          <div class="modal-dialog">
-            <div class="modal-content">
-              <div class="modal-header">
-                <h5 class="modal-title" id="exampleModalLabel">Penambahan Cabang</h5>
-                <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close"> <span aria-hidden="true">&times;</span></button>
-              </div>
-              <div class="modal-body">
-                <div id="info"></div>
-                <form action="<?= URL::BASE_URL; ?>Cabang_List/insert" method="POST">
-                  <div class="card-body">
-                    <div class="form-group">
-                      <label for="exampleInputEmail1">Kota Cabang</label>
-                      <select id="kota" name="kota" class="form-control" required>
-                        <option value="" disabled selected>---</option>
-                        <?php foreach ($this->dKota as $a) { ?>
-                          <option value="<?= $a['id_kota'] ?>"><?= $a['nama_kota'] ?></option>
-                        <?php } ?>
-                      </select>
-                    </div>
-                    <div class="form-group">
-                      <label for="exampleInputEmail1">Alamat</label>
-                      <input type="text" name="alamat" class="form-control form-control-sm" placeholder="" required>
-                    </div>
-                    <div class="form-group">
-                      <label for="exampleInputEmail1">Phone Number</label>
-                      <input type="text" name="phone_number" class="form-control form-control-sm" placeholder="" required>
-                    </div>
-                    <div class="form-group">
-                      <label for="exampleInputEmail1">Wifi Password</label>
-                      <input type="text" name="wifi_pass" class="form-control form-control-sm" placeholder="">
-                    </div>
-                    <div class="form-group">
-                      <label for="exampleInputEmail1">Kode Cabang</label>
-                      <input type="text" name="kode_cabang" class="form-control form-control-sm" placeholder="" required>
-                    </div>
-                    <div class="form-group">
-                      <label for="exampleInputEmail1">Rent</label>
-                      <input type="number" name="rent" class="form-control form-control-sm" placeholder="0" min="0" step="1" value="0">
-                    </div>
-                  </div>
-              </div>
-              <div class="modal-footer">
-                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="submit" class="btn btn-sm btn-primary">Tambah</button>
-              </div>
-              </form>
+    /* Modal (op-modal pattern) */
+    #cabang-root .op-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 5200;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    #cabang-root .op-modal.is-open { display: flex; }
+    #cabang-root .op-modal__backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(15, 23, 42, .55);
+      cursor: pointer;
+    }
+    #cabang-root .op-modal__panel {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 480px;
+      max-height: calc(100vh - 32px);
+      overflow: hidden;
+      background: #fff;
+      border: 1px solid #cbd5e1;
+      box-shadow: 0 24px 48px rgba(15, 23, 42, 0.3);
+      display: flex;
+      flex-direction: column;
+    }
+    #cabang-root .op-modal__head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 14px 16px;
+      color: #fff;
+      font-weight: 900;
+      flex-shrink: 0;
+    }
+    #cabang-root .op-modal__head--blue {
+      background: linear-gradient(105deg, #1d4ed8 0%, #2563eb 100%);
+    }
+    #cabang-root .op-modal__head--green {
+      background: linear-gradient(105deg, #15803d 0%, #16a34a 100%);
+    }
+    #cabang-root .op-modal__head h3 {
+      margin: 0;
+      font-size: 0.95rem;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      text-shadow: 0 1px 0 rgba(0,0,0,.18);
+    }
+    #cabang-root .op-modal__head small {
+      display: block;
+      margin-top: 2px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      opacity: .9;
+    }
+    #cabang-root .op-modal__close {
+      width: 36px;
+      height: 36px;
+      border: 0;
+      background: rgba(255,255,255,.18);
+      color: #fff;
+      font-size: 1rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    #cabang-root .op-modal__close:hover { background: rgba(255,255,255,.32); }
+    #cabang-root .op-modal__body {
+      padding: 14px 16px;
+      background: linear-gradient(180deg, #eff6ff, #fff);
+      overflow-y: auto;
+      flex: 1;
+      min-height: 0;
+    }
+    #cabang-root .op-modal__foot {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 12px 16px;
+      background: #fff;
+      border-top: 1px solid #e2e8f0;
+      flex-shrink: 0;
+    }
+    #cabang-root .cb-field { margin-bottom: 12px; }
+    #cabang-root .cb-field:last-child { margin-bottom: 0; }
+    #cabang-root .cb-label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 0.78rem;
+      font-weight: 900;
+      color: var(--cb-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    #cabang-root .cb-input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--cb-line);
+      background: #fff;
+      color: var(--cb-ink);
+      font-size: 0.88rem;
+      font-weight: 800;
+      outline: none;
+      box-sizing: border-box;
+    }
+    #cabang-root .cb-input:focus {
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22);
+      border-color: var(--cb-blue);
+    }
+    #cabang-root .cb-input:disabled,
+    #cabang-root .cb-input[readonly] {
+      background: #f1f5f9;
+      color: #475569;
+    }
+    #cabang-root select.cb-input {
+      cursor: pointer;
+      appearance: auto;
+      -webkit-appearance: menulist;
+      min-height: 42px;
+    }
+    #cabang-root .cb-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    body.op-modal-open { overflow: hidden; }
+
+    @media (max-width: 560px) {
+      #cabang-root .cb-head {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      #cabang-root .cb-head .cb-btn { width: 100%; }
+      #cabang-root .cb-row { grid-template-columns: 1fr; }
+      #cabang-root .cb-table th:nth-child(3),
+      #cabang-root .cb-table td.cb-alamat {
+        max-width: 42vw;
+      }
+    }
+  </style>
+
+  <div class="cb-shell">
+    <div class="cb-head">
+      <div>
+        <h2>Data Cabang</h2>
+        <small>ID · Kode · Alamat — edit lewat modal</small>
+      </div>
+      <button type="button" class="cb-btn cb-btn--primary" id="btnTambahCabang">
+        <i class="fas fa-plus"></i> Tambah
+      </button>
+    </div>
+
+    <div class="cb-table-wrap">
+      <table class="cb-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Kode</th>
+            <th>Alamat</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php foreach ($data['data_cabang'] as $a) {
+            $id = (int) $a['id_cabang'];
+            $kode = (string) ($a['kode_cabang'] ?? '');
+            $nama = (string) ($a['nama'] ?? '');
+            $alamat = (string) ($a['alamat'] ?? '');
+            $idKota = (string) ($a['id_kota'] ?? '');
+            $phone = (string) ($a['phone_number'] ?? '');
+            $wifi = (string) ($a['wifi_pass'] ?? '');
+            $rent = (int) ($a['rent'] ?? 0);
+            $isTraining = !empty($a['is_training']);
+          ?>
+            <tr class="<?= $isTraining ? 'is-training' : '' ?>">
+              <td class="cb-id">
+                <?= $id ?>
+                <?php if ($isTraining) { ?><span class="cb-chip">TRAINING</span><?php } ?>
+              </td>
+              <td class="cb-kode"><?= htmlspecialchars($kode) ?></td>
+              <td class="cb-alamat" title="<?= htmlspecialchars($alamat) ?>"><?= htmlspecialchars($alamat) ?></td>
+              <td class="cb-actions">
+                <button
+                  type="button"
+                  class="cb-btn cb-btn--blue cb-btn--sm btn-edit-cabang"
+                  data-id="<?= $id ?>"
+                  data-kode="<?= htmlspecialchars($kode, ENT_QUOTES) ?>"
+                  data-nama="<?= htmlspecialchars($nama, ENT_QUOTES) ?>"
+                  data-alamat="<?= htmlspecialchars($alamat, ENT_QUOTES) ?>"
+                  data-kota="<?= htmlspecialchars($idKota, ENT_QUOTES) ?>"
+                  data-phone="<?= htmlspecialchars($phone, ENT_QUOTES) ?>"
+                  data-wifi="<?= htmlspecialchars($wifi, ENT_QUOTES) ?>"
+                  data-rent="<?= $rent ?>"
+                >Edit</button>
+              </td>
+            </tr>
+          <?php } ?>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Modal Tambah / Edit -->
+  <div class="op-modal" id="modalCabangForm" aria-hidden="true">
+    <div class="op-modal__backdrop" data-op-close></div>
+    <div class="op-modal__panel" role="dialog" aria-modal="true">
+      <div class="op-modal__head" id="cabangFormHead">
+        <div>
+          <h3 id="cabangFormTitle">Tambah Cabang</h3>
+          <small id="cabangFormSub">Isi data cabang baru</small>
+        </div>
+        <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
+      </div>
+      <form id="formCabang" autocomplete="off">
+        <div class="op-modal__body">
+          <input type="hidden" name="id" id="cabangId" value="">
+          <div class="cb-field" id="cabangIdField" style="display:none;">
+            <label class="cb-label" for="cabangIdDisp">ID Cabang</label>
+            <input type="text" class="cb-input" id="cabangIdDisp" readonly>
+          </div>
+          <div class="cb-row">
+            <div class="cb-field">
+              <label class="cb-label" for="cabangKode">Kode</label>
+              <input type="text" class="cb-input" name="kode_cabang" id="cabangKode" required>
+            </div>
+            <div class="cb-field">
+              <label class="cb-label" for="cabangNama">Nama</label>
+              <input type="text" class="cb-input" name="nama" id="cabangNama" maxlength="50" required>
             </div>
           </div>
+          <div class="cb-field">
+            <label class="cb-label" for="cabangKota">Kota / Area</label>
+            <select name="kota" id="cabangKota" class="cb-input" required>
+              <option value="" disabled selected>---</option>
+              <?php foreach ($kotaOptions as $k) { ?>
+                <option value="<?= htmlspecialchars($k['id_kota']) ?>"><?= htmlspecialchars($k['nama_kota']) ?></option>
+              <?php } ?>
+            </select>
+          </div>
+          <div class="cb-field">
+            <label class="cb-label" for="cabangAlamat">Alamat</label>
+            <input type="text" class="cb-input" name="alamat" id="cabangAlamat" required>
+          </div>
+          <div class="cb-row">
+            <div class="cb-field">
+              <label class="cb-label" for="cabangPhone">Phone</label>
+              <input type="text" class="cb-input" name="phone_number" id="cabangPhone" required>
+            </div>
+            <div class="cb-field">
+              <label class="cb-label" for="cabangWifi">Wifi Pass</label>
+              <input type="text" class="cb-input" name="wifi_pass" id="cabangWifi">
+            </div>
+          </div>
+          <div class="cb-field">
+            <label class="cb-label" for="cabangRent">Rent</label>
+            <input type="number" class="cb-input" name="rent" id="cabangRent" min="0" step="1" value="0">
+          </div>
         </div>
-      </div>
+        <div class="op-modal__foot">
+          <button type="button" class="cb-btn cb-btn--ghost" data-op-close>Batal</button>
+          <button type="submit" class="cb-btn cb-btn--primary" id="cabangSubmitBtn">Simpan</button>
+        </div>
+      </form>
     </div>
   </div>
 </div>
 
-<!-- SCRIPT -->
-<script src="<?= URL::EX_ASSETS ?>js/jquery-3.6.0.min.js"></script>
-<script src="<?= URL::EX_ASSETS ?>js/popper.min.js"></script>
-<script src="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/js/bootstrap.bundle.min.js"></script>
-<script src="<?= URL::EX_ASSETS ?>plugins/select2/select2.min.js"></script>
-
 <script>
-  $(document).ready(function() {
+(function () {
+  var BASE = '<?= URL::BASE_URL ?>';
+  var root = document.getElementById('cabang-root');
+  if (!root) return;
 
-    $("form").on("submit", function(e) {
-      e.preventDefault();
-      $.ajax({
+  var form = document.getElementById('formCabang');
+  var head = document.getElementById('cabangFormHead');
+  var title = document.getElementById('cabangFormTitle');
+  var sub = document.getElementById('cabangFormSub');
+  var submitBtn = document.getElementById('cabangSubmitBtn');
+  var idField = document.getElementById('cabangIdField');
+  var editMode = false;
 
-        url: $(this).attr('action'),
-        data: $(this).serialize(),
-        type: $(this).attr("method"),
-        dataType: 'html',
+  function toast(msg, type) {
+    type = type || 'info';
+    if (window.MdlToast) {
+      if (type === 'ok' || type === 'success') MdlToast.ok(msg);
+      else if (type === 'error' || type === 'danger') MdlToast.error(msg);
+      else if (type === 'warn' || type === 'warning') MdlToast.warn(msg);
+      else MdlToast.info(msg);
+      return;
+    }
+    alert(msg);
+  }
 
-        success: function(response) {
-          location.reload(true);
-        },
-      });
-    });
+  function syncLock() {
+    var n = document.querySelectorAll('#cabang-root .op-modal.is-open').length;
+    if (n === 0) document.body.classList.remove('op-modal-open');
+    else document.body.classList.add('op-modal-open');
+  }
 
-    $(".selectRow").click(function() {
-      var idNya = $(this).attr('data-id');
-      $.ajax({
-        url: "<?= URL::BASE_URL ?>Cabang_List/selectCabang",
-        data: {
-          'id': idNya
-        },
-        type: "POST",
-        success: function(response) {
-          location.reload(true);
-        },
-      });
-    });
+  function openModal(id) {
+    var modal = document.getElementById(id);
+    if (!modal) return;
+    modal.classList.add('is-open');
+    modal.setAttribute('aria-hidden', 'false');
+    syncLock();
+  }
 
-    $(".cell").on('dblclick', function() {
-      var id_value = $(this).attr('data-id_value');
-      var value = $(this).attr('data-value');
-      var mode = $(this).attr('data-mode');
-      var value_before = value;
-      var span = $(this);
+  function closeModal(el) {
+    var modal = typeof el === 'string' ? document.getElementById(el) : el;
+    if (!modal) return;
+    modal.classList.remove('is-open');
+    modal.setAttribute('aria-hidden', 'true');
+    syncLock();
+  }
 
-      var valHtml = $(this).html();
-      if (mode == 3) {
-        span.html('<select id="value_" required><option value="' + value + '" selected>' + valHtml + '</option><?php foreach ($this->dKota as $a) { ?><option value="<?= $a['id_kota'] ?>"><?= $a['nama_kota'] ?></option><?php } ?></select>');
-      } else if (mode == 6) {
-        span.html("<input type='number' id='value_' value='" + value + "' min='0' step='1'>");
-      } else if (mode == 5) {
-        var opts = ['server'];
-        var h = '<select id="value_" required>';
-        for (var i = 0; i < opts.length; i++) {
-          var sel = (opts[i] === value) ? ' selected' : '';
-          h += '<option value="' + opts[i] + '"' + sel + '>' + opts[i] + '</option>';
-        }
-        h += '</select>';
-        span.html(h);
-      } else {
-        span.html("<input type='text' id='value_' value='" + value + "'>");
-      }
-
-      $("#value_").focus();
-      $("#value_").focusout(function() {
-        var value_after = $(this).val();
-        if (value_after === value_before) {
-          span.html(valHtml);
-        } else {
-          $.ajax({
-            url: '<?= URL::BASE_URL ?>Cabang_List/update',
-            data: {
-              'id': id_value,
-              'value': value_after,
-              'mode': mode
-            },
-            type: 'POST',
-            dataType: 'html',
-            success: function(response) {
-              location.reload(true);
-            },
-          });
-        }
-      });
-    });
-
+  root.addEventListener('click', function (e) {
+    var closeBtn = e.target.closest('[data-op-close]');
+    if (!closeBtn) return;
+    var modal = closeBtn.closest('.op-modal');
+    if (!modal || !root.contains(modal)) return;
+    e.preventDefault();
+    closeModal(modal);
   });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    var open = root.querySelectorAll('.op-modal.is-open');
+    if (!open.length) return;
+    closeModal(open[open.length - 1]);
+  });
+
+  function resetForm() {
+    form.reset();
+    document.getElementById('cabangId').value = '';
+    document.getElementById('cabangIdDisp').value = '';
+    document.getElementById('cabangRent').value = '0';
+    var kota = document.getElementById('cabangKota');
+    if (kota) kota.selectedIndex = 0;
+  }
+
+  function setModeTambah() {
+    editMode = false;
+    resetForm();
+    idField.style.display = 'none';
+    head.className = 'op-modal__head op-modal__head--blue';
+    title.textContent = 'Tambah Cabang';
+    sub.textContent = 'Isi data cabang baru';
+    submitBtn.textContent = 'Tambah';
+  }
+
+  function setModeEdit(btn) {
+    editMode = true;
+    var id = btn.getAttribute('data-id') || '';
+    document.getElementById('cabangId').value = id;
+    document.getElementById('cabangIdDisp').value = id;
+    document.getElementById('cabangKode').value = btn.getAttribute('data-kode') || '';
+    document.getElementById('cabangNama').value = btn.getAttribute('data-nama') || '';
+    document.getElementById('cabangAlamat').value = btn.getAttribute('data-alamat') || '';
+    document.getElementById('cabangPhone').value = btn.getAttribute('data-phone') || '';
+    document.getElementById('cabangWifi').value = btn.getAttribute('data-wifi') || '';
+    document.getElementById('cabangRent').value = btn.getAttribute('data-rent') || '0';
+    document.getElementById('cabangKota').value = btn.getAttribute('data-kota') || '';
+    idField.style.display = '';
+    head.className = 'op-modal__head op-modal__head--green';
+    title.textContent = 'Edit Cabang';
+    sub.textContent = 'Ubah semua data sekaligus';
+    submitBtn.textContent = 'Simpan';
+  }
+
+  document.getElementById('btnTambahCabang').addEventListener('click', function () {
+    setModeTambah();
+    openModal('modalCabangForm');
+  });
+
+  root.addEventListener('click', function (e) {
+    var btn = e.target.closest('.btn-edit-cabang');
+    if (!btn || !root.contains(btn)) return;
+    setModeEdit(btn);
+    openModal('modalCabangForm');
+  });
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    submitBtn.disabled = true;
+    var url = BASE + 'Cabang_List/' + (editMode ? 'update' : 'insert');
+    var fd = new FormData(form);
+    var data = {};
+    fd.forEach(function (v, k) { data[k] = v; });
+
+    $.ajax({
+      url: url,
+      type: 'POST',
+      data: data,
+      dataType: 'html',
+      success: function (response) {
+        var res = String(response || '').trim();
+        if (res === '0' || res === '') {
+          location.reload(true);
+          return;
+        }
+        toast(res, 'error');
+        submitBtn.disabled = false;
+      },
+      error: function () {
+        toast('Gagal menyimpan', 'error');
+        submitBtn.disabled = false;
+      }
+    });
+  });
+})();
 </script>
