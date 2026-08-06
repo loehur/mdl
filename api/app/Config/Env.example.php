@@ -61,6 +61,7 @@ class Env
     // Kata sensitif — last_message / UI disembunyikan (EnvHelper::textContainsPrivateWord)
     const WA_PRIVATE_WORDS = [
         'kode otp',
+        'access key',
         'salary slip',
         'gaji cash',
         'gaji tf',

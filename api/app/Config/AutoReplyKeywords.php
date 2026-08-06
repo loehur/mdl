@@ -501,6 +501,14 @@ return [
         ],
     ],
 
+    // Access Key per user (staff terdaftar di tabel user) — regex only, tanpa AI
+    'KEY' => [
+        'patterns' => [
+            '/^\s*key\s*$/i',
+            '/^\s*key\s+new\s*$/i',
+        ],
+    ],
+
     'KARYAWAN' => [
         'patterns' => [
             '/^\s*(karyawan|crew|staf+|staff)\s+(.+)\s*$/i',  // staf+ = staf/staff

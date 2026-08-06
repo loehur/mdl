@@ -624,98 +624,6 @@ class Login extends Controller
       $this->save_cookie($data_user);
    }
 
-   /**
-    * Request PIN OTP ke WA user Admin yang sedang login (lupa Admin Key).
-    * Hanya privilege 100 (dicek session + DB). Pola sama Login/req_pin.
-    */
-   public function admin_req_pin()
-   {
-      header('Content-Type: application/json; charset=utf-8');
-
-      $cek = $this->getVerifiedAdminSessionUser();
-      if (!$cek) {
-         echo json_encode(['ok' => 0, 'msg' => 'Akses ditolak. Hanya Admin.']);
-         return;
-      }
-
-      $hp = (string) ($cek['no_user'] ?? '');
-      $idUser = (int) ($cek['id_user'] ?? 0);
-      if ($hp === '' || $idUser < 1) {
-         echo json_encode(['ok' => 0, 'msg' => 'Data Admin tidak lengkap']);
-         return;
-      }
-
-      $where = "id_user = " . $idUser . " AND id_privilege = 100 AND en = 1";
-
-      $now = new DateTime();
-      if (!empty($cek['otp_active'])) {
-         try {
-            $expiry = new DateTime($cek['otp_active']);
-            if ($now <= $expiry) {
-               echo json_encode([
-                  'ok' => 1,
-                  'msg' => 'GUNAKAN PIN YANG SUDAH DIKIRIM, MASIH AKTIF (5 menit)',
-               ]);
-               return;
-            }
-         } catch (Exception $e) {
-            // lanjut generate baru
-         }
-      }
-
-      $otp = str_pad((string) mt_rand(0, 9999), 4, '0', STR_PAD_LEFT);
-      $otpEnc = $this->model('Enc')->otp($otp);
-      $nama = (string) ($cek['nama_user'] ?? '');
-      $idCabang = (int) ($cek['id_cabang'] ?? 0);
-
-      $text = "🔐 *KODE OTP BUKA ADMIN*\n\n";
-      $text .= "Kode OTP: *" . $otp . "*\n";
-      $text .= "Nama: " . $nama . "\n";
-      $text .= "Aplikasi: LAUNDRY\n\n";
-      $text .= "⏰ *Kode OTP ini aktif selama 5 menit*\n";
-      $text .= "Jangan bagikan kode ini kepada siapapun!";
-
-      $wa = $this->model('WA_YCloud')->send($hp, $text);
-      $statusOk = !empty($wa['status']) && ($wa['status'] === true || $wa['status'] === 'success');
-      $httpOk = ((int) ($wa['code'] ?? 0) === 200);
-
-      if (!$statusOk || !$httpOk) {
-         $err = $wa['error'] ?? 'WhatsApp tidak terkirim';
-         $this->model('Log')->write('[Login/admin_req_pin] WA Failed: ' . $err);
-         echo json_encode(['ok' => 0, 'msg' => 'GAGAL KIRIM PIN: ' . $err]);
-         return;
-      }
-
-      $expiry = date('Y-m-d H:i:s', strtotime('+5 minutes'));
-      $today = date('Ymd');
-      $waRes = [
-         'status' => $wa['status'],
-         'data' => $wa['data'] ?? [],
-         'error' => $wa['error'] ?? null,
-         'http_code' => $wa['code'] ?? 0,
-      ];
-      $do = $this->helper('Notif')->insertOTP($waRes, $today, $hp, $otp, $idCabang);
-      if (($do['errno'] ?? 1) != 0) {
-         echo json_encode(['ok' => 0, 'msg' => 'Notif gagal disimpan: ' . ($do['error'] ?? '')]);
-         return;
-      }
-
-      $up = $this->db(0)->update('user', [
-         'otp' => $otpEnc,
-         'otp_active' => $expiry,
-      ], $where);
-
-      if (($up['errno'] ?? 1) != 0) {
-         echo json_encode(['ok' => 0, 'msg' => 'PIN gagal disimpan: ' . ($up['error'] ?? '')]);
-         return;
-      }
-
-      echo json_encode([
-         'ok' => 1,
-         'msg' => 'PERMINTAAN PIN BERHASIL, AKTIF 5 MENIT',
-      ]);
-   }
-
    public function log_mode()
    {
       header('Content-Type: application/json; charset=utf-8');
@@ -730,35 +638,27 @@ class Login extends Controller
       $idleLimit = 600; // 10 menit
       $mode = (int) ($_POST['mode'] ?? 0);
       if ($mode === 1) {
-         $hasKey = $this->hasAdminAccessKey();
          $unlocked = $this->isAdminUnlocked($idleLimit);
 
-         if ($hasKey && !$unlocked) {
+         if (!$unlocked) {
             $key = trim((string) ($_POST['key'] ?? ''));
-            $pin = trim((string) ($_POST['pin'] ?? ''));
-
-            // Alternatif lupa Admin Key: PIN OTP WA milik Admin yang sedang login saja
-            if ($pin !== '') {
-               if (!$this->verifyAdminUnlockPin($pin, $adminUser)) {
-                  echo json_encode([
-                     'ok' => 0,
-                     'need_key' => 1,
-                     'msg' => 'PIN tidak cocok / sudah kadaluarsa. Request PIN dulu.',
-                  ]);
-                  return;
-               }
-            } elseif ($key === '') {
+            if ($key === '') {
                echo json_encode([
                   'ok' => 0,
                   'need_key' => 1,
-                  'msg' => 'Admin Key wajib',
+                  'msg' => 'Access Key wajib. Ketik key di WhatsApp untuk mendapatkannya.',
                ]);
                return;
-            } elseif (!$this->verifyAdminAccessKey($key)) {
+            }
+            if (!$this->verifyUserAccessKey($key, $adminUser)) {
+               $stored = trim((string) ($adminUser['access_key'] ?? ''));
+               $msg = ($stored === '' || !preg_match('/^\d{4}$/', $stored))
+                  ? 'Belum ada Access Key. Ketik key di WhatsApp untuk generate.'
+                  : 'Access Key tidak valid';
                echo json_encode([
                   'ok' => 0,
                   'need_key' => 1,
-                  'msg' => 'Admin Key tidak valid',
+                  'msg' => $msg,
                ]);
                return;
             }
@@ -770,10 +670,8 @@ class Login extends Controller
          echo json_encode([
             'ok' => 1,
             'unlocked' => 1,
-            'bootstrap' => $hasKey ? 0 : 1,
-            'msg' => $hasKey
-               ? ''
-               : 'Belum ada Admin Key. Segera buat di Tools → Generate Key.',
+            'bootstrap' => 0,
+            'msg' => '',
          ]);
          return;
       }
@@ -849,28 +747,6 @@ class Login extends Controller
    }
 
    /**
-    * True jika sudah ada Admin Key di DB.
-    */
-   private function hasAdminAccessKey(): bool
-   {
-      $n = (int) $this->db(0)->count_where('admin_access_key', 'id > 0');
-      return $n > 0;
-   }
-
-   /**
-    * Validasi Admin Access Key 4 digit (hash Enc->otp).
-    */
-   private function verifyAdminAccessKey($key): bool
-   {
-      if (!preg_match('/^\d{4}$/', (string) $key)) {
-         return false;
-      }
-      $hash = $this->model('Enc')->otp($key);
-      $row = $this->db(0)->get_where_row('admin_access_key', "key_hash = '" . $this->db(0)->escape($hash) . "'");
-      return is_array($row) && !empty($row['id']);
-   }
-
-   /**
     * Pastikan session aktif adalah user privilege Admin (100),
     * dicek ulang ke DB (bukan hanya nilai di session).
     * @return array|null baris user Admin dari DB
@@ -904,13 +780,11 @@ class Login extends Controller
    }
 
    /**
-    * Validasi PIN OTP WA untuk unlock Admin (lupa secret key).
-    * Hanya OTP milik user Admin yang sedang login (id_user + priv 100).
-    * Tidak memakai bypass localhost pin_today — OTP wajib cocok & belum expired.
+    * Validasi Access Key milik user Admin yang sedang login (user.access_key).
     */
-   private function verifyAdminUnlockPin($pin, $adminUser = null): bool
+   private function verifyUserAccessKey($key, $adminUser = null): bool
    {
-      if (!preg_match('/^\d{4}$/', (string) $pin)) {
+      if (!preg_match('/^\d{4}$/', (string) $key)) {
          return false;
       }
 
@@ -924,27 +798,12 @@ class Login extends Controller
          return false;
       }
 
-      $otpHash = $this->model('Enc')->otp($pin);
-      $stored = (string) ($adminUser['otp'] ?? '');
-      $active = (string) ($adminUser['otp_active'] ?? '');
-      if ($stored === '' || $active === '') {
-         return false;
-      }
-      if (!hash_equals($stored, $otpHash)) {
+      $stored = trim((string) ($adminUser['access_key'] ?? ''));
+      if ($stored === '' || !preg_match('/^\d{4}$/', $stored)) {
          return false;
       }
 
-      try {
-         $now = new DateTime();
-         $expiry = new DateTime($active);
-         if ($now > $expiry) {
-            return false;
-         }
-      } catch (Exception $e) {
-         return false;
-      }
-
-      return true;
+      return hash_equals($stored, (string) $key);
    }
 
    function get_client_ip()

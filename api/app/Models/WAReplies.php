@@ -3567,6 +3567,58 @@ class WAReplies
         }
     }
 
+    /**
+     * Access Key per user (tabel user.access_key).
+     * - "key" → kirim key existing; jika null auto-generate 4 digit
+     * - "key new" → generate key baru
+     * Hanya nomor yang terdaftar di user (en=1).
+     */
+    function handleKey($phoneIn, $waNumber, $textBody = '')
+    {
+        try {
+            $waService = $this->getWaService();
+            $db = DB::getInstance(1); // laundry
+
+            $phones = array_map(function ($p) {
+                return trim($p, "' ");
+            }, explode(',', $phoneIn));
+            $cleanWaNumber = preg_replace('/[^0-9]/', '', $waNumber);
+            $phone0 = '0' . substr($cleanWaNumber, 2);
+            $phones[] = $phone0;
+            $phones[] = $cleanWaNumber;
+            $phones = array_unique(array_filter($phones));
+            $phoneInStr = "'" . implode("','", array_map('addslashes', $phones)) . "'";
+
+            $user = $db->query(
+                "SELECT id_user, access_key, nama_user FROM user WHERE no_user IN ($phoneInStr) AND en = 1 LIMIT 1"
+            )->row_array();
+
+            if (empty($user['id_user'])) {
+                // Bukan user terdaftar — diam (jangan bocor ke pelanggan)
+                return;
+            }
+
+            $forceNew = (bool) preg_match('/^\s*key\s+new\s*$/i', trim((string) $textBody));
+            $current = isset($user['access_key']) ? trim((string) $user['access_key']) : '';
+            $needGenerate = $forceNew || $current === '' || !preg_match('/^\d{4}$/', $current);
+
+            if ($needGenerate) {
+                $newKey = str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT);
+                $idUser = (int) $user['id_user'];
+                $escaped = addslashes($newKey);
+                $db->query("UPDATE user SET access_key = '$escaped' WHERE id_user = $idUser AND en = 1 LIMIT 1");
+                $current = $newKey;
+            }
+
+            $text = "*Access Key* Anda: *" . $current . "*\n\n";
+            $text .= "Jika Anda mencurigai key diketahui orang lain, ketik *key new* untuk generate key baru.";
+
+            $waService->sendFreeText($waNumber, $text);
+        } catch (\Throwable $e) {
+            \Log::write("handleKey ERROR: " . $e->getMessage(), 'wa_error', 'AccessKey');
+        }
+    }
+
     function handleKas_laundry($phoneIn, $waNumber, $textBody = '')
     {
         try {
