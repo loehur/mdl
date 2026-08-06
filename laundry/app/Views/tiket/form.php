@@ -5,6 +5,8 @@ $jenisList = $data['jenisList'] ?? ['Perbaikan', 'Pergantian', 'Perawatan', 'Pen
 $canSelesai = !empty($data['canSelesai']);
 $isAdmin = !empty($data['isAdmin']);
 $idUser = (int) ($data['idUser'] ?? 0);
+$kodeCabangUi = strtoupper((string) ($this->dCabang['kode_cabang'] ?? ''));
+$namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
 ?>
 <div id="tiket-root" data-mode="<?= $mode ?>">
   <style>
@@ -150,7 +152,7 @@ $idUser = (int) ($data['idUser'] ?? 0);
       width: 100%;
       max-width: 480px;
       max-height: calc(100vh - 32px);
-      overflow: auto;
+      overflow: visible;
       background: #fff;
       border: 1px solid #cbd5e1;
       box-shadow: 0 24px 48px rgba(15, 23, 42, 0.3);
@@ -231,44 +233,72 @@ $idUser = (int) ($data['idUser'] ?? 0);
       background: #fff;
       color: var(--tk-ink);
       font-size: 0.88rem;
-      font-weight: 750;
+      font-weight: 800;
       outline: none;
     }
     #tiket-root .tk-input:focus {
       box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22);
       border-color: var(--tk-blue);
     }
+    #tiket-root select.tk-input {
+      cursor: pointer;
+      appearance: auto;
+      -webkit-appearance: menulist;
+      min-height: 42px;
+    }
     #tiket-root textarea.tk-input {
       min-height: 88px;
       resize: vertical;
+      font-weight: 750;
     }
-    /* Selectize — satu border saja */
+    /* Selectize: satu border saja (Karyawan) */
     #tiket-root select.tize,
     #tiket-root select.selectized {
       border: 0 !important;
-      outline: none !important;
       box-shadow: none !important;
       background: transparent !important;
+      padding: 0 !important;
     }
     #tiket-root .selectize-control,
     #tiket-root .selectize-control.single {
       border: 0 !important;
+      box-shadow: none !important;
       background: transparent !important;
+      margin: 0;
     }
     #tiket-root .selectize-control.single .selectize-input {
       border: 1px solid var(--tk-line) !important;
-      box-shadow: none !important;
-      padding: 10px 12px;
+      border-radius: 0 !important;
       min-height: 42px;
-      font-weight: 750;
+      padding: 10px 12px !important;
+      box-shadow: none !important;
+      background: #fff !important;
+      font-weight: 800;
       color: var(--tk-ink);
+    }
+    #tiket-root .selectize-control.single .selectize-input.focus {
+      border-color: var(--tk-blue) !important;
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22) !important;
     }
     #tiket-root .selectize-control.single .selectize-input:after {
       border: 0 !important;
     }
-    #tiket-root .selectize-control.single .selectize-input.focus {
-      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22) !important;
-      border-color: var(--tk-blue) !important;
+    #tiket-root .selectize-control.single .selectize-input input {
+      font-weight: 800;
+      color: var(--tk-ink);
+    }
+    #tiket-root .selectize-dropdown {
+      border: 1px solid var(--tk-line) !important;
+      border-radius: 0 !important;
+      z-index: 5300 !important;
+    }
+    #tiket-root .selectize-dropdown .option {
+      font-weight: 750;
+      color: var(--tk-ink);
+    }
+    #tiket-root .selectize-dropdown .option.active {
+      background: #eff6ff;
+      color: var(--tk-ink);
     }
     body.op-modal-open { overflow: hidden; }
 
@@ -320,8 +350,8 @@ $idUser = (int) ($data['idUser'] ?? 0);
           </div>
           <div class="tk-field">
             <label class="tk-label" for="tiketJenis">Jenis</label>
-            <select name="jenis" id="tiketJenis" class="tize" style="width:100%;" required>
-              <option value="" selected disabled></option>
+            <select name="jenis" id="tiketJenis" class="tk-input" required>
+              <option value="" selected disabled>Pilih jenis</option>
               <?php foreach ($jenisList as $j) { ?>
                 <option value="<?= htmlspecialchars($j) ?>"><?= htmlspecialchars($j) ?></option>
               <?php } ?>
@@ -333,7 +363,21 @@ $idUser = (int) ($data['idUser'] ?? 0);
           </div>
           <div class="tk-field">
             <label class="tk-label" for="tiketKaryawan">Karyawan</label>
-            <input type="text" class="tk-input" name="karyawan" id="tiketKaryawan" maxlength="100" required>
+            <select name="karyawan" id="tiketKaryawan" class="tize" style="width:100%;" required>
+              <option value="" selected disabled></option>
+              <optgroup label="<?= htmlspecialchars($namaCabangUi) ?> [<?= htmlspecialchars($kodeCabangUi) ?>]">
+                <?php foreach ($this->user as $a) { ?>
+                  <option value="<?= htmlspecialchars($a['nama_user']) ?>"><?= (int) $a['id_user'] . '-' . strtoupper($a['nama_user']) ?></option>
+                <?php } ?>
+              </optgroup>
+              <?php if (count($this->userCabang) > 0) { ?>
+                <optgroup label="----- Cabang Lain -----">
+                  <?php foreach ($this->userCabang as $a) { ?>
+                    <option value="<?= htmlspecialchars($a['nama_user']) ?>"><?= (int) $a['id_user'] . '-' . strtoupper($a['nama_user']) ?></option>
+                  <?php } ?>
+                </optgroup>
+              <?php } ?>
+            </select>
           </div>
         </div>
         <div class="op-modal__foot">
@@ -365,7 +409,21 @@ $idUser = (int) ($data['idUser'] ?? 0);
           </div>
           <div class="tk-field">
             <label class="tk-label" for="selesaiKaryawan">Karyawan</label>
-            <input type="text" class="tk-input" name="karyawan_selesai" id="selesaiKaryawan" maxlength="100" required>
+            <select name="karyawan_selesai" id="selesaiKaryawan" class="tize" style="width:100%;" required>
+              <option value="" selected disabled></option>
+              <optgroup label="<?= htmlspecialchars($namaCabangUi) ?> [<?= htmlspecialchars($kodeCabangUi) ?>]">
+                <?php foreach ($this->user as $a) { ?>
+                  <option value="<?= htmlspecialchars($a['nama_user']) ?>"><?= (int) $a['id_user'] . '-' . strtoupper($a['nama_user']) ?></option>
+                <?php } ?>
+              </optgroup>
+              <?php if (count($this->userCabang) > 0) { ?>
+                <optgroup label="----- Cabang Lain -----">
+                  <?php foreach ($this->userCabang as $a) { ?>
+                    <option value="<?= htmlspecialchars($a['nama_user']) ?>"><?= (int) $a['id_user'] . '-' . strtoupper($a['nama_user']) ?></option>
+                  <?php } ?>
+                </optgroup>
+              <?php } ?>
+            </select>
           </div>
         </div>
         <div class="op-modal__foot">
@@ -405,6 +463,7 @@ $idUser = (int) ($data['idUser'] ?? 0);
   <?php } ?>
 </div>
 
+<script src="<?= URL::EX_ASSETS ?>js/selectize.min.js"></script>
 <script>
 (function () {
   var BASE = '<?= URL::BASE_URL ?>';
@@ -474,36 +533,55 @@ $idUser = (int) ($data['idUser'] ?? 0);
     $('#tiket-root #load').load(BASE + 'Tiket/load/' + MODE);
   }
 
-  function initJenisSelectize() {
-    var $sel = $('#tiketJenis');
-    if (!$sel.length || typeof $sel.selectize !== 'function') return;
-    if ($sel[0].selectize) {
-      $sel[0].selectize.destroy();
-    }
-    $sel.selectize({
+  function initTize($el, $parent) {
+    if (!$el.length || typeof $el.selectize !== 'function') return null;
+    if ($el[0].selectize) return $el[0].selectize;
+    var opts = {
       create: false,
-      sortField: 'text',
-      placeholder: 'Pilih jenis'
-    });
+      sortField: false,
+      placeholder: 'Pilih karyawan'
+    };
+    if ($parent && $parent.length) {
+      opts.dropdownParent = $parent;
+    }
+    $el.selectize(opts);
+    return $el[0].selectize;
   }
+
+  function clearTize(id) {
+    var el = document.getElementById(id);
+    if (el && el.selectize) el.selectize.clear();
+    else $('#' + id).val('');
+  }
+
+  function setTizeValue(id, value) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    var sz = el.selectize;
+    if (!sz) {
+      $('#' + id).val(value);
+      return;
+    }
+    if (value && !sz.options[value]) {
+      sz.addOption({ value: value, text: value });
+    }
+    sz.setValue(value || '', true);
+  }
+
+  initTize($('#tiketKaryawan'), $('#modalTiketForm'));
+  initTize($('#selesaiKaryawan'), $('#modalTiketSelesai'));
 
   function resetForm() {
     $('#tiketId').val('');
     $('#tiketJudul').val('');
     $('#tiketKeterangan').val('');
-    $('#tiketKaryawan').val('');
+    $('#tiketJenis').val('');
     $('#tiketFormTitle').text('Tambah Tiket');
-    var sel = document.getElementById('tiketJenis');
-    if (sel && sel.selectize) {
-      sel.selectize.clear();
-    } else {
-      $('#tiketJenis').val('');
-    }
+    clearTize('tiketKaryawan');
   }
 
   function openTambah() {
     resetForm();
-    initJenisSelectize();
     openModal('modalTiketForm');
   }
 
@@ -524,19 +602,12 @@ $idUser = (int) ($data['idUser'] ?? 0);
 
   function openEdit(btn) {
     resetForm();
-    initJenisSelectize();
     $('#tiketFormTitle').text('Edit Tiket');
     $('#tiketId').val(btn.getAttribute('data-id') || '');
     $('#tiketJudul').val(b64decode(btn.getAttribute('data-judul') || ''));
     $('#tiketKeterangan').val(b64decode(btn.getAttribute('data-keterangan') || ''));
-    $('#tiketKaryawan').val(b64decode(btn.getAttribute('data-karyawan') || ''));
-    var jenis = btn.getAttribute('data-jenis') || '';
-    var sel = document.getElementById('tiketJenis');
-    if (sel && sel.selectize) {
-      sel.selectize.setValue(jenis, true);
-    } else {
-      $('#tiketJenis').val(jenis);
-    }
+    $('#tiketJenis').val(btn.getAttribute('data-jenis') || '');
+    setTizeValue('tiketKaryawan', b64decode(btn.getAttribute('data-karyawan') || ''));
     openModal('modalTiketForm');
   }
 
@@ -556,7 +627,7 @@ $idUser = (int) ($data['idUser'] ?? 0);
     $('#selesaiId').val(id);
     $('#selesaiJudulPreview').text(judul);
     $('#selesaiCatatan').val('');
-    $('#selesaiKaryawan').val('');
+    clearTize('selesaiKaryawan');
     openModal('modalTiketSelesai');
   });
 
