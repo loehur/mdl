@@ -1049,9 +1049,10 @@ if (isset($data['data_operasi'])) {
             inset: 0;
             z-index: 2100;
             display: none;
-            align-items: center;
+            align-items: flex-start;
             justify-content: center;
             padding: 16px;
+            padding-top: 48px;
         }
         .mdl-key-modal.is-open {
             display: flex;
