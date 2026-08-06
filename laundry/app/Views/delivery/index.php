@@ -485,11 +485,27 @@ $isEmptyCustomer = empty($customers);
     }
     #dlv-root .dlv-chat__text {
       font-size: 0.84rem;
-      font-weight: 750;
+      font-weight: 400;
       color: var(--dlv-ink);
       white-space: pre-wrap;
       word-break: break-word;
-      line-height: 1.4;
+      line-height: 1.45;
+    }
+    #dlv-root .dlv-chat__text strong { font-weight: 700; }
+    #dlv-root .dlv-chat__text em { font-style: italic; }
+    #dlv-root .dlv-chat__text del { text-decoration: line-through; opacity: 0.85; }
+    #dlv-root .dlv-chat__text code {
+      font-family: Consolas, 'Courier New', monospace;
+      font-size: 0.8rem;
+      padding: 0 3px;
+      background: rgba(15, 23, 42, 0.06);
+      border: 1px solid #e2e8f0;
+    }
+    #dlv-root .dlv-chat__text a {
+      color: var(--dlv-blue-deep);
+      font-weight: 600;
+      text-decoration: underline;
+      word-break: break-all;
     }
     #dlv-root .dlv-chat__img {
       display: block;
@@ -1027,6 +1043,22 @@ $isEmptyCustomer = empty($customers);
     return '';
   }
 
+  /** WhatsApp formatting: *bold* _italic_ ~strike~ ```mono``` + links (sama pola CRM) */
+  function parseWhatsAppFormatting(text) {
+    if (!text) return '';
+    var f = String(text)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\s+\|\s+\|\s+/g, '\n')
+      .replace(/```([^`]+)```/g, '<code>$1</code>')
+      .replace(/\*([^*]+)\*/g, '<strong>$1</strong>')
+      .replace(/_([^_]+)_/g, '<em>$1</em>')
+      .replace(/~([^~]+)~/g, '<del>$1</del>')
+      .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+    return f;
+  }
+
   function renderChat(data) {
     var msgs = data.messages || [];
     if (!msgs.length) {
@@ -1042,12 +1074,12 @@ $isEmptyCustomer = empty($customers);
       if (m.type === 'image' && src) {
         body = '<img class="dlv-chat__img" src="' + escapeHtml(src) + '" alt="Gambar" loading="lazy"' +
           ' onclick="window.open(this.src,\'_blank\')">' +
-          (caption ? '<div class="dlv-chat__text">' + escapeHtml(caption) + '</div>' : '');
+          (caption ? '<div class="dlv-chat__text">' + parseWhatsAppFormatting(caption) + '</div>' : '');
       } else if (m.type === 'sticker' && src) {
         body = '<img class="dlv-chat__img" src="' + escapeHtml(src) + '" alt="Sticker" loading="lazy">';
       } else {
         body = '<div class="dlv-chat__text">' +
-          escapeHtml(caption || ('[' + (m.type || 'pesan') + ']')) +
+          parseWhatsAppFormatting(caption || ('[' + (m.type || 'pesan') + ']')) +
           '</div>';
       }
       return '<div class="dlv-chat__bubble ' + cls + '">' +
