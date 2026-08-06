@@ -17,6 +17,11 @@ $menu[0] = [
                 'title' => 'Sales Order',
                 'txt' => 'Sales',
             ],
+            [
+                'c' => 'Delivery',
+                'title' => 'Delivery Order',
+                'txt' => 'Delivery',
+            ],
         ]
     ],
     [
