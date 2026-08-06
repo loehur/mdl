@@ -110,4 +110,37 @@ class Cabang_List extends Controller
          echo $up['error'];
       }
    }
+
+   public function updateMaps()
+   {
+      $this->session_cek(1);
+      $id = (int) ($_POST['id'] ?? 0);
+      if ($id <= 0) {
+         echo 'ID cabang tidak valid';
+         return;
+      }
+
+      $latt = $_POST['latt'] ?? '';
+      $long = $_POST['long'] ?? '';
+      $gmaps = trim((string) ($_POST['gmaps'] ?? ''));
+
+      if ($latt === '' || $long === '' || !is_numeric($latt) || !is_numeric($long)) {
+         echo 'Latitude / Longitude tidak valid';
+         return;
+      }
+
+      $set = [
+         'latt' => (float) $latt,
+         'long' => (float) $long,
+         'gmaps' => $gmaps,
+      ];
+      $where = "id_cabang = $id";
+      $up = $this->db(0)->update('cabang', $set, $where);
+      if ($up['errno'] == 0) {
+         echo 0;
+         $this->dataSynchrone($_SESSION[URL::SESSID]['user']['id_user']);
+      } else {
+         echo $up['error'];
+      }
+   }
 }

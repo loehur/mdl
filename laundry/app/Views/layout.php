@@ -1139,6 +1139,54 @@ if (isset($data['data_operasi'])) {
             font-weight: 800;
             color: var(--mdl-admin);
         }
+        .mdl-key-modal__alt {
+            margin-top: 10px;
+            text-align: center;
+        }
+        .mdl-key-modal__link {
+            border: 0;
+            background: transparent;
+            color: var(--mdl-blue, #2563eb);
+            font-family: 'fontku', sans-serif;
+            font-size: 12px;
+            font-weight: 800;
+            cursor: pointer;
+            padding: 0;
+            text-decoration: underline;
+        }
+        .mdl-key-modal__link:hover {
+            color: var(--mdl-admin-deep);
+        }
+        .mdl-key-modal__req {
+            width: 100%;
+            height: 36px;
+            margin-bottom: 10px;
+            border: 1px solid var(--mdl-line);
+            background: #fff;
+            color: var(--mdl-ink-soft);
+            font-family: 'fontku', sans-serif;
+            font-size: 13px;
+            font-weight: 900;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        .mdl-key-modal__req:hover {
+            background: #e2e8f0;
+            color: var(--mdl-ink);
+        }
+        .mdl-key-modal__req:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+        .mdl-key-modal__hp {
+            margin: 0 0 10px;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--mdl-ink-soft);
+        }
         .mdl-key-modal__foot {
             display: flex;
             gap: 8px;
@@ -2008,7 +2056,14 @@ if ($privUi === 100) {
             </div>
         </aside>
 
-        <?php if ((int) ($this->id_privilege ?? 0) === 100) { ?>
+        <?php if ((int) ($this->id_privilege ?? 0) === 100) {
+            $adminHpRaw = (string) ($_SESSION[URL::SESSID]['user']['no_user'] ?? '');
+            $adminHpDigits = preg_replace('/\D+/', '', $adminHpRaw);
+            $adminHpLen = strlen($adminHpDigits);
+            $adminHpMask = $adminHpLen < 6
+                ? $adminHpDigits
+                : (substr($adminHpDigits, 0, 4) . str_repeat('*', max(0, $adminHpLen - 7)) . substr($adminHpDigits, -3));
+        ?>
         <div class="mdl-key-modal" id="modalAdminKey" aria-hidden="true">
             <div class="mdl-key-modal__backdrop" data-admin-key-close></div>
             <div class="mdl-key-modal__panel" role="dialog" aria-modal="true" aria-labelledby="modalAdminKeyLabel">
@@ -2017,9 +2072,28 @@ if ($privUi === 100) {
                     <button type="button" class="mdl-key-modal__close" data-admin-key-close aria-label="Tutup"><i class="fas fa-times"></i></button>
                 </div>
                 <div class="mdl-key-modal__body">
-                    <p>Masukkan Admin Key 4 digit untuk membuka mode Admin.</p>
-                    <input type="password" id="adminKeyInput" class="mdl-key-modal__input" inputmode="numeric" maxlength="4" autocomplete="one-time-code" placeholder="••••">
-                    <div class="mdl-key-modal__msg" id="adminKeyMsg"></div>
+                    <div id="adminKeyStep">
+                        <p>Masukkan Admin Key 4 digit untuk membuka mode Admin.</p>
+                        <input type="password" id="adminKeyInput" class="mdl-key-modal__input" inputmode="numeric" maxlength="4" autocomplete="one-time-code" placeholder="••••">
+                        <div class="mdl-key-modal__msg" id="adminKeyMsg"></div>
+                        <div class="mdl-key-modal__alt">
+                            <button type="button" class="mdl-key-modal__link" id="btnAdminForgotKey">Lupa Secret Key?</button>
+                        </div>
+                    </div>
+                    <div id="adminPinStep" class="d-none">
+                        <p>Request PIN via WhatsApp, lalu masukkan PIN 4 digit untuk membuka mode Admin.</p>
+                        <?php if ($adminHpMask !== '') { ?>
+                        <p class="mdl-key-modal__hp">PIN dikirim ke WA: <strong><?= htmlspecialchars($adminHpMask) ?></strong></p>
+                        <?php } ?>
+                        <button type="button" class="mdl-key-modal__req" id="btnAdminReqPin">
+                            <i class="fas fa-paper-plane"></i> Request PIN
+                        </button>
+                        <input type="password" id="adminPinInput" class="mdl-key-modal__input" inputmode="numeric" maxlength="4" autocomplete="one-time-code" placeholder="••••">
+                        <div class="mdl-key-modal__msg" id="adminPinMsg"></div>
+                        <div class="mdl-key-modal__alt">
+                            <button type="button" class="mdl-key-modal__link" id="btnAdminBackKey">Kembali ke Admin Key</button>
+                        </div>
+                    </div>
                 </div>
                 <div class="mdl-key-modal__foot">
                     <button type="button" class="mdl-key-modal__btn" data-admin-key-close>Batal</button>
@@ -2213,7 +2287,13 @@ if ($privUi === 100) {
 
                     var $keyInput = $("#adminKeyInput");
                     var $keyMsg = $("#adminKeyMsg");
+                    var $pinInput = $("#adminPinInput");
+                    var $pinMsg = $("#adminPinMsg");
+                    var $keyStep = $("#adminKeyStep");
+                    var $pinStep = $("#adminPinStep");
+                    var $label = $("#modalAdminKeyLabel");
                     var keySubmitHandler = null;
+                    var unlockMode = 'key'; // 'key' | 'pin'
 
                     function notify(msg, type) {
                         if (window.MdlToast) {
@@ -2226,15 +2306,39 @@ if ($privUi === 100) {
                         }
                     }
 
+                    function showKeyStep() {
+                        unlockMode = 'key';
+                        $pinStep.addClass('d-none');
+                        $keyStep.removeClass('d-none');
+                        $label.html('<i class="fas fa-user-shield"></i> Admin Key');
+                        $pinInput.val('');
+                        $pinMsg.text('');
+                        setTimeout(function() { $keyInput.trigger('focus'); }, 50);
+                    }
+
+                    function showPinStep() {
+                        unlockMode = 'pin';
+                        $keyStep.addClass('d-none');
+                        $pinStep.removeClass('d-none');
+                        $label.html('<i class="fas fa-mobile-alt"></i> Request PIN');
+                        $keyInput.val('');
+                        $keyMsg.text('');
+                        setTimeout(function() { $pinInput.trigger('focus'); }, 50);
+                    }
+
                     function closeKeyModal() {
                         $keyModal.removeClass("is-open").attr("aria-hidden", "true");
                         $keyInput.val("");
                         $keyMsg.text("");
+                        $pinInput.val("");
+                        $pinMsg.text("");
                         keySubmitHandler = null;
+                        showKeyStep();
                     }
 
                     function openKeyModal(onSubmit) {
                         keySubmitHandler = onSubmit;
+                        showKeyStep();
                         $keyMsg.text("");
                         $keyInput.val("");
                         $keyModal.addClass("is-open").attr("aria-hidden", "false");
@@ -2244,34 +2348,91 @@ if ($privUi === 100) {
                     $keyModal.on('click', '[data-admin-key-close]', function() {
                         closeKeyModal();
                     });
+
+                    $('#btnAdminForgotKey').on('click', function() {
+                        showPinStep();
+                    });
+                    $('#btnAdminBackKey').on('click', function() {
+                        showKeyStep();
+                    });
+
+                    $('#btnAdminReqPin').on('click', function() {
+                        var $btn = $(this);
+                        $btn.prop('disabled', true);
+                        $pinMsg.css('color', '').text('Mengirim PIN...');
+                        $.ajax({
+                            url: "<?= URL::BASE_URL ?>Login/admin_req_pin",
+                            type: "POST",
+                            dataType: "json",
+                            success: function(res) {
+                                $btn.prop('disabled', false);
+                                if (res && res.ok == 1) {
+                                    $pinMsg.css('color', '#16a34a').text(res.msg || 'PIN dikirim');
+                                    $pinInput.trigger('focus');
+                                } else {
+                                    $pinMsg.css('color', '').text((res && res.msg) || 'Gagal kirim PIN');
+                                }
+                            },
+                            error: function() {
+                                $btn.prop('disabled', false);
+                                $pinMsg.css('color', '').text('Gagal kirim PIN');
+                            }
+                        });
+                    });
+
                     $('#btnAdminKeySubmit').on('click', function() {
+                        if (unlockMode === 'pin') {
+                            var pin = String($pinInput.val() || '').trim();
+                            if (!/^\d{4}$/.test(pin)) {
+                                $pinMsg.css('color', '').text('PIN harus 4 digit angka');
+                                return;
+                            }
+                            if (typeof keySubmitHandler === 'function') {
+                                keySubmitHandler({ pin: pin });
+                            }
+                            return;
+                        }
                         var key = String($keyInput.val() || '').trim();
                         if (!/^\d{4}$/.test(key)) {
                             $keyMsg.text('Key harus 4 digit angka');
                             return;
                         }
                         if (typeof keySubmitHandler === 'function') {
-                            keySubmitHandler(key);
+                            keySubmitHandler({ key: key });
                         }
                     });
                     $keyInput.on('input', function() {
                         this.value = this.value.replace(/\D/g, '').slice(0, 4);
                         $keyMsg.text('');
                     });
-                    $keyInput.on('keydown', function(e) {
-                        if (e.key === 'Enter') {
-                            e.preventDefault();
-                            $('#btnAdminKeySubmit').click();
-                        }
-                        if (e.key === 'Escape') {
-                            closeKeyModal();
-                        }
+                    $pinInput.on('input', function() {
+                        this.value = this.value.replace(/\D/g, '').slice(0, 4);
+                        $pinMsg.css('color', '').text('');
                     });
+                    function bindEnterEscape($el) {
+                        $el.on('keydown', function(e) {
+                            if (e.key === 'Enter') {
+                                e.preventDefault();
+                                $('#btnAdminKeySubmit').click();
+                            }
+                            if (e.key === 'Escape') {
+                                closeKeyModal();
+                            }
+                        });
+                    }
+                    bindEnterEscape($keyInput);
+                    bindEnterEscape($pinInput);
 
                     window.MDL_adminKeyModal = {
                         open: openKeyModal,
                         close: closeKeyModal,
-                        setError: function(msg) { $keyMsg.text(msg || ''); },
+                        setError: function(msg) {
+                            if (unlockMode === 'pin') {
+                                $pinMsg.css('color', '').text(msg || '');
+                            } else {
+                                $keyMsg.text(msg || '');
+                            }
+                        },
                         notify: notify
                     };
                 })();
@@ -2314,10 +2475,17 @@ if ($privUi === 100) {
                         }
                     };
 
-                    var postMode = function(key, afterFailNeedKey) {
+                    var postMode = function(creds, afterFailNeedKey) {
+                        var payload = { mode: mode, key: '', pin: '' };
+                        if (typeof creds === 'string') {
+                            payload.key = creds || '';
+                        } else if (creds && typeof creds === 'object') {
+                            payload.key = creds.key || '';
+                            payload.pin = creds.pin || '';
+                        }
                         $.ajax({
                             url: "<?= URL::BASE_URL ?>Login/log_mode",
-                            data: { mode: mode, key: key || '' },
+                            data: payload,
                             type: "POST",
                             dataType: "json",
                             success: function(res) {
@@ -2350,17 +2518,17 @@ if ($privUi === 100) {
                     };
 
                     if (mode === 1) {
-                        postMode('', function() {
+                        postMode({}, function() {
                             if (window.MDL_adminKeyModal) {
-                                window.MDL_adminKeyModal.open(function(key) {
-                                    postMode(key);
+                                window.MDL_adminKeyModal.open(function(creds) {
+                                    postMode(creds);
                                 });
                             } else {
                                 notify('Modal Admin Key tidak tersedia', 'error');
                             }
                         });
                     } else {
-                        postMode('');
+                        postMode({});
                     }
                 });
 

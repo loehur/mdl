@@ -13,7 +13,7 @@ class Cabang_Lokasi extends Controller
       $log = $this->dCabang;
       $data['geo'] = [
          'lat' => floatval($log['latt'] ?? 0),
-         'long' => floatval($log['longt'] ?? 0)
+         'long' => floatval($log['long'] ?? 0)
       ];
       $data['kec'] = $log['area'] ?? ['' => 'Pilih Kecamatan'];
       if (!is_array($data['kec'])) {
@@ -32,7 +32,8 @@ class Cabang_Lokasi extends Controller
 
       $set = [
          'latt' => $_POST['lat'] ?? 0,
-         'longt' => $_POST['long'] ?? 0,
+         'long' => $_POST['long'] ?? 0,
+         'gmaps' => trim((string) ($_POST['gmaps'] ?? '')),
          'nama' => $_POST['nama'] ?? '',
          'hp' => $_POST['hp'] ?? '',
          'alamat' => $_POST['alamat'] ?? '',

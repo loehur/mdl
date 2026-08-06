@@ -151,6 +151,10 @@ $kotaOptions = is_array($this->dKota ?? null) ? $this->dKota : [];
       width: 1%;
       white-space: nowrap;
       text-align: right;
+      display: flex;
+      gap: 6px;
+      justify-content: flex-end;
+      align-items: center;
     }
     #cabang-root .cb-chip {
       display: inline-block;
@@ -210,6 +214,32 @@ $kotaOptions = is_array($this->dKota ?? null) ? $this->dKota : [];
     }
     #cabang-root .op-modal__head--green {
       background: linear-gradient(105deg, #15803d 0%, #16a34a 100%);
+    }
+    #cabang-root .op-modal__head--cyan {
+      background: linear-gradient(105deg, #0e7490 0%, #0891b2 100%);
+    }
+    #cabang-root .op-modal__panel--maps {
+      max-width: 560px;
+    }
+    #cabang-root .cb-btn--cyan {
+      background: linear-gradient(180deg, #0891b2, #0e7490);
+      color: #fff;
+    }
+    #cabang-root #cabangMap {
+      width: 100%;
+      height: 260px;
+      border: 1px solid var(--cb-line);
+      background: #e2e8f0;
+    }
+    #cabang-root .cb-map-hint {
+      margin: 0 0 10px;
+      font-size: 0.78rem;
+      font-weight: 750;
+      color: #475569;
+    }
+    #cabang-root .leaflet-container {
+      border-radius: 0 !important;
+      font-family: 'fontku', 'Segoe UI', sans-serif;
     }
     #cabang-root .op-modal__head h3 {
       margin: 0;
@@ -344,6 +374,9 @@ $kotaOptions = is_array($this->dKota ?? null) ? $this->dKota : [];
             $phone = (string) ($a['phone_number'] ?? '');
             $wifi = (string) ($a['wifi_pass'] ?? '');
             $rent = (int) ($a['rent'] ?? 0);
+            $latt = $a['latt'] ?? '';
+            $long = $a['long'] ?? '';
+            $gmaps = (string) ($a['gmaps'] ?? '');
             $isTraining = !empty($a['is_training']);
           ?>
             <tr class="<?= $isTraining ? 'is-training' : '' ?>">
@@ -354,6 +387,16 @@ $kotaOptions = is_array($this->dKota ?? null) ? $this->dKota : [];
               <td class="cb-kode"><?= htmlspecialchars($kode) ?></td>
               <td class="cb-alamat" title="<?= htmlspecialchars($alamat) ?>"><?= htmlspecialchars($alamat) ?></td>
               <td class="cb-actions">
+                <button
+                  type="button"
+                  class="cb-btn cb-btn--cyan cb-btn--sm btn-maps-cabang"
+                  data-id="<?= $id ?>"
+                  data-kode="<?= htmlspecialchars($kode, ENT_QUOTES) ?>"
+                  data-nama="<?= htmlspecialchars($nama, ENT_QUOTES) ?>"
+                  data-latt="<?= htmlspecialchars((string) $latt, ENT_QUOTES) ?>"
+                  data-long="<?= htmlspecialchars((string) $long, ENT_QUOTES) ?>"
+                  data-gmaps="<?= htmlspecialchars($gmaps, ENT_QUOTES) ?>"
+                ><i class="fas fa-map-marker-alt"></i> Maps</button>
                 <button
                   type="button"
                   class="cb-btn cb-btn--blue cb-btn--sm btn-edit-cabang"
@@ -437,21 +480,68 @@ $kotaOptions = is_array($this->dKota ?? null) ? $this->dKota : [];
       </form>
     </div>
   </div>
+
+  <!-- Modal Maps -->
+  <div class="op-modal" id="modalCabangMaps" aria-hidden="true">
+    <div class="op-modal__backdrop" data-op-close></div>
+    <div class="op-modal__panel op-modal__panel--maps" role="dialog" aria-modal="true">
+      <div class="op-modal__head op-modal__head--cyan">
+        <div>
+          <h3 id="cabangMapsTitle">Maps Cabang</h3>
+          <small id="cabangMapsSub">Klik peta untuk set koordinat</small>
+        </div>
+        <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
+      </div>
+      <form id="formCabangMaps" autocomplete="off">
+        <div class="op-modal__body">
+          <input type="hidden" name="id" id="mapsCabangId" value="">
+          <p class="cb-map-hint">Klik lokasi di peta untuk menentukan latitude &amp; longitude.</p>
+          <div id="cabangMap"></div>
+          <div class="cb-row" style="margin-top:12px;">
+            <div class="cb-field">
+              <label class="cb-label" for="mapsLatt">Latitude (latt)</label>
+              <input type="text" class="cb-input" name="latt" id="mapsLatt" readonly required>
+            </div>
+            <div class="cb-field">
+              <label class="cb-label" for="mapsLong">Longitude (long)</label>
+              <input type="text" class="cb-input" name="long" id="mapsLong" readonly required>
+            </div>
+          </div>
+          <div class="cb-field">
+            <label class="cb-label" for="mapsGmaps">Link Google Maps</label>
+            <input type="text" class="cb-input" name="gmaps" id="mapsGmaps" placeholder="https://maps.google.com/... atau https://maps.app.goo.gl/...">
+          </div>
+        </div>
+        <div class="op-modal__foot">
+          <button type="button" class="cb-btn cb-btn--ghost" data-op-close>Batal</button>
+          <button type="submit" class="cb-btn cb-btn--primary" id="mapsSubmitBtn">Simpan Maps</button>
+        </div>
+      </form>
+    </div>
+  </div>
 </div>
 
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script>
 (function () {
   var BASE = '<?= URL::BASE_URL ?>';
+  var DEFAULT_LAT = -6.2;
+  var DEFAULT_LNG = 106.816666;
   var root = document.getElementById('cabang-root');
   if (!root) return;
 
   var form = document.getElementById('formCabang');
+  var formMaps = document.getElementById('formCabangMaps');
   var head = document.getElementById('cabangFormHead');
   var title = document.getElementById('cabangFormTitle');
   var sub = document.getElementById('cabangFormSub');
   var submitBtn = document.getElementById('cabangSubmitBtn');
+  var mapsSubmitBtn = document.getElementById('mapsSubmitBtn');
   var idField = document.getElementById('cabangIdField');
   var editMode = false;
+  var mapInstance = null;
+  var mapMarker = null;
 
   function toast(msg, type) {
     type = type || 'info';
@@ -578,6 +668,92 @@ $kotaOptions = is_array($this->dKota ?? null) ? $this->dKota : [];
       error: function () {
         toast('Gagal menyimpan', 'error');
         submitBtn.disabled = false;
+      }
+    });
+  });
+
+  function parseCoord(val, fallback) {
+    var n = parseFloat(val);
+    return isNaN(n) ? fallback : n;
+  }
+
+  function setMarker(lat, lng) {
+    if (!mapInstance) return;
+    if (mapMarker) mapInstance.removeLayer(mapMarker);
+    mapMarker = L.marker([lat, lng]).addTo(mapInstance);
+    document.getElementById('mapsLatt').value = lat;
+    document.getElementById('mapsLong').value = lng;
+  }
+
+  function ensureMap(lat, lng) {
+    if (typeof L === 'undefined') {
+      toast('Leaflet gagal dimuat', 'error');
+      return;
+    }
+    if (!mapInstance) {
+      mapInstance = L.map('cabangMap', { center: [lat, lng], zoom: 15 });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap'
+      }).addTo(mapInstance);
+      mapInstance.on('click', function (ev) {
+        setMarker(ev.latlng.lat, ev.latlng.lng);
+      });
+    } else {
+      mapInstance.setView([lat, lng], 15);
+    }
+    setMarker(lat, lng);
+    setTimeout(function () {
+      if (mapInstance) mapInstance.invalidateSize();
+    }, 80);
+  }
+
+  function openMapsModal(btn) {
+    var id = btn.getAttribute('data-id') || '';
+    var kode = btn.getAttribute('data-kode') || '';
+    var nama = btn.getAttribute('data-nama') || '';
+    var lat = parseCoord(btn.getAttribute('data-latt'), DEFAULT_LAT);
+    var lng = parseCoord(btn.getAttribute('data-long'), DEFAULT_LNG);
+    var gmaps = btn.getAttribute('data-gmaps') || '';
+
+    document.getElementById('mapsCabangId').value = id;
+    document.getElementById('mapsGmaps').value = gmaps;
+    document.getElementById('cabangMapsTitle').textContent = 'Maps · ' + (kode || id);
+    document.getElementById('cabangMapsSub').textContent = nama || 'Klik peta untuk set koordinat';
+
+    openModal('modalCabangMaps');
+    ensureMap(lat, lng);
+  }
+
+  root.addEventListener('click', function (e) {
+    var btn = e.target.closest('.btn-maps-cabang');
+    if (!btn || !root.contains(btn)) return;
+    openMapsModal(btn);
+  });
+
+  formMaps.addEventListener('submit', function (e) {
+    e.preventDefault();
+    mapsSubmitBtn.disabled = true;
+    var fd = new FormData(formMaps);
+    var data = {};
+    fd.forEach(function (v, k) { data[k] = v; });
+
+    $.ajax({
+      url: BASE + 'Cabang_List/updateMaps',
+      type: 'POST',
+      data: data,
+      dataType: 'html',
+      success: function (response) {
+        var res = String(response || '').trim();
+        if (res === '0' || res === '') {
+          location.reload(true);
+          return;
+        }
+        toast(res, 'error');
+        mapsSubmitBtn.disabled = false;
+      },
+      error: function () {
+        toast('Gagal menyimpan maps', 'error');
+        mapsSubmitBtn.disabled = false;
       }
     });
   });

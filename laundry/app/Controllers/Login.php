@@ -624,13 +624,106 @@ class Login extends Controller
       $this->save_cookie($data_user);
    }
 
+   /**
+    * Request PIN OTP ke WA user Admin yang sedang login (lupa Admin Key).
+    * Hanya privilege 100 (dicek session + DB). Pola sama Login/req_pin.
+    */
+   public function admin_req_pin()
+   {
+      header('Content-Type: application/json; charset=utf-8');
+
+      $cek = $this->getVerifiedAdminSessionUser();
+      if (!$cek) {
+         echo json_encode(['ok' => 0, 'msg' => 'Akses ditolak. Hanya Admin.']);
+         return;
+      }
+
+      $hp = (string) ($cek['no_user'] ?? '');
+      $idUser = (int) ($cek['id_user'] ?? 0);
+      if ($hp === '' || $idUser < 1) {
+         echo json_encode(['ok' => 0, 'msg' => 'Data Admin tidak lengkap']);
+         return;
+      }
+
+      $where = "id_user = " . $idUser . " AND id_privilege = 100 AND en = 1";
+
+      $now = new DateTime();
+      if (!empty($cek['otp_active'])) {
+         try {
+            $expiry = new DateTime($cek['otp_active']);
+            if ($now <= $expiry) {
+               echo json_encode([
+                  'ok' => 1,
+                  'msg' => 'GUNAKAN PIN YANG SUDAH DIKIRIM, MASIH AKTIF (5 menit)',
+               ]);
+               return;
+            }
+         } catch (Exception $e) {
+            // lanjut generate baru
+         }
+      }
+
+      $otp = str_pad((string) mt_rand(0, 9999), 4, '0', STR_PAD_LEFT);
+      $otpEnc = $this->model('Enc')->otp($otp);
+      $nama = (string) ($cek['nama_user'] ?? '');
+      $idCabang = (int) ($cek['id_cabang'] ?? 0);
+
+      $text = "🔐 *KODE OTP BUKA ADMIN*\n\n";
+      $text .= "Kode OTP: *" . $otp . "*\n";
+      $text .= "Nama: " . $nama . "\n";
+      $text .= "Aplikasi: LAUNDRY\n\n";
+      $text .= "⏰ *Kode OTP ini aktif selama 5 menit*\n";
+      $text .= "Jangan bagikan kode ini kepada siapapun!";
+
+      $wa = $this->model('WA_YCloud')->send($hp, $text);
+      $statusOk = !empty($wa['status']) && ($wa['status'] === true || $wa['status'] === 'success');
+      $httpOk = ((int) ($wa['code'] ?? 0) === 200);
+
+      if (!$statusOk || !$httpOk) {
+         $err = $wa['error'] ?? 'WhatsApp tidak terkirim';
+         $this->model('Log')->write('[Login/admin_req_pin] WA Failed: ' . $err);
+         echo json_encode(['ok' => 0, 'msg' => 'GAGAL KIRIM PIN: ' . $err]);
+         return;
+      }
+
+      $expiry = date('Y-m-d H:i:s', strtotime('+5 minutes'));
+      $today = date('Ymd');
+      $waRes = [
+         'status' => $wa['status'],
+         'data' => $wa['data'] ?? [],
+         'error' => $wa['error'] ?? null,
+         'http_code' => $wa['code'] ?? 0,
+      ];
+      $do = $this->helper('Notif')->insertOTP($waRes, $today, $hp, $otp, $idCabang);
+      if (($do['errno'] ?? 1) != 0) {
+         echo json_encode(['ok' => 0, 'msg' => 'Notif gagal disimpan: ' . ($do['error'] ?? '')]);
+         return;
+      }
+
+      $up = $this->db(0)->update('user', [
+         'otp' => $otpEnc,
+         'otp_active' => $expiry,
+      ], $where);
+
+      if (($up['errno'] ?? 1) != 0) {
+         echo json_encode(['ok' => 0, 'msg' => 'PIN gagal disimpan: ' . ($up['error'] ?? '')]);
+         return;
+      }
+
+      echo json_encode([
+         'ok' => 1,
+         'msg' => 'PERMINTAAN PIN BERHASIL, AKTIF 5 MENIT',
+      ]);
+   }
+
    public function log_mode()
    {
       header('Content-Type: application/json; charset=utf-8');
 
-      $priv = (int) ($_SESSION[URL::SESSID]['user']['id_privilege'] ?? 0);
-      if ($priv !== 100) {
-         echo json_encode(['ok' => 0, 'msg' => 'Akses ditolak']);
+      // Hanya privilege Admin (100) — cek session + DB, bukan user lain
+      $adminUser = $this->getVerifiedAdminSessionUser();
+      if (!$adminUser) {
+         echo json_encode(['ok' => 0, 'msg' => 'Akses ditolak. Hanya Admin.']);
          return;
       }
 
@@ -642,15 +735,26 @@ class Login extends Controller
 
          if ($hasKey && !$unlocked) {
             $key = trim((string) ($_POST['key'] ?? ''));
-            if ($key === '') {
+            $pin = trim((string) ($_POST['pin'] ?? ''));
+
+            // Alternatif lupa Admin Key: PIN OTP WA milik Admin yang sedang login saja
+            if ($pin !== '') {
+               if (!$this->verifyAdminUnlockPin($pin, $adminUser)) {
+                  echo json_encode([
+                     'ok' => 0,
+                     'need_key' => 1,
+                     'msg' => 'PIN tidak cocok / sudah kadaluarsa. Request PIN dulu.',
+                  ]);
+                  return;
+               }
+            } elseif ($key === '') {
                echo json_encode([
                   'ok' => 0,
                   'need_key' => 1,
                   'msg' => 'Admin Key wajib',
                ]);
                return;
-            }
-            if (!$this->verifyAdminAccessKey($key)) {
+            } elseif (!$this->verifyAdminAccessKey($key)) {
                echo json_encode([
                   'ok' => 0,
                   'need_key' => 1,
@@ -695,8 +799,7 @@ class Login extends Controller
    {
       header('Content-Type: application/json; charset=utf-8');
 
-      $priv = (int) ($_SESSION[URL::SESSID]['user']['id_privilege'] ?? 0);
-      if ($priv !== 100) {
+      if (!$this->getVerifiedAdminSessionUser()) {
          echo json_encode(['ok' => 0]);
          return;
       }
@@ -765,6 +868,83 @@ class Login extends Controller
       $hash = $this->model('Enc')->otp($key);
       $row = $this->db(0)->get_where_row('admin_access_key', "key_hash = '" . $this->db(0)->escape($hash) . "'");
       return is_array($row) && !empty($row['id']);
+   }
+
+   /**
+    * Pastikan session aktif adalah user privilege Admin (100),
+    * dicek ulang ke DB (bukan hanya nilai di session).
+    * @return array|null baris user Admin dari DB
+    */
+   private function getVerifiedAdminSessionUser()
+   {
+      if (empty($_SESSION[URL::SESSID]['login'])) {
+         return null;
+      }
+
+      $sess = $_SESSION[URL::SESSID]['user'] ?? [];
+      $idUser = (int) ($sess['id_user'] ?? 0);
+      $privSess = (int) ($sess['id_privilege'] ?? 0);
+
+      // Tolak non-admin di session (kasir/kurir/user lain)
+      if ($idUser < 1 || $privSess !== 100) {
+         return null;
+      }
+
+      $row = $this->db(0)->get_where_row('user', 'id_user = ' . $idUser . ' AND en = 1');
+      if (!is_array($row) || empty($row['id_user'])) {
+         return null;
+      }
+
+      // Privilege di DB harus Admin — session palsu/usang ditolak
+      if ((int) ($row['id_privilege'] ?? 0) !== 100) {
+         return null;
+      }
+
+      return $row;
+   }
+
+   /**
+    * Validasi PIN OTP WA untuk unlock Admin (lupa secret key).
+    * Hanya OTP milik user Admin yang sedang login (id_user + priv 100).
+    * Tidak memakai bypass localhost pin_today — OTP wajib cocok & belum expired.
+    */
+   private function verifyAdminUnlockPin($pin, $adminUser = null): bool
+   {
+      if (!preg_match('/^\d{4}$/', (string) $pin)) {
+         return false;
+      }
+
+      if (!is_array($adminUser) || empty($adminUser['id_user'])) {
+         $adminUser = $this->getVerifiedAdminSessionUser();
+      }
+      if (!$adminUser) {
+         return false;
+      }
+      if ((int) ($adminUser['id_privilege'] ?? 0) !== 100) {
+         return false;
+      }
+
+      $otpHash = $this->model('Enc')->otp($pin);
+      $stored = (string) ($adminUser['otp'] ?? '');
+      $active = (string) ($adminUser['otp_active'] ?? '');
+      if ($stored === '' || $active === '') {
+         return false;
+      }
+      if (!hash_equals($stored, $otpHash)) {
+         return false;
+      }
+
+      try {
+         $now = new DateTime();
+         $expiry = new DateTime($active);
+         if ($now > $expiry) {
+            return false;
+         }
+      } catch (Exception $e) {
+         return false;
+      }
+
+      return true;
    }
 
    function get_client_ip()
