@@ -280,12 +280,12 @@ $modeOperasi = (int) $data['mode'];
   }
   @media (min-width: 1100px) {
     #load.operasi-load .mdl-nota-grid {
-      grid-template-columns: repeat(auto-fill, 500px) !important;
+      grid-template-columns: repeat(auto-fill, 490px) !important;
       gap: 8px !important;
     }
     #load.operasi-load .mdl-nota-grid__item {
-      width: 500px !important;
-      max-width: 500px !important;
+      width: 490px !important;
+      max-width: 490px !important;
       margin: 0 !important;
     }
   }

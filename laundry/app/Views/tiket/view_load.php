@@ -3,10 +3,7 @@ $mode = (int) ($data['mode'] ?? 0);
 $rows = $data['rows'] ?? [];
 $grouped = $data['grouped'] ?? [];
 $cabangMap = $data['cabangMap'] ?? [];
-$userMap = $data['userMap'] ?? [];
-$idUser = (int) ($data['idUser'] ?? 0);
 $isAdmin = !empty($data['isAdmin']);
-$canSelesai = !empty($data['canSelesai']);
 
 $jenisTone = [
   'Perbaikan' => 'blue',
@@ -21,28 +18,19 @@ $fmtDt = function ($dt) {
   return $t ? date('d/m/Y H:i', $t) : '—';
 };
 
-$namaUser = function ($id) use ($userMap) {
-  $id = (int) $id;
-  if ($id <= 0) return '—';
-  if (isset($userMap[$id]) && is_array($userMap[$id])) {
-    return strtoupper((string) ($userMap[$id]['nama_user'] ?? ('#' . $id)));
-  }
-  return '#' . $id;
-};
-
 $kodeCabang = function ($id) use ($cabangMap) {
   $id = (int) $id;
   return $cabangMap[$id] ?? ('#' . $id);
 };
 
-$renderCard = function ($row) use ($mode, $idUser, $isAdmin, $canSelesai, $jenisTone, $fmtDt, $namaUser, $kodeCabang) {
+$renderCard = function ($row) use ($mode, $isAdmin, $jenisTone, $fmtDt, $kodeCabang) {
   $id = (int) ($row['id_tiket'] ?? 0);
   $judul = (string) ($row['judul'] ?? '');
   $jenis = (string) ($row['jenis'] ?? '');
   $ket = (string) ($row['keterangan'] ?? '');
   $karyawan = (string) ($row['karyawan'] ?? '');
+  $idKaryawan = (int) ($row['id_karyawan'] ?? 0);
   $tone = $jenisTone[$jenis] ?? 'blue';
-  $isOwner = ((int) ($row['id_user'] ?? 0) === $idUser);
   $isProses = $mode === 0;
   ?>
   <div class="tk-card tk-card--<?= $isProses ? 'proses' : 'selesai' ?>">
@@ -59,11 +47,9 @@ $renderCard = function ($row) use ($mode, $idUser, $isAdmin, $canSelesai, $jenis
         <div class="tk-card__ket"><?= nl2br(htmlspecialchars($ket)) ?></div>
       <?php } ?>
       <div class="tk-card__grid">
-        <div><span>Karyawan</span><strong><?= htmlspecialchars($karyawan) ?></strong></div>
-        <div><span>Pembuat</span><strong><?= htmlspecialchars($namaUser($row['id_user'] ?? 0)) ?></strong></div>
+        <div><span>Karyawan pembuat</span><strong><?= htmlspecialchars($karyawan !== '' ? $karyawan : '—') ?></strong></div>
         <?php if (!$isProses) { ?>
-          <div><span>Karyawan Selesai</span><strong><?= htmlspecialchars((string) ($row['karyawan_selesai'] ?? '—')) ?></strong></div>
-          <div><span>Ditutup oleh</span><strong><?= htmlspecialchars($namaUser($row['id_user_selesai'] ?? 0)) ?></strong></div>
+          <div><span>Karyawan selesai</span><strong><?= htmlspecialchars((string) ($row['karyawan_selesai'] ?? '—')) ?></strong></div>
         <?php } ?>
       </div>
       <?php if (!$isProses && !empty($row['catatan_selesai'])) { ?>
@@ -73,27 +59,23 @@ $renderCard = function ($row) use ($mode, $idUser, $isAdmin, $canSelesai, $jenis
         </div>
       <?php } ?>
     </div>
-    <?php if ($isProses && ($isOwner || $isAdmin || $canSelesai)) { ?>
+    <?php if ($isProses) { ?>
       <div class="tk-card__actions">
-        <?php if ($isOwner) { ?>
-          <button type="button"
-            class="tk-btn tk-btn--blue tk-btn--sm btnEditTiket"
-            data-id="<?= $id ?>"
-            data-judul="<?= htmlspecialchars(base64_encode($judul), ENT_QUOTES) ?>"
-            data-jenis="<?= htmlspecialchars($jenis, ENT_QUOTES) ?>"
-            data-keterangan="<?= htmlspecialchars(base64_encode($ket), ENT_QUOTES) ?>"
-            data-karyawan="<?= htmlspecialchars(base64_encode($karyawan), ENT_QUOTES) ?>">
-            <i class="fas fa-edit"></i> Edit
-          </button>
-        <?php } ?>
-        <?php if ($canSelesai) { ?>
-          <button type="button"
-            class="tk-btn tk-btn--primary tk-btn--sm btnSelesaiTiket"
-            data-id="<?= $id ?>"
-            data-judul="<?= htmlspecialchars(base64_encode($judul), ENT_QUOTES) ?>">
-            <i class="fas fa-check"></i> Selesai
-          </button>
-        <?php } ?>
+        <button type="button"
+          class="tk-btn tk-btn--blue tk-btn--sm btnEditTiket"
+          data-id="<?= $id ?>"
+          data-id-karyawan="<?= $idKaryawan ?>"
+          data-judul="<?= htmlspecialchars(base64_encode($judul), ENT_QUOTES) ?>"
+          data-jenis="<?= htmlspecialchars($jenis, ENT_QUOTES) ?>"
+          data-keterangan="<?= htmlspecialchars(base64_encode($ket), ENT_QUOTES) ?>">
+          <i class="fas fa-edit"></i> Edit
+        </button>
+        <button type="button"
+          class="tk-btn tk-btn--primary tk-btn--sm btnSelesaiTiket"
+          data-id="<?= $id ?>"
+          data-judul="<?= htmlspecialchars(base64_encode($judul), ENT_QUOTES) ?>">
+          <i class="fas fa-check"></i> Selesai
+        </button>
         <?php if ($isAdmin) { ?>
           <button type="button"
             class="tk-btn tk-btn--danger tk-btn--sm btnHapusTiket"

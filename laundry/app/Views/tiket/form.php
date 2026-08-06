@@ -2,9 +2,7 @@
 $mode = (int) ($data['mode'] ?? 0);
 $isSelesai = $mode === 1;
 $jenisList = $data['jenisList'] ?? ['Perbaikan', 'Pergantian', 'Perawatan', 'Penambahan'];
-$canSelesai = !empty($data['canSelesai']);
 $isAdmin = !empty($data['isAdmin']);
-$idUser = (int) ($data['idUser'] ?? 0);
 $kodeCabangUi = strtoupper((string) ($this->dCabang['kode_cabang'] ?? ''));
 $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
 ?>
@@ -363,22 +361,27 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
             <textarea class="tk-input" name="keterangan" id="tiketKeterangan" rows="3"></textarea>
           </div>
           <div class="tk-field">
-            <label class="tk-label" for="tiketKaryawan">Karyawan</label>
-            <select name="karyawan" id="tiketKaryawan" class="tize" style="width: 100%;" required>
+            <label class="tk-label" for="tiketKaryawan">Karyawan pembuat</label>
+            <select name="id_karyawan" id="tiketKaryawan" class="tize" style="width: 100%;" required>
               <option value="" selected disabled></option>
               <optgroup label="<?= htmlspecialchars($namaCabangUi) ?> [<?= htmlspecialchars($kodeCabangUi) ?>]">
                 <?php foreach ($this->user as $a) { ?>
-                  <option id="<?= (int) $a['id_user'] ?>" value="<?= htmlspecialchars($a['nama_user']) ?>"><?= (int) $a['id_user'] . '-' . strtoupper($a['nama_user']) ?></option>
+                  <option value="<?= (int) $a['id_user'] ?>"><?= (int) $a['id_user'] . '-' . strtoupper($a['nama_user']) ?></option>
                 <?php } ?>
               </optgroup>
               <?php if (count($this->userCabang) > 0) { ?>
                 <optgroup label="----- Cabang Lain -----">
                   <?php foreach ($this->userCabang as $a) { ?>
-                    <option id="<?= (int) $a['id_user'] ?>" value="<?= htmlspecialchars($a['nama_user']) ?>"><?= (int) $a['id_user'] . '-' . strtoupper($a['nama_user']) ?></option>
+                    <option value="<?= (int) $a['id_user'] ?>"><?= (int) $a['id_user'] . '-' . strtoupper($a['nama_user']) ?></option>
                   <?php } ?>
                 </optgroup>
               <?php } ?>
             </select>
+          </div>
+          <div class="tk-field">
+            <label class="tk-label" for="tiketAccessKey">Access Key karyawan</label>
+            <input type="password" class="tk-input" name="access_key" id="tiketAccessKey" inputmode="numeric" maxlength="4" autocomplete="one-time-code" placeholder="4 digit" required>
+            <small style="display:block;margin-top:4px;color:#64748b;font-size:0.78rem;">Access Key harus milik karyawan yang dipilih.</small>
           </div>
         </div>
         <div class="op-modal__foot">
@@ -389,7 +392,6 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
     </div>
   </div>
 
-  <?php if ($canSelesai) { ?>
   <!-- Modal Selesai -->
   <div class="op-modal" id="modalTiketSelesai" aria-hidden="true">
     <div class="op-modal__backdrop" data-op-close></div>
@@ -409,22 +411,27 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
             <textarea class="tk-input" name="catatan_selesai" id="selesaiCatatan" rows="3" required></textarea>
           </div>
           <div class="tk-field">
-            <label class="tk-label" for="selesaiKaryawan">Karyawan</label>
-            <select name="karyawan_selesai" id="selesaiKaryawan" class="tize" style="width: 100%;" required>
+            <label class="tk-label" for="selesaiKaryawan">Karyawan yang menyelesaikan</label>
+            <select name="id_karyawan" id="selesaiKaryawan" class="tize" style="width: 100%;" required>
               <option value="" selected disabled></option>
               <optgroup label="<?= htmlspecialchars($namaCabangUi) ?> [<?= htmlspecialchars($kodeCabangUi) ?>]">
                 <?php foreach ($this->user as $a) { ?>
-                  <option id="<?= (int) $a['id_user'] ?>" value="<?= htmlspecialchars($a['nama_user']) ?>"><?= (int) $a['id_user'] . '-' . strtoupper($a['nama_user']) ?></option>
+                  <option value="<?= (int) $a['id_user'] ?>"><?= (int) $a['id_user'] . '-' . strtoupper($a['nama_user']) ?></option>
                 <?php } ?>
               </optgroup>
               <?php if (count($this->userCabang) > 0) { ?>
                 <optgroup label="----- Cabang Lain -----">
                   <?php foreach ($this->userCabang as $a) { ?>
-                    <option id="<?= (int) $a['id_user'] ?>" value="<?= htmlspecialchars($a['nama_user']) ?>"><?= (int) $a['id_user'] . '-' . strtoupper($a['nama_user']) ?></option>
+                    <option value="<?= (int) $a['id_user'] ?>"><?= (int) $a['id_user'] . '-' . strtoupper($a['nama_user']) ?></option>
                   <?php } ?>
                 </optgroup>
               <?php } ?>
             </select>
+          </div>
+          <div class="tk-field">
+            <label class="tk-label" for="selesaiAccessKey">Access Key karyawan</label>
+            <input type="password" class="tk-input" name="access_key" id="selesaiAccessKey" inputmode="numeric" maxlength="4" autocomplete="one-time-code" placeholder="4 digit" required>
+            <small style="display:block;margin-top:4px;color:#64748b;font-size:0.78rem;">Access Key harus milik karyawan yang dipilih.</small>
           </div>
         </div>
         <div class="op-modal__foot">
@@ -434,7 +441,6 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
       </form>
     </div>
   </div>
-  <?php } ?>
 
   <?php if ($isAdmin) { ?>
   <!-- Modal Hapus -->
@@ -566,6 +572,7 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
     $('#tiketJudul').val('');
     $('#tiketKeterangan').val('');
     $('#tiketJenis').val('');
+    $('#tiketAccessKey').val('');
     $('#tiketFormTitle').text('Tambah Tiket');
     clearTize('tiketKaryawan');
   }
@@ -597,7 +604,8 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
     $('#tiketJudul').val(b64decode(btn.getAttribute('data-judul') || ''));
     $('#tiketKeterangan').val(b64decode(btn.getAttribute('data-keterangan') || ''));
     $('#tiketJenis').val(btn.getAttribute('data-jenis') || '');
-    setTizeValue('tiketKaryawan', b64decode(btn.getAttribute('data-karyawan') || ''));
+    setTizeValue('tiketKaryawan', btn.getAttribute('data-id-karyawan') || '');
+    $('#tiketAccessKey').val('');
     openModal('modalTiketForm');
   }
 
@@ -617,6 +625,7 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
     $('#selesaiId').val(id);
     $('#selesaiJudulPreview').text(judul);
     $('#selesaiCatatan').val('');
+    $('#selesaiAccessKey').val('');
     clearTize('selesaiKaryawan');
     openModal('modalTiketSelesai');
   });

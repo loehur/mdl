@@ -3,6 +3,7 @@
 /**
  * Modul Tiket — lintas cabang (tanpa filter wCabang).
  * status: 0 = proses, 1 = selesai
+ * Pembuat / penyelesai: karyawan + Access Key (bukan user login).
  */
 class Tiket extends Controller
 {
@@ -48,10 +49,15 @@ class Tiket extends Controller
         $judul = trim((string) ($_POST['judul'] ?? ''));
         $jenis = trim((string) ($_POST['jenis'] ?? ''));
         $keterangan = trim((string) ($_POST['keterangan'] ?? ''));
-        $karyawan = trim((string) ($_POST['karyawan'] ?? ''));
+        $idKaryawan = (int) ($_POST['id_karyawan'] ?? 0);
+        $accessKey = trim((string) ($_POST['access_key'] ?? ''));
 
-        if ($judul === '' || $karyawan === '') {
-            echo 'Judul dan Karyawan wajib diisi';
+        if ($judul === '') {
+            echo 'Judul wajib diisi';
+            return;
+        }
+        if ($idKaryawan < 1) {
+            echo 'Pilih karyawan pembuat';
             return;
         }
         if (!in_array($jenis, $this->jenisList, true)) {
@@ -59,20 +65,26 @@ class Tiket extends Controller
             return;
         }
 
-        $idUser = (int) ($_SESSION[URL::SESSID]['user']['id_user'] ?? 0);
-        $idCabang = (int) $this->id_cabang;
-        if ($idUser <= 0 || $idCabang <= 0) {
-            echo 'Sesi user/cabang tidak valid';
+        $karyawan = $this->helper('User')->by_id_access_key($idKaryawan, $accessKey);
+        if (!$karyawan) {
+            echo 'Access Key tidak cocok dengan karyawan yang dipilih';
             return;
         }
 
+        $idCabang = (int) $this->id_cabang;
+        if ($idCabang <= 0) {
+            echo 'Sesi cabang tidak valid';
+            return;
+        }
+
+        $namaKaryawan = strtoupper((string) ($karyawan['nama_user'] ?? ('#' . $idKaryawan)));
         $data = [
             'id_cabang' => $idCabang,
-            'id_user' => $idUser,
+            'id_karyawan' => $idKaryawan,
             'judul' => $judul,
             'jenis' => $jenis,
             'keterangan' => $keterangan,
-            'karyawan' => $karyawan,
+            'karyawan' => $namaKaryawan,
             'status' => 0,
             'insertTime' => $GLOBALS['now'],
         ];
@@ -105,19 +117,18 @@ class Tiket extends Controller
             return;
         }
 
-        $idUser = (int) ($_SESSION[URL::SESSID]['user']['id_user'] ?? 0);
-        if ((int) $row['id_user'] !== $idUser) {
-            echo 'Hanya pembuat tiket yang dapat mengedit';
-            return;
-        }
-
         $judul = trim((string) ($_POST['judul'] ?? ''));
         $jenis = trim((string) ($_POST['jenis'] ?? ''));
         $keterangan = trim((string) ($_POST['keterangan'] ?? ''));
-        $karyawan = trim((string) ($_POST['karyawan'] ?? ''));
+        $idKaryawan = (int) ($_POST['id_karyawan'] ?? 0);
+        $accessKey = trim((string) ($_POST['access_key'] ?? ''));
 
-        if ($judul === '' || $karyawan === '') {
-            echo 'Judul dan Karyawan wajib diisi';
+        if ($judul === '') {
+            echo 'Judul wajib diisi';
+            return;
+        }
+        if ($idKaryawan < 1) {
+            echo 'Pilih karyawan pembuat';
             return;
         }
         if (!in_array($jenis, $this->jenisList, true)) {
@@ -125,11 +136,19 @@ class Tiket extends Controller
             return;
         }
 
+        $karyawan = $this->helper('User')->by_id_access_key($idKaryawan, $accessKey);
+        if (!$karyawan) {
+            echo 'Access Key tidak cocok dengan karyawan yang dipilih';
+            return;
+        }
+
+        $namaKaryawan = strtoupper((string) ($karyawan['nama_user'] ?? ('#' . $idKaryawan)));
         $set = [
             'judul' => $judul,
             'jenis' => $jenis,
             'keterangan' => $keterangan,
-            'karyawan' => $karyawan,
+            'id_karyawan' => $idKaryawan,
+            'karyawan' => $namaKaryawan,
         ];
         $up = $this->db(0)->update('tiket', $set, 'id_tiket = ' . $id);
         if ((int) ($up['errno'] ?? 1) === 0) {
@@ -177,22 +196,27 @@ class Tiket extends Controller
     {
         $this->session_cek();
 
-        $priv = (int) ($_SESSION[URL::SESSID]['user']['id_privilege'] ?? 0);
-        if ($priv !== 100 && $priv !== 12) {
-            echo 'Hanya admin atau driver yang dapat menandai selesai';
-            return;
-        }
-
         $id = (int) ($_POST['id_tiket'] ?? 0);
         $catatan = trim((string) ($_POST['catatan_selesai'] ?? ''));
-        $karyawan = trim((string) ($_POST['karyawan_selesai'] ?? ''));
+        $idKaryawan = (int) ($_POST['id_karyawan'] ?? 0);
+        $accessKey = trim((string) ($_POST['access_key'] ?? ''));
 
         if ($id <= 0) {
             echo 'ID tiket tidak valid';
             return;
         }
-        if ($catatan === '' || $karyawan === '') {
-            echo 'Catatan Selesai dan Karyawan wajib diisi';
+        if ($catatan === '') {
+            echo 'Catatan Selesai wajib diisi';
+            return;
+        }
+        if ($idKaryawan < 1) {
+            echo 'Pilih karyawan yang menyelesaikan';
+            return;
+        }
+
+        $karyawan = $this->helper('User')->by_id_access_key($idKaryawan, $accessKey);
+        if (!$karyawan) {
+            echo 'Access Key tidak cocok dengan karyawan yang dipilih';
             return;
         }
 
@@ -206,12 +230,12 @@ class Tiket extends Controller
             return;
         }
 
-        $idUser = (int) ($_SESSION[URL::SESSID]['user']['id_user'] ?? 0);
+        $namaKaryawan = strtoupper((string) ($karyawan['nama_user'] ?? ('#' . $idKaryawan)));
         $set = [
             'status' => 1,
             'catatan_selesai' => $catatan,
-            'karyawan_selesai' => $karyawan,
-            'id_user_selesai' => $idUser,
+            'karyawan_selesai' => $namaKaryawan,
+            'id_karyawan_selesai' => $idKaryawan,
             'selesaiTime' => $GLOBALS['now'],
         ];
         $up = $this->db(0)->update('tiket', $set, 'id_tiket = ' . $id . ' AND status = 0');
@@ -226,12 +250,8 @@ class Tiket extends Controller
     {
         $mode = (int) $mode;
         $cabangMap = $this->buildCabangMap();
-        $userMap = is_array($this->userAll) ? $this->userAll : [];
-
-        $idUser = (int) ($_SESSION[URL::SESSID]['user']['id_user'] ?? 0);
         $priv = (int) ($_SESSION[URL::SESSID]['user']['id_privilege'] ?? 0);
         $isAdmin = $priv === 100;
-        $canSelesai = $isAdmin || $priv === 12;
 
         if ($mode === 1) {
             $idCabang = (int) $this->id_cabang;
@@ -243,11 +263,8 @@ class Tiket extends Controller
                 'rows' => $rows,
                 'grouped' => $grouped,
                 'cabangMap' => $cabangMap,
-                'userMap' => $userMap,
                 'jenisList' => $this->jenisList,
-                'idUser' => $idUser,
                 'isAdmin' => $isAdmin,
-                'canSelesai' => $canSelesai,
             ];
         }
 
@@ -257,11 +274,8 @@ class Tiket extends Controller
             'rows' => $rows,
             'grouped' => [],
             'cabangMap' => $cabangMap,
-            'userMap' => $userMap,
             'jenisList' => $this->jenisList,
-            'idUser' => $idUser,
             'isAdmin' => $isAdmin,
-            'canSelesai' => $canSelesai,
         ];
     }
 

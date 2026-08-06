@@ -330,13 +330,13 @@ if (isset($data['data_operasi'])) {
         }
         @media (min-width: 1100px) {
             .content-wrapper .mdl-nota-grid {
-                grid-template-columns: repeat(auto-fill, 500px);
+                grid-template-columns: repeat(auto-fill, 490px);
                 justify-content: start;
                 gap: 8px;
             }
             .content-wrapper .mdl-nota-grid__item {
-                width: 500px !important;
-                max-width: 500px !important;
+                width: 490px !important;
+                max-width: 490px !important;
             }
         }
 
