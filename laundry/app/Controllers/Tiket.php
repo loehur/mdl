@@ -234,7 +234,9 @@ class Tiket extends Controller
         $canSelesai = $isAdmin || $priv === 12;
 
         if ($mode === 1) {
-            $rows = $this->db(0)->get_where('tiket', 'status = 1 ORDER BY selesaiTime DESC, id_tiket DESC');
+            $idCabang = (int) $this->id_cabang;
+            $whereSelesai = 'status = 1 AND id_cabang = ' . $idCabang . ' ORDER BY selesaiTime DESC, id_tiket DESC';
+            $rows = $this->db(0)->get_where('tiket', $whereSelesai);
             $grouped = $this->groupByMonth($rows);
             return [
                 'mode' => 1,

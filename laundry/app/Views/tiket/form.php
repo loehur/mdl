@@ -316,7 +316,7 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
     <div class="tk-head <?= $isSelesai ? 'tk-head--selesai' : 'tk-head--proses' ?>">
       <div>
         <h2><?= $isSelesai ? 'Tiket Selesai' : 'Tiket Proses' ?></h2>
-        <small><?= $isSelesai ? 'Dikelompokkan per bulan selesai — semua cabang' : 'Semua cabang · tambah tiket baru' ?></small>
+        <small><?= $isSelesai ? 'Tiket selesai cabang ini · dikelompokkan per bulan' : 'Semua cabang · tambah tiket baru' ?></small>
       </div>
       <?php if (!$isSelesai) { ?>
         <button type="button" class="tk-btn tk-btn--primary" id="btnTambahTiket">

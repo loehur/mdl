@@ -18,5 +18,8 @@ Saat membuat atau mengubah tampilan (offcanvas, modal, form, kartu, tombol, radi
    - Select `.tize`: **jangan** tambah `form-control` / `op-input` / `pay-input`.
    - CSS: `border: 0` pada `<select>`, `.selectize-control`, dan `:after`; **hanya** `.selectize-input` yang ber-border `1px`.
    - Jangan bungkus select tunggal dengan card/panel ber-border.
-   - Salin blok CSS di `UI_THEME.md` § Input/Selectize; contoh hidup: `#offcanvasPayment`, `.op-modal`, `.operasi-filter`.
+   - Salin blok CSS di `UI_THEME.md` § Input/Selectize; contoh hidup: `#offcanvasPayment`, `.op-modal`, `.operasi-filter`, `#ord-root`.
+   - **Init:** `$(".scope .tize").selectize()` saja. **Dilarang** `dropdownParent` ke modal/body (dropdown loncat ke pojok kiri).
+   - **Karyawan:** ikut HTML optgroup `$this->user` + `$this->userCabang` seperti `penjualan/penjualan_main.php` (acuan utama).
+   - Opsi sedikit/tetap → select **native**, bukan selectize.
 5. Jika menambah pola visual baru yang disetujui user, **perbarui** `laundry/docs/UI_THEME.md`.

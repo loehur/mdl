@@ -13,6 +13,7 @@ Referensi implementasi yang sudah sesuai tema:
 - Login → `laundry/app/Views/login.php`
 - Absen → `laundry/app/Views/Absen/form.php` (`#absen-root`) + `content.php`
 - Operan → `laundry/app/Views/operan/form.php` (`#operan-root`) + `content.php`
+- Tiket → `laundry/app/Views/tiket/form.php` (`#tiket-root`) + `view_load.php`
 
 ---
 
@@ -236,6 +237,68 @@ Selectize membungkus `<select>` menjadi `.selectize-control` + `.selectize-input
 - `op-input`, `pay-input`, atau class lain yang menambah `border`
 - membungkus select tunggal dengan card / panel / kotak ber-border
 
+#### Selectize vs select native — kapan pakai mana
+
+| Situasi | Pakai | Alasan |
+|---------|--------|--------|
+| Opsi sedikit & tetap (mis. Jenis: 4 item) | **Select native** + class input (`tk-input` / `op-input`) | Lebih rapi, tanpa overhead selectize |
+| Opsi banyak / perlu cari (Karyawan, Pelanggan, Item) | **Selectize** `class="tize"` | Searchable, pola standar app |
+
+#### Select Karyawan (pola wajib)
+
+Ikuti pola Order / Absen. Jangan inventaris ulang.
+
+**HTML** (optgroup cabang aktif + cabang lain):
+
+```html
+<label>Karyawan</label>
+<select name="…" class="tize" style="width: 100%;" required>
+  <option value="" selected disabled></option>
+  <optgroup label="<?= $this->dCabang['nama'] ?> [<?= $this->dCabang['kode_cabang'] ?>]">
+    <?php foreach ($this->user as $a) { ?>
+      <option id="<?= $a['id_user'] ?>" value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
+    <?php } ?>
+  </optgroup>
+  <?php if (count($this->userCabang) > 0) { ?>
+    <optgroup label="----- Cabang Lain -----">
+      <?php foreach ($this->userCabang as $a) { ?>
+        <option id="<?= $a['id_user'] ?>" value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
+      <?php } ?>
+    </optgroup>
+  <?php } ?>
+</select>
+```
+
+- Sumber data: `$this->user` (cabang aktif) + `$this->userCabang` (cabang lain).
+- Label opsi: `{id_user}-{NAMA}` uppercase.
+- `value` biasanya `id_user` (Order/Absen). Jika kolom DB menyimpan nama teks, `value` boleh `nama_user` — tetap pakai markup optgroup yang sama.
+
+**Init JS — wajib sederhana:**
+
+```js
+// ✅ BENAR — pola penjualan / absen / operasi
+$(".scope .tize").selectize();
+// atau per elemen:
+$("#tiketKaryawan").selectize();
+```
+
+```js
+// ❌ SALAH — jangan pakai dropdownParent ke modal / body
+$("#tiketKaryawan").selectize({
+  dropdownParent: $("#modalTiketForm") // dropdown loncat ke pojok kiri layar
+});
+$("#tiketKaryawan").selectize({
+  dropdownParent: "body" // sama berisikonya di modal fixed/flex
+});
+```
+
+**Kenapa `dropdownParent` dilarang di modal MDL:**  
+Modal `.op-modal` memakai `position: fixed` + flex full-viewport. Selectize menghitung posisi dropdown relatif ke parent itu → daftar opsi muncul di **pojok kiri atas layar**, terlepas dari field. Biarkan selectize menempel ke `.selectize-control` (default).
+
+**Script:** muat `<?= URL::EX_ASSETS ?>js/selectize.min.js` di halaman yang memakai `.tize` (jika belum ada di layout).
+
+**Di dalam modal:** pastikan panel/body modal tidak `overflow: hidden` yang memotong dropdown; `overflow: visible` pada panel modal jika dropdown terpotong. Z-index dropdown cukup `30` di dalam scope modal (jangan `5300` ke body kecuali ada alasan kuat).
+
 #### CSS wajib (salin ke scope halaman, ganti `#scope`)
 
 ```css
@@ -260,6 +323,8 @@ Selectize membungkus `<select>` menjadi `.selectize-control` + `.selectize-input
   box-shadow: none !important;
   background: #fff !important;
   font-weight: 800;
+  min-height: 42px;
+  padding: 8px 12px !important;
 }
 #scope .selectize-control.single .selectize-input.focus {
   border-color: #2563eb !important;
@@ -268,9 +333,22 @@ Selectize membungkus `<select>` menjadi `.selectize-control` + `.selectize-input
 #scope .selectize-control.single .selectize-input:after {
   border: 0 !important;
 }
+#scope .selectize-dropdown {
+  border: 1px solid #94a3b8 !important;
+  border-radius: 0 !important;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16) !important;
+  z-index: 30 !important;
+}
+#scope .selectize-dropdown .option {
+  font-weight: 700;
+  color: #0f172a;
+}
 ```
 
 Referensi yang sudah benar:
+- **Karyawan Order** → `#ord-root` + `$(".orderProses .tize").selectize()` di `penjualan/penjualan_main.php` (**acuan utama select karyawan**)
+- Karyawan Absen → `#absen-root select.tize` di `Absen/form.php`
+- Karyawan Tiket → `#tiket-root` di `tiket/form.php`
 - Pembayaran → `#offcanvasPayment` + `#karyawanBill` di `operasi/partials/modals.php`
 - Modal Operasi → `.op-modal` selectize rules di file yang sama
 - Filter Pelanggan → `.operasi-filter` di `operasi/form_proses.php`
@@ -430,6 +508,9 @@ Halaman khusus (portal J, dll.) boleh punya toast sendiri, tapi **visual harus m
 - [ ] Input/select tunggal **tanpa** card pembungkus ber-border
 - [ ] Select `.tize`: **tanpa** `form-control` / `op-input` / `pay-input`
 - [ ] Selectize: border **hanya** di `.selectize-input`; `.selectize-control` + `<select>` = `border: 0`
+- [ ] Selectize init: **tanpa** `dropdownParent` (modal/body) — dropdown tidak loncat ke pojok kiri
+- [ ] Select Karyawan: optgroup `$this->user` + `$this->userCabang` seperti Order (`penjualan_main.php`)
+- [ ] Opsi sedikit/tetap memakai select **native**, bukan selectize
 - [ ] Tidak ada double border bertumpuk (card + input, form-control + selectize, selectize-control + selectize-input)
 - [ ] **Semua** elemen `border-radius: 0` — tidak ada round/pill/lingkaran
 - [ ] Tidak memakai class Bootstrap `rounded` / `rounded-*`
