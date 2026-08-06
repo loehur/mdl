@@ -256,6 +256,11 @@
                         </a>
                       </li>
                       <li>
+                        <a class="dropdown-item btnPermintaan" href="#" data-ref="<?= $ref ?>">
+                          <i class="fas fa-hand-holding text-info me-2"></i>Jadikan Permintaan
+                        </a>
+                      </li>
+                      <li>
                         <a class="dropdown-item btnPakai" href="#" data-ref="<?= $ref ?>">
                           <i class="fas fa-box-open text-success me-2"></i>Barang Dipakai
                         </a>
@@ -921,11 +926,14 @@
   // ========== TRANSFER (UBAH TARGET_ID = ID_CABANG TUJUAN) ==========
   var transferNotaRef = '';
   var transferSelectize;
+  var permintaanNotaRef = '';
+  var permintaanSelectize;
   
-  // Inisialisasi Selectize - Transfer & Karyawan Bayar
+  // Inisialisasi Selectize - Transfer, Permintaan & Karyawan Bayar
   var salesKaryawanSelectize;
   $(document).ready(function() {
     transferSelectize = $('#transferCabang').selectize()[0].selectize;
+    permintaanSelectize = $('#permintaanCabang').selectize()[0].selectize;
     salesKaryawanSelectize = $('#salesKaryawan').selectize()[0].selectize;
   });
   
@@ -974,6 +982,63 @@
         
         if (res.status === 'success') {
           showSalesAlert(res.message || 'Berhasil transfer ke cabang tujuan', 'success');
+          setTimeout(function() {
+            location.reload();
+          }, 1500);
+        } else {
+          showSalesAlert(res.message || 'Gagal memproses', 'error');
+          btn.prop('disabled', false).html(originalHtml);
+        }
+      },
+      error: function(xhr, status, error) {
+        showSalesAlert('Error: ' + error, 'error');
+        btn.prop('disabled', false).html(originalHtml);
+      }
+    });
+  });
+
+  // ========== PERMINTAAN (SUMBER -> CABANG PEMBUAT, TYPE=2) ==========
+  $(document).on('click', '.btnPermintaan', function() {
+    permintaanNotaRef = $(this).data('ref');
+    
+    $('#permintaanNotaRef').text('#' + permintaanNotaRef);
+    
+    if (permintaanSelectize) {
+      permintaanSelectize.clear();
+    }
+    
+    var modalEl = document.getElementById('modalPermintaan');
+    var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+  });
+  
+  $(document).on('click', '#btnKonfirmasiPermintaan', function() {
+    var btn = $(this);
+    var originalHtml = btn.html();
+    var sourceCabang = $('#permintaanCabang').val();
+    
+    if (!sourceCabang) {
+      showSalesAlert('Pilih sumber barang terlebih dahulu', 'error');
+      return;
+    }
+    
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Memproses...');
+   
+    $.ajax({
+      url: '<?= URL::BASE_URL ?>Sales/permintaan',
+      type: 'POST',
+      dataType: 'json',
+      data: {
+        ref: permintaanNotaRef,
+        source_id: sourceCabang
+      },
+      success: function(res) {
+        var modalEl = document.getElementById('modalPermintaan');
+        var modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+        
+        if (res.status === 'success') {
+          showSalesAlert(res.message || 'Berhasil jadikan permintaan', 'success');
           setTimeout(function() {
             location.reload();
           }, 1500);
@@ -1417,6 +1482,54 @@
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
         <button type="button" class="btn btn-primary" id="btnKonfirmasiTransfer">
           <i class="fas fa-exchange-alt me-1"></i>Transfer
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Permintaan -->
+<div class="modal fade" id="modalPermintaan" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-info text-white py-2">
+        <h6 class="modal-title"><i class="fas fa-hand-holding me-2"></i>Jadikan Permintaan</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body py-4">
+        <div class="bg-light rounded p-2 mb-3 text-center">
+          <small class="text-muted">No. Ref</small><br>
+          <strong id="permintaanNotaRef"></strong>
+        </div>
+        
+        <div class="mb-3">
+          <label for="permintaanCabang" class="form-label fw-bold">Sumber Barang</label>
+          <select id="permintaanCabang" required>
+            <option value=""></option>
+            <?php 
+            if (isset($data['listCabang']) && is_array($data['listCabang'])) {
+              foreach ($data['listCabang'] as $cabang) { 
+                if ($cabang['id_cabang'] == $this->dCabang['id_cabang']) continue;
+            ?>
+              <option value="<?= $cabang['id_cabang'] ?>">
+                <?= $cabang['kode_cabang'] ?> - <?= $cabang['nama'] ?>
+              </option>
+            <?php 
+              }
+            }
+            ?>
+          </select>
+        </div>
+        
+        <p class="text-muted small mb-0">
+          <i class="fas fa-info-circle me-1"></i>
+          Nota akan menjadi Transfer Barang dari cabang sumber ke cabang ini
+        </p>
+      </div>
+      <div class="modal-footer justify-content-center py-2">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+        <button type="button" class="btn btn-info text-white" id="btnKonfirmasiPermintaan">
+          <i class="fas fa-hand-holding me-1"></i>Submit
         </button>
       </div>
     </div>

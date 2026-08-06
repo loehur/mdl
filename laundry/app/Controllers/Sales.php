@@ -838,6 +838,85 @@ class Sales extends Controller
       if (!headers_sent()) header('Content-Type: application/json');
       echo json_encode($response);
    }
+
+   // Jadikan Permintaan - transfer dari cabang sumber ke cabang pembuat
+   public function permintaan()
+   {
+      if (ob_get_length()) ob_clean();
+      ob_start();
+      
+      $response = ['status' => 'error', 'message' => 'Unknown error'];
+      
+      try {
+          $ref = $_POST['ref'] ?? '';
+          $source_id = $_POST['source_id'] ?? 0;
+          $id_cabang = $_SESSION[URL::SESSID]['user']['id_cabang'] ?? 0;
+          
+          if (empty($ref)) {
+             throw new Exception('Ref tidak valid');
+          }
+          
+          if (empty($source_id)) {
+             throw new Exception('Cabang sumber tidak valid');
+          }
+          
+          if (empty($id_cabang)) {
+             throw new Exception('Cabang pembuat tidak valid');
+          }
+          
+          if ($source_id == $id_cabang) {
+             throw new Exception('Cabang sumber tidak boleh sama dengan cabang pembuat');
+          }
+          
+          // Cek apakah ada pembayaran untuk ref ini
+          $payments = $this->db(0)->get_where('kas', "ref_transaksi = '$ref' AND jenis_transaksi = 7");
+          
+          if (!empty($payments)) {
+             throw new Exception('Tidak dapat ubah nota yang sudah memiliki riwayat pembayaran');
+          }
+          
+          // Cek apakah ref ada di barang_mutasi
+          $items = $this->db(0)->get_where('barang_mutasi', "ref = '$ref'");
+          
+          if (empty($items)) {
+             throw new Exception('Data nota tidak ditemukan');
+          }
+          
+          // Cek apakah cabang sumber valid
+          $cabang = $this->db(0)->get_where_row('cabang', "id_cabang = '$source_id'");
+          
+          if (!$cabang) {
+             throw new Exception('Cabang sumber tidak ditemukan');
+          }
+          
+          // Update: source = cabang sumber, target = cabang pembuat, type = 2
+          $this->db(0)->update('barang_mutasi', ['source_id' => $source_id], "ref = '$ref'");
+          $this->db(0)->update('barang_mutasi', ['target_id' => $id_cabang], "ref = '$ref'");
+          $updateType = $this->db(0)->update('barang_mutasi', ['type' => 2], "ref = '$ref'");
+          
+          if (!isset($updateType['errno']) || $updateType['errno'] != 0) {
+             $this->db(0)->query("UPDATE barang_mutasi SET type = 2 WHERE ref = '$ref'");
+          }
+          
+          $verify = $this->db(0)->get_where_row('barang_mutasi', "ref = '$ref'");
+          
+          $this->model('Log')->write("[Sales::permintaan] Ref: $ref, Source: $source_id, Target: $id_cabang, Type: " . ($verify['type'] ?? 'null'));
+          
+          if ($verify && $verify['type'] == 2 && $verify['source_id'] == $source_id && $verify['target_id'] == $id_cabang) {
+             $cabangNama = $cabang['kode_cabang'] . ' - ' . $cabang['nama'];
+             $response = ['status' => 'success', 'message' => 'Nota berhasil dijadikan permintaan dari ' . $cabangNama];
+          } else {
+             throw new Exception('Gagal jadikan permintaan');
+          }
+      } catch (\Throwable $e) {
+          $this->model('Log')->write("[Sales::permintaan] Error: " . $e->getMessage());
+          $response = ['status' => 'error', 'message' => $e->getMessage()];
+      }
+      
+      ob_end_clean();
+      if (!headers_sent()) header('Content-Type: application/json');
+      echo json_encode($response);
+   }
    
    // Terima Barang - ubah state = 1 (diterima)
    public function terimaBarang()

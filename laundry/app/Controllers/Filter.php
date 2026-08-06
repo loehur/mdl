@@ -19,12 +19,12 @@ class Filter extends Controller
       switch ($filter) {
          case 1:
             //PENGAMBILAN
-            $data_operasi = ['title' => 'Order Filter Pengambilan'];
+            $data_operasi = ['title' => 'Data Filter Pengambilan'];
             $viewData = 'filter/view';
             break;
          case 2:
             //PENGANTARAN
-            $data_operasi = ['title' => 'Order Filter Pengantaran'];
+            $data_operasi = ['title' => 'Data Filter Pengantaran'];
             $viewData = 'filter/view';
             break;
          default:
