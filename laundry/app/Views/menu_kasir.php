@@ -139,44 +139,6 @@ $menu[0] = [
             ],
         ]
     ],
-     [
-        'c' => 'Filter',
-        'title' => 'Order Filter',
-        'icon' => 'fas fa-filter',
-        'txt' => 'Order Filter',
-        'submenu' =>
-        [
-            [
-                'c' => '/i/2',
-                'title' => 'Order Filter Pengantaran',
-                'txt' => 'Pengantaran',
-            ],
-            [
-                'c' => '/i/1',
-                'title' => 'Order Filter Pengambilan',
-                'txt' => 'Pengambilan',
-            ],
-        ]
-    ],
-    [
-        'c' => '',
-        'title' => 'Setting',
-        'icon' => 'fas fa-cog',
-        'txt' => 'Setting',
-        'submenu' =>
-        [
-            [
-                'c' => 'Setting/printer',
-                'title' => 'Printer Setting',
-                'txt' => 'Printer',
-            ],
-            [
-                'c' => 'Setting/android',
-                'title' => 'Android',
-                'txt' => 'Android',
-            ],
-        ]
-    ],
     [
         'c' => '#',
         'title' => 'Tiket',
@@ -210,9 +172,46 @@ $menu[0] = [
         'txt' => 'Kas Kasir',
     ],
     [
-        'c' => 'Prepaid',
-        'title' => 'Pre/Post Paid',
-        'icon' => 'far fa-credit-card',
-        'txt' => 'Pre/Post Paid',
+        'c' => 'Filter',
+        'title' => 'Data Filter',
+        'icon' => 'fas fa-filter',
+        'txt' => 'Data Filter',
+        'submenu' =>
+        [
+            [
+                'c' => '/i/2',
+                'title' => 'Data Filter Pengantaran',
+                'txt' => 'Pengantaran',
+            ],
+            [
+                'c' => '/i/1',
+                'title' => 'Data Filter Pengambilan',
+                'txt' => 'Pengambilan',
+            ],
+            [
+                'c' => '@Prepaid',
+                'title' => 'Pre/Post Paid',
+                'txt' => 'Pre/Post Paid',
+            ],
+        ]
+    ],
+    [
+        'c' => '',
+        'title' => 'Setting',
+        'icon' => 'fas fa-cog',
+        'txt' => 'Setting',
+        'submenu' =>
+        [
+            [
+                'c' => 'Setting/printer',
+                'title' => 'Printer Setting',
+                'txt' => 'Printer',
+            ],
+            [
+                'c' => 'Setting/android',
+                'title' => 'Android',
+                'txt' => 'Android',
+            ],
+        ]
     ],
 ];
