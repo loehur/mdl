@@ -12,6 +12,7 @@ $isEmptyCustomer = empty($customers);
      data-customer-detail-url="<?= URL::BASE_URL ?>Delivery/customer_detail/"
      data-sales-options-url="<?= URL::BASE_URL ?>Delivery/sales_options/"
      data-selesai-url="<?= URL::BASE_URL ?>Delivery/selesai_customer"
+     data-batal-url="<?= URL::BASE_URL ?>Delivery/batal_customer"
      data-ubah-sumber-url="<?= URL::BASE_URL ?>Delivery/ubah_sumber">
   <style>
     #dlv-root {
@@ -198,6 +199,10 @@ $isEmptyCustomer = empty($customers);
     }
     #dlv-root .dlv-btn--selesai {
       background: linear-gradient(180deg, var(--dlv-green), var(--dlv-green-deep));
+      color: #fff;
+    }
+    #dlv-root .dlv-btn--batal {
+      background: linear-gradient(180deg, #ef4444, #b91c1c);
       color: #fff;
     }
     #dlv-root .dlv-btn:disabled { opacity: 0.55; cursor: wait; }
@@ -412,6 +417,15 @@ $isEmptyCustomer = empty($customers);
       padding: 12px 14px;
       border-top: 1px solid #cbd5e1;
       background: #fff;
+    }
+    #dlv-root .op-modal__foot--selesai {
+      justify-content: space-between;
+      align-items: center;
+    }
+    #dlv-root .op-modal__foot-right {
+      display: flex;
+      gap: 8px;
+      margin-left: auto;
     }
     #dlv-root .dlv-detail-table {
       width: 100%;
@@ -707,11 +721,20 @@ $isEmptyCustomer = empty($customers);
             <div class="dlv-sales-empty">Pilih jenis terlebih dahulu</div>
           </div>
         </div>
-        <div class="op-modal__foot">
-          <button type="button" class="dlv-btn dlv-btn--ghost" data-op-close>Batal</button>
-          <button type="submit" class="dlv-btn dlv-btn--submit" id="dlvSelesaiSubmit">
-            <i class="fas fa-check"></i> Selesai
-          </button>
+        <div class="op-modal__foot op-modal__foot--selesai">
+          <?php if ($canCekDetail) { ?>
+            <button type="button" class="dlv-btn dlv-btn--batal" id="dlvSelesaiBatal">
+              <i class="fas fa-ban"></i> Batalkan Delivery
+            </button>
+          <?php } else { ?>
+            <span></span>
+          <?php } ?>
+          <div class="op-modal__foot-right">
+            <button type="button" class="dlv-btn dlv-btn--ghost" data-op-close>Batal</button>
+            <button type="submit" class="dlv-btn dlv-btn--submit" id="dlvSelesaiSubmit">
+              <i class="fas fa-check"></i> Selesai
+            </button>
+          </div>
         </div>
       </form>
     </div>
@@ -795,6 +818,7 @@ $isEmptyCustomer = empty($customers);
   var customerDetailUrl = root.getAttribute('data-customer-detail-url') || '';
   var salesOptionsUrl = root.getAttribute('data-sales-options-url') || '';
   var selesaiUrl = root.getAttribute('data-selesai-url') || '';
+  var batalUrl = root.getAttribute('data-batal-url') || '';
   var ubahSumberUrl = root.getAttribute('data-ubah-sumber-url') || '';
   var karyawanSelectize = null;
 
@@ -1011,6 +1035,43 @@ $isEmptyCustomer = empty($customers);
       .catch(function () { toast('Gagal menyelesaikan', 'error'); })
       .finally(function () {
         if (submitBtn) submitBtn.disabled = false;
+      });
+  }
+
+  function batalDelivery() {
+    if (!canCek || !batalUrl) {
+      toast('Akses ditolak', 'error');
+      return;
+    }
+    var phone = (document.getElementById('dlvSelesaiPhone') || {}).value || '';
+    if (!phone) { toast('Nomor tidak valid', 'error'); return; }
+    if (!window.confirm('Batalkan delivery ini? Case akan ditutup tanpa menyimpan riwayat.')) {
+      return;
+    }
+
+    var btn = document.getElementById('dlvSelesaiBatal');
+    var fd = new FormData();
+    fd.append('phone_tail', phone);
+    if (btn) btn.disabled = true;
+    fetch(batalUrl, {
+      method: 'POST',
+      body: fd,
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      credentials: 'same-origin'
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || res.status !== 'success') {
+          toast((res && res.message) || 'Gagal membatalkan', 'error');
+          return;
+        }
+        toast(res.message || 'Delivery dibatalkan', 'success');
+        closeModal('dlvSelesaiModal');
+        removeCustomerItem(phone);
+      })
+      .catch(function () { toast('Gagal membatalkan', 'error'); })
+      .finally(function () {
+        if (btn) btn.disabled = false;
       });
   }
 
@@ -1284,6 +1345,9 @@ $isEmptyCustomer = empty($customers);
 
   var selesaiForm = document.getElementById('dlvSelesaiForm');
   if (selesaiForm) selesaiForm.addEventListener('submit', submitSelesai);
+
+  var batalBtn = document.getElementById('dlvSelesaiBatal');
+  if (batalBtn) batalBtn.addEventListener('click', batalDelivery);
 
   var form = document.getElementById('dlvSumberForm');
   if (form) form.addEventListener('submit', submitUbahSumber);

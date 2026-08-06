@@ -286,6 +286,48 @@ class Delivery extends Controller
    }
 
    /**
+    * Batalkan delivery customer: tutup case 2 saja (tanpa riwayat).
+    * Hanya admin (100) / driver (12).
+    */
+   public function batal_customer()
+   {
+      if (ob_get_length()) {
+         ob_clean();
+      }
+      ob_start();
+      $response = ['status' => 'error', 'message' => 'Unknown error'];
+
+      try {
+         if (!$this->canCekDetail()) {
+            throw new Exception('Akses ditolak');
+         }
+
+         $phoneTail = preg_replace('/[^0-9]/', '', (string) ($_POST['phone_tail'] ?? ''));
+         if (strlen($phoneTail) < 9) {
+            throw new Exception('Nomor tidak valid');
+         }
+         $phoneTail = substr($phoneTail, -9);
+         $idUser = (int) ($_SESSION[URL::SESSID]['user']['id_user'] ?? 0);
+
+         $this->closeCrmCase2ByPhoneTail($phoneTail, $idUser);
+
+         $response = [
+            'status' => 'success',
+            'message' => 'Delivery dibatalkan (case ditutup)',
+            'data' => ['phone_tail' => $phoneTail],
+         ];
+      } catch (\Throwable $e) {
+         $response = ['status' => 'error', 'message' => $e->getMessage()];
+      }
+
+      ob_end_clean();
+      if (!headers_sent()) {
+         header('Content-Type: application/json; charset=utf-8');
+      }
+      echo json_encode($response);
+   }
+
+   /**
     * Detail barang transfer — hanya admin (100) / driver (12).
     */
    public function detail($ref = '')

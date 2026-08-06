@@ -132,7 +132,6 @@ const quotedMessageToShow = ref(null);
 const showChatMenu = ref(false);
 const showResolveMenu = ref(false);
 const isCheckingPayment = ref(false);
-const isPickupDelivery = ref(false);
 const isRequest = ref(false);
 const isFollowUp = ref(false);
 const resolvingCaseId = ref(null);
@@ -423,7 +422,6 @@ const updateCase = async (caseId, loadingRef) => {
 };
 
 const checkPayment = () => updateCase(1, isCheckingPayment);
-const pickupDelivery = () => updateCase(2, isPickupDelivery);
 const requestPriority = () => updateCase(3, isRequest);
 const followUp = () => updateCase(4, isFollowUp);
 
@@ -938,11 +936,6 @@ onUnmounted(() => {
                                     <div v-if="isCheckingPayment" class="w-3 h-3 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin flex-shrink-0"></div>
                                     <span v-else class="w-2.5 h-2.5 rounded-full bg-blue-500 flex-shrink-0"></span>
                                     Check Payment
-                               </button>
-                               <button v-if="!isCaseOpen(2)" @click="pickupDelivery" :disabled="isPickupDelivery" class="w-full px-4 py-2.5 text-left hover:bg-[var(--wa-hover)] text-sm text-[var(--wa-text-primary)] flex items-center gap-3">
-                                    <div v-if="isPickupDelivery" class="w-3 h-3 border-2 border-yellow-200 border-t-yellow-500 rounded-full animate-spin flex-shrink-0"></div>
-                                    <span v-else class="w-2.5 h-2.5 rounded-full bg-yellow-500 flex-shrink-0"></span>
-                                    Pickup/Delivery
                                </button>
                                <button v-if="!isCaseOpen(3)" @click="requestPriority" :disabled="isRequest" class="w-full px-4 py-2.5 text-left hover:bg-[var(--wa-hover)] text-sm text-[var(--wa-text-primary)] flex items-center gap-3">
                                     <div v-if="isRequest" class="w-3 h-3 border-2 border-red-200 border-t-red-500 rounded-full animate-spin flex-shrink-0"></div>
