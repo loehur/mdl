@@ -451,8 +451,8 @@ $isEmptyCabang = empty($transfers);
                      data-target-kode="<?= $tgt ?>">
                   <div class="dlv-item__text">
                     <p class="dlv-item__title">
-                      Kirim Barang dari <span class="dlv-kode dlv-kode-source"><?= $src ?></span>
-                      ke <span class="dlv-kode"><?= $tgt ?></span>
+                      Delivery <span class="dlv-kode dlv-kode-source"><?= $src ?></span>
+                      → <span class="dlv-kode"><?= $tgt ?></span>
                     </p>
                     <div class="dlv-item__meta">
                       #<?= $ref ?> · <?= htmlspecialchars($dateLbl, ENT_QUOTES, 'UTF-8') ?>
