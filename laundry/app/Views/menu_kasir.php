@@ -178,6 +178,24 @@ $menu[0] = [
         ]
     ],
     [
+        'c' => '#',
+        'title' => 'Tiket',
+        'icon' => 'fas fa-ticket-alt',
+        'txt' => 'Tiket',
+        'submenu' => [
+            [
+                'c' => '@Tiket/i/0',
+                'title' => 'Tiket Proses',
+                'txt' => 'Proses',
+            ],
+            [
+                'c' => '@Tiket/i/1',
+                'title' => 'Tiket Selesai',
+                'txt' => 'Selesai',
+            ],
+        ]
+    ],
+    [
         'c' => 'Operan',
         'title' => 'Operan',
         'icon' => 'fas fa-random',

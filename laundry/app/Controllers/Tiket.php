@@ -1,0 +1,310 @@
+<?php
+
+/**
+ * Modul Tiket — lintas cabang (tanpa filter wCabang).
+ * status: 0 = proses, 1 = selesai
+ */
+class Tiket extends Controller
+{
+    private $jenisList = ['Perbaikan', 'Pergantian', 'Perawatan', 'Penambahan'];
+
+    public function __construct()
+    {
+        $this->operating_data();
+    }
+
+    public function i($mode = 0)
+    {
+        $this->session_cek();
+        $mode = (int) $mode;
+        if ($mode !== 0 && $mode !== 1) {
+            $mode = 0;
+        }
+
+        $data_operasi = [
+            'title' => $mode === 1 ? 'Tiket Selesai' : 'Tiket Proses',
+        ];
+
+        $viewData = $this->buildViewData($mode);
+
+        $this->view('layout', ['data_operasi' => $data_operasi]);
+        $this->view('tiket/form', $viewData);
+    }
+
+    public function load($mode = 0)
+    {
+        $this->session_cek();
+        $mode = (int) $mode;
+        if ($mode !== 0 && $mode !== 1) {
+            $mode = 0;
+        }
+        $this->view('tiket/view_load', $this->buildViewData($mode));
+    }
+
+    public function insert()
+    {
+        $this->session_cek();
+
+        $judul = trim((string) ($_POST['judul'] ?? ''));
+        $jenis = trim((string) ($_POST['jenis'] ?? ''));
+        $keterangan = trim((string) ($_POST['keterangan'] ?? ''));
+        $karyawan = trim((string) ($_POST['karyawan'] ?? ''));
+
+        if ($judul === '' || $karyawan === '') {
+            echo 'Judul dan Karyawan wajib diisi';
+            return;
+        }
+        if (!in_array($jenis, $this->jenisList, true)) {
+            echo 'Jenis tiket tidak valid';
+            return;
+        }
+
+        $idUser = (int) ($_SESSION[URL::SESSID]['user']['id_user'] ?? 0);
+        $idCabang = (int) $this->id_cabang;
+        if ($idUser <= 0 || $idCabang <= 0) {
+            echo 'Sesi user/cabang tidak valid';
+            return;
+        }
+
+        $data = [
+            'id_cabang' => $idCabang,
+            'id_user' => $idUser,
+            'judul' => $judul,
+            'jenis' => $jenis,
+            'keterangan' => $keterangan,
+            'karyawan' => $karyawan,
+            'status' => 0,
+            'insertTime' => $GLOBALS['now'],
+        ];
+
+        $in = $this->db(0)->insert('tiket', $data);
+        if ((int) ($in['errno'] ?? 1) === 0) {
+            echo 0;
+        } else {
+            echo $in['error'] ?? 'Insert gagal';
+        }
+    }
+
+    public function update()
+    {
+        $this->session_cek();
+
+        $id = (int) ($_POST['id_tiket'] ?? 0);
+        if ($id <= 0) {
+            echo 'ID tiket tidak valid';
+            return;
+        }
+
+        $row = $this->db(0)->get_where_row('tiket', 'id_tiket = ' . $id);
+        if (!$row || empty($row['id_tiket'])) {
+            echo 'Tiket tidak ditemukan';
+            return;
+        }
+        if ((int) $row['status'] !== 0) {
+            echo 'Tiket selesai tidak dapat diubah';
+            return;
+        }
+
+        $idUser = (int) ($_SESSION[URL::SESSID]['user']['id_user'] ?? 0);
+        if ((int) $row['id_user'] !== $idUser) {
+            echo 'Hanya pembuat tiket yang dapat mengedit';
+            return;
+        }
+
+        $judul = trim((string) ($_POST['judul'] ?? ''));
+        $jenis = trim((string) ($_POST['jenis'] ?? ''));
+        $keterangan = trim((string) ($_POST['keterangan'] ?? ''));
+        $karyawan = trim((string) ($_POST['karyawan'] ?? ''));
+
+        if ($judul === '' || $karyawan === '') {
+            echo 'Judul dan Karyawan wajib diisi';
+            return;
+        }
+        if (!in_array($jenis, $this->jenisList, true)) {
+            echo 'Jenis tiket tidak valid';
+            return;
+        }
+
+        $set = [
+            'judul' => $judul,
+            'jenis' => $jenis,
+            'keterangan' => $keterangan,
+            'karyawan' => $karyawan,
+        ];
+        $up = $this->db(0)->update('tiket', $set, 'id_tiket = ' . $id);
+        if ((int) ($up['errno'] ?? 1) === 0) {
+            echo 0;
+        } else {
+            echo $up['error'] ?? 'Update gagal';
+        }
+    }
+
+    public function delete()
+    {
+        $this->session_cek();
+
+        $priv = (int) ($_SESSION[URL::SESSID]['user']['id_privilege'] ?? 0);
+        if ($priv !== 100) {
+            echo 'Hanya admin yang dapat menghapus tiket';
+            return;
+        }
+
+        $id = (int) ($_POST['id_tiket'] ?? 0);
+        if ($id <= 0) {
+            echo 'ID tiket tidak valid';
+            return;
+        }
+
+        $row = $this->db(0)->get_where_row('tiket', 'id_tiket = ' . $id);
+        if (!$row || empty($row['id_tiket'])) {
+            echo 'Tiket tidak ditemukan';
+            return;
+        }
+        if ((int) $row['status'] !== 0) {
+            echo 'Tiket selesai tidak dapat dihapus';
+            return;
+        }
+
+        $del = $this->db(0)->delete('tiket', 'id_tiket = ' . $id);
+        if ((int) ($del['errno'] ?? 1) === 0) {
+            echo 0;
+        } else {
+            echo $del['error'] ?? 'Hapus gagal';
+        }
+    }
+
+    public function selesai()
+    {
+        $this->session_cek();
+
+        $priv = (int) ($_SESSION[URL::SESSID]['user']['id_privilege'] ?? 0);
+        if ($priv !== 100 && $priv !== 12) {
+            echo 'Hanya admin atau driver yang dapat menandai selesai';
+            return;
+        }
+
+        $id = (int) ($_POST['id_tiket'] ?? 0);
+        $catatan = trim((string) ($_POST['catatan_selesai'] ?? ''));
+        $karyawan = trim((string) ($_POST['karyawan_selesai'] ?? ''));
+
+        if ($id <= 0) {
+            echo 'ID tiket tidak valid';
+            return;
+        }
+        if ($catatan === '' || $karyawan === '') {
+            echo 'Catatan Selesai dan Karyawan wajib diisi';
+            return;
+        }
+
+        $row = $this->db(0)->get_where_row('tiket', 'id_tiket = ' . $id);
+        if (!$row || empty($row['id_tiket'])) {
+            echo 'Tiket tidak ditemukan';
+            return;
+        }
+        if ((int) $row['status'] !== 0) {
+            echo 'Tiket sudah selesai';
+            return;
+        }
+
+        $idUser = (int) ($_SESSION[URL::SESSID]['user']['id_user'] ?? 0);
+        $set = [
+            'status' => 1,
+            'catatan_selesai' => $catatan,
+            'karyawan_selesai' => $karyawan,
+            'id_user_selesai' => $idUser,
+            'selesaiTime' => $GLOBALS['now'],
+        ];
+        $up = $this->db(0)->update('tiket', $set, 'id_tiket = ' . $id . ' AND status = 0');
+        if ((int) ($up['errno'] ?? 1) === 0) {
+            echo 0;
+        } else {
+            echo $up['error'] ?? 'Gagal menandai selesai';
+        }
+    }
+
+    private function buildViewData($mode)
+    {
+        $mode = (int) $mode;
+        $cabangMap = $this->buildCabangMap();
+        $userMap = is_array($this->userAll) ? $this->userAll : [];
+
+        $idUser = (int) ($_SESSION[URL::SESSID]['user']['id_user'] ?? 0);
+        $priv = (int) ($_SESSION[URL::SESSID]['user']['id_privilege'] ?? 0);
+        $isAdmin = $priv === 100;
+        $canSelesai = $isAdmin || $priv === 12;
+
+        if ($mode === 1) {
+            $rows = $this->db(0)->get_where('tiket', 'status = 1 ORDER BY selesaiTime DESC, id_tiket DESC');
+            $grouped = $this->groupByMonth($rows);
+            return [
+                'mode' => 1,
+                'rows' => $rows,
+                'grouped' => $grouped,
+                'cabangMap' => $cabangMap,
+                'userMap' => $userMap,
+                'jenisList' => $this->jenisList,
+                'idUser' => $idUser,
+                'isAdmin' => $isAdmin,
+                'canSelesai' => $canSelesai,
+            ];
+        }
+
+        $rows = $this->db(0)->get_where('tiket', 'status = 0 ORDER BY insertTime DESC, id_tiket DESC');
+        return [
+            'mode' => 0,
+            'rows' => $rows,
+            'grouped' => [],
+            'cabangMap' => $cabangMap,
+            'userMap' => $userMap,
+            'jenisList' => $this->jenisList,
+            'idUser' => $idUser,
+            'isAdmin' => $isAdmin,
+            'canSelesai' => $canSelesai,
+        ];
+    }
+
+    private function buildCabangMap()
+    {
+        $map = [];
+        $all = $this->db(0)->get('cabang', 'id_cabang');
+        if (is_array($all)) {
+            foreach ($all as $id => $c) {
+                if (!is_array($c)) {
+                    continue;
+                }
+                $map[(int) ($c['id_cabang'] ?? $id)] = strtoupper((string) ($c['kode_cabang'] ?? ''));
+            }
+        }
+        return $map;
+    }
+
+    private function groupByMonth($rows)
+    {
+        $bulanIndo = [
+            1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
+            5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
+            9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
+        ];
+        $grouped = [];
+        if (!is_array($rows)) {
+            return $grouped;
+        }
+        foreach ($rows as $row) {
+            $ts = $row['selesaiTime'] ?? '';
+            $ym = '0000-00';
+            $label = 'Tanpa Tanggal';
+            if ($ts && $ts !== '0000-00-00 00:00:00') {
+                $t = strtotime($ts);
+                if ($t) {
+                    $ym = date('Y-m', $t);
+                    $label = ($bulanIndo[(int) date('n', $t)] ?? date('F', $t)) . ' ' . date('Y', $t);
+                }
+            }
+            if (!isset($grouped[$ym])) {
+                $grouped[$ym] = ['label' => $label, 'items' => []];
+            }
+            $grouped[$ym]['items'][] = $row;
+        }
+        return $grouped;
+    }
+}

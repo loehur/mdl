@@ -306,7 +306,7 @@ if (count($data['data_main']) == 0) {
             <div class="mdl-nota-head__left">
               <span class="mdl-nota-head__name" style="cursor:pointer" title="<?= htmlspecialchars($pelanggan, ENT_QUOTES, 'UTF-8') ?>">
                 <?= strtoupper($pelanggan_show) ?>
-                <small style="font-weight:700;opacity:.9"><?= $f17 ?></small>
+                <small style="font-size:0.7em;font-weight:300;opacity:.7;margin-left:4px"><?= $f17 ?></small>
               </span>
             </div>
             <div class="mdl-nota-head__right">
