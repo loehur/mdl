@@ -358,6 +358,20 @@ $isEmptyCustomer = empty($customers);
     }
     #dlv-root .op-modal__panel--sm { width: min(420px, 100%); }
     #dlv-root .op-modal__panel--chat { width: min(560px, 100%); }
+    #dlv-root .op-modal--confirm {
+      z-index: 1300;
+    }
+    #dlv-root .op-modal__head--red {
+      background: linear-gradient(105deg, #b91c1c 0%, #ef4444 100%);
+    }
+    #dlv-root .op-modal__confirm-msg {
+      margin: 0;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--dlv-ink);
+      line-height: 1.45;
+      text-align: center;
+    }
     #dlv-root .op-modal__head {
       display: flex;
       align-items: flex-start;
@@ -741,6 +755,32 @@ $isEmptyCustomer = empty($customers);
   </div>
 
   <?php if ($canCekDetail) { ?>
+  <div class="op-modal op-modal--confirm" id="dlvConfirmModal" aria-hidden="true">
+    <div class="op-modal__backdrop" data-op-close></div>
+    <div class="op-modal__panel op-modal__panel--sm" role="dialog" aria-modal="true" aria-labelledby="dlvConfirmTitle">
+      <div class="op-modal__head op-modal__head--red">
+        <div>
+          <h3 id="dlvConfirmTitle">Konfirmasi</h3>
+          <small>Batalkan Delivery</small>
+        </div>
+        <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="op-modal__body">
+        <p class="op-modal__confirm-msg" id="dlvConfirmMsg">
+          Batalkan delivery ini? Case akan ditutup tanpa menyimpan riwayat.
+        </p>
+      </div>
+      <div class="op-modal__foot">
+        <button type="button" class="dlv-btn dlv-btn--ghost" data-op-close>Tidak</button>
+        <button type="button" class="dlv-btn dlv-btn--batal" id="dlvConfirmYes">
+          <i class="fas fa-ban"></i> Ya, Batalkan
+        </button>
+      </div>
+    </div>
+  </div>
+  <?php } ?>
+
+  <?php if ($canCekDetail) { ?>
   <div class="op-modal" id="dlvDetailModal" aria-hidden="true">
     <div class="op-modal__backdrop" data-op-close></div>
     <div class="op-modal__panel" role="dialog" aria-modal="true" aria-labelledby="dlvDetailTitle">
@@ -1045,14 +1085,23 @@ $isEmptyCustomer = empty($customers);
     }
     var phone = (document.getElementById('dlvSelesaiPhone') || {}).value || '';
     if (!phone) { toast('Nomor tidak valid', 'error'); return; }
-    if (!window.confirm('Batalkan delivery ini? Case akan ditutup tanpa menyimpan riwayat.')) {
+    openModal('dlvConfirmModal');
+  }
+
+  function confirmBatalDelivery() {
+    var phone = (document.getElementById('dlvSelesaiPhone') || {}).value || '';
+    if (!phone) {
+      toast('Nomor tidak valid', 'error');
+      closeModal('dlvConfirmModal');
       return;
     }
 
     var btn = document.getElementById('dlvSelesaiBatal');
+    var yesBtn = document.getElementById('dlvConfirmYes');
     var fd = new FormData();
     fd.append('phone_tail', phone);
     if (btn) btn.disabled = true;
+    if (yesBtn) yesBtn.disabled = true;
     fetch(batalUrl, {
       method: 'POST',
       body: fd,
@@ -1066,12 +1115,14 @@ $isEmptyCustomer = empty($customers);
           return;
         }
         toast(res.message || 'Delivery dibatalkan', 'success');
+        closeModal('dlvConfirmModal');
         closeModal('dlvSelesaiModal');
         removeCustomerItem(phone);
       })
       .catch(function () { toast('Gagal membatalkan', 'error'); })
       .finally(function () {
         if (btn) btn.disabled = false;
+        if (yesBtn) yesBtn.disabled = false;
       });
   }
 
@@ -1348,6 +1399,9 @@ $isEmptyCustomer = empty($customers);
 
   var batalBtn = document.getElementById('dlvSelesaiBatal');
   if (batalBtn) batalBtn.addEventListener('click', batalDelivery);
+
+  var confirmYesBtn = document.getElementById('dlvConfirmYes');
+  if (confirmYesBtn) confirmYesBtn.addEventListener('click', confirmBatalDelivery);
 
   var form = document.getElementById('dlvSumberForm');
   if (form) form.addEventListener('submit', submitUbahSumber);
