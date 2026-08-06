@@ -114,12 +114,6 @@ $menu[0] = [
         'hide_if_training' => true,
     ],
     [
-        'c' => 'Kas',
-        'title' => 'Kas Kasir',
-        'icon' => 'fas fa-wallet',
-        'txt' => 'Kas Kasir',
-    ],
-    [
         'c' => 'Operasi',
         'title' => 'Operasi Order',
         'icon' => 'fas fa-tasks',
@@ -203,11 +197,16 @@ $menu[0] = [
     ],
     [
         'c' => '',
-        'title' => 'Setting',
-        'icon' => 'fas fa-cog',
-        'txt' => 'Setting',
+        'title' => 'Cabang',
+        'icon' => 'fas fa-store',
+        'txt' => 'Cabang',
         'submenu' =>
         [
+            [
+                'c' => 'Kas',
+                'title' => 'Kas Kasir',
+                'txt' => 'Kas Kasir',
+            ],
             [
                 'c' => 'Setting/printer',
                 'title' => 'Printer Setting',
