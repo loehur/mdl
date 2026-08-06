@@ -290,7 +290,8 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
     #tiket-root .selectize-dropdown {
       border: 1px solid var(--tk-line) !important;
       border-radius: 0 !important;
-      z-index: 5300 !important;
+      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16) !important;
+      z-index: 30 !important;
     }
     #tiket-root .selectize-dropdown .option {
       font-weight: 750;
@@ -363,17 +364,17 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
           </div>
           <div class="tk-field">
             <label class="tk-label" for="tiketKaryawan">Karyawan</label>
-            <select name="karyawan" id="tiketKaryawan" class="tize" style="width:100%;" required>
+            <select name="karyawan" id="tiketKaryawan" class="tize" style="width: 100%;" required>
               <option value="" selected disabled></option>
               <optgroup label="<?= htmlspecialchars($namaCabangUi) ?> [<?= htmlspecialchars($kodeCabangUi) ?>]">
                 <?php foreach ($this->user as $a) { ?>
-                  <option value="<?= htmlspecialchars($a['nama_user']) ?>"><?= (int) $a['id_user'] . '-' . strtoupper($a['nama_user']) ?></option>
+                  <option id="<?= (int) $a['id_user'] ?>" value="<?= htmlspecialchars($a['nama_user']) ?>"><?= (int) $a['id_user'] . '-' . strtoupper($a['nama_user']) ?></option>
                 <?php } ?>
               </optgroup>
               <?php if (count($this->userCabang) > 0) { ?>
                 <optgroup label="----- Cabang Lain -----">
                   <?php foreach ($this->userCabang as $a) { ?>
-                    <option value="<?= htmlspecialchars($a['nama_user']) ?>"><?= (int) $a['id_user'] . '-' . strtoupper($a['nama_user']) ?></option>
+                    <option id="<?= (int) $a['id_user'] ?>" value="<?= htmlspecialchars($a['nama_user']) ?>"><?= (int) $a['id_user'] . '-' . strtoupper($a['nama_user']) ?></option>
                   <?php } ?>
                 </optgroup>
               <?php } ?>
@@ -409,17 +410,17 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
           </div>
           <div class="tk-field">
             <label class="tk-label" for="selesaiKaryawan">Karyawan</label>
-            <select name="karyawan_selesai" id="selesaiKaryawan" class="tize" style="width:100%;" required>
+            <select name="karyawan_selesai" id="selesaiKaryawan" class="tize" style="width: 100%;" required>
               <option value="" selected disabled></option>
               <optgroup label="<?= htmlspecialchars($namaCabangUi) ?> [<?= htmlspecialchars($kodeCabangUi) ?>]">
                 <?php foreach ($this->user as $a) { ?>
-                  <option value="<?= htmlspecialchars($a['nama_user']) ?>"><?= (int) $a['id_user'] . '-' . strtoupper($a['nama_user']) ?></option>
+                  <option id="<?= (int) $a['id_user'] ?>" value="<?= htmlspecialchars($a['nama_user']) ?>"><?= (int) $a['id_user'] . '-' . strtoupper($a['nama_user']) ?></option>
                 <?php } ?>
               </optgroup>
               <?php if (count($this->userCabang) > 0) { ?>
                 <optgroup label="----- Cabang Lain -----">
                   <?php foreach ($this->userCabang as $a) { ?>
-                    <option value="<?= htmlspecialchars($a['nama_user']) ?>"><?= (int) $a['id_user'] . '-' . strtoupper($a['nama_user']) ?></option>
+                    <option id="<?= (int) $a['id_user'] ?>" value="<?= htmlspecialchars($a['nama_user']) ?>"><?= (int) $a['id_user'] . '-' . strtoupper($a['nama_user']) ?></option>
                   <?php } ?>
                 </optgroup>
               <?php } ?>
@@ -533,31 +534,19 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
     $('#tiket-root #load').load(BASE + 'Tiket/load/' + MODE);
   }
 
-  function initTize($el, $parent) {
-    if (!$el.length || typeof $el.selectize !== 'function') return null;
-    if ($el[0].selectize) return $el[0].selectize;
-    var opts = {
-      create: false,
-      sortField: false,
-      placeholder: 'Pilih karyawan'
-    };
-    if ($parent && $parent.length) {
-      opts.dropdownParent = $parent;
-    }
-    $el.selectize(opts);
-    return $el[0].selectize;
+  function getTize(id) {
+    var el = document.getElementById(id);
+    return el && el.selectize ? el.selectize : null;
   }
 
   function clearTize(id) {
-    var el = document.getElementById(id);
-    if (el && el.selectize) el.selectize.clear();
+    var sz = getTize(id);
+    if (sz) sz.clear(true);
     else $('#' + id).val('');
   }
 
   function setTizeValue(id, value) {
-    var el = document.getElementById(id);
-    if (!el) return;
-    var sz = el.selectize;
+    var sz = getTize(id);
     if (!sz) {
       $('#' + id).val(value);
       return;
@@ -568,8 +557,9 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
     sz.setValue(value || '', true);
   }
 
-  initTize($('#tiketKaryawan'), $('#modalTiketForm'));
-  initTize($('#selesaiKaryawan'), $('#modalTiketSelesai'));
+  // Pola penjualan / absen: selectize() tanpa dropdownParent
+  $('#tiketKaryawan').selectize();
+  $('#selesaiKaryawan').selectize();
 
   function resetForm() {
     $('#tiketId').val('');
