@@ -491,6 +491,20 @@ $isEmptyCustomer = empty($customers);
       word-break: break-word;
       line-height: 1.4;
     }
+    #dlv-root .dlv-chat__img {
+      display: block;
+      max-width: 100%;
+      max-height: 280px;
+      width: auto;
+      height: auto;
+      object-fit: cover;
+      border: 1px solid #cbd5e1;
+      cursor: zoom-in;
+      background: #f1f5f9;
+    }
+    #dlv-root .dlv-chat__img + .dlv-chat__text {
+      margin-top: 6px;
+    }
     #dlv-root .dlv-detail-loading,
     #dlv-root .dlv-detail-error {
       padding: 24px 12px;
@@ -1005,6 +1019,14 @@ $isEmptyCustomer = empty($customers);
       '</table>';
   }
 
+  var MEDIA_PROXY = 'https://api.nalju.com/CRM/Chat/media?id=';
+
+  function mediaSrc(m) {
+    if (m && m.media_url) return String(m.media_url);
+    if (m && m.media_id) return MEDIA_PROXY + encodeURIComponent(String(m.media_id));
+    return '';
+  }
+
   function renderChat(data) {
     var msgs = data.messages || [];
     if (!msgs.length) {
@@ -1014,10 +1036,23 @@ $isEmptyCustomer = empty($customers);
       var isMe = m.sender === 'me';
       var who = isMe ? 'Laundry' : 'Customer';
       var cls = isMe ? 'dlv-chat__bubble--me' : 'dlv-chat__bubble--customer';
-      var text = (m.text && String(m.text).trim()) ? String(m.text) : '[' + (m.type || 'pesan') + ']';
+      var caption = (m.text && String(m.text).trim()) ? String(m.text) : '';
+      var src = mediaSrc(m);
+      var body = '';
+      if (m.type === 'image' && src) {
+        body = '<img class="dlv-chat__img" src="' + escapeHtml(src) + '" alt="Gambar" loading="lazy"' +
+          ' onclick="window.open(this.src,\'_blank\')">' +
+          (caption ? '<div class="dlv-chat__text">' + escapeHtml(caption) + '</div>' : '');
+      } else if (m.type === 'sticker' && src) {
+        body = '<img class="dlv-chat__img" src="' + escapeHtml(src) + '" alt="Sticker" loading="lazy">';
+      } else {
+        body = '<div class="dlv-chat__text">' +
+          escapeHtml(caption || ('[' + (m.type || 'pesan') + ']')) +
+          '</div>';
+      }
       return '<div class="dlv-chat__bubble ' + cls + '">' +
         '<div class="dlv-chat__meta"><span>' + who + '</span><span>' + escapeHtml(fmtTime(m.time)) + '</span></div>' +
-        '<div class="dlv-chat__text">' + escapeHtml(text) + '</div>' +
+        body +
       '</div>';
     }).join('');
     return '<div class="dlv-chat">' + html + '</div>';

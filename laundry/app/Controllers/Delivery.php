@@ -73,7 +73,9 @@ class Delivery extends Controller
                    type,
                    'customer' AS sender,
                    created_at AS time,
-                   status
+                   status,
+                   media_id,
+                   media_url
                 FROM wa_messages_in
                 WHERE RIGHT(REPLACE(REPLACE(REPLACE(phone, '+', ''), '-', ''), ' ', ''), 9) = '$tailEsc')
                UNION ALL
@@ -83,7 +85,9 @@ class Delivery extends Controller
                    type,
                    'me' AS sender,
                    created_at AS time,
-                   status
+                   status,
+                   NULL AS media_id,
+                   media_url
                 FROM wa_messages_out
                 WHERE RIGHT(REPLACE(REPLACE(REPLACE(phone, '+', ''), '-', ''), ' ', ''), 9) = '$tailEsc'
                   AND COALESCE(`private`, 0) = 0)
@@ -104,6 +108,8 @@ class Delivery extends Controller
             'text' => (string) ($m['text'] ?? ''),
             'type' => $m['type'] ?? 'text',
             'time' => $m['time'] ?? '',
+            'media_url' => !empty($m['media_url']) ? (string) $m['media_url'] : null,
+            'media_id' => !empty($m['media_id']) ? (string) $m['media_id'] : null,
          ];
       }
 
