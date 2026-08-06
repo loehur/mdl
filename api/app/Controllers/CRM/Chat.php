@@ -77,9 +77,8 @@ class Chat extends Controller
             }
             
             // Get user role:
-            // admin/driver from crm_users; crew from mdl_laundry.cabang (id_cabang)
+            // admin from crm_users; crew from mdl_laundry.cabang (id_cabang)
             $isAdmin = false;
-            $isDriver = false;
             
             if ($userId) {
                 $userRecord = $db
@@ -90,23 +89,11 @@ class Chat extends Controller
                 if ($userRecord) {
                     $role = strtolower($userRecord->role ?? '');
                     $isAdmin = ($role === 'admin');
-                    $isDriver = ($role === 'driver');
                 }
-                // Non-admin/driver treated as crew (cabang id_cabang) below
+                // Non-admin treated as crew (cabang id_cabang) below
             }
             
             if ($userId && !$isAdmin) {
-               if ($isDriver) {
-                   // Handle Legacy Int, Single JSON Object, and JSON Array List
-                   // Structure: [{"case": 2, "status": "open", ...}, ...]
-                   // Only show Case 2 that is OPEN (not closed)
-                   // Must match both case:2 AND status:open in the same JSON object
-                   $whereClause .= " AND (
-                        (c.conv_case LIKE '%\"case\":2%' AND c.conv_case LIKE '%\"status\":\"open\"%')
-                        OR (c.conv_case LIKE '%\"case\":\"2\"%' AND c.conv_case LIKE '%\"status\":\"open\"%')
-                   )";
-
-               } else {
                    // Crew Role: Filter by assigned_user_id
                    // For numeric IDs, use intval for safety
                    if (is_numeric($userId)) {
@@ -117,7 +104,6 @@ class Chat extends Controller
                        $safeId = $db->conn()->real_escape_string($userId);
                        $whereClause .= " AND c.assigned_user_id = '$safeId'";
                    }
-               }
             }
             
             $sql = "
@@ -494,12 +480,42 @@ class Chat extends Controller
             }
             
             $db = $this->db(0);
-            
-            // Update case (Overwrite history for manual action)
-            $jsonCase = json_encode([[
-                'case' => (int)$caseVal,
-                'status' => 'done'
-            ]]);
+
+            // Pertahankan case 2 (Pickup/Delivery) yang masih open — dituntaskan via laundry Delivery
+            $preserved = [];
+            $existing = $db->query("SELECT conv_case FROM wa_conversations WHERE wa_number = ?", [$phone])->row();
+            if ($existing && isset($existing->conv_case)) {
+                $raw = $existing->conv_case;
+                $list = [];
+                if (is_string($raw) && (strpos(trim($raw), '[') === 0 || strpos(trim($raw), '{') === 0)) {
+                    $decoded = json_decode($raw, true);
+                    if (is_array($decoded)) {
+                        $list = isset($decoded[0]) ? $decoded : (isset($decoded['case']) ? [$decoded] : []);
+                    }
+                } elseif (is_numeric($raw) && (int)$raw === 2) {
+                    $list[] = ['case' => 2, 'status' => 'open'];
+                }
+                foreach ($list as $item) {
+                    if (!is_array($item)) {
+                        continue;
+                    }
+                    if ((int)($item['case'] ?? 0) === 2 && ($item['status'] ?? 'open') !== 'closed') {
+                        $preserved[] = [
+                            'case' => 2,
+                            'status' => 'open',
+                        ];
+                    }
+                }
+            }
+
+            // Update case (Overwrite history for manual action), keep open pickup cases
+            $jsonCase = json_encode(array_values(array_merge(
+                $preserved,
+                [[
+                    'case' => (int)$caseVal,
+                    'status' => 'done'
+                ]]
+            )));
             
             // NOTE: Also close conversation
             $updated = $db->update('wa_conversations', 
@@ -637,10 +653,6 @@ class Chat extends Controller
             );
             
             if ($updated) {
-                // Get conversation info for notification
-                $conv = $db->get_where('wa_conversations', ['wa_number' => $phone])->row();
-                $contactName = $conv->contact_name ?? 'Customer';
-                
                 // Push WebSocket for general case update
                 $payload = [
                     'type' => 'case_updated',
@@ -651,20 +663,6 @@ class Chat extends Controller
                 ];
                 
                 $this->pushToWebSocket($payload);
-                
-                // ⭐ SPECIAL: Push notification to DRIVERS when Case 2 (Pickup/Delivery) is added
-                if ((int)$caseVal === 2) {
-                    $driverPayload = [
-                        'type' => 'driver_pickup_added',
-                        'phone' => $phone,
-                        'contact_name' => $contactName,
-                        'case' => 2,
-                        'target_id' => '0', // Broadcast - server will filter to drivers only
-                        'message' => "📦 Pickup/Delivery request from $contactName"
-                    ];
-                    
-                    $this->pushToWebSocket($driverPayload);
-                }
                 
                 $this->success(['case' => (int)$caseVal], 'Case updated');
 
@@ -821,6 +819,12 @@ class Chat extends Controller
             if ($caseVal === null) {
                 $this->error('Case value required');
             }
+
+            $targetCase = (int)$caseVal;
+            // Case 2 (Pickup/Delivery) dituntaskan via laundry Delivery Order, bukan CRM
+            if ($targetCase === 2) {
+                $this->error('Case Pickup/Delivery hanya bisa dituntaskan melalui Delivery Order laundry', 403);
+            }
             
             $db = $this->db(0);
             
@@ -838,8 +842,6 @@ class Chat extends Controller
                      $caseList[] = ['case' => (int)$raw, 'status' => 'open'];
                 }
             }
-            
-            $targetCase = (int)$caseVal;
             
             // Find and close target case + ALWAYS close Case 4 (Follow Up)
             foreach ($caseList as &$item) {
@@ -1237,7 +1239,7 @@ class Chat extends Controller
 
     /**
      * Resolve sender code:
-     * - admin/driver: crm_users.code
+     * - admin: crm_users.code
      * - crew (cabang id_cabang): hardcoded CR
      */
     private function resolveSenderCode($db, $userId): ?string
@@ -1253,7 +1255,7 @@ class Chat extends Controller
 
         if ($userRecord) {
             $role = strtolower($userRecord->role ?? '');
-            if ($role === 'admin' || $role === 'driver') {
+            if ($role === 'admin') {
                 return !empty($userRecord->code) ? $userRecord->code : null;
             }
         }

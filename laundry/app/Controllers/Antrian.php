@@ -652,7 +652,7 @@ class Antrian extends Controller
    public function tuntasOrder($ref)
    {
 
-      $set = ['tuntas' => 1];
+      $set = ['tuntas' => 1, 'tuntasTime' => $GLOBALS['now'] ?? date('Y-m-d H:i:s')];
       $where = $this->wCabang . " AND no_ref = " . $ref;
       $this->db(0)->update('sale', $set, $where);
       $this->hapusKasPembayaranPengecekanOrder($ref);

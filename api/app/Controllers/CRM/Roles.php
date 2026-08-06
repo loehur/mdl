@@ -6,7 +6,7 @@ use App\Core\Controller;
 
 /**
  * CRM Roles API
- * - admin / driver: mdl_main.crm_users
+ * - admin: mdl_main.crm_users
  * - crew: mdl_laundry.cabang (id_cabang)
  */
 class Roles extends Controller
@@ -28,11 +28,10 @@ class Roles extends Controller
         try {
             $data = [
                 'admin' => [],
-                'driver' => [],
                 'crew' => []
             ];
 
-            // admin + driver from crm_users
+            // admin from crm_users
             $users = $this->db($this->db_index)
                 ->get('crm_users')
                 ->result_array();
@@ -43,10 +42,7 @@ class Roles extends Controller
 
                 if ($role === 'admin') {
                     $data['admin'][] = $username;
-                } elseif ($role === 'driver') {
-                    $data['driver'][] = $username;
                 }
-                // crew di crm_users diabaikan
             }
 
             // crew from cabang (id_cabang as username)
@@ -69,9 +65,10 @@ class Roles extends Controller
             
             $fallback = defined('\Env::CRM_USER_ROLES') ? \Env::CRM_USER_ROLES : [
                 'admin' => [],
-                'driver' => [],
                 'crew' => []
             ];
+            // Pastikan tidak ada bucket driver di fallback
+            unset($fallback['driver']);
             
             $this->success($fallback, 'Role IDs retrieved (fallback)');
         }

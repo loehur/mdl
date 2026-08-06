@@ -654,8 +654,12 @@ const fetchUserRole = async () => {
       const includesId = (arr, id) => arr.some((x) => String(x) === String(id));
 
       if (roles.admin && includesId(roles.admin, myId)) role = "admin";
-      else if (roles.driver && includesId(roles.driver, myId)) role = "driver";
       else if (roles.crew && includesId(roles.crew, myId)) role = "crew";
+
+      // Legacy: role driver sudah tidak dipakai di CRM
+      if (role === "crew" && localStorage.getItem("cms_chat_role") === "driver") {
+        localStorage.removeItem("cms_chat_role");
+      }
 
       currentUserRole.value = role;
       localStorage.setItem("cms_chat_role", role);
@@ -1387,8 +1391,13 @@ const markAsDone = async () => {
     const res = await response.json();
 
     if (res.status) {
-      // Update local cases
-      activeConversation.value.cases = [{ case: 0 }];
+      // Update local cases — pertahankan case 2 open (dituntaskan via laundry Delivery)
+      const keepPickup = (activeConversation.value.cases || []).filter(
+        (c) => parseInt(c.case) === 2 && (c.status || "open") !== "closed"
+      );
+      activeConversation.value.cases = keepPickup.length
+        ? keepPickup.map((c) => ({ case: 2, status: "open" }))
+        : [{ case: 0 }];
 
       // ℹ️ SSE will broadcast update to all other clients automatically!
       // No manual refresh needed - real-time magic! ✨
@@ -1637,6 +1646,10 @@ const reopenConversation = async () => {
 
 const resolveCase = async (caseId) => {
   if (!activeConversation.value) return;
+  if (parseInt(caseId) === 2) {
+    console.warn("Case Pickup/Delivery hanya dituntaskan via laundry Delivery");
+    return;
+  }
   try {
     const response = await fetch(`${API_BASE}/CRM/Chat/resolveCase`, {
       method: "POST",
@@ -4438,7 +4451,11 @@ onMounted(() => {
   // Clean up old password storage (migration)
   localStorage.removeItem("cms_chat_password");
 
-  if (storedRole) currentUserRole.value = storedRole;
+  if (storedRole && storedRole !== "driver") {
+    currentUserRole.value = storedRole;
+  } else if (storedRole === "driver") {
+    localStorage.removeItem("cms_chat_role");
+  }
   if (storedName) userName.value = storedName;
   if (storedSenderCode) senderCode.value = storedSenderCode;
 

@@ -6,7 +6,7 @@ use App\Core\Controller;
 
 /**
  * CRM Auth Controller
- * - admin / driver: mdl_main.crm_users
+ * - admin: mdl_main.crm_users
  * - crew: mdl_laundry.cabang (username = id_cabang, code = CR)
  * - device lock: mdl_main.crm_device_locks (1 username = 1 device)
  */
@@ -119,7 +119,7 @@ class Auth extends Controller
 
     /**
      * Resolve login user:
-     * 1) crm_users with role admin|driver
+     * 1) crm_users with role admin
      * 2) cabang by id_cabang → crew, code CR
      */
     private function resolveUser(string $username): ?array
@@ -131,7 +131,7 @@ class Auth extends Controller
 
         if ($user) {
             $role = strtolower($user['role'] ?? '');
-            if ($role === 'admin' || $role === 'driver') {
+            if ($role === 'admin') {
                 return [
                     'id' => $user['id'],
                     'username' => $user['username'],

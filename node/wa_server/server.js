@@ -185,11 +185,6 @@ async function sendPushNotification(options) {
         // Admin: receives all notifications
         if (role === 'admin') return true;
 
-        // Driver: only receives case 2 (Pickup/Delivery)
-        if (role === 'driver') {
-            return caseType === 2;
-        }
-
         // Crew: receives all (will be filtered by assignment at broadcast level)
         return true;
     });
@@ -442,10 +437,7 @@ const wss = new WebSocket.Server({ server });
 // ============================================
 let CREW_IDS = [];
 let ADMIN_IDS = [];
-let DRIVER_IDS = [];
 
-// API URL for fetching roles
-// Adjust domain/path if hosted differently in production
 // API URL for fetching roles
 // Adjust domain/path if hosted differently in production
 // FOR LOCAL DEV: Use localhost URL to fetch 'ADI' role from local PHP
@@ -471,12 +463,10 @@ async function fetchRoles() {
                     if (json.status && json.data) {
                         CREW_IDS = json.data.crew || [];
                         ADMIN_IDS = json.data.admin || [];
-                        DRIVER_IDS = json.data.driver || [];
 
                         // Ensure lists are array of strings
                         CREW_IDS = CREW_IDS.map(String);
                         ADMIN_IDS = ADMIN_IDS.map(String);
-                        DRIVER_IDS = DRIVER_IDS.map(String);
 
                         console.log('✅ Roles updated from API');
                     } else {
@@ -503,16 +493,14 @@ function useDefaults() {
     // Fallback defaults from env or hardcoded
     CREW_IDS = process.env.CREW_IDS ? process.env.CREW_IDS.split(',').map(id => id.trim()) : ['3', '4', '5', '6', '10', '11'];
     ADMIN_IDS = process.env.ADMIN_IDS ? process.env.ADMIN_IDS.split(',').map(id => id.trim()) : ['DEV', 'AYAH'];
-    DRIVER_IDS = process.env.DRIVER_IDS ? process.env.DRIVER_IDS.split(',').map(id => id.trim()) : ['DRIVER1'];
 }
 
 function logRoles() {
     console.log('='.repeat(50));
     console.log('WebSocket Server - Active Client IDs:');
     console.log('Admin IDs:', ADMIN_IDS.join(', '));
-    console.log('Driver IDs:', DRIVER_IDS.join(', '));
     console.log('Crew IDs:', CREW_IDS.join(', '));
-    console.log('Total Allowed IDs:', CREW_IDS.length + ADMIN_IDS.length + DRIVER_IDS.length);
+    console.log('Total Allowed IDs:', CREW_IDS.length + ADMIN_IDS.length);
     console.log('='.repeat(50));
 }
 
@@ -535,13 +523,11 @@ function includesIgnoreCase(arr, value) {
 /**
  * Determine user role based on ID (case-insensitive)
  * @param {string} id - User ID
- * @returns {string} - 'admin', 'driver', or 'crew'
+ * @returns {string} - 'admin' or 'crew'
  */
 function getUserRole(id) {
     if (includesIgnoreCase(ADMIN_IDS, id)) {
         return 'admin';
-    } else if (includesIgnoreCase(DRIVER_IDS, id)) {
-        return 'driver';
     } else if (includesIgnoreCase(CREW_IDS, id)) {
         return 'crew';
     } else {
@@ -552,7 +538,7 @@ function getUserRole(id) {
 }
 
 function isIdAllowed(id) {
-    return includesIgnoreCase(ADMIN_IDS, id) || includesIgnoreCase(DRIVER_IDS, id) || includesIgnoreCase(CREW_IDS, id);
+    return includesIgnoreCase(ADMIN_IDS, id) || includesIgnoreCase(CREW_IDS, id);
 }
 
 /** Normalize client map key (case-insensitive uniqueness) */
@@ -835,64 +821,6 @@ app.post('/incoming', async (req, res) => {
         return res.status(400).json({ success: false, message: 'target_id is required' });
     }
 
-    // ⭐ SPECIAL HANDLER: Push notification to drivers for Case 2 (Pickup/Delivery)
-    if (data.type === 'driver_pickup_added') {
-        console.log('[DRIVER PUSH] Case 2 (Pickup/Delivery) added:', data);
-
-        const customerName = (data.contact_name || 'Customer').toUpperCase();
-        const customerPhone = data.phone || '';
-        const message = data.message || `📦 Pickup/Delivery from ${customerName}`;
-
-        // Find OFFLINE drivers only (case-insensitive compare)
-        const connectedUserIds = Array.from(clients.keys());
-        const connectedLower = connectedUserIds.map(id => id.toLowerCase());
-        const offlineDrivers = DRIVER_IDS.filter(driverId => {
-            return !connectedLower.includes(driverId.toLowerCase());
-        });
-
-        console.log(`[DRIVER PUSH] Connected: ${connectedUserIds.join(', ') || 'none'}`);
-        console.log(`[DRIVER PUSH] Offline drivers: ${offlineDrivers.join(', ') || 'none'}`);
-
-        let pushResult = { success: false, error: 'No offline drivers' };
-
-        if (offlineDrivers.length > 0) {
-            pushResult = await sendPushNotification({
-                title: `📦 ${customerName}`,
-                message: message,
-                phone: customerPhone,
-                caseType: 2,
-                userIds: offlineDrivers,
-                data: { phone: customerPhone, type: 'pickup' }
-            });
-            console.log(`[DRIVER PUSH] Sent to ${offlineDrivers.length} driver(s):`, pushResult.success ? '✅' : '❌');
-        }
-
-        // Also broadcast to connected drivers via WebSocket
-        let wsCount = 0;
-        DRIVER_IDS.forEach(driverId => {
-            const normalizedDriver = normalizeClientId(driverId);
-            if (clients.has(normalizedDriver)) {
-                const driverSockets = clients.get(normalizedDriver);
-                driverSockets.forEach(socket => {
-                    if (socket.readyState === WebSocket.OPEN) {
-                        socket.send(JSON.stringify(data));
-                        wsCount++;
-                    }
-                });
-            }
-        });
-
-        console.log(`[DRIVER PUSH] WebSocket sent to ${wsCount} connected driver(s)`);
-
-        return res.json({
-            success: true,
-            message: `Driver notification sent`,
-            push: pushResult,
-            websocket: wsCount
-        });
-    }
-
-
     console.log(`WA Incoming for ${targetId}:`, data);
 
     // Status ticks must reach every connected CRM client (not only assigned_user)
@@ -973,13 +901,7 @@ app.post('/incoming', async (req, res) => {
                     if (role === 'admin') {
                         shouldSend = true;
                     }
-                    // 2. Driver: Only Case 2 (Delivery/Pickup)
-                    else if (role === 'driver') {
-                        if (data.case == 2) { // Loose equality for string/int
-                            shouldSend = true;
-                        }
-                    }
-                    // 3. Crew: Only their assignments
+                    // 2. Crew: Only their assignments
                     else { // role === 'crew'
                         // ⭐ EXCEPTION: Status updates should go to ALL users
                         // Why: User might not be assigned but still viewing chat
@@ -1012,21 +934,14 @@ app.post('/incoming', async (req, res) => {
         const connectedLower = connectedUserIds.map(id => id.toLowerCase()); // For case-insensitive compare
         const senderLower = senderId ? senderId.toLowerCase() : null;
 
-        const allUserIds = [...ADMIN_IDS, ...DRIVER_IDS, ...CREW_IDS];
+        const allUserIds = [...ADMIN_IDS, ...CREW_IDS];
         const offlineUserIds = allUserIds.filter(userId => {
             const userIdLower = userId.toLowerCase();
             // Must not be connected AND must not be the sender (case-insensitive)
             const isOffline = !connectedLower.includes(userIdLower) && userIdLower !== senderLower;
             if (!isOffline) return false;
 
-            // ROLE FILTER (use includesIgnoreCase for safety)
-            if (includesIgnoreCase(DRIVER_IDS, userId)) {
-                // Driver Filter: Accept if Case 2 OR Conversation has Active Case 2
-                const activeCases = data.active_cases || [];
-                const hasPickup = Array.isArray(activeCases) && (activeCases.includes(2) || activeCases.includes('2'));
-                return (caseType === 2 || hasPickup);
-            }
-            // Admins & Crew get all
+            // Admins & Crew get all (assignment filtering happens on WS for crew)
             return true;
         });
 
@@ -1044,9 +959,9 @@ app.post('/incoming', async (req, res) => {
         // ⚠️ CRITICAL: Send cancel to ALL clients (online + offline + sender) without exception
         // Every device needs to cancel the notification when case is closed
         if (data.all_closed === true || data.all_closed === 'true') {
-            // Get ALL user IDs (admin + driver + crew) - NO FILTERING
+            // Get ALL user IDs (admin + crew) - NO FILTERING
             // Include sender, include online, include offline - EVERYONE
-            const allUserIdsForCancel = [...ADMIN_IDS, ...DRIVER_IDS, ...CREW_IDS];
+            const allUserIdsForCancel = [...ADMIN_IDS, ...CREW_IDS];
             
             console.log(`[PUSH] 🔇 Triggering Silent Cancel for ${customerPhone} to ALL ${allUserIdsForCancel.length} user(s)`);
             console.log(`[PUSH] Cancel recipients: ${allUserIdsForCancel.join(', ')}`);
@@ -1106,7 +1021,6 @@ app.post('/incoming', async (req, res) => {
         'status_update',
         'conversation_read',
         'agent_message_sent',
-        'driver_pickup_added',
     ];
     const outboundPayload = systemEventTypes.includes(eventType)
         ? data
@@ -1118,26 +1032,12 @@ app.post('/incoming', async (req, res) => {
     const sent = sendToTarget(targetId, outboundPayload, senderId);
 
     // Send Push Notification
-    // Logic: 
-    // 1. Target: Filter if Driver (Case 2 only). Send if Offline.
-    // 2. Admin: Always send if Offline (Monitoring).
+    // Logic: Target + offline Admins (monitoring)
 
     let pushRecipients = [];
 
     // 1. Target Logic
-    const isTargetDriver = DRIVER_IDS.includes(targetId);
     let shouldNotifyTarget = true;
-
-    // Driver Constraint
-    if (isTargetDriver) {
-        // Driver only gets if Current Case is 2 OR Active Case 2 exists
-        const activeCases = data.active_cases || [];
-        const hasPickup = Array.isArray(activeCases) && (activeCases.includes(2) || activeCases.includes('2'));
-
-        if (caseType !== 2 && !hasPickup) {
-            shouldNotifyTarget = false;
-        }
-    }
 
     if (shouldNotifyTarget && !clients.has(normalizeClientId(targetId))) {
         pushRecipients.push(targetId);

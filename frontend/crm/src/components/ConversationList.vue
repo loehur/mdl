@@ -196,8 +196,8 @@ const parseEmoji = (text) => {
       </div>
     </div>
 
-    <!-- Filter Tabs (hidden for driver role) -->
-    <div v-if="currentUserRole !== 'driver'" class="px-4 py-3 bg-[var(--wa-bg-panel)]">
+    <!-- Filter Tabs -->
+    <div class="px-4 py-3 bg-[var(--wa-bg-panel)]">
       <div class="flex gap-2">
         <!-- All Tab -->
         <button

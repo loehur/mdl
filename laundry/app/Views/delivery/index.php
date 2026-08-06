@@ -10,6 +10,8 @@ $isEmptyCustomer = empty($customers);
      data-can-cek="<?= $canCekDetail ? '1' : '0' ?>"
      data-detail-url="<?= URL::BASE_URL ?>Delivery/detail/"
      data-customer-detail-url="<?= URL::BASE_URL ?>Delivery/customer_detail/"
+     data-sales-options-url="<?= URL::BASE_URL ?>Delivery/sales_options/"
+     data-selesai-url="<?= URL::BASE_URL ?>Delivery/selesai_customer"
      data-ubah-sumber-url="<?= URL::BASE_URL ?>Delivery/ubah_sumber">
   <style>
     #dlv-root {
@@ -194,11 +196,82 @@ $isEmptyCustomer = empty($customers);
       background: linear-gradient(180deg, var(--dlv-green), var(--dlv-green-deep));
       color: #fff;
     }
+    #dlv-root .dlv-btn--selesai {
+      background: linear-gradient(180deg, var(--dlv-green), var(--dlv-green-deep));
+      color: #fff;
+    }
     #dlv-root .dlv-btn:disabled { opacity: 0.55; cursor: wait; }
     #dlv-root .dlv-btn--ghost {
       background: #e2e8f0;
       color: var(--dlv-ink);
       border-color: #cbd5e1;
+    }
+    #dlv-root .op-modal__panel--selesai { width: min(520px, 100%); }
+    #dlv-root .dlv-sales-box {
+      margin-top: 4px;
+      max-height: min(42vh, 360px);
+      overflow: auto;
+      border: 1px solid var(--dlv-line);
+      background: #fff;
+    }
+    #dlv-root .dlv-sales-group {
+      border-bottom: 1px solid #e2e8f0;
+    }
+    #dlv-root .dlv-sales-group:last-child { border-bottom: 0; }
+    #dlv-root .dlv-sales-group__head {
+      padding: 8px 10px;
+      font-size: 0.72rem;
+      font-weight: 900;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: var(--dlv-muted);
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    #dlv-root .dlv-sales-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 8px 10px;
+      border-bottom: 1px dashed #e2e8f0;
+      cursor: pointer;
+    }
+    #dlv-root .dlv-sales-item:last-child { border-bottom: 0; }
+    #dlv-root .dlv-sales-item:hover { background: #eff6ff; }
+    #dlv-root .dlv-sales-item input {
+      margin-top: 3px;
+      flex-shrink: 0;
+    }
+    #dlv-root .dlv-sales-item__text {
+      min-width: 0;
+      flex: 1;
+      font-size: 0.82rem;
+      font-weight: 750;
+      color: var(--dlv-ink);
+      line-height: 1.35;
+    }
+    #dlv-root .dlv-sales-item__meta {
+      margin-top: 2px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--dlv-muted);
+    }
+    #dlv-root .dlv-sales-empty {
+      padding: 18px 12px;
+      text-align: center;
+      font-weight: 800;
+      color: var(--dlv-muted);
+    }
+    #dlv-root .selectize-control { width: 100%; }
+    #dlv-root .selectize-input,
+    #dlv-root .selectize-dropdown {
+      border-radius: 0 !important;
+      border-color: var(--dlv-line);
+      font-weight: 750;
+    }
+    #dlv-root .selectize-input.focus {
+      border-color: var(--dlv-blue);
+      box-shadow: none;
     }
     #dlv-root .dlv-field-label {
       display: block;
@@ -449,7 +522,7 @@ $isEmptyCustomer = empty($customers);
           <?php } else { ?>
             <div class="dlv-list">
               <?php foreach ($customers as $cu) {
-                $nama = htmlspecialchars((string) ($cu['nama'] ?? 'Customer'), ENT_QUOTES, 'UTF-8');
+                $nama = htmlspecialchars(strtoupper((string) ($cu['nama'] ?? 'Customer')), ENT_QUOTES, 'UTF-8');
                 $tail = htmlspecialchars((string) ($cu['phone_tail'] ?? ''), ENT_QUOTES, 'UTF-8');
                 $kode = htmlspecialchars((string) ($cu['kode_cabang'] ?? '00'), ENT_QUOTES, 'UTF-8');
                 $dateRaw = $cu['last_message_at'] ?? '';
@@ -468,6 +541,10 @@ $isEmptyCustomer = empty($customers);
                   <div class="dlv-item__actions">
                     <button type="button" class="dlv-btn dlv-btn--cek" data-dlv-cek-customer="<?= $tail ?>">
                       <i class="fas fa-search"></i> Cek
+                    </button>
+                    <button type="button" class="dlv-btn dlv-btn--selesai" data-dlv-selesai="<?= $tail ?>"
+                            data-nama="<?= $nama ?>">
+                      <i class="fas fa-check"></i> Selesai
                     </button>
                   </div>
                 </div>
@@ -560,6 +637,56 @@ $isEmptyCustomer = empty($customers);
     </div>
   </div>
 
+  <div class="op-modal" id="dlvSelesaiModal" aria-hidden="true">
+    <div class="op-modal__backdrop" data-op-close></div>
+    <div class="op-modal__panel op-modal__panel--selesai" role="dialog" aria-modal="true" aria-labelledby="dlvSelesaiTitle">
+      <div class="op-modal__head op-modal__head--blue">
+        <div>
+          <h3 id="dlvSelesaiTitle">Selesai Delivery</h3>
+          <small id="dlvSelesaiSub">Pilih jenis, karyawan, dan item</small>
+        </div>
+        <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
+      </div>
+      <form id="dlvSelesaiForm">
+        <div class="op-modal__body">
+          <input type="hidden" id="dlvSelesaiPhone" name="phone_tail" value="">
+          <label class="dlv-field-label" for="dlvSelesaiJenis">Jenis</label>
+          <select id="dlvSelesaiJenis" name="jenis" class="dlv-input" required>
+            <option value="">— Pilih —</option>
+            <option value="jemput">Jemput</option>
+            <option value="antar">Antar</option>
+          </select>
+          <label class="dlv-field-label mt-2" for="dlvSelesaiKaryawan">Karyawan</label>
+          <select id="dlvSelesaiKaryawan" name="id_karyawan" class="form-control tize" style="width:100%" required>
+            <option value="" selected disabled></option>
+            <optgroup label="<?= htmlspecialchars(($this->dCabang['nama'] ?? 'Cabang') . ' [' . ($this->dCabang['kode_cabang'] ?? '') . ']', ENT_QUOTES, 'UTF-8') ?>">
+              <?php foreach (($this->user ?? []) as $a) { ?>
+                <option value="<?= (int) $a['id_user'] ?>"><?= (int) $a['id_user'] . '-' . htmlspecialchars(strtoupper((string) ($a['nama_user'] ?? '')), ENT_QUOTES, 'UTF-8') ?></option>
+              <?php } ?>
+            </optgroup>
+            <?php if (!empty($this->userCabang)) { ?>
+              <optgroup label="----- Cabang Lain -----">
+                <?php foreach ($this->userCabang as $a) { ?>
+                  <option value="<?= (int) $a['id_user'] ?>"><?= (int) $a['id_user'] . '-' . htmlspecialchars(strtoupper((string) ($a['nama_user'] ?? '')), ENT_QUOTES, 'UTF-8') ?></option>
+                <?php } ?>
+              </optgroup>
+            <?php } ?>
+          </select>
+          <label class="dlv-field-label mt-2">Item penjualan</label>
+          <div class="dlv-sales-box" id="dlvSelesaiSales">
+            <div class="dlv-sales-empty">Pilih jenis terlebih dahulu</div>
+          </div>
+        </div>
+        <div class="op-modal__foot">
+          <button type="button" class="dlv-btn dlv-btn--ghost" data-op-close>Batal</button>
+          <button type="submit" class="dlv-btn dlv-btn--submit" id="dlvSelesaiSubmit">
+            <i class="fas fa-check"></i> Selesai
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <?php if ($canCekDetail) { ?>
   <div class="op-modal" id="dlvDetailModal" aria-hidden="true">
     <div class="op-modal__backdrop" data-op-close></div>
@@ -627,6 +754,7 @@ $isEmptyCustomer = empty($customers);
   <?php } ?>
 </div>
 
+<script src="<?= URL::EX_ASSETS ?>js/selectize.min.js"></script>
 <script>
 (function () {
   var root = document.getElementById('dlv-root');
@@ -635,7 +763,10 @@ $isEmptyCustomer = empty($customers);
   var canCek = root.getAttribute('data-can-cek') === '1';
   var detailUrl = root.getAttribute('data-detail-url') || '';
   var customerDetailUrl = root.getAttribute('data-customer-detail-url') || '';
+  var salesOptionsUrl = root.getAttribute('data-sales-options-url') || '';
+  var selesaiUrl = root.getAttribute('data-selesai-url') || '';
   var ubahSumberUrl = root.getAttribute('data-ubah-sumber-url') || '';
+  var karyawanSelectize = null;
 
   function toast(msg, type) {
     if (window.MdlToast) {
@@ -688,6 +819,171 @@ $isEmptyCustomer = empty($customers);
     return pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
   }
 
+  function escapeHtml(str) {
+    return String(str == null ? '' : str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function ensureKaryawanSelectize() {
+    if (karyawanSelectize) return;
+    if (!window.jQuery || !jQuery.fn.selectize) return;
+    var $el = jQuery('#dlv-root .tize');
+    if (!$el.length) return;
+    $el.selectize();
+    karyawanSelectize = $el[0].selectize || null;
+  }
+
+  function resetSelesaiForm() {
+    var jenis = document.getElementById('dlvSelesaiJenis');
+    var phone = document.getElementById('dlvSelesaiPhone');
+    var box = document.getElementById('dlvSelesaiSales');
+    if (jenis) jenis.value = '';
+    if (phone) phone.value = '';
+    if (box) box.innerHTML = '<div class="dlv-sales-empty">Pilih jenis terlebih dahulu</div>';
+    if (karyawanSelectize) {
+      karyawanSelectize.clear(true);
+    } else {
+      var sel = document.getElementById('dlvSelesaiKaryawan');
+      if (sel) sel.value = '';
+    }
+  }
+
+  function renderSalesOptions(orders) {
+    var box = document.getElementById('dlvSelesaiSales');
+    if (!box) return;
+    if (!orders || !orders.length) {
+      box.innerHTML = '<div class="dlv-sales-empty">Tidak ada item eligible</div>';
+      return;
+    }
+    var html = orders.map(function (ord) {
+      var items = (ord.items || []).map(function (it) {
+        var status = Number(it.tuntas) === 1 ? 'Tuntas' : 'Proses';
+        var member = Number(it.member) === 1 ? ' · Member' : '';
+        return '<label class="dlv-sales-item">' +
+          '<input type="checkbox" name="ids[]" value="' + escapeHtml(String(it.id)) + '">' +
+          '<span class="dlv-sales-item__text">' +
+            escapeHtml(it.kategori || '-') +
+            (it.durasi ? ' · ' + escapeHtml(it.durasi) : '') +
+            ' · ' + escapeHtml(it.qty_show || '') +
+            '<div class="dlv-sales-item__meta">#' + escapeHtml(String(it.id)) + ' · ' + status + member + '</div>' +
+          '</span>' +
+        '</label>';
+      }).join('');
+      return '<div class="dlv-sales-group">' +
+        '<div class="dlv-sales-group__head">#' + escapeHtml(ord.no_ref || '-') +
+          (ord.insertTime ? ' · ' + escapeHtml(fmtTime(ord.insertTime)) : '') +
+        '</div>' + items +
+      '</div>';
+    }).join('');
+    box.innerHTML = html;
+  }
+
+  function loadSalesOptions() {
+    var phone = (document.getElementById('dlvSelesaiPhone') || {}).value || '';
+    var jenis = (document.getElementById('dlvSelesaiJenis') || {}).value || '';
+    var box = document.getElementById('dlvSelesaiSales');
+    if (!box) return;
+    if (!phone || !jenis) {
+      box.innerHTML = '<div class="dlv-sales-empty">Pilih jenis terlebih dahulu</div>';
+      return;
+    }
+    box.innerHTML = '<div class="dlv-sales-empty"><i class="fas fa-spinner fa-spin me-1"></i>Memuat…</div>';
+    fetch(salesOptionsUrl + encodeURIComponent(phone) + '?jenis=' + encodeURIComponent(jenis), {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      credentials: 'same-origin'
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || res.status !== 'success') {
+          box.innerHTML = '<div class="dlv-sales-empty">' + escapeHtml((res && res.message) || 'Gagal memuat item') + '</div>';
+          return;
+        }
+        renderSalesOptions((res.data && res.data.orders) || []);
+      })
+      .catch(function () {
+        box.innerHTML = '<div class="dlv-sales-empty">Gagal memuat item</div>';
+      });
+  }
+
+  function openSelesai(btn) {
+    var phone = btn.getAttribute('data-dlv-selesai') || '';
+    var nama = btn.getAttribute('data-nama') || 'Customer';
+    ensureKaryawanSelectize();
+    resetSelesaiForm();
+    document.getElementById('dlvSelesaiPhone').value = phone;
+    var sub = document.getElementById('dlvSelesaiSub');
+    if (sub) sub.textContent = nama + ' · ' + phone;
+    openModal('dlvSelesaiModal');
+  }
+
+  function removeCustomerItem(phoneTail) {
+    var item = root.querySelector('.dlv-item--customer[data-phone-tail="' + phoneTail + '"]');
+    if (!item) return;
+    var list = item.closest('.dlv-list');
+    var body = item.closest('.dlv-body');
+    item.remove();
+    if (list && !list.querySelector('.dlv-item--customer') && body) {
+      body.innerHTML =
+        '<div class="dlv-empty">' +
+          '<i class="fas fa-motorcycle" aria-hidden="true"></i>' +
+          '<strong>Belum ada order delivery</strong>' +
+          '<span>Permintaan jemput/antar (case kuning CRM) akan tampil di sini.</span>' +
+        '</div>';
+    }
+  }
+
+  function submitSelesai(e) {
+    e.preventDefault();
+    var phone = (document.getElementById('dlvSelesaiPhone') || {}).value || '';
+    var jenis = (document.getElementById('dlvSelesaiJenis') || {}).value || '';
+    var idKaryawan = '';
+    if (karyawanSelectize) idKaryawan = karyawanSelectize.getValue();
+    else {
+      var sel = document.getElementById('dlvSelesaiKaryawan');
+      idKaryawan = sel ? sel.value : '';
+    }
+    var checks = root.querySelectorAll('#dlvSelesaiSales input[name="ids[]"]:checked');
+    if (!phone) { toast('Nomor tidak valid', 'error'); return; }
+    if (!jenis) { toast('Pilih jenis jemput/antar', 'warn'); return; }
+    if (!idKaryawan) { toast('Pilih karyawan', 'warn'); return; }
+    if (!checks.length) { toast('Pilih minimal satu item', 'warn'); return; }
+
+    var fd = new FormData();
+    fd.append('phone_tail', phone);
+    fd.append('jenis', jenis);
+    fd.append('id_karyawan', idKaryawan);
+    Array.prototype.forEach.call(checks, function (cb) {
+      fd.append('ids[]', cb.value);
+    });
+
+    var submitBtn = document.getElementById('dlvSelesaiSubmit');
+    if (submitBtn) submitBtn.disabled = true;
+    fetch(selesaiUrl, {
+      method: 'POST',
+      body: fd,
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      credentials: 'same-origin'
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || res.status !== 'success') {
+          toast((res && res.message) || 'Gagal menyelesaikan', 'error');
+          return;
+        }
+        toast(res.message || 'Delivery selesai', 'success');
+        closeModal('dlvSelesaiModal');
+        removeCustomerItem(phone);
+      })
+      .catch(function () { toast('Gagal menyelesaikan', 'error'); })
+      .finally(function () {
+        if (submitBtn) submitBtn.disabled = false;
+      });
+  }
+
   function renderDetail(data) {
     var rows = (data.items || []).map(function (it) {
       var desc = it.deskripsi ? '<span class="dlv-desc">' + escapeHtml(it.deskripsi) + '</span>' : '';
@@ -725,15 +1021,6 @@ $isEmptyCustomer = empty($customers);
       '</div>';
     }).join('');
     return '<div class="dlv-chat">' + html + '</div>';
-  }
-
-  function escapeHtml(str) {
-    return String(str == null ? '' : str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
   }
 
   function loadDetail(ref, btn) {
@@ -902,6 +1189,13 @@ $isEmptyCustomer = empty($customers);
       return;
     }
 
+    var selesaiBtn = e.target.closest('[data-dlv-selesai]');
+    if (selesaiBtn && root.contains(selesaiBtn)) {
+      e.preventDefault();
+      openSelesai(selesaiBtn);
+      return;
+    }
+
     if (!canCek) return;
 
     var cekBtn = e.target.closest('[data-dlv-cek]');
@@ -918,6 +1212,12 @@ $isEmptyCustomer = empty($customers);
     }
   });
 
+  var jenisEl = document.getElementById('dlvSelesaiJenis');
+  if (jenisEl) jenisEl.addEventListener('change', loadSalesOptions);
+
+  var selesaiForm = document.getElementById('dlvSelesaiForm');
+  if (selesaiForm) selesaiForm.addEventListener('submit', submitSelesai);
+
   var form = document.getElementById('dlvSumberForm');
   if (form) form.addEventListener('submit', submitUbahSumber);
 
@@ -927,5 +1227,9 @@ $isEmptyCustomer = empty($customers);
     if (!open.length) return;
     closeModal(open[open.length - 1]);
   });
+
+  if (window.jQuery) {
+    jQuery(function () { ensureKaryawanSelectize(); });
+  }
 })();
 </script>

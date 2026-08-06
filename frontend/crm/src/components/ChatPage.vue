@@ -168,11 +168,13 @@ const handleEmojiSelect = (emoji) => {
 const resolveableCases = computed(() => {
   if (!props.activeConversation || !props.activeConversation.cases) return [];
   const openCases = props.activeConversation.cases.filter(
-    (c) => (c.status || "open") !== "closed" && parseInt(c.case) > 0
+    (c) =>
+      (c.status || "open") !== "closed" &&
+      parseInt(c.case) > 0 &&
+      parseInt(c.case) !== 2 // Pickup/Delivery dituntaskan via laundry Delivery
   );
   // Role based filtering
   if (props.currentUserRole === "admin") return openCases;
-  if (props.currentUserRole === "driver") return openCases.filter((c) => parseInt(c.case) === 2);
   if (props.currentUserRole === "crew") return openCases.filter((c) => parseInt(c.case) === 3);
   return [];
 });
@@ -427,6 +429,10 @@ const followUp = () => updateCase(4, isFollowUp);
 
 const resolveCase = async (caseId) => {
     if (!props.activeConversation || resolvingCaseId.value) return;
+    if (parseInt(caseId) === 2) {
+      console.warn("Case Pickup/Delivery hanya dituntaskan via laundry Delivery");
+      return;
+    }
     try {
         resolvingCaseId.value = caseId;
         const res = await fetch(`${props.API_BASE}/CRM/Chat/resolveCase`, {
