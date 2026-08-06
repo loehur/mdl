@@ -2,7 +2,6 @@
 $mode = (int) ($data['mode'] ?? 0);
 $isSelesai = $mode === 1;
 $jenisList = $data['jenisList'] ?? ['Perbaikan', 'Pergantian', 'Perawatan', 'Penambahan'];
-$isAdmin = !empty($data['isAdmin']);
 $kodeCabangUi = strtoupper((string) ($this->dCabang['kode_cabang'] ?? ''));
 $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
 ?>
@@ -47,34 +46,33 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
         radial-gradient(80% 50% at 100% 0%, rgba(245,158,11,.12), transparent 45%),
         linear-gradient(180deg, #eef4ff 0%, #f4fff8 55%, #fff8eb 100%);
       border: 1px solid #cbd5e1;
-      padding: 14px;
+      padding: 10px;
     }
     #tiket-root .tk-head {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 10px;
-      margin: -14px -14px 14px;
-      padding: 14px 16px;
+      gap: 8px;
+      margin: -10px -10px 10px;
+      padding: 10px 12px;
       color: #fff;
     }
     #tiket-root .tk-head--proses {
-      background: linear-gradient(105deg, #1d4ed8 0%, #2563eb 100%);
+      background: #2563eb;
     }
     #tiket-root .tk-head--selesai {
-      background: linear-gradient(105deg, #15803d 0%, #16a34a 100%);
+      background: #16a34a;
     }
     #tiket-root .tk-head h2 {
       margin: 0;
-      font-size: 0.95rem;
+      font-size: 0.88rem;
       font-weight: 900;
       letter-spacing: -0.02em;
-      text-shadow: 0 1px 0 rgba(0,0,0,.18);
     }
     #tiket-root .tk-head small {
       display: block;
-      margin-top: 2px;
-      font-size: 0.72rem;
+      margin-top: 1px;
+      font-size: 0.68rem;
       font-weight: 700;
       opacity: .9;
     }
@@ -82,10 +80,10 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 6px;
-      padding: 10px 14px;
+      gap: 4px;
+      padding: 8px 12px;
       border: 1px solid transparent;
-      font-size: 0.88rem;
+      font-size: 0.8rem;
       font-weight: 900;
       cursor: pointer;
       white-space: nowrap;
@@ -112,8 +110,8 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
       border-color: #cbd5e1;
     }
     #tiket-root .tk-btn--sm {
-      padding: 6px 10px;
-      font-size: 0.76rem;
+      padding: 4px 8px;
+      font-size: 0.72rem;
     }
     #tiket-root .tk-btn:disabled {
       opacity: .55;
@@ -314,7 +312,7 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
     <div class="tk-head <?= $isSelesai ? 'tk-head--selesai' : 'tk-head--proses' ?>">
       <div>
         <h2><?= $isSelesai ? 'Tiket Selesai' : 'Tiket Proses' ?></h2>
-        <small><?= $isSelesai ? 'Tiket selesai cabang ini · dikelompokkan per bulan' : 'Semua cabang · tambah tiket baru' ?></small>
+        <small><?= $isSelesai ? 'Cabang ini · per bulan' : 'Semua cabang' ?></small>
       </div>
       <?php if (!$isSelesai) { ?>
         <button type="button" class="tk-btn tk-btn--primary" id="btnTambahTiket">
@@ -361,7 +359,7 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
             <textarea class="tk-input" name="keterangan" id="tiketKeterangan" rows="3"></textarea>
           </div>
           <div class="tk-field">
-            <label class="tk-label" for="tiketKaryawan">Karyawan pembuat</label>
+            <label class="tk-label" for="tiketKaryawan">Pembuat</label>
             <select name="id_karyawan" id="tiketKaryawan" class="tize" style="width: 100%;" required>
               <option value="" selected disabled></option>
               <optgroup label="<?= htmlspecialchars($namaCabangUi) ?> [<?= htmlspecialchars($kodeCabangUi) ?>]">
@@ -379,9 +377,9 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
             </select>
           </div>
           <div class="tk-field">
-            <label class="tk-label" for="tiketAccessKey">Access Key karyawan</label>
+            <label class="tk-label" for="tiketAccessKey">Access Key</label>
             <input type="password" class="tk-input" name="access_key" id="tiketAccessKey" inputmode="numeric" maxlength="4" autocomplete="one-time-code" placeholder="4 digit" required>
-            <small style="display:block;margin-top:4px;color:#64748b;font-size:0.78rem;">Access Key harus milik karyawan yang dipilih.</small>
+            <small id="tiketAccessKeyHint" style="display:block;margin-top:4px;color:#64748b;font-size:0.78rem;">Harus milik pembuat yang dipilih.</small>
           </div>
         </div>
         <div class="op-modal__foot">
@@ -411,7 +409,7 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
             <textarea class="tk-input" name="catatan_selesai" id="selesaiCatatan" rows="3" required></textarea>
           </div>
           <div class="tk-field">
-            <label class="tk-label" for="selesaiKaryawan">Karyawan yang menyelesaikan</label>
+            <label class="tk-label" for="selesaiKaryawan">Penyelesai</label>
             <select name="id_karyawan" id="selesaiKaryawan" class="tize" style="width: 100%;" required>
               <option value="" selected disabled></option>
               <optgroup label="<?= htmlspecialchars($namaCabangUi) ?> [<?= htmlspecialchars($kodeCabangUi) ?>]">
@@ -429,9 +427,9 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
             </select>
           </div>
           <div class="tk-field">
-            <label class="tk-label" for="selesaiAccessKey">Access Key karyawan</label>
+            <label class="tk-label" for="selesaiAccessKey">Access Key</label>
             <input type="password" class="tk-input" name="access_key" id="selesaiAccessKey" inputmode="numeric" maxlength="4" autocomplete="one-time-code" placeholder="4 digit" required>
-            <small style="display:block;margin-top:4px;color:#64748b;font-size:0.78rem;">Access Key harus milik karyawan yang dipilih.</small>
+            <small style="display:block;margin-top:4px;color:#64748b;font-size:0.78rem;">Harus milik penyelesai yang dipilih.</small>
           </div>
         </div>
         <div class="op-modal__foot">
@@ -442,7 +440,6 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
     </div>
   </div>
 
-  <?php if ($isAdmin) { ?>
   <!-- Modal Hapus -->
   <div class="op-modal" id="modalTiketHapus" aria-hidden="true">
     <div class="op-modal__backdrop" data-op-close></div>
@@ -450,15 +447,24 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
       <div class="op-modal__head op-modal__head--red">
         <div>
           <h3>Hapus Tiket</h3>
-          <small>Tindakan ini tidak dapat dibatalkan</small>
+          <small>Wajib Access Key pembuat</small>
         </div>
         <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
       </div>
       <div class="op-modal__body">
-        <p style="margin:0;font-weight:750;color:#475569;font-size:0.88rem;">
+        <p style="margin:0 0 10px;font-weight:750;color:#475569;font-size:0.88rem;">
           Hapus tiket <strong id="hapusJudulPreview" style="color:#0f172a;"></strong>?
         </p>
         <input type="hidden" id="hapusId" value="">
+        <div class="tk-field">
+          <label class="tk-label">Pembuat</label>
+          <div class="tk-input" id="hapusPembuatPreview" style="background:#f1f5f9;font-weight:800;">—</div>
+        </div>
+        <div class="tk-field">
+          <label class="tk-label" for="hapusAccessKey">Access Key pembuat</label>
+          <input type="password" class="tk-input" id="hapusAccessKey" inputmode="numeric" maxlength="4" autocomplete="one-time-code" placeholder="4 digit">
+          <small style="display:block;margin-top:4px;color:#64748b;font-size:0.78rem;">Harus milik pembuat tiket.</small>
+        </div>
       </div>
       <div class="op-modal__foot">
         <button type="button" class="tk-btn tk-btn--ghost" data-op-close>Batal</button>
@@ -466,7 +472,6 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
       </div>
     </div>
   </div>
-  <?php } ?>
   <?php } ?>
 </div>
 
@@ -567,6 +572,20 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
   $('#tiketKaryawan').selectize();
   $('#selesaiKaryawan').selectize();
 
+  function setPembuatLock(locked) {
+    var sz = getTize('tiketKaryawan');
+    if (sz) {
+      if (locked) sz.lock();
+      else sz.unlock();
+    }
+    var hint = document.getElementById('tiketAccessKeyHint');
+    if (hint) {
+      hint.textContent = locked
+        ? 'Harus milik pembuat tiket (tidak dapat diganti).'
+        : 'Harus milik pembuat yang dipilih.';
+    }
+  }
+
   function resetForm() {
     $('#tiketId').val('');
     $('#tiketJudul').val('');
@@ -574,6 +593,7 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
     $('#tiketJenis').val('');
     $('#tiketAccessKey').val('');
     $('#tiketFormTitle').text('Tambah Tiket');
+    setPembuatLock(false);
     clearTize('tiketKaryawan');
   }
 
@@ -605,6 +625,7 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
     $('#tiketKeterangan').val(b64decode(btn.getAttribute('data-keterangan') || ''));
     $('#tiketJenis').val(btn.getAttribute('data-jenis') || '');
     setTizeValue('tiketKaryawan', btn.getAttribute('data-id-karyawan') || '');
+    setPembuatLock(true);
     $('#tiketAccessKey').val('');
     openModal('modalTiketForm');
   }
@@ -634,6 +655,8 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
     e.preventDefault();
     $('#hapusId').val(this.getAttribute('data-id') || '');
     $('#hapusJudulPreview').text(b64decode(this.getAttribute('data-judul') || ''));
+    $('#hapusPembuatPreview').text(b64decode(this.getAttribute('data-pembuat') || '') || '—');
+    $('#hapusAccessKey').val('');
     openModal('modalTiketHapus');
   });
 
@@ -695,14 +718,19 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
 
   $('#btnConfirmHapus').on('click', function () {
     var id = $('#hapusId').val();
+    var accessKey = String($('#hapusAccessKey').val() || '').trim();
     if (!id) return;
+    if (!/^\d{4}$/.test(accessKey)) {
+      toast('Access Key pembuat harus 4 digit', 'warn');
+      return;
+    }
     var $btn = $(this);
     var old = $btn.html();
     $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
     $.ajax({
       url: BASE + 'Tiket/delete',
       type: 'POST',
-      data: { id_tiket: id },
+      data: { id_tiket: id, access_key: accessKey },
       success: function (res) {
         if (String(res).trim() === '0') {
           closeAll();

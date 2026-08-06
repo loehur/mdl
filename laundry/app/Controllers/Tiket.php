@@ -120,15 +120,15 @@ class Tiket extends Controller
         $judul = trim((string) ($_POST['judul'] ?? ''));
         $jenis = trim((string) ($_POST['jenis'] ?? ''));
         $keterangan = trim((string) ($_POST['keterangan'] ?? ''));
-        $idKaryawan = (int) ($_POST['id_karyawan'] ?? 0);
         $accessKey = trim((string) ($_POST['access_key'] ?? ''));
+        $idKaryawan = (int) ($row['id_karyawan'] ?? 0);
 
         if ($judul === '') {
             echo 'Judul wajib diisi';
             return;
         }
         if ($idKaryawan < 1) {
-            echo 'Pilih karyawan pembuat';
+            echo 'Data pembuat tiket tidak valid';
             return;
         }
         if (!in_array($jenis, $this->jenisList, true)) {
@@ -136,19 +136,16 @@ class Tiket extends Controller
             return;
         }
 
-        $karyawan = $this->helper('User')->by_id_access_key($idKaryawan, $accessKey);
-        if (!$karyawan) {
-            echo 'Access Key tidak cocok dengan karyawan yang dipilih';
+        // Access Key wajib milik pembuat asli (tidak bisa diganti)
+        if (!$this->helper('User')->by_id_access_key($idKaryawan, $accessKey)) {
+            echo 'Access Key tidak cocok dengan pembuat tiket';
             return;
         }
 
-        $namaKaryawan = strtoupper((string) ($karyawan['nama_user'] ?? ('#' . $idKaryawan)));
         $set = [
             'judul' => $judul,
             'jenis' => $jenis,
             'keterangan' => $keterangan,
-            'id_karyawan' => $idKaryawan,
-            'karyawan' => $namaKaryawan,
         ];
         $up = $this->db(0)->update('tiket', $set, 'id_tiket = ' . $id);
         if ((int) ($up['errno'] ?? 1) === 0) {
@@ -162,13 +159,8 @@ class Tiket extends Controller
     {
         $this->session_cek();
 
-        $priv = (int) ($_SESSION[URL::SESSID]['user']['id_privilege'] ?? 0);
-        if ($priv !== 100) {
-            echo 'Hanya admin yang dapat menghapus tiket';
-            return;
-        }
-
         $id = (int) ($_POST['id_tiket'] ?? 0);
+        $accessKey = trim((string) ($_POST['access_key'] ?? ''));
         if ($id <= 0) {
             echo 'ID tiket tidak valid';
             return;
@@ -181,6 +173,16 @@ class Tiket extends Controller
         }
         if ((int) $row['status'] !== 0) {
             echo 'Tiket selesai tidak dapat dihapus';
+            return;
+        }
+
+        $idKaryawan = (int) ($row['id_karyawan'] ?? 0);
+        if ($idKaryawan < 1) {
+            echo 'Data pembuat tiket tidak valid';
+            return;
+        }
+        if (!$this->helper('User')->by_id_access_key($idKaryawan, $accessKey)) {
+            echo 'Access Key tidak cocok dengan pembuat tiket';
             return;
         }
 
@@ -250,8 +252,6 @@ class Tiket extends Controller
     {
         $mode = (int) $mode;
         $cabangMap = $this->buildCabangMap();
-        $priv = (int) ($_SESSION[URL::SESSID]['user']['id_privilege'] ?? 0);
-        $isAdmin = $priv === 100;
 
         if ($mode === 1) {
             $idCabang = (int) $this->id_cabang;
@@ -264,7 +264,6 @@ class Tiket extends Controller
                 'grouped' => $grouped,
                 'cabangMap' => $cabangMap,
                 'jenisList' => $this->jenisList,
-                'isAdmin' => $isAdmin,
             ];
         }
 
@@ -275,7 +274,6 @@ class Tiket extends Controller
             'grouped' => [],
             'cabangMap' => $cabangMap,
             'jenisList' => $this->jenisList,
-            'isAdmin' => $isAdmin,
         ];
     }
 
