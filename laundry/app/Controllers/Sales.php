@@ -714,7 +714,7 @@ class Sales extends Controller
       echo json_encode($response);
    }
 
-   // Pakai - ubah type = 3, state = 0
+   // Pakai - ubah type = 3, state = 0, id_user = karyawan + Access Key
    public function pakai()
    {
       if (ob_get_length()) ob_clean();
@@ -724,27 +724,37 @@ class Sales extends Controller
       
       try {
           $ref = $_POST['ref'] ?? '';
+          $idKaryawan = (int) ($_POST['id_karyawan'] ?? $_POST['karyawan'] ?? 0);
+          $accessKey = trim((string) ($_POST['access_key'] ?? ''));
           
           if (empty($ref)) {
              throw new Exception('Ref tidak valid');
           }
+          if ($idKaryawan < 1) {
+             throw new Exception('Pilih karyawan');
+          }
+          if (!$this->helper('User')->by_id_access_key($idKaryawan, $accessKey)) {
+             throw new Exception('Access Key tidak cocok dengan karyawan yang dipilih');
+          }
           
-          // Cek apakah ada pembayaran untuk ref ini
-          $payments = $this->db(0)->get_where('kas', "ref_transaksi = '$ref' AND jenis_transaksi = 7");
+          $refEsc = $this->db(0)->escape($ref);
+          $payments = $this->db(0)->get_where('kas', "ref_transaksi = '$refEsc' AND jenis_transaksi = 7");
           
           if (!empty($payments)) {
              throw new Exception('Tidak dapat mengubah nota yang sudah memiliki riwayat pembayaran');
           }
           
-          // Cek apakah ref ada di barang_mutasi
-          $items = $this->db(0)->get_where('barang_mutasi', "ref = '$ref'");
+          $items = $this->db(0)->get_where('barang_mutasi', "ref = '$refEsc'");
           
           if (empty($items)) {
              throw new Exception('Data nota tidak ditemukan');
           }
           
-          // Update type = 3, state = 0
-          $update = $this->db(0)->update('barang_mutasi', ['type' => 3, 'state' => 0], "ref = '$ref'");
+          $update = $this->db(0)->update(
+             'barang_mutasi',
+             ['type' => 3, 'state' => 0, 'id_user' => $idKaryawan],
+             "ref = '$refEsc'"
+          );
           
           if (isset($update['errno']) && $update['errno'] == 0) {
              $response = ['status' => 'success', 'message' => 'Nota berhasil diubah ke status Pakai (Type=3, State=0)'];
@@ -918,7 +928,7 @@ class Sales extends Controller
       echo json_encode($response);
    }
    
-   // Terima Barang - ubah state = 1 (diterima)
+   // Terima Barang - ubah state = 1 (diterima), id_user = karyawan + Access Key
    public function terimaBarang()
    {
       if (ob_get_length()) ob_clean();
@@ -928,31 +938,37 @@ class Sales extends Controller
       
       try {
           $ref = $_POST['ref'] ?? '';
+          $idKaryawan = (int) ($_POST['id_karyawan'] ?? $_POST['karyawan'] ?? 0);
+          $accessKey = trim((string) ($_POST['access_key'] ?? ''));
           
           if (empty($ref)) {
              throw new Exception('Ref tidak valid');
           }
+          if ($idKaryawan < 1) {
+             throw new Exception('Pilih karyawan penerima');
+          }
+          if (!$this->helper('User')->by_id_access_key($idKaryawan, $accessKey)) {
+             throw new Exception('Access Key tidak cocok dengan karyawan yang dipilih');
+          }
           
-          // Cek apakah ref ada di barang_mutasi
-          $items = $this->db(0)->get_where('barang_mutasi', "ref = '$ref'");
+          $refEsc = $this->db(0)->escape($ref);
+          $items = $this->db(0)->get_where('barang_mutasi', "ref = '$refEsc'");
           
           if (empty($items)) {
              throw new Exception('Data nota tidak ditemukan');
           }
           
-          // Cek apakah type = 2 (transfer)
           if ($items[0]['type'] != 2) {
              throw new Exception('Nota ini bukan transfer barang');
           }
           
-          // Update state = 1 (diterima/selesai) dengan raw query
-          $update = $this->db(0)->query("UPDATE barang_mutasi SET state = 1 WHERE ref = '$ref'");
+          $update = $this->db(0)->query(
+             "UPDATE barang_mutasi SET state = 1, id_user = $idKaryawan WHERE ref = '$refEsc'"
+          );
           
-          // Verifikasi update berhasil
-          $verify = $this->db(0)->get_where_row('barang_mutasi', "ref = '$ref'");
+          $verify = $this->db(0)->get_where_row('barang_mutasi', "ref = '$refEsc'");
           
-          // Log untuk debugging
-          $this->model('Log')->write("[Sales::terimaBarang] Ref: $ref, State setelah update: " . ($verify['state'] ?? 'null'));
+          $this->model('Log')->write("[Sales::terimaBarang] Ref: $ref, Karyawan: $idKaryawan, State: " . ($verify['state'] ?? 'null'));
           
           if ($verify && $verify['state'] == 1) {
              $response = ['status' => 'success', 'message' => 'Barang berhasil diterima'];
@@ -970,7 +986,7 @@ class Sales extends Controller
       echo json_encode($response);
    }
    
-   // Terima Pakai - terima + pakai sekaligus (hanya untuk source_id != 0, dengan transaction)
+   // Terima Pakai - terima + pakai, id_user = karyawan + Access Key
    public function terimaPakai()
    {
       if (ob_get_length()) ob_clean();
@@ -981,13 +997,21 @@ class Sales extends Controller
       try {
           $ref = $_POST['ref'] ?? '';
           $id_cabang = $_SESSION[URL::SESSID]['user']['id_cabang'] ?? 0;
+          $idKaryawan = (int) ($_POST['id_karyawan'] ?? $_POST['karyawan'] ?? 0);
+          $accessKey = trim((string) ($_POST['access_key'] ?? ''));
           
           if (empty($ref)) {
              throw new Exception('Ref tidak valid');
           }
+          if ($idKaryawan < 1) {
+             throw new Exception('Pilih karyawan penerima');
+          }
+          if (!$this->helper('User')->by_id_access_key($idKaryawan, $accessKey)) {
+             throw new Exception('Access Key tidak cocok dengan karyawan yang dipilih');
+          }
           
-          // Cek apakah ref ada di barang_mutasi
-          $items = $this->db(0)->get_where('barang_mutasi', "ref = '$ref'");
+          $refEsc = $this->db(0)->escape($ref);
+          $items = $this->db(0)->get_where('barang_mutasi', "ref = '$refEsc'");
           
           if (empty($items)) {
              throw new Exception('Data nota tidak ditemukan');
@@ -997,41 +1021,37 @@ class Sales extends Controller
           $sourceId = (int)($first['source_id'] ?? 0);
           $targetId = (int)($first['target_id'] ?? 0);
           
-          // Hanya untuk transfer dari cabang lain (source_id != 0, bukan dari supplier)
           if ($sourceId == 0) {
              throw new Exception('Terima Pakai hanya untuk barang dari transfer cabang (bukan supplier)');
           }
           
-          // Cek apakah type = 2 (transfer)
           if ($first['type'] != 2) {
              throw new Exception('Nota ini bukan transfer barang');
           }
           
-          // Cek apakah cabang saat ini adalah target
           if ($targetId != $id_cabang) {
              throw new Exception('Anda bukan cabang penerima barang ini');
           }
           
-          // Cek tidak ada pembayaran
-          $payments = $this->db(0)->get_where('kas', "ref_transaksi = '$ref' AND jenis_transaksi = 7");
+          $payments = $this->db(0)->get_where('kas', "ref_transaksi = '$refEsc' AND jenis_transaksi = 7");
           if (!empty($payments)) {
              throw new Exception('Tidak dapat Terima Pakai nota yang sudah memiliki riwayat pembayaran');
           }
           
-          // SQL Transaction - terima dulu (stok masuk), baru pakai
           if (!$this->db(0)->beginTransaction()) {
              throw new Exception('Gagal memulai transaksi');
           }
           
           try {
-             // 1. Terima dulu: state = 1 (barang masuk stok cabang)
-             $update1 = $this->db(0)->update('barang_mutasi', ['state' => 1], "ref = '$ref'");
+             $update1 = $this->db(0)->update(
+                'barang_mutasi',
+                ['state' => 1, 'id_user' => $idKaryawan],
+                "ref = '$refEsc'"
+             );
              if (isset($update1['errno']) && $update1['errno'] != 0) {
                 throw new Exception($update1['error'] ?? 'Gagal terima barang');
              }
              
-             // 2. Pakai: INSERT baru satu-satu tiap item dengan type=3 (seperti function pakai)
-             $id_user = $_SESSION[URL::SESSID]['user']['id_user'] ?? 0;
              $ref_pakai = $ref . '_P';
              
              foreach ($items as $item) {
@@ -1046,7 +1066,7 @@ class Sales extends Controller
                    'qty' => $item['qty'],
                    'margin' => $item['margin'] ?? 0,
                    'state' => 0,
-                   'id_user' => $id_user
+                   'id_user' => $idKaryawan
                 ];
                 $insert = $this->db(0)->insert('barang_mutasi', $data);
                 if (isset($insert['errno']) && $insert['errno'] != 0) {
@@ -1059,7 +1079,7 @@ class Sales extends Controller
              }
              
              $response = ['status' => 'success', 'message' => 'Barang berhasil diterima dan dipakai'];
-             $this->model('Log')->write("[Sales::terimaPakai] Ref: $ref, Terima Pakai OK");
+             $this->model('Log')->write("[Sales::terimaPakai] Ref: $ref, Karyawan: $idKaryawan, OK");
              
           } catch (\Throwable $e) {
              $this->db(0)->rollback();

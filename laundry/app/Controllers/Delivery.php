@@ -328,16 +328,11 @@ class Delivery extends Controller
    }
 
    /**
-    * Detail barang transfer — hanya admin (100) / driver (12).
+    * Detail barang transfer — semua user login.
     */
    public function detail($ref = '')
    {
       header('Content-Type: application/json; charset=utf-8');
-
-      if (!$this->canCekDetail()) {
-         echo json_encode(['status' => 'error', 'message' => 'Akses ditolak']);
-         return;
-      }
 
       $ref = trim((string) $ref);
       if ($ref === '') {
@@ -397,8 +392,8 @@ class Delivery extends Controller
    }
 
    /**
-    * Terima Pakai (sama Sales) — admin (100) / driver (12), tanpa wajib cabang aktif = target.
-    * Pakai dicatat atas cabang penerima (target_id transfer).
+    * Terima Pakai — wajib pilih karyawan + Access Key cocok.
+    * Pakai dicatat atas cabang penerima (target_id transfer), id_user = karyawan penerima.
     */
    public function terima_pakai()
    {
@@ -409,13 +404,19 @@ class Delivery extends Controller
       $response = ['status' => 'error', 'message' => 'Unknown error'];
 
       try {
-         if (!$this->canCekDetail()) {
-            throw new Exception('Akses ditolak');
-         }
-
          $ref = trim((string) ($_POST['ref'] ?? ''));
+         $idKaryawan = (int) ($_POST['id_karyawan'] ?? 0);
+         $accessKey = trim((string) ($_POST['access_key'] ?? ''));
+
          if ($ref === '') {
             throw new Exception('Ref tidak valid');
+         }
+         if ($idKaryawan < 1) {
+            throw new Exception('Pilih karyawan penerima');
+         }
+         $penerima = $this->helper('User')->by_id_access_key($idKaryawan, $accessKey);
+         if (!$penerima) {
+            throw new Exception('Access Key tidak cocok dengan karyawan yang dipilih');
          }
 
          $refEsc = $this->db(0)->escape($ref);
@@ -447,12 +448,15 @@ class Delivery extends Controller
          }
 
          try {
-            $update1 = $this->db(0)->update('barang_mutasi', ['state' => 1], "ref = '$refEsc'");
+            $update1 = $this->db(0)->update(
+               'barang_mutasi',
+               ['state' => 1, 'id_user' => $idKaryawan],
+               "ref = '$refEsc'"
+            );
             if (isset($update1['errno']) && (int) $update1['errno'] !== 0) {
                throw new Exception($update1['error'] ?? 'Gagal terima barang');
             }
 
-            $idUser = (int) ($_SESSION[URL::SESSID]['user']['id_user'] ?? 0);
             $refPakai = $ref . '_P';
             foreach ($items as $item) {
                $data = [
@@ -466,7 +470,7 @@ class Delivery extends Controller
                   'qty' => $item['qty'],
                   'margin' => $item['margin'] ?? 0,
                   'state' => 0,
-                  'id_user' => $idUser,
+                  'id_user' => $idKaryawan,
                ];
                $insert = $this->db(0)->insert('barang_mutasi', $data);
                if (isset($insert['errno']) && (int) $insert['errno'] !== 0) {
@@ -481,7 +485,7 @@ class Delivery extends Controller
             $response = [
                'status' => 'success',
                'message' => 'Barang berhasil diterima dan dipakai',
-               'data' => ['ref' => $ref, 'target_id' => $targetId],
+               'data' => ['ref' => $ref, 'target_id' => $targetId, 'id_karyawan' => $idKaryawan],
             ];
          } catch (\Throwable $e) {
             $this->db(0)->rollback();

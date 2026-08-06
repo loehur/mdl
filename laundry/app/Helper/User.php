@@ -47,6 +47,27 @@ class User extends Controller
         return $row;
     }
 
+    /**
+     * Verifikasi Access Key milik id_user tertentu (untuk Terima/Pakai, dll).
+     */
+    function by_id_access_key($idUser, $accessKey)
+    {
+        $idUser = (int) $idUser;
+        $accessKey = trim((string) $accessKey);
+        if ($idUser < 1 || !preg_match('/^\d{4}$/', $accessKey)) {
+            return null;
+        }
+        $keyEsc = $this->db(0)->escape($accessKey);
+        $row = $this->db(0)->get_where_row(
+            'user',
+            "id_user = $idUser AND access_key = '" . $keyEsc . "' AND en = 1"
+        );
+        if (!is_array($row) || empty($row['id_user'])) {
+            return null;
+        }
+        return $row;
+    }
+
     function last_login($username)
     {
         $where = "username = '" . $username . "'";

@@ -6,12 +6,18 @@
   
   /* Modal adjustments untuk dropdown */
   #modalTransfer .modal-body,
-  #modalSalesBayar .modal-body {
+  #modalSalesBayar .modal-body,
+  #modalPakai .modal-body,
+  #modalTerimaPakai .modal-body,
+  #modalTerimaBarang .modal-body {
     overflow: visible !important;
   }
   
   #modalTransfer .modal-content,
-  #modalSalesBayar .modal-content {
+  #modalSalesBayar .modal-content,
+  #modalPakai .modal-content,
+  #modalTerimaPakai .modal-content,
+  #modalTerimaBarang .modal-content {
     overflow: visible !important;
   }
   
@@ -881,6 +887,8 @@
     pakaiNotaRef = $(this).data('ref');
     
     $('#pakaiNotaRef').text('#' + pakaiNotaRef);
+    if (pakaiKaryawanSelectize) pakaiKaryawanSelectize.clear(true);
+    $('#pakaiAccessKey').val('');
     
     var modalEl = document.getElementById('modalPakai');
     var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
@@ -891,6 +899,16 @@
   $(document).on('click', '#btnKonfirmasiPakai', function() {
     var btn = $(this);
     var originalHtml = btn.html();
+    var karyawan = pakaiKaryawanSelectize ? pakaiKaryawanSelectize.getValue() : $('#pakaiKaryawan').val();
+    var accessKey = String($('#pakaiAccessKey').val() || '').trim();
+    if (!karyawan) {
+      showSalesAlert('Pilih karyawan terlebih dahulu', 'error');
+      return;
+    }
+    if (!/^\d{4}$/.test(accessKey)) {
+      showSalesAlert('Access Key harus 4 digit', 'error');
+      return;
+    }
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Memproses...');
     
     $.ajax({
@@ -898,7 +916,9 @@
       type: 'POST',
       dataType: 'json',
       data: {
-        ref: pakaiNotaRef
+        ref: pakaiNotaRef,
+        id_karyawan: karyawan,
+        access_key: accessKey
       },
       success: function(res) {
         // Close modal
@@ -931,10 +951,16 @@
   
   // Inisialisasi Selectize - Transfer, Permintaan & Karyawan Bayar
   var salesKaryawanSelectize;
+  var pakaiKaryawanSelectize;
+  var terimaPakaiKaryawanSelectize;
+  var terimaBarangKaryawanSelectize;
   $(document).ready(function() {
     transferSelectize = $('#transferCabang').selectize()[0].selectize;
     permintaanSelectize = $('#permintaanCabang').selectize()[0].selectize;
     salesKaryawanSelectize = $('#salesKaryawan').selectize()[0].selectize;
+    if ($('#pakaiKaryawan').length) pakaiKaryawanSelectize = $('#pakaiKaryawan').selectize()[0].selectize;
+    if ($('#terimaPakaiKaryawan').length) terimaPakaiKaryawanSelectize = $('#terimaPakaiKaryawan').selectize()[0].selectize;
+    if ($('#terimaBarangKaryawan').length) terimaBarangKaryawanSelectize = $('#terimaBarangKaryawan').selectize()[0].selectize;
   });
   
   // Open modal transfer
@@ -1064,6 +1090,8 @@
     
     $('#terimaBarangRef').text('#' + terimaBarangNotaRef);
     $('#terimaBarangSource').text(sourceCabang);
+    if (terimaBarangKaryawanSelectize) terimaBarangKaryawanSelectize.clear(true);
+    $('#terimaBarangAccessKey').val('');
     
     var modalEl = document.getElementById('modalTerimaBarang');
     var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
@@ -1079,6 +1107,8 @@
     
     $('#terimaPakaiRef').text('#' + terimaPakaiNotaRef);
     $('#terimaPakaiSource').text(sourceCabang);
+    if (terimaPakaiKaryawanSelectize) terimaPakaiKaryawanSelectize.clear(true);
+    $('#terimaPakaiAccessKey').val('');
     
     var modalEl = document.getElementById('modalTerimaPakai');
     var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
@@ -1088,6 +1118,16 @@
   $(document).on('click', '#btnKonfirmasiTerimaPakai', function() {
     var btn = $(this);
     var originalHtml = btn.html();
+    var karyawan = terimaPakaiKaryawanSelectize ? terimaPakaiKaryawanSelectize.getValue() : $('#terimaPakaiKaryawan').val();
+    var accessKey = String($('#terimaPakaiAccessKey').val() || '').trim();
+    if (!karyawan) {
+      showSalesAlert('Pilih karyawan penerima', 'error');
+      return;
+    }
+    if (!/^\d{4}$/.test(accessKey)) {
+      showSalesAlert('Access Key harus 4 digit', 'error');
+      return;
+    }
     
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Memproses...');
    
@@ -1096,7 +1136,9 @@
       type: 'POST',
       dataType: 'json',
       data: {
-        ref: terimaPakaiNotaRef
+        ref: terimaPakaiNotaRef,
+        id_karyawan: karyawan,
+        access_key: accessKey
       },
       success: function(res) {
         var modalEl = document.getElementById('modalTerimaPakai');
@@ -1124,6 +1166,16 @@
   $(document).on('click', '#btnKonfirmasiTerimaBarang', function() {
     var btn = $(this);
     var originalHtml = btn.html();
+    var karyawan = terimaBarangKaryawanSelectize ? terimaBarangKaryawanSelectize.getValue() : $('#terimaBarangKaryawan').val();
+    var accessKey = String($('#terimaBarangAccessKey').val() || '').trim();
+    if (!karyawan) {
+      showSalesAlert('Pilih karyawan penerima', 'error');
+      return;
+    }
+    if (!/^\d{4}$/.test(accessKey)) {
+      showSalesAlert('Access Key harus 4 digit', 'error');
+      return;
+    }
     
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Memproses...');
    
@@ -1132,7 +1184,9 @@
       type: 'POST',
       dataType: 'json',
       data: {
-        ref: terimaBarangNotaRef
+        ref: terimaBarangNotaRef,
+        id_karyawan: karyawan,
+        access_key: accessKey
       },
       success: function(res) {
         var modalEl = document.getElementById('modalTerimaBarang');
@@ -1417,17 +1471,37 @@
 
 <!-- Modal Konfirmasi Pakai -->
 <div class="modal fade" id="modalPakai" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered modal-sm">
+  <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content border-0 shadow">
       <div class="modal-header bg-success text-white py-2">
         <h6 class="modal-title"><i class="fas fa-box-open me-2"></i>Pakai</h6>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
-      <div class="modal-body text-center py-4">
-        <i class="fas fa-box-open text-success fa-3x mb-3"></i>
-        <p class="mb-2">Yakin ingin mengubah nota ini ke status Pakai?</p>
-        <p class="fw-bold mb-0" id="pakaiNotaRef"></p>
-        <p class="text-muted small mt-2 mb-0"><i class="fas fa-info-circle me-1"></i>Type akan diubah ke 3 dan State ke 0</p>
+      <div class="modal-body py-3">
+        <p class="mb-2 text-center">Ubah nota ke status Pakai?</p>
+        <p class="fw-bold mb-3 text-center" id="pakaiNotaRef"></p>
+        <div class="mb-2">
+          <label class="form-label fw-bold small mb-1" for="pakaiKaryawan">Karyawan</label>
+          <select id="pakaiKaryawan" required>
+            <option value=""></option>
+            <optgroup label="<?= htmlspecialchars(($this->dCabang['nama'] ?? 'Cabang') . ' [' . ($this->dCabang['kode_cabang'] ?? '') . ']', ENT_QUOTES, 'UTF-8') ?>">
+              <?php foreach (($this->user ?? []) as $a) { ?>
+                <option value="<?= (int) $a['id_user'] ?>"><?= (int) $a['id_user'] . '-' . strtoupper((string) ($a['nama_user'] ?? '')) ?></option>
+              <?php } ?>
+            </optgroup>
+            <?php if (!empty($this->userCabang)) { ?>
+              <optgroup label="----- Cabang Lain -----">
+                <?php foreach ($this->userCabang as $a) { ?>
+                  <option value="<?= (int) $a['id_user'] ?>"><?= (int) $a['id_user'] . '-' . strtoupper((string) ($a['nama_user'] ?? '')) ?></option>
+                <?php } ?>
+              </optgroup>
+            <?php } ?>
+          </select>
+        </div>
+        <div class="mb-0">
+          <label class="form-label fw-bold small mb-1" for="pakaiAccessKey">Access Key karyawan</label>
+          <input type="password" id="pakaiAccessKey" class="form-control" inputmode="numeric" maxlength="4" autocomplete="one-time-code" placeholder="4 digit">
+        </div>
       </div>
       <div class="modal-footer justify-content-center py-2">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
@@ -1544,17 +1618,35 @@
         <h6 class="modal-title"><i class="fas fa-bolt me-2"></i>Terima Pakai</h6>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
-      <div class="modal-body text-center py-4">
-        <i class="fas fa-bolt text-warning fa-3x mb-3"></i>
-        <p class="mb-2">Terima dan langsung pakai semua barang dari:</p>
-        <p class="fw-bold fs-5 mb-2" id="terimaPakaiSource"></p>
-        <div class="bg-light rounded p-2 mb-3">
+      <div class="modal-body py-3">
+        <p class="mb-1 text-center">Terima dan langsung pakai dari:</p>
+        <p class="fw-bold fs-5 mb-2 text-center" id="terimaPakaiSource"></p>
+        <div class="bg-light rounded p-2 mb-3 text-center">
           <small class="text-muted">No. Ref</small><br>
           <strong id="terimaPakaiRef"></strong>
         </div>
-        <p class="text-warning small mt-2 mb-0">
-          <i class="fas fa-info-circle me-1"></i>Barang akan diterima dan langsung diubah ke status Pakai (Type=3)
-        </p>
+        <div class="mb-2">
+          <label class="form-label fw-bold small mb-1" for="terimaPakaiKaryawan">Karyawan penerima</label>
+          <select id="terimaPakaiKaryawan" required>
+            <option value=""></option>
+            <optgroup label="<?= htmlspecialchars(($this->dCabang['nama'] ?? 'Cabang') . ' [' . ($this->dCabang['kode_cabang'] ?? '') . ']', ENT_QUOTES, 'UTF-8') ?>">
+              <?php foreach (($this->user ?? []) as $a) { ?>
+                <option value="<?= (int) $a['id_user'] ?>"><?= (int) $a['id_user'] . '-' . strtoupper((string) ($a['nama_user'] ?? '')) ?></option>
+              <?php } ?>
+            </optgroup>
+            <?php if (!empty($this->userCabang)) { ?>
+              <optgroup label="----- Cabang Lain -----">
+                <?php foreach ($this->userCabang as $a) { ?>
+                  <option value="<?= (int) $a['id_user'] ?>"><?= (int) $a['id_user'] . '-' . strtoupper((string) ($a['nama_user'] ?? '')) ?></option>
+                <?php } ?>
+              </optgroup>
+            <?php } ?>
+          </select>
+        </div>
+        <div class="mb-0">
+          <label class="form-label fw-bold small mb-1" for="terimaPakaiAccessKey">Access Key karyawan</label>
+          <input type="password" id="terimaPakaiAccessKey" class="form-control" inputmode="numeric" maxlength="4" autocomplete="one-time-code" placeholder="4 digit">
+        </div>
       </div>
       <div class="modal-footer justify-content-center py-2">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
@@ -1574,17 +1666,35 @@
         <h6 class="modal-title"><i class="fas fa-check-circle me-2"></i>Terima Barang</h6>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
-      <div class="modal-body text-center py-4">
-        <i class="fas fa-box-open text-success fa-3x mb-3"></i>
-        <p class="mb-2">Konfirmasi penerimaan barang dari:</p>
-        <p class="fw-bold fs-5 mb-2" id="terimaBarangSource"></p>
-        <div class="bg-light rounded p-2 mb-3">
+      <div class="modal-body py-3">
+        <p class="mb-1 text-center">Konfirmasi penerimaan barang dari:</p>
+        <p class="fw-bold fs-5 mb-2 text-center" id="terimaBarangSource"></p>
+        <div class="bg-light rounded p-2 mb-3 text-center">
           <small class="text-muted">No. Ref</small><br>
           <strong id="terimaBarangRef"></strong>
         </div>
-        <p class="text-success small mt-2 mb-0">
-          <i class="fas fa-info-circle me-1"></i>Barang akan masuk ke stok cabang ini
-        </p>
+        <div class="mb-2">
+          <label class="form-label fw-bold small mb-1" for="terimaBarangKaryawan">Karyawan penerima</label>
+          <select id="terimaBarangKaryawan" required>
+            <option value=""></option>
+            <optgroup label="<?= htmlspecialchars(($this->dCabang['nama'] ?? 'Cabang') . ' [' . ($this->dCabang['kode_cabang'] ?? '') . ']', ENT_QUOTES, 'UTF-8') ?>">
+              <?php foreach (($this->user ?? []) as $a) { ?>
+                <option value="<?= (int) $a['id_user'] ?>"><?= (int) $a['id_user'] . '-' . strtoupper((string) ($a['nama_user'] ?? '')) ?></option>
+              <?php } ?>
+            </optgroup>
+            <?php if (!empty($this->userCabang)) { ?>
+              <optgroup label="----- Cabang Lain -----">
+                <?php foreach ($this->userCabang as $a) { ?>
+                  <option value="<?= (int) $a['id_user'] ?>"><?= (int) $a['id_user'] . '-' . strtoupper((string) ($a['nama_user'] ?? '')) ?></option>
+                <?php } ?>
+              </optgroup>
+            <?php } ?>
+          </select>
+        </div>
+        <div class="mb-0">
+          <label class="form-label fw-bold small mb-1" for="terimaBarangAccessKey">Access Key karyawan</label>
+          <input type="password" id="terimaBarangAccessKey" class="form-control" inputmode="numeric" maxlength="4" autocomplete="one-time-code" placeholder="4 digit">
+        </div>
       </div>
       <div class="modal-footer justify-content-center py-2">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
