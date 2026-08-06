@@ -1,12 +1,15 @@
 <?php
 $transfers = $data['transfers'] ?? [];
+$customers = $data['customers'] ?? [];
 $canCekDetail = !empty($data['canCekDetail']);
 $listCabang = $data['listCabang'] ?? [];
 $isEmptyCabang = empty($transfers);
+$isEmptyCustomer = empty($customers);
 ?>
 <div id="dlv-root" class="px-1 mt-2"
      data-can-cek="<?= $canCekDetail ? '1' : '0' ?>"
      data-detail-url="<?= URL::BASE_URL ?>Delivery/detail/"
+     data-customer-detail-url="<?= URL::BASE_URL ?>Delivery/customer_detail/"
      data-ubah-sumber-url="<?= URL::BASE_URL ?>Delivery/ubah_sumber">
   <style>
     #dlv-root {
@@ -99,6 +102,8 @@ $isEmptyCabang = empty($transfers);
       flex: 1;
       padding: 14px;
       min-height: 220px;
+      max-height: min(70vh, 640px);
+      overflow: auto;
     }
     #dlv-root .dlv-empty {
       display: flex;
@@ -112,16 +117,9 @@ $isEmptyCabang = empty($transfers);
       background: rgba(255, 255, 255, 0.72);
       text-align: center;
     }
-    #dlv-root .dlv-empty i {
-      font-size: 1.75rem;
-      color: var(--dlv-muted);
-    }
-    #dlv-root .dlv-panel--customer .dlv-empty i {
-      color: var(--dlv-blue);
-    }
-    #dlv-root .dlv-panel--cabang .dlv-empty i {
-      color: var(--dlv-yellow-deep);
-    }
+    #dlv-root .dlv-empty i { font-size: 1.75rem; color: var(--dlv-muted); }
+    #dlv-root .dlv-panel--customer .dlv-empty i { color: var(--dlv-blue); }
+    #dlv-root .dlv-panel--cabang .dlv-empty i { color: var(--dlv-yellow-deep); }
     #dlv-root .dlv-empty strong {
       font-size: 0.88rem;
       font-weight: 900;
@@ -147,10 +145,8 @@ $isEmptyCabang = empty($transfers);
       border: 1px solid #fcd34d;
       background: #fff;
     }
-    #dlv-root .dlv-item__text {
-      min-width: 0;
-      flex: 1;
-    }
+    #dlv-root .dlv-item--customer { border-color: #93c5fd; }
+    #dlv-root .dlv-item__text { min-width: 0; flex: 1; }
     #dlv-root .dlv-item__title {
       margin: 0;
       font-size: 0.84rem;
@@ -158,9 +154,8 @@ $isEmptyCabang = empty($transfers);
       color: var(--dlv-ink);
       line-height: 1.35;
     }
-    #dlv-root .dlv-item__title .dlv-kode {
-      color: var(--dlv-yellow-deep);
-    }
+    #dlv-root .dlv-item__title .dlv-kode { color: var(--dlv-yellow-deep); }
+    #dlv-root .dlv-item--customer .dlv-item__title .dlv-kode { color: var(--dlv-blue-deep); }
     #dlv-root .dlv-item__meta {
       margin-top: 2px;
       font-size: 0.72rem;
@@ -199,10 +194,7 @@ $isEmptyCabang = empty($transfers);
       background: linear-gradient(180deg, var(--dlv-green), var(--dlv-green-deep));
       color: #fff;
     }
-    #dlv-root .dlv-btn:disabled {
-      opacity: 0.55;
-      cursor: wait;
-    }
+    #dlv-root .dlv-btn:disabled { opacity: 0.55; cursor: wait; }
     #dlv-root .dlv-btn--ghost {
       background: #e2e8f0;
       color: var(--dlv-ink);
@@ -258,8 +250,6 @@ $isEmptyCabang = empty($transfers);
       font-weight: 900;
       color: var(--dlv-ink);
     }
-
-    /* Detail / form modal (op-modal pattern) */
     #dlv-root .op-modal {
       display: none;
       position: fixed;
@@ -288,9 +278,8 @@ $isEmptyCabang = empty($transfers);
       box-shadow: 0 24px 48px rgba(15, 23, 42, 0.3);
       overflow: hidden;
     }
-    #dlv-root .op-modal__panel--sm {
-      width: min(420px, 100%);
-    }
+    #dlv-root .op-modal__panel--sm { width: min(420px, 100%); }
+    #dlv-root .op-modal__panel--chat { width: min(560px, 100%); }
     #dlv-root .op-modal__head {
       display: flex;
       align-items: flex-start;
@@ -338,6 +327,11 @@ $isEmptyCabang = empty($transfers);
         radial-gradient(90% 60% at 0% 0%, rgba(245,158,11,.10), transparent 50%),
         linear-gradient(180deg, #fffbeb 0%, #fff 100%);
     }
+    #dlv-root .op-modal__body--chat {
+      background:
+        radial-gradient(90% 60% at 0% 0%, rgba(37,99,235,.10), transparent 50%),
+        linear-gradient(180deg, #eff6ff 0%, #fff 100%);
+    }
     #dlv-root .op-modal__foot {
       display: flex;
       justify-content: flex-end;
@@ -384,6 +378,46 @@ $isEmptyCabang = empty($transfers);
       border-bottom: 0;
       background: #fffbeb;
     }
+    #dlv-root .dlv-chat {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    #dlv-root .dlv-chat__bubble {
+      max-width: 88%;
+      padding: 8px 10px;
+      border: 1px solid #cbd5e1;
+      background: #fff;
+    }
+    #dlv-root .dlv-chat__bubble--me {
+      align-self: flex-end;
+      border-color: #93c5fd;
+      background: #eff6ff;
+    }
+    #dlv-root .dlv-chat__bubble--customer {
+      align-self: flex-start;
+      border-color: #e2e8f0;
+      background: #fff;
+    }
+    #dlv-root .dlv-chat__meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 4px;
+      font-size: 0.68rem;
+      font-weight: 800;
+      color: var(--dlv-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    #dlv-root .dlv-chat__text {
+      font-size: 0.84rem;
+      font-weight: 750;
+      color: var(--dlv-ink);
+      white-space: pre-wrap;
+      word-break: break-word;
+      line-height: 1.4;
+    }
     #dlv-root .dlv-detail-loading,
     #dlv-root .dlv-detail-error {
       padding: 24px 12px;
@@ -402,15 +436,44 @@ $isEmptyCabang = empty($transfers);
           <span class="dlv-icon" aria-hidden="true"><i class="fas fa-user"></i></span>
           <div>
             <h2>Customer</h2>
-            <small>Order delivery pelanggan</small>
+            <small>Pickup / Delivery terbuka</small>
           </div>
         </header>
         <div class="dlv-body">
-          <div class="dlv-empty">
-            <i class="fas fa-motorcycle" aria-hidden="true"></i>
-            <strong>Belum ada order delivery</strong>
-            <span>Order delivery customer akan tampil di sini.</span>
-          </div>
+          <?php if ($isEmptyCustomer) { ?>
+            <div class="dlv-empty">
+              <i class="fas fa-motorcycle" aria-hidden="true"></i>
+              <strong>Belum ada order delivery</strong>
+              <span>Permintaan jemput/antar (case kuning CRM) akan tampil di sini.</span>
+            </div>
+          <?php } else { ?>
+            <div class="dlv-list">
+              <?php foreach ($customers as $cu) {
+                $nama = htmlspecialchars((string) ($cu['nama'] ?? 'Customer'), ENT_QUOTES, 'UTF-8');
+                $tail = htmlspecialchars((string) ($cu['phone_tail'] ?? ''), ENT_QUOTES, 'UTF-8');
+                $kode = htmlspecialchars((string) ($cu['kode_cabang'] ?? '00'), ENT_QUOTES, 'UTF-8');
+                $dateRaw = $cu['last_message_at'] ?? '';
+                $dateLbl = $dateRaw !== '' ? date('d/m/y H:i', strtotime($dateRaw)) : '-';
+              ?>
+                <div class="dlv-item dlv-item--customer" data-phone-tail="<?= $tail ?>">
+                  <div class="dlv-item__text">
+                    <p class="dlv-item__title">
+                      <?= $nama ?>
+                      <span class="dlv-kode">· <?= $kode ?></span>
+                    </p>
+                    <div class="dlv-item__meta">
+                      <?= $tail ?> · <?= htmlspecialchars($dateLbl, ENT_QUOTES, 'UTF-8') ?>
+                    </div>
+                  </div>
+                  <div class="dlv-item__actions">
+                    <button type="button" class="dlv-btn dlv-btn--cek" data-dlv-cek-customer="<?= $tail ?>">
+                      <i class="fas fa-search"></i> Cek
+                    </button>
+                  </div>
+                </div>
+              <?php } ?>
+            </div>
+          <?php } ?>
         </div>
       </section>
     </div>
@@ -478,6 +541,25 @@ $isEmptyCabang = empty($transfers);
     </div>
   </div>
 
+  <div class="op-modal" id="dlvCustomerModal" aria-hidden="true">
+    <div class="op-modal__backdrop" data-op-close></div>
+    <div class="op-modal__panel op-modal__panel--chat" role="dialog" aria-modal="true" aria-labelledby="dlvCustomerTitle">
+      <div class="op-modal__head op-modal__head--blue">
+        <div>
+          <h3 id="dlvCustomerTitle">Riwayat Chat</h3>
+          <small id="dlvCustomerSub">50 pesan terakhir</small>
+        </div>
+        <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="op-modal__body op-modal__body--chat" id="dlvCustomerBody">
+        <div class="dlv-detail-loading">Memuat…</div>
+      </div>
+      <div class="op-modal__foot">
+        <button type="button" class="dlv-btn dlv-btn--ghost" data-op-close>Tutup</button>
+      </div>
+    </div>
+  </div>
+
   <?php if ($canCekDetail) { ?>
   <div class="op-modal" id="dlvDetailModal" aria-hidden="true">
     <div class="op-modal__backdrop" data-op-close></div>
@@ -523,9 +605,9 @@ $isEmptyCabang = empty($transfers);
               $cid = (int) ($cabang['id_cabang'] ?? 0);
               if ($cid <= 0) continue;
               $kode = htmlspecialchars(strtoupper((string) ($cabang['kode_cabang'] ?? $cid)), ENT_QUOTES, 'UTF-8');
-              $nama = htmlspecialchars((string) ($cabang['nama'] ?? ''), ENT_QUOTES, 'UTF-8');
+              $namaCb = htmlspecialchars((string) ($cabang['nama'] ?? ''), ENT_QUOTES, 'UTF-8');
             ?>
-              <option value="<?= $cid ?>" data-kode="<?= $kode ?>"><?= $kode ?><?= $nama !== '' ? ' — ' . $nama : '' ?></option>
+              <option value="<?= $cid ?>" data-kode="<?= $kode ?>"><?= $kode ?><?= $namaCb !== '' ? ' — ' . $namaCb : '' ?></option>
             <?php } ?>
           </select>
           <p class="dlv-hint">
@@ -552,6 +634,7 @@ $isEmptyCabang = empty($transfers);
 
   var canCek = root.getAttribute('data-can-cek') === '1';
   var detailUrl = root.getAttribute('data-detail-url') || '';
+  var customerDetailUrl = root.getAttribute('data-customer-detail-url') || '';
   var ubahSumberUrl = root.getAttribute('data-ubah-sumber-url') || '';
 
   function toast(msg, type) {
@@ -597,6 +680,14 @@ $isEmptyCabang = empty($transfers);
     return 'Rp' + Math.round(Number(n) || 0).toLocaleString('id-ID');
   }
 
+  function fmtTime(t) {
+    if (!t) return '';
+    var d = new Date(String(t).replace(' ', 'T'));
+    if (isNaN(d.getTime())) return String(t);
+    var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
+    return pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+
   function renderDetail(data) {
     var rows = (data.items || []).map(function (it) {
       var desc = it.deskripsi ? '<span class="dlv-desc">' + escapeHtml(it.deskripsi) + '</span>' : '';
@@ -616,6 +707,24 @@ $isEmptyCabang = empty($transfers);
       '<tbody>' + (rows || '<tr><td colspan="2">Tidak ada item</td></tr>') + '</tbody>' +
       '<tfoot><tr><td>TOTAL</td><td style="text-align:right">' + fmtRp(data.total) + '</td></tr></tfoot>' +
       '</table>';
+  }
+
+  function renderChat(data) {
+    var msgs = data.messages || [];
+    if (!msgs.length) {
+      return '<div class="dlv-detail-loading">Belum ada pesan</div>';
+    }
+    var html = msgs.map(function (m) {
+      var isMe = m.sender === 'me';
+      var who = isMe ? 'Laundry' : 'Customer';
+      var cls = isMe ? 'dlv-chat__bubble--me' : 'dlv-chat__bubble--customer';
+      var text = (m.text && String(m.text).trim()) ? String(m.text) : '[' + (m.type || 'pesan') + ']';
+      return '<div class="dlv-chat__bubble ' + cls + '">' +
+        '<div class="dlv-chat__meta"><span>' + who + '</span><span>' + escapeHtml(fmtTime(m.time)) + '</span></div>' +
+        '<div class="dlv-chat__text">' + escapeHtml(text) + '</div>' +
+      '</div>';
+    }).join('');
+    return '<div class="dlv-chat">' + html + '</div>';
   }
 
   function escapeHtml(str) {
@@ -648,13 +757,46 @@ $isEmptyCabang = empty($transfers);
           return;
         }
         var d = res.data;
-        if (sub) {
-          sub.textContent = '#' + d.ref + ' · ' + d.source_kode + ' → ' + d.target_kode;
-        }
+        if (sub) sub.textContent = '#' + d.ref + ' · ' + d.source_kode + ' → ' + d.target_kode;
         body.innerHTML = renderDetail(d);
       })
       .catch(function () {
         body.innerHTML = '<div class="dlv-detail-error">Gagal memuat detail</div>';
+      })
+      .finally(function () {
+        if (btn) btn.disabled = false;
+      });
+  }
+
+  function loadCustomerDetail(phoneTail, btn) {
+    var body = document.getElementById('dlvCustomerBody');
+    var sub = document.getElementById('dlvCustomerSub');
+    if (!body) return;
+
+    body.innerHTML = '<div class="dlv-detail-loading"><i class="fas fa-spinner fa-spin me-1"></i>Memuat…</div>';
+    if (sub) sub.textContent = phoneTail;
+    openModal('dlvCustomerModal');
+    if (btn) btn.disabled = true;
+
+    fetch(customerDetailUrl + encodeURIComponent(phoneTail), {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      credentials: 'same-origin'
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || res.status !== 'success' || !res.data) {
+          body.innerHTML = '<div class="dlv-detail-error">' + escapeHtml((res && res.message) || 'Gagal memuat chat') + '</div>';
+          return;
+        }
+        var d = res.data;
+        if (sub) {
+          sub.textContent = (d.nama || 'Customer') + ' · ' + (d.phone_tail || phoneTail) + ' · ' + (d.kode_cabang || '');
+        }
+        body.innerHTML = renderChat(d);
+        body.scrollTop = body.scrollHeight;
+      })
+      .catch(function () {
+        body.innerHTML = '<div class="dlv-detail-error">Gagal memuat chat</div>';
       })
       .finally(function () {
         if (btn) btn.disabled = false;
@@ -699,14 +841,8 @@ $isEmptyCabang = empty($transfers);
     var targetId = document.getElementById('dlvSumberTargetId').value;
     var submitBtn = document.getElementById('dlvSumberSubmit');
 
-    if (!ref) {
-      toast('Ref tidak valid', 'error');
-      return;
-    }
-    if (!sourceId) {
-      toast('Pilih cabang sumber', 'warn');
-      return;
-    }
+    if (!ref) { toast('Ref tidak valid', 'error'); return; }
+    if (!sourceId) { toast('Pilih cabang sumber', 'warn'); return; }
     if (String(sourceId) === String(targetId)) {
       toast('Cabang sumber tidak boleh sama dengan tujuan', 'warn');
       return;
@@ -744,49 +880,52 @@ $isEmptyCabang = empty($transfers);
           if (kodeEl) kodeEl.textContent = kode;
         }
       })
-      .catch(function () {
-        toast('Gagal mengubah sumber', 'error');
-      })
-      .finally(function () {
-        submitBtn.disabled = false;
-      });
+      .catch(function () { toast('Gagal mengubah sumber', 'error'); })
+      .finally(function () { submitBtn.disabled = false; });
   }
 
-  if (canCek) {
-    root.addEventListener('click', function (e) {
-      var closeBtn = e.target.closest('[data-op-close]');
-      if (closeBtn) {
-        var modal = closeBtn.closest('.op-modal');
-        if (modal && root.contains(modal)) {
-          e.preventDefault();
-          closeModal(modal);
-        }
-        return;
-      }
-
-      var cekBtn = e.target.closest('[data-dlv-cek]');
-      if (cekBtn && root.contains(cekBtn)) {
+  root.addEventListener('click', function (e) {
+    var closeBtn = e.target.closest('[data-op-close]');
+    if (closeBtn) {
+      var modal = closeBtn.closest('.op-modal');
+      if (modal && root.contains(modal)) {
         e.preventDefault();
-        loadDetail(cekBtn.getAttribute('data-dlv-cek'), cekBtn);
-        return;
+        closeModal(modal);
       }
+      return;
+    }
 
-      var sumberBtn = e.target.closest('[data-dlv-ubah-sumber]');
-      if (sumberBtn && root.contains(sumberBtn)) {
-        e.preventDefault();
-        openUbahSumber(sumberBtn);
-      }
-    });
+    var custBtn = e.target.closest('[data-dlv-cek-customer]');
+    if (custBtn && root.contains(custBtn)) {
+      e.preventDefault();
+      loadCustomerDetail(custBtn.getAttribute('data-dlv-cek-customer'), custBtn);
+      return;
+    }
 
-    var form = document.getElementById('dlvSumberForm');
-    if (form) form.addEventListener('submit', submitUbahSumber);
+    if (!canCek) return;
 
-    document.addEventListener('keydown', function (e) {
-      if (e.key !== 'Escape') return;
-      var open = root.querySelectorAll('.op-modal.is-open');
-      if (!open.length) return;
-      closeModal(open[open.length - 1]);
-    });
-  }
+    var cekBtn = e.target.closest('[data-dlv-cek]');
+    if (cekBtn && root.contains(cekBtn)) {
+      e.preventDefault();
+      loadDetail(cekBtn.getAttribute('data-dlv-cek'), cekBtn);
+      return;
+    }
+
+    var sumberBtn = e.target.closest('[data-dlv-ubah-sumber]');
+    if (sumberBtn && root.contains(sumberBtn)) {
+      e.preventDefault();
+      openUbahSumber(sumberBtn);
+    }
+  });
+
+  var form = document.getElementById('dlvSumberForm');
+  if (form) form.addEventListener('submit', submitUbahSumber);
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    var open = root.querySelectorAll('.op-modal.is-open');
+    if (!open.length) return;
+    closeModal(open[open.length - 1]);
+  });
 })();
 </script>

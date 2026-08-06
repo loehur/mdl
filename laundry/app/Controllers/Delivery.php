@@ -12,6 +12,7 @@ class Delivery extends Controller
    {
       $data_operasi = ['title' => 'Delivery Order'];
       $transfers = $this->getPendingCabangTransfers();
+      $customers = $this->getPendingCustomerDeliveries();
       $canCekDetail = $this->canCekDetail();
       $listCabang = $this->getCabangOperasional();
 
@@ -19,8 +20,102 @@ class Delivery extends Controller
       $this->view('delivery/index', [
          'data_operasi' => $data_operasi,
          'transfers' => $transfers,
+         'customers' => $customers,
          'canCekDetail' => $canCekDetail,
          'listCabang' => is_array($listCabang) ? $listCabang : [],
+      ]);
+   }
+
+   /**
+    * Riwayat 50 pesan terakhir conversation customer — semua user.
+    * Param: 9 digit terakhir nomor WA.
+    */
+   public function customer_detail($phoneTail = '')
+   {
+      header('Content-Type: application/json; charset=utf-8');
+
+      $phoneTail = preg_replace('/[^0-9]/', '', (string) $phoneTail);
+      if (strlen($phoneTail) < 9) {
+         echo json_encode(['status' => 'error', 'message' => 'Nomor tidak valid']);
+         return;
+      }
+      $phoneTail = substr($phoneTail, -9);
+      $tailEsc = $this->db(100)->escape($phoneTail);
+
+      $convRows = $this->db(100)->query_array(
+         "SELECT id, wa_number, contact_name, COALESCE(code, '00') AS kode_cabang, conv_case, last_message_at
+          FROM wa_conversations
+          WHERE RIGHT(REPLACE(REPLACE(REPLACE(wa_number, '+', ''), '-', ''), ' ', ''), 9) = '$tailEsc'
+          LIMIT 5"
+      );
+      if (!is_array($convRows) || empty($convRows)) {
+         echo json_encode(['status' => 'error', 'message' => 'Conversation tidak ditemukan']);
+         return;
+      }
+
+      $conv = null;
+      foreach ($convRows as $row) {
+         if ($this->conversationHasOpenCase2($row['conv_case'] ?? '')) {
+            $conv = $row;
+            break;
+         }
+      }
+      if (!$conv) {
+         $conv = $convRows[0];
+      }
+
+      $messages = $this->db(100)->query_array(
+         "SELECT * FROM (
+            SELECT * FROM (
+               (SELECT
+                   id,
+                   text,
+                   type,
+                   'customer' AS sender,
+                   created_at AS time,
+                   status
+                FROM wa_messages_in
+                WHERE RIGHT(REPLACE(REPLACE(REPLACE(phone, '+', ''), '-', ''), ' ', ''), 9) = '$tailEsc')
+               UNION ALL
+               (SELECT
+                   id,
+                   COALESCE(content, '') AS text,
+                   type,
+                   'me' AS sender,
+                   created_at AS time,
+                   status
+                FROM wa_messages_out
+                WHERE RIGHT(REPLACE(REPLACE(REPLACE(phone, '+', ''), '-', ''), ' ', ''), 9) = '$tailEsc'
+                  AND COALESCE(`private`, 0) = 0)
+            ) AS combined_msgs
+            ORDER BY time DESC
+            LIMIT 50
+         ) AS latest_msgs
+         ORDER BY time ASC"
+      );
+      if (!is_array($messages)) {
+         $messages = [];
+      }
+
+      $list = [];
+      foreach ($messages as $m) {
+         $list[] = [
+            'sender' => $m['sender'] ?? 'customer',
+            'text' => (string) ($m['text'] ?? ''),
+            'type' => $m['type'] ?? 'text',
+            'time' => $m['time'] ?? '',
+         ];
+      }
+
+      $digits = preg_replace('/[^0-9]/', '', (string) ($conv['wa_number'] ?? ''));
+      echo json_encode([
+         'status' => 'success',
+         'data' => [
+            'nama' => trim((string) ($conv['contact_name'] ?? '')) !== '' ? trim($conv['contact_name']) : 'Customer',
+            'phone_tail' => substr($digits, -9),
+            'kode_cabang' => strtoupper((string) ($conv['kode_cabang'] ?? '00')),
+            'messages' => $list,
+         ],
       ]);
    }
 
@@ -217,6 +312,75 @@ class Delivery extends Controller
       }
 
       return array_values($grouped);
+   }
+
+   /**
+    * Conversation CRM case 2 (Pickup/Delivery) yang masih open — semua cabang.
+    * Sumber: mdl_main.wa_conversations via db(100).
+    */
+   private function getPendingCustomerDeliveries(): array
+   {
+      $rows = $this->db(100)->query_array(
+         "SELECT id, wa_number, contact_name, COALESCE(code, '00') AS kode_cabang, conv_case, last_message_at
+          FROM wa_conversations
+          WHERE (
+            (conv_case LIKE '%\"case\":2%' AND conv_case LIKE '%\"status\":\"open\"%')
+            OR (conv_case LIKE '%\"case\":\"2\"%' AND conv_case LIKE '%\"status\":\"open\"%')
+          )
+          ORDER BY last_message_at DESC
+          LIMIT 200"
+      );
+      if (!is_array($rows)) {
+         return [];
+      }
+
+      $out = [];
+      foreach ($rows as $row) {
+         if (!$this->conversationHasOpenCase2($row['conv_case'] ?? '')) {
+            continue;
+         }
+         $digits = preg_replace('/[^0-9]/', '', (string) ($row['wa_number'] ?? ''));
+         $phoneTail = strlen($digits) >= 9 ? substr($digits, -9) : $digits;
+         if ($phoneTail === '') {
+            continue;
+         }
+         $nama = trim((string) ($row['contact_name'] ?? ''));
+         $out[] = [
+            'id' => (int) ($row['id'] ?? 0),
+            'nama' => $nama !== '' ? $nama : 'Customer',
+            'phone_tail' => $phoneTail,
+            'kode_cabang' => strtoupper((string) ($row['kode_cabang'] ?? '00')),
+            'last_message_at' => $row['last_message_at'] ?? '',
+         ];
+      }
+      return $out;
+   }
+
+   private function conversationHasOpenCase2($raw): bool
+   {
+      if (!is_string($raw) || $raw === '') {
+         return false;
+      }
+      $trim = trim($raw);
+      if ($trim === '' || ($trim[0] !== '{' && $trim[0] !== '[')) {
+         return false;
+      }
+      $json = json_decode($trim, true);
+      if (!is_array($json)) {
+         return false;
+      }
+      $list = isset($json[0]) ? $json : (isset($json['case']) ? [$json] : []);
+      foreach ($list as $item) {
+         if (!is_array($item)) {
+            continue;
+         }
+         $case = (int) ($item['case'] ?? 0);
+         $status = (string) ($item['status'] ?? 'open');
+         if ($case === 2 && $status !== 'closed') {
+            return true;
+         }
+      }
+      return false;
    }
 
    private function buildCabangMap(): array
