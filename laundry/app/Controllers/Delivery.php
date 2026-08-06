@@ -397,6 +397,108 @@ class Delivery extends Controller
    }
 
    /**
+    * Terima Pakai (sama Sales) — admin (100) / driver (12), tanpa wajib cabang aktif = target.
+    * Pakai dicatat atas cabang penerima (target_id transfer).
+    */
+   public function terima_pakai()
+   {
+      if (ob_get_length()) {
+         ob_clean();
+      }
+      ob_start();
+      $response = ['status' => 'error', 'message' => 'Unknown error'];
+
+      try {
+         if (!$this->canCekDetail()) {
+            throw new Exception('Akses ditolak');
+         }
+
+         $ref = trim((string) ($_POST['ref'] ?? ''));
+         if ($ref === '') {
+            throw new Exception('Ref tidak valid');
+         }
+
+         $refEsc = $this->db(0)->escape($ref);
+         $items = $this->db(0)->get_where(
+            'barang_mutasi',
+            "ref = '$refEsc' AND type = 2 AND state = 0 AND source_id > 0 AND target_id > 0"
+         );
+         if (!is_array($items) || empty($items)) {
+            throw new Exception('Transfer tidak ditemukan atau sudah diterima');
+         }
+
+         $first = $items[0];
+         $sourceId = (int) ($first['source_id'] ?? 0);
+         $targetId = (int) ($first['target_id'] ?? 0);
+         if ($sourceId <= 0) {
+            throw new Exception('Terima Pakai hanya untuk barang dari transfer cabang (bukan supplier)');
+         }
+         if ($targetId <= 0) {
+            throw new Exception('Cabang penerima tidak valid');
+         }
+
+         $payments = $this->db(0)->get_where('kas', "ref_transaksi = '$refEsc' AND jenis_transaksi = 7");
+         if (!empty($payments)) {
+            throw new Exception('Tidak dapat Terima Pakai nota yang sudah memiliki riwayat pembayaran');
+         }
+
+         if (!$this->db(0)->beginTransaction()) {
+            throw new Exception('Gagal memulai transaksi');
+         }
+
+         try {
+            $update1 = $this->db(0)->update('barang_mutasi', ['state' => 1], "ref = '$refEsc'");
+            if (isset($update1['errno']) && (int) $update1['errno'] !== 0) {
+               throw new Exception($update1['error'] ?? 'Gagal terima barang');
+            }
+
+            $idUser = (int) ($_SESSION[URL::SESSID]['user']['id_user'] ?? 0);
+            $refPakai = $ref . '_P';
+            foreach ($items as $item) {
+               $data = [
+                  'type' => 3,
+                  'ref' => $refPakai,
+                  'id_barang' => $item['id_barang'],
+                  'source_id' => $targetId,
+                  'target_id' => 0,
+                  'denom' => $item['denom'] ?? 1,
+                  'price' => $item['price'] ?? 0,
+                  'qty' => $item['qty'],
+                  'margin' => $item['margin'] ?? 0,
+                  'state' => 0,
+                  'id_user' => $idUser,
+               ];
+               $insert = $this->db(0)->insert('barang_mutasi', $data);
+               if (isset($insert['errno']) && (int) $insert['errno'] !== 0) {
+                  throw new Exception($insert['error'] ?? 'Gagal insert pakai: ' . ($item['id_barang'] ?? ''));
+               }
+            }
+
+            if (!$this->db(0)->commit()) {
+               throw new Exception('Gagal commit transaksi');
+            }
+
+            $response = [
+               'status' => 'success',
+               'message' => 'Barang berhasil diterima dan dipakai',
+               'data' => ['ref' => $ref, 'target_id' => $targetId],
+            ];
+         } catch (\Throwable $e) {
+            $this->db(0)->rollback();
+            throw $e;
+         }
+      } catch (\Throwable $e) {
+         $response = ['status' => 'error', 'message' => $e->getMessage()];
+      }
+
+      ob_end_clean();
+      if (!headers_sent()) {
+         header('Content-Type: application/json; charset=utf-8');
+      }
+      echo json_encode($response);
+   }
+
+   /**
     * Ubah source_id seluruh baris transfer — hanya admin (100) / driver (12).
     */
    public function ubah_sumber()

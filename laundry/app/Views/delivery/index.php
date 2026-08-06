@@ -13,8 +13,7 @@ $isEmptyCustomer = empty($customers);
      data-sales-options-url="<?= URL::BASE_URL ?>Delivery/sales_options/"
      data-selesai-url="<?= URL::BASE_URL ?>Delivery/selesai_customer"
      data-batal-url="<?= URL::BASE_URL ?>Delivery/batal_customer"
-     data-terima-pakai-url="<?= URL::BASE_URL ?>Sales/terimaPakai"
-     data-id-cabang="<?= (int) ($this->id_cabang ?? $this->dCabang['id_cabang'] ?? 0) ?>"
+     data-terima-pakai-url="<?= URL::BASE_URL ?>Delivery/terima_pakai"
      data-ubah-sumber-url="<?= URL::BASE_URL ?>Delivery/ubah_sumber">
   <style>
     #dlv-root {
@@ -907,10 +906,9 @@ $isEmptyCustomer = empty($customers);
   var selesaiUrl = root.getAttribute('data-selesai-url') || '';
   var batalUrl = root.getAttribute('data-batal-url') || '';
   var terimaPakaiUrl = root.getAttribute('data-terima-pakai-url') || '';
-  var idCabangAktif = parseInt(root.getAttribute('data-id-cabang') || '0', 10) || 0;
   var ubahSumberUrl = root.getAttribute('data-ubah-sumber-url') || '';
   var karyawanSelectize = null;
-  var detailTerimaPakai = { ref: '', sourceKode: '', targetId: 0 };
+  var detailTerimaPakai = { ref: '', sourceKode: '', targetKode: '' };
 
   function toast(msg, type) {
     if (window.MdlToast) {
@@ -1258,13 +1256,9 @@ $isEmptyCustomer = empty($customers);
     detailTerimaPakai = {
       ref: (data && data.ref) ? String(data.ref) : '',
       sourceKode: (data && data.source_kode) ? String(data.source_kode) : '-',
-      targetId: data ? (parseInt(data.target_id, 10) || 0) : 0
+      targetKode: (data && data.target_kode) ? String(data.target_kode) : '-'
     };
-    // Sama Sales: hanya cabang penerima (target) yang bisa Terima Pakai
-    var can = !!detailTerimaPakai.ref
-      && detailTerimaPakai.targetId > 0
-      && detailTerimaPakai.targetId === idCabangAktif;
-    btn.hidden = !can;
+    btn.hidden = !detailTerimaPakai.ref;
     btn.disabled = false;
   }
 
@@ -1273,16 +1267,14 @@ $isEmptyCustomer = empty($customers);
       toast('Ref tidak valid', 'error');
       return;
     }
-    if (detailTerimaPakai.targetId !== idCabangAktif) {
-      toast('Anda bukan cabang penerima barang ini', 'warn');
-      return;
-    }
     var refEl = document.getElementById('dlvTerimaPakaiRef');
     var srcEl = document.getElementById('dlvTerimaPakaiSource');
     var sub = document.getElementById('dlvTerimaPakaiSub');
     if (refEl) refEl.textContent = '#' + detailTerimaPakai.ref;
     if (srcEl) srcEl.textContent = detailTerimaPakai.sourceKode || '-';
-    if (sub) sub.textContent = detailTerimaPakai.sourceKode + ' → cabang ini';
+    if (sub) {
+      sub.textContent = (detailTerimaPakai.sourceKode || '-') + ' → ' + (detailTerimaPakai.targetKode || '-');
+    }
     openModal('dlvTerimaPakaiModal');
   }
 
