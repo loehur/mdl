@@ -81,11 +81,11 @@ class Login extends Controller
          exit();
       }
 
-      $pin = $_POST["pin"];
+      $pin = trim((string) ($_POST["pin"] ?? ''));
       if (strlen($pin) == 0) {
          $res = [
             'code' => 0,
-            'msg' => "PIN TIDAK BOLEH KOSONG"
+            'msg' => "PIN / ACCESS KEY TIDAK BOLEH KOSONG"
          ];
          print_r(json_encode($res));
          exit();
@@ -110,10 +110,21 @@ class Login extends Controller
          exit();
       }
 
-
       $username = $this->model("Enc")->username($no_user);
       $otp = $this->model("Enc")->otp($pin);
+
+      // Hybrid login: 1) PIN OTP request, 2) Access Key user
       $data_user = $this->helper('User')->pin_today($username, $otp);
+      if (!$data_user) {
+         $cekAdminPin = $this->helper('User')->pin_admin_today($otp);
+         if ($cekAdminPin > 0) {
+            $data_user = $this->helper('User')->get_data_user($username);
+         }
+      }
+      if (!$data_user) {
+         $data_user = $this->helper('User')->by_access_key($username, $pin);
+      }
+
       if ($data_user) {
          //cek ada cabang
          $id_outlet = $_POST['outlet'];
@@ -133,26 +144,19 @@ class Login extends Controller
                   'id_cabang' => $id_outlet
                ], "id_user = " . $data_user['id_user']);
                if ($up['errno'] == 0) {
-                  $data_user = $this->helper('User')->pin_today($username, $otp);
+                  $data_user = $this->helper('User')->get_data_user($username);
                }
             }
          }
          $this->login_parameter($data_user);
          print_r($this->login_ok($username, $no_user));
       } else {
-         $cek = $this->helper('User')->pin_admin_today($otp);
-         if ($cek > 0) {
-            $data_user = $this->helper('User')->get_data_user($username);
-            $this->login_parameter($data_user);
-            print_r($this->login_ok($username, $no_user));
-         } else {
-            $_SESSION['captcha'] = "HJFASD7FD89AS7FSDHFD68FHF7GYG7G47G7G7G674GRGVFTGB7G6R74GHG3Q789631765YGHJ7RGEYBF67";
-            $res = [
-               'code' => 10,
-               'msg' => "NOMOR WHATSAPP DAN PIN TIDAK COCOK"
-            ];
-            print_r(json_encode($res));
-         }
+         $_SESSION['captcha'] = "HJFASD7FD89AS7FSDHFD68FHF7GYG7G47G7G7G674GRGVFTGB7G6R74GHG3Q789631765YGHJ7RGEYBF67";
+         $res = [
+            'code' => 10,
+            'msg' => "NOMOR WHATSAPP DAN PIN / ACCESS KEY TIDAK COCOK"
+         ];
+         print_r(json_encode($res));
       }
    }
 

@@ -454,8 +454,9 @@
                                 <button type="button" class="login-freq__btn freq_number"><?= htmlspecialchars((string) $ntm) ?></button>
                             <?php } ?>
                         </div>
+                        <p class="login-lead" style="margin-top:8px">PIN via request WA, atau Access Key</p>
                     <?php } else { ?>
-                        <p class="login-lead">Login dengan nomor WhatsApp</p>
+                        <p class="login-lead">Login dengan nomor WhatsApp. PIN via request, atau Access Key.</p>
                     <?php } ?>
 
                     <div id="info"></div>
@@ -470,9 +471,9 @@
                         </div>
 
                         <div class="login-field">
-                            <input type="text" name="pin" id="pin" placeholder="PIN" required
+                            <input type="password" name="pin" id="pin" placeholder="PIN / Access Key" required
                                 inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code"
-                                maxlength="12">
+                                maxlength="4">
                             <span class="login-field__icon"><i class="fas fa-lock"></i></span>
                         </div>
 

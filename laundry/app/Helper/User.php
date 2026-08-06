@@ -28,6 +28,25 @@ class User extends Controller
         return $this->db(0)->get_where_row('user', $where);
     }
 
+    /**
+     * Login via Access Key (user.access_key, 4 digit plaintext).
+     */
+    function by_access_key($username, $accessKey)
+    {
+        $accessKey = trim((string) $accessKey);
+        if (!preg_match('/^\d{4}$/', $accessKey)) {
+            return null;
+        }
+        $username = $this->db(0)->escape($username);
+        $keyEsc = $this->db(0)->escape($accessKey);
+        $where = "username = '" . $username . "' AND access_key = '" . $keyEsc . "' AND en = 1";
+        $row = $this->db(0)->get_where_row('user', $where);
+        if (!is_array($row) || empty($row['id_user'])) {
+            return null;
+        }
+        return $row;
+    }
+
     function last_login($username)
     {
         $where = "username = '" . $username . "'";
