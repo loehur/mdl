@@ -358,7 +358,7 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
             <label class="tk-label" for="tiketKeterangan">Keterangan</label>
             <textarea class="tk-input" name="keterangan" id="tiketKeterangan" rows="3"></textarea>
           </div>
-          <div class="tk-field">
+          <div class="tk-field" id="tiketPembuatSelectField">
             <label class="tk-label" for="tiketKaryawan">Pembuat</label>
             <select name="id_karyawan" id="tiketKaryawan" class="tize" style="width: 100%;" required>
               <option value="" selected disabled></option>
@@ -375,6 +375,11 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
                 </optgroup>
               <?php } ?>
             </select>
+          </div>
+          <div class="tk-field" id="tiketPembuatLockedField" style="display:none;">
+            <label class="tk-label">Pembuat</label>
+            <input type="hidden" id="tiketKaryawanLockedId" value="">
+            <div class="tk-input" id="tiketPembuatLockedLabel" style="background:#f1f5f9;font-weight:800;">—</div>
           </div>
           <div class="tk-field">
             <label class="tk-label" for="tiketAccessKey">Access Key</label>
@@ -572,18 +577,52 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
   $('#tiketKaryawan').selectize();
   $('#selesaiKaryawan').selectize();
 
-  function setPembuatLock(locked) {
+  function setPembuatMode(isEdit, idKaryawan, namaPembuat) {
+    var $selectField = $('#tiketPembuatSelectField');
+    var $lockedField = $('#tiketPembuatLockedField');
+    var $select = $('#tiketKaryawan');
     var sz = getTize('tiketKaryawan');
-    if (sz) {
-      if (locked) sz.lock();
-      else sz.unlock();
-    }
     var hint = document.getElementById('tiketAccessKeyHint');
-    if (hint) {
-      hint.textContent = locked
-        ? 'Harus milik pembuat tiket (tidak dapat diganti).'
-        : 'Harus milik pembuat yang dipilih.';
+    idKaryawan = parseInt(idKaryawan, 10) || 0;
+    namaPembuat = String(namaPembuat || '').trim();
+
+    if (isEdit) {
+      $selectField.hide();
+      $lockedField.show();
+      $select.prop('required', false).prop('disabled', true);
+      if (sz) {
+        sz.unlock();
+        sz.clear(true);
+        sz.disable();
+      }
+      var label = namaPembuat || ('#' + idKaryawan);
+      if (idKaryawan > 0 && namaPembuat) {
+        label = idKaryawan + '-' + namaPembuat;
+      } else if (idKaryawan > 0) {
+        // Coba ambil teks dari option selectize
+        if (sz && sz.options[String(idKaryawan)]) {
+          label = sz.options[String(idKaryawan)].text || label;
+        } else {
+          label = '#' + idKaryawan;
+        }
+      }
+      $('#tiketKaryawanLockedId').val(idKaryawan > 0 ? String(idKaryawan) : '');
+      $('#tiketPembuatLockedLabel').text(label || '—');
+      if (hint) hint.textContent = 'Harus milik pembuat tiket (tidak dapat diganti).';
+      return;
     }
+
+    $lockedField.hide();
+    $selectField.show();
+    $select.prop('required', true).prop('disabled', false);
+    $('#tiketKaryawanLockedId').val('');
+    $('#tiketPembuatLockedLabel').text('—');
+    if (sz) {
+      sz.enable();
+      sz.unlock();
+      sz.clear(true);
+    }
+    if (hint) hint.textContent = 'Harus milik pembuat yang dipilih.';
   }
 
   function resetForm() {
@@ -593,8 +632,7 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
     $('#tiketJenis').val('');
     $('#tiketAccessKey').val('');
     $('#tiketFormTitle').text('Tambah Tiket');
-    setPembuatLock(false);
-    clearTize('tiketKaryawan');
+    setPembuatMode(false);
   }
 
   function openTambah() {
@@ -624,8 +662,11 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
     $('#tiketJudul').val(b64decode(btn.getAttribute('data-judul') || ''));
     $('#tiketKeterangan').val(b64decode(btn.getAttribute('data-keterangan') || ''));
     $('#tiketJenis').val(btn.getAttribute('data-jenis') || '');
-    setTizeValue('tiketKaryawan', btn.getAttribute('data-id-karyawan') || '');
-    setPembuatLock(true);
+    setPembuatMode(
+      true,
+      btn.getAttribute('data-id-karyawan') || '',
+      b64decode(btn.getAttribute('data-pembuat') || '')
+    );
     $('#tiketAccessKey').val('');
     openModal('modalTiketForm');
   }

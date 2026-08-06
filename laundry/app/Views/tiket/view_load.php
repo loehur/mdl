@@ -65,6 +65,7 @@ $renderCard = function ($row) use ($mode, $jenisTone, $fmtDt, $kodeCabang) {
           class="tk-btn tk-btn--blue tk-btn--sm btnEditTiket"
           data-id="<?= $id ?>"
           data-id-karyawan="<?= $idKaryawan ?>"
+          data-pembuat="<?= htmlspecialchars(base64_encode($karyawan), ENT_QUOTES) ?>"
           data-judul="<?= htmlspecialchars(base64_encode($judul), ENT_QUOTES) ?>"
           data-jenis="<?= htmlspecialchars($jenis, ENT_QUOTES) ?>"
           data-keterangan="<?= htmlspecialchars(base64_encode($ket), ENT_QUOTES) ?>">

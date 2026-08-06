@@ -121,14 +121,9 @@ class Tiket extends Controller
         $jenis = trim((string) ($_POST['jenis'] ?? ''));
         $keterangan = trim((string) ($_POST['keterangan'] ?? ''));
         $accessKey = trim((string) ($_POST['access_key'] ?? ''));
-        $idKaryawan = (int) ($row['id_karyawan'] ?? 0);
 
         if ($judul === '') {
             echo 'Judul wajib diisi';
-            return;
-        }
-        if ($idKaryawan < 1) {
-            echo 'Data pembuat tiket tidak valid';
             return;
         }
         if (!in_array($jenis, $this->jenisList, true)) {
@@ -136,8 +131,8 @@ class Tiket extends Controller
             return;
         }
 
-        // Access Key wajib milik pembuat asli (tidak bisa diganti)
-        if (!$this->helper('User')->by_id_access_key($idKaryawan, $accessKey)) {
+        $pembuat = $this->verifyPembuatAccessKey($row, $accessKey);
+        if (!$pembuat) {
             echo 'Access Key tidak cocok dengan pembuat tiket';
             return;
         }
@@ -147,6 +142,11 @@ class Tiket extends Controller
             'jenis' => $jenis,
             'keterangan' => $keterangan,
         ];
+        // Backfill id_karyawan bila tiket lama masih 0/null
+        if ((int) ($row['id_karyawan'] ?? 0) < 1 && !empty($pembuat['id_user'])) {
+            $set['id_karyawan'] = (int) $pembuat['id_user'];
+            $set['karyawan'] = strtoupper((string) ($pembuat['nama_user'] ?? ($row['karyawan'] ?? '')));
+        }
         $up = $this->db(0)->update('tiket', $set, 'id_tiket = ' . $id);
         if ((int) ($up['errno'] ?? 1) === 0) {
             echo 0;
@@ -176,12 +176,7 @@ class Tiket extends Controller
             return;
         }
 
-        $idKaryawan = (int) ($row['id_karyawan'] ?? 0);
-        if ($idKaryawan < 1) {
-            echo 'Data pembuat tiket tidak valid';
-            return;
-        }
-        if (!$this->helper('User')->by_id_access_key($idKaryawan, $accessKey)) {
+        if (!$this->verifyPembuatAccessKey($row, $accessKey)) {
             echo 'Access Key tidak cocok dengan pembuat tiket';
             return;
         }
@@ -246,6 +241,37 @@ class Tiket extends Controller
         } else {
             echo $up['error'] ?? 'Gagal menandai selesai';
         }
+    }
+
+    /**
+     * Verifikasi Access Key milik pembuat tiket.
+     * Fallback: jika id_karyawan kosong (data lama), cocokkan nama + access_key.
+     */
+    private function verifyPembuatAccessKey(array $row, string $accessKey)
+    {
+        $idKaryawan = (int) ($row['id_karyawan'] ?? 0);
+        if ($idKaryawan > 0) {
+            return $this->helper('User')->by_id_access_key($idKaryawan, $accessKey);
+        }
+
+        $accessKey = trim($accessKey);
+        if (!preg_match('/^\d{4}$/', $accessKey)) {
+            return null;
+        }
+        $nama = strtoupper(trim((string) ($row['karyawan'] ?? '')));
+        if ($nama === '') {
+            return null;
+        }
+        $namaEsc = $this->db(0)->escape($nama);
+        $keyEsc = $this->db(0)->escape($accessKey);
+        $found = $this->db(0)->get_where_row(
+            'user',
+            "UPPER(TRIM(nama_user)) = '" . $namaEsc . "' AND access_key = '" . $keyEsc . "' AND en = 1"
+        );
+        if (!is_array($found) || empty($found['id_user'])) {
+            return null;
+        }
+        return $found;
     }
 
     private function buildViewData($mode)
