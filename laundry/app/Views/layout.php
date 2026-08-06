@@ -1822,10 +1822,10 @@ if ($privUi === 100) {
                                             </a>
                                         </li>
                                     <?php } else { 
-                                        // Check if any submenu is active
+                                        // Check if any submenu is active (strpos: e.g. "Data Order Proses H7-" matches "Data Order")
                                         $hasActiveSubmenu = false;
                                         foreach ($mk['submenu'] as $ms) {
-                                            if ($title == $ms['title']) {
+                                            if (strpos($title, $ms['title']) !== FALSE) {
                                                 $hasActiveSubmenu = true;
                                                 break;
                                             }
@@ -1851,8 +1851,9 @@ if ($privUi === 100) {
                                                         } else {
                                                             $fullPath = $mk['c'] . $subPath;
                                                         }
+                                                        $isSubActive = (strpos($title, $ms['title']) !== FALSE);
                                                         ?>
-                                                        <a href="<?= URL::BASE_URL . $fullPath ?>" class="nav-link <?= ($title == $ms['title']) ? 'active' : '' ?>">
+                                                        <a href="<?= URL::BASE_URL . $fullPath ?>" class="nav-link <?= $isSubActive ? 'active' : '' ?>">
                                                             <i class="far fa-circle nav-icon"></i>
                                                             <p>
                                                                 <b> <?= $ms['txt'] ?></b>

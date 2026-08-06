@@ -1,16 +1,23 @@
 <?php
 $menu[0] = [
     [
-        'c' => 'Antrian/index/1',
+        'c' => '',
         'title' => 'Data Order',
         'icon' => 'far fa-clock',
-        'txt' => 'Laundry Order',
-    ],
-    [
-        'c' => 'Sales',
-        'title' => 'Sales Order',
-        'icon' => 'fas fa-shopping-cart',
-        'txt' => 'Sales Order',
+        'txt' => 'Data Order',
+        'submenu' =>
+        [
+            [
+                'c' => 'Antrian/index/1',
+                'title' => 'Data Order',
+                'txt' => 'Laundry',
+            ],
+            [
+                'c' => 'Sales',
+                'title' => 'Sales Order',
+                'txt' => 'Sales',
+            ],
+        ]
     ],
     [
         'c' => '',
