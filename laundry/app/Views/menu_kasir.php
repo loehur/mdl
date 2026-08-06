@@ -88,6 +88,37 @@ $menu[0] = [
         ]
     ],
     [
+        'c' => '',
+        'title' => 'Cabang',
+        'icon' => 'fas fa-store',
+        'txt' => 'Cabang',
+        'submenu' =>
+        [
+            [
+                'c' => 'Kas',
+                'title' => 'Kas Kasir',
+                'txt' => 'Kas Kasir',
+            ],
+            [
+                'c' => 'Operan',
+                'title' => 'Operan',
+                'txt' => 'Operan',
+                'show_if_multi_cabang' => true,
+                'hide_if_training' => true,
+            ],
+            [
+                'c' => 'Setting/printer',
+                'title' => 'Printer Setting',
+                'txt' => 'Printer',
+            ],
+            [
+                'c' => 'Setting/android',
+                'title' => 'Android',
+                'txt' => 'Android',
+            ],
+        ]
+    ],
+    [
         'c' => '#',
         'title' => 'Tiket',
         'icon' => 'fas fa-ticket-alt',
@@ -104,14 +135,6 @@ $menu[0] = [
                 'txt' => 'Selesai',
             ],
         ]
-    ],
-    [
-        'c' => 'Operan',
-        'title' => 'Operan',
-        'icon' => 'fas fa-random',
-        'txt' => 'Operan',
-        'show_if_multi_cabang' => true, // Only show if listCabang > 1
-        'hide_if_training' => true,
     ],
     [
         'c' => 'Operasi',
@@ -192,30 +215,6 @@ $menu[0] = [
                 'c' => '@Prepaid',
                 'title' => 'Pre/Post Paid',
                 'txt' => 'Pre/Post Paid',
-            ],
-        ]
-    ],
-    [
-        'c' => '',
-        'title' => 'Cabang',
-        'icon' => 'fas fa-store',
-        'txt' => 'Cabang',
-        'submenu' =>
-        [
-            [
-                'c' => 'Kas',
-                'title' => 'Kas Kasir',
-                'txt' => 'Kas Kasir',
-            ],
-            [
-                'c' => 'Setting/printer',
-                'title' => 'Printer Setting',
-                'txt' => 'Printer',
-            ],
-            [
-                'c' => 'Setting/android',
-                'title' => 'Android',
-                'txt' => 'Android',
             ],
         ]
     ],

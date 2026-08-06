@@ -1842,6 +1842,14 @@ if ($privUi === 100) {
                                             </a>
                                             <ul class="nav nav-treeview" style="display: <?= $isParentActive ? 'block' : 'none;'; ?>;">
                                                 <?php foreach ($mk['submenu'] as $ms) { ?>
+                                                    <?php
+                                                    if (isset($ms['show_if_multi_cabang']) && $ms['show_if_multi_cabang'] && count($this->listCabang) <= 1) {
+                                                        continue;
+                                                    }
+                                                    if (!empty($ms['hide_if_training']) && !empty($this->isTrainingMode)) {
+                                                        continue;
+                                                    }
+                                                    ?>
                                                     <li class="nav-item">
                                                         <?php 
                                                         // Check if submenu path is absolute (starts with @)
