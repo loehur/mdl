@@ -194,6 +194,7 @@ export const isInternalBrowserLoading = ref(true);
 // ============================================================================
 export const isMarkingAsDone = ref(false);
 export const isCheckingPayment = ref(false);
+export const isPickupDelivery = ref(false);
 export const isRequest = ref(false);
 export const isFollowUp = ref(false);
 export const isReopeningConversation = ref(false);

@@ -57,7 +57,7 @@ import {
   showImageLightbox, lightboxImageUrl, showQuickReplies,
   showInternalBrowser, internalBrowserUrl, isInternalBrowserEntering, isInternalBrowserExiting, isInternalBrowserLoading,
   // Loading States
-  isMarkingAsDone, isCheckingPayment, isRequest, isFollowUp,
+  isMarkingAsDone, isCheckingPayment, isPickupDelivery, isRequest, isFollowUp,
   isReopeningConversation, isRefreshingChat, isLoadingQuickReplies, copiedPhone,
   // Settings
   fontSize, theme, notificationSoundEnabled, notificationAudio,
@@ -1461,6 +1461,50 @@ const checkPayment = async () => {
   } catch (e) {
     console.error("Error marking for payment check:", e);
     isCheckingPayment.value = false;
+  }
+};
+
+const pickupDelivery = async () => {
+  if (!activeConversation.value || isPickupDelivery.value) return;
+
+  try {
+    isPickupDelivery.value = true;
+    showChatMenu.value = false;
+
+    const response = await fetch(`${API_BASE}/CRM/Chat/updateCase`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        phone: activeConversation.value.wa_number,
+        case: 2,
+        user_id: authId.value,
+      }),
+    });
+
+    const res = await response.json();
+
+    if (res.status) {
+      if (!activeConversation.value.cases) activeConversation.value.cases = [];
+      activeConversation.value.cases = activeConversation.value.cases
+        .map((c) => (c.case === 4 ? { ...c, status: "closed" } : c))
+        .filter((c) => c.case !== 0);
+      if (
+        !activeConversation.value.cases.some(
+          (c) => c.case === 2 && c.status === "open"
+        )
+      ) {
+        activeConversation.value.cases.push({ case: 2, status: "open" });
+      }
+    } else {
+      console.error("Failed to mark for pickup/delivery:", res.message);
+    }
+
+    setTimeout(() => {
+      isPickupDelivery.value = false;
+    }, 3000);
+  } catch (e) {
+    console.error("Error marking for pickup/delivery:", e);
+    isPickupDelivery.value = false;
   }
 };
 
