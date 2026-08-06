@@ -13,12 +13,14 @@ class Delivery extends Controller
       $data_operasi = ['title' => 'Delivery Order'];
       $transfers = $this->getPendingCabangTransfers();
       $canCekDetail = $this->canCekDetail();
+      $listCabang = $this->getCabangOperasional();
 
       $this->view('layout', ['data_operasi' => $data_operasi]);
       $this->view('delivery/index', [
          'data_operasi' => $data_operasi,
          'transfers' => $transfers,
          'canCekDetail' => $canCekDetail,
+         'listCabang' => is_array($listCabang) ? $listCabang : [],
       ]);
    }
 
@@ -81,12 +83,94 @@ class Delivery extends Controller
          'data' => [
             'ref' => $ref,
             'date' => $first['created_at'] ?? '',
+            'source_id' => $sourceId,
+            'target_id' => $targetId,
             'source_kode' => $cabangMap[$sourceId] ?? ('#' . $sourceId),
             'target_kode' => $cabangMap[$targetId] ?? ('#' . $targetId),
             'items' => $list,
             'total' => $total,
          ],
       ]);
+   }
+
+   /**
+    * Ubah source_id seluruh baris transfer — hanya admin (100) / driver (12).
+    */
+   public function ubah_sumber()
+   {
+      if (ob_get_length()) {
+         ob_clean();
+      }
+      ob_start();
+      $response = ['status' => 'error', 'message' => 'Unknown error'];
+
+      try {
+         if (!$this->canCekDetail()) {
+            throw new Exception('Akses ditolak');
+         }
+
+         $ref = trim((string) ($_POST['ref'] ?? ''));
+         $sourceId = (int) ($_POST['source_id'] ?? 0);
+
+         if ($ref === '') {
+            throw new Exception('Ref tidak valid');
+         }
+         if ($sourceId <= 0) {
+            throw new Exception('Pilih cabang sumber');
+         }
+
+         $refEsc = $this->db(0)->escape($ref);
+         $items = $this->db(0)->get_where(
+            'barang_mutasi',
+            "ref = '$refEsc' AND type = 2 AND state = 0 AND source_id > 0 AND target_id > 0"
+         );
+         if (!is_array($items) || empty($items)) {
+            throw new Exception('Transfer tidak ditemukan atau sudah diterima');
+         }
+
+         $targetId = (int) ($items[0]['target_id'] ?? 0);
+         if ($sourceId === $targetId) {
+            throw new Exception('Cabang sumber tidak boleh sama dengan cabang tujuan');
+         }
+
+         $cabang = $this->db(0)->get_where_row('cabang', "id_cabang = '$sourceId'");
+         if (!$cabang || !empty($cabang['is_training'])) {
+            throw new Exception('Cabang sumber tidak valid');
+         }
+
+         $this->db(0)->update(
+            'barang_mutasi',
+            ['source_id' => $sourceId],
+            "ref = '$refEsc' AND type = 2 AND state = 0"
+         );
+
+         $verify = $this->db(0)->get_where_row(
+            'barang_mutasi',
+            "ref = '$refEsc' AND type = 2 AND state = 0"
+         );
+         if (!$verify || (int) ($verify['source_id'] ?? 0) !== $sourceId) {
+            throw new Exception('Gagal mengubah sumber cabang');
+         }
+
+         $kode = strtoupper((string) ($cabang['kode_cabang'] ?? $sourceId));
+         $response = [
+            'status' => 'success',
+            'message' => 'Sumber berhasil diubah ke ' . $kode,
+            'data' => [
+               'ref' => $ref,
+               'source_id' => $sourceId,
+               'source_kode' => $kode,
+            ],
+         ];
+      } catch (\Throwable $e) {
+         $response = ['status' => 'error', 'message' => $e->getMessage()];
+      }
+
+      ob_end_clean();
+      if (!headers_sent()) {
+         header('Content-Type: application/json; charset=utf-8');
+      }
+      echo json_encode($response);
    }
 
    private function canCekDetail(): bool

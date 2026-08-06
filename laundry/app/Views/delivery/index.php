@@ -1,11 +1,13 @@
 <?php
 $transfers = $data['transfers'] ?? [];
 $canCekDetail = !empty($data['canCekDetail']);
+$listCabang = $data['listCabang'] ?? [];
 $isEmptyCabang = empty($transfers);
 ?>
 <div id="dlv-root" class="px-1 mt-2"
      data-can-cek="<?= $canCekDetail ? '1' : '0' ?>"
-     data-detail-url="<?= URL::BASE_URL ?>Delivery/detail/">
+     data-detail-url="<?= URL::BASE_URL ?>Delivery/detail/"
+     data-ubah-sumber-url="<?= URL::BASE_URL ?>Delivery/ubah_sumber">
   <style>
     #dlv-root {
       --dlv-ink: #0f172a;
@@ -15,6 +17,8 @@ $isEmptyCabang = empty($transfers);
       --dlv-blue-deep: #1d4ed8;
       --dlv-yellow: #f59e0b;
       --dlv-yellow-deep: #d97706;
+      --dlv-green: #16a34a;
+      --dlv-green-deep: #15803d;
       --dlv-radius: 0;
       --dlv-border: 1px;
       width: 100%;
@@ -26,6 +30,7 @@ $isEmptyCabang = empty($transfers);
     #dlv-root .dlv-panel,
     #dlv-root .dlv-icon,
     #dlv-root .dlv-btn,
+    #dlv-root .dlv-input,
     #dlv-root .op-modal__panel,
     #dlv-root .op-modal__close {
       border-radius: 0 !important;
@@ -162,6 +167,13 @@ $isEmptyCabang = empty($transfers);
       font-weight: 700;
       color: var(--dlv-muted);
     }
+    #dlv-root .dlv-item__actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: flex-end;
+      flex-shrink: 0;
+    }
     #dlv-root .dlv-btn {
       display: inline-flex;
       align-items: center;
@@ -179,7 +191,15 @@ $isEmptyCabang = empty($transfers);
       background: linear-gradient(180deg, var(--dlv-blue), var(--dlv-blue-deep));
       color: #fff;
     }
-    #dlv-root .dlv-btn--cek:disabled {
+    #dlv-root .dlv-btn--sumber {
+      background: linear-gradient(180deg, var(--dlv-yellow), var(--dlv-yellow-deep));
+      color: #111;
+    }
+    #dlv-root .dlv-btn--submit {
+      background: linear-gradient(180deg, var(--dlv-green), var(--dlv-green-deep));
+      color: #fff;
+    }
+    #dlv-root .dlv-btn:disabled {
       opacity: 0.55;
       cursor: wait;
     }
@@ -188,8 +208,58 @@ $isEmptyCabang = empty($transfers);
       color: var(--dlv-ink);
       border-color: #cbd5e1;
     }
+    #dlv-root .dlv-field-label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 0.78rem;
+      font-weight: 900;
+      color: var(--dlv-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    #dlv-root .dlv-input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #94a3b8;
+      background: #fff;
+      color: var(--dlv-ink);
+      font-size: 0.88rem;
+      font-weight: 750;
+      font-family: inherit;
+    }
+    #dlv-root .dlv-input:focus {
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22);
+      border-color: var(--dlv-blue);
+    }
+    #dlv-root .dlv-hint {
+      margin: 10px 0 0;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--dlv-muted);
+    }
+    #dlv-root .dlv-ref-box {
+      margin-bottom: 14px;
+      padding: 10px 12px;
+      border: 1px solid #fcd34d;
+      background: #fffbeb;
+      text-align: center;
+    }
+    #dlv-root .dlv-ref-box small {
+      display: block;
+      font-size: 0.7rem;
+      font-weight: 800;
+      color: var(--dlv-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    #dlv-root .dlv-ref-box strong {
+      font-size: 0.95rem;
+      font-weight: 900;
+      color: var(--dlv-ink);
+    }
 
-    /* Detail modal (op-modal pattern) */
+    /* Detail / form modal (op-modal pattern) */
     #dlv-root .op-modal {
       display: none;
       position: fixed;
@@ -218,6 +288,9 @@ $isEmptyCabang = empty($transfers);
       box-shadow: 0 24px 48px rgba(15, 23, 42, 0.3);
       overflow: hidden;
     }
+    #dlv-root .op-modal__panel--sm {
+      width: min(420px, 100%);
+    }
     #dlv-root .op-modal__head {
       display: flex;
       align-items: flex-start;
@@ -226,6 +299,9 @@ $isEmptyCabang = empty($transfers);
       padding: 14px 16px;
       color: #fff;
       background: linear-gradient(105deg, #d97706 0%, #f59e0b 100%);
+    }
+    #dlv-root .op-modal__head--blue {
+      background: linear-gradient(105deg, #1d4ed8 0%, #2563eb 100%);
     }
     #dlv-root .op-modal__head h3 {
       margin: 0;
@@ -361,14 +437,21 @@ $isEmptyCabang = empty($transfers);
                 $ref = htmlspecialchars((string) ($tr['ref'] ?? ''), ENT_QUOTES, 'UTF-8');
                 $src = htmlspecialchars((string) ($tr['source_kode'] ?? '-'), ENT_QUOTES, 'UTF-8');
                 $tgt = htmlspecialchars((string) ($tr['target_kode'] ?? '-'), ENT_QUOTES, 'UTF-8');
+                $sourceId = (int) ($tr['source_id'] ?? 0);
+                $targetId = (int) ($tr['target_id'] ?? 0);
                 $dateRaw = $tr['date'] ?? '';
                 $dateLbl = $dateRaw !== '' ? date('d/m/y H:i', strtotime($dateRaw)) : '-';
                 $count = (int) ($tr['item_count'] ?? 0);
               ?>
-                <div class="dlv-item" data-ref="<?= $ref ?>">
+                <div class="dlv-item"
+                     data-ref="<?= $ref ?>"
+                     data-source-id="<?= $sourceId ?>"
+                     data-target-id="<?= $targetId ?>"
+                     data-source-kode="<?= $src ?>"
+                     data-target-kode="<?= $tgt ?>">
                   <div class="dlv-item__text">
                     <p class="dlv-item__title">
-                      Kirim Barang dari <span class="dlv-kode"><?= $src ?></span>
+                      Kirim Barang dari <span class="dlv-kode dlv-kode-source"><?= $src ?></span>
                       ke <span class="dlv-kode"><?= $tgt ?></span>
                     </p>
                     <div class="dlv-item__meta">
@@ -377,9 +460,14 @@ $isEmptyCabang = empty($transfers);
                     </div>
                   </div>
                   <?php if ($canCekDetail) { ?>
-                    <button type="button" class="dlv-btn dlv-btn--cek" data-dlv-cek="<?= $ref ?>">
-                      <i class="fas fa-search"></i> Cek
-                    </button>
+                    <div class="dlv-item__actions">
+                      <button type="button" class="dlv-btn dlv-btn--cek" data-dlv-cek="<?= $ref ?>">
+                        <i class="fas fa-search"></i> Cek
+                      </button>
+                      <button type="button" class="dlv-btn dlv-btn--sumber" data-dlv-ubah-sumber="<?= $ref ?>">
+                        <i class="fas fa-exchange-alt"></i> Ubah Sumber
+                      </button>
+                    </div>
                   <?php } ?>
                 </div>
               <?php } ?>
@@ -409,6 +497,51 @@ $isEmptyCabang = empty($transfers);
       </div>
     </div>
   </div>
+
+  <div class="op-modal" id="dlvSumberModal" aria-hidden="true">
+    <div class="op-modal__backdrop" data-op-close></div>
+    <div class="op-modal__panel op-modal__panel--sm" role="dialog" aria-modal="true" aria-labelledby="dlvSumberTitle">
+      <div class="op-modal__head op-modal__head--blue">
+        <div>
+          <h3 id="dlvSumberTitle">Ubah Sumber</h3>
+          <small id="dlvSumberSub">Pilih cabang sumber baru</small>
+        </div>
+        <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
+      </div>
+      <form id="dlvSumberForm">
+        <div class="op-modal__body">
+          <div class="dlv-ref-box">
+            <small>No. Ref</small>
+            <strong id="dlvSumberRefLabel">—</strong>
+          </div>
+          <input type="hidden" id="dlvSumberRef" name="ref" value="">
+          <input type="hidden" id="dlvSumberTargetId" value="">
+          <label class="dlv-field-label" for="dlvSumberCabang">Cabang Sumber</label>
+          <select id="dlvSumberCabang" name="source_id" class="dlv-input" required>
+            <option value="">— Pilih cabang —</option>
+            <?php foreach ($listCabang as $cabang) {
+              $cid = (int) ($cabang['id_cabang'] ?? 0);
+              if ($cid <= 0) continue;
+              $kode = htmlspecialchars(strtoupper((string) ($cabang['kode_cabang'] ?? $cid)), ENT_QUOTES, 'UTF-8');
+              $nama = htmlspecialchars((string) ($cabang['nama'] ?? ''), ENT_QUOTES, 'UTF-8');
+            ?>
+              <option value="<?= $cid ?>" data-kode="<?= $kode ?>"><?= $kode ?><?= $nama !== '' ? ' — ' . $nama : '' ?></option>
+            <?php } ?>
+          </select>
+          <p class="dlv-hint">
+            <i class="fas fa-info-circle me-1"></i>
+            Semua item pada nota ini akan memakai cabang sumber yang dipilih.
+          </p>
+        </div>
+        <div class="op-modal__foot">
+          <button type="button" class="dlv-btn dlv-btn--ghost" data-op-close>Batal</button>
+          <button type="submit" class="dlv-btn dlv-btn--submit" id="dlvSumberSubmit">
+            <i class="fas fa-save"></i> Simpan
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
   <?php } ?>
 </div>
 
@@ -419,6 +552,18 @@ $isEmptyCabang = empty($transfers);
 
   var canCek = root.getAttribute('data-can-cek') === '1';
   var detailUrl = root.getAttribute('data-detail-url') || '';
+  var ubahSumberUrl = root.getAttribute('data-ubah-sumber-url') || '';
+
+  function toast(msg, type) {
+    if (window.MdlToast) {
+      if (type === 'error' || type === 'danger') MdlToast.error(msg);
+      else if (type === 'warn' || type === 'warning') MdlToast.warn(msg);
+      else if (type === 'ok' || type === 'success') MdlToast.ok(msg);
+      else MdlToast.info(msg);
+      return;
+    }
+    alert(msg);
+  }
 
   function syncLock() {
     var n = document.querySelectorAll('#dlv-root .op-modal.is-open').length;
@@ -516,6 +661,97 @@ $isEmptyCabang = empty($transfers);
       });
   }
 
+  function openUbahSumber(btn) {
+    var item = btn.closest('.dlv-item');
+    if (!item) return;
+    var ref = item.getAttribute('data-ref') || '';
+    var sourceId = item.getAttribute('data-source-id') || '';
+    var targetId = item.getAttribute('data-target-id') || '';
+    var sourceKode = item.getAttribute('data-source-kode') || '';
+    var targetKode = item.getAttribute('data-target-kode') || '';
+
+    document.getElementById('dlvSumberRef').value = ref;
+    document.getElementById('dlvSumberTargetId').value = targetId;
+    document.getElementById('dlvSumberRefLabel').textContent = '#' + ref;
+    document.getElementById('dlvSumberSub').textContent =
+      (sourceKode || '-') + ' → ' + (targetKode || '-');
+
+    var select = document.getElementById('dlvSumberCabang');
+    Array.prototype.forEach.call(select.options, function (opt) {
+      if (!opt.value) {
+        opt.disabled = false;
+        opt.hidden = false;
+        return;
+      }
+      var hide = String(opt.value) === String(targetId);
+      opt.disabled = hide;
+      opt.hidden = hide;
+    });
+    select.value = sourceId && String(sourceId) !== String(targetId) ? sourceId : '';
+
+    openModal('dlvSumberModal');
+  }
+
+  function submitUbahSumber(e) {
+    e.preventDefault();
+    var ref = document.getElementById('dlvSumberRef').value;
+    var sourceId = document.getElementById('dlvSumberCabang').value;
+    var targetId = document.getElementById('dlvSumberTargetId').value;
+    var submitBtn = document.getElementById('dlvSumberSubmit');
+
+    if (!ref) {
+      toast('Ref tidak valid', 'error');
+      return;
+    }
+    if (!sourceId) {
+      toast('Pilih cabang sumber', 'warn');
+      return;
+    }
+    if (String(sourceId) === String(targetId)) {
+      toast('Cabang sumber tidak boleh sama dengan tujuan', 'warn');
+      return;
+    }
+
+    var fd = new FormData();
+    fd.append('ref', ref);
+    fd.append('source_id', sourceId);
+
+    submitBtn.disabled = true;
+    fetch(ubahSumberUrl, {
+      method: 'POST',
+      body: fd,
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      credentials: 'same-origin'
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || res.status !== 'success') {
+          toast((res && res.message) || 'Gagal mengubah sumber', 'error');
+          return;
+        }
+        toast(res.message || 'Sumber berhasil diubah', 'success');
+        closeModal('dlvSumberModal');
+
+        var item = null;
+        root.querySelectorAll('.dlv-item').forEach(function (el) {
+          if (el.getAttribute('data-ref') === ref) item = el;
+        });
+        if (item && res.data) {
+          var kode = res.data.source_kode || '-';
+          item.setAttribute('data-source-id', String(res.data.source_id || sourceId));
+          item.setAttribute('data-source-kode', kode);
+          var kodeEl = item.querySelector('.dlv-kode-source');
+          if (kodeEl) kodeEl.textContent = kode;
+        }
+      })
+      .catch(function () {
+        toast('Gagal mengubah sumber', 'error');
+      })
+      .finally(function () {
+        submitBtn.disabled = false;
+      });
+  }
+
   if (canCek) {
     root.addEventListener('click', function (e) {
       var closeBtn = e.target.closest('[data-op-close]');
@@ -532,8 +768,18 @@ $isEmptyCabang = empty($transfers);
       if (cekBtn && root.contains(cekBtn)) {
         e.preventDefault();
         loadDetail(cekBtn.getAttribute('data-dlv-cek'), cekBtn);
+        return;
+      }
+
+      var sumberBtn = e.target.closest('[data-dlv-ubah-sumber]');
+      if (sumberBtn && root.contains(sumberBtn)) {
+        e.preventDefault();
+        openUbahSumber(sumberBtn);
       }
     });
+
+    var form = document.getElementById('dlvSumberForm');
+    if (form) form.addEventListener('submit', submitUbahSumber);
 
     document.addEventListener('keydown', function (e) {
       if (e.key !== 'Escape') return;
