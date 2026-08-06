@@ -106,8 +106,8 @@
     var glat = <?= json_encode((float) ($data['geo']['lat'] ?? 0)) ?>;
     var glong = <?= json_encode((float) ($data['geo']['long'] ?? 0)) ?>;
     if (!glat && !glong) {
-        glat = -6.2;
-        glong = 106.816666;
+        glat = 0.5071;
+        glong = 101.4478;
     }
 
     $(document).ready(function() {

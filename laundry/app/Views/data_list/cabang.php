@@ -104,6 +104,7 @@ $kotaOptions = is_array($this->dKota ?? null) ? $this->dKota : [];
     #cabang-root .cb-table {
       width: 100%;
       border-collapse: collapse;
+      table-layout: fixed;
       margin: 0;
     }
     #cabang-root .cb-table th,
@@ -133,25 +134,27 @@ $kotaOptions = is_array($this->dKota ?? null) ? $this->dKota : [];
       font-weight: 900;
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
-      width: 1%;
+      width: 56px;
     }
     #cabang-root .cb-kode {
       font-weight: 900;
       white-space: nowrap;
-      width: 1%;
+      width: 52px;
     }
     #cabang-root .cb-alamat {
       font-weight: 750;
-      max-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
     #cabang-root .cb-actions {
-      width: 1%;
+      width: 152px;
       white-space: nowrap;
       text-align: right;
-      display: flex;
+      padding-left: 8px;
+    }
+    #cabang-root .cb-actions__inner {
+      display: inline-flex;
       gap: 6px;
       justify-content: flex-end;
       align-items: center;
@@ -336,9 +339,12 @@ $kotaOptions = is_array($this->dKota ?? null) ? $this->dKota : [];
       }
       #cabang-root .cb-head .cb-btn { width: 100%; }
       #cabang-root .cb-row { grid-template-columns: 1fr; }
-      #cabang-root .cb-table th:nth-child(3),
-      #cabang-root .cb-table td.cb-alamat {
-        max-width: 42vw;
+      #cabang-root .cb-id { width: 44px; }
+      #cabang-root .cb-kode { width: 44px; }
+      #cabang-root .cb-actions { width: 128px; }
+      #cabang-root .cb-btn--sm {
+        padding: 6px 8px;
+        font-size: 0.72rem;
       }
     }
   </style>
@@ -358,10 +364,10 @@ $kotaOptions = is_array($this->dKota ?? null) ? $this->dKota : [];
       <table class="cb-table">
         <thead>
           <tr>
-            <th>ID</th>
-            <th>Kode</th>
-            <th>Alamat</th>
-            <th></th>
+            <th class="cb-id">ID</th>
+            <th class="cb-kode">Kode</th>
+            <th class="cb-alamat">Alamat</th>
+            <th class="cb-actions"></th>
           </tr>
         </thead>
         <tbody>
@@ -387,28 +393,30 @@ $kotaOptions = is_array($this->dKota ?? null) ? $this->dKota : [];
               <td class="cb-kode"><?= htmlspecialchars($kode) ?></td>
               <td class="cb-alamat" title="<?= htmlspecialchars($alamat) ?>"><?= htmlspecialchars($alamat) ?></td>
               <td class="cb-actions">
-                <button
-                  type="button"
-                  class="cb-btn cb-btn--cyan cb-btn--sm btn-maps-cabang"
-                  data-id="<?= $id ?>"
-                  data-kode="<?= htmlspecialchars($kode, ENT_QUOTES) ?>"
-                  data-nama="<?= htmlspecialchars($nama, ENT_QUOTES) ?>"
-                  data-latt="<?= htmlspecialchars((string) $latt, ENT_QUOTES) ?>"
-                  data-long="<?= htmlspecialchars((string) $long, ENT_QUOTES) ?>"
-                  data-gmaps="<?= htmlspecialchars($gmaps, ENT_QUOTES) ?>"
-                ><i class="fas fa-map-marker-alt"></i> Maps</button>
-                <button
-                  type="button"
-                  class="cb-btn cb-btn--blue cb-btn--sm btn-edit-cabang"
-                  data-id="<?= $id ?>"
-                  data-kode="<?= htmlspecialchars($kode, ENT_QUOTES) ?>"
-                  data-nama="<?= htmlspecialchars($nama, ENT_QUOTES) ?>"
-                  data-alamat="<?= htmlspecialchars($alamat, ENT_QUOTES) ?>"
-                  data-kota="<?= htmlspecialchars($idKota, ENT_QUOTES) ?>"
-                  data-phone="<?= htmlspecialchars($phone, ENT_QUOTES) ?>"
-                  data-wifi="<?= htmlspecialchars($wifi, ENT_QUOTES) ?>"
-                  data-rent="<?= $rent ?>"
-                >Edit</button>
+                <div class="cb-actions__inner">
+                  <button
+                    type="button"
+                    class="cb-btn cb-btn--cyan cb-btn--sm btn-maps-cabang"
+                    data-id="<?= $id ?>"
+                    data-kode="<?= htmlspecialchars($kode, ENT_QUOTES) ?>"
+                    data-nama="<?= htmlspecialchars($nama, ENT_QUOTES) ?>"
+                    data-latt="<?= htmlspecialchars((string) $latt, ENT_QUOTES) ?>"
+                    data-long="<?= htmlspecialchars((string) $long, ENT_QUOTES) ?>"
+                    data-gmaps="<?= htmlspecialchars($gmaps, ENT_QUOTES) ?>"
+                  ><i class="fas fa-map-marker-alt"></i> Maps</button>
+                  <button
+                    type="button"
+                    class="cb-btn cb-btn--blue cb-btn--sm btn-edit-cabang"
+                    data-id="<?= $id ?>"
+                    data-kode="<?= htmlspecialchars($kode, ENT_QUOTES) ?>"
+                    data-nama="<?= htmlspecialchars($nama, ENT_QUOTES) ?>"
+                    data-alamat="<?= htmlspecialchars($alamat, ENT_QUOTES) ?>"
+                    data-kota="<?= htmlspecialchars($idKota, ENT_QUOTES) ?>"
+                    data-phone="<?= htmlspecialchars($phone, ENT_QUOTES) ?>"
+                    data-wifi="<?= htmlspecialchars($wifi, ENT_QUOTES) ?>"
+                    data-rent="<?= $rent ?>"
+                  >Edit</button>
+                </div>
               </td>
             </tr>
           <?php } ?>
@@ -526,8 +534,8 @@ $kotaOptions = is_array($this->dKota ?? null) ? $this->dKota : [];
 <script>
 (function () {
   var BASE = '<?= URL::BASE_URL ?>';
-  var DEFAULT_LAT = -6.2;
-  var DEFAULT_LNG = 106.816666;
+  var DEFAULT_LAT = 0.5071;
+  var DEFAULT_LNG = 101.4478;
   var root = document.getElementById('cabang-root');
   if (!root) return;
 
