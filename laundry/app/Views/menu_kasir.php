@@ -13,70 +13,17 @@ $menu[0] = [
         'txt' => 'Sales Order',
     ],
     [
-        'c' => 'Operasi',
-        'title' => 'Operasi Order',
-        'icon' => 'fas fa-tasks',
-        'txt' => 'Laundry Operasi',
-        'submenu' =>
-        [
-            [
-                'c' => '/i/0/0',
-                'title' => 'Operasi Order Proses',
-                'txt' => 'Proses',
-            ],
-            [
-                'c' => '/i/1/0',
-                'title' => 'Operasi Order Tuntas',
-                'txt' => 'Tuntas',
-            ],
-            [
-                'c' => '@Antrian/p/100',
-                'title' => 'Data Piutang',
-                'txt' => 'Piutang',
-            ],
-        ]
-    ],
-     [
         'c' => '',
-        'title' => 'Sales Operasi',
-        'icon' => 'fas fa-file-invoice',
-        'txt' => 'Sales Operasi',
-        'submenu' =>
-        [
-            [
-                'c' => 'Stok',
-                'title' => 'Stok Barang',
-                'txt' => 'Stok',
-            ],
-            [
-                'c' => 'Sales/operasi_pakai',
-                'title' => 'Barang Dipakai',
-                'txt' => 'Pakai',
-            ],
-            [
-                'c' => 'Sales/operasi_transfer',
-                'title' => 'Transfer Barang',
-                'txt' => 'Transfer',
-            ],
-            [
-                'c' => 'Sales/operasi_piutang',
-                'title' => 'Daftar Piutang',
-                'txt' => 'Piutang',
-            ],
-            [
-                'c' => 'Sales/operasi_tuntas',
-                'title' => 'Order Selesai',
-                'txt' => 'Tuntas',
-            ],
-        ]
-    ],
-    [
-        'c' => '',
-        'title' => 'Deposit',
+        'title' => 'Data Pelanggan',
         'icon' => 'fas fa-book',
-        'txt' => 'Saldo Pelanggan',
+        'txt' => 'Data Pelanggan',
         'submenu' =>
         [
+            [
+                'c' => 'Data_List/i/pelanggan',
+                'title' => 'Data Pelanggan',
+                'txt' => 'Pelanggan',
+            ],
             [
                 'c' => 'Member/tampil_rekap',
                 'title' => 'List Deposit Member',
@@ -98,12 +45,6 @@ $menu[0] = [
                 'txt' => 'Topup Saldo Deposit',
             ],
         ]
-    ],
-    [
-        'c' => 'Data_List/i/pelanggan',
-        'title' => 'Pelanggan',
-        'icon' => 'fas fa-address-book',
-        'txt' => 'Pelanggan'
     ],
     [
         'c' => '',
@@ -170,6 +111,64 @@ $menu[0] = [
         'title' => 'Kas Kasir',
         'icon' => 'fas fa-wallet',
         'txt' => 'Kas Kasir',
+    ],
+    [
+        'c' => 'Operasi',
+        'title' => 'Operasi Order',
+        'icon' => 'fas fa-tasks',
+        'txt' => 'Laundry Operasi',
+        'submenu' =>
+        [
+            [
+                'c' => '/i/0/0',
+                'title' => 'Operasi Order Proses',
+                'txt' => 'Proses',
+            ],
+            [
+                'c' => '/i/1/0',
+                'title' => 'Operasi Order Tuntas',
+                'txt' => 'Tuntas',
+            ],
+            [
+                'c' => '@Antrian/p/100',
+                'title' => 'Data Piutang',
+                'txt' => 'Piutang',
+            ],
+        ]
+    ],
+     [
+        'c' => '',
+        'title' => 'Sales Operasi',
+        'icon' => 'fas fa-file-invoice',
+        'txt' => 'Sales Operasi',
+        'submenu' =>
+        [
+            [
+                'c' => 'Stok',
+                'title' => 'Stok Barang',
+                'txt' => 'Stok',
+            ],
+            [
+                'c' => 'Sales/operasi_pakai',
+                'title' => 'Barang Dipakai',
+                'txt' => 'Pakai',
+            ],
+            [
+                'c' => 'Sales/operasi_transfer',
+                'title' => 'Transfer Barang',
+                'txt' => 'Transfer',
+            ],
+            [
+                'c' => 'Sales/operasi_piutang',
+                'title' => 'Daftar Piutang',
+                'txt' => 'Piutang',
+            ],
+            [
+                'c' => 'Sales/operasi_tuntas',
+                'title' => 'Order Selesai',
+                'txt' => 'Tuntas',
+            ],
+        ]
     ],
     [
         'c' => 'Filter',
