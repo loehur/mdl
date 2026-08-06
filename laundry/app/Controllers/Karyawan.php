@@ -229,8 +229,19 @@ class Karyawan extends Controller
                 throw new \Exception('ID tidak valid');
             }
 
-            if (strlen($otp) !== 6) {
-                throw new \Exception('Kode OTP harus 6 digit');
+            $otpLen = strlen($otp);
+            if ($otpLen !== 4 && $otpLen !== 6) {
+                throw new \Exception('Masukkan OTP 6 digit atau Access Key 4 digit');
+            }
+
+            // Hybrid: Access Key 4 digit milik karyawan yang diedit
+            if ($otpLen === 4) {
+                if (!$this->helper('User')->by_id_access_key($id, $otp)) {
+                    throw new \Exception('Access Key tidak cocok');
+                }
+                ob_end_clean();
+                echo json_encode(['status' => true, 'message' => 'Access Key berhasil diverifikasi']);
+                return;
             }
 
             // Enkripsi OTP input menggunakan custom method (sama dengan sendOTP)

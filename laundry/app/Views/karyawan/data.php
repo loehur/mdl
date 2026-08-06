@@ -108,7 +108,7 @@
                         <div class="step-line"></div>
                         <div class="step-item" id="step2-indicator">
                             <div class="step-circle">2</div>
-                            <small>Verifikasi WA</small>
+                            <small>Verifikasi</small>
                         </div>
                         <div class="step-line"></div>
                         <div class="step-item" id="step3-indicator">
@@ -124,7 +124,7 @@
                         <div class="col-md-6">
                             <label class="form-label">Nomor WhatsApp</label>
                             <input type="text" class="form-control bg-light" id="edit_wa" readonly>
-                            <small class="text-muted"><i class="fas fa-lock me-1"></i>Tidak dapat diubah, digunakan untuk verifikasi OTP</small>
+                            <small class="text-muted"><i class="fas fa-lock me-1"></i>Tidak dapat diubah. Verifikasi pakai OTP WA atau Access Key</small>
                         </div>
                         <div class="col-12"><hr></div>
                         <div class="col-md-4">
@@ -154,19 +154,22 @@
                     </div>
                 </div>
 
-                <!-- Step 2: Verifikasi WhatsApp OTP -->
+                <!-- Step 2: Verifikasi WhatsApp OTP / Access Key -->
                 <div id="step2" class="step-content" style="display: none;">
                     <div class="text-center mb-4">
                         <i class="fab fa-whatsapp text-success" style="font-size: 4rem;"></i>
-                        <h5 class="mt-2">Verifikasi Nomor WhatsApp</h5>
-                        <p class="text-muted">Kode OTP telah dikirim ke nomor <strong id="otp_wa_display"></strong></p>
+                        <h5 class="mt-2">Verifikasi</h5>
+                        <p class="text-muted mb-1">OTP dikirim ke WA <strong id="otp_wa_display"></strong></p>
+                        <p class="text-muted small mb-0">Atau masukkan <strong>Access Key</strong> 4 digit karyawan ini.</p>
                     </div>
                     <div class="row justify-content-center">
                         <div class="col-md-6">
                             <div class="input-group input-group-lg">
-                                <input type="text" class="form-control text-center" id="otp_code" 
-                                    placeholder="_ _ _ _ _ _" maxlength="6" style="letter-spacing: 10px; font-weight: bold;">
+                                <input type="password" class="form-control text-center" id="otp_code"
+                                    placeholder="OTP / Access Key" maxlength="6" inputmode="numeric" autocomplete="one-time-code"
+                                    style="letter-spacing: 6px; font-weight: bold;">
                             </div>
+                            <div class="text-center mt-2 small text-muted">OTP 6 digit dari WA, atau Access Key 4 digit</div>
                             <div class="text-center mt-3">
                                 <button type="button" class="btn btn-link btn-sm" id="btn_resend_otp" disabled>
                                     Kirim ulang OTP (<span id="otp_countdown">60</span>s)
@@ -209,6 +212,9 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-outline-secondary" id="btn_use_access_key" style="display: none;">
+                    Pakai Access Key
+                </button>
                 <button type="button" class="btn btn-primary" id="btn_next">
                     Lanjut<i class="fas fa-arrow-right ms-1"></i>
                 </button>
@@ -567,6 +573,7 @@ $(document).ready(function() {
         
         // Update buttons
         $('#btn_next').toggle(currentStep < 3);
+        $('#btn_use_access_key').toggle(currentStep === 1);
         $('#btn_save').toggle(currentStep === 3);
     }
     
@@ -663,10 +670,25 @@ $(document).ready(function() {
         });
     }
     
+    // Lanjut ke step 2 tanpa kirim OTP (pakai Access Key)
+    $('#btn_use_access_key').click(function() {
+        var wa = $('#edit_wa').val().trim();
+        if (!wa) {
+            showModalAlert('Nomor WhatsApp wajib diisi', 'warning');
+            return;
+        }
+        hideModalAlert();
+        $('#otp_wa_display').text(wa + ' (opsional OTP)');
+        $('#otp_code').val('');
+        currentStep = 2;
+        updateStepUI();
+        showModalAlert('Masukkan Access Key 4 digit karyawan ini', 'info');
+    });
+
     function verifyOTP() {
-        var otp = $('#otp_code').val().trim();
-        if (!otp || otp.length !== 6) {
-            showModalAlert('Masukkan 6 digit kode OTP', 'warning');
+        var otp = $('#otp_code').val().trim().replace(/[^0-9]/g, '');
+        if (!otp || (otp.length !== 4 && otp.length !== 6)) {
+            showModalAlert('Masukkan OTP 6 digit atau Access Key 4 digit', 'warning');
             return;
         }
         

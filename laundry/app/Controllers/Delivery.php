@@ -14,7 +14,6 @@ class Delivery extends Controller
       $transfers = $this->getPendingCabangTransfers();
       $customers = $this->getPendingCustomerDeliveries();
       $canCekDetail = $this->canCekDetail();
-      $listCabang = $this->getCabangOperasional();
 
       $this->view('layout', ['data_operasi' => $data_operasi]);
       $this->view('delivery/index', [
@@ -22,7 +21,6 @@ class Delivery extends Controller
          'transfers' => $transfers,
          'customers' => $customers,
          'canCekDetail' => $canCekDetail,
-         'listCabang' => is_array($listCabang) ? $listCabang : [],
       ]);
    }
 
@@ -167,6 +165,7 @@ class Delivery extends Controller
 
    /**
     * Selesaikan delivery customer: simpan riwayat + tutup case 2 CRM.
+    * Semua user boleh; wajib pilih karyawan + Access Key cocok.
     */
    public function selesai_customer()
    {
@@ -180,6 +179,7 @@ class Delivery extends Controller
          $phoneTail = preg_replace('/[^0-9]/', '', (string) ($_POST['phone_tail'] ?? ''));
          $jenis = strtolower(trim((string) ($_POST['jenis'] ?? '')));
          $idKaryawan = (int) ($_POST['id_karyawan'] ?? 0);
+         $accessKey = trim((string) ($_POST['access_key'] ?? ''));
          $idsRaw = $_POST['ids'] ?? [];
          if (!is_array($idsRaw)) {
             $idsRaw = [$idsRaw];
@@ -201,28 +201,18 @@ class Delivery extends Controller
             throw new Exception('Jenis harus jemput atau antar');
          }
          if ($idKaryawan <= 0) {
-            throw new Exception('Pilih karyawan');
+            throw new Exception('Pilih karyawan yang menyelesaikan');
          }
          if (empty($ids)) {
             throw new Exception('Pilih minimal satu item penjualan');
          }
 
-         $karyawan = $this->db(0)->get_where_row('user', "id_user = '$idKaryawan'");
+         // Wajib Access Key milik karyawan yang dipilih (semua user boleh submit)
+         $karyawan = $this->helper('User')->by_id_access_key($idKaryawan, $accessKey);
          if (!$karyawan) {
-            // fallback nama dari session lists
-            $namaKaryawan = '';
-            foreach (array_merge($this->user ?? [], $this->userCabang ?? []) as $u) {
-               if ((int) ($u['id_user'] ?? 0) === $idKaryawan) {
-                  $namaKaryawan = (string) ($u['nama_user'] ?? '');
-                  break;
-               }
-            }
-            if ($namaKaryawan === '') {
-               throw new Exception('Karyawan tidak ditemukan');
-            }
-         } else {
-            $namaKaryawan = (string) ($karyawan['nama_user'] ?? ('#' . $idKaryawan));
+            throw new Exception('Access Key tidak cocok dengan karyawan yang dipilih');
          }
+         $namaKaryawan = (string) ($karyawan['nama_user'] ?? ('#' . $idKaryawan));
 
          $pelangganIds = $this->pelangganIdsByPhoneTail($phoneTail);
          if (empty($pelangganIds)) {
@@ -236,7 +226,6 @@ class Delivery extends Controller
 
          $now = $GLOBALS['now'] ?? date('Y-m-d H:i:s');
          $idCabang = (int) ($this->id_cabang ?? 0);
-         $idUser = (int) ($_SESSION[URL::SESSID]['user']['id_user'] ?? 0);
          $inserted = 0;
 
          foreach ($ids as $idPenjualan) {
@@ -253,7 +242,7 @@ class Delivery extends Controller
                'id_karyawan' => $idKaryawan,
                'nama_karyawan' => strtoupper($namaKaryawan),
                'id_cabang' => $idCabang,
-               'id_user' => $idUser,
+               'id_user' => $idKaryawan,
                'insertTime' => $now,
             ];
             $ins = $this->db(0)->insert('delivery_riwayat', $data);
@@ -263,7 +252,7 @@ class Delivery extends Controller
             $inserted++;
          }
 
-         $this->closeCrmCase2ByPhoneTail($phoneTail, $idUser);
+         $this->closeCrmCase2ByPhoneTail($phoneTail, $idKaryawan);
 
          $response = [
             'status' => 'success',
@@ -287,7 +276,7 @@ class Delivery extends Controller
 
    /**
     * Batalkan delivery customer: tutup case 2 saja (tanpa riwayat).
-    * Hanya admin (100) / driver (12).
+    * Semua user boleh; wajib karyawan + Access Key + catatan; dicatat ke activity_log.
     */
    public function batal_customer()
    {
@@ -298,23 +287,58 @@ class Delivery extends Controller
       $response = ['status' => 'error', 'message' => 'Unknown error'];
 
       try {
-         if (!$this->canCekDetail()) {
-            throw new Exception('Akses ditolak');
-         }
-
          $phoneTail = preg_replace('/[^0-9]/', '', (string) ($_POST['phone_tail'] ?? ''));
+         $idKaryawan = (int) ($_POST['id_karyawan'] ?? 0);
+         $accessKey = trim((string) ($_POST['access_key'] ?? ''));
+         $catatan = trim((string) ($_POST['catatan'] ?? ''));
+
          if (strlen($phoneTail) < 9) {
             throw new Exception('Nomor tidak valid');
          }
          $phoneTail = substr($phoneTail, -9);
-         $idUser = (int) ($_SESSION[URL::SESSID]['user']['id_user'] ?? 0);
+         if ($idKaryawan < 1) {
+            throw new Exception('Pilih karyawan yang membatalkan');
+         }
+         if ($catatan === '') {
+            throw new Exception('Catatan wajib diisi');
+         }
 
-         $this->closeCrmCase2ByPhoneTail($phoneTail, $idUser);
+         $karyawan = $this->helper('User')->by_id_access_key($idKaryawan, $accessKey);
+         if (!$karyawan) {
+            throw new Exception('Access Key tidak cocok dengan karyawan yang dipilih');
+         }
+         $namaKaryawan = (string) ($karyawan['nama_user'] ?? ('#' . $idKaryawan));
+         $idUser = (int) ($_SESSION[URL::SESSID]['user']['id_user'] ?? 0);
+         $idCabang = (int) ($this->id_cabang ?? 0);
+
+         $this->closeCrmCase2ByPhoneTail($phoneTail, $idKaryawan);
+
+         $log = $this->helper('ActivityLog')->write([
+            'modul' => 'delivery',
+            'aksi' => 'batal_customer',
+            'id_ref' => $phoneTail,
+            'ref' => $phoneTail,
+            'id_karyawan' => $idKaryawan,
+            'nama_karyawan' => strtoupper($namaKaryawan),
+            'id_user' => $idUser,
+            'id_cabang' => $idCabang,
+            'catatan' => $catatan,
+            'meta' => [
+               'phone_tail' => $phoneTail,
+               'closed_case' => 2,
+            ],
+         ]);
+         if (is_array($log) && isset($log['errno']) && (int) $log['errno'] !== 0) {
+            throw new Exception($log['error'] ?? 'Gagal menyimpan log');
+         }
 
          $response = [
             'status' => 'success',
             'message' => 'Delivery dibatalkan (case ditutup)',
-            'data' => ['phone_tail' => $phoneTail],
+            'data' => [
+               'phone_tail' => $phoneTail,
+               'id_karyawan' => $idKaryawan,
+            ],
          ];
       } catch (\Throwable $e) {
          $response = ['status' => 'error', 'message' => $e->getMessage()];
@@ -491,86 +515,6 @@ class Delivery extends Controller
             $this->db(0)->rollback();
             throw $e;
          }
-      } catch (\Throwable $e) {
-         $response = ['status' => 'error', 'message' => $e->getMessage()];
-      }
-
-      ob_end_clean();
-      if (!headers_sent()) {
-         header('Content-Type: application/json; charset=utf-8');
-      }
-      echo json_encode($response);
-   }
-
-   /**
-    * Ubah source_id seluruh baris transfer — hanya admin (100) / driver (12).
-    */
-   public function ubah_sumber()
-   {
-      if (ob_get_length()) {
-         ob_clean();
-      }
-      ob_start();
-      $response = ['status' => 'error', 'message' => 'Unknown error'];
-
-      try {
-         if (!$this->canCekDetail()) {
-            throw new Exception('Akses ditolak');
-         }
-
-         $ref = trim((string) ($_POST['ref'] ?? ''));
-         $sourceId = (int) ($_POST['source_id'] ?? 0);
-
-         if ($ref === '') {
-            throw new Exception('Ref tidak valid');
-         }
-         if ($sourceId <= 0) {
-            throw new Exception('Pilih cabang sumber');
-         }
-
-         $refEsc = $this->db(0)->escape($ref);
-         $items = $this->db(0)->get_where(
-            'barang_mutasi',
-            "ref = '$refEsc' AND type = 2 AND state = 0 AND source_id > 0 AND target_id > 0"
-         );
-         if (!is_array($items) || empty($items)) {
-            throw new Exception('Transfer tidak ditemukan atau sudah diterima');
-         }
-
-         $targetId = (int) ($items[0]['target_id'] ?? 0);
-         if ($sourceId === $targetId) {
-            throw new Exception('Cabang sumber tidak boleh sama dengan cabang tujuan');
-         }
-
-         $cabang = $this->db(0)->get_where_row('cabang', "id_cabang = '$sourceId'");
-         if (!$cabang || !empty($cabang['is_training'])) {
-            throw new Exception('Cabang sumber tidak valid');
-         }
-
-         $this->db(0)->update(
-            'barang_mutasi',
-            ['source_id' => $sourceId],
-            "ref = '$refEsc' AND type = 2 AND state = 0"
-         );
-
-         $verify = $this->db(0)->get_where_row(
-            'barang_mutasi',
-            "ref = '$refEsc' AND type = 2 AND state = 0"
-         );
-         if (!$verify || (int) ($verify['source_id'] ?? 0) !== $sourceId) {
-            throw new Exception('Gagal mengubah sumber cabang');
-         }
-
-         $kode = strtoupper((string) ($cabang['kode_cabang'] ?? $sourceId));
-         $response = [
-            'status' => 'success',
-            'message' => 'Sumber berhasil diubah ke ' . $kode,
-            'data' => [
-               'ref' => $ref,
-               'source_id' => $sourceId,
-               'source_kode' => $kode,
-            ],
-         ];
       } catch (\Throwable $e) {
          $response = ['status' => 'error', 'message' => $e->getMessage()];
       }

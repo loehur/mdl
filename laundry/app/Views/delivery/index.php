@@ -2,7 +2,6 @@
 $transfers = $data['transfers'] ?? [];
 $customers = $data['customers'] ?? [];
 $canCekDetail = !empty($data['canCekDetail']);
-$listCabang = $data['listCabang'] ?? [];
 $isEmptyCabang = empty($transfers);
 $isEmptyCustomer = empty($customers);
 ?>
@@ -13,8 +12,7 @@ $isEmptyCustomer = empty($customers);
      data-sales-options-url="<?= URL::BASE_URL ?>Delivery/sales_options/"
      data-selesai-url="<?= URL::BASE_URL ?>Delivery/selesai_customer"
      data-batal-url="<?= URL::BASE_URL ?>Delivery/batal_customer"
-     data-terima-pakai-url="<?= URL::BASE_URL ?>Delivery/terima_pakai"
-     data-ubah-sumber-url="<?= URL::BASE_URL ?>Delivery/ubah_sumber">
+     data-terima-pakai-url="<?= URL::BASE_URL ?>Delivery/terima_pakai">
   <style>
     #dlv-root {
       --dlv-ink: #0f172a;
@@ -189,10 +187,6 @@ $isEmptyCustomer = empty($customers);
     #dlv-root .dlv-btn--cek {
       background: linear-gradient(180deg, var(--dlv-blue), var(--dlv-blue-deep));
       color: #fff;
-    }
-    #dlv-root .dlv-btn--sumber {
-      background: linear-gradient(180deg, var(--dlv-yellow), var(--dlv-yellow-deep));
-      color: #111;
     }
     #dlv-root .dlv-btn--submit {
       background: linear-gradient(180deg, var(--dlv-green), var(--dlv-green-deep));
@@ -669,11 +663,6 @@ $isEmptyCustomer = empty($customers);
                     <button type="button" class="dlv-btn dlv-btn--cek" data-dlv-cek="<?= $ref ?>">
                       <i class="fas fa-search"></i> Cek
                     </button>
-                    <?php if ($canCekDetail) { ?>
-                      <button type="button" class="dlv-btn dlv-btn--sumber" data-dlv-ubah-sumber="<?= $ref ?>">
-                        <i class="fas fa-exchange-alt"></i> Ubah Sumber
-                      </button>
-                    <?php } ?>
                   </div>
                 </div>
               <?php } ?>
@@ -709,7 +698,7 @@ $isEmptyCustomer = empty($customers);
       <div class="op-modal__head op-modal__head--blue">
         <div>
           <h3 id="dlvSelesaiTitle">Selesai Delivery</h3>
-          <small id="dlvSelesaiSub">Pilih jenis, karyawan, dan item</small>
+          <small id="dlvSelesaiSub">Pilih jenis, karyawan + Access Key, dan item</small>
         </div>
         <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
       </div>
@@ -722,7 +711,7 @@ $isEmptyCustomer = empty($customers);
             <option value="jemput">Jemput</option>
             <option value="antar">Antar</option>
           </select>
-          <label class="dlv-field-label mt-2" for="dlvSelesaiKaryawan">Karyawan</label>
+          <label class="dlv-field-label mt-2" for="dlvSelesaiKaryawan">Karyawan yang menyelesaikan</label>
           <select id="dlvSelesaiKaryawan" name="id_karyawan" class="form-control tize" style="width:100%" required>
             <option value="" selected disabled></option>
             <optgroup label="<?= htmlspecialchars(($this->dCabang['nama'] ?? 'Cabang') . ' [' . ($this->dCabang['kode_cabang'] ?? '') . ']', ENT_QUOTES, 'UTF-8') ?>">
@@ -738,19 +727,21 @@ $isEmptyCustomer = empty($customers);
               </optgroup>
             <?php } ?>
           </select>
+          <label class="dlv-field-label mt-2" for="dlvSelesaiKey">Access Key karyawan</label>
+          <input type="password" id="dlvSelesaiKey" name="access_key" class="dlv-input" inputmode="numeric" maxlength="4" autocomplete="one-time-code" placeholder="4 digit" required>
+          <p class="dlv-hint mt-1 mb-0">
+            <i class="fas fa-info-circle me-1"></i>
+            Access Key harus milik karyawan yang dipilih.
+          </p>
           <label class="dlv-field-label mt-2">Item penjualan</label>
           <div class="dlv-sales-box" id="dlvSelesaiSales">
             <div class="dlv-sales-empty">Pilih jenis terlebih dahulu</div>
           </div>
         </div>
         <div class="op-modal__foot op-modal__foot--selesai">
-          <?php if ($canCekDetail) { ?>
-            <button type="button" class="dlv-btn dlv-btn--batal" id="dlvSelesaiBatal">
-              <i class="fas fa-ban"></i> Batalkan Delivery
-            </button>
-          <?php } else { ?>
-            <span></span>
-          <?php } ?>
+          <button type="button" class="dlv-btn dlv-btn--batal" id="dlvSelesaiBatal">
+            <i class="fas fa-ban"></i> Batalkan Delivery
+          </button>
           <div class="op-modal__foot-right">
             <button type="button" class="dlv-btn dlv-btn--ghost" data-op-close>Batal</button>
             <button type="submit" class="dlv-btn dlv-btn--submit" id="dlvSelesaiSubmit">
@@ -762,20 +753,46 @@ $isEmptyCustomer = empty($customers);
     </div>
   </div>
 
-  <?php if ($canCekDetail) { ?>
   <div class="op-modal op-modal--confirm" id="dlvConfirmModal" aria-hidden="true">
     <div class="op-modal__backdrop" data-op-close></div>
     <div class="op-modal__panel op-modal__panel--sm" role="dialog" aria-modal="true" aria-labelledby="dlvConfirmTitle">
       <div class="op-modal__head op-modal__head--red">
         <div>
-          <h3 id="dlvConfirmTitle">Konfirmasi</h3>
-          <small>Batalkan Delivery</small>
+          <h3 id="dlvConfirmTitle">Batalkan Delivery</h3>
+          <small>Wajib karyawan, Access Key, dan catatan</small>
         </div>
         <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
       </div>
       <div class="op-modal__body">
         <p class="op-modal__confirm-msg" id="dlvConfirmMsg">
-          Batalkan delivery ini? Case akan ditutup tanpa menyimpan riwayat.
+          Case akan ditutup tanpa menyimpan riwayat jemput/antar.
+        </p>
+
+        <label class="dlv-field-label mt-2" for="dlvBatalKaryawan">Karyawan yang membatalkan</label>
+        <select id="dlvBatalKaryawan" class="form-control tize" style="width:100%" required>
+          <option value="" selected disabled></option>
+          <optgroup label="<?= htmlspecialchars(($this->dCabang['nama'] ?? 'Cabang') . ' [' . ($this->dCabang['kode_cabang'] ?? '') . ']', ENT_QUOTES, 'UTF-8') ?>">
+            <?php foreach (($this->user ?? []) as $a) { ?>
+              <option value="<?= (int) $a['id_user'] ?>"><?= (int) $a['id_user'] . '-' . htmlspecialchars(strtoupper((string) ($a['nama_user'] ?? '')), ENT_QUOTES, 'UTF-8') ?></option>
+            <?php } ?>
+          </optgroup>
+          <?php if (!empty($this->userCabang)) { ?>
+            <optgroup label="----- Cabang Lain -----">
+              <?php foreach ($this->userCabang as $a) { ?>
+                <option value="<?= (int) $a['id_user'] ?>"><?= (int) $a['id_user'] . '-' . htmlspecialchars(strtoupper((string) ($a['nama_user'] ?? '')), ENT_QUOTES, 'UTF-8') ?></option>
+              <?php } ?>
+            </optgroup>
+          <?php } ?>
+        </select>
+
+        <label class="dlv-field-label mt-2" for="dlvBatalKey">Access Key karyawan</label>
+        <input type="password" id="dlvBatalKey" class="dlv-input" inputmode="numeric" maxlength="4" autocomplete="one-time-code" placeholder="4 digit">
+
+        <label class="dlv-field-label mt-2" for="dlvBatalCatatan">Catatan</label>
+        <textarea id="dlvBatalCatatan" class="dlv-input" rows="3" placeholder="Alasan pembatalan" required></textarea>
+        <p class="dlv-hint mt-2 mb-0">
+          <i class="fas fa-info-circle me-1"></i>
+          Access Key harus milik karyawan yang dipilih. Pembatalan dicatat di log.
         </p>
       </div>
       <div class="op-modal__foot">
@@ -786,7 +803,6 @@ $isEmptyCustomer = empty($customers);
       </div>
     </div>
   </div>
-  <?php } ?>
 
   <div class="op-modal" id="dlvDetailModal" aria-hidden="true">
     <div class="op-modal__backdrop" data-op-close></div>
@@ -866,52 +882,6 @@ $isEmptyCustomer = empty($customers);
     </div>
   </div>
 
-  <?php if ($canCekDetail) { ?>
-  <div class="op-modal" id="dlvSumberModal" aria-hidden="true">
-    <div class="op-modal__backdrop" data-op-close></div>
-    <div class="op-modal__panel op-modal__panel--sm" role="dialog" aria-modal="true" aria-labelledby="dlvSumberTitle">
-      <div class="op-modal__head op-modal__head--blue">
-        <div>
-          <h3 id="dlvSumberTitle">Ubah Sumber</h3>
-          <small id="dlvSumberSub">Pilih cabang sumber baru</small>
-        </div>
-        <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
-      </div>
-      <form id="dlvSumberForm">
-        <div class="op-modal__body">
-          <div class="dlv-ref-box">
-            <small>No. Ref</small>
-            <strong id="dlvSumberRefLabel">—</strong>
-          </div>
-          <input type="hidden" id="dlvSumberRef" name="ref" value="">
-          <input type="hidden" id="dlvSumberTargetId" value="">
-          <label class="dlv-field-label" for="dlvSumberCabang">Cabang Sumber</label>
-          <select id="dlvSumberCabang" name="source_id" class="dlv-input" required>
-            <option value="">— Pilih cabang —</option>
-            <?php foreach ($listCabang as $cabang) {
-              $cid = (int) ($cabang['id_cabang'] ?? 0);
-              if ($cid <= 0) continue;
-              $kode = htmlspecialchars(strtoupper((string) ($cabang['kode_cabang'] ?? $cid)), ENT_QUOTES, 'UTF-8');
-              $namaCb = htmlspecialchars((string) ($cabang['nama'] ?? ''), ENT_QUOTES, 'UTF-8');
-            ?>
-              <option value="<?= $cid ?>" data-kode="<?= $kode ?>"><?= $kode ?><?= $namaCb !== '' ? ' — ' . $namaCb : '' ?></option>
-            <?php } ?>
-          </select>
-          <p class="dlv-hint">
-            <i class="fas fa-info-circle me-1"></i>
-            Semua item pada nota ini akan memakai cabang sumber yang dipilih.
-          </p>
-        </div>
-        <div class="op-modal__foot">
-          <button type="button" class="dlv-btn dlv-btn--ghost" data-op-close>Batal</button>
-          <button type="submit" class="dlv-btn dlv-btn--submit" id="dlvSumberSubmit">
-            <i class="fas fa-save"></i> Simpan
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-  <?php } ?>
 </div>
 
 <script src="<?= URL::EX_ASSETS ?>js/selectize.min.js"></script>
@@ -927,9 +897,9 @@ $isEmptyCustomer = empty($customers);
   var selesaiUrl = root.getAttribute('data-selesai-url') || '';
   var batalUrl = root.getAttribute('data-batal-url') || '';
   var terimaPakaiUrl = root.getAttribute('data-terima-pakai-url') || '';
-  var ubahSumberUrl = root.getAttribute('data-ubah-sumber-url') || '';
   var karyawanSelectize = null;
   var terimaPakaiKaryawanSelectize = null;
+  var batalKaryawanSelectize = null;
   var detailTerimaPakai = { ref: '', sourceKode: '', targetKode: '' };
 
   function toast(msg, type) {
@@ -1008,14 +978,23 @@ $isEmptyCustomer = empty($customers);
         else terimaPakaiKaryawanSelectize = $terima.selectize()[0].selectize;
       }
     }
+    if (!batalKaryawanSelectize) {
+      var $batal = jQuery('#dlvBatalKaryawan');
+      if ($batal.length) {
+        if ($batal[0].selectize) batalKaryawanSelectize = $batal[0].selectize;
+        else batalKaryawanSelectize = $batal.selectize()[0].selectize;
+      }
+    }
   }
 
   function resetSelesaiForm() {
     var jenis = document.getElementById('dlvSelesaiJenis');
     var phone = document.getElementById('dlvSelesaiPhone');
     var box = document.getElementById('dlvSelesaiSales');
+    var keyEl = document.getElementById('dlvSelesaiKey');
     if (jenis) jenis.value = '';
     if (phone) phone.value = '';
+    if (keyEl) keyEl.value = '';
     if (box) box.innerHTML = '<div class="dlv-sales-empty">Pilih jenis terlebih dahulu</div>';
     if (karyawanSelectize) {
       karyawanSelectize.clear(true);
@@ -1119,16 +1098,19 @@ $isEmptyCustomer = empty($customers);
       var sel = document.getElementById('dlvSelesaiKaryawan');
       idKaryawan = sel ? sel.value : '';
     }
+    var accessKey = String((document.getElementById('dlvSelesaiKey') || {}).value || '').trim();
     var checks = root.querySelectorAll('#dlvSelesaiSales input[name="ids[]"]:checked');
     if (!phone) { toast('Nomor tidak valid', 'error'); return; }
     if (!jenis) { toast('Pilih jenis jemput/antar', 'warn'); return; }
-    if (!idKaryawan) { toast('Pilih karyawan', 'warn'); return; }
+    if (!idKaryawan) { toast('Pilih karyawan yang menyelesaikan', 'warn'); return; }
+    if (!/^\d{4}$/.test(accessKey)) { toast('Access Key harus 4 digit', 'warn'); return; }
     if (!checks.length) { toast('Pilih minimal satu item', 'warn'); return; }
 
     var fd = new FormData();
     fd.append('phone_tail', phone);
     fd.append('jenis', jenis);
     fd.append('id_karyawan', idKaryawan);
+    fd.append('access_key', accessKey);
     Array.prototype.forEach.call(checks, function (cb) {
       fd.append('ids[]', cb.value);
     });
@@ -1158,12 +1140,22 @@ $isEmptyCustomer = empty($customers);
   }
 
   function batalDelivery() {
-    if (!canCek || !batalUrl) {
-      toast('Akses ditolak', 'error');
+    if (!batalUrl) {
+      toast('Endpoint batal tidak tersedia', 'error');
       return;
     }
     var phone = (document.getElementById('dlvSelesaiPhone') || {}).value || '';
     if (!phone) { toast('Nomor tidak valid', 'error'); return; }
+    ensureKaryawanSelectize();
+    if (batalKaryawanSelectize) batalKaryawanSelectize.clear(true);
+    else {
+      var sel = document.getElementById('dlvBatalKaryawan');
+      if (sel) sel.value = '';
+    }
+    var keyEl = document.getElementById('dlvBatalKey');
+    if (keyEl) keyEl.value = '';
+    var catatanEl = document.getElementById('dlvBatalCatatan');
+    if (catatanEl) catatanEl.value = '';
     openModal('dlvConfirmModal');
   }
 
@@ -1175,10 +1167,36 @@ $isEmptyCustomer = empty($customers);
       return;
     }
 
+    ensureKaryawanSelectize();
+    var idKaryawan = '';
+    if (batalKaryawanSelectize) idKaryawan = batalKaryawanSelectize.getValue();
+    else {
+      var sel = document.getElementById('dlvBatalKaryawan');
+      if (sel) idKaryawan = sel.value;
+    }
+    var accessKey = String((document.getElementById('dlvBatalKey') || {}).value || '').trim();
+    var catatan = String((document.getElementById('dlvBatalCatatan') || {}).value || '').trim();
+
+    if (!idKaryawan) {
+      toast('Pilih karyawan yang membatalkan', 'warn');
+      return;
+    }
+    if (!/^\d{4}$/.test(accessKey)) {
+      toast('Access Key harus 4 digit', 'warn');
+      return;
+    }
+    if (!catatan) {
+      toast('Catatan wajib diisi', 'warn');
+      return;
+    }
+
     var btn = document.getElementById('dlvSelesaiBatal');
     var yesBtn = document.getElementById('dlvConfirmYes');
     var fd = new FormData();
     fd.append('phone_tail', phone);
+    fd.append('id_karyawan', idKaryawan);
+    fd.append('access_key', accessKey);
+    fd.append('catatan', catatan);
     if (btn) btn.disabled = true;
     if (yesBtn) yesBtn.disabled = true;
     fetch(batalUrl, {
@@ -1462,87 +1480,6 @@ $isEmptyCustomer = empty($customers);
       });
   }
 
-  function openUbahSumber(btn) {
-    var item = btn.closest('.dlv-item');
-    if (!item) return;
-    var ref = item.getAttribute('data-ref') || '';
-    var sourceId = item.getAttribute('data-source-id') || '';
-    var targetId = item.getAttribute('data-target-id') || '';
-    var sourceKode = item.getAttribute('data-source-kode') || '';
-    var targetKode = item.getAttribute('data-target-kode') || '';
-
-    document.getElementById('dlvSumberRef').value = ref;
-    document.getElementById('dlvSumberTargetId').value = targetId;
-    document.getElementById('dlvSumberRefLabel').textContent = '#' + ref;
-    document.getElementById('dlvSumberSub').textContent =
-      (sourceKode || '-') + ' → ' + (targetKode || '-');
-
-    var select = document.getElementById('dlvSumberCabang');
-    Array.prototype.forEach.call(select.options, function (opt) {
-      if (!opt.value) {
-        opt.disabled = false;
-        opt.hidden = false;
-        return;
-      }
-      var hide = String(opt.value) === String(targetId);
-      opt.disabled = hide;
-      opt.hidden = hide;
-    });
-    select.value = sourceId && String(sourceId) !== String(targetId) ? sourceId : '';
-
-    openModal('dlvSumberModal');
-  }
-
-  function submitUbahSumber(e) {
-    e.preventDefault();
-    var ref = document.getElementById('dlvSumberRef').value;
-    var sourceId = document.getElementById('dlvSumberCabang').value;
-    var targetId = document.getElementById('dlvSumberTargetId').value;
-    var submitBtn = document.getElementById('dlvSumberSubmit');
-
-    if (!ref) { toast('Ref tidak valid', 'error'); return; }
-    if (!sourceId) { toast('Pilih cabang sumber', 'warn'); return; }
-    if (String(sourceId) === String(targetId)) {
-      toast('Cabang sumber tidak boleh sama dengan tujuan', 'warn');
-      return;
-    }
-
-    var fd = new FormData();
-    fd.append('ref', ref);
-    fd.append('source_id', sourceId);
-
-    submitBtn.disabled = true;
-    fetch(ubahSumberUrl, {
-      method: 'POST',
-      body: fd,
-      headers: { 'X-Requested-With': 'XMLHttpRequest' },
-      credentials: 'same-origin'
-    })
-      .then(function (r) { return r.json(); })
-      .then(function (res) {
-        if (!res || res.status !== 'success') {
-          toast((res && res.message) || 'Gagal mengubah sumber', 'error');
-          return;
-        }
-        toast(res.message || 'Sumber berhasil diubah', 'success');
-        closeModal('dlvSumberModal');
-
-        var item = null;
-        root.querySelectorAll('.dlv-item').forEach(function (el) {
-          if (el.getAttribute('data-ref') === ref) item = el;
-        });
-        if (item && res.data) {
-          var kode = res.data.source_kode || '-';
-          item.setAttribute('data-source-id', String(res.data.source_id || sourceId));
-          item.setAttribute('data-source-kode', kode);
-          var kodeEl = item.querySelector('.dlv-kode-source');
-          if (kodeEl) kodeEl.textContent = kode;
-        }
-      })
-      .catch(function () { toast('Gagal mengubah sumber', 'error'); })
-      .finally(function () { submitBtn.disabled = false; });
-  }
-
   root.addEventListener('click', function (e) {
     var closeBtn = e.target.closest('[data-op-close]');
     if (closeBtn) {
@@ -1574,14 +1511,6 @@ $isEmptyCustomer = empty($customers);
       loadDetail(cekBtn.getAttribute('data-dlv-cek'), cekBtn);
       return;
     }
-
-    if (!canCek) return;
-
-    var sumberBtn = e.target.closest('[data-dlv-ubah-sumber]');
-    if (sumberBtn && root.contains(sumberBtn)) {
-      e.preventDefault();
-      openUbahSumber(sumberBtn);
-    }
   });
 
   var jenisEl = document.getElementById('dlvSelesaiJenis');
@@ -1601,9 +1530,6 @@ $isEmptyCustomer = empty($customers);
 
   var terimaPakaiConfirmBtn = document.getElementById('dlvTerimaPakaiConfirm');
   if (terimaPakaiConfirmBtn) terimaPakaiConfirmBtn.addEventListener('click', confirmTerimaPakai);
-
-  var form = document.getElementById('dlvSumberForm');
-  if (form) form.addEventListener('submit', submitUbahSumber);
 
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
