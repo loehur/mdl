@@ -1562,9 +1562,17 @@ class J extends Controller
       $api = $this->helper('BiteshipApi');
       $res = $api->rates($payload);
       if (empty($res['ok'])) {
+         $msg = (string) ($res['error'] ?? $res['message'] ?? 'Gagal mengambil tarif Instant');
          echo json_encode([
             'ok' => false,
-            'message' => $res['message'] ?? 'Gagal mengambil tarif Instant',
+            'message' => $msg,
+         ], JSON_UNESCAPED_UNICODE);
+         return;
+      }
+      if (empty($res['rates']) || !is_array($res['rates'])) {
+         echo json_encode([
+            'ok' => false,
+            'message' => 'Tidak ada kurir Instant dari Biteship untuk rute ini. Cek API key / area coverage.',
          ], JSON_UNESCAPED_UNICODE);
          return;
       }

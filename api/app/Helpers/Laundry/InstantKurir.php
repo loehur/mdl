@@ -2,7 +2,7 @@
 
 namespace App\Helpers\Laundry;
 
-use App\Models\Biteship;
+use App\Models\BiteshipClient;
 
 /**
  * Activate / track Instant kurir (delivery_request + Biteship).
@@ -69,7 +69,7 @@ class InstantKurir
             return ['ok' => false, 'message' => $payload['error']];
         }
 
-        $biteship = new Biteship();
+        $biteship = new BiteshipClient();
         $res = $biteship->createOrder($payload);
         $orderId = (string) ($res['id'] ?? '');
         $success = !empty($res['success']) || $orderId !== '';

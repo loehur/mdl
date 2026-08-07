@@ -4,6 +4,7 @@ namespace App\Controllers\Laundry;
 
 use App\Core\Controller;
 use App\Helpers\Laundry\InstantKurir;
+use App\Models\BiteshipClient;
 
 /**
  * Biteship proxy for laundry Instant kurir
@@ -13,84 +14,104 @@ class Biteship extends Controller
 {
     /**
      * POST /Laundry/Biteship/rates
-     * Body: origin_latitude, origin_longitude, destination_latitude, destination_longitude,
-     *       items? (optional), courier_type? filter
      */
     public function rates()
     {
         $this->handleCors();
         header('Content-Type: application/json; charset=utf-8');
 
-        if (!$this->isPost()) {
-            http_response_code(405);
-            echo json_encode(['ok' => false, 'message' => 'Method not allowed']);
-            return;
-        }
+        // Ubah warning/notice jadi exception agar UI dapat pesan nyata (bukan "PHP Error")
+        set_error_handler(static function ($errno, $errstr, $errfile, $errline) {
+            if (!(error_reporting() & $errno)) {
+                return false;
+            }
+            throw new \ErrorException($errstr, 0, $errno, $errfile, $errline);
+        });
 
-        $body = $this->getBody();
-        $oLat = (float) ($body['origin_latitude'] ?? 0);
-        $oLon = (float) ($body['origin_longitude'] ?? 0);
-        $dLat = (float) ($body['destination_latitude'] ?? 0);
-        $dLon = (float) ($body['destination_longitude'] ?? 0);
+        try {
+            if (!$this->isPost()) {
+                http_response_code(405);
+                echo json_encode(['ok' => false, 'message' => 'Method not allowed']);
+                return;
+            }
 
-        if (($oLat == 0.0 && $oLon == 0.0) || ($dLat == 0.0 && $dLon == 0.0)) {
-            http_response_code(400);
-            echo json_encode(['ok' => false, 'message' => 'Koordinat origin/destination wajib']);
-            return;
-        }
+            $body = $this->getBody();
+            if (!is_array($body)) {
+                $body = [];
+            }
+            $oLat = (float) ($body['origin_latitude'] ?? 0);
+            $oLon = (float) ($body['origin_longitude'] ?? 0);
+            $dLat = (float) ($body['destination_latitude'] ?? 0);
+            $dLon = (float) ($body['destination_longitude'] ?? 0);
 
-        $items = $body['items'] ?? null;
-        if (!is_array($items) || empty($items)) {
-            $items = [[
-                'name' => 'Laundry',
-                'description' => 'Paket laundry',
-                'value' => 50000,
-                'quantity' => 1,
-                'weight' => 1000,
-            ]];
-        }
+            if (($oLat == 0.0 && $oLon == 0.0) || ($dLat == 0.0 && $dLon == 0.0)) {
+                http_response_code(400);
+                echo json_encode(['ok' => false, 'message' => 'Koordinat origin/destination wajib']);
+                return;
+            }
 
-        $payload = [
-            'origin_latitude' => $oLat,
-            'origin_longitude' => $oLon,
-            'destination_latitude' => $dLat,
-            'destination_longitude' => $dLon,
-            // Instant / same-day bike couriers (coordinate-based)
-            'couriers' => $body['couriers'] ?? 'grab,gojek,paxel,lalamove,borzo,maxim,deliveree',
-            'items' => $items,
-        ];
+            $items = $body['items'] ?? null;
+            if (!is_array($items) || empty($items)) {
+                $items = [[
+                    'name' => 'Laundry',
+                    'description' => 'Paket laundry',
+                    'value' => 50000,
+                    'quantity' => 1,
+                    'weight' => 1000,
+                ]];
+            }
 
-        $client = new \App\Models\Biteship();
-        $res = $client->getRates($payload);
-        if (empty($res['success']) && empty($res['pricing'])) {
-            http_response_code(502);
+            $payload = [
+                'origin_latitude' => $oLat,
+                'origin_longitude' => $oLon,
+                'destination_latitude' => $dLat,
+                'destination_longitude' => $dLon,
+                'couriers' => $body['couriers'] ?? 'grab,gojek,paxel,lalamove,borzo,maxim,deliveree',
+                'items' => $items,
+            ];
+
+            $client = new BiteshipClient();
+            $res = $client->getRates($payload);
+            if (empty($res['success']) && empty($res['pricing'])) {
+                $msg = (string) ($res['message'] ?? $res['error'] ?? 'Gagal mengambil tarif Biteship');
+                if (stripos($msg, 'authorization') !== false || stripos($msg, 'unauthorized') !== false) {
+                    $msg = 'Biteship auth gagal — cek BITESHIP_API_KEY di Env API';
+                }
+                http_response_code(502);
+                echo json_encode([
+                    'ok' => false,
+                    'message' => $msg,
+                    'http_code' => $res['http_code'] ?? null,
+                ]);
+                return;
+            }
+
+            $pricing = is_array($res['pricing'] ?? null) ? $res['pricing'] : [];
+            $instant = InstantKurir::filterInstantPricing($pricing);
+
+            echo json_encode([
+                'ok' => true,
+                'rates' => $instant,
+                'count' => count($instant),
+                'pricing_total' => count($pricing),
+                'source' => 'biteship',
+            ], JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            \Log::write('Biteship rates err: ' . $e->getMessage(), 'api', 'Biteship');
+            http_response_code(500);
             echo json_encode([
                 'ok' => false,
-                'message' => $res['message'] ?? $res['error'] ?? 'Gagal mengambil tarif Biteship',
-                'raw' => $res,
-            ]);
-            return;
+                'message' => $e->getMessage(),
+                'file' => basename($e->getFile()),
+                'line' => $e->getLine(),
+            ], JSON_UNESCAPED_UNICODE);
+        } finally {
+            restore_error_handler();
         }
-
-        $pricing = is_array($res['pricing'] ?? null) ? $res['pricing'] : [];
-        $instant = InstantKurir::filterInstantPricing($pricing);
-
-        // Jika filter kosong tapi Biteship mengembalikan pricing, jangan fallback ke tarif jarak —
-        // kembalikan semua pricing agar debug/ops bisa lihat, tapi tandai filtered=0
-        echo json_encode([
-            'ok' => true,
-            'rates' => $instant,
-            'count' => count($instant),
-            'pricing_total' => count($pricing),
-            'source' => 'biteship',
-        ], JSON_UNESCAPED_UNICODE);
     }
 
     /**
      * POST /Laundry/Biteship/activate
-     * Internal: after QRIS paid — create Biteship order for jt=10 kas
-     * Auth: ?secret= or X-Cron-Secret
-     * Body: ref_finance OR id_request
      */
     public function activate()
     {
@@ -101,46 +122,55 @@ class Biteship extends Controller
             return;
         }
 
-        $body = $this->getBody();
-        if (empty($body) && $this->isPost()) {
-            $body = $_POST;
-        }
+        try {
+            $body = $this->getBody();
+            if (empty($body) && $this->isPost()) {
+                $body = $_POST;
+            }
+            if (!is_array($body)) {
+                $body = [];
+            }
 
-        $db = $this->db(1);
-        if (!$db) {
+            $db = $this->db(1);
+            if (!$db) {
+                http_response_code(500);
+                echo json_encode(['ok' => false, 'message' => 'DB error']);
+                return;
+            }
+
+            $refFinance = trim((string) ($body['ref_finance'] ?? $_GET['ref_finance'] ?? ''));
+            $idRequest = (int) ($body['id_request'] ?? $_GET['id_request'] ?? 0);
+
+            $kas = null;
+            if ($refFinance !== '') {
+                $kas = $db->get_where('kas', ['ref_finance' => $refFinance])->row_array();
+            }
+            if (!$kas && $idRequest > 0) {
+                $kas = $db->get_where('kas', [
+                    'jenis_transaksi' => InstantKurir::JENIS_TRANSAKSI,
+                    'ref_transaksi' => (string) $idRequest,
+                ])->row_array();
+            }
+
+            if (!$kas) {
+                http_response_code(404);
+                echo json_encode(['ok' => false, 'message' => 'Kas Instant tidak ditemukan']);
+                return;
+            }
+
+            if ((int) ($kas['status_mutasi'] ?? 0) !== 3) {
+                http_response_code(400);
+                echo json_encode(['ok' => false, 'message' => 'Kas belum lunas']);
+                return;
+            }
+
+            $result = InstantKurir::activateAfterPayment($db, $kas);
+            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            \Log::write('Biteship activate err: ' . $e->getMessage(), 'api', 'Biteship');
             http_response_code(500);
-            echo json_encode(['ok' => false, 'message' => 'DB error']);
-            return;
+            echo json_encode(['ok' => false, 'message' => $e->getMessage()]);
         }
-
-        $refFinance = trim((string) ($body['ref_finance'] ?? $_GET['ref_finance'] ?? ''));
-        $idRequest = (int) ($body['id_request'] ?? $_GET['id_request'] ?? 0);
-
-        $kas = null;
-        if ($refFinance !== '') {
-            $kas = $db->get_where('kas', ['ref_finance' => $refFinance])->row_array();
-        }
-        if (!$kas && $idRequest > 0) {
-            $kas = $db->get_where('kas', [
-                'jenis_transaksi' => InstantKurir::JENIS_TRANSAKSI,
-                'ref_transaksi' => (string) $idRequest,
-            ])->row_array();
-        }
-
-        if (!$kas) {
-            http_response_code(404);
-            echo json_encode(['ok' => false, 'message' => 'Kas Instant tidak ditemukan']);
-            return;
-        }
-
-        if ((int) ($kas['status_mutasi'] ?? 0) !== 3) {
-            http_response_code(400);
-            echo json_encode(['ok' => false, 'message' => 'Kas belum lunas']);
-            return;
-        }
-
-        $result = InstantKurir::activateAfterPayment($db, $kas);
-        echo json_encode($result, JSON_UNESCAPED_UNICODE);
     }
 
     /**
@@ -156,9 +186,16 @@ class Biteship extends Controller
             echo json_encode(['ok' => false, 'message' => 'Order id wajib']);
             return;
         }
-        $client = new \App\Models\Biteship();
-        $res = $client->getOrder($id);
-        echo json_encode(['ok' => !empty($res['success']) || !empty($res['id']), 'data' => $res], JSON_UNESCAPED_UNICODE);
+        try {
+            $client = new BiteshipClient();
+            $res = $client->getOrder($id);
+            echo json_encode([
+                'ok' => !empty($res['success']) || !empty($res['id']),
+                'data' => $res,
+            ], JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            echo json_encode(['ok' => false, 'message' => $e->getMessage()]);
+        }
     }
 
     private function verifyInternalSecret(): bool
