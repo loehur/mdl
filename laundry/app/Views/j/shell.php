@@ -356,16 +356,23 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
         <button type="button" class="j-sheet-close" data-bs-dismiss="modal" aria-label="Close"><i class="fas fa-times"></i></button>
       </div>
       <div class="j-sheet-body">
-        <p class="j-sheet-desc" style="margin-top:0">Ongkir sesuai tarif Gojek/Grab. Bayar via QRIS sebelum order jalan.</p>
+        <p class="j-sheet-desc" style="margin-top:0">Ongkir sesuai tarif Gojek/Grab. Bayar dulu sebelum order jalan.</p>
         <div class="j-kurir-lokasi-chosen" id="jKurirCourierLokasi"></div>
         <div class="j-kurir-sales" id="jKurirCourierBox">
           <div class="j-kurir-sales-empty">Memuat kurir…</div>
+        </div>
+        <div class="j-field" id="jKurirCourierPayWrap" style="margin-top:12px;display:none">
+          <label class="j-field-label" for="jKurirCourierMetode">Metode pembayaran</label>
+          <select id="jKurirCourierMetode" class="j-select">
+            <option value="QRIS">QRIS</option>
+          </select>
+          <p class="j-sheet-desc" id="jKurirCourierSaldoHint" style="margin:6px 0 0"></p>
         </div>
       </div>
       <div class="j-sheet-foot">
         <button type="button" class="j-sheet-btn ghost" data-bs-dismiss="modal">Batal</button>
         <button type="button" class="j-sheet-btn primary" id="jBtnSubmitKurirCourier" disabled>
-          <i class="fas fa-qrcode"></i> Bayar ongkir
+          <i class="fas fa-wallet"></i> <span id="jBtnSubmitKurirCourierLabel">Bayar ongkir</span>
         </button>
       </div>
     </div>
@@ -376,7 +383,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="<?= URL::EX_ASSETS ?>js/qrcode.min.js"></script>
 <script src="<?= URL::EX_ASSETS ?>js/html2canvas.min.js"></script>
-<script src="<?= $assets ?>js/j-customer.js?v=18"></script>
+<script src="<?= $assets ?>js/j-customer.js?v=19"></script>
 <script src="<?= $assets ?>js/j-payment.js?v=5"></script>
 <script>
 if ('serviceWorker' in navigator) {

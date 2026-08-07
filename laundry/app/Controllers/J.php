@@ -413,6 +413,7 @@ class J extends Controller
 
          case 'kurir':
             $payload['pendingKurir'] = $this->getPendingKurirRequests($pelanggan);
+            $payload['saldoTunai'] = $this->getSaldoTunai($pelanggan);
             $this->view('j/partials/kurir', $payload);
             break;
 
@@ -1584,6 +1585,7 @@ class J extends Controller
          'rates' => $res['rates'] ?? [],
          'jenis' => $jenis,
          'id_lokasi' => $idLokasi,
+         'saldoTunai' => (int) round($this->getSaldoTunai($pelanggan)),
       ], JSON_UNESCAPED_UNICODE);
    }
 
@@ -1602,6 +1604,10 @@ class J extends Controller
       $courierType = trim((string) ($_POST['courier_type'] ?? ''));
       $courierName = trim((string) ($_POST['courier_name'] ?? ''));
       $ongkir = (int) ($_POST['ongkir'] ?? 0);
+      $metodeBayar = strtoupper(trim((string) ($_POST['metode'] ?? 'QRIS')));
+      if ($metodeBayar !== 'SALDO') {
+         $metodeBayar = 'QRIS';
+      }
       $idsRaw = $_POST['ids'] ?? [];
       if (!is_array($idsRaw)) {
          $idsRaw = [$idsRaw];
@@ -1809,6 +1815,77 @@ class J extends Controller
 
       $refFinance = date('YmdHis') . rand(0, 9) . rand(0, 9) . rand(0, 9);
       $idKas = (date('Y') - 2020) . substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 6);
+      $label = $jenis === 'antar' ? 'Antar' : 'Jemput';
+
+      if ($metodeBayar === 'SALDO') {
+         $saldoNow = (int) round($this->getSaldoTunai($pelanggan));
+         if ($saldoNow < $ongkir) {
+            $this->db(0)->update(
+               'delivery_request',
+               [
+                  'delivery_status' => 'batal',
+                  'catatan_batal' => 'Saldo tidak cukup',
+                  'selesaiTime' => $now,
+               ],
+               'id_request = ' . $idRequest
+            );
+            echo json_encode([
+               'ok' => false,
+               'message' => 'Saldo Deposit tidak cukup. Saldo Rp' . number_format($saldoNow, 0, ',', '.')
+                  . ', ongkir Rp' . number_format($ongkir, 0, ',', '.') . '.',
+            ]);
+            return;
+         }
+
+         // Potong saldo: metode_mutasi=3, jenis_mutasi=2, status lunas (seperti Tagihan)
+         $kasIns = $this->db(0)->insert('kas', [
+            'id_kas' => $idKas,
+            'id_cabang' => (int) $this->id_cabang_p,
+            'jenis_mutasi' => 2,
+            'jenis_transaksi' => 10,
+            'metode_mutasi' => 3,
+            'note' => 'SALDO',
+            'status_mutasi' => 3,
+            'jumlah' => $ongkir,
+            'id_user' => 0,
+            'id_client' => (int) $pelanggan,
+            'ref_transaksi' => (string) $idRequest,
+            'ref_finance' => $refFinance,
+         ]);
+         if (is_array($kasIns) && isset($kasIns['errno']) && (int) $kasIns['errno'] !== 0) {
+            $this->db(0)->update(
+               'delivery_request',
+               ['delivery_status' => 'batal', 'catatan_batal' => 'Gagal potong saldo', 'selesaiTime' => $now],
+               'id_request = ' . $idRequest
+            );
+            echo json_encode(['ok' => false, 'message' => $kasIns['error'] ?? 'Gagal memotong Saldo Deposit']);
+            return;
+         }
+
+         $this->db(0)->update(
+            'delivery_request',
+            ['payment_ref_finance' => $refFinance],
+            'id_request = ' . $idRequest
+         );
+
+         $activate = $this->helper('BiteshipApi')->activate(['ref_finance' => $refFinance]);
+         $okAct = !empty($activate['ok']);
+         echo json_encode([
+            'ok' => true,
+            'message' => $okAct
+               ? "Pembayaran Saldo berhasil. Permintaan $label Instant diproses."
+               : "Pembayaran Saldo berhasil. Order Instant sedang diproses.",
+            'id_request' => $idRequest,
+            'ref_finance' => $refFinance,
+            'ongkir' => $ongkir,
+            'note' => 'SALDO',
+            'paid' => true,
+            'pay' => false,
+            'activate' => $activate,
+         ], JSON_UNESCAPED_UNICODE);
+         return;
+      }
+
       $kasIns = $this->db(0)->insert('kas', [
          'id_kas' => $idKas,
          'id_cabang' => (int) $this->id_cabang_p,
@@ -1839,7 +1916,6 @@ class J extends Controller
          'id_request = ' . $idRequest
       );
 
-      $label = $jenis === 'antar' ? 'Antar' : 'Jemput';
       echo json_encode([
          'ok' => true,
          'message' => "Permintaan $label Instant dibuat. Lanjutkan pembayaran ongkir.",
@@ -1848,6 +1924,94 @@ class J extends Controller
          'ongkir' => $ongkir,
          'note' => 'QRIS',
          'pay' => true,
+         'paid' => false,
+      ], JSON_UNESCAPED_UNICODE);
+   }
+
+   /**
+    * Bayar Instant menunggu_pembayaran pakai Saldo Deposit.
+    */
+   public function kurirInstantPaySaldo($pelanggan)
+   {
+      header('Content-Type: application/json; charset=utf-8');
+      $pelanggan = $this->bootCustomer($pelanggan);
+      $idRequest = (int) ($_POST['id_request'] ?? 0);
+      if ($idRequest <= 0) {
+         echo json_encode(['ok' => false, 'message' => 'Request tidak valid']);
+         return;
+      }
+
+      $req = $this->db(0)->get_where_row(
+         'delivery_request',
+         'id_request = ' . $idRequest
+            . ' AND id_pelanggan = ' . (int) $pelanggan
+            . " AND layanan = 'instant' AND delivery_status = 'menunggu_pembayaran'"
+      );
+      if (!is_array($req) || empty($req['id_request'])) {
+         echo json_encode(['ok' => false, 'message' => 'Request tidak ditemukan atau sudah dibayar']);
+         return;
+      }
+
+      $ongkir = (int) ($req['ongkir'] ?? 0);
+      if ($ongkir < 1000) {
+         echo json_encode(['ok' => false, 'message' => 'Ongkir tidak valid']);
+         return;
+      }
+
+      $saldoNow = (int) round($this->getSaldoTunai($pelanggan));
+      if ($saldoNow < $ongkir) {
+         echo json_encode([
+            'ok' => false,
+            'message' => 'Saldo Deposit tidak cukup. Saldo Rp' . number_format($saldoNow, 0, ',', '.')
+               . ', ongkir Rp' . number_format($ongkir, 0, ',', '.') . '.',
+         ]);
+         return;
+      }
+
+      $refOld = trim((string) ($req['payment_ref_finance'] ?? ''));
+      if ($refOld !== '') {
+         $this->db(0)->delete(
+            'kas',
+            "ref_finance = '" . $this->db(0)->escape($refOld)
+               . "' AND jenis_transaksi = 10 AND status_mutasi = 2"
+         );
+      }
+
+      $refFinance = date('YmdHis') . rand(0, 9) . rand(0, 9) . rand(0, 9);
+      $idKas = (date('Y') - 2020) . substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 6);
+      $kasIns = $this->db(0)->insert('kas', [
+         'id_kas' => $idKas,
+         'id_cabang' => (int) $this->id_cabang_p,
+         'jenis_mutasi' => 2,
+         'jenis_transaksi' => 10,
+         'metode_mutasi' => 3,
+         'note' => 'SALDO',
+         'status_mutasi' => 3,
+         'jumlah' => $ongkir,
+         'id_user' => 0,
+         'id_client' => (int) $pelanggan,
+         'ref_transaksi' => (string) $idRequest,
+         'ref_finance' => $refFinance,
+      ]);
+      if (is_array($kasIns) && isset($kasIns['errno']) && (int) $kasIns['errno'] !== 0) {
+         echo json_encode(['ok' => false, 'message' => $kasIns['error'] ?? 'Gagal memotong Saldo Deposit']);
+         return;
+      }
+
+      $this->db(0)->update(
+         'delivery_request',
+         ['payment_ref_finance' => $refFinance],
+         'id_request = ' . $idRequest
+      );
+
+      $activate = $this->helper('BiteshipApi')->activate(['ref_finance' => $refFinance]);
+      echo json_encode([
+         'ok' => true,
+         'message' => !empty($activate['ok'])
+            ? 'Pembayaran Saldo berhasil. Order Instant diproses.'
+            : 'Pembayaran Saldo berhasil. Order Instant sedang diproses.',
+         'paid' => true,
+         'activate' => $activate,
       ], JSON_UNESCAPED_UNICODE);
    }
 

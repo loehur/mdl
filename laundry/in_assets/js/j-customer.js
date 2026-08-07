@@ -569,6 +569,64 @@
   var kurirSelectedCourier = null;
   var kurirPendingIds = [];
   var kurirInstantPoll = null;
+  var kurirSaldoTunai = 0;
+
+  function getKurirSaldo() {
+    try {
+      var el = document.getElementById('jKurirConfig');
+      if (el) {
+        var cfg = JSON.parse(el.textContent || '{}');
+        if (cfg && cfg.saldoTunai != null) return parseInt(cfg.saldoTunai, 10) || 0;
+      }
+    } catch (e) {}
+    return kurirSaldoTunai || 0;
+  }
+
+  function syncKurirPayMetode() {
+    var wrap = document.getElementById('jKurirCourierPayWrap');
+    var sel = document.getElementById('jKurirCourierMetode');
+    var hint = document.getElementById('jKurirCourierSaldoHint');
+    var btnIco = document.querySelector('#jBtnSubmitKurirCourier i');
+    var btnLbl = document.getElementById('jBtnSubmitKurirCourierLabel');
+    var saldo = getKurirSaldo();
+    var price = kurirSelectedCourier ? Number(kurirSelectedCourier.price || 0) : 0;
+    if (!wrap || !sel) return;
+
+    var prev = sel.value || '';
+    var touched = sel.getAttribute('data-touched') === '1';
+    sel.innerHTML = '';
+    var canSaldo = saldo > 0 && price > 0 && saldo >= price;
+    if (canSaldo) {
+      var optS = document.createElement('option');
+      optS.value = 'SALDO';
+      optS.textContent = 'Saldo Deposit (Rp' + saldo.toLocaleString('id-ID') + ')';
+      sel.appendChild(optS);
+    }
+    var optQ = document.createElement('option');
+    optQ.value = 'QRIS';
+    optQ.textContent = 'QRIS';
+    sel.appendChild(optQ);
+
+    if (canSaldo && !(touched && prev === 'QRIS')) sel.value = 'SALDO';
+    else sel.value = 'QRIS';
+
+    wrap.style.display = kurirSelectedCourier ? '' : 'none';
+    if (hint) {
+      if (saldo > 0 && price > 0 && saldo < price) {
+        hint.textContent =
+          'Saldo Deposit Rp' +
+          saldo.toLocaleString('id-ID') +
+          ' kurang dari ongkir. Gunakan QRIS.';
+      } else if (canSaldo) {
+        hint.textContent = 'Bisa bayar pakai Saldo Deposit atau QRIS.';
+      } else {
+        hint.textContent = '';
+      }
+    }
+    var metode = sel.value;
+    if (btnIco) btnIco.className = metode === 'SALDO' ? 'fas fa-wallet' : 'fas fa-qrcode';
+    if (btnLbl) btnLbl.textContent = metode === 'SALDO' ? 'Bayar Saldo' : 'Bayar QRIS';
+  }
 
   function layananLabel() {
     return kurirPendingLayanan === 'instant' ? 'Instant (Gojek/Grab)' : 'Sameday (Kurir Laundry)';
@@ -689,6 +747,7 @@
     if (!box) return;
     if (!rates || !rates.length) {
             box.innerHTML = '<div class="j-kurir-sales-empty">Tidak ada kurir Instant tersedia untuk rute ini.</div>';
+      syncKurirPayMetode();
       return;
     }
     box.innerHTML = rates
@@ -723,8 +782,10 @@
         var i = parseInt(inp.value, 10);
         kurirSelectedCourier = (box._rates && box._rates[i]) || null;
         if (btn) btn.disabled = !kurirSelectedCourier;
+        syncKurirPayMetode();
       });
     });
+    syncKurirPayMetode();
   }
 
   function openKurirCourierModal() {
@@ -732,6 +793,10 @@
     if (lokBox) lokBox.innerHTML = lokasiLabelHtml(kurirSelectedLokasi);
     var box = document.getElementById('jKurirCourierBox');
     if (box) box.innerHTML = '<div class="j-kurir-sales-empty"><i class="fas fa-spinner fa-spin"></i> Memuat kurir…</div>';
+    var payWrap = document.getElementById('jKurirCourierPayWrap');
+    if (payWrap) payWrap.style.display = 'none';
+    var metodeSel = document.getElementById('jKurirCourierMetode');
+    if (metodeSel) metodeSel.removeAttribute('data-touched');
     showModal('jModalKurirCourier');
     var qs =
       'id_lokasi=' +
@@ -751,6 +816,7 @@
         if (!data || !data.ok) {
           throw new Error((data && data.message) || 'Gagal memuat kurir');
         }
+        if (data.saldoTunai != null) kurirSaldoTunai = parseInt(data.saldoTunai, 10) || 0;
         renderKurirCouriers(data.rates || []);
       })
       .catch(function (err) {
@@ -773,6 +839,17 @@
       toast('Pilih kurir Instant dulu', 'warn');
       return;
     }
+    var metodeEl = document.getElementById('jKurirCourierMetode');
+    var metode = (metodeEl && metodeEl.value) || 'QRIS';
+    if (metode !== 'SALDO') metode = 'QRIS';
+    var ongkir = Number(kurirSelectedCourier.price || 0);
+    if (metode === 'SALDO') {
+      var saldo = getKurirSaldo();
+      if (saldo < ongkir) {
+        toast('Saldo Deposit tidak cukup untuk ongkir ini', 'warn');
+        return;
+      }
+    }
     kurirBusy = true;
     if (btn) btn.disabled = true;
 
@@ -782,7 +859,8 @@
     body.set('courier_company', String(kurirSelectedCourier.courier_company || ''));
     body.set('courier_type', String(kurirSelectedCourier.courier_type || ''));
     body.set('courier_name', String(kurirSelectedCourier.courier_name || ''));
-    body.set('ongkir', String(kurirSelectedCourier.price || 0));
+    body.set('ongkir', String(ongkir));
+    body.set('metode', metode);
     (ids || []).forEach(function (id) {
       body.append('ids[]', id);
     });
@@ -809,15 +887,16 @@
         hideModal('jModalKurirAntar');
         hideModal('jModalKurirJemput');
         hideModal('jModalKurirLokasi');
-        toast(data.message || 'Lanjutkan pembayaran', 'ok');
+        toast(data.message || 'Berhasil', 'ok');
         var ref = data.ref_finance;
-        var total = data.ongkir || (kurirSelectedCourier && kurirSelectedCourier.price) || 0;
+        var total = data.ongkir || ongkir;
+        var paid = !!(data.paid || data.note === 'SALDO');
         kurirSelectedLokasi = null;
         kurirSelectedCourier = null;
         kurirPendingJenis = '';
         kurirPendingLayanan = 'sameday';
         kurirPendingIds = [];
-        if (ref) {
+        if (!paid && data.pay && ref) {
           openInstantQr(ref, total);
         } else {
           loadPage('kurir', '', false);
@@ -1315,6 +1394,51 @@
   });
 
   document.addEventListener('click', function (e) {
+    var paySaldoBtn = e.target.closest('.j-kurir-pay-saldo-instant');
+    if (paySaldoBtn && content.contains(paySaldoBtn)) {
+      e.preventDefault();
+      var idReqSaldo = paySaldoBtn.getAttribute('data-id-request');
+      var totalSaldo = paySaldoBtn.getAttribute('data-total') || '0';
+      if (!idReqSaldo) return;
+      if (
+        !window.confirm(
+          'Bayar ongkir Instant Rp' +
+            Number(totalSaldo).toLocaleString('id-ID') +
+            ' pakai Saldo Deposit?'
+        )
+      ) {
+        return;
+      }
+      paySaldoBtn.disabled = true;
+      var bodySaldo = new URLSearchParams();
+      bodySaldo.set('id_request', String(idReqSaldo));
+      fetch(base + 'J/kurirInstantPaySaldo/' + pelangganId, {
+        method: 'POST',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        credentials: 'same-origin',
+        body: bodySaldo.toString(),
+      })
+        .then(function (res) {
+          return res.json().catch(function () {
+            throw new Error('Respons tidak valid');
+          });
+        })
+        .then(function (data) {
+          if (!data || !data.ok) {
+            throw new Error((data && data.message) || 'Gagal bayar Saldo');
+          }
+          toast(data.message || 'Pembayaran Saldo berhasil', 'ok');
+          loadPage('kurir', '', false);
+        })
+        .catch(function (err) {
+          toast((err && err.message) || 'Gagal bayar Saldo', 'warn');
+          paySaldoBtn.disabled = false;
+        });
+      return;
+    }
     var payBtn = e.target.closest('.j-kurir-pay-instant');
     if (payBtn && content.contains(payBtn)) {
       e.preventDefault();
@@ -1436,6 +1560,13 @@
     e.preventDefault();
     var ids = kurirPendingJenis === 'antar' ? kurirPendingIds || [] : [];
     submitKurirInstant(kurirPendingJenis, ids, btn);
+  });
+
+  document.addEventListener('change', function (e) {
+    if (e.target && e.target.id === 'jKurirCourierMetode') {
+      e.target.setAttribute('data-touched', '1');
+      syncKurirPayMetode();
+    }
   });
 
   var lokasiModal = document.getElementById('jModalKurirLokasi');

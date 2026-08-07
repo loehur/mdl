@@ -3,7 +3,11 @@ $p = $data['data_pelanggan'];
 $id = (int) $p['id_pelanggan'];
 $base = $data['base'];
 $pending = is_array($data['pendingKurir'] ?? null) ? $data['pendingKurir'] : [];
+$saldoTunai = (int) round((float) ($data['saldoTunai'] ?? 0));
 ?>
+<script type="application/json" id="jKurirConfig"><?= json_encode([
+  'saldoTunai' => $saldoTunai,
+], JSON_UNESCAPED_UNICODE) ?></script>
 
 <?php if (!empty($pending)) { ?>
 <section class="j-section j-kurir-pending">
@@ -42,8 +46,16 @@ $pending = is_array($data['pendingKurir'] ?? null) ? $data['pendingKurir'] : [];
           <small><?= htmlspecialchars($meta . ' · ' . $when, ENT_QUOTES, 'UTF-8') ?><?= $lokNama !== '' ? ' · ' . htmlspecialchars($lokNama, ENT_QUOTES, 'UTF-8') : '' ?></small>
           <?php if ($isPay && $refPay !== '') { ?>
             <div class="j-kurir-pending-actions" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+              <?php if ($saldoTunai >= $ongkir && $ongkir > 0) { ?>
               <button type="button"
-                      class="j-btn j-btn-primary j-kurir-pay-instant"
+                      class="j-btn j-btn-primary j-kurir-pay-saldo-instant"
+                      data-id-request="<?= $idReq ?>"
+                      data-total="<?= (int) $ongkir ?>">
+                <i class="fas fa-wallet"></i> Bayar Saldo
+              </button>
+              <?php } ?>
+              <button type="button"
+                      class="j-btn <?= ($saldoTunai >= $ongkir && $ongkir > 0) ? 'j-btn-soft' : 'j-btn-primary' ?> j-kurir-pay-instant"
                       data-ref="<?= htmlspecialchars($refPay, ENT_QUOTES, 'UTF-8') ?>"
                       data-total="<?= (int) $ongkir ?>"
                       data-note="QRIS">
@@ -71,9 +83,6 @@ $pending = is_array($data['pendingKurir'] ?? null) ? $data['pendingKurir'] : [];
 <?php } ?>
 
 <section class="j-section j-kurir">
-  <div class="j-section-head">
-    <h2>Opsi pengantaran</h2>
-  </div>
 
   <!-- Sameday -->
   <article class="j-kurir-card j-kurir-card--primary">
@@ -185,6 +194,6 @@ $pending = is_array($data['pendingKurir'] ?? null) ? $data['pendingKurir'] : [];
   <p class="j-kurir-note">
     <strong>Antar</strong> — Mengantar Pakaian dari Laundry ke Lokasi Anda.<br>
     <strong>Jemput</strong> — Menjemput Pakaian dari Lokasi Anda dan dikirimkan ke Laundry.<br>
-    <strong>Instant</strong> — ongkir sesuai tarif Gojek/Grab.
+    <strong>Instant</strong> — ongkir sesuai tarif Gojek/Grab; bisa bayar Saldo Deposit atau QRIS.
   </p>
 </section>
