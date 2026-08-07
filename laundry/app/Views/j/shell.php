@@ -27,7 +27,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/fontawesome-free-5.15.4-web/css/all.css">
   <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/css/bootstrap.min.css">
-  <link rel="stylesheet" href="<?= $assets ?>css/j-customer.css?v=44">
+  <link rel="stylesheet" href="<?= $assets ?>css/j-customer.css?v=45">
 </head>
 <body>
 <div class="j-app"
@@ -239,10 +239,56 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
   </div>
 </div>
 
+<!-- Modal Kurir Antar: pilih item -->
+<div class="modal fade" id="jModalKurirAntar" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content j-sheet">
+      <div class="j-sheet-head">
+        <div>
+          <p class="j-sheet-kicker">Sameday</p>
+          <h5 class="j-sheet-title">Antar laundry</h5>
+        </div>
+        <button type="button" class="j-sheet-close" data-bs-dismiss="modal" aria-label="Close"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="j-sheet-body">
+        <p class="j-sheet-desc" style="margin-top:0">Pilih item yang ingin diantar oleh kurir.</p>
+        <div class="j-kurir-sales" id="jKurirSalesBox">
+          <div class="j-kurir-sales-empty">Memuat item…</div>
+        </div>
+      </div>
+      <div class="j-sheet-foot">
+        <button type="button" class="j-sheet-btn ghost" data-bs-dismiss="modal">Batal</button>
+        <button type="button" class="j-sheet-btn primary" id="jBtnSubmitKurirAntar">
+          <i class="fas fa-truck"></i> Kirim permintaan
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Kurir Jemput: konfirmasi -->
+<div class="modal fade" id="jModalKurirJemput" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content j-sheet">
+      <div class="j-sheet-body j-sheet-center" style="padding-top:22px">
+        <div class="j-sheet-ico"><i class="fas fa-hand-holding"></i></div>
+        <h5 class="j-sheet-title" style="margin:0 0 6px">Jemput laundry?</h5>
+        <p class="j-sheet-desc">Kurir akan datang menjemput. Item dipilih petugas saat selesai.</p>
+      </div>
+      <div class="j-sheet-foot">
+        <button type="button" class="j-sheet-btn ghost" data-bs-dismiss="modal">Batal</button>
+        <button type="button" class="j-sheet-btn primary" id="jBtnConfirmKurirJemput">
+          <i class="fas fa-check"></i> Ya, jemput
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/js/bootstrap.bundle.min.js"></script>
 <script src="<?= URL::EX_ASSETS ?>js/qrcode.min.js"></script>
 <script src="<?= URL::EX_ASSETS ?>js/html2canvas.min.js"></script>
-<script src="<?= $assets ?>js/j-customer.js?v=11"></script>
+<script src="<?= $assets ?>js/j-customer.js?v=12"></script>
 <script src="<?= $assets ?>js/j-payment.js?v=5"></script>
 <script>
 if ('serviceWorker' in navigator) {

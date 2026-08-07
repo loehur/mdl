@@ -1761,6 +1761,16 @@ a { color: inherit; text-decoration: none; }
   cursor: not-allowed;
   pointer-events: none;
 }
+.j-kurir .j-kurir-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 4px;
+}
+.j-kurir .j-kurir-act:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
 .j-kurir .j-kurir-note {
   margin: 4px 2px 0;
   font-size: 0.74rem;
@@ -1768,4 +1778,99 @@ a { color: inherit; text-decoration: none; }
   font-weight: 600;
   line-height: 1.4;
   text-align: center;
+}
+
+.j-kurir-pending-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.j-kurir-pending-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, rgba(255, 196, 87, 0.18), rgba(255, 255, 255, 0.9));
+  border: 1px solid rgba(194, 120, 20, 0.22);
+}
+.j-kurir-pending-item__ico {
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff7e8;
+  color: #b45309;
+  flex-shrink: 0;
+}
+.j-kurir-pending-item__text {
+  flex: 1;
+  min-width: 0;
+}
+.j-kurir-pending-item__text strong {
+  display: block;
+  font-size: 0.92rem;
+  color: var(--j-ink);
+}
+.j-kurir-pending-item__text small {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.72rem;
+  color: var(--j-muted);
+  font-weight: 600;
+}
+
+.j-kurir-sales {
+  max-height: min(52vh, 420px);
+  overflow: auto;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  background: #f8fafc;
+}
+.j-kurir-sales-empty {
+  padding: 18px 14px;
+  text-align: center;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--j-muted);
+}
+.j-kurir-sales-group + .j-kurir-sales-group {
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+}
+.j-kurir-sales-group__head {
+  padding: 8px 12px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #475569;
+  background: rgba(15, 23, 42, 0.04);
+}
+.j-kurir-sales-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  margin: 0;
+  cursor: pointer;
+  border-top: 1px solid rgba(15, 23, 42, 0.05);
+  background: #fff;
+}
+.j-kurir-sales-item input {
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+.j-kurir-sales-item__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.j-kurir-sales-item__text strong {
+  font-size: 0.86rem;
+  color: var(--j-ink);
+  font-weight: 700;
+}
+.j-kurir-sales-item__text small {
+  font-size: 0.72rem;
+  color: var(--j-muted);
+  font-weight: 600;
 }

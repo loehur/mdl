@@ -502,6 +502,173 @@
     document.body.style.overflow = '';
   });
 
+  /* ===== Kurir Sameday ===== */
+  var kurirBusy = false;
+
+  function escapeHtmlKurir(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function renderKurirSales(orders) {
+    var box = document.getElementById('jKurirSalesBox');
+    if (!box) return;
+    if (!orders || !orders.length) {
+      box.innerHTML = '<div class="j-kurir-sales-empty">Tidak ada item yang bisa diantar saat ini.</div>';
+      return;
+    }
+    box.innerHTML = orders.map(function (ord) {
+      var items = (ord.items || []).map(function (it) {
+        var status = Number(it.tuntas) === 1 ? 'Tuntas' : 'Proses';
+        return '<label class="j-kurir-sales-item">' +
+          '<input type="checkbox" name="kurir_ids[]" value="' + escapeHtmlKurir(String(it.id)) + '">' +
+          '<span class="j-kurir-sales-item__text">' +
+            '<strong>' + escapeHtmlKurir(it.kategori || '-') +
+              (it.durasi ? ' · ' + escapeHtmlKurir(it.durasi) : '') +
+            '</strong>' +
+            '<small>' + escapeHtmlKurir(it.qty_show || '') +
+              ' · #' + escapeHtmlKurir(String(it.id)) +
+              ' · ' + status +
+            '</small>' +
+          '</span>' +
+        '</label>';
+      }).join('');
+      return '<div class="j-kurir-sales-group">' +
+        '<div class="j-kurir-sales-group__head">#' + escapeHtmlKurir(ord.no_ref || '-') + '</div>' +
+        items +
+      '</div>';
+    }).join('');
+  }
+
+  function loadKurirSalesOptions() {
+    var box = document.getElementById('jKurirSalesBox');
+    if (box) box.innerHTML = '<div class="j-kurir-sales-empty"><i class="fas fa-spinner fa-spin"></i> Memuat item…</div>';
+    return fetch(base + 'J/kurirSalesOptions/' + pelangganId, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      credentials: 'same-origin'
+    })
+      .then(function (res) {
+        return res.json().catch(function () {
+          throw new Error('Respons tidak valid');
+        });
+      })
+      .then(function (data) {
+        if (!data || !data.ok) {
+          throw new Error((data && data.message) || 'Gagal memuat item');
+        }
+        renderKurirSales(data.orders || []);
+      })
+      .catch(function (err) {
+        if (box) {
+          box.innerHTML = '<div class="j-kurir-sales-empty">' +
+            escapeHtmlKurir((err && err.message) || 'Gagal memuat item') +
+            '</div>';
+        }
+      });
+  }
+
+  function submitKurirSameday(jenis, ids, btn) {
+    if (kurirBusy) return;
+    kurirBusy = true;
+    if (btn) btn.disabled = true;
+
+    var body = new URLSearchParams();
+    body.set('jenis', jenis);
+    (ids || []).forEach(function (id) {
+      body.append('ids[]', id);
+    });
+
+    fetch(base + 'J/kurirSamedaySubmit/' + pelangganId, {
+      method: 'POST',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      credentials: 'same-origin',
+      body: body.toString()
+    })
+      .then(function (res) {
+        return res.json().catch(function () {
+          throw new Error('Respons tidak valid');
+        });
+      })
+      .then(function (data) {
+        if (!data || !data.ok) {
+          throw new Error((data && data.message) || 'Gagal mengirim permintaan');
+        }
+        toast(data.message || 'Permintaan dikirim', 'ok');
+        var antarModal = document.getElementById('jModalKurirAntar');
+        var jemputModal = document.getElementById('jModalKurirJemput');
+        if (antarModal && window.bootstrap) {
+          var a = bootstrap.Modal.getInstance(antarModal);
+          if (a) a.hide();
+        }
+        if (jemputModal && window.bootstrap) {
+          var j = bootstrap.Modal.getInstance(jemputModal);
+          if (j) j.hide();
+        }
+        loadPage('kurir', '', false);
+      })
+      .catch(function (err) {
+        toast((err && err.message) || 'Gagal mengirim permintaan', 'warn');
+      })
+      .finally(function () {
+        kurirBusy = false;
+        if (btn) btn.disabled = false;
+      });
+  }
+
+  document.addEventListener('click', function (e) {
+    var act = e.target.closest('.j-kurir-act');
+    if (!act || !content.contains(act)) return;
+    e.preventDefault();
+    if (act.disabled) return;
+
+    var jenis = (act.getAttribute('data-j-kurir-jenis') || '').toLowerCase();
+    if (jenis === 'antar') {
+      loadKurirSalesOptions();
+      var modalEl = document.getElementById('jModalKurirAntar');
+      if (modalEl && window.bootstrap) {
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+      }
+      return;
+    }
+    if (jenis === 'jemput') {
+      var jemputEl = document.getElementById('jModalKurirJemput');
+      if (jemputEl && window.bootstrap) {
+        bootstrap.Modal.getOrCreateInstance(jemputEl).show();
+      } else if (window.confirm('Jemput laundry sekarang?')) {
+        submitKurirSameday('jemput', [], act);
+      }
+    }
+  });
+
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('#jBtnSubmitKurirAntar');
+    if (!btn) return;
+    e.preventDefault();
+    var checks = document.querySelectorAll('#jKurirSalesBox input[name="kurir_ids[]"]:checked');
+    if (!checks.length) {
+      toast('Pilih minimal satu item', 'warn');
+      return;
+    }
+    var ids = [];
+    Array.prototype.forEach.call(checks, function (cb) {
+      ids.push(cb.value);
+    });
+    submitKurirSameday('antar', ids, btn);
+  });
+
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('#jBtnConfirmKurirJemput');
+    if (!btn) return;
+    e.preventDefault();
+    submitKurirSameday('jemput', [], btn);
+  });
+
   var initialPage = app.getAttribute('data-page') || 'home';
   var initialExtra = app.getAttribute('data-extra') || '';
   history.replaceState({ page: initialPage, extra: initialExtra }, '', pageUrl(initialPage, initialExtra));
