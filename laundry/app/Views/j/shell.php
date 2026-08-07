@@ -384,7 +384,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="<?= URL::EX_ASSETS ?>js/qrcode.min.js"></script>
 <script src="<?= URL::EX_ASSETS ?>js/html2canvas.min.js"></script>
-<script src="<?= $assets ?>js/j-customer.js?v=21"></script>
+<script src="<?= $assets ?>js/j-customer.js?v=22"></script>
 <script src="<?= $assets ?>js/j-payment.js?v=5"></script>
 <script>
 if ('serviceWorker' in navigator) {

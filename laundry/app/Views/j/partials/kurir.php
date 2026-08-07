@@ -4,9 +4,16 @@ $id = (int) $p['id_pelanggan'];
 $base = $data['base'];
 $pending = is_array($data['pendingKurir'] ?? null) ? $data['pendingKurir'] : [];
 $saldoTunai = (int) round((float) ($data['saldoTunai'] ?? 0));
+$instantWindow = is_array($data['instantWindow'] ?? null) ? $data['instantWindow'] : [];
+$instantOpen = !empty($instantWindow['ok']);
+$instantMsg = (string) ($instantWindow['message'] ?? '');
+$instantOpenLabel = (string) ($instantWindow['open_label'] ?? '07.00');
+$instantCutoffLabel = (string) ($instantWindow['cutoff_label'] ?? '20.30');
+$instantCloseLabel = (string) ($instantWindow['close_label'] ?? '21.00');
 ?>
 <script type="application/json" id="jKurirConfig"><?= json_encode([
   'saldoTunai' => $saldoTunai,
+  'instantWindow' => $instantWindow,
 ], JSON_UNESCAPED_UNICODE) ?></script>
 
 <?php if (!empty($pending)) { ?>
@@ -173,18 +180,26 @@ $saldoTunai = (int) round((float) ($data['saldoTunai'] ?? 0));
       </div>
     </div>
 
+    <?php if (!$instantOpen && $instantMsg !== '') { ?>
+    <p class="j-kurir-card__lead" style="color:#b42318;margin-top:8px">
+      <?= htmlspecialchars($instantMsg, ENT_QUOTES, 'UTF-8') ?>
+    </p>
+    <?php } ?>
+
     <div class="j-kurir-actions">
       <button type="button"
               class="j-btn j-btn-primary j-kurir-act"
               data-j-kurir-jenis="antar"
-              data-j-kurir-layanan="instant">
+              data-j-kurir-layanan="instant"
+              <?= $instantOpen ? '' : 'disabled' ?>>
         <i class="fas fa-truck"></i>
         Antar
       </button>
       <button type="button"
               class="j-btn j-btn-soft j-kurir-act"
               data-j-kurir-jenis="jemput"
-              data-j-kurir-layanan="instant">
+              data-j-kurir-layanan="instant"
+              <?= $instantOpen ? '' : 'disabled' ?>>
         <i class="fas fa-hand-holding"></i>
         Jemput
       </button>
@@ -195,5 +210,7 @@ $saldoTunai = (int) round((float) ($data['saldoTunai'] ?? 0));
     <strong>Antar</strong> — Mengantar Pakaian dari Laundry ke Lokasi Anda.<br>
     <strong>Jemput</strong> — Menjemput Pakaian dari Lokasi Anda dan dikirimkan ke Laundry.<br>
     <strong>Instant</strong> — ongkir sesuai tarif Gojek/Grab; bisa bayar Saldo Deposit atau QRIS.
+    Tersedia jam operasional <?= htmlspecialchars($instantOpenLabel, ENT_QUOTES, 'UTF-8') ?>–<?= htmlspecialchars($instantCutoffLabel, ENT_QUOTES, 'UTF-8') ?>
+    (paling lambat 30 menit sebelum tutup <?= htmlspecialchars($instantCloseLabel, ENT_QUOTES, 'UTF-8') ?>).
   </p>
 </section>

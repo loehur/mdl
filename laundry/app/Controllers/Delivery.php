@@ -264,8 +264,8 @@ class Delivery extends Controller
          $surcasJemput = null;
          if ($jenis === 'jemput') {
             $jumlahSurcas = (int) ($_POST['jumlah_surcas_jemput'] ?? 0);
-            if ($jumlahSurcas <= 0) {
-               throw new Exception('Isi jumlah Surcas Penjemputan');
+            if ($jumlahSurcas < 0) {
+               throw new Exception('Jumlah Surcas Penjemputan tidak valid');
             }
             $surcasJemput = $this->upsertSurcasPenjemputan(
                $idCabang,
@@ -445,9 +445,14 @@ class Delivery extends Controller
 
          $surcasJemput = null;
          if ($jenis === 'jemput' && $layanan !== 'instant') {
-            $jumlahSurcas = (int) ($req['tarif_surcas'] ?? 0);
-            if ($jumlahSurcas <= 0) {
-               throw new Exception('Tarif surcas penjemputan belum tersedia di request');
+            // Boleh 0 (gratis); default dari tarif request jika POST kosong
+            if (isset($_POST['jumlah_surcas_jemput']) && $_POST['jumlah_surcas_jemput'] !== '') {
+               $jumlahSurcas = (int) $_POST['jumlah_surcas_jemput'];
+            } else {
+               $jumlahSurcas = (int) ($req['tarif_surcas'] ?? 0);
+            }
+            if ($jumlahSurcas < 0) {
+               throw new Exception('Jumlah Surcas Penjemputan tidak valid');
             }
             $surcasJemput = $this->upsertSurcasPenjemputan(
                $idCabang,
@@ -1448,7 +1453,7 @@ class Delivery extends Controller
       int $idDeliveryRequest = 0
    ): array {
       $jumlah = (int) $jumlah;
-      if ($jumlah <= 0) {
+      if ($jumlah < 0) {
          throw new Exception('Jumlah surcas penjemputan tidak valid');
       }
       $noRef = $this->pickRefFromSaleIds($ids);

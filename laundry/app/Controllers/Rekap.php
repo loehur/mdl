@@ -24,7 +24,10 @@ class Rekap extends Controller
 
       $config = $modeConfig[$mode];
       $isDaily = $config['type'] === 'daily';
-      $whereCabang = $config['useCabang'] ? $this->wCabang . " AND " : "";
+      // Laundry-wide: abaikan cabang training (bukan data real)
+      $whereCabang = $config['useCabang']
+         ? $this->wCabang . " AND "
+         : $this->sqlExcludeTrainingCabang('id_cabang');
 
       // Parse date from POST or use current date
       if (isset($_POST['m'])) {
@@ -84,6 +87,10 @@ class Rekap extends Controller
 
          foreach ($listCabang as $cabang) {
             $id_cabang = $cabang['id_cabang'];
+            // Cabang training tidak boleh auto-insert ke Kas Besar
+            if (!empty($cabang['is_training']) || $this->isTrainingCabangId($id_cabang)) {
+               continue;
+            }
             $rent = intval($cabang['rent'] ?? 0);
             if ($rent <= 0) continue;
 
@@ -223,9 +230,13 @@ class Rekap extends Controller
       $gaji = 0;
       $gajiDateCondition = "tgl = '$today'";
       
-      if ($whereCabang == '') {
-         // All branches
-         $gajiSql = "SELECT SUM(jumlah) as total FROM gaji_result WHERE tipe = 1 AND $gajiDateCondition";
+      if (!$config['useCabang']) {
+         // Semua cabang operasional (abaikan karyawan home-cabang training)
+         $exTrainUser = $this->sqlExcludeTrainingCabang('u.id_cabang');
+         $gajiSql = "SELECT SUM(gr.jumlah) as total 
+                     FROM gaji_result gr 
+                     INNER JOIN user u ON gr.id_karyawan = u.id_user 
+                     WHERE {$exTrainUser} gr.tipe = 1 AND $gajiDateCondition";
       } else {
          // Specific branch - use JOIN instead of N+1 queries
          $gajiSql = "SELECT SUM(gr.jumlah) as total 
@@ -244,8 +255,10 @@ class Rekap extends Controller
          ? "DATE(created_at) = '$today'" 
          : "DATE_FORMAT(created_at, '%Y-%m') = '$today'";
       $barangPakaiWhere = "type = 3 AND $barangPakaiDateCondition";
-      if ($whereCabang != '') {
+      if ($config['useCabang']) {
          $barangPakaiWhere = "source_id = " . $this->id_cabang . " AND " . $barangPakaiWhere;
+      } else {
+         $barangPakaiWhere = $this->sqlExcludeTrainingCabang('source_id') . $barangPakaiWhere;
       }
       $barangPakaiSql = "SELECT COALESCE(SUM(price * qty), 0) as total FROM barang_mutasi WHERE $barangPakaiWhere";
       $barangPakaiResult = $this->db(0)->query_array($barangPakaiSql);
@@ -259,8 +272,10 @@ class Rekap extends Controller
          ? "DATE(created_at) = '$today'"
          : "DATE_FORMAT(created_at, '%Y-%m') = '$today'";
       $marginPenjualanWhere = "type = 1 AND state = 1 AND $marginPenjualanDateCondition";
-      if ($whereCabang != '') {
+      if ($config['useCabang']) {
          $marginPenjualanWhere = "source_id = " . $this->id_cabang . " AND " . $marginPenjualanWhere;
+      } else {
+         $marginPenjualanWhere = $this->sqlExcludeTrainingCabang('source_id') . $marginPenjualanWhere;
       }
       $marginPenjualanSql = "SELECT COALESCE(SUM(margin * qty), 0) as total FROM barang_mutasi WHERE $marginPenjualanWhere";
       $marginPenjualanResult = $this->db(0)->query_array($marginPenjualanSql);
@@ -495,7 +510,9 @@ class Rekap extends Controller
          $periodLabel = "$month/$year";
       }
 
-      $whereCabang = $config['useCabang'] ? 'id_cabang = ' . (int) $this->id_cabang . ' AND ' : '';
+      $whereCabang = $config['useCabang']
+         ? 'id_cabang = ' . (int) $this->id_cabang . ' AND '
+         : $this->sqlExcludeTrainingCabang('id_cabang');
       $baseWhere = "{$whereCabang}tr_status = 1 AND bisnis = 'laundry' AND {$dateCondition}";
 
       $preSql = "SELECT id_cabang, COALESCE(SUM(price),0) AS total FROM prepaid WHERE {$baseWhere} GROUP BY id_cabang";
@@ -613,6 +630,8 @@ class Rekap extends Controller
       $where = "type = 1 AND state = 1 AND {$dateCondition}";
       if ($period['source_id'] !== null) {
          $where = 'source_id = ' . (int) $period['source_id'] . ' AND ' . $where;
+      } else {
+         $where = $this->sqlExcludeTrainingCabang('source_id') . $where;
       }
 
       $items = $this->db(0)->get_where('barang_mutasi', $where . ' ORDER BY created_at DESC, ref ASC, id ASC');
@@ -666,6 +685,8 @@ class Rekap extends Controller
       $where = "type = 3 AND {$dateCondition}";
       if ($period['source_id'] !== null) {
          $where = 'source_id = ' . (int) $period['source_id'] . ' AND ' . $where;
+      } else {
+         $where = $this->sqlExcludeTrainingCabang('source_id') . $where;
       }
 
       $items = $this->db(0)->get_where('barang_mutasi', $where . ' ORDER BY created_at DESC, ref ASC, id ASC');
@@ -1031,6 +1052,10 @@ class Rekap extends Controller
       $listCabang = $cabang ? [$cabang] : [];
 
       foreach ($listCabang as $cabangRow) {
+         // Cabang training tidak boleh auto-insert rent ke Kas Besar
+         if (!empty($cabangRow['is_training']) || $this->isTrainingCabangId($id_cabang)) {
+            continue;
+         }
          $rent = intval($cabangRow['rent'] ?? 0);
          if ($rent <= 0) {
             continue;

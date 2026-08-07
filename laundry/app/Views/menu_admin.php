@@ -16,7 +16,8 @@ $menu[1] = [
         'c' => 'Kas_Besar',
         'title' => 'Kas Besar',
         'icon' => 'fas fa-cash-register',
-        'txt' => 'Kas Besar'
+        'txt' => 'Kas Besar',
+        'hide_if_training' => true
     ],
     [
         'c' => '#',

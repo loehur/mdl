@@ -34,26 +34,28 @@ class Kinerja extends Controller
 
       // Escape date untuk query
       $escapedDate = addslashes($date);
+      $exTrain = $this->sqlExcludeTrainingCabang('id_cabang');
+      $exTrainSale = $this->sqlExcludeTrainingCabang('sale.id_cabang');
 
-      // ABSEN - dengan date yang sudah di-escape
+      // ABSEN - dengan date yang sudah di-escape (abaikan cabang training)
       $absen = $this->db(0)->get_cols_where(
          'absen',
          'id_karyawan, SUM(jenis = 0) as cuci, SUM(jenis IN (2,3)) as harian, SUM(jenis = 1) as malam',
-         "tanggal LIKE '{$escapedDate}%' GROUP BY id_karyawan",
+         "{$exTrain}tanggal LIKE '{$escapedDate}%' GROUP BY id_karyawan",
          1,
          'id_karyawan'
       );
 
       // OPERASI JOIN - query $ops_data dihapus karena tidak terpakai
       $join_where = "operasi.id_penjualan = sale.id_penjualan";
-      $where = "sale.bin = 0 AND operasi.insertTime LIKE '{$escapedDate}%'";
+      $where = "{$exTrainSale}sale.bin = 0 AND operasi.insertTime LIKE '{$escapedDate}%'";
       $data_main = $this->db(0)->innerJoin1_where('operasi', 'sale', $join_where, $where);
 
       // PENERIMAAN
       $data_terima = $this->db(0)->get_cols_where(
          'sale',
          'id_user, id_cabang, COUNT(id_user) as terima',
-         "insertTime LIKE '{$escapedDate}%' GROUP BY id_user, id_cabang",
+         "{$exTrain}insertTime LIKE '{$escapedDate}%' GROUP BY id_user, id_cabang",
          1
       );
 
@@ -61,7 +63,7 @@ class Kinerja extends Controller
       $data_kembali = $this->db(0)->get_cols_where(
          'sale',
          'id_user_ambil, id_cabang, COUNT(id_user_ambil) as kembali',
-         "tgl_ambil LIKE '{$escapedDate}%' GROUP BY id_user_ambil, id_cabang",
+         "{$exTrain}tgl_ambil LIKE '{$escapedDate}%' GROUP BY id_user_ambil, id_cabang",
          1
       );
 

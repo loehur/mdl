@@ -1226,6 +1226,20 @@
   function openKurirFlow(jenis, layanan) {
     kurirPendingJenis = jenis;
     kurirPendingLayanan = layanan === 'instant' ? 'instant' : 'sameday';
+    if (kurirPendingLayanan === 'instant') {
+      var win = null;
+      try {
+        var cfgEl = document.getElementById('jKurirConfig');
+        if (cfgEl) {
+          var cfg = JSON.parse(cfgEl.textContent || '{}');
+          win = cfg && cfg.instantWindow ? cfg.instantWindow : null;
+        }
+      } catch (e) {}
+      if (win && win.ok === false) {
+        toast(win.message || 'Kurir Instant di luar jam operasional', 'warn');
+        return;
+      }
+    }
     kurirSelectedLokasi = null;
     kurirSelectedCourier = null;
     kurirPendingIds = [];

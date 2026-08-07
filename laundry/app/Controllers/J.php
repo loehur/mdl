@@ -414,6 +414,7 @@ class J extends Controller
          case 'kurir':
             $payload['pendingKurir'] = $this->getPendingKurirRequests($pelanggan);
             $payload['saldoTunai'] = $this->getSaldoTunai($pelanggan);
+            $payload['instantWindow'] = $this->helper('OperatingHours')->instantOrderStatus();
             $this->view('j/partials/kurir', $payload);
             break;
 
@@ -1652,6 +1653,17 @@ class J extends Controller
    {
       header('Content-Type: application/json; charset=utf-8');
       $pelanggan = $this->bootCustomer($pelanggan);
+
+      $window = $this->helper('OperatingHours')->instantOrderStatus();
+      if (empty($window['ok'])) {
+         echo json_encode([
+            'ok' => false,
+            'message' => $window['message'] ?? 'Kurir Instant di luar jam operasional',
+            'instantWindow' => $window,
+         ], JSON_UNESCAPED_UNICODE);
+         return;
+      }
+
       $idLokasi = (int) ($_GET['id_lokasi'] ?? $_POST['id_lokasi'] ?? 0);
       $jenis = strtolower(trim((string) ($_GET['jenis'] ?? $_POST['jenis'] ?? 'antar')));
       if (!in_array($jenis, ['antar', 'jemput'], true)) {
@@ -1729,6 +1741,16 @@ class J extends Controller
    {
       header('Content-Type: application/json; charset=utf-8');
       $pelanggan = $this->bootCustomer($pelanggan);
+
+      $window = $this->helper('OperatingHours')->instantOrderStatus();
+      if (empty($window['ok'])) {
+         echo json_encode([
+            'ok' => false,
+            'message' => $window['message'] ?? 'Kurir Instant di luar jam operasional',
+            'instantWindow' => $window,
+         ], JSON_UNESCAPED_UNICODE);
+         return;
+      }
 
       $jenis = strtolower(trim((string) ($_POST['jenis'] ?? '')));
       $idLokasi = (int) ($_POST['id_lokasi'] ?? 0);

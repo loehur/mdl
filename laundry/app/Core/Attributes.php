@@ -153,17 +153,58 @@ trait Attributes
      */
     public function getTrainingCabangId()
     {
+        $ids = $this->getTrainingCabangIds();
+        return count($ids) > 0 ? (int) $ids[0] : 0;
+    }
+
+    /**
+     * Semua id_cabang dengan is_training = 1.
+     * @return int[]
+     */
+    public function getTrainingCabangIds()
+    {
         static $cached = null;
         if ($cached !== null) {
             return $cached;
         }
+        $cached = [];
         try {
-            $row = $this->db(0)->get_where_row('cabang', 'is_training = 1');
-            $cached = (is_array($row) && !empty($row['id_cabang'])) ? (int) $row['id_cabang'] : 0;
+            $rows = $this->db(0)->get_where('cabang', 'is_training = 1');
+            if (!is_array($rows)) {
+                $rows = $rows ? iterator_to_array($rows) : [];
+            }
+            foreach ($rows as $r) {
+                $id = (int) ($r['id_cabang'] ?? 0);
+                if ($id > 0) {
+                    $cached[] = $id;
+                }
+            }
         } catch (\Throwable $e) {
-            $cached = 0;
+            $cached = [];
         }
         return $cached;
+    }
+
+    /**
+     * True jika id_cabang adalah cabang training.
+     */
+    public function isTrainingCabangId($idCabang)
+    {
+        $idCabang = (int) $idCabang;
+        return $idCabang > 0 && in_array($idCabang, $this->getTrainingCabangIds(), true);
+    }
+
+    /**
+     * Fragmen SQL untuk mengecualikan cabang training, mis. "id_cabang NOT IN (12) AND ".
+     * String kosong jika tidak ada cabang training.
+     */
+    public function sqlExcludeTrainingCabang($column = 'id_cabang')
+    {
+        $ids = $this->getTrainingCabangIds();
+        if (count($ids) < 1) {
+            return '';
+        }
+        return $column . ' NOT IN (' . implode(',', array_map('intval', $ids)) . ') AND ';
     }
 
     /**

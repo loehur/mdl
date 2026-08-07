@@ -10,43 +10,51 @@ class Kas_Besar extends Controller
 
    public function index()
    {
+      if ($this->isTrainingMode()) {
+         $this->view('layout', ['data_operasi' => ['title' => 'Kas Besar']]);
+         echo '<div class="container mt-4"><div class="alert alert-warning">Mode Training: Kas Besar tidak tersedia (bukan data real).</div></div>';
+         return;
+      }
+
       $view = 'kas/kas_besar';
       $data_operasi = ['title' => 'Kas Besar'];
 
-      // ====== SALDO KAS BESAR ======
-      // Pemasukan: jenis_transaksi = 2 (Penarikan dari kas kasir ke kas besar)
-      // + semua transaksi dengan metode_mutasi <> 1 (non-tunai: QRIS, Transfer, dll)
-      
-      $kredit = 0;
-      
-      // 1. Penarikan dari kas kasir 2 penarikan, 9 modal
-      $where_penarikan = "jenis_transaksi IN (2, 9) AND status_mutasi <> 4";
-      $cols = "SUM(jumlah) as jumlah";
-      $jumlah_penarikan = $this->db(0)->get_cols_where('kas', $cols, $where_penarikan, 0);
-      $kredit += isset($jumlah_penarikan['jumlah']) ? (int)$jumlah_penarikan['jumlah'] : 0;
+      // Transaksi cabang training tidak masuk Kas Besar (bukan data real)
+      $exTrain = $this->sqlExcludeTrainingCabang('id_cabang');
 
-      // 2. Pembayaran non-tunai, 1 jualan, 3 member, 7 sales
-      $where_nontunai = "jenis_transaksi IN (1, 3, 6, 7) AND metode_mutasi = 2 AND status_mutasi <> 4";
-      $jumlah_nontunai = $this->db(0)->get_cols_where('kas', $cols, $where_nontunai, 0);
-      $kredit += isset($jumlah_nontunai['jumlah']) ? (int)$jumlah_nontunai['jumlah'] : 0;
-
-      // ====== PENGELUARAN KAS BESAR ======
-      // Pengeluaran dari kas besar
-      $debit = 0;
-      $where_debit = "(jenis_transaksi = 8 OR (jenis_transaksi = 5 AND metode_mutasi = 2)) AND status_mutasi <> 4";
-      $jumlah_debit = $this->db(0)->get_cols_where('kas', $cols, $where_debit, 0);
-      $debit += isset($jumlah_debit['jumlah']) ? (int)$jumlah_debit['jumlah'] : 0;
-
-      // Saldo
+      // Saldo: 1 query (sama pola Kas) — kredit (penarikan/modal + nontunai) vs debit (pengeluaran/kasbon nontunai)
+      $saldoSql = "SELECT
+         COALESCE(SUM(CASE
+            WHEN jenis_transaksi IN (2, 9) THEN jumlah
+            WHEN jenis_transaksi IN (1, 3, 6, 7) AND metode_mutasi = 2 THEN jumlah
+            ELSE 0
+         END), 0) AS kredit,
+         COALESCE(SUM(CASE
+            WHEN jenis_transaksi = 8 THEN jumlah
+            WHEN jenis_transaksi = 5 AND metode_mutasi = 2 THEN jumlah
+            ELSE 0
+         END), 0) AS debit
+         FROM kas
+         WHERE {$exTrain}status_mutasi <> 4
+         AND (
+            jenis_transaksi IN (2, 9)
+            OR (jenis_transaksi IN (1, 3, 6, 7) AND metode_mutasi = 2)
+            OR jenis_transaksi = 8
+            OR (jenis_transaksi = 5 AND metode_mutasi = 2)
+         )";
+      $saldoRow = $this->db(0)->query_array($saldoSql);
+      $row = (is_array($saldoRow) && isset($saldoRow[0])) ? $saldoRow[0] : [];
+      $kredit = (int) ($row['kredit'] ?? 0);
+      $debit = (int) ($row['debit'] ?? 0);
       $saldo = $kredit - $debit;
 
-      // ====== HISTORY TRANSAKSI KAS BESAR ======
-      // Penarikan dari kas kasir + semua non-tunai
+      // Riwayat pengeluaran Kas Besar
       $limit = 50;
-      
-      // Get penarikan history
       $where_history = $this->wCabang . " AND jenis_transaksi = 8 AND status_mutasi <> 4 ORDER BY insertTime DESC LIMIT $limit";
       $transaksi_list = $this->db(0)->get_where('kas', $where_history);
+      if (!is_array($transaksi_list)) {
+         $transaksi_list = $transaksi_list ? iterator_to_array($transaksi_list) : [];
+      }
 
       $this->view('layout', ['data_operasi' => $data_operasi]);
       $this->view($view, [
@@ -59,6 +67,11 @@ class Kas_Besar extends Controller
 
    public function insert_pengeluaran()
    {
+      if ($this->isTrainingMode() || $this->isTrainingCabangId($this->id_cabang)) {
+         echo 'Mode Training: tidak boleh mengubah Kas Besar';
+         return;
+      }
+
       $keterangan = $_POST['f1'];
       $jumlah = $_POST['f2'];
       $metode = $_POST['metode'] ?? 2; // Default non-tunai
@@ -97,6 +110,11 @@ class Kas_Besar extends Controller
 
    public function insert_modal()
    {
+      if ($this->isTrainingMode() || $this->isTrainingCabangId($this->id_cabang)) {
+         echo 'Mode Training: tidak boleh mengubah Kas Besar';
+         return;
+      }
+
       // Tambah modal / pemasukan ke kas besar
       $keterangan = $_POST['f1'];
       $jumlah = $_POST['f2'];

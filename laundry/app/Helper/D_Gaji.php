@@ -156,17 +156,19 @@ class D_Gaji extends Controller
         $data_operasi = [];
         $data_terima = [];
         $data_kembali = [];
+        $exTrainSale = $this->sqlExcludeTrainingCabang('sale.id_cabang');
+        $exTrain = $this->sqlExcludeTrainingCabang('id_cabang');
 
         //OPERASI
         if ($userID <> 0) {
             $join_where = "operasi.id_penjualan = sale.id_penjualan";
-            $where = "sale.bin = 0 AND operasi.insertTime LIKE '" . $date . "%' AND operasi.id_user_operasi = " . $userID . " AND operasi.insertTime LIKE '" . $date . "%'";
+            $where = "{$exTrainSale}sale.bin = 0 AND operasi.insertTime LIKE '" . $date . "%' AND operasi.id_user_operasi = " . $userID . " AND operasi.insertTime LIKE '" . $date . "%'";
             $data_operasi = $this->db(0)->innerJoin1_where('sale', 'operasi', $join_where, $where);
 
 
             //TERIMA
             $cols = "id_user, id_cabang, COUNT(id_user) as terima";
-            $where = "id_user = " . $userID . " AND  insertTime LIKE '" . $date . "%' GROUP BY id_user, id_cabang";
+            $where = "{$exTrain}id_user = " . $userID . " AND  insertTime LIKE '" . $date . "%' GROUP BY id_user, id_cabang";
             $data_lain2 = $this->db(0)->get_cols_where('sale', $cols, $where, 1);
             foreach ($data_lain2 as $dl2) {
                 array_push($data_terima, $dl2);
@@ -174,7 +176,7 @@ class D_Gaji extends Controller
 
             //KEMBALI
             $cols = "id_user_ambil, id_cabang, COUNT(id_user_ambil) as kembali";
-            $where = "id_user_ambil = " . $userID . " AND tgl_ambil LIKE '" . $date . "%' GROUP BY id_user_ambil, id_cabang";
+            $where = "{$exTrain}id_user_ambil = " . $userID . " AND tgl_ambil LIKE '" . $date . "%' GROUP BY id_user_ambil, id_cabang";
             $data_lain3 = $this->db(0)->get_cols_where('sale', $cols, $where, 1);
             foreach ($data_lain3 as $dl3) {
                 array_push($data_kembali, $dl3);
@@ -709,10 +711,11 @@ class D_Gaji extends Controller
 
         $periodeLalu = date('Y-m', strtotime($dateYm . '-01 -1 month'));
         $dateEsc = $this->db(0)->escape($dateYm);
+        $exTrain = $this->sqlExcludeTrainingCabang('id_cabang');
         $rows = $this->db(0)->query_array(
             "SELECT id_cabang, COUNT(*) AS qty
              FROM absen
-             WHERE id_karyawan = $id_user AND jenis = $jenisAbsen AND tanggal LIKE '{$dateEsc}%'
+             WHERE {$exTrain}id_karyawan = $id_user AND jenis = $jenisAbsen AND tanggal LIKE '{$dateEsc}%'
              GROUP BY id_cabang"
         );
         if (!is_array($rows) || count($rows) < 1) {
@@ -727,7 +730,7 @@ class D_Gaji extends Controller
         foreach ($rows as $row) {
             $idCabang = (int) ($row['id_cabang'] ?? 0);
             $qty = (int) ($row['qty'] ?? 0);
-            if ($qty < 1) {
+            if ($qty < 1 || $this->isTrainingCabangId($idCabang)) {
                 continue;
             }
             $pendapatan = $this->getSnapshotTotalPendapatanCabang($idCabang, $periodeLalu);

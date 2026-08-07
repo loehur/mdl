@@ -204,6 +204,8 @@ class Gaji extends Controller
    private function processUserTunjangan($userID, $date)
    {
       // jenis 0 = Cuci, 1 = Malam, 2/3 = Harian (Delivery/Maintenance)
+      // Absen di cabang training diabaikan (bukan data real)
+      $exTrain = $this->sqlExcludeTrainingCabang('id_cabang');
       $sql = "SELECT 
                   CASE
                      WHEN jenis = 0 THEN 'cuci'
@@ -213,7 +215,7 @@ class Gaji extends Controller
                   END as tipe,
                   COUNT(*) as qty 
                FROM absen 
-               WHERE id_karyawan = " . (int)$userID . " 
+               WHERE {$exTrain}id_karyawan = " . (int)$userID . " 
                   AND tanggal LIKE '" . $this->db(0)->escape($date) . "%'
                GROUP BY CASE
                      WHEN jenis = 0 THEN 'cuci'

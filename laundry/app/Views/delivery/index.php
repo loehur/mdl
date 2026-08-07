@@ -951,10 +951,10 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
 
           <div id="dlvSurcasJemputRow" hidden>
             <label class="dlv-field-label mt-2" for="dlvSurcasJemputJumlah">Surcas Penjemputan</label>
-            <input type="number" id="dlvSurcasJemputJumlah" name="jumlah_surcas_jemput" class="dlv-input" min="1" step="1000" placeholder="0" inputmode="numeric">
+            <input type="number" id="dlvSurcasJemputJumlah" name="jumlah_surcas_jemput" class="dlv-input" min="0" step="1000" placeholder="0 = gratis" inputmode="numeric">
             <p class="dlv-hint mt-1 mb-0" id="dlvSurcasJemputHint">
               <i class="fas fa-info-circle me-1"></i>
-              Wajib diisi. Jika ref sudah punya surcas, nilai lama ditampilkan — ubah untuk update.
+              Isi nominal, atau 0 untuk gratis. Jika ref sudah punya surcas, nilai lama ditampilkan — ubah untuk update.
             </p>
           </div>
 
@@ -1260,7 +1260,7 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
       surcasJumlah.removeAttribute('data-tarif-fixed');
     }
     if (surcasHint) {
-      surcasHint.innerHTML = '<i class="fas fa-info-circle me-1"></i>Wajib diisi. Jika ref sudah punya surcas, nilai lama ditampilkan — ubah untuk update.';
+      surcasHint.innerHTML = '<i class="fas fa-info-circle me-1"></i>Isi nominal, atau 0 untuk gratis. Jika ref sudah punya surcas, nilai lama ditampilkan — ubah untuk update.';
     }
     window._dlvSurcasByRef = {};
     if (karyawanSelectize) {
@@ -1288,12 +1288,16 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
     row.hidden = false;
 
     if (mode === 'request') {
-      var fixed = parseInt(input.getAttribute('data-tarif-fixed') || '0', 10) || 0;
-      input.value = fixed > 0 ? String(fixed) : '';
-      input.readOnly = true;
-      input.required = false;
+      var fixed = parseInt(input.getAttribute('data-tarif-fixed') || '0', 10);
+      if (isNaN(fixed) || fixed < 0) fixed = 0;
+      if (!input.dataset.userEdited) input.value = String(fixed);
+      input.readOnly = false;
+      input.required = true;
       if (hint) {
-        hint.innerHTML = '<i class="fas fa-lock me-1"></i>Tarif dari request customer (jarak). Tidak bisa diubah.';
+        hint.innerHTML =
+          '<i class="fas fa-info-circle me-1"></i>Default dari tarif request (Rp' +
+          Number(fixed).toLocaleString('id-ID') +
+          '). Boleh diubah, isi 0 untuk gratis.';
       }
       return;
     }
@@ -1311,15 +1315,15 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
         break;
       }
     }
-    if (found != null && !isNaN(found) && found > 0) {
+    if (found != null && !isNaN(found) && found >= 0) {
       if (!input.dataset.userEdited) input.value = String(found);
       if (hint) {
         hint.innerHTML = '<i class="fas fa-info-circle me-1"></i>Ref sudah punya Surcas Penjemputan Rp' +
-          Number(found).toLocaleString('id-ID') + '. Ubah untuk update.';
+          Number(found).toLocaleString('id-ID') + '. Ubah untuk update (0 = gratis).';
       }
     } else if (!input.dataset.userEdited) {
       if (hint) {
-        hint.innerHTML = '<i class="fas fa-info-circle me-1"></i>Wajib diisi. Akan ditambahkan ke salah satu ref item terpilih.';
+        hint.innerHTML = '<i class="fas fa-info-circle me-1"></i>Isi nominal, atau 0 untuk gratis. Akan ditambahkan ke salah satu ref item terpilih.';
       }
     }
   }
@@ -1681,11 +1685,15 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
         return;
       }
     }
-    if (jenis === 'jemput' && mode === 'crm') {
-      var jumlahSc = parseInt((document.getElementById('dlvSurcasJemputJumlah') || {}).value || '0', 10) || 0;
-      if (jumlahSc <= 0) {
-        toast('Isi jumlah Surcas Penjemputan', 'warn');
-        return;
+    if (jenis === 'jemput') {
+      var layananSelesai = (document.getElementById('dlvSelesaiLayanan') || {}).value || 'sameday';
+      if (layananSelesai !== 'instant') {
+        var surcasRaw = String((document.getElementById('dlvSurcasJemputJumlah') || {}).value || '').trim();
+        var jumlahSc = parseInt(surcasRaw, 10);
+        if (surcasRaw === '' || isNaN(jumlahSc) || jumlahSc < 0) {
+          toast('Isi Surcas Penjemputan (isi 0 untuk gratis)', 'warn');
+          return;
+        }
       }
     }
 
@@ -1702,8 +1710,14 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
         fd.append('ids_sekalian[]', cb.value);
       });
     }
-    if (jenis === 'jemput' && mode === 'crm') {
-      fd.append('jumlah_surcas_jemput', String(parseInt((document.getElementById('dlvSurcasJemputJumlah') || {}).value || '0', 10) || 0));
+    if (jenis === 'jemput') {
+      var layananPost = (document.getElementById('dlvSelesaiLayanan') || {}).value || 'sameday';
+      if (layananPost !== 'instant') {
+        fd.append(
+          'jumlah_surcas_jemput',
+          String(parseInt((document.getElementById('dlvSurcasJemputJumlah') || {}).value || '0', 10) || 0)
+        );
+      }
     }
 
     var endpoint = selesaiUrl;
