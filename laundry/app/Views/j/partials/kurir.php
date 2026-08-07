@@ -193,6 +193,7 @@ $pending = is_array($data['pendingKurir'] ?? null) ? $data['pendingKurir'] : [];
   <p class="j-kurir-note">
     <strong>Antar</strong> — Mengantar Pakaian dari Laundry ke Lokasi Anda.<br>
     <strong>Jemput</strong> — Menjemput Pakaian dari Lokasi Anda dan dikirimkan ke Laundry.<br>
+    <strong>Sameday</strong> — tarif jarak internal. <strong>Instant</strong> — ongkir wajib dari cek rate Biteship.<br>
     Antar: item yang sudah/sedang diantar tidak bisa dipilih lagi. Jemput: lokasi yang masih ada jemput berjalan tidak bisa dipilih lagi.
   </p>
 </section>

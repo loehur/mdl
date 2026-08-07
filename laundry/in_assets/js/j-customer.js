@@ -896,7 +896,8 @@
       var disabled = blocked ? ' disabled' : '';
       var cls = 'j-kurir-lokasi-item' + (blocked ? ' is-disabled' : '');
       var tarifHtml = '';
-      if (lok.tarif != null && lok.tarif !== '') {
+      // Tarif jarak (AntarTarif) hanya untuk Sameday — Instant pakai rate Biteship
+      if (kurirPendingLayanan !== 'instant' && lok.tarif != null && lok.tarif !== '') {
         var kmTxt = (lok.km != null && lok.km !== '')
           ? (Number(lok.km).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' km')
           : '';
@@ -905,6 +906,13 @@
             '<span class="j-kurir-lokasi-item__tarif-label">Tarif</span>' +
             '<strong>Rp' + Number(lok.tarif).toLocaleString('id-ID') + '</strong>' +
             (kmTxt ? '<small>' + escapeHtmlKurir(kmTxt) + '</small>' : '') +
+          '</span>';
+      } else if (kurirPendingLayanan === 'instant') {
+        tarifHtml =
+          '<span class="j-kurir-lokasi-item__tarif">' +
+            '<span class="j-kurir-lokasi-item__tarif-label">Ongkir</span>' +
+            '<strong>via Instant</strong>' +
+            '<small>cek di langkah berikutnya</small>' +
           '</span>';
       }
       return '<label class="' + cls + '">' +
@@ -1102,7 +1110,13 @@
       title.textContent = jenis === 'antar' ? 'Lokasi antar' : 'Lokasi jemput';
     }
     var hint = document.getElementById('jKurirJenisHint');
-    if (hint) hint.textContent = jenisHintText(jenis);
+    if (hint) {
+      var text = jenisHintText(jenis);
+      if (kurirPendingLayanan === 'instant') {
+        text += ' Ongkir Instant diambil dari cek rate Biteship (bukan tarif Sameday).';
+      }
+      hint.textContent = text;
+    }
     showLokasiPickView();
     showModal('jModalKurirLokasi');
     loadKurirLokasiList();

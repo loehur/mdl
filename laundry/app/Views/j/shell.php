@@ -356,7 +356,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
         <button type="button" class="j-sheet-close" data-bs-dismiss="modal" aria-label="Close"><i class="fas fa-times"></i></button>
       </div>
       <div class="j-sheet-body">
-        <p class="j-sheet-desc" style="margin-top:0">Ongkir dibayar via QRIS sebelum order berjalan.</p>
+        <p class="j-sheet-desc" style="margin-top:0">Ongkir Instant dari cek rate Biteship (bukan tarif Sameday). Bayar via QRIS sebelum order jalan.</p>
         <div class="j-kurir-lokasi-chosen" id="jKurirCourierLokasi"></div>
         <div class="j-kurir-sales" id="jKurirCourierBox">
           <div class="j-kurir-sales-empty">Memuat kurir…</div>
@@ -376,7 +376,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="<?= URL::EX_ASSETS ?>js/qrcode.min.js"></script>
 <script src="<?= URL::EX_ASSETS ?>js/html2canvas.min.js"></script>
-<script src="<?= $assets ?>js/j-customer.js?v=16"></script>
+<script src="<?= $assets ?>js/j-customer.js?v=17"></script>
 <script src="<?= $assets ?>js/j-payment.js?v=5"></script>
 <script>
 if ('serviceWorker' in navigator) {

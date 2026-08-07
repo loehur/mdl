@@ -55,7 +55,8 @@ class Biteship extends Controller
             'origin_longitude' => $oLon,
             'destination_latitude' => $dLat,
             'destination_longitude' => $dLon,
-            'couriers' => $body['couriers'] ?? 'grab,gojek,paxel,lalamove',
+            // Instant / same-day bike couriers (coordinate-based)
+            'couriers' => $body['couriers'] ?? 'grab,gojek,paxel,lalamove,borzo,maxim,deliveree',
             'items' => $items,
         ];
 
@@ -74,10 +75,14 @@ class Biteship extends Controller
         $pricing = is_array($res['pricing'] ?? null) ? $res['pricing'] : [];
         $instant = InstantKurir::filterInstantPricing($pricing);
 
+        // Jika filter kosong tapi Biteship mengembalikan pricing, jangan fallback ke tarif jarak —
+        // kembalikan semua pricing agar debug/ops bisa lihat, tapi tandai filtered=0
         echo json_encode([
             'ok' => true,
             'rates' => $instant,
             'count' => count($instant),
+            'pricing_total' => count($pricing),
+            'source' => 'biteship',
         ], JSON_UNESCAPED_UNICODE);
     }
 

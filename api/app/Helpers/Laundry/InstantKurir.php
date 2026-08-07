@@ -237,7 +237,8 @@ class InstantKurir
     }
 
     /**
-     * Filter rates list to instant-like services.
+     * Filter rates list to instant-like services (bukan tarif jarak Sameday).
+     * Utama: service_type = instant. Juga same_day / overnight bike bila ada.
      */
     public static function filterInstantPricing(array $pricing)
     {
@@ -247,28 +248,65 @@ class InstantKurir
                 continue;
             }
             $serviceType = strtolower((string) ($row['service_type'] ?? ''));
-            $courierType = strtolower((string) ($row['courier_type'] ?? $row['type'] ?? ''));
+            $courierType = strtolower((string) (
+                $row['courier_service_code']
+                ?? $row['courier_type']
+                ?? $row['type']
+                ?? ''
+            ));
+            $serviceName = strtolower((string) ($row['courier_service_name'] ?? ''));
             $shippingType = strtolower((string) ($row['shipping_type'] ?? ''));
+            $company = strtolower((string) ($row['courier_code'] ?? $row['company'] ?? ''));
             $availInstant = !empty($row['available_for_instant_delivery']);
-            $isInstant = $availInstant
-                || $serviceType === 'instant'
+
+            $instantCompanies = ['grab', 'gojek', 'paxel', 'lalamove', 'borzo', 'maxim', 'deliveree', 'anteraja'];
+            $isInstantCompany = in_array($company, $instantCompanies, true);
+
+            $isInstant = $serviceType === 'instant'
                 || $shippingType === 'instant'
+                || $availInstant
                 || strpos($courierType, 'instant') !== false
+                || strpos($serviceName, 'instant') !== false
                 || strpos($courierType, 'same_day') !== false
                 || strpos($courierType, 'sameday') !== false
-                || $courierType === 'instant'
-                || $courierType === 'same_day';
+                || strpos($serviceName, 'same day') !== false
+                || ($isInstantCompany && in_array($serviceType, ['instant', 'same_day', 'overnight'], true))
+                || ($isInstantCompany && $serviceType === '' && (
+                    strpos($courierType, 'instant') !== false
+                    || $courierType === 'instant'
+                    || $courierType === 'same_day'
+                    || $courierType === 'sameday'
+                    || $courierType === 'hemat'
+                    || $courierType === 'priority'
+                ));
+
+            // Tolak layanan parcel reguler (jne/tiki reg dll) meski company ikut ter-query
+            if (in_array($serviceType, ['standard', 'economy'], true) && !$availInstant) {
+                $isInstant = false;
+            }
+
             if (!$isInstant) {
+                continue;
+            }
+            $price = (int) ($row['price'] ?? $row['shipping_fee'] ?? 0);
+            if ($price <= 0) {
                 continue;
             }
             $out[] = [
                 'courier_company' => (string) ($row['courier_code'] ?? $row['company'] ?? ''),
                 'courier_type' => (string) ($row['courier_service_code'] ?? $row['courier_type'] ?? $row['type'] ?? ''),
-                'courier_name' => (string) ($row['courier_name'] ?? $row['name'] ?? ''),
+                'courier_name' => trim(
+                    (string) ($row['courier_name'] ?? $row['name'] ?? '')
+                    . (
+                        !empty($row['courier_service_name'])
+                            ? (' ' . $row['courier_service_name'])
+                            : ''
+                    )
+                ),
                 'description' => (string) ($row['description'] ?? ''),
                 'duration' => (string) ($row['duration'] ?? $row['shipment_duration_range'] ?? ''),
-                'price' => (int) ($row['price'] ?? $row['shipping_fee'] ?? 0),
-                'service_type' => $serviceType,
+                'price' => $price,
+                'service_type' => $serviceType !== '' ? $serviceType : 'instant',
             ];
         }
         return $out;

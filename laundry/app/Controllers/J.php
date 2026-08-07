@@ -1655,6 +1655,63 @@ class J extends Controller
          return;
       }
 
+      $cabLat = (float) ($this->dCabangPublic['latt'] ?? 0);
+      $cabLon = (float) ($this->dCabangPublic['long'] ?? 0);
+      $locLat = (float) ($lokasi['latt'] ?? 0);
+      $locLon = (float) ($lokasi['longt'] ?? 0);
+      if ($cabLat == 0.0 && $cabLon == 0.0) {
+         echo json_encode(['ok' => false, 'message' => 'Lokasi cabang belum diatur']);
+         return;
+      }
+      if ($locLat == 0.0 && $locLon == 0.0) {
+         echo json_encode(['ok' => false, 'message' => 'Koordinat lokasi pelanggan belum lengkap']);
+         return;
+      }
+
+      // Wajib cocokkan ongkir ke rate Biteship (bukan tarif Sameday/AntarTarif)
+      $ratesRes = $this->helper('BiteshipApi')->rates([
+         'origin_latitude' => $cabLat,
+         'origin_longitude' => $cabLon,
+         'destination_latitude' => $locLat,
+         'destination_longitude' => $locLon,
+      ]);
+      if (empty($ratesRes['ok']) || empty($ratesRes['rates']) || !is_array($ratesRes['rates'])) {
+         echo json_encode([
+            'ok' => false,
+            'message' => $ratesRes['message'] ?? 'Gagal verifikasi tarif Instant dari Biteship',
+         ], JSON_UNESCAPED_UNICODE);
+         return;
+      }
+      $matched = null;
+      foreach ($ratesRes['rates'] as $rate) {
+         if (!is_array($rate)) {
+            continue;
+         }
+         $rc = strtolower(trim((string) ($rate['courier_company'] ?? '')));
+         $rt = strtolower(trim((string) ($rate['courier_type'] ?? '')));
+         if ($rc === strtolower($courierCompany) && $rt === strtolower($courierType)) {
+            $matched = $rate;
+            break;
+         }
+      }
+      if (!$matched) {
+         echo json_encode([
+            'ok' => false,
+            'message' => 'Kurir Instant tidak tersedia / tarif berubah. Silakan pilih ulang kurir.',
+         ]);
+         return;
+      }
+      $ongkirBiteship = (int) ($matched['price'] ?? 0);
+      if ($ongkirBiteship < 1000) {
+         echo json_encode(['ok' => false, 'message' => 'Tarif Biteship tidak valid']);
+         return;
+      }
+      // Kunci ke harga Biteship; abaikan ongkir client jika beda
+      $ongkir = $ongkirBiteship;
+      if ($courierName === '') {
+         $courierName = (string) ($matched['courier_name'] ?? ($courierCompany . ' ' . $courierType));
+      }
+
       $eligibleMap = [];
       if ($jenis === 'antar') {
          $eligibleRows = $this->fetchKurirEligibleSaleRows((int) $pelanggan, 'antar');
@@ -1676,19 +1733,6 @@ class J extends Controller
       $phoneTail = $this->phoneTailFromPelanggan($this->pelanggan_p);
       if (strlen($phoneTail) < 8) {
          echo json_encode(['ok' => false, 'message' => 'Nomor pelanggan belum lengkap']);
-         return;
-      }
-
-      $cabLat = (float) ($this->dCabangPublic['latt'] ?? 0);
-      $cabLon = (float) ($this->dCabangPublic['long'] ?? 0);
-      $locLat = (float) ($lokasi['latt'] ?? 0);
-      $locLon = (float) ($lokasi['longt'] ?? 0);
-      if ($cabLat == 0.0 && $cabLon == 0.0) {
-         echo json_encode(['ok' => false, 'message' => 'Lokasi cabang belum diatur']);
-         return;
-      }
-      if ($locLat == 0.0 && $locLon == 0.0) {
-         echo json_encode(['ok' => false, 'message' => 'Koordinat lokasi pelanggan belum lengkap']);
          return;
       }
 
