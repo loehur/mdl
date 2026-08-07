@@ -1,7 +1,10 @@
 <?php
 /**
- * Jam operasional untuk auto-reply WhatsApp.
+ * Jam operasional untuk auto-reply WhatsApp + Kurir Instant (via API endpoint).
  * Edit nilai di bawah sesuai kebutuhan (bukan via Env.php).
+ *
+ * Sumber tunggal: laundry memanggil GET /Laundry/OperatingHours/instant
+ * (jangan duplikasi config di project laundry).
  */
 
 if (!function_exists('expandHolidayRanges')) {

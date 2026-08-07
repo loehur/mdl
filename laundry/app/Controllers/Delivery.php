@@ -14,6 +14,7 @@ class Delivery extends Controller
       $transfers = $this->getPendingCabangTransfers();
       $customers = $this->getPendingCustomerDeliveries();
       $customerRequests = $this->getPendingCustomerRequests();
+      $customerGroups = $this->buildCustomerDeliveryGroups($customers, $customerRequests);
       $canCekDetail = $this->canCekDetail();
 
       $this->view('layout', ['data_operasi' => $data_operasi]);
@@ -22,6 +23,7 @@ class Delivery extends Controller
          'transfers' => $transfers,
          'customers' => $customers,
          'customerRequests' => $customerRequests,
+         'customerGroups' => $customerGroups,
          'canCekDetail' => $canCekDetail,
       ]);
    }
@@ -247,6 +249,13 @@ class Delivery extends Controller
             throw new Exception('Pelanggan tidak ditemukan untuk nomor ini');
          }
 
+         $activePortal = $this->countActiveDeliveryRequestsByPhoneTail($phoneTail);
+         if ($activePortal > 0) {
+            throw new Exception(
+               'Customer ini punya ' . $activePortal . ' request portal aktif. Selesaikan request portal dulu (case CRM ikut tertutup otomatis setelah semua lokasi selesai).'
+            );
+         }
+
          $now = $GLOBALS['now'] ?? date('Y-m-d H:i:s');
          $idCabang = (int) ($this->id_cabang ?? 0);
 
@@ -308,6 +317,7 @@ class Delivery extends Controller
                'sekalian' => $sekalian ? $jenisSekalian : null,
                'count_sekalian' => $insertedSekalian,
                'surcas_jemput' => $surcasJemput,
+               'crm_closed' => true,
             ],
          ];
       } catch (\Throwable $e) {
@@ -445,14 +455,9 @@ class Delivery extends Controller
 
          $surcasJemput = null;
          if ($jenis === 'jemput' && $layanan !== 'instant') {
-            // Boleh 0 (gratis); default dari tarif request jika POST kosong
-            if (isset($_POST['jumlah_surcas_jemput']) && $_POST['jumlah_surcas_jemput'] !== '') {
-               $jumlahSurcas = (int) $_POST['jumlah_surcas_jemput'];
-            } else {
-               $jumlahSurcas = (int) ($req['tarif_surcas'] ?? 0);
-            }
-            if ($jumlahSurcas < 0) {
-               throw new Exception('Jumlah Surcas Penjemputan tidak valid');
+            $jumlahSurcas = (int) ($req['tarif_surcas'] ?? 0);
+            if ($jumlahSurcas <= 0) {
+               throw new Exception('Tarif surcas penjemputan belum tersedia di request');
             }
             $surcasJemput = $this->upsertSurcasPenjemputan(
                $idCabang,
@@ -493,9 +498,15 @@ class Delivery extends Controller
             throw new Exception($upd['error'] ?? 'Gagal memperbarui status request');
          }
 
+         // Tutup case CRM 2 hanya jika semua request portal customer ini sudah selesai
+         $crmClosed = $this->maybeCloseCrmCase2ByPhoneTail($phoneTail, $idKaryawan);
+
          $msg = "Request $jenis selesai ($inserted item)";
          if ($sekalian) {
             $msg .= " + sekalian $jenisSekalian ($insertedSekalian item)";
+         }
+         if ($crmClosed) {
+            $msg .= '. Case CRM ikut ditutup.';
          }
 
          $response = [
@@ -503,11 +514,13 @@ class Delivery extends Controller
             'message' => $msg,
             'data' => [
                'id_request' => $idRequest,
+               'phone_tail' => $phoneTail,
                'jenis' => $jenis,
                'count' => $inserted,
                'sekalian' => $sekalian ? $jenisSekalian : null,
                'count_sekalian' => $insertedSekalian,
                'surcas_jemput' => $surcasJemput,
+               'crm_closed' => $crmClosed,
             ],
          ];
       } catch (\Throwable $e) {
@@ -614,12 +627,22 @@ class Delivery extends Controller
             throw new Exception($log['error'] ?? 'Gagal menyimpan log');
          }
 
+         $phoneTailReq = preg_replace('/[^0-9]/', '', (string) ($req['phone_tail'] ?? ''));
+         if (strlen($phoneTailReq) >= 9) {
+            $phoneTailReq = substr($phoneTailReq, -9);
+         }
+         $crmClosed = $phoneTailReq !== ''
+            ? $this->maybeCloseCrmCase2ByPhoneTail($phoneTailReq, $idKaryawan)
+            : false;
+
          $response = [
             'status' => 'success',
-            'message' => 'Request dibatalkan',
+            'message' => $crmClosed ? 'Request dibatalkan. Case CRM ikut ditutup.' : 'Request dibatalkan',
             'data' => [
                'id_request' => $idRequest,
+               'phone_tail' => $phoneTailReq,
                'id_karyawan' => $idKaryawan,
+               'crm_closed' => $crmClosed,
             ],
          ];
       } catch (\Throwable $e) {
@@ -669,6 +692,13 @@ class Delivery extends Controller
          $namaKaryawan = (string) ($karyawan['nama_user'] ?? ('#' . $idKaryawan));
          $idUser = (int) ($_SESSION[URL::SESSID]['user']['id_user'] ?? 0);
          $idCabang = (int) ($this->id_cabang ?? 0);
+
+         $activeLeft = $this->countActiveDeliveryRequestsByPhoneTail($phoneTail);
+         if ($activeLeft > 0) {
+            throw new Exception(
+               'Masih ada ' . $activeLeft . ' request portal aktif. Selesaikan/batalkan request portal dulu sebelum menutup case CRM.'
+            );
+         }
 
          $this->closeCrmCase2ByPhoneTail($phoneTail, $idKaryawan);
 
@@ -1032,6 +1062,7 @@ class Delivery extends Controller
             'prefill_ids' => $prefillIds,
             'lokasi_nama' => (string) ($row['lokasi_nama'] ?? ''),
             'lokasi_detail' => (string) ($row['lokasi_detail'] ?? ''),
+            'catatan_kurir' => (string) ($row['catatan_kurir'] ?? ''),
             'lokasi_latt' => isset($row['lokasi_latt']) ? (float) $row['lokasi_latt'] : null,
             'lokasi_longt' => isset($row['lokasi_longt']) ? (float) $row['lokasi_longt'] : null,
             'tarif_surcas' => isset($row['tarif_surcas']) && $row['tarif_surcas'] !== null
@@ -1319,7 +1350,106 @@ class Delivery extends Controller
       return array_values($orders);
    }
 
-   private function closeCrmCase2ByPhoneTail(string $phoneTail, int $userId = 0): void
+   /**
+    * Gabung CRM + request portal per phone_tail (untuk board Delivery).
+    */
+   private function buildCustomerDeliveryGroups(array $customers, array $customerRequests): array
+   {
+      $groups = [];
+
+      foreach ($customers as $cu) {
+         $tail = (string) ($cu['phone_tail'] ?? '');
+         if ($tail === '') {
+            continue;
+         }
+         if (!isset($groups[$tail])) {
+            $groups[$tail] = [
+               'phone_tail' => $tail,
+               'nama' => (string) ($cu['nama'] ?? 'Customer'),
+               'kode_cabang' => (string) ($cu['kode_cabang'] ?? '00'),
+               'crm' => null,
+               'requests' => [],
+               'sort_time' => (string) ($cu['last_message_at'] ?? ''),
+            ];
+         }
+         $groups[$tail]['crm'] = $cu;
+         $groups[$tail]['nama'] = (string) ($cu['nama'] ?? $groups[$tail]['nama']);
+         $groups[$tail]['kode_cabang'] = (string) ($cu['kode_cabang'] ?? $groups[$tail]['kode_cabang']);
+         $t = (string) ($cu['last_message_at'] ?? '');
+         if ($t !== '' && $t > ($groups[$tail]['sort_time'] ?? '')) {
+            $groups[$tail]['sort_time'] = $t;
+         }
+      }
+
+      foreach ($customerRequests as $rq) {
+         $tail = (string) ($rq['phone_tail'] ?? '');
+         if ($tail === '') {
+            continue;
+         }
+         if (!isset($groups[$tail])) {
+            $groups[$tail] = [
+               'phone_tail' => $tail,
+               'nama' => (string) ($rq['nama'] ?? 'Customer'),
+               'kode_cabang' => (string) ($rq['kode_cabang'] ?? '00'),
+               'crm' => null,
+               'requests' => [],
+               'sort_time' => (string) ($rq['insertTime'] ?? ''),
+            ];
+         }
+         $groups[$tail]['requests'][] = $rq;
+         if (empty($groups[$tail]['crm'])) {
+            $groups[$tail]['nama'] = (string) ($rq['nama'] ?? $groups[$tail]['nama']);
+            $groups[$tail]['kode_cabang'] = (string) ($rq['kode_cabang'] ?? $groups[$tail]['kode_cabang']);
+         }
+         $t = (string) ($rq['insertTime'] ?? '');
+         if ($t !== '' && $t > ($groups[$tail]['sort_time'] ?? '')) {
+            $groups[$tail]['sort_time'] = $t;
+         }
+      }
+
+      $list = array_values($groups);
+      usort($list, static function ($a, $b) {
+         return strcmp((string) ($b['sort_time'] ?? ''), (string) ($a['sort_time'] ?? ''));
+      });
+      return $list;
+   }
+
+   /**
+    * Jumlah delivery_request aktif (berjalan / menunggu bayar) untuk phone_tail.
+    */
+   private function countActiveDeliveryRequestsByPhoneTail(string $phoneTail): int
+   {
+      $phoneTail = preg_replace('/[^0-9]/', '', $phoneTail);
+      if (strlen($phoneTail) >= 9) {
+         $phoneTail = substr($phoneTail, -9);
+      }
+      if ($phoneTail === '') {
+         return 0;
+      }
+      $esc = $this->db(0)->escape($phoneTail);
+      return (int) ($this->db(0)->count_where(
+         'delivery_request',
+         "phone_tail = '" . $esc . "'"
+            . " AND delivery_status IN ('berjalan','menunggu_pembayaran')"
+      ) ?? 0);
+   }
+
+   /**
+    * Tutup case CRM 2 hanya jika tidak ada request portal aktif tersisa.
+    * @return bool true jika case CRM 2 benar-benar ditutup
+    */
+   private function maybeCloseCrmCase2ByPhoneTail(string $phoneTail, int $userId = 0): bool
+   {
+      if ($this->countActiveDeliveryRequestsByPhoneTail($phoneTail) > 0) {
+         return false;
+      }
+      return $this->closeCrmCase2ByPhoneTail($phoneTail, $userId);
+   }
+
+   /**
+    * @return bool true jika ada case 2 yang ditutup
+    */
+   private function closeCrmCase2ByPhoneTail(string $phoneTail, int $userId = 0): bool
    {
       $tailEsc = $this->db(100)->escape($phoneTail);
       $rows = $this->db(100)->query_array(
@@ -1329,9 +1459,10 @@ class Delivery extends Controller
           LIMIT 10"
       );
       if (!is_array($rows)) {
-         return;
+         return false;
       }
 
+      $anyClosed = false;
       foreach ($rows as $row) {
          if (!$this->conversationHasOpenCase2($row['conv_case'] ?? '')) {
             continue;
@@ -1365,6 +1496,7 @@ class Delivery extends Controller
          if (!$modified) {
             continue;
          }
+         $anyClosed = true;
          $json = json_encode(array_values($list));
          $id = (int) ($row['id'] ?? 0);
          $wa = $this->db(100)->escape((string) ($row['wa_number'] ?? ''));
@@ -1377,6 +1509,7 @@ class Delivery extends Controller
          $phone = (string) ($row['wa_number'] ?? '');
          $this->pushDeliveryCaseResolved($phone, $userId, !$hasOpen);
       }
+      return $anyClosed;
    }
 
    private function pushDeliveryCaseResolved(string $phone, int $userId, bool $allClosed): void

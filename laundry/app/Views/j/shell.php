@@ -313,6 +313,11 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
         <div class="j-kurir-sales" id="jKurirSalesBox">
           <div class="j-kurir-sales-empty">Memuat item…</div>
         </div>
+        <div class="j-field" style="margin-top:12px">
+          <label class="j-field-label" for="jKurirCatatanAntar">Catatan untuk kurir <span style="font-weight:500;opacity:.7">(opsional)</span></label>
+          <textarea id="jKurirCatatanAntar" class="j-select" rows="2" maxlength="150" placeholder="Contoh: pagar hitam, lantai 2, telepon dulu"></textarea>
+          <p class="j-sheet-desc" style="margin:4px 0 0"><span id="jKurirCatatanAntarCount">0</span>/150</p>
+        </div>
       </div>
       <div class="j-sheet-foot">
         <button type="button" class="j-sheet-btn ghost" data-bs-dismiss="modal">Batal</button>
@@ -334,6 +339,11 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
         <h5 class="j-sheet-title" style="margin:0 0 6px">Jemput laundry?</h5>
         <p class="j-sheet-desc">Menjemput Pakaian dari Lokasi Anda dan dikirimkan ke Laundry. Item dipilih petugas saat selesai.</p>
         <div class="j-kurir-lokasi-chosen" id="jKurirJemputLokasi"></div>
+        <div class="j-field" style="margin-top:12px;text-align:left">
+          <label class="j-field-label" for="jKurirCatatanJemput">Catatan untuk kurir <span style="font-weight:500;opacity:.7">(opsional)</span></label>
+          <textarea id="jKurirCatatanJemput" class="j-select" rows="2" maxlength="150" placeholder="Contoh: pagar hitam, lantai 2, telepon dulu"></textarea>
+          <p class="j-sheet-desc" style="margin:4px 0 0"><span id="jKurirCatatanJemputCount">0</span>/150</p>
+        </div>
       </div>
       <div class="j-sheet-foot">
         <button type="button" class="j-sheet-btn ghost" data-bs-dismiss="modal">Batal</button>
@@ -369,6 +379,11 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
           </select>
           <p class="j-sheet-desc" id="jKurirCourierSaldoHint" style="margin:6px 0 0"></p>
         </div>
+        <div class="j-field" style="margin-top:12px">
+          <label class="j-field-label" for="jKurirCatatanCourier">Catatan untuk kurir <span style="font-weight:500;opacity:.7">(opsional)</span></label>
+          <textarea id="jKurirCatatanCourier" class="j-select" rows="2" maxlength="150" placeholder="Contoh: pagar hitam, lantai 2, telepon dulu"></textarea>
+          <p class="j-sheet-desc" style="margin:4px 0 0"><span id="jKurirCatatanCourierCount">0</span>/150</p>
+        </div>
       </div>
       <div class="j-sheet-foot">
         <button type="button" class="j-sheet-btn ghost" data-bs-dismiss="modal">Batal</button>
@@ -384,7 +399,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="<?= URL::EX_ASSETS ?>js/qrcode.min.js"></script>
 <script src="<?= URL::EX_ASSETS ?>js/html2canvas.min.js"></script>
-<script src="<?= $assets ?>js/j-customer.js?v=22"></script>
+<script src="<?= $assets ?>js/j-customer.js?v=23"></script>
 <script src="<?= $assets ?>js/j-payment.js?v=5"></script>
 <script>
 if ('serviceWorker' in navigator) {

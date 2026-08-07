@@ -396,6 +396,23 @@ class InstantKurir
             $note = 'Antar laundry Instant #' . (int) $req['id_request'];
         }
 
+        // Catatan customer (opsional) — append ke note sisi pelanggan + order_note
+        $catatan = trim((string) ($req['catatan_kurir'] ?? ''));
+        if ($catatan !== '') {
+            if (function_exists('mb_substr')) {
+                $catatan = mb_substr($catatan, 0, 150, 'UTF-8');
+            } else {
+                $catatan = substr($catatan, 0, 150);
+            }
+            $extra = 'Catatan: ' . $catatan;
+            if ($jenis === 'jemput') {
+                $originNote = trim($originNote . ($originNote !== '' ? ' | ' : '') . $extra);
+            } else {
+                $destNote = trim($destNote . ($destNote !== '' ? ' | ' : '') . $extra);
+            }
+            $note .= ' | ' . $extra;
+        }
+
         return [
             'shipper_contact_name' => $cabName,
             'shipper_contact_phone' => $cabPhone,

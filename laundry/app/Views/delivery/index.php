@@ -2,9 +2,10 @@
 $transfers = $data['transfers'] ?? [];
 $customers = $data['customers'] ?? [];
 $customerRequests = $data['customerRequests'] ?? [];
+$customerGroups = $data['customerGroups'] ?? [];
 $canCekDetail = !empty($data['canCekDetail']);
 $isEmptyCabang = empty($transfers);
-$isEmptyCustomer = empty($customers) && empty($customerRequests);
+$isEmptyCustomer = empty($customerGroups);
 ?>
 <div id="dlv-root" class="px-1 mt-2"
      data-can-cek="<?= $canCekDetail ? '1' : '0' ?>"
@@ -672,151 +673,159 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
               <span>Request CRM (case kuning) dan request Sameday dari portal customer tampil di sini.</span>
             </div>
           <?php } else { ?>
-            <?php if (!empty($customers)) { ?>
-              <div class="dlv-group dlv-group--crm">
-                <h3 class="dlv-group__title"><i class="fas fa-headset"></i> Request by CRM</h3>
-                <div class="dlv-list">
-                  <?php foreach ($customers as $cu) {
-                    $nama = htmlspecialchars(strtoupper((string) ($cu['nama'] ?? 'Customer')), ENT_QUOTES, 'UTF-8');
-                    $tail = htmlspecialchars((string) ($cu['phone_tail'] ?? ''), ENT_QUOTES, 'UTF-8');
-                    $kode = htmlspecialchars((string) ($cu['kode_cabang'] ?? '00'), ENT_QUOTES, 'UTF-8');
-                    $dateRaw = $cu['last_message_at'] ?? '';
-                    $dateLbl = $dateRaw !== '' ? date('d/m/y H:i', strtotime($dateRaw)) : '-';
-                  ?>
-                    <div class="dlv-item dlv-item--customer" data-phone-tail="<?= $tail ?>" data-source="crm">
-                      <div class="dlv-item__text">
-                        <p class="dlv-item__title">
-                          <?= $nama ?>
-                          <span class="dlv-kode">· <?= $kode ?></span>
-                        </p>
-                        <div class="dlv-item__meta">
-                          <?= $tail ?> · <?= htmlspecialchars($dateLbl, ENT_QUOTES, 'UTF-8') ?>
-                        </div>
+            <div class="dlv-group dlv-group--merged">
+              <h3 class="dlv-group__title"><i class="fas fa-users"></i> Customer</h3>
+              <div class="dlv-list">
+                <?php foreach ($customerGroups as $grp) {
+                  $tail = htmlspecialchars((string) ($grp['phone_tail'] ?? ''), ENT_QUOTES, 'UTF-8');
+                  $nama = htmlspecialchars(strtoupper((string) ($grp['nama'] ?? 'Customer')), ENT_QUOTES, 'UTF-8');
+                  $kode = htmlspecialchars((string) ($grp['kode_cabang'] ?? '00'), ENT_QUOTES, 'UTF-8');
+                  $hasCrm = !empty($grp['crm']);
+                  $reqs = is_array($grp['requests'] ?? null) ? $grp['requests'] : [];
+                  $reqCount = count($reqs);
+                  $cu = $hasCrm ? $grp['crm'] : null;
+                  $dateRaw = $hasCrm ? ($cu['last_message_at'] ?? '') : '';
+                  $dateLbl = $dateRaw !== '' ? date('d/m/y H:i', strtotime($dateRaw)) : '-';
+                ?>
+                  <div class="dlv-item dlv-item--customer dlv-item--group" data-phone-tail="<?= $tail ?>" data-source="merged">
+                    <div class="dlv-item__text" style="width:100%">
+                      <p class="dlv-item__title">
+                        <?= $nama ?>
+                        <span class="dlv-kode">· <?= $kode ?></span>
+                        <?php if ($hasCrm) { ?>
+                          <span class="dlv-jenis-pill" style="background:#e0e7ff;color:#3730a3">CRM</span>
+                        <?php } ?>
+                        <?php if ($reqCount > 0) { ?>
+                          <span class="dlv-jenis-pill" style="background:#dcfce7;color:#166534">Portal <?= $reqCount ?></span>
+                        <?php } ?>
+                      </p>
+                      <div class="dlv-item__meta">
+                        <?= $tail ?>
+                        <?php if ($hasCrm) { ?>
+                          · CRM <?= htmlspecialchars($dateLbl, ENT_QUOTES, 'UTF-8') ?>
+                        <?php } ?>
+                        <?php if ($hasCrm && $reqCount > 0) { ?>
+                          · Case CRM tetap open sampai semua lokasi portal selesai
+                        <?php } ?>
                       </div>
-                      <div class="dlv-item__actions">
-                        <button type="button" class="dlv-btn dlv-btn--cek" data-dlv-cek-customer="<?= $tail ?>">
-                          <i class="fas fa-search"></i> Cek
-                        </button>
-                        <button type="button" class="dlv-btn dlv-btn--selesai" data-dlv-selesai="<?= $tail ?>"
-                                data-nama="<?= $nama ?>">
-                          <i class="fas fa-check"></i> Selesai
-                        </button>
-                      </div>
-                    </div>
-                  <?php } ?>
-                </div>
-              </div>
-            <?php } ?>
 
-            <?php if (!empty($customerRequests)) { ?>
-              <div class="dlv-group dlv-group--req">
-                <h3 class="dlv-group__title"><i class="fas fa-mobile-alt"></i> Request by Customer</h3>
-                <div class="dlv-list">
-                  <?php foreach ($customerRequests as $rq) {
-                    $nama = htmlspecialchars(strtoupper((string) ($rq['nama'] ?? 'Customer')), ENT_QUOTES, 'UTF-8');
-                    $tail = htmlspecialchars((string) ($rq['phone_tail'] ?? ''), ENT_QUOTES, 'UTF-8');
-                    $kode = htmlspecialchars((string) ($rq['kode_cabang'] ?? '00'), ENT_QUOTES, 'UTF-8');
-                    $jenis = strtolower((string) ($rq['jenis'] ?? ''));
-                    $layanan = strtolower((string) ($rq['layanan'] ?? 'sameday'));
-                    $jenisLbl = $jenis === 'antar' ? 'Antar' : ($jenis === 'jemput' ? 'Jemput' : strtoupper($jenis));
-                    $idReq = (int) ($rq['id_request'] ?? 0);
-                    $prefill = implode(',', array_map('intval', $rq['prefill_ids'] ?? []));
-                    $dateRaw = $rq['insertTime'] ?? '';
-                    $dateLbl = $dateRaw !== '' ? date('d/m/y H:i', strtotime($dateRaw)) : '-';
-                    $pillClass = $jenis === 'antar' ? 'dlv-jenis-pill--antar' : 'dlv-jenis-pill--jemput';
-                    $lokNama = trim((string) ($rq['lokasi_nama'] ?? ''));
-                    $lokDetail = trim((string) ($rq['lokasi_detail'] ?? ''));
-                    $lokLatt = $rq['lokasi_latt'] ?? null;
-                    $lokLongt = $rq['lokasi_longt'] ?? null;
-                    $mapsHref = '';
-                    if ($lokLatt !== null && $lokLongt !== null && (float) $lokLatt != 0.0 && (float) $lokLongt != 0.0) {
-                      $mapsHref = 'https://www.google.com/maps?q=' . rawurlencode(((float) $lokLatt) . ',' . ((float) $lokLongt));
-                    }
-                    $tarifSurcas = isset($rq['tarif_surcas']) && $rq['tarif_surcas'] !== null
-                      ? (int) $rq['tarif_surcas']
-                      : '';
-                    $isInstant = $layanan === 'instant';
-                    $canSelesai = !$isInstant || $jenis === 'jemput';
-                    $courierName = trim((string) ($rq['courier_name'] ?? ''));
-                    $bsStatus = trim((string) ($rq['biteship_status'] ?? ''));
-                    $trackUrl = trim((string) ($rq['tracking_url'] ?? ''));
-                    $driverName = trim((string) ($rq['driver_name'] ?? ''));
-                    $ongkir = isset($rq['ongkir']) ? (int) $rq['ongkir'] : 0;
-                  ?>
-                    <div class="dlv-item dlv-item--customer dlv-item--request<?= $isInstant ? ' dlv-item--instant' : '' ?>"
-                         data-id-request="<?= $idReq ?>"
-                         data-phone-tail="<?= $tail ?>"
-                         data-source="customer"
-                         data-layanan="<?= htmlspecialchars($layanan, ENT_QUOTES, 'UTF-8') ?>"
-                         data-tarif-surcas="<?= htmlspecialchars((string) $tarifSurcas, ENT_QUOTES, 'UTF-8') ?>">
-                      <div class="dlv-item__text">
-                        <p class="dlv-item__title">
-                          <?= $nama ?>
-                          <span class="dlv-jenis-pill <?= $pillClass ?>"><?= htmlspecialchars($jenisLbl, ENT_QUOTES, 'UTF-8') ?></span>
-                          <?php if ($isInstant) { ?>
-                            <span class="dlv-jenis-pill" style="background:#fff3cd;color:#856404">Instant</span>
-                          <?php } ?>
-                          <span class="dlv-kode">· <?= $kode ?></span>
-                        </p>
-                        <div class="dlv-item__meta">
-                          #<?= $idReq ?> · <?= $tail ?> · <?= htmlspecialchars($dateLbl, ENT_QUOTES, 'UTF-8') ?>
-                          <?php if ($isInstant && $ongkir > 0) { ?>
-                            · Ongkir Rp<?= number_format($ongkir, 0, ',', '.') ?>
-                          <?php } elseif ($jenis === 'jemput' && $tarifSurcas !== '' && !$isInstant) { ?>
-                            · Tarif Rp<?= number_format((int) $tarifSurcas, 0, ',', '.') ?>
+                      <?php if ($hasCrm) { ?>
+                        <div class="dlv-item__actions" style="margin-top:8px;justify-content:flex-start">
+                          <button type="button" class="dlv-btn dlv-btn--cek" data-dlv-cek-customer="<?= $tail ?>">
+                            <i class="fas fa-search"></i> Cek
+                          </button>
+                          <?php if ($reqCount <= 0) { ?>
+                            <button type="button" class="dlv-btn dlv-btn--selesai" data-dlv-selesai="<?= $tail ?>"
+                                    data-nama="<?= $nama ?>">
+                              <i class="fas fa-check"></i> Selesai CRM
+                            </button>
+                          <?php } else { ?>
+                            <span class="dlv-item__meta" style="opacity:.8">Selesai via request portal di bawah</span>
                           <?php } ?>
                         </div>
-                        <?php if ($isInstant && ($courierName !== '' || $bsStatus !== '' || $driverName !== '')) { ?>
-                          <div class="dlv-item__meta">
-                            <?php if ($courierName !== '') { ?>
-                              <i class="fas fa-motorcycle"></i> <?= htmlspecialchars($courierName, ENT_QUOTES, 'UTF-8') ?>
+                      <?php } ?>
+
+                      <?php foreach ($reqs as $rq) {
+                        $jenis = strtolower((string) ($rq['jenis'] ?? ''));
+                        $layanan = strtolower((string) ($rq['layanan'] ?? 'sameday'));
+                        $jenisLbl = $jenis === 'antar' ? 'Antar' : ($jenis === 'jemput' ? 'Jemput' : strtoupper($jenis));
+                        $idReq = (int) ($rq['id_request'] ?? 0);
+                        $prefill = implode(',', array_map('intval', $rq['prefill_ids'] ?? []));
+                        $dateRawR = $rq['insertTime'] ?? '';
+                        $dateLblR = $dateRawR !== '' ? date('d/m/y H:i', strtotime($dateRawR)) : '-';
+                        $pillClass = $jenis === 'antar' ? 'dlv-jenis-pill--antar' : 'dlv-jenis-pill--jemput';
+                        $lokNama = trim((string) ($rq['lokasi_nama'] ?? ''));
+                        $lokDetail = trim((string) ($rq['lokasi_detail'] ?? ''));
+                        $lokLatt = $rq['lokasi_latt'] ?? null;
+                        $lokLongt = $rq['lokasi_longt'] ?? null;
+                        $mapsHref = '';
+                        if ($lokLatt !== null && $lokLongt !== null && (float) $lokLatt != 0.0 && (float) $lokLongt != 0.0) {
+                          $mapsHref = 'https://www.google.com/maps?q=' . rawurlencode(((float) $lokLatt) . ',' . ((float) $lokLongt));
+                        }
+                        $tarifSurcas = isset($rq['tarif_surcas']) && $rq['tarif_surcas'] !== null
+                          ? (int) $rq['tarif_surcas']
+                          : '';
+                        $isInstant = $layanan === 'instant';
+                        $canSelesai = !$isInstant || $jenis === 'jemput';
+                        $courierName = trim((string) ($rq['courier_name'] ?? ''));
+                        $bsStatus = trim((string) ($rq['biteship_status'] ?? ''));
+                        $trackUrl = trim((string) ($rq['tracking_url'] ?? ''));
+                        $driverName = trim((string) ($rq['driver_name'] ?? ''));
+                        $ongkir = isset($rq['ongkir']) ? (int) $rq['ongkir'] : 0;
+                        $catatanKurir = trim((string) ($rq['catatan_kurir'] ?? ''));
+                      ?>
+                        <div class="dlv-item dlv-item--customer dlv-item--request<?= $isInstant ? ' dlv-item--instant' : '' ?>"
+                             style="margin-top:8px;border:1px solid rgba(15,23,42,.08)"
+                             data-id-request="<?= $idReq ?>"
+                             data-phone-tail="<?= $tail ?>"
+                             data-source="customer"
+                             data-layanan="<?= htmlspecialchars($layanan, ENT_QUOTES, 'UTF-8') ?>"
+                             data-tarif-surcas="<?= htmlspecialchars((string) $tarifSurcas, ENT_QUOTES, 'UTF-8') ?>">
+                          <div class="dlv-item__text">
+                            <p class="dlv-item__title">
+                              <span class="dlv-jenis-pill <?= $pillClass ?>"><?= htmlspecialchars($jenisLbl, ENT_QUOTES, 'UTF-8') ?></span>
+                              <?php if ($isInstant) { ?>
+                                <span class="dlv-jenis-pill" style="background:#fff3cd;color:#856404">Instant</span>
+                              <?php } ?>
+                              <span class="dlv-kode">#<?= $idReq ?></span>
+                            </p>
+                            <div class="dlv-item__meta">
+                              <?= htmlspecialchars($dateLblR, ENT_QUOTES, 'UTF-8') ?>
+                              <?php if ($isInstant && $ongkir > 0) { ?>
+                                · Ongkir Rp<?= number_format($ongkir, 0, ',', '.') ?>
+                              <?php } elseif ($jenis === 'jemput' && $tarifSurcas !== '' && !$isInstant) { ?>
+                                · Tarif Rp<?= number_format((int) $tarifSurcas, 0, ',', '.') ?>
+                              <?php } ?>
+                            </div>
+                            <?php if ($isInstant && ($courierName !== '' || $bsStatus !== '' || $driverName !== '')) { ?>
+                              <div class="dlv-item__meta">
+                                <?php if ($courierName !== '') { ?>
+                                  <i class="fas fa-motorcycle"></i> <?= htmlspecialchars($courierName, ENT_QUOTES, 'UTF-8') ?>
+                                <?php } ?>
+                                <?php if ($bsStatus !== '') { ?> · <?= htmlspecialchars($bsStatus, ENT_QUOTES, 'UTF-8') ?><?php } ?>
+                                <?php if ($driverName !== '') { ?> · Driver <?= htmlspecialchars($driverName, ENT_QUOTES, 'UTF-8') ?><?php } ?>
+                                <?php if ($trackUrl !== '') { ?> · <a href="<?= htmlspecialchars($trackUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">Track</a><?php } ?>
+                              </div>
                             <?php } ?>
-                            <?php if ($bsStatus !== '') { ?>
-                              · <?= htmlspecialchars($bsStatus, ENT_QUOTES, 'UTF-8') ?>
+                            <?php if ($lokNama !== '' || $lokDetail !== '') { ?>
+                              <div class="dlv-item__meta dlv-item__lokasi">
+                                <i class="fas fa-map-marker-alt"></i>
+                                <?= htmlspecialchars($lokNama !== '' ? $lokNama : 'Lokasi', ENT_QUOTES, 'UTF-8') ?>
+                                <?php if ($lokDetail !== '') { ?> · <?= htmlspecialchars($lokDetail, ENT_QUOTES, 'UTF-8') ?><?php } ?>
+                                <?php if ($mapsHref !== '') { ?> · <a href="<?= htmlspecialchars($mapsHref, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">Maps</a><?php } ?>
+                              </div>
                             <?php } ?>
-                            <?php if ($driverName !== '') { ?>
-                              · Driver <?= htmlspecialchars($driverName, ENT_QUOTES, 'UTF-8') ?>
-                            <?php } ?>
-                            <?php if ($trackUrl !== '') { ?>
-                              · <a href="<?= htmlspecialchars($trackUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">Track</a>
+                            <?php if ($catatanKurir !== '') { ?>
+                              <div class="dlv-item__meta">
+                                <i class="fas fa-sticky-note"></i>
+                                Catatan: <?= htmlspecialchars($catatanKurir, ENT_QUOTES, 'UTF-8') ?>
+                              </div>
                             <?php } ?>
                           </div>
-                        <?php } ?>
-                        <?php if ($lokNama !== '' || $lokDetail !== '') { ?>
-                          <div class="dlv-item__meta dlv-item__lokasi">
-                            <i class="fas fa-map-marker-alt"></i>
-                            <?= htmlspecialchars($lokNama !== '' ? $lokNama : 'Lokasi', ENT_QUOTES, 'UTF-8') ?>
-                            <?php if ($lokDetail !== '') { ?>
-                              · <?= htmlspecialchars($lokDetail, ENT_QUOTES, 'UTF-8') ?>
-                            <?php } ?>
-                            <?php if ($mapsHref !== '') { ?>
-                              · <a href="<?= htmlspecialchars($mapsHref, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">Maps</a>
+                          <div class="dlv-item__actions">
+                            <?php if ($canSelesai) { ?>
+                              <button type="button"
+                                      class="dlv-btn dlv-btn--selesai"
+                                      data-dlv-selesai-request="<?= $idReq ?>"
+                                      data-phone-tail="<?= $tail ?>"
+                                      data-jenis="<?= htmlspecialchars($jenis, ENT_QUOTES, 'UTF-8') ?>"
+                                      data-layanan="<?= htmlspecialchars($layanan, ENT_QUOTES, 'UTF-8') ?>"
+                                      data-prefill="<?= htmlspecialchars($prefill, ENT_QUOTES, 'UTF-8') ?>"
+                                      data-tarif-surcas="<?= htmlspecialchars($isInstant ? '' : (string) $tarifSurcas, ENT_QUOTES, 'UTF-8') ?>"
+                                      data-nama="<?= $nama ?>">
+                                <i class="fas fa-check"></i> Selesai
+                              </button>
+                            <?php } else { ?>
+                              <span class="dlv-item__meta" style="align-self:center;opacity:.75">Track only</span>
                             <?php } ?>
                           </div>
-                        <?php } ?>
-                      </div>
-                      <div class="dlv-item__actions">
-                        <?php if ($canSelesai) { ?>
-                          <button type="button"
-                                  class="dlv-btn dlv-btn--selesai"
-                                  data-dlv-selesai-request="<?= $idReq ?>"
-                                  data-phone-tail="<?= $tail ?>"
-                                  data-jenis="<?= htmlspecialchars($jenis, ENT_QUOTES, 'UTF-8') ?>"
-                                  data-layanan="<?= htmlspecialchars($layanan, ENT_QUOTES, 'UTF-8') ?>"
-                                  data-prefill="<?= htmlspecialchars($prefill, ENT_QUOTES, 'UTF-8') ?>"
-                                  data-tarif-surcas="<?= htmlspecialchars($isInstant ? '' : (string) $tarifSurcas, ENT_QUOTES, 'UTF-8') ?>"
-                                  data-nama="<?= $nama ?>">
-                            <i class="fas fa-check"></i> Selesai
-                          </button>
-                        <?php } else { ?>
-                          <span class="dlv-item__meta" style="align-self:center;opacity:.75">Track only</span>
-                        <?php } ?>
-                      </div>
+                        </div>
+                      <?php } ?>
                     </div>
-                  <?php } ?>
-                </div>
+                  </div>
+                <?php } ?>
               </div>
-            <?php } ?>
+            </div>
           <?php } ?>
         </div>
       </section>
@@ -1288,16 +1297,12 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
     row.hidden = false;
 
     if (mode === 'request') {
-      var fixed = parseInt(input.getAttribute('data-tarif-fixed') || '0', 10);
-      if (isNaN(fixed) || fixed < 0) fixed = 0;
-      if (!input.dataset.userEdited) input.value = String(fixed);
-      input.readOnly = false;
-      input.required = true;
+      var fixed = parseInt(input.getAttribute('data-tarif-fixed') || '0', 10) || 0;
+      input.value = fixed > 0 ? String(fixed) : '';
+      input.readOnly = true;
+      input.required = false;
       if (hint) {
-        hint.innerHTML =
-          '<i class="fas fa-info-circle me-1"></i>Default dari tarif request (Rp' +
-          Number(fixed).toLocaleString('id-ID') +
-          '). Boleh diubah, isi 0 untuk gratis.';
+        hint.innerHTML = '<i class="fas fa-lock me-1"></i>Tarif dari request customer (jarak). Tidak bisa diubah.';
       }
       return;
     }
@@ -1617,7 +1622,10 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
   }
 
   function removeCustomerItem(phoneTail) {
-    var item = root.querySelector('.dlv-item--customer[data-source="crm"][data-phone-tail="' + phoneTail + '"]');
+    var item = root.querySelector('.dlv-item--group[data-phone-tail="' + phoneTail + '"]');
+    if (!item) {
+      item = root.querySelector('.dlv-item--customer[data-source="crm"][data-phone-tail="' + phoneTail + '"]');
+    }
     if (!item) {
       item = root.querySelector('.dlv-item--customer[data-phone-tail="' + phoneTail + '"]:not([data-id-request])');
     }
@@ -1632,13 +1640,63 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
     refreshCustomerEmptyState(body);
   }
 
-  function removeRequestItem(idRequest) {
+  function removeRequestItem(idRequest, opts) {
+    opts = opts || {};
     var item = root.querySelector('.dlv-item--request[data-id-request="' + idRequest + '"]');
     if (!item) return;
+    var phoneTail = item.getAttribute('data-phone-tail') || '';
+    var groupCard = item.closest('.dlv-item--group');
     var group = item.closest('.dlv-group');
     var list = item.closest('.dlv-list');
     var body = item.closest('.dlv-body');
     item.remove();
+
+    if (opts.crmClosed && phoneTail) {
+      removeCustomerItem(phoneTail);
+      return;
+    }
+
+    if (groupCard) {
+      var left = groupCard.querySelectorAll('.dlv-item--request');
+      var portalBadge = null;
+      var pills = groupCard.querySelectorAll('.dlv-jenis-pill');
+      for (var i = 0; i < pills.length; i++) {
+        if ((pills[i].textContent || '').indexOf('Portal') === 0) {
+          portalBadge = pills[i];
+          break;
+        }
+      }
+      if (portalBadge) {
+        if (!left.length) portalBadge.remove();
+        else portalBadge.textContent = 'Portal ' + left.length;
+      }
+
+      if (!left.length) {
+        if (!groupCard.querySelector('[data-dlv-cek-customer]')) {
+          // Portal-only: kartu kosong
+          groupCard.remove();
+        } else if (!groupCard.querySelector('[data-dlv-selesai]')) {
+          // CRM masih open, request portal habis → unlock Selesai CRM
+          var actions = groupCard.querySelector('.dlv-item__actions');
+          if (actions) {
+            var hint = actions.querySelector('.dlv-item__meta');
+            if (hint) hint.remove();
+            if (!actions.querySelector('[data-dlv-selesai]')) {
+              var btn = document.createElement('button');
+              btn.type = 'button';
+              btn.className = 'dlv-btn dlv-btn--selesai';
+              btn.setAttribute('data-dlv-selesai', phoneTail);
+              var namaEl = groupCard.querySelector('.dlv-item__title');
+              var namaTxt = namaEl ? (namaEl.childNodes[0] || {}).textContent || 'Customer' : 'Customer';
+              btn.setAttribute('data-nama', String(namaTxt).trim());
+              btn.innerHTML = '<i class="fas fa-check"></i> Selesai CRM';
+              actions.appendChild(btn);
+            }
+          }
+        }
+      }
+    }
+
     if (list && !list.querySelector('.dlv-item--customer') && group) {
       group.remove();
     }
@@ -1685,15 +1743,12 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
         return;
       }
     }
-    if (jenis === 'jemput') {
-      var layananSelesai = (document.getElementById('dlvSelesaiLayanan') || {}).value || 'sameday';
-      if (layananSelesai !== 'instant') {
-        var surcasRaw = String((document.getElementById('dlvSurcasJemputJumlah') || {}).value || '').trim();
-        var jumlahSc = parseInt(surcasRaw, 10);
-        if (surcasRaw === '' || isNaN(jumlahSc) || jumlahSc < 0) {
-          toast('Isi Surcas Penjemputan (isi 0 untuk gratis)', 'warn');
-          return;
-        }
+    if (jenis === 'jemput' && mode === 'crm') {
+      var surcasRaw = String((document.getElementById('dlvSurcasJemputJumlah') || {}).value || '').trim();
+      var jumlahSc = parseInt(surcasRaw, 10);
+      if (surcasRaw === '' || isNaN(jumlahSc) || jumlahSc < 0) {
+        toast('Isi Surcas Penjemputan (isi 0 untuk gratis)', 'warn');
+        return;
       }
     }
 
@@ -1710,14 +1765,11 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
         fd.append('ids_sekalian[]', cb.value);
       });
     }
-    if (jenis === 'jemput') {
-      var layananPost = (document.getElementById('dlvSelesaiLayanan') || {}).value || 'sameday';
-      if (layananPost !== 'instant') {
-        fd.append(
-          'jumlah_surcas_jemput',
-          String(parseInt((document.getElementById('dlvSurcasJemputJumlah') || {}).value || '0', 10) || 0)
-        );
-      }
+    if (jenis === 'jemput' && mode === 'crm') {
+      fd.append(
+        'jumlah_surcas_jemput',
+        String(parseInt((document.getElementById('dlvSurcasJemputJumlah') || {}).value || '0', 10) || 0)
+      );
     }
 
     var endpoint = selesaiUrl;
@@ -1744,7 +1796,7 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
         }
         toast(res.message || 'Delivery selesai', 'success');
         closeModal('dlvSelesaiModal');
-        if (mode === 'request') removeRequestItem(idRequest);
+        if (mode === 'request') removeRequestItem(idRequest, { crmClosed: !!(res.data && res.data.crm_closed) });
         else removeCustomerItem(phone);
       })
       .catch(function () { toast('Gagal menyelesaikan', 'error'); })
@@ -1855,7 +1907,7 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
         toast(res.message || 'Delivery dibatalkan', 'success');
         closeModal('dlvConfirmModal');
         closeModal('dlvSelesaiModal');
-        if (mode === 'request') removeRequestItem(idRequest);
+        if (mode === 'request') removeRequestItem(idRequest, { crmClosed: !!(res.data && res.data.crm_closed) });
         else removeCustomerItem(phone);
       })
       .catch(function () { toast('Gagal membatalkan', 'error'); })

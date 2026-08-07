@@ -37,6 +37,7 @@ $instantCloseLabel = (string) ($instantWindow['close_label'] ?? '21.00');
       $track = trim((string) ($pr['tracking_url'] ?? ''));
       $bsStatus = trim((string) ($pr['biteship_status'] ?? ''));
       $courier = trim((string) ($pr['courier_name'] ?? ''));
+      $catatanKurir = trim((string) ($pr['catatan_kurir'] ?? ''));
       $isPay = $status === 'menunggu_pembayaran';
       $badgeClass = $isPay ? 'warn' : 'ok';
       $badgeText = $isPay ? 'Bayar' : 'Berjalan';
@@ -51,6 +52,9 @@ $instantCloseLabel = (string) ($instantWindow['close_label'] ?? '21.00');
         <div class="j-kurir-pending-item__text">
           <strong><?= htmlspecialchars($labelJenis . ' ' . $labelLayanan, ENT_QUOTES, 'UTF-8') ?></strong>
           <small><?= htmlspecialchars($meta . ' · ' . $when, ENT_QUOTES, 'UTF-8') ?><?= $lokNama !== '' ? ' · ' . htmlspecialchars($lokNama, ENT_QUOTES, 'UTF-8') : '' ?></small>
+          <?php if ($catatanKurir !== '') { ?>
+            <small style="display:block;margin-top:4px">Catatan: <?= htmlspecialchars($catatanKurir, ENT_QUOTES, 'UTF-8') ?></small>
+          <?php } ?>
           <?php if ($isPay && $refPay !== '') { ?>
             <div class="j-kurir-pending-actions" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
               <?php if ($saldoTunai >= $ongkir && $ongkir > 0) { ?>

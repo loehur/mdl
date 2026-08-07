@@ -171,12 +171,20 @@ class WAReplies
         }
 
         $provider = $this->autoReplyProvider;
+        $h = strtoupper($handler);
 
-        $sql = "SELECT created_at FROM wa_auto_reply_log 
-                WHERE phone = ? AND handler = ? AND provider = ? 
-                ORDER BY created_at DESC LIMIT 1";
-
-        $result = $db->query($sql, [$waNumber, $handler, $provider]);
+        // JAM_OPERASIONAL & JAM_TUTUP berbagi jendela 60 menit (sapaan tutup vs tanya jam vs DEFAULT fallback)
+        if ($h === 'JAM_OPERASIONAL' || $h === 'JAM_TUTUP') {
+            $sql = "SELECT created_at FROM wa_auto_reply_log 
+                    WHERE phone = ? AND provider = ? AND handler IN ('JAM_OPERASIONAL', 'JAM_TUTUP') 
+                    ORDER BY created_at DESC LIMIT 1";
+            $result = $db->query($sql, [$waNumber, $provider]);
+        } else {
+            $sql = "SELECT created_at FROM wa_auto_reply_log 
+                    WHERE phone = ? AND handler = ? AND provider = ? 
+                    ORDER BY created_at DESC LIMIT 1";
+            $result = $db->query($sql, [$waNumber, $handler, $provider]);
+        }
 
         if ($result && $result->num_rows() > 0) {
             $lastReply = $result->row()->created_at;
@@ -318,22 +326,29 @@ class WAReplies
 
     /**
      * Fallback DEFAULT (CS menunggu) hanya di jam operasional.
-     * Di luar jam operasional → handleJam_operasional (jam tutup/libur).
+     * Di luar jam operasional → handleJam_operasional (jam tutup/libur), dengan cooldown 60 menit
+     * yang sama dengan JAM_TUTUP / JAM_OPERASIONAL (jangan skip, jangan bakar cooldown DEFAULT).
      *
      * @return bool True jika ada balasan terkirim (atau cooldown DEFAULT tercatat)
      */
     public function trySendDefaultFallbackAutoreply($phoneIn, string $waNumber, ?string $textBody, string $fallbackText, int $cooldownMinutes = 1440): bool
     {
-        if (!$this->shouldSendFonnteFallbackReply($waNumber, $cooldownMinutes)) {
-            return false;
-        }
-
         if (!$this->isOperatingHours()) {
+            // Cek dulu sebelum catat DEFAULT — pesan tutup memakai cooldown jam operasional, bukan DEFAULT 24 jam
+            if ($this->isInAutoreplyCooldown($waNumber, 'JAM_TUTUP')) {
+                $this->logAutoreplyTrace($waNumber, 'DEFAULT_FALLBACK', 'outside_hours→JAM_TUTUP_cooldown_skip');
+                return false;
+            }
             $this->currentHandler = 'JAM_OPERASIONAL';
             $this->logAutoreplyTrace($waNumber, 'DEFAULT_FALLBACK', 'outside_hours→JAM_OPERASIONAL');
-            $this->handleJam_operasional($phoneIn, $waNumber, $textBody ?? '', false, true);
+            // skipJamTutupCooldown=false: hormati shouldHandle(JAM_TUTUP) 60 menit
+            $sent = $this->handleJam_operasional($phoneIn, $waNumber, $textBody ?? '', false, false);
 
-            return true;
+            return (bool) $sent;
+        }
+
+        if (!$this->shouldSendFonnteFallbackReply($waNumber, $cooldownMinutes)) {
+            return false;
         }
 
         $this->logAutoreplyTrace($waNumber, 'DEFAULT_FALLBACK', 'inside_hours→CS_wait');
@@ -1498,7 +1513,7 @@ class WAReplies
                             'conversation_id' => $conversationId
                         ];
                     }
-                    // Handler match tapi method tidak ada (mis. MINTA_JEMPUT_ANTAR): create conversation, return, biarkan CS
+                    // Handler match tapi method tidak ada: create conversation, return, biarkan CS / DEFAULT fallback
                     $this->logAutoreplyTrace($waNumber, 'EXIT', 'regex_no_php_method handler=' . $handler);
                     return (object) [
                         'case' => $caseVal,
@@ -2042,6 +2057,74 @@ class WAReplies
         if ($res['success']) {
             $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
         }
+    }
+
+    /**
+     * Intent MINTA_JEMPUT_ANTAR: balasan "CS menunggu" + link kurir jika pelanggan terdaftar.
+     * id_pelanggan = yang terakhir muncul di sale; jika belum pernah sale → id pertama dari lookup WA.
+     * Belum terdaftar → teks BON/CEK/BILL seperti DEFAULT. Di luar jam → jam tutup.
+     */
+    private function handleMinta_Jemput_Antar($phoneIn, $waNumber, $textBody = '')
+    {
+        if (!$this->isOperatingHours()) {
+            $this->handleJam_tutup($phoneIn, $waNumber, $textBody);
+            return;
+        }
+
+        $idPelanggan = $this->resolveIdPelangganForKurirLink($phoneIn, $waNumber);
+
+        if ($idPelanggan !== null) {
+            $mid = "Untuk permintaan Jemput/Antar, dapat juga dipesan via link berikut:\n"
+                . "https://ml.nalju.com/J/kurir/{$idPelanggan}";
+        } else {
+            $mid = "Untuk balasan otomatis, silahkan ketik:\n"
+                . "- *BON* untuk info nota\n"
+                . "- *CEK* untuk info status\n"
+                . "- *BILL* untuk info tagihan";
+        }
+
+        if ($this->autoReplyProvider === 'B') {
+            $text = "Maaf, mohon menunggu. Admin sedang melayani customer lain.\n\n"
+                . $mid
+                . "\n\nUntuk informasi lainnya, kirimkan pesan ke *Madinah Laundry (CS)*\n"
+                . "💬 wa.me/6281170706611";
+        } else {
+            $text = "Maaf, mohon menunggu. CS sedang melayani customer lain.\n\n"
+                . $mid
+                . "\n\nUntuk pengaduan, kirimkan pesan ke *Madinah Laundry (Admin)*\n"
+                . "💬 wa.me/628117686252";
+        }
+
+        $this->sendAutoreplyText($waNumber, $text);
+    }
+
+    /**
+     * id_pelanggan untuk link J/kurir: sale terakhir (insertTime DESC), fallback id terkecil dari WA.
+     * @return int|null null jika nomor belum ada di tabel pelanggan
+     */
+    private function resolveIdPelangganForKurirLink(string $phoneIn, string $waNumber): ?int
+    {
+        $db1 = DB::getInstance(1);
+        $pelanggan = $this->queryPelangganRowsByWaNumber($db1, $phoneIn, $waNumber, 'id_pelanggan');
+        if (empty($pelanggan)) {
+            return null;
+        }
+
+        $ids = array_values(array_unique(array_filter(array_map('intval', array_column($pelanggan, 'id_pelanggan')))));
+        if (empty($ids)) {
+            return null;
+        }
+
+        $idsIn = implode(',', $ids);
+        $row = $db1->query(
+            "SELECT id_pelanggan FROM sale WHERE bin = 0 AND id_pelanggan IN ($idsIn) ORDER BY insertTime DESC LIMIT 1"
+        )->row();
+
+        if ($row && !empty($row->id_pelanggan)) {
+            return (int) $row->id_pelanggan;
+        }
+
+        return $ids[0];
     }
 
     /**
@@ -3228,6 +3311,9 @@ class WAReplies
         }
     }
 
+    /**
+     * @return bool true jika balasan terkirim; false jika dilewati cooldown (jam tutup)
+     */
     function handleJam_operasional($phoneIn, $waNumber, $textBody = '', $forceKonfirmasiIntro = false, $skipJamTutupCooldown = false)
     {
         $t = strtolower(trim($textBody ?? ''));
@@ -3249,10 +3335,11 @@ class WAReplies
         $isOpen = $this->isOperatingHours();
         if ($isOpen) {
             $this->handleJam_buka($phoneIn, $waNumber, $textBody, $konfirmasiIntro);
-        } else {
-            // Jam tutup: jawaban baku saja (tanpa konfirmasi intro)
-            $this->handleJam_tutup($phoneIn, $waNumber, $textBody, null, $skipJamTutupCooldown);
+            return true;
         }
+
+        // Jam tutup: jawaban baku saja (tanpa konfirmasi intro)
+        return $this->handleJam_tutup($phoneIn, $waNumber, $textBody, null, $skipJamTutupCooldown);
     }
 
     function handleJam_buka($phoneIn, $waNumber, $textBody = '', $customIntro = null)

@@ -1480,6 +1480,11 @@ class J extends Controller
          echo json_encode(['ok' => false, 'message' => 'Pilih lokasi dulu']);
          return;
       }
+      $catatanKurir = $this->normalizeCatatanKurir($_POST['catatan'] ?? '');
+      if ($catatanKurir['ok'] === false) {
+         echo json_encode(['ok' => false, 'message' => $catatanKurir['message']]);
+         return;
+      }
       $lokasi = $this->db(0)->get_where_row(
          'pelanggan_lokasi',
          'id_lokasi = ' . $idLokasi . ' AND id_pelanggan = ' . (int) $pelanggan
@@ -1590,6 +1595,9 @@ class J extends Controller
          'lokasi_longt' => $locLon,
          'insertTime' => $now,
       ];
+      if ($catatanKurir['value'] !== '') {
+         $insData['catatan_kurir'] = $catatanKurir['value'];
+      }
       if ($tarifSurcas !== null) {
          $insData['tarif_surcas'] = $tarifSurcas;
       }
@@ -1761,6 +1769,11 @@ class J extends Controller
       $metodeBayar = strtoupper(trim((string) ($_POST['metode'] ?? 'QRIS')));
       if ($metodeBayar !== 'SALDO') {
          $metodeBayar = 'QRIS';
+      }
+      $catatanKurir = $this->normalizeCatatanKurir($_POST['catatan'] ?? '');
+      if ($catatanKurir['ok'] === false) {
+         echo json_encode(['ok' => false, 'message' => $catatanKurir['message']]);
+         return;
       }
       $idsRaw = $_POST['ids'] ?? [];
       if (!is_array($idsRaw)) {
@@ -1941,6 +1954,9 @@ class J extends Controller
          'ongkir' => $ongkir,
          'insertTime' => $now,
       ];
+      if ($catatanKurir['value'] !== '') {
+         $insData['catatan_kurir'] = $catatanKurir['value'];
+      }
       $ins = $this->db(0)->insert('delivery_request', $insData);
       if (is_array($ins) && isset($ins['errno']) && (int) $ins['errno'] !== 0) {
          echo json_encode(['ok' => false, 'message' => $ins['error'] ?? 'Gagal membuat permintaan']);
@@ -2385,6 +2401,7 @@ class J extends Controller
             'insertTime' => (string) ($r['insertTime'] ?? ''),
             'lokasi_nama' => (string) ($r['lokasi_nama'] ?? ''),
             'lokasi_detail' => (string) ($r['lokasi_detail'] ?? ''),
+            'catatan_kurir' => (string) ($r['catatan_kurir'] ?? ''),
             'ongkir' => isset($r['ongkir']) ? (int) $r['ongkir'] : null,
             'courier_name' => (string) ($r['courier_name'] ?? ''),
             'biteship_status' => (string) ($r['biteship_status'] ?? ''),
@@ -2403,6 +2420,27 @@ class J extends Controller
          return substr($digits, -9);
       }
       return $digits;
+   }
+
+   /**
+    * Catatan untuk kurir (opsional). Max 150 karakter.
+    * @return array{ok:bool,value:string,message:string}
+    */
+   private function normalizeCatatanKurir($raw): array
+   {
+      $val = trim((string) $raw);
+      $val = preg_replace("/[\r\n]+/", ' ', $val);
+      $val = preg_replace('/\s+/u', ' ', (string) $val);
+      $val = trim((string) $val);
+      $len = function_exists('mb_strlen') ? mb_strlen($val, 'UTF-8') : strlen($val);
+      if ($len > 150) {
+         return [
+            'ok' => false,
+            'value' => '',
+            'message' => 'Catatan maksimal 150 karakter',
+         ];
+      }
+      return ['ok' => true, 'value' => $val, 'message' => ''];
    }
 
    private function fetchKurirEligibleSaleRows(int $pelanggan, string $jenis, bool $requireNotifSelesai = false): array
