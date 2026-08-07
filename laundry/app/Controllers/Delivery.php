@@ -228,6 +228,12 @@ class Delivery extends Controller
          if ($sekalian && empty($idsSekalian)) {
             throw new Exception('Sekalian aktif: pilih minimal satu item lawan jenis');
          }
+         if ($sekalian) {
+            $overlap = array_intersect($ids, $idsSekalian);
+            if (!empty($overlap)) {
+               throw new Exception('Item jemput dan antar tidak boleh sama');
+            }
+         }
 
          // Wajib Access Key milik karyawan yang dipilih (semua user boleh submit)
          $karyawan = $this->helper('User')->by_id_access_key($idKaryawan, $accessKey);
@@ -369,6 +375,12 @@ class Delivery extends Controller
          }
          if ($sekalian && empty($idsSekalian)) {
             throw new Exception('Sekalian aktif: pilih minimal satu item lawan jenis');
+         }
+         if ($sekalian) {
+            $overlap = array_intersect($ids, $idsSekalian);
+            if (!empty($overlap)) {
+               throw new Exception('Item jemput dan antar tidak boleh sama');
+            }
          }
 
          $karyawan = $this->helper('User')->by_id_access_key($idKaryawan, $accessKey);
