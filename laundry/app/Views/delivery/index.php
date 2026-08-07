@@ -213,13 +213,64 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
       color: var(--dlv-ink);
       border-color: #cbd5e1;
     }
-    #dlv-root .op-modal__panel--selesai { width: min(520px, 100%); }
+    #dlv-root .op-modal__panel--selesai {
+      width: min(960px, 100%);
+      max-height: min(92vh, 900px);
+    }
+    #dlv-root #dlvSelesaiForm {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+    #dlv-root #dlvSelesaiForm > .op-modal__body {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    #dlv-root #dlvSelesaiForm > .op-modal__foot {
+      flex-shrink: 0;
+    }
+    #dlv-root .dlv-selesai-meta {
+      display: grid;
+      grid-template-columns: 1fr 1.4fr 0.9fr;
+      gap: 10px 12px;
+      align-items: start;
+      margin-bottom: 4px;
+    }
+    #dlv-root .dlv-selesai-meta .dlv-field-label { margin-top: 0; }
+    #dlv-root .dlv-selesai-meta .dlv-hint { margin-top: 4px; }
+    #dlv-root .dlv-selesai-cols {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+      margin-top: 10px;
+      align-items: start;
+    }
+    #dlv-root .dlv-selesai-cols.is-dual {
+      grid-template-columns: 1fr 1fr;
+    }
+    #dlv-root .dlv-selesai-col {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+    }
     #dlv-root .dlv-sales-box {
       margin-top: 4px;
-      max-height: min(42vh, 360px);
+      max-height: min(48vh, 420px);
+      min-height: 160px;
       overflow: auto;
       border: 1px solid var(--dlv-line);
       background: #fff;
+    }
+    @media (max-width: 768px) {
+      #dlv-root .op-modal__panel--selesai { width: 100%; max-height: 94vh; }
+      #dlv-root .dlv-selesai-meta { grid-template-columns: 1fr; }
+      #dlv-root .dlv-selesai-cols,
+      #dlv-root .dlv-selesai-cols.is-dual { grid-template-columns: 1fr; }
+      #dlv-root .dlv-sales-box { max-height: min(36vh, 280px); min-height: 120px; }
     }
     #dlv-root .dlv-sales-group {
       border-bottom: 1px solid #e2e8f0;
@@ -599,7 +650,8 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
       display: flex;
       align-items: center;
       gap: 8px;
-      margin-top: 12px;
+      margin-top: 0;
+      margin-bottom: 8px;
       padding: 10px 12px;
       border: 1px solid var(--dlv-line);
       background: #f8fafc;
@@ -607,8 +659,9 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
       cursor: pointer;
       user-select: none;
     }
+    #dlv-root .dlv-sekalian[hidden] { display: none !important; }
     #dlv-root .dlv-sekalian input { margin: 0; }
-    #dlv-root .dlv-sekalian-wrap { margin-top: 8px; }
+    #dlv-root .dlv-sekalian-wrap { margin-top: 0; }
     #dlv-root .dlv-sekalian-wrap[hidden] { display: none !important; }
     #dlv-root .dlv-item__lokasi {
       margin-top: 4px;
@@ -852,37 +905,42 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
           <input type="hidden" id="dlvSelesaiRequestId" name="id_request" value="">
           <input type="hidden" id="dlvSelesaiPhone" name="phone_tail" value="">
           <input type="hidden" id="dlvSelesaiPrefill" value="">
-          <label class="dlv-field-label" for="dlvSelesaiJenis">Jenis</label>
-          <select id="dlvSelesaiJenis" name="jenis" class="dlv-input" required>
-            <option value="">— Pilih —</option>
-            <option value="jemput">Jemput</option>
-            <option value="antar">Antar</option>
-          </select>
-          <label class="dlv-field-label mt-2" for="dlvSelesaiKaryawan">Karyawan yang menyelesaikan</label>
-          <select id="dlvSelesaiKaryawan" name="id_karyawan" class="form-control tize" style="width:100%" required>
-            <option value="" selected disabled></option>
-            <optgroup label="<?= htmlspecialchars(($this->dCabang['nama'] ?? 'Cabang') . ' [' . ($this->dCabang['kode_cabang'] ?? '') . ']', ENT_QUOTES, 'UTF-8') ?>">
-              <?php foreach (($this->user ?? []) as $a) { ?>
-                <option value="<?= (int) $a['id_user'] ?>"><?= (int) $a['id_user'] . '-' . htmlspecialchars(strtoupper((string) ($a['nama_user'] ?? '')), ENT_QUOTES, 'UTF-8') ?></option>
-              <?php } ?>
-            </optgroup>
-            <?php if (!empty($this->userCabang)) { ?>
-              <optgroup label="----- Cabang Lain -----">
-                <?php foreach ($this->userCabang as $a) { ?>
-                  <option value="<?= (int) $a['id_user'] ?>"><?= (int) $a['id_user'] . '-' . htmlspecialchars(strtoupper((string) ($a['nama_user'] ?? '')), ENT_QUOTES, 'UTF-8') ?></option>
+
+          <div class="dlv-selesai-meta">
+            <div>
+              <label class="dlv-field-label" for="dlvSelesaiJenis">Jenis</label>
+              <select id="dlvSelesaiJenis" name="jenis" class="dlv-input" required>
+                <option value="">— Pilih —</option>
+                <option value="jemput">Jemput</option>
+                <option value="antar">Antar</option>
+              </select>
+            </div>
+            <div>
+              <label class="dlv-field-label" for="dlvSelesaiKaryawan">Karyawan yang menyelesaikan</label>
+              <select id="dlvSelesaiKaryawan" name="id_karyawan" class="form-control tize" style="width:100%" required>
+                <option value="" selected disabled></option>
+                <optgroup label="<?= htmlspecialchars(($this->dCabang['nama'] ?? 'Cabang') . ' [' . ($this->dCabang['kode_cabang'] ?? '') . ']', ENT_QUOTES, 'UTF-8') ?>">
+                  <?php foreach (($this->user ?? []) as $a) { ?>
+                    <option value="<?= (int) $a['id_user'] ?>"><?= (int) $a['id_user'] . '-' . htmlspecialchars(strtoupper((string) ($a['nama_user'] ?? '')), ENT_QUOTES, 'UTF-8') ?></option>
+                  <?php } ?>
+                </optgroup>
+                <?php if (!empty($this->userCabang)) { ?>
+                  <optgroup label="----- Cabang Lain -----">
+                    <?php foreach ($this->userCabang as $a) { ?>
+                      <option value="<?= (int) $a['id_user'] ?>"><?= (int) $a['id_user'] . '-' . htmlspecialchars(strtoupper((string) ($a['nama_user'] ?? '')), ENT_QUOTES, 'UTF-8') ?></option>
+                    <?php } ?>
+                  </optgroup>
                 <?php } ?>
-              </optgroup>
-            <?php } ?>
-          </select>
-          <label class="dlv-field-label mt-2" for="dlvSelesaiKey">Access Key karyawan</label>
-          <input type="password" id="dlvSelesaiKey" name="access_key" class="dlv-input" inputmode="numeric" maxlength="4" autocomplete="one-time-code" placeholder="4 digit" required>
-          <p class="dlv-hint mt-1 mb-0">
-            <i class="fas fa-info-circle me-1"></i>
-            Access Key harus milik karyawan yang dipilih.
-          </p>
-          <label class="dlv-field-label mt-2">Item penjualan</label>
-          <div class="dlv-sales-box" id="dlvSelesaiSales">
-            <div class="dlv-sales-empty">Pilih jenis terlebih dahulu</div>
+              </select>
+            </div>
+            <div>
+              <label class="dlv-field-label" for="dlvSelesaiKey">Access Key karyawan</label>
+              <input type="password" id="dlvSelesaiKey" name="access_key" class="dlv-input" inputmode="numeric" maxlength="4" autocomplete="one-time-code" placeholder="4 digit" required>
+              <p class="dlv-hint mt-1 mb-0">
+                <i class="fas fa-info-circle me-1"></i>
+                Access Key harus milik karyawan yang dipilih.
+              </p>
+            </div>
           </div>
 
           <div id="dlvSurcasJemputRow" hidden>
@@ -894,14 +952,24 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
             </p>
           </div>
 
-          <label class="dlv-sekalian" id="dlvSekalianRow" hidden>
-            <input type="checkbox" id="dlvSekalianCheck" value="1">
-            <span id="dlvSekalianLabel">Sekalian Jemput?</span>
-          </label>
-          <div class="dlv-sekalian-wrap" id="dlvSekalianWrap" hidden>
-            <label class="dlv-field-label">Item sekalian</label>
-            <div class="dlv-sales-box" id="dlvSekalianSales">
-              <div class="dlv-sales-empty">Centang sekalian untuk memuat item</div>
+          <div class="dlv-selesai-cols">
+            <div class="dlv-selesai-col">
+              <label class="dlv-field-label">Item penjualan</label>
+              <div class="dlv-sales-box" id="dlvSelesaiSales">
+                <div class="dlv-sales-empty">Pilih jenis terlebih dahulu</div>
+              </div>
+            </div>
+            <div class="dlv-selesai-col">
+              <label class="dlv-sekalian" id="dlvSekalianRow" hidden>
+                <input type="checkbox" id="dlvSekalianCheck" value="1">
+                <span id="dlvSekalianLabel">Sekalian Jemput?</span>
+              </label>
+              <div class="dlv-sekalian-wrap" id="dlvSekalianWrap" hidden>
+                <label class="dlv-field-label">Item sekalian</label>
+                <div class="dlv-sales-box" id="dlvSekalianSales">
+                  <div class="dlv-sales-empty">Centang sekalian untuk memuat item</div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1185,6 +1253,8 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
     if (sekalianRow) sekalianRow.hidden = true;
     if (sekalianWrap) sekalianWrap.hidden = true;
     if (sekalianSales) sekalianSales.innerHTML = '<div class="dlv-sales-empty">Centang sekalian untuk memuat item</div>';
+    var cols = document.querySelector('#dlvSelesaiModal .dlv-selesai-cols');
+    if (cols) cols.classList.remove('is-dual');
     if (surcasRow) surcasRow.hidden = true;
     if (surcasJumlah) {
       surcasJumlah.value = '';
@@ -1263,14 +1333,17 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
     var check = document.getElementById('dlvSekalianCheck');
     var wrap = document.getElementById('dlvSekalianWrap');
     var sales = document.getElementById('dlvSekalianSales');
+    var cols = document.querySelector('#dlvSelesaiModal .dlv-selesai-cols');
     if (!row || !label) return;
     if (!jenis) {
       row.hidden = true;
       if (check) check.checked = false;
       if (wrap) wrap.hidden = true;
+      if (cols) cols.classList.remove('is-dual');
       return;
     }
     row.hidden = false;
+    if (cols) cols.classList.add('is-dual');
     label.textContent = jenis === 'antar' ? 'Sekalian Jemput?' : 'Sekalian Antar?';
     if (check && !check.checked) {
       if (wrap) wrap.hidden = true;
