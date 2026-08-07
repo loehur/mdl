@@ -101,6 +101,65 @@
     reload: function () {
       var st = history.state || parsePath();
       loadPage(st.page || 'home', st.extra || '', false);
+    },
+    /** JSON: list lokasi + tarif antar */
+    lokasiList: function () {
+      return fetch(base + 'J/lokasiList/' + pelangganId, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' },
+        credentials: 'same-origin'
+      }).then(function (res) {
+        return res.json();
+      });
+    },
+    /**
+     * POST Request Antar — tambah surcas pengantaran ke 1 ref belum tuntas.
+     * @param {number[]} ids id_penjualan
+     * @param {number} idLokasi
+     */
+    requestAntar: function (ids, idLokasi) {
+      var body = new URLSearchParams();
+      body.set('id_lokasi', String(idLokasi || 0));
+      (ids || []).forEach(function (id) {
+        body.append('ids[]', String(id));
+      });
+      return fetch(base + 'J/requestAntar/' + pelangganId, {
+        method: 'POST',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          Accept: 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+        },
+        credentials: 'same-origin',
+        body: body.toString()
+      }).then(function (res) {
+        return res.json();
+      });
+    },
+    /** HTML partial list lokasi + Tarif → inject ke container */
+    loadLokasiAntar: function (container) {
+      var el = typeof container === 'string' ? document.querySelector(container) : container;
+      if (!el) {
+        return Promise.reject(new Error('Container lokasi tidak ditemukan'));
+      }
+      el.innerHTML = loadingHtml();
+      return fetch(base + 'J/load/lokasiAntar/' + pelangganId, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        credentials: 'same-origin'
+      })
+        .then(function (res) {
+          if (!res.ok) throw new Error('Gagal memuat lokasi');
+          return res.text();
+        })
+        .then(function (html) {
+          el.innerHTML = html;
+          return el;
+        });
+    },
+    /** id_lokasi terpilih dari list partial */
+    selectedLokasiId: function (root) {
+      var scope = root || document;
+      var checked = scope.querySelector('input[name="j_id_lokasi"]:checked');
+      return checked ? parseInt(checked.value, 10) || 0 : 0;
     }
   };
 

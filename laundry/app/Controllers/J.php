@@ -171,6 +171,120 @@ class J extends Controller
       echo json_encode(['ok' => true, 'message' => 'Topup paket dihapus']);
    }
 
+   /**
+    * GET/JSON: list lokasi pelanggan + Tarif antar (jarak ke cabang).
+    * Untuk UI Request Antar di J.
+    */
+   public function lokasiList($pelanggan)
+   {
+      header('Content-Type: application/json; charset=utf-8');
+      $pelanggan = $this->bootCustomer($pelanggan);
+
+      $built = $this->buildLokasiListWithTarif($pelanggan);
+      if (!$built['ok']) {
+         echo json_encode(['ok' => false, 'message' => $built['message'], 'data' => []]);
+         return;
+      }
+
+      echo json_encode([
+         'ok' => true,
+         'data' => $built['list'],
+         'cabang' => $built['cabang'],
+      ]);
+   }
+
+   /**
+    * POST: Request Antar — insert surcas Pengantaran (id_jenis_surcas=2)
+    * ke satu no_ref belum tuntas dari item terpilih.
+    * Body: id_lokasi, ids[] (id_penjualan)
+    */
+   public function requestAntar($pelanggan)
+   {
+      header('Content-Type: application/json; charset=utf-8');
+      $pelanggan = $this->bootCustomer($pelanggan);
+
+      $idLokasi = isset($_POST['id_lokasi']) ? (int) $_POST['id_lokasi'] : 0;
+      $idsRaw = $_POST['ids'] ?? [];
+      if (!is_array($idsRaw)) {
+         $idsRaw = [$idsRaw];
+      }
+      $ids = [];
+      foreach ($idsRaw as $id) {
+         $id = (int) $id;
+         if ($id > 0) {
+            $ids[$id] = $id;
+         }
+      }
+      $ids = array_values($ids);
+
+      if ($idLokasi <= 0) {
+         echo json_encode(['ok' => false, 'message' => 'Pilih lokasi pengantaran']);
+         return;
+      }
+      if (empty($ids)) {
+         echo json_encode(['ok' => false, 'message' => 'Pilih minimal satu item']);
+         return;
+      }
+
+      $lokasi = $this->db(0)->get_where_row(
+         'pelanggan_lokasi',
+         'id_lokasi = ' . $idLokasi . ' AND id_pelanggan = ' . (int) $pelanggan
+      );
+      if (!is_array($lokasi) || empty($lokasi['id_lokasi'])) {
+         echo json_encode(['ok' => false, 'message' => 'Lokasi tidak ditemukan']);
+         return;
+      }
+
+      $cabLat = (float) ($this->dCabangPublic['latt'] ?? 0);
+      $cabLon = (float) ($this->dCabangPublic['long'] ?? 0);
+      if ($cabLat == 0.0 && $cabLon == 0.0) {
+         echo json_encode(['ok' => false, 'message' => 'Lokasi cabang belum diatur']);
+         return;
+      }
+
+      $locLat = (float) ($lokasi['latt'] ?? 0);
+      $locLon = (float) ($lokasi['longt'] ?? 0);
+      if ($locLat == 0.0 && $locLon == 0.0) {
+         echo json_encode(['ok' => false, 'message' => 'Koordinat lokasi pelanggan belum lengkap']);
+         return;
+      }
+
+      $tarifHelper = $this->helper('AntarTarif');
+      $calc = $tarifHelper->tarifFromCoords($cabLat, $cabLon, $locLat, $locLon);
+      $jumlah = (int) $calc['tarif'];
+      $km = (float) $calc['km'];
+
+      $noRef = $this->pickBelumTuntasRef($pelanggan, $ids);
+      if ($noRef === null || $noRef === '') {
+         echo json_encode([
+            'ok' => false,
+            'message' => 'Tidak ada item belum tuntas. Surcas hanya bisa ke ref yang masih proses.',
+         ]);
+         return;
+      }
+
+      $inserted = $this->insertSurcasPengantaran($noRef, $jumlah);
+      if ($inserted === false) {
+         echo json_encode(['ok' => false, 'message' => 'Gagal menyimpan surcas pengantaran']);
+         return;
+      }
+
+      echo json_encode([
+         'ok' => true,
+         'message' => $inserted === 'exists'
+            ? 'Surcas pengantaran sudah ada di ref ini'
+            : 'Surcas pengantaran ditambahkan',
+         'data' => [
+            'no_ref' => $noRef,
+            'jumlah' => $jumlah,
+            'km' => $km,
+            'id_lokasi' => $idLokasi,
+            'id_jenis_surcas' => AntarTarif::SURCAS_JENIS_PENGANTARAN,
+            'already_exists' => $inserted === 'exists',
+         ],
+      ]);
+   }
+
    /** POST: topup saldo tunai — non-tunai pending (jt=6), bayar via gateway seperti Tagihan */
    public function saldoTopup($pelanggan)
    {
@@ -299,6 +413,13 @@ class J extends Controller
 
          case 'kurir':
             $this->view('j/partials/kurir', $payload);
+            break;
+
+         case 'lokasiAntar':
+            $built = $this->buildLokasiListWithTarif($pelanggan);
+            $payload['lokasi'] = $built['ok'] ? $built['list'] : [];
+            $payload['lokasi_error'] = $built['ok'] ? '' : ($built['message'] ?? '');
+            $this->view('j/partials/lokasi_antar', $payload);
             break;
 
          case 'paketDetail':
@@ -1115,5 +1236,130 @@ class J extends Controller
          'lastSaldo' => $saldo,
          'satuan' => $satuan,
       ];
+   }
+
+   /**
+    * List pelanggan_lokasi + km/tarif dari koordinat cabang.
+    * @return array{ok:bool,message?:string,list?:array,cabang?:array}
+    */
+   private function buildLokasiListWithTarif($pelanggan)
+   {
+      $cabLat = (float) ($this->dCabangPublic['latt'] ?? 0);
+      $cabLon = (float) ($this->dCabangPublic['long'] ?? 0);
+      if ($cabLat == 0.0 && $cabLon == 0.0) {
+         return ['ok' => false, 'message' => 'Lokasi cabang belum diatur', 'list' => []];
+      }
+
+      $rows = $this->db(0)->get_where(
+         'pelanggan_lokasi',
+         'id_pelanggan = ' . (int) $pelanggan . ' ORDER BY id_lokasi ASC'
+      );
+      if (!is_array($rows)) {
+         $rows = [];
+      }
+
+      $tarifHelper = $this->helper('AntarTarif');
+      $list = [];
+      foreach ($rows as $row) {
+         $locLat = (float) ($row['latt'] ?? 0);
+         $locLon = (float) ($row['longt'] ?? 0);
+         $calc = $tarifHelper->tarifFromCoords($cabLat, $cabLon, $locLat, $locLon);
+         $list[] = [
+            'id_lokasi' => (int) ($row['id_lokasi'] ?? 0),
+            'nama' => (string) ($row['nama'] ?? ''),
+            'detail' => (string) ($row['detail'] ?? ''),
+            'latt' => $locLat,
+            'longt' => $locLon,
+            'km' => $calc['km'],
+            'tarif' => $calc['tarif'],
+         ];
+      }
+
+      return [
+         'ok' => true,
+         'list' => $list,
+         'cabang' => [
+            'latt' => $cabLat,
+            'long' => $cabLon,
+            'nama' => (string) ($this->dCabangPublic['nama_cabang'] ?? $this->dCabangPublic['nama'] ?? ''),
+         ],
+      ];
+   }
+
+   /**
+    * Satu no_ref dari item terpilih yang statusnya belum tuntas (tuntas=0).
+    * @param int $pelanggan
+    * @param int[] $ids id_penjualan
+    * @return string|null
+    */
+   private function pickBelumTuntasRef($pelanggan, array $ids)
+   {
+      if (empty($ids)) {
+         return null;
+      }
+      $safeIds = [];
+      foreach ($ids as $id) {
+         $id = (int) $id;
+         if ($id > 0) {
+            $safeIds[] = $id;
+         }
+      }
+      if (empty($safeIds)) {
+         return null;
+      }
+
+      $idsIn = implode(',', $safeIds);
+      $rows = $this->db(0)->get_where(
+         'sale',
+         'id_pelanggan = ' . (int) $pelanggan
+            . ' AND bin = 0 AND tuntas = 0'
+            . ' AND id_penjualan IN (' . $idsIn . ')'
+            . ' ORDER BY id_penjualan ASC'
+      );
+      if (!is_array($rows) || empty($rows)) {
+         return null;
+      }
+
+      $noRef = trim((string) ($rows[0]['no_ref'] ?? ''));
+      return $noRef !== '' ? $noRef : null;
+   }
+
+   /**
+    * Insert surcas Pengantaran (jenis 2) ke no_ref — skip jika sudah ada.
+    * @return true|'exists'|false
+    */
+   private function insertSurcasPengantaran($noRef, $jumlah)
+   {
+      $noRef = trim((string) $noRef);
+      $jumlah = (int) $jumlah;
+      if ($noRef === '' || $jumlah <= 0) {
+         return false;
+      }
+
+      $idCabang = (int) $this->id_cabang_p;
+      $this->helper('AntarTarif');
+      $jenis = AntarTarif::SURCAS_JENIS_PENGANTARAN;
+      $noRefEsc = $this->db(0)->escape($noRef);
+
+      $setOne = "transaksi_jenis = 1 AND no_ref = '" . $noRefEsc . "' AND id_jenis_surcas = " . $jenis;
+      $where = 'id_cabang = ' . $idCabang . ' AND ' . $setOne;
+      $count = (int) ($this->db(0)->count_where('surcas', $where) ?? 0);
+      if ($count >= 1) {
+         return 'exists';
+      }
+
+      $in = $this->db(0)->insert('surcas', [
+         'id_cabang' => $idCabang,
+         'transaksi_jenis' => 1,
+         'id_jenis_surcas' => $jenis,
+         'jumlah' => $jumlah,
+         'id_user' => 0,
+         'no_ref' => is_numeric($noRef) ? (0 + $noRef) : $noRef,
+      ]);
+      if (is_array($in) && isset($in['errno']) && (int) $in['errno'] !== 0) {
+         $this->model('Log')->write(__CLASS__ . '->insertSurcasPengantaran() ' . ($in['error'] ?? ''));
+         return false;
+      }
+      return true;
    }
 }
