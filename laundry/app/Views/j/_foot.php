@@ -18,6 +18,9 @@ $base = $data['base'];
     <a href="<?= $base ?>J/paket/<?= $id ?>" class="<?= $active === 'paket' ? 'active' : '' ?>">
       <i class="fas fa-box-open"></i> Paket
     </a>
+    <a href="<?= $base ?>J/kurir/<?= $id ?>" class="<?= $active === 'kurir' ? 'active' : '' ?>">
+      <i class="fas fa-motorcycle"></i> Kurir
+    </a>
   </nav>
 </div>
 

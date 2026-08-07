@@ -112,7 +112,7 @@
     if (mTopupFilter) return { page: 'topup', extra: mTopupFilter[2] };
     var mTopup = path.match(/\/J\/topup\/(\d+)\/?$/i);
     if (mTopup) return { page: 'topup', extra: '' };
-    var mPage = path.match(/\/J\/(tagihan|saldo|paket)\/(\d+)/i);
+    var mPage = path.match(/\/J\/(tagihan|saldo|paket|kurir)\/(\d+)/i);
     if (mPage) return { page: mPage[1], extra: '' };
     return { page: 'home', extra: '' };
   }
@@ -152,7 +152,7 @@
       return;
     }
 
-    var mPage = href.match(/J\/(tagihan|saldo|paket)\/(\d+)/i);
+    var mPage = href.match(/J\/(tagihan|saldo|paket|kurir)\/(\d+)/i);
     if (mPage && String(mPage[2]) === String(pelangganId)) {
       e.preventDefault();
       loadPage(mPage[1], '', true);

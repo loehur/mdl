@@ -14,7 +14,7 @@ class Tiket extends Controller
         $this->operating_data();
     }
 
-    public function i($mode = 0)
+    public function i($mode = 0, $bulan = '')
     {
         $this->session_cek();
         $mode = (int) $mode;
@@ -26,20 +26,20 @@ class Tiket extends Controller
             'title' => $mode === 1 ? 'Tiket Selesai' : 'Tiket Proses',
         ];
 
-        $viewData = $this->buildViewData($mode);
+        $viewData = $this->buildViewData($mode, $bulan);
 
         $this->view('layout', ['data_operasi' => $data_operasi]);
         $this->view('tiket/form', $viewData);
     }
 
-    public function load($mode = 0)
+    public function load($mode = 0, $bulan = '')
     {
         $this->session_cek();
         $mode = (int) $mode;
         if ($mode !== 0 && $mode !== 1) {
             $mode = 0;
         }
-        $this->view('tiket/view_load', $this->buildViewData($mode));
+        $this->view('tiket/view_load', $this->buildViewData($mode, $bulan));
     }
 
     public function insert()
@@ -274,22 +274,34 @@ class Tiket extends Controller
         return $found;
     }
 
-    private function buildViewData($mode)
+    private function buildViewData($mode, $bulan = '')
     {
         $mode = (int) $mode;
         $cabangMap = $this->buildCabangMap();
 
         if ($mode === 1) {
             $idCabang = (int) $this->id_cabang;
-            $whereSelesai = 'status = 1 AND id_cabang = ' . $idCabang . ' ORDER BY selesaiTime DESC, id_tiket DESC';
+            $ym = $this->normalizeBulan($bulan);
+            $start = $ym . '-01 00:00:00';
+            $endTs = strtotime($ym . '-01 +1 month');
+            $end = date('Y-m-d', $endTs) . ' 00:00:00';
+            $startEsc = $this->db(0)->escape($start);
+            $endEsc = $this->db(0)->escape($end);
+
+            $whereSelesai = 'status = 1 AND id_cabang = ' . $idCabang
+                . " AND selesaiTime >= '" . $startEsc . "' AND selesaiTime < '" . $endEsc . "'"
+                . ' ORDER BY selesaiTime DESC, id_tiket DESC';
             $rows = $this->db(0)->get_where('tiket', $whereSelesai);
-            $grouped = $this->groupByMonth($rows);
+
             return [
                 'mode' => 1,
                 'rows' => $rows,
-                'grouped' => $grouped,
+                'grouped' => [],
                 'cabangMap' => $cabangMap,
                 'jenisList' => $this->jenisList,
+                'selectedBulan' => $ym,
+                'bulanLabel' => $this->labelBulan($ym),
+                'canNextBulan' => ($ym < date('Y-m')),
             ];
         }
 
@@ -300,7 +312,41 @@ class Tiket extends Controller
             'grouped' => [],
             'cabangMap' => $cabangMap,
             'jenisList' => $this->jenisList,
+            'selectedBulan' => '',
+            'bulanLabel' => '',
+            'canNextBulan' => false,
         ];
+    }
+
+    /** @return string Y-m */
+    private function normalizeBulan($bulan)
+    {
+        $bulan = trim((string) $bulan);
+        if (preg_match('/^\d{4}-\d{2}$/', $bulan)) {
+            $y = (int) substr($bulan, 0, 4);
+            $m = (int) substr($bulan, 5, 2);
+            if ($y >= 2020 && $m >= 1 && $m <= 12) {
+                $ym = sprintf('%04d-%02d', $y, $m);
+                $nowYm = date('Y-m');
+                return ($ym > $nowYm) ? $nowYm : $ym;
+            }
+        }
+        return date('Y-m');
+    }
+
+    private function labelBulan($ym)
+    {
+        $bulanIndo = [
+            1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
+            5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
+            9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
+        ];
+        $t = strtotime($ym . '-01');
+        if (!$t) {
+            return $ym;
+        }
+        $n = (int) date('n', $t);
+        return ($bulanIndo[$n] ?? date('F', $t)) . ' ' . date('Y', $t);
     }
 
     private function buildCabangMap()
@@ -316,35 +362,5 @@ class Tiket extends Controller
             }
         }
         return $map;
-    }
-
-    private function groupByMonth($rows)
-    {
-        $bulanIndo = [
-            1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
-            5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
-            9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
-        ];
-        $grouped = [];
-        if (!is_array($rows)) {
-            return $grouped;
-        }
-        foreach ($rows as $row) {
-            $ts = $row['selesaiTime'] ?? '';
-            $ym = '0000-00';
-            $label = 'Tanpa Tanggal';
-            if ($ts && $ts !== '0000-00-00 00:00:00') {
-                $t = strtotime($ts);
-                if ($t) {
-                    $ym = date('Y-m', $t);
-                    $label = ($bulanIndo[(int) date('n', $t)] ?? date('F', $t)) . ' ' . date('Y', $t);
-                }
-            }
-            if (!isset($grouped[$ym])) {
-                $grouped[$ym] = ['label' => $label, 'items' => []];
-            }
-            $grouped[$ym]['items'][] = $row;
-        }
-        return $grouped;
     }
 }

@@ -2,10 +2,13 @@
 $mode = (int) ($data['mode'] ?? 0);
 $isSelesai = $mode === 1;
 $jenisList = $data['jenisList'] ?? ['Perbaikan', 'Pergantian', 'Perawatan', 'Penambahan'];
+$selectedBulan = (string) ($data['selectedBulan'] ?? date('Y-m'));
+$bulanLabel = (string) ($data['bulanLabel'] ?? '');
+$canNextBulan = !empty($data['canNextBulan']);
 $kodeCabangUi = strtoupper((string) ($this->dCabang['kode_cabang'] ?? ''));
 $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
 ?>
-<div id="tiket-root" data-mode="<?= $mode ?>">
+<div id="tiket-root" data-mode="<?= $mode ?>" data-bulan="<?= htmlspecialchars($selectedBulan) ?>">
   <style>
     #tiket-root {
       --tk-ink: #0f172a;
@@ -75,6 +78,41 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
       font-size: 0.68rem;
       font-weight: 700;
       opacity: .9;
+    }
+    #tiket-root .tk-month-nav {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex: 0 0 auto;
+    }
+    #tiket-root .tk-month-btn {
+      box-sizing: border-box;
+      width: 34px;
+      height: 34px;
+      border: 1px solid rgba(255,255,255,.45);
+      background: rgba(255,255,255,.18);
+      color: #fff;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+    }
+    #tiket-root .tk-month-btn:hover:not(:disabled) {
+      background: rgba(255,255,255,.32);
+    }
+    #tiket-root .tk-month-btn:disabled {
+      opacity: .4;
+      cursor: not-allowed;
+    }
+    #tiket-root .tk-month-label {
+      min-width: 140px;
+      text-align: center;
+      font-size: 0.88rem;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      text-shadow: 0 1px 0 rgba(0,0,0,.18);
+      white-space: nowrap;
     }
     #tiket-root .tk-btn {
       display: inline-flex;
@@ -304,7 +342,9 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
         flex-direction: column;
         align-items: flex-start;
       }
-      #tiket-root .tk-head .tk-btn { width: 100%; }
+      #tiket-root .tk-head .tk-btn,
+      #tiket-root .tk-month-nav { width: 100%; }
+      #tiket-root .tk-month-label { flex: 1; }
     }
   </style>
 
@@ -312,9 +352,19 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
     <div class="tk-head <?= $isSelesai ? 'tk-head--selesai' : 'tk-head--proses' ?>">
       <div>
         <h2><?= $isSelesai ? 'Tiket Selesai' : 'Tiket Proses' ?></h2>
-        <small><?= $isSelesai ? 'Cabang ini · per bulan' : 'Semua cabang' ?></small>
+        <small><?= $isSelesai ? 'Cabang ini · filter bulan' : 'Semua cabang' ?></small>
       </div>
-      <?php if (!$isSelesai) { ?>
+      <?php if ($isSelesai) { ?>
+        <div class="tk-month-nav">
+          <button type="button" class="tk-month-btn" id="btnPrevBulan" title="Bulan sebelumnya">
+            <i class="fas fa-chevron-left"></i>
+          </button>
+          <span class="tk-month-label" id="bulanLabelDisplay"><?= htmlspecialchars($bulanLabel !== '' ? $bulanLabel : $selectedBulan) ?></span>
+          <button type="button" class="tk-month-btn" id="btnNextBulan" title="Bulan berikutnya" <?= $canNextBulan ? '' : 'disabled' ?>>
+            <i class="fas fa-chevron-right"></i>
+          </button>
+        </div>
+      <?php } else { ?>
         <button type="button" class="tk-btn tk-btn--primary" id="btnTambahTiket">
           <i class="fas fa-plus"></i> Tambah
         </button>
@@ -485,8 +535,68 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
 (function () {
   var BASE = '<?= URL::BASE_URL ?>';
   var MODE = <?= (int) $mode ?>;
+  var selectedBulan = '<?= htmlspecialchars($selectedBulan, ENT_QUOTES) ?>';
+  var bulanLabels = {
+    1: 'Januari', 2: 'Februari', 3: 'Maret', 4: 'April',
+    5: 'Mei', 6: 'Juni', 7: 'Juli', 8: 'Agustus',
+    9: 'September', 10: 'Oktober', 11: 'November', 12: 'Desember'
+  };
   var root = document.getElementById('tiket-root');
   if (!root) return;
+
+  function shiftBulan(ym, delta) {
+    var parts = String(ym || '').split('-');
+    var y = parseInt(parts[0], 10) || (new Date()).getFullYear();
+    var m = parseInt(parts[1], 10) || ((new Date()).getMonth() + 1);
+    m += delta;
+    while (m < 1) { m += 12; y -= 1; }
+    while (m > 12) { m -= 12; y += 1; }
+    return y + '-' + (m < 10 ? '0' : '') + m;
+  }
+
+  function labelBulan(ym) {
+    var parts = String(ym || '').split('-');
+    var y = parseInt(parts[0], 10);
+    var m = parseInt(parts[1], 10);
+    if (!y || !m) return ym;
+    return (bulanLabels[m] || m) + ' ' + y;
+  }
+
+  function currentYm() {
+    var d = new Date();
+    var m = d.getMonth() + 1;
+    return d.getFullYear() + '-' + (m < 10 ? '0' : '') + m;
+  }
+
+  function syncBulanNav() {
+    var $label = $('#bulanLabelDisplay');
+    var $next = $('#btnNextBulan');
+    if ($label.length) $label.text(labelBulan(selectedBulan));
+    if ($next.length) $next.prop('disabled', selectedBulan >= currentYm());
+    root.setAttribute('data-bulan', selectedBulan);
+  }
+
+  function reloadList() {
+    var url = BASE + 'Tiket/load/' + MODE;
+    if (MODE === 1 && selectedBulan) {
+      url += '/' + selectedBulan;
+    }
+    $('#tiket-root #load').load(url);
+  }
+
+  $('#btnPrevBulan').on('click', function () {
+    selectedBulan = shiftBulan(selectedBulan, -1);
+    syncBulanNav();
+    reloadList();
+  });
+
+  $('#btnNextBulan').on('click', function () {
+    if (selectedBulan >= currentYm()) return;
+    selectedBulan = shiftBulan(selectedBulan, 1);
+    if (selectedBulan > currentYm()) selectedBulan = currentYm();
+    syncBulanNav();
+    reloadList();
+  });
 
   function toast(msg, type) {
     type = type || 'info';
@@ -545,10 +655,6 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
     if (!open.length) return;
     closeModal(open[open.length - 1]);
   });
-
-  function reloadList() {
-    $('#tiket-root #load').load(BASE + 'Tiket/load/' + MODE);
-  }
 
   function getTize(id) {
     var el = document.getElementById(id);

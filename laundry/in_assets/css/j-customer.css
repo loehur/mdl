@@ -231,6 +231,7 @@ a { color: inherit; text-decoration: none; }
 .j-menu-ico.tagihan { background: rgba(231, 111, 81, 0.12); color: var(--j-coral); }
 .j-menu-ico.saldo { background: rgba(42, 157, 143, 0.14); color: var(--j-mint); }
 .j-menu-ico.paket { background: rgba(233, 163, 25, 0.16); color: #C4840C; }
+.j-menu-ico.kurir { background: rgba(59, 130, 246, 0.14); color: #2563eb; }
 
 .j-menu-tile span {
   display: block;
@@ -528,7 +529,7 @@ a { color: inherit; text-decoration: none; }
   backdrop-filter: blur(14px);
   border-top: 1px solid var(--j-line);
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 4px;
   z-index: 40;
 }
@@ -539,9 +540,9 @@ a { color: inherit; text-decoration: none; }
   align-items: center;
   justify-content: center;
   gap: 4px;
-  padding: 8px 4px;
+  padding: 8px 2px;
   min-height: 52px;
-  font-size: 0.68rem;
+  font-size: 0.62rem;
   font-weight: 650;
   line-height: 1;
   color: var(--j-muted);

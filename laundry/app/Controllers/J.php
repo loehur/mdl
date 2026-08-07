@@ -28,6 +28,11 @@ class J extends Controller
       $this->shell($pelanggan, 'paket');
    }
 
+   public function kurir($pelanggan)
+   {
+      $this->shell($pelanggan, 'kurir');
+   }
+
    public function paketDetail($pelanggan, $id_harga = 0)
    {
       $this->shell($pelanggan, 'paketDetail', $id_harga);
@@ -290,6 +295,10 @@ class J extends Controller
          case 'paket':
             $payload['listPaket'] = $this->buildPaketList($pelanggan);
             $this->view('j/partials/paket', $payload);
+            break;
+
+         case 'kurir':
+            $this->view('j/partials/kurir', $payload);
             break;
 
          case 'paketDetail':

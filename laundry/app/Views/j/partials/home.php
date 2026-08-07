@@ -39,6 +39,10 @@ $listPaket = $data['listPaket'];
       <div class="j-menu-ico paket"><i class="fas fa-box-open"></i></div>
       <span>Paket</span>
     </a>
+    <a class="j-menu-tile" href="<?= $base ?>J/kurir/<?= $id ?>">
+      <div class="j-menu-ico kurir"><i class="fas fa-motorcycle"></i></div>
+      <span>Kurir</span>
+    </a>
   </div>
 </section>
 

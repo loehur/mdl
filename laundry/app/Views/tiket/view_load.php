@@ -253,23 +253,16 @@ $renderCard = function ($row) use ($mode, $jenisTone, $fmtDt, $kodeCabang) {
 </style>
 
 <?php if ($mode === 1) { ?>
-  <?php if (empty($grouped)) { ?>
-    <div class="tk-empty">Belum ada tiket selesai.</div>
+  <?php
+    $bulanLabelList = (string) ($data['bulanLabel'] ?? '');
+    if (empty($rows)) { ?>
+    <div class="tk-empty">Tidak ada tiket selesai<?= $bulanLabelList !== '' ? ' di ' . htmlspecialchars($bulanLabelList) : '' ?>.</div>
   <?php } else { ?>
-    <?php foreach ($grouped as $ym => $group) { ?>
-      <div class="tk-month">
-        <div class="tk-month__head">
-          <i class="far fa-calendar-alt"></i>
-          <span><?= htmlspecialchars($group['label'] ?? $ym) ?></span>
-          <span class="tk-month__count"><?= count($group['items'] ?? []) ?></span>
-        </div>
-        <div class="tk-month__list">
-          <?php foreach (($group['items'] ?? []) as $row) {
-            $renderCard($row);
-          } ?>
-        </div>
-      </div>
-    <?php } ?>
+    <div class="tk-grid">
+      <?php foreach ($rows as $row) {
+        $renderCard($row);
+      } ?>
+    </div>
   <?php } ?>
 <?php } else { ?>
   <?php if (empty($rows)) { ?>

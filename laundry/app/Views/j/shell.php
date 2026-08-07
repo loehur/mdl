@@ -27,7 +27,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/fontawesome-free-5.15.4-web/css/all.css">
   <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/css/bootstrap.min.css">
-  <link rel="stylesheet" href="<?= $assets ?>css/j-customer.css?v=42">
+  <link rel="stylesheet" href="<?= $assets ?>css/j-customer.css?v=43">
 </head>
 <body>
 <div class="j-app"
@@ -68,6 +68,9 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
     </a>
     <a href="<?= $base ?>J/paket/<?= $id ?>" data-nav="paket" class="<?= $active === 'paket' ? 'active' : '' ?>">
       <i class="fas fa-box-open"></i> Paket
+    </a>
+    <a href="<?= $base ?>J/kurir/<?= $id ?>" data-nav="kurir" class="<?= $active === 'kurir' ? 'active' : '' ?>">
+      <i class="fas fa-motorcycle"></i> Kurir
     </a>
   </nav>
 </div>
@@ -239,7 +242,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
 <script src="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/js/bootstrap.bundle.min.js"></script>
 <script src="<?= URL::EX_ASSETS ?>js/qrcode.min.js"></script>
 <script src="<?= URL::EX_ASSETS ?>js/html2canvas.min.js"></script>
-<script src="<?= $assets ?>js/j-customer.js?v=10"></script>
+<script src="<?= $assets ?>js/j-customer.js?v=11"></script>
 <script src="<?= $assets ?>js/j-payment.js?v=5"></script>
 <script>
 if ('serviceWorker' in navigator) {
