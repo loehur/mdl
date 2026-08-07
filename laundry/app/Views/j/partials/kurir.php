@@ -214,7 +214,6 @@ $instantCloseLabel = (string) ($instantWindow['close_label'] ?? '21.00');
     <strong>Antar</strong> — Mengantar Pakaian dari Laundry ke Lokasi Anda.<br>
     <strong>Jemput</strong> — Menjemput Pakaian dari Lokasi Anda dan dikirimkan ke Laundry.<br>
     <strong>Instant</strong> — ongkir sesuai tarif Gojek/Grab; bisa bayar Saldo Deposit atau QRIS.
-    Tersedia jam operasional <?= htmlspecialchars($instantOpenLabel, ENT_QUOTES, 'UTF-8') ?>–<?= htmlspecialchars($instantCutoffLabel, ENT_QUOTES, 'UTF-8') ?>
-    (paling lambat 30 menit sebelum tutup <?= htmlspecialchars($instantCloseLabel, ENT_QUOTES, 'UTF-8') ?>).
+    Tersedia jam operasional <?= htmlspecialchars($instantOpenLabel, ENT_QUOTES, 'UTF-8') ?>–<?= htmlspecialchars($instantCutoffLabel, ENT_QUOTES, 'UTF-8') ?>.
   </p>
 </section>

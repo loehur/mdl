@@ -115,7 +115,7 @@ class OperatingHoursHelper
 
         if ($currentMin >= $closeMin) {
             $base['reason'] = 'after_close';
-            $base['message'] = "Kurir Instant sudah tutup. Tersedia jam {$openLabel}–{$cutoffLabel} (paling lambat 30 menit sebelum tutup {$closeLabel}).";
+            $base['message'] = "Kurir Instant sudah tutup. Tersedia jam {$openLabel}–{$cutoffLabel}";
             return $base;
         }
 
