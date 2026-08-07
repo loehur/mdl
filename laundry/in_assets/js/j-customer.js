@@ -549,18 +549,46 @@
       box.innerHTML = '<div class="j-kurir-sales-empty">Belum ada lokasi. Tambahkan dulu.</div>';
       return;
     }
-    var prefer = selectedId || (kurirSelectedLokasi && kurirSelectedLokasi.id_lokasi) || kurirLokasiCache[0].id_lokasi;
+
+    var selectable = kurirLokasiCache.filter(function (lok) {
+      return !(kurirPendingJenis === 'jemput' && lok.jemput_berjalan);
+    });
+    var prefer = selectedId || (kurirSelectedLokasi && kurirSelectedLokasi.id_lokasi) || null;
+    if (prefer != null) {
+      var preferOk = selectable.some(function (lok) {
+        return Number(lok.id_lokasi) === Number(prefer);
+      });
+      if (!preferOk) prefer = null;
+    }
+    if (prefer == null && selectable.length) {
+      prefer = selectable[0].id_lokasi;
+    }
+
     box.innerHTML = kurirLokasiCache.map(function (lok) {
       var id = String(lok.id_lokasi);
-      var checked = String(prefer) === id ? ' checked' : '';
-      return '<label class="j-kurir-lokasi-item">' +
-        '<input type="radio" name="j_kurir_lokasi" value="' + escapeHtmlKurir(id) + '"' + checked + '>' +
+      var blocked = kurirPendingJenis === 'jemput' && !!lok.jemput_berjalan;
+      var checked = !blocked && prefer != null && String(prefer) === id ? ' checked' : '';
+      var disabled = blocked ? ' disabled' : '';
+      var cls = 'j-kurir-lokasi-item' + (blocked ? ' is-disabled' : '');
+      return '<label class="' + cls + '">' +
+        '<input type="radio" name="j_kurir_lokasi" value="' + escapeHtmlKurir(id) + '"' + checked + disabled + '>' +
         '<span class="j-kurir-lokasi-item__text">' +
-          '<strong>' + escapeHtmlKurir(lok.nama || '-') + '</strong>' +
-          '<small>' + escapeHtmlKurir(lok.detail || '') + '</small>' +
+          '<strong>' + escapeHtmlKurir(lok.nama || '-') +
+            (blocked ? ' <span class="j-badge warn">Jemput berjalan</span>' : '') +
+          '</strong>' +
+          '<small>' + escapeHtmlKurir(lok.detail || '') +
+            (blocked ? ' · Tidak bisa request jemput lagi ke lokasi ini sampai selesai' : '') +
+          '</small>' +
         '</span>' +
       '</label>';
     }).join('');
+
+    if (kurirPendingJenis === 'jemput' && !selectable.length) {
+      box.insertAdjacentHTML(
+        'beforeend',
+        '<div class="j-kurir-sales-empty" style="margin-top:8px">Semua lokasi punya jemput berjalan. Tambah lokasi lain atau tunggu selesai.</div>'
+      );
+    }
   }
 
   function getSelectedLokasiFromList() {
@@ -739,6 +767,10 @@
   function continueAfterLokasi() {
     if (!kurirSelectedLokasi || !kurirSelectedLokasi.id_lokasi) {
       toast('Pilih lokasi dulu', 'warn');
+      return;
+    }
+    if (kurirPendingJenis === 'jemput' && kurirSelectedLokasi.jemput_berjalan) {
+      toast('Lokasi ini masih ada jemput berjalan', 'warn');
       return;
     }
     hideModal('jModalKurirLokasi');
@@ -936,7 +968,12 @@
       e.preventDefault();
       kurirSelectedLokasi = getSelectedLokasiFromList();
       if (!kurirSelectedLokasi) {
-        toast('Pilih lokasi dulu, atau tambah lokasi baru', 'warn');
+        toast(
+          kurirPendingJenis === 'jemput'
+            ? 'Pilih lokasi yang belum ada jemput berjalan, atau tambah lokasi baru'
+            : 'Pilih lokasi dulu, atau tambah lokasi baru',
+          'warn'
+        );
         return;
       }
       continueAfterLokasi();

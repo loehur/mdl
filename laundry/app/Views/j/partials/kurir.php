@@ -3,15 +3,6 @@ $p = $data['data_pelanggan'];
 $id = (int) $p['id_pelanggan'];
 $base = $data['base'];
 $pending = is_array($data['pendingKurir'] ?? null) ? $data['pendingKurir'] : [];
-$pendingJenis = [];
-foreach ($pending as $pr) {
-  $j = strtolower((string) ($pr['jenis'] ?? ''));
-  if ($j !== '') {
-    $pendingJenis[$j] = true;
-  }
-}
-$hasAntar = !empty($pendingJenis['antar']);
-$hasJemput = !empty($pendingJenis['jemput']);
 ?>
 
 <section class="j-hero">
@@ -94,17 +85,15 @@ $hasJemput = !empty($pendingJenis['jemput']);
     <div class="j-kurir-actions">
       <button type="button"
               class="j-btn j-btn-primary j-kurir-act"
-              data-j-kurir-jenis="antar"
-              <?= $hasAntar ? 'disabled' : '' ?>>
+              data-j-kurir-jenis="antar">
         <i class="fas fa-truck"></i>
-        <?= $hasAntar ? 'Antar berjalan' : 'Antar' ?>
+        Antar
       </button>
       <button type="button"
               class="j-btn j-btn-soft j-kurir-act"
-              data-j-kurir-jenis="jemput"
-              <?= $hasJemput ? 'disabled' : '' ?>>
+              data-j-kurir-jenis="jemput">
         <i class="fas fa-hand-holding"></i>
-        <?= $hasJemput ? 'Jemput berjalan' : 'Jemput' ?>
+        Jemput
       </button>
     </div>
   </article>
@@ -149,6 +138,6 @@ $hasJemput = !empty($pendingJenis['jemput']);
   </article>
 
   <p class="j-kurir-note">
-    Antar/Jemput wajib pilih lokasi. Antar: pilih item laundry. Jemput: item dipilih petugas saat selesai.
+    Antar: item yang sudah/sedang diantar tidak bisa dipilih lagi. Jemput: lokasi yang masih ada jemput berjalan tidak bisa dipilih lagi.
   </p>
 </section>

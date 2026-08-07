@@ -1256,18 +1256,21 @@ class J extends Controller
          $ids = [];
       }
 
-      $pending = (int) ($this->db(0)->count_where(
-         'delivery_request',
-         'id_pelanggan = ' . (int) $pelanggan
-            . " AND jenis = '" . $this->db(0)->escape($jenis) . "'"
-            . " AND delivery_status = 'berjalan'"
-      ) ?? 0);
-      if ($pending > 0) {
-         echo json_encode([
-            'ok' => false,
-            'message' => 'Masih ada permintaan ' . $jenis . ' yang berjalan. Tunggu selesai dulu.',
-         ]);
-         return;
+      if ($jenis === 'jemput') {
+         $pendingLokasi = (int) ($this->db(0)->count_where(
+            'delivery_request',
+            'id_pelanggan = ' . (int) $pelanggan
+               . " AND jenis = 'jemput'"
+               . " AND delivery_status = 'berjalan'"
+               . ' AND id_lokasi = ' . $idLokasi
+         ) ?? 0);
+         if ($pendingLokasi > 0) {
+            echo json_encode([
+               'ok' => false,
+               'message' => 'Sudah ada jemput berjalan di lokasi ini. Tunggu selesai dulu.',
+            ]);
+            return;
+         }
       }
 
       $eligibleMap = [];
@@ -1277,7 +1280,13 @@ class J extends Controller
          }
          foreach ($ids as $idSale) {
             if (!isset($eligibleMap[$idSale])) {
-               echo json_encode(['ok' => false, 'message' => "Item #$idSale tidak bisa diantar"]);
+               $reason = $this->antarItemBlockReason($pelanggan, $idSale);
+               echo json_encode([
+                  'ok' => false,
+                  'message' => $reason !== ''
+                     ? $reason
+                     : "Item #$idSale tidak bisa diantar",
+               ]);
                return;
             }
          }
@@ -1347,17 +1356,63 @@ class J extends Controller
       if (!is_array($rows)) {
          return [];
       }
+
+      $jemputBerjalan = [];
+      $pendingJemput = $this->db(0)->get_where(
+         'delivery_request',
+         'id_pelanggan = ' . (int) $pelanggan
+            . " AND jenis = 'jemput' AND delivery_status = 'berjalan'"
+      );
+      if (is_array($pendingJemput)) {
+         foreach ($pendingJemput as $pj) {
+            $lid = (int) ($pj['id_lokasi'] ?? 0);
+            if ($lid > 0) {
+               $jemputBerjalan[$lid] = true;
+            }
+         }
+      }
+
       $out = [];
       foreach ($rows as $r) {
+         $idLokasi = (int) ($r['id_lokasi'] ?? 0);
          $out[] = [
-            'id_lokasi' => (int) ($r['id_lokasi'] ?? 0),
+            'id_lokasi' => $idLokasi,
             'nama' => (string) ($r['nama'] ?? ''),
             'detail' => (string) ($r['detail'] ?? ''),
             'latt' => (float) ($r['latt'] ?? 0),
             'longt' => (float) ($r['longt'] ?? 0),
+            'jemput_berjalan' => !empty($jemputBerjalan[$idLokasi]),
          ];
       }
       return $out;
+   }
+
+   /** Alasan item tidak bisa antar (untuk pesan error jelas) */
+   private function antarItemBlockReason(int $pelanggan, int $idPenjualan): string
+   {
+      $pid = (int) $pelanggan;
+      $sid = (int) $idPenjualan;
+      $inRiwayat = (int) ($this->db(0)->count_where(
+         'delivery_riwayat',
+         "id_penjualan = $sid AND jenis = 'antar'"
+      ) ?? 0);
+      if ($inRiwayat > 0) {
+         return "Item #$sid sudah pernah diantar — tidak bisa request ulang";
+      }
+      $busy = $this->db(0)->query_array(
+         "SELECT dri.id
+          FROM delivery_request_item dri
+          INNER JOIN delivery_request drq ON drq.id_request = dri.id_request
+          WHERE dri.id_penjualan = $sid
+            AND drq.id_pelanggan = $pid
+            AND drq.jenis = 'antar'
+            AND drq.delivery_status = 'berjalan'
+          LIMIT 1"
+      );
+      if (is_array($busy) && !empty($busy)) {
+         return "Item #$sid sudah ada di permintaan antar yang berjalan";
+      }
+      return '';
    }
 
    /** Default titik peta: kota cabang pelanggan (kota.latt / kota.longt) */
