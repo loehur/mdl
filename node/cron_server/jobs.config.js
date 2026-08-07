@@ -40,4 +40,36 @@ module.exports = [
     url: '/Cron/RekapSnapshot/index',
     enabled: true,
   },
+  {
+    id: 'penetapan-gaji-laundry',
+    description: 'Penetapan Gaji Laundry (bulan lalu)',
+    schedule: '10 5 1 * *', // tanggal 1 tiap bulan jam 05:10
+    method: 'GET',
+    url: 'https://ml.nalju.com/Gaji/tetapkan',
+    enabled: true,
+  },
+  {
+    id: 'wa-queue',
+    description: 'Resend / proses antrean WhatsApp (queue)',
+    schedule: '*/5 * * * *', // setiap 5 menit
+    method: 'GET',
+    url: '/Cron/ResendWAQueue',
+    enabled: true,
+  },
+  {
+    id: 'send-pending-notif',
+    description: 'Kirim notifikasi pending laundry',
+    schedule: '*/6 * * * *', // setiap 6 menit
+    method: 'GET',
+    url: 'https://ml.nalju.com/Cron/send',
+    enabled: true,
+  },
+  {
+    id: 'pay-bill',
+    description: 'Bayar / proses tagihan otomatis (PayBill)',
+    schedule: '20 5 * * *', // setiap hari jam 05:20
+    method: 'GET',
+    url: '/Cron/PayBill',
+    enabled: true,
+  },
 ];
