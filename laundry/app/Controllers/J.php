@@ -1131,6 +1131,83 @@ class J extends Controller
       ], JSON_UNESCAPED_UNICODE);
    }
 
+   /** GET JSON: daftar lokasi pelanggan + default map (kota cabang) */
+   public function kurirLokasiList($pelanggan)
+   {
+      header('Content-Type: application/json; charset=utf-8');
+      $pelanggan = $this->bootCustomer($pelanggan);
+      echo json_encode([
+         'ok' => true,
+         'lokasi' => $this->listPelangganLokasi($pelanggan),
+         'default_map' => $this->getDefaultMapCoords(),
+      ], JSON_UNESCAPED_UNICODE);
+   }
+
+   /** POST: tambah lokasi pelanggan */
+   public function kurirLokasiAdd($pelanggan)
+   {
+      header('Content-Type: application/json; charset=utf-8');
+      $pelanggan = $this->bootCustomer($pelanggan);
+
+      $nama = trim((string) ($_POST['nama'] ?? ''));
+      $detail = trim((string) ($_POST['detail'] ?? ''));
+      $latt = (float) ($_POST['latt'] ?? 0);
+      $longt = (float) ($_POST['longt'] ?? ($_POST['long'] ?? 0));
+
+      if ($nama === '') {
+         echo json_encode(['ok' => false, 'message' => 'Nama lokasi wajib diisi']);
+         return;
+      }
+      if (strlen($nama) > 50) {
+         echo json_encode(['ok' => false, 'message' => 'Nama lokasi terlalu panjang']);
+         return;
+      }
+      if ($detail === '') {
+         echo json_encode(['ok' => false, 'message' => 'Detail alamat wajib diisi']);
+         return;
+      }
+      if (strlen($detail) > 255) {
+         echo json_encode(['ok' => false, 'message' => 'Detail alamat terlalu panjang']);
+         return;
+      }
+      if ($latt < -90 || $latt > 90 || $longt < -180 || $longt > 180 || ($latt == 0.0 && $longt == 0.0)) {
+         echo json_encode(['ok' => false, 'message' => 'Titik peta belum valid. Geser/klik peta dulu.']);
+         return;
+      }
+
+      $now = $GLOBALS['now'] ?? date('Y-m-d H:i:s');
+      $ins = $this->db(0)->insert('pelanggan_lokasi', [
+         'id_pelanggan' => (int) $pelanggan,
+         'nama' => $nama,
+         'detail' => $detail,
+         'latt' => round($latt, 7),
+         'longt' => round($longt, 7),
+         'insertTime' => $now,
+      ]);
+      if (is_array($ins) && isset($ins['errno']) && (int) $ins['errno'] !== 0) {
+         echo json_encode(['ok' => false, 'message' => $ins['error'] ?? 'Gagal menyimpan lokasi']);
+         return;
+      }
+      $idLokasi = (int) ($ins['insert_id'] ?? 0);
+      if ($idLokasi <= 0) {
+         echo json_encode(['ok' => false, 'message' => 'Gagal menyimpan lokasi']);
+         return;
+      }
+
+      echo json_encode([
+         'ok' => true,
+         'message' => 'Lokasi ditambahkan',
+         'lokasi' => [
+            'id_lokasi' => $idLokasi,
+            'nama' => $nama,
+            'detail' => $detail,
+            'latt' => round($latt, 7),
+            'longt' => round($longt, 7),
+         ],
+         'list' => $this->listPelangganLokasi($pelanggan),
+      ], JSON_UNESCAPED_UNICODE);
+   }
+
    /** POST: buat request Sameday (antar|jemput) */
    public function kurirSamedaySubmit($pelanggan)
    {
@@ -1140,6 +1217,20 @@ class J extends Controller
       $jenis = strtolower(trim((string) ($_POST['jenis'] ?? '')));
       if (!in_array($jenis, ['antar', 'jemput'], true)) {
          echo json_encode(['ok' => false, 'message' => 'Jenis tidak valid']);
+         return;
+      }
+
+      $idLokasi = (int) ($_POST['id_lokasi'] ?? 0);
+      if ($idLokasi <= 0) {
+         echo json_encode(['ok' => false, 'message' => 'Pilih lokasi dulu']);
+         return;
+      }
+      $lokasi = $this->db(0)->get_where_row(
+         'pelanggan_lokasi',
+         'id_lokasi = ' . $idLokasi . ' AND id_pelanggan = ' . (int) $pelanggan
+      );
+      if (!is_array($lokasi) || empty($lokasi['id_lokasi'])) {
+         echo json_encode(['ok' => false, 'message' => 'Lokasi tidak ditemukan']);
          return;
       }
 
@@ -1207,6 +1298,11 @@ class J extends Controller
          'id_pelanggan' => (int) $pelanggan,
          'phone_tail' => $phoneTail,
          'id_cabang' => (int) $this->id_cabang_p,
+         'id_lokasi' => $idLokasi,
+         'lokasi_nama' => (string) ($lokasi['nama'] ?? ''),
+         'lokasi_detail' => (string) ($lokasi['detail'] ?? ''),
+         'lokasi_latt' => (float) ($lokasi['latt'] ?? 0),
+         'lokasi_longt' => (float) ($lokasi['longt'] ?? 0),
          'insertTime' => $now,
       ]);
       if (is_array($ins) && isset($ins['errno']) && (int) $ins['errno'] !== 0) {
@@ -1242,6 +1338,58 @@ class J extends Controller
       ], JSON_UNESCAPED_UNICODE);
    }
 
+   private function listPelangganLokasi(int $pelanggan): array
+   {
+      $rows = $this->db(0)->get_where(
+         'pelanggan_lokasi',
+         'id_pelanggan = ' . (int) $pelanggan . ' ORDER BY insertTime DESC, id_lokasi DESC'
+      );
+      if (!is_array($rows)) {
+         return [];
+      }
+      $out = [];
+      foreach ($rows as $r) {
+         $out[] = [
+            'id_lokasi' => (int) ($r['id_lokasi'] ?? 0),
+            'nama' => (string) ($r['nama'] ?? ''),
+            'detail' => (string) ($r['detail'] ?? ''),
+            'latt' => (float) ($r['latt'] ?? 0),
+            'longt' => (float) ($r['longt'] ?? 0),
+         ];
+      }
+      return $out;
+   }
+
+   /** Default titik peta: kota cabang pelanggan (kota.latt / kota.longt) */
+   private function getDefaultMapCoords(): array
+   {
+      $fallback = [
+         'latt' => 0.507068,
+         'longt' => 101.447779,
+         'nama_kota' => 'PEKANBARU',
+         'source' => 'fallback',
+      ];
+      $idKota = (int) ($this->dCabangPublic['id_kota'] ?? 0);
+      if ($idKota <= 0) {
+         return $fallback;
+      }
+      $kota = $this->db(0)->get_where_row('kota', 'id_kota = ' . $idKota);
+      if (!is_array($kota)) {
+         return $fallback;
+      }
+      $latt = (float) ($kota['latt'] ?? 0);
+      $longt = (float) ($kota['longt'] ?? 0);
+      if ($latt == 0.0 && $longt == 0.0) {
+         return $fallback;
+      }
+      return [
+         'latt' => $latt,
+         'longt' => $longt,
+         'nama_kota' => (string) ($kota['nama_kota'] ?? ''),
+         'source' => 'kota',
+      ];
+   }
+
    private function ensureKurirLookups(): void
    {
       if (empty($this->dDurasi)) {
@@ -1274,6 +1422,8 @@ class J extends Controller
             'jenis' => (string) ($r['jenis'] ?? ''),
             'layanan' => (string) ($r['layanan'] ?? 'sameday'),
             'insertTime' => (string) ($r['insertTime'] ?? ''),
+            'lokasi_nama' => (string) ($r['lokasi_nama'] ?? ''),
+            'lokasi_detail' => (string) ($r['lokasi_detail'] ?? ''),
          ];
       }
       return $out;

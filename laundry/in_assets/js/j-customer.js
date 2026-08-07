@@ -504,6 +504,12 @@
 
   /* ===== Kurir Sameday ===== */
   var kurirBusy = false;
+  var kurirPendingJenis = '';
+  var kurirSelectedLokasi = null;
+  var kurirLokasiCache = [];
+  var kurirDefaultMap = { latt: 0.507068, longt: 101.447779, nama_kota: 'PEKANBARU', source: 'fallback' };
+  var kurirMap = null;
+  var kurirMarker = null;
 
   function escapeHtmlKurir(s) {
     return String(s == null ? '' : s)
@@ -511,6 +517,222 @@
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
+  }
+
+  function hideModal(id) {
+    var el = document.getElementById(id);
+    if (!el || !window.bootstrap) return;
+    var inst = bootstrap.Modal.getInstance(el);
+    if (inst) inst.hide();
+  }
+
+  function showModal(id) {
+    var el = document.getElementById(id);
+    if (!el || !window.bootstrap) return;
+    bootstrap.Modal.getOrCreateInstance(el).show();
+  }
+
+  function lokasiLabelHtml(lok) {
+    if (!lok) return '';
+    return '<div class="j-kurir-lokasi-chosen__inner">' +
+      '<i class="fas fa-map-marker-alt"></i>' +
+      '<div><strong>' + escapeHtmlKurir(lok.nama || '-') + '</strong>' +
+      '<small>' + escapeHtmlKurir(lok.detail || '') + '</small></div>' +
+    '</div>';
+  }
+
+  function renderKurirLokasiList(list, selectedId) {
+    var box = document.getElementById('jKurirLokasiList');
+    if (!box) return;
+    kurirLokasiCache = list || [];
+    if (!kurirLokasiCache.length) {
+      box.innerHTML = '<div class="j-kurir-sales-empty">Belum ada lokasi. Tambahkan dulu.</div>';
+      return;
+    }
+    var prefer = selectedId || (kurirSelectedLokasi && kurirSelectedLokasi.id_lokasi) || kurirLokasiCache[0].id_lokasi;
+    box.innerHTML = kurirLokasiCache.map(function (lok) {
+      var id = String(lok.id_lokasi);
+      var checked = String(prefer) === id ? ' checked' : '';
+      return '<label class="j-kurir-lokasi-item">' +
+        '<input type="radio" name="j_kurir_lokasi" value="' + escapeHtmlKurir(id) + '"' + checked + '>' +
+        '<span class="j-kurir-lokasi-item__text">' +
+          '<strong>' + escapeHtmlKurir(lok.nama || '-') + '</strong>' +
+          '<small>' + escapeHtmlKurir(lok.detail || '') + '</small>' +
+        '</span>' +
+      '</label>';
+    }).join('');
+  }
+
+  function getSelectedLokasiFromList() {
+    var checked = document.querySelector('#jKurirLokasiList input[name="j_kurir_lokasi"]:checked');
+    if (!checked) return null;
+    var id = parseInt(checked.value, 10);
+    for (var i = 0; i < kurirLokasiCache.length; i++) {
+      if (Number(kurirLokasiCache[i].id_lokasi) === id) return kurirLokasiCache[i];
+    }
+    return null;
+  }
+
+  function showLokasiPickView() {
+    var pick = document.getElementById('jKurirLokasiPick');
+    var form = document.getElementById('jKurirLokasiForm');
+    var footPick = document.getElementById('jKurirLokasiFootPick');
+    var footForm = document.getElementById('jKurirLokasiFootForm');
+    if (pick) pick.hidden = false;
+    if (form) form.hidden = true;
+    if (footPick) footPick.hidden = false;
+    if (footForm) footForm.hidden = true;
+  }
+
+  function showLokasiFormView() {
+    var pick = document.getElementById('jKurirLokasiPick');
+    var form = document.getElementById('jKurirLokasiForm');
+    var footPick = document.getElementById('jKurirLokasiFootPick');
+    var footForm = document.getElementById('jKurirLokasiFootForm');
+    if (pick) pick.hidden = true;
+    if (form) form.hidden = false;
+    if (footPick) footPick.hidden = true;
+    if (footForm) footForm.hidden = false;
+    var nama = document.getElementById('jLokasiNama');
+    var detail = document.getElementById('jLokasiDetail');
+    if (nama) nama.value = '';
+    if (detail) detail.value = '';
+    initKurirMapThenLocate();
+  }
+
+  function setKurirMapMarker(lat, lng) {
+    if (!kurirMap || typeof L === 'undefined') return;
+    if (kurirMarker) kurirMap.removeLayer(kurirMarker);
+    kurirMarker = L.marker([lat, lng], { draggable: true }).addTo(kurirMap);
+    kurirMarker.on('dragend', function () {
+      var p = kurirMarker.getLatLng();
+      document.getElementById('jLokasiLatt').value = String(p.lat);
+      document.getElementById('jLokasiLongt').value = String(p.lng);
+    });
+    document.getElementById('jLokasiLatt').value = String(lat);
+    document.getElementById('jLokasiLongt').value = String(lng);
+    kurirMap.setView([lat, lng], 16);
+  }
+
+  function ensureKurirMap(lat, lng) {
+    if (typeof L === 'undefined') {
+      toast('Peta gagal dimuat', 'warn');
+      return;
+    }
+    var el = document.getElementById('jKurirMap');
+    if (!el) return;
+    if (!kurirMap) {
+      kurirMap = L.map(el, { center: [lat, lng], zoom: 15 });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap'
+      }).addTo(kurirMap);
+      kurirMap.on('click', function (ev) {
+        setKurirMapMarker(ev.latlng.lat, ev.latlng.lng);
+      });
+    } else {
+      kurirMap.setView([lat, lng], 15);
+    }
+    setKurirMapMarker(lat, lng);
+    setTimeout(function () {
+      if (kurirMap) kurirMap.invalidateSize();
+    }, 120);
+  }
+
+  function setMapHint(text) {
+    var hint = document.getElementById('jLokasiMapHint');
+    if (hint) hint.textContent = text;
+  }
+
+  function useDefaultMapPoint(reason) {
+    var lat = Number(kurirDefaultMap.latt) || 0.507068;
+    var lng = Number(kurirDefaultMap.longt) || 101.447779;
+    ensureKurirMap(lat, lng);
+    var kota = kurirDefaultMap.nama_kota || 'kota cabang';
+    setMapHint(reason || ('Default: ' + kota + ' — klik/geser pin'));
+  }
+
+  function initKurirMapThenLocate() {
+    useDefaultMapPoint('Mencari titik Anda…');
+    if (!navigator.geolocation) {
+      useDefaultMapPoint('GPS tidak tersedia · default kota cabang');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      function (pos) {
+        ensureKurirMap(pos.coords.latitude, pos.coords.longitude);
+        setMapHint('Titik saat ini — klik/geser pin jika perlu');
+      },
+      function () {
+        useDefaultMapPoint('Izin lokasi ditolak · default kota cabang');
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+    );
+  }
+
+  function loadKurirLokasiList() {
+    var box = document.getElementById('jKurirLokasiList');
+    if (box) box.innerHTML = '<div class="j-kurir-sales-empty"><i class="fas fa-spinner fa-spin"></i> Memuat lokasi…</div>';
+    return fetch(base + 'J/kurirLokasiList/' + pelangganId, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      credentials: 'same-origin'
+    })
+      .then(function (res) {
+        return res.json().catch(function () {
+          throw new Error('Respons tidak valid');
+        });
+      })
+      .then(function (data) {
+        if (!data || !data.ok) {
+          throw new Error((data && data.message) || 'Gagal memuat lokasi');
+        }
+        if (data.default_map) kurirDefaultMap = data.default_map;
+        renderKurirLokasiList(data.lokasi || []);
+        if (!(data.lokasi || []).length) {
+          showLokasiFormView();
+        } else {
+          showLokasiPickView();
+        }
+      })
+      .catch(function (err) {
+        if (box) {
+          box.innerHTML = '<div class="j-kurir-sales-empty">' +
+            escapeHtmlKurir((err && err.message) || 'Gagal memuat lokasi') +
+            '</div>';
+        }
+        showLokasiPickView();
+      });
+  }
+
+  function openKurirFlow(jenis) {
+    kurirPendingJenis = jenis;
+    kurirSelectedLokasi = null;
+    var title = document.getElementById('jKurirLokasiTitle');
+    if (title) {
+      title.textContent = jenis === 'antar' ? 'Lokasi antar' : 'Lokasi jemput';
+    }
+    showLokasiPickView();
+    showModal('jModalKurirLokasi');
+    loadKurirLokasiList();
+  }
+
+  function continueAfterLokasi() {
+    if (!kurirSelectedLokasi || !kurirSelectedLokasi.id_lokasi) {
+      toast('Pilih lokasi dulu', 'warn');
+      return;
+    }
+    hideModal('jModalKurirLokasi');
+    if (kurirPendingJenis === 'antar') {
+      var antBox = document.getElementById('jKurirAntarLokasi');
+      if (antBox) antBox.innerHTML = lokasiLabelHtml(kurirSelectedLokasi);
+      loadKurirSalesOptions();
+      showModal('jModalKurirAntar');
+      return;
+    }
+    if (kurirPendingJenis === 'jemput') {
+      var jemBox = document.getElementById('jKurirJemputLokasi');
+      if (jemBox) jemBox.innerHTML = lokasiLabelHtml(kurirSelectedLokasi);
+      showModal('jModalKurirJemput');
+    }
   }
 
   function renderKurirSales(orders) {
@@ -572,11 +794,16 @@
 
   function submitKurirSameday(jenis, ids, btn) {
     if (kurirBusy) return;
+    if (!kurirSelectedLokasi || !kurirSelectedLokasi.id_lokasi) {
+      toast('Pilih lokasi dulu', 'warn');
+      return;
+    }
     kurirBusy = true;
     if (btn) btn.disabled = true;
 
     var body = new URLSearchParams();
     body.set('jenis', jenis);
+    body.set('id_lokasi', String(kurirSelectedLokasi.id_lokasi));
     (ids || []).forEach(function (id) {
       body.append('ids[]', id);
     });
@@ -600,16 +827,11 @@
           throw new Error((data && data.message) || 'Gagal mengirim permintaan');
         }
         toast(data.message || 'Permintaan dikirim', 'ok');
-        var antarModal = document.getElementById('jModalKurirAntar');
-        var jemputModal = document.getElementById('jModalKurirJemput');
-        if (antarModal && window.bootstrap) {
-          var a = bootstrap.Modal.getInstance(antarModal);
-          if (a) a.hide();
-        }
-        if (jemputModal && window.bootstrap) {
-          var j = bootstrap.Modal.getInstance(jemputModal);
-          if (j) j.hide();
-        }
+        hideModal('jModalKurirAntar');
+        hideModal('jModalKurirJemput');
+        hideModal('jModalKurirLokasi');
+        kurirSelectedLokasi = null;
+        kurirPendingJenis = '';
         loadPage('kurir', '', false);
       })
       .catch(function (err) {
@@ -621,28 +843,94 @@
       });
   }
 
+  function saveKurirLokasi(btn) {
+    var nama = String((document.getElementById('jLokasiNama') || {}).value || '').trim();
+    var detail = String((document.getElementById('jLokasiDetail') || {}).value || '').trim();
+    var latt = parseFloat((document.getElementById('jLokasiLatt') || {}).value || '');
+    var longt = parseFloat((document.getElementById('jLokasiLongt') || {}).value || '');
+    if (!nama) { toast('Isi nama lokasi', 'warn'); return; }
+    if (!detail) { toast('Isi detail alamat', 'warn'); return; }
+    if (isNaN(latt) || isNaN(longt)) { toast('Set titik di peta dulu', 'warn'); return; }
+
+    if (btn) btn.disabled = true;
+    var body = new URLSearchParams();
+    body.set('nama', nama);
+    body.set('detail', detail);
+    body.set('latt', String(latt));
+    body.set('longt', String(longt));
+
+    fetch(base + 'J/kurirLokasiAdd/' + pelangganId, {
+      method: 'POST',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      credentials: 'same-origin',
+      body: body.toString()
+    })
+      .then(function (res) {
+        return res.json().catch(function () {
+          throw new Error('Respons tidak valid');
+        });
+      })
+      .then(function (data) {
+        if (!data || !data.ok) {
+          throw new Error((data && data.message) || 'Gagal menyimpan lokasi');
+        }
+        toast(data.message || 'Lokasi disimpan', 'ok');
+        kurirSelectedLokasi = data.lokasi || null;
+        renderKurirLokasiList(data.list || [], kurirSelectedLokasi && kurirSelectedLokasi.id_lokasi);
+        showLokasiPickView();
+      })
+      .catch(function (err) {
+        toast((err && err.message) || 'Gagal menyimpan lokasi', 'warn');
+      })
+      .finally(function () {
+        if (btn) btn.disabled = false;
+      });
+  }
+
   document.addEventListener('click', function (e) {
     var act = e.target.closest('.j-kurir-act');
     if (!act || !content.contains(act)) return;
     e.preventDefault();
     if (act.disabled) return;
-
     var jenis = (act.getAttribute('data-j-kurir-jenis') || '').toLowerCase();
-    if (jenis === 'antar') {
-      loadKurirSalesOptions();
-      var modalEl = document.getElementById('jModalKurirAntar');
-      if (modalEl && window.bootstrap) {
-        bootstrap.Modal.getOrCreateInstance(modalEl).show();
-      }
+    if (jenis !== 'antar' && jenis !== 'jemput') return;
+    openKurirFlow(jenis);
+  });
+
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('#jBtnKurirLokasiAdd')) {
+      e.preventDefault();
+      showLokasiFormView();
       return;
     }
-    if (jenis === 'jemput') {
-      var jemputEl = document.getElementById('jModalKurirJemput');
-      if (jemputEl && window.bootstrap) {
-        bootstrap.Modal.getOrCreateInstance(jemputEl).show();
-      } else if (window.confirm('Jemput laundry sekarang?')) {
-        submitKurirSameday('jemput', [], act);
+    if (e.target.closest('#jBtnKurirLokasiBack')) {
+      e.preventDefault();
+      showLokasiPickView();
+      return;
+    }
+    if (e.target.closest('#jBtnKurirLokasiNext')) {
+      e.preventDefault();
+      kurirSelectedLokasi = getSelectedLokasiFromList();
+      if (!kurirSelectedLokasi) {
+        toast('Pilih lokasi dulu, atau tambah lokasi baru', 'warn');
+        return;
       }
+      continueAfterLokasi();
+      return;
+    }
+    var saveBtn = e.target.closest('#jBtnKurirLokasiSave');
+    if (saveBtn) {
+      e.preventDefault();
+      saveKurirLokasi(saveBtn);
+      return;
+    }
+    if (e.target.closest('#jBtnLokasiGps')) {
+      e.preventDefault();
+      initKurirMapThenLocate();
+      return;
     }
   });
 
@@ -668,6 +956,15 @@
     e.preventDefault();
     submitKurirSameday('jemput', [], btn);
   });
+
+  var lokasiModal = document.getElementById('jModalKurirLokasi');
+  if (lokasiModal) {
+    lokasiModal.addEventListener('shown.bs.modal', function () {
+      if (kurirMap) {
+        setTimeout(function () { kurirMap.invalidateSize(); }, 80);
+      }
+    });
+  }
 
   var initialPage = app.getAttribute('data-page') || 'home';
   var initialExtra = app.getAttribute('data-extra') || '';

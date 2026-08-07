@@ -610,6 +610,19 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
     #dlv-root .dlv-sekalian input { margin: 0; }
     #dlv-root .dlv-sekalian-wrap { margin-top: 8px; }
     #dlv-root .dlv-sekalian-wrap[hidden] { display: none !important; }
+    #dlv-root .dlv-item__lokasi {
+      margin-top: 4px;
+      color: #0f172a;
+    }
+    #dlv-root .dlv-item__lokasi i {
+      color: #dc2626;
+      margin-right: 4px;
+    }
+    #dlv-root .dlv-item__lokasi a {
+      color: var(--dlv-blue);
+      font-weight: 800;
+      text-decoration: none;
+    }
     body.op-modal-open { overflow: hidden; }
   </style>
 
@@ -682,6 +695,14 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
                     $dateRaw = $rq['insertTime'] ?? '';
                     $dateLbl = $dateRaw !== '' ? date('d/m/y H:i', strtotime($dateRaw)) : '-';
                     $pillClass = $jenis === 'antar' ? 'dlv-jenis-pill--antar' : 'dlv-jenis-pill--jemput';
+                    $lokNama = trim((string) ($rq['lokasi_nama'] ?? ''));
+                    $lokDetail = trim((string) ($rq['lokasi_detail'] ?? ''));
+                    $lokLatt = $rq['lokasi_latt'] ?? null;
+                    $lokLongt = $rq['lokasi_longt'] ?? null;
+                    $mapsHref = '';
+                    if ($lokLatt !== null && $lokLongt !== null && (float) $lokLatt != 0.0 && (float) $lokLongt != 0.0) {
+                      $mapsHref = 'https://www.google.com/maps?q=' . rawurlencode(((float) $lokLatt) . ',' . ((float) $lokLongt));
+                    }
                   ?>
                     <div class="dlv-item dlv-item--customer dlv-item--request"
                          data-id-request="<?= $idReq ?>"
@@ -696,6 +717,18 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
                         <div class="dlv-item__meta">
                           #<?= $idReq ?> · <?= $tail ?> · <?= htmlspecialchars($dateLbl, ENT_QUOTES, 'UTF-8') ?>
                         </div>
+                        <?php if ($lokNama !== '' || $lokDetail !== '') { ?>
+                          <div class="dlv-item__meta dlv-item__lokasi">
+                            <i class="fas fa-map-marker-alt"></i>
+                            <?= htmlspecialchars($lokNama !== '' ? $lokNama : 'Lokasi', ENT_QUOTES, 'UTF-8') ?>
+                            <?php if ($lokDetail !== '') { ?>
+                              · <?= htmlspecialchars($lokDetail, ENT_QUOTES, 'UTF-8') ?>
+                            <?php } ?>
+                            <?php if ($mapsHref !== '') { ?>
+                              · <a href="<?= htmlspecialchars($mapsHref, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">Maps</a>
+                            <?php } ?>
+                          </div>
+                        <?php } ?>
                       </div>
                       <div class="dlv-item__actions">
                         <button type="button"

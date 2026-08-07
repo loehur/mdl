@@ -957,6 +957,10 @@ class Delivery extends Controller
             'kode_cabang' => $cabangMap[$idCabang] ?? ('#' . $idCabang),
             'insertTime' => $row['insertTime'] ?? '',
             'prefill_ids' => $prefillIds,
+            'lokasi_nama' => (string) ($row['lokasi_nama'] ?? ''),
+            'lokasi_detail' => (string) ($row['lokasi_detail'] ?? ''),
+            'lokasi_latt' => isset($row['lokasi_latt']) ? (float) $row['lokasi_latt'] : null,
+            'lokasi_longt' => isset($row['lokasi_longt']) ? (float) $row['lokasi_longt'] : null,
          ];
       }
       return $out;

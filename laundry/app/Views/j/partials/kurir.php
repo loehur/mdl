@@ -33,6 +33,7 @@ $hasJemput = !empty($pendingJenis['jemput']);
       $label = $jenis === 'antar' ? 'Antar' : ($jenis === 'jemput' ? 'Jemput' : strtoupper($jenis));
       $ts = strtotime($pr['insertTime'] ?? '');
       $when = $ts ? date('d M Y H:i', $ts) : '-';
+      $lokNama = trim((string) ($pr['lokasi_nama'] ?? ''));
     ?>
       <div class="j-kurir-pending-item">
         <div class="j-kurir-pending-item__ico" aria-hidden="true">
@@ -40,7 +41,7 @@ $hasJemput = !empty($pendingJenis['jemput']);
         </div>
         <div class="j-kurir-pending-item__text">
           <strong><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?> Sameday</strong>
-          <small>Menunggu driver · <?= htmlspecialchars($when, ENT_QUOTES, 'UTF-8') ?></small>
+          <small>Menunggu driver · <?= htmlspecialchars($when, ENT_QUOTES, 'UTF-8') ?><?= $lokNama !== '' ? ' · ' . htmlspecialchars($lokNama, ENT_QUOTES, 'UTF-8') : '' ?></small>
         </div>
         <span class="j-badge warn">Berjalan</span>
       </div>
@@ -148,6 +149,6 @@ $hasJemput = !empty($pendingJenis['jemput']);
   </article>
 
   <p class="j-kurir-note">
-    Antar: pilih item laundry yang siap diantar. Jemput: driver datang menjemput tanpa pilih item dulu.
+    Antar/Jemput wajib pilih lokasi. Antar: pilih item laundry. Jemput: item dipilih petugas saat selesai.
   </p>
 </section>
