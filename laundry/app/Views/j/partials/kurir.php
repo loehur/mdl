@@ -98,15 +98,15 @@ $pending = is_array($data['pendingKurir'] ?? null) ? $data['pendingKurir'] : [];
         <h3><i class="fas fa-check-circle"></i> Kelebihan</h3>
         <ul>
           <li>Lebih murah</li>
-          <li>Bisa titip laundry berikutnya tanpa biaya ekstra</li>
-          <li>Kurir cepat hafal lokasi — jarang perlu telpon atau chat</li>
+          <li>Bisa titip laundry berikutnya tanpa biaya</li>
+          <li>Order berulang, kurir hafal lokasi tanpa perlu tanya jawab lokasi lagi.</li>
         </ul>
       </div>
       <div class="j-kurir-col j-kurir-col--con">
         <h3><i class="fas fa-minus-circle"></i> Kekurangan</h3>
         <ul>
           <li>Lebih lambat — maksimal sampai hari berikutnya</li>
-          <li>Perlu ada orang di rumah (satpam/keluarga) saat jam kerja driver</li>
+          <li>Pastikan selalu ada orang di rumah (satpam/keluarga) saat jam kerja driver</li>
         </ul>
       </div>
     </div>
