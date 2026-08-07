@@ -13,21 +13,22 @@ class Kas extends Controller
       $view = 'kas/kas_main';
       $data_operasi = ['title' => 'Kas Kasir'];
 
-      //uang masuk 1 jualan, 3 member, 7 sales
-      $kredit = 0;
-      $where_kredit = $this->wCabang . " AND jenis_transaksi IN (1,3,6,7) AND jenis_mutasi = 1 AND metode_mutasi = 1 AND status_mutasi <> 4";
-      $cols_kredit = "SUM(jumlah) as jumlah";
-      $jumlah_kredit = isset($this->db(0)->get_cols_where('kas', $cols_kredit, $where_kredit, 0)['jumlah']) ? $this->db(0)->get_cols_where('kas', $cols_kredit, $where_kredit, 0)['jumlah'] : 0;
-      $kredit = $jumlah_kredit;
-
-      //uang keluar 2 penarikan, 4 pengeluaran, 5 kasbon
-      $debit = 0;
-      $where_debit = $this->wCabang . " AND jenis_transaksi IN (2, 4, 5) AND jenis_mutasi = 2 AND metode_mutasi = 1 AND status_mutasi <> 4";
-      $cols_debit = "SUM(jumlah) as jumlah";
-      $jumlah_debit = isset($this->db(0)->get_cols_where('kas', $cols_debit, $where_debit, 0)['jumlah']) ? $this->db(0)->get_cols_where('kas', $cols_debit, $where_debit, 0)['jumlah'] : 0;
-      $debit = $jumlah_debit;
-      
-      //saldo
+      // Saldo tunai: 1 query (kredit 1/3/6/7 masuk + debit 2/4/5 keluar)
+      $saldoSql = "SELECT
+         COALESCE(SUM(CASE WHEN jenis_mutasi = 1 THEN jumlah ELSE 0 END), 0) AS kredit,
+         COALESCE(SUM(CASE WHEN jenis_mutasi = 2 THEN jumlah ELSE 0 END), 0) AS debit
+         FROM kas
+         WHERE {$this->wCabang}
+         AND metode_mutasi = 1
+         AND status_mutasi <> 4
+         AND (
+            (jenis_transaksi IN (1,3,6,7) AND jenis_mutasi = 1)
+            OR (jenis_transaksi IN (2,4,5) AND jenis_mutasi = 2)
+         )";
+      $saldoRow = $this->db(0)->query_array($saldoSql);
+      $row = (is_array($saldoRow) && isset($saldoRow[0])) ? $saldoRow[0] : [];
+      $kredit = (int) ($row['kredit'] ?? 0);
+      $debit = (int) ($row['debit'] ?? 0);
       $saldo = $kredit - $debit;
 
       $limit = 10;
@@ -37,24 +38,43 @@ class Kas extends Controller
 
       $where = $this->wCabang . " AND jenis_transaksi IN (2, 4) AND jenis_mutasi = 2 ORDER BY insertTime DESC LIMIT $limit";
       $debit_list = $this->db(0)->get_where('kas', $where);
+      if (!is_array($debit_list)) {
+         $debit_list = [];
+      }
 
       //KASBON
       $where = $this->wCabang . " AND jenis_transaksi = 5 AND jenis_mutasi = 2 AND status_mutasi = 3 ORDER BY insertTime DESC LIMIT 25";
       $kasbon = $this->db(0)->get_where('kas', $where);
+      if (!is_array($kasbon)) {
+         $kasbon = [];
+      }
 
-      $dataPotong = array();
+      // Status potong gaji: 1 query batch (bukan N+1 per kasbon)
+      $dataPotong = [];
+      $refs = [];
       foreach ($kasbon as $k) {
          $ref = $k['id_kas'];
          $dataPotong[$ref] = 0;
+         $refs[] = "'" . $this->db(0)->escape($ref) . "'";
+      }
 
-         $where = "ref = '" . $ref . "' AND tipe = 2";
-         $countPotong = $this->db(0)->get_where('gaji_result', $where);
-         if (count($countPotong) > 0) {
-            foreach ($countPotong as $cp) {
-               if (($cp['tgl'] == substr($k['insertTime'], 0, 7) && $k['id_client'] == $cp['id_karyawan'])) {
-                  $dataPotong[$ref] = 1;
-                  continue;
-               }
+      if (count($refs) > 0) {
+         $potongSql = "SELECT ref, tgl, id_karyawan FROM gaji_result WHERE tipe = 2 AND ref IN (" . implode(',', $refs) . ")";
+         $potongRows = $this->db(0)->query_array($potongSql);
+         if (!is_array($potongRows)) {
+            $potongRows = [];
+         }
+
+         $potongMap = [];
+         foreach ($potongRows as $cp) {
+            $key = $cp['ref'] . '|' . $cp['tgl'] . '|' . $cp['id_karyawan'];
+            $potongMap[$key] = true;
+         }
+
+         foreach ($kasbon as $k) {
+            $key = $k['id_kas'] . '|' . substr($k['insertTime'], 0, 7) . '|' . $k['id_client'];
+            if (isset($potongMap[$key])) {
+               $dataPotong[$k['id_kas']] = 1;
             }
          }
       }
