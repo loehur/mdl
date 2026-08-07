@@ -1563,6 +1563,9 @@ class J extends Controller
       $res = $api->rates($payload);
       if (empty($res['ok'])) {
          $msg = (string) ($res['error'] ?? $res['message'] ?? 'Gagal mengambil tarif Instant');
+         if (stripos($msg, 'biteship') !== false || stripos($msg, 'api_key') !== false) {
+            $msg = 'Layanan Instant sementara tidak tersedia. Coba lagi nanti.';
+         }
          echo json_encode([
             'ok' => false,
             'message' => $msg,
@@ -1572,7 +1575,7 @@ class J extends Controller
       if (empty($res['rates']) || !is_array($res['rates'])) {
          echo json_encode([
             'ok' => false,
-            'message' => 'Tidak ada kurir Instant dari Biteship untuk rute ini. Cek API key / area coverage.',
+            'message' => 'Tidak ada kurir Instant untuk rute ini saat ini. Coba lagi nanti.',
          ], JSON_UNESCAPED_UNICODE);
          return;
       }
@@ -1686,7 +1689,7 @@ class J extends Controller
       if (empty($ratesRes['ok']) || empty($ratesRes['rates']) || !is_array($ratesRes['rates'])) {
          echo json_encode([
             'ok' => false,
-            'message' => $ratesRes['message'] ?? 'Gagal verifikasi tarif Instant dari Biteship',
+            'message' => $ratesRes['message'] ?? 'Gagal memuat tarif Instant. Coba lagi.',
          ], JSON_UNESCAPED_UNICODE);
          return;
       }
@@ -1711,7 +1714,7 @@ class J extends Controller
       }
       $ongkirBiteship = (int) ($matched['price'] ?? 0);
       if ($ongkirBiteship < 1000) {
-         echo json_encode(['ok' => false, 'message' => 'Tarif Biteship tidak valid']);
+         echo json_encode(['ok' => false, 'message' => 'Tarif Instant tidak valid']);
          return;
       }
       // Kunci ke harga Biteship; abaikan ongkir client jika beda

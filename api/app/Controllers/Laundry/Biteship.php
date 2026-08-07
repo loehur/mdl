@@ -73,9 +73,13 @@ class Biteship extends Controller
             $client = new BiteshipClient();
             $res = $client->getRates($payload);
             if (empty($res['success']) && empty($res['pricing'])) {
-                $msg = (string) ($res['message'] ?? $res['error'] ?? 'Gagal mengambil tarif Biteship');
+                $msg = (string) ($res['message'] ?? $res['error'] ?? 'Gagal mengambil tarif kurir');
                 if (stripos($msg, 'authorization') !== false || stripos($msg, 'unauthorized') !== false) {
-                    $msg = 'Biteship auth gagal — cek BITESHIP_API_KEY di Env API';
+                    $msg = 'Layanan Instant sementara tidak tersedia. Coba lagi nanti.';
+                    \Log::write('Biteship rates auth failed — check BITESHIP_API_KEY', 'api', 'Biteship');
+                }
+                if (stripos($msg, 'BITESHIP_API_KEY') !== false) {
+                    $msg = 'Layanan Instant sementara tidak tersedia. Coba lagi nanti.';
                 }
                 http_response_code(502);
                 echo json_encode([

@@ -571,7 +571,7 @@
   var kurirInstantPoll = null;
 
   function layananLabel() {
-    return kurirPendingLayanan === 'instant' ? 'Instant' : 'Sameday';
+    return kurirPendingLayanan === 'instant' ? 'Instant (Gojek/Grab)' : 'Sameday (Kurir Laundry)';
   }
 
   function jenisHintText(jenis) {
@@ -688,7 +688,7 @@
     if (btn) btn.disabled = true;
     if (!box) return;
     if (!rates || !rates.length) {
-      box.innerHTML = '<div class="j-kurir-sales-empty">Tidak ada kurir Instant tersedia untuk rute ini.</div>';
+            box.innerHTML = '<div class="j-kurir-sales-empty">Tidak ada kurir Instant tersedia untuk rute ini.</div>';
       return;
     }
     box.innerHTML = rates
@@ -896,7 +896,7 @@
       var disabled = blocked ? ' disabled' : '';
       var cls = 'j-kurir-lokasi-item' + (blocked ? ' is-disabled' : '');
       var tarifHtml = '';
-      // Tarif jarak (AntarTarif) hanya untuk Sameday — Instant pakai rate Biteship
+      // Tarif jarak hanya untuk Sameday — Instant pakai tarif Gojek/Grab
       if (kurirPendingLayanan !== 'instant' && lok.tarif != null && lok.tarif !== '') {
         var kmTxt = (lok.km != null && lok.km !== '')
           ? (Number(lok.km).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' km')
@@ -911,8 +911,8 @@
         tarifHtml =
           '<span class="j-kurir-lokasi-item__tarif">' +
             '<span class="j-kurir-lokasi-item__tarif-label">Ongkir</span>' +
-            '<strong>via Instant</strong>' +
-            '<small>cek di langkah berikutnya</small>' +
+            '<strong>Gojek/Grab</strong>' +
+            '<small>lihat di langkah berikutnya</small>' +
           '</span>';
       }
       return '<label class="' + cls + '">' +
@@ -1111,11 +1111,7 @@
     }
     var hint = document.getElementById('jKurirJenisHint');
     if (hint) {
-      var text = jenisHintText(jenis);
-      if (kurirPendingLayanan === 'instant') {
-        text += ' Ongkir Instant diambil dari cek rate Biteship (bukan tarif Sameday).';
-      }
-      hint.textContent = text;
+      hint.textContent = jenisHintText(jenis);
     }
     showLokasiPickView();
     showModal('jModalKurirLokasi');

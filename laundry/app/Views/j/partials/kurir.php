@@ -5,14 +5,6 @@ $base = $data['base'];
 $pending = is_array($data['pendingKurir'] ?? null) ? $data['pendingKurir'] : [];
 ?>
 
-<section class="j-hero">
-  <div class="j-hero-label">Kurir</div>
-  <div class="j-hero-name">Pilih jenis kurir</div>
-  <div style="font-size:0.78rem;opacity:0.85;position:relative;z-index:1;margin-top:4px">
-    Sameday &amp; Instant siap dipesan
-  </div>
-</section>
-
 <?php if (!empty($pending)) { ?>
 <section class="j-section j-kurir-pending">
   <div class="j-section-head">
@@ -92,7 +84,7 @@ $pending = is_array($data['pendingKurir'] ?? null) ? $data['pendingKurir'] : [];
           <span class="j-badge ok">Direkomendasikan</span>
           <span class="j-badge muted">Sameday</span>
         </div>
-        <strong>Kurir Sameday</strong>
+        <strong>Sameday (Kurir Laundry)</strong>
         <small>Hemat &amp; nyaman — sampai maksimal keesokan hari</small>
       </div>
     </div>
@@ -145,8 +137,8 @@ $pending = is_array($data['pendingKurir'] ?? null) ? $data['pendingKurir'] : [];
         <div class="j-kurir-card__badges">
           <span class="j-badge warn">Instant</span>
         </div>
-        <strong>Kurir Instant</strong>
-        <small>Super cepat — biasanya tiba &lt; 2 jam · via Biteship</small>
+        <strong>Instant (Gojek/Grab)</strong>
+        <small>Super cepat — biasanya tiba &lt; 2 jam</small>
       </div>
     </div>
 
@@ -193,7 +185,6 @@ $pending = is_array($data['pendingKurir'] ?? null) ? $data['pendingKurir'] : [];
   <p class="j-kurir-note">
     <strong>Antar</strong> — Mengantar Pakaian dari Laundry ke Lokasi Anda.<br>
     <strong>Jemput</strong> — Menjemput Pakaian dari Lokasi Anda dan dikirimkan ke Laundry.<br>
-    <strong>Sameday</strong> — tarif jarak internal. <strong>Instant</strong> — ongkir wajib dari cek rate Biteship.<br>
-    Antar: item yang sudah/sedang diantar tidak bisa dipilih lagi. Jemput: lokasi yang masih ada jemput berjalan tidak bisa dipilih lagi.
+    <strong>Instant</strong> — ongkir sesuai tarif Gojek/Grab.
   </p>
 </section>
