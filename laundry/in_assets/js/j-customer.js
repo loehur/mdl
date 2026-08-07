@@ -597,21 +597,42 @@
     var detail = document.getElementById('jLokasiDetail');
     if (nama) nama.value = '';
     if (detail) detail.value = '';
-    initKurirMapThenLocate();
+    // Tunggu layout form terlihat dulu — kalau map diinit saat hidden, tiles/pin bergeser
+    setTimeout(function () {
+      initKurirMapThenLocate();
+    }, 50);
   }
 
   function setKurirMapMarker(lat, lng) {
     if (!kurirMap || typeof L === 'undefined') return;
-    if (kurirMarker) kurirMap.removeLayer(kurirMarker);
-    kurirMarker = L.marker([lat, lng], { draggable: true }).addTo(kurirMap);
-    kurirMarker.on('dragend', function () {
-      var p = kurirMarker.getLatLng();
-      document.getElementById('jLokasiLatt').value = String(p.lat);
-      document.getElementById('jLokasiLongt').value = String(p.lng);
-    });
+    if (kurirMarker) {
+      kurirMarker.setLatLng([lat, lng]);
+    } else {
+      kurirMarker = L.marker([lat, lng], { draggable: true }).addTo(kurirMap);
+      kurirMarker.on('dragend', function () {
+        var p = kurirMarker.getLatLng();
+        document.getElementById('jLokasiLatt').value = String(p.lat);
+        document.getElementById('jLokasiLongt').value = String(p.lng);
+      });
+    }
     document.getElementById('jLokasiLatt').value = String(lat);
     document.getElementById('jLokasiLongt').value = String(lng);
-    kurirMap.setView([lat, lng], 16);
+  }
+
+  function syncKurirMapView(lat, lng, zoom) {
+    if (!kurirMap) return;
+    zoom = typeof zoom === 'number' ? zoom : 16;
+    // invalidateSize dulu, baru setView — mencegah offset/geser
+    kurirMap.invalidateSize(true);
+    setKurirMapMarker(lat, lng);
+    kurirMap.setView([lat, lng], zoom, { animate: false });
+    // Pass kedua setelah reflow modal/bootstrap
+    setTimeout(function () {
+      if (!kurirMap) return;
+      kurirMap.invalidateSize(true);
+      kurirMap.setView([lat, lng], zoom, { animate: false });
+      if (kurirMarker) kurirMarker.setLatLng([lat, lng]);
+    }, 180);
   }
 
   function ensureKurirMap(lat, lng) {
@@ -622,20 +643,20 @@
     var el = document.getElementById('jKurirMap');
     if (!el) return;
     if (!kurirMap) {
-      kurirMap = L.map(el, { center: [lat, lng], zoom: 15 });
+      kurirMap = L.map(el, {
+        center: [lat, lng],
+        zoom: 15,
+        zoomControl: true
+      });
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap'
+        attribution: '&copy; OpenStreetMap',
+        maxZoom: 19
       }).addTo(kurirMap);
       kurirMap.on('click', function (ev) {
-        setKurirMapMarker(ev.latlng.lat, ev.latlng.lng);
+        syncKurirMapView(ev.latlng.lat, ev.latlng.lng, kurirMap.getZoom());
       });
-    } else {
-      kurirMap.setView([lat, lng], 15);
     }
-    setKurirMapMarker(lat, lng);
-    setTimeout(function () {
-      if (kurirMap) kurirMap.invalidateSize();
-    }, 120);
+    syncKurirMapView(lat, lng, 16);
   }
 
   function setMapHint(text) {
@@ -665,7 +686,7 @@
       function () {
         useDefaultMapPoint('Izin lokasi ditolak · default kota cabang');
       },
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
     );
   }
 
@@ -960,9 +981,12 @@
   var lokasiModal = document.getElementById('jModalKurirLokasi');
   if (lokasiModal) {
     lokasiModal.addEventListener('shown.bs.modal', function () {
-      if (kurirMap) {
-        setTimeout(function () { kurirMap.invalidateSize(); }, 80);
-      }
+      var form = document.getElementById('jKurirLokasiForm');
+      if (!kurirMap || !form || form.hidden) return;
+      var lat = parseFloat((document.getElementById('jLokasiLatt') || {}).value || '');
+      var lng = parseFloat((document.getElementById('jLokasiLongt') || {}).value || '');
+      if (isNaN(lat) || isNaN(lng)) return;
+      syncKurirMapView(lat, lng, 16);
     });
   }
 
